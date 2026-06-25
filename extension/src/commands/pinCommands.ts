@@ -12,6 +12,7 @@ import {
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
 import { telemetry } from "../exec/telemetry";
+import { tappedPins } from "../model/tappedPins";
 import {
   detectFavoritesFiles,
   importAllDetected,
@@ -58,7 +59,55 @@ function pathToCopy(store: PinStore, arg: unknown): string | undefined {
   return undefined;
 }
 
+// Whether a file exists on disk right now. The store's cached missing-set flags
+// the pin in the tree, but a click re-checks authoritatively here so a file
+// restored (or moved back) since the last refresh still opens without a stale
+// "missing" verdict.
+async function fileExists(uri: vscode.Uri): Promise<boolean> {
+  try {
+    await vscode.workspace.fs.stat(uri);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// A pin whose target file is gone: instead of letting VS Code surface a raw
+// "cannot open file" error, name the pin and offer the two useful next steps —
+// remove the dead pin, or open the folder it used to live in (to find a moved
+// file). The pin is never auto-removed: a deletion is often transient (a branch
+// switch, a regenerated artifact), and project pins are shared via the repo.
+async function handleMissingFile(
+  store: PinStore,
+  pin: Pin,
+  uri: vscode.Uri
+): Promise<void> {
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const unpin = l10n("pin.missing.unpin");
+  const reveal = l10n("pin.missing.reveal");
+  const choice = await vscode.window.showWarningMessage(
+    l10n("pin.missing.message", { name, path: pin.path }),
+    unpin,
+    reveal
+  );
+  if (choice === unpin) {
+    await store.removePin(pin);
+    // Drop any last-run badge so it does not outlive the pin.
+    runStatusRegistry.clear(pin.id);
+    vscode.window.showInformationMessage(l10n("pin.removed", { name }));
+  } else if (choice === reveal) {
+    // The file is gone, so reveal its parent folder (where it used to be) rather
+    // than the missing file itself — revealFileInOS on a non-existent path is
+    // unreliable across platforms.
+    const parent = vscode.Uri.joinPath(uri, "..");
+    await vscode.commands.executeCommand("revealFileInOS", parent);
+  }
+}
+
 async function openPin(store: PinStore, pin: Pin): Promise<void> {
+  // Opening counts as "tapping" the pin: it clears the pin from the untapped
+  // count that drives the activity-bar badge (a discovery cue for unused pins).
+  void tappedPins.mark(pin.id);
   // A non-file pin (recipe: url/shell/command/macro) must NOT run on a single
   // click — a shell or scheduled recipe is a heavy, side-effecting task. Instead,
   // a single click shows what it does and offers to run or promote it. The play
@@ -70,6 +119,10 @@ async function openPin(store: PinStore, pin: Pin): Promise<void> {
   const uri = store.resolveUri(pin);
   if (!uri) {
     vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    return;
+  }
+  if (!(await fileExists(uri))) {
+    await handleMissingFile(store, pin, uri);
     return;
   }
   await vscode.window.showTextDocument(uri, { preview: false });
@@ -124,6 +177,9 @@ async function showActionInfo(store: PinStore, pin: Pin): Promise<void> {
 }
 
 async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
+  // Running counts as "tapping" the pin (clears it from the untapped badge
+  // count), the same as opening — every run path funnels through here.
+  void tappedPins.mark(pin.id);
   // Non-file pins (recipes: url/shell/command/macro) run through the action
   // dispatcher rather than the file runner.
   if (pinKind(pin) !== "file") {
@@ -133,6 +189,12 @@ async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
   const uri = store.resolveUri(pin);
   if (!uri) {
     vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    return;
+  }
+  // A deleted target cannot run: offer Unpin / Reveal instead of failing the
+  // spawn with a cryptic shell error.
+  if (!(await fileExists(uri))) {
+    await handleMissingFile(store, pin, uri);
     return;
   }
   // A pin with no way to execute (a text doc, markdown, image — anything without

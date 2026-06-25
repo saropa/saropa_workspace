@@ -13,6 +13,7 @@ import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { processRegistry } from "./exec/processRegistry";
 import { telemetry } from "./exec/telemetry";
+import { tappedPins } from "./model/tappedPins";
 import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
 import { l10n } from "./i18n/l10n";
@@ -28,6 +29,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // every run (manual + scheduled) and the Recent group + "Run Pin..." palette can
   // read them. On-device only — nothing is transmitted (see the principle).
   telemetry.init(context);
+
+  // Bind the tapped-pin tracker (opened/run pins) used for the activity-bar badge.
+  tappedPins.init(context);
 
   // Click dispatcher: single click opens, double click runs. It carries only the
   // pin id, so callbacks look the pin back up from the store's current cache.
@@ -59,6 +63,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     showCollapseAll: true,
   });
   context.subscriptions.push(treeView);
+
+  // Activity-bar badge: the number of Pins-view pins the user has not yet opened
+  // or run ("untapped"), as a discovery cue for pins added but never used. Recipe
+  // pins live in their own Recipes view and are excluded so detected shortcuts
+  // never inflate the count. Zero shows no badge (VS Code hides an undefined
+  // badge) — the "don't show a zero" requirement. Recomputed on every store change
+  // (a new pin bumps it) and on every tap (using a pin clears it).
+  const refreshUntappedBadge = (): void => {
+    const pins = [
+      ...store.getProjectPins().filter((p) => !p.isRecipe),
+      ...store.getGlobalPins(),
+    ];
+    const untapped = pins.filter((p) => !tappedPins.has(p.id)).length;
+    treeView.badge =
+      untapped > 0
+        ? { value: untapped, tooltip: l10n("badge.untapped", { count: untapped }) }
+        : undefined;
+  };
+  context.subscriptions.push(
+    store.onDidChange(() => refreshUntappedBadge()),
+    tappedPins.onDidChange(() => refreshUntappedBadge())
+  );
 
   // Persist a group's open/closed posture so a folder stays the way the user
   // left it across sessions.
@@ -196,6 +222,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Set the initial pinned-path context keys explicitly in case the init-time
   // onDidChange fired before the subscription above was attached.
   syncPinnedPathContext(store);
+  // Paint the initial untapped badge from the loaded pin set, for the same reason.
+  refreshUntappedBadge();
 
   // Arm timers now that the initial pin set is loaded. The scheduler also re-arms
   // itself on every subsequent store change via its onDidChange subscription.

@@ -24,7 +24,11 @@ export class PinTreeItem extends vscode.TreeItem {
     isRunning: boolean,
     lastRun?: RunResult,
     isStopping = false,
-    recentInfo?: { at: number; source: RunSource }
+    recentInfo?: { at: number; source: RunSource },
+    // True when this file pin's target no longer exists on disk (computed by the
+    // store's stat pass). Drives the warning glyph + "file not found" hover; the
+    // open/run handlers re-stat at click time before acting on it.
+    missing = false
   ) {
     const kind = pinKind(pin);
     const isFile = kind === "file";
@@ -107,6 +111,11 @@ export class PinTreeItem extends vscode.TreeItem {
     } else if (nextLabel) {
       tooltipLines.push(l10n("schedule.nextRun", { time: nextLabel }));
     }
+    // A deleted/moved target is the most actionable fact about the row; surface it
+    // in the hover even when a schedule or last-run line would otherwise show.
+    if (isFile && missing && !isRunning && !isStopping) {
+      tooltipLines.push(l10n("pin.missingTooltip"));
+    }
     // Recipe pins do not run on a single click (they would fire a heavy task);
     // tell the user a single click shows details and the play button runs it.
     if (pin.isRecipe && !isRunning && !isStopping) {
@@ -125,7 +134,9 @@ export class PinTreeItem extends vscode.TreeItem {
     // vs explicit pin glyph.
     if (isRunning || isStopping) {
       this.iconPath = new vscode.ThemeIcon("loading~spin");
-    } else if (isFile && !resolvedUri) {
+    } else if (isFile && (!resolvedUri || missing)) {
+      // Unresolvable folder OR a target deleted on disk: warn, and let this win
+      // over any stale last-run badge below (a green check on a gone file misleads).
       this.iconPath = new vscode.ThemeIcon("warning");
     } else if (lastRun) {
       this.iconPath =

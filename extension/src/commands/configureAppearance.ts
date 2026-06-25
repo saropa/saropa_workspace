@@ -10,14 +10,74 @@ import { l10n } from "../i18n/l10n";
 // colors are theme-aware sources (ThemeIcon / ThemeColor), never raw literals, so
 // they render correctly in light, dark, and high-contrast themes.
 
-// Curated codicon ids offered for a pin. Kept to a useful, recognizable subset
-// rather than the full set, so the pick stays scannable. Each is a valid VS Code
-// product icon; the leading $(...) is added only for the QuickPick preview.
-const ICON_CHOICES = [
-  "rocket", "play-circle", "beaker", "bug", "tools", "wrench", "gear",
-  "terminal", "database", "cloud", "package", "server", "globe", "dashboard",
-  "checklist", "book", "flame", "zap", "star-full", "heart", "symbol-event",
-  "debug-alt", "file-code", "folder-active",
+// Curated codicon ids offered for a pin, grouped into scannable categories. A
+// single grouped QuickPick (category separators + type-to-filter) replaces the old
+// flat list — the user scans a category or types the icon name, instead of hunting
+// one long unstructured wall. Every id is a valid VS Code product icon; the leading
+// $(...) is added only for the QuickPick preview. Separators are rendered from each
+// group's label (see pickIcon).
+interface IconGroup {
+  // l10n key for the category separator label.
+  labelKey: string;
+  ids: readonly string[];
+}
+
+const ICON_GROUPS: readonly IconGroup[] = [
+  {
+    labelKey: "appearance.iconGroup.files",
+    ids: [
+      "file", "file-code", "file-binary", "file-media", "files", "code",
+      "json", "markdown", "notebook", "library", "symbol-class",
+      "symbol-method", "symbol-namespace", "symbol-variable",
+    ],
+  },
+  {
+    labelKey: "appearance.iconGroup.run",
+    ids: [
+      "rocket", "play", "play-circle", "run-all", "debug-alt", "debug-start",
+      "tools", "wrench", "gear", "settings-gear", "package", "checklist",
+      "tasklist", "beaker", "bug",
+    ],
+  },
+  {
+    labelKey: "appearance.iconGroup.source",
+    ids: [
+      "github", "git-commit", "git-branch", "git-merge", "git-pull-request",
+      "repo", "cloud", "cloud-upload", "cloud-download", "globe", "broadcast",
+      "radio-tower", "sync",
+    ],
+  },
+  {
+    labelKey: "appearance.iconGroup.data",
+    ids: [
+      "database", "server", "server-process", "server-environment", "terminal",
+      "terminal-bash", "terminal-powershell", "output", "debug-console", "vm",
+      "plug",
+    ],
+  },
+  {
+    labelKey: "appearance.iconGroup.status",
+    ids: [
+      "pass", "error", "warning", "info", "bell", "shield", "lock", "unlock",
+      "verified", "flame", "zap", "pulse", "thumbsup", "heart", "star-full",
+    ],
+  },
+  {
+    labelKey: "appearance.iconGroup.shapes",
+    ids: [
+      "circle-filled", "circle-large-filled", "primitive-square", "sparkle",
+      "star-empty", "star-half", "color-mode", "symbol-color", "paintcan",
+      "graph", "dashboard",
+    ],
+  },
+  {
+    labelKey: "appearance.iconGroup.objects",
+    ids: [
+      "book", "bookmark", "tag", "milestone", "target", "telescope", "key",
+      "mail", "calendar", "clock", "history", "home", "organization", "person",
+      "account", "location", "map", "mortar-board", "trophy", "gift",
+    ],
+  },
 ];
 
 // Curated theme-color ids that exist across built-in themes (the chart palette),

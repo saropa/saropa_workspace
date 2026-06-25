@@ -246,7 +246,9 @@ export class PinsTreeProvider
       this.store.resolveUri(pin),
       processRegistry.isRunning(pin.id),
       runStatusRegistry.get(pin.id),
-      processRegistry.isStopping(pin.id)
+      processRegistry.isStopping(pin.id),
+      undefined,
+      this.store.isMissing(pin.id)
     );
   }
 
@@ -258,7 +260,8 @@ export class PinsTreeProvider
       processRegistry.isRunning(pin.id),
       runStatusRegistry.get(pin.id),
       processRegistry.isStopping(pin.id),
-      { at: record.at, source: record.source }
+      { at: record.at, source: record.source },
+      this.store.isMissing(pin.id)
     );
   }
 

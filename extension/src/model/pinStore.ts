@@ -9,6 +9,7 @@ import {
   PROJECT_PINS_VERSION,
   PROJECT_FILE_RELATIVE,
   emptyProjectPinsFile,
+  pinKind,
 } from "./pin";
 import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
@@ -98,6 +99,21 @@ function isGlobPattern(pattern: string): boolean {
   return /[*?{}[\]]/.test(pattern);
 }
 
+// True when two id sets hold exactly the same members. Used to skip a redundant
+// tree repaint when a refresh leaves the missing-file set unchanged (the common
+// case), since the stat pass runs after every refresh.
+function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const value of a) {
+    if (!b.has(value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export class PinStore {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
@@ -125,6 +141,17 @@ export class PinStore {
   // Monotonic token; a recipe-detection run discards itself if a newer refresh
   // has started (prevents a stale async result clobbering current state).
   private recipeGen = 0;
+
+  // Ids of file pins whose target no longer exists on disk. Recomputed after each
+  // refresh by statting every resolved file pin (see recomputeMissing). Consulted
+  // by the tree to flag the pin (warning glyph + "file not found" hover) and by the
+  // open/run handlers to offer Unpin / Reveal instead of a raw VS Code error. The
+  // stat pass is deferred off the first paint and only fires a repaint when the set
+  // actually changes, so a steady state costs nothing visible.
+  private missingPinIds = new Set<string>();
+  // Monotonic token mirroring recipeGen: a stat pass discards itself when a newer
+  // refresh has started, so a slow stat cannot clobber current state.
+  private missingGen = 0;
 
   // Maps a project pin id to the workspace folder that owns it, so relative
   // paths can be resolved back to absolute URIs without storing the folder on
@@ -179,6 +206,13 @@ export class PinStore {
   // them only under the Recipes section. This count drives the section header.
   getRecipePins(): Pin[] {
     return this.projectPins.filter((p) => p.isRecipe);
+  }
+
+  // True when a file pin's target was absent at the last stat pass. The tree uses
+  // this to flag the pin; click handlers re-stat at the moment of the click (the
+  // authoritative check) so a file restored since the last refresh still opens.
+  isMissing(id: string): boolean {
+    return this.missingPinIds.has(id);
   }
 
   // Look up a cached pin by id across both groups (used by the click dispatcher,
@@ -744,6 +778,45 @@ export class PinStore {
 
     // Detect recipes off the blocking path; a later fire merges them in.
     void this.seedRecipesAsync(++this.recipeGen);
+
+    // Stat file pins off the blocking path; a later fire flags any that vanished.
+    void this.recomputeMissing(++this.missingGen);
+  }
+
+  // Stat every resolved file pin and record the ones whose target is gone, so the
+  // tree can flag a deleted pin instead of letting a click hit a raw "file does not
+  // exist" error. Runs after the first paint (never blocks activation) and repaints
+  // only when the missing set changed. Recipe / url / shell / command / macro pins
+  // are skipped: they have no single file on disk. A pin whose owning folder cannot
+  // be resolved is skipped here too — that distinct state is already flagged by the
+  // tree's !resolvedUri branch, so counting it here would double-handle it.
+  private async recomputeMissing(gen: number): Promise<void> {
+    const filePins = [...this.projectPins, ...this.globalPins].filter(
+      (p) => !p.isRecipe && pinKind(p) === "file"
+    );
+    const next = new Set<string>();
+    await Promise.all(
+      filePins.map(async (pin) => {
+        const uri = this.resolveUri(pin);
+        if (!uri) {
+          return;
+        }
+        try {
+          await vscode.workspace.fs.stat(uri);
+        } catch {
+          // Absent on disk — the deleted/moved case this flag exists for.
+          next.add(pin.id);
+        }
+      })
+    );
+    // A newer refresh superseded this run while we were statting: drop the result.
+    if (gen !== this.missingGen) {
+      return;
+    }
+    if (!setsEqual(this.missingPinIds, next)) {
+      this.missingPinIds = next;
+      this._onDidChange.fire();
+    }
   }
 
   // Detect recipes for all folders in parallel, fault-isolated per folder, and

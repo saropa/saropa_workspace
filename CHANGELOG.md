@@ -27,6 +27,10 @@ cspell:disable
 
 Pop-out window fixes: running as administrator now actually opens the elevated window, and the run-settings editor no longer throws away your edits on a stray click.
 
+### Added
+
+- **A pin whose file was deleted is now flagged, and clicking it offers a fix.** When a pinned file no longer exists on disk, the pin shows a warning icon and a "file not found" hover instead of looking normal. Clicking it (to open or run) no longer hits a cryptic "cannot open file" error — instead a message names the pin and lets you **Unpin** it or **Show in Folder** to find a moved file. Pins are never removed automatically, since a missing file is often temporary (a branch switch or a regenerated build artifact).
+
 ### Fixed
 
 - **Faster startup.** The activity-bar view no longer runs two whole-workspace file searches every time the window opens. Auto-pin patterns that name an exact file (the defaults `pubspec.yaml` and `analysis_options.yaml`) are now resolved with a direct file check instead of a project-wide search, so a project that has neither no longer pays a search cost on launch.
