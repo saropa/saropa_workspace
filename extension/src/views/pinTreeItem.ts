@@ -58,11 +58,15 @@ export class PinTreeItem extends vscode.TreeItem {
           ? "pinAuto"
           : "pin";
 
+    // Tooltip shows the full target (the complete URL for a url pin), even though
+    // the row only shows the host — the hover is where the detail belongs.
     const targetLine = isFile
       ? resolvedUri
         ? resolvedUri.fsPath
         : pin.path
-      : actionSummary(pin);
+      : pin.action?.kind === "url"
+        ? pin.action.url ?? ""
+        : actionSummary(pin);
     const tooltipLines = [targetLine];
     if (isRunning) {
       tooltipLines.push(l10n("run.runningTooltip"));
@@ -172,7 +176,9 @@ function actionSummary(pin: Pin): string {
   }
   switch (action.kind) {
     case "url":
-      return action.url ?? "";
+      // Full URLs are unreadable in the narrow sidebar row; show just the host
+      // (e.g. "github.com"). The full URL stays in the hover tooltip.
+      return urlHost(action.url);
     case "shell":
       return action.shellCommand ?? "";
     case "command":
@@ -181,6 +187,19 @@ function actionSummary(pin: Pin): string {
       return l10n("action.macroSteps", { count: action.steps?.length ?? 0 });
     default:
       return pin.path;
+  }
+}
+
+// The host of a URL ("github.com") for the compact sidebar row. Falls back to the
+// raw string when it does not parse as a URL, so nothing is lost on a bad value.
+function urlHost(url: string | undefined): string {
+  if (!url) {
+    return "";
+  }
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
   }
 }
 

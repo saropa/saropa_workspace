@@ -34,6 +34,7 @@
 - Run Pin with Overrides ("Saropa Workspace: Run Pin with Overrides..."): pick a pin, then set one-off arguments, working directory, and environment (pre-filled from the stored config) for that run only - the saved pin is unchanged. Uses the shared runner; canceling any prompt runs nothing.
 
 ### Fixed
+- URL recipes now show just the host (e.g. `github.com`) in the sidebar row instead of the full, unreadable URL; the complete URL stays in the hover tooltip.
 - Recipes never finished loading in a multi-root workspace: recipe detection (filesystem probes across every folder) ran inline in the store refresh that activation awaits, so the view waited on it. Detection now runs off the blocking path, in parallel across folders, and fault-isolated - the pins render immediately and recipes stream in (or, if a detector fails, log to the output channel) without ever hanging the view.
 - Section headers (Project Pins / Global Pins) no longer show the Run, Unpin, and Rename actions: the group node's context value started with "pin" and matched the per-pin menu clauses. A header has no single file to act on.
 - Double-clicking a non-runnable pin (a text document, markdown, an image - any file with no interpreter) now opens it instead of sending the file path to the shell, and explains it has no run command. Files with an interpreter (explicit command or an extension default) still run as before.
