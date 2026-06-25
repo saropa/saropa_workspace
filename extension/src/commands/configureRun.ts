@@ -18,7 +18,7 @@ import { l10n } from "../i18n/l10n";
 
 // A QuickPickItem tagged with the hub action it represents.
 interface HubItem extends vscode.QuickPickItem {
-  id: "command" | "args" | "cwd" | "env" | "terminal" | "save";
+  id: "command" | "args" | "cwd" | "env" | "terminal" | "fileArg" | "save";
 }
 
 export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
@@ -39,6 +39,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     cwd: pin.exec?.cwd,
     env: pin.exec?.env ? { ...pin.exec.env } : undefined,
     useIntegratedTerminal: pin.exec?.useIntegratedTerminal,
+    includeFilePath: pin.exec?.includeFilePath,
   };
 
   const title = l10n("configure.title", { name });
@@ -71,6 +72,9 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
       case "terminal":
         await editTerminal(work, title);
         break;
+      case "fileArg":
+        await editFileArg(work, title);
+        break;
     }
   }
 
@@ -89,6 +93,9 @@ function normalize(work: PinExecConfig): PinExecConfig {
     cwd: work.cwd,
     env: work.env && Object.keys(work.env).length > 0 ? work.env : undefined,
     useIntegratedTerminal: work.useIntegratedTerminal,
+    // true is the default assembly, so collapse it to undefined for parity; only
+    // an explicit false (omit the file path) is meaningful to persist.
+    includeFilePath: work.includeFilePath === false ? false : undefined,
   };
 }
 
@@ -126,6 +133,14 @@ async function showHub(
       id: "terminal",
       label: l10n("configure.field.terminal"),
       description: terminalLabel(work.useIntegratedTerminal),
+    },
+    {
+      id: "fileArg",
+      label: l10n("configure.field.fileArg"),
+      description:
+        work.includeFilePath === false
+          ? l10n("configure.fileArg.off")
+          : l10n("configure.fileArg.on"),
     },
     {
       id: "save",
@@ -378,6 +393,27 @@ async function editTerminal(work: PinExecConfig, title: string): Promise<void> {
     return;
   }
   work.useIntegratedTerminal = pick.value;
+}
+
+// Toggle whether the file path is inserted into the command. Off suits run
+// targets that name their work in args (an npm script, a Make target) where the
+// file is the package.json / Makefile in cwd, not an argument.
+async function editFileArg(work: PinExecConfig, title: string): Promise<void> {
+  interface FileArgItem extends vscode.QuickPickItem {
+    value: boolean;
+  }
+  const items: FileArgItem[] = [
+    { label: l10n("configure.fileArg.on"), value: true },
+    { label: l10n("configure.fileArg.off"), value: false },
+  ];
+  const pick = await vscode.window.showQuickPick(items, {
+    title,
+    placeHolder: l10n("configure.fileArg.placeholder"),
+  });
+  if (!pick) {
+    return;
+  }
+  work.includeFilePath = pick.value;
 }
 
 // Split a command-line string into args, honoring double-quoted spans so an

@@ -17,6 +17,13 @@ export interface PinExecConfig {
   // Run in the integrated terminal (visible) vs a background output channel.
   // Undefined = follow the defaultUseIntegratedTerminal setting.
   useIntegratedTerminal?: boolean;
+  // Whether the target file path is inserted between the command and the args.
+  // Undefined/true = the default "<command> <file> <args>" assembly. False omits
+  // the file, for run targets that name their work in args instead — an npm
+  // script (`npm run build`) or a Make target (`make test`) where the file is the
+  // package.json / Makefile in cwd, not an argument. Added with run-target
+  // inference (7.5); absent on older pins, which keep the file-included default.
+  includeFilePath?: boolean;
 }
 
 // Phase 1 scheduling is defined in the model so stored pins are forward-compatible

@@ -81,6 +81,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (older files gain an empty group list; no pin data is lost). Auto-pins stay at
   the top level (they are recomputed, not stored), and dragging is within a
   single scope.
+- Run-target inference: pinning a `package.json` offers its `scripts` to run via
+  the detected package manager (npm, pnpm, yarn, or bun, chosen from the
+  lockfile); pinning a Makefile offers its targets via `make <target>`; pinning a
+  shebang script offers "run directly". The chosen target is written as the pin's
+  run config; a file with no target (or pressing Escape) leaves the pin at its
+  default behavior. A new "Pass file path to command" toggle in Configure Run
+  controls whether the file path is inserted into the command — off for npm/Make
+  targets that run from arguments against the working directory.
 
 ### Fixed
 

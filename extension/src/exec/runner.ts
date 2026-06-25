@@ -100,9 +100,14 @@ export function planRun(pin: Pin, uri: vscode.Uri): RunPlan {
   const name = pin.label ?? path.basename(fsPath);
 
   // Assemble: <prefix> "<file>" <args...>. A blank prefix runs the file directly.
-  const parts = [prefix, quote(fsPath), ...args.map(quote)].filter(
-    (p) => p.length > 0
-  );
+  // includeFilePath === false omits the file entirely (npm-script / Make-target
+  // run configs name their work in args and run against cwd, not the file path).
+  const includeFile = pin.exec?.includeFilePath !== false;
+  const parts = [
+    prefix,
+    ...(includeFile ? [quote(fsPath)] : []),
+    ...args.map(quote),
+  ].filter((p) => p.length > 0);
   const commandLine = parts.join(" ");
 
   const useTerminal =

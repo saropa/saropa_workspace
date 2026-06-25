@@ -89,6 +89,13 @@ export class PinStore {
     );
   }
 
+  // Find a cached pin in a scope by its resolved file path. Used right after a
+  // pin is added, to attach an inferred run config to the pin just created.
+  findPinByUri(uri: vscode.Uri, scope: PinScope): Pin | undefined {
+    const list = scope === "global" ? this.globalPins : this.projectPins;
+    return list.find((p) => this.resolveUri(p)?.fsPath === uri.fsPath);
+  }
+
   // Resolve a pin to a concrete file URI. Project pins are relative to their
   // owning folder; global pins are absolute fsPaths.
   resolveUri(pin: Pin): vscode.Uri | undefined {

@@ -15,6 +15,7 @@ import {
 } from "../import/favoritesImport";
 import { configureRun } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
+import { detectRunTargets, RunTarget } from "../exec/runTargets";
 import { l10n } from "../i18n/l10n";
 
 // Menu/command invocations hand us either a PinTreeItem (context menus, inline
@@ -62,9 +63,48 @@ async function pinUri(store: PinStore, uri: vscode.Uri, scope: PinScope): Promis
   const added = await store.addPin(uri, scope);
   if (added) {
     vscode.window.showInformationMessage(l10n("pin.added", { name }));
+    // Offer inferred run targets (npm scripts, Make targets, a shebang) so the
+    // pin runs the right thing without the user typing a command (7.5).
+    await offerRunTarget(store, uri, scope, name);
   } else {
     vscode.window.showInformationMessage(l10n("pin.alreadyPinned", { name }));
   }
+}
+
+// After a file is pinned, detect run targets within it and, if any exist, let the
+// user pick one to write as the pin's run config. Esc/dismiss leaves the pin with
+// no run config (today's interpreter-default behavior) — the offer never blocks.
+async function offerRunTarget(
+  store: PinStore,
+  uri: vscode.Uri,
+  scope: PinScope,
+  name: string
+): Promise<void> {
+  const targets = await detectRunTargets(uri);
+  if (targets.length === 0) {
+    return;
+  }
+  type TargetItem = vscode.QuickPickItem & { target: RunTarget };
+  const items: TargetItem[] = targets.map((t) => ({
+    label: t.label,
+    detail: t.detail,
+    target: t,
+  }));
+  const pick = await vscode.window.showQuickPick(items, {
+    title: l10n("runTarget.title", { name }),
+    placeHolder: l10n("runTarget.placeholder"),
+  });
+  if (!pick) {
+    return;
+  }
+  const pin = store.findPinByUri(uri, scope);
+  if (!pin) {
+    return;
+  }
+  await store.updatePinExec(pin, pick.target.exec);
+  vscode.window.showInformationMessage(
+    l10n("runTarget.applied", { name, target: pick.label.replace(/^\$\([^)]*\)\s*/, "") })
+  );
 }
 
 function activeFileUri(): vscode.Uri | undefined {
