@@ -126,6 +126,11 @@ export interface Pin {
   // The recipe that produced this pin (stable across reloads), used for sticky
   // removal, restore, and de-duplication. Carried by recipe pins only.
   recipeId?: string;
+  // Human description of what a recipe does and what it was detected from. Shown
+  // on the single-click detail modal and the tree hover, so the catalog prose
+  // lives in the product (surfaced on click) rather than only in the plan doc.
+  // Carried by recipe pins; persists verbatim so a promoted recipe keeps it.
+  description?: string;
   exec?: PinExecConfig;
   schedule?: PinSchedule;
   // Optional tree-icon override: a VS Code product-icon (codicon) id WITHOUT the

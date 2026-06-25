@@ -29,6 +29,7 @@
   "command.stopPin.title": "Stop",
   "command.forceKillPin.title": "Force Kill",
   "command.configureRun.title": "Configure Run...",
+  "command.simulateRun.title": "Simulate Run...",
   "command.configureSchedule.title": "Configure Schedule...",
   "command.configureAppearance.title": "Set Icon & Color...",
   "command.renamePin.title": "Rename",

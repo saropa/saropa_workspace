@@ -1099,6 +1099,7 @@ export class PinStore {
         scope: "project",
         isRecipe: true,
         recipeId: r.recipeId,
+        description: r.description,
         action: r.action,
         schedule: r.schedule,
         icon: r.icon,
@@ -1155,6 +1156,7 @@ export class PinStore {
       schedule: pin.schedule,
       icon: pin.icon,
       color: pin.color,
+      description: pin.description,
       order: file.pins.length,
     });
     await this.writeProjectFile(folder, file);

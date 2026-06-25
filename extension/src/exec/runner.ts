@@ -454,8 +454,10 @@ function firstWorkspacePath(): string | undefined {
 
 // Expand recipe-time tokens that are not file-scoped: $workspaceRoot, plus the
 // date stamps used by report paths. $stamp is filesystem-safe (YYYY.MM.DD_HHmmss)
-// for report file names; $date is YYYY-MM-DD for headings.
-function expandRecipeTokens(value: string): string {
+// for report file names; $date is YYYY-MM-DD for headings. Exported so the dry-run
+// audit (simulateRun) resolves a recipe's shell/cwd the same way an actual run does,
+// from this single source of truth rather than a second copy.
+export function expandRecipeTokens(value: string): string {
   const root = firstWorkspacePath() ?? "";
   const now = new Date();
   const pad = (n: number): string => String(n).padStart(2, "0");

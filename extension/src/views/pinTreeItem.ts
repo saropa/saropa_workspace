@@ -103,7 +103,12 @@ export class PinTreeItem extends vscode.TreeItem {
       : pin.action?.kind === "url"
         ? pin.action.url ?? ""
         : actionSummary(pin);
-    const tooltipLines = [targetLine];
+    // A recipe's description (what it does + what it was detected from) leads the
+    // hover so the catalog prose is one mouse-over away, with the concrete target
+    // on the next line. Stored/file pins have no description and start at target.
+    const tooltipLines = pin.description
+      ? [pin.description, targetLine]
+      : [targetLine];
     if (isStopping) {
       tooltipLines.push(l10n("run.stoppingTooltip"));
     } else if (isRunning) {

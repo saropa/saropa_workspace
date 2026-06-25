@@ -31,9 +31,10 @@ raises a sticky toast when it finds something. Several can coexist, each with it
 own thresholds, scope, and auto-generated name.
 
 Cutting across all of the above — **Sensory feedback** (section I, recipe 64) — is
-an opt-in audio (and, where the platform allows, haptic) cue on event start and/or
-finish, so a long run, a scheduled ritual, or a hygiene scan announces itself
-without the user watching the panel.
+an opt-in audio cue on event start and/or finish, so a long run, a scheduled
+ritual, or a hygiene scan announces itself without the user watching the panel.
+(A haptic variant was split out as infeasible today — no first-party VS Code
+extension API — to [deferred/HAPTIC_EVENT_CUES.md](deferred/HAPTIC_EVENT_CUES.md).)
 
 This is the catalog and the design intent. It feeds the roadmap item
 **Non-file run targets** (a pin may be a URL or a VS Code command id, not only a
@@ -415,7 +416,7 @@ stamp) plus a `findings` array — each entry the `path`, `kind`
 `sizeBytes` / `childCount`, and the `threshold` it breached — so the artifact is
 diffable run-to-run and attachable to a cleanup task.
 
-## I. Sensory feedback (audio & haptic event cues)
+## I. Sensory feedback (audio event cues)
 
 A cross-cutting, **opt-in** layer (not a pin): play a short cue when a pin action,
 a scheduled ritual, or a hygiene scan **starts** and/or **finishes**, so a
@@ -425,22 +426,22 @@ toast stays; the cue is an additional, dismissible channel.
 
 | # | Recipe | Kind | What it does |
 |---|--------|------|--------------|
-| 64 | **Event cues (audio / haptic)** | setting + per-pin override | A global toggle plus per-event choices — **on start**, **on finish (success)**, **on finish (failure)** — that emit a short audio cue (and a haptic pulse where the platform supports one). Distinct success / failure cues let the outcome be heard, not read. Off by default; per-pin override so only the jobs you care about chime. |
+| 64 | **Event cues (audio)** | setting + per-pin override | A global toggle plus per-event choices — **on start**, **on finish (success)**, **on finish (failure)** — that emit a short audio cue. Distinct success / failure cues let the outcome be heard, not read. Off by default; per-pin override so only the jobs you care about chime. |
 
-**Open feasibility questions (resolve before building).**
+**Open feasibility question (resolve before building).** The audio playback path
+in a VS Code extension — a hidden webview's `Audio`, an OS sound helper, or the
+editor's own sound-cues / accessibility-signal surface — is the implementation
+choice to settle; record it here as the decision, do not assume one.
 
-- **Audio** is the straightforward half: a short bundled sound asset played on the
-  event. The exact playback path in a VS Code extension (a hidden webview's
-  `Audio`, an OS sound helper, or the editor's own sound cues/accessibility-signal
-  surface) is the implementation choice to settle — record it here as the decision,
-  do not assume one.
-- **Haptics** have **no first-party VS Code extension API**; delivering a haptic
-  pulse would require an OS-level integration and only lands on hardware that
-  exposes one. Treat haptics as **exploratory** — confirm the platform path before
-  promising it; ship audio first, gate haptics behind capability detection.
+The cue respects the user's environment: a single mute toggle, volume from the OS,
+and no cue while a "Do Not Disturb" / focus mode is active where that state is
+readable.
 
-Both respect the user's environment: a single mute toggle, volume from the OS, and
-no cue while a "Do Not Disturb" / focus mode is active where that state is readable.
+> A **haptic** variant of this recipe was considered and moved out as infeasible
+> today (no first-party VS Code extension API for haptics) — it lives in
+> [deferred/HAPTIC_EVENT_CUES.md](deferred/HAPTIC_EVENT_CUES.md) with its re-entry
+> condition. Audio reuses the same start/finish event hooks, so the haptic layer
+> can graduate back onto them if the platform ever exposes the API.
 
 ---
 
@@ -469,7 +470,7 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
 | **Shared dashboard webview** (local-only, CSP + nonce, `--vscode-*` themed; tabs for live bars, sparklines, sortable grids) | 53–54, plus roadmap 3.3 analytics and the trend reports #30–32 | new item — Phase 3 "Dashboard webview"; the one justified webview surface |
 | **Recursive hygiene scanner** (explicit user-run crawl of a chosen scope; empty/oversized detection; per-instance thresholds + scope; auto-generated name; dated JSON report) | 63 | new item — distinct from the no-crawl detector; can reuse the scheduled-pin machinery |
 | **Sticky toast** (non-auto-dismissing notification carrying an issue count + an Open-report action) | 63 | extends the notification surface |
-| **Sensory feedback** (opt-in audio cue on event start/finish, success/failure distinct; haptics where the platform exposes them) | 64 (cross-cutting) | new item — exploratory for haptics; audio first |
+| **Sensory feedback** (opt-in audio cue on event start/finish, success/failure distinct) | 64 (cross-cutting) | new item — audio only; haptic variant deferred (no API) to `deferred/HAPTIC_EVENT_CUES.md` |
 
 ---
 
@@ -505,7 +506,8 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
    then optionally promote it onto the section E scheduler for periodic passes.
 9. **Sensory feedback** (64) — cross-cutting and last, since it hooks the
    start/finish events that the run, scheduled, and scan machinery already emit.
-   Ship audio first; gate haptics behind platform-capability detection.
+   Audio only; the haptic variant is deferred (no platform API) in
+   `deferred/HAPTIC_EVENT_CUES.md`.
 
 ---
 

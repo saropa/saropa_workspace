@@ -45,10 +45,6 @@ Here are 10 more "WOW" features that build on Saropa's local-first, frictionless
 **The Pain:** Switching from local development to testing staging data means manually renaming `.env.staging` to `.env`, or editing 15 variables by hand, then changing them back later.
 **The WOW:** If Saropa detects multiple `.env.*` files, it creates an "Environment Context" pin group. It renders as a simple radio-button list (`( ) local  (x) staging  ( ) prod`). Clicking one instantly swaps your active `.env` file under the hood. Your dev servers automatically restart with the new config.
 
-### 11. "Dry Run" / Audit Mode
-**The Pain:** A senior dev shared a massive 6-step Macro pin with you. It uses `$workspaceRoot`, `${prompt:Target}`, and custom environment variables. You are terrified to double-click it because you don't know exactly what it will execute on your machine.
-**The WOW:** Right-click -> **"Simulate Run"**. Instead of executing, Saropa opens a clean Markdown preview. It evaluates every token, answers prompts virtually, and prints the *exact* final shell commands, paths, and environment variables that *would* be executed, allowing you to audit complex routines safely.
-
 ### 12. Smart "Fix-It" Extractors
 **The Pain:** A script fails, and the terminal output says: *"Missing dependency. Run `npm install lodash` to fix."* You have to highlight the text, copy it, paste it, and run it.
 **The WOW:** Saropa monitors background run outputs for common actionable regex patterns. If a run fails but emits a known fix command, a temporary **"Quick Fix"** pin slides into the top of the sidebar. One click executes the exact command the terminal suggested.

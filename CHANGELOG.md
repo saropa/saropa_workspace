@@ -29,6 +29,7 @@ Pop-out window fixes: running as administrator now actually opens the elevated w
 
 ### Added
 
+- **Simulate Run — audit exactly what a pin will do before you run it.** Right-click any pin and choose **Simulate Run** to open a read-only preview of the exact command line, working directory, run location, and environment variables a real run would use — with `$workspaceRoot`/`$file` tokens already resolved and any `${prompt:…}`/`${pick:…}` questions answered virtually. Nothing is executed, so you can safely inspect a shared macro or a complex run config before double-clicking it. Recipes (open-a-URL, run-a-command, multi-step macros) show what each step would do.
 - **A pin whose file was deleted is now flagged, and clicking it offers a fix.** When a pinned file no longer exists on disk, the pin shows a warning icon and a "file not found" hover instead of looking normal. Clicking it (to open or run) no longer hits a cryptic "cannot open file" error — instead a message names the pin and lets you **Unpin** it or **Show in Folder** to find a moved file. Pins are never removed automatically, since a missing file is often temporary (a branch switch or a regenerated build artifact).
 - **A badge on the activity-bar icon counts pins you haven't used yet.** The Saropa Workspace icon shows the number of pinned items you have not yet opened or run, so newly added pins are easy to notice. Opening or running a pin clears it from the count, and the badge disappears once you've used everything (it never shows a zero).
 

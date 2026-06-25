@@ -9,6 +9,7 @@ import { SuggestionTracker } from "./views/suggestions";
 import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
+import { registerSimulationPreview } from "./commands/simulateRun";
 import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { processRegistry } from "./exec/processRegistry";
@@ -161,6 +162,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   registerTerminalCleanup(context);
+  registerSimulationPreview(context);
   registerPinCommands(context, store, dispatcher);
   // Helper commands invoked by "command" recipes (set up .env, open config files,
   // copy version, run nearest script).

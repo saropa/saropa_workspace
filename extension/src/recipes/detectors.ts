@@ -18,6 +18,10 @@ export interface RecipeResult {
   // removal and de-duplication survive reloads.
   recipeId: string;
   label: string;
+  // What the recipe does and what it was detected from, surfaced on the
+  // single-click detail modal and the tree hover. The label is the short row
+  // text; this is the fuller explanation a user reads before running it.
+  description?: string;
   icon?: string;
   color?: string;
   // Optional schedule (the scheduled-ritual recipes set this).
@@ -148,6 +152,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "github.home",
       label: `Open ${remote.repo} on ${hostName(remote)}`,
+      description: `Opens the repository home page on ${hostName(remote)}. Derived from the origin remote in .git/config, so it is correct per clone without hand-typing a URL.`,
       icon: "github",
       color: "charts.purple",
       action: url(remote.webBase),
@@ -157,12 +162,14 @@ export async function detectOnDemandRecipes(
       out.push({
         recipeId: "github.branch",
         label: `Open branch ${branch}`,
+        description: `Opens the current branch (${branch}) on the remote's web view. Derived from the origin remote and the checked-out HEAD.`,
         icon: "git-branch",
         action: url(branchUrl(remote, branch)),
       });
       out.push({
         recipeId: "github.pr",
         label: `Open a pull request for ${branch}`,
+        description: `Opens the "new pull request / merge request" page pre-filled with the current branch (${branch}). Derived from the origin remote and HEAD.`,
         icon: "git-pull-request",
         action: url(compareUrl(remote, branch)),
       });
@@ -170,12 +177,16 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "github.issues",
       label: "Open Issues",
+      description: "Opens the project's issue tracker on the remote. Derived from the origin remote in .git/config.",
       icon: "issues",
       action: url(issuesUrl(remote)),
     });
     out.push({
       recipeId: "ci",
       label: remote.host === "gitlab" ? "Open Pipelines" : "Open CI / Actions",
+      description: remote.host === "gitlab"
+        ? "Opens the GitLab pipelines page for this project. Host-aware, derived from the origin remote."
+        : "Opens the CI / Actions page for this project. Host-aware (GitHub Actions / GitLab pipelines), derived from the origin remote.",
       icon: "pulse",
       action: url(ciUrl(remote)),
     });
@@ -183,6 +194,7 @@ export async function detectOnDemandRecipes(
       out.push({
         recipeId: "releases",
         label: "Open Releases",
+        description: "Opens the releases page on the remote. Derived from the origin remote in .git/config.",
         icon: "tag",
         action: url(
           remote.host === "gitlab"
@@ -199,6 +211,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "deployed",
       label: "Open the deployed site",
+      description: "Opens the live deployed site. Detected from the package.json homepage field (an http(s) URL).",
       icon: "globe",
       color: "charts.blue",
       action: url(homepage),
@@ -213,6 +226,7 @@ export async function detectOnDemandRecipes(
       out.push({
         recipeId: "store",
         label: "Open the Marketplace listing",
+        description: "Opens this extension's Visual Studio Marketplace page. Detected from the package.json publisher and name.",
         icon: "extensions",
         action: url(
           `https://marketplace.visualstudio.com/items?itemName=${publisher}.${name}`
@@ -222,6 +236,7 @@ export async function detectOnDemandRecipes(
       out.push({
         recipeId: "registry",
         label: "Open the npm package page",
+        description: "Opens this package's page on npm. Detected from the package.json name (only when the package is not marked private).",
         icon: "package",
         action: url(`https://www.npmjs.com/package/${name}`),
       });
@@ -233,6 +248,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "registry.pub",
       label: "Open the pub.dev page",
+      description: "Opens this package's page on pub.dev. Detected from the name field in pubspec.yaml.",
       icon: "package",
       action: url(`https://pub.dev/packages/${pubName}`),
     });
@@ -242,6 +258,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "registry.pypi",
       label: "Open the PyPI page",
+      description: "Opens this project's page on PyPI. Detected from the name in pyproject.toml.",
       icon: "package",
       action: url(`https://pypi.org/project/${pyName}`),
     });
@@ -254,6 +271,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "docs",
       label: "Open the docs site",
+      description: "Opens the project's documentation site. Detected from the site_url field in mkdocs.yml.",
       icon: "book",
       action: url(siteUrl.replace(/['"]/g, "")),
     });
@@ -268,6 +286,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "entry",
       label: "Open the entry point",
+      description: `Opens the application's entry file (${entry}). Detected from the package.json main/module, or the conventional entry path for the project's language.`,
       icon: "symbol-event",
       filePath: entry,
     });
@@ -279,6 +298,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "env.setup",
       label: "Set up your .env",
+      description: "Copies .env.example to a new .env (never overwriting an existing one), then opens it. Offered only when .env.example is present and .env is missing.",
       icon: "gear",
       action: {
         kind: "command",
@@ -292,6 +312,7 @@ export async function detectOnDemandRecipes(
   out.push({
     recipeId: "config.open",
     label: "Open all config files",
+    description: "Opens every recognized config file present in the folder root (tsconfig, eslint, prettier, analysis_options, vite, Makefile, docker-compose, and more) in one action.",
     icon: "settings-gear",
     action: {
       kind: "command",
@@ -315,6 +336,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "boot",
       label: "Start working (boot sequence)",
+      description: "A macro that opens the README, starts the dev server, and (when a port is known) opens localhost — one action to bring the project up. Detected from the README plus the project's dev command.",
       icon: "rocket",
       color: "charts.green",
       action: { kind: "macro", steps },
@@ -327,6 +349,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "localhost",
       label: `Open localhost:${port}`,
+      description: `Opens http://localhost:${port} in the browser. Port detected from vite config, an .env PORT, docker-compose ports, or the framework default.`,
       icon: "browser",
       action: url(`http://localhost:${port}`),
     });
@@ -337,6 +360,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "copy.version",
       label: "Copy project name@version",
+      description: "Writes the project's name@version to the clipboard with a confirming toast. Read from package.json, pubspec.yaml, Cargo.toml, or pyproject.toml.",
       icon: "tag",
       action: {
         kind: "command",
@@ -351,6 +375,7 @@ export async function detectOnDemandRecipes(
     out.push({
       recipeId: "nearest.script",
       label: "Run a package script",
+      description: "Finds the package.json nearest the active file, lists its scripts in a picker, and runs the chosen one in a terminal. Detected from a package.json carrying a scripts block.",
       icon: "play-circle",
       action: {
         kind: "command",
@@ -401,7 +426,7 @@ async function pushRunTargets(
   // 9 dev server
   const dev = await detectDevCommand(folder, pkg);
   if (dev) {
-    out.push({ recipeId: "dev", label: "Start dev server", icon: "debug-start", color: "charts.green", action: shell(folder, dev) });
+    out.push({ recipeId: "dev", label: "Start dev server", description: `Runs the project's dev/watch command (${dev}). Detected from package.json scripts.dev/start, a Django manage.py, or a Flutter project.`, icon: "debug-start", color: "charts.green", action: shell(folder, dev) });
   }
 
   // 10 tests
@@ -413,7 +438,7 @@ async function pushRunTargets(
     : isPy ? "pytest"
     : undefined;
   if (test) {
-    out.push({ recipeId: "test", label: "Run tests", icon: "beaker", action: shell(folder, test) });
+    out.push({ recipeId: "test", label: "Run tests", description: `Runs the project's test suite (${test}). Detected from the test runner for the ecosystem (npm test, dart test, go test, cargo test, pytest).`, icon: "beaker", action: shell(folder, test) });
   }
 
   // 11 lint
@@ -425,7 +450,7 @@ async function pushRunTargets(
     : isPy && ((await exists(folder, "ruff.toml")) || /\[tool\.ruff\]/.test((await readText(folder, "pyproject.toml")) ?? "")) ? "ruff check ."
     : undefined;
   if (lint) {
-    out.push({ recipeId: "lint", label: "Lint", icon: "checklist", action: shell(folder, lint) });
+    out.push({ recipeId: "lint", label: "Lint", description: `Runs the project's linter (${lint}). Detected from the lint config for the ecosystem (eslint, dart/flutter analyze, golangci-lint, clippy, ruff).`, icon: "checklist", action: shell(folder, lint) });
   }
 
   // 12 build
@@ -436,7 +461,7 @@ async function pushRunTargets(
     : (await exists(folder, "Makefile")) && /(\n|^)build:/.test((await readText(folder, "Makefile")) ?? "") ? "make build"
     : undefined;
   if (build) {
-    out.push({ recipeId: "build", label: "Build", icon: "tools", action: shell(folder, build) });
+    out.push({ recipeId: "build", label: "Build", description: `Runs the project's build command (${build}). Detected from package.json scripts.build, a Makefile build target, cargo, or flutter.`, icon: "tools", action: shell(folder, build) });
   }
 
   // 13 install deps
@@ -450,25 +475,25 @@ async function pushRunTargets(
     : isRust ? "cargo fetch"
     : undefined;
   if (install) {
-    out.push({ recipeId: "install", label: "Install dependencies", icon: "cloud-download", action: shell(folder, install) });
+    out.push({ recipeId: "install", label: "Install dependencies", description: `Installs the project's dependencies (${install}). Detected from the lockfile / manifest for the ecosystem (npm/pnpm/yarn/bun, poetry/pip, pub, go, cargo).`, icon: "cloud-download", action: shell(folder, install) });
   }
 
   // 14 typecheck
   if (await exists(folder, "tsconfig.json")) {
-    out.push({ recipeId: "typecheck", label: "Type-check", icon: "symbol-type", action: shell(folder, `${pm} exec tsc --noEmit`) });
+    out.push({ recipeId: "typecheck", label: "Type-check", description: "Runs the TypeScript type checker (tsc --noEmit). Detected from a tsconfig.json in the folder root.", icon: "symbol-type", action: shell(folder, `${pm} exec tsc --noEmit`) });
   } else if (isPy && ((await exists(folder, "mypy.ini")) || /\[tool\.mypy\]/.test((await readText(folder, "pyproject.toml")) ?? ""))) {
-    out.push({ recipeId: "typecheck", label: "Type-check", icon: "symbol-type", action: shell(folder, "mypy .") });
+    out.push({ recipeId: "typecheck", label: "Type-check", description: "Runs the Python type checker (mypy). Detected from mypy.ini or a [tool.mypy] section in pyproject.toml.", icon: "symbol-type", action: shell(folder, "mypy .") });
   }
 
   // 15 compose up
   if ((await exists(folder, "docker-compose.yml")) || (await exists(folder, "compose.yaml"))) {
-    out.push({ recipeId: "compose.up", label: "Docker compose up", icon: "server-environment", action: shell(folder, "docker compose up") });
+    out.push({ recipeId: "compose.up", label: "Docker compose up", description: "Brings the Docker Compose stack up (docker compose up). Detected from a docker-compose.yml or compose.yaml in the folder root.", icon: "server-environment", action: shell(folder, "docker compose up") });
   }
 
   // 16 db migrate
   const migrate = await detectMigrate(folder, pkg);
   if (migrate) {
-    out.push({ recipeId: "db.migrate", label: "Run database migration", icon: "database", action: shell(folder, migrate) });
+    out.push({ recipeId: "db.migrate", label: "Run database migration", description: `Runs the database migration (${migrate}). Detected from Prisma, Alembic, Drizzle, or Rails markers.`, icon: "database", action: shell(folder, migrate) });
   }
 }
 

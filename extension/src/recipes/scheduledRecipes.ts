@@ -76,6 +76,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.lint",
       label: "Dawn lint sweep",
+      description: "Scheduled (daily, default 05:00): runs the project's linter unattended into a background channel and writes a dated report under reports/, so the project's health is known before the day starts. Seeds disabled — enable it by promoting the recipe to a stored pin. Detected from the analyzer/linter config for the ecosystem.",
       icon: "checklist",
       color: "charts.yellow",
       schedule: daily("05:00"),
@@ -89,6 +90,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.stats",
       label: "Sunrise project stats",
+      description: "Scheduled (daily, default 06:00): captures a git activity summary (recent commits and contributor shortlog) into a dated report under reports/ and opens it, a dashboard waiting each morning. Seeds disabled. Detected from a git repository.",
       icon: "dashboard",
       color: "charts.blue",
       schedule: daily("06:00"),
@@ -104,6 +106,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.standup",
       label: "Standup digest (since yesterday)",
+      description: "Scheduled (daily, default 08:30): writes and opens a dated report of your commits and touched files from the last 24 hours — your standup, pre-written. Seeds disabled. Detected from a git repository.",
       icon: "comment-discussion",
       schedule: daily("08:30"),
       action: report(
@@ -118,6 +121,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.eod",
       label: "End-of-day uncommitted guard",
+      description: "Scheduled (daily, default 18:00): writes and opens a dated summary of every uncommitted / untracked file so nothing is lost overnight. Seeds disabled. Detected from a git repository.",
       icon: "warning",
       color: "charts.orange",
       schedule: daily("18:00"),
@@ -133,6 +137,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.debt",
       label: "Tech-debt harvest",
+      description: "Scheduled (daily, default 16:00): scans tracked files for TODO / FIXME / HACK / XXX markers and writes an opened, dated report — debt you can see growing or shrinking. Seeds disabled. Detected from a git repository.",
       icon: "flame",
       schedule: daily("16:00"),
       action: report(
@@ -147,6 +152,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.branches",
       label: "Branch hygiene",
+      description: "Scheduled (daily, default 09:00): writes a dated report of local branches already merged into the default branch (safe to delete) and their tracking state — nothing is deleted automatically. Seeds disabled. Detected from a git repository.",
       icon: "git-branch",
       schedule: daily("09:00"),
       action: report(
@@ -161,6 +167,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.journal",
       label: "Dev journal",
+      description: "Scheduled (daily, default 17:30): appends today's commits and touched files to a running journal under reports/ — an effortless, durable record of what shipped. Seeds disabled. Detected from a git repository.",
       icon: "book",
       schedule: daily("17:30"),
       action: report(
@@ -178,6 +185,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.deps",
       label: "Dependency freshness",
+      description: "Scheduled (daily, default 07:00): writes a dated report of what is behind latest plus the audit/advisory summary for the ecosystem — the staleness and security picture in one file. Seeds disabled. Detected from the lockfile / manifest.",
       icon: "cloud-download",
       schedule: daily("07:00"),
       action: report(folder, deps, "reports/$stamp_deps.md", false),
@@ -190,6 +198,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.tests",
       label: "Test trend tracker",
+      description: "Scheduled (daily, default 05:30): runs the test suite unattended into a channel and writes a dated report under reports/. Seeds disabled. Detected from the project's test runner.",
       icon: "beaker",
       schedule: daily("05:30"),
       action: report(folder, test, "reports/$stamp_tests.txt", false),
@@ -202,6 +211,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.prs",
       label: "PR review queue",
+      description: "Scheduled (daily, default 09:00): writes and opens a dated report of the PRs awaiting your review, so the queue finds you. Requires the gh CLI. Seeds disabled. Detected from a GitHub remote.",
       icon: "git-pull-request",
       schedule: daily("09:00"),
       action: report(

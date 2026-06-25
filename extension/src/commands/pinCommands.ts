@@ -23,6 +23,7 @@ import {
 import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { configureAppearance } from "./configureAppearance";
+import { simulateRun } from "./simulateRun";
 import { detectRunTargets, RunTarget } from "../exec/runTargets";
 import { l10n } from "../i18n/l10n";
 
@@ -158,7 +159,12 @@ async function showActionInfo(store: PinStore, pin: Pin): Promise<void> {
   const scheduled = pin.schedule?.atTime
     ? l10n("recipe.info.scheduled", { time: pin.schedule.atTime })
     : "";
-  const detail = describeAction(pin) + (scheduled ? `\n\n${scheduled}` : "");
+  // Lead the modal with the recipe's own description (what it does + what it was
+  // detected from) when present, so the catalog prose is surfaced on click; the
+  // concrete action line and any schedule note follow it.
+  const detail = [pin.description, describeAction(pin), scheduled]
+    .filter((part) => Boolean(part))
+    .join("\n\n");
 
   const run = l10n("recipe.info.run");
   const promote = l10n("recipe.info.promote");
@@ -618,6 +624,17 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureRun(store, pin);
+    }
+  });
+
+  // Dry-run audit: show the exact command/cwd/env/location a run would use, in a
+  // read-only Markdown preview, without executing anything. Available on every pin
+  // kind (file, recipe, auto) since auditing a shared macro before running it is
+  // the point.
+  reg("saropaWorkspace.simulateRun", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await simulateRun(store, pin);
     }
   });
 
