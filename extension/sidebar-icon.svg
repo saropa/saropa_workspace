@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Referee-whistle silhouette (CC0 baseline, openclipart 188941). -->
+  <!-- Whistle chamber. -->
+  <circle cx="11.5" cy="14" r="6.5" />
+  <!-- Mouthpiece tube off the upper-right of the chamber. Outline only: both
+       endpoints sit on the chamber circle (14,8) and (17.5,11.5), so the
+       chamber arc closes the tube base and no stroke crosses the body. The lip
+       nub is omitted here because at 24px it renders as sub-pixel noise; it is
+       kept only in the larger marketplace tile. -->
+  <path d="M14 8 H20 a1.5 1.5 0 0 1 1.5 1.5 V10 a1.5 1.5 0 0 1 -1.5 1.5 H17.5" />
+  <!-- Lanyard ring on the left of the chamber. -->
+  <circle cx="3.4" cy="14" r="1.9" />
+  <!-- Sound hole. -->
+  <circle cx="11.5" cy="14" r="1.4" fill="currentColor" stroke="none" />
+</svg>
