@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { Pin } from "../model/pin";
 import { processRegistry } from "./processRegistry";
+import { buildTokenMap, expandTokens } from "./tokens";
 import { l10n } from "../i18n/l10n";
 
 // Builds and launches the command for a pin. Phase 1 supports the integrated
@@ -50,18 +51,28 @@ export interface RunPlan {
   env: Record<string, string> | undefined;
   name: string;
   useTerminal: boolean;
+  // $names that appeared in the command/args/cwd but are not recognized tokens.
+  // Left literal in the command; surfaced once by runPin so they are not blanked
+  // silently (a literal $name may also be an intentional shell variable).
+  unknownTokens: string[];
 }
 
 // Resolve a pin + target into a concrete RunPlan. Pure of side effects so both
 // runPin and the scheduler's log line share one assembly path.
 export function planRun(pin: Pin, uri: vscode.Uri): RunPlan {
   const fsPath = uri.fsPath;
-  const prefix = resolveCommandPrefix(pin, fsPath);
-  const args = pin.exec?.args ?? [];
-  const cwd =
-    pin.exec?.cwd ??
-    vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath ??
-    path.dirname(fsPath);
+  const workspaceRoot = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
+
+  // Expand placeholder tokens in the command, each arg, and a custom cwd before
+  // assembly/quoting, so a substituted path with spaces is quoted as one arg.
+  const tokens = buildTokenMap(fsPath, workspaceRoot);
+  const unknown = new Set<string>();
+
+  const prefix = expandTokens(resolveCommandPrefix(pin, fsPath), tokens, unknown);
+  const args = (pin.exec?.args ?? []).map((a) => expandTokens(a, tokens, unknown));
+  const cwd = pin.exec?.cwd
+    ? expandTokens(pin.exec.cwd, tokens, unknown)
+    : workspaceRoot ?? path.dirname(fsPath);
 
   const name = pin.label ?? path.basename(fsPath);
 
@@ -77,7 +88,14 @@ export function planRun(pin: Pin, uri: vscode.Uri): RunPlan {
       .getConfiguration("saropaWorkspace")
       .get<boolean>("defaultUseIntegratedTerminal", true);
 
-  return { commandLine, cwd, env: pin.exec?.env, name, useTerminal };
+  return {
+    commandLine,
+    cwd,
+    env: pin.exec?.env,
+    name,
+    useTerminal,
+    unknownTokens: [...unknown],
+  };
 }
 
 // Lazily create (and reuse) the shared output channel. Shared so scheduled-run
@@ -91,6 +109,16 @@ export function getOutputChannel(): vscode.OutputChannel {
 
 export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
   const plan = planRun(pin, uri);
+
+  // Note unrecognized $tokens once so they are visibly left literal rather than
+  // silently dropped (acceptance 2.4).
+  if (plan.unknownTokens.length > 0) {
+    getOutputChannel().appendLine(
+      l10n("run.unknownTokens", {
+        tokens: plan.unknownTokens.map((t) => `$${t}`).join(", "),
+      })
+    );
+  }
 
   vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
 

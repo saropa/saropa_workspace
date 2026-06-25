@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   action, and terminated (with their child process tree on Windows) when
   stopped. The stop is logged to the output channel. Integrated-terminal runs
   remain managed by the terminal.
+- Run-command placeholder tokens: a pin's command, arguments, and working
+  directory may use `$workspaceRoot`, `$dir`, `$file`, `$fileName`, and
+  `$fileNameWithoutExt`, expanded at run time (quoting preserved for paths with
+  spaces). A command with no tokens behaves exactly as before. Unknown `$name`
+  placeholders are left literal and noted once in the output channel.
 
 ### Changed
 
