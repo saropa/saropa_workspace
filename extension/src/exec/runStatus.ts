@@ -38,6 +38,13 @@ class RunStatusRegistry {
     return this.last.get(pinId);
   }
 
+  // Snapshot of every recorded result this session, keyed by pin id. Read by the
+  // run-analytics summary to show the session's success / failure split. Returns a
+  // copied array so a caller cannot mutate the registry's backing map.
+  entries(): Array<[string, RunResult]> {
+    return [...this.last.entries()];
+  }
+
   // Drop a pin's result, e.g. when the pin is removed so a stale badge does not
   // outlive it.
   clear(pinId: string): void {

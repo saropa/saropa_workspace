@@ -10,9 +10,12 @@ import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerSimulationPreview } from "./commands/simulateRun";
+import { registerRunAnalytics } from "./commands/runAnalytics";
 import { registerRunOutputDiff } from "./commands/diffRuns";
 import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
+import { Heartbeat } from "./exec/heartbeat";
+import { registerProcessMonitorCommands } from "./exec/processMonitorCommands";
 import { processRegistry } from "./exec/processRegistry";
 import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
@@ -171,6 +174,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   registerTerminalCleanup(context);
   registerSimulationPreview(context);
+  registerRunAnalytics(context);
   registerRunOutputDiff(context);
   registerPinCommands(context, store, dispatcher);
 
@@ -185,6 +189,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Helper commands invoked by "command" recipes (set up .env, open config files,
   // copy version, run nearest script).
   registerRecipeCommands(context);
+
+  // Developer process monitor (recipe book section G): the command that opens the
+  // live Saropa Dashboard webview (#60) and the grouped-snapshot command (#62).
+  registerProcessMonitorCommands(context);
 
   // Status-bar item for the soonest upcoming scheduled run; clicking it reveals
   // the pin in the tree. The reveal command lives here because it needs the tree
@@ -225,6 +233,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // every timer is cleared on deactivation (no orphaned timers leak).
   const scheduler = new Scheduler(store);
   context.subscriptions.push(scheduler);
+
+  // Toolchain heartbeat (#61): a setting-gated background sampler that appends to
+  // reports/process-trend.csv and toasts only when a tool crosses a RAM / helper
+  // ceiling. Off by default; it self-arms from its own setting. Disposable so its
+  // timer is cleared on deactivation.
+  context.subscriptions.push(new Heartbeat());
 
   // Background process registry: kill any still-running background runs on
   // deactivation so they do not outlive the extension.

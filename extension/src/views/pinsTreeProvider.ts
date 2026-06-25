@@ -3,6 +3,7 @@ import { Pin, PinGroup, PinScope } from "../model/pin";
 import { MoveTarget, PinStore } from "../model/pinStore";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
+import { dependencyState } from "../exec/dependencies";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
 import { PinFolderItem, PinGroupItem, PinTreeItem, RecentRootItem } from "./pinTreeItem";
@@ -293,8 +294,25 @@ export class PinsTreeProvider
       processRegistry.isStopping(pin.id),
       undefined,
       this.store.isMissing(pin.id),
-      this.runCount(pin.id)
+      this.runCount(pin.id),
+      this.lockedBy(pin)
     );
+  }
+
+  // The display name of a pin's unmet run prerequisite (WOW #13), or undefined when
+  // the pin is cleared to run. The provider repaints on runStatusRegistry changes, so
+  // a pin unlocks the moment its prerequisite succeeds.
+  private lockedBy(pin: Pin): string | undefined {
+    const { pendingDependencyId } = dependencyState(pin, (id) =>
+      this.store.findPin(id)
+    );
+    if (!pendingDependencyId) {
+      return undefined;
+    }
+    const dep = this.store.findPin(pendingDependencyId);
+    return dep
+      ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
+      : pendingDependencyId;
   }
 
   // A Recent-group entry: the same pin node, tagged with when/how it last ran.

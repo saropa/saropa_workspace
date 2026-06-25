@@ -33,10 +33,6 @@ Here are 10 more "WOW" features that build on Saropa's local-first, frictionless
 **The Pain:** Switching from local development to testing staging data means manually renaming `.env.staging` to `.env`, or editing 15 variables by hand, then changing them back later.
 **The WOW:** If Saropa detects multiple `.env.*` files, it creates an "Environment Context" pin group. It renders as a simple radio-button list (`( ) local  (x) staging  ( ) prod`). Clicking one instantly swaps your active `.env` file under the hood. Your dev servers automatically restart with the new config.
 
-### 13. Visual Run Dependencies (The Chain Reaction)
-**The Pain:** You double-click the "Deploy" pin before the "Build" pin has finished, causing the deployment to fail with half-baked assets.
-**The WOW:** You can set a `dependsOn` field in a pin's run config. The "Deploy" pin appears visually locked (grayed out with a padlock icon) until the "Build" pin is run and returns a success exit code in the current session. 
-
 ### 15. The Git Conflict Command Center
 **The Pain:** You rebase, and suddenly you have 8 files with conflicts. The native source control view is okay, but managing the "open, find conflict, test, mark resolved" loop requires jumping all over the UI.
 **The WOW:** The moment your repo enters a conflicted state, a dynamic **"Active Conflicts"** group appears at the very top of Saropa Workspace. It pins all conflicted files, plus a special macro pin: *"Accept Current for All & Continue"*. The moment the rebase finishes, the group vanishes.

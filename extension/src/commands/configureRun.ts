@@ -27,6 +27,7 @@ interface HubItem extends vscode.QuickPickItem {
     | "elevated"
     | "fileArg"
     | "extract"
+    | "dependsOn"
     | "save";
 }
 
@@ -68,6 +69,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     elevated: pin.exec?.elevated,
     includeFilePath: pin.exec?.includeFilePath,
     extractResult: pin.exec?.extractResult,
+    dependsOn: pin.exec?.dependsOn,
   };
 
   const title = l10n("configure.title", { name });
@@ -75,7 +77,10 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
   // Hub loop: show the field summary, dispatch to the chosen sub-editor, repeat.
   // Returns out of the function on Save (persist) or Esc (discard).
   for (;;) {
-    const choice = await showHub(work, title);
+    const depName = work.dependsOn
+      ? resolveDepName(store, work.dependsOn)
+      : undefined;
+    const choice = await showHub(work, title, depName);
     if (!choice) {
       // Esc at the hub: discard the working copy and write nothing (canceling
       // leaves the persisted config untouched).
@@ -108,6 +113,9 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
         break;
       case "extract":
         await editExtract(work, title);
+        break;
+      case "dependsOn":
+        await editDependsOn(work, title, store, pin);
         break;
     }
   }
@@ -142,12 +150,14 @@ function normalize(work: PinExecConfig): PinExecConfig {
       work.extractResult && work.extractResult.trim() !== ""
         ? work.extractResult
         : undefined,
+    dependsOn: work.dependsOn || undefined,
   };
 }
 
 async function showHub(
   work: PinExecConfig,
-  title: string
+  title: string,
+  depName: string | undefined
 ): Promise<HubItem["id"] | undefined> {
   const items: HubItem[] = [
     {
@@ -205,6 +215,11 @@ async function showHub(
       id: "extract",
       label: l10n("configure.field.extract"),
       description: work.extractResult ?? l10n("configure.value.none"),
+    },
+    {
+      id: "dependsOn",
+      label: l10n("configure.field.dependsOn"),
+      description: depName ?? l10n("configure.value.none"),
     },
     {
       id: "save",
@@ -566,6 +581,55 @@ async function editExtract(work: PinExecConfig, title: string): Promise<void> {
     return;
   }
   work.extractResult = value.trim() === "" ? undefined : value.trim();
+}
+
+// Display name for a dependency pin id (the hub shows the prerequisite's name, not
+// its opaque id). Falls back to a placeholder when the id no longer resolves.
+function resolveDepName(store: PinStore, id: string): string {
+  const dep = store.findPin(id);
+  return dep
+    ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
+    : l10n("configure.dependsOn.unknown");
+}
+
+// Pick the pin that must succeed before this one runs (WOW #13), or clear the
+// dependency. Lists the other pins across both scopes; recipe pins are excluded
+// (they are detected shortcuts, not the user's own build steps), and the pin itself
+// cannot depend on itself.
+async function editDependsOn(
+  work: PinExecConfig,
+  title: string,
+  store: PinStore,
+  pin: Pin
+): Promise<void> {
+  interface DepItem extends vscode.QuickPickItem {
+    id?: string;
+  }
+  const items: DepItem[] = [
+    { id: undefined, label: l10n("configure.dependsOn.none") },
+  ];
+  for (const candidate of [...store.getProjectPins(), ...store.getGlobalPins()]) {
+    if (candidate.id === pin.id || candidate.isRecipe) {
+      continue;
+    }
+    items.push({
+      id: candidate.id,
+      label: candidate.label ?? (candidate.path.split("/").pop() ?? candidate.path),
+      description:
+        candidate.scope === "global"
+          ? l10n("pin.group.global")
+          : l10n("pin.group.project"),
+    });
+  }
+  const pick = await vscode.window.showQuickPick(items, {
+    title,
+    placeHolder: l10n("configure.dependsOn.placeholder"),
+    ignoreFocusOut: true,
+  });
+  if (!pick) {
+    return;
+  }
+  work.dependsOn = pick.id;
 }
 
 // Split a command-line string into args, honoring double-quoted spans so an

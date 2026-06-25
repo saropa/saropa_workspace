@@ -84,6 +84,13 @@ export interface PinExecConfig {
   // still resolve. configureRun clears this field when it writes runLocation, so
   // a re-saved pin carries only the new field (no two-source drift).
   useIntegratedTerminal?: boolean;
+  // Optional id of another pin that must have run successfully THIS SESSION before
+  // this pin will run (WOW #13). Until then the pin is shown locked in the tree and
+  // running it is blocked with an offer to run the prerequisite first. Session-scoped
+  // because run success is tracked in memory (runStatusRegistry) and a fresh window
+  // starts with nothing satisfied. A dangling id (the prerequisite was deleted) is
+  // treated as satisfied so a pin can never become permanently unrunnable.
+  dependsOn?: string;
   // Optional regular expression matched against a BACKGROUND run's combined output
   // when it finishes. The first capture group (or the whole match when there is no
   // group) is copied to the clipboard, with a toast — for pulling the one line that

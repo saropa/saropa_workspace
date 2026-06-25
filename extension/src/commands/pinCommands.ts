@@ -24,6 +24,7 @@ import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
+import { showRunAnalytics } from "./runAnalytics";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
 import { encodePinLink } from "../import/shareLink";
@@ -34,6 +35,7 @@ import {
   cloneWithResolvedTokens,
 } from "../exec/promptTokens";
 import { promptMemory } from "../exec/promptMemory";
+import { dependencyState } from "../exec/dependencies";
 import { detectRunTargets, RunTarget } from "../exec/runTargets";
 import { l10n } from "../i18n/l10n";
 
@@ -282,10 +284,43 @@ async function showActionInfo(store: PinStore, pin: Pin): Promise<void> {
   }
 }
 
+// Gate a run on the pin's prerequisite (WOW #13). Returns true when the pin may run
+// (no dependency, or it succeeded this session). When the prerequisite has not yet
+// succeeded, blocks with a warning that names it and offers to run it first, then
+// returns false so the gated pin does not run this time.
+async function ensureDependency(store: PinStore, pin: Pin): Promise<boolean> {
+  const { pendingDependencyId } = dependencyState(pin, (id) => store.findPin(id));
+  if (!pendingDependencyId) {
+    return true;
+  }
+  const dep = store.findPin(pendingDependencyId);
+  const depName = dep
+    ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
+    : pendingDependencyId;
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const runDep = l10n("depends.runAction", { dep: depName });
+  const choice = await vscode.window.showWarningMessage(
+    l10n("depends.blocked", { name, dep: depName }),
+    runDep
+  );
+  // Offer to satisfy the prerequisite now; the user re-runs the gated pin once it
+  // succeeds. Not chained automatically — the prerequisite may itself prompt, take
+  // time, or fail, and silently cascading runs would be surprising.
+  if (choice === runDep && dep) {
+    await runPinCommand(store, dep);
+  }
+  return false;
+}
+
 async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
   // Running counts as "tapping" the pin (clears it from the untapped badge
   // count), the same as opening — every run path funnels through here.
   void tappedPins.mark(pin.id);
+  // Block the run when a configured prerequisite has not succeeded this session,
+  // offering to run it first (WOW #13).
+  if (!(await ensureDependency(store, pin))) {
+    return;
+  }
   // Non-file pins (recipes: url/shell/command/macro) run through the action
   // dispatcher rather than the file runner.
   if (pinKind(pin) !== "file") {
@@ -729,6 +764,11 @@ export function registerPinCommands(
       vscode.window.showInformationMessage(l10n("telemetry.resetDone"));
     }
   });
+
+  // Open the on-demand local run-analytics summary (most-run pins, totals, the
+  // session's success/failure split, last-run times) as a read-only Markdown
+  // preview. Reads only on-device state; transmits nothing.
+  reg("saropaWorkspace.showRunAnalytics", () => showRunAnalytics(store));
 
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind

@@ -75,6 +75,13 @@ class Telemetry {
     return this.read().counts[pinId] ?? 0;
   }
 
+  // A copy of the lifetime per-pin run counts, keyed by pin id. Read by the run-
+  // analytics summary to rank most-run pins and total runs. Copied so a caller
+  // cannot mutate the stored data through the returned object.
+  counts(): Record<string, number> {
+    return { ...this.read().counts };
+  }
+
   // Record a run. Gated on enabled() so a disabled user collects nothing. Moves
   // the pin to the front of recents, refreshes its timestamp, and increments its
   // lifetime count.

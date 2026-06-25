@@ -33,7 +33,11 @@ export class PinTreeItem extends vscode.TreeItem {
     // tooltip line when greater than zero; the provider passes 0 when telemetry is
     // disabled so a turned-off user sees nothing. Reuses the count the telemetry
     // store already keeps — no separate collection path.
-    runCount = 0
+    runCount = 0,
+    // When set, the display name of the prerequisite pin that has not yet succeeded
+    // this session, so this pin is locked (WOW #13). Drives a lock glyph, a "waiting
+    // on" badge, and a tooltip line. Undefined when the pin is cleared to run.
+    lockedBy?: string
   ) {
     const kind = pinKind(pin);
     const isFile = kind === "file";
@@ -62,13 +66,21 @@ export class PinTreeItem extends vscode.TreeItem {
     const nextLabel = next !== undefined ? formatNextRun(next) : undefined;
 
     const lastRunBadge = lastRun ? formatRunBadge(lastRun) : undefined;
+    // A locked pin's "waiting on <prerequisite>" badge wins over a schedule / last-run
+    // badge while resting, since not-yet-runnable is the most actionable resting fact.
+    const lockBadge =
+      lockedBy && !isRunning && !isStopping
+        ? l10n("depends.treeBadge", { dep: lockedBy })
+        : undefined;
     const badge = isStopping
       ? l10n("run.stoppingBadge")
       : isRunning
         ? l10n("run.treeBadge")
-        : nextLabel
-          ? l10n("schedule.treeBadge", { time: nextLabel })
-          : lastRunBadge;
+        : lockBadge
+          ? lockBadge
+          : nextLabel
+            ? l10n("schedule.treeBadge", { time: nextLabel })
+            : lastRunBadge;
     // For a file pin the trailing detail is its path; for a non-file pin it is a
     // summary of what the action does (the URL, the command line, etc.).
     const detail = isFile ? pin.path : actionSummary(pin);
@@ -141,6 +153,11 @@ export class PinTreeItem extends vscode.TreeItem {
     if (pin.isRecipe && !isRunning && !isStopping) {
       tooltipLines.push(l10n("recipe.clickHint"));
     }
+    // A locked pin names the prerequisite it is waiting on, so the hover explains
+    // why running it is blocked and what to run first.
+    if (lockedBy && !isRunning && !isStopping) {
+      tooltipLines.push(l10n("depends.lockedTooltip", { dep: lockedBy }));
+    }
     // Always surface the last run in the tooltip, even when a schedule badge is
     // showing, so the most recent outcome is one hover away. A failure points at
     // the output channel (Show Output in the pin's context menu).
@@ -165,6 +182,11 @@ export class PinTreeItem extends vscode.TreeItem {
       // Unresolvable folder OR a target deleted on disk: warn, and let this win
       // over any stale last-run badge below (a green check on a gone file misleads).
       this.iconPath = new vscode.ThemeIcon("warning");
+    } else if (lockedBy) {
+      // Locked on an unmet prerequisite: a lock glyph signals "not runnable yet",
+      // winning over a stale last-run badge (a prior session's green check does not
+      // mean the dependency is satisfied now).
+      this.iconPath = new vscode.ThemeIcon("lock");
     } else if (lastRun) {
       this.iconPath =
         lastRun.outcome === "success"
