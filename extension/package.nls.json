@@ -26,6 +26,7 @@
   "command.activatePin.title": "Activate Pin",
   "command.openPin.title": "Open",
   "command.peekPin.title": "Peek",
+  "command.peekFocusedPin.title": "Peek Selected Pin",
   "command.runPin.title": "Run",
   "command.stopPin.title": "Stop",
   "command.forceKillPin.title": "Force Kill",

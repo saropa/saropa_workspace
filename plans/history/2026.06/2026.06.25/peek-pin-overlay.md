@@ -50,3 +50,18 @@ offers Unpin/Reveal instead of a raw error, consistent with open and run.
 No new runtime strings (the missing-file path reuses `pin.missingFile`). One
 manifest title added to `package.nls.json`. This repo has no machine-translation
 pipeline, so no catalog regeneration applies.
+
+### Addendum (2026-06-25): keyboard peek
+Added a keybinding so the peek gesture is reachable without the mouse, the closest
+analog to the original middle-click pitch.
+- **New command `saropaWorkspace.peekFocusedPin`** ("Peek Selected Pin"), registered
+  in `extension.ts` where the tree view handle lives. A keybinding cannot pass the
+  focused tree item, so the command reads `treeView.selection`, finds the
+  `PinTreeItem`, and delegates to `saropaWorkspace.peekPin`. No-op when nothing or a
+  non-pin row is selected.
+- **Keybinding `alt+p`** scoped to `when: focusedView == saropaWorkspace.pins`, so it
+  only fires while the Pins view is focused (no conflict during normal editing). It
+  is user-rebindable in the Keyboard Shortcuts editor.
+- Manifest: command declaration, `keybindings` contribution (new section), palette
+  `when: false`, and the `package.nls.json` title.
+- `npx tsc --noEmit` → exit 0; `node esbuild.js` → exit 0.

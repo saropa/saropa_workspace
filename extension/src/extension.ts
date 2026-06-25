@@ -4,7 +4,7 @@ import { Pin, pinKind } from "./model/pin";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import { RecipesTreeProvider } from "./views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
-import { PinFolderItem, RecentRootItem } from "./views/pinTreeItem";
+import { PinFolderItem, PinTreeItem, RecentRootItem } from "./views/pinTreeItem";
 import { SuggestionTracker } from "./views/suggestions";
 import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
@@ -185,6 +185,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         focus: true,
         expand: true,
       });
+    })
+  );
+
+  // Keyboard peek: peek the file pin currently selected in the Pins view. A
+  // keybinding cannot receive the focused tree item as an argument, so the command
+  // reads the view's selection here (where the tree view handle lives) and delegates
+  // to the shared peekPin command. No-op when nothing (or a non-pin row) is selected.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.peekFocusedPin", () => {
+      const selected = treeView.selection.find(
+        (item) => item instanceof PinTreeItem
+      );
+      if (selected instanceof PinTreeItem) {
+        void vscode.commands.executeCommand("saropaWorkspace.peekPin", selected.pin);
+      }
     })
   );
 
