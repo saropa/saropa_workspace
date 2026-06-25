@@ -105,6 +105,12 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "saropaWorkspace.newScratchpad",
+        "title": "%command.newScratchpad.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(notebook)"
+      },
+      {
         "command": "saropaWorkspace.pinActiveFile",
         "title": "%command.pinActiveFile.title%",
         "category": "%extension.displayName%",
@@ -257,6 +263,18 @@
         "icon": "$(clock)"
       },
       {
+        "command": "saropaWorkspace.configureTriggers",
+        "title": "%command.configureTriggers.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "saropaWorkspace.openPlanner",
+        "title": "%command.openPlanner.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(calendar)"
+      },
+      {
         "command": "saropaWorkspace.configureAppearance",
         "title": "%command.configureAppearance.title%",
         "category": "%extension.displayName%",
@@ -303,6 +321,12 @@
         "title": "%command.importPins.title%",
         "category": "%extension.displayName%",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "saropaWorkspace.editPinsConfig",
+        "title": "%command.editPinsConfig.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(json)"
       },
       {
         "command": "saropaWorkspace.showRunAnalytics",
@@ -476,24 +500,34 @@
           "group": "navigation@1"
         },
         {
-          "command": "saropaWorkspace.addGroup",
+          "command": "saropaWorkspace.openPlanner",
           "when": "view == saropaWorkspace.pins",
           "group": "navigation@2"
         },
         {
-          "command": "saropaWorkspace.refresh",
+          "command": "saropaWorkspace.addGroup",
           "when": "view == saropaWorkspace.pins",
           "group": "navigation@3"
         },
         {
-          "command": "saropaWorkspace.restoreAutoPins",
+          "command": "saropaWorkspace.refresh",
           "when": "view == saropaWorkspace.pins",
           "group": "navigation@4"
         },
         {
-          "command": "saropaWorkspace.pinExternalFile",
+          "command": "saropaWorkspace.restoreAutoPins",
+          "when": "view == saropaWorkspace.pins",
+          "group": "navigation@5"
+        },
+        {
+          "command": "saropaWorkspace.newScratchpad",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@0"
+        },
+        {
+          "command": "saropaWorkspace.pinExternalFile",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@1"
         },
         {
           "command": "saropaWorkspace.importFavorites",
@@ -514,6 +548,11 @@
           "command": "saropaWorkspace.importPins",
           "when": "view == saropaWorkspace.pins",
           "group": "2_share@2"
+        },
+        {
+          "command": "saropaWorkspace.editPinsConfig",
+          "when": "view == saropaWorkspace.pins",
+          "group": "2_share@3"
         },
         {
           "command": "saropaWorkspace.showOutput",
@@ -678,9 +717,14 @@
           "group": "2_edit@2"
         },
         {
-          "command": "saropaWorkspace.configureAppearance",
+          "command": "saropaWorkspace.configureTriggers",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
           "group": "2_edit@3"
+        },
+        {
+          "command": "saropaWorkspace.configureAppearance",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
+          "group": "2_edit@4"
         },
         {
           "command": "saropaWorkspace.renamePin",
@@ -819,6 +863,10 @@
         },
         {
           "command": "saropaWorkspace.configureSchedule",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.configureTriggers",
           "when": "false"
         },
         {

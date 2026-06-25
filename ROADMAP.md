@@ -248,9 +248,6 @@ committing. Not yet ordered into a phase.
 - **Filesystem operations from the tree.** Copy, paste, create, delete, and duplicate a
   pinned file directly from the Pins view (as kdcro101 Favorites offers), so the view
   doubles as a lightweight file manager for the files a user actually works with.
-- **Raw-config editability with live refresh.** Open the underlying pins JSON
-  (`.vscode/saropa-workspace.json`) for direct editing, with the tree refreshing live on
-  save — a power-user path alongside the GUI editor (as oleg-shilo and sabitovvt offer).
 - **Comments and separators in the pin list.** Allow non-pin entries — comment lines and
   visual separators — to annotate and divide a long pin list (as oleg-shilo Favorites
   Manager offers).

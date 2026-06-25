@@ -23,11 +23,14 @@ import {
 } from "../import/favoritesImport";
 import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
+import { configureTriggers } from "./configureTriggers";
 import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
 import { showRunAnalytics } from "./runAnalytics";
 import { configureBootSequence, runBootSequence } from "./bootSequence";
 import { exportPinSet, importPinSet } from "./pinSetExport";
+import { editPinsConfig } from "./editConfig";
+import { newScratchpad } from "./scratchpad";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
 import { encodePinLink } from "../import/shareLink";
@@ -935,6 +938,15 @@ export function registerPinCommands(
   reg("saropaWorkspace.exportPins", () => exportPinSet(store));
   reg("saropaWorkspace.importPins", () => importPinSet(store));
 
+  // Open the raw project pins JSON for direct editing; the file watcher in
+  // activate() refreshes the tree live when it is saved.
+  reg("saropaWorkspace.editPinsConfig", () => editPinsConfig());
+
+  // Open a throwaway in-memory scratch buffer (WOW #6): an untitled doc that never
+  // touches disk and never shows in git status. No store interaction — it is a pure
+  // editor action — so it takes no pin/store argument.
+  reg("saropaWorkspace.newScratchpad", () => newScratchpad());
+
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind
   // by a human-friendly reference instead of an opaque id:
@@ -1143,6 +1155,13 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureSchedule(store, pin);
+    }
+  });
+
+  reg("saropaWorkspace.configureTriggers", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await configureTriggers(store, pin);
     }
   });
 

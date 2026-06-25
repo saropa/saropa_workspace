@@ -302,6 +302,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
   );
 
+  // Live refresh on a hand-edited pins config: watch every folder's
+  // .vscode/saropa-workspace.json and re-read it into the tree when it changes on
+  // disk (the power-user path alongside the GUI editors). The store's OWN writes
+  // also trip the watcher, so refreshes are debounced to coalesce the write-then-
+  // notify burst into a single repaint rather than refreshing twice per edit.
+  const configWatcher = vscode.workspace.createFileSystemWatcher(
+    "**/.vscode/saropa-workspace.json"
+  );
+  const debouncedConfigRefresh = makeDebounced(() => void store.refresh(), 150);
+  context.subscriptions.push(
+    configWatcher,
+    configWatcher.onDidChange(debouncedConfigRefresh),
+    configWatcher.onDidCreate(debouncedConfigRefresh),
+    configWatcher.onDidDelete(debouncedConfigRefresh)
+  );
+
   await store.init();
   // Set the initial pinned-path context keys explicitly in case the init-time
   // onDidChange fired before the subscription above was attached.
@@ -361,6 +377,19 @@ async function handlePinImportUri(
       ? l10n("share.import.done", { name })
       : l10n("share.import.noFolder")
   );
+}
+
+// Coalesce rapid calls into one trailing call after `delayMs` of quiet. Used by
+// the pins-config watcher so the store's write-then-notify burst (and a flurry of
+// editor saves) triggers a single refresh, not one per filesystem event.
+function makeDebounced(fn: () => void, delayMs: number): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(fn, delayMs);
+  };
 }
 
 // Run every runnable file pin whose target is the just-saved file and which has
