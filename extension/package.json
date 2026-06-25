@@ -287,6 +287,18 @@
         "icon": "$(graph)"
       },
       {
+        "command": "saropaWorkspace.configureBootSequence",
+        "title": "%command.configureBootSequence.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "saropaWorkspace.runBootSequence",
+        "title": "%command.runBootSequence.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(run-all)"
+      },
+      {
         "command": "saropaWorkspace.showOutput",
         "title": "%command.showOutput.title%",
         "category": "%extension.displayName%",
@@ -387,6 +399,12 @@
         "command": "saropaWorkspace.recipe.snapshotProcesses",
         "title": "%command.recipe.snapshotProcesses.title%",
         "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.recipe.runHygieneScan",
+        "title": "%command.recipe.runHygieneScan.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(search)"
       }
     ],
     "submenus": [
@@ -477,6 +495,11 @@
           "command": "saropaWorkspace.resetRunHistory",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@5"
+        },
+        {
+          "command": "saropaWorkspace.configureBootSequence",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@6"
         },
         {
           "command": "saropaWorkspace.restoreRecipes",
@@ -958,6 +981,47 @@
             "default": 200,
             "minimum": 10,
             "description": "%config.processMonitor.helperCountCeiling.description%"
+          },
+          "saropaWorkspace.hygiene.mode": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "oversized",
+              "both"
+            ],
+            "default": "both",
+            "description": "%config.hygiene.mode.description%"
+          },
+          "saropaWorkspace.hygiene.fileMaxMB": {
+            "type": "number",
+            "default": 100,
+            "minimum": 1,
+            "description": "%config.hygiene.fileMaxMB.description%"
+          },
+          "saropaWorkspace.hygiene.folderMaxMB": {
+            "type": "number",
+            "default": 1024,
+            "minimum": 1,
+            "description": "%config.hygiene.folderMaxMB.description%"
+          },
+          "saropaWorkspace.hygiene.fileMinMB": {
+            "type": "number",
+            "default": 0,
+            "minimum": 0,
+            "description": "%config.hygiene.fileMinMB.description%"
+          },
+          "saropaWorkspace.hygiene.respectGitignore": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.hygiene.respectGitignore.description%"
+          },
+          "saropaWorkspace.hygiene.exclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%config.hygiene.exclude.description%"
           }
         }
       }

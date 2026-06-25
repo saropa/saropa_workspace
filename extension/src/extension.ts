@@ -11,11 +11,13 @@ import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerSimulationPreview } from "./commands/simulateRun";
 import { registerRunAnalytics } from "./commands/runAnalytics";
+import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
 import { registerRunOutputDiff } from "./commands/diffRuns";
 import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { Heartbeat } from "./exec/heartbeat";
 import { registerProcessMonitorCommands } from "./exec/processMonitorCommands";
+import { registerHygieneCommands } from "./exec/hygieneCommands";
 import { processRegistry } from "./exec/processRegistry";
 import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
@@ -44,6 +46,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // pin) so a parameterized run defaults to the previous value. Stored in
   // workspaceState (on-device, per-workspace, not synced).
   promptMemory.init(context);
+
+  // Bind the workspace boot-sequence store (the ordered pin set offered on open).
+  // workspaceState too — a boot sequence is about this workspace's files/tasks.
+  bootSequence.init(context);
 
   // Click dispatcher: single click opens, double click runs. It carries only the
   // pin id, so callbacks look the pin back up from the store's current cache.
@@ -194,6 +200,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // live Saropa Dashboard webview (#60) and the grouped-snapshot command (#62).
   registerProcessMonitorCommands(context);
 
+  // Workspace hygiene scanner (recipe book section H, #63): the recursive
+  // empty/oversized outlier scan that writes a dated JSON report and a sticky toast.
+  registerHygieneCommands(context);
+
   // Status-bar item for the soonest upcoming scheduled run; clicking it reveals
   // the pin in the tree. The reveal command lives here because it needs the tree
   // view handle created above.
@@ -284,6 +294,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // when such a file actually exists, so first-time users keep their old pins
   // without being nagged on every launch.
   void maybeOfferFavoritesImport(context, store);
+
+  // Offer to run the workspace boot sequence once this session, only when it is
+  // enabled and non-empty (no prompt otherwise). Runs after the pin set is loaded
+  // so the member pins resolve; the confirm is the "no silent execution" gate.
+  void maybeRunBootSequenceOnOpen(store);
 }
 
 // Import a pin from a shared "Copy as Saropa Link" URI. Decodes the payload, shows a

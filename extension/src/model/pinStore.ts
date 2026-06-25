@@ -15,6 +15,7 @@ import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
 import { detectProcessRecipes } from "../recipes/processRecipes";
+import { detectHygieneRecipes } from "../recipes/hygieneRecipes";
 import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
 import { getOutputChannel } from "../exec/runner";
 import { SharedPin } from "../import/shareLink";
@@ -1150,6 +1151,7 @@ export class PinStore {
       ...(await detectScheduledRecipes(folder)),
       ...(await detectSuiteRecipes(folder)),
       ...(await detectProcessRecipes(folder)),
+      ...(await detectHygieneRecipes(folder)),
       ...(await detectAiContextRecipes(folder)),
     ];
     results.sort((a, b) =>

@@ -26,6 +26,7 @@ import { configureSchedule } from "./configureSchedule";
 import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
 import { showRunAnalytics } from "./runAnalytics";
+import { configureBootSequence, runBootSequence } from "./bootSequence";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
 import { encodePinLink } from "../import/shareLink";
@@ -770,6 +771,12 @@ export function registerPinCommands(
   // session's success/failure split, last-run times) as a read-only Markdown
   // preview. Reads only on-device state; transmits nothing.
   reg("saropaWorkspace.showRunAnalytics", () => showRunAnalytics(store));
+
+  // Define/reorder/enable the ordered pin set that runs on workspace open, and
+  // run it on demand. The open-time confirm is wired in activate(); these are the
+  // explicit, user-invoked entry points.
+  reg("saropaWorkspace.configureBootSequence", () => configureBootSequence(store));
+  reg("saropaWorkspace.runBootSequence", () => runBootSequence(store));
 
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind

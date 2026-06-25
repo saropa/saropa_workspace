@@ -15,6 +15,8 @@
   "command.runPinWithOverrides.title": "Run Pin with Overrides...",
   "command.resetRunHistory.title": "Reset Run History",
   "command.showRunAnalytics.title": "View Run Analytics",
+  "command.configureBootSequence.title": "Configure Workspace Boot Sequence...",
+  "command.runBootSequence.title": "Run Workspace Boot Sequence",
   "command.pinActiveFile.title": "Pin Active File (Project)",
   "command.pinActiveFileGlobal.title": "Pin Active File (Global)",
   "command.pinFile.title": "Saropa: Pin File (Project)",
@@ -65,6 +67,7 @@
   "command.recipe.runNearestScript.title": "Run Nearest Package Script",
   "command.openProcessMonitor.title": "Open Toolchain Monitor",
   "command.recipe.snapshotProcesses.title": "Snapshot Toolchain Processes",
+  "command.recipe.runHygieneScan.title": "Scan for Empty & Oversized Files",
   "config.autoPins.patterns.description": "Filenames or globs auto-pinned per project (removable). Removing an auto-pin keeps it removed.",
   "config.doubleClickMs.description": "Window in milliseconds for detecting a double-click on a pin. A second click within this window runs the file; a single click opens it.",
   "config.previewMode.enabled.description": "When on, single-clicking a pinned file opens it in a transient Preview tab (italic title). Clicking another pinned file reuses that tab, so clicking through several reference files does not flood the editor with tabs. Editing the file, or double-clicking a non-runnable pin, promotes the tab to permanent. Off by default: pins open as permanent tabs.",
@@ -82,5 +85,11 @@
   "config.processMonitor.heartbeat.enabled.description": "Sample your detected toolchain's processes on a timer while a workspace is open, appending a per-tool CPU/RAM/process-count row to reports/process-trend.csv and warning only when a tool crosses a RAM or helper-count ceiling. Off by default; the live monitor and snapshot work without it. Nothing is transmitted, and the heartbeat never ends a process.",
   "config.processMonitor.heartbeat.intervalMinutes.description": "How often the toolchain heartbeat samples, in minutes (when enabled).",
   "config.processMonitor.ramCeilingMB.description": "Per-tool working-set RAM ceiling, in megabytes. The heartbeat warns once when a tool (e.g. a leaked analysis server) exceeds it, and again only after it drops back under.",
-  "config.processMonitor.helperCountCeiling.description": "Per-tool helper-process count ceiling. The heartbeat warns once when a tool (e.g. an editor helper swarm) exceeds it, and again only after it drops back under."
+  "config.processMonitor.helperCountCeiling.description": "Per-tool helper-process count ceiling. The heartbeat warns once when a tool (e.g. an editor helper swarm) exceeds it, and again only after it drops back under.",
+  "config.hygiene.mode.description": "What the hygiene scan reports: empty (zero-byte files and zero-child folders), oversized (files and folders past the size ceilings), or both.",
+  "config.hygiene.fileMaxMB.description": "Hygiene scan: a file larger than this many megabytes is reported as oversized.",
+  "config.hygiene.folderMaxMB.description": "Hygiene scan: a folder whose recursive total exceeds this many megabytes is reported as oversized.",
+  "config.hygiene.fileMinMB.description": "Hygiene scan: when greater than 0, a non-empty file smaller than this many megabytes is reported as under-size. 0 disables the floor check.",
+  "config.hygiene.respectGitignore.description": "Hygiene scan: read the project's top-level .gitignore and skip what it names (in addition to a built-in ignore set covering node_modules, .git, and build output). Turn off to scan ignored paths too.",
+  "config.hygiene.exclude.description": "Hygiene scan: additional glob patterns to skip (matched against each entry's path relative to its scan root), e.g. \"**/*.snap\" or \"coverage\"."
 }
