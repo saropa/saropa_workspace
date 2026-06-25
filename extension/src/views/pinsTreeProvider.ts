@@ -59,7 +59,9 @@ export class PinsTreeProvider
         new PinGroupItem(
           l10n("pin.group.project"),
           "project",
-          this.store.getProjectPins().length
+          // Exclude recipe pins: they live in the project pin list but render under
+          // the separate Recipes section, so the Project header must not count them.
+          this.store.getProjectPins().filter((p) => !p.isRecipe).length
         ),
         new PinGroupItem(
           l10n("pin.group.global"),
@@ -112,6 +114,8 @@ export class PinsTreeProvider
         );
       }
       const pin = element.pin;
+      // Recipe pins are served by the separate Recipes view, so they never appear
+      // in this tree; only user/auto pins reach here.
       if (pin.groupId) {
         const group = this.store
           .getGroups(pin.scope)
@@ -278,7 +282,13 @@ export class PinsTreeProvider
       scope === "global"
         ? l10n("pin.group.global")
         : l10n("pin.group.project");
-    return new PinGroupItem(label, scope, this.pinsInScope(scope).length);
+    // The project count excludes recipe pins, which render under the Recipes
+    // section, not the Project scope.
+    const count =
+      scope === "project"
+        ? this.pinsInScope(scope).filter((p) => !p.isRecipe).length
+        : this.pinsInScope(scope).length;
+    return new PinGroupItem(label, scope, count);
   }
 
   private makeFolderItem(group: PinGroup, scope: PinScope): PinFolderItem {

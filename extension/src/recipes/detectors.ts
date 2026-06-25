@@ -8,6 +8,11 @@ import { GitRemote, getCurrentBranch, getGitRemote } from "./gitMeta";
 // is sticky and they can be restored (mirrors the auto-pin mechanism). Recipes are
 // detected, never "created" by a standing button.
 
+// The logical category a recipe belongs to, used to route it into a top-level
+// group. Mirrors the recipe book sections: A (open) / B (run) / C+D (workspace) /
+// E (scheduled) / F (suite).
+export type RecipeCategory = "open" | "run" | "workspace" | "scheduled" | "suite";
+
 export interface RecipeResult {
   // Stable per-recipe id (combined with the folder for the pin id), so sticky
   // removal and de-duplication survive reloads.
@@ -17,10 +22,12 @@ export interface RecipeResult {
   color?: string;
   // Optional schedule (the scheduled-ritual recipes set this).
   schedule?: PinSchedule;
-  // Which synthetic top-level group the seeded pin lands in. "suite" routes the
-  // Saropa Suite integration recipes (section F) into their own "Saropa Suite"
-  // folder; undefined/"recipes" keeps the generic catalog in the "Recipes" folder.
-  group?: "recipes" | "suite";
+  // Which logical top-level group the seeded pin lands in, mirroring the recipe
+  // book's catalog sections. The store maps each category to its own synthetic
+  // group (Recipes: Open / Run / Workspace / Scheduled, and Saropa Suite) instead
+  // of piling every recipe into one flat "Recipes" folder. Undefined falls back to
+  // "open" (see recipeGroupId in PinStore).
+  group?: RecipeCategory;
   // Exactly one of these defines the action:
   filePath?: string; // a file pin, path relative to the folder
   action?: PinAction; // a non-file pin (url / shell / command / macro)
@@ -351,6 +358,26 @@ export async function detectOnDemandRecipes(
         commandArgs: [folder.uri.fsPath],
       },
     });
+  }
+
+  // Route each recipe to a logical top-level group by its id, so the catalog no
+  // longer lands in one flat "Recipes" folder. Run-target recipes (9-16) and the
+  // nearest-script runner are "run"; entry/.env/config/boot/copy are "workspace";
+  // everything else here opens a place ("open"). Centralized here (one block) so a
+  // new recipe is categorized in the same file it is defined.
+  const RUN = new Set([
+    "dev", "test", "lint", "build", "install", "typecheck",
+    "compose.up", "db.migrate", "nearest.script",
+  ]);
+  const WORKSPACE = new Set([
+    "entry", "env.setup", "config.open", "boot", "copy.version",
+  ]);
+  for (const r of out) {
+    r.group = RUN.has(r.recipeId)
+      ? "run"
+      : WORKSPACE.has(r.recipeId)
+        ? "workspace"
+        : "open";
   }
 
   return out;

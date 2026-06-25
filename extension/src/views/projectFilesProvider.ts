@@ -4,6 +4,7 @@ import {
   ProjectFileInfo,
   scanProjectFiles,
 } from "../model/projectFiles";
+import { PinStore } from "../model/pinStore";
 import { l10n } from "../i18n/l10n";
 
 // Second view in the Saropa Workspace container: a read-only, at-a-glance list
@@ -17,6 +18,11 @@ export class ProjectFilesTreeProvider
 {
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+  // The store is needed to mark each row pinned/unpinned and to drive the inline
+  // pin/unpin toggle. The view repaints on store changes (wired in extension.ts),
+  // so a pin added or removed elsewhere updates the indicator here too.
+  constructor(private readonly store: PinStore) {}
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
@@ -42,7 +48,7 @@ export class ProjectFilesTreeProvider
         folders.filter((f) => f.name === element.folderName),
         names
       );
-      return sortByName(found).map((info) => new ProjectFileItem(info));
+      return sortByName(found).map((info) => this.toItem(info));
     }
 
     // Roots. With a single folder the files are listed flat; with several open,
@@ -53,10 +59,18 @@ export class ProjectFilesTreeProvider
       if (folders.length > 1) {
         return folderNodes(found);
       }
-      return sortByName(found).map((info) => new ProjectFileItem(info));
+      return sortByName(found).map((info) => this.toItem(info));
     }
 
     return [];
+  }
+
+  // Build a row, marking it pinned when the project scope already has a pin
+  // resolving to this file. Pinned state drives both the visible "pinned" tag and
+  // which inline toggle (pin vs unpin) the row exposes.
+  private toItem(info: ProjectFileInfo): ProjectFileItem {
+    const pinned = this.store.findPinByUri(info.uri, "project") !== undefined;
+    return new ProjectFileItem(info, pinned);
   }
 }
 
@@ -102,20 +116,27 @@ function configuredFiles(): readonly string[] {
 // the row inherit the editor's file decorations; clicking opens it read-or-edit
 // in the editor via the built-in vscode.open.
 class ProjectFileItem extends vscode.TreeItem {
-  constructor(info: ProjectFileInfo) {
+  constructor(info: ProjectFileInfo, pinned: boolean) {
     super(displayName(info), vscode.TreeItemCollapsibleState.None);
     this.resourceUri = info.uri;
-    this.contextValue = "projectFile";
+    // Distinct contextValue per state so the inline toggle shows "pin" on an
+    // unpinned row and "unpin" on a pinned one (see package.json menus). Both
+    // start with "projectFile" so the Copy Path menu still matches either.
+    this.contextValue = pinned ? "projectFilePinned" : "projectFile";
 
     const relative = formatRelativeTime(info.modified, Date.now());
     // Version (when known) leads the description because "what version is it up
-    // to" is the headline question; the freshness follows it.
-    this.description = info.version
+    // to" is the headline question; the freshness follows it. A pinned tag is
+    // appended so pinned state is visible at a glance, not only on hover.
+    const base = info.version
       ? l10n("projectFiles.descVersioned", {
           version: info.version,
           when: relative,
         })
       : relative;
+    this.description = pinned
+      ? l10n("projectFiles.descPinned", { base })
+      : base;
 
     const tooltip = [info.uri.fsPath];
     if (info.version) {
@@ -126,6 +147,9 @@ class ProjectFileItem extends vscode.TreeItem {
         date: new Date(info.modified).toLocaleString(),
       })
     );
+    if (pinned) {
+      tooltip.push(l10n("projectFiles.tooltipPinned"));
+    }
     this.tooltip = tooltip.join("\n");
 
     this.command = {

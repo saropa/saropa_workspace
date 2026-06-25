@@ -5,7 +5,74 @@ All notable changes to Saropa Workspace are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+<!-- MAINTENANCE NOTES -- IMPORTANT --
+
+    The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+    **Overview** — Each release (and [Unreleased]) opens with one plain-language line for humans—user-facing only, casual wording—then end it with: [log](https://github.com/saropa/saropa-log-capture/blob/vX.Y.Z/CHANGELOG.md)
+    substituting X.Y.Z.
+
+    **Tagged changelog** — Published versions use git tag **`vx.y.z`**; compare to [current `main`](https://github.com/saropa/saropa-log-capture/blob/main/CHANGELOG.md).
+
+    **Published version**: See field "version": "x.y.z" in [package.json](./package.json)
+
+    NOTE: try to keep this file to approx 500 lines
+    
+cspell:disable
+-->
+
+## [1.0.0]
+
+[log](https://github.com/saropa/saropa-workspace/blob/v1.0.0/CHANGELOG.md)
+
+### Changed
+
+- Recipes now have their own **Recipes** section in the sidebar, separate from the
+  **Pins** view, instead of appearing as a node nested inside it. Auto-detected
+  shortcuts (open on GitHub, run scripts, Saropa Suite tools) live in their own
+  view so they never bury the user's own pins, and **Restore Recipes** moved to
+  that view's title bar. The per-recipe actions (run, stop, show output, promote
+  to pin, copy path) work the same as before.
+
+### Fixed
+
+- Pinning a file is now instant. The auto-pin glob scan (the dominant cost of a
+  refresh) is cached per folder and reused; a pin add/remove/move/configure no
+  longer re-globs the whole workspace, since a mutation cannot change which files
+  match the auto-pin patterns. The manual **Refresh** command, a workspace-folder
+  change, and editing the auto-pin/recipe settings re-scan as before.
+- The **Workspace Pin** submenu no longer triggers a "submenu was already
+  contributed" warning. It was contributed twice to the same context menu; it is
+  now a single entry covering both the Pins and Project Files rows.
+- Pinning the wrong file from the editor tab menu. **Pin Active File (Project /
+  Global)** now pins the tab you right-clicked, honoring the URI the editor-title
+  menu passes, instead of always pinning whichever editor was active. Previously,
+  opening a pin (which focuses its file) and then right-clicking a different tab
+  re-pinned the focused file — so the same already-pinned file kept being
+  reported.
+
+### Added
+
+- Pin and unpin directly from the **Project Files** view: each row carries an
+  inline pin/unpin toggle and shows a "pinned" tag when the file is already pinned
+  in the project, so you can see what is pinned and add a file without depending on
+  which editor is focused. The view repaints as pins change.
+- A **Workspace Pin** submenu with explicit add/remove actions for both scopes —
+  Add/Remove to Project Pins and Add/Remove to Global Pins — available from the
+  Explorer right-click menu, the editor tab right-click menu, the editor body
+  right-click menu, file-pin rows in the Pins view, and the Project Files rows.
+  Right-clicking a specific editor tab targets that tab's file; the in-body menu
+  and the command palette act on the active editor. It is a static submenu (its
+  items appear only when you expand it), so it adds no per-selection cost.
+
+### Changed
+
+- The per-scope **Remove from Project Pins** / **Remove from Global Pins** actions
+  now live inside the **Workspace Pin** submenu on a pin's context menu; the
+  standalone "Unpin" dropdown item was removed (the inline unpin button stays).
+- Extension icon redesigned to a flat whistle on the warm Saropa Suite tile,
+  matching the Suite and Log Capture icons (replaces the teal-gradient mark). The
+  256x256 Marketplace tile is generated from the shared `images/` masters.
 
 ### Added
 
@@ -19,9 +86,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   collection off with `saropaWorkspace.telemetry.enabled`, or clear it with the
   **Reset Run History** command (view-title overflow and the Recent group's
   context menu).
-- Recipes: auto-detected pins derived from a project's own files, shown in a
-  collapsed "Recipes" group — never a "create" button. Pins gain action kinds
-  beyond opening a file: **url** (open a link), **shell** (run a command line),
+- Recipes: auto-detected pins derived from a project's own files, shown in their
+  own top-level **Recipes** section (a sibling of Project Pins / Global Pins, not a
+  folder buried inside them), organized into logical subfolders by what they do —
+  **GitHub** (repo/branch/PR/Issues/CI/Releases and other open-a-place URLs),
+  **Build & Run**, **Workspace**, **Scheduled**, and **Saropa Suite** — and never a
+  "create" button. Each subfolder has its own colored icon, and its recipes share
+  that color family, so the nested tree stays readable at a glance. Detection is
+  cached per folder, so it runs once rather than re-scanning every project file on
+  each refresh (a noticeable load-time speedup). Pins gain
+  action kinds beyond opening a file: **url** (open a link), **shell** (run a command line),
   **command** (invoke a VS Code command), and **macro** (an ordered sequence).
   Detected on-demand recipes include: open the repo / current branch / a pull
   request / Issues / CI / Releases on GitHub, GitLab, or Bitbucket (URLs derived
@@ -32,8 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `localhost`; copy `name@version`; and run the nearest package script. Removing a
   recipe is sticky (it stays gone); "Restore Recipes" brings them back; "Promote
   to Pin" turns a recipe into a stored, fully-editable pin. A recipe can be turned
-  off entirely with `saropaWorkspace.recipes.enabled`. The Recipes group lists its
-  entries alphabetically by label.
+  off entirely with `saropaWorkspace.recipes.enabled`. Each recipe subfolder lists
+  its entries alphabetically by label.
 - Scheduled rituals: time-triggered recipes that run unattended and capture their
   output to a dated file under `reports/` (opening it when useful) — a dawn lint
   sweep, a sunrise stats snapshot, a "since yesterday" standup digest, an
@@ -45,8 +119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dawn lint sweep gives Dart/Flutter with `saropa_lints` / `custom_lint`
   first-class treatment (`dart analyze` plus `dart run custom_lint`).
 - Saropa Suite integration: when a sibling Saropa tool is detected in the project,
-  recipes that drive it appear in a dedicated **Saropa Suite** group, kept separate
-  from the generic "Recipes" group.
+  recipes that drive it appear in a **Saropa Suite** subfolder of the Recipes
+  section, kept separate from the generic recipe subfolders.
   - **Saropa Lints** — detected from `saropa_lints` in `pubspec.yaml` /
     `analysis_options.yaml`, the installed extension, or a written
     `reports/.saropa_lints/violations.json`: run analysis, open the Code Health
@@ -83,7 +157,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   action target instead. Project Files rows also expose it as an inline button.
 - Pin data model and storage: project pins persisted to
   `.vscode/saropa-workspace.json` (workspace-relative) and global/user pins
-  persisted to the extension's `globalState` (synced via Settings Sync).
+  persisted to the extension's `globalState` (synced via Settings Sync). The
+  config file is now auto-created (empty) for every opened workspace folder that
+  lacks one, instead of only after the first pin is added; an existing file is
+  never overwritten. Every project also shows a synthesized **Workspace config**
+  example pin that links to the config file itself, so the Project scope is never
+  empty even when the file has no stored pins. It is recomputed each refresh (not
+  stored), so a hand-emptied file still shows it; removing it sticks; and it is
+  suppressed when the project already pins its own config file (no duplicate).
 - Auto-pins seeded from configurable glob patterns; removal of an auto-pin is
   persisted and the auto-pins can be restored on demand.
 - Pins activity-bar view with Project Pins and Global Pins groups.

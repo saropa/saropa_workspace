@@ -56,8 +56,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTENSION_DIR = REPO_ROOT / "extension"
 PACKAGE_JSON = EXTENSION_DIR / "package.json"
+ROOT_README = REPO_ROOT / "README.md"
+EXTENSION_README = EXTENSION_DIR / "README.md"
 ROOT_CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 EXTENSION_CHANGELOG = EXTENSION_DIR / "CHANGELOG.md"
+
+# The extension's README and CHANGELOG are generated copies of the repo-root
+# files, not authored separately. The root pair is the single source of truth;
+# sync_extension_docs() regenerates these before every package so the published
+# .vsix can never drift from the root docs. They are git-ignored and a write hook
+# blocks hand-edits (scripts/hooks/generated_docs_guard.py).
+GENERATED_DOC_PAIRS = ((ROOT_README, EXTENSION_README), (ROOT_CHANGELOG, EXTENSION_CHANGELOG))
 
 # Marketplace identity. publisher.name from package.json forms the extension id.
 GITHUB_REPO = "saropa/saropa_workspace"
@@ -198,7 +207,26 @@ def check_working_tree() -> int:
 # --------------------------------------------------------------------------- #
 
 
+def sync_extension_docs() -> None:
+    """Regenerate extension/README.md and extension/CHANGELOG.md from the root.
+
+    The Marketplace renders extension/README.md and ships extension/CHANGELOG.md,
+    but the repo authors a single source for each at the root. Copying here (not
+    hand-maintaining two files) guarantees the packaged .vsix always matches the
+    root docs and removes the silent drift that two editable copies invite. The
+    copies are git-ignored, so overwriting them never dirties the working tree
+    that a full publish requires to be clean.
+    """
+    header("SYNC DOCS")
+    for src, dst in GENERATED_DOC_PAIRS:
+        shutil.copyfile(src, dst)
+        info(f"Synced extension/{dst.name} <- {src.name}")
+
+
 def build() -> int:
+    # Sync the generated docs first so the .vsix that build/package produces
+    # carries the current root README and CHANGELOG.
+    sync_extension_docs()
     header("BUILD")
     # npm ci when a lockfile exists for a reproducible install; else npm install.
     install_cmd = "ci" if (EXTENSION_DIR / "package-lock.json").exists() else "install"

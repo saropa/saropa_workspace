@@ -406,8 +406,8 @@ Every bug fix must satisfy these before it can be closed.
 
 - [ ] `CHANGELOG.md` (root) updated under `[Unreleased]` → `### Fixed` for any
       user-visible change.
-- [ ] `extension/CHANGELOG.md` updated if the extension package keeps its own
-      changelog and the change is user-visible there.
+- [ ] `extension/CHANGELOG.md` left untouched — it is a generated copy of the
+      root changelog (rewritten at package time); editing the root suffices.
 - [ ] Bug report file updated with root cause, changes, and commit hashes.
 - [ ] Status updated to `Closed`.
 

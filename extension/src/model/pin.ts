@@ -142,6 +142,13 @@ export interface PinGroup {
   order: number;
   // Persisted collapse state so a folder stays the way the user left it.
   collapsed?: boolean;
+  // Optional tree-icon override: a codicon id WITHOUT $(...), e.g. "github". Set on
+  // the synthetic recipe category groups so each subfolder reads distinctly; user
+  // groups leave it undefined and render the default "folder" glyph.
+  icon?: string;
+  // Optional theme-color id for the icon (a ThemeColor key like "charts.green",
+  // never a raw hex). Paired with icon on the recipe groups.
+  color?: string;
 }
 
 // Current on-disk schema version. Bumped from 1 to 2 to add `groups`; v1 files
@@ -169,3 +176,9 @@ export function emptyProjectPinsFile(): ProjectPinsFile {
     removedRecipes: [],
   };
 }
+
+// Relative path of the config file itself, reused as the seed pin's target so the
+// pin opens the very file it lives in. Single source for the literal so the seed
+// and the store's PROJECT_FILE_RELATIVE cannot drift apart silently.
+export const PROJECT_FILE_RELATIVE = ".vscode/saropa-workspace.json";
+

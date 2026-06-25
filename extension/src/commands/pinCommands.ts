@@ -201,6 +201,74 @@ function activeFileUri(): vscode.Uri | undefined {
   return vscode.window.activeTextEditor?.document.uri;
 }
 
+// The file an editor-title / editor-tab "Pin Active File" invocation targets. The
+// editor/title (and /context) menu passes the URI of the tab the user acted on as
+// the first argument; honoring it is what makes right-clicking a specific tab pin
+// THAT tab rather than whichever editor happens to be active (the bug where the
+// active config tab was re-pinned no matter which tab was clicked). Falls back to
+// the active editor for the keyboard / command-palette path, which passes no arg.
+function editorTargetUri(arg: unknown): vscode.Uri | undefined {
+  if (arg instanceof vscode.Uri) {
+    return arg;
+  }
+  return activeFileUri();
+}
+
+// The file an add/remove-pin command should act on, resolved from whatever the
+// invoking surface hands over: a raw Uri (the Explorer "Workspace Pin" submenu),
+// a pin row (the Pins view — resolve its pin back to a file), or any other tree
+// row carrying a resourceUri (the Project Files rows). One resolver lets the four
+// add/remove commands serve all three surfaces, so the gesture never depends on
+// which editor is focused.
+function targetUri(store: PinStore, arg: unknown): vscode.Uri | undefined {
+  // The editor-title (tab) and Explorer menus pass the acted-on file as a Uri —
+  // honor it, so right-clicking a specific tab targets THAT tab, not the active
+  // one.
+  if (arg instanceof vscode.Uri) {
+    return arg;
+  }
+  // A Pins-view row: resolve the pin back to its file (undefined for a non-file
+  // recipe, which the submenu is gated against).
+  if (arg instanceof PinTreeItem) {
+    return store.resolveUri(arg.pin);
+  }
+  // A Project Files row (or any other file-backed tree row).
+  if (arg instanceof vscode.TreeItem) {
+    return arg.resourceUri;
+  }
+  // The editor-body context menu, command palette, and keybindings pass no tree
+  // context: act on the file in the active editor.
+  return activeFileUri();
+}
+
+// Remove the pin in a given scope that resolves to a file, naming it in the
+// toast. A no-op-with-feedback when the file is not actually pinned in that scope
+// (the "Remove from ... Pins" submenu item is static, so it can be invoked on a
+// file that is not pinned there).
+async function removePinForUri(
+  store: PinStore,
+  uri: vscode.Uri,
+  scope: PinScope
+): Promise<void> {
+  const fileName = uri.path.split("/").pop() ?? uri.fsPath;
+  const pin = store.findPinByUri(uri, scope);
+  if (!pin) {
+    const where =
+      scope === "global"
+        ? l10n("pin.group.global")
+        : l10n("pin.group.project");
+    vscode.window.showInformationMessage(
+      l10n("pin.notPinned", { name: fileName, scope: where })
+    );
+    return;
+  }
+  const name = pin.label ?? fileName;
+  await store.removePin(pin);
+  // Drop any last-run badge so it does not outlive the pin.
+  runStatusRegistry.clear(pin.id);
+  vscode.window.showInformationMessage(l10n("pin.removed", { name }));
+}
+
 // Number of generic "run top pin N" keybinding slots exposed (4.2).
 const TOP_PIN_SLOTS = 5;
 
@@ -401,7 +469,10 @@ export function registerPinCommands(
   const reg = (id: string, handler: (...args: any[]) => any) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 
-  reg("saropaWorkspace.refresh", () => store.refresh());
+  // The manual Refresh is the user's explicit "re-scan now" — clear the cached
+  // glob/detection so newly-added files matching auto-pin patterns or new recipes
+  // surface (a plain refresh reuses the caches for speed).
+  reg("saropaWorkspace.refresh", () => store.rescan());
 
   reg("saropaWorkspace.runAnyPin", () => runAnyPin(store));
 
@@ -632,8 +703,8 @@ export function registerPinCommands(
     );
   });
 
-  reg("saropaWorkspace.pinActiveFile", () => {
-    const uri = activeFileUri();
+  reg("saropaWorkspace.pinActiveFile", (arg: unknown) => {
+    const uri = editorTargetUri(arg);
     if (!uri) {
       vscode.window.showWarningMessage(l10n("pin.noActiveFile"));
       return;
@@ -641,8 +712,8 @@ export function registerPinCommands(
     void pinUri(store, uri, "project");
   });
 
-  reg("saropaWorkspace.pinActiveFileGlobal", () => {
-    const uri = activeFileUri();
+  reg("saropaWorkspace.pinActiveFileGlobal", (arg: unknown) => {
+    const uri = editorTargetUri(arg);
     if (!uri) {
       vscode.window.showWarningMessage(l10n("pin.noActiveFile"));
       return;
@@ -660,6 +731,40 @@ export function registerPinCommands(
   reg("saropaWorkspace.pinFileGlobal", (uri: vscode.Uri) => {
     if (uri) {
       void pinUri(store, uri, "global");
+    }
+  });
+
+  // Add/remove a file to/from each scope. One set of four commands backs the
+  // Explorer "Workspace Pin" submenu, the Pins view row submenu, and the Project
+  // Files inline toggle. The target file is resolved from whatever the surface
+  // passes (a Uri, a pin row, or a file row) — see targetUri. The submenu items
+  // are static (no per-selection state), so they add no background cost to the
+  // Explorer; each command decides what to do at click time.
+  reg("saropaWorkspace.addProjectPin", (arg: unknown) => {
+    const uri = targetUri(store, arg);
+    if (uri) {
+      void pinUri(store, uri, "project");
+    }
+  });
+
+  reg("saropaWorkspace.removeProjectPin", async (arg: unknown) => {
+    const uri = targetUri(store, arg);
+    if (uri) {
+      await removePinForUri(store, uri, "project");
+    }
+  });
+
+  reg("saropaWorkspace.addGlobalPin", (arg: unknown) => {
+    const uri = targetUri(store, arg);
+    if (uri) {
+      void pinUri(store, uri, "global");
+    }
+  });
+
+  reg("saropaWorkspace.removeGlobalPin", async (arg: unknown) => {
+    const uri = targetUri(store, arg);
+    if (uri) {
+      await removePinForUri(store, uri, "global");
     }
   });
 

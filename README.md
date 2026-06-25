@@ -1,5 +1,13 @@
 <!-- # Saropa Workspace -->
 
+<!-- Banner uses an absolute raw URL, not a repo-relative path, so it also renders
+     on the VS Code Marketplace (which does not resolve relative image links). -->
+<div align="center">
+
+[![Saropa Workspace](https://raw.githubusercontent.com/saropa/saropa_workspace/main/images/banner.png)](https://marketplace.visualstudio.com/items?itemName=saropa.saropa-workspace)
+
+</div>
+
 # Saropa Workspace
 
 **Pin any file as a favorite — single-click to open it, double-click to run it.**

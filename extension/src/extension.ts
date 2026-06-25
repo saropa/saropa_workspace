@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
+import { RecipesTreeProvider } from "./views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
 import { PinFolderItem, RecentRootItem } from "./views/pinTreeItem";
 import { SuggestionTracker } from "./views/suggestions";
@@ -77,16 +78,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
-  // Second view in the container: a read-only list of interesting project files
+  // Dedicated "Recipes" view: the auto-detected shortcuts (open on GitHub, run
+  // scripts, Saropa Suite tools), grouped by category. Kept as its own section so
+  // detected recipes never bury the user's own pins in the Pins view. Read-only and
+  // not arrangeable, so it is a plain provider (no drag-and-drop controller).
+  const recipes = new RecipesTreeProvider(store);
+  const recipesView = vscode.window.createTreeView("saropaWorkspace.recipes", {
+    treeDataProvider: recipes,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(recipesView);
+
+  // Third view in the container: a read-only list of interesting project files
   // (README, CHANGELOG, manifests) with each file's last-modified time and
   // declared version, so the user can see whether the changelog is current and
   // what version the project is up to without opening anything.
-  const projectFiles = new ProjectFilesTreeProvider();
+  const projectFiles = new ProjectFilesTreeProvider(store);
   const projectFilesView = vscode.window.createTreeView(
     "saropaWorkspace.projectFiles",
     { treeDataProvider: projectFiles }
   );
   context.subscriptions.push(projectFilesView);
+  // Repaint the project-files rows whenever pins change, so the pinned indicator
+  // and the pin/unpin toggle reflect the current state immediately.
+  context.subscriptions.push(store.onDidChange(() => projectFiles.refresh()));
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshProjectFiles", () =>
       projectFiles.refresh()
@@ -149,14 +164,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Re-seed auto-pins and refresh when folders change or the auto-pin patterns
   // setting is edited.
   context.subscriptions.push(
-    vscode.workspace.onDidChangeWorkspaceFolders(() => void store.refresh()),
+    // Folder set or auto-pin/recipe settings changed: the set of files that match
+    // can change, so re-scan (clears the cached glob/detection). Telemetry only
+    // shows/hides the Recent group, so a plain repaint refresh is enough there.
+    vscode.workspace.onDidChangeWorkspaceFolders(() => void store.rescan()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration("saropaWorkspace.autoPins.patterns") ||
-        e.affectsConfiguration("saropaWorkspace.recipes.enabled") ||
-        // Toggling telemetry shows/hides the Recent group; a refresh repaints.
-        e.affectsConfiguration("saropaWorkspace.telemetry.enabled")
+        e.affectsConfiguration("saropaWorkspace.recipes.enabled")
       ) {
+        void store.rescan();
+      } else if (e.affectsConfiguration("saropaWorkspace.telemetry.enabled")) {
         void store.refresh();
       }
     })

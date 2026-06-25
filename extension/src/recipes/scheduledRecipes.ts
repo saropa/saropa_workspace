@@ -213,6 +213,11 @@ export async function detectScheduledRecipes(
     });
   }
 
+  // Every scheduled ritual lands in the "Recipes: Scheduled" group.
+  for (const r of out) {
+    r.group = "scheduled";
+  }
+
   return out;
 }
 

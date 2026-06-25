@@ -2,7 +2,7 @@
   "name": "saropa-workspace",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "saropa",
   "license": "MIT",
   "repository": {
@@ -45,6 +45,10 @@
           "name": "%views.pins.name%"
         },
         {
+          "id": "saropaWorkspace.recipes",
+          "name": "%views.recipes.name%"
+        },
+        {
           "id": "saropaWorkspace.projectFiles",
           "name": "%views.projectFiles.name%"
         }
@@ -54,6 +58,10 @@
       {
         "view": "saropaWorkspace.pins",
         "contents": "%viewsWelcome.pins.contents%"
+      },
+      {
+        "view": "saropaWorkspace.recipes",
+        "contents": "%viewsWelcome.recipes.contents%"
       },
       {
         "view": "saropaWorkspace.projectFiles",
@@ -117,6 +125,30 @@
         "command": "saropaWorkspace.pinFileGlobal",
         "title": "%command.pinFileGlobal.title%",
         "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.addProjectPin",
+        "title": "%command.addProjectPin.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "saropaWorkspace.removeProjectPin",
+        "title": "%command.removeProjectPin.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(pinned)"
+      },
+      {
+        "command": "saropaWorkspace.addGlobalPin",
+        "title": "%command.addGlobalPin.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "saropaWorkspace.removeGlobalPin",
+        "title": "%command.removeGlobalPin.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(globe)"
       },
       {
         "command": "saropaWorkspace.activatePin",
@@ -286,7 +318,32 @@
         "category": "%extension.displayName%"
       }
     ],
+    "submenus": [
+      {
+        "id": "saropaWorkspace.pinSubmenu",
+        "label": "%submenu.workspacePin.label%",
+        "icon": "$(pin)"
+      }
+    ],
     "menus": {
+      "saropaWorkspace.pinSubmenu": [
+        {
+          "command": "saropaWorkspace.addProjectPin",
+          "group": "1_project@1"
+        },
+        {
+          "command": "saropaWorkspace.removeProjectPin",
+          "group": "1_project@2"
+        },
+        {
+          "command": "saropaWorkspace.addGlobalPin",
+          "group": "2_global@1"
+        },
+        {
+          "command": "saropaWorkspace.removeGlobalPin",
+          "group": "2_global@2"
+        }
+      ],
       "view/title": [
         {
           "command": "saropaWorkspace.runAnyPin",
@@ -324,14 +381,14 @@
           "group": "1_more@3"
         },
         {
-          "command": "saropaWorkspace.restoreRecipes",
+          "command": "saropaWorkspace.resetRunHistory",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@4"
         },
         {
-          "command": "saropaWorkspace.resetRunHistory",
-          "when": "view == saropaWorkspace.pins",
-          "group": "1_more@5"
+          "command": "saropaWorkspace.restoreRecipes",
+          "when": "view == saropaWorkspace.recipes",
+          "group": "navigation@1"
         },
         {
           "command": "saropaWorkspace.refreshProjectFiles",
@@ -342,148 +399,160 @@
       "view/item/context": [
         {
           "command": "saropaWorkspace.resetRunHistory",
-          "when": "view == saropaWorkspace.pins && viewItem == recentRoot",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == recentRoot",
           "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.resetRunHistory",
-          "when": "view == saropaWorkspace.pins && viewItem == recentRoot",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == recentRoot",
           "group": "1_actions@1"
         },
         {
           "command": "saropaWorkspace.promoteRecipe",
-          "when": "view == saropaWorkspace.pins && viewItem == pinRecipe",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pinRecipe",
           "group": "inline@0"
         },
         {
           "command": "saropaWorkspace.promoteRecipe",
-          "when": "view == saropaWorkspace.pins && viewItem == pinRecipe",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pinRecipe",
           "group": "2_edit@1"
         },
         {
           "command": "saropaWorkspace.addGroup",
-          "when": "view == saropaWorkspace.pins && viewItem == scopeRoot",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == scopeRoot",
           "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.addGroup",
-          "when": "view == saropaWorkspace.pins && viewItem == scopeRoot",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == scopeRoot",
           "group": "1_actions@1"
         },
         {
           "command": "saropaWorkspace.renameGroup",
-          "when": "view == saropaWorkspace.pins && viewItem == userGroup",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == userGroup",
           "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.renameGroup",
-          "when": "view == saropaWorkspace.pins && viewItem == userGroup",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == userGroup",
           "group": "1_actions@1"
         },
         {
           "command": "saropaWorkspace.deleteGroup",
-          "when": "view == saropaWorkspace.pins && viewItem == userGroup",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == userGroup",
           "group": "1_actions@2"
         },
         {
           "command": "saropaWorkspace.runPin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/ && viewItem != pinRunning && viewItem != pinStopping",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/ && viewItem != pinRunning && viewItem != pinStopping",
           "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.stopPin",
-          "when": "view == saropaWorkspace.pins && viewItem == pinRunning",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pinRunning",
           "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.forceKillPin",
-          "when": "view == saropaWorkspace.pins && viewItem == pinStopping",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pinStopping",
           "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.unpin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "inline@2"
         },
         {
           "command": "saropaWorkspace.openPin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "1_actions@1"
         },
         {
           "command": "saropaWorkspace.runPin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/ && viewItem != pinRunning && viewItem != pinStopping",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/ && viewItem != pinRunning && viewItem != pinStopping",
           "group": "1_actions@2"
         },
         {
           "command": "saropaWorkspace.stopPin",
-          "when": "view == saropaWorkspace.pins && viewItem == pinRunning",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pinRunning",
           "group": "1_actions@2"
         },
         {
           "command": "saropaWorkspace.forceKillPin",
-          "when": "view == saropaWorkspace.pins && (viewItem == pinRunning || viewItem == pinStopping)",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pinRunning || viewItem == pinStopping)",
           "group": "1_actions@2"
         },
         {
           "command": "saropaWorkspace.showOutput",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "1_actions@3"
         },
         {
           "command": "saropaWorkspace.configureRun",
-          "when": "view == saropaWorkspace.pins && viewItem == pin",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pin",
           "group": "2_edit@1"
         },
         {
           "command": "saropaWorkspace.configureSchedule",
-          "when": "view == saropaWorkspace.pins && viewItem == pin",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pin",
           "group": "2_edit@2"
         },
         {
           "command": "saropaWorkspace.configureAppearance",
-          "when": "view == saropaWorkspace.pins && viewItem == pin",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pin",
           "group": "2_edit@3"
         },
         {
           "command": "saropaWorkspace.renamePin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "2_edit@4"
         },
         {
-          "command": "saropaWorkspace.unpin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
-          "group": "2_edit@5"
-        },
-        {
           "command": "saropaWorkspace.copyPath",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "3_copy@1"
         },
         {
-          "command": "saropaWorkspace.copyPath",
+          "submenu": "saropaWorkspace.pinSubmenu",
+          "when": "(view == saropaWorkspace.pins && viewItem =~ /^pin/ && viewItem != pinRecipe) || (view == saropaWorkspace.projectFiles && viewItem =~ /^projectFile/)",
+          "group": "2_edit@6"
+        },
+        {
+          "command": "saropaWorkspace.addProjectPin",
           "when": "view == saropaWorkspace.projectFiles && viewItem == projectFile",
+          "group": "inline@0"
+        },
+        {
+          "command": "saropaWorkspace.removeProjectPin",
+          "when": "view == saropaWorkspace.projectFiles && viewItem == projectFilePinned",
+          "group": "inline@0"
+        },
+        {
+          "command": "saropaWorkspace.copyPath",
+          "when": "view == saropaWorkspace.projectFiles && viewItem =~ /^projectFile/",
           "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.copyPath",
-          "when": "view == saropaWorkspace.projectFiles && viewItem == projectFile",
-          "group": "1_copy@1"
+          "when": "view == saropaWorkspace.projectFiles && viewItem =~ /^projectFile/",
+          "group": "2_copy@1"
         }
       ],
       "explorer/context": [
         {
-          "command": "saropaWorkspace.pinFile",
+          "submenu": "saropaWorkspace.pinSubmenu",
           "group": "saropa@1"
-        },
-        {
-          "command": "saropaWorkspace.pinFileGlobal",
-          "group": "saropa@2"
         }
       ],
       "editor/title/context": [
         {
-          "command": "saropaWorkspace.pinActiveFile",
+          "submenu": "saropaWorkspace.pinSubmenu",
+          "group": "saropa@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "saropaWorkspace.pinSubmenu",
           "group": "saropa@1"
         }
       ],
@@ -534,6 +603,22 @@
         },
         {
           "command": "saropaWorkspace.pinFileGlobal",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.addProjectPin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.removeProjectPin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.addGlobalPin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.removeGlobalPin",
           "when": "false"
         },
         {

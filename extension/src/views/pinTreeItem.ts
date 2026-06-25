@@ -317,6 +317,12 @@ export class PinFolderItem extends vscode.TreeItem {
     // this string.
     this.contextValue = "userGroup";
     this.description = String(count);
-    this.iconPath = new vscode.ThemeIcon("folder");
+    // A group may carry its own glyph + tint (the synthetic recipe category folders
+    // do, so each reads distinctly in the nested tree); a plain user group keeps the
+    // default gray folder.
+    this.iconPath = new vscode.ThemeIcon(
+      pinGroup.icon ?? "folder",
+      pinGroup.color ? new vscode.ThemeColor(pinGroup.color) : undefined
+    );
   }
 }

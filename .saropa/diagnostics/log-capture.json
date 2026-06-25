@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "producer": {
+    "name": "saropa-log-capture",
+    "version": "9.0.6"
+  },
+  "generatedAt": "2026-06-25T17:02:57.723Z",
+  "diagnostics": []
+}
