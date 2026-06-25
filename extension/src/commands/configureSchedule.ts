@@ -15,7 +15,7 @@ import { l10n } from "../i18n/l10n";
 // hub discards them.
 
 interface HubItem extends vscode.QuickPickItem {
-  id: "atTime" | "interval" | "enabled" | "save";
+  id: "atTime" | "days" | "interval" | "enabled" | "save";
 }
 
 // Working shape: enabled is always present; the timing fields are optional.
@@ -59,6 +59,9 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
     switch (choice) {
       case "atTime":
         await editDailyTime(work, title);
+        break;
+      case "days":
+        await editDays(work, title);
         break;
       case "interval":
         await editInterval(work, title);
