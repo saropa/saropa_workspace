@@ -4,6 +4,7 @@ import * as fs from "fs";
 import { MacroStep, Pin, PinExecConfig, RunLocation } from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
+import { runOutputs } from "./runOutputs";
 import { telemetry, RunSource } from "./telemetry";
 import { buildTokenMap, expandTokens } from "./tokens";
 import {
@@ -705,8 +706,19 @@ async function runInBackground(
   // Track the child so the tree can show it running and a Stop action can kill
   // it; the registry clears itself on exit.
   processRegistry.register(pinId, child);
-  child.stdout?.on("data", (d) => channel.append(d.toString()));
-  child.stderr?.on("data", (d) => channel.append(d.toString()));
+  // Accumulate the combined output so the last two runs can be diffed (WOW #20),
+  // in addition to streaming it live to the channel.
+  let captured = "";
+  child.stdout?.on("data", (d) => {
+    const text = d.toString();
+    captured += text;
+    channel.append(text);
+  });
+  child.stderr?.on("data", (d) => {
+    const text = d.toString();
+    captured += text;
+    channel.append(text);
+  });
 
   // Node may emit BOTH "error" (spawn failed) and "close" for the same failed
   // run; settle once so the result is recorded and the toast shown a single time.
@@ -717,12 +729,15 @@ async function runInBackground(
     }
     settled = true;
     const durationMs = Date.now() - startedAt;
+    const endedAt = Date.now();
     runStatusRegistry.record(pinId, {
       outcome,
       exitCode: code,
       durationMs,
-      endedAt: Date.now(),
+      endedAt,
     });
+    // Keep this run's output for the "Diff Last Two Runs" command.
+    runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
     notifyCompletion(name, outcome, code, durationMs);
   };
 

@@ -100,3 +100,75 @@ Since Phase 3 (sibling favorites, URL action kind, interactive tokens) is largel
 Because AI chats age out quickly (a bug is fixed, the context is stale), Claude pins risk cluttering the workspace over time. 
 * **Integration with Workspace Hygiene (Recipe #63):** We can extend the Phase 3 hygiene scan to flag pinned AI chats that haven't been modified or clicked in >14 days. 
 * **Action:** The hygiene report proposes a one-click *"Unpin stale AI chats"* remediation.
+
+---
+
+## Finish Report (2026-06-25)
+
+Status: Implemented (recipes 64 and 65). The auto-pruning routine in section 7 remains exploratory and was not built.
+
+### What was added
+
+A new recipe category, **AI Context**, surfaces active Claude/AI conversations as
+recipe pins in a dedicated **Active AI Threads** group. The feature reuses the
+existing `url` and `file` pin kinds and the whole recipe lifecycle (sticky removal
+via `removedRecipes`, **Restore Recipes**, promote-to-pin, single-click detail and
+hover) — it introduces a detector and a synthetic group, not new pin types.
+
+### Files
+
+- `extension/src/recipes/aiContextRecipes.ts` (new) — `detectAiContextRecipes`.
+  Reads `saropaWorkspace.aiContext.enabled` (master toggle) and
+  `saropaWorkspace.aiContext.claudeChatFolders` (default `.claude`,
+  `.cline/tasks`, `docs/chats`). Scans each folder's top level only (no recursion,
+  matching the detector-wide rule), `stat`s every `.md`/`.json` entry, keeps the
+  globally freshest ten (`MAX_THREADS`), and reads/parses only those. JSON
+  transcripts must carry a string `title` (the gate that keeps an unrelated config
+  JSON from being pinned) and yield a `claude.ai/chat/<id|uuid>` deep link when an
+  id is present. Markdown transcripts use the first `# H1` as the title and a
+  `claude.ai` URL (frontmatter or footer) as the deep link, with trailing
+  link/bracket delimiters stripped; a Markdown file with neither an H1 nor a URL
+  is skipped. A thread with a deep link becomes a `url` pin; otherwise a `file`
+  pin on the local transcript. Recipe 65 (**Start a new Claude chat** →
+  `claude.ai/new`) is emitted only when at least one configured chat folder exists,
+  so the group stays out of projects that do not use AI chat folders.
+- `extension/src/recipes/detectors.ts` — `RecipeCategory` gains `"ai"`.
+- `extension/src/model/pinStore.ts` — registers the `ai-threads` group
+  ("Active AI Threads", `sparkle` icon, `charts.foreground`, order 9989 so it
+  leads the recipe groups) in `RECIPE_GROUPS`, and calls the new detector in
+  `detectRecipes` alongside the others. The group only renders when it has a pin
+  (existing per-group gating).
+- `extension/src/extension.ts` — the two new settings trigger `store.rescan()`
+  (which clears the recipe cache) on change.
+- `extension/package.json` + `extension/package.nls.json` — the two settings and
+  their NLS descriptions.
+- Root `README.md` settings table and `CHANGELOG.md` `## [Unreleased]`.
+
+### Design decisions that diverged from the plan's letter
+
+1. **File layout.** The plan named `claudeParser.ts` plus edits to a
+   `recipeDetector.ts`. No such aggregator file exists; the repository's actual
+   architecture is one detector module per category (`suiteRecipes.ts`,
+   `processRecipes.ts`, `scheduledRecipes.ts`), aggregated in
+   `PinStore.detectRecipes`. The implementation follows the repository: a single
+   `aiContextRecipes.ts` holding both scan and parse.
+2. **No "Detect recipes" command.** The plan's section 3.2 references a manual
+   "Detect recipes" command; the product has no such command — detection runs
+   automatically on refresh/reload and is cached per folder. The new detector
+   follows that model. New transcripts surface on the next window reload, matching
+   every other detector.
+3. **Group visibility.** The plan's UI section states the group is "created
+   automatically if chats selected". Recipe 65 is therefore gated on a chat folder
+   being present rather than offered in every project, so the group does not appear
+   where AI chats are not in use.
+
+### Verification
+
+`npx tsc -p ./ --noEmit` and `node esbuild.js` both exit 0. No automated test
+infrastructure exists in the repository (no `extension/src/test/**`), so behavior
+was reviewed by inspection.
+
+### Not built
+
+Section 7's auto-pruning routine (flag/Unpin stale AI chats via the hygiene scan)
+is left as exploratory future work, as the plan itself marked it.

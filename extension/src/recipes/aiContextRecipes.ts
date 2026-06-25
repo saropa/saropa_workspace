@@ -225,7 +225,11 @@ function parseJsonThread(text: string): ParsedThread | undefined {
 // nothing chat-shaped to pin, so the file is skipped.
 function parseMarkdownThread(text: string): ParsedThread | undefined {
   const title = /^#\s+(.+)$/m.exec(text)?.[1]?.trim();
-  const chatUrl = /https?:\/\/claude\.ai\/\S+/i.exec(text)?.[0];
+  const raw = /https?:\/\/claude\.ai\/\S+/i.exec(text)?.[0];
+  // \S+ greedily swallows wrapping delimiters when the URL sits in a Markdown link
+  // or angle brackets (<...>, (...), "..."); strip the common trailers so the opened
+  // deep link is the bare URL, not one with a stray ">" or ")" appended.
+  const chatUrl = raw?.replace(/[)>\]"'.,;]+$/, "");
   if (!title && !chatUrl) {
     return undefined;
   }
