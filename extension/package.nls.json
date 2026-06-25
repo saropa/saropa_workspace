@@ -28,6 +28,7 @@
   "command.peekPin.title": "Peek",
   "command.peekFocusedPin.title": "Peek Selected Pin",
   "command.runPin.title": "Run",
+  "command.runPinNow.title": "Run now",
   "command.runPinLastParams.title": "Run with Last Parameters",
   "command.stopPin.title": "Stop",
   "command.forceKillPin.title": "Force Kill",

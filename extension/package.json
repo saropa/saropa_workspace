@@ -167,6 +167,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "saropaWorkspace.runPinNow",
+        "title": "%command.runPinNow.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(play)"
+      },
+      {
         "command": "saropaWorkspace.peekPin",
         "title": "%command.peekPin.title%",
         "category": "%extension.displayName%",
@@ -445,12 +451,12 @@
         },
         {
           "command": "saropaWorkspace.promoteRecipe",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pinRecipe",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pinRecipe || viewItem == pinRecipeScheduled)",
           "group": "inline@0"
         },
         {
           "command": "saropaWorkspace.promoteRecipe",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pinRecipe",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pinRecipe || viewItem == pinRecipeScheduled)",
           "group": "2_edit@1"
         },
         {
@@ -505,7 +511,7 @@
         },
         {
           "command": "saropaWorkspace.peekPin",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/ && viewItem != pinRecipe",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/ && !(viewItem =~ /^pinRecipe/)",
           "group": "1_actions@5"
         },
         {
@@ -515,7 +521,12 @@
         },
         {
           "command": "saropaWorkspace.runPin",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/ && viewItem != pinRunning && viewItem != pinStopping",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/ && viewItem != pinRunning && viewItem != pinStopping && !(viewItem =~ /Scheduled$/)",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "saropaWorkspace.runPinNow",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /Scheduled$/",
           "group": "1_actions@2"
         },
         {
@@ -540,17 +551,17 @@
         },
         {
           "command": "saropaWorkspace.configureRun",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pin",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
           "group": "2_edit@1"
         },
         {
           "command": "saropaWorkspace.configureSchedule",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pin",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
           "group": "2_edit@2"
         },
         {
           "command": "saropaWorkspace.configureAppearance",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pin",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
           "group": "2_edit@3"
         },
         {
@@ -565,7 +576,7 @@
         },
         {
           "submenu": "saropaWorkspace.pinSubmenu",
-          "when": "(view == saropaWorkspace.pins && viewItem =~ /^pin/ && viewItem != pinRecipe) || (view == saropaWorkspace.projectFiles && viewItem =~ /^projectFile/)",
+          "when": "(view == saropaWorkspace.pins && viewItem =~ /^pin/ && !(viewItem =~ /^pinRecipe/)) || (view == saropaWorkspace.projectFiles && viewItem =~ /^projectFile/)",
           "group": "2_edit@6"
         },
         {
@@ -630,6 +641,10 @@
         },
         {
           "command": "saropaWorkspace.runPin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.runPinNow",
           "when": "false"
         },
         {

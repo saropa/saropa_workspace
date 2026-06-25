@@ -88,16 +88,26 @@ export class PinTreeItem extends vscode.TreeItem {
     // action shows; recipe pins use "pinRecipe" (Promote / sticky Unpin, but no
     // Configure Run/Schedule which only apply to stored pins); auto-pins are
     // distinguished from explicit pins. All start with "pin" so the /^pin/
-    // run/open/unpin clauses match.
+    // run/open/unpin clauses match. A resting pin that carries a schedule gets a
+    // "Scheduled" suffix (pinScheduled / pinRecipeScheduled) so its context menu
+    // shows "Run now" instead of "Run" — firing a scheduled job ahead of its timer
+    // reads as intentional. The suffix preserves the /^pin/ prefix, so the generic
+    // run/open/unpin/peek clauses still match; only the exact-match clauses
+    // (Configure Run/Schedule/Appearance, Promote) are widened to accept it.
+    const scheduled = pin.schedule !== undefined;
     this.contextValue = isStopping
       ? "pinStopping"
       : isRunning
         ? "pinRunning"
         : pin.isRecipe
-          ? "pinRecipe"
+          ? scheduled
+            ? "pinRecipeScheduled"
+            : "pinRecipe"
           : pin.isAuto
             ? "pinAuto"
-            : "pin";
+            : scheduled
+              ? "pinScheduled"
+              : "pin";
 
     // Tooltip shows the full target (the complete URL for a url pin), even though
     // the row only shows the host — the hover is where the detail belongs.

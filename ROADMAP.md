@@ -163,13 +163,13 @@ another — any can land once its own dependencies are met.
 ### 3.3 Local run-analytics summary
 
 The on-device run-telemetry store (recents + a lifetime run count per pin, recording
-every manual and scheduled run), the **Recent** sidebar group, the disable setting, and
-**Reset Run History** have shipped. This item adds a viewable summary over that same data.
+every manual and scheduled run), the **Recent** sidebar group, the disable setting,
+**Reset Run History**, and the per-pin lifetime run count in the pin's tooltip have shipped.
+This item adds a viewable summary over that same data.
 
 - **What.** A small, on-demand summary of pin activity — most-run pins, total runs,
-  success/failure split (from the per-session run status), and last-run times — plus the
-  per-pin lifetime run count in the pin's tooltip. Purely local; viewable on demand, never
-  sent anywhere.
+  success/failure split (from the per-session run status), and last-run times. Purely local;
+  viewable on demand, never sent anywhere.
 - **Why.** Lightweight visibility into which shortcuts earn their place, beyond the
   most-recent ordering the Recent group already gives.
 - **Acceptance criteria.**
@@ -178,8 +178,6 @@ every manual and scheduled run), the **Recent** sidebar group, the disable setti
     transmission is not).
   - The summary respects the existing reset (Reset Run History clears it) and the disable
     setting (collection off ⇒ nothing to summarize).
-  - The per-pin run count appears in the tooltip without a separate collection path (it
-    reuses the count the store already keeps).
 
 ### 3.4 Dashboard webview (processes, analytics, trends)
 
@@ -300,13 +298,6 @@ committing. Not yet ordered into a phase.
 - **Richer scheduling.** Day-of-week selectors, cron-style expressions (5-field), a
   friendly interval/cron builder (raw cron syntax is a known user barrier), and
   run-on-startup triggers, evaluated against the in-process timer model's limits.
-- **"Run now" on scheduled pins.** The context-menu **Run** action already fires any pin
-  immediately, including a scheduled one. This refinement relabels that action **Run now**
-  on pins that carry a schedule, so triggering a job ahead of its next timer (to test it or
-  to get a fresh result) reads as intentional rather than as a generic run. Label-only;
-  the existing `runPin` path is unchanged.
-- **Pin health indicators.** Flag pins whose target file no longer exists, with a one-click
-  fix (relocate or remove).
 - **Run on save.** Optionally auto-run a pin when its target file is saved (with auto-save-
   before-run), matching Code Runner's run-on-save.
 - **Remote / virtual resources.** Support pinning files on remote and virtual file systems
@@ -325,9 +316,6 @@ committing. Not yet ordered into a phase.
 - **`files.exclude` integration.** Optionally drive VS Code's `files.exclude` from the pin
   set to hide non-favorite files in the Explorer (as kdcro101 Favorites offers), for a
   focused, favorites-only workspace view.
-- **Shebang respect.** For *nix scripts, honor the file's shebang when no command prefix is
-  set, instead of relying only on the extension-to-interpreter default (matching Code
-  Runner). Today a blank prefix runs the file directly; this makes that path shebang-aware.
 
 ---
 
@@ -371,7 +359,7 @@ map to the phases and Later / Exploratory items above.
 |---|---|
 | Multi-root workspace support | Partial; refinements — Phase 1.2 |
 | Remote / local resource support | Gap — Later / Exploratory |
-| Respect shebang for *nix scripts | Partial (blank prefix runs the file directly) — Later / Exploratory |
+| Respect shebang for *nix scripts | Shipped (a blank prefix honors the file's `#!` interpreter) |
 | Run on save | Gap — Later / Exploratory |
 | Export / share pin sets | Gap — Phase 2.1 |
 

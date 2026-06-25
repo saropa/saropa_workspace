@@ -720,6 +720,17 @@ export function registerPinCommands(
     }
   });
 
+  // "Run now" — the same run path as runPin, exposed under a distinct title so a
+  // scheduled pin's context menu reads "Run now" (firing ahead of the timer is
+  // intentional) rather than a generic "Run". The handler is identical; only the
+  // label differs, gated by the pinScheduled / pinRecipeScheduled contextValue.
+  reg("saropaWorkspace.runPinNow", (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      void runPinCommand(store, pin);
+    }
+  });
+
   reg("saropaWorkspace.runPinLastParams", (arg: unknown) => {
     const pin = asPin(arg);
     if (pin) {
