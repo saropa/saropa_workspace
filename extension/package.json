@@ -43,6 +43,10 @@
         {
           "id": "saropaWorkspace.pins",
           "name": "%views.pins.name%"
+        },
+        {
+          "id": "saropaWorkspace.projectFiles",
+          "name": "%views.projectFiles.name%"
         }
       ]
     },
@@ -50,6 +54,10 @@
       {
         "view": "saropaWorkspace.pins",
         "contents": "%viewsWelcome.pins.contents%"
+      },
+      {
+        "view": "saropaWorkspace.projectFiles",
+        "contents": "%viewsWelcome.projectFiles.contents%"
       }
     ],
     "commands": [
@@ -58,6 +66,18 @@
         "title": "%command.refresh.title%",
         "category": "%extension.displayName%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "saropaWorkspace.refreshProjectFiles",
+        "title": "%command.refreshProjectFiles.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "saropaWorkspace.copyPath",
+        "title": "%command.copyPath.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(copy)"
       },
       {
         "command": "saropaWorkspace.runAnyPin",
@@ -220,6 +240,38 @@
         "command": "saropaWorkspace.runTopPin5",
         "title": "%command.runTopPin5.title%",
         "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.promoteRecipe",
+        "title": "%command.promoteRecipe.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "saropaWorkspace.restoreRecipes",
+        "title": "%command.restoreRecipes.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(history)"
+      },
+      {
+        "command": "saropaWorkspace.recipe.setupEnv",
+        "title": "%command.recipe.setupEnv.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.recipe.openConfigFiles",
+        "title": "%command.recipe.openConfigFiles.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.recipe.copyVersion",
+        "title": "%command.recipe.copyVersion.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.recipe.runNearestScript",
+        "title": "%command.recipe.runNearestScript.title%",
+        "category": "%extension.displayName%"
       }
     ],
     "menus": {
@@ -258,9 +310,29 @@
           "command": "saropaWorkspace.showOutput",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@3"
+        },
+        {
+          "command": "saropaWorkspace.restoreRecipes",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@4"
+        },
+        {
+          "command": "saropaWorkspace.refreshProjectFiles",
+          "when": "view == saropaWorkspace.projectFiles",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
+        {
+          "command": "saropaWorkspace.promoteRecipe",
+          "when": "view == saropaWorkspace.pins && viewItem == pinRecipe",
+          "group": "inline@0"
+        },
+        {
+          "command": "saropaWorkspace.promoteRecipe",
+          "when": "view == saropaWorkspace.pins && viewItem == pinRecipe",
+          "group": "2_edit@1"
+        },
         {
           "command": "saropaWorkspace.addGroup",
           "when": "view == saropaWorkspace.pins && viewItem == scopeRoot",
@@ -345,6 +417,21 @@
           "command": "saropaWorkspace.unpin",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
           "group": "2_edit@5"
+        },
+        {
+          "command": "saropaWorkspace.copyPath",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
+          "group": "3_copy@1"
+        },
+        {
+          "command": "saropaWorkspace.copyPath",
+          "when": "view == saropaWorkspace.projectFiles && viewItem == projectFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "saropaWorkspace.copyPath",
+          "when": "view == saropaWorkspace.projectFiles && viewItem == projectFile",
+          "group": "1_copy@1"
         }
       ],
       "explorer/context": [
@@ -366,6 +453,10 @@
       "commandPalette": [
         {
           "command": "saropaWorkspace.activatePin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.copyPath",
           "when": "false"
         },
         {
@@ -423,6 +514,10 @@
         {
           "command": "saropaWorkspace.runPinById",
           "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.promoteRecipe",
+          "when": "false"
         }
       ]
     },
@@ -470,6 +565,11 @@
             "maximum": 50,
             "description": "%config.suggestions.openThreshold.description%"
           },
+          "saropaWorkspace.recipes.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.recipes.enabled.description%"
+          },
           "saropaWorkspace.interpreterDefaults": {
             "type": "object",
             "default": {
@@ -486,6 +586,32 @@
               "type": "string"
             },
             "description": "%config.interpreterDefaults.description%"
+          },
+          "saropaWorkspace.projectFiles.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.projectFiles.enabled.description%"
+          },
+          "saropaWorkspace.projectFiles.files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "README.md",
+              "CHANGELOG.md",
+              "ROADMAP.md",
+              "CONTRIBUTING.md",
+              "SECURITY.md",
+              "LICENSE",
+              "LICENSE.md",
+              "package.json",
+              "pubspec.yaml",
+              "Cargo.toml",
+              "pyproject.toml",
+              "go.mod"
+            ],
+            "description": "%config.projectFiles.files.description%"
           }
         }
       }

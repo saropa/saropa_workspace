@@ -9,6 +9,8 @@ import {
   PROJECT_PINS_VERSION,
   emptyProjectPinsFile,
 } from "./pin";
+import { detectOnDemandRecipes, RecipeResult } from "../recipes/detectors";
+import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 
 // A drop destination computed by the tree's drag-and-drop controller and handed
 // to PinStore.movePins. `groupId` undefined means the scope's top level;
@@ -33,6 +35,10 @@ export interface MoveTarget {
 const PROJECT_FILE_RELATIVE = ".vscode/saropa-workspace.json";
 const GLOBAL_STATE_KEY = "saropaWorkspace.globalPins";
 const GLOBAL_GROUPS_KEY = "saropaWorkspace.globalGroups";
+// Synthetic group that holds auto-detected recipe pins. It is not stored in any
+// file; it is injected into the project group list when recipes are present.
+const RECIPES_GROUP_ID = "recipes";
+const RECIPES_EXPANDED_KEY = "saropaWorkspace.recipesGroupExpanded";
 
 export class PinStore {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
@@ -168,6 +174,12 @@ export class PinStore {
       // Auto-pins are not stored in pins[]; suppress re-seeding instead.
       if (!file.removedAutoPins.includes(pin.id)) {
         file.removedAutoPins.push(pin.id);
+      }
+    } else if (pin.isRecipe && pin.recipeId) {
+      // Recipe pins are detected, not stored; suppress by recipeId so removal is
+      // sticky (the Restore Recipes command clears these suppressions).
+      if (!file.removedRecipes.includes(pin.recipeId)) {
+        file.removedRecipes.push(pin.recipeId);
       }
     } else {
       file.pins = file.pins.filter((p) => p.id !== pin.id);
@@ -383,6 +395,12 @@ export class PinStore {
     scope: PinScope,
     collapsed: boolean
   ): Promise<void> {
+    // The synthetic Recipes group is not stored in any file; persist its posture
+    // in globalState instead of through mutateGroup (which would find no target).
+    if (group.id === RECIPES_GROUP_ID) {
+      await this.context.globalState.update(RECIPES_EXPANDED_KEY, !collapsed);
+      return;
+    }
     await this.mutateGroup(group, scope, (target) => {
       target.collapsed = collapsed;
     });
@@ -394,7 +412,7 @@ export class PinStore {
   // absolute — they are not interchangeable without re-resolving the path).
   async movePins(dragged: Pin[], target: MoveTarget): Promise<void> {
     const movable = dragged.filter(
-      (p) => !p.isAuto && p.scope === target.scope
+      (p) => !p.isAuto && !p.isRecipe && p.scope === target.scope
     );
     if (movable.length === 0) {
       return;
@@ -544,6 +562,25 @@ export class PinStore {
         this.projectPinFolder.set(pin.id, folder);
         project.push(pin);
       }
+
+      // Auto-detected recipe pins (URL/shell/command/macro derived from project
+      // files), minus the ones the user removed. Mirrors the auto-pin mechanism.
+      const recipePins = await this.seedRecipes(folder, file.removedRecipes);
+      for (const pin of recipePins) {
+        this.projectPinFolder.set(pin.id, folder);
+        project.push(pin);
+      }
+    }
+
+    // Inject the synthetic Recipes group when any recipe pins exist, so they nest
+    // under one collapsible folder rather than cluttering the top level.
+    if (project.some((p) => p.isRecipe)) {
+      projectGroups.push({
+        id: RECIPES_GROUP_ID,
+        label: "Recipes",
+        order: 9999,
+        collapsed: !this.recipesGroupExpanded(),
+      });
     }
 
     project.sort((a, b) => a.order - b.order);
@@ -598,6 +635,107 @@ export class PinStore {
     return pins;
   }
 
+  // --- recipes -----------------------------------------------------------
+
+  private recipesEnabled(): boolean {
+    return vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .get<boolean>("recipes.enabled", true);
+  }
+
+  private recipesGroupExpanded(): boolean {
+    // Default collapsed: the Recipes group is discoverable but never clutters.
+    return this.context.globalState.get<boolean>(RECIPES_EXPANDED_KEY, false);
+  }
+
+  // Detect recipes for a folder and turn each into a recipe pin (isRecipe), minus
+  // the ones the user removed (sticky via removedRecipes). Auto-detected, never
+  // "created" — exactly like auto-pins, but for derived URL/shell/command/macro
+  // actions instead of file globs.
+  private async seedRecipes(
+    folder: vscode.WorkspaceFolder,
+    removed: string[]
+  ): Promise<Pin[]> {
+    if (!this.recipesEnabled()) {
+      return [];
+    }
+    const results: RecipeResult[] = [
+      ...(await detectOnDemandRecipes(folder)),
+      ...(await detectScheduledRecipes(folder)),
+    ];
+    const pins: Pin[] = [];
+    let order = 2000;
+    for (const r of results) {
+      if (removed.includes(r.recipeId)) {
+        continue;
+      }
+      pins.push({
+        id: `recipe:${folder.name}:${r.recipeId}`,
+        path: r.filePath ?? "",
+        label: r.label,
+        scope: "project",
+        isRecipe: true,
+        recipeId: r.recipeId,
+        action: r.action,
+        schedule: r.schedule,
+        icon: r.icon,
+        color: r.color,
+        groupId: RECIPES_GROUP_ID,
+        order: order++,
+      });
+    }
+    return pins;
+  }
+
+  // Re-add every removed recipe across all folders (the Restore counterpart for
+  // recipes). Returns how many suppressions were cleared.
+  async restoreRecipes(): Promise<number> {
+    let restored = 0;
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const file = await this.readProjectFile(folder);
+      if (file.removedRecipes.length > 0) {
+        restored += file.removedRecipes.length;
+        file.removedRecipes = [];
+        await this.writeProjectFile(folder, file);
+      }
+    }
+    if (restored > 0) {
+      await this.refresh();
+    }
+    return restored;
+  }
+
+  // Convert a recipe into a stored, fully-editable pin: suppress the seeded recipe
+  // (so it does not duplicate) and add an equivalent explicit pin carrying its
+  // action/path, label, and appearance. Returns false for a non-recipe pin.
+  async promoteRecipe(pin: Pin): Promise<boolean> {
+    if (!pin.isRecipe || !pin.recipeId) {
+      return false;
+    }
+    const folder = this.projectPinFolder.get(pin.id);
+    if (!folder) {
+      return false;
+    }
+    const file = await this.readProjectFile(folder);
+    if (!file.removedRecipes.includes(pin.recipeId)) {
+      file.removedRecipes.push(pin.recipeId);
+    }
+    file.pins.push({
+      id: this.newId(),
+      path: pin.path,
+      label: pin.label,
+      scope: "project",
+      action: pin.action,
+      schedule: pin.schedule,
+      icon: pin.icon,
+      color: pin.color,
+      order: file.pins.length,
+    });
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return true;
+  }
+
   // --- project file IO ---------------------------------------------------
 
   private projectFileUri(folder: vscode.WorkspaceFolder): vscode.Uri {
@@ -619,6 +757,9 @@ export class PinStore {
         groups: Array.isArray(parsed.groups) ? parsed.groups : [],
         removedAutoPins: Array.isArray(parsed.removedAutoPins)
           ? parsed.removedAutoPins
+          : [],
+        removedRecipes: Array.isArray(parsed.removedRecipes)
+          ? parsed.removedRecipes
           : [],
       };
     } catch {

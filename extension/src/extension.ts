@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
+import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
 import { PinFolderItem } from "./views/pinTreeItem";
 import { SuggestionTracker } from "./views/suggestions";
 import { ScheduleStatusBar } from "./views/scheduleStatusBar";
@@ -10,6 +11,7 @@ import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { processRegistry } from "./exec/processRegistry";
 import { recentRuns } from "./exec/recentRuns";
+import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
 import { l10n } from "./i18n/l10n";
 
@@ -70,8 +72,41 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
+  // Second view in the container: a read-only list of interesting project files
+  // (README, CHANGELOG, manifests) with each file's last-modified time and
+  // declared version, so the user can see whether the changelog is current and
+  // what version the project is up to without opening anything.
+  const projectFiles = new ProjectFilesTreeProvider();
+  const projectFilesView = vscode.window.createTreeView(
+    "saropaWorkspace.projectFiles",
+    { treeDataProvider: projectFiles }
+  );
+  context.subscriptions.push(projectFilesView);
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.refreshProjectFiles", () =>
+      projectFiles.refresh()
+    )
+  );
+
+  // Repaint the project-files view when one of those files is saved (its mtime
+  // and version change), when folders change, or when its settings are edited.
+  // A save of any file is cheap to react to — the view rescans a handful of
+  // stats — so this does not filter by filename.
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(() => projectFiles.refresh()),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => projectFiles.refresh()),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("saropaWorkspace.projectFiles")) {
+        projectFiles.refresh();
+      }
+    })
+  );
+
   registerTerminalCleanup(context);
   registerPinCommands(context, store, dispatcher);
+  // Helper commands invoked by "command" recipes (set up .env, open config files,
+  // copy version, run nearest script).
+  registerRecipeCommands(context);
 
   // Status-bar item for the soonest upcoming scheduled run; clicking it reveals
   // the pin in the tree. The reveal command lives here because it needs the tree
@@ -111,7 +146,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => void store.refresh()),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("saropaWorkspace.autoPins.patterns")) {
+      if (
+        e.affectsConfiguration("saropaWorkspace.autoPins.patterns") ||
+        e.affectsConfiguration("saropaWorkspace.recipes.enabled")
+      ) {
         void store.refresh();
       }
     })

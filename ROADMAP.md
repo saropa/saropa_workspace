@@ -495,6 +495,29 @@ land once its own dependencies are met.
   - Canceling runs nothing.
 - **Depends on.** The run palette (4.1) and the run-parameters editor (2.1).
 
+### ~~7.9 Project Files view~~ — DONE
+
+- **What.** A second, read-only view in the Saropa Workspace sidebar that lists interesting
+  project files (README, CHANGELOG, ROADMAP, contributing/security/license docs, and
+  package manifests — `package.json`, `pubspec.yaml`, `Cargo.toml`, `pyproject.toml`,
+  `go.mod`) when they exist in a workspace folder. Done — each row shows the file's
+  last-modified time (relative buckets — "just now", "5m ago", "3d ago" — then an absolute
+  date) and, where the file declares one, its version (read from the manifest or the top
+  entry of `CHANGELOG.md`). Single-click opens the file; the view refreshes on save, on
+  folder changes, and from a refresh button. Configurable via
+  `saropaWorkspace.projectFiles.enabled` and `saropaWorkspace.projectFiles.files`.
+- **Why.** Answers "is the changelog current?" and "what version is this project up to?" at
+  a glance without opening files — useful during release prep and when returning to a repo.
+- **Acceptance criteria.**
+  - The view lists only files that exist; a folder with none shows the empty-state welcome.
+  - Version reads from `package.json`, `pubspec.yaml`, `Cargo.toml`, `pyproject.toml`, and
+    the newest release heading in `CHANGELOG.md` (the `[Unreleased]` placeholder is skipped).
+  - Last-modified uses file mtime (live edits, not commits), so it reflects unsaved-then-
+    saved work, satisfying the no-network / local-first principles.
+  - With several folders open, files group under their owning folder.
+  - All strings are keyed (NLS / `l10n`); the scan is stat-based and reads only the small
+    version-bearing files (no project-wide crawl).
+
 ### 7.8 Local run analytics
 
 - **What.** An on-device tally of pin activity — runs per pin, total runs, last-run times —
@@ -515,28 +538,52 @@ land once its own dependencies are met.
 Items worth doing once the core ships, or that need a written assessment before
 committing. Not yet ordered into a phase.
 
-- **Suite integration — "Better Together."** Cooperation with other Saropa Suite tools:
-  - **Saropa Log Capture** — pin a capture/report script and run or schedule it from the
-    sidebar.
-  - **Saropa Lints** — pin lint/analysis entry points; surface lint runs as schedulable
-    pins.
-  - **Saropa Drift Advisor** — pin advisor checks for one-click or scheduled runs.
+- **Suite integration — "Better Together."** Cooperation with other Saropa Suite tools.
+  Detect a sibling tool from the project (a marker file or its installed companion
+  extension) and seed pins that drive it. The concrete recipe catalog (the suite set is
+  recipes 36–52) lives in [plans/RECIPE_BOOK.md](plans/RECIPE_BOOK.md). Stable entry points
+  confirmed against each tool's README:
+  - **Saropa Lints** (`saropa.saropa-lints`) — detect from `analysis_options.yaml`
+    including `saropa_lints` or `saropa_lints` in `dev_dependencies`. Command pins for
+    `Run Analysis`, `Open Code Health Dashboard`, and `Export OWASP Compliance Report`;
+    run-target pins for the CLIs (`dart run saropa_lints:cross_file report`, `:baseline`,
+    `:quality_gate`); a file pin on `reports/.saropa_lints/violations.json`. The extension
+    exposes a public API (`getViolationsData()`, `getHealthScoreParams()`, `runAnalysis()`)
+    so a scheduled lint pin can read the health score directly instead of parsing output.
+  - **Saropa Drift Advisor** (`saropa.drift-viewer`) — detect from `saropa_drift_advisor`
+    in `pubspec.yaml`. A URL pin to the debug server (`http://127.0.0.1:8642`, and
+    `/api/issues`); command pins for the SQL Notebook and offline Dart schema scan; a
+    run-target pin for `adb forward tcp:8642 tcp:8642`. The server runs only under
+    `kDebugMode`, so these pair with an active debug session.
+  - **Saropa Log Capture** (`saropa.saropa-log-capture`) — detect from the companion
+    extension or `reports/*.log`. A file pin on the latest capture (`$latestLog`); command
+    pins for `Search Log Files`, `Export Session Flow Map`, and `Compare Sessions`. Log
+    Capture nests peripheral logs under each run, so the scheduled reports (recipes 26–35)
+    appear in its Logs panel automatically.
   Each integration is gated on the other tool's stable, documented entry point and ships
   only when present; absence must degrade gracefully (no errors when a suite member is not
-  installed).
+  installed). Needs the **command-pin** and **URL-pin** kinds (also in Non-file run
+  targets) plus suite-tool detection.
 - **Additional import formats.** Any of Project Manager / Bookmarks (or others) that do not
   make the cut in 3.1, with the per-format mapping assessment recorded here.
 - **Richer scheduling.** Day-of-week selectors, cron-style expressions (5-field), a
   friendly interval/cron builder (raw cron syntax is a known user barrier), and
   run-on-startup triggers, evaluated against the in-process timer model's limits.
+- **"Run now" on scheduled pins.** The context-menu **Run** action already fires any pin
+  immediately, including a scheduled one. This refinement relabels that action **Run now**
+  on pins that carry a schedule, so triggering a job ahead of its next timer (to test it or
+  to get a fresh result) reads as intentional rather than as a generic run. Label-only;
+  the existing `runPin` path is unchanged.
 - **Pin health indicators.** Flag pins whose target file no longer exists, with a one-click
   fix (relocate or remove).
 - **Run on save.** Optionally auto-run a pin when its target file is saved (with auto-save-
   before-run), matching Code Runner's run-on-save.
-- **Command sequences / macros.** A pin that runs an ordered list of steps (open a file,
-  run a script, open a URL), as Favorites Panel does.
-- **Non-file run targets.** Allow a pin to be a VS Code command id or a URL, not only a
-  file/script, broadening "favorite" beyond files.
+- ~~**Command sequences / macros.**~~ DONE — a pin can be a `macro` action that runs an
+  ordered list of steps (open a file, run a shell command, open a URL, invoke a command);
+  used by the boot-sequence recipe. See the recipe book and Recipes section.
+- ~~**Non-file run targets.**~~ DONE — a pin's `action.kind` may be `url` (open a link),
+  `command` (invoke a VS Code command id), `shell` (run a command line), or `macro`, not
+  only a file. This is the foundation the Recipes system is built on.
 - **Remote / virtual resources.** Support pinning files on remote and virtual file systems
   (Remote-SSH, WSL, dev containers), not just `file:` URIs.
 - **Multiple favorite sets.** Named, switchable pin sets per workspace with a status-bar

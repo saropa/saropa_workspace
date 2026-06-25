@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { Pin } from "../model/pin";
+import { MacroStep, Pin } from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
 import { recentRuns } from "./recentRuns";
@@ -179,6 +179,239 @@ export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
   } else {
     await runInBackground(plan.commandLine, plan.cwd, plan.env, plan.name, pin.id);
   }
+}
+
+// --- non-file pin kinds (recipes) --------------------------------------
+
+// Run a non-file pin (url / shell / command / macro). The file kind is handled by
+// runPin above; callers branch on pinKind and route non-file pins here. Returns
+// without error for an unknown/empty action so a malformed recipe cannot throw.
+export async function runAction(pin: Pin): Promise<void> {
+  const action = pin.action;
+  if (!action) {
+    return;
+  }
+  const name = pin.label ?? pin.id;
+  // Recipe/non-file runs feed the same recents list as file runs.
+  void recentRuns.record(pin.id);
+
+  switch (action.kind) {
+    case "url":
+      await openUrl(action.url, name);
+      return;
+    case "command":
+      await runVsCommand(action.commandId, action.commandArgs, name);
+      return;
+    case "shell":
+      await runShellAction(action, name, pin.id);
+      return;
+    case "macro":
+      await runMacro(action.steps ?? [], name);
+      return;
+    default:
+      return;
+  }
+}
+
+async function openUrl(url: string | undefined, name: string): Promise<void> {
+  if (!url) {
+    return;
+  }
+  await vscode.env.openExternal(vscode.Uri.parse(url));
+  vscode.window.showInformationMessage(l10n("action.opened", { name, url }));
+}
+
+async function runVsCommand(
+  commandId: string | undefined,
+  args: unknown[] | undefined,
+  name: string
+): Promise<void> {
+  if (!commandId) {
+    return;
+  }
+  await vscode.commands.executeCommand(commandId, ...(args ?? []));
+}
+
+// Run a shell action's command line. With a reportFile, stdout+stderr are captured
+// to that dated file (under cwd) and the file is opened when autoOpen is set —
+// this is the scheduled-report path. Without one, output streams to the channel
+// like an ordinary background run.
+async function runShellAction(
+  action: { shellCommand?: string; cwd?: string; useIntegratedTerminal?: boolean; reportFile?: string; autoOpen?: boolean },
+  name: string,
+  pinId: string
+): Promise<void> {
+  const raw = action.shellCommand;
+  if (!raw) {
+    return;
+  }
+  const cwd = expandRecipeTokens(action.cwd ?? firstWorkspacePath() ?? process.cwd());
+  const commandLine = expandRecipeTokens(raw);
+
+  if (action.reportFile) {
+    await runShellToReport(
+      commandLine,
+      cwd,
+      expandRecipeTokens(action.reportFile),
+      action.autoOpen === true,
+      name,
+      pinId
+    );
+    return;
+  }
+
+  const useTerminal =
+    action.useIntegratedTerminal ??
+    vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .get<boolean>("defaultUseIntegratedTerminal", true);
+  vscode.window.showInformationMessage(l10n("run.starting", { name }));
+  if (useTerminal) {
+    runInTerminal(commandLine, cwd, undefined);
+  } else {
+    await runInBackground(commandLine, cwd, undefined, name, pinId);
+  }
+}
+
+// Run a command, capture its combined output to a dated report file (created with
+// its parent directory), and optionally open it. Used by scheduled report recipes.
+async function runShellToReport(
+  commandLine: string,
+  cwd: string,
+  reportRelOrAbs: string,
+  autoOpen: boolean,
+  name: string,
+  pinId: string
+): Promise<void> {
+  const cp = await import("child_process");
+  const nodePath = await import("path");
+  const channel = getOutputChannel();
+  const reportPath = nodePath.isAbsolute(reportRelOrAbs)
+    ? reportRelOrAbs
+    : nodePath.join(cwd, reportRelOrAbs);
+
+  channel.appendLine(`$ (${name}) ${commandLine}`);
+  const startedAt = Date.now();
+  const header = `# ${name}\n\nGenerated ${new Date().toLocaleString()}\nCommand: ${commandLine}\n\n`;
+  let body = "";
+
+  const child = cp.spawn(commandLine, {
+    cwd,
+    shell: true,
+    env: { ...process.env },
+  });
+  processRegistry.register(pinId, child);
+  child.stdout?.on("data", (d) => (body += d.toString()));
+  child.stderr?.on("data", (d) => (body += d.toString()));
+
+  await new Promise<void>((resolve) => {
+    const finish = async (code: number | null): Promise<void> => {
+      const durationMs = Date.now() - startedAt;
+      try {
+        const fs = await import("fs/promises");
+        await fs.mkdir(nodePath.dirname(reportPath), { recursive: true });
+        await fs.writeFile(reportPath, header + body, "utf8");
+        channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
+        runStatusRegistry.record(pinId, {
+          outcome: code === 0 ? "success" : "failure",
+          exitCode: code,
+          durationMs,
+          endedAt: Date.now(),
+        });
+        if (autoOpen) {
+          const doc = await vscode.workspace.openTextDocument(
+            vscode.Uri.file(reportPath)
+          );
+          await vscode.window.showTextDocument(doc, { preview: false });
+        }
+      } catch (err) {
+        channel.appendLine(
+          l10n("report.failed", { name, error: err instanceof Error ? err.message : String(err) })
+        );
+      }
+      resolve();
+    };
+    child.on("close", (code) => void finish(code));
+    child.on("error", () => void finish(null));
+  });
+}
+
+// Sequentially run macro steps (open / shell / url / command). A failing step is
+// logged and the macro continues, so one bad step does not abort the rest.
+async function runMacro(steps: MacroStep[], name: string): Promise<void> {
+  const channel = getOutputChannel();
+  for (const [index, step] of steps.entries()) {
+    try {
+      await runMacroStep(step);
+    } catch (err) {
+      channel.appendLine(
+        l10n("macro.stepFailed", {
+          name,
+          step: String(index + 1),
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+  }
+  vscode.window.showInformationMessage(
+    l10n("macro.done", { name, count: String(steps.length) })
+  );
+}
+
+async function runMacroStep(step: MacroStep): Promise<void> {
+  switch (step.kind) {
+    case "open": {
+      if (!step.path) {
+        return;
+      }
+      const uri = vscode.Uri.file(expandRecipeTokens(step.path));
+      const doc = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+      return;
+    }
+    case "url":
+      if (step.url) {
+        await vscode.env.openExternal(vscode.Uri.parse(step.url));
+      }
+      return;
+    case "command":
+      if (step.commandId) {
+        await vscode.commands.executeCommand(
+          step.commandId,
+          ...(step.commandArgs ?? [])
+        );
+      }
+      return;
+    case "shell": {
+      if (!step.shellCommand) {
+        return;
+      }
+      const cwd = expandRecipeTokens(step.cwd ?? firstWorkspacePath() ?? process.cwd());
+      runInTerminal(expandRecipeTokens(step.shellCommand), cwd, undefined);
+      return;
+    }
+  }
+}
+
+function firstWorkspacePath(): string | undefined {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+// Expand recipe-time tokens that are not file-scoped: $workspaceRoot, plus the
+// date stamps used by report paths. $stamp is filesystem-safe (YYYY.MM.DD_HHmmss)
+// for report file names; $date is YYYY-MM-DD for headings.
+function expandRecipeTokens(value: string): string {
+  const root = firstWorkspacePath() ?? "";
+  const now = new Date();
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const stamp = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(
+    now.getDate()
+  )}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return value
+    .split("$workspaceRoot").join(root)
+    .split("$stamp").join(stamp)
+    .split("$date").join(date);
 }
 
 function runInTerminal(

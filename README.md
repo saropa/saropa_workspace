@@ -65,6 +65,10 @@ Common project files appear automatically so a fresh checkout is useful immediat
 
 Already using favorites from another extension? Saropa Workspace detects and imports `.favorites.json` (the format used by the kdcro101 "Favorites" extension), so you keep your existing shortcuts when you switch.
 
+### 📄 Project Files at a glance
+
+A second view in the sidebar lists the project's interesting files — README, CHANGELOG, ROADMAP, and package manifests (`package.json`, `pubspec.yaml`, `Cargo.toml`, `pyproject.toml`, `go.mod`) — when they exist. Each row shows **when the file was last modified** and, where the file declares one, **its version** (read from the manifest or the top entry of the changelog). See at a glance whether the changelog is current and what version the project is up to, then single-click to open. Configure the file list with `saropaWorkspace.projectFiles.files`, or hide the view with `saropaWorkspace.projectFiles.enabled`.
+
 ---
 
 ## Screenshots
@@ -131,6 +135,8 @@ All settings live under the `saropaWorkspace.*` namespace.
 | `saropaWorkspace.defaultUseIntegratedTerminal` | `true` | Run pinned scripts in the integrated terminal by default (so output is visible). When off, runs in the background and streams to an output channel. |
 | `saropaWorkspace.terminalName` | `"Saropa Workspace"` | Name of the reused integrated terminal for pinned scripts. |
 | `saropaWorkspace.interpreterDefaults` | see below | Default command prefix per file extension, used when a pin has no explicit command set. An explicit per-pin command always wins. |
+| `saropaWorkspace.projectFiles.enabled` | `true` | Show the Project Files view, listing files like README, CHANGELOG, and package manifests with their last-modified time and declared version. |
+| `saropaWorkspace.projectFiles.files` | see [docs](docs/PROJECT_FILES.md) | Root-relative file names surfaced in the Project Files view. Each is shown only when it exists. |
 
 Default `interpreterDefaults` map:
 
@@ -165,6 +171,23 @@ Available from the Command Palette and the view's context menus:
 | **Unpin** | Remove a pin. |
 | **Restore Auto-Pins** | Re-add auto-pins that were previously removed. |
 | **Refresh** | Reload the Pins view. |
+| **Refresh Project Files** | Reload the Project Files view. |
+| **Copy Path** | Right-click any file row (either view) to copy its full path. |
+
+---
+
+## Documentation
+
+| Guide | Covers |
+| ----- | ------ |
+| [FAQ](docs/FAQ.md) | Common questions — scopes, storage, double-click, the views. |
+| [Project Files view](docs/PROJECT_FILES.md) | The last-modified / version overview and how to configure it. |
+| [Run recipes](docs/RECIPES.md) | Run configurations, interpreter defaults, and placeholder tokens. |
+| [Scheduling](docs/SCHEDULING.md) | Daily times, intervals, and what a scheduled run does. |
+| [Keybindings](docs/KEYBINDINGS.md) | Binding shortcuts to run pins. |
+| [Pin icons and colors](docs/THEMING.md) | Customizing a pin's tree icon and color. |
+| [Privacy](docs/PRIVACY.md) | What is stored, where, and why nothing is transmitted. |
+| [Architecture](ARCHITECTURE.md) | How the extension is put together (for contributors). |
 
 ---
 

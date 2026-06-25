@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Pin, PinGroup, PinScope } from "../model/pin";
+import { Pin, PinGroup, PinKind, PinScope, pinKind } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult, formatDuration } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
@@ -13,6 +13,8 @@ export class PinTreeItem extends vscode.TreeItem {
     isRunning: boolean,
     lastRun?: RunResult
   ) {
+    const kind = pinKind(pin);
+    const isFile = kind === "file";
     const basename = pin.path.split("/").pop() ?? pin.path;
     super(pin.label ?? basename, vscode.TreeItemCollapsibleState.None);
 
@@ -20,7 +22,9 @@ export class PinTreeItem extends vscode.TreeItem {
     // the tree being rebuilt — the status-bar "next scheduled run" reveals a pin
     // by constructing a fresh item with the same id.
     this.id = `pin:${pin.scope}:${pin.id}`;
-    this.resourceUri = resolvedUri;
+    // resourceUri drives the file-type icon/decorations; only meaningful for file
+    // pins. Non-file pins (url/shell/command/macro) render from their own glyph.
+    this.resourceUri = isFile ? resolvedUri : undefined;
 
     // Leading inline badge, by priority: a running pin's live state wins; then a
     // scheduled pin's queued next-run time (2.2); then the last completed run's
@@ -36,14 +40,29 @@ export class PinTreeItem extends vscode.TreeItem {
       : nextLabel
         ? l10n("schedule.treeBadge", { time: nextLabel })
         : lastRunBadge;
-    this.description = badge ? `${badge} · ${pin.path}` : pin.path;
+    // For a file pin the trailing detail is its path; for a non-file pin it is a
+    // summary of what the action does (the URL, the command line, etc.).
+    const detail = isFile ? pin.path : actionSummary(pin);
+    this.description = badge ? `${badge} · ${detail}` : detail;
 
     // contextValue gates the menus. A running pin uses "pinRunning" so the Stop
-    // action shows; the /^pin/ when-clauses on the existing actions still match
-    // it. Otherwise auto-pins are distinguished from explicit pins.
-    this.contextValue = isRunning ? "pinRunning" : pin.isAuto ? "pinAuto" : "pin";
+    // action shows; recipe pins use "pinRecipe" (Promote / sticky Unpin, but no
+    // Configure Run/Schedule which only apply to stored pins); auto-pins are
+    // distinguished from explicit pins. All start with "pin" so the /^pin/
+    // run/open/unpin clauses match.
+    this.contextValue = isRunning
+      ? "pinRunning"
+      : pin.isRecipe
+        ? "pinRecipe"
+        : pin.isAuto
+          ? "pinAuto"
+          : "pin";
 
-    const targetLine = resolvedUri ? resolvedUri.fsPath : pin.path;
+    const targetLine = isFile
+      ? resolvedUri
+        ? resolvedUri.fsPath
+        : pin.path
+      : actionSummary(pin);
     const tooltipLines = [targetLine];
     if (isRunning) {
       tooltipLines.push(l10n("run.runningTooltip"));
@@ -63,13 +82,16 @@ export class PinTreeItem extends vscode.TreeItem {
     // vs explicit pin glyph.
     if (isRunning) {
       this.iconPath = new vscode.ThemeIcon("loading~spin");
-    } else if (!resolvedUri) {
+    } else if (isFile && !resolvedUri) {
       this.iconPath = new vscode.ThemeIcon("warning");
     } else if (lastRun) {
       this.iconPath =
         lastRun.outcome === "success"
           ? new vscode.ThemeIcon("pass", new vscode.ThemeColor("testing.iconPassed"))
           : new vscode.ThemeIcon("error", new vscode.ThemeColor("testing.iconFailed"));
+    } else if (!isFile && !pin.icon) {
+      // Default glyph per action kind for a non-file pin with no custom icon.
+      this.iconPath = new vscode.ThemeIcon(kindIcon(kind));
     } else if (pin.icon) {
       // User-chosen icon/color for the resting state (5.1). Transient state icons
       // above (running / missing / last-run) deliberately win, since they convey
@@ -140,6 +162,42 @@ function formatRunTooltip(result: RunResult): string {
   }
   const code = result.exitCode === null ? "?" : String(result.exitCode);
   return l10n("run.tooltipFailed", { code, duration, time });
+}
+
+// One-line summary of a non-file pin's action, shown as the tree row's detail.
+function actionSummary(pin: Pin): string {
+  const action = pin.action;
+  if (!action) {
+    return pin.path;
+  }
+  switch (action.kind) {
+    case "url":
+      return action.url ?? "";
+    case "shell":
+      return action.shellCommand ?? "";
+    case "command":
+      return action.commandId ?? "";
+    case "macro":
+      return l10n("action.macroSteps", { count: action.steps?.length ?? 0 });
+    default:
+      return pin.path;
+  }
+}
+
+// Default codicon for a non-file action kind when the pin has no custom icon.
+function kindIcon(kind: PinKind): string {
+  switch (kind) {
+    case "url":
+      return "link-external";
+    case "shell":
+      return "terminal";
+    case "command":
+      return "symbol-event";
+    case "macro":
+      return "list-ordered";
+    default:
+      return "pin";
+  }
 }
 
 // Scope root node (Project Pins / Global Pins). The two fixed top-level groups.

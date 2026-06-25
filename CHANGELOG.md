@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Recipes: auto-detected pins derived from a project's own files, shown in a
+  collapsed "Recipes" group — never a "create" button. Pins gain action kinds
+  beyond opening a file: **url** (open a link), **shell** (run a command line),
+  **command** (invoke a VS Code command), and **macro** (an ordered sequence).
+  Detected on-demand recipes include: open the repo / current branch / a pull
+  request / Issues / CI / Releases on GitHub, GitLab, or Bitbucket (URLs derived
+  from `.git/config`); the deployed site, package registry (npm/PyPI/pub.dev), and
+  Marketplace listing; run the dev server, tests, lint, build, install, type-check,
+  `docker compose up`, and database migration (detected per ecosystem); open the
+  entry point; set up `.env`; open all config files; a boot-sequence macro; open
+  `localhost`; copy `name@version`; and run the nearest package script. Removing a
+  recipe is sticky (it stays gone); "Restore Recipes" brings them back; "Promote
+  to Pin" turns a recipe into a stored, fully-editable pin. A recipe can be turned
+  off entirely with `saropaWorkspace.recipes.enabled`.
+- Scheduled rituals: time-triggered recipes that run unattended and capture their
+  output to a dated file under `reports/` (opening it when useful) — a dawn lint
+  sweep, a sunrise stats snapshot, a "since yesterday" standup digest, an
+  end-of-day uncommitted guard, dependency-freshness and security audit, a
+  tech-debt harvest (TODO/FIXME), a test-trend capture, branch hygiene, a PR
+  review queue (GitHub `gh`), and a dev journal. They are detected with a
+  suggested daily time but **seed disabled** — to schedule one you Promote it to a
+  pin and enable its schedule, so nothing runs unattended without consent. The
+  dawn lint sweep gives Dart/Flutter with `saropa_lints` / `custom_lint`
+  first-class treatment (`dart analyze` plus `dart run custom_lint`).
+- Project Files view: a second, read-only view in the Saropa Workspace sidebar
+  that lists interesting project files (README, CHANGELOG, ROADMAP, manifests
+  like `package.json` / `pubspec.yaml` / `Cargo.toml` / `pyproject.toml` /
+  `go.mod`, and license/contributing/security docs) when they exist. Each row
+  shows the file's last-modified time (relative: "just now", "5m ago", "3d ago",
+  then an absolute date) and, where the file declares one, its version — read
+  from the manifest or the top entry of the changelog — so you can see at a
+  glance whether the changelog is current and what version the project is up to.
+  Single-click opens the file. The view refreshes on save, folder changes, and a
+  manual refresh button; configurable via `saropaWorkspace.projectFiles.enabled`
+  and `saropaWorkspace.projectFiles.files`.
+- Copy Path: a right-click "Copy Path" action on every file row in both views
+  (pins, recipes, and the Project Files list) copies the file's full absolute
+  path to the clipboard. A non-file recipe (a URL, command, or macro) copies its
+  action target instead. Project Files rows also expose it as an inline button.
 - Pin data model and storage: project pins persisted to
   `.vscode/saropa-workspace.json` (workspace-relative) and global/user pins
   persisted to the extension's `globalState` (synced via Settings Sync).

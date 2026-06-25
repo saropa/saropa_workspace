@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "pins": [
+    {
+      "id": "sample-config",
+      "path": ".vscode/saropa-workspace.json",
+      "label": "Workspace config",
+      "scope": "project",
+      "order": 0
+    },
+    {
+      "id": "sample-readme",
+      "path": "README.md",
+      "label": "Readme",
+      "scope": "project",
+      "order": 1
+    },
+    {
+      "id": "sample-roadmap",
+      "path": "ROADMAP.md",
+      "label": "Roadmap",
+      "scope": "project",
+      "order": 2
+    }
+  ],
+  "groups": [],
+  "removedAutoPins": [],
+  "removedRecipes": []
+}

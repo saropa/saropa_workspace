@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
+import { Pin, pinKind } from "../model/pin";
 import { PinStore } from "../model/pinStore";
-import { planRun, runPin, getOutputChannel } from "./runner";
+import { planRun, runPin, runAction, getOutputChannel } from "./runner";
 import { hasInteractiveTokens } from "./promptTokens";
 import { nextOccurrence } from "./schedule";
 import { l10n } from "../i18n/l10n";
@@ -83,10 +83,21 @@ export class Scheduler implements vscode.Disposable {
     if (!pin || !pin.schedule?.enabled) {
       return;
     }
-    const uri = this.store.resolveUri(pin);
     const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
     const channel = getOutputChannel();
     const stamp = new Date().toLocaleString();
+
+    // Non-file scheduled pins (shell/url/command/macro — e.g. a promoted
+    // scheduled-ritual recipe) run through the action dispatcher; there is no
+    // file uri to resolve. Then advance the schedule as for a file run.
+    if (pinKind(pin) !== "file") {
+      channel.appendLine(l10n("schedule.fired", { time: stamp, name, command: actionLabel(pin) }));
+      await runAction(pin);
+      await this.store.updatePinScheduleLastRun(pin, Date.now());
+      return;
+    }
+
+    const uri = this.store.resolveUri(pin);
 
     if (!uri) {
       // Target file is gone: note it and skip the run. Still record the fire so
@@ -132,4 +143,15 @@ export class Scheduler implements vscode.Disposable {
     this.storeListener.dispose();
     this.clearAll();
   }
+}
+
+// Short description of a non-file pin's action for the scheduled-run log line.
+function actionLabel(pin: Pin): string {
+  const action = pin.action;
+  if (!action) {
+    return pin.path;
+  }
+  return (
+    action.shellCommand ?? action.url ?? action.commandId ?? `${action.kind} action`
+  );
 }

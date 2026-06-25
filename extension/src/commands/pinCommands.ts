@@ -1,9 +1,14 @@
 import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
-import { Pin, PinScope } from "../model/pin";
+import { Pin, PinScope, pinKind } from "../model/pin";
 import { PinFolderItem, PinGroupItem, PinTreeItem } from "../views/pinTreeItem";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
-import { runPin as execRunPin, getOutputChannel, isRunnable } from "../exec/runner";
+import {
+  runPin as execRunPin,
+  runAction,
+  getOutputChannel,
+  isRunnable,
+} from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
 import { recentRuns } from "../exec/recentRuns";
@@ -32,7 +37,34 @@ function asPin(arg: unknown): Pin | undefined {
   return undefined;
 }
 
+// The path-like string to copy for a right-clicked tree node. A file pin yields
+// its resolved absolute fsPath (the canonical resolution used elsewhere), with
+// the stored path as a fallback when it cannot be resolved (missing folder). A
+// non-file recipe pin (url / shell / command / macro) has no file on disk, so
+// its action target (`pin.path`) is the meaningful thing to copy. Any other tree
+// item that carries a resourceUri (the Project Files rows) yields that path.
+// Returns undefined for nodes with nothing to copy (scope roots, group folders).
+function pathToCopy(store: PinStore, arg: unknown): string | undefined {
+  if (arg instanceof PinTreeItem) {
+    const pin = arg.pin;
+    if (pinKind(pin) === "file") {
+      return store.resolveUri(pin)?.fsPath ?? pin.path;
+    }
+    return pin.path;
+  }
+  if (arg instanceof vscode.TreeItem && arg.resourceUri) {
+    return arg.resourceUri.fsPath;
+  }
+  return undefined;
+}
+
 async function openPin(store: PinStore, pin: Pin): Promise<void> {
+  // A non-file pin has no document to open; "open" performs its action (a URL,
+  // command, shell run, or macro), so a single click does the sensible thing.
+  if (pinKind(pin) !== "file") {
+    await runAction(pin);
+    return;
+  }
   const uri = store.resolveUri(pin);
   if (!uri) {
     vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
@@ -42,6 +74,12 @@ async function openPin(store: PinStore, pin: Pin): Promise<void> {
 }
 
 async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
+  // Non-file pins (recipes: url/shell/command/macro) run through the action
+  // dispatcher rather than the file runner.
+  if (pinKind(pin) !== "file") {
+    await runAction(pin);
+    return;
+  }
   const uri = store.resolveUri(pin);
   if (!uri) {
     vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
@@ -429,6 +467,19 @@ export function registerPinCommands(
     vscode.window.showInformationMessage(l10n("pin.removed", { name }));
   });
 
+  // Copy a tree node's full path to the clipboard. Available on every file-backed
+  // row across both views (file pins, recipes, and the Project Files list); a
+  // non-file recipe copies its action target. Nodes with nothing to copy (scope
+  // roots, group folders) are no-ops — the menu is gated to file-backed items.
+  reg("saropaWorkspace.copyPath", async (arg: unknown) => {
+    const value = pathToCopy(store, arg);
+    if (!value) {
+      return;
+    }
+    await vscode.env.clipboard.writeText(value);
+    vscode.window.showInformationMessage(l10n("path.copied", { path: value }));
+  });
+
   // Reveal the shared output channel (background-run output, scheduled-run log,
   // and the "Show Output" target from a failed-run toast).
   reg("saropaWorkspace.showOutput", () => getOutputChannel().show(true));
@@ -524,6 +575,29 @@ export function registerPinCommands(
     if (uri) {
       void pinUri(store, uri, "global");
     }
+  });
+
+  // Convert a detected recipe into a stored, fully-editable pin (and suppress the
+  // detected one so it does not duplicate).
+  reg("saropaWorkspace.promoteRecipe", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (!pin) {
+      return;
+    }
+    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    const promoted = await store.promoteRecipe(pin);
+    if (promoted) {
+      vscode.window.showInformationMessage(l10n("recipe.promoted", { name }));
+    }
+  });
+
+  reg("saropaWorkspace.restoreRecipes", async () => {
+    const count = await store.restoreRecipes();
+    vscode.window.showInformationMessage(
+      count > 0
+        ? l10n("recipe.restored", { count })
+        : l10n("recipe.noneRemoved")
+    );
   });
 
   reg("saropaWorkspace.restoreAutoPins", async () => {

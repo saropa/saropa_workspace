@@ -3,6 +3,55 @@
 
 export type PinScope = "project" | "global";
 
+// What a pin does when run. "file" (the implicit default when a pin has no
+// `action`) opens/runs the file at `path` — every Phase 1 pin. The others are
+// non-file actions introduced for recipes (auto-detected pins):
+//   - "shell"   runs a command line not tied to a file (e.g. "npm test")
+//   - "url"     opens an external URL (e.g. the project's GitHub page)
+//   - "command" invokes a VS Code command id (e.g. copy version to clipboard)
+//   - "macro"   runs an ordered list of steps
+export type PinKind = "file" | "shell" | "url" | "command" | "macro";
+
+// One step of a macro pin. Each step is a single non-macro action (macros do not
+// nest). Only the fields for its `kind` are read.
+export interface MacroStep {
+  kind: "open" | "shell" | "url" | "command";
+  label?: string;
+  // open: a file path (workspace-folder-relative or absolute).
+  path?: string;
+  // shell: the full command line, with an optional working directory.
+  shellCommand?: string;
+  cwd?: string;
+  // url: the URL to open.
+  url?: string;
+  // command: the VS Code command id and its arguments.
+  commandId?: string;
+  commandArgs?: unknown[];
+}
+
+// The non-file action a pin performs. Present only on non-file pins; a plain file
+// pin has no `action` and runs via `path` + `exec`. Persists verbatim, so a
+// promoted recipe (a recipe turned into a stored pin) round-trips.
+export interface PinAction {
+  kind: PinKind;
+  // shell
+  shellCommand?: string;
+  cwd?: string;
+  useIntegratedTerminal?: boolean;
+  // shell report capture (scheduled rituals): capture combined output to this
+  // dated file (relative to cwd; supports $stamp / $date / $workspaceRoot) and
+  // open it when autoOpen is set, instead of streaming to the channel.
+  reportFile?: string;
+  autoOpen?: boolean;
+  // url
+  url?: string;
+  // command
+  commandId?: string;
+  commandArgs?: unknown[];
+  // macro
+  steps?: MacroStep[];
+}
+
 // How a pinned file is executed when the user runs (double-clicks / play) it.
 export interface PinExecConfig {
   // Interpreter / prefix placed before the file path, e.g. "python", "node",
@@ -50,6 +99,15 @@ export interface Pin {
   scope: PinScope;
   // Seeded from autoPins.patterns; removable but regenerated unless suppressed.
   isAuto?: boolean;
+  // Non-file action (url/shell/command/macro). Absent on a plain file pin, which
+  // runs via path + exec. See PinKind / PinAction.
+  action?: PinAction;
+  // Seeded by a recipe detector (auto-detected from project files), like isAuto
+  // but for derived actions. Removable; removal is sticky via removedRecipes.
+  isRecipe?: boolean;
+  // The recipe that produced this pin (stable across reloads), used for sticky
+  // removal, restore, and de-duplication. Carried by recipe pins only.
+  recipeId?: string;
   exec?: PinExecConfig;
   schedule?: PinSchedule;
   // Optional tree-icon override: a VS Code product-icon (codicon) id WITHOUT the
@@ -66,6 +124,11 @@ export interface Pin {
   groupId?: string;
   // Sort order within the pin's group (or among top-level pins when ungrouped).
   order: number;
+}
+
+// The kind a pin runs as: its action's kind, or "file" when it has no action.
+export function pinKind(pin: Pin): PinKind {
+  return pin.action?.kind ?? "file";
 }
 
 // A user-defined group (folder) that holds pins, nested under a scope root.
@@ -93,6 +156,8 @@ export interface ProjectPinsFile {
   groups: PinGroup[];
   // Ids of auto-pins the user removed, so they are not re-seeded.
   removedAutoPins: string[];
+  // recipeIds the user removed, so detected recipes are not re-seeded (sticky).
+  removedRecipes: string[];
 }
 
 export function emptyProjectPinsFile(): ProjectPinsFile {
@@ -101,5 +166,6 @@ export function emptyProjectPinsFile(): ProjectPinsFile {
     pins: [],
     groups: [],
     removedAutoPins: [],
+    removedRecipes: [],
   };
 }
