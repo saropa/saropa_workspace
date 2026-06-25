@@ -29,5 +29,7 @@
   "config.doubleClickMs.description": "Window in milliseconds for detecting a double-click on a pin. A second click within this window runs the file; a single click opens it.",
   "config.defaultUseIntegratedTerminal.description": "Run pinned scripts in the integrated terminal by default (so output is visible). When off, runs in the background and streams to an output channel.",
   "config.terminalName.description": "Name of the reused integrated terminal for pinned scripts.",
-  "config.interpreterDefaults.description": "Default command prefix per file extension, used when a pin has no explicit command set. An explicit per-pin command always wins."
+  "config.interpreterDefaults.description": "Default command prefix per file extension, used when a pin has no explicit command set. An explicit per-pin command always wins.",
+  "config.suggestions.enabled.description": "Offer to pin a file you open often. Counts are kept on this machine only and never transmitted. Each file is offered at most once.",
+  "config.suggestions.openThreshold.description": "How many times a file must be opened before Saropa Workspace offers to pin it."
 }

@@ -95,6 +95,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pins you ran most recently are listed first, under a "Recently run" heading;
   the recents list is bounded, stored on-device, and never transmitted. Selecting
   a pin runs it through the same path as the tree's Run action.
+- Smart pin suggestions: when you open a file often enough (default six times,
+  set by `saropaWorkspace.suggestions.openThreshold`) without pinning it, a toast
+  offers to pin it for quick access — to the project scope when it is inside a
+  workspace folder, otherwise global. The offer is made at most once per file
+  (pinning or "Don't ask again" both retire it), and open counts are kept on this
+  machine only and never transmitted. Turn the feature off with
+  `saropaWorkspace.suggestions.enabled`.
 
 ### Fixed
 

@@ -404,11 +404,14 @@ land once its own dependencies are met.
   - A failure exposes a one-click path to the relevant output.
 - **Depends on.** The runner and stop-tracking (2.2 / 2.3) for exit codes and running state.
 
-### 7.3 Smart pin suggestions
+### ~~7.3 Smart pin suggestions~~ — DONE
 
 - **What.** Maintain a local, on-device frequency count of files opened and run; when a
   non-pinned file crosses a threshold, offer a one-tap "Pin this?" via a toast-with-action,
-  gated once per file (offered / dismissed flag) so it never reappears unsolicited.
+  gated once per file (offered / dismissed flag) so it never reappears unsolicited. Done —
+  counts open activations (file scheme, noise-filtered) in globalState; threshold and an
+  on/off switch are settings; pinning targets project scope inside a workspace folder, else
+  global.
 - **Why.** Surfaces the files a user already treats as favorites without manual pinning —
   the strongest zero-effort adoption lever.
 - **Acceptance criteria.**

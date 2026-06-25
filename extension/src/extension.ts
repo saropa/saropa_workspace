@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import { PinFolderItem } from "./views/pinTreeItem";
+import { SuggestionTracker } from "./views/suggestions";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerTerminalCleanup } from "./exec/runner";
@@ -79,6 +80,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Background process registry: kill any still-running background runs on
   // deactivation so they do not outlive the extension.
   context.subscriptions.push(processRegistry);
+
+  // Smart pin suggestions: count file opens on-device and offer to pin a file
+  // the user opens often (gated once per file). No-op when disabled by setting.
+  context.subscriptions.push(new SuggestionTracker(context, store));
 
   // Re-seed auto-pins and refresh when folders change or the auto-pin patterns
   // setting is edited.

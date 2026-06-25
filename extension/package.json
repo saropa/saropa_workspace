@@ -395,6 +395,18 @@
             "default": "Saropa Workspace",
             "description": "%config.terminalName.description%"
           },
+          "saropaWorkspace.suggestions.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.suggestions.enabled.description%"
+          },
+          "saropaWorkspace.suggestions.openThreshold": {
+            "type": "number",
+            "default": 6,
+            "minimum": 3,
+            "maximum": 50,
+            "description": "%config.suggestions.openThreshold.description%"
+          },
           "saropaWorkspace.interpreterDefaults": {
             "type": "object",
             "default": {
