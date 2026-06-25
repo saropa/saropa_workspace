@@ -22,6 +22,19 @@ editor, language servers, AI agents, dev servers, and terminals, rolled up per
 tool with live CPU and memory, so a runaway analysis server or a swarm of stale
 helper processes is one glance away instead of buried among hundreds of rows.
 
+A fifth class — **Workspace hygiene scans** (section H, recipe 63) — is a
+configurable, repeatable scanner for file/folder outliers: zero-byte files and
+empty folders on one end, oversized files and bloated folders on the other. Unlike
+the detector's marker-file probe, this is an explicit, user-run **recursive crawl**
+of chosen folders (or the whole project) that writes a dated JSON report and
+raises a sticky toast when it finds something. Several can coexist, each with its
+own thresholds, scope, and auto-generated name.
+
+Cutting across all of the above — **Sensory feedback** (section I, recipe 64) — is
+an opt-in audio (and, where the platform allows, haptic) cue on event start and/or
+finish, so a long run, a scheduled ritual, or a hygiene scan announces itself
+without the user watching the panel.
+
 This is the catalog and the design intent. It feeds the roadmap item
 **Non-file run targets** (a pin may be a URL or a VS Code command id, not only a
 file) and **Command sequences / macros**, plus a new **recipe detector** and the
@@ -366,6 +379,69 @@ visualization differs.
 > (#27 stats, #28 standup, #62 snapshot) stays in markdown preview, which is already the
 > right surface for a static dated artifact.
 
+## H. Workspace hygiene scans (file/folder outlier reports)
+
+A configurable scanner that finds files and folders at the extremes — **empty**
+(zero-byte files, folders with zero files) and **oversized** (files past a max-size
+ceiling, folders whose total size is past a ceiling) — and writes a structured,
+dated report. Unlike every other recipe, this one deliberately performs a
+**recursive crawl** of the chosen scope; the "no full disk crawl" rule governs
+*detection* (auto-creation reads only marker files), not an explicit, user-run scan
+the user asked for. It can also be promoted to a **scheduled** ritual (reuses the
+section E machinery) for a periodic hygiene pass.
+
+| # | Recipe | Kind | What it does |
+|---|--------|------|--------------|
+| 63 | **File & folder outlier scan** | run-target / command | Crawls the configured scope and reports outliers in the chosen **mode** — `empty`, `oversized`, or `both` — then writes `reports/<date>/<date_time>_filereport.json` and raises a **sticky toast** (a non-auto-dismissing notification with an **Open report** action) naming the issue count; a clean scan reports "no issues" transiently and still writes the report. |
+
+**Configuration (per instance).** Each created scan is its own pin carrying its own
+`PinExecConfig`-style options, so **multiple scans coexist** (e.g. one watching
+`node_modules` bloat, one watching an assets folder for empty placeholders):
+
+- **Mode** — `empty` | `oversized` | `both`.
+- **Thresholds** — the oversized **max** for files and for folder totals (defaults,
+  user-editable, e.g. file 100 MB, folder 1 GB); the empty boundary is the zero
+  edge (0-byte file, 0-child folder) and needs no number. A **min** can also be set
+  to flag files *under* a floor when that is the outlier of interest.
+- **Scope** — a chosen list of folders **or** the whole project; respects
+  `.gitignore` by default with an opt-out, plus include/exclude globs.
+- **Name** — when the scan is added, a descriptive name is **auto-generated from its
+  config** (mode + threshold + scope), e.g. *"Scan: oversized files >100 MB in
+  `assets/`"*, so several instances stay distinguishable in the tree.
+
+**Report shape.** The JSON carries the run parameters (mode, thresholds, scope,
+stamp) plus a `findings` array — each entry the `path`, `kind`
+(`emptyFile` / `emptyFolder` / `largeFile` / `largeFolder`), the measured
+`sizeBytes` / `childCount`, and the `threshold` it breached — so the artifact is
+diffable run-to-run and attachable to a cleanup task.
+
+## I. Sensory feedback (audio & haptic event cues)
+
+A cross-cutting, **opt-in** layer (not a pin): play a short cue when a pin action,
+a scheduled ritual, or a hygiene scan **starts** and/or **finishes**, so a
+long-running or unattended job announces itself without the user watching the
+output channel. It pairs with the existing "no silent async" rule — the visible
+toast stays; the cue is an additional, dismissible channel.
+
+| # | Recipe | Kind | What it does |
+|---|--------|------|--------------|
+| 64 | **Event cues (audio / haptic)** | setting + per-pin override | A global toggle plus per-event choices — **on start**, **on finish (success)**, **on finish (failure)** — that emit a short audio cue (and a haptic pulse where the platform supports one). Distinct success / failure cues let the outcome be heard, not read. Off by default; per-pin override so only the jobs you care about chime. |
+
+**Open feasibility questions (resolve before building).**
+
+- **Audio** is the straightforward half: a short bundled sound asset played on the
+  event. The exact playback path in a VS Code extension (a hidden webview's
+  `Audio`, an OS sound helper, or the editor's own sound cues/accessibility-signal
+  surface) is the implementation choice to settle — record it here as the decision,
+  do not assume one.
+- **Haptics** have **no first-party VS Code extension API**; delivering a haptic
+  pulse would require an OS-level integration and only lands on hardware that
+  exposes one. Treat haptics as **exploratory** — confirm the platform path before
+  promising it; ship audio first, gate haptics behind capability detection.
+
+Both respect the user's environment: a single mute toggle, volume from the OS, and
+no cue while a "Do Not Disturb" / focus mode is active where that state is readable.
+
 ---
 
 ## What each capability needs (maps to the roadmap)
@@ -391,6 +467,9 @@ visualization differs.
 | **Process-poll helper** (two-sample CPU delta + working-set RAM, parent-PID roll-up, cross-platform) | 60–62 | new item — pairs with the scheduled-pin and report/auto-open machinery |
 | **Confirm-gated End task** (single named PID, hidden for OS/container rows) | 60 | new mutating action on the monitor panel |
 | **Shared dashboard webview** (local-only, CSP + nonce, `--vscode-*` themed; tabs for live bars, sparklines, sortable grids) | 53–54, plus roadmap 3.3 analytics and the trend reports #30–32 | new item — Phase 3 "Dashboard webview"; the one justified webview surface |
+| **Recursive hygiene scanner** (explicit user-run crawl of a chosen scope; empty/oversized detection; per-instance thresholds + scope; auto-generated name; dated JSON report) | 63 | new item — distinct from the no-crawl detector; can reuse the scheduled-pin machinery |
+| **Sticky toast** (non-auto-dismissing notification carrying an issue count + an Open-report action) | 63 | extends the notification surface |
+| **Sensory feedback** (opt-in audio cue on event start/finish, success/failure distinct; haptics where the platform exposes them) | 64 (cross-cutting) | new item — exploratory for haptics; audio first |
 
 ---
 
@@ -420,6 +499,13 @@ visualization differs.
    the detector exists. Build the snapshot command (#62) first — it is the helper end
    to end with the simplest surface — then the live panel (#60), then wire the
    heartbeat (#61) onto the same scheduler used by section E.
+8. **Hygiene scanner** (63) — independent of the pin kinds; a self-contained
+   recursive crawl + JSON-report writer + sticky toast. The `empty` mode is the
+   simplest first slice; add `oversized` thresholds and multi-instance config next,
+   then optionally promote it onto the section E scheduler for periodic passes.
+9. **Sensory feedback** (64) — cross-cutting and last, since it hooks the
+   start/finish events that the run, scheduled, and scan machinery already emit.
+   Ship audio first; gate haptics behind platform-capability detection.
 
 ---
 

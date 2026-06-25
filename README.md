@@ -48,6 +48,8 @@ Pins appear in a dedicated **Saropa Workspace** sidebar (activity-bar view) with
 - **Project Pins** — scoped to the current repository.
 - **Global Pins** — scoped to your VS Code profile.
 
+The activity-bar icon carries a **badge counting the pins you haven't used yet** — opened or run. Newly added pins stand out, and the count drops as you use them; the badge clears once you've touched everything (it never shows a zero).
+
 ### ▶️ Run scripts
 
 A **double click** on a pinned script executes it. Each pin carries its own run configuration:
