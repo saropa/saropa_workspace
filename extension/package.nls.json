@@ -49,6 +49,8 @@
   "command.restoreAutoPins.title": "Restore Auto-Pins",
   "command.importFavorites.title": "Import Favorites from Other Extensions",
   "command.scanSiblingFavorites.title": "Scan Sibling Projects for Favorites...",
+  "command.exportPins.title": "Export Pins to File...",
+  "command.importPins.title": "Import Pins from File...",
   "command.showOutput.title": "Show Output",
   "command.addGroup.title": "New Group...",
   "command.renameGroup.title": "Rename Group...",

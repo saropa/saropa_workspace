@@ -287,6 +287,18 @@
         "icon": "$(search)"
       },
       {
+        "command": "saropaWorkspace.exportPins",
+        "title": "%command.exportPins.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(export)"
+      },
+      {
+        "command": "saropaWorkspace.importPins",
+        "title": "%command.importPins.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "saropaWorkspace.showRunAnalytics",
         "title": "%command.showRunAnalytics.title%",
         "category": "%extension.displayName%",
@@ -486,6 +498,16 @@
           "command": "saropaWorkspace.scanSiblingFavorites",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@2"
+        },
+        {
+          "command": "saropaWorkspace.exportPins",
+          "when": "view == saropaWorkspace.pins",
+          "group": "2_share@1"
+        },
+        {
+          "command": "saropaWorkspace.importPins",
+          "when": "view == saropaWorkspace.pins",
+          "group": "2_share@2"
         },
         {
           "command": "saropaWorkspace.showOutput",

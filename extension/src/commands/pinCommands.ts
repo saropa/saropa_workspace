@@ -27,6 +27,7 @@ import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
 import { showRunAnalytics } from "./runAnalytics";
 import { configureBootSequence, runBootSequence } from "./bootSequence";
+import { exportPinSet, importPinSet } from "./pinSetExport";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
 import { encodePinLink } from "../import/shareLink";
@@ -835,6 +836,12 @@ export function registerPinCommands(
   // explicit, user-invoked entry points.
   reg("saropaWorkspace.configureBootSequence", () => configureBootSequence(store));
   reg("saropaWorkspace.runBootSequence", () => runBootSequence(store));
+
+  // Export the user's pins (and their groups) to a shareable, versioned file, and
+  // import such a file back in. Import is idempotent and additive — it never
+  // overwrites existing pins, only adds the ones not already present.
+  reg("saropaWorkspace.exportPins", () => exportPinSet(store));
+  reg("saropaWorkspace.importPins", () => importPinSet(store));
 
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind

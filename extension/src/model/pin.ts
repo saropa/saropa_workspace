@@ -62,6 +62,29 @@ export type RunLocation = "terminal" | "background" | "external";
 // pin, or silence it. Undefined follows the global saropaWorkspace.sound.* settings.
 export type SoundOverride = "on" | "off";
 
+// A system-level event a pin can react to or emit (WOW: recipe chaining + special
+// events). "build" / "publish" are emitted by a pin the user marks as that kind of
+// step (Pin.emits) when it completes; "gitCommit" / "gitPush" are detected directly
+// from the repo's .git logs by a file watcher, so no pin needs to emit them.
+export type SystemEventName = "build" | "publish" | "gitCommit" | "gitPush";
+
+// The fixed set of system events, in display order. Single source for the UI
+// pickers and the workflow graph's synthetic event nodes.
+export const SYSTEM_EVENTS: readonly SystemEventName[] = [
+  "build",
+  "publish",
+  "gitCommit",
+  "gitPush",
+];
+
+// One cause that auto-runs a pin beyond its own schedule (recipe chaining). A "pin"
+// trigger runs this pin after another pin completes (optionally only when that pin
+// succeeded); an "event" trigger runs it after a system event fires. A pin may
+// carry several, so "run X after Y" and "run Z after Y" are independent links.
+export type PinTrigger =
+  | { kind: "pin"; pinId: string; onlyOnSuccess?: boolean }
+  | { kind: "event"; event: SystemEventName };
+
 // How a pinned file is executed when the user runs (double-clicks / play) it.
 export interface PinExecConfig {
   // Interpreter / prefix placed before the file path, e.g. "python", "node",
@@ -123,7 +146,15 @@ export interface PinExecConfig {
 export interface PinSchedule {
   // Daily fire time, local "HH:mm". Optional.
   atTime?: string;
-  // Repeating interval in milliseconds. Optional; combinable with atTime.
+  // Local weekdays (0 = Sunday .. 6 = Saturday) on which the daily `atTime` slot
+  // may fire. Empty or absent = every day. Constrains only the daily time; a
+  // repeating `everyMs` interval stays periodic regardless of weekday by design
+  // (an "every 6 hours" job is not a weekday concept). So "weekdays at 9am" is
+  // atTime "09:00" + days [1,2,3,4,5].
+  days?: number[];
+  // Repeating interval in milliseconds. Optional; combinable with atTime. The
+  // editor surfaces this in minutes / hours / days units, but the stored value is
+  // always milliseconds so the schedule math has one source of truth.
   everyMs?: number;
   enabled: boolean;
   // Epoch ms of the last fire, used to avoid duplicate same-minute fires when

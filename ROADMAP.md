@@ -101,50 +101,11 @@ extends import coverage.
 
 ---
 
-## Phase 2 — Sharing
-
-Project pins committed in `.vscode/saropa-workspace.json` already serve as the team-shared
-baseline. This phase adds explicit export/import for cross-project and cross-team sharing.
-
-### 2.1 Export / share pins and team-shared pin sets
-
-- **What.** Export a pin set (selected groups or all) to a shareable file, and import it
-  elsewhere.
-- **Why.** Teams converge on a common set of build/lint/run shortcuts; sharing them should
-  not mean copy-pasting JSON.
-- **Acceptance criteria.**
-  - Export produces a versioned, self-describing file; import is idempotent and reuses the
-    import infrastructure where formats overlap.
-  - Imported shared sets respect scope rules (a shared set does not silently overwrite a
-    user's global pins; conflicts are surfaced and resolved, not clobbered).
-  - Round-trip (export then import into an empty workspace) reproduces the set, including
-    groups, run config, and icons.
-- **Depends on.** Import (1.1) for shared structure and parsing; groups (shipped).
-
----
-
 ## Phase 3 — Standout capabilities
 
 These build on the configured, organized, fast-access core to make Saropa Workspace
 distinctly more capable than a plain favorites list. The items are independent of one
 another — any can land once its own dependencies are met.
-
-### 3.1 Workspace boot sequence
-
-- **What.** A named, ordered set of pins (open files and/or run scripts) that runs when the
-  workspace opens, behind a one-time confirm per session.
-- **Why.** One action restores a working context — open the key files, start the dev
-  server — instead of repeating the same opens and runs every session.
-- **Acceptance criteria.**
-  - A boot set can be defined, reordered, and enabled / disabled through the Configure-Run
-    style UX.
-  - On workspace open it prompts once before running (no silent execution — see Principles);
-    declining skips it for the session.
-  - Each step surfaces an outcome; a failed step does not abort the rest unless configured
-    to.
-- **Depends on.** Groups (shipped) for set membership; the runner (shipped). The macro
-  action kind (shipped) already covers an ordered multi-step run; this adds the
-  open-on-workspace trigger and the per-session confirm.
 
 ### 3.2 Branch-aware pin sets
 
@@ -159,25 +120,6 @@ another — any can land once its own dependencies are met.
   - Branch detection degrades gracefully outside a git repo (the feature is inert, no
     errors).
 - **Depends on.** Multiple favorite sets (Later / Exploratory) and groups (shipped).
-
-### 3.3 Local run-analytics summary
-
-The on-device run-telemetry store (recents + a lifetime run count per pin, recording
-every manual and scheduled run), the **Recent** sidebar group, the disable setting,
-**Reset Run History**, and the per-pin lifetime run count in the pin's tooltip have shipped.
-This item adds a viewable summary over that same data.
-
-- **What.** A small, on-demand summary of pin activity — most-run pins, total runs,
-  success/failure split (from the per-session run status), and last-run times. Purely local;
-  viewable on demand, never sent anywhere.
-- **Why.** Lightweight visibility into which shortcuts earn their place, beyond the
-  most-recent ordering the Recent group already gives.
-- **Acceptance criteria.**
-  - The summary reads only the on-device telemetry store (`globalState`) and transmits
-    nothing — satisfies the no-remote-telemetry principle (local telemetry is permitted;
-    transmission is not).
-  - The summary respects the existing reset (Reset Run History clears it) and the disable
-    setting (collection off ⇒ nothing to summarize).
 
 ### 3.4 Dashboard webview (processes, analytics, trends)
 
@@ -207,7 +149,8 @@ This item adds a viewable summary over that same data.
   - Each tab **degrades gracefully** if the webview is disabled or fails to load — the
     underlying data is still reachable (a TreeView fallback for Processes; the markdown reports
     and the CSV files for Trends), so the feature is never all-or-nothing.
-- **Depends on.** Local telemetry (3.3) for the Analytics tab's data; the process-poll helper
+- **Depends on.** The shipped local run-telemetry store (run history + the Run Analytics
+  summary) for the Analytics tab's data; the process-poll helper
   (recipes #53–#55) for the Processes tab; the scheduled trend reports (recipes #30–#32) for
   the Trends tab. None blocks the Processes tab, which can ship first on the poll helper alone.
 
