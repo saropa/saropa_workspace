@@ -58,6 +58,10 @@ export interface PinAction {
 // elevated). Undefined falls back to the defaultUseIntegratedTerminal setting.
 export type RunLocation = "terminal" | "background" | "external";
 
+// Per-pin override for the audio event cues (WOW #64): force the cues on for this
+// pin, or silence it. Undefined follows the global saropaWorkspace.sound.* settings.
+export type SoundOverride = "on" | "off";
+
 // How a pinned file is executed when the user runs (double-clicks / play) it.
 export interface PinExecConfig {
   // Interpreter / prefix placed before the file path, e.g. "python", "node",
@@ -99,6 +103,12 @@ export interface PinExecConfig {
   // runs. An invalid pattern or no match is logged to the output channel and
   // otherwise ignored.
   extractResult?: string;
+  // Per-pin override for the audio event cues (WOW #64). Undefined follows the
+  // global saropaWorkspace.sound.* settings; "on" chimes for this pin on every event
+  // (even when the per-event toggles are off, as long as the master toggle is on);
+  // "off" silences this pin entirely. Lets a user mute a chatty pin or opt a single
+  // long-running job into cues without enabling them everywhere.
+  sound?: SoundOverride;
   // Whether the target file path is inserted between the command and the args.
   // Undefined/true = the default "<command> <file> <args>" assembly. False omits
   // the file, for run targets that name their work in args instead — an npm

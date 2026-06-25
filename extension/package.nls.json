@@ -91,5 +91,9 @@
   "config.hygiene.folderMaxMB.description": "Hygiene scan: a folder whose recursive total exceeds this many megabytes is reported as oversized.",
   "config.hygiene.fileMinMB.description": "Hygiene scan: when greater than 0, a non-empty file smaller than this many megabytes is reported as under-size. 0 disables the floor check.",
   "config.hygiene.respectGitignore.description": "Hygiene scan: read the project's top-level .gitignore and skip what it names (in addition to a built-in ignore set covering node_modules, .git, and build output). Turn off to scan ignored paths too.",
-  "config.hygiene.exclude.description": "Hygiene scan: additional glob patterns to skip (matched against each entry's path relative to its scan root), e.g. \"**/*.snap\" or \"coverage\"."
+  "config.hygiene.exclude.description": "Hygiene scan: additional glob patterns to skip (matched against each entry's path relative to its scan root), e.g. \"**/*.snap\" or \"coverage\".",
+  "config.sound.enabled.description": "Play a short audio cue when a pin run starts or finishes. Off by default; the cue is additive to the on-screen toast and uses your OS's built-in system sounds (so it follows the OS volume and mute). The per-event toggles below choose which moments chime, and a pin's Configure Run can override this for that pin.",
+  "config.sound.onStart.description": "When sound is enabled, play a cue when a run starts. Off by default (start cues can be chatty).",
+  "config.sound.onSuccess.description": "When sound is enabled, play a distinct success cue when a run finishes successfully. Background and report runs report an outcome; terminal and external-window runs do not, so they cue only on start.",
+  "config.sound.onFailure.description": "When sound is enabled, play a distinct failure cue when a run exits with an error."
 }

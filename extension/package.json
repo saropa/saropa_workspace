@@ -1022,6 +1022,26 @@
             },
             "default": [],
             "description": "%config.hygiene.exclude.description%"
+          },
+          "saropaWorkspace.sound.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.sound.enabled.description%"
+          },
+          "saropaWorkspace.sound.onStart": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.sound.onStart.description%"
+          },
+          "saropaWorkspace.sound.onSuccess": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.sound.onSuccess.description%"
+          },
+          "saropaWorkspace.sound.onFailure": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.sound.onFailure.description%"
           }
         }
       }

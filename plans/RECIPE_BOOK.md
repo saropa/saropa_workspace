@@ -16,9 +16,12 @@ monitor** webview (#60), the **heartbeat** trend/threshold sampler (#61), and th
 **grouped, two-sample snapshot** (#62). Section H's **file & folder outlier scan**
 (#63) now ships too — the recursive empty/oversized crawl, dated JSON report, and
 sticky toast, configured via `saropaWorkspace.hygiene.*` (the per-instance scan pins
-with auto-generated names remain a follow-up). What is left to build: the
-cross-cutting **sensory feedback** layer (section I), plus the **remaining gaps** in
-the already-shipped sections.
+with auto-generated names remain a follow-up). Section I's **event cues** (#64) ship
+as **audio** — start / success / failure cues via the OS's built-in system sounds,
+gated by `saropaWorkspace.sound.*` with a per-pin override in Configure Run; haptics
+are deferred (no VS Code extension API). What is left: the **remaining gaps** in the
+already-shipped sections (day-of-week scheduling, pin severity badges, the Saropa
+Lints health-score read) and the richer per-instance hygiene-scan pins.
 
 The same principle governs all of it: a recipe is created/configured explicitly
 and run as a visible act — nothing here auto-executes or scans the disk without

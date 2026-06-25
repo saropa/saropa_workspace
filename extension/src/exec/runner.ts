@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { MacroStep, Pin, PinExecConfig, RunLocation } from "../model/pin";
+import { MacroStep, Pin, PinExecConfig, RunLocation, SoundOverride } from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
 import { runOutputs } from "./runOutputs";
@@ -12,6 +12,7 @@ import {
   resolveInteractiveTokens,
   cloneWithResolvedTokens,
 } from "./promptTokens";
+import { playCue } from "./soundCue";
 import { l10n } from "../i18n/l10n";
 
 // Builds and launches the command for a pin. Phase 1 supports the integrated
@@ -269,6 +270,11 @@ export async function runPin(
 
   vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
 
+  // Audio start cue (#64), honoring the pin's per-pin override. Fires for every
+  // location; terminal/external runs get no finish cue because VS Code cannot track
+  // their exit, so the start cue is their only audio acknowledgment.
+  playCue("start", effectivePin.exec?.sound);
+
   // Route to the resolved location. An external run launches a separate OS
   // terminal window and returns immediately — VS Code cannot track its exit, so
   // it is not registered for Stop and gets no completion toast (the new window is
@@ -287,7 +293,8 @@ export async function runPin(
         plan.env,
         plan.name,
         pin.id,
-        plan.extractResult
+        plan.extractResult,
+        effectivePin.exec?.sound
       );
       break;
   }
@@ -393,6 +400,9 @@ async function runShellAction(
       .getConfiguration("saropaWorkspace")
       .get<boolean>("defaultUseIntegratedTerminal", true);
   vscode.window.showInformationMessage(l10n("run.starting", { name }));
+  // Start cue for a recipe shell run (#64). A recipe pin has no exec override, so it
+  // follows the global cue settings; the background path below plays the finish cue.
+  playCue("start");
   if (useTerminal) {
     runInTerminal(commandLine, cwd, undefined);
   } else {
@@ -445,6 +455,10 @@ async function runShellToReport(
           durationMs,
           endedAt: Date.now(),
         });
+        // Finish cue (#64) for a captured-to-report run (scheduled rituals, the
+        // process snapshot). Report recipes carry no per-pin override, so they
+        // follow the global cue settings.
+        playCue(code === 0 ? "success" : "failure");
         if (autoOpen) {
           const doc = await vscode.workspace.openTextDocument(
             vscode.Uri.file(reportPath)
@@ -709,7 +723,8 @@ async function runInBackground(
   env: Record<string, string> | undefined,
   name: string,
   pinId: string,
-  extractResult?: string
+  extractResult?: string,
+  soundOverride?: SoundOverride
 ): Promise<void> {
   const cp = await import("child_process");
   const channel = getOutputChannel();
@@ -755,6 +770,10 @@ async function runInBackground(
       durationMs,
       endedAt,
     });
+    // Audio finish cue (#64): distinct success/failure tone, honoring the pin's
+    // override. Paired with the notifyCompletion toast below — the cue is the
+    // additive channel, the toast stays the visible feedback.
+    playCue(outcome, soundOverride);
     // Keep this run's output for the "Diff Last Two Runs" command.
     runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
     // Pull a configured value (a deploy URL, a generated id) out of the output and

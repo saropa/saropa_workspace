@@ -28,6 +28,7 @@ interface HubItem extends vscode.QuickPickItem {
     | "fileArg"
     | "extract"
     | "dependsOn"
+    | "sound"
     | "save";
 }
 
@@ -70,6 +71,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     includeFilePath: pin.exec?.includeFilePath,
     extractResult: pin.exec?.extractResult,
     dependsOn: pin.exec?.dependsOn,
+    sound: pin.exec?.sound,
   };
 
   const title = l10n("configure.title", { name });
@@ -117,6 +119,9 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
       case "dependsOn":
         await editDependsOn(work, title, store, pin);
         break;
+      case "sound":
+        await editSound(work, title);
+        break;
     }
   }
 
@@ -151,6 +156,9 @@ function normalize(work: PinExecConfig): PinExecConfig {
         ? work.extractResult
         : undefined,
     dependsOn: work.dependsOn || undefined,
+    // Only a real "on"/"off" override is persisted; the default (follow the global
+    // sound settings) collapses to undefined for round-trip parity.
+    sound: work.sound === "on" || work.sound === "off" ? work.sound : undefined,
   };
 }
 
@@ -220,6 +228,16 @@ async function showHub(
       id: "dependsOn",
       label: l10n("configure.field.dependsOn"),
       description: depName ?? l10n("configure.value.none"),
+    },
+    {
+      id: "sound",
+      label: l10n("configure.field.sound"),
+      description:
+        work.sound === "on"
+          ? l10n("configure.sound.on")
+          : work.sound === "off"
+            ? l10n("configure.sound.off")
+            : l10n("configure.sound.followDefault"),
     },
     {
       id: "save",
@@ -551,6 +569,30 @@ async function editFileArg(work: PinExecConfig, title: string): Promise<void> {
     return;
   }
   work.includeFilePath = pick.value;
+}
+
+// Per-pin audio-cue override (#64): follow the global sound settings, force the
+// cues on for this pin, or silence it. undefined = follow the settings; "on" /
+// "off" are the explicit overrides. The picker offers all three; dismissing leaves
+// the current choice unchanged (hub convention).
+async function editSound(work: PinExecConfig, title: string): Promise<void> {
+  interface SoundItem extends vscode.QuickPickItem {
+    value: "default" | "on" | "off";
+  }
+  const items: SoundItem[] = [
+    { label: l10n("configure.sound.followDefault"), value: "default" },
+    { label: l10n("configure.sound.on"), value: "on" },
+    { label: l10n("configure.sound.off"), value: "off" },
+  ];
+  const pick = await vscode.window.showQuickPick(items, {
+    title,
+    placeHolder: l10n("configure.sound.placeholder"),
+    ignoreFocusOut: true,
+  });
+  if (!pick) {
+    return;
+  }
+  work.sound = pick.value === "default" ? undefined : pick.value;
 }
 
 // Set the output-extraction regex (WOW #16). The pattern is matched against a
