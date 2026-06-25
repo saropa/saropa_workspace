@@ -34,6 +34,9 @@
   "command.forceKillPin.title": "Force Kill",
   "command.configureRun.title": "Configure Run...",
   "command.simulateRun.title": "Simulate Run...",
+  "command.useAsTemplate.title": "Use as Template...",
+  "command.copyPinLink.title": "Copy as Saropa Link",
+  "command.pinExternalFile.title": "Pin External File...",
   "command.configureSchedule.title": "Configure Schedule...",
   "command.configureAppearance.title": "Set Icon & Color...",
   "command.renamePin.title": "Rename",
@@ -67,6 +70,8 @@
   "config.suggestions.openThreshold.description": "How many times a file must be opened before Saropa Workspace offers to pin it.",
   "config.projectFiles.enabled.description": "Show the Project Files view, listing files like README, CHANGELOG, and package manifests with their last-modified time and declared version.",
   "config.recipes.enabled.description": "Show auto-detected recipes (URL, run, command, and macro pins derived from project files such as .git/config, package.json, and Makefile) in a Recipes group. Removing a recipe keeps it removed; restore them with Restore Recipes.",
+  "config.aiContext.enabled.description": "Scan the configured chat folders for active Claude/AI conversations and surface the most recent ones as pins in an Active AI Threads group. Removing a thread keeps it removed; restore them with Restore Recipes.",
+  "config.aiContext.claudeChatFolders.description": "Workspace-relative folders scanned for Claude/AI chat transcripts (.md or .json). The 10 most recently modified files per scan are offered as pins: a Markdown file opens locally (or deep-links to claude.ai when it carries a chat URL), a JSON file deep-links to claude.ai by its id. Each folder is scanned at its top level only, never recursively.",
   "config.telemetry.enabled.description": "Keep a local, on-device record of pin runs (manual and scheduled) to power the Recent group and the recents in Run Pin. Stored on this machine only and never transmitted. Turn off to stop collecting; use Reset Run History to clear it.",
   "config.projectFiles.files.description": "Root-relative file names surfaced in the Project Files view. Each is shown only when it exists. Version is read from package.json, pubspec.yaml, Cargo.toml, pyproject.toml, and the top entry of CHANGELOG.md."
 }

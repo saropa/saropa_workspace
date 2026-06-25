@@ -15,7 +15,9 @@ import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
 import { detectProcessRecipes } from "../recipes/processRecipes";
+import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
 import { getOutputChannel } from "../exec/runner";
+import { SharedPin } from "../import/shareLink";
 import { l10n } from "../i18n/l10n";
 
 // A drop destination computed by the tree's drag-and-drop controller and handed
@@ -68,6 +70,7 @@ interface RecipeGroupDef {
 // terse "Run". Ids are stable (persisted collapse state keys off them), so the
 // labels can change freely.
 const RECIPE_GROUPS: readonly RecipeGroupDef[] = [
+  { category: "ai", id: "ai-threads", label: "Active AI Threads", order: 9989, icon: "sparkle", color: "charts.foreground" },
   { category: "open", id: "recipes-open", label: "GitHub", order: 9990, icon: "github", color: "charts.purple" },
   { category: "run", id: "recipes-run", label: "Build & Run", order: 9991, icon: "tools", color: "charts.green" },
   { category: "workspace", id: "recipes-workspace", label: "Workspace", order: 9992, icon: "folder-library", color: "charts.blue" },
@@ -282,6 +285,44 @@ export class PinStore {
       path: relative,
       scope: "project",
       order: file.pins.length,
+    });
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return true;
+  }
+
+  // Add a pin from a shared link's portable configuration (WOW #4 import). The id
+  // and order are freshly assigned; everything else (label, path, action, exec,
+  // icon, color, schedule) is carried verbatim. Project scope writes to the first
+  // workspace folder's file (returns false when none is open); global writes to
+  // globalState. Never runs the pin — importing only adds it.
+  async importPin(shared: SharedPin, scope: PinScope): Promise<boolean> {
+    const base = {
+      label: shared.label,
+      path: shared.path ?? "",
+      action: shared.action,
+      exec: shared.exec,
+      icon: shared.icon,
+      color: shared.color,
+      schedule: shared.schedule,
+    };
+    if (scope === "global") {
+      const pins = this.readGlobalPins();
+      pins.push({ id: this.newId(), scope: "global", order: pins.length, ...base });
+      await this.writeGlobalPins(pins);
+      await this.refresh();
+      return true;
+    }
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+      return false;
+    }
+    const file = await this.readProjectFile(folder);
+    file.pins.push({
+      id: this.newId(),
+      scope: "project",
+      order: file.pins.length,
+      ...base,
     });
     await this.writeProjectFile(folder, file);
     await this.refresh();
@@ -1097,6 +1138,7 @@ export class PinStore {
       ...(await detectScheduledRecipes(folder)),
       ...(await detectSuiteRecipes(folder)),
       ...(await detectProcessRecipes(folder)),
+      ...(await detectAiContextRecipes(folder)),
     ];
     results.sort((a, b) =>
       a.label.localeCompare(b.label, undefined, { sensitivity: "base" })

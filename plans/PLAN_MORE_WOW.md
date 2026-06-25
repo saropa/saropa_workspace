@@ -15,10 +15,6 @@ Here are some high-impact "WOW" features that align perfectly with Saropa Worksp
 **The Pain:** You are working on a massive refactor in `feature/auth` and have 6 specific files pinned. Your boss asks for a hotfix on `main`. You switch branches, and your pins are now completely irrelevant to the hotfix.
 **The WOW:** Pins can be "toggled" to belong to the current Git branch. When you `git checkout main`, your auth pins smoothly animate away, replaced by your `main` pins. When you switch back, your workspace is exactly how you left it. 
 
-### 4. "Share this Pin" (The Onboarding Magic Link)
-**The Pain:** You configure the perfect build-and-run Macro with all the right environment variables. You want your junior dev to use it, but they have to manually recreate it.
-**The WOW:** Right-click a pin -> **"Copy as Saropa Link"**. It generates a base64 encoded URI (`vscode://saropa.saropa-workspace/import?data=...`). You paste it in Slack. When your coworker clicks it, VS Code opens, asks "Import this pin?", and instantly adds your exact configuration to their machine. 
-
 ### 5. Live "Tail -f" Log Pins
 **The Pain:** Clicking a log file pin opens it statically. If the app is running, you have to keep closing and reopening it to see new lines, or switch to a terminal.
 **The WOW:** A new setting for File Pins: **"Auto-scroll on append"**. When you click the log pin, it opens in a split pane and automatically scrolls as the local file grows, mimicking a native terminal `tail -f` directly inside a VS Code text editor. 
@@ -75,10 +71,6 @@ Here are 10 more "WOW" features to add to the Saropa Workspace backlog, continui
 **The Pain:** You run `npm run build`, and it fails with a massive stack trace. You tweak a config file, run it again, and it fails again. You scroll up frantically trying to see if the error is the *same* error or a *new* error.
 **The WOW:** Saropa caches the output of the last two background runs. Right-click the pin -> **"Diff Last Two Runs"**. It opens a native VS Code split-pane diff view, highlighting the exact lines in the terminal output that changed between attempt A and attempt B.
 
-### 21. "Wormhole" Pins (Cross-Project Teleportation)
-**The Pain:** You are working in the `frontend-app` workspace, but you need to reference the database schema defined in your `backend-api` repo. Opening a second VS Code window breaks your flow and wastes RAM.
-**The WOW:** Leveraging Phase 3's sibling-project scanner, you can pin a file from a *completely different local repository*. Clicking the Wormhole Pin opens the backend schema instantly in your current editor window, without spinning up a whole new workspace instance. 
-
 ### 22. Deep-Link / Symbol Pins
 **The Pain:** Pinning `utils.ts` is great, but the file is 3,000 lines long. The regex function you actually want to reference is buried at line 2450.
 **The WOW:** Highlight a specific function, class, or line, right-click -> **"Pin to Symbol"**. Clicking the pin doesn't just open the file; it auto-scrolls directly to `function validateEmail()` and flashes the line. If you add code above it later, the pin tracks the AST/symbol dynamically, so it never points to the wrong line.
@@ -98,10 +90,6 @@ Here are 10 more "WOW" features to add to the Saropa Workspace backlog, continui
 ### 26. Masked / Vault Pins (The Screen-Share Guard)
 **The Pain:** You pin `.env.production` because you access it often. But when you are screen-sharing on Zoom or streaming on Twitch, you accidentally click it, leaking your API keys to the world.
 **The WOW:** Toggle **"Masked Mode"** on any pin. The pin label is obscured (e.g., `Production Config`), and single-clicking it opens the file with VS Code's text entirely blurred out or hidden. You must explicitly click a small "Reveal" eye icon in the editor title bar to un-blur the contents.
-
-### 27. Copy-Paste Template Pins (The Boilerplate Buster)
-**The Pain:** You constantly open `base_controller.ts`, copy the whole file, paste it into a new file, and manually do a find-and-replace to change `Base` to `User`.
-**The WOW:** Mark a file pin as a **"Template"**. Double-clicking it doesn't run it; instead, it pops an input box asking for a new name. Saropa duplicates the file into the correct directory, intelligently performs a casing-aware find-and-replace (changing `BaseController` to `UserController`, `base_controller` to `user_controller`), and opens the fresh file ready to go.
 
 ### 28. Instant Search & Chip Filters (The "Find it Now" Bar)
 **The Pain:** You’ve fully embraced Saropa Workspace, and now you have 60 pins across 8 nested groups. When you just want to run the `flush_redis` script, expanding folders and scrolling past 20 pinned log files and UI components feels almost as slow as hunting through the native file explorer. 

@@ -215,6 +215,24 @@
         "icon": "$(beaker)"
       },
       {
+        "command": "saropaWorkspace.useAsTemplate",
+        "title": "%command.useAsTemplate.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(files)"
+      },
+      {
+        "command": "saropaWorkspace.copyPinLink",
+        "title": "%command.copyPinLink.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(link)"
+      },
+      {
+        "command": "saropaWorkspace.pinExternalFile",
+        "title": "%command.pinExternalFile.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(globe)"
+      },
+      {
         "command": "saropaWorkspace.configureSchedule",
         "title": "%command.configureSchedule.title%",
         "category": "%extension.displayName%",
@@ -408,6 +426,11 @@
           "group": "navigation@4"
         },
         {
+          "command": "saropaWorkspace.pinExternalFile",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@0"
+        },
+        {
           "command": "saropaWorkspace.importFavorites",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@1"
@@ -570,9 +593,19 @@
           "group": "2_edit@4"
         },
         {
+          "command": "saropaWorkspace.useAsTemplate",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinAuto)",
+          "group": "2_edit@5"
+        },
+        {
           "command": "saropaWorkspace.copyPath",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "3_copy@1"
+        },
+        {
+          "command": "saropaWorkspace.copyPinLink",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
+          "group": "3_copy@2"
         },
         {
           "submenu": "saropaWorkspace.pinSubmenu",
@@ -661,6 +694,14 @@
         },
         {
           "command": "saropaWorkspace.simulateRun",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.useAsTemplate",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.copyPinLink",
           "when": "false"
         },
         {
@@ -777,6 +818,23 @@
             "type": "boolean",
             "default": true,
             "description": "%config.recipes.enabled.description%"
+          },
+          "saropaWorkspace.aiContext.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.aiContext.enabled.description%"
+          },
+          "saropaWorkspace.aiContext.claudeChatFolders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              ".claude",
+              ".cline/tasks",
+              "docs/chats"
+            ],
+            "description": "%config.aiContext.claudeChatFolders.description%"
           },
           "saropaWorkspace.telemetry.enabled": {
             "type": "boolean",

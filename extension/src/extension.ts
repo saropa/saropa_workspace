@@ -18,6 +18,7 @@ import { promptMemory } from "./exec/promptMemory";
 import { tappedPins } from "./model/tappedPins";
 import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
+import { decodeSharedPin, describeSharedPin } from "./import/shareLink";
 import { l10n } from "./i18n/l10n";
 
 // Gate flag so the one-time "import existing favorites" prompt does not reappear
@@ -170,6 +171,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerTerminalCleanup(context);
   registerSimulationPreview(context);
   registerPinCommands(context, store, dispatcher);
+
+  // Handle vscode://saropa.saropa-workspace/import?data=... links (WOW #4 import), so
+  // a shared pin link opens VS Code, confirms, and adds the pin. Registered as a
+  // disposable so the handler is torn down on deactivation.
+  context.subscriptions.push(
+    vscode.window.registerUriHandler({
+      handleUri: (uri) => void handlePinImportUri(uri, store),
+    })
+  );
   // Helper commands invoked by "command" recipes (set up .env, open config files,
   // copy version, run nearest script).
   registerRecipeCommands(context);
@@ -232,7 +242,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration("saropaWorkspace.autoPins.patterns") ||
-        e.affectsConfiguration("saropaWorkspace.recipes.enabled")
+        e.affectsConfiguration("saropaWorkspace.recipes.enabled") ||
+        e.affectsConfiguration("saropaWorkspace.aiContext.enabled") ||
+        e.affectsConfiguration("saropaWorkspace.aiContext.claudeChatFolders")
       ) {
         void store.rescan();
       } else if (e.affectsConfiguration("saropaWorkspace.telemetry.enabled")) {
@@ -256,6 +268,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // when such a file actually exists, so first-time users keep their old pins
   // without being nagged on every launch.
   void maybeOfferFavoritesImport(context, store);
+}
+
+// Import a pin from a shared "Copy as Saropa Link" URI. Decodes the payload, shows a
+// modal confirm naming what the pin does (a shared shell command must be a visible,
+// deliberate choice — importing never runs it), then adds it. Targets the project
+// scope when a workspace folder is open, else global. A malformed/expired link
+// degrades to a single warning, never a crash.
+async function handlePinImportUri(
+  uri: vscode.Uri,
+  store: PinStore
+): Promise<void> {
+  if (uri.path !== "/import") {
+    return;
+  }
+  const data = new URLSearchParams(uri.query).get("data");
+  const shared = decodeSharedPin(data);
+  if (!shared) {
+    vscode.window.showWarningMessage(l10n("share.import.invalid"));
+    return;
+  }
+  const name = shared.label ?? shared.path ?? l10n("share.import.fallbackName");
+  const importAction = l10n("share.import.action");
+  const choice = await vscode.window.showInformationMessage(
+    l10n("share.import.confirm", { name }),
+    { modal: true, detail: describeSharedPin(shared) },
+    importAction
+  );
+  if (choice !== importAction) {
+    return;
+  }
+  const scope = (vscode.workspace.workspaceFolders?.length ?? 0) > 0
+    ? "project"
+    : "global";
+  const added = await store.importPin(shared, scope);
+  vscode.window.showInformationMessage(
+    added
+      ? l10n("share.import.done", { name })
+      : l10n("share.import.noFolder")
+  );
 }
 
 async function maybeOfferFavoritesImport(

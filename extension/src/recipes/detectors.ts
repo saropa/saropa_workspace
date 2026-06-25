@@ -17,7 +17,8 @@ export type RecipeCategory =
   | "workspace"
   | "scheduled"
   | "suite"
-  | "monitor";
+  | "monitor"
+  | "ai";
 
 export interface RecipeResult {
   // Stable per-recipe id (combined with the folder for the pin id), so sticky

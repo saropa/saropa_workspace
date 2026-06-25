@@ -24,6 +24,8 @@ import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
+import { useAsTemplate } from "./templatePin";
+import { encodePinLink } from "../import/shareLink";
 import {
   hasInteractiveTokens,
   resolveRememberedTokens,
@@ -768,6 +770,43 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await simulateRun(store, pin);
+    }
+  });
+
+  // Duplicate a file pin's target into a new file with a casing-aware rename, then
+  // open it — the "template" boilerplate-buster (WOW #27).
+  reg("saropaWorkspace.useAsTemplate", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await useAsTemplate(store, pin);
+    }
+  });
+
+  // Copy a clickable Saropa import link for a pin to the clipboard, so its exact
+  // configuration can be shared and re-imported in one click (WOW #4). The link
+  // carries only the pin's configuration, never its id/scope — see shareLink.
+  reg("saropaWorkspace.copyPinLink", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (!pin) {
+      return;
+    }
+    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    await vscode.env.clipboard.writeText(encodePinLink(pin));
+    vscode.window.showInformationMessage(l10n("share.copied", { name }));
+  });
+
+  // Pin any file on disk — including one outside this workspace, in another repo —
+  // as a global pin, without opening a second VS Code window (the "wormhole",
+  // WOW #21). pinUri reports the result and offers run targets, the same as pinning
+  // a file from the editor.
+  reg("saropaWorkspace.pinExternalFile", async () => {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      openLabel: l10n("external.openLabel"),
+      title: l10n("external.title"),
+    });
+    if (picked && picked.length > 0) {
+      await pinUri(store, picked[0], "global");
     }
   });
 

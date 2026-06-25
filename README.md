@@ -180,6 +180,8 @@ All settings live under the `saropaWorkspace.*` namespace.
 | `saropaWorkspace.projectFiles.enabled` | `true` | Show the Project Files view, listing files like README, CHANGELOG, and package manifests with their last-modified time and declared version. |
 | `saropaWorkspace.projectFiles.files` | see [docs](docs/PROJECT_FILES.md) | Root-relative file names surfaced in the Project Files view. Each is shown only when it exists. |
 | `saropaWorkspace.recipes.enabled` | `true` | Show the auto-detected Recipes group derived from the project's own files. |
+| `saropaWorkspace.aiContext.enabled` | `true` | Scan the configured chat folders for active Claude/AI conversations and surface the most recent ones in an Active AI Threads group. |
+| `saropaWorkspace.aiContext.claudeChatFolders` | `[".claude", ".cline/tasks", "docs/chats"]` | Workspace-relative folders scanned (top level only) for chat transcripts (`.md` / `.json`); the 10 most recently modified are offered as pins. |
 | `saropaWorkspace.telemetry.enabled` | `true` | Keep a local, on-device run history (the Recent group and palette recents). Never transmitted. |
 | `saropaWorkspace.suggestions.enabled` | `true` | Offer to pin a file you open often but have not pinned. |
 | `saropaWorkspace.suggestions.openThreshold` | `6` | How many opens of an unpinned file trigger the pin suggestion. |
