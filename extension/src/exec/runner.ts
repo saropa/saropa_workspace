@@ -40,7 +40,20 @@ function quote(value: string): string {
   return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 
-export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
+// Everything needed to launch a pin, resolved from its config and target. Kept
+// as a single value so the scheduler can log the exact command it is about to
+// run from one source of truth (planRun), rather than reassembling it.
+export interface RunPlan {
+  commandLine: string;
+  cwd: string;
+  env: Record<string, string> | undefined;
+  name: string;
+  useTerminal: boolean;
+}
+
+// Resolve a pin + target into a concrete RunPlan. Pure of side effects so both
+// runPin and the scheduler's log line share one assembly path.
+export function planRun(pin: Pin, uri: vscode.Uri): RunPlan {
   const fsPath = uri.fsPath;
   const prefix = resolveCommandPrefix(pin, fsPath);
   const args = pin.exec?.args ?? [];
@@ -63,12 +76,27 @@ export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
       .getConfiguration("saropaWorkspace")
       .get<boolean>("defaultUseIntegratedTerminal", true);
 
-  vscode.window.showInformationMessage(l10n("run.starting", { name }));
+  return { commandLine, cwd, env: pin.exec?.env, name, useTerminal };
+}
 
-  if (useTerminal) {
-    runInTerminal(commandLine, cwd, pin.exec?.env);
+// Lazily create (and reuse) the shared output channel. Shared so scheduled-run
+// log lines and background-run output land in the same "Saropa Workspace" panel.
+export function getOutputChannel(): vscode.OutputChannel {
+  if (!outputChannel) {
+    outputChannel = vscode.window.createOutputChannel("Saropa Workspace");
+  }
+  return outputChannel;
+}
+
+export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
+  const plan = planRun(pin, uri);
+
+  vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
+
+  if (plan.useTerminal) {
+    runInTerminal(plan.commandLine, plan.cwd, plan.env);
   } else {
-    await runInBackground(commandLine, cwd, pin.exec?.env, name);
+    await runInBackground(plan.commandLine, plan.cwd, plan.env, plan.name);
   }
 }
 
@@ -97,10 +125,7 @@ async function runInBackground(
   name: string
 ): Promise<void> {
   const cp = await import("child_process");
-  if (!outputChannel) {
-    outputChannel = vscode.window.createOutputChannel("Saropa Workspace");
-  }
-  const channel = outputChannel;
+  const channel = getOutputChannel();
   channel.appendLine(`$ (${name}) ${commandLine}`);
   channel.show(true);
 

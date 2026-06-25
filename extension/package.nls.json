@@ -13,6 +13,7 @@
   "command.openPin.title": "Open",
   "command.runPin.title": "Run",
   "command.configureRun.title": "Configure Run...",
+  "command.configureSchedule.title": "Configure Schedule...",
   "command.renamePin.title": "Rename",
   "command.unpin.title": "Unpin",
   "command.restoreAutoPins.title": "Restore Auto-Pins",

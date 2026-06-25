@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import {
   Pin,
   PinExecConfig,
+  PinSchedule,
   PinScope,
   ProjectPinsFile,
   emptyProjectPinsFile,
@@ -163,38 +164,70 @@ export class PinStore {
   }
 
   // Persist a pin's run configuration. Passing undefined clears it (the pin
-  // reverts to interpreter-default behavior). Mirrors renamePin: the edit lands
-  // in the owning store (project file or global state) and only the run-config
-  // field is touched, so a concurrent rename/reorder is not clobbered.
-  //
-  // Auto-pins are not stored in pins[], so there is no target to write to; the
-  // caller (the run-config editor) gates them out, and this is a silent no-op if
-  // one slips through.
+  // reverts to interpreter-default behavior).
   async updatePinExec(
     pin: Pin,
     exec: PinExecConfig | undefined
   ): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.exec = exec;
+    });
+  }
+
+  // Persist a pin's schedule. Passing undefined clears it (the scheduler then
+  // arms no timer for the pin).
+  async updatePinSchedule(
+    pin: Pin,
+    schedule: PinSchedule | undefined
+  ): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.schedule = schedule;
+    });
+  }
+
+  // Record the epoch-ms of a scheduled fire. Used for reopen de-duplication and
+  // interval advancement (see nextOccurrence). No-op if the pin has no schedule.
+  async updatePinScheduleLastRun(pin: Pin, lastRun: number): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      if (target.schedule) {
+        target.schedule.lastRun = lastRun;
+      }
+    });
+  }
+
+  // Find the stored pin by id in its owning store, apply a mutation, persist, and
+  // refresh. Touches only what `apply` changes, so a concurrent edit to another
+  // field is not clobbered. Auto-pins are not stored in pins[], so there is no
+  // target and this is a silent no-op (callers gate them out). Returns whether a
+  // target was found and written.
+  private async mutatePin(
+    pin: Pin,
+    apply: (target: Pin) => void
+  ): Promise<boolean> {
     if (pin.scope === "global") {
       const pins = this.readGlobalPins();
       const target = pins.find((p) => p.id === pin.id);
-      if (target) {
-        target.exec = exec;
-        await this.writeGlobalPins(pins);
-        await this.refresh();
+      if (!target) {
+        return false;
       }
-      return;
+      apply(target);
+      await this.writeGlobalPins(pins);
+      await this.refresh();
+      return true;
     }
     const folder = this.projectPinFolder.get(pin.id);
     if (!folder) {
-      return;
+      return false;
     }
     const file = await this.readProjectFile(folder);
     const target = file.pins.find((p) => p.id === pin.id);
-    if (target) {
-      target.exec = exec;
-      await this.writeProjectFile(folder, file);
-      await this.refresh();
+    if (!target) {
+      return false;
     }
+    apply(target);
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return true;
   }
 
   // Re-add every removed auto-pin across all folders. Returns how many were

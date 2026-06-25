@@ -104,6 +104,12 @@
         "icon": "$(gear)"
       },
       {
+        "command": "saropaWorkspace.configureSchedule",
+        "title": "%command.configureSchedule.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(clock)"
+      },
+      {
         "command": "saropaWorkspace.renamePin",
         "title": "%command.renamePin.title%",
         "category": "%extension.displayName%",
@@ -173,14 +179,19 @@
           "group": "2_edit@1"
         },
         {
+          "command": "saropaWorkspace.configureSchedule",
+          "when": "view == saropaWorkspace.pins && viewItem == pin",
+          "group": "2_edit@2"
+        },
+        {
           "command": "saropaWorkspace.renamePin",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
-          "group": "2_edit@2"
+          "group": "2_edit@3"
         },
         {
           "command": "saropaWorkspace.unpin",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
-          "group": "2_edit@3"
+          "group": "2_edit@4"
         }
       ],
       "explorer/context": [
@@ -214,6 +225,10 @@
         },
         {
           "command": "saropaWorkspace.configureRun",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.configureSchedule",
           "when": "false"
         },
         {

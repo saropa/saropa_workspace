@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pin's command prefix, arguments, working directory, environment variables,
   and terminal-vs-background choice through QuickPick and input boxes, without
   hand-editing JSON. Edits apply only on Save; canceling writes nothing.
+- Scheduler: pins with a schedule now fire on an in-process timer. A daily time
+  (`atTime`) fires once per day; an interval (`everyMs`) repeats; the two
+  combine. Each fire shows a toast, writes a timestamped output-channel line
+  with the command, and records the run so a restart within the same minute
+  does not double-fire. The tree shows each scheduled pin's next run (inline
+  badge and tooltip). Timers are cleared on deactivation.
+- Schedule editor: a "Configure Schedule..." context-menu flow to set the daily
+  time, repeat interval, and enabled flag through QuickPick/input boxes.
+  Enabling or disabling a schedule takes effect immediately, without a reload.
 
 ### Changed
 

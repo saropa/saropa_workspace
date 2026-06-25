@@ -6,6 +6,7 @@ import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { runPin as execRunPin } from "../exec/runner";
 import { detectFavoritesFiles, importAllDetected } from "../import/favoritesImport";
 import { configureRun } from "./configureRun";
+import { configureSchedule } from "./configureSchedule";
 import { l10n } from "../i18n/l10n";
 
 // Menu/command invocations hand us either a PinTreeItem (context menus, inline
@@ -103,6 +104,13 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureRun(store, pin);
+    }
+  });
+
+  reg("saropaWorkspace.configureSchedule", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await configureSchedule(store, pin);
     }
   });
 

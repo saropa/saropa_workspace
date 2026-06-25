@@ -4,6 +4,7 @@ import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerTerminalCleanup } from "./exec/runner";
+import { Scheduler } from "./exec/scheduler";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
 import { l10n } from "./i18n/l10n";
 
@@ -40,6 +41,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerTerminalCleanup(context);
   registerPinCommands(context, store, dispatcher);
 
+  // In-process scheduler for pins with a schedule. Registered as a disposable so
+  // every timer is cleared on deactivation (no orphaned timers leak).
+  const scheduler = new Scheduler(store);
+  context.subscriptions.push(scheduler);
+
   // Re-seed auto-pins and refresh when folders change or the auto-pin patterns
   // setting is edited.
   context.subscriptions.push(
@@ -52,6 +58,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   await store.init();
+
+  // Arm timers now that the initial pin set is loaded. The scheduler also re-arms
+  // itself on every subsequent store change via its onDidChange subscription.
+  scheduler.start();
 
   // Offer to import favorites from other extensions once per workspace, only
   // when such a file actually exists, so first-time users keep their old pins
