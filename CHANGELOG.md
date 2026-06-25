@@ -70,6 +70,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scheduled run cannot answer prompts, so a scheduled pin with interactive tokens
   is skipped with a note in the output channel. The Configure Run help lists the
   token forms inline.
+- Pin groups with drag-and-drop: create named groups (folders) under the Project
+  and Global roots via the view-title "New Group" button or a scope's context
+  menu, then drag pins to reorder them and move them between groups. A group can
+  be renamed or deleted from its context menu; deleting a group moves its pins
+  back to the top level (nothing is removed). A group's open/closed state is
+  remembered across sessions. Grouping persists in the same stores as pins —
+  project groups in `.vscode/saropa-workspace.json`, global groups in synced
+  global state — and the on-disk schema is migrated from version 1 to 2 on read
+  (older files gain an empty group list; no pin data is lost). Auto-pins stay at
+  the top level (they are recomputed, not stored), and dragging is within a
+  single scope.
 
 ### Fixed
 

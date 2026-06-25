@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
+import { PinFolderItem } from "./views/pinTreeItem";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerTerminalCleanup } from "./exec/runner";
@@ -34,9 +35,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   context.subscriptions.push({ dispose: () => dispatcher.dispose() });
 
+  // createTreeView (not registerTreeDataProvider) so the provider can serve as
+  // the drag-and-drop controller too — pins are reordered and moved between
+  // groups by dragging. canSelectMany lets a multi-select drag move several pins
+  // at once.
   const tree = new PinsTreeProvider(store);
+  const treeView = vscode.window.createTreeView("saropaWorkspace.pins", {
+    treeDataProvider: tree,
+    dragAndDropController: tree,
+    canSelectMany: true,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(treeView);
+
+  // Persist a group's open/closed posture so a folder stays the way the user
+  // left it across sessions.
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("saropaWorkspace.pins", tree)
+    treeView.onDidCollapseElement((e) => {
+      if (e.element instanceof PinFolderItem) {
+        void store.setGroupCollapsed(e.element.pinGroup, e.element.scope, true);
+      }
+    }),
+    treeView.onDidExpandElement((e) => {
+      if (e.element instanceof PinFolderItem) {
+        void store.setGroupCollapsed(e.element.pinGroup, e.element.scope, false);
+      }
+    })
   );
 
   registerTerminalCleanup(context);

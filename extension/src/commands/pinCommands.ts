@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
 import { Pin, PinScope } from "../model/pin";
-import { PinTreeItem } from "../views/pinTreeItem";
+import { PinFolderItem, PinGroupItem, PinTreeItem } from "../views/pinTreeItem";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { runPin as execRunPin, getOutputChannel, isRunnable } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
@@ -69,6 +69,13 @@ async function pinUri(store: PinStore, uri: vscode.Uri, scope: PinScope): Promis
 
 function activeFileUri(): vscode.Uri | undefined {
   return vscode.window.activeTextEditor?.document.uri;
+}
+
+// The "New Group" action fires from the view title (no argument -> project, the
+// repo-shared scope) or a scope root's context menu (a PinGroupItem carrying its
+// scope). Default to project so a title-bar click has a defined home.
+function scopeFromAddGroupArg(arg: unknown): PinScope {
+  return arg instanceof PinGroupItem ? arg.group : "project";
 }
 
 export function registerPinCommands(
@@ -166,6 +173,68 @@ export function registerPinCommands(
   // Reveal the shared output channel (background-run output, scheduled-run log,
   // and the "Show Output" target from a failed-run toast).
   reg("saropaWorkspace.showOutput", () => getOutputChannel().show(true));
+
+  // Create a group in the project or global scope (see scopeFromAddGroupArg for
+  // how the scope is resolved). Pins are dragged into it afterward.
+  reg("saropaWorkspace.addGroup", async (arg: unknown) => {
+    const scope = scopeFromAddGroupArg(arg);
+    const label = await vscode.window.showInputBox({
+      prompt: l10n("group.addPrompt"),
+      placeHolder: l10n("group.addPlaceholder"),
+      validateInput: (value) =>
+        value.trim().length === 0 ? l10n("group.nameEmpty") : undefined,
+    });
+    if (label === undefined) {
+      return;
+    }
+    const id = await store.createGroup(scope, label);
+    if (id) {
+      vscode.window.showInformationMessage(
+        l10n("group.added", { name: label.trim() })
+      );
+    } else {
+      // The only failure path for a non-empty label is a project group with no
+      // workspace folder open; name that so the user knows why nothing changed.
+      vscode.window.showWarningMessage(l10n("group.noWorkspace"));
+    }
+  });
+
+  reg("saropaWorkspace.renameGroup", async (arg: unknown) => {
+    if (!(arg instanceof PinFolderItem)) {
+      return;
+    }
+    const label = await vscode.window.showInputBox({
+      prompt: l10n("group.renamePrompt", { name: arg.pinGroup.label }),
+      value: arg.pinGroup.label,
+      validateInput: (value) =>
+        value.trim().length === 0 ? l10n("group.nameEmpty") : undefined,
+    });
+    if (label !== undefined) {
+      await store.renameGroup(arg.pinGroup, arg.scope, label);
+    }
+  });
+
+  reg("saropaWorkspace.deleteGroup", async (arg: unknown) => {
+    if (!(arg instanceof PinFolderItem)) {
+      return;
+    }
+    const name = arg.pinGroup.label;
+    // Modal confirm: deletion is destructive to the grouping (not the pins,
+    // which move to the top level), so it should be a deliberate choice.
+    const confirm = l10n("group.deleteConfirmAction");
+    const choice = await vscode.window.showWarningMessage(
+      l10n("group.deleteConfirm", { name }),
+      { modal: true },
+      confirm
+    );
+    if (choice !== confirm) {
+      return;
+    }
+    const reparented = await store.deleteGroup(arg.pinGroup, arg.scope);
+    vscode.window.showInformationMessage(
+      l10n("group.deleted", { name, count: reparented })
+    );
+  });
 
   reg("saropaWorkspace.pinActiveFile", () => {
     const uri = activeFileUri();

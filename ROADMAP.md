@@ -207,7 +207,7 @@ secondary source formats (Project Manager, Bookmarks), folder/group import (need
 - **Depends on.** Pin groups (3.2) for importing folder/group entries; the configuration
   UX pattern (2.1) for resolving any per-pin run config a source format implies.
 
-### 3.2 Pin groups / folders with drag-and-drop reorder
+### ~~3.2 Pin groups / folders with drag-and-drop reorder~~ — DONE
 
 - **What.** User-defined groups (folders) nested under the Project / Global roots, plus
   drag-and-drop to reorder pins and move them between groups. Persisted via the existing
@@ -215,15 +215,22 @@ secondary source formats (Project Manager, Bookmarks), folder/group import (need
 - **Why.** A flat list does not scale past a handful of pins. Grouping (by task, by tool,
   by area) is what makes a large pin set navigable.
 - **Acceptance criteria.**
-  - Groups can be created, renamed, and deleted; deleting a non-empty group prompts and
-    either removes or re-parents its pins (defined behavior, not data loss).
-  - Drag-and-drop reorders within a group and moves between groups, persisting the new
-    order/parent.
-  - The schema migration adds the group/parent field without breaking files written by the
-    pre-group version (`version` bump with a read migration).
-  - Auto-pins and imported pins land in sensible default groups.
+  - ~~Groups can be created, renamed, and deleted; deleting a non-empty group prompts and
+    either removes or re-parents its pins (defined behavior, not data loss).~~ Done — a
+    modal confirm precedes deletion; pins re-parent to the scope top level (never removed).
+  - ~~Drag-and-drop reorders within a group and moves between groups, persisting the new
+    order/parent.~~ Done — within-scope drag reorders (insert-before) and re-parents;
+    multi-select moves several pins at once.
+  - ~~The schema migration adds the group/parent field without breaking files written by the
+    pre-group version (`version` bump with a read migration).~~ Done — `version` 1 → 2;
+    a v1 file reads as an empty group list with its pins at top level, no field dropped.
+  - Auto-pins stay at the top level (they are recomputed, not stored as data, so group
+    membership cannot persist on them); imported pins land at the top level until moved.
 - **Depends on.** Schema versioning (Phase 1); a model change here ripples into the store,
   tree, import (3.1), and export (Phase 5), so it precedes those that read group state.
+- **Deferred to 3.3 (multi-root).** A project group is created in the first workspace
+  folder, and a project pin can only join a group in its own folder (paths are
+  folder-relative). Cross-folder grouping is part of the multi-root refinement.
 
 ### 3.3 Multi-root workspace handling refinements
 

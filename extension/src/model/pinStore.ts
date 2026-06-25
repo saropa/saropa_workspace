@@ -2,11 +2,22 @@ import * as vscode from "vscode";
 import {
   Pin,
   PinExecConfig,
+  PinGroup,
   PinSchedule,
   PinScope,
   ProjectPinsFile,
+  PROJECT_PINS_VERSION,
   emptyProjectPinsFile,
 } from "./pin";
+
+// A drop destination computed by the tree's drag-and-drop controller and handed
+// to PinStore.movePins. `groupId` undefined means the scope's top level;
+// `beforePinId` inserts ahead of that sibling, otherwise the moved pins append.
+export interface MoveTarget {
+  scope: PinScope;
+  groupId?: string;
+  beforePinId?: string;
+}
 
 // Persistence + in-memory cache for pins.
 //
@@ -21,6 +32,7 @@ import {
 
 const PROJECT_FILE_RELATIVE = ".vscode/saropa-workspace.json";
 const GLOBAL_STATE_KEY = "saropaWorkspace.globalPins";
+const GLOBAL_GROUPS_KEY = "saropaWorkspace.globalGroups";
 
 export class PinStore {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
@@ -29,11 +41,18 @@ export class PinStore {
   // Cached, ready-to-render results recomputed by refresh().
   private projectPins: Pin[] = [];
   private globalPins: Pin[] = [];
+  private projectGroups: PinGroup[] = [];
+  private globalGroups: PinGroup[] = [];
 
   // Maps a project pin id to the workspace folder that owns it, so relative
   // paths can be resolved back to absolute URIs without storing the folder on
   // the model. Rebuilt every refresh().
   private projectPinFolder = new Map<string, vscode.WorkspaceFolder>();
+
+  // Maps a project group id to its owning folder, mirroring projectPinFolder.
+  // A project group lives in one folder's file; a pin can only join a group in
+  // its own folder (paths are folder-relative). Rebuilt every refresh().
+  private projectGroupFolder = new Map<string, vscode.WorkspaceFolder>();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -47,6 +66,18 @@ export class PinStore {
 
   getGlobalPins(): Pin[] {
     return this.globalPins;
+  }
+
+  getProjectGroups(): PinGroup[] {
+    return this.projectGroups;
+  }
+
+  getGlobalGroups(): PinGroup[] {
+    return this.globalGroups;
+  }
+
+  getGroups(scope: PinScope): PinGroup[] {
+    return scope === "global" ? this.globalGroups : this.projectGroups;
   }
 
   // Look up a cached pin by id across both groups (used by the click dispatcher,
@@ -248,17 +279,237 @@ export class PinStore {
     return restored;
   }
 
+  // --- groups ------------------------------------------------------------
+
+  // Create a new group in a scope. Global groups live in globalState; a project
+  // group is created in the first workspace folder (multi-root group ownership
+  // is refined in a later step). Returns the new group id, or undefined when a
+  // project group is requested with no workspace folder open.
+  async createGroup(scope: PinScope, label: string): Promise<string | undefined> {
+    const trimmed = label.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    if (scope === "global") {
+      const groups = this.readGlobalGroups();
+      const id = this.newId();
+      groups.push({ id, label: trimmed, order: groups.length });
+      await this.writeGlobalGroups(groups);
+      await this.refresh();
+      return id;
+    }
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+      return undefined;
+    }
+    const file = await this.readProjectFile(folder);
+    const id = this.newId();
+    file.groups.push({ id, label: trimmed, order: file.groups.length });
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return id;
+  }
+
+  async renameGroup(group: PinGroup, scope: PinScope, label: string): Promise<void> {
+    const trimmed = label.trim();
+    if (!trimmed) {
+      return;
+    }
+    await this.mutateGroup(group, scope, (target) => {
+      target.label = trimmed;
+    });
+  }
+
+  // Delete a group and re-parent its pins to the scope's top level (no data
+  // loss). Returns how many pins were re-parented so the caller can report it.
+  async deleteGroup(group: PinGroup, scope: PinScope): Promise<number> {
+    if (scope === "global") {
+      const pins = this.readGlobalPins();
+      let reparented = 0;
+      for (const pin of pins) {
+        if (pin.groupId === group.id) {
+          pin.groupId = undefined;
+          reparented++;
+        }
+      }
+      const groups = this.readGlobalGroups().filter((g) => g.id !== group.id);
+      await this.writeGlobalPins(pins);
+      await this.writeGlobalGroups(groups);
+      await this.refresh();
+      return reparented;
+    }
+    const folder = this.projectGroupFolder.get(group.id);
+    if (!folder) {
+      return 0;
+    }
+    const file = await this.readProjectFile(folder);
+    let reparented = 0;
+    for (const pin of file.pins) {
+      if (pin.groupId === group.id) {
+        pin.groupId = undefined;
+        reparented++;
+      }
+    }
+    file.groups = file.groups.filter((g) => g.id !== group.id);
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return reparented;
+  }
+
+  // Persist a group's collapsed state so a folder keeps its open/closed posture
+  // across sessions. No refresh: the tree already reflects the user's gesture.
+  async setGroupCollapsed(
+    group: PinGroup,
+    scope: PinScope,
+    collapsed: boolean
+  ): Promise<void> {
+    await this.mutateGroup(group, scope, (target) => {
+      target.collapsed = collapsed;
+    });
+  }
+
+  // Move (and reorder) pins into a drop target's group and position. Auto-pins
+  // are skipped (they are recomputed, not stored, so membership cannot persist);
+  // cross-scope moves are skipped (project paths are folder-relative, global are
+  // absolute — they are not interchangeable without re-resolving the path).
+  async movePins(dragged: Pin[], target: MoveTarget): Promise<void> {
+    const movable = dragged.filter(
+      (p) => !p.isAuto && p.scope === target.scope
+    );
+    if (movable.length === 0) {
+      return;
+    }
+    if (target.scope === "global") {
+      await this.moveGlobalPins(movable, target.groupId, target.beforePinId);
+    } else {
+      await this.moveProjectPins(movable, target.groupId, target.beforePinId);
+    }
+    await this.refresh();
+  }
+
+  private async moveGlobalPins(
+    movable: Pin[],
+    groupId: string | undefined,
+    beforePinId: string | undefined
+  ): Promise<void> {
+    const pins = this.readGlobalPins();
+    const movedIds = new Set(movable.map((p) => p.id));
+    for (const pin of pins) {
+      if (movedIds.has(pin.id)) {
+        pin.groupId = groupId;
+      }
+    }
+    this.reorderWithin(pins, groupId, movedIds, beforePinId);
+    await this.writeGlobalPins(pins);
+  }
+
+  private async moveProjectPins(
+    movable: Pin[],
+    groupId: string | undefined,
+    beforePinId: string | undefined
+  ): Promise<void> {
+    // The drop location's owning folder: the group's folder when dropping into a
+    // group; the before-pin's folder when reordering at top level; otherwise the
+    // first moved pin's folder. A project pin cannot move across folders (its
+    // path is folder-relative), so only pins already in that folder are applied.
+    const folder = groupId
+      ? this.projectGroupFolder.get(groupId)
+      : beforePinId
+        ? this.projectPinFolder.get(beforePinId)
+        : this.projectPinFolder.get(movable[0].id);
+    if (!folder) {
+      return;
+    }
+    const movedIds = new Set(
+      movable
+        .filter((p) => this.projectPinFolder.get(p.id) === folder)
+        .map((p) => p.id)
+    );
+    if (movedIds.size === 0) {
+      return;
+    }
+    const file = await this.readProjectFile(folder);
+    for (const pin of file.pins) {
+      if (movedIds.has(pin.id)) {
+        pin.groupId = groupId;
+      }
+    }
+    this.reorderWithin(file.pins, groupId, movedIds, beforePinId);
+    await this.writeProjectFile(folder, file);
+  }
+
+  // Renumber a single group's members (mutating the shared Pin objects in `all`)
+  // so the moved pins land before `beforePinId`, or at the end when it is absent.
+  // Operates only on the target group's members; other groups keep their order.
+  private reorderWithin(
+    all: Pin[],
+    groupId: string | undefined,
+    movedIds: Set<string>,
+    beforePinId: string | undefined
+  ): void {
+    const members = all.filter((p) => (p.groupId ?? undefined) === (groupId ?? undefined));
+    const moved = members.filter((p) => movedIds.has(p.id));
+    const rest = members.filter((p) => !movedIds.has(p.id));
+    let index = beforePinId ? rest.findIndex((p) => p.id === beforePinId) : -1;
+    if (index < 0) {
+      index = rest.length;
+    }
+    const ordered = [...rest.slice(0, index), ...moved, ...rest.slice(index)];
+    ordered.forEach((pin, i) => {
+      pin.order = i;
+    });
+  }
+
+  // Find a group by id in its owning store, apply a mutation, persist, refresh.
+  private async mutateGroup(
+    group: PinGroup,
+    scope: PinScope,
+    apply: (target: PinGroup) => void
+  ): Promise<void> {
+    if (scope === "global") {
+      const groups = this.readGlobalGroups();
+      const target = groups.find((g) => g.id === group.id);
+      if (!target) {
+        return;
+      }
+      apply(target);
+      await this.writeGlobalGroups(groups);
+      await this.refresh();
+      return;
+    }
+    const folder = this.projectGroupFolder.get(group.id);
+    if (!folder) {
+      return;
+    }
+    const file = await this.readProjectFile(folder);
+    const target = file.groups.find((g) => g.id === group.id);
+    if (!target) {
+      return;
+    }
+    apply(target);
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+  }
+
   // Recompute cached project + global pins (including freshly seeded auto-pins)
   // and notify listeners (the tree) to repaint.
   async refresh(): Promise<void> {
     this.projectPinFolder.clear();
+    this.projectGroupFolder.clear();
 
     const project: Pin[] = [];
+    const projectGroups: PinGroup[] = [];
     const folders = vscode.workspace.workspaceFolders ?? [];
     const patterns = this.autoPinPatterns();
 
     for (const folder of folders) {
       const file = await this.readProjectFile(folder);
+
+      // User groups for this folder.
+      for (const group of file.groups) {
+        this.projectGroupFolder.set(group.id, folder);
+        projectGroups.push(group);
+      }
 
       // Stored explicit pins.
       for (const pin of file.pins) {
@@ -277,7 +528,9 @@ export class PinStore {
 
     project.sort((a, b) => a.order - b.order);
     this.projectPins = project;
+    this.projectGroups = projectGroups.sort((a, b) => a.order - b.order);
     this.globalPins = this.readGlobalPins().sort((a, b) => a.order - b.order);
+    this.globalGroups = this.readGlobalGroups().sort((a, b) => a.order - b.order);
 
     this._onDidChange.fire();
   }
@@ -337,10 +590,13 @@ export class PinStore {
     try {
       const bytes = await vscode.workspace.fs.readFile(this.projectFileUri(folder));
       const parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
-      // Defensive defaults: a hand-edited file may omit fields.
+      // Defensive defaults + v1->v2 migration: a v1 file (or a hand-edited one)
+      // has no `groups`; it reads as an empty group list and its pins, which
+      // lack groupId, render at the scope top level. No pin field is dropped.
       return {
-        version: 1,
+        version: PROJECT_PINS_VERSION,
         pins: Array.isArray(parsed.pins) ? parsed.pins : [],
+        groups: Array.isArray(parsed.groups) ? parsed.groups : [],
         removedAutoPins: Array.isArray(parsed.removedAutoPins)
           ? parsed.removedAutoPins
           : [],
@@ -372,6 +628,14 @@ export class PinStore {
 
   private async writeGlobalPins(pins: Pin[]): Promise<void> {
     await this.context.globalState.update(GLOBAL_STATE_KEY, pins);
+  }
+
+  private readGlobalGroups(): PinGroup[] {
+    return this.context.globalState.get<PinGroup[]>(GLOBAL_GROUPS_KEY, []);
+  }
+
+  private async writeGlobalGroups(groups: PinGroup[]): Promise<void> {
+    await this.context.globalState.update(GLOBAL_GROUPS_KEY, groups);
   }
 
   // --- helpers -----------------------------------------------------------

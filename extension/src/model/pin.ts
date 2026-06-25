@@ -45,18 +45,47 @@ export interface Pin {
   isAuto?: boolean;
   exec?: PinExecConfig;
   schedule?: PinSchedule;
-  // Sort order within the pin's group.
+  // Id of the user group (PinGroup) this pin belongs to within its scope.
+  // Undefined = top level, directly under the scope root. Added in schema v2;
+  // a pin written by v1 has no groupId and reads as top level (the migration is
+  // therefore a no-op on pins — only the file gains an empty groups array).
+  groupId?: string;
+  // Sort order within the pin's group (or among top-level pins when ungrouped).
   order: number;
 }
 
+// A user-defined group (folder) that holds pins, nested under a scope root.
+// Project groups live in each folder's ProjectPinsFile; global groups live in
+// extension globalState. A group's id is referenced by Pin.groupId.
+export interface PinGroup {
+  // Stable id, unique within its scope, referenced by Pin.groupId.
+  id: string;
+  label: string;
+  // Sort order among groups under the same scope root.
+  order: number;
+  // Persisted collapse state so a folder stays the way the user left it.
+  collapsed?: boolean;
+}
+
+// Current on-disk schema version. Bumped from 1 to 2 to add `groups`; v1 files
+// are migrated on read (groups default to [], pins keep their fields).
+export const PROJECT_PINS_VERSION = 2;
+
 // On-disk shape for a single workspace folder's project pins.
 export interface ProjectPinsFile {
-  version: 1;
+  version: number;
   pins: Pin[];
+  // User-defined groups in this folder's project scope.
+  groups: PinGroup[];
   // Ids of auto-pins the user removed, so they are not re-seeded.
   removedAutoPins: string[];
 }
 
 export function emptyProjectPinsFile(): ProjectPinsFile {
-  return { version: 1, pins: [], removedAutoPins: [] };
+  return {
+    version: PROJECT_PINS_VERSION,
+    pins: [],
+    groups: [],
+    removedAutoPins: [],
+  };
 }

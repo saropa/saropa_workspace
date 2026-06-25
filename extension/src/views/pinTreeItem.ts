@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
+import { Pin, PinGroup, PinScope } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult, formatDuration } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
@@ -130,17 +130,41 @@ function formatRunTooltip(result: RunResult): string {
   return l10n("run.tooltipFailed", { code, duration, time });
 }
 
-// Group header node (Project Pins / Global Pins).
+// Scope root node (Project Pins / Global Pins). The two fixed top-level groups.
 export class PinGroupItem extends vscode.TreeItem {
-  constructor(label: string, readonly group: "project" | "global", count: number) {
+  constructor(label: string, readonly group: PinScope, count: number) {
     super(label, vscode.TreeItemCollapsibleState.Expanded);
-    // "group", NOT "pinGroup": the per-pin menus match viewItem =~ /^pin/, so a
-    // contextValue starting with "pin" would leak the Run/Unpin/Rename actions
-    // onto these section headers (a header has no single file to act on).
-    this.contextValue = "group";
+    // "scopeRoot", deliberately NOT prefixed "pin": the per-pin menus match
+    // viewItem =~ /^pin/, so a "pin"-prefixed contextValue would leak the
+    // Run/Unpin/Rename actions onto a header that has no single file to act on.
+    // The "New Group" action keys off this value.
+    this.contextValue = "scopeRoot";
     this.description = String(count);
     this.iconPath = new vscode.ThemeIcon(
-      group === "global" ? "globe" : "folder"
+      group === "global" ? "globe" : "root-folder"
     );
+  }
+}
+
+// A user-defined group (folder) under a scope root. Holds pins as children and
+// is itself a valid drag-and-drop target (drop a pin onto it to move it in).
+export class PinFolderItem extends vscode.TreeItem {
+  constructor(
+    readonly pinGroup: PinGroup,
+    readonly scope: PinScope,
+    count: number
+  ) {
+    super(
+      pinGroup.label,
+      pinGroup.collapsed
+        ? vscode.TreeItemCollapsibleState.Collapsed
+        : vscode.TreeItemCollapsibleState.Expanded
+    );
+    // "userGroup" (not "pin*") so Rename/Delete-Group target it without leaking
+    // the per-pin menus. The drop controller recognizes it by instance, not by
+    // this string.
+    this.contextValue = "userGroup";
+    this.description = String(count);
+    this.iconPath = new vscode.ThemeIcon("folder");
   }
 }
