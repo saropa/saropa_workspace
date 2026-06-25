@@ -63,6 +63,8 @@
   "command.recipe.openConfigFiles.title": "Open Config Files",
   "command.recipe.copyVersion.title": "Copy Project Name and Version",
   "command.recipe.runNearestScript.title": "Run Nearest Package Script",
+  "command.openProcessMonitor.title": "Open Toolchain Monitor",
+  "command.recipe.snapshotProcesses.title": "Snapshot Toolchain Processes",
   "config.autoPins.patterns.description": "Filenames or globs auto-pinned per project (removable). Removing an auto-pin keeps it removed.",
   "config.doubleClickMs.description": "Window in milliseconds for detecting a double-click on a pin. A second click within this window runs the file; a single click opens it.",
   "config.previewMode.enabled.description": "When on, single-clicking a pinned file opens it in a transient Preview tab (italic title). Clicking another pinned file reuses that tab, so clicking through several reference files does not flood the editor with tabs. Editing the file, or double-clicking a non-runnable pin, promotes the tab to permanent. Off by default: pins open as permanent tabs.",
@@ -76,5 +78,9 @@
   "config.aiContext.enabled.description": "Scan the configured chat folders for active Claude/AI conversations and surface the most recent ones as pins in an Active AI Threads group. Removing a thread keeps it removed; restore them with Restore Recipes.",
   "config.aiContext.claudeChatFolders.description": "Workspace-relative folders scanned for Claude/AI chat transcripts (.md or .json). The 10 most recently modified files per scan are offered as pins: a Markdown file opens locally (or deep-links to claude.ai when it carries a chat URL), a JSON file deep-links to claude.ai by its id. Each folder is scanned at its top level only, never recursively.",
   "config.telemetry.enabled.description": "Keep a local, on-device record of pin runs (manual and scheduled) to power the Recent group and the recents in Run Pin. Stored on this machine only and never transmitted. Turn off to stop collecting; use Reset Run History to clear it.",
-  "config.projectFiles.files.description": "Root-relative file names surfaced in the Project Files view. Each is shown only when it exists. Version is read from package.json, pubspec.yaml, Cargo.toml, pyproject.toml, and the top entry of CHANGELOG.md."
+  "config.projectFiles.files.description": "Root-relative file names surfaced in the Project Files view. Each is shown only when it exists. Version is read from package.json, pubspec.yaml, Cargo.toml, pyproject.toml, and the top entry of CHANGELOG.md.",
+  "config.processMonitor.heartbeat.enabled.description": "Sample your detected toolchain's processes on a timer while a workspace is open, appending a per-tool CPU/RAM/process-count row to reports/process-trend.csv and warning only when a tool crosses a RAM or helper-count ceiling. Off by default; the live monitor and snapshot work without it. Nothing is transmitted, and the heartbeat never ends a process.",
+  "config.processMonitor.heartbeat.intervalMinutes.description": "How often the toolchain heartbeat samples, in minutes (when enabled).",
+  "config.processMonitor.ramCeilingMB.description": "Per-tool working-set RAM ceiling, in megabytes. The heartbeat warns once when a tool (e.g. a leaked analysis server) exceeds it, and again only after it drops back under.",
+  "config.processMonitor.helperCountCeiling.description": "Per-tool helper-process count ceiling. The heartbeat warns once when a tool (e.g. an editor helper swarm) exceeds it, and again only after it drops back under."
 }
