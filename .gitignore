@@ -7,3 +7,6 @@ __pycache__/
 
 # Transient release-notes file written by scripts/publish.py.
 .release-notes-*.md
+
+# Private working note, not for the public repo.
+bugs/FINISH_GUIDE.md
