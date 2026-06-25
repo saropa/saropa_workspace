@@ -304,6 +304,49 @@ export class PinStore {
     return true;
   }
 
+  // Add a "line pin" that opens a file at a specific 1-based line (WOW #22).
+  // Unlike addPin, this does NOT dedupe by path: the same file can be pinned to
+  // several different lines (each a distinct jump target), so a new pin is always
+  // created. Returns false only when a project pin is requested for a file outside
+  // any workspace folder (the caller should offer global instead).
+  async addLinePin(
+    uri: vscode.Uri,
+    scope: PinScope,
+    line: number,
+    label: string
+  ): Promise<boolean> {
+    if (scope === "global") {
+      const pins = this.readGlobalPins();
+      pins.push({
+        id: this.newId(),
+        path: uri.fsPath,
+        scope: "global",
+        order: pins.length,
+        line,
+        label,
+      });
+      await this.writeGlobalPins(pins);
+      await this.refresh();
+      return true;
+    }
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    if (!folder) {
+      return false;
+    }
+    const file = await this.readProjectFile(folder);
+    file.pins.push({
+      id: this.newId(),
+      path: this.toFolderRelative(folder, uri),
+      scope: "project",
+      order: file.pins.length,
+      line,
+      label,
+    });
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return true;
+  }
+
   // Add a pin from a shared link's portable configuration (WOW #4 import). The id
   // and order are freshly assigned; everything else (label, path, action, exec,
   // icon, color, schedule) is carried verbatim. Project scope writes to the first

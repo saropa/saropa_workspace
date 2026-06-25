@@ -5,6 +5,8 @@
   "pin.notPinned": "{name} is not pinned in {scope}.",
   "pin.renamePrompt": "New label for {name}",
   "pin.noActiveFile": "No active file to pin.",
+  "linePin.label": "{name}:{line}",
+  "linePin.added": "Pinned {name} at line {line}. Opening it jumps back here.",
   "pin.sampleConfig": "Workspace config",
   "pin.group.project": "Project Pins",
   "pin.group.global": "Global Pins",

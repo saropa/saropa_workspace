@@ -185,7 +185,41 @@ async function openPin(store: PinStore, pin: Pin): Promise<void> {
   const usePreview = vscode.workspace
     .getConfiguration("saropaWorkspace")
     .get<boolean>("previewMode.enabled", false);
-  await vscode.window.showTextDocument(uri, { preview: usePreview });
+  const editor = await vscode.window.showTextDocument(uri, { preview: usePreview });
+  // A line pin (WOW #22) jumps to its target line and flashes it after opening.
+  if (pin.line !== undefined) {
+    revealAndFlashLine(editor, pin.line);
+  }
+}
+
+// Reusable decoration for the line-pin flash. A single shared type is created once
+// (creating one per call leaks decoration types) and toggled on/off around a brief
+// highlight so the jumped-to line is visually obvious without a permanent mark.
+const lineFlashDecoration = vscode.window.createTextEditorDecorationType({
+  backgroundColor: new vscode.ThemeColor("editor.findMatchHighlightBackground"),
+  isWholeLine: true,
+});
+
+// Scroll a freshly-opened editor to a pin's 1-based target line, place the cursor
+// there, and flash the line briefly. The line is clamped to the document length so a
+// pin that drifted past the end (edits removed lines) still lands on a valid line.
+function revealAndFlashLine(editor: vscode.TextEditor, oneBasedLine: number): void {
+  const lastLine = editor.document.lineCount - 1;
+  const zeroBased = Math.min(Math.max(oneBasedLine - 1, 0), lastLine);
+  const range = editor.document.lineAt(zeroBased).range;
+  editor.selection = new vscode.Selection(range.start, range.start);
+  editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+  editor.setDecorations(lineFlashDecoration, [range]);
+  // Clear the highlight after a moment so it reads as a flash, not a permanent mark.
+  // Wrapped because the editor may be disposed (tab closed) by the time this fires;
+  // setDecorations on a gone editor would otherwise throw.
+  setTimeout(() => {
+    try {
+      editor.setDecorations(lineFlashDecoration, []);
+    } catch {
+      // Editor closed before the flash cleared — nothing to clear.
+    }
+  }, 1200);
 }
 
 // Show a file pin inside VS Code's native Peek overlay, floating over the active
@@ -419,6 +453,30 @@ async function runPinOnDroppedFile(
         exec: { ...pin.exec, args: [...(pin.exec?.args ?? []), "$droppedFile"] },
       };
   await execRunPin(effectivePin, uri, "manual", { droppedFile: droppedFsPath });
+}
+
+// Pin the active editor's file at the current cursor line as a "line pin" (WOW #22):
+// opening it later jumps straight to this line and flashes it. Project scope when the
+// file is inside a workspace folder, else global (a project pin must be folder-
+// relative). The label carries the line so several line pins to one file are
+// distinguishable in the tree.
+async function pinToLine(store: PinStore): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showWarningMessage(l10n("pin.noActiveFile"));
+    return;
+  }
+  const uri = editor.document.uri;
+  const line = editor.selection.active.line + 1; // store 1-based
+  const base = uri.path.split("/").pop() ?? uri.fsPath;
+  const label = l10n("linePin.label", { name: base, line });
+  // Project scope only when the file lives in a workspace folder (its path must be
+  // folder-relative); otherwise global, so an external file still gets a line pin.
+  const scope: PinScope = vscode.workspace.getWorkspaceFolder(uri)
+    ? "project"
+    : "global";
+  await store.addLinePin(uri, scope, line, label);
+  vscode.window.showInformationMessage(l10n("linePin.added", { name: base, line }));
 }
 
 async function pinUri(store: PinStore, uri: vscode.Uri, scope: PinScope): Promise<void> {
@@ -1091,6 +1149,9 @@ export function registerPinCommands(
     }
     void pinUri(store, uri, "project");
   });
+
+  // Pin the active file at the cursor line; opening the pin jumps back to it (#22).
+  reg("saropaWorkspace.pinToLine", () => void pinToLine(store));
 
   reg("saropaWorkspace.pinActiveFileGlobal", (arg: unknown) => {
     const uri = editorTargetUri(arg);

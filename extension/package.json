@@ -116,6 +116,12 @@
         "category": "%extension.displayName%"
       },
       {
+        "command": "saropaWorkspace.pinToLine",
+        "title": "%command.pinToLine.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(go-to-file)"
+      },
+      {
         "command": "saropaWorkspace.pinFile",
         "title": "%command.pinFile.title%",
         "category": "%extension.displayName%",
@@ -710,6 +716,11 @@
         {
           "submenu": "saropaWorkspace.pinSubmenu",
           "group": "saropa@1"
+        },
+        {
+          "command": "saropaWorkspace.pinToLine",
+          "when": "editorTextFocus",
+          "group": "saropa@2"
         }
       ],
       "commandPalette": [

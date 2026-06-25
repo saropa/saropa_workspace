@@ -69,6 +69,14 @@ Pop-out window fixes: running as administrator now actually opens the elevated w
 - **Choosing a pin's icon is now one grouped, searchable list with many more icons.** The icon picker replaces the old flat list with scannable categories — Files & code, Run & build, Source control & cloud, Data & terminal, Status & alerts, Shapes & color, and Objects & places — and you can type the icon name to filter instead of scrolling.
 - **A scheduled pin's run action now reads "Run now".** On a pin that carries a schedule, the right-click **Run** is relabeled **Run now**, so firing the job ahead of its next timer — to test it or get a fresh result — reads as intentional rather than as a generic run. It runs exactly the same way; only the label changes.
 
+<details><summary>Maintenance</summary>
+
+- Automated version numbering in the release script (`scripts/publish.py`). A full publish now resolves the version itself: it offers a default (a patch bump when the changelog has an `[Unreleased]` section, otherwise the current `package.json` value, and never below a version already written ahead by hand), prompts with an editable timeout, writes `package.json`, renames `## [Unreleased]` to the cut version, reconciles the two, and bumps past any git tag already on the remote so a release can't collide with a published one. It refuses to run while any `## [x.y.z]` section is an empty stub. Publish tooling only. No action required.
+- Added a read-only pre-publish audit to the release script (`--mode audit`, and a gate at the start of every build mode). It verifies version/changelog agreement, no empty changelog sections, the cut version's Overview intro and pinned `[log]` link, that every `%key%` in `package.json` resolves in `package.nls.json`, that every `l10n('key')` in `src/` resolves in `locales/en.json`, and that no AI-authorship attribution footer leaked into a tracked file. A full publish aborts on a blocking finding. Publish tooling only. No action required.
+- Hardened the release script's publish flow. Missing `VSCE_PAT` / `OVSX_PAT` tokens are now prompted for with platform-specific instructions for setting them permanently; after publishing it polls the Marketplace and Open VSX until both serve the new version (so a `vsce` exit of 0 that never propagated is caught); stale `.vsix` files are removed before packaging and the packaged filename is checked against the intended version; and new `ci-fallback` (manual release playbook) and `--quiet` options were added alongside colored output, a timing summary, and a `tsc --noEmit` type-check gate. Publish tooling only. No action required.
+
+</details>
+
 ---
 
 ## [1.0.1]

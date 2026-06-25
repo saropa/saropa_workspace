@@ -170,6 +170,12 @@ export interface Pin {
   // a pin written by v1 has no groupId and reads as top level (the migration is
   // therefore a no-op on pins — only the file gains an empty groups array).
   groupId?: string;
+  // Optional 1-based line to jump to when the pin is opened (WOW #22). A "line pin"
+  // opens the file, scrolls to this line, and briefly flashes it — for pinning the
+  // one function in a 3000-line file you keep coming back to. Line-based (not
+  // AST-tracked), so an edit above it can shift the target; the line is clamped to
+  // the file's length on open so it never points past the end.
+  line?: number;
   // Sort order within the pin's group (or among top-level pins when ungrouped).
   order: number;
 }
