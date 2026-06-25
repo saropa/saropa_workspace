@@ -562,7 +562,13 @@ function launchExternalWindows(
   const psCommand = `Start-Process ${startArgs.join(" ")}`;
   const child = cp.spawn(
     "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", psCommand],
+    // No -NonInteractive: it silently suppresses the UAC consent that
+    // `Start-Process -Verb RunAs` triggers, so the elevated window never launches
+    // (no prompt, no window, launcher still exits 0). The launcher only invokes a
+    // fire-and-forget Start-Process and never reads input, so it has no use for
+    // -NonInteractive anyway. Verified: with the flag the elevated process never
+    // runs; without it, UAC fires and the window opens.
+    ["-NoProfile", "-Command", psCommand],
     // Non-elevated windows inherit env from this launcher; detach so the window
     // outlives the launcher process. Elevated windows get a fresh environment.
     { detached: true, stdio: "ignore", env: { ...process.env, ...(env ?? {}) } }

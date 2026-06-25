@@ -27,9 +27,16 @@
       "path": "CHANGELOG.md",
       "scope": "project",
       "order": 3
+    },
+    {
+      "id": "mqty6jbv-9outdxcp",
+      "path": "plans/PLAN_PIN_COUNT.md",
+      "scope": "project",
+      "order": 4
     }
   ],
   "groups": [],
   "removedAutoPins": [],
-  "removedRecipes": []
+  "removedRecipes": [],
+  "autoGroups": {}
 }

@@ -90,6 +90,14 @@ function recipeGroupColor(category: RecipeCategory | undefined): string {
   return RECIPE_GROUPS.find((g) => g.category === category)?.color ?? "charts.purple";
 }
 
+// True when an auto-pin pattern uses glob syntax that needs the workspace search
+// service to expand (recursion `**`, wildcards `*`/`?`, character classes, or
+// brace alternation). A pattern with none of these is a literal relative path and
+// is resolved with a direct fs.stat instead — see scanAutoPinPaths.
+function isGlobPattern(pattern: string): boolean {
+  return /[*?{}[\]]/.test(pattern);
+}
+
 export class PinStore {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
@@ -840,20 +848,46 @@ export class PinStore {
     }
     const paths: string[] = [];
     const seen = new Set<string>();
+    const add = (relative: string): void => {
+      if (!seen.has(relative)) {
+        seen.add(relative);
+        paths.push(relative);
+      }
+    };
     for (const pattern of patterns) {
-      // Limit each pattern to a small result set; auto-pins are a convenience,
-      // not a project-wide scan.
+      // BUG FIX (2026-06-25, slow startup): an exact-name pattern (no glob
+      // metacharacters) can only ever match the one file at that relative path —
+      // a RelativePattern without `**` does not recurse — so resolve it with a
+      // single fs.stat instead of vscode.workspace.findFiles. findFiles spins up
+      // the workspace search service (a full file-tree walk) even when the file
+      // is absent, and this is the ONLY search-service call on the awaited
+      // activation path (store.init -> refresh -> seedAutoPins). For the default
+      // `pubspec.yaml` + `analysis_options.yaml` patterns that meant two
+      // whole-workspace searches on every launch — wasted entirely in a project
+      // that has neither (the common non-Dart case). A direct stat turns each
+      // into an instant hit/miss.
+      if (!isGlobPattern(pattern)) {
+        const uri = vscode.Uri.joinPath(folder.uri, pattern);
+        try {
+          const stat = await vscode.workspace.fs.stat(uri);
+          if (stat.type === vscode.FileType.File) {
+            add(this.toFolderRelative(folder, uri));
+          }
+        } catch {
+          // Absent — the normal case for a pattern that does not apply here.
+        }
+        continue;
+      }
+      // A real glob still needs the search service to expand it. Limit each
+      // pattern to a small result set; auto-pins are a convenience, not a
+      // project-wide scan.
       const matches = await vscode.workspace.findFiles(
         new vscode.RelativePattern(folder, pattern),
         "**/node_modules/**",
         50
       );
       for (const uri of matches) {
-        const relative = this.toFolderRelative(folder, uri);
-        if (!seen.has(relative)) {
-          seen.add(relative);
-          paths.push(relative);
-        }
+        add(this.toFolderRelative(folder, uri));
       }
     }
     this.autoPinScanCache.set(key, paths);

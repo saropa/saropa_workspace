@@ -23,6 +23,22 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+Pop-out window fixes: running as administrator now actually opens the elevated window, and the run-settings editor no longer throws away your edits on a stray click.
+
+### Fixed
+
+- **Faster startup.** The activity-bar view no longer runs two whole-workspace file searches every time the window opens. Auto-pin patterns that name an exact file (the defaults `pubspec.yaml` and `analysis_options.yaml`) are now resolved with a direct file check instead of a project-wide search, so a project that has neither no longer pays a search cost on launch.
+- **Running a script as administrator now opens the elevated window.** Previously, choosing the external window with **Administrator privileges** did nothing — no UAC prompt and no window — because the launcher was started in a mode that silently canceled the elevation request. The elevated window now opens (with the usual Windows UAC prompt).
+- **The run-settings editor no longer discards your edits on a misclick.** The settings menu and every step within it now stay open when you click elsewhere, so an accidental click outside the picker no longer closes the editor and loses everything. Only pressing Escape cancels.
+
+### Changed
+
+- **Turning on administrator privileges is now a single flow.** Choosing the external window now immediately asks whether to run as administrator, instead of returning to the settings menu where the toggle only appears after the fact. The toggle still lives on the settings menu, so it remains adjustable later.
+
+---
+
 ## [1.0.1]
 
 Run a script in its own pop-out terminal window — optionally as administrator.

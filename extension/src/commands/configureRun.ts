@@ -197,9 +197,13 @@ async function showHub(
     },
   ];
 
+  // ignoreFocusOut: dismissing the hub discards the whole working copy, so a
+  // stray click outside the picker must NOT close it — only a deliberate Esc
+  // does. Without this, one misclick loses every edit and the user starts over.
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("configure.hubPlaceholder"),
+    ignoreFocusOut: true,
   });
   return pick?.id;
 }
@@ -223,6 +227,7 @@ async function editCommand(work: PinExecConfig, title: string): Promise<void> {
     prompt: l10n("configure.command.prompt"),
     placeHolder: l10n("configure.command.placeholder"),
     value: work.command ?? "",
+    ignoreFocusOut: true,
   });
   if (value === undefined) {
     // Esc on the sub-step: leave the field unchanged.
@@ -238,6 +243,7 @@ async function editArgs(work: PinExecConfig, title: string): Promise<void> {
     prompt: l10n("configure.args.prompt"),
     placeHolder: l10n("configure.args.placeholder"),
     value: work.args ? formatArgs(work.args) : "",
+    ignoreFocusOut: true,
   });
   if (value === undefined) {
     return;
@@ -290,6 +296,7 @@ async function editCwd(
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("configure.cwd.placeholder"),
+    ignoreFocusOut: true,
   });
   if (!pick) {
     return;
@@ -303,6 +310,7 @@ async function editCwd(
       title,
       prompt: l10n("configure.cwd.customPrompt"),
       value: work.cwd ?? "",
+      ignoreFocusOut: true,
       // Validate existence inline so an invalid path never persists.
       validateInput: async (input) => {
         if (input.trim() === "") {
@@ -355,6 +363,7 @@ async function editEnv(work: PinExecConfig, title: string): Promise<void> {
     const pick = await vscode.window.showQuickPick(items, {
       title,
       placeHolder: l10n("configure.env.placeholder"),
+      ignoreFocusOut: true,
     });
     if (!pick) {
       // Esc returns to the hub with the env edits made so far retained in `work`.
@@ -365,6 +374,7 @@ async function editEnv(work: PinExecConfig, title: string): Promise<void> {
       const key = await vscode.window.showInputBox({
         title,
         prompt: l10n("configure.env.keyPrompt"),
+        ignoreFocusOut: true,
         validateInput: (input) => validateEnvKey(input, keys),
       });
       if (key === undefined) {
@@ -373,6 +383,7 @@ async function editEnv(work: PinExecConfig, title: string): Promise<void> {
       const value = await vscode.window.showInputBox({
         title,
         prompt: l10n("configure.env.valuePrompt", { key: key.trim() }),
+        ignoreFocusOut: true,
       });
       if (value === undefined) {
         continue;
@@ -391,7 +402,11 @@ async function editEnv(work: PinExecConfig, title: string): Promise<void> {
         { id: "edit", label: l10n("configure.env.edit") },
         { id: "delete", label: l10n("configure.env.delete") },
       ],
-      { title, placeHolder: l10n("configure.env.actionPlaceholder", { key }) }
+      {
+        title,
+        placeHolder: l10n("configure.env.actionPlaceholder", { key }),
+        ignoreFocusOut: true,
+      }
     );
     if (!action) {
       continue;
@@ -401,6 +416,7 @@ async function editEnv(work: PinExecConfig, title: string): Promise<void> {
         title,
         prompt: l10n("configure.env.valuePrompt", { key }),
         value: env[key],
+        ignoreFocusOut: true,
       });
       if (value === undefined) {
         continue;
@@ -444,11 +460,19 @@ async function editLocation(work: PinExecConfig, title: string): Promise<void> {
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("configure.terminal.placeholder"),
+    ignoreFocusOut: true,
   });
   if (!pick) {
     return;
   }
   work.runLocation = pick.value;
+  // Choosing External immediately offers the admin toggle in the same sequence,
+  // so enabling elevation is one flow rather than picking External, returning to
+  // the hub, and hunting for a field that only appears once External is set. The
+  // toggle stays on the hub too, so it remains adjustable later.
+  if (pick.value === "external") {
+    await editElevated(work, title);
+  }
 }
 
 // Toggle administrator/elevated privileges for an external window. Reachable only
@@ -468,6 +492,7 @@ async function editElevated(work: PinExecConfig, title: string): Promise<void> {
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("configure.elevated.placeholder"),
+    ignoreFocusOut: true,
   });
   if (!pick) {
     return;
@@ -489,6 +514,7 @@ async function editFileArg(work: PinExecConfig, title: string): Promise<void> {
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("configure.fileArg.placeholder"),
+    ignoreFocusOut: true,
   });
   if (!pick) {
     return;
