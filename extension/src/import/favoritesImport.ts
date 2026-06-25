@@ -1,16 +1,47 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
+import { getOutputChannel } from "../exec/runner";
+import { l10n } from "../i18n/l10n";
 
 // Imports pins from other VS Code "favorites" extensions so users migrating to
 // Saropa Workspace keep their existing favorites.
 //
-// Phase 1 supports the most common on-disk format: the kdcro101 "Favorites"
-// extension's `.favorites.json` at the workspace root. Its entries look like:
-//   { "type": "File", "name": "...", "fsPath": "C:\\...\\file.py", "id": "..." }
-// Folder entries (type !== "File") are skipped in Phase 1 since pins are files.
+// In-workspace sources (added as PROJECT pins of the owning folder), each only
+// imported when present:
+//   - kdcro101 "Favorites" — `.favorites.json` (a JSON array). Entries look like
+//     { "type": "File", "name": "...", "fsPath": "C:\\...\\file.py" }; folder /
+//     group entries (type !== "File") are unsupported and skipped.
+//   - oleg-shilo "Favorites Manager" — a text list at `.vscode/fav.local.list.txt`
+//     or `.fav/local.list.txt`, one entry per line as `path` or `path|alias`,
+//     with `#` comment lines. A relative path resolves against the folder; an
+//     alias becomes the pin's display label.
+//   - howardzuo "favorites" — the `favorites.resources` settings key (an array of
+//     paths), read from the active configuration rather than a file on disk.
+//
+// Every recognized-but-unsupported or malformed entry (a folder/group entry, a
+// blank or path-less line, a non-string settings value, an unparseable file) is
+// reported in the shared output channel and skipped — a single bad entry never
+// aborts the whole import.
 
-// Filenames we look for, in priority order. Extend as more formats are added.
-const KNOWN_FAVORITES_FILES = [".favorites.json"];
+// The on-disk file formats scanned across the open workspace folders.
+type FileFavoritesFormat = "kdcro" | "olegShilo";
+
+// Files we look for per folder, with the format each carries. Extend as more
+// formats are added.
+const KNOWN_FAVORITES_SOURCES: ReadonlyArray<{
+  fileName: string;
+  format: FileFavoritesFormat;
+}> = [
+  { fileName: ".favorites.json", format: "kdcro" },
+  { fileName: ".vscode/fav.local.list.txt", format: "olegShilo" },
+  { fileName: ".fav/local.list.txt", format: "olegShilo" },
+];
+
+// The howardzuo "favorites" extension stores its files under this settings key.
+const HOWARDZUO_SETTINGS_KEY = "favorites.resources";
+// Shown as the source name for the settings-key import in toasts and the log.
+const HOWARDZUO_SOURCE_LABEL = "favorites.resources";
 
 interface KdcroFavoriteEntry {
   type?: string;
@@ -22,17 +53,34 @@ export interface DetectedFavorites {
   folder: vscode.WorkspaceFolder;
   fileUri: vscode.Uri;
   fileName: string;
+  format: FileFavoritesFormat;
 }
 
-// Return every known favorites file present across the open workspace folders.
+// What one source contributed: pins newly added, and entries recognized but not
+// pinned (reported in the output channel). Duplicate entries the store already
+// holds are NOT counted as skipped — re-running import is idempotent by design,
+// so a dedup is expected, not a problem worth reporting.
+export interface ImportResult {
+  added: number;
+  skipped: number;
+}
+
+// Return every known favorites FILE present across the open workspace folders.
+// The settings-key source (howardzuo) is detected separately via
+// detectSettingsFavoritesCount, since it has no file on disk.
 export async function detectFavoritesFiles(): Promise<DetectedFavorites[]> {
   const found: DetectedFavorites[] = [];
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    for (const fileName of KNOWN_FAVORITES_FILES) {
-      const fileUri = vscode.Uri.joinPath(folder.uri, fileName);
+    for (const source of KNOWN_FAVORITES_SOURCES) {
+      const fileUri = vscode.Uri.joinPath(folder.uri, source.fileName);
       try {
         await vscode.workspace.fs.stat(fileUri);
-        found.push({ folder, fileUri, fileName });
+        found.push({
+          folder,
+          fileUri,
+          fileName: source.fileName,
+          format: source.format,
+        });
       } catch {
         // Not present in this folder; keep scanning.
       }
@@ -41,56 +89,192 @@ export async function detectFavoritesFiles(): Promise<DetectedFavorites[]> {
   return found;
 }
 
-// Parse one detected favorites file and add its file entries as project pins.
-// Returns the number of newly added pins (duplicates are skipped by the store).
+// How many importable entries the howardzuo `favorites.resources` settings key
+// holds right now (string paths only). Used by the command to decide whether
+// there is anything to import when no favorites FILE is present.
+export function detectSettingsFavoritesCount(): number {
+  const resources = vscode.workspace
+    .getConfiguration()
+    .get<unknown>(HOWARDZUO_SETTINGS_KEY);
+  if (!Array.isArray(resources)) {
+    return 0;
+  }
+  return resources.filter((r) => typeof r === "string" && r.trim().length > 0)
+    .length;
+}
+
+// Parse one detected favorites file and add its entries as project pins,
+// dispatching on the file's format. Unsupported/malformed entries are logged to
+// the channel and skipped. Returns the per-file added/skipped tally.
 export async function importFavoritesFile(
   detected: DetectedFavorites,
   store: PinStore
-): Promise<number> {
+): Promise<ImportResult> {
+  const channel = getOutputChannel();
   let bytes: Uint8Array;
   try {
     bytes = await vscode.workspace.fs.readFile(detected.fileUri);
   } catch {
-    return 0;
+    return { added: 0, skipped: 0 };
   }
+  const text = Buffer.from(bytes).toString("utf8");
 
+  if (detected.format === "kdcro") {
+    return importKdcro(text, detected.fileName, store, channel);
+  }
+  return importOlegShilo(text, detected, store, channel);
+}
+
+// kdcro101 `.favorites.json`: a JSON array of typed entries. Only File entries
+// become pins; folder/group entries and path-less entries are reported as skips.
+async function importKdcro(
+  text: string,
+  fileName: string,
+  store: PinStore,
+  channel: vscode.OutputChannel
+): Promise<ImportResult> {
   let entries: KdcroFavoriteEntry[];
   try {
-    const parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
-    entries = Array.isArray(parsed) ? parsed : [];
-  } catch {
-    // A malformed favorites file is not fatal; import nothing rather than throw.
-    return 0;
+    const parsed: unknown = JSON.parse(text);
+    entries = Array.isArray(parsed) ? (parsed as KdcroFavoriteEntry[]) : [];
+  } catch (err) {
+    // A malformed file imports nothing rather than throwing; name it in the log.
+    channel.appendLine(
+      l10n("import.log.malformed", {
+        file: fileName,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+    return { added: 0, skipped: 0 };
   }
 
   let added = 0;
+  let skipped = 0;
   for (const entry of entries) {
-    // Only file entries become pins in Phase 1; skip folders/groups.
+    // Folder/group entries cannot map to a file pin; report and skip them.
     if (entry.type && entry.type !== "File") {
+      channel.appendLine(
+        l10n("import.log.skipFolder", { file: fileName, name: entry.name ?? "?" })
+      );
+      skipped++;
       continue;
     }
     if (!entry.fsPath) {
+      channel.appendLine(l10n("import.log.skipNoPath", { file: fileName }));
+      skipped++;
       continue;
     }
-    const uri = vscode.Uri.file(entry.fsPath);
     // addPin stores project pins relative to the owning folder and skips dupes,
     // so re-running import is idempotent.
+    if (await store.addPin(vscode.Uri.file(entry.fsPath), "project")) {
+      added++;
+    }
+  }
+  return { added, skipped };
+}
+
+// oleg-shilo "Favorites Manager" text list: one entry per line as `path` or
+// `path|alias`; `#` lines and blank lines are comments. A relative path resolves
+// against the owning folder; the alias becomes the pin's label.
+async function importOlegShilo(
+  text: string,
+  detected: DetectedFavorites,
+  store: PinStore,
+  channel: vscode.OutputChannel
+): Promise<ImportResult> {
+  let added = 0;
+  let skipped = 0;
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    // Blank lines and `#` comments are structural, not skipped entries.
+    if (line.length === 0 || line.startsWith("#")) {
+      continue;
+    }
+    // Split on the FIRST `|` only, so an alias may itself contain a pipe.
+    const sep = line.indexOf("|");
+    const pathPart = (sep === -1 ? line : line.slice(0, sep)).trim();
+    const alias = sep === -1 ? undefined : line.slice(sep + 1).trim() || undefined;
+    if (pathPart.length === 0) {
+      channel.appendLine(
+        l10n("import.log.skipBlankPath", { file: detected.fileName })
+      );
+      skipped++;
+      continue;
+    }
+    const uri = path.isAbsolute(pathPart)
+      ? vscode.Uri.file(pathPart)
+      : vscode.Uri.joinPath(detected.folder.uri, pathPart);
+    if (await store.addPin(uri, "project", alias)) {
+      added++;
+    }
+  }
+  return { added, skipped };
+}
+
+// howardzuo `favorites.resources`: an array of paths read from the active
+// configuration. Non-string or blank entries are reported and skipped; an
+// absolute path is used as-is, a relative one resolves against the first
+// workspace folder (the configuration is workspace-wide, not per-folder).
+export async function importSettingsFavorites(
+  store: PinStore
+): Promise<ImportResult> {
+  const channel = getOutputChannel();
+  const resources = vscode.workspace
+    .getConfiguration()
+    .get<unknown>(HOWARDZUO_SETTINGS_KEY);
+  if (!Array.isArray(resources)) {
+    return { added: 0, skipped: 0 };
+  }
+  const firstFolder = vscode.workspace.workspaceFolders?.[0];
+  let added = 0;
+  let skipped = 0;
+  for (const resource of resources) {
+    if (typeof resource !== "string" || resource.trim().length === 0) {
+      channel.appendLine(l10n("import.log.skipSetting", { key: HOWARDZUO_SOURCE_LABEL }));
+      skipped++;
+      continue;
+    }
+    const value = resource.trim();
+    let uri: vscode.Uri;
+    if (path.isAbsolute(value)) {
+      uri = vscode.Uri.file(value);
+    } else if (firstFolder) {
+      uri = vscode.Uri.joinPath(firstFolder.uri, value);
+    } else {
+      // A relative path with no folder open cannot be resolved; report and skip.
+      channel.appendLine(
+        l10n("import.log.skipUnresolved", { key: HOWARDZUO_SOURCE_LABEL, path: value })
+      );
+      skipped++;
+      continue;
+    }
     if (await store.addPin(uri, "project")) {
       added++;
     }
   }
-  return added;
+  return { added, skipped };
 }
 
-// Import every detected favorites file across all folders. Returns the total
-// number of pins added.
-export async function importAllDetected(store: PinStore): Promise<number> {
-  const detected = await detectFavoritesFiles();
-  let total = 0;
-  for (const d of detected) {
-    total += await importFavoritesFile(d, store);
+// Import every detected favorites source — each known file across all folders,
+// plus the howardzuo settings key — as project pins. Returns the combined
+// added/skipped tally and writes a one-line summary to the channel when anything
+// was skipped, so the user can open the output to see what and why.
+export async function importAllDetected(store: PinStore): Promise<ImportResult> {
+  const channel = getOutputChannel();
+  let added = 0;
+  let skipped = 0;
+  for (const detected of await detectFavoritesFiles()) {
+    const result = await importFavoritesFile(detected, store);
+    added += result.added;
+    skipped += result.skipped;
   }
-  return total;
+  const settings = await importSettingsFavorites(store);
+  added += settings.added;
+  skipped += settings.skipped;
+  if (skipped > 0) {
+    channel.appendLine(l10n("import.log.summary", { added, skipped }));
+  }
+  return { added, skipped };
 }
 
 // --- sibling-project scan ------------------------------------------------

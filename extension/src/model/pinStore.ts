@@ -250,7 +250,17 @@ export class PinStore {
   }
 
   // Pin a file. Returns false if it is already pinned in that scope (no-op).
-  async addPin(uri: vscode.Uri, scope: PinScope): Promise<boolean> {
+  // An optional label sets the pin's display name up front — used by importers
+  // that carry an alias for the file (e.g. the oleg-shilo `path|alias` format); a
+  // blank/undefined label leaves the pin to fall back to the file basename.
+  async addPin(
+    uri: vscode.Uri,
+    scope: PinScope,
+    label?: string
+  ): Promise<boolean> {
+    // Only carry a non-empty label so a pin without an alias keeps the basename
+    // default rather than storing an empty override.
+    const labelField = label && label.trim().length > 0 ? { label: label.trim() } : {};
     if (scope === "global") {
       const pins = this.readGlobalPins();
       const fsPath = uri.fsPath;
@@ -262,6 +272,7 @@ export class PinStore {
         path: fsPath,
         scope: "global",
         order: pins.length,
+        ...labelField,
       });
       await this.writeGlobalPins(pins);
       await this.refresh();
@@ -285,6 +296,7 @@ export class PinStore {
       path: relative,
       scope: "project",
       order: file.pins.length,
+      ...labelField,
     });
     await this.writeProjectFile(folder, file);
     await this.refresh();

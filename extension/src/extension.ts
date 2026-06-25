@@ -347,10 +347,10 @@ async function maybeOfferFavoritesImport(
     action
   );
   if (choice === action) {
-    const total = await importAllDetected(store);
+    const result = await importAllDetected(store);
     vscode.window.showInformationMessage(
       l10n("import.done", {
-        count: total,
+        count: result.added,
         file: detected.map((d) => d.fileName).join(", "),
       })
     );

@@ -10,10 +10,13 @@ carries a `description` that the extension shows when the user clicks it (the
 single-click detail modal) and on hover (the tree tooltip), so the catalog prose is
 read where the recipe is used rather than in this file.
 
-What follows is only what is left to build: the **live process monitor** (the rest
-of section G), the **workspace hygiene scans** (section H), and the cross-cutting
-**sensory feedback** layer (section I), plus the **remaining gaps** in the
-already-shipped sections.
+**Update:** section G now ships in full — the **process-poll helper** (two-sample
+CPU delta + working-set RAM + parent-PID roll-up, cross-platform), the **live
+toolchain monitor** webview (#60), the **heartbeat** trend/threshold sampler (#61),
+and the **grouped, two-sample snapshot** (#62) are all built. What follows is only
+what is left to build: the **workspace hygiene scans** (section H) and the
+cross-cutting **sensory feedback** layer (section I), plus the **remaining gaps** in
+the already-shipped sections.
 
 The same principle governs all of it: a recipe is created/configured explicitly
 and run as a visible act — nothing here auto-executes or scans the disk without

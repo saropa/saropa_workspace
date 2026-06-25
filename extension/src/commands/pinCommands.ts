@@ -15,6 +15,7 @@ import { telemetry } from "../exec/telemetry";
 import { tappedPins } from "../model/tappedPins";
 import {
   detectFavoritesFiles,
+  detectSettingsFavoritesCount,
   importAllDetected,
   detectSiblingFavorites,
   importSiblingFavorites,
@@ -1175,16 +1176,42 @@ export function registerPinCommands(
 
   reg("saropaWorkspace.importFavorites", async () => {
     const detected = await detectFavoritesFiles();
-    if (detected.length === 0) {
+    const settingsCount = detectSettingsFavoritesCount();
+    if (detected.length === 0 && settingsCount === 0) {
       vscode.window.showInformationMessage(l10n("import.none"));
       return;
     }
-    const total = await importAllDetected(store);
-    const fileList = detected.map((d) => d.fileName).join(", ");
+    const result = await importAllDetected(store);
+    // Name every source the import drew from (files plus the settings key) so the
+    // toast tells the user exactly where the pins came from.
+    const sources = [
+      ...detected.map((d) => d.fileName),
+      ...(settingsCount > 0 ? ["favorites.resources"] : []),
+    ];
+    const fileList = sources.join(", ");
+    if (result.added === 0) {
+      vscode.window.showInformationMessage(l10n("import.nothingNew", { file: fileList }));
+      return;
+    }
+    // Skipped entries (unsupported or malformed) are detailed in the output
+    // channel; offer a one-click jump to it rather than burying the count.
+    if (result.skipped > 0) {
+      const showOutput = l10n("run.showOutput");
+      const choice = await vscode.window.showInformationMessage(
+        l10n("import.doneWithSkips", {
+          count: result.added,
+          file: fileList,
+          skipped: result.skipped,
+        }),
+        showOutput
+      );
+      if (choice === showOutput) {
+        void vscode.commands.executeCommand("saropaWorkspace.showOutput");
+      }
+      return;
+    }
     vscode.window.showInformationMessage(
-      total > 0
-        ? l10n("import.done", { count: total, file: fileList })
-        : l10n("import.nothingNew", { file: fileList })
+      l10n("import.done", { count: result.added, file: fileList })
     );
   });
 
