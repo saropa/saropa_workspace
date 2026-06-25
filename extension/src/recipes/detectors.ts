@@ -316,6 +316,60 @@ export async function detectOnDemandRecipes(
     });
   }
 
+  // 69-72: canonical project docs (file pins). Each is offered only when the file
+  // is actually present at the folder root, so a project without a CHANGELOG never
+  // shows a dead opener. Standalone openers — the boot macro opens the README as a
+  // step, but a direct one-click "open the changelog / license / contributing" is
+  // what a reader reaches for outside a boot sequence.
+  const docPins: Array<{
+    recipeId: string;
+    label: string;
+    description: string;
+    icon: string;
+    names: string[];
+  }> = [
+    {
+      recipeId: "doc.readme",
+      label: "Open the README",
+      description: "Opens the project's README. Detected from a README file at the folder root.",
+      icon: "book",
+      names: ["README.md", "readme.md", "README"],
+    },
+    {
+      recipeId: "doc.changelog",
+      label: "Open the CHANGELOG",
+      description: "Opens the project's changelog. Detected from a CHANGELOG file at the folder root.",
+      icon: "history",
+      names: ["CHANGELOG.md", "changelog.md", "CHANGELOG"],
+    },
+    {
+      recipeId: "doc.license",
+      label: "Open the LICENSE",
+      description: "Opens the project's license. Detected from a LICENSE file at the folder root.",
+      icon: "law",
+      names: ["LICENSE", "LICENSE.md", "LICENSE.txt", "license"],
+    },
+    {
+      recipeId: "doc.contributing",
+      label: "Open the contributing guide",
+      description: "Opens the project's contributing guide. Detected from a CONTRIBUTING file at the folder root.",
+      icon: "organization",
+      names: ["CONTRIBUTING.md", "contributing.md", "CONTRIBUTING"],
+    },
+  ];
+  for (const doc of docPins) {
+    const found = await firstExisting(folder, doc.names);
+    if (found) {
+      out.push({
+        recipeId: doc.recipeId,
+        label: doc.label,
+        description: doc.description,
+        icon: doc.icon,
+        filePath: found,
+      });
+    }
+  }
+
   // 18: set up .env (command pin -> helper command), only when example exists and
   // .env is missing.
   if ((await exists(folder, ".env.example")) && !(await exists(folder, ".env"))) {
@@ -417,6 +471,7 @@ export async function detectOnDemandRecipes(
   const RUN = new Set([
     "dev", "test", "lint", "build", "install", "typecheck",
     "compose.up", "db.migrate", "nearest.script",
+    "format", "clean", "upgrade",
   ]);
   const WORKSPACE = new Set([
     "entry", "env.setup", "config.open", "boot", "copy.version",

@@ -107,6 +107,7 @@
   "simulate.action.shell": "Runs this shell command:",
   "simulate.action.command": "Invokes the VS Code command `{id}`.",
   "simulate.action.macro": "Runs these steps in order:",
+  "drop.notRunnable": "{name} has no run command, so a dropped file has nothing to run. Set one with Configure Run.",
   "extract.copied": "Copied from {name}: {value}",
   "extract.invalid": "[{name}] invalid extract pattern: {pattern}",
   "extract.noMatch": "[{name}] extract pattern matched nothing: {pattern}",

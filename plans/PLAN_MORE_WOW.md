@@ -25,10 +25,6 @@ Here are some high-impact "WOW" features that align perfectly with Saropa Worksp
 
 Here are 10 more "WOW" features that build on Saropa's local-first, frictionless philosophy. *(No specs, just the pitches!)*
 
-### 8. Drag-and-Drop Execution (The "Drop Zone" Pin)
-**The Pain:** You have a pinned script like `upload_to_aws.sh <filepath>` or `process_image.py <filepath>`. To run it on a specific file, you have to open the terminal, type the command, and carefully type out the relative path to the file.
-**The WOW:** Pinned scripts act as native drag-and-drop targets. You grab `hero_banner.png` from the VS Code Explorer, drag it directly *onto* the `process_image.py` pin, and let go. Saropa instantly runs the script, automatically injecting the file's path via a new `$droppedFile` token.
-
 ### 9. Time-Bomb / Ephemeral Pins
 **The Pain:** You pin `db_migration_v42.sql` or `hotfix_notes.txt` because you need them *today*. You forget to unpin them. Six months later, your sidebar is a graveyard of irrelevant files.
 **The WOW:** Right-click any file -> **"Pin until Friday"** or **"Pin until Branch Changes"**. The pin visually ticks down (e.g., a tiny hourglass icon) and gracefully auto-deletes itself from the workspace when the condition is met. No manual cleanup required.

@@ -13,6 +13,10 @@ import { PinFolderItem, PinGroupItem, PinTreeItem, RecentRootItem } from "./pinT
 // to live pins through the store on drop.
 const PIN_MIME = "application/vnd.saropa.workspace.pins";
 
+// Standard MIME for files dragged from the Explorer (or the OS). Accepting it lets a
+// file be dropped onto a script pin to run that pin against the file (WOW #8).
+const URI_LIST_MIME = "text/uri-list";
+
 // Tree: scope roots (Project / Global) -> user groups + top-level pins -> pins.
 // Also the drag-and-drop controller, so a pin can be reordered and moved between
 // groups by dragging it (handleDrag/handleDrop below).
@@ -21,7 +25,7 @@ export class PinsTreeProvider
     vscode.TreeDataProvider<vscode.TreeItem>,
     vscode.TreeDragAndDropController<vscode.TreeItem>
 {
-  readonly dropMimeTypes = [PIN_MIME];
+  readonly dropMimeTypes = [PIN_MIME, URI_LIST_MIME];
   readonly dragMimeTypes = [PIN_MIME];
 
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<
@@ -164,6 +168,9 @@ export class PinsTreeProvider
   ): Promise<void> {
     const transferItem = dataTransfer.get(PIN_MIME);
     if (!transferItem) {
+      // No internal pin payload: this is an external file drag (Explorer / OS).
+      // Dropping a file onto a script pin runs that pin against the file.
+      await this.handleExternalFileDrop(target, dataTransfer);
       return;
     }
     const ids = this.parseIds(await transferItem.asString());
@@ -179,6 +186,43 @@ export class PinsTreeProvider
       return;
     }
     await this.store.movePins(pins, moveTarget);
+  }
+
+  // Handle a file dragged from the Explorer (or OS) and dropped onto a pin: run that
+  // pin against the file via $droppedFile (WOW #8). Only a pin row is a valid target
+  // (a group/scope header has no command to run); the command handler rejects a
+  // non-runnable pin with a message. Only the first dropped file is used.
+  private async handleExternalFileDrop(
+    target: vscode.TreeItem | undefined,
+    dataTransfer: vscode.DataTransfer
+  ): Promise<void> {
+    if (!(target instanceof PinTreeItem) || target.isRecent) {
+      return;
+    }
+    const uriItem = dataTransfer.get(URI_LIST_MIME);
+    if (!uriItem) {
+      return;
+    }
+    // text/uri-list is CRLF-separated; comment lines start with '#'. Take the first
+    // real URI.
+    const first = (await uriItem.asString())
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0 && !line.startsWith("#"));
+    if (!first) {
+      return;
+    }
+    let fsPath: string;
+    try {
+      fsPath = vscode.Uri.parse(first).fsPath;
+    } catch {
+      return;
+    }
+    await vscode.commands.executeCommand(
+      "saropaWorkspace.runPinOnFile",
+      target.pin,
+      fsPath
+    );
   }
 
   // Map the dropped-on node to a concrete move destination. Dropping on a scope

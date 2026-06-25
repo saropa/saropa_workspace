@@ -337,6 +337,53 @@ async function runWithLastParams(store: PinStore, pin: Pin): Promise<void> {
   await runPinCommand(store, cloneWithResolvedTokens(pin, values));
 }
 
+// Whether a pin's run config already references the $droppedFile token, so a
+// drag-and-drop run knows whether to inject the path via the token (the user placed
+// it where they want) or append it as a trailing argument (a plain script that just
+// expects the file as its last arg).
+function execReferencesDroppedFile(exec: Pin["exec"]): boolean {
+  const strings = [exec?.command ?? "", ...(exec?.args ?? [])];
+  return strings.some((s) => s.includes("$droppedFile"));
+}
+
+// Run a script pin against a file dropped onto it from the Explorer (WOW #8). The
+// dropped path is exposed as the $droppedFile token; if the pin does not reference
+// that token, the path is appended as a trailing argument so a plain script still
+// receives the file. The stored pin is untouched — the appended arg applies to this
+// run only. A non-file or non-runnable pin is a no-op with a naming message.
+async function runPinOnDroppedFile(
+  store: PinStore,
+  pin: Pin,
+  droppedFsPath: string
+): Promise<void> {
+  void tappedPins.mark(pin.id);
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  if (pinKind(pin) !== "file") {
+    return;
+  }
+  const uri = store.resolveUri(pin);
+  if (!uri) {
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    return;
+  }
+  if (!(await fileExists(uri))) {
+    await handleMissingFile(store, pin, uri);
+    return;
+  }
+  if (!isRunnable(pin, uri.fsPath)) {
+    vscode.window.showInformationMessage(l10n("drop.notRunnable", { name }));
+    return;
+  }
+  // Inject the token; append it only when the pin does not already place it.
+  const effectivePin: Pin = execReferencesDroppedFile(pin.exec)
+    ? pin
+    : {
+        ...pin,
+        exec: { ...pin.exec, args: [...(pin.exec?.args ?? []), "$droppedFile"] },
+      };
+  await execRunPin(effectivePin, uri, "manual", { droppedFile: droppedFsPath });
+}
+
 async function pinUri(store: PinStore, uri: vscode.Uri, scope: PinScope): Promise<void> {
   const name = uri.path.split("/").pop() ?? uri.fsPath;
   const added = await store.addPin(uri, scope);
@@ -781,6 +828,16 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await simulateRun(store, pin);
+    }
+  });
+
+  // Drag-and-drop execution: run a script pin against a file dropped onto it from
+  // the Explorer (WOW #8). Invoked by the tree's drop controller with the pin and
+  // the dropped file's path.
+  reg("saropaWorkspace.runPinOnFile", async (pinArg: unknown, fsPath: unknown) => {
+    const pin = asPin(pinArg);
+    if (pin && typeof fsPath === "string") {
+      await runPinOnDroppedFile(store, pin, fsPath);
     }
   });
 

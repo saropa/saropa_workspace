@@ -164,14 +164,20 @@ export interface RunPlan {
 }
 
 // Resolve a pin + target into a concrete RunPlan. Pure of side effects so both
-// runPin and the scheduler's log line share one assembly path.
-export function planRun(pin: Pin, uri: vscode.Uri): RunPlan {
+// runPin and the scheduler's log line share one assembly path. `extraTokens` adds
+// run-specific token values (e.g. $droppedFile from a drag-and-drop run, WOW #8)
+// merged over the standard file tokens.
+export function planRun(
+  pin: Pin,
+  uri: vscode.Uri,
+  extraTokens?: Record<string, string>
+): RunPlan {
   const fsPath = uri.fsPath;
   const workspaceRoot = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
 
   // Expand placeholder tokens in the command, each arg, and a custom cwd before
   // assembly/quoting, so a substituted path with spaces is quoted as one arg.
-  const tokens = buildTokenMap(fsPath, workspaceRoot);
+  const tokens = { ...buildTokenMap(fsPath, workspaceRoot), ...(extraTokens ?? {}) };
   const unknown = new Set<string>();
 
   const prefix = expandTokens(resolveCommandPrefix(pin, fsPath), tokens, unknown);
@@ -223,7 +229,8 @@ export function getOutputChannel(): vscode.OutputChannel {
 export async function runPin(
   pin: Pin,
   uri: vscode.Uri,
-  source: RunSource = "manual"
+  source: RunSource = "manual",
+  extraTokens?: Record<string, string>
 ): Promise<void> {
   const name = pin.label ?? path.basename(uri.fsPath);
 
@@ -244,7 +251,7 @@ export async function runPin(
     effectivePin = cloneWithResolvedTokens(pin, resolved);
   }
 
-  const plan = planRun(effectivePin, uri);
+  const plan = planRun(effectivePin, uri, extraTokens);
 
   // Note unrecognized $tokens once so they are visibly left literal rather than
   // silently dropped (acceptance 2.4).
