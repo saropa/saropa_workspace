@@ -522,12 +522,12 @@
         {
           "command": "saropaWorkspace.newScratchpad",
           "when": "view == saropaWorkspace.pins",
-          "group": "1_more@0"
+          "group": "0_new@1"
         },
         {
           "command": "saropaWorkspace.pinExternalFile",
           "when": "view == saropaWorkspace.pins",
-          "group": "1_more@1"
+          "group": "1_more@0"
         },
         {
           "command": "saropaWorkspace.importFavorites",

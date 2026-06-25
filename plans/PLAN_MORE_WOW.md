@@ -15,10 +15,6 @@ Here are some high-impact "WOW" features that align perfectly with Saropa Worksp
 **The Pain:** You are working on a massive refactor in `feature/auth` and have 6 specific files pinned. Your boss asks for a hotfix on `main`. You switch branches, and your pins are now completely irrelevant to the hotfix.
 **The WOW:** Pins can be "toggled" to belong to the current Git branch. When you `git checkout main`, your auth pins smoothly animate away, replaced by your `main` pins. When you switch back, your workspace is exactly how you left it. 
 
-### 6. Ephemeral "Scratchpad" Pins
-**The Pain:** Developers constantly create `temp.json`, `scratch.md`, or `query.sql` in the root of the project to format things or test snippets, dirtying the git tree.
-**The WOW:** A "New Scratch Pin" button. It creates a virtual file (using VS Code's `untitled:` URI scheme) and pins it to the top. It lives entirely in memory. It never touches the disk, never shows up in `git status`, but is always one click away while VS Code is open.
-
 Here are 10 more "WOW" features that build on Saropa's local-first, frictionless philosophy. *(No specs, just the pitches!)*
 
 ### 9. Time-Bomb / Ephemeral Pins

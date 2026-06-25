@@ -169,8 +169,10 @@ async function showHub(
     placeHolder: l10n("triggers.hubPlaceholder"),
     ignoreFocusOut: true,
   })) as HubItem | undefined;
-  if (!pick || pick.act === "noop") {
-    return pick ? { act: "save", index: undefined } && undefined : undefined;
+  // Esc returns undefined (discard). The noop hint row returns its act so the main
+  // loop re-renders without discarding (it has no case for "noop").
+  if (!pick) {
+    return undefined;
   }
   return { act: pick.act, index: pick.index };
 }

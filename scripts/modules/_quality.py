@@ -93,12 +93,48 @@ def _rel(path: Path) -> str:
 # --------------------------------------------------------------------------- #
 
 
+# Keywords after which a `/` begins a regex literal, not a division. Without
+# this, `return /[\s"]/...` reads the `"` inside the regex as a string opener and
+# desyncs every downstream brace count (a 3-line function then "spans" hundreds).
+_REGEX_PRECEDING_WORDS = frozenset(
+    {"return", "typeof", "instanceof", "in", "of", "new", "delete", "void",
+     "do", "else", "yield", "await", "case"}
+)
+# Punctuation after which a `/` begins a regex (operators / openers — a value is
+# expected next). After an identifier, number, `)`, `]`, `}`, or string a `/` is
+# division.
+_REGEX_PRECEDING_PUNCT = frozenset("({[,;:?=&|!^~<>+-*%")
+
+
 def _tokenize_ts(text: str) -> tuple[set[int], str]:
     n = len(text)
     i = 0
     line = 1
     comment_lines: set[int] = set()
     out: list[str] = []
+    # Last significant (non-space, non-comment) code char and trailing identifier
+    # word, used to disambiguate a regex literal `/.../ ` from a `/` division.
+    last_sig = ""
+    last_word = ""
+
+    def record(ch: str) -> None:
+        nonlocal last_sig, last_word
+        if ch.isspace():
+            return
+        last_sig = ch
+        if ch.isalnum() or ch in "_$":
+            last_word += ch
+        else:
+            last_word = ""
+
+    def regex_allowed() -> bool:
+        if not last_sig:
+            return True  # start of file / nothing before
+        if last_word and last_word in _REGEX_PRECEDING_WORDS:
+            return True
+        if last_word:  # any other identifier/number is a value -> division
+            return False
+        return last_sig in _REGEX_PRECEDING_PUNCT
 
     while i < n:
         c = text[i]
@@ -131,9 +167,39 @@ def _tokenize_ts(text: str) -> tuple[set[int], str]:
                 out.append("  ")
                 i += 2
             continue
+        # Regex literal: only where a value is expected (see regex_allowed). Blank
+        # the body; a `[...]` char class can contain an unescaped `/` that does
+        # not end the regex, so track class depth.
+        if c == "/" and regex_allowed():
+            out.append("/")
+            i += 1
+            in_class = False
+            while i < n:
+                ch = text[i]
+                if ch == "\\":
+                    out.append("  " if i + 1 < n else " ")
+                    i += 2
+                    continue
+                if ch == "\n":
+                    # An unterminated regex on a line is really division; bail so
+                    # we don't swallow the rest of the file.
+                    break
+                if ch == "[":
+                    in_class = True
+                elif ch == "]":
+                    in_class = False
+                elif ch == "/" and not in_class:
+                    out.append("/")
+                    i += 1
+                    break
+                out.append(" ")
+                i += 1
+            record("/")
+            continue
         # Single/double quoted string: keep quotes, blank the interior.
         if c == '"' or c == "'":
             out.append(c)
+            record(c)
             i += 1
             while i < n and text[i] != c:
                 if text[i] == "\\":
@@ -153,6 +219,7 @@ def _tokenize_ts(text: str) -> tuple[set[int], str]:
         # Template literal: blank the text, keep ${...} expressions as code.
         if c == "`":
             out.append("`")
+            record("`")
             i += 1
             while i < n and text[i] != "`":
                 if text[i] == "\\":
@@ -185,6 +252,7 @@ def _tokenize_ts(text: str) -> tuple[set[int], str]:
                 i += 1
             continue
         out.append(c)
+        record(c)
         i += 1
 
     return comment_lines, "".join(out)
