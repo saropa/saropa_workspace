@@ -53,10 +53,6 @@ Here are 10 more "WOW" features that build on Saropa's local-first, frictionless
 **The Pain:** You double-click the "Deploy" pin before the "Build" pin has finished, causing the deployment to fail with half-baked assets.
 **The WOW:** You can set a `dependsOn` field in a pin's run config. The "Deploy" pin appears visually locked (grayed out with a padlock icon) until the "Build" pin is run and returns a success exit code in the current session. 
 
-### 14. Middle-Click "Peek" View
-**The Pain:** You are deep in the zone writing `main.ts`. You need to check the exact spelling of a variable in `constants.ts`. If you click the pin, it opens a new tab, steals your focus, and breaks your flow.
-**The WOW:** Middle-click (or Alt+Click) a file pin. Instead of opening a tab, Saropa uses VS Code's native "Peek View" (the inline overlay usually used for 'Go to Definition'). The pinned file floats right over your current cursor. You read what you need, hit `Escape`, and keep typing without ever leaving your active tab.
-
 ### 15. The Git Conflict Command Center
 **The Pain:** You rebase, and suddenly you have 8 files with conflicts. The native source control view is okay, but managing the "open, find conflict, test, mark resolved" loop requires jumping all over the UI.
 **The WOW:** The moment your repo enters a conflicted state, a dynamic **"Active Conflicts"** group appears at the very top of Saropa Workspace. It pins all conflicted files, plus a special macro pin: *"Accept Current for All & Continue"*. The moment the rebase finishes, the group vanishes.

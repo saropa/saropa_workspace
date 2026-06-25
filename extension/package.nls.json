@@ -25,6 +25,7 @@
   "submenu.workspacePin.label": "Workspace Pin",
   "command.activatePin.title": "Activate Pin",
   "command.openPin.title": "Open",
+  "command.peekPin.title": "Peek",
   "command.runPin.title": "Run",
   "command.stopPin.title": "Stop",
   "command.forceKillPin.title": "Force Kill",

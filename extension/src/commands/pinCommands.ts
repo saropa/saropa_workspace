@@ -129,6 +129,51 @@ async function openPin(store: PinStore, pin: Pin): Promise<void> {
   await vscode.window.showTextDocument(uri, { preview: false });
 }
 
+// Show a file pin inside VS Code's native Peek overlay, floating over the active
+// editor at the cursor, instead of opening a new tab (roadmap WOW #14). This lets
+// the user glance at a pinned file without leaving the editor they are in — focus
+// and the active tab are untouched; pressing Escape dismisses the overlay. Falls
+// back gracefully: a non-file pin has no file to peek (its single-click info shows
+// instead), and with no active editor there is nothing to overlay, so the file is
+// opened normally.
+async function peekPin(store: PinStore, pin: Pin): Promise<void> {
+  // Peeking is a use of the pin, like opening: clear it from the untapped badge.
+  void tappedPins.mark(pin.id);
+  if (pinKind(pin) !== "file") {
+    await showActionInfo(store, pin);
+    return;
+  }
+  const uri = store.resolveUri(pin);
+  if (!uri) {
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    return;
+  }
+  if (!(await fileExists(uri))) {
+    await handleMissingFile(store, pin, uri);
+    return;
+  }
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    // No editor to anchor the peek widget on; opening the file is the closest
+    // behavior to "show me this file" when there is nothing to overlay.
+    await vscode.window.showTextDocument(uri, { preview: false });
+    return;
+  }
+  // editor.action.peekLocations(resource, position, locations, mode): render the
+  // pinned file in an inline peek widget anchored at the current cursor. "peek"
+  // keeps it a non-navigating overlay (focus stays in the active editor, no tab is
+  // opened). The target position is the file's top (line 0), since the whole file
+  // is the thing being glanced at, not a specific symbol.
+  const target = new vscode.Location(uri, new vscode.Position(0, 0));
+  await vscode.commands.executeCommand(
+    "editor.action.peekLocations",
+    editor.document.uri,
+    editor.selection.active,
+    [target],
+    "peek"
+  );
+}
+
 // Describe a non-file pin's action in one plain line — what running it would do.
 function describeAction(pin: Pin): string {
   const action = pin.action;
@@ -595,6 +640,13 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       void openPin(store, pin);
+    }
+  });
+
+  reg("saropaWorkspace.peekPin", (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      void peekPin(store, pin);
     }
   });
 
