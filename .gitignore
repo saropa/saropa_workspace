@@ -3,16 +3,7 @@ out/
 dist/
 *.vsix
 .vscode-test/
+__pycache__/
 
 # Transient release-notes file written by scripts/publish.py.
 .release-notes-*.md
-
-# Local-only assistant config and project notes. These must never reach
-# GitHub or the Marketplace (see the "No AI on public surfaces" rule). The
-# in-repo ignore keeps them private even on a clone that lacks the global
-# excludesfile that currently hides CLAUDE.md.
-.claude/
-CLAUDE.md
-
-# AI assistant guide — must never reach GitHub or the Marketplace.
-bugs/FINISH_GUIDE.md

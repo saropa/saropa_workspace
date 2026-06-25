@@ -88,5 +88,9 @@
   "import.done": "Imported {count} pin(s) from {file}.",
   "import.nothingNew": "No new pins to import from {file}.",
   "import.prompt": "Found {file} from another favorites extension. Import its {count} file(s) as project pins?",
-  "import.promptAction": "Import"
+  "import.promptAction": "Import",
+  "import.sibling.none": "No favorites files found in sibling projects.",
+  "import.sibling.placeholder": "Select sibling projects to import favorites from (added as global pins).",
+  "import.sibling.done": "Imported {count} pin(s) from sibling projects as global pins.",
+  "import.sibling.nothingNew": "No new pins to import from the selected sibling projects."
 }

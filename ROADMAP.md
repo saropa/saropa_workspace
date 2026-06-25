@@ -95,7 +95,7 @@ badges, the run palette, status bar) assumes pins can be configured through the 
     custom path, and validates that a custom path exists.
   - Environment variables are entered and removed as key/value pairs; existing values are
     shown and editable.
-  - Cancelling any step aborts with no partial write.
+  - Canceling any step aborts with no partial write.
   - All prompts, placeholders, and validation messages are keyed strings (NLS / `l10n`).
   - A pin configured through the flow runs identically to the same config hand-written in
     JSON (round-trip parity).
@@ -175,7 +175,13 @@ on-demand command, idempotent, malformed-entry-safe). This item extends it.
   **Bookmarks** — behind a written per-format mapping assessment. Import folder/group
   entries from source files (currently skipped) once pin groups (3.2) exist. Add the
   ongoing detection prompt for newly-appearing source files, and cover the mapping rules
-  with tests.
+  with tests. Add an explicit **"Scan sibling projects for favorites…"** command that
+  looks one directory level up from each open workspace folder, detects favorites files
+  (`.favorites.json` and `.vscode/saropa-workspace.json`) in the immediate sibling
+  folders, lists what it found, and imports the user's selection as **global** pins — a
+  cross-project favorite is an absolute path outside the current folder, so it cannot be a
+  folder-relative project pin. The scan is explicit and user-invoked, never an automatic
+  scan on activation, to preserve the no-surprise posture.
 - **Why.** Users migrating from an existing favorites workflow should not re-pin by hand.
   Frictionless migration is the strongest adoption lever for a tool in a crowded category.
 - **Acceptance criteria.**
@@ -189,6 +195,10 @@ on-demand command, idempotent, malformed-entry-safe). This item extends it.
   - Project Manager and Bookmarks support each ships only if its format maps to the pin
     model without data loss, otherwise it moves to Later / Exploratory with the reason
     recorded.
+  - The sibling scan reads only immediate sibling folders (one directory level up), never
+    a recursive disk crawl, and runs only when explicitly invoked — never on activation.
+  - Favorites found in sibling projects import as global pins; the scan presents the
+    detected files and imports only the user's selection, remaining idempotent on re-run.
 - **Depends on.** Pin groups (3.2) for importing folder/group entries; the configuration
   UX pattern (2.1) for resolving any per-pin run config a source format implies.
 
@@ -340,6 +350,128 @@ This phase tracks the test surface as a whole.
   - The smoke test activates the extension and asserts the view container and core commands
     register.
   - It exercises one pin → run path end to end against the test host.
+
+---
+
+## Phase 7 — Standout capabilities
+
+These build on the configured, organized, fast-access core to make Saropa Workspace
+distinctly more capable than a plain favorites list. Each depends on earlier phases (noted
+per item) and is ordered after them, but the items are independent of one another — any can
+land once its own dependencies are met.
+
+### 7.1 Run-parameter prompt tokens
+
+- **What.** Extend the 2.4 token system with tokens resolved interactively at run time:
+  `${prompt:Label}` opens an input box, `${pick:a,b,c}` opens a QuickPick. The collected
+  value substitutes into the command and arguments before assembly.
+- **Why.** One parameterized pin (branch name, environment, target) replaces a separate
+  pin per variant; interactive run parameters are not offered by Code Runner.
+- **Acceptance criteria.**
+  - `${prompt:Label}` collects free text and `${pick:...}` collects one of a fixed list;
+    both substitute into command and arguments.
+  - Canceling a prompt aborts the run with no partial execution and an output-channel note.
+  - A literal `$` that is not part of a known token is left untouched (no regression to the
+    2.4 static tokens).
+- **Depends on.** Token substitution (2.4); the run-parameters editor (2.1) for entering
+  tokens with inline help.
+
+### 7.2 Last-run status in the tree
+
+- **What.** After a run, record the exit code and duration on the pin and render a status
+  badge / icon (success, failure, running) with the duration in the tooltip. A failed pin
+  offers a "Show Output" action that reveals its output-channel section.
+- **Why.** Turns the sidebar into a local run dashboard; the outcome of the last run is
+  visible without hunting through the terminal.
+- **Acceptance criteria.**
+  - The tree shows success / failure / running state per pin with the last duration in the
+    tooltip.
+  - Status is in-memory per session (not persisted as data) and clears on reload; nothing
+    is transmitted (no telemetry).
+  - A failure exposes a one-click path to the relevant output.
+- **Depends on.** The runner and stop-tracking (2.2 / 2.3) for exit codes and running state.
+
+### 7.3 Smart pin suggestions
+
+- **What.** Maintain a local, on-device frequency count of files opened and run; when a
+  non-pinned file crosses a threshold, offer a one-tap "Pin this?" via a toast-with-action,
+  gated once per file (offered / dismissed flag) so it never reappears unsolicited.
+- **Why.** Surfaces the files a user already treats as favorites without manual pinning —
+  the strongest zero-effort adoption lever.
+- **Acceptance criteria.**
+  - Counts persist on-device only (`globalState`); nothing is transmitted — satisfies the
+    no-telemetry principle.
+  - The prompt is gated per file (done / offered / dismissed) and never nags.
+  - Accepting pins the file through the existing store API; dismissing suppresses future
+    prompts for that file.
+
+### 7.4 Workspace boot sequence
+
+- **What.** A named, ordered set of pins (open files and/or run scripts) that runs when the
+  workspace opens, behind a one-time confirm per session.
+- **Why.** One action restores a working context — open the key files, start the dev
+  server — instead of repeating the same opens and runs every session.
+- **Acceptance criteria.**
+  - A boot set can be defined, reordered, and enabled / disabled through the 2.1-style UX.
+  - On workspace open it prompts once before running (no silent execution — see Principles);
+    declining skips it for the session.
+  - Each step surfaces an outcome; a failed step does not abort the rest unless configured
+    to.
+- **Depends on.** Groups (3.2) for set membership; the runner.
+
+### 7.5 Run-target inference
+
+- **What.** When pinning a file, detect runnable targets within it — `package.json`
+  scripts, Makefile targets, a shebang line — and offer those as the pin's run config
+  instead of, or alongside, running the file directly.
+- **Why.** Removes the manual step of typing the command prefix and arguments for common
+  project files; the pin runs the right thing out of the box.
+- **Acceptance criteria.**
+  - Pinning a `package.json` offers its `scripts` as selectable run targets; a Makefile
+    offers its targets; a shebang script pre-fills a blank prefix from the shebang.
+  - The chosen target writes a normal `PinExecConfig`; there is no special-case run path.
+  - A file with no detectable target falls back to today's behavior.
+- **Depends on.** The run-parameters editor (2.1).
+
+### 7.6 Branch-aware pin sets
+
+- **What.** Associate pin sets with the current git branch — switch the active set on
+  branch change, and optionally run a designated pin on switch (e.g. refresh dependencies).
+- **Why.** Different branches imply different working contexts; manual re-pinning on every
+  switch is friction.
+- **Acceptance criteria.**
+  - The active pin set follows the current branch when branch-association is enabled; with
+    it off, behavior is unchanged.
+  - An optional on-switch pin runs with a visible outcome (no silent execution).
+  - Branch detection degrades gracefully outside a git repo (the feature is inert, no
+    errors).
+- **Depends on.** Multiple favorite sets (Later / Exploratory) and groups (3.2).
+
+### 7.7 Run-with-overrides from the palette
+
+- **What.** A palette path to run a pin with one-off argument / working-directory /
+  environment overrides for that invocation only, leaving the stored config untouched.
+- **Why.** Ad-hoc variations (a different flag, a different target directory) without
+  permanently editing the pin or creating a near-duplicate.
+- **Acceptance criteria.**
+  - The override flow pre-fills from the stored config and applies edits to that run only;
+    the persisted pin is unchanged.
+  - Overrides run through the same runner as a normal run (single code path).
+  - Canceling runs nothing.
+- **Depends on.** The run palette (4.1) and the run-parameters editor (2.1).
+
+### 7.8 Local run analytics
+
+- **What.** An on-device tally of pin activity — runs per pin, total runs, last-run times —
+  shown in a small summary and per-pin tooltip. Purely local and viewable on demand; no
+  network.
+- **Why.** Lightweight visibility into which shortcuts earn their place, and a record of
+  use.
+- **Acceptance criteria.**
+  - All counters are stored on-device (`globalState`) and never transmitted — satisfies the
+    no-telemetry principle explicitly.
+  - The summary can be reset by the user; resetting clears all counters.
+  - Disabling analytics stops collection and hides the surface.
 
 ---
 

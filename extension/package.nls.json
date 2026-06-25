@@ -19,6 +19,7 @@
   "command.unpin.title": "Unpin",
   "command.restoreAutoPins.title": "Restore Auto-Pins",
   "command.importFavorites.title": "Import Favorites from Other Extensions",
+  "command.scanSiblingFavorites.title": "Scan Sibling Projects for Favorites...",
   "config.autoPins.patterns.description": "Filenames or globs auto-pinned per project (removable). Removing an auto-pin keeps it removed.",
   "config.doubleClickMs.description": "Window in milliseconds for detecting a double-click on a pin. A second click within this window runs the file; a single click opens it.",
   "config.defaultUseIntegratedTerminal.description": "Run pinned scripts in the integrated terminal by default (so output is visible). When off, runs in the background and streams to an output channel.",

@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // `path` makes the npm task resolve package.json in the nested extension/
+      // folder; without it VS Code looks for package.json at the repo root,
+      // which does not exist here. Label matches the launch preLaunchTask.
+      "type": "npm",
+      "script": "build",
+      "path": "extension",
+      "problemMatcher": "$esbuild",
+      "label": "npm: build",
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+    {
+      "type": "npm",
+      "script": "watch",
+      "path": "extension",
+      "isBackground": true,
+      "problemMatcher": "$esbuild-watch",
+      "label": "npm: watch"
+    }
+  ]
+}

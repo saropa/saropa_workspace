@@ -138,6 +138,12 @@
         "title": "%command.importFavorites.title%",
         "category": "%extension.displayName%",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "saropaWorkspace.scanSiblingFavorites",
+        "title": "%command.scanSiblingFavorites.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(search)"
       }
     ],
     "menus": {
@@ -156,6 +162,11 @@
           "command": "saropaWorkspace.importFavorites",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@1"
+        },
+        {
+          "command": "saropaWorkspace.scanSiblingFavorites",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@2"
         }
       ],
       "view/item/context": [

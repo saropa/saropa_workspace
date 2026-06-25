@@ -47,6 +47,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `$fileNameWithoutExt`, expanded at run time (quoting preserved for paths with
   spaces). A command with no tokens behaves exactly as before. Unknown `$name`
   placeholders are left literal and noted once in the output channel.
+- Scan sibling projects for favorites: a "Scan Sibling Projects for
+  Favorites..." command looks one directory level up from each open workspace
+  folder, detects favorites files (`.favorites.json` and
+  `.vscode/saropa-workspace.json`) in the immediate sibling folders, and imports
+  the selected ones as global pins. The scan is explicit and user-invoked (never
+  automatic on activation); a cross-project favorite is an absolute path outside
+  the current folder, so it imports as a global pin. Re-running is idempotent.
 
 ### Changed
 

@@ -5,7 +5,13 @@ import { PinTreeItem } from "../views/pinTreeItem";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { runPin as execRunPin, getOutputChannel } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
-import { detectFavoritesFiles, importAllDetected } from "../import/favoritesImport";
+import {
+  detectFavoritesFiles,
+  importAllDetected,
+  detectSiblingFavorites,
+  importSiblingFavorites,
+  SiblingFavorites,
+} from "../import/favoritesImport";
 import { configureRun } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { l10n } from "../i18n/l10n";
@@ -195,6 +201,44 @@ export function registerPinCommands(
       total > 0
         ? l10n("import.done", { count: total, file: fileList })
         : l10n("import.nothingNew", { file: fileList })
+    );
+  });
+
+  // Scan immediate sibling projects (one directory level up) for favorites files
+  // and import the user's selection as GLOBAL pins. Explicit and user-invoked, so
+  // cross-project disk reads only happen on demand.
+  reg("saropaWorkspace.scanSiblingFavorites", async () => {
+    const found = await detectSiblingFavorites();
+    if (found.length === 0) {
+      vscode.window.showInformationMessage(l10n("import.sibling.none"));
+      return;
+    }
+
+    // Pre-checked multi-select: the user confirms which siblings to pull in.
+    type SiblingItem = vscode.QuickPickItem & { sibling: SiblingFavorites };
+    const items: SiblingItem[] = found.map((s) => ({
+      label: s.siblingName,
+      description: s.fileLabel,
+      detail: s.fileUri.fsPath,
+      picked: true,
+      sibling: s,
+    }));
+    const picks = await vscode.window.showQuickPick(items, {
+      canPickMany: true,
+      placeHolder: l10n("import.sibling.placeholder"),
+    });
+    if (!picks || picks.length === 0) {
+      return;
+    }
+
+    let total = 0;
+    for (const pick of picks) {
+      total += await importSiblingFavorites(pick.sibling, store);
+    }
+    vscode.window.showInformationMessage(
+      total > 0
+        ? l10n("import.sibling.done", { count: total })
+        : l10n("import.sibling.nothingNew")
     );
   });
 }
