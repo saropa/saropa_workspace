@@ -349,10 +349,16 @@ export class PinStore {
 
   // Add a pin from a shared link's portable configuration (WOW #4 import). The id
   // and order are freshly assigned; everything else (label, path, action, exec,
-  // icon, color, schedule) is carried verbatim. Project scope writes to the first
+  // icon, color, schedule) is carried verbatim. An optional groupId drops the pin
+  // straight into an existing group — used by the pin-set import to reconstruct a
+  // group membership without a follow-up move. Project scope writes to the first
   // workspace folder's file (returns false when none is open); global writes to
   // globalState. Never runs the pin — importing only adds it.
-  async importPin(shared: SharedPin, scope: PinScope): Promise<boolean> {
+  async importPin(
+    shared: SharedPin,
+    scope: PinScope,
+    groupId?: string
+  ): Promise<boolean> {
     const base = {
       label: shared.label,
       path: shared.path ?? "",
@@ -361,6 +367,9 @@ export class PinStore {
       icon: shared.icon,
       color: shared.color,
       schedule: shared.schedule,
+      // Only carry a groupId when given, so an ungrouped import stays top-level
+      // rather than storing an undefined membership.
+      ...(groupId ? { groupId } : {}),
     };
     if (scope === "global") {
       const pins = this.readGlobalPins();

@@ -51,10 +51,6 @@ Here are 10 more "WOW" features to add to the Saropa Workspace backlog, continui
 **The Pain:** To work on a specific feature, you always need `Hero.tsx` on the left, `hero.module.css` on the right, and `types.ts` split on the bottom. Setting up this grid takes 6 clicks and drags every morning.
 **The WOW:** A **"Layout Pin"**. Arrange your editor exactly how you like it, right-click the Saropa view title -> *Pin Current Editor Layout*. A single click on this pin instantly snaps your workspace into that exact multi-pane grid with the correct files loaded.
 
-### 22. Deep-Link / Symbol Pins
-**The Pain:** Pinning `utils.ts` is great, but the file is 3,000 lines long. The regex function you actually want to reference is buried at line 2450.
-**The WOW:** Highlight a specific function, class, or line, right-click -> **"Pin to Symbol"**. Clicking the pin doesn't just open the file; it auto-scrolls directly to `function validateEmail()` and flashes the line. If you add code above it later, the pin tracks the AST/symbol dynamically, so it never points to the wrong line.
-
 ### 23. Run Rollback (The "Undo Macro" Button)
 **The Pain:** You double-click a macro that generates 50 scaffolding files, but you made a typo in the interactive `${prompt:FeatureName}`. Now you have to hunt down and manually delete 50 poorly-named files.
 **The WOW:** Saropa snapshots the local Git status immediately before executing a macro or shell pin. If the script makes a mess, right-click the pin -> **"Revert Last Run"**. Saropa does a surgical `git clean`/`checkout` on *only* the files that specific script just altered, instantly undoing the damage.
