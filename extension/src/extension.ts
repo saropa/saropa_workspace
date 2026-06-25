@@ -5,6 +5,7 @@ import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
+import { processRegistry } from "./exec/processRegistry";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
 import { l10n } from "./i18n/l10n";
 
@@ -45,6 +46,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // every timer is cleared on deactivation (no orphaned timers leak).
   const scheduler = new Scheduler(store);
   context.subscriptions.push(scheduler);
+
+  // Background process registry: kill any still-running background runs on
+  // deactivation so they do not outlive the extension.
+  context.subscriptions.push(processRegistry);
 
   // Re-seed auto-pins and refresh when folders change or the auto-pin patterns
   // setting is edited.

@@ -3,7 +3,8 @@ import { PinStore } from "../model/pinStore";
 import { Pin, PinScope } from "../model/pin";
 import { PinTreeItem } from "../views/pinTreeItem";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
-import { runPin as execRunPin } from "../exec/runner";
+import { runPin as execRunPin, getOutputChannel } from "../exec/runner";
+import { processRegistry } from "../exec/processRegistry";
 import { detectFavoritesFiles, importAllDetected } from "../import/favoritesImport";
 import { configureRun } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
@@ -104,6 +105,24 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureRun(store, pin);
+    }
+  });
+
+  reg("saropaWorkspace.stopPin", (arg: unknown) => {
+    const pin = asPin(arg);
+    if (!pin) {
+      return;
+    }
+    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    const stopped = processRegistry.stop(pin.id);
+    if (stopped) {
+      // Reflect the stop in the output channel, distinct from a normal exit.
+      getOutputChannel().appendLine(
+        l10n("run.stopped", { time: new Date().toLocaleString(), name })
+      );
+      vscode.window.showInformationMessage(l10n("run.stopMessage", { name }));
+    } else {
+      vscode.window.showInformationMessage(l10n("run.notRunning", { name }));
     }
   });
 

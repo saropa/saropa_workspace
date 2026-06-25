@@ -14,6 +14,7 @@
 - Run-parameters editor ("Configure Run..." on a pin's context menu): edit a pin's command prefix, arguments, working directory, environment variables, and terminal-vs-background choice through QuickPick/input boxes instead of hand-editing JSON. Changes apply only on Save; canceling writes nothing.
 - Scheduler: a pin with a schedule fires on an in-process timer - a daily time (`atTime`), a repeating interval (`everyMs`), or both. Each fire shows a toast, logs a timestamped line with the command to the output channel, and records the run so a restart within the same minute does not double-fire. The tree shows each scheduled pin's next run as an inline badge and in the tooltip. Timers are cleared on deactivation.
 - Schedule editor ("Configure Schedule..." on a pin's context menu): set the daily time, repeat interval, and enabled flag through QuickPick/input boxes. Enabling or disabling a schedule takes effect immediately, without a reload.
+- Stop a background run from the tree: background and scheduled-background runs are tracked per pin, shown with a spinning indicator and a Stop action, and terminated (with their child process tree on Windows) when stopped. The stop is logged to the output channel. Integrated-terminal runs stay managed by the terminal.
 
 ### Changed
 - Redrawn the marketplace and activity-bar icons as a clean flat referee-whistle silhouette, based on a public-domain (CC0) whistle. Tile uses the Saropa teal palette; the activity-bar icon is a single-color line version.

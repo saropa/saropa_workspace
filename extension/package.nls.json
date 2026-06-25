@@ -12,6 +12,7 @@
   "command.activatePin.title": "Activate Pin",
   "command.openPin.title": "Open",
   "command.runPin.title": "Run",
+  "command.stopPin.title": "Stop",
   "command.configureRun.title": "Configure Run...",
   "command.configureSchedule.title": "Configure Schedule...",
   "command.renamePin.title": "Rename",

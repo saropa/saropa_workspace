@@ -6,7 +6,11 @@ import { l10n } from "../i18n/l10n";
 // Tree node for a single pin. Selecting it fires the activate dispatcher, which
 // decides open (single click) vs run (double click within the configured window).
 export class PinTreeItem extends vscode.TreeItem {
-  constructor(readonly pin: Pin, resolvedUri: vscode.Uri | undefined) {
+  constructor(
+    readonly pin: Pin,
+    resolvedUri: vscode.Uri | undefined,
+    isRunning: boolean
+  ) {
     const basename = pin.path.split("/").pop() ?? pin.path;
     super(pin.label ?? basename, vscode.TreeItemCollapsibleState.None);
 
@@ -14,28 +18,39 @@ export class PinTreeItem extends vscode.TreeItem {
 
     // Surface the next scheduled run inline (description) and in the tooltip, so a
     // scheduled pin's queued time is visible without opening anything (2.2). An
-    // enabled-but-untimed schedule, or a disabled one, shows no badge.
+    // enabled-but-untimed schedule, or a disabled one, shows no badge. A running
+    // pin shows a running badge instead, since its current state matters more.
     const next = pin.schedule
       ? nextOccurrence(pin.schedule, Date.now())
       : undefined;
     const nextLabel = next !== undefined ? formatNextRun(next) : undefined;
 
-    this.description = nextLabel
-      ? `${l10n("schedule.treeBadge", { time: nextLabel })} · ${pin.path}`
-      : pin.path;
+    const badge = isRunning
+      ? l10n("run.treeBadge")
+      : nextLabel
+        ? l10n("schedule.treeBadge", { time: nextLabel })
+        : undefined;
+    this.description = badge ? `${badge} · ${pin.path}` : pin.path;
 
-    // contextValue gates the inline/run menus (when clause matches /^pin/).
-    // Auto-pins get a distinct value so future menus can treat them differently.
-    this.contextValue = pin.isAuto ? "pinAuto" : "pin";
+    // contextValue gates the menus. A running pin uses "pinRunning" so the Stop
+    // action shows; the /^pin/ when-clauses on the existing actions still match
+    // it. Otherwise auto-pins are distinguished from explicit pins.
+    this.contextValue = isRunning ? "pinRunning" : pin.isAuto ? "pinAuto" : "pin";
 
     const targetLine = resolvedUri ? resolvedUri.fsPath : pin.path;
-    this.tooltip = nextLabel
-      ? `${targetLine}\n${l10n("schedule.nextRun", { time: nextLabel })}`
-      : targetLine;
+    const tooltipLines = [targetLine];
+    if (isRunning) {
+      tooltipLines.push(l10n("run.runningTooltip"));
+    } else if (nextLabel) {
+      tooltipLines.push(l10n("schedule.nextRun", { time: nextLabel }));
+    }
+    this.tooltip = tooltipLines.join("\n");
 
-    // Auto-pins read as "suggested" with a hollow star; explicit pins use the pin
-    // glyph. A missing target is flagged so the user knows the file moved.
-    if (!resolvedUri) {
+    // Running pins spin; a missing target is flagged; auto-pins read as
+    // "suggested" with a hollow star; explicit pins use the pin glyph.
+    if (isRunning) {
+      this.iconPath = new vscode.ThemeIcon("loading~spin");
+    } else if (!resolvedUri) {
       this.iconPath = new vscode.ThemeIcon("warning");
     } else if (pin.isAuto) {
       this.iconPath = new vscode.ThemeIcon("star-empty");

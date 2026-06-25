@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Schedule editor: a "Configure Schedule..." context-menu flow to set the daily
   time, repeat interval, and enabled flag through QuickPick/input boxes.
   Enabling or disabling a schedule takes effect immediately, without a reload.
+- Stop a background run from the tree: background and scheduled-background runs
+  are tracked per pin, shown with a spinning running indicator and a Stop
+  action, and terminated (with their child process tree on Windows) when
+  stopped. The stop is logged to the output channel. Integrated-terminal runs
+  remain managed by the terminal.
 
 ### Changed
 

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { Pin } from "../model/pin";
+import { processRegistry } from "./processRegistry";
 import { l10n } from "../i18n/l10n";
 
 // Builds and launches the command for a pin. Phase 1 supports the integrated
@@ -96,7 +97,7 @@ export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
   if (plan.useTerminal) {
     runInTerminal(plan.commandLine, plan.cwd, plan.env);
   } else {
-    await runInBackground(plan.commandLine, plan.cwd, plan.env, plan.name);
+    await runInBackground(plan.commandLine, plan.cwd, plan.env, plan.name, pin.id);
   }
 }
 
@@ -122,7 +123,8 @@ async function runInBackground(
   commandLine: string,
   cwd: string,
   env: Record<string, string> | undefined,
-  name: string
+  name: string,
+  pinId: string
 ): Promise<void> {
   const cp = await import("child_process");
   const channel = getOutputChannel();
@@ -134,6 +136,9 @@ async function runInBackground(
     shell: true,
     env: { ...process.env, ...(env ?? {}) },
   });
+  // Track the child so the tree can show it running and a Stop action can kill
+  // it; the registry clears itself on exit.
+  processRegistry.register(pinId, child);
   child.stdout?.on("data", (d) => channel.append(d.toString()));
   child.stderr?.on("data", (d) => channel.append(d.toString()));
   child.on("close", (code) =>
