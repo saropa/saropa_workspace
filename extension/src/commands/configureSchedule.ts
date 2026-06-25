@@ -21,6 +21,7 @@ interface HubItem extends vscode.QuickPickItem {
 // Working shape: enabled is always present; the timing fields are optional.
 interface WorkSchedule {
   atTime?: string;
+  days?: number[];
   everyMs?: number;
   enabled: boolean;
   lastRun?: number;
@@ -39,6 +40,7 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
 
   const work: WorkSchedule = {
     atTime: pin.schedule?.atTime,
+    days: pin.schedule?.days ? [...pin.schedule.days] : undefined,
     everyMs: pin.schedule?.everyMs,
     enabled: pin.schedule?.enabled ?? true,
     // Preserve the prior fire stamp so reopen de-dup survives an edit.

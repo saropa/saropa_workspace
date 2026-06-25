@@ -29,6 +29,7 @@ interface HubItem extends vscode.QuickPickItem {
     | "extract"
     | "dependsOn"
     | "sound"
+    | "runOnSave"
     | "save";
 }
 
@@ -72,6 +73,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     extractResult: pin.exec?.extractResult,
     dependsOn: pin.exec?.dependsOn,
     sound: pin.exec?.sound,
+    runOnSave: pin.exec?.runOnSave,
   };
 
   const title = l10n("configure.title", { name });
@@ -122,6 +124,9 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
       case "sound":
         await editSound(work, title);
         break;
+      case "runOnSave":
+        await editRunOnSave(work, title);
+        break;
     }
   }
 
@@ -159,6 +164,9 @@ function normalize(work: PinExecConfig): PinExecConfig {
     // Only a real "on"/"off" override is persisted; the default (follow the global
     // sound settings) collapses to undefined for round-trip parity.
     sound: work.sound === "on" || work.sound === "off" ? work.sound : undefined,
+    // Off is the default; collapse it to undefined so only an opted-in pin carries
+    // the flag (round-trip parity with hand-written JSON that omits it).
+    runOnSave: work.runOnSave === true ? true : undefined,
   };
 }
 
@@ -238,6 +246,13 @@ async function showHub(
           : work.sound === "off"
             ? l10n("configure.sound.off")
             : l10n("configure.sound.followDefault"),
+    },
+    {
+      id: "runOnSave",
+      label: l10n("configure.field.runOnSave"),
+      description: work.runOnSave
+        ? l10n("configure.runOnSave.on")
+        : l10n("configure.runOnSave.off"),
     },
     {
       id: "save",
@@ -593,6 +608,28 @@ async function editSound(work: PinExecConfig, title: string): Promise<void> {
     return;
   }
   work.sound = pick.value === "default" ? undefined : pick.value;
+}
+
+// Toggle whether the pin runs automatically when its own target file is saved.
+// A two-option pick (On / Off) rather than a silent flip, so the current state is
+// always shown and the choice is explicit.
+async function editRunOnSave(work: PinExecConfig, title: string): Promise<void> {
+  interface RunOnSaveItem extends vscode.QuickPickItem {
+    value: boolean;
+  }
+  const items: RunOnSaveItem[] = [
+    { label: l10n("configure.runOnSave.off"), value: false },
+    { label: l10n("configure.runOnSave.on"), value: true },
+  ];
+  const pick = await vscode.window.showQuickPick(items, {
+    title,
+    placeHolder: l10n("configure.runOnSave.placeholder"),
+    ignoreFocusOut: true,
+  });
+  if (!pick) {
+    return;
+  }
+  work.runOnSave = pick.value;
 }
 
 // Set the output-extraction regex (WOW #16). The pattern is matched against a

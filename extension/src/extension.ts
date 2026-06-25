@@ -13,8 +13,10 @@ import { registerSimulationPreview } from "./commands/simulateRun";
 import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
 import { registerRunOutputDiff } from "./commands/diffRuns";
-import { registerTerminalCleanup } from "./exec/runner";
+import { registerTerminalCleanup, isRunnable } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
+import { ChainRunner } from "./exec/chainRunner";
+import { GitEventWatcher } from "./exec/systemEvents";
 import { Heartbeat } from "./exec/heartbeat";
 import { registerProcessMonitorCommands } from "./exec/processMonitorCommands";
 import { registerHygieneCommands } from "./exec/hygieneCommands";
@@ -244,6 +246,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const scheduler = new Scheduler(store);
   context.subscriptions.push(scheduler);
 
+  // Chain engine (recipe chaining + special events): listens for pin completions and
+  // system events (build / publish emitted by a marked pin, gitCommit / gitPush from
+  // the repo watcher below) and auto-runs the pins triggered by each. Disposable so
+  // both bus subscriptions are released on deactivation.
+  context.subscriptions.push(new ChainRunner(store));
+
+  // Git event watcher: fires gitCommit / gitPush on the system-event bus by watching
+  // the repo's .git logs (no `git` process spawned). Feeds the chain engine's
+  // event triggers. Disposable so its file watchers and debounce timers are cleared.
+  context.subscriptions.push(new GitEventWatcher());
+
   // Toolchain heartbeat (#61): a setting-gated background sampler that appends to
   // reports/process-trend.csv and toasts only when a tool crosses a RAM / helper
   // ceiling. Off by default; it self-arms from its own setting. Disposable so its
@@ -277,6 +290,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void store.refresh();
       }
     })
+  );
+
+  // Run-on-save: when a file is saved, run any runnable file pin that targets it
+  // and has opted in (exec.runOnSave). Registered as a disposable so the listener
+  // is torn down on deactivation; a leaked listener would double-fire after a
+  // reload.
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((doc) =>
+      runPinsOnSave(store, doc.uri)
+    )
   );
 
   await store.init();
@@ -338,6 +361,26 @@ async function handlePinImportUri(
       ? l10n("share.import.done", { name })
       : l10n("share.import.noFolder")
   );
+}
+
+// Run every runnable file pin whose target is the just-saved file and which has
+// opted into run-on-save (exec.runOnSave). The same file can be pinned more than
+// once, so all matches fire. Runs through the normal Run command so the run reuses
+// token resolution, telemetry, and the per-run toast — and a non-runnable file pin
+// is filtered out (it would only "open" the file the user is already editing).
+function runPinsOnSave(store: PinStore, savedUri: vscode.Uri): void {
+  const saved = savedUri.fsPath;
+  const pins = [...store.getProjectPins(), ...store.getGlobalPins()];
+  for (const pin of pins) {
+    if (pin.exec?.runOnSave !== true || pinKind(pin) !== "file") {
+      continue;
+    }
+    const uri = store.resolveUri(pin);
+    if (!uri || uri.fsPath !== saved || !isRunnable(pin, uri.fsPath)) {
+      continue;
+    }
+    void vscode.commands.executeCommand("saropaWorkspace.runPin", pin);
+  }
 }
 
 async function maybeOfferFavoritesImport(

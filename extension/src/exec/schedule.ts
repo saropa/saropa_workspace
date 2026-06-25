@@ -23,7 +23,12 @@ export function nextOccurrence(
   const candidates: number[] = [];
 
   if (schedule.atTime) {
-    const daily = nextDailyTime(schedule.atTime, now, schedule.lastRun);
+    const daily = nextDailyTime(
+      schedule.atTime,
+      now,
+      schedule.lastRun,
+      schedule.days
+    );
     if (daily !== undefined) {
       candidates.push(daily);
     }
@@ -59,33 +64,41 @@ export function parseHourMinute(
 function nextDailyTime(
   atTime: string,
   now: number,
-  lastRun: number | undefined
+  lastRun: number | undefined,
+  days: number[] | undefined
 ): number | undefined {
   const parsed = parseHourMinute(atTime);
   if (!parsed) {
     return undefined;
   }
 
-  const today = atLocalTime(now, parsed.hour, parsed.minute);
-  const tomorrow = addOneDayLocal(today);
-
-  // Slot still ahead of us today.
-  if (now < today) {
-    return today;
+  // An empty or absent day list means "every day"; a non-empty list restricts the
+  // daily slot to those local weekdays (0 = Sun .. 6 = Sat). Walk today..+7 and
+  // return the first allowed slot that is still ahead — within 7 days the same
+  // weekday recurs, so a non-empty list always resolves. With no list this reduces
+  // exactly to the prior today/tomorrow behavior (offset 0 future, else this
+  // minute, else offset 1 = tomorrow), so existing daily schedules are unchanged.
+  const allowed = days && days.length > 0 ? days : undefined;
+  for (let offset = 0; offset <= 7; offset++) {
+    const slot = atLocalTimeWithOffset(now, parsed.hour, parsed.minute, offset);
+    if (allowed && !allowed.includes(new Date(slot).getDay())) {
+      continue;
+    }
+    if (now < slot) {
+      return slot;
+    }
+    if (offset === 0) {
+      // Inside today's target minute: fire it, unless we already fired within this
+      // same minute (the reopen-dedup case — VS Code restarted seconds after a fire).
+      const withinTargetMinute = now < slot + 60_000;
+      const alreadyFiredThisMinute =
+        lastRun !== undefined && lastRun >= slot && lastRun < slot + 60_000;
+      if (withinTargetMinute && !alreadyFiredThisMinute) {
+        return slot;
+      }
+    }
   }
-
-  // Inside today's target minute: fire it, unless we already fired within this
-  // same minute (the reopen-dedup case — VS Code restarted seconds after a fire).
-  const withinTargetMinute = now < today + 60_000;
-  const alreadyFiredThisMinute =
-    lastRun !== undefined && lastRun >= today && lastRun < today + 60_000;
-  if (withinTargetMinute && !alreadyFiredThisMinute) {
-    return today;
-  }
-
-  // Slot has passed for today (or was already fired): next daily fire is
-  // tomorrow. Missed slots are not back-fired.
-  return tomorrow;
+  return undefined;
 }
 
 function nextInterval(
@@ -110,18 +123,18 @@ function nextInterval(
   return next;
 }
 
-// Today's instant for a local wall-clock hour/minute.
-function atLocalTime(now: number, hour: number, minute: number): number {
+// The instant for a local wall-clock hour/minute `offset` calendar days from
+// today. setDate advances in LOCAL time, so the wall-clock HH:mm is preserved
+// across a daylight-saving transition rather than drifting by an hour (which a
+// flat +N*86_400_000 ms would cause). offset 0 = today at that time.
+function atLocalTimeWithOffset(
+  now: number,
+  hour: number,
+  minute: number,
+  offset: number
+): number {
   const d = new Date(now);
   d.setHours(hour, minute, 0, 0);
-  return d.getTime();
-}
-
-// Add one calendar day in LOCAL time (via setDate), so the wall-clock HH:mm is
-// preserved across a daylight-saving transition rather than drifting by an hour
-// (which a flat +86_400_000 ms would cause).
-function addOneDayLocal(ts: number): number {
-  const d = new Date(ts);
-  d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + offset);
   return d.getTime();
 }

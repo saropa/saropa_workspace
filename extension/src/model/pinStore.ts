@@ -5,6 +5,8 @@ import {
   PinGroup,
   PinSchedule,
   PinScope,
+  PinTrigger,
+  SystemEventName,
   ProjectPinsFile,
   PROJECT_PINS_VERSION,
   PROJECT_FILE_RELATIVE,
@@ -499,6 +501,20 @@ export class PinStore {
     });
   }
 
+  // Persist a pin's auto-run triggers and emitted system events (recipe chaining).
+  // An empty array collapses to undefined so a pin with no links reads as "manual /
+  // schedule only" rather than carrying inert arrays.
+  async updatePinTriggers(
+    pin: Pin,
+    triggers: PinTrigger[] | undefined,
+    emits: SystemEventName[] | undefined
+  ): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.triggers = triggers && triggers.length > 0 ? triggers : undefined;
+      target.emits = emits && emits.length > 0 ? emits : undefined;
+    });
+  }
+
   // Persist a pin's tree-icon and color overrides. Passing undefined for either
   // clears it (the pin reverts to the file-type default glyph / no tint).
   async updatePinAppearance(
@@ -509,6 +525,16 @@ export class PinStore {
     await this.mutatePin(pin, (target) => {
       target.icon = icon;
       target.color = color;
+    });
+  }
+
+  // Persist a file pin's tail-follow flag (WOW #5). Passing false clears it so the
+  // pin opens normally again. Stored as a plain pin field, so it round-trips like
+  // any other; the open path reads it to decide whether to auto-scroll the log.
+  async setPinTail(pin: Pin, follow: boolean): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      // Drop the field entirely when off, so an unfollowed pin carries no stale flag.
+      target.tailFollow = follow ? true : undefined;
     });
   }
 

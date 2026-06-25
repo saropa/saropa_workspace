@@ -13,6 +13,7 @@ import {
   cloneWithResolvedTokens,
 } from "./promptTokens";
 import { playCue } from "./soundCue";
+import { pinEvents } from "./pinEvents";
 import { l10n } from "../i18n/l10n";
 
 // Builds and launches the command for a pin. Phase 1 supports the integrated
@@ -282,9 +283,15 @@ export async function runPin(
   switch (plan.location) {
     case "terminal":
       runInTerminal(plan.commandLine, plan.cwd, plan.env);
+      // Terminal runs have no tracked exit, so chaining keys off dispatch: the
+      // dependent fires as soon as the command is sent. Background fires its real
+      // outcome from settle() instead (so it is excluded here).
+      pinEvents.fireComplete(pin.id, "dispatched");
       break;
     case "external":
       await runInExternal(plan.commandLine, plan.cwd, plan.env, plan.elevated, plan.name);
+      // External windows are fire-and-forget too: chain off the dispatch.
+      pinEvents.fireComplete(pin.id, "dispatched");
       break;
     case "background":
       await runInBackground(
@@ -320,15 +327,23 @@ export async function runAction(
   switch (action.kind) {
     case "url":
       await openUrl(action.url, name);
+      // url / command / macro pins have no tracked exit; chain off their dispatch so
+      // a pin can still be triggered "after" an open-the-dashboard or run-a-macro pin.
+      pinEvents.fireComplete(pin.id, "dispatched");
       return;
     case "command":
       await runVsCommand(action.commandId, action.commandArgs, name);
+      pinEvents.fireComplete(pin.id, "dispatched");
       return;
     case "shell":
+      // runShellAction fires its own completion: a real outcome from the background /
+      // report path, or a dispatch from the terminal path. Not fired here, to avoid
+      // a duplicate.
       await runShellAction(action, name, pin.id);
       return;
     case "macro":
       await runMacro(action.steps ?? [], name);
+      pinEvents.fireComplete(pin.id, "dispatched");
       return;
     default:
       return;
@@ -405,6 +420,9 @@ async function runShellAction(
   playCue("start");
   if (useTerminal) {
     runInTerminal(commandLine, cwd, undefined);
+    // Terminal shell run: no tracked exit, so chain off the dispatch (background
+    // fires its real outcome from settle()).
+    pinEvents.fireComplete(pinId, "dispatched");
   } else {
     await runInBackground(commandLine, cwd, undefined, name, pinId);
   }
@@ -459,6 +477,8 @@ async function runShellToReport(
         // process snapshot). Report recipes carry no per-pin override, so they
         // follow the global cue settings.
         playCue(code === 0 ? "success" : "failure");
+        // Tracked outcome for the chain engine, same as the background path.
+        pinEvents.fireComplete(pinId, code === 0 ? "success" : "failure");
         if (autoOpen) {
           const doc = await vscode.workspace.openTextDocument(
             vscode.Uri.file(reportPath)
@@ -774,6 +794,9 @@ async function runInBackground(
     // override. Paired with the notifyCompletion toast below — the cue is the
     // additive channel, the toast stays the visible feedback.
     playCue(outcome, soundOverride);
+    // Real tracked outcome for the chain engine — a pin chained "after" this one
+    // (with onlyOnSuccess) runs only when this background run actually succeeded.
+    pinEvents.fireComplete(pinId, outcome);
     // Keep this run's output for the "Diff Last Two Runs" command.
     runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
     // Pull a configured value (a deploy URL, a generated id) out of the output and

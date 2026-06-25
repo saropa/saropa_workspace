@@ -139,6 +139,12 @@ export interface PinExecConfig {
   // package.json / Makefile in cwd, not an argument. Added with run-target
   // inference (7.5); absent on older pins, which keep the file-included default.
   includeFilePath?: boolean;
+  // When true, the pin runs automatically every time its OWN target file is saved
+  // (the Code-Runner "run on save" convenience). Applies only to a runnable file
+  // pin — a non-file/action pin has no target file to watch, and a non-runnable
+  // file pin has nothing to run. Off (undefined/false) by default so a save never
+  // triggers an unexpected run; the user opts a specific pin in via Configure Run.
+  runOnSave?: boolean;
 }
 
 // Phase 1 scheduling is defined in the model so stored pins are forward-compatible
@@ -189,6 +195,17 @@ export interface Pin {
   description?: string;
   exec?: PinExecConfig;
   schedule?: PinSchedule;
+  // Auto-run causes beyond the schedule (recipe chaining + special events). When a
+  // source fires — another pin completes, or a system event happens — this pin
+  // runs. Empty/absent = the pin runs only manually or on its own schedule. The
+  // chain engine guards against cycles and storms (a per-pin cooldown) so A->B->A
+  // cannot loop forever.
+  triggers?: PinTrigger[];
+  // System events this pin's completion fires, so other pins can chain off it:
+  // mark a build script `emits: ["build"]`, a publish script `["publish"]`. Only a
+  // successful (or untracked) completion emits; a failed run emits nothing.
+  // gitCommit / gitPush are detected from the repo and need no emitter here.
+  emits?: SystemEventName[];
   // Optional tree-icon override: a VS Code product-icon (codicon) id WITHOUT the
   // surrounding $(...), e.g. "rocket". Undefined falls back to the file-type
   // default glyph. Added with appearance customization (5.1).
@@ -207,6 +224,12 @@ export interface Pin {
   // AST-tracked), so an edit above it can shift the target; the line is clamped to
   // the file's length on open so it never points past the end.
   line?: number;
+  // When true, opening this file pin follows it like `tail -f`: the editor auto-
+  // scrolls to the end every time the file grows on disk (WOW #5), so a running
+  // process's log stays pinned to its newest lines without closing/reopening the
+  // tab. File pins only; ignored for non-file actions. The follow lives only while
+  // the tab is open — closing the editor ends it (no persistent watcher leaks).
+  tailFollow?: boolean;
   // Sort order within the pin's group (or among top-level pins when ungrouped).
   order: number;
 }

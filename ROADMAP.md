@@ -241,8 +241,6 @@ committing. Not yet ordered into a phase.
 - **Richer scheduling.** Day-of-week selectors, cron-style expressions (5-field), a
   friendly interval/cron builder (raw cron syntax is a known user barrier), and
   run-on-startup triggers, evaluated against the in-process timer model's limits.
-- **Run on save.** Optionally auto-run a pin when its target file is saved (with auto-save-
-  before-run), matching Code Runner's run-on-save.
 - **Remote / virtual resources.** Support pinning files on remote and virtual file systems
   (Remote-SSH, WSL, dev containers), not just `file:` URIs.
 - **Multiple favorite sets.** Named, switchable pin sets per workspace with a status-bar
@@ -303,7 +301,7 @@ map to the phases and Later / Exploratory items above.
 | Multi-root workspace support | Partial; refinements — Phase 1.2 |
 | Remote / local resource support | Gap — Later / Exploratory |
 | Respect shebang for *nix scripts | Shipped (a blank prefix honors the file's `#!` interpreter) |
-| Run on save | Gap — Later / Exploratory |
+| Run on save | Shipped (a per-pin **Run on save** toggle in Configure Run) |
 | Export / share pin sets | Gap — Phase 2.1 |
 
 ### Scheduling
