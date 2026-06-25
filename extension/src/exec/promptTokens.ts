@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Pin } from "../model/pin";
+import { promptMemory } from "./promptMemory";
 import { l10n } from "../i18n/l10n";
 
 // Interactive run-parameter tokens (roadmap 7.1). Unlike the static $name tokens
@@ -73,38 +74,90 @@ function collectInteractiveTokens(pin: Pin): InteractiveToken[] {
   return [...seen.values()];
 }
 
-// Prompt the user once per unique token. Returns a raw->value map, or undefined
-// if the user canceled any prompt — the caller must then abort the run with
-// nothing executed (acceptance 7.1: a cancel leaves no partial run).
+// Ask the user for one token's value, pre-filled with the value entered last time
+// (roadmap WOW #7). For a prompt, the last value seeds the input box; for a pick,
+// the last value is moved to the front of the options so it is the highlighted
+// default. Returns undefined on Escape / dismiss.
+async function promptForToken(
+  token: InteractiveToken,
+  lastValue: string | undefined
+): Promise<string | undefined> {
+  if (token.kind === "prompt") {
+    return vscode.window.showInputBox({
+      prompt: token.arg || l10n("prompt.inputFallback"),
+      // Default to the previous answer so the common "same as last time" case is a
+      // single Enter, while still editable.
+      value: lastValue ?? "",
+      // Keep the box open if focus shifts; a run prompt is easy to lose.
+      ignoreFocusOut: true,
+    });
+  }
+  let options = token.arg
+    .split(",")
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0);
+  // showQuickPick highlights the first item, so surfacing the last choice first
+  // makes it the default without changing the available set.
+  if (lastValue && options.includes(lastValue)) {
+    options = [lastValue, ...options.filter((o) => o !== lastValue)];
+  }
+  return vscode.window.showQuickPick(options, {
+    placeHolder: l10n("prompt.pickPlaceholder"),
+    ignoreFocusOut: true,
+  });
+}
+
+// Prompt the user once per unique token, defaulting each to the value entered last
+// time. Returns a raw->value map, or undefined if the user canceled any prompt — the
+// caller must then abort the run with nothing executed (acceptance 7.1: a cancel
+// leaves no partial run). Successful answers are remembered for next time.
 export async function resolveInteractiveTokens(
   pin: Pin
 ): Promise<Map<string, string> | undefined> {
   const tokens = collectInteractiveTokens(pin);
   const values = new Map<string, string>();
   for (const token of tokens) {
-    let value: string | undefined;
-    if (token.kind === "prompt") {
-      value = await vscode.window.showInputBox({
-        prompt: token.arg || l10n("prompt.inputFallback"),
-        // Keep the box open if focus shifts; a run prompt is easy to lose.
-        ignoreFocusOut: true,
-      });
-    } else {
-      const options = token.arg
-        .split(",")
-        .map((o) => o.trim())
-        .filter((o) => o.length > 0);
-      value = await vscode.window.showQuickPick(options, {
-        placeHolder: l10n("prompt.pickPlaceholder"),
-        ignoreFocusOut: true,
-      });
-    }
+    const value = await promptForToken(
+      token,
+      promptMemory.getValue(pin.id, token.raw)
+    );
     // Escape / dismiss yields undefined; treat as a cancel of the whole run.
     if (value === undefined) {
       return undefined;
     }
     values.set(token.raw, value);
   }
+  await promptMemory.remember(pin.id, values);
+  return values;
+}
+
+// Resolve interactive tokens WITHOUT prompting where a previous choice is
+// remembered; prompt only for tokens never answered for this pin. Backs "Run with
+// Last Parameters", the bypass for a parameterized pin you run the same way every
+// time. Returns undefined if a still-needed prompt is canceled; newly entered values
+// are remembered so the next bypass skips them too.
+export async function resolveRememberedTokens(
+  pin: Pin
+): Promise<Map<string, string> | undefined> {
+  const tokens = collectInteractiveTokens(pin);
+  const values = new Map<string, string>();
+  const newlyEntered = new Map<string, string>();
+  for (const token of tokens) {
+    const last = promptMemory.getValue(pin.id, token.raw);
+    if (last !== undefined) {
+      values.set(token.raw, last);
+      continue;
+    }
+    // No memory yet for this token: ask once so a first bypass still works, then
+    // remember it for subsequent bypasses.
+    const value = await promptForToken(token, undefined);
+    if (value === undefined) {
+      return undefined;
+    }
+    values.set(token.raw, value);
+    newlyEntered.set(token.raw, value);
+  }
+  await promptMemory.remember(pin.id, newlyEntered);
   return values;
 }
 

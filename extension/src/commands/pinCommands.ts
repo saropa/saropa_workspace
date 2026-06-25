@@ -24,6 +24,12 @@ import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
+import {
+  hasInteractiveTokens,
+  resolveRememberedTokens,
+  cloneWithResolvedTokens,
+} from "../exec/promptTokens";
+import { promptMemory } from "../exec/promptMemory";
 import { detectRunTargets, RunTarget } from "../exec/runTargets";
 import { l10n } from "../i18n/l10n";
 
@@ -259,6 +265,27 @@ async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
     return;
   }
   await execRunPin(pin, uri);
+}
+
+// Run a parameterized pin reusing the values entered last time, without re-asking
+// (roadmap WOW #7 — the "force run" the un-capturable Alt+double-click stood for).
+// For a pin with no interactive tokens it is just a normal run. For one with tokens,
+// each token resolves from memory; only a token never answered for this pin still
+// prompts (so a first bypass works and is then remembered). Canceling that one
+// needed prompt aborts with nothing run. The resolved clone shares the pin's id, so
+// uri resolution, telemetry, and the missing-file path are identical to a normal run.
+async function runWithLastParams(store: PinStore, pin: Pin): Promise<void> {
+  if (!hasInteractiveTokens(pin)) {
+    await runPinCommand(store, pin);
+    return;
+  }
+  const values = await resolveRememberedTokens(pin);
+  if (values === undefined) {
+    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    vscode.window.showInformationMessage(l10n("run.canceledPromptToast", { name }));
+    return;
+  }
+  await runPinCommand(store, cloneWithResolvedTokens(pin, values));
 }
 
 async function pinUri(store: PinStore, uri: vscode.Uri, scope: PinScope): Promise<void> {
@@ -657,6 +684,13 @@ export function registerPinCommands(
     }
   });
 
+  reg("saropaWorkspace.runPinLastParams", (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      void runWithLastParams(store, pin);
+    }
+  });
+
   reg("saropaWorkspace.renamePin", async (arg: unknown) => {
     const pin = asPin(arg);
     if (!pin) {
@@ -752,6 +786,9 @@ export function registerPinCommands(
     // Drop any last-run badge so it does not outlive the pin (the id is reused
     // for an identical re-pin only after a fresh run records a new result).
     runStatusRegistry.clear(pin.id);
+    // Drop any remembered run-parameter values for the gone pin so they do not
+    // accumulate in workspace state.
+    void promptMemory.forget(pin.id);
     vscode.window.showInformationMessage(l10n("pin.removed", { name }));
   });
 

@@ -28,7 +28,12 @@ export class PinTreeItem extends vscode.TreeItem {
     // True when this file pin's target no longer exists on disk (computed by the
     // store's stat pass). Drives the warning glyph + "file not found" hover; the
     // open/run handlers re-stat at click time before acting on it.
-    missing = false
+    missing = false,
+    // Lifetime run count for this pin (local telemetry, roadmap 3.3). Surfaced as a
+    // tooltip line when greater than zero; the provider passes 0 when telemetry is
+    // disabled so a turned-off user sees nothing. Reuses the count the telemetry
+    // store already keeps — no separate collection path.
+    runCount = 0
   ) {
     const kind = pinKind(pin);
     const isFile = kind === "file";
@@ -131,6 +136,13 @@ export class PinTreeItem extends vscode.TreeItem {
     // the output channel (Show Output in the pin's context menu).
     if (lastRun) {
       tooltipLines.push(formatRunTooltip(lastRun));
+    }
+    // Lifetime run total, so the hover answers "how much does this pin earn its
+    // place?" beyond the single most-recent outcome above. Shown only once it has
+    // run at least once (a zero count is noise, and is also what a disabled-
+    // telemetry pin reports).
+    if (runCount > 0) {
+      tooltipLines.push(l10n("run.countTooltip", { count: runCount }));
     }
     this.tooltip = tooltipLines.join("\n");
 

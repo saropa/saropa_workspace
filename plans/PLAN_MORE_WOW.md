@@ -27,10 +27,6 @@ Here are some high-impact "WOW" features that align perfectly with Saropa Worksp
 **The Pain:** Developers constantly create `temp.json`, `scratch.md`, or `query.sql` in the root of the project to format things or test snippets, dirtying the git tree.
 **The WOW:** A "New Scratch Pin" button. It creates a virtual file (using VS Code's `untitled:` URI scheme) and pins it to the top. It lives entirely in memory. It never touches the disk, never shows up in `git status`, but is always one click away while VS Code is open.
 
-### 7. Zero-Config Parameter Memory
-**The Pain:** You use the new interactive `${prompt:Environment}` token (from Phase 3) to pick between `dev`, `staging`, and `prod`. You have to select it every single time you double click.
-**The WOW:** Saropa remembers your last choice. The next time you run it, the input box defaults to `staging`. Or, holding `Alt` while double-clicking the pin bypasses the prompt entirely and "Force Runs" using the last known parameters. 
-
 Here are 10 more "WOW" features that build on Saropa's local-first, frictionless philosophy. *(No specs, just the pitches!)*
 
 ### 8. Drag-and-Drop Execution (The "Drop Zone" Pin)

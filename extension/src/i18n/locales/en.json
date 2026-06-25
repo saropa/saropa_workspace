@@ -216,6 +216,7 @@
   "run.showOutput": "Show Output",
   "run.statusOk": "ok {duration}",
   "run.statusFailed": "exit {code} {duration}",
+  "run.countTooltip": "Run {count} time(s) on this machine",
   "run.tooltipOk": "Last run: succeeded in {duration} at {time}",
   "run.tooltipFailed": "Last run: failed (exit {code}) in {duration} at {time}",
   "run.canceledPrompt": "[{time}] Run canceled: {name} - no value entered.",

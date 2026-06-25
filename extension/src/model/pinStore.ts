@@ -14,6 +14,7 @@ import {
 import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
+import { detectProcessRecipes } from "../recipes/processRecipes";
 import { getOutputChannel } from "../exec/runner";
 import { l10n } from "../i18n/l10n";
 
@@ -71,6 +72,7 @@ const RECIPE_GROUPS: readonly RecipeGroupDef[] = [
   { category: "run", id: "recipes-run", label: "Build & Run", order: 9991, icon: "tools", color: "charts.green" },
   { category: "workspace", id: "recipes-workspace", label: "Workspace", order: 9992, icon: "folder-library", color: "charts.blue" },
   { category: "scheduled", id: "recipes-scheduled", label: "Scheduled", order: 9993, icon: "clock", color: "charts.yellow" },
+  { category: "monitor", id: "process-monitor", label: "Process Monitor", order: 9994, icon: "pulse", color: "charts.red" },
   { category: "suite", id: "saropa-suite", label: "Saropa Suite", order: 10000, icon: "layers", color: "charts.orange" },
 ];
 // Per-group collapse state lives in globalState (synthetic groups are not in any
@@ -340,6 +342,33 @@ export class PinStore {
       await this.writeProjectFile(folder, file);
       await this.refresh();
     }
+  }
+
+  // Re-point a pin at a different file — the "relocate" fix for a pin whose target
+  // was moved or renamed. A global pin stores the absolute path; a project pin
+  // stores a folder-relative path and so can only point inside its own workspace
+  // folder (a relative path cannot reach a sibling folder), which is rejected with
+  // `false` so the caller can tell the user. Returns whether the path was written.
+  async updatePinPath(pin: Pin, uri: vscode.Uri): Promise<boolean> {
+    if (pin.scope === "global") {
+      return this.mutatePin(pin, (target) => {
+        target.path = uri.fsPath;
+      });
+    }
+    const folder = this.projectPinFolder.get(pin.id);
+    if (!folder) {
+      return false;
+    }
+    // A project pin must resolve inside its owning folder; a file picked elsewhere
+    // cannot be stored folder-relative without escaping the folder.
+    const owner = vscode.workspace.getWorkspaceFolder(uri);
+    if (owner?.uri.toString() !== folder.uri.toString()) {
+      return false;
+    }
+    const relative = this.toFolderRelative(folder, uri);
+    return this.mutatePin(pin, (target) => {
+      target.path = relative;
+    });
   }
 
   // Persist a pin's run configuration. Passing undefined clears it (the pin
@@ -1067,6 +1096,7 @@ export class PinStore {
       ...(await detectOnDemandRecipes(folder)),
       ...(await detectScheduledRecipes(folder)),
       ...(await detectSuiteRecipes(folder)),
+      ...(await detectProcessRecipes(folder)),
     ];
     results.sort((a, b) =>
       a.label.localeCompare(b.label, undefined, { sensitivity: "base" })

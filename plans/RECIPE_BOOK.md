@@ -2,15 +2,16 @@
 
 This is the **remaining** recipe roadmap — the classes not yet built. The first
 59 recipes (sections A–F of the original catalog) already ship: URL / run-target /
-workspace / smart recipes (1–25), the scheduled rituals (26–35), and the Saropa
-Suite integration (36–58) are detected, grouped, and surfaced today. Their
-detailed descriptions now live **in the product**: each recipe carries a
-`description` that the extension shows when the user clicks it (the single-click
-detail modal) and on hover (the tree tooltip), so the catalog prose is read where
-the recipe is used rather than in this file.
+workspace / smart recipes (1–25), the scheduled rituals (26–35), the Saropa Suite
+integration (36–58), and the **suite-boot macro (#59)** are detected, grouped, and
+surfaced today, along with a **basic toolchain snapshot (#62)** in the new Process
+Monitor group. Their detailed descriptions now live **in the product**: each recipe
+carries a `description` that the extension shows when the user clicks it (the
+single-click detail modal) and on hover (the tree tooltip), so the catalog prose is
+read where the recipe is used rather than in this file.
 
-What follows is only what is left to build: the **developer process monitor**
-(section G), the **workspace hygiene scans** (section H), and the cross-cutting
+What follows is only what is left to build: the **live process monitor** (the rest
+of section G), the **workspace hygiene scans** (section H), and the cross-cutting
 **sensory feedback** layer (section I), plus the **remaining gaps** in the
 already-shipped sections.
 
@@ -37,9 +38,6 @@ These sections ship, but with known follow-ups:
   to a report file; it does not yet read the Saropa Lints public API
   (`getViolationsData()` / `getHealthScoreParams()`) to badge the exact health
   score the Lints status bar shows.
-- **Suite macro "Boot the Saropa suite" (#59)** — the per-tool suite recipes ship;
-  the one-action macro that brings multiple detected tools up at once is not yet
-  seeded.
 
 ---
 
@@ -67,7 +65,7 @@ memory is the working set. Cross-platform: PowerShell `Get-Counter` on Windows,
 |---|--------|------|--------------|
 | 60 | **Toolchain monitor** | command | Opens a consolidated panel of only your detected toolchain's processes — editor + language servers (`dart`, `tsserver`, `pyright`), AI agents (`claude`), dev servers (`node`, `vite`, `flutter_tester`), and integrated terminals (`pwsh`, `bash`) — **grouped by tool the way Task Manager nests its 255 helpers under one row**, each group showing a **roll-up of total live CPU % and total RAM**, expandable to per-PID. Sorted by CPU then memory; the worst hog is badged. Two-sample live CPU, so the number reflects now, not lifetime. A row carries actions: **Reveal** (focus the owning window where possible), **Copy report** (the table to the clipboard with a toast), and a **confirm-gated End task** for a single runaway PID (never a group, never silent). |
 | 61 | **Toolchain heartbeat** | scheduled | Fires on a timer (default every 15 min while a workspace is open), samples the same toolchain set unattended into a background channel, and appends a row to `reports/process-trend.csv` (per-tool CPU % + RAM + PID count). **Badges the monitor pin and surfaces a toast only when a threshold is crossed** — a tool's RAM exceeds a configured ceiling (default 4 GB — the leaked-analysis-server case in the screenshot), or its helper-process count exceeds a ceiling (default 200 — the editor-helper-swarm case). Silent when everything is within budget; the CSV still grows so the trend is there when you look. |
-| 62 | **Snapshot the toolchain** | command | Writes a one-shot `reports/<stamp>_processes.md` — the full grouped table at this instant plus the machine's logical-core count and total/free RAM — and **auto-opens it**. The artifact a bug report or a "my machine is thrashing" message can attach: a dated, shareable record of exactly what was resident and how hard it was working. |
+| 62 | **Snapshot the toolchain** | command | Writes a one-shot `reports/<stamp>_processes.md` and **auto-opens it** — the artifact a bug report or a "my machine is thrashing" message can attach. **A basic version ships now** (the raw OS process table via `tasklist` / `ps`, captured through the existing shell-to-report path). Still to add: the **grouped, two-sample-CPU** table (per-tool roll-up + live delta + logical-core / total-RAM header), which depends on the process-poll helper below. |
 
 ### Toolchain detection (which process names to show)
 
@@ -199,17 +197,17 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
 | **Day-of-week scheduling** (cron-style weekday/weekly triggers) | refines shipped 28–34 | extends the scheduler model fields |
 | **Pin status badge / severity counts** (green/red, error·warning·info) | refines shipped 26, 32 | extends the tree item |
 | **Sibling-tool API reads** (Saropa Lints `getViolationsData()` / health score) | refines shipped 26, 36–40 | Suite integration — Better Together |
-| **Suite macro / sequence pin** (boot multiple detected tools at once) | 59 | Command sequences / macros |
 
 ---
 
 ## Recommended build order
 
 1. **Process-poll helper + toolchain monitor** (60–62) — independent of the existing
-   pin kinds (it is its own panel, not a pin action), so it can land any time. Build
-   the snapshot command (#62) first — it is the helper end to end with the simplest
-   surface — then the live panel (#60), then wire the heartbeat (#61) onto the same
-   scheduler used by the scheduled rituals.
+   pin kinds (it is its own panel, not a pin action), so it can land any time. The
+   **basic snapshot (#62) already ships** via the shell-to-report path; the next step
+   is the process-poll helper (two-sample CPU delta + parent-PID roll-up), then the
+   live panel (#60), then the heartbeat (#61) onto the same scheduler used by the
+   scheduled rituals. The grouped, two-sample version of #62 falls out of the helper.
 2. **Hygiene scanner** (63) — independent of the pin kinds; a self-contained
    recursive crawl + JSON-report writer + sticky toast. The `empty` mode is the
    simplest first slice; add `oversized` thresholds and multi-instance config next,
@@ -218,5 +216,5 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
    start/finish events that the run, scheduled, and scan machinery already emit.
    Ship audio first; gate haptics behind platform-capability detection.
 4. **Close the shipped-section gaps** — day-of-week scheduling, pin severity badges,
-   the Saropa Lints health-score read, and the suite-boot macro (#59), each a small
-   refinement on machinery that already ships.
+   and the Saropa Lints health-score read, each a small refinement on machinery that
+   already ships.

@@ -179,6 +179,12 @@
         "icon": "$(eye)"
       },
       {
+        "command": "saropaWorkspace.runPinLastParams",
+        "title": "%command.runPinLastParams.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(run-all)"
+      },
+      {
         "command": "saropaWorkspace.stopPin",
         "title": "%command.stopPin.title%",
         "category": "%extension.displayName%",
@@ -503,6 +509,11 @@
           "group": "1_actions@5"
         },
         {
+          "command": "saropaWorkspace.runPinLastParams",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == pin",
+          "group": "1_actions@6"
+        },
+        {
           "command": "saropaWorkspace.runPin",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/ && viewItem != pinRunning && viewItem != pinStopping",
           "group": "1_actions@2"
@@ -619,6 +630,10 @@
         },
         {
           "command": "saropaWorkspace.runPin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.runPinLastParams",
           "when": "false"
         },
         {

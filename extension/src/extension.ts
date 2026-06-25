@@ -14,6 +14,7 @@ import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { processRegistry } from "./exec/processRegistry";
 import { telemetry } from "./exec/telemetry";
+import { promptMemory } from "./exec/promptMemory";
 import { tappedPins } from "./model/tappedPins";
 import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
@@ -33,6 +34,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Bind the tapped-pin tracker (opened/run pins) used for the activity-bar badge.
   tappedPins.init(context);
+
+  // Bind the interactive run-parameter memory (last ${prompt}/${pick} choice per
+  // pin) so a parameterized run defaults to the previous value. Stored in
+  // workspaceState (on-device, per-workspace, not synced).
+  promptMemory.init(context);
 
   // Click dispatcher: single click opens, double click runs. It carries only the
   // pin id, so callbacks look the pin back up from the store's current cache.

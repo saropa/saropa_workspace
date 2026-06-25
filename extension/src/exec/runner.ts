@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import * as fs from "fs";
 import { MacroStep, Pin, PinExecConfig, RunLocation } from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
@@ -30,8 +31,48 @@ export function registerTerminalCleanup(context: vscode.ExtensionContext): void 
   );
 }
 
+// Read a script's `#!` shebang and return the interpreter to run it through, or
+// undefined when the file has none / cannot be read. Honors the Unix convention so
+// an extensionless script (e.g. a `#!/usr/bin/env python3` file with no recognized
+// extension) runs through its declared interpreter instead of depending on the
+// file's executable bit — matching Code Runner. `#!/usr/bin/env X [args]` yields
+// `X [args]` (the env wrapper is stripped); any other shebang yields its literal
+// interpreter path + args. Reads only the first chunk (the shebang is the first
+// line) so a large file is never slurped whole.
+function shebangInterpreter(fsPath: string): string | undefined {
+  let firstLine: string;
+  try {
+    const fd = fs.openSync(fsPath, "r");
+    try {
+      const buffer = Buffer.alloc(256);
+      const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+      firstLine = buffer.toString("utf8", 0, bytesRead).split(/\r?\n/, 1)[0];
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    // Missing/unreadable file: no shebang to honor (the caller falls back to "").
+    return undefined;
+  }
+  if (!firstLine.startsWith("#!")) {
+    return undefined;
+  }
+  const rest = firstLine.slice(2).trim();
+  if (!rest) {
+    return undefined;
+  }
+  const parts = rest.split(/\s+/);
+  // `#!/usr/bin/env python3` -> run `python3`: env's job is to locate the real
+  // interpreter on PATH, which the shell already does for us, so drop it.
+  if (path.basename(parts[0]) === "env" && parts.length > 1) {
+    return parts.slice(1).join(" ");
+  }
+  return rest;
+}
+
 // Resolve the command prefix for a file: explicit per-pin command wins, else the
-// configured default for the file extension. Empty result means "run directly".
+// configured default for the file extension, else a `#!` shebang when present.
+// Empty result means "run directly".
 function resolveCommandPrefix(pin: Pin, fsPath: string): string {
   if (pin.exec?.command !== undefined) {
     return pin.exec.command;
@@ -40,7 +81,14 @@ function resolveCommandPrefix(pin: Pin, fsPath: string): string {
   const defaults = vscode.workspace
     .getConfiguration("saropaWorkspace")
     .get<Record<string, string>>("interpreterDefaults", {});
-  return defaults[ext] ?? "";
+  const byExtension = defaults[ext];
+  if (byExtension !== undefined) {
+    return byExtension;
+  }
+  // No explicit prefix and no extension default: honor a shebang so a *nix script
+  // runs through its declared interpreter rather than only being flung directly at
+  // the shell (which needs the executable bit). Absent shebang keeps "run directly".
+  return shebangInterpreter(fsPath) ?? "";
 }
 
 // Whether running this pin makes sense, i.e. there is a way to execute it. True
@@ -57,7 +105,12 @@ export function isRunnable(pin: Pin, fsPath: string): boolean {
   const defaults = vscode.workspace
     .getConfiguration("saropaWorkspace")
     .get<Record<string, string>>("interpreterDefaults", {});
-  return defaults[ext] !== undefined;
+  if (defaults[ext] !== undefined) {
+    return true;
+  }
+  // An extensionless script carrying a `#!` shebang is runnable through the
+  // interpreter it names, even with no extension-default mapping.
+  return shebangInterpreter(fsPath) !== undefined;
 }
 
 // Quote a path/arg for the shell. Simple double-quote wrapping covers the common

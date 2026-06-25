@@ -248,7 +248,8 @@ export class PinsTreeProvider
       runStatusRegistry.get(pin.id),
       processRegistry.isStopping(pin.id),
       undefined,
-      this.store.isMissing(pin.id)
+      this.store.isMissing(pin.id),
+      this.runCount(pin.id)
     );
   }
 
@@ -261,8 +262,16 @@ export class PinsTreeProvider
       runStatusRegistry.get(pin.id),
       processRegistry.isStopping(pin.id),
       { at: record.at, source: record.source },
-      this.store.isMissing(pin.id)
+      this.store.isMissing(pin.id),
+      this.runCount(pin.id)
     );
+  }
+
+  // The lifetime run count to surface in a pin's tooltip — zero when telemetry is
+  // disabled, so a turned-off user sees no count (the data is left in place until
+  // they reset it, but it is not displayed).
+  private runCount(pinId: string): number {
+    return telemetry.enabled() ? telemetry.count(pinId) : 0;
   }
 
   // The recent run records that still resolve to a live pin (an unpinned/deleted

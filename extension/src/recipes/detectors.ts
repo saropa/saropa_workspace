@@ -11,7 +11,13 @@ import { GitRemote, getCurrentBranch, getGitRemote } from "./gitMeta";
 // The logical category a recipe belongs to, used to route it into a top-level
 // group. Mirrors the recipe book sections: A (open) / B (run) / C+D (workspace) /
 // E (scheduled) / F (suite).
-export type RecipeCategory = "open" | "run" | "workspace" | "scheduled" | "suite";
+export type RecipeCategory =
+  | "open"
+  | "run"
+  | "workspace"
+  | "scheduled"
+  | "suite"
+  | "monitor";
 
 export interface RecipeResult {
   // Stable per-recipe id (combined with the folder for the pin id), so sticky

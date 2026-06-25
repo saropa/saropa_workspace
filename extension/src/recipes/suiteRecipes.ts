@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinAction } from "../model/pin";
+import { MacroStep, PinAction } from "../model/pin";
 import { RecipeResult } from "./detectors";
 
 // Saropa Suite integration recipes (recipe book section F, 36-59). Each detected
@@ -77,7 +77,51 @@ export async function detectSuiteRecipes(
   await pushLints(folder, out);
   await pushDrift(folder, out);
   await pushLogCapture(folder, out);
+  pushSuiteMacro(out);
   return out;
+}
+
+// Recipe 59 — "Boot the Saropa suite": one macro that brings every detected tool
+// up at once. Built from the per-tool boot actions already pushed above, so each
+// step reuses a command that was only seeded when its tool's extension is present
+// (the command therefore exists at run time). Created only when two or more tools
+// contributed a boot step, so a single-tool project never offers a multi-tool
+// sequence (the runner still skips any step whose command is unavailable). Reading
+// from `out` rather than re-deriving the ext flags keeps the gating in one place.
+function pushSuiteMacro(out: RecipeResult[]): void {
+  // The canonical "bring this tool up" step per suite tool, keyed by the recipe id
+  // whose presence proves the driving command was seeded (extension installed).
+  const bootSteps: Array<{ proof: string; step: MacroStep }> = [
+    {
+      proof: "suite.drift.browser",
+      step: { kind: "command", label: "Open Drift Advisor", commandId: "driftViewer.openInBrowser" },
+    },
+    {
+      proof: "suite.lints.analysis",
+      step: { kind: "command", label: "Run lint analysis", commandId: "saropaLints.runAnalysis" },
+    },
+    {
+      proof: "suite.log.open",
+      step: { kind: "command", label: "Open a capture log", commandId: "saropaLogCapture.openLogFile" },
+    },
+  ];
+
+  const seeded = new Set(out.map((r) => r.recipeId));
+  const steps = bootSteps.filter((b) => seeded.has(b.proof)).map((b) => b.step);
+  if (steps.length < 2) {
+    return;
+  }
+
+  out.push({
+    recipeId: "suite.boot",
+    label: "Boot the Saropa suite",
+    description:
+      "A macro that brings every detected Saropa Suite tool up in one action — opening the Drift Advisor inspector, running a Saropa Lints analysis, and opening a capture log, for whichever tools are installed. Offered only when two or more suite tools are detected.",
+    icon: "rocket",
+    color: "charts.green",
+    group: "suite",
+    action: { kind: "macro", steps },
+  });
 }
 
 // --- Saropa Lints (static analysis) ------------------------------------
