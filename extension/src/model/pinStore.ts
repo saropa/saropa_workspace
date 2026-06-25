@@ -11,6 +11,7 @@ import {
 } from "./pin";
 import { detectOnDemandRecipes, RecipeResult } from "../recipes/detectors";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
+import { getOutputChannel } from "../exec/runner";
 
 // A drop destination computed by the tree's drag-and-drop controller and handed
 // to PinStore.movePins. `groupId` undefined means the scope's top level;
@@ -49,6 +50,15 @@ export class PinStore {
   private globalPins: Pin[] = [];
   private projectGroups: PinGroup[] = [];
   private globalGroups: PinGroup[] = [];
+
+  // The non-recipe project pins/groups from the last refresh. Recipe detection
+  // runs asynchronously and merges onto this base, so its slow filesystem work
+  // never blocks the first paint (see refresh / seedRecipesAsync).
+  private baseProjectPins: Pin[] = [];
+  private baseProjectGroups: PinGroup[] = [];
+  // Monotonic token; a recipe-detection run discards itself if a newer refresh
+  // has started (prevents a stale async result clobbering current state).
+  private recipeGen = 0;
 
   // Maps a project pin id to the workspace folder that owns it, so relative
   // paths can be resolved back to absolute URIs without storing the folder on
@@ -562,33 +572,80 @@ export class PinStore {
         this.projectPinFolder.set(pin.id, folder);
         project.push(pin);
       }
+    }
 
-      // Auto-detected recipe pins (URL/shell/command/macro derived from project
-      // files), minus the ones the user removed. Mirrors the auto-pin mechanism.
-      const recipePins = await this.seedRecipes(folder, file.removedRecipes);
-      for (const pin of recipePins) {
+    project.sort((a, b) => a.order - b.order);
+    // Cache the non-recipe ("base") set and render it immediately. Recipe
+    // detection is filesystem-heavy across (potentially many) folders, so it must
+    // NOT block this first paint or the activation that awaits refresh(); it
+    // streams in via seedRecipesAsync below. (Bug fix: detection ran inline here
+    // and could stall the view in a multi-root workspace — "recipes never load".)
+    this.baseProjectPins = project;
+    this.baseProjectGroups = projectGroups;
+    this.projectPins = project;
+    this.projectGroups = [...projectGroups].sort((a, b) => a.order - b.order);
+    this.globalPins = this.readGlobalPins().sort((a, b) => a.order - b.order);
+    this.globalGroups = this.readGlobalGroups().sort((a, b) => a.order - b.order);
+
+    this._onDidChange.fire();
+
+    // Detect recipes off the blocking path; a later fire merges them in.
+    void this.seedRecipesAsync(++this.recipeGen);
+  }
+
+  // Detect recipes for all folders in parallel, fault-isolated per folder, and
+  // merge the results into the cached project pins + a synthetic Recipes group.
+  // Guarded by a generation token so a stale run (a newer refresh started) is
+  // discarded rather than overwriting fresh state.
+  private async seedRecipesAsync(gen: number): Promise<void> {
+    if (!this.recipesEnabled()) {
+      return;
+    }
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const perFolder = await Promise.all(
+      folders.map(async (folder) => {
+        try {
+          const file = await this.readProjectFile(folder);
+          const pins = await this.seedRecipes(folder, file.removedRecipes);
+          return { folder, pins };
+        } catch (err) {
+          // A detector throwing must never hang or break the view; surface it in
+          // the output channel and yield no recipes for that folder.
+          getOutputChannel().appendLine(
+            `[recipes] detection failed for ${folder.name}: ${err instanceof Error ? err.message : String(err)}`
+          );
+          return { folder, pins: [] as Pin[] };
+        }
+      })
+    );
+
+    // Drop stale results: a newer refresh() has superseded this run.
+    if (gen !== this.recipeGen) {
+      return;
+    }
+
+    const recipePins: Pin[] = [];
+    for (const { folder, pins } of perFolder) {
+      for (const pin of pins) {
         this.projectPinFolder.set(pin.id, folder);
-        project.push(pin);
+        recipePins.push(pin);
       }
     }
 
-    // Inject the synthetic Recipes group when any recipe pins exist, so they nest
-    // under one collapsible folder rather than cluttering the top level.
-    if (project.some((p) => p.isRecipe)) {
-      projectGroups.push({
+    const groups = [...this.baseProjectGroups];
+    if (recipePins.length > 0) {
+      // One synthetic, collapsible Recipes group holds every recipe pin.
+      groups.push({
         id: RECIPES_GROUP_ID,
         label: "Recipes",
         order: 9999,
         collapsed: !this.recipesGroupExpanded(),
       });
     }
-
-    project.sort((a, b) => a.order - b.order);
-    this.projectPins = project;
-    this.projectGroups = projectGroups.sort((a, b) => a.order - b.order);
-    this.globalPins = this.readGlobalPins().sort((a, b) => a.order - b.order);
-    this.globalGroups = this.readGlobalGroups().sort((a, b) => a.order - b.order);
-
+    this.projectGroups = groups.sort((a, b) => a.order - b.order);
+    this.projectPins = [...this.baseProjectPins, ...recipePins].sort(
+      (a, b) => a.order - b.order
+    );
     this._onDidChange.fire();
   }
 

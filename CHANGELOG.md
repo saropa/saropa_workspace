@@ -165,6 +165,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recipes never finished loading in a multi-root workspace. Recipe detection runs
+  filesystem probes across every workspace folder; it was doing so inline in the
+  store refresh that extension activation awaits, so the view blocked on it. It
+  now runs off the activation path, in parallel across folders, and fault-isolated
+  per folder — pins render immediately and recipes stream in afterward (a failing
+  detector logs to the output channel instead of hanging or breaking the view).
 - Section headers (Project Pins / Global Pins) no longer show the Run, Unpin, and
   Rename actions: the group node's context value started with "pin" and matched
   the per-pin menu clauses. A header has no single file to act on.
