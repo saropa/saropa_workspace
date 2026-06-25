@@ -34,6 +34,7 @@
   "command.forceKillPin.title": "Force Kill",
   "command.configureRun.title": "Configure Run...",
   "command.simulateRun.title": "Simulate Run...",
+  "command.diffLastRuns.title": "Diff Last Two Runs",
   "command.useAsTemplate.title": "Use as Template...",
   "command.copyPinLink.title": "Copy as Saropa Link",
   "command.pinExternalFile.title": "Pin External File...",

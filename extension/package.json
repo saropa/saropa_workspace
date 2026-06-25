@@ -215,6 +215,12 @@
         "icon": "$(beaker)"
       },
       {
+        "command": "saropaWorkspace.diffLastRuns",
+        "title": "%command.diffLastRuns.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(diff)"
+      },
+      {
         "command": "saropaWorkspace.useAsTemplate",
         "title": "%command.useAsTemplate.title%",
         "category": "%extension.displayName%",
@@ -573,6 +579,11 @@
           "group": "1_actions@4"
         },
         {
+          "command": "saropaWorkspace.diffLastRuns",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
+          "group": "1_actions@7"
+        },
+        {
           "command": "saropaWorkspace.configureRun",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
           "group": "2_edit@1"
@@ -694,6 +705,10 @@
         },
         {
           "command": "saropaWorkspace.simulateRun",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.diffLastRuns",
           "when": "false"
         },
         {

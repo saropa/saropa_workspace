@@ -24,8 +24,10 @@ import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
+import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
 import { encodePinLink } from "../import/shareLink";
+import { runOutputs } from "../exec/runOutputs";
 import {
   hasInteractiveTokens,
   resolveRememberedTokens,
@@ -773,6 +775,14 @@ export function registerPinCommands(
     }
   });
 
+  // Diff a pin's last two background-run outputs to see what changed (WOW #20).
+  reg("saropaWorkspace.diffLastRuns", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await diffLastRuns(pin);
+    }
+  });
+
   // Duplicate a file pin's target into a new file with a casing-aware rename, then
   // open it — the "template" boilerplate-buster (WOW #27).
   reg("saropaWorkspace.useAsTemplate", async (arg: unknown) => {
@@ -875,6 +885,8 @@ export function registerPinCommands(
     // Drop any remembered run-parameter values for the gone pin so they do not
     // accumulate in workspace state.
     void promptMemory.forget(pin.id);
+    // Drop any captured run outputs so they do not linger for a reused id.
+    runOutputs.clear(pin.id);
     vscode.window.showInformationMessage(l10n("pin.removed", { name }));
   });
 

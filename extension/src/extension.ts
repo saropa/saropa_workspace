@@ -10,6 +10,7 @@ import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerSimulationPreview } from "./commands/simulateRun";
+import { registerRunOutputDiff } from "./commands/diffRuns";
 import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { processRegistry } from "./exec/processRegistry";
@@ -170,6 +171,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   registerTerminalCleanup(context);
   registerSimulationPreview(context);
+  registerRunOutputDiff(context);
   registerPinCommands(context, store, dispatcher);
 
   // Handle vscode://saropa.saropa-workspace/import?data=... links (WOW #4 import), so

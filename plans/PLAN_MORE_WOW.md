@@ -67,10 +67,6 @@ Here are 10 more "WOW" features to add to the Saropa Workspace backlog, continui
 **The Pain:** To work on a specific feature, you always need `Hero.tsx` on the left, `hero.module.css` on the right, and `types.ts` split on the bottom. Setting up this grid takes 6 clicks and drags every morning.
 **The WOW:** A **"Layout Pin"**. Arrange your editor exactly how you like it, right-click the Saropa view title -> *Pin Current Editor Layout*. A single click on this pin instantly snaps your workspace into that exact multi-pane grid with the correct files loaded.
 
-### 20. Diff with Previous Run (The "What Changed?" Tool)
-**The Pain:** You run `npm run build`, and it fails with a massive stack trace. You tweak a config file, run it again, and it fails again. You scroll up frantically trying to see if the error is the *same* error or a *new* error.
-**The WOW:** Saropa caches the output of the last two background runs. Right-click the pin -> **"Diff Last Two Runs"**. It opens a native VS Code split-pane diff view, highlighting the exact lines in the terminal output that changed between attempt A and attempt B.
-
 ### 22. Deep-Link / Symbol Pins
 **The Pain:** Pinning `utils.ts` is great, but the file is 3,000 lines long. The regex function you actually want to reference is buried at line 2450.
 **The WOW:** Highlight a specific function, class, or line, right-click -> **"Pin to Symbol"**. Clicking the pin doesn't just open the file; it auto-scrolls directly to `function validateEmail()` and flashes the line. If you add code above it later, the pin tracks the AST/symbol dynamically, so it never points to the wrong line.
