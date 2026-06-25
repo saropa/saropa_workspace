@@ -253,11 +253,12 @@ secondary source formats (Project Manager, Bookmarks), folder/group import (need
 Once pins are configurable, organized, and importable, Phase 4 makes them fast to reach
 from anywhere in the editor.
 
-### 4.1 "Run any pin" command-palette entry and recently-run list
+### ~~4.1 "Run any pin" command-palette entry and recently-run list~~ — DONE
 
 - **What.** A command (e.g. "Saropa Workspace: Run Pin…") that opens a QuickPick of all
   pins across scopes and groups to run one directly, with recently-run pins surfaced at the
-  top.
+  top. Done — also a view-title button; recents live in on-device globalState, bounded and
+  never transmitted; selection runs through the shared runPinCommand path.
 - **Why.** Reaching a pin should not require opening the sidebar and clicking. A palette
   entry with recents is the fastest path for frequent runs.
 - **Acceptance criteria.**

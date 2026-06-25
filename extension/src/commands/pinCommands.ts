@@ -6,6 +6,7 @@ import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { runPin as execRunPin, getOutputChannel, isRunnable } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
+import { recentRuns } from "../exec/recentRuns";
 import {
   detectFavoritesFiles,
   importAllDetected,
@@ -111,6 +112,69 @@ function activeFileUri(): vscode.Uri | undefined {
   return vscode.window.activeTextEditor?.document.uri;
 }
 
+// Build the scope + group descriptor shown beside a pin in the Run Pin palette,
+// so the same filename in two scopes/groups is distinguishable at a glance.
+function pinLocation(store: PinStore, pin: Pin): string {
+  const scope =
+    pin.scope === "global"
+      ? l10n("pin.group.global")
+      : l10n("pin.group.project");
+  if (!pin.groupId) {
+    return scope;
+  }
+  const group = store.getGroups(pin.scope).find((g) => g.id === pin.groupId);
+  return group ? `${scope} / ${group.label}` : scope;
+}
+
+// QuickPick over every pin across scopes and groups, recently-run ones first, to
+// run one directly without opening the sidebar (4.1). Runs through the same
+// runPinCommand path as the tree, so behavior is identical.
+async function runAnyPin(store: PinStore): Promise<void> {
+  const all = [...store.getProjectPins(), ...store.getGlobalPins()];
+  if (all.length === 0) {
+    vscode.window.showInformationMessage(l10n("runAny.empty"));
+    return;
+  }
+
+  type PinItem = vscode.QuickPickItem & { pin?: Pin };
+  const toItem = (pin: Pin): PinItem => ({
+    label: pin.label ?? (pin.path.split("/").pop() ?? pin.path),
+    description: pinLocation(store, pin),
+    detail: pin.path,
+    pin,
+  });
+
+  // Recents first (only ids that still resolve to a live pin), then a separator
+  // and the full set ordered as the tree shows it.
+  const recentPins = recentRuns
+    .list()
+    .map((id) => store.findPin(id))
+    .filter((p): p is Pin => p !== undefined);
+
+  const items: PinItem[] = [];
+  if (recentPins.length > 0) {
+    items.push({
+      label: l10n("runAny.recent"),
+      kind: vscode.QuickPickItemKind.Separator,
+    });
+    items.push(...recentPins.map(toItem));
+    items.push({
+      label: l10n("runAny.all"),
+      kind: vscode.QuickPickItemKind.Separator,
+    });
+  }
+  items.push(...all.map(toItem));
+
+  const pick = await vscode.window.showQuickPick(items, {
+    placeHolder: l10n("runAny.placeholder"),
+    matchOnDescription: true,
+    matchOnDetail: true,
+  });
+  if (pick?.pin) {
+    await runPinCommand(store, pick.pin);
+  }
+}
+
 // The "New Group" action fires from the view title (no argument -> project, the
 // repo-shared scope) or a scope root's context menu (a PinGroupItem carrying its
 // scope). Default to project so a title-bar click has a defined home.
@@ -127,6 +191,8 @@ export function registerPinCommands(
     context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 
   reg("saropaWorkspace.refresh", () => store.refresh());
+
+  reg("saropaWorkspace.runAnyPin", () => runAnyPin(store));
 
   // Click dispatcher entry point: defer to single/double-click logic by pin id.
   reg("saropaWorkspace.activatePin", (arg: unknown) => {

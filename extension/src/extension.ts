@@ -7,6 +7,7 @@ import { registerPinCommands } from "./commands/pinCommands";
 import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { processRegistry } from "./exec/processRegistry";
+import { recentRuns } from "./exec/recentRuns";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
 import { l10n } from "./i18n/l10n";
 
@@ -16,6 +17,10 @@ const IMPORT_PROMPT_KEY = "saropaWorkspace.favoritesImportOffered";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const store = new PinStore(context);
+
+  // Bind the persisted recently-run list to this context so the runner can
+  // record runs and the "Run Pin..." palette can read them.
+  recentRuns.init(context);
 
   // Click dispatcher: single click opens, double click runs. It carries only the
   // pin id, so callbacks look the pin back up from the store's current cache.

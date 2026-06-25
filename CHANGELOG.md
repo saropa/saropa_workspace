@@ -89,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default behavior. A new "Pass file path to command" toggle in Configure Run
   controls whether the file path is inserted into the command — off for npm/Make
   targets that run from arguments against the working directory.
+- Run Pin command: a "Saropa Workspace: Run Pin..." command (also a button in
+  the view title) opens a quick pick of every pin across both scopes and all
+  groups, each labeled with its scope and group, and runs the selected one. The
+  pins you ran most recently are listed first, under a "Recently run" heading;
+  the recents list is bounded, stored on-device, and never transmitted. Selecting
+  a pin runs it through the same path as the tree's Run action.
 
 ### Fixed
 

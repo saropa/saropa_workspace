@@ -3,6 +3,7 @@ import * as path from "path";
 import { Pin } from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
+import { recentRuns } from "./recentRuns";
 import { buildTokenMap, expandTokens } from "./tokens";
 import {
   hasInteractiveTokens,
@@ -166,6 +167,10 @@ export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
       })
     );
   }
+
+  // Record the run for the "Run Pin..." palette's recents (after the cancel
+  // checks above, so an aborted interactive prompt does not count as a run).
+  void recentRuns.record(pin.id);
 
   vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
 
