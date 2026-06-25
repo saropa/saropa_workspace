@@ -308,10 +308,12 @@ With 4.1, 4.2, and 4.3 done, Phase 4 (fast-access surfaces) is complete.
 
 Polish and team workflows once the core is complete.
 
-### 5.1 Per-pin icon and color customization
+### ~~5.1 Per-pin icon and color customization~~ — DONE
 
 - **What.** Let a pin override its tree icon (from VS Code's product/codicon set) and
-  apply a theme color, persisted on the pin.
+  apply a theme color, persisted on the pin. Done — "Set Icon & Color..." picks a curated
+  codicon + a `charts.*` theme color; stored on `Pin.icon`/`Pin.color`; transient state
+  icons still take precedence; auto-pins are excluded (nothing to persist on).
 - **Why.** Visual differentiation in a large or grouped pin set; aids fast scanning.
 - **Acceptance criteria.**
   - Icon and color are chosen from theme-aware sources (`ThemeIcon` / `ThemeColor`), never

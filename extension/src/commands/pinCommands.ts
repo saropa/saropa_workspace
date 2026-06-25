@@ -16,6 +16,7 @@ import {
 } from "../import/favoritesImport";
 import { configureRun } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
+import { configureAppearance } from "./configureAppearance";
 import { detectRunTargets, RunTarget } from "../exec/runTargets";
 import { l10n } from "../i18n/l10n";
 
@@ -316,6 +317,13 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureSchedule(store, pin);
+    }
+  });
+
+  reg("saropaWorkspace.configureAppearance", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await configureAppearance(store, pin);
     }
   });
 

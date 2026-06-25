@@ -26,6 +26,7 @@
 - Smart pin suggestions: open a file often enough without pinning it (default six times) and a toast offers to pin it - project scope inside a workspace folder, otherwise global. Offered at most once per file; open counts are on-device only and never transmitted. Configurable via `saropaWorkspace.suggestions.enabled` and `saropaWorkspace.suggestions.openThreshold`.
 - Next-scheduled-run status bar: shows the soonest upcoming scheduled run (pin name and time), updates as schedules fire or change, and reveals the pin in the tree when clicked. Hidden when no pin has an enabled schedule.
 - Keybindings for top pins: five "Run Top Pin 1-5" commands run the Nth pin in tree order, and "Run Pin by Reference" takes a keybinding `args` matched against a pin's id, label, path, or basename. Bind them in the Keyboard Shortcuts editor; all use the shared Run path.
+- Per-pin icon and color ("Set Icon & Color..." on a pin's context menu): pick a product icon from a curated set and a theme color for it. Theme-aware (codicon id + `ThemeColor` key, no raw hex), persisted on the pin, rendered across light/dark/high-contrast. Transient state icons (running, missing, last-run) still win over the custom glyph.
 
 ### Fixed
 - Section headers (Project Pins / Global Pins) no longer show the Run, Unpin, and Rename actions: the group node's context value started with "pin" and matched the per-pin menu clauses. A header has no single file to act on.

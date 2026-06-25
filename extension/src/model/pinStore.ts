@@ -223,6 +223,19 @@ export class PinStore {
     });
   }
 
+  // Persist a pin's tree-icon and color overrides. Passing undefined for either
+  // clears it (the pin reverts to the file-type default glyph / no tint).
+  async updatePinAppearance(
+    pin: Pin,
+    icon: string | undefined,
+    color: string | undefined
+  ): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.icon = icon;
+      target.color = color;
+    });
+  }
+
   // Record the epoch-ms of a scheduled fire. Used for reopen de-duplication and
   // interval advancement (see nextOccurrence). No-op if the pin has no schedule.
   async updatePinScheduleLastRun(pin: Pin, lastRun: number): Promise<void> {

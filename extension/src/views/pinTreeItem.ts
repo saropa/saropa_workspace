@@ -70,6 +70,14 @@ export class PinTreeItem extends vscode.TreeItem {
         lastRun.outcome === "success"
           ? new vscode.ThemeIcon("pass", new vscode.ThemeColor("testing.iconPassed"))
           : new vscode.ThemeIcon("error", new vscode.ThemeColor("testing.iconFailed"));
+    } else if (pin.icon) {
+      // User-chosen icon/color for the resting state (5.1). Transient state icons
+      // above (running / missing / last-run) deliberately win, since they convey
+      // actionable state; the custom glyph replaces the default pin/star glyph.
+      this.iconPath = new vscode.ThemeIcon(
+        pin.icon,
+        pin.color ? new vscode.ThemeColor(pin.color) : undefined
+      );
     } else if (pin.isAuto) {
       this.iconPath = new vscode.ThemeIcon("star-empty");
     } else {

@@ -122,6 +122,12 @@
         "icon": "$(clock)"
       },
       {
+        "command": "saropaWorkspace.configureAppearance",
+        "title": "%command.configureAppearance.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(symbol-color)"
+      },
+      {
         "command": "saropaWorkspace.renamePin",
         "title": "%command.renamePin.title%",
         "category": "%extension.displayName%",
@@ -321,14 +327,19 @@
           "group": "2_edit@2"
         },
         {
+          "command": "saropaWorkspace.configureAppearance",
+          "when": "view == saropaWorkspace.pins && viewItem == pin",
+          "group": "2_edit@3"
+        },
+        {
           "command": "saropaWorkspace.renamePin",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
-          "group": "2_edit@3"
+          "group": "2_edit@4"
         },
         {
           "command": "saropaWorkspace.unpin",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
-          "group": "2_edit@4"
+          "group": "2_edit@5"
         }
       ],
       "explorer/context": [
@@ -370,6 +381,10 @@
         },
         {
           "command": "saropaWorkspace.configureSchedule",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.configureAppearance",
           "when": "false"
         },
         {

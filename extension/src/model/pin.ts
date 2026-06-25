@@ -52,6 +52,13 @@ export interface Pin {
   isAuto?: boolean;
   exec?: PinExecConfig;
   schedule?: PinSchedule;
+  // Optional tree-icon override: a VS Code product-icon (codicon) id WITHOUT the
+  // surrounding $(...), e.g. "rocket". Undefined falls back to the file-type
+  // default glyph. Added with appearance customization (5.1).
+  icon?: string;
+  // Optional theme-color id applied to the icon, e.g. "charts.red". Theme-aware
+  // (a ThemeColor key, never a raw hex) so it renders in light/dark/high-contrast.
+  color?: string;
   // Id of the user group (PinGroup) this pin belongs to within its scope.
   // Undefined = top level, directly under the scope root. Added in schema v2;
   // a pin written by v1 has no groupId and reads as top level (the migration is

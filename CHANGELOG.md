@@ -111,6 +111,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a "Run Pin by Reference" command takes a keybinding `args` value matched against
   a pin's id, label, file path, or basename. Bind any of them in the Keyboard
   Shortcuts editor; all run through the same path as the tree's Run action.
+- Per-pin icon and color: "Set Icon & Color..." on a pin's context menu picks a
+  product icon from a curated set and a theme color for it, to tell apart a large
+  or grouped pin set at a glance. Both are theme-aware (a codicon id and a
+  `ThemeColor` key, never a raw hex), persist on the pin, and render in light,
+  dark, and high-contrast themes; a pin with no override keeps its file-type
+  glyph. Transient state icons (running, missing file, last-run pass/fail) still
+  take precedence over the custom icon.
 
 ### Fixed
 
