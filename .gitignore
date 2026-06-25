@@ -19,3 +19,5 @@ bugs/FINISH_GUIDE.md
 
 # Saropa Log Capture
 reports/
+.saropa/index/reports.idx.json
+.saropa/diagnostics/log-capture.json
