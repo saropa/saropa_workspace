@@ -27,6 +27,14 @@ Run a script in its own pop-out terminal window — optionally as administrator.
 
 [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
 
+### Changed
+
+- **The "Workspace Pin" menu now shows only the valid action.** Right-clicking a
+  file (in the Explorer, the editor, an editor tab, or a pin row) shows **Add to
+  Project Pins** only when it is not already a project pin, and **Remove from
+  Project Pins** only when it is — and likewise for global pins. The menu reflects
+  the exact file acted on, not whichever editor is focused.
+
 ### Added
 
 - **Auto-pins can be dragged into folders.** Auto-detected pins (the ones from

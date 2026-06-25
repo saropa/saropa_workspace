@@ -1,4 +1,4 @@
-# 1
+## 1
 - scan for zero byte files and zero file folder
 - scan for massive files and massive folders
 - scan for both
@@ -9,3 +9,6 @@
 - output everything to \reports\<date>\<date_time>_filereport.json
 - add a sticky toast with any issues
 
+
+## 3
+- haptics - audio for certain events starting and/or finishing

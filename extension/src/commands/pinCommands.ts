@@ -737,9 +737,10 @@ export function registerPinCommands(
   // Add/remove a file to/from each scope. One set of four commands backs the
   // Explorer "Workspace Pin" submenu, the Pins view row submenu, and the Project
   // Files inline toggle. The target file is resolved from whatever the surface
-  // passes (a Uri, a pin row, or a file row) — see targetUri. The submenu items
-  // are static (no per-selection state), so they add no background cost to the
-  // Explorer; each command decides what to do at click time.
+  // passes (a Uri, a pin row, or a file row) — see targetUri. The submenu hides
+  // the invalid action per file via `resourcePath in/not in` context keys (synced
+  // in extension.ts), but each command still validates at click time so a
+  // command-palette / keybinding invocation (no resource gating) stays correct.
   reg("saropaWorkspace.addProjectPin", (arg: unknown) => {
     const uri = targetUri(store, arg);
     if (uri) {

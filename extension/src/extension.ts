@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
+import { Pin, pinKind } from "./model/pin";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import { RecipesTreeProvider } from "./views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
@@ -102,6 +103,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Repaint the project-files rows whenever pins change, so the pinned indicator
   // and the pin/unpin toggle reflect the current state immediately.
   context.subscriptions.push(store.onDidChange(() => projectFiles.refresh()));
+
+  // Keep the "Workspace Pin" submenu showing only the valid action (Add when not
+  // pinned, Remove when pinned) for the exact file right-clicked. Each scope's
+  // pinned files are published as a when-clause context-key object; the submenu
+  // items gate on `resourcePath in/not in` it. This is per-resource accurate in
+  // every surface (Explorer, editor body, editor tab, sidebar row) because the `in`
+  // operator tests the acted-on resource, not the active editor. Synced on every
+  // pin change (init fires onDidChange too, so the keys are set before first paint).
+  context.subscriptions.push(
+    store.onDidChange(() => syncPinnedPathContext(store))
+  );
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshProjectFiles", () =>
       projectFiles.refresh()
@@ -181,6 +193,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   await store.init();
+  // Set the initial pinned-path context keys explicitly in case the init-time
+  // onDidChange fired before the subscription above was attached.
+  syncPinnedPathContext(store);
 
   // Arm timers now that the initial pin set is loaded. The scheduler also re-arms
   // itself on every subsequent store change via its onDidChange subscription.
@@ -222,6 +237,41 @@ async function maybeOfferFavoritesImport(
       })
     );
   }
+}
+
+// Publish the set of absolute paths pinned in each scope as when-clause context
+// objects, so the "Workspace Pin" submenu can hide the invalid action per file.
+// Both the OS path (uri.fsPath, e.g. "d:\\src\\a.ts") and the URI path (uri.path,
+// e.g. "/d:/src/a.ts") are registered for every pin because VS Code's resourcePath
+// context key uses one form or the other depending on platform; the `in` operator
+// only checks key existence, so registering both matches whichever VS Code supplies.
+// Non-file recipe pins have no on-disk path and are skipped.
+function syncPinnedPathContext(store: PinStore): void {
+  const collect = (pins: Pin[]): Record<string, true> => {
+    const set: Record<string, true> = {};
+    for (const pin of pins) {
+      if (pinKind(pin) !== "file") {
+        continue;
+      }
+      const uri = store.resolveUri(pin);
+      if (!uri) {
+        continue;
+      }
+      set[uri.fsPath] = true;
+      set[uri.path] = true;
+    }
+    return set;
+  };
+  void vscode.commands.executeCommand(
+    "setContext",
+    "saropaWorkspace.projectPinnedPaths",
+    collect(store.getProjectPins())
+  );
+  void vscode.commands.executeCommand(
+    "setContext",
+    "saropaWorkspace.globalPinnedPaths",
+    collect(store.getGlobalPins())
+  );
 }
 
 export function deactivate(): void {

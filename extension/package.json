@@ -329,18 +329,22 @@
       "saropaWorkspace.pinSubmenu": [
         {
           "command": "saropaWorkspace.addProjectPin",
+          "when": "resourcePath not in saropaWorkspace.projectPinnedPaths",
           "group": "1_project@1"
         },
         {
           "command": "saropaWorkspace.removeProjectPin",
+          "when": "resourcePath in saropaWorkspace.projectPinnedPaths",
           "group": "1_project@2"
         },
         {
           "command": "saropaWorkspace.addGlobalPin",
+          "when": "resourcePath not in saropaWorkspace.globalPinnedPaths",
           "group": "2_global@1"
         },
         {
           "command": "saropaWorkspace.removeGlobalPin",
+          "when": "resourcePath in saropaWorkspace.globalPinnedPaths",
           "group": "2_global@2"
         }
       ],
