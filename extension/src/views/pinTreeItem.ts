@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Pin } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
+import { RunResult, formatDuration } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
 
 // Tree node for a single pin. Selecting it fires the activate dispatcher, which
@@ -9,27 +10,28 @@ export class PinTreeItem extends vscode.TreeItem {
   constructor(
     readonly pin: Pin,
     resolvedUri: vscode.Uri | undefined,
-    isRunning: boolean
+    isRunning: boolean,
+    lastRun?: RunResult
   ) {
     const basename = pin.path.split("/").pop() ?? pin.path;
     super(pin.label ?? basename, vscode.TreeItemCollapsibleState.None);
 
     this.resourceUri = resolvedUri;
 
-    // Surface the next scheduled run inline (description) and in the tooltip, so a
-    // scheduled pin's queued time is visible without opening anything (2.2). An
-    // enabled-but-untimed schedule, or a disabled one, shows no badge. A running
-    // pin shows a running badge instead, since its current state matters more.
+    // Leading inline badge, by priority: a running pin's live state wins; then a
+    // scheduled pin's queued next-run time (2.2); then the last completed run's
+    // outcome and duration (7.2). Only one badge shows — the most actionable.
     const next = pin.schedule
       ? nextOccurrence(pin.schedule, Date.now())
       : undefined;
     const nextLabel = next !== undefined ? formatNextRun(next) : undefined;
 
+    const lastRunBadge = lastRun ? formatRunBadge(lastRun) : undefined;
     const badge = isRunning
       ? l10n("run.treeBadge")
       : nextLabel
         ? l10n("schedule.treeBadge", { time: nextLabel })
-        : undefined;
+        : lastRunBadge;
     this.description = badge ? `${badge} · ${pin.path}` : pin.path;
 
     // contextValue gates the menus. A running pin uses "pinRunning" so the Stop
@@ -44,14 +46,26 @@ export class PinTreeItem extends vscode.TreeItem {
     } else if (nextLabel) {
       tooltipLines.push(l10n("schedule.nextRun", { time: nextLabel }));
     }
+    // Always surface the last run in the tooltip, even when a schedule badge is
+    // showing, so the most recent outcome is one hover away. A failure points at
+    // the output channel (Show Output in the pin's context menu).
+    if (lastRun) {
+      tooltipLines.push(formatRunTooltip(lastRun));
+    }
     this.tooltip = tooltipLines.join("\n");
 
-    // Running pins spin; a missing target is flagged; auto-pins read as
-    // "suggested" with a hollow star; explicit pins use the pin glyph.
+    // Icon priority mirrors the badge: spinning while running; a missing target
+    // is flagged; then the last-run outcome (green pass / red error); then auto
+    // vs explicit pin glyph.
     if (isRunning) {
       this.iconPath = new vscode.ThemeIcon("loading~spin");
     } else if (!resolvedUri) {
       this.iconPath = new vscode.ThemeIcon("warning");
+    } else if (lastRun) {
+      this.iconPath =
+        lastRun.outcome === "success"
+          ? new vscode.ThemeIcon("pass", new vscode.ThemeColor("testing.iconPassed"))
+          : new vscode.ThemeIcon("error", new vscode.ThemeColor("testing.iconFailed"));
     } else if (pin.isAuto) {
       this.iconPath = new vscode.ThemeIcon("star-empty");
     } else {
@@ -91,11 +105,39 @@ function formatNextRun(ts: number): string {
   return `${date} ${time}`;
 }
 
+// Compact inline badge for the last completed run: "ok 2.3s" on success, or
+// "exit 1 2.3s" on failure (a signal-killed run has no code and reads "exit ?").
+function formatRunBadge(result: RunResult): string {
+  const duration = formatDuration(result.durationMs);
+  if (result.outcome === "success") {
+    return l10n("run.statusOk", { duration });
+  }
+  const code = result.exitCode === null ? "?" : String(result.exitCode);
+  return l10n("run.statusFailed", { code, duration });
+}
+
+// Fuller last-run line for the tooltip, including the wall-clock time it ended.
+function formatRunTooltip(result: RunResult): string {
+  const duration = formatDuration(result.durationMs);
+  const time = new Date(result.endedAt).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (result.outcome === "success") {
+    return l10n("run.tooltipOk", { duration, time });
+  }
+  const code = result.exitCode === null ? "?" : String(result.exitCode);
+  return l10n("run.tooltipFailed", { code, duration, time });
+}
+
 // Group header node (Project Pins / Global Pins).
 export class PinGroupItem extends vscode.TreeItem {
   constructor(label: string, readonly group: "project" | "global", count: number) {
     super(label, vscode.TreeItemCollapsibleState.Expanded);
-    this.contextValue = "pinGroup";
+    // "group", NOT "pinGroup": the per-pin menus match viewItem =~ /^pin/, so a
+    // contextValue starting with "pin" would leak the Run/Unpin/Rename actions
+    // onto these section headers (a header has no single file to act on).
+    this.contextValue = "group";
     this.description = String(count);
     this.iconPath = new vscode.ThemeIcon(
       group === "global" ? "globe" : "folder"

@@ -72,14 +72,14 @@ The remaining phases build on this foundation in dependency order.
 
 ---
 
-## Phase 2 — Make the built-in capabilities usable without hand-editing JSON
+## ~~Phase 2 — Make the built-in capabilities usable without hand-editing JSON~~ — DONE
 
 Phase 1 exposed the execution and scheduling **data model** but not the UI to drive it.
 Today a user must hand-edit `.vscode/saropa-workspace.json` to set run parameters or a
 schedule. Phase 2 closes that gap. It is first because every later feature (scheduling
 badges, the run palette, status bar) assumes pins can be configured through the UI.
 
-### 2.1 Run-parameters editor (QuickPick flow)
+### ~~2.1 Run-parameters editor (QuickPick flow)~~ — DONE
 
 - **What.** A multi-step QuickPick / input-box flow, invoked from a pin's context menu
   ("Configure Run…"), to edit `PinExecConfig`: command prefix, arguments, working
@@ -100,7 +100,7 @@ badges, the run palette, status bar) assumes pins can be configured through the 
   - A pin configured through the flow runs identically to the same config hand-written in
     JSON (round-trip parity).
 
-### 2.2 Scheduler implementation
+### ~~2.2 Scheduler implementation~~ — DONE
 
 - **What.** Wire in-process timers to the existing `PinSchedule` fields (`atTime`,
   `everyMs`, `enabled`, `lastRun`). On fire, execute the pin's run config, post a toast,
@@ -124,7 +124,7 @@ badges, the run palette, status bar) assumes pins can be configured through the 
   scheduler can fire pins configured by JSON in the interim, but the toggle/edit UX lands
   with 2.1's pattern.
 
-### 2.3 Stop a running scheduled / background process from the tree
+### ~~2.3 Stop a running scheduled / background process from the tree~~ — DONE
 
 - **What.** Track background and scheduled child processes per pin and add a "Stop" tree
   action that terminates the running process. Reflect running state in the tree (icon /
@@ -141,7 +141,7 @@ badges, the run palette, status bar) assumes pins can be configured through the 
     not a regression).
 - **Depends on.** Scheduler (2.2) and the existing background runner.
 
-### 2.4 Run-command placeholder tokens
+### ~~2.4 Run-command placeholder tokens~~ — DONE
 
 - **What.** Support placeholder tokens in a pin's command and arguments, substituted at run
   time. Adopt Code Runner's token names for familiarity: `$workspaceRoot`, `$dir`,
@@ -170,6 +170,11 @@ favorites) and handles users with many pins (groups, ordering, multi-root).
 
 The basic kdcro101 `.favorites.json` import shipped in Phase 1 (one-time prompt +
 on-demand command, idempotent, malformed-entry-safe). This item extends it.
+
+**Progress:** ~~the sibling-projects scan (import favorites from immediate sibling
+folders as global pins, explicit and user-invoked)~~ has shipped. Remaining:
+secondary source formats (Project Manager, Bookmarks), folder/group import (needs
+3.2), the ongoing detection prompt for newly-appearing source files, and tests.
 
 - **What.** Add secondary source formats — evaluated targets: **Project Manager** and
   **Bookmarks** — behind a written per-format mapping assessment. Import folder/group
@@ -360,7 +365,7 @@ distinctly more capable than a plain favorites list. Each depends on earlier pha
 per item) and is ordered after them, but the items are independent of one another — any can
 land once its own dependencies are met.
 
-### 7.1 Run-parameter prompt tokens
+### ~~7.1 Run-parameter prompt tokens~~ — DONE
 
 - **What.** Extend the 2.4 token system with tokens resolved interactively at run time:
   `${prompt:Label}` opens an input box, `${pick:a,b,c}` opens a QuickPick. The collected
@@ -376,7 +381,7 @@ land once its own dependencies are met.
 - **Depends on.** Token substitution (2.4); the run-parameters editor (2.1) for entering
   tokens with inline help.
 
-### 7.2 Last-run status in the tree
+### ~~7.2 Last-run status in the tree~~ — DONE
 
 - **What.** After a run, record the exit code and duration on the pin and render a status
   badge / icon (success, failure, running) with the duration in the tooltip. A failed pin

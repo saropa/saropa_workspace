@@ -1,0 +1,7 @@
+{
+  // Pin the Python interpreter for the release toolchain (scripts/publish.py).
+  // Without this, the Python extension falls back to a global selection that can
+  // point at a removed/invalid path, disabling IntelliSense and linting. 3.13 is
+  // chosen deliberately: the 3.14 install is reserved for translation/NLLB tools.
+  "python.defaultInterpreterPath": "C:\\Users\\craig\\AppData\\Local\\Programs\\Python\\Python313\\python.exe"
+}

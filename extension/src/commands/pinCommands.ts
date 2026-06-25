@@ -3,8 +3,9 @@ import { PinStore } from "../model/pinStore";
 import { Pin, PinScope } from "../model/pin";
 import { PinTreeItem } from "../views/pinTreeItem";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
-import { runPin as execRunPin, getOutputChannel } from "../exec/runner";
+import { runPin as execRunPin, getOutputChannel, isRunnable } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
+import { runStatusRegistry } from "../exec/runStatus";
 import {
   detectFavoritesFiles,
   importAllDetected,
@@ -41,6 +42,16 @@ async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
   const uri = store.resolveUri(pin);
   if (!uri) {
     vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    return;
+  }
+  // A pin with no way to execute (a text doc, markdown, image — anything without
+  // an interpreter) should not be flung at the shell on a double-click. Open it
+  // instead (opening is itself the visible feedback) and say why "run" did not
+  // run, naming the file so the message ties to a concrete pin.
+  if (!isRunnable(pin, uri.fsPath)) {
+    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    await vscode.window.showTextDocument(uri, { preview: false });
+    vscode.window.showInformationMessage(l10n("run.openedNotRunnable", { name }));
     return;
   }
   await execRunPin(pin, uri);
@@ -146,8 +157,15 @@ export function registerPinCommands(
     }
     const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
     await store.removePin(pin);
+    // Drop any last-run badge so it does not outlive the pin (the id is reused
+    // for an identical re-pin only after a fresh run records a new result).
+    runStatusRegistry.clear(pin.id);
     vscode.window.showInformationMessage(l10n("pin.removed", { name }));
   });
+
+  // Reveal the shared output channel (background-run output, scheduled-run log,
+  // and the "Show Output" target from a failed-run toast).
+  reg("saropaWorkspace.showOutput", () => getOutputChannel().show(true));
 
   reg("saropaWorkspace.pinActiveFile", () => {
     const uri = activeFileUri();

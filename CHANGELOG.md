@@ -54,6 +54,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the selected ones as global pins. The scan is explicit and user-invoked (never
   automatic on activation); a cross-project favorite is an absolute path outside
   the current folder, so it imports as a global pin. Re-running is idempotent.
+- Last-run status in the tree: after a background run finishes, the pin shows a
+  green check (success) or red error icon (failure) with the exit code and
+  duration as an inline badge and in the tooltip. A successful run shows a quiet
+  confirmation toast; a failed run shows an error toast with a one-click "Show
+  Output" button. Status is per-session and in-memory (nothing is persisted or
+  transmitted). Integrated-terminal runs are interactive and not status-tracked.
+- "Show Output" command to reveal the shared output channel, available from the
+  view title overflow and each pin's context menu.
+- Interactive run-parameter tokens: a pin's command, arguments, or working
+  directory may contain `${prompt:Label}` (opens an input box at run time) and
+  `${pick:a,b,c}` (opens a quick pick over the options). Resolved values apply to
+  that run only; the stored pin is unchanged. The same token reused across fields
+  is asked once; canceling any prompt aborts the run with nothing executed. A
+  scheduled run cannot answer prompts, so a scheduled pin with interactive tokens
+  is skipped with a note in the output channel. The Configure Run help lists the
+  token forms inline.
+
+### Fixed
+
+- Section headers (Project Pins / Global Pins) no longer show the Run, Unpin, and
+  Rename actions: the group node's context value started with "pin" and matched
+  the per-pin menu clauses. A header has no single file to act on.
+- Double-clicking a non-runnable pin (a text document, markdown, an image — any
+  file with no interpreter) now opens it instead of sending the file path to the
+  shell, and explains that it has no run command. Files with an interpreter
+  (explicit command or a default for the extension) still run as before.
 
 ### Changed
 

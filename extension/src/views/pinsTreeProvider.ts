@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
 import { processRegistry } from "../exec/processRegistry";
+import { runStatusRegistry } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
 import { PinGroupItem, PinTreeItem } from "./pinTreeItem";
 
@@ -12,10 +13,12 @@ export class PinsTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   constructor(private readonly store: PinStore) {
-    // Repaint whenever the store recomputes its cached pins, or when a background
-    // process starts/stops (so the running indicator and Stop action update).
+    // Repaint whenever the store recomputes its cached pins, when a background
+    // process starts/stops (running indicator + Stop action), or when a run
+    // finishes (success/failure badge).
     store.onDidChange(() => this._onDidChangeTreeData.fire());
     processRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
+    runStatusRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
   }
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
@@ -44,7 +47,8 @@ export class PinsTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem
           new PinTreeItem(
             pin,
             this.store.resolveUri(pin),
-            processRegistry.isRunning(pin.id)
+            processRegistry.isRunning(pin.id),
+            runStatusRegistry.get(pin.id)
           )
       );
     }

@@ -144,6 +144,12 @@
         "title": "%command.scanSiblingFavorites.title%",
         "category": "%extension.displayName%",
         "icon": "$(search)"
+      },
+      {
+        "command": "saropaWorkspace.showOutput",
+        "title": "%command.showOutput.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(output)"
       }
     ],
     "menus": {
@@ -167,6 +173,11 @@
           "command": "saropaWorkspace.scanSiblingFavorites",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@2"
+        },
+        {
+          "command": "saropaWorkspace.showOutput",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@3"
         }
       ],
       "view/item/context": [
@@ -199,6 +210,11 @@
           "command": "saropaWorkspace.stopPin",
           "when": "view == saropaWorkspace.pins && viewItem == pinRunning",
           "group": "1_actions@2"
+        },
+        {
+          "command": "saropaWorkspace.showOutput",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin/",
+          "group": "1_actions@3"
         },
         {
           "command": "saropaWorkspace.configureRun",

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { Pin } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { planRun, runPin, getOutputChannel } from "./runner";
+import { hasInteractiveTokens } from "./promptTokens";
 import { nextOccurrence } from "./schedule";
 import { l10n } from "../i18n/l10n";
 
@@ -92,6 +93,16 @@ export class Scheduler implements vscode.Disposable {
       // the schedule advances to its next slot — without it, nextOccurrence would
       // return this same now-past slot, re-arm with a zero delay, and tight-loop.
       channel.appendLine(l10n("schedule.missing", { time: stamp, name }));
+      channel.show(true);
+      await this.store.updatePinScheduleLastRun(pin, Date.now());
+      return;
+    }
+
+    // A scheduled fire is unattended; a pin whose run needs interactive input
+    // (${prompt:...} / ${pick:...}) cannot be answered here. Skip it, note why,
+    // and still advance the schedule so it does not tight-loop on this slot.
+    if (hasInteractiveTokens(pin)) {
+      channel.appendLine(l10n("schedule.interactiveSkipped", { time: stamp, name }));
       channel.show(true);
       await this.store.updatePinScheduleLastRun(pin, Date.now());
       return;
