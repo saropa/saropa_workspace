@@ -807,6 +807,11 @@
             "maximum": 1000,
             "description": "%config.doubleClickMs.description%"
           },
+          "saropaWorkspace.previewMode.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.previewMode.enabled.description%"
+          },
           "saropaWorkspace.defaultUseIntegratedTerminal": {
             "type": "boolean",
             "default": true,

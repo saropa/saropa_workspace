@@ -158,6 +158,9 @@ export interface RunPlan {
   // Left literal in the command; surfaced once by runPin so they are not blanked
   // silently (a literal $name may also be an intentional shell variable).
   unknownTokens: string[];
+  // Optional regex matched against a background run's output to extract one value to
+  // the clipboard (WOW #16). Only honored for the background location.
+  extractResult?: string;
 }
 
 // Resolve a pin + target into a concrete RunPlan. Pure of side effects so both
@@ -201,6 +204,7 @@ export function planRun(pin: Pin, uri: vscode.Uri): RunPlan {
     // Elevation only applies to an external window; ignored otherwise.
     elevated: location === "external" && pin.exec?.elevated === true,
     unknownTokens: [...unknown],
+    extractResult: pin.exec?.extractResult,
   };
 }
 
@@ -270,7 +274,14 @@ export async function runPin(
       await runInExternal(plan.commandLine, plan.cwd, plan.env, plan.elevated, plan.name);
       break;
     case "background":
-      await runInBackground(plan.commandLine, plan.cwd, plan.env, plan.name, pin.id);
+      await runInBackground(
+        plan.commandLine,
+        plan.cwd,
+        plan.env,
+        plan.name,
+        pin.id,
+        plan.extractResult
+      );
       break;
   }
 }
@@ -690,7 +701,8 @@ async function runInBackground(
   cwd: string,
   env: Record<string, string> | undefined,
   name: string,
-  pinId: string
+  pinId: string,
+  extractResult?: string
 ): Promise<void> {
   const cp = await import("child_process");
   const channel = getOutputChannel();
@@ -738,6 +750,12 @@ async function runInBackground(
     });
     // Keep this run's output for the "Diff Last Two Runs" command.
     runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
+    // Pull a configured value (a deploy URL, a generated id) out of the output and
+    // copy it to the clipboard. Runs on any completion — a URL printed before a
+    // non-zero exit is still worth grabbing.
+    if (extractResult) {
+      extractAndCopy(extractResult, captured, name);
+    }
     notifyCompletion(name, outcome, code, durationMs);
   };
 
@@ -760,6 +778,33 @@ async function runInBackground(
     channel.appendLine(`\n[${name}] failed to start: ${err.message}`);
     settle("failure", null);
   });
+}
+
+// Match a pin's extract pattern against its background output and copy the result
+// to the clipboard with a toast (WOW #16). The first capture group is preferred (so
+// `Live at: (https://\S+)` yields just the URL); with no group, the whole match is
+// used. The pattern compiles with the "m" flag so `^`/`$` anchor to lines, the
+// intuitive choice for pulling one line out of many. An invalid pattern or no match
+// is logged to the channel and otherwise ignored — extraction is a convenience, never
+// a reason to fail or nag.
+function extractAndCopy(pattern: string, output: string, name: string): void {
+  let regex: RegExp;
+  try {
+    regex = new RegExp(pattern, "m");
+  } catch {
+    getOutputChannel().appendLine(
+      l10n("extract.invalid", { name, pattern })
+    );
+    return;
+  }
+  const match = regex.exec(output);
+  if (!match) {
+    getOutputChannel().appendLine(l10n("extract.noMatch", { name, pattern }));
+    return;
+  }
+  const value = match[1] ?? match[0];
+  void vscode.env.clipboard.writeText(value);
+  vscode.window.showInformationMessage(l10n("extract.copied", { name, value }));
 }
 
 // Visible outcome for a finished background run. Failures get an error toast with

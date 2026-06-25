@@ -49,10 +49,6 @@ Here are 10 more "WOW" features that build on Saropa's local-first, frictionless
 **The Pain:** You rebase, and suddenly you have 8 files with conflicts. The native source control view is okay, but managing the "open, find conflict, test, mark resolved" loop requires jumping all over the UI.
 **The WOW:** The moment your repo enters a conflicted state, a dynamic **"Active Conflicts"** group appears at the very top of Saropa Workspace. It pins all conflicted files, plus a special macro pin: *"Accept Current for All & Continue"*. The moment the rebase finishes, the group vanishes.
 
-### 16. Output Regex Extraction (The "Needle in a Haystack")
-**The Pain:** You run a deployment script that outputs 500 lines of logs, but literally the only thing you care about is the final line: `Live at: https://staging-app.com/v2`.
-**The WOW:** Add an `extractResult: "(https://.*)"` regex to a script's config. Saropa runs the script in the background, finds the matching line, and dynamically updates the Pin's description badge to show the URL. Or better: it auto-copies the extracted URL directly to your clipboard and pops a success toast.
-
 ### 17. Workspace Focus Tags
 **The Pain:** You have 50 pins. 15 are for writing code, 15 are for DevOps/Infrastructure, and 20 are for your morning review routines. The sidebar is getting overwhelming.
 **The WOW:** You can assign tags to pins (e.g., `#dev`, `#ops`, `#review`). A tiny filter icon at the top of the sidebar lets you toggle your current "Mode". Click "DevOps Mode" and all your UI components and PR pins gracefully hide, leaving you with a laser-focused dashboard of just your infrastructure scripts.

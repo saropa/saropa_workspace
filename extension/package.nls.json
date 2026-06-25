@@ -64,6 +64,7 @@
   "command.recipe.runNearestScript.title": "Run Nearest Package Script",
   "config.autoPins.patterns.description": "Filenames or globs auto-pinned per project (removable). Removing an auto-pin keeps it removed.",
   "config.doubleClickMs.description": "Window in milliseconds for detecting a double-click on a pin. A second click within this window runs the file; a single click opens it.",
+  "config.previewMode.enabled.description": "When on, single-clicking a pinned file opens it in a transient Preview tab (italic title). Clicking another pinned file reuses that tab, so clicking through several reference files does not flood the editor with tabs. Editing the file, or double-clicking a non-runnable pin, promotes the tab to permanent. Off by default: pins open as permanent tabs.",
   "config.defaultUseIntegratedTerminal.description": "Run pinned scripts in the integrated terminal by default (so output is visible). When off, runs in the background and streams to an output channel.",
   "config.terminalName.description": "Name of the reused integrated terminal for pinned scripts.",
   "config.interpreterDefaults.description": "Default command prefix per file extension, used when a pin has no explicit command set. An explicit per-pin command always wins.",

@@ -26,6 +26,7 @@ interface HubItem extends vscode.QuickPickItem {
     | "location"
     | "elevated"
     | "fileArg"
+    | "extract"
     | "save";
 }
 
@@ -66,6 +67,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     runLocation: seedLocation(pin.exec),
     elevated: pin.exec?.elevated,
     includeFilePath: pin.exec?.includeFilePath,
+    extractResult: pin.exec?.extractResult,
   };
 
   const title = l10n("configure.title", { name });
@@ -104,6 +106,9 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
       case "fileArg":
         await editFileArg(work, title);
         break;
+      case "extract":
+        await editExtract(work, title);
+        break;
     }
   }
 
@@ -131,6 +136,12 @@ function normalize(work: PinExecConfig): PinExecConfig {
     // true is the default assembly, so collapse it to undefined for parity; only
     // an explicit false (omit the file path) is meaningful to persist.
     includeFilePath: work.includeFilePath === false ? false : undefined,
+    // Collapse an empty pattern to undefined (round-trip parity with hand-written
+    // JSON that simply omits the field).
+    extractResult:
+      work.extractResult && work.extractResult.trim() !== ""
+        ? work.extractResult
+        : undefined,
   };
 }
 
@@ -189,6 +200,11 @@ async function showHub(
         work.includeFilePath === false
           ? l10n("configure.fileArg.off")
           : l10n("configure.fileArg.on"),
+    },
+    {
+      id: "extract",
+      label: l10n("configure.field.extract"),
+      description: work.extractResult ?? l10n("configure.value.none"),
     },
     {
       id: "save",
@@ -520,6 +536,36 @@ async function editFileArg(work: PinExecConfig, title: string): Promise<void> {
     return;
   }
   work.includeFilePath = pick.value;
+}
+
+// Set the output-extraction regex (WOW #16). The pattern is matched against a
+// BACKGROUND run's output when it finishes; the first capture group (or the whole
+// match) is copied to the clipboard. An empty entry clears it. Validated as a real
+// regex inline so a typo never persists and silently never matches.
+async function editExtract(work: PinExecConfig, title: string): Promise<void> {
+  const value = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("configure.extract.prompt"),
+    placeHolder: l10n("configure.extract.placeholder"),
+    value: work.extractResult ?? "",
+    ignoreFocusOut: true,
+    validateInput: (input) => {
+      const trimmed = input.trim();
+      if (trimmed === "") {
+        return undefined; // empty clears the pattern
+      }
+      try {
+        new RegExp(trimmed, "m");
+        return undefined;
+      } catch {
+        return l10n("configure.extract.invalid");
+      }
+    },
+  });
+  if (value === undefined) {
+    return;
+  }
+  work.extractResult = value.trim() === "" ? undefined : value.trim();
 }
 
 // Split a command-line string into args, honoring double-quoted spans so an

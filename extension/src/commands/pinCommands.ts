@@ -172,7 +172,16 @@ async function openPin(store: PinStore, pin: Pin): Promise<void> {
     await handleMissingFile(store, pin, uri);
     return;
   }
-  await vscode.window.showTextDocument(uri, { preview: false });
+  // Preview mode (opt-in, default off) opens a single click in VS Code's native
+  // transient tab (italic title), so clicking through a group of reference pins
+  // reuses one tab instead of flooding the editor. When off, pins open as
+  // permanent tabs — the long-standing default. Promotion to a permanent tab is
+  // handled natively (editing the file) or by the double-click path, which always
+  // opens with preview:false.
+  const usePreview = vscode.workspace
+    .getConfiguration("saropaWorkspace")
+    .get<boolean>("previewMode.enabled", false);
+  await vscode.window.showTextDocument(uri, { preview: usePreview });
 }
 
 // Show a file pin inside VS Code's native Peek overlay, floating over the active

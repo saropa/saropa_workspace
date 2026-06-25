@@ -399,8 +399,11 @@ Two shapes dominate: JSON files in `.vscode/` or workspace root, and `settings.j
   double-click is a convenience layer on top, never the sole mechanism. Keep pins as
   non-expandable leaf nodes so the expandable-node double-fire bug does not apply.
 - **Preview/italic tabs.** Tree-opened files open in preview mode unless `preview: false` is
-  passed ([#141145](https://github.com/microsoft/vscode/issues/141145)). Always pass
-  `preview: false` on open.
+  passed ([#141145](https://github.com/microsoft/vscode/issues/141145)). Tree-opened files
+  support native preview mode (italic tabs) via `saropaWorkspace.previewMode.enabled`
+  (default off, so the historical permanent-tab behavior is preserved), integrating with the
+  custom double-click-to-run discriminator: a double-click on a non-runnable pin always opens
+  with `preview: false` to promote the tab to permanent.
 - **Settings Sync vs workspace files.** globalState syncs but is not shareable; workspace
   files are shareable via git but do not sync (and do not reach Remote-SSH/WSL windows).
   Both scopes are offered explicitly — the correct resolution of this tension.

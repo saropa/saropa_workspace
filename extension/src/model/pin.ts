@@ -84,6 +84,14 @@ export interface PinExecConfig {
   // still resolve. configureRun clears this field when it writes runLocation, so
   // a re-saved pin carries only the new field (no two-source drift).
   useIntegratedTerminal?: boolean;
+  // Optional regular expression matched against a BACKGROUND run's combined output
+  // when it finishes. The first capture group (or the whole match when there is no
+  // group) is copied to the clipboard, with a toast — for pulling the one line that
+  // matters (a deploy URL, a generated id) out of hundreds of log lines (WOW #16).
+  // Only background runs capture output, so this is ignored for terminal/external
+  // runs. An invalid pattern or no match is logged to the output channel and
+  // otherwise ignored.
+  extractResult?: string;
   // Whether the target file path is inserted between the command and the args.
   // Undefined/true = the default "<command> <file> <args>" assembly. False omits
   // the file, for run targets that name their work in args instead — an npm

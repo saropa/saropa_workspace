@@ -76,3 +76,52 @@ VS Code's native Explorer uses a double-click to promote a preview tab to a perm
 Remove or amend the constraint in `ROADMAP.md` under "UX constraints to design around":
 * *Old:* "Always pass `preview: false` on open."
 * *New:* "Tree-opened files support native preview mode (italic tabs) via `saropaWorkspace.previewMode.enabled`, integrating gracefully with our custom double-click-to-run discriminator."
+
+---
+
+## Finish Report (2026-06-25)
+
+Status: Implemented.
+
+### What changed
+
+The single-click open path now honors an opt-in setting that opens pinned files
+in VS Code's native transient Preview tab (italic title), so clicking through a
+group of reference pins reuses one tab instead of opening many. The setting
+defaults off, preserving the prior permanent-tab behavior for existing users.
+
+- **New setting** `saropaWorkspace.previewMode.enabled` (boolean, default
+  `false`) added to `extension/package.json` under `contributes.configuration`,
+  beside the existing `doubleClickMs` click-behavior setting.
+- **NLS description** `config.previewMode.enabled.description` added to
+  `extension/package.nls.json`, referenced from the manifest as
+  `%config.previewMode.enabled.description%` (the manifest string pipeline; no
+  runtime `l10n` key was required because no new code-shown string was added).
+- **`openPin`** in `extension/src/commands/pinCommands.ts` reads the setting via
+  `getConfiguration("saropaWorkspace").get<boolean>("previewMode.enabled",
+  false)` and passes it as the `preview` flag to
+  `vscode.window.showTextDocument`. The read mirrors the pattern already used for
+  `doubleClickMs` in `exec/doubleClick.ts`.
+
+### What did not change, and why
+
+- The plan referenced `src/commands.ts` and `treeItem.ts`; the actual modules are
+  `commands/pinCommands.ts` and `exec/doubleClick.ts`. The intent mapped cleanly.
+- No change was required for the double-click discriminator. The non-runnable
+  double-click branch in `runPinCommand` already opens with `{ preview: false }`,
+  which is exactly the "promote the preview tab to permanent" behavior the
+  interaction matrix specifies for the preview-on case. Promotion on edit is
+  handled natively by VS Code.
+- The double-click / non-runnable / preview-off branch already opens the file and
+  shows the "not runnable" toast (the prior Phase 3 behavior). It was left intact;
+  the plan's matrix marks that cell as existing behavior to preserve.
+
+### Verification
+
+The extension repository carries no test harness (no `src/test/` directory and no
+`*.test.ts` files, despite a `test` script in `package.json`), so no automated
+test covers this surface. Verification was by full TypeScript type-check
+(`npx tsc -p ./ --noEmit`), which reported no error in any touched file, and an
+esbuild bundle build, which succeeded. A single pre-existing `tsc` error in
+`src/exec/runner.ts` (argument-count mismatch) originates from a separate
+in-flight change to that file and is unrelated to preview mode.
