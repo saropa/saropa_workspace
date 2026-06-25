@@ -130,17 +130,24 @@ async function pickIcon(
   pin: Pin,
   title: string
 ): Promise<string | undefined | typeof CANCELED> {
+  // `value` is the chosen codicon id; undefined on the "default / clear" item.
+  // Separator rows carry no value and are never selectable, so a returned pick is
+  // always a real choice.
   interface IconItem extends vscode.QuickPickItem {
-    value: string | undefined;
+    value?: string;
   }
   const items: IconItem[] = [
     { label: l10n("appearance.icon.default"), value: undefined },
-    ...ICON_CHOICES.map((id) => ({
-      label: `$(${id}) ${id}`,
-      value: id,
-      picked: pin.icon === id,
-    })),
   ];
+  for (const group of ICON_GROUPS) {
+    items.push({
+      label: l10n(group.labelKey),
+      kind: vscode.QuickPickItemKind.Separator,
+    });
+    for (const id of group.ids) {
+      items.push({ label: `$(${id}) ${id}`, value: id, picked: pin.icon === id });
+    }
+  }
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("appearance.icon.placeholder"),

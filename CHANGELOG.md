@@ -25,11 +25,12 @@ cspell:disable
 
 ## [Unreleased]
 
-Pop-out window fixes: running as administrator now actually opens the elevated window, and the run-settings editor no longer throws away your edits on a stray click.
+Pop-out window fixes: running as administrator now actually opens the elevated window, and the run-settings editor no longer throws away your edits on a stray click. The activity-bar icon now badges how many pins you haven't used yet, and choosing a pin icon is a single grouped, searchable list with many more icons.
 
 ### Added
 
 - **A pin whose file was deleted is now flagged, and clicking it offers a fix.** When a pinned file no longer exists on disk, the pin shows a warning icon and a "file not found" hover instead of looking normal. Clicking it (to open or run) no longer hits a cryptic "cannot open file" error — instead a message names the pin and lets you **Unpin** it or **Show in Folder** to find a moved file. Pins are never removed automatically, since a missing file is often temporary (a branch switch or a regenerated build artifact).
+- **A badge on the activity-bar icon counts pins you haven't used yet.** The Saropa Workspace icon shows the number of pinned items you have not yet opened or run, so newly added pins are easy to notice. Opening or running a pin clears it from the count, and the badge disappears once you've used everything (it never shows a zero).
 
 ### Fixed
 
@@ -40,6 +41,7 @@ Pop-out window fixes: running as administrator now actually opens the elevated w
 ### Changed
 
 - **Turning on administrator privileges is now a single flow.** Choosing the external window now immediately asks whether to run as administrator, instead of returning to the settings menu where the toggle only appears after the fact. The toggle still lives on the settings menu, so it remains adjustable later.
+- **Choosing a pin's icon is now one grouped, searchable list with many more icons.** The icon picker replaces the old flat list with scannable categories — Files & code, Run & build, Source control & cloud, Data & terminal, Status & alerts, Shapes & color, and Objects & places — and you can type the icon name to filter instead of scrolling.
 
 ---
 
