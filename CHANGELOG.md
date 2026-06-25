@@ -165,6 +165,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A single click on a recipe no longer runs it (a shell or scheduled recipe is a
+  heavy, side-effecting task that should never fire by accident). Clicking a recipe
+  — or any non-file pin — now opens a details dialog: it describes what the recipe
+  does (the exact URL, command, or macro steps) and its schedule, with **Run** and
+  **Promote** buttons. Running stays the deliberate act — the inline play button or
+  a double-click.
+- Stopping a background run shows a dim **stopping…** badge on the pin until the
+  process exits, so the action is visibly acknowledged.
+- A graceful Stop auto-escalates to a forced kill if the process has not exited
+  within a few seconds, and a manual **Force Kill** action is available whenever a
+  pin is running or stopping — a wedged run can always be terminated.
 - Recipes never finished loading in a multi-root workspace. Recipe detection runs
   filesystem probes across every workspace folder; it was doing so inline in the
   store refresh that extension activation awaits, so the view blocked on it. It

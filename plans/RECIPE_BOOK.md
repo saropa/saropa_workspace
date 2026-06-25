@@ -16,6 +16,12 @@ a sibling Saropa tool (Lints, Drift Advisor, Log Capture) in the project and see
 pins that drive its commands, reports, and debug URLs, degrading gracefully when a
 tool is absent.
 
+A fourth class — **Developer process monitor** (section G, recipes 53–55) — turns
+the OS Task Manager into a project-aware, consolidated view of your toolchain:
+editor, language servers, AI agents, dev servers, and terminals, rolled up per
+tool with live CPU and memory, so a runaway analysis server or a swarm of stale
+helper processes is one glance away instead of buried among hundreds of rows.
+
 This is the catalog and the design intent. It feeds the roadmap item
 **Non-file run targets** (a pin may be a URL or a VS Code command id, not only a
 file) and **Command sequences / macros**, plus a new **recipe detector** and the
@@ -215,6 +221,60 @@ its Logs panel automatically** — these recipes add the direct controls.
 This macro is created only when **two or more** suite tools are detected, so it
 never offers a multi-tool sequence in a project that has just one.
 
+## G. Developer process monitor ("where did my CPU go?")
+
+The OS Task Manager answers "what is running hard" with hundreds of undifferentiated
+rows — a Visual Studio Code group holding 255 helper processes, a `dart.exe` quietly
+resident at ~5 GB, a dozen `Claude Code` workers, four `PowerShell 7` hosts. None of
+it is tied to *this* project, and the one number that matters (which tool in my
+current stack is the hog) is the hardest to read. These recipes consolidate that into
+a **project-aware** view: only the processes your detected toolchain actually spawns,
+rolled up per tool, sorted by live load, with a guarded kill for the runaway.
+
+This needs a new capability — a **process-poll helper** — that the extension already
+has the runtime for (it is a Node process; no new VS Code API). It samples the OS
+process table **twice, ~1 s apart, and reports the CPU delta** — never the raw
+cumulative CPU-seconds a single `Get-Process` / `ps` snapshot gives, which reads as a
+huge number for any long-lived process (an 8-hour-old analysis server shows ~31 000
+"CPU" with a single sample yet may be near-idle right now). Live load is the delta;
+memory is the working set. Cross-platform: PowerShell `Get-Counter` on Windows,
+`ps -axo pid,ppid,pcpu,pmem,rss,comm` on macOS/Linux (or a small lib such as
+`pidusage` to skip the platform branching).
+
+| # | Recipe | Kind | What it does |
+|---|--------|------|--------------|
+| 53 | **Toolchain monitor** | command | Opens a consolidated panel of only your detected toolchain's processes — editor + language servers (`dart`, `tsserver`, `pyright`), AI agents (`claude`), dev servers (`node`, `vite`, `flutter_tester`), and integrated terminals (`pwsh`, `bash`) — **grouped by tool the way Task Manager nests its 255 helpers under one row**, each group showing a **roll-up of total live CPU % and total RAM**, expandable to per-PID. Sorted by CPU then memory; the worst hog is badged. Two-sample live CPU, so the number reflects now, not lifetime. A row carries actions: **Reveal** (focus the owning window where possible), **Copy report** (the table to the clipboard with a toast), and a **confirm-gated End task** for a single runaway PID (never a group, never silent). |
+| 54 | **Toolchain heartbeat** | scheduled | Fires on a timer (default every 15 min while a workspace is open), samples the same toolchain set unattended into a background channel, and appends a row to `reports/process-trend.csv` (per-tool CPU % + RAM + PID count). **Badges the monitor pin and surfaces a toast only when a threshold is crossed** — a tool's RAM exceeds a configured ceiling (default 4 GB — the leaked-analysis-server case in the screenshot), or its helper-process count exceeds a ceiling (default 200 — the editor-helper-swarm case). Silent when everything is within budget; the CSV still grows so the trend is there when you look. |
+| 55 | **Snapshot the toolchain** | command | Writes a one-shot `reports/<stamp>_processes.md` — the full grouped table at this instant plus the machine's logical-core count and total/free RAM — and **auto-opens it**. The artifact a bug report or a "my machine is thrashing" message can attach: a dated, shareable record of exactly what was resident and how hard it was working. |
+
+### Toolchain detection (which process names to show)
+
+The monitor is **always applicable** (every dev machine runs an editor and a shell),
+but the *allowlist* of process names is derived from the same marker files the
+detector already scans — so a Dart repo does not surface a Python interpreter it never
+launched, and the roll-up names map to tools, not raw executables.
+
+| Marker found | Process names added to the view |
+|--------------|--------------------------------|
+| always | `Code` / `Cursor` (+ their helper / GPU / extension-host children, grouped), the active AI agent (`claude`), the integrated-terminal shells (`pwsh`, `powershell`, `bash`, `zsh`) |
+| `pubspec.yaml` / `analysis_options.yaml` | `dart`, `flutter`, `flutter_tester`, `gen_snapshot`, `frontend_server`, `dartaotruntime` |
+| `package.json` | `node`, `esbuild`, `tsserver` / `tsserver.js`, `vite`, `next`, `webpack` |
+| `pyproject.toml` / `requirements.txt` | `python`, `python3`, `pytest`, `uvicorn`, `gunicorn` |
+| `Cargo.toml` | `rust-analyzer`, `cargo`, `rustc` |
+| `go.mod` | `gopls`, `go`, `dlv` |
+| `docker-compose.yml` | `com.docker.backend`, `dockerd` (roll-up only — never killable from here) |
+
+A child process is attributed to its parent tool by walking the parent-PID chain, so
+the 255 editor helpers collapse into one **Visual Studio Code** group with one CPU and
+one RAM total — the consolidation the request asked for — and the per-PID detail is one
+expand away when you need to find *which* helper leaked.
+
+> **Safety.** Reading the process table is harmless. The only mutating action is
+> **End task**, which is confirm-gated, single-PID, names the exact process and PID in
+> the prompt, and is hidden for OS-owned or container-runtime rows (Docker, system
+> services). The monitor never auto-kills, including on a heartbeat threshold breach —
+> it badges and toasts; ending a process is always an explicit, named human act.
+
 ---
 
 ## What each capability needs (maps to the roadmap)
@@ -235,6 +295,8 @@ never offers a multi-tool sequence in a project that has just one.
 | **Status badge / severity counts on a pin** (green/red, error·warning·info) | 26, 32 | extends the tree item |
 | **`gh` / git-state helpers** (PRs, ahead/behind, churn, merged branches) | 28, 29, 33, 34, 35 | new helper used by the detector + scheduled recipes |
 | **Date/stamp tokens** (`$date`, `$stamp` → `reports/<stamp>_*.md`) | 26–33, 35 | extends token system (2.4 / 7.1) |
+| **Process-poll helper** (two-sample CPU delta + working-set RAM, parent-PID roll-up, cross-platform) | 53–55 | new item — pairs with the scheduled-pin and report/auto-open machinery |
+| **Confirm-gated End task** (single named PID, hidden for OS/container rows) | 53 | new mutating action on the monitor panel |
 
 ---
 
@@ -257,6 +319,11 @@ never offers a multi-tool sequence in a project that has just one.
    start with Saropa Lints (it ships a public API and a stable command set), then
    Drift Advisor and Log Capture. The dawn lint (#26) and sunrise stats (#27)
    improve once they can read the Saropa Lints health score directly.
+7. **Process-poll helper + toolchain monitor** (53–55) — independent of the pin
+   kinds above (it is its own panel, not a pin action), so it can land any time after
+   the detector exists. Build the snapshot command (#55) first — it is the helper end
+   to end with the simplest surface — then the live panel (#53), then wire the
+   heartbeat (#54) onto the same scheduler used by section E.
 
 ---
 

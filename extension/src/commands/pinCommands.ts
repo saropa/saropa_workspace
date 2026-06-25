@@ -59,10 +59,12 @@ function pathToCopy(store: PinStore, arg: unknown): string | undefined {
 }
 
 async function openPin(store: PinStore, pin: Pin): Promise<void> {
-  // A non-file pin has no document to open; "open" performs its action (a URL,
-  // command, shell run, or macro), so a single click does the sensible thing.
+  // A non-file pin (recipe: url/shell/command/macro) must NOT run on a single
+  // click — a shell or scheduled recipe is a heavy, side-effecting task. Instead,
+  // a single click shows what it does and offers to run or promote it. The play
+  // button / double-click is the deliberate "run" path.
   if (pinKind(pin) !== "file") {
-    await runAction(pin);
+    await showActionInfo(store, pin);
     return;
   }
   const uri = store.resolveUri(pin);
@@ -71,6 +73,54 @@ async function openPin(store: PinStore, pin: Pin): Promise<void> {
     return;
   }
   await vscode.window.showTextDocument(uri, { preview: false });
+}
+
+// Describe a non-file pin's action in one plain line — what running it would do.
+function describeAction(pin: Pin): string {
+  const action = pin.action;
+  if (!action) {
+    return pin.path;
+  }
+  switch (action.kind) {
+    case "url":
+      return l10n("recipe.desc.url", { url: action.url ?? "" });
+    case "shell":
+      return l10n("recipe.desc.shell", { command: action.shellCommand ?? "" });
+    case "command":
+      return l10n("recipe.desc.command", { id: action.commandId ?? "" });
+    case "macro":
+      return l10n("recipe.desc.macro", {
+        steps: (action.steps ?? []).map((s) => s.label ?? s.kind).join(" -> "),
+      });
+    default:
+      return pin.path;
+  }
+}
+
+// Single-click surface for a non-file pin: a modal describing what it does, with
+// Run / Promote actions. Nothing runs unless the user explicitly chooses Run, so
+// a click can never kick off a heavy task by accident.
+async function showActionInfo(store: PinStore, pin: Pin): Promise<void> {
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const scheduled = pin.schedule?.atTime
+    ? l10n("recipe.info.scheduled", { time: pin.schedule.atTime })
+    : "";
+  const detail = describeAction(pin) + (scheduled ? `\n\n${scheduled}` : "");
+
+  const run = l10n("recipe.info.run");
+  const promote = l10n("recipe.info.promote");
+  const buttons = pin.isRecipe ? [run, promote] : [run];
+
+  const choice = await vscode.window.showInformationMessage(
+    l10n("recipe.info.title", { name }),
+    { modal: true, detail },
+    ...buttons
+  );
+  if (choice === run) {
+    await runPinCommand(store, pin);
+  } else if (choice === promote) {
+    await vscode.commands.executeCommand("saropaWorkspace.promoteRecipe", pin);
+  }
 }
 
 async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
@@ -428,13 +478,33 @@ export function registerPinCommands(
       return;
     }
     const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
-    const stopped = processRegistry.stop(pin.id);
-    if (stopped) {
-      // Reflect the stop in the output channel, distinct from a normal exit.
+    // Graceful stop: the pin shows a "stopping…" badge until the process exits,
+    // and the registry auto-escalates to a forced kill if it does not.
+    const stopping = processRegistry.stop(pin.id);
+    if (stopping) {
       getOutputChannel().appendLine(
         l10n("run.stopped", { time: new Date().toLocaleString(), name })
       );
       vscode.window.showInformationMessage(l10n("run.stopMessage", { name }));
+    } else {
+      vscode.window.showInformationMessage(l10n("run.notRunning", { name }));
+    }
+  });
+
+  // Force-kill the escape hatch: when a graceful Stop does not take, terminate the
+  // process tree immediately.
+  reg("saropaWorkspace.forceKillPin", (arg: unknown) => {
+    const pin = asPin(arg);
+    if (!pin) {
+      return;
+    }
+    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    const killed = processRegistry.forceKill(pin.id);
+    if (killed) {
+      getOutputChannel().appendLine(
+        l10n("run.forceKilled", { time: new Date().toLocaleString(), name })
+      );
+      vscode.window.showInformationMessage(l10n("run.forceKillMessage", { name }));
     } else {
       vscode.window.showInformationMessage(l10n("run.notRunning", { name }));
     }

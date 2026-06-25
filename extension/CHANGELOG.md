@@ -34,6 +34,9 @@
 - Run Pin with Overrides ("Saropa Workspace: Run Pin with Overrides..."): pick a pin, then set one-off arguments, working directory, and environment (pre-filled from the stored config) for that run only - the saved pin is unchanged. Uses the shared runner; canceling any prompt runs nothing.
 
 ### Fixed
+- A single click on a recipe no longer runs it. Clicking a recipe (or any non-file pin) now opens a details dialog describing what it does - the exact URL, command, or macro steps, and its schedule - with Run and Promote buttons. Running is the deliberate act: the inline play button or a double-click. This stops an accidental click from kicking off a heavy task.
+- Stopping a background run now shows a "stopping..." badge on the pin until the process actually exits, instead of looking like nothing happened.
+- A graceful Stop now auto-escalates to a forced kill if the process has not exited within a few seconds, and a manual "Force Kill" action is always available while a pin is running or stopping - so a wedged run can always be terminated.
 - URL recipes now show just the host (e.g. `github.com`) in the sidebar row instead of the full, unreadable URL; the complete URL stays in the hover tooltip.
 - Recipes never finished loading in a multi-root workspace: recipe detection (filesystem probes across every folder) ran inline in the store refresh that activation awaits, so the view waited on it. Detection now runs off the blocking path, in parallel across folders, and fault-isolated - the pins render immediately and recipes stream in (or, if a detector fails, log to the output channel) without ever hanging the view.
 - Section headers (Project Pins / Global Pins) no longer show the Run, Unpin, and Rename actions: the group node's context value started with "pin" and matched the per-pin menu clauses. A header has no single file to act on.

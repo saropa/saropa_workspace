@@ -11,7 +11,8 @@ export class PinTreeItem extends vscode.TreeItem {
     readonly pin: Pin,
     resolvedUri: vscode.Uri | undefined,
     isRunning: boolean,
-    lastRun?: RunResult
+    lastRun?: RunResult,
+    isStopping = false
   ) {
     const kind = pinKind(pin);
     const isFile = kind === "file";
@@ -35,11 +36,13 @@ export class PinTreeItem extends vscode.TreeItem {
     const nextLabel = next !== undefined ? formatNextRun(next) : undefined;
 
     const lastRunBadge = lastRun ? formatRunBadge(lastRun) : undefined;
-    const badge = isRunning
-      ? l10n("run.treeBadge")
-      : nextLabel
-        ? l10n("schedule.treeBadge", { time: nextLabel })
-        : lastRunBadge;
+    const badge = isStopping
+      ? l10n("run.stoppingBadge")
+      : isRunning
+        ? l10n("run.treeBadge")
+        : nextLabel
+          ? l10n("schedule.treeBadge", { time: nextLabel })
+          : lastRunBadge;
     // For a file pin the trailing detail is its path; for a non-file pin it is a
     // summary of what the action does (the URL, the command line, etc.).
     const detail = isFile ? pin.path : actionSummary(pin);
@@ -50,13 +53,15 @@ export class PinTreeItem extends vscode.TreeItem {
     // Configure Run/Schedule which only apply to stored pins); auto-pins are
     // distinguished from explicit pins. All start with "pin" so the /^pin/
     // run/open/unpin clauses match.
-    this.contextValue = isRunning
-      ? "pinRunning"
-      : pin.isRecipe
-        ? "pinRecipe"
-        : pin.isAuto
-          ? "pinAuto"
-          : "pin";
+    this.contextValue = isStopping
+      ? "pinStopping"
+      : isRunning
+        ? "pinRunning"
+        : pin.isRecipe
+          ? "pinRecipe"
+          : pin.isAuto
+            ? "pinAuto"
+            : "pin";
 
     // Tooltip shows the full target (the complete URL for a url pin), even though
     // the row only shows the host — the hover is where the detail belongs.
@@ -68,10 +73,17 @@ export class PinTreeItem extends vscode.TreeItem {
         ? pin.action.url ?? ""
         : actionSummary(pin);
     const tooltipLines = [targetLine];
-    if (isRunning) {
+    if (isStopping) {
+      tooltipLines.push(l10n("run.stoppingTooltip"));
+    } else if (isRunning) {
       tooltipLines.push(l10n("run.runningTooltip"));
     } else if (nextLabel) {
       tooltipLines.push(l10n("schedule.nextRun", { time: nextLabel }));
+    }
+    // Recipe pins do not run on a single click (they would fire a heavy task);
+    // tell the user a single click shows details and the play button runs it.
+    if (pin.isRecipe && !isRunning && !isStopping) {
+      tooltipLines.push(l10n("recipe.clickHint"));
     }
     // Always surface the last run in the tooltip, even when a schedule badge is
     // showing, so the most recent outcome is one hover away. A failure points at
@@ -84,7 +96,7 @@ export class PinTreeItem extends vscode.TreeItem {
     // Icon priority mirrors the badge: spinning while running; a missing target
     // is flagged; then the last-run outcome (green pass / red error); then auto
     // vs explicit pin glyph.
-    if (isRunning) {
+    if (isRunning || isStopping) {
       this.iconPath = new vscode.ThemeIcon("loading~spin");
     } else if (isFile && !resolvedUri) {
       this.iconPath = new vscode.ThemeIcon("warning");

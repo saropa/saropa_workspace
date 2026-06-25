@@ -207,7 +207,8 @@ export class PinsTreeProvider
       pin,
       this.store.resolveUri(pin),
       processRegistry.isRunning(pin.id),
-      runStatusRegistry.get(pin.id)
+      runStatusRegistry.get(pin.id),
+      processRegistry.isStopping(pin.id)
     );
   }
 
