@@ -281,10 +281,12 @@ from anywhere in the editor.
     knowing pin ids.
   - Bindings invoke the same runner; behavior matches a tree run exactly.
 
-### 4.3 Status bar entry for the next scheduled run
+### ~~4.3 Status bar entry for the next scheduled run~~ — DONE
 
 - **What.** A status-bar item showing the next upcoming scheduled run (pin name and time);
-  clicking it reveals the pin in the tree.
+  clicking it reveals the pin in the tree. Done — recomputed on store change and a 60s
+  tick; hidden when no schedule is enabled; reveal uses stable tree-item ids + getParent so
+  it expands the owning group.
 - **Why.** Makes scheduling visible at a glance without opening the sidebar; reinforces the
   "no silent execution" principle by always showing what is queued.
 - **Acceptance criteria.**

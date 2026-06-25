@@ -3,6 +3,7 @@ import { PinStore } from "./model/pinStore";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import { PinFolderItem } from "./views/pinTreeItem";
 import { SuggestionTracker } from "./views/suggestions";
+import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands } from "./commands/pinCommands";
 import { registerTerminalCleanup } from "./exec/runner";
@@ -71,6 +72,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   registerTerminalCleanup(context);
   registerPinCommands(context, store, dispatcher);
+
+  // Status-bar item for the soonest upcoming scheduled run; clicking it reveals
+  // the pin in the tree. The reveal command lives here because it needs the tree
+  // view handle created above.
+  const scheduleStatusBar = new ScheduleStatusBar(store);
+  context.subscriptions.push(scheduleStatusBar);
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.revealNextScheduled", async () => {
+      const id = scheduleStatusBar.getCurrentPinId();
+      const pin = id ? store.findPin(id) : undefined;
+      if (!pin) {
+        return;
+      }
+      await treeView.reveal(tree.revealItem(pin), {
+        select: true,
+        focus: true,
+        expand: true,
+      });
+    })
+  );
 
   // In-process scheduler for pins with a schedule. Registered as a disposable so
   // every timer is cleared on deactivation (no orphaned timers leak).

@@ -95,6 +95,8 @@
   "schedule.interval.invalid": "Enter a whole number of minutes greater than zero.",
   "schedule.interval.everyMinutes": "Every {count} minutes",
   "schedule.interval.everyHours": "Every {count} hour(s)",
+  "statusBar.next": "$(clock) {name} {time}",
+  "statusBar.tooltip": "Next scheduled run: {name} at {time}. Click to reveal it.",
   "schedule.treeBadge": "next {time}",
   "schedule.nextRun": "Next run: {time}",
   "schedule.fired": "[{time}] Scheduled run: {name} - {command}",

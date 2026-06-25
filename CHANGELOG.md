@@ -102,6 +102,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (pinning or "Don't ask again" both retire it), and open counts are kept on this
   machine only and never transmitted. Turn the feature off with
   `saropaWorkspace.suggestions.enabled`.
+- Next-scheduled-run status bar: a status-bar item shows the soonest upcoming
+  scheduled run (pin name and time) and updates as schedules fire or change.
+  Clicking it reveals that pin in the tree (expanding its group). With no enabled
+  schedules the item is hidden, so it adds no empty noise.
 
 ### Fixed
 

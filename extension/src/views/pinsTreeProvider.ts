@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Pin, PinScope } from "../model/pin";
+import { Pin, PinGroup, PinScope } from "../model/pin";
 import { MoveTarget, PinStore } from "../model/pinStore";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
@@ -82,6 +82,34 @@ export class PinsTreeProvider
     }
 
     return [];
+  }
+
+  // Required for TreeView.reveal: walk a node up to its scope root. Parents are
+  // rebuilt from the element's own fields (matched back by their stable ids), so
+  // no parent cache is needed.
+  getParent(element: vscode.TreeItem): vscode.TreeItem | undefined {
+    if (element instanceof PinTreeItem) {
+      const pin = element.pin;
+      if (pin.groupId) {
+        const group = this.store
+          .getGroups(pin.scope)
+          .find((g) => g.id === pin.groupId);
+        if (group) {
+          return this.makeFolderItem(group, pin.scope);
+        }
+      }
+      return this.makeScopeRoot(pin.scope);
+    }
+    if (element instanceof PinFolderItem) {
+      return this.makeScopeRoot(element.scope);
+    }
+    return undefined;
+  }
+
+  // Build the tree item for a pin so the status bar can reveal it. Matched by its
+  // stable id even though the tree recreates items on every render.
+  revealItem(pin: Pin): PinTreeItem {
+    return this.toPinItem(pin);
   }
 
   // --- drag and drop -----------------------------------------------------
@@ -181,5 +209,20 @@ export class PinsTreeProvider
       processRegistry.isRunning(pin.id),
       runStatusRegistry.get(pin.id)
     );
+  }
+
+  private makeScopeRoot(scope: PinScope): PinGroupItem {
+    const label =
+      scope === "global"
+        ? l10n("pin.group.global")
+        : l10n("pin.group.project");
+    return new PinGroupItem(label, scope, this.pinsInScope(scope).length);
+  }
+
+  private makeFolderItem(group: PinGroup, scope: PinScope): PinFolderItem {
+    const count = this.pinsInScope(scope).filter(
+      (p) => p.groupId === group.id
+    ).length;
+    return new PinFolderItem(group, scope, count);
   }
 }

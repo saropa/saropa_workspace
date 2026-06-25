@@ -16,6 +16,10 @@ export class PinTreeItem extends vscode.TreeItem {
     const basename = pin.path.split("/").pop() ?? pin.path;
     super(pin.label ?? basename, vscode.TreeItemCollapsibleState.None);
 
+    // Stable id (scope-qualified) so TreeView.reveal can match this node across
+    // the tree being rebuilt — the status-bar "next scheduled run" reveals a pin
+    // by constructing a fresh item with the same id.
+    this.id = `pin:${pin.scope}:${pin.id}`;
     this.resourceUri = resolvedUri;
 
     // Leading inline badge, by priority: a running pin's live state wins; then a
@@ -134,6 +138,7 @@ function formatRunTooltip(result: RunResult): string {
 export class PinGroupItem extends vscode.TreeItem {
   constructor(label: string, readonly group: PinScope, count: number) {
     super(label, vscode.TreeItemCollapsibleState.Expanded);
+    this.id = `scope:${group}`;
     // "scopeRoot", deliberately NOT prefixed "pin": the per-pin menus match
     // viewItem =~ /^pin/, so a "pin"-prefixed contextValue would leak the
     // Run/Unpin/Rename actions onto a header that has no single file to act on.
@@ -160,6 +165,7 @@ export class PinFolderItem extends vscode.TreeItem {
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.Expanded
     );
+    this.id = `group:${scope}:${pinGroup.id}`;
     // "userGroup" (not "pin*") so Rename/Delete-Group target it without leaking
     // the per-pin menus. The drop controller recognizes it by instance, not by
     // this string.
