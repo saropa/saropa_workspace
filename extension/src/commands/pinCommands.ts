@@ -14,7 +14,7 @@ import {
   importSiblingFavorites,
   SiblingFavorites,
 } from "../import/favoritesImport";
-import { configureRun } from "./configureRun";
+import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { configureAppearance } from "./configureAppearance";
 import { detectRunTargets, RunTarget } from "../exec/runTargets";
@@ -162,14 +162,17 @@ function pinLocation(store: PinStore, pin: Pin): string {
   return group ? `${scope} / ${group.label}` : scope;
 }
 
-// QuickPick over every pin across scopes and groups, recently-run ones first, to
-// run one directly without opening the sidebar (4.1). Runs through the same
-// runPinCommand path as the tree, so behavior is identical.
-async function runAnyPin(store: PinStore): Promise<void> {
+// QuickPick over every pin across scopes and groups, recently-run ones first, so
+// a pin can be chosen without opening the sidebar (4.1). Shared by "Run Pin..."
+// and "Run Pin with Overrides...". Returns undefined on empty set or dismissal.
+async function pickPin(
+  store: PinStore,
+  placeHolder: string
+): Promise<Pin | undefined> {
   const all = [...store.getProjectPins(), ...store.getGlobalPins()];
   if (all.length === 0) {
     vscode.window.showInformationMessage(l10n("runAny.empty"));
-    return;
+    return undefined;
   }
 
   type PinItem = vscode.QuickPickItem & { pin?: Pin };
@@ -202,13 +205,97 @@ async function runAnyPin(store: PinStore): Promise<void> {
   items.push(...all.map(toItem));
 
   const pick = await vscode.window.showQuickPick(items, {
-    placeHolder: l10n("runAny.placeholder"),
+    placeHolder,
     matchOnDescription: true,
     matchOnDetail: true,
   });
-  if (pick?.pin) {
-    await runPinCommand(store, pick.pin);
+  return pick?.pin;
+}
+
+// Run a chosen pin directly through the shared runPinCommand path (4.1).
+async function runAnyPin(store: PinStore): Promise<void> {
+  const pin = await pickPin(store, l10n("runAny.placeholder"));
+  if (pin) {
+    await runPinCommand(store, pin);
   }
+}
+
+// Run a pin with one-off argument / working-directory / environment overrides for
+// this invocation only — the stored pin is untouched (7.7). Pre-fills from the
+// stored config; canceling any step runs nothing. Runs through runPinCommand on
+// an ephemeral clone that shares the pin's id, so uri resolution and recents are
+// identical to a normal run.
+async function runPinWithOverrides(store: PinStore): Promise<void> {
+  const pin = await pickPin(store, l10n("override.pickPlaceholder"));
+  if (!pin) {
+    return;
+  }
+
+  const argsLine = await vscode.window.showInputBox({
+    title: l10n("override.title", { name: pin.label ?? pin.path }),
+    prompt: l10n("override.argsPrompt"),
+    value: pin.exec?.args ? formatArgs(pin.exec.args) : "",
+  });
+  if (argsLine === undefined) {
+    return;
+  }
+
+  const cwd = await vscode.window.showInputBox({
+    title: l10n("override.title", { name: pin.label ?? pin.path }),
+    prompt: l10n("override.cwdPrompt"),
+    value: pin.exec?.cwd ?? "",
+  });
+  if (cwd === undefined) {
+    return;
+  }
+
+  const envLine = await vscode.window.showInputBox({
+    title: l10n("override.title", { name: pin.label ?? pin.path }),
+    prompt: l10n("override.envPrompt"),
+    placeHolder: l10n("override.envPlaceholder"),
+    value: formatEnv(pin.exec?.env),
+  });
+  if (envLine === undefined) {
+    return;
+  }
+
+  // Ephemeral clone: overrides apply to this run only; the persisted pin is
+  // unchanged. cwd left blank reverts to the default (owning folder).
+  const parsedArgs = parseArgs(argsLine);
+  const overridden: Pin = {
+    ...pin,
+    exec: {
+      ...pin.exec,
+      args: parsedArgs.length > 0 ? parsedArgs : undefined,
+      cwd: cwd.trim() === "" ? undefined : cwd.trim(),
+      env: parseEnv(envLine),
+    },
+  };
+  await runPinCommand(store, overridden);
+}
+
+// Render an env map as "KEY=value KEY2=value2" for the overrides input box.
+function formatEnv(env: Record<string, string> | undefined): string {
+  if (!env) {
+    return "";
+  }
+  return Object.entries(env)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(" ");
+}
+
+// Parse a "KEY=value KEY2=value2" line back into an env map; entries without an
+// "=" are skipped. Returns undefined when empty so the run inherits the
+// environment unchanged.
+function parseEnv(line: string): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const token of parseArgs(line)) {
+    const eq = token.indexOf("=");
+    if (eq > 0) {
+      out[token.slice(0, eq)] = token.slice(eq + 1);
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 // The "New Group" action fires from the view title (no argument -> project, the
@@ -229,6 +316,8 @@ export function registerPinCommands(
   reg("saropaWorkspace.refresh", () => store.refresh());
 
   reg("saropaWorkspace.runAnyPin", () => runAnyPin(store));
+
+  reg("saropaWorkspace.runPinWithOverrides", () => runPinWithOverrides(store));
 
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind

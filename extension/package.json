@@ -66,6 +66,11 @@
         "icon": "$(run-all)"
       },
       {
+        "command": "saropaWorkspace.runPinWithOverrides",
+        "title": "%command.runPinWithOverrides.title%",
+        "category": "%extension.displayName%"
+      },
+      {
         "command": "saropaWorkspace.pinActiveFile",
         "title": "%command.pinActiveFile.title%",
         "category": "%extension.displayName%",

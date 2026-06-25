@@ -479,10 +479,13 @@ land once its own dependencies are met.
     errors).
 - **Depends on.** Multiple favorite sets (Later / Exploratory) and groups (3.2).
 
-### 7.7 Run-with-overrides from the palette
+### ~~7.7 Run-with-overrides from the palette~~ — DONE
 
 - **What.** A palette path to run a pin with one-off argument / working-directory /
   environment overrides for that invocation only, leaving the stored config untouched.
+  Done — "Run Pin with Overrides..." picks a pin (shared picker), pre-fills args/cwd/env,
+  and runs an ephemeral clone (sharing the pin id) through runPinCommand; canceling any
+  prompt runs nothing.
 - **Why.** Ad-hoc variations (a different flag, a different target directory) without
   permanently editing the pin or creating a near-duplicate.
 - **Acceptance criteria.**

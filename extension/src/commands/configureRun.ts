@@ -417,8 +417,9 @@ async function editFileArg(work: PinExecConfig, title: string): Promise<void> {
 }
 
 // Split a command-line string into args, honoring double-quoted spans so an
-// argument with spaces survives the round trip through the input box.
-function parseArgs(line: string): string[] {
+// argument with spaces survives the round trip through the input box. Exported so
+// the run-with-overrides palette parses an edited argument line the same way.
+export function parseArgs(line: string): string[] {
   const out: string[] = [];
   const token = /"([^"]*)"|(\S+)/g;
   let match: RegExpExecArray | null;
@@ -429,7 +430,7 @@ function parseArgs(line: string): string[] {
 }
 
 // Inverse of parseArgs: quote any arg containing whitespace so the displayed and
-// re-parsed forms agree.
-function formatArgs(args: string[]): string {
+// re-parsed forms agree. Exported alongside parseArgs for the overrides palette.
+export function formatArgs(args: string[]): string {
   return args.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
 }

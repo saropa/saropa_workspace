@@ -118,6 +118,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dark, and high-contrast themes; a pin with no override keeps its file-type
   glyph. Transient state icons (running, missing file, last-run pass/fail) still
   take precedence over the custom icon.
+- Run Pin with Overrides: a "Saropa Workspace: Run Pin with Overrides..." command
+  picks a pin and then collects one-off arguments, a working directory, and
+  environment variables (all pre-filled from the stored config) that apply to that
+  run only — the saved pin is untouched. The override run goes through the same
+  runner as a normal run; canceling any prompt runs nothing.
 
 ### Fixed
 
