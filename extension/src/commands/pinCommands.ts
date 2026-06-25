@@ -80,24 +80,32 @@ async function fileExists(uri: vscode.Uri): Promise<boolean> {
 }
 
 // A pin whose target file is gone: instead of letting VS Code surface a raw
-// "cannot open file" error, name the pin and offer the two useful next steps —
-// remove the dead pin, or open the folder it used to live in (to find a moved
-// file). The pin is never auto-removed: a deletion is often transient (a branch
-// switch, a regenerated artifact), and project pins are shared via the repo.
+// "cannot open file" error, name the pin and offer the useful next steps — relocate
+// it to the moved/renamed file, remove the dead pin, or open the folder it used to
+// live in (to find the file). The pin is never auto-removed: a deletion is often
+// transient (a branch switch, a regenerated artifact), and project pins are shared
+// via the repo.
 async function handleMissingFile(
   store: PinStore,
   pin: Pin,
   uri: vscode.Uri
 ): Promise<void> {
   const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const relocate = l10n("pin.missing.relocate");
   const unpin = l10n("pin.missing.unpin");
   const reveal = l10n("pin.missing.reveal");
+  // Relocate leads: re-pointing a moved/renamed file keeps the pin (and its run
+  // config, schedule, icon) intact, the better fix when the file still exists
+  // somewhere; Unpin and Show in Folder follow as the give-up / go-look paths.
   const choice = await vscode.window.showWarningMessage(
     l10n("pin.missing.message", { name, path: pin.path }),
+    relocate,
     unpin,
     reveal
   );
-  if (choice === unpin) {
+  if (choice === relocate) {
+    await relocatePin(store, pin);
+  } else if (choice === unpin) {
     await store.removePin(pin);
     // Drop any last-run badge so it does not outlive the pin.
     runStatusRegistry.clear(pin.id);
@@ -108,6 +116,34 @@ async function handleMissingFile(
     // unreliable across platforms.
     const parent = vscode.Uri.joinPath(uri, "..");
     await vscode.commands.executeCommand("revealFileInOS", parent);
+  }
+}
+
+// Re-point a pin at a file the user picks — the one-click fix for a moved/renamed
+// target. The pin keeps its id, run config, schedule, and icon; only its path
+// changes. A project pin must land inside its owning workspace folder (its stored
+// path is folder-relative); a file chosen elsewhere is rejected with a message
+// naming why, so the gesture never silently writes an unresolvable path.
+async function relocatePin(store: PinStore, pin: Pin): Promise<void> {
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const picked = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    openLabel: l10n("pin.missing.relocateOpenLabel"),
+    title: l10n("pin.missing.relocateTitle", { name }),
+  });
+  if (!picked || picked.length === 0) {
+    return;
+  }
+  const target = picked[0];
+  const ok = await store.updatePinPath(pin, target);
+  const fileName = target.path.split("/").pop() ?? target.fsPath;
+  if (ok) {
+    vscode.window.showInformationMessage(
+      l10n("pin.relocated", { name, file: fileName })
+    );
+  } else {
+    // The only rejection path is a project pin pointed outside its workspace folder.
+    vscode.window.showWarningMessage(l10n("pin.relocateOutsideFolder", { name }));
   }
 }
 
