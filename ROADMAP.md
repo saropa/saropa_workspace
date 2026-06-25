@@ -269,17 +269,23 @@ from anywhere in the editor.
   - Selecting a pin runs it through the same runner as the tree's play action (single code
     path).
 
-### 4.2 Keyboard shortcuts / keybindings for top pins
+### ~~4.2 Keyboard shortcuts / keybindings for top pins~~ — DONE
 
 - **What.** Assignable keybindings to run designated "top" pins, exposed as parameterized
   commands so users can bind them in VS Code's keybindings UI.
 - **Why.** The fastest possible access for a handful of high-frequency pins; it complements,
   not replaces, the palette.
 - **Acceptance criteria.**
-  - A documented, stable command id (with arguments) lets a user bind a specific pin.
-  - A small number of generic "run top pin N" commands are available to bind without
-    knowing pin ids.
-  - Bindings invoke the same runner; behavior matches a tree run exactly.
+  - ~~A documented, stable command id (with arguments) lets a user bind a specific pin.~~
+    Done — `saropaWorkspace.runPinById` with an `args` reference matched against id, label,
+    path, or basename.
+  - ~~A small number of generic "run top pin N" commands are available to bind without
+    knowing pin ids.~~ Done — `runTopPin1`–`runTopPin5` run the Nth pin in tree order;
+    reorder pins by dragging to designate which are "top".
+  - ~~Bindings invoke the same runner; behavior matches a tree run exactly.~~ Done — both
+    route through the shared `runPinCommand`.
+
+With 4.1, 4.2, and 4.3 done, Phase 4 (fast-access surfaces) is complete.
 
 ### ~~4.3 Status bar entry for the next scheduled run~~ — DONE
 

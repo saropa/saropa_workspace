@@ -106,6 +106,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scheduled run (pin name and time) and updates as schedules fire or change.
   Clicking it reveals that pin in the tree (expanding its group). With no enabled
   schedules the item is hidden, so it adds no empty noise.
+- Keybindings for top pins: five generic "Run Top Pin 1–5" commands run the Nth
+  pin in tree order (reorder pins by dragging to designate which are "top"), and
+  a "Run Pin by Reference" command takes a keybinding `args` value matched against
+  a pin's id, label, file path, or basename. Bind any of them in the Keyboard
+  Shortcuts editor; all run through the same path as the tree's Run action.
 
 ### Fixed
 

@@ -70,6 +70,8 @@
   "runAny.empty": "No pins to run yet. Pin a file first.",
   "runAny.recent": "Recently run",
   "runAny.all": "All pins",
+  "runTop.noPin": "No pin in position {slot}. Pin or reorder pins to fill it.",
+  "runTop.notFound": "No pin matches \"{ref}\".",
   "suggest.prompt": "You have opened {name} {count} times. Pin it for quick access?",
   "suggest.pin": "Pin it",
   "suggest.never": "Don't ask again",

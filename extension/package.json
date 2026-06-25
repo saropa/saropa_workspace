@@ -179,6 +179,36 @@
         "command": "saropaWorkspace.revealNextScheduled",
         "title": "%command.revealNextScheduled.title%",
         "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.runPinById",
+        "title": "%command.runPinById.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin1",
+        "title": "%command.runTopPin1.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin2",
+        "title": "%command.runTopPin2.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin3",
+        "title": "%command.runTopPin3.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin4",
+        "title": "%command.runTopPin4.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin5",
+        "title": "%command.runTopPin5.title%",
+        "category": "%extension.displayName%"
       }
     ],
     "menus": {
@@ -368,6 +398,10 @@
         },
         {
           "command": "saropaWorkspace.revealNextScheduled",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.runPinById",
           "when": "false"
         }
       ]

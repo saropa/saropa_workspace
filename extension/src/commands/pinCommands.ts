@@ -112,6 +112,41 @@ function activeFileUri(): vscode.Uri | undefined {
   return vscode.window.activeTextEditor?.document.uri;
 }
 
+// Number of generic "run top pin N" keybinding slots exposed (4.2).
+const TOP_PIN_SLOTS = 5;
+
+// The pins in tree order (project first, then global) — the order the "top pin N"
+// keybindings and reorder-by-drag designate.
+function orderedPins(store: PinStore): Pin[] {
+  return [...store.getProjectPins(), ...store.getGlobalPins()];
+}
+
+// Run the Nth pin (1-based) for the runTopPinN keybindings.
+function runTopPin(store: PinStore, slot: number): void {
+  const pin = orderedPins(store)[slot - 1];
+  if (pin) {
+    void runPinCommand(store, pin);
+  } else {
+    vscode.window.showInformationMessage(l10n("runTop.noPin", { slot }));
+  }
+}
+
+// Resolve a keybinding `args` reference to a pin: by id, then label, then full
+// path, then basename. First match across project + global wins.
+function resolvePinRef(store: PinStore, ref: unknown): Pin | undefined {
+  if (typeof ref !== "string" || ref.trim() === "") {
+    return undefined;
+  }
+  const needle = ref.trim();
+  const pins = orderedPins(store);
+  return (
+    pins.find((p) => p.id === needle) ??
+    pins.find((p) => p.label === needle) ??
+    pins.find((p) => p.path === needle) ??
+    pins.find((p) => (p.path.split("/").pop() ?? p.path) === needle)
+  );
+}
+
 // Build the scope + group descriptor shown beside a pin in the Run Pin palette,
 // so the same filename in two scopes/groups is distinguishable at a glance.
 function pinLocation(store: PinStore, pin: Pin): string {
@@ -193,6 +228,27 @@ export function registerPinCommands(
   reg("saropaWorkspace.refresh", () => store.refresh());
 
   reg("saropaWorkspace.runAnyPin", () => runAnyPin(store));
+
+  // Bind a specific pin to a key. The keybinding's `args` is matched against a
+  // pin's id, label, file path, or basename (in that order), so a user can bind
+  // by a human-friendly reference instead of an opaque id:
+  //   { "key": "...", "command": "saropaWorkspace.runPinById", "args": "deploy.sh" }
+  reg("saropaWorkspace.runPinById", (ref: unknown) => {
+    const pin = resolvePinRef(store, ref);
+    if (pin) {
+      void runPinCommand(store, pin);
+    } else {
+      vscode.window.showWarningMessage(l10n("runTop.notFound", { ref: String(ref) }));
+    }
+  });
+
+  // Generic "run the Nth pin" commands, bindable without knowing any id. The Nth
+  // pin is the Nth in the tree's order (project pins, then global) — reorder pins
+  // by dragging to designate which are "top". One command per slot so each binds
+  // to its own key.
+  for (let slot = 1; slot <= TOP_PIN_SLOTS; slot++) {
+    reg(`saropaWorkspace.runTopPin${slot}`, () => runTopPin(store, slot));
+  }
 
   // Click dispatcher entry point: defer to single/double-click logic by pin id.
   reg("saropaWorkspace.activatePin", (arg: unknown) => {
