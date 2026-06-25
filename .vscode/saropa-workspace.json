@@ -21,6 +21,12 @@
       "label": "Roadmap",
       "scope": "project",
       "order": 2
+    },
+    {
+      "id": "mqtw47qw-5faphuyx",
+      "path": "CHANGELOG.md",
+      "scope": "project",
+      "order": 3
     }
   ],
   "groups": [],

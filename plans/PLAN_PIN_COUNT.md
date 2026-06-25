@@ -1,0 +1,1 @@
+- show the count of untapped pins on the vscode icon
