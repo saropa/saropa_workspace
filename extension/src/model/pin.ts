@@ -52,6 +52,12 @@ export interface PinAction {
   steps?: MacroStep[];
 }
 
+// Where a pinned file runs when executed. "terminal" is the shared integrated
+// terminal (visible, interactive); "background" streams to an output channel;
+// "external" launches a new OS terminal window outside VS Code (optionally
+// elevated). Undefined falls back to the defaultUseIntegratedTerminal setting.
+export type RunLocation = "terminal" | "background" | "external";
+
 // How a pinned file is executed when the user runs (double-clicks / play) it.
 export interface PinExecConfig {
   // Interpreter / prefix placed before the file path, e.g. "python", "node",
@@ -63,8 +69,20 @@ export interface PinExecConfig {
   cwd?: string;
   // Extra env vars merged over the inherited environment.
   env?: Record<string, string>;
-  // Run in the integrated terminal (visible) vs a background output channel.
-  // Undefined = follow the defaultUseIntegratedTerminal setting.
+  // Where the run happens (integrated terminal / background channel / external
+  // OS window). Undefined follows the defaultUseIntegratedTerminal setting. This
+  // is the source of truth; resolveRunLocation reads it first and falls back to
+  // the deprecated useIntegratedTerminal flag for pins written before it existed.
+  runLocation?: RunLocation;
+  // When runLocation is "external", request administrator/elevated privileges for
+  // the new window (Windows UAC; pkexec/sudo best-effort elsewhere). Ignored for
+  // the terminal/background locations. Elevation spawns a fresh elevated
+  // environment, so per-pin env vars do not propagate into an elevated window.
+  elevated?: boolean;
+  // Deprecated: superseded by runLocation. Retained read-only so pins written
+  // before runLocation existed (true = integrated terminal, false = background)
+  // still resolve. configureRun clears this field when it writes runLocation, so
+  // a re-saved pin carries only the new field (no two-source drift).
   useIntegratedTerminal?: boolean;
   // Whether the target file path is inserted between the command and the args.
   // Undefined/true = the default "<command> <file> <args>" assembly. False omits
@@ -165,6 +183,12 @@ export interface ProjectPinsFile {
   removedAutoPins: string[];
   // recipeIds the user removed, so detected recipes are not re-seeded (sticky).
   removedRecipes: string[];
+  // Folder membership for auto-pins, keyed by the auto-pin's stable id. Auto-pins
+  // are recomputed each refresh (not stored in `pins`), so a group assignment
+  // cannot live on the pin itself — it is persisted here and re-applied at seed
+  // time. Lets the user drag an auto-pin (and the synthetic config pin) into and
+  // out of a folder; an entry is removed when the pin moves back to top level.
+  autoGroups: Record<string, string>;
 }
 
 export function emptyProjectPinsFile(): ProjectPinsFile {
@@ -174,6 +198,7 @@ export function emptyProjectPinsFile(): ProjectPinsFile {
     groups: [],
     removedAutoPins: [],
     removedRecipes: [],
+    autoGroups: {},
   };
 }
 

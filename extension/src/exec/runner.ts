@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { MacroStep, Pin } from "../model/pin";
+import { MacroStep, Pin, PinExecConfig, RunLocation } from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
 import { telemetry, RunSource } from "./telemetry";
@@ -66,6 +66,26 @@ function quote(value: string): string {
   return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 
+// Resolve where a run happens. runLocation is the source of truth; for pins
+// written before it existed, fall back to the deprecated useIntegratedTerminal
+// boolean (true -> terminal, false -> background); if neither is set, follow the
+// workspace default. One resolver so the legacy field is read in exactly one place.
+function resolveRunLocation(exec: PinExecConfig | undefined): RunLocation {
+  if (exec?.runLocation) {
+    return exec.runLocation;
+  }
+  if (exec?.useIntegratedTerminal === true) {
+    return "terminal";
+  }
+  if (exec?.useIntegratedTerminal === false) {
+    return "background";
+  }
+  const defaultIntegrated = vscode.workspace
+    .getConfiguration("saropaWorkspace")
+    .get<boolean>("defaultUseIntegratedTerminal", true);
+  return defaultIntegrated ? "terminal" : "background";
+}
+
 // Everything needed to launch a pin, resolved from its config and target. Kept
 // as a single value so the scheduler can log the exact command it is about to
 // run from one source of truth (planRun), rather than reassembling it.
@@ -74,7 +94,12 @@ export interface RunPlan {
   cwd: string;
   env: Record<string, string> | undefined;
   name: string;
-  useTerminal: boolean;
+  // Where this run executes (integrated terminal / background channel / external
+  // OS window), resolved from the pin's config and the workspace default.
+  location: RunLocation;
+  // Request administrator/elevated privileges; only meaningful when location is
+  // "external".
+  elevated: boolean;
   // $names that appeared in the command/args/cwd but are not recognized tokens.
   // Left literal in the command; surfaced once by runPin so they are not blanked
   // silently (a literal $name may also be an intentional shell variable).
@@ -111,18 +136,16 @@ export function planRun(pin: Pin, uri: vscode.Uri): RunPlan {
   ].filter((p) => p.length > 0);
   const commandLine = parts.join(" ");
 
-  const useTerminal =
-    pin.exec?.useIntegratedTerminal ??
-    vscode.workspace
-      .getConfiguration("saropaWorkspace")
-      .get<boolean>("defaultUseIntegratedTerminal", true);
+  const location = resolveRunLocation(pin.exec);
 
   return {
     commandLine,
     cwd,
     env: pin.exec?.env,
     name,
-    useTerminal,
+    location,
+    // Elevation only applies to an external window; ignored otherwise.
+    elevated: location === "external" && pin.exec?.elevated === true,
     unknownTokens: [...unknown],
   };
 }
@@ -181,10 +204,20 @@ export async function runPin(
 
   vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
 
-  if (plan.useTerminal) {
-    runInTerminal(plan.commandLine, plan.cwd, plan.env);
-  } else {
-    await runInBackground(plan.commandLine, plan.cwd, plan.env, plan.name, pin.id);
+  // Route to the resolved location. An external run launches a separate OS
+  // terminal window and returns immediately — VS Code cannot track its exit, so
+  // it is not registered for Stop and gets no completion toast (the new window is
+  // itself the visible feedback).
+  switch (plan.location) {
+    case "terminal":
+      runInTerminal(plan.commandLine, plan.cwd, plan.env);
+      break;
+    case "external":
+      await runInExternal(plan.commandLine, plan.cwd, plan.env, plan.elevated, plan.name);
+      break;
+    case "background":
+      await runInBackground(plan.commandLine, plan.cwd, plan.env, plan.name, pin.id);
+      break;
   }
 }
 
@@ -452,6 +485,142 @@ function runInTerminal(
   // cd first so relative args/cwd behave; quoting handles spaces in the path.
   sharedTerminal.sendText(`cd ${quote(cwd)}`);
   sharedTerminal.sendText(commandLine);
+}
+
+// Launch the command in a NEW OS terminal window, outside VS Code. The window
+// stays open after the command exits so the user can read the output (the run is
+// fire-and-forget: VS Code does not own the process, so there is no Stop action
+// or completion toast — the window itself is the feedback). When `elevated`, the
+// window is requested with administrator privileges (Windows UAC prompt). On
+// Windows, elevation spawns a fresh elevated environment, so per-pin env vars do
+// not propagate into an elevated window — surfaced to the user once below.
+async function runInExternal(
+  commandLine: string,
+  cwd: string,
+  env: Record<string, string> | undefined,
+  elevated: boolean,
+  name: string
+): Promise<void> {
+  const cp = await import("child_process");
+  const channel = getOutputChannel();
+  channel.appendLine(
+    `$ (${name}) [external${elevated ? ", elevated" : ""}] ${commandLine}`
+  );
+
+  try {
+    if (process.platform === "win32") {
+      launchExternalWindows(cp, commandLine, cwd, env, elevated);
+    } else if (process.platform === "darwin") {
+      launchExternalMac(cp, commandLine, cwd, elevated);
+    } else {
+      launchExternalLinux(cp, commandLine, cwd, elevated);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    channel.appendLine(`\n[${name}] failed to launch external window: ${message}`);
+    vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: message }));
+    return;
+  }
+
+  // Elevation drops per-pin env vars (the elevated process gets a fresh
+  // environment); say so once so a missing var is not a silent surprise.
+  if (elevated && env && Object.keys(env).length > 0) {
+    vscode.window.showWarningMessage(l10n("run.elevatedEnvDropped", { name }));
+  }
+  vscode.window.showInformationMessage(
+    l10n(elevated ? "run.externalElevatedStarted" : "run.externalStarted", { name })
+  );
+}
+
+// Single-quote a string for a PowerShell command (doubling embedded quotes), so a
+// path or command line is passed to Start-Process as one literal argument.
+function psQuote(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+// Windows: open a new console window via PowerShell's Start-Process. cmd.exe /k
+// keeps the window open after the command finishes; cd /d sets the directory
+// (also honored when elevated, where Start-Process -WorkingDirectory is
+// unreliable). `-Verb RunAs` triggers the UAC elevation prompt.
+function launchExternalWindows(
+  cp: typeof import("child_process"),
+  commandLine: string,
+  cwd: string,
+  env: Record<string, string> | undefined,
+  elevated: boolean
+): void {
+  const inner = `/k cd /d ${quote(cwd)} & ${commandLine}`;
+  const startArgs = [
+    "-FilePath",
+    "'cmd.exe'",
+    "-ArgumentList",
+    psQuote(inner),
+  ];
+  if (elevated) {
+    startArgs.push("-Verb", "RunAs");
+  }
+  const psCommand = `Start-Process ${startArgs.join(" ")}`;
+  const child = cp.spawn(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", psCommand],
+    // Non-elevated windows inherit env from this launcher; detach so the window
+    // outlives the launcher process. Elevated windows get a fresh environment.
+    { detached: true, stdio: "ignore", env: { ...process.env, ...(env ?? {}) } }
+  );
+  child.unref();
+}
+
+// macOS: drive Terminal.app via AppleScript. Elevation wraps the command in a
+// `sudo` invocation (Terminal prompts for the password in the new window); there
+// is no UAC equivalent, so this is the closest "administrator" behavior.
+function launchExternalMac(
+  cp: typeof import("child_process"),
+  commandLine: string,
+  cwd: string,
+  elevated: boolean
+): void {
+  const shellCmd = elevated ? `sudo ${commandLine}` : commandLine;
+  const inner = `cd ${quote(cwd)}; ${shellCmd}`;
+  // Escape for embedding inside an AppleScript double-quoted string.
+  const escaped = inner.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const script = `tell application "Terminal" to do script "${escaped}"`;
+  const child = cp.spawn("osascript", ["-e", script], {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+}
+
+// Linux: open a terminal emulator and hold it open with an interactive shell.
+// Elevation prefixes pkexec (graphical auth) when present, else sudo. Tries a few
+// common emulators; the first that launches wins.
+function launchExternalLinux(
+  cp: typeof import("child_process"),
+  commandLine: string,
+  cwd: string,
+  elevated: boolean
+): void {
+  const shellCmd = elevated ? `pkexec ${commandLine}` : commandLine;
+  // Run the command, then drop into an interactive shell so the window stays open.
+  const inner = `cd ${quote(cwd)}; ${shellCmd}; exec ${process.env.SHELL ?? "bash"}`;
+  const emulators: Array<[string, string[]]> = [
+    ["x-terminal-emulator", ["-e", "bash", "-c", inner]],
+    ["gnome-terminal", ["--", "bash", "-c", inner]],
+    ["konsole", ["-e", "bash", "-c", inner]],
+    ["xterm", ["-e", "bash", "-c", inner]],
+  ];
+  // spawn() reports a missing binary asynchronously (ENOENT on the 'error'
+  // event), so a try/catch around it cannot pick the next emulator. Probe with
+  // `which` (synchronous) and launch the first one that resolves.
+  for (const [cmd, emuArgs] of emulators) {
+    const probe = cp.spawnSync("which", [cmd]);
+    if (probe.status === 0) {
+      const child = cp.spawn(cmd, emuArgs, { cwd, detached: true, stdio: "ignore" });
+      child.unref();
+      return;
+    }
+  }
+  throw new Error("No supported terminal emulator found");
 }
 
 async function runInBackground(

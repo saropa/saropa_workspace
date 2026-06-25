@@ -21,9 +21,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
-## [1.0.0]
+## [Unreleased]
 
-[log](https://github.com/saropa/saropa-workspace/blob/v1.0.0/CHANGELOG.md)
+Run a script in its own pop-out terminal window — optionally as administrator.
+
+[log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- **Auto-pins can be dragged into folders.** Auto-detected pins (the ones from
+  `autoPins.patterns`, like `pubspec.yaml` and `analysis_options.yaml`, plus the
+  "Workspace config" example pin) can now be dragged into and out of project
+  folders, the same as explicit pins. Their folder is remembered across reloads;
+  deleting a folder moves its auto-pins back to the top level.
+- **New external window** run location. In **Configure Run -> Run in**, a pin can
+  now launch in a separate OS terminal window outside VS Code (alongside the
+  existing integrated-terminal and background-channel choices). The window stays
+  open after the script finishes so its output is readable.
+- **Administrator privileges** for an external window. When **Run in** is set to
+  the new external window, an **Administrator privileges** toggle requests an
+  elevated window (Windows UAC prompt; `pkexec`/`sudo` best-effort on Linux and
+  macOS). Per-pin environment variables are not passed into an elevated window,
+  which is surfaced when a run drops them.
 
 ### Changed
 

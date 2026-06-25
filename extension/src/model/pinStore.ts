@@ -469,6 +469,16 @@ export class PinStore {
         reparented++;
       }
     }
+    // Also re-parent auto-pins assigned to this group via the sidecar; leaving a
+    // stale entry would give the recomputed auto-pin a groupId to a deleted
+    // folder, so it would match neither the (gone) folder nor the top-level
+    // filter and disappear from the tree.
+    for (const id of Object.keys(file.autoGroups)) {
+      if (file.autoGroups[id] === group.id) {
+        delete file.autoGroups[id];
+        reparented++;
+      }
+    }
     file.groups = file.groups.filter((g) => g.id !== group.id);
     await this.writeProjectFile(folder, file);
     await this.refresh();
@@ -498,12 +508,15 @@ export class PinStore {
   }
 
   // Move (and reorder) pins into a drop target's group and position. Auto-pins
-  // are skipped (they are recomputed, not stored, so membership cannot persist);
-  // cross-scope moves are skipped (project paths are folder-relative, global are
-  // absolute — they are not interchangeable without re-resolving the path).
+  // ARE movable: they cannot store a groupId on the (recomputed) pin, so their
+  // folder membership is persisted in the project file's autoGroups sidecar
+  // instead (see moveProjectPins). Recipe pins are skipped (they live in the
+  // separate Recipes section with their own synthetic groups). Cross-scope moves
+  // are skipped (project paths are folder-relative, global are absolute — they
+  // are not interchangeable without re-resolving the path).
   async movePins(dragged: Pin[], target: MoveTarget): Promise<void> {
     const movable = dragged.filter(
-      (p) => !p.isAuto && !p.isRecipe && p.scope === target.scope
+      (p) => !p.isRecipe && p.scope === target.scope
     );
     if (movable.length === 0) {
       return;
@@ -549,21 +562,38 @@ export class PinStore {
     if (!folder) {
       return;
     }
-    const movedIds = new Set(
-      movable
-        .filter((p) => this.projectPinFolder.get(p.id) === folder)
-        .map((p) => p.id)
+    // Only pins owned by this folder can land here (paths are folder-relative).
+    const inFolder = movable.filter(
+      (p) => this.projectPinFolder.get(p.id) === folder
     );
-    if (movedIds.size === 0) {
+    if (inFolder.length === 0) {
       return;
     }
     const file = await this.readProjectFile(folder);
+    // Stored pins carry groupId on the model; auto-pins (incl. the synthetic
+    // config pin) are recomputed, so their membership is persisted by id in the
+    // autoGroups sidecar instead. Moving to top level (groupId undefined) clears
+    // the sidecar entry so the pin is not re-attached on the next refresh.
+    const storedMovedIds = new Set<string>();
+    for (const pin of inFolder) {
+      if (pin.isAuto) {
+        if (groupId) {
+          file.autoGroups[pin.id] = groupId;
+        } else {
+          delete file.autoGroups[pin.id];
+        }
+      } else {
+        storedMovedIds.add(pin.id);
+      }
+    }
     for (const pin of file.pins) {
-      if (movedIds.has(pin.id)) {
+      if (storedMovedIds.has(pin.id)) {
         pin.groupId = groupId;
       }
     }
-    this.reorderWithin(file.pins, groupId, movedIds, beforePinId);
+    // Reorder applies to stored pins only; auto-pins keep their seeded order
+    // (their position within a folder is not persisted, just their membership).
+    this.reorderWithin(file.pins, groupId, storedMovedIds, beforePinId);
     await this.writeProjectFile(folder, file);
   }
 
@@ -662,8 +692,14 @@ export class PinStore {
         project.push(pin);
       }
 
-      // Seeded auto-pins, minus the ones the user removed.
-      const autoPins = await this.seedAutoPins(folder, patterns, file.removedAutoPins);
+      // Seeded auto-pins, minus the ones the user removed, each re-attached to
+      // any folder the user dragged it into (persisted in file.autoGroups).
+      const autoPins = await this.seedAutoPins(
+        folder,
+        patterns,
+        file.removedAutoPins,
+        file.autoGroups
+      );
       for (const pin of autoPins) {
         this.projectPinFolder.set(pin.id, folder);
         project.push(pin);
@@ -827,7 +863,8 @@ export class PinStore {
   private async seedAutoPins(
     folder: vscode.WorkspaceFolder,
     patterns: string[],
-    removed: string[]
+    removed: string[],
+    autoGroups: Record<string, string>
   ): Promise<Pin[]> {
     // The removed filter is applied per call (not cached), so unpinning an
     // auto-pin still takes effect on the very next refresh even though the glob
@@ -835,7 +872,7 @@ export class PinStore {
     const paths = await this.scanAutoPinPaths(folder, patterns);
     const pins: Pin[] = [];
     for (const relative of paths) {
-      // Deterministic id so removedAutoPins stays stable across reloads.
+      // Deterministic id so removedAutoPins / autoGroups stay stable across reloads.
       const id = `auto:${folder.name}:${relative}`;
       if (removed.includes(id)) {
         continue;
@@ -845,6 +882,8 @@ export class PinStore {
         path: relative,
         scope: "project",
         isAuto: true,
+        // Re-apply the folder the user dragged this auto-pin into, if any.
+        groupId: autoGroups[id],
         order: 1000 + pins.length, // auto-pins sort after explicit pins
       });
     }
@@ -879,6 +918,8 @@ export class PinStore {
       label: l10n("pin.sampleConfig"),
       scope: "project",
       isAuto: true,
+      // Re-apply the folder the user dragged the config pin into, if any.
+      groupId: file.autoGroups[id],
       // Negative order sorts it ahead of explicit pins (order >= 0), so the
       // example sits at the top of the Project scope.
       order: -1,
@@ -1066,6 +1107,13 @@ export class PinStore {
         removedRecipes: Array.isArray(parsed.removedRecipes)
           ? parsed.removedRecipes
           : [],
+        // A v1/v2 file (or one written before auto-pin grouping) has no
+        // autoGroups; it reads as an empty map and every auto-pin stays at top
+        // level until the user drags one into a folder.
+        autoGroups:
+          parsed.autoGroups && typeof parsed.autoGroups === "object"
+            ? (parsed.autoGroups as Record<string, string>)
+            : {},
       };
     } catch {
       // Missing/unreadable file is the normal first-run state.

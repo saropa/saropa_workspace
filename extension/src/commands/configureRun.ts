@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { Pin, PinExecConfig } from "../model/pin";
+import { Pin, PinExecConfig, RunLocation } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { l10n } from "../i18n/l10n";
 
@@ -18,7 +18,32 @@ import { l10n } from "../i18n/l10n";
 
 // A QuickPickItem tagged with the hub action it represents.
 interface HubItem extends vscode.QuickPickItem {
-  id: "command" | "args" | "cwd" | "env" | "terminal" | "fileArg" | "save";
+  id:
+    | "command"
+    | "args"
+    | "cwd"
+    | "env"
+    | "location"
+    | "elevated"
+    | "fileArg"
+    | "save";
+}
+
+// Seed the working copy's location from a stored pin WITHOUT consulting the
+// workspace default (the hub shows the pin's own choice, where undefined means
+// "follow the default setting"). Maps the deprecated useIntegratedTerminal flag
+// for pins written before runLocation existed.
+function seedLocation(exec: PinExecConfig | undefined): RunLocation | undefined {
+  if (exec?.runLocation) {
+    return exec.runLocation;
+  }
+  if (exec?.useIntegratedTerminal === true) {
+    return "terminal";
+  }
+  if (exec?.useIntegratedTerminal === false) {
+    return "background";
+  }
+  return undefined;
 }
 
 export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
@@ -38,7 +63,8 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     args: pin.exec?.args ? [...pin.exec.args] : undefined,
     cwd: pin.exec?.cwd,
     env: pin.exec?.env ? { ...pin.exec.env } : undefined,
-    useIntegratedTerminal: pin.exec?.useIntegratedTerminal,
+    runLocation: seedLocation(pin.exec),
+    elevated: pin.exec?.elevated,
     includeFilePath: pin.exec?.includeFilePath,
   };
 
@@ -69,8 +95,11 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
       case "env":
         await editEnv(work, title);
         break;
-      case "terminal":
-        await editTerminal(work, title);
+      case "location":
+        await editLocation(work, title);
+        break;
+      case "elevated":
+        await editElevated(work, title);
         break;
       case "fileArg":
         await editFileArg(work, title);
@@ -92,7 +121,13 @@ function normalize(work: PinExecConfig): PinExecConfig {
     args: work.args && work.args.length > 0 ? work.args : undefined,
     cwd: work.cwd,
     env: work.env && Object.keys(work.env).length > 0 ? work.env : undefined,
-    useIntegratedTerminal: work.useIntegratedTerminal,
+    runLocation: work.runLocation,
+    // Elevation only applies to an external window; drop it otherwise so a
+    // stored config has no stray flag.
+    elevated: work.runLocation === "external" && work.elevated === true ? true : undefined,
+    // Writing runLocation supersedes the deprecated flag; clear it so a re-saved
+    // pin carries the location in exactly one field (no two-source drift).
+    useIntegratedTerminal: undefined,
     // true is the default assembly, so collapse it to undefined for parity; only
     // an explicit false (omit the file path) is meaningful to persist.
     includeFilePath: work.includeFilePath === false ? false : undefined,
@@ -130,10 +165,23 @@ async function showHub(
       }),
     },
     {
-      id: "terminal",
+      id: "location",
       label: l10n("configure.field.terminal"),
-      description: terminalLabel(work.useIntegratedTerminal),
+      description: locationLabel(work.runLocation),
     },
+    // Elevation is only meaningful for an external window; show the toggle only
+    // when that location is chosen so the hub does not offer a no-op field.
+    ...(work.runLocation === "external"
+      ? [
+          {
+            id: "elevated" as const,
+            label: l10n("configure.field.elevated"),
+            description: work.elevated
+              ? l10n("configure.elevated.on")
+              : l10n("configure.elevated.off"),
+          },
+        ]
+      : []),
     {
       id: "fileArg",
       label: l10n("configure.field.fileArg"),
@@ -156,14 +204,17 @@ async function showHub(
   return pick?.id;
 }
 
-function terminalLabel(value: boolean | undefined): string {
-  if (value === true) {
-    return l10n("configure.terminal.integrated");
+function locationLabel(value: RunLocation | undefined): string {
+  switch (value) {
+    case "terminal":
+      return l10n("configure.terminal.integrated");
+    case "background":
+      return l10n("configure.terminal.background");
+    case "external":
+      return l10n("configure.terminal.external");
+    default:
+      return l10n("configure.terminal.default");
   }
-  if (value === false) {
-    return l10n("configure.terminal.background");
-  }
-  return l10n("configure.terminal.default");
 }
 
 async function editCommand(work: PinExecConfig, title: string): Promise<void> {
@@ -376,14 +427,19 @@ function validateEnvKey(input: string, existing: string[]): string | undefined {
   return undefined;
 }
 
-async function editTerminal(work: PinExecConfig, title: string): Promise<void> {
-  interface TermItem extends vscode.QuickPickItem {
-    value: boolean | undefined;
+async function editLocation(work: PinExecConfig, title: string): Promise<void> {
+  interface LocationItem extends vscode.QuickPickItem {
+    value: RunLocation | undefined;
   }
-  const items: TermItem[] = [
+  const items: LocationItem[] = [
     { label: l10n("configure.terminal.default"), value: undefined },
-    { label: l10n("configure.terminal.integrated"), value: true },
-    { label: l10n("configure.terminal.background"), value: false },
+    { label: l10n("configure.terminal.integrated"), value: "terminal" },
+    { label: l10n("configure.terminal.background"), value: "background" },
+    {
+      label: l10n("configure.terminal.external"),
+      detail: l10n("configure.terminal.externalDetail"),
+      value: "external",
+    },
   ];
   const pick = await vscode.window.showQuickPick(items, {
     title,
@@ -392,7 +448,31 @@ async function editTerminal(work: PinExecConfig, title: string): Promise<void> {
   if (!pick) {
     return;
   }
-  work.useIntegratedTerminal = pick.value;
+  work.runLocation = pick.value;
+}
+
+// Toggle administrator/elevated privileges for an external window. Reachable only
+// when the location is "external" (the hub hides this field otherwise).
+async function editElevated(work: PinExecConfig, title: string): Promise<void> {
+  interface ElevatedItem extends vscode.QuickPickItem {
+    value: boolean;
+  }
+  const items: ElevatedItem[] = [
+    { label: l10n("configure.elevated.offChoice"), value: false },
+    {
+      label: l10n("configure.elevated.onChoice"),
+      detail: l10n("configure.elevated.detail"),
+      value: true,
+    },
+  ];
+  const pick = await vscode.window.showQuickPick(items, {
+    title,
+    placeHolder: l10n("configure.elevated.placeholder"),
+  });
+  if (!pick) {
+    return;
+  }
+  work.elevated = pick.value;
 }
 
 // Toggle whether the file path is inserted into the command. Off suits run
