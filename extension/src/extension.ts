@@ -19,6 +19,7 @@ import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
 import { Heartbeat } from "./exec/heartbeat";
 import { registerProcessMonitorCommands } from "./exec/processMonitorCommands";
+import { PlannerPanel } from "./views/plannerPanel";
 import { registerHygieneCommands } from "./exec/hygieneCommands";
 import { processRegistry } from "./exec/processRegistry";
 import { telemetry } from "./exec/telemetry";
@@ -205,6 +206,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Workspace hygiene scanner (recipe book section H, #63): the recursive
   // empty/oversized outlier scan that writes a dated JSON report and a sticky toast.
   registerHygieneCommands(context);
+
+  // Schedule & Workflow Planner webview: the visual day/week timelines and the
+  // chained-trigger graph. Opens (or reveals the single instance of) the panel.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.openPlanner", () =>
+      PlannerPanel.show(context, store)
+    )
+  );
 
   // Status-bar item for the soonest upcoming scheduled run; clicking it reveals
   // the pin in the tree. The reveal command lives here because it needs the tree

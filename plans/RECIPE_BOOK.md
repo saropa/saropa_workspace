@@ -33,10 +33,22 @@ the user asking.
 
 These sections ship, but with known follow-ups:
 
-- **Day-of-week scheduling** — `PinSchedule` is daily-time + interval only, so the
-  "weekday" / "weekly Mon" rituals (standup, end-of-day guard, dependency
-  freshness, branch hygiene, PR queue) currently default to a daily time. Richer
-  cron-style triggers are a separate scheduler item.
+- **Day-of-week scheduling** — **SHIPPED.** `PinSchedule` now carries a `days`
+  weekday set, and `nextOccurrence` honors it, so the "weekday" / "weekly Mon"
+  rituals (standup, end-of-day guard, dependency freshness, branch hygiene, PR
+  queue) can be set to their real cadence in **Configure Schedule** (Days of week,
+  with Weekdays / Weekends shortcuts). Custom intervals also gained minutes / hours
+  / days units. Both are also editable by dragging blocks in the new planner's Week
+  view.
+- **Recipe chaining + special trigger events** — **SHIPPED.** A pin can carry
+  `triggers` (run after another pin, or after a *build* / *publish* / *git commit* /
+  *git push* event) and `emits` (mark it as a build / publish step). A `ChainRunner`
+  fans completions out to dependents (cooldown-guarded against loops); a
+  `GitEventWatcher` detects commits / pushes from `.git` logs. Configured via
+  **Configure Triggers** or visually in the planner's Workflow graph.
+- **Schedule & Workflow planner webview** — **SHIPPED.** Day / Week timelines (drag
+  to retime) and a draggable node graph of chained + event-triggered pins, with a
+  toolbox and right-click autocomplete link builder.
 - **Sunrise project stats (#27)** captures a git activity summary, not yet the full
   per-language file/line aggregation the original design described.
 - **Status badge / severity counts on a pin (#26, #32)** — the dawn lint sweep and
@@ -202,7 +214,9 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
 | **Recursive hygiene scanner** (explicit user-run crawl of a chosen scope; empty/oversized detection; per-instance thresholds + scope; auto-generated name; dated JSON report) | 63 | new item — distinct from the no-crawl detector; can reuse the scheduled-pin machinery |
 | **Sticky toast** (non-auto-dismissing notification carrying an issue count + an Open-report action) | 63 | extends the notification surface |
 | **Sensory feedback** (opt-in audio cue on event start/finish, success/failure distinct; haptics where the platform exposes them) | 64 (cross-cutting) | new item — exploratory for haptics; audio first |
-| **Day-of-week scheduling** (cron-style weekday/weekly triggers) | refines shipped 28–34 | extends the scheduler model fields |
+| **Day-of-week scheduling** (cron-style weekday/weekly triggers) — **SHIPPED** (`PinSchedule.days` + interval units) | refines shipped 28–34 | extends the scheduler model fields |
+| **Recipe chaining + special events** (run after a pin / build / publish / git commit / git push) — **SHIPPED** (`Pin.triggers` / `Pin.emits`, ChainRunner, GitEventWatcher) | new cross-cutting automation | new event-bus + chain-runner items |
+| **Schedule & Workflow planner webview** (day/week timelines, drag-to-retime, node graph, toolbox, autocomplete links) — **SHIPPED** | visual home for scheduling + chaining | second justified webview surface |
 | **Pin status badge / severity counts** (green/red, error·warning·info) | refines shipped 26, 32 | extends the tree item |
 | **Sibling-tool API reads** (Saropa Lints `getViolationsData()` / health score) | refines shipped 26, 36–40 | Suite integration — Better Together |
 
@@ -223,6 +237,7 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
 3. **Sensory feedback** (64) — cross-cutting and last, since it hooks the
    start/finish events that the run, scheduled, and scan machinery already emit.
    Ship audio first; gate haptics behind platform-capability detection.
-4. **Close the shipped-section gaps** — day-of-week scheduling, pin severity badges,
-   and the Saropa Lints health-score read, each a small refinement on machinery that
-   already ships.
+4. **Close the shipped-section gaps** — day-of-week scheduling **(SHIPPED)** and
+   recipe chaining + special events + the planner webview **(SHIPPED)**; still open
+   are pin severity badges and the Saropa Lints health-score read, each a small
+   refinement on machinery that already ships.
