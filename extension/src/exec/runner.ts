@@ -756,7 +756,18 @@ async function runInBackground(
     if (extractResult) {
       extractAndCopy(extractResult, captured, name);
     }
-    notifyCompletion(name, outcome, code, durationMs);
+    // On failure, scan the output for a fix command the tool itself suggested
+    // (e.g. "Run `npm install lodash` to fix") and offer to run it in one click,
+    // so the user does not have to select/copy/paste it (WOW #12).
+    const fix =
+      outcome === "failure" ? detectFixCommand(captured) : undefined;
+    notifyCompletion(
+      name,
+      outcome,
+      code,
+      durationMs,
+      fix ? { command: fix, cwd } : undefined
+    );
   };
 
   // On exit, record the result so the tree shows a success/failure badge (7.2)
@@ -809,12 +820,14 @@ function extractAndCopy(pattern: string, output: string, name: string): void {
 
 // Visible outcome for a finished background run. Failures get an error toast with
 // a one-click path to the output channel; successes get a quiet info toast. Never
-// silent — completion is feedback the user is waiting on.
+// silent — completion is feedback the user is waiting on. When the failed output
+// suggested a fix command, the toast also offers to run it (WOW #12).
 function notifyCompletion(
   name: string,
   outcome: "success" | "failure",
   code: number | null,
-  durationMs: number
+  durationMs: number,
+  fix?: { command: string; cwd: string }
 ): void {
   const duration = formatDuration(durationMs);
   if (outcome === "success") {
@@ -822,14 +835,51 @@ function notifyCompletion(
     return;
   }
   const showOutput = l10n("run.showOutput");
+  // The fix action leads when present (it is the most useful next step), then the
+  // always-available Show Output. The button text names the exact command so the
+  // user runs it knowingly, not blindly.
+  const runFix = fix ? l10n("run.runFix", { command: fix.command }) : undefined;
+  const actions = runFix ? [runFix, showOutput] : [showOutput];
   void vscode.window
     .showErrorMessage(
       l10n("run.failed", { name, code: code === null ? "?" : code, duration }),
-      showOutput
+      ...actions
     )
     .then((choice) => {
       if (choice === showOutput) {
         getOutputChannel().show(true);
+      } else if (fix && choice === runFix) {
+        // Run the suggested fix in the shared integrated terminal so its output is
+        // visible and interactive (a fix like `npm install` may prompt).
+        runInTerminal(fix.command, fix.cwd, undefined);
       }
     });
+}
+
+// Known patterns: a fix command that a failed tool printed in its own output, so it
+// can be offered as a one-click action instead of select/copy/paste (WOW #12). Order
+// matters — the explicit "run X to fix" phrasing is the most reliable signal and is
+// tried first; the package-manager install lines are the common concrete cases.
+// Conservative on purpose: a missed suggestion just means no button (the user still
+// has the output), whereas a wrong command offered for one click is worse.
+const FIX_PATTERNS: readonly RegExp[] = [
+  // "Run `npm install x` to fix", 'try running "yarn add y"', etc. — a quoted command
+  // following a run/try/fix verb.
+  /(?:run|try running|to fix,?\s*run)[:\s]+[`'"]([^`'"\n]+)[`'"]/i,
+  // Bare package-manager install/add suggestions on their own.
+  /\b((?:npm|pnpm) install(?:\s+--save(?:-dev)?)?\s+[@\w./-]+)/i,
+  /\b(yarn add\s+[@\w./-]+)/i,
+  /\b(pip3? install\s+[\w=<>.-]+)/i,
+];
+
+// Find the first fix command suggested in run output, trimmed, or undefined when
+// none of the known patterns match.
+function detectFixCommand(output: string): string | undefined {
+  for (const pattern of FIX_PATTERNS) {
+    const match = pattern.exec(output);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return undefined;
 }

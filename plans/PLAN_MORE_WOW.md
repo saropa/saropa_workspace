@@ -37,10 +37,6 @@ Here are 10 more "WOW" features that build on Saropa's local-first, frictionless
 **The Pain:** Switching from local development to testing staging data means manually renaming `.env.staging` to `.env`, or editing 15 variables by hand, then changing them back later.
 **The WOW:** If Saropa detects multiple `.env.*` files, it creates an "Environment Context" pin group. It renders as a simple radio-button list (`( ) local  (x) staging  ( ) prod`). Clicking one instantly swaps your active `.env` file under the hood. Your dev servers automatically restart with the new config.
 
-### 12. Smart "Fix-It" Extractors
-**The Pain:** A script fails, and the terminal output says: *"Missing dependency. Run `npm install lodash` to fix."* You have to highlight the text, copy it, paste it, and run it.
-**The WOW:** Saropa monitors background run outputs for common actionable regex patterns. If a run fails but emits a known fix command, a temporary **"Quick Fix"** pin slides into the top of the sidebar. One click executes the exact command the terminal suggested.
-
 ### 13. Visual Run Dependencies (The Chain Reaction)
 **The Pain:** You double-click the "Deploy" pin before the "Build" pin has finished, causing the deployment to fail with half-baked assets.
 **The WOW:** You can set a `dependsOn` field in a pin's run config. The "Deploy" pin appears visually locked (grayed out with a padlock icon) until the "Build" pin is run and returns a success exit code in the current session. 

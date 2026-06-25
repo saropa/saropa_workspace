@@ -131,6 +131,16 @@ function compareUrl(r: GitRemote, branch: string): string {
       return `${r.webBase}/compare/${branch}?expand=1`;
   }
 }
+function commitsUrl(r: GitRemote, branch: string): string {
+  switch (r.host) {
+    case "gitlab":
+      return `${r.webBase}/-/commits/${branch}`;
+    case "bitbucket":
+      return `${r.webBase}/commits`;
+    default:
+      return `${r.webBase}/commits/${branch}`;
+  }
+}
 function issuesUrl(r: GitRemote): string {
   return r.host === "gitlab" ? `${r.webBase}/-/issues` : `${r.webBase}/issues`;
 }
@@ -179,6 +189,13 @@ export async function detectOnDemandRecipes(
         description: `Opens the "new pull request / merge request" page pre-filled with the current branch (${branch}). Derived from the origin remote and HEAD.`,
         icon: "git-pull-request",
         action: url(compareUrl(remote, branch)),
+      });
+      out.push({
+        recipeId: "github.commits",
+        label: `Open commit history for ${branch}`,
+        description: `Opens the commit history for the current branch (${branch}) on the remote's web view. Host-aware, derived from the origin remote and HEAD.`,
+        icon: "git-commit",
+        action: url(commitsUrl(remote, branch)),
       });
     }
     out.push({
@@ -502,6 +519,50 @@ async function pushRunTargets(
   if (migrate) {
     out.push({ recipeId: "db.migrate", label: "Run database migration", description: `Runs the database migration (${migrate}). Detected from Prisma, Alembic, Drizzle, or Rails markers.`, icon: "database", action: shell(folder, migrate) });
   }
+
+  // 66 format — the auto-formatter for the ecosystem. Distinct from lint (#11):
+  // format rewrites style, lint reports problems. Prettier wins for a JS/TS project
+  // when configured (it formats more than .ts), otherwise the language's own tool.
+  const ruffConfigured = isPy && ((await exists(folder, "ruff.toml")) || /\[tool\.ruff\]/.test((await readText(folder, "pyproject.toml")) ?? ""));
+  const blackConfigured = isPy && /\[tool\.black\]/.test((await readText(folder, "pyproject.toml")) ?? "");
+  const format =
+    (await hasPrettier(folder, pkg)) ? `${pm} exec prettier --write .`
+    : isDart ? "dart format ."
+    : isRust ? "cargo fmt"
+    : isGo ? "gofmt -w ."
+    : ruffConfigured ? "ruff format ."
+    : blackConfigured ? "black ."
+    : undefined;
+  if (format) {
+    out.push({ recipeId: "format", label: "Format code", description: `Rewrites the project's source to its canonical style (${format}). Distinct from lint — this reformats rather than reports. Detected from the formatter config for the ecosystem (prettier, dart format, cargo fmt, gofmt, ruff/black).`, icon: "symbol-color", action: shell(folder, format) });
+  }
+
+  // 67 clean — remove build artifacts so the next build starts fresh. Only the
+  // tools whose clean is a single, well-known, non-destructive command are offered;
+  // there is no universal "clean" for npm, so it is gated on an explicit scripts.clean.
+  const clean =
+    isFlutter ? "flutter clean"
+    : isRust ? "cargo clean"
+    : isGo ? "go clean"
+    : scripts.clean ? `${pm} run clean`
+    : undefined;
+  if (clean) {
+    out.push({ recipeId: "clean", label: "Clean build artifacts", description: `Removes the project's build output so the next build starts fresh (${clean}). Detected from flutter, cargo, go, or a package.json clean script.`, icon: "trash", action: shell(folder, clean) });
+  }
+
+  // 68 upgrade — move dependencies to newer versions (within the manifest's ranges
+  // for npm; to latest resolvable for the language tools). Distinct from install
+  // (#13), which only restores what the lockfile already pins.
+  const upgrade =
+    pkg ? `${pm} update`
+    : isFlutter ? "flutter pub upgrade"
+    : isDart ? "dart pub upgrade"
+    : isRust ? "cargo update"
+    : isGo ? "go get -u ./... && go mod tidy"
+    : undefined;
+  if (upgrade) {
+    out.push({ recipeId: "upgrade", label: "Upgrade dependencies", description: `Moves the project's dependencies to newer versions (${upgrade}). Distinct from install, which only restores the locked versions. Detected from the manifest for the ecosystem (npm, pub, cargo, go).`, icon: "arrow-up", action: shell(folder, upgrade) });
+  }
 }
 
 // --- detection sub-helpers ---------------------------------------------
@@ -633,6 +694,31 @@ async function hasEslint(
     "eslint.config.js",
     "eslint.config.mjs",
     "eslint.config.cjs",
+  ]) {
+    if (await exists(folder, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasPrettier(
+  folder: vscode.WorkspaceFolder,
+  pkg: Record<string, unknown> | undefined
+): Promise<boolean> {
+  if (pkg && "prettier" in pkg) {
+    return true;
+  }
+  for (const name of [
+    ".prettierrc",
+    ".prettierrc.js",
+    ".prettierrc.cjs",
+    ".prettierrc.json",
+    ".prettierrc.yml",
+    ".prettierrc.yaml",
+    "prettier.config.js",
+    "prettier.config.cjs",
+    "prettier.config.mjs",
   ]) {
     if (await exists(folder, name)) {
       return true;

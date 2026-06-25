@@ -244,6 +244,7 @@
   "run.externalFailed": "Couldn't open an external window for {name}: {error}",
   "run.elevatedEnvDropped": "{name} ran elevated, so its custom environment variables were not applied.",
   "run.showOutput": "Show Output",
+  "run.runFix": "Run: {command}",
   "run.statusOk": "ok {duration}",
   "run.statusFailed": "exit {code} {duration}",
   "run.countTooltip": "Run {count} time(s) on this machine",
