@@ -11,6 +11,7 @@ import {
 } from "./pin";
 import { detectOnDemandRecipes, RecipeResult } from "../recipes/detectors";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
+import { detectSuiteRecipes } from "../recipes/suiteRecipes";
 import { getOutputChannel } from "../exec/runner";
 
 // A drop destination computed by the tree's drag-and-drop controller and handed
@@ -40,6 +41,12 @@ const GLOBAL_GROUPS_KEY = "saropaWorkspace.globalGroups";
 // file; it is injected into the project group list when recipes are present.
 const RECIPES_GROUP_ID = "recipes";
 const RECIPES_EXPANDED_KEY = "saropaWorkspace.recipesGroupExpanded";
+// Second synthetic group, sibling to Recipes, holding the Saropa Suite integration
+// recipes (the ones that drive sibling Saropa tools). Same injection mechanism as
+// the Recipes group; kept separate so suite shortcuts do not bury, or get buried
+// by, the generic recipe catalog.
+const SUITE_GROUP_ID = "saropa-suite";
+const SUITE_EXPANDED_KEY = "saropaWorkspace.suiteGroupExpanded";
 
 export class PinStore {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
@@ -405,10 +412,15 @@ export class PinStore {
     scope: PinScope,
     collapsed: boolean
   ): Promise<void> {
-    // The synthetic Recipes group is not stored in any file; persist its posture
-    // in globalState instead of through mutateGroup (which would find no target).
+    // The synthetic Recipes / Saropa Suite groups are not stored in any file;
+    // persist their posture in globalState instead of through mutateGroup (which
+    // would find no target).
     if (group.id === RECIPES_GROUP_ID) {
       await this.context.globalState.update(RECIPES_EXPANDED_KEY, !collapsed);
+      return;
+    }
+    if (group.id === SUITE_GROUP_ID) {
+      await this.context.globalState.update(SUITE_EXPANDED_KEY, !collapsed);
       return;
     }
     await this.mutateGroup(group, scope, (target) => {
@@ -633,13 +645,23 @@ export class PinStore {
     }
 
     const groups = [...this.baseProjectGroups];
-    if (recipePins.length > 0) {
-      // One synthetic, collapsible Recipes group holds every recipe pin.
+    // Two synthetic, collapsible groups: the generic "Recipes" catalog and the
+    // "Saropa Suite" integration shortcuts. Each is injected only when it actually
+    // has at least one recipe pin, so neither shows as an empty folder.
+    if (recipePins.some((p) => p.groupId === RECIPES_GROUP_ID)) {
       groups.push({
         id: RECIPES_GROUP_ID,
         label: "Recipes",
         order: 9999,
         collapsed: !this.recipesGroupExpanded(),
+      });
+    }
+    if (recipePins.some((p) => p.groupId === SUITE_GROUP_ID)) {
+      groups.push({
+        id: SUITE_GROUP_ID,
+        label: "Saropa Suite",
+        order: 10000,
+        collapsed: !this.suiteGroupExpanded(),
       });
     }
     this.projectGroups = groups.sort((a, b) => a.order - b.order);
@@ -705,6 +727,11 @@ export class PinStore {
     return this.context.globalState.get<boolean>(RECIPES_EXPANDED_KEY, false);
   }
 
+  private suiteGroupExpanded(): boolean {
+    // Default collapsed, mirroring the Recipes group.
+    return this.context.globalState.get<boolean>(SUITE_EXPANDED_KEY, false);
+  }
+
   // Detect recipes for a folder and turn each into a recipe pin (isRecipe), minus
   // the ones the user removed (sticky via removedRecipes). Auto-detected, never
   // "created" — exactly like auto-pins, but for derived URL/shell/command/macro
@@ -719,7 +746,18 @@ export class PinStore {
     const results: RecipeResult[] = [
       ...(await detectOnDemandRecipes(folder)),
       ...(await detectScheduledRecipes(folder)),
+      ...(await detectSuiteRecipes(folder)),
     ];
+    // Render each synthetic group alphabetically by label. Detection order mixes
+    // on-demand, scheduled, then suite recipes in file-scan order, which reads as
+    // random to the user; a stable A->Z sort makes each group scannable. `order` is
+    // then assigned to match (the tree sorts pins by `order` within a group). The
+    // single ascending counter keeps each group's members alphabetical; which group
+    // a pin lands in is set by groupId, and the groups themselves are ordered by
+    // their own group.order (Recipes before Saropa Suite).
+    results.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+    );
     const pins: Pin[] = [];
     let order = 2000;
     for (const r of results) {
@@ -737,7 +775,7 @@ export class PinStore {
         schedule: r.schedule,
         icon: r.icon,
         color: r.color,
-        groupId: RECIPES_GROUP_ID,
+        groupId: r.group === "suite" ? SUITE_GROUP_ID : RECIPES_GROUP_ID,
         order: order++,
       });
     }

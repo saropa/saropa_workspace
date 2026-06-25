@@ -3,7 +3,7 @@ import * as path from "path";
 import { MacroStep, Pin } from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
-import { recentRuns } from "./recentRuns";
+import { telemetry, RunSource } from "./telemetry";
 import { buildTokenMap, expandTokens } from "./tokens";
 import {
   hasInteractiveTokens,
@@ -136,7 +136,14 @@ export function getOutputChannel(): vscode.OutputChannel {
   return outputChannel;
 }
 
-export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
+// `source` distinguishes a user-triggered run ("manual", the default) from an
+// unattended scheduled fire ("scheduled", passed by the Scheduler) for the local
+// run telemetry that feeds the Recent group and the palette's recents.
+export async function runPin(
+  pin: Pin,
+  uri: vscode.Uri,
+  source: RunSource = "manual"
+): Promise<void> {
   const name = pin.label ?? path.basename(uri.fsPath);
 
   // Resolve interactive run-parameter tokens (${prompt:...} / ${pick:...}) before
@@ -168,9 +175,9 @@ export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
     );
   }
 
-  // Record the run for the "Run Pin..." palette's recents (after the cancel
-  // checks above, so an aborted interactive prompt does not count as a run).
-  void recentRuns.record(pin.id);
+  // Record the run for the Recent group and the palette's recents (after the
+  // cancel checks above, so an aborted interactive prompt does not count as a run).
+  void telemetry.record(pin.id, source);
 
   vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
 
@@ -186,14 +193,17 @@ export async function runPin(pin: Pin, uri: vscode.Uri): Promise<void> {
 // Run a non-file pin (url / shell / command / macro). The file kind is handled by
 // runPin above; callers branch on pinKind and route non-file pins here. Returns
 // without error for an unknown/empty action so a malformed recipe cannot throw.
-export async function runAction(pin: Pin): Promise<void> {
+export async function runAction(
+  pin: Pin,
+  source: RunSource = "manual"
+): Promise<void> {
   const action = pin.action;
   if (!action) {
     return;
   }
   const name = pin.label ?? pin.id;
-  // Recipe/non-file runs feed the same recents list as file runs.
-  void recentRuns.record(pin.id);
+  // Recipe/non-file runs feed the same local telemetry as file runs.
+  void telemetry.record(pin.id, source);
 
   switch (action.kind) {
     case "url":
@@ -229,7 +239,19 @@ async function runVsCommand(
   if (!commandId) {
     return;
   }
-  await vscode.commands.executeCommand(commandId, ...(args ?? []));
+  // A command pin may target another extension's command (e.g. a Saropa Suite
+  // recipe driving Saropa Lints / Drift Advisor / Log Capture). If that extension
+  // is not installed or not yet activated, executeCommand rejects with "command
+  // not found". Degrade gracefully with a visible toast instead of an unhandled
+  // rejection, satisfying the suite-integration "absent tool degrades" principle.
+  try {
+    await vscode.commands.executeCommand(commandId, ...(args ?? []));
+  } catch (err) {
+    getOutputChannel().appendLine(
+      `[command] ${name} (${commandId}) failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+    vscode.window.showWarningMessage(l10n("action.commandFailed", { name }));
+  }
 }
 
 // Run a shell action's command line. With a reportFile, stdout+stderr are captured

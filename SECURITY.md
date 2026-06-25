@@ -29,8 +29,9 @@ What it does:
 
 What it does **not** do:
 
-- It does not collect, transmit, or phone home any data — there is no
-  telemetry.
+- It sends and phones home nothing — no remote telemetry, no analytics, no
+  network calls. The only data it keeps (a local run history and pin-suggestion
+  counts) lives in VS Code's storage on your machine and is never transmitted.
 - It does not require network access or external services for its own
   operation.
 - It does not run anything you did not explicitly pin and trigger.

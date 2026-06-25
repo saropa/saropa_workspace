@@ -11,6 +11,7 @@
   "command.copyPath.title": "Copy Path",
   "command.runAnyPin.title": "Run Pin...",
   "command.runPinWithOverrides.title": "Run Pin with Overrides...",
+  "command.resetRunHistory.title": "Reset Run History",
   "command.pinActiveFile.title": "Pin Active File (Project)",
   "command.pinActiveFileGlobal.title": "Pin Active File (Global)",
   "command.pinFile.title": "Saropa: Pin File (Project)",
@@ -54,5 +55,6 @@
   "config.suggestions.openThreshold.description": "How many times a file must be opened before Saropa Workspace offers to pin it.",
   "config.projectFiles.enabled.description": "Show the Project Files view, listing files like README, CHANGELOG, and package manifests with their last-modified time and declared version.",
   "config.recipes.enabled.description": "Show auto-detected recipes (URL, run, command, and macro pins derived from project files such as .git/config, package.json, and Makefile) in a Recipes group. Removing a recipe keeps it removed; restore them with Restore Recipes.",
+  "config.telemetry.enabled.description": "Keep a local, on-device record of pin runs (manual and scheduled) to power the Recent group and the recents in Run Pin. Stored on this machine only and never transmitted. Turn off to stop collecting; use Reset Run History to clear it.",
   "config.projectFiles.files.description": "Root-relative file names surfaced in the Project Files view. Each is shown only when it exists. Version is read from package.json, pubspec.yaml, Cargo.toml, pyproject.toml, and the top entry of CHANGELOG.md."
 }

@@ -92,7 +92,7 @@ export class Scheduler implements vscode.Disposable {
     // file uri to resolve. Then advance the schedule as for a file run.
     if (pinKind(pin) !== "file") {
       channel.appendLine(l10n("schedule.fired", { time: stamp, name, command: actionLabel(pin) }));
-      await runAction(pin);
+      await runAction(pin, "scheduled");
       await this.store.updatePinScheduleLastRun(pin, Date.now());
       return;
     }
@@ -123,7 +123,7 @@ export class Scheduler implements vscode.Disposable {
     channel.appendLine(
       l10n("schedule.fired", { time: stamp, name, command: plan.commandLine })
     );
-    await runPin(pin, uri);
+    await runPin(pin, uri, "scheduled");
 
     // Persisting lastRun triggers refresh -> onDidChange -> rescheduleAll, which
     // re-arms this pin (the daily dedup advances it to tomorrow; the interval

@@ -11,7 +11,7 @@ import {
 } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
-import { recentRuns } from "../exec/recentRuns";
+import { telemetry } from "../exec/telemetry";
 import {
   detectFavoritesFiles,
   importAllDetected,
@@ -273,7 +273,7 @@ async function pickPin(
 
   // Recents first (only ids that still resolve to a live pin), then a separator
   // and the full set ordered as the tree shows it.
-  const recentPins = recentRuns
+  const recentPins = telemetry
     .list()
     .map((id) => store.findPin(id))
     .filter((p): p is Pin => p !== undefined);
@@ -406,6 +406,22 @@ export function registerPinCommands(
   reg("saropaWorkspace.runAnyPin", () => runAnyPin(store));
 
   reg("saropaWorkspace.runPinWithOverrides", () => runPinWithOverrides(store));
+
+  // Clear the local, on-device run history (the Recent group + palette recents).
+  // Modal confirm because it is not undoable; the data never left the machine, so
+  // there is nothing else to revoke.
+  reg("saropaWorkspace.resetRunHistory", async () => {
+    const confirm = l10n("telemetry.resetConfirmAction");
+    const choice = await vscode.window.showWarningMessage(
+      l10n("telemetry.resetConfirm"),
+      { modal: true },
+      confirm
+    );
+    if (choice === confirm) {
+      await telemetry.reset();
+      vscode.window.showInformationMessage(l10n("telemetry.resetDone"));
+    }
+  });
 
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind

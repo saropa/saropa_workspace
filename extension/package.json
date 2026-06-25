@@ -91,6 +91,12 @@
         "category": "%extension.displayName%"
       },
       {
+        "command": "saropaWorkspace.resetRunHistory",
+        "title": "%command.resetRunHistory.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "saropaWorkspace.pinActiveFile",
         "title": "%command.pinActiveFile.title%",
         "category": "%extension.displayName%",
@@ -323,12 +329,27 @@
           "group": "1_more@4"
         },
         {
+          "command": "saropaWorkspace.resetRunHistory",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@5"
+        },
+        {
           "command": "saropaWorkspace.refreshProjectFiles",
           "when": "view == saropaWorkspace.projectFiles",
           "group": "navigation@1"
         }
       ],
       "view/item/context": [
+        {
+          "command": "saropaWorkspace.resetRunHistory",
+          "when": "view == saropaWorkspace.pins && viewItem == recentRoot",
+          "group": "inline@1"
+        },
+        {
+          "command": "saropaWorkspace.resetRunHistory",
+          "when": "view == saropaWorkspace.pins && viewItem == recentRoot",
+          "group": "1_actions@1"
+        },
         {
           "command": "saropaWorkspace.promoteRecipe",
           "when": "view == saropaWorkspace.pins && viewItem == pinRecipe",
@@ -589,6 +610,11 @@
             "type": "boolean",
             "default": true,
             "description": "%config.recipes.enabled.description%"
+          },
+          "saropaWorkspace.telemetry.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.telemetry.enabled.description%"
           },
           "saropaWorkspace.interpreterDefaults": {
             "type": "object",

@@ -11,12 +11,12 @@ time-triggered pins that run unattended, write a dated report under `reports/`,
 and auto-open it. A dawn lint sweep and a sunrise project-stats dashboard are the
 anchors. These wire the scheduler fields the `Pin` model already carries.
 
-A third class — **Saropa Suite integration** (section F, recipes 36–52) — detects
+A third class — **Saropa Suite integration** (section F, recipes 36–59) — detects
 a sibling Saropa tool (Lints, Drift Advisor, Log Capture) in the project and seeds
-pins that drive its commands, reports, and debug URLs, degrading gracefully when a
-tool is absent.
+pins that drive its commands, reports, and debug URLs into a dedicated **"Saropa
+Suite"** group, degrading gracefully when a tool is absent.
 
-A fourth class — **Developer process monitor** (section G, recipes 53–55) — turns
+A fourth class — **Developer process monitor** (section G, recipes 60–62) — turns
 the OS Task Manager into a project-aware, consolidated view of your toolchain:
 editor, language servers, AI agents, dev servers, and terminals, rolled up per
 tool with live CPU and memory, so a runaway analysis server or a swarm of stale
@@ -39,12 +39,43 @@ file) and **Command sequences / macros**, plus a new **recipe detector** and the
    the `origin` remote, the dev-server script from `scripts.dev`).
 3. **Propose** the matches in a multi-select QuickPick — pre-checked, each showing
    its name, source, and the exact action it will run/open.
-4. **Add** the selected recipes as pins (into a seeded **"Recipes"** group), each
-   carrying its icon, color, and run/open config. Idempotent: re-running never
-   duplicates an existing recipe pin.
+4. **Add** the selected recipes as pins, each carrying its icon, color, and
+   run/open config, into a logical group hierarchy (see **Group layout** below) —
+   three top-level groups (**Recipes**, **Saropa Suite**, **Process Monitor**),
+   each with logical subgroups, never one flat "Recipes" bucket. Idempotent:
+   re-running never duplicates an existing recipe pin, and a group / subgroup is
+   seeded only when at least one of its recipes is selected (no empty folders).
 
 A recipe is never run during detection — it is only created. Running stays an
 explicit, visible act (see the roadmap Principles).
+
+### Group layout
+
+Selected recipes are promoted into **three top-level pin groups**, each subgrouped
+by what the recipe does (reusing pin groups + subgroups, already shipped). A
+subgroup is created only when it has at least one selected recipe, so the tree
+never shows an empty folder. This is the single source of truth for which section
+lands where; sections A–G below are the catalog, this is the destination.
+
+```text
+Recipes
+├─ Open          URL / file opens — section A + the open-style D recipes (1–8, 21, 23, 25)
+├─ Run           run-target & command runs — section B + D (9–16, 24)
+├─ Workspace     entry point, .env, config, boot macro, copy — section C + D (17–20, 22)
+└─ Scheduled     time-triggered rituals — section E (26–35)
+Saropa Suite     one subgroup per detected sibling tool — section F (36–59)
+├─ Saropa Lints
+├─ Drift Advisor
+└─ Log Capture
+Process Monitor  toolchain monitor, heartbeat, snapshot — section G (60–62)
+```
+
+Why three groups instead of one: a flat "Recipes" list buries a scheduled lint
+sweep next to an "Open on GitHub" URL pin. Promoting the classes to the top level
+and subgrouping by purpose keeps each kind of shortcut findable, mirrors the
+"Saropa Suite" per-tool layout already defined in section F, and keeps the
+fast-access core (hand-pinned favorites) visually separate from auto-created
+recipes.
 
 ---
 
@@ -156,67 +187,103 @@ aggregates the worst severity across all of them.
 These recipes detect a **sibling Saropa tool** in the project (or its installed
 companion extension) and seed pins that drive it — its commands, its reports, its
 debug URLs. Each recipe is created **only when the tool is detected**, and a pin
-that targets an absent tool degrades gracefully (the run surfaces a "tool not
-found" outcome, never an unhandled error). This is the concrete form of the
-roadmap's **Suite integration — Better Together** item.
+that targets an absent tool degrades gracefully (a "tool not found" outcome, never
+an unhandled error). This is the concrete form of the roadmap's **Suite
+integration — Better Together** item.
 
-Three pin kinds carry these: a **command pin** (runs a VS Code command id), a
-**URL pin** (opens a localhost or API URL), and ordinary **file** / **run-target**
-pins. A `$latestLog` token resolves to the newest file under `reports/`.
+**All suite pins land in one dedicated top-level "Saropa Suite" group** — never
+mixed into the generic "Recipes" group — with a **subgroup per detected tool**
+(reusing pin groups, already shipped):
 
-### Saropa Lints — static analysis (`saropa.saropa-lints`)
+```text
+Saropa Suite
+├─ Saropa Lints      (when saropa_lints is detected)
+├─ Drift Advisor     (when saropa_drift_advisor is detected)
+└─ Log Capture       (when the capture extension / reports/*.log is detected)
+```
 
-Detected from `analysis_options.yaml` including `saropa_lints` (a tier `include:`
-or a `plugins: saropa_lints:` block) or `saropa_lints` in `dev_dependencies`.
+A subgroup appears only when its tool is detected. Recipes use three pin kinds —
+**command** (a VS Code command id), **URL** (a localhost / API URL), and **file** /
+**run-target** — plus the `$latestLog` token (newest file under `reports/`).
 
-| # | Recipe | Kind | Action |
-|---|--------|------|--------|
-| 36 | **Run lint analysis** | command | `Saropa Lints: Run Analysis` (writes `reports/.saropa_lints/violations.json`) |
-| 37 | **Open Code Health dashboard** | command | `Saropa Lints: Open Code Health Dashboard` |
-| 38 | **Open the violations report** | file | `reports/.saropa_lints/violations.json` |
-| 39 | **Cross-file audit** | run-target | `dart run saropa_lints:cross_file report` → opens the HTML report under `reports/` |
-| 40 | **Refresh the lint baseline** | run-target | `dart run saropa_lints:baseline --update` |
-| 41 | **Quality gate (CI-style check)** | run-target | `dart run saropa_lints:quality_gate --report reports/.saropa_lints/violations.json` |
-| 42 | **Export OWASP compliance report** | command | `Saropa Lints: Export OWASP Compliance Report` |
+> **The suite already wires into itself — these recipes surface that.** Saropa
+> Lints can pull Drift Advisor's `/api/issues` into its Problems panel
+> (`saropaLints.driftAdvisor.integration`, `.portRange` `[8642, 8649]`); Drift
+> Advisor streams session metadata into Log Capture
+> (`driftViewer.integrations.includeInLogCaptureSession`, writing
+> `.saropa/drift-advisor-session.json`); and Log Capture nests each tool's output
+> as a peripheral log ("Lint Report", "Drift Advisor") under the run. Saropa
+> Workspace adds the **one-click and scheduled** entry points on top of that mesh.
+
+### Saropa Lints — static analysis · subgroup "Saropa Lints"
+
+**Detect:** `saropa_lints` in `pubspec.yaml` `dev_dependencies`; or
+`analysis_options.yaml` with `include: package:saropa_lints/…` or a
+`plugins: saropa_lints:` block; or `reports/.saropa_lints/violations.json` present.
+The extension `saropa.saropa-lints` exposes a public API (`getViolationsData()`,
+`getViolationsPath()`, `getHealthScoreParams()`, `runAnalysis()`,
+`runAnalysisForFiles()`, `getVersion()`).
+
+| # | Recipe | Kind | Action (command id / path) |
+|---|--------|------|----------------------------|
+| 36 | **Run lint analysis** | command | `saropaLints.runAnalysis` → writes `reports/.saropa_lints/violations.json` |
+| 37 | **Open Code Health dashboard** | command | `saropaLints.openProjectVibrancyReport` |
+| 38 | **Manage rule packs / Config** | command | `saropaLints.openConfigDashboard` |
+| 39 | **Open Package Vibrancy** | command | `saropaLints.openPackageVibrancy` |
+| 40 | **Open the violations report** | file | `reports/.saropa_lints/violations.json` |
+| 41 | **Cross-file audit** | run-target | `dart run saropa_lints:cross_file report` (HTML under `reports/.saropa_lints/cross_file/`) |
+| 42 | **Refresh the lint baseline** | run-target | `dart run saropa_lints:baseline --update` |
+| 43 | **Quality gate (CI-style)** | run-target | `dart run saropa_lints:quality_gate --report reports/.saropa_lints/violations.json` |
+| 44 | **Export OWASP report** | command | `saropaLints.exportOwaspReport` |
 
 The dawn lint sweep (#26) reuses this surface: when Saropa Lints is present it runs
-`dart run custom_lint` and reads the **health score** and counts from the Saropa
-Lints public API (`getViolationsData()` / `getHealthScoreParams()`) instead of
-reparsing output — so the badge matches the number in the Saropa Lints status bar.
+`dart run custom_lint` and reads the **health score** and counts from the public API
+(`getViolationsData()` / `getHealthScoreParams()`) instead of reparsing output — so
+the badge matches the number in the Saropa Lints status bar.
 
-### Saropa Drift Advisor — runtime DB inspector (`saropa.drift-viewer`)
+### Saropa Drift Advisor — runtime DB inspector · subgroup "Drift Advisor"
 
-Detected from `saropa_drift_advisor` in `pubspec.yaml` dependencies (or the
-companion extension being installed). The debug server runs on port **8642** only
-while the app is debugging, so these are most useful paired with a running session.
-
-| # | Recipe | Kind | Action |
-|---|--------|------|--------|
-| 43 | **Open Drift Advisor in the browser** | URL | `http://127.0.0.1:8642` |
-| 44 | **Open the SQL Notebook** | command | `Saropa Drift Advisor: SQL Notebook` |
-| 45 | **Scan Dart schema (offline)** | command | `Saropa Drift Advisor: Scan Dart Schema Definitions` (no running app needed) |
-| 46 | **Forward the emulator port** | run-target | `adb forward tcp:8642 tcp:8642` (Android emulator/device) |
-| 47 | **Open the DB issues feed** | URL | `http://127.0.0.1:8642/api/issues` (index suggestions + anomalies as JSON) |
-
-### Saropa Log Capture — debug-output recorder (`saropa.saropa-log-capture`)
-
-Detected from the companion extension being installed, or a `reports/` folder
-containing `.log` files. Log Capture already nests peripheral logs (Lint Report,
-Drift Advisor) under each run, so the **scheduled reports from section E land in
-its Logs panel automatically** — these recipes add the direct controls.
+**Detect:** `saropa_drift_advisor` in `pubspec.yaml`; or `startDriftViewer(` /
+`DriftDebugServer.start(` in Dart source; or the extension `saropa.drift-viewer`.
+The debug server runs on **8642** (discovery range 8642–8649) only under
+`kDebugMode`; a running server advertises itself at
+`~/.saropa_drift_advisor/server.json` and `GET /api/health`, so these pair with an
+active debug session.
 
 | # | Recipe | Kind | Action |
 |---|--------|------|--------|
-| 48 | **Open the latest capture log** | file | `$latestLog` (newest `reports/*.log`) |
-| 49 | **Search all logs** | command | `Saropa Log Capture: Search Log Files` |
-| 50 | **Export a session Flow Map** | command | `Saropa Log Capture: Export Session Flow Map` |
-| 51 | **Compare two sessions** | command | `Saropa Log Capture: Compare Sessions` |
+| 45 | **Open Drift Advisor (browser)** | command | `driftViewer.openInBrowser` (or URL `http://127.0.0.1:8642`) |
+| 46 | **Open the SQL Notebook** | command | `driftViewer.openSqlNotebook` |
+| 47 | **Scan Dart schema (offline)** | command | `driftViewer.scanDartSchemaDefinitions` (no running app needed) |
+| 48 | **Forward the emulator port** | command | `driftViewer.forwardPortAndroid` (or run-target `adb forward tcp:8642 tcp:8642`) |
+| 49 | **Open the schema diagram** | command | `driftViewer.schemaDiagram` |
+| 50 | **Export a portable DB report** | command | `driftViewer.exportReport` |
+| 51 | **Open the DB issues feed** | URL | `http://127.0.0.1:8642/api/issues` (index suggestions + anomalies as JSON) |
+| 52 | **Wire a pre-launch DB health check** | file | open `.vscode/launch.json` to add `"preLaunchTask": "drift: healthCheck"` (also `anomalyScan`, `indexCoverage`) |
+
+### Saropa Log Capture — debug-output recorder · subgroup "Log Capture"
+
+**Detect:** the extension `saropa.saropa-log-capture`; or a `reports/` folder with
+`.log` files; or a `.saropa/index/` folder. The API exposes events
+(`onDidWriteLine`, `onDidStartSession`) and methods (`writeLine`, `insertMarker`,
+`getSessionInfo`, `registerIntegrationProvider`). Log Capture already nests
+peripheral logs (Lint Report, Drift Advisor) under each run, so the **scheduled
+reports from section E land in its Logs panel automatically**.
+
+| # | Recipe | Kind | Action |
+|---|--------|------|--------|
+| 53 | **Open the latest capture log** | file | `$latestLog` (newest `reports/*.log`) |
+| 54 | **Search all logs** | command | `saropaLogCapture.searchLogs` |
+| 55 | **Export a session Flow Map** | command | `saropaLogCapture.exportFlowMap` |
+| 56 | **Compare two sessions** | command | `saropaLogCapture.compareSessions` |
+| 57 | **Show the Signals panel** | command | `saropaLogCapture.showSignals` |
+| 58 | **Start / Stop capture** | command | `saropaLogCapture.start` / `saropaLogCapture.stop` |
 
 ### Suite macro
 
 | # | Recipe | Kind | Action |
 |---|--------|------|--------|
-| 52 | **Boot the Saropa suite** | macro | open the Drift Advisor browser, run a lint analysis, and open the latest capture log — one action that brings the whole suite up |
+| 59 | **Boot the Saropa suite** | macro | open the Drift Advisor browser (`driftViewer.openInBrowser`), run a lint analysis (`saropaLints.runAnalysis`), and open the latest capture log (`$latestLog`) — one action that brings the whole suite up |
 
 This macro is created only when **two or more** suite tools are detected, so it
 never offers a multi-tool sequence in a project that has just one.
@@ -243,9 +310,9 @@ memory is the working set. Cross-platform: PowerShell `Get-Counter` on Windows,
 
 | # | Recipe | Kind | What it does |
 |---|--------|------|--------------|
-| 53 | **Toolchain monitor** | command | Opens a consolidated panel of only your detected toolchain's processes — editor + language servers (`dart`, `tsserver`, `pyright`), AI agents (`claude`), dev servers (`node`, `vite`, `flutter_tester`), and integrated terminals (`pwsh`, `bash`) — **grouped by tool the way Task Manager nests its 255 helpers under one row**, each group showing a **roll-up of total live CPU % and total RAM**, expandable to per-PID. Sorted by CPU then memory; the worst hog is badged. Two-sample live CPU, so the number reflects now, not lifetime. A row carries actions: **Reveal** (focus the owning window where possible), **Copy report** (the table to the clipboard with a toast), and a **confirm-gated End task** for a single runaway PID (never a group, never silent). |
-| 54 | **Toolchain heartbeat** | scheduled | Fires on a timer (default every 15 min while a workspace is open), samples the same toolchain set unattended into a background channel, and appends a row to `reports/process-trend.csv` (per-tool CPU % + RAM + PID count). **Badges the monitor pin and surfaces a toast only when a threshold is crossed** — a tool's RAM exceeds a configured ceiling (default 4 GB — the leaked-analysis-server case in the screenshot), or its helper-process count exceeds a ceiling (default 200 — the editor-helper-swarm case). Silent when everything is within budget; the CSV still grows so the trend is there when you look. |
-| 55 | **Snapshot the toolchain** | command | Writes a one-shot `reports/<stamp>_processes.md` — the full grouped table at this instant plus the machine's logical-core count and total/free RAM — and **auto-opens it**. The artifact a bug report or a "my machine is thrashing" message can attach: a dated, shareable record of exactly what was resident and how hard it was working. |
+| 60 | **Toolchain monitor** | command | Opens a consolidated panel of only your detected toolchain's processes — editor + language servers (`dart`, `tsserver`, `pyright`), AI agents (`claude`), dev servers (`node`, `vite`, `flutter_tester`), and integrated terminals (`pwsh`, `bash`) — **grouped by tool the way Task Manager nests its 255 helpers under one row**, each group showing a **roll-up of total live CPU % and total RAM**, expandable to per-PID. Sorted by CPU then memory; the worst hog is badged. Two-sample live CPU, so the number reflects now, not lifetime. A row carries actions: **Reveal** (focus the owning window where possible), **Copy report** (the table to the clipboard with a toast), and a **confirm-gated End task** for a single runaway PID (never a group, never silent). |
+| 61 | **Toolchain heartbeat** | scheduled | Fires on a timer (default every 15 min while a workspace is open), samples the same toolchain set unattended into a background channel, and appends a row to `reports/process-trend.csv` (per-tool CPU % + RAM + PID count). **Badges the monitor pin and surfaces a toast only when a threshold is crossed** — a tool's RAM exceeds a configured ceiling (default 4 GB — the leaked-analysis-server case in the screenshot), or its helper-process count exceeds a ceiling (default 200 — the editor-helper-swarm case). Silent when everything is within budget; the CSV still grows so the trend is there when you look. |
+| 62 | **Snapshot the toolchain** | command | Writes a one-shot `reports/<stamp>_processes.md` — the full grouped table at this instant plus the machine's logical-core count and total/free RAM — and **auto-opens it**. The artifact a bug report or a "my machine is thrashing" message can attach: a dated, shareable record of exactly what was resident and how hard it was working. |
 
 ### Toolchain detection (which process names to show)
 
@@ -275,6 +342,30 @@ expand away when you need to find *which* helper leaked.
 > services). The monitor never auto-kills, including on a heartbeat threshold breach —
 > it badges and toasts; ending a process is always an explicit, named human act.
 
+### Surface: the one justified webview
+
+Recipes 1–52 all live on native surfaces (tree, QuickPick, markdown preview, terminal).
+The monitor is the first item where native surfaces genuinely fall short: a TreeView can
+list grouped processes with CPU % / RAM in the row description and a colored `ThemeIcon`
+badge, but it **cannot draw a live CPU bar per tool, a sparkline of the last N samples
+from `process-trend.csv`, or offer sortable CPU / RAM / PID-count columns** — the three
+things that make a monitor readable at a glance. So #60 renders in a webview (the
+**Processes** tab of the shared dashboard described below), under the roadmap's
+native-first-webview-when-justified principle: **local-only, strict CSP with a per-load
+nonce, no external script or network, themed via `--vscode-*` variables.** Kill / Reveal
+stay as in-panel buttons. A degraded TreeView fallback (rows + description text, no
+chart) is acceptable if the webview is ever disabled — the data is the same; only the
+visualization differs.
+
+> **Shared dashboard, not three panels.** The monitor (#60), the local run analytics
+> (roadmap 3.3), and the trend-carrying scheduled reports (#30 deps, #31 tech-debt,
+> #32 test-trend) are the only three webview-worthy surfaces in the whole catalog. They
+> share one **"Saropa Dashboard"** webview with tabs (**Processes** / **Analytics** /
+> **Trends**), so there is one CSP + nonce harness, one set of theme bindings, and one
+> piece of chrome to maintain — never three bespoke webviews. Every point-in-time report
+> (#27 stats, #28 standup, #62 snapshot) stays in markdown preview, which is already the
+> right surface for a static dated artifact.
+
 ---
 
 ## What each capability needs (maps to the roadmap)
@@ -282,10 +373,12 @@ expand away when you need to find *which* helper leaked.
 | Capability | Recipes it unlocks | Roadmap home |
 |------------|--------------------|--------------|
 | **URL pin kind** (open an external URL) | 1–8, 21, 23, 25 | Non-file run targets (Later/Exploratory) |
-| **Command pin kind** (run a VS Code command id) | 22, 36–37, 42, 44–45, 49–51, and user-bound commands generally | Non-file run targets |
-| **Suite-tool detection** (find a sibling Saropa tool; degrade gracefully when absent) | 36–52 | Suite integration — Better Together (Later/Exploratory) |
-| **Sibling-tool APIs** (read Saropa Lints `getViolationsData()` / health score) | 26, 27, 36–38 | Suite integration — Better Together |
-| **`$latestLog` token** (newest file under `reports/`) | 48 | extends token system (2.4 / 7.1) |
+| **Command pin kind** (run a VS Code command id) | 22, and most suite recipes (36–59), plus user-bound commands generally | Non-file run targets |
+| **Suite-tool detection** (find a sibling Saropa tool; degrade gracefully when absent) | 36–59 | Suite integration — Better Together (Later/Exploratory) |
+| **Recipe group hierarchy** (three top-level groups — Recipes / Saropa Suite / Process Monitor — each with logical subgroups; empty folders never seeded) | all created recipes; Suite per-tool subgroups for 36–59 | reuses pin groups + subgroups (shipped); see **Group layout** |
+| **Sibling-tool APIs** (read Saropa Lints `getViolationsData()` / health score) | 26, 27, 36–40 | Suite integration — Better Together |
+| **Pre-launch task wiring** (open `launch.json` to add a `drift:` `preLaunchTask`) | 52 | Suite integration — Better Together |
+| **`$latestLog` token** (newest file under `reports/`) | 53, 59 | extends token system (2.4 / 7.1) |
 | **Macro / sequence pin** (ordered steps) | 18, 20, 23 | Command sequences / macros (Later/Exploratory) |
 | **Recipe detector** (scan → propose → add) | all 25 | new item — extends auto-pins + run-target inference (7.5) |
 | **Extended run-target inference** | 9–16, 24 | 7.5 (already shipped for npm/Make; widen the matchers) |
@@ -295,8 +388,9 @@ expand away when you need to find *which* helper leaked.
 | **Status badge / severity counts on a pin** (green/red, error·warning·info) | 26, 32 | extends the tree item |
 | **`gh` / git-state helpers** (PRs, ahead/behind, churn, merged branches) | 28, 29, 33, 34, 35 | new helper used by the detector + scheduled recipes |
 | **Date/stamp tokens** (`$date`, `$stamp` → `reports/<stamp>_*.md`) | 26–33, 35 | extends token system (2.4 / 7.1) |
-| **Process-poll helper** (two-sample CPU delta + working-set RAM, parent-PID roll-up, cross-platform) | 53–55 | new item — pairs with the scheduled-pin and report/auto-open machinery |
-| **Confirm-gated End task** (single named PID, hidden for OS/container rows) | 53 | new mutating action on the monitor panel |
+| **Process-poll helper** (two-sample CPU delta + working-set RAM, parent-PID roll-up, cross-platform) | 60–62 | new item — pairs with the scheduled-pin and report/auto-open machinery |
+| **Confirm-gated End task** (single named PID, hidden for OS/container rows) | 60 | new mutating action on the monitor panel |
+| **Shared dashboard webview** (local-only, CSP + nonce, `--vscode-*` themed; tabs for live bars, sparklines, sortable grids) | 53–54, plus roadmap 3.3 analytics and the trend reports #30–32 | new item — Phase 3 "Dashboard webview"; the one justified webview surface |
 
 ---
 
@@ -308,22 +402,24 @@ expand away when you need to find *which* helper leaked.
    one inventory; `file` is the default for every existing pin (versioned, no
    migration pain).
 2. **Recipe detector** for the URL recipes (1–8, 25) — scan `.git/config` +
-   `package.json`, derive URLs, propose them into a "Recipes" group.
+   `package.json`, derive URLs, propose them into the **Recipes › Open** subgroup
+   (the group hierarchy from **Group layout** ships with the detector).
 3. **Command pin kind** (22) and **macro pin** (18, 20, 23).
 4. **Widen run-target inference** (9–16, 24) and add the git/port tokens (21).
 5. **Scheduled pin kind** (wire the existing scheduler fields) + the
    **report-generating, auto-opening** run config — unlocks the dawn lint (#26)
    and sunrise stats (#27), the two recipes the request named, and the rest of
    the scheduled layer (28–35) follows from the same machinery.
-6. **Suite integration** (36–52) — the command-pin kind plus suite-tool detection;
+6. **Suite integration** (36–59) — the command-pin kind plus suite-tool detection,
+   seeding into the dedicated **"Saropa Suite"** group with a per-tool subgroup;
    start with Saropa Lints (it ships a public API and a stable command set), then
    Drift Advisor and Log Capture. The dawn lint (#26) and sunrise stats (#27)
    improve once they can read the Saropa Lints health score directly.
-7. **Process-poll helper + toolchain monitor** (53–55) — independent of the pin
+7. **Process-poll helper + toolchain monitor** (60–62) — independent of the pin
    kinds above (it is its own panel, not a pin action), so it can land any time after
-   the detector exists. Build the snapshot command (#55) first — it is the helper end
-   to end with the simplest surface — then the live panel (#53), then wire the
-   heartbeat (#54) onto the same scheduler used by section E.
+   the detector exists. Build the snapshot command (#62) first — it is the helper end
+   to end with the simplest surface — then the live panel (#60), then wire the
+   heartbeat (#61) onto the same scheduler used by section E.
 
 ---
 

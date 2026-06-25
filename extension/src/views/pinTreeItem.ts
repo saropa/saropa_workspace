@@ -2,17 +2,29 @@ import * as vscode from "vscode";
 import { Pin, PinGroup, PinKind, PinScope, pinKind } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult, formatDuration } from "../exec/runStatus";
+import { RunSource } from "../exec/telemetry";
+import { formatRelativeTime } from "./projectFilesProvider";
 import { l10n } from "../i18n/l10n";
 
 // Tree node for a single pin. Selecting it fires the activate dispatcher, which
 // decides open (single click) vs run (double click within the configured window).
+//
+// `recentInfo` renders the pin as an entry of the Recent group (local telemetry):
+// it gives the node a distinct id namespace (so the same pin can appear both in
+// its home scope and under Recent without an id collision) and shows when it last
+// ran instead of the schedule/last-run badge.
 export class PinTreeItem extends vscode.TreeItem {
+  // True when this node is a Recent-group entry; excluded from drag/drop so a
+  // recent listing is read-only (the underlying pin is reordered from its home).
+  readonly isRecent: boolean;
+
   constructor(
     readonly pin: Pin,
     resolvedUri: vscode.Uri | undefined,
     isRunning: boolean,
     lastRun?: RunResult,
-    isStopping = false
+    isStopping = false,
+    recentInfo?: { at: number; source: RunSource }
   ) {
     const kind = pinKind(pin);
     const isFile = kind === "file";
@@ -22,7 +34,12 @@ export class PinTreeItem extends vscode.TreeItem {
     // Stable id (scope-qualified) so TreeView.reveal can match this node across
     // the tree being rebuilt — the status-bar "next scheduled run" reveals a pin
     // by constructing a fresh item with the same id.
-    this.id = `pin:${pin.scope}:${pin.id}`;
+    this.isRecent = recentInfo !== undefined;
+    // A Recent entry uses a distinct id namespace so it never collides with the
+    // same pin shown in its home scope (VS Code requires unique tree-item ids).
+    this.id = this.isRecent
+      ? `recent:${pin.scope}:${pin.id}`
+      : `pin:${pin.scope}:${pin.id}`;
     // resourceUri drives the file-type icon/decorations; only meaningful for file
     // pins. Non-file pins (url/shell/command/macro) render from their own glyph.
     this.resourceUri = isFile ? resolvedUri : undefined;
@@ -46,7 +63,17 @@ export class PinTreeItem extends vscode.TreeItem {
     // For a file pin the trailing detail is its path; for a non-file pin it is a
     // summary of what the action does (the URL, the command line, etc.).
     const detail = isFile ? pin.path : actionSummary(pin);
-    this.description = badge ? `${badge} · ${detail}` : detail;
+    // A Recent entry leads with when it last ran (and a hint if it was a scheduled
+    // fire), since "how recently" is the reason it is in this group; otherwise the
+    // leading slot is the most-actionable badge (running / next-run / last-run).
+    if (recentInfo) {
+      const when = formatRelativeTime(recentInfo.at, Date.now());
+      const tag =
+        recentInfo.source === "scheduled" ? ` ${l10n("recent.scheduledTag")}` : "";
+      this.description = `${when}${tag} · ${detail}`;
+    } else {
+      this.description = badge ? `${badge} · ${detail}` : detail;
+    }
 
     // contextValue gates the menus. A running pin uses "pinRunning" so the Stop
     // action shows; recipe pins use "pinRecipe" (Promote / sticky Unpin, but no
@@ -228,6 +255,28 @@ function kindIcon(kind: PinKind): string {
       return "list-ordered";
     default:
       return "pin";
+  }
+}
+
+// Top-level "Recent" root listing the last-called pins across both scopes (local
+// telemetry, roadmap 3.3). Sits above the scope roots for quick re-run access; its
+// children are PinTreeItems built with recentInfo. Shown only when there is recent
+// history and telemetry is enabled (the provider gates it).
+export class RecentRootItem extends vscode.TreeItem {
+  constructor(count: number, expanded: boolean) {
+    super(
+      l10n("recent.group"),
+      expanded
+        ? vscode.TreeItemCollapsibleState.Expanded
+        : vscode.TreeItemCollapsibleState.Collapsed
+    );
+    this.id = "scope:recent";
+    // "recentRoot", deliberately NOT "pin*"/"scopeRoot": it must not pick up the
+    // per-pin menus or the "New Group" action. Its own "Reset Run History" action
+    // keys off this value.
+    this.contextValue = "recentRoot";
+    this.description = String(count);
+    this.iconPath = new vscode.ThemeIcon("history");
   }
 }
 

@@ -51,11 +51,43 @@ A **double click** on a pinned script executes it. Each pin carries its own run 
 
 By default scripts run in the **integrated terminal** so you see live output. Switch a run to a **background output channel** when you want it out of the way.
 
+A command can carry **placeholder tokens** (`$file`, `$dir`, `$fileName`, `$workspaceRoot`, …) expanded at run time, and **interactive tokens** (`${prompt:Label}` for an input box, `${pick:a,b,c}` for a quick pick) so one parameterized pin replaces a pin-per-variant. A background run is **stoppable** from the tree — with a **Force Kill** for a wedged process — and shows its **last-run status** (success / failure, exit code, and duration) right on the pin.
+
 Because VS Code tree views have **no native double-click event**, every pinned script also has an **inline play button** and a context-menu **Run** action. Use whichever you prefer — the result is identical. See [Double-click vs inline run](#double-click-vs-inline-run) below.
 
 ### ⏰ Schedule
 
-Run a pinned script at a **time of day**, on a **repeating interval**, or both — for as long as VS Code is open. Scheduling runs **in-process** (it is not OS cron and does not survive a VS Code restart), which keeps it simple, project-local, and free of system configuration.
+Run a pinned script at a **time of day**, on a **repeating interval**, or both — for as long as VS Code is open. Scheduling runs **in-process** (it is not OS cron and does not survive a VS Code restart), which keeps it simple, project-local, and free of system configuration. A **status-bar item** shows the soonest upcoming scheduled run and reveals that pin when clicked, so what is queued is always visible.
+
+### 🧩 Recipes
+
+Saropa Workspace reads your project and offers **auto-detected pins** — never a blank "create" button. From your `.git/config` it surfaces one-click links to open the repo, the current branch, a pull request, Issues, CI, and Releases (GitHub, GitLab, or Bitbucket); from your manifests it offers run dev / test / lint / build / install, `docker compose up`, a database migrate, opening the entry point or all config files, and more — each detected for your ecosystem. Recipes appear in a collapsed **Recipes** group. Remove one and it stays gone; **Restore Recipes** brings them back; **Promote to Pin** turns a recipe into a stored, fully editable pin. Turn the group off with `saropaWorkspace.recipes.enabled`.
+
+Pins are not limited to files: a pin's action can **open a URL**, **run a shell command line**, **invoke a VS Code command**, or run a **macro** (an ordered sequence of those steps).
+
+### 🗂️ Organize with groups
+
+Create named **groups** (folders) under the Project and Global roots, then **drag pins** to reorder them and move them between groups (multi-select moves several at once). A group remembers its open/closed state. Give any pin a custom **icon and color** (**Set Icon & Color…**) — both theme-aware — to tell apart a large pin set at a glance.
+
+### ⚡ Fast access
+
+Reach a pin without opening the sidebar:
+
+- **Run Pin…** — a Command Palette quick pick of every pin across both scopes and all groups, with the pins you ran most recently listed first.
+- **Run Pin with Overrides…** — run a pin with one-off arguments, working directory, or environment for that invocation only; the stored pin is untouched.
+- **Keybindings** — bind **Run Top Pin 1–5** (the first five pins in tree order) or **Run Pin by Reference** (matched by id, label, path, or basename) in the Keyboard Shortcuts editor.
+
+### 🕘 Recent
+
+A **Recent** group at the top of the sidebar lists the pins you ran most recently — across both scopes — each showing how long ago it ran and a "(scheduled)" tag when an unattended scheduled run triggered it. Single-click opens (or shows recipe details); the play button or a double-click re-runs. It is powered by a local, on-device run history that records every run, manual or scheduled, and keeps a lifetime run count per pin. The history stays on your machine and is **never transmitted**; turn collection off with `saropaWorkspace.telemetry.enabled`, or clear it with **Reset Run History**.
+
+### 💡 Smart suggestions
+
+Open a file often enough without pinning it and a toast offers to pin it — to the project scope when it is inside a workspace folder, otherwise global. The offer is made at most once per file, and open counts stay on this machine and are never transmitted. Tune or disable it with `saropaWorkspace.suggestions.openThreshold` and `saropaWorkspace.suggestions.enabled`.
+
+### 🎯 Run-target inference
+
+When you pin a runnable file, Saropa Workspace offers the right command out of the box: a `package.json`'s **scripts** (run via the package manager detected from your lockfile — npm, pnpm, yarn, or bun), a **Makefile**'s targets (`make <target>`), or **run directly** for a shebang script. The choice becomes a normal, editable run config; a file with no detectable target falls back to the default behavior.
 
 ### 🪄 Auto-pins
 
@@ -63,7 +95,7 @@ Common project files appear automatically so a fresh checkout is useful immediat
 
 ### 📥 Import existing favorites
 
-Already using favorites from another extension? Saropa Workspace detects and imports `.favorites.json` (the format used by the kdcro101 "Favorites" extension), so you keep your existing shortcuts when you switch.
+Already using favorites from another extension? Saropa Workspace detects and imports `.favorites.json` (the format used by the kdcro101 "Favorites" extension), so you keep your existing shortcuts when you switch. **Scan Sibling Projects for Favorites…** looks one folder level up from each open workspace folder and imports favorites it finds in immediate siblings as global pins (explicit and user-invoked — never an automatic disk crawl).
 
 ### 📄 Project Files at a glance
 
@@ -137,6 +169,10 @@ All settings live under the `saropaWorkspace.*` namespace.
 | `saropaWorkspace.interpreterDefaults` | see below | Default command prefix per file extension, used when a pin has no explicit command set. An explicit per-pin command always wins. |
 | `saropaWorkspace.projectFiles.enabled` | `true` | Show the Project Files view, listing files like README, CHANGELOG, and package manifests with their last-modified time and declared version. |
 | `saropaWorkspace.projectFiles.files` | see [docs](docs/PROJECT_FILES.md) | Root-relative file names surfaced in the Project Files view. Each is shown only when it exists. |
+| `saropaWorkspace.recipes.enabled` | `true` | Show the auto-detected Recipes group derived from the project's own files. |
+| `saropaWorkspace.telemetry.enabled` | `true` | Keep a local, on-device run history (the Recent group and palette recents). Never transmitted. |
+| `saropaWorkspace.suggestions.enabled` | `true` | Offer to pin a file you open often but have not pinned. |
+| `saropaWorkspace.suggestions.openThreshold` | `6` | How many opens of an unpinned file trigger the pin suggestion. |
 
 Default `interpreterDefaults` map:
 
@@ -167,11 +203,20 @@ Available from the Command Palette and the view's context menus:
 | **Saropa: Pin File (Project)** / **(Global)** | Pin a file selected in the Explorer. |
 | **Open** | Open a pinned file (the single-click action). |
 | **Run** | Execute a pinned script (the double-click / play-button action). |
-| **Rename** | Rename a pin's display label. |
-| **Unpin** | Remove a pin. |
+| **Run Pin…** | Quick-pick any pin across scopes and groups, recents first. |
+| **Run Pin with Overrides…** | Run a pin with one-off args / cwd / env for that run only. |
+| **Run Top Pin 1–5** / **Run Pin by Reference** | Bindable run commands for the Keyboard Shortcuts editor. |
+| **Configure Run…** | Edit a pin's command prefix, args, cwd, env, and terminal-vs-background. |
+| **Configure Schedule…** | Set a pin's daily time, repeat interval, and enabled flag. |
+| **Stop** / **Force Kill** | Stop (or force-kill) a running background pin. |
+| **Set Icon & Color…** | Give a pin a custom theme-aware icon and color. |
+| **New Group** / **Rename** / **Unpin** | Create a group; rename a pin or group; remove a pin. |
+| **Promote to Pin** / **Restore Recipes** | Turn a recipe into a stored pin; bring removed recipes back. |
+| **Reset Run History** | Clear the local Recent list and run counts (on-device only). |
 | **Restore Auto-Pins** | Re-add auto-pins that were previously removed. |
-| **Refresh** | Reload the Pins view. |
-| **Refresh Project Files** | Reload the Project Files view. |
+| **Import Favorites…** / **Scan Sibling Projects for Favorites…** | Import `.favorites.json`; import favorites from sibling projects. |
+| **Show Output** | Reveal the shared output channel. |
+| **Refresh** / **Refresh Project Files** | Reload the Pins or Project Files view. |
 | **Copy Path** | Right-click any file row (either view) to copy its full path. |
 
 ---

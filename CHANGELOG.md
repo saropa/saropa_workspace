@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Recent group and local run telemetry: a **Recent** group at the top of the
+  sidebar lists the pins you ran most recently — across both scopes — each showing
+  how long ago it ran and a "(scheduled)" tag when an unattended scheduled fire
+  triggered it. Single-click opens (or shows recipe details); the play button or a
+  double-click re-runs. It is powered by an on-device run history (recents, plus a
+  lifetime run count per pin) that records every run, manual or scheduled. The
+  history is stored on this machine only and is **never transmitted**; turn
+  collection off with `saropaWorkspace.telemetry.enabled`, or clear it with the
+  **Reset Run History** command (view-title overflow and the Recent group's
+  context menu).
 - Recipes: auto-detected pins derived from a project's own files, shown in a
   collapsed "Recipes" group — never a "create" button. Pins gain action kinds
   beyond opening a file: **url** (open a link), **shell** (run a command line),
@@ -22,7 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `localhost`; copy `name@version`; and run the nearest package script. Removing a
   recipe is sticky (it stays gone); "Restore Recipes" brings them back; "Promote
   to Pin" turns a recipe into a stored, fully-editable pin. A recipe can be turned
-  off entirely with `saropaWorkspace.recipes.enabled`.
+  off entirely with `saropaWorkspace.recipes.enabled`. The Recipes group lists its
+  entries alphabetically by label.
 - Scheduled rituals: time-triggered recipes that run unattended and capture their
   output to a dated file under `reports/` (opening it when useful) — a dawn lint
   sweep, a sunrise stats snapshot, a "since yesterday" standup digest, an
@@ -33,6 +44,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pin and enable its schedule, so nothing runs unattended without consent. The
   dawn lint sweep gives Dart/Flutter with `saropa_lints` / `custom_lint`
   first-class treatment (`dart analyze` plus `dart run custom_lint`).
+- Saropa Suite integration: when a sibling Saropa tool is detected in the project,
+  recipes that drive it appear in a dedicated **Saropa Suite** group, kept separate
+  from the generic "Recipes" group.
+  - **Saropa Lints** — detected from `saropa_lints` in `pubspec.yaml` /
+    `analysis_options.yaml`, the installed extension, or a written
+    `reports/.saropa_lints/violations.json`: run analysis, open the Code Health
+    dashboard, manage rule packs, open Package Vibrancy, export the OWASP report;
+    the `cross_file` / `baseline` / `quality_gate` CLIs; and open the violations
+    report.
+  - **Saropa Drift Advisor** — detected from `saropa_drift_advisor` in
+    `pubspec.yaml` or the installed extension: open the browser viewer, the SQL
+    Notebook, the offline Dart schema scan, the schema diagram, a portable report,
+    forward the emulator port, and open the `/api/issues` feed.
+  - **Saropa Log Capture** — detected from the installed extension: open a capture
+    log, search all logs, export a session Flow Map, compare sessions, show the
+    Signals panel, and start capture.
+
+  Each command pin is seeded only when its owning extension is installed, each CLI
+  / file pin only when the package or file is present — so the group never offers a
+  control for a tool you do not have. An unavailable command degrades to a visible
+  warning toast (and an output-channel line) rather than an error.
 - Project Files view: a second, read-only view in the Saropa Workspace sidebar
   that lists interesting project files (README, CHANGELOG, ROADMAP, manifests
   like `package.json` / `pubspec.yaml` / `Cargo.toml` / `pyproject.toml` /
@@ -43,7 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   glance whether the changelog is current and what version the project is up to.
   Single-click opens the file. The view refreshes on save, folder changes, and a
   manual refresh button; configurable via `saropaWorkspace.projectFiles.enabled`
-  and `saropaWorkspace.projectFiles.files`.
+  and `saropaWorkspace.projectFiles.files`. Rows are listed alphabetically by
+  filename rather than in configured-pattern order.
 - Copy Path: a right-click "Copy Path" action on every file row in both views
   (pins, recipes, and the Project Files list) copies the file's full absolute
   path to the clipboard. A non-file recipe (a URL, command, or macro) copies its
@@ -192,6 +225,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Documentation refresh: the README now surfaces every shipped capability —
+  recipes, pin groups with drag-and-drop, the Run Pin palette and overrides,
+  keybindings, smart pin suggestions, run-target inference, the next-run status
+  bar, stop/force-kill, and last-run status — and `ROADMAP.md` is now
+  forward-looking only (shipped phases removed; the changelog is the record of
+  what has shipped).
 - Redrawn the extension icon and activity-bar icon as a clean flat
   referee-whistle silhouette, based on a public-domain (CC0) whistle. The
   marketplace tile uses the Saropa teal palette; the activity-bar icon is a

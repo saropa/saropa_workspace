@@ -3,8 +3,9 @@ import { Pin, PinGroup, PinScope } from "../model/pin";
 import { MoveTarget, PinStore } from "../model/pinStore";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
+import { telemetry, RunRecord } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
-import { PinFolderItem, PinGroupItem, PinTreeItem } from "./pinTreeItem";
+import { PinFolderItem, PinGroupItem, PinTreeItem, RecentRootItem } from "./pinTreeItem";
 
 // Custom drag-and-drop MIME for moving pins within the view. A custom type (vs
 // the auto-generated tree MIME) keeps the contract explicit and decoupled from
@@ -35,6 +36,8 @@ export class PinsTreeProvider
     store.onDidChange(() => this._onDidChangeTreeData.fire());
     processRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
     runStatusRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
+    // A recorded run (or a reset) changes the Recent group's contents.
+    telemetry.onDidChange(() => this._onDidChangeTreeData.fire());
   }
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
@@ -43,9 +46,16 @@ export class PinsTreeProvider
 
   getChildren(element?: vscode.TreeItem): vscode.TreeItem[] {
     if (!element) {
-      // Roots: the two scopes. Both always shown so the user can see where a new
-      // pin will land even when one is empty.
-      return [
+      // Roots: an optional Recent group (last-called pins, local telemetry) above
+      // the two scope roots. Both scopes are always shown so the user can see
+      // where a new pin will land even when one is empty; Recent appears only when
+      // there is history to show.
+      const roots: vscode.TreeItem[] = [];
+      const recent = this.recentEntries();
+      if (recent.length > 0) {
+        roots.push(new RecentRootItem(recent.length, telemetry.recentExpanded()));
+      }
+      roots.push(
         new PinGroupItem(
           l10n("pin.group.project"),
           "project",
@@ -55,8 +65,13 @@ export class PinsTreeProvider
           l10n("pin.group.global"),
           "global",
           this.store.getGlobalPins().length
-        ),
-      ];
+        )
+      );
+      return roots;
+    }
+
+    if (element instanceof RecentRootItem) {
+      return this.recentEntries().map((e) => this.toRecentItem(e.pin, e.record));
     }
 
     if (element instanceof PinGroupItem) {
@@ -89,6 +104,13 @@ export class PinsTreeProvider
   // no parent cache is needed.
   getParent(element: vscode.TreeItem): vscode.TreeItem | undefined {
     if (element instanceof PinTreeItem) {
+      // A Recent entry's parent is the Recent root, not the pin's home scope.
+      if (element.isRecent) {
+        return new RecentRootItem(
+          this.recentEntries().length,
+          telemetry.recentExpanded()
+        );
+      }
       const pin = element.pin;
       if (pin.groupId) {
         const group = this.store
@@ -118,9 +140,13 @@ export class PinsTreeProvider
     source: readonly vscode.TreeItem[],
     dataTransfer: vscode.DataTransfer
   ): void {
-    // Only pins are draggable; groups and scope roots stay put.
+    // Only real pins are draggable; groups, scope roots, and read-only Recent
+    // entries stay put (a recent entry mirrors a pin reordered from its home).
     const ids = source
-      .filter((item): item is PinTreeItem => item instanceof PinTreeItem)
+      .filter(
+        (item): item is PinTreeItem =>
+          item instanceof PinTreeItem && !item.isRecent
+      )
       .map((item) => item.pin.id);
     if (ids.length === 0) {
       return;
@@ -159,6 +185,14 @@ export class PinsTreeProvider
     target: vscode.TreeItem | undefined,
     pins: Pin[]
   ): MoveTarget | undefined {
+    // The Recent group is read-only: dropping onto it or one of its entries is a
+    // no-op (those entries are not a real location a pin can move into).
+    if (target instanceof RecentRootItem) {
+      return undefined;
+    }
+    if (target instanceof PinTreeItem && target.isRecent) {
+      return undefined;
+    }
     if (target instanceof PinGroupItem) {
       return { scope: target.group, groupId: undefined };
     }
@@ -210,6 +244,33 @@ export class PinsTreeProvider
       runStatusRegistry.get(pin.id),
       processRegistry.isStopping(pin.id)
     );
+  }
+
+  // A Recent-group entry: the same pin node, tagged with when/how it last ran.
+  private toRecentItem(pin: Pin, record: RunRecord): PinTreeItem {
+    return new PinTreeItem(
+      pin,
+      this.store.resolveUri(pin),
+      processRegistry.isRunning(pin.id),
+      runStatusRegistry.get(pin.id),
+      processRegistry.isStopping(pin.id),
+      { at: record.at, source: record.source }
+    );
+  }
+
+  // The recent run records that still resolve to a live pin (an unpinned/deleted
+  // pin is skipped, matching the palette). Empty when telemetry is disabled.
+  private recentEntries(): { pin: Pin; record: RunRecord }[] {
+    if (!telemetry.enabled()) {
+      return [];
+    }
+    return telemetry
+      .recent()
+      .map((record) => {
+        const pin = this.store.findPin(record.pinId);
+        return pin ? { pin, record } : undefined;
+      })
+      .filter((e): e is { pin: Pin; record: RunRecord } => e !== undefined);
   }
 
   private makeScopeRoot(scope: PinScope): PinGroupItem {

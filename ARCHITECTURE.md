@@ -69,8 +69,8 @@ extension/src/
 
 ## Principles in the code
 
-- **Local-first, no telemetry.** Nothing is transmitted; counts and recents are
-  on-device only. See [docs/PRIVACY.md](docs/PRIVACY.md).
+- **Local-first, no remote telemetry.** Nothing is transmitted; local run history
+  and pin-suggestion counts are on-device only. See [docs/PRIVACY.md](docs/PRIVACY.md).
 - **No silent async.** Every run surfaces an outcome (toast and/or the output
   channel).
 - **Translation-ready.** No inline English: manifest strings use the NLS `%key%`

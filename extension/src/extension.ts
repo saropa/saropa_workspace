@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
-import { PinFolderItem } from "./views/pinTreeItem";
+import { PinFolderItem, RecentRootItem } from "./views/pinTreeItem";
 import { SuggestionTracker } from "./views/suggestions";
 import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
@@ -10,7 +10,7 @@ import { registerPinCommands } from "./commands/pinCommands";
 import { registerTerminalCleanup } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { processRegistry } from "./exec/processRegistry";
-import { recentRuns } from "./exec/recentRuns";
+import { telemetry } from "./exec/telemetry";
 import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
 import { l10n } from "./i18n/l10n";
@@ -22,9 +22,10 @@ const IMPORT_PROMPT_KEY = "saropaWorkspace.favoritesImportOffered";
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const store = new PinStore(context);
 
-  // Bind the persisted recently-run list to this context so the runner can
-  // record runs and the "Run Pin..." palette can read them.
-  recentRuns.init(context);
+  // Bind the local run-telemetry store to this context so the runner can record
+  // every run (manual + scheduled) and the Recent group + "Run Pin..." palette can
+  // read them. On-device only — nothing is transmitted (see the principle).
+  telemetry.init(context);
 
   // Click dispatcher: single click opens, double click runs. It carries only the
   // pin id, so callbacks look the pin back up from the store's current cache.
@@ -63,11 +64,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeView.onDidCollapseElement((e) => {
       if (e.element instanceof PinFolderItem) {
         void store.setGroupCollapsed(e.element.pinGroup, e.element.scope, true);
+      } else if (e.element instanceof RecentRootItem) {
+        void telemetry.setRecentExpanded(false);
       }
     }),
     treeView.onDidExpandElement((e) => {
       if (e.element instanceof PinFolderItem) {
         void store.setGroupCollapsed(e.element.pinGroup, e.element.scope, false);
+      } else if (e.element instanceof RecentRootItem) {
+        void telemetry.setRecentExpanded(true);
       }
     })
   );
@@ -148,7 +153,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration("saropaWorkspace.autoPins.patterns") ||
-        e.affectsConfiguration("saropaWorkspace.recipes.enabled")
+        e.affectsConfiguration("saropaWorkspace.recipes.enabled") ||
+        // Toggling telemetry shows/hides the Recent group; a refresh repaints.
+        e.affectsConfiguration("saropaWorkspace.telemetry.enabled")
       ) {
         void store.refresh();
       }

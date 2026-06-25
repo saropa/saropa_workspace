@@ -9,10 +9,11 @@ such as `python`, CLI arguments, a working directory, and environment variables)
 optional scheduled runs, and auto-seeded entries for well-known project files. It is part
 of the **Saropa Suite**.
 
-This document is the authoritative, ordered plan. It records what has shipped and what is
-planned, grouped into phases. Phases are ordered by dependency, not by calendar — an item
-in a later phase generally relies on something landed earlier. Where one item blocks
-another, that is called out explicitly under **Depends on**.
+This document is the **forward-looking** plan: the work that remains, grouped into phases.
+Phases are ordered by dependency, not by calendar — an item in a later phase generally
+relies on something landed earlier. Where one item blocks another, that is called out
+explicitly under **Depends on**. For what has already shipped, see the
+[changelog](extension/CHANGELOG.md).
 
 ---
 
@@ -24,13 +25,22 @@ matter how complete it looks.
 - **Local-first.** All pin data lives on the user's machine — a project file in the repo
   and VS Code's own global state. Nothing requires a server, an account, or a network
   round-trip to function.
-- **No telemetry.** The extension collects, transmits, and phones home nothing. No usage
-  counters, no crash beacons, no analytics SDK. Diagnostics stay in the local output
-  channel.
-- **Design-system-consistent UX.** Use VS Code's native surfaces — tree view, QuickPick,
-  input boxes, theme-aware product icons (`ThemeIcon`), and the integrated terminal —
-  rather than custom webviews or bespoke chrome. The extension should read as a first-class
-  part of the editor, not a bolt-on.
+- **No remote telemetry.** The extension transmits and phones home nothing — no network
+  round-trip, no crash beacons, no analytics SDK, ever. **Local** telemetry is allowed and
+  expected: on-device usage counts, run tallies, and last-run times power features (smart
+  suggestions, last-run status, local run analytics). All of it lives in `globalState`, is
+  viewable and resettable by the user, can be disabled, and is **never** transmitted.
+  Diagnostics stay in the local output channel.
+- **Design-system-consistent UX — native-first, webview when justified.** Default to VS
+  Code's native surfaces — tree view, QuickPick, input boxes, theme-aware product icons
+  (`ThemeIcon`), markdown preview, and the integrated terminal. They are free, theme-aware,
+  accessible, and read as a first-class part of the editor rather than a bolt-on. A custom
+  webview is allowed where a native surface genuinely cannot do the job — a live chart, a
+  sparkline trend, a sortable multi-column grid — but it is the exception that must earn its
+  place, never the default reach. Any webview is **local-only**: a strict Content-Security-
+  Policy with a per-load nonce, no external script or CDN, no network access of any kind, so
+  it still satisfies the no-remote-telemetry principle. Use the theme CSS variables
+  (`--vscode-*`) so a webview tracks the active color theme.
 - **Translation-ready from the start.** Every user-facing string is externalized: manifest
   strings through VS Code's NLS `%key%` pipeline (`package.nls.json`), runtime strings
   through the `l10n()` helper and `src/i18n/locales/en.json`. No inline English in code,
@@ -43,196 +53,36 @@ matter how complete it looks.
 
 ---
 
-## Shipped — Phase 1 (Foundations)
+## Phase 1 — Bring more existing favorites in, and scale organization
 
-The base extension is functional: pin, organize, open, and run files from an activity-bar
-sidebar.
+The base extension is functional and organized: pins with run parameters and schedules,
+named groups with drag-and-drop, recipes, the run palette, and the Project Files view have
+all shipped. Phase 1 grows adoption by importing favorites from more sources, and hardens
+behavior across multi-root workspaces.
 
-- **Manifest, build, and i18n scaffolding.** VS Code manifest (`package.json`) with the
-  activity-bar view container and commands; an `esbuild`-based bundle; the NLS `%key%`
-  pipeline for manifest strings; and the runtime `l10n()` catalog for code strings.
-- **Pin data model and storage.** The `Pin` model (id, path, label, scope, order,
-  optional `exec` and `schedule`) with project pins persisted to
-  `.vscode/saropa-workspace.json` (workspace-relative paths, survives clone/move) and
-  global pins persisted to `globalState` (absolute paths). Auto-pins are seeded from
-  configured patterns, with removed auto-pins tracked so they are not re-seeded, and a
-  restore path.
-- **Tree view and core actions.** An activity-bar sidebar with **Project Pins** and
-  **Global Pins** groups; pin, unpin, and rename; the open-vs-run distinction (single
-  click opens, double click runs, plus an inline play action); and execution through the
-  integrated terminal or a background output channel honoring each pin's command prefix,
-  arguments, working directory, and environment.
-- **Favorites import (basic).** Detect and import existing `.favorites.json` files in the
-  kdcro101 **Favorites** format, with a one-time per-workspace prompt when one is present
-  and an on-demand "Import Favorites…" command. Import is idempotent (duplicate paths are
-  skipped) and malformed entries are skipped rather than aborting. Phase 3.1 extends this
-  to more formats and to folder/group entries.
+### 1.1 Extend favorites import (more formats, groups, tests)
 
-The remaining phases build on this foundation in dependency order.
-
----
-
-## ~~Phase 2 — Make the built-in capabilities usable without hand-editing JSON~~ — DONE
-
-Phase 1 exposed the execution and scheduling **data model** but not the UI to drive it.
-Today a user must hand-edit `.vscode/saropa-workspace.json` to set run parameters or a
-schedule. Phase 2 closes that gap. It is first because every later feature (scheduling
-badges, the run palette, status bar) assumes pins can be configured through the UI.
-
-### ~~2.1 Run-parameters editor (QuickPick flow)~~ — DONE
-
-- **What.** A multi-step QuickPick / input-box flow, invoked from a pin's context menu
-  ("Configure Run…"), to edit `PinExecConfig`: command prefix, arguments, working
-  directory, environment variables, and the terminal-vs-background toggle. Pre-fills from
-  the current values; writes back to the owning store (project file or global state).
-- **Why.** Run parameters are the core differentiator (single-click open, double-click run
-  *with arguments*). Requiring JSON editing makes the headline feature inaccessible to most
-  users and error-prone (a malformed file silently disables a pin).
-- **Acceptance criteria.**
-  - The flow edits each field of `PinExecConfig` and persists through the existing store
-    API; no direct file writes from the command.
-  - Working-directory selection offers the workspace folder, the file's folder, and a
-    custom path, and validates that a custom path exists.
-  - Environment variables are entered and removed as key/value pairs; existing values are
-    shown and editable.
-  - Canceling any step aborts with no partial write.
-  - All prompts, placeholders, and validation messages are keyed strings (NLS / `l10n`).
-  - A pin configured through the flow runs identically to the same config hand-written in
-    JSON (round-trip parity).
-
-### ~~2.2 Scheduler implementation~~ — DONE
-
-- **What.** Wire in-process timers to the existing `PinSchedule` fields (`atTime`,
-  `everyMs`, `enabled`, `lastRun`). On fire, execute the pin's run config, post a toast,
-  append to the output channel, and update `lastRun`. Show a next-run badge / tooltip in
-  the tree.
-- **Why.** The model fields already ship in stored pins; without the timer wiring they are
-  inert. Scheduling (run a build, a lint, a sync script at a time of day or interval) is a
-  stated product capability.
-- **Acceptance criteria.**
-  - A pin with `schedule.atTime` fires once at that local time each day; a pin with
-    `schedule.everyMs` fires on that interval; both may combine.
-  - `lastRun` de-duplicates fires across a VS Code reopen — reopening within the same
-    target minute does not double-fire.
-  - Each fire surfaces a toast naming the pin and the action, and an output-channel line
-    with the timestamp and the command run (no silent execution — see Principles).
-  - The tree shows the next scheduled run for each scheduled pin (badge and/or tooltip).
-  - Disabling a schedule (`enabled: false`) stops its timer; re-enabling restarts it
-    without a reload.
-  - Timers are disposed on extension deactivation; no orphaned timers leak.
-- **Depends on.** Run-parameters editor (2.1) for editing the schedule through the UI; the
-  scheduler can fire pins configured by JSON in the interim, but the toggle/edit UX lands
-  with 2.1's pattern.
-
-### ~~2.3 Stop a running scheduled / background process from the tree~~ — DONE
-
-- **What.** Track background and scheduled child processes per pin and add a "Stop" tree
-  action that terminates the running process. Reflect running state in the tree (icon /
-  badge).
-- **Why.** A scheduled or long-running background script has no off switch today; the user
-  must hunt it in the OS. A run that cannot be stopped is unsafe to schedule.
-- **Acceptance criteria.**
-  - A pin running in the background shows a running indicator and a Stop action.
-  - Stop terminates the child process (and its tree, on platforms that support it) and
-    clears the running indicator.
-  - Stopping is reflected in the output channel; a stopped run does not update `lastRun` as
-    a successful fire.
-  - Integrated-terminal runs remain managed by the terminal itself (documented behavior,
-    not a regression).
-- **Depends on.** Scheduler (2.2) and the existing background runner.
-
-### ~~2.4 Run-command placeholder tokens~~ — DONE
-
-- **What.** Support placeholder tokens in a pin's command and arguments, substituted at run
-  time. Adopt Code Runner's token names for familiarity: `$workspaceRoot`, `$dir`,
-  `$file`, `$fileName`, `$fileNameWithoutExt`. Tokens expand before the command is assembled
-  for the terminal or background runner.
-- **Why.** A fixed `command + file + args` line cannot express common cases (output beside
-  the source, run from the workspace root, pass the bare filename). Token substitution is
-  the established run-extension UX; users coming from Code Runner expect these names.
-- **Acceptance criteria.**
-  - Each documented token expands correctly for a pin in any workspace folder, including
-    paths with spaces (quoting preserved after substitution).
-  - A command with no tokens behaves exactly as today (no regression to the current
-    `command + "file" + args` assembly).
-  - Unknown `$name` tokens are left literal and noted once in the output channel, never
-    silently blanked.
-- **Depends on.** The run-parameters editor (2.1) for entering tokens with inline help.
-
----
-
-## Phase 3 — Bring existing favorites in, and scale organization
-
-With configuration and scheduling usable, Phase 3 grows adoption (import existing
-favorites) and handles users with many pins (groups, ordering, multi-root).
-
-### 3.1 Extend favorites import (more formats, groups, tests)
-
-The basic kdcro101 `.favorites.json` import shipped in Phase 1 (one-time prompt +
-on-demand command, idempotent, malformed-entry-safe). This item extends it.
-
-**Progress:** ~~the sibling-projects scan (import favorites from immediate sibling
-folders as global pins, explicit and user-invoked)~~ has shipped. Remaining:
-secondary source formats (Project Manager, Bookmarks), folder/group import (needs
-3.2), the ongoing detection prompt for newly-appearing source files, and tests.
+The kdcro101 `.favorites.json` import and the sibling-projects scan have shipped. This item
+extends import coverage.
 
 - **What.** Add secondary source formats — evaluated targets: **Project Manager** and
   **Bookmarks** — behind a written per-format mapping assessment. Import folder/group
-  entries from source files (currently skipped) once pin groups (3.2) exist. Add the
-  ongoing detection prompt for newly-appearing source files, and cover the mapping rules
-  with tests. Add an explicit **"Scan sibling projects for favorites…"** command that
-  looks one directory level up from each open workspace folder, detects favorites files
-  (`.favorites.json` and `.vscode/saropa-workspace.json`) in the immediate sibling
-  folders, lists what it found, and imports the user's selection as **global** pins — a
-  cross-project favorite is an absolute path outside the current folder, so it cannot be a
-  folder-relative project pin. The scan is explicit and user-invoked, never an automatic
-  scan on activation, to preserve the no-surprise posture.
+  entries from source files (currently skipped) now that pin groups exist. Add an ongoing
+  detection prompt for newly-appearing source files, and cover the mapping rules with tests.
 - **Why.** Users migrating from an existing favorites workflow should not re-pin by hand.
   Frictionless migration is the strongest adoption lever for a tool in a crowded category.
 - **Acceptance criteria.**
-  - kdcro101 mapping rules are documented and covered by tests (the shipped behavior).
+  - kdcro101 mapping rules are documented and covered by tests.
   - Import remains idempotent — running it twice does not create duplicate pins (match on
     resolved path within scope).
-  - Folder/group entries from a source file map to pin groups once 3.2 lands; until then
-    they are skipped with an output-channel note (current behavior).
-  - Unsupported or malformed entries are reported in the output channel and skipped, never
-    aborting the whole import.
+  - Folder/group entries from a source file map to pin groups; unsupported or malformed
+    entries are reported in the output channel and skipped, never aborting the whole import.
   - Project Manager and Bookmarks support each ships only if its format maps to the pin
     model without data loss, otherwise it moves to Later / Exploratory with the reason
     recorded.
-  - The sibling scan reads only immediate sibling folders (one directory level up), never
-    a recursive disk crawl, and runs only when explicitly invoked — never on activation.
-  - Favorites found in sibling projects import as global pins; the scan presents the
-    detected files and imports only the user's selection, remaining idempotent on re-run.
-- **Depends on.** Pin groups (3.2) for importing folder/group entries; the configuration
-  UX pattern (2.1) for resolving any per-pin run config a source format implies.
+- **Depends on.** Pin groups (shipped) for folder/group entries.
 
-### ~~3.2 Pin groups / folders with drag-and-drop reorder~~ — DONE
-
-- **What.** User-defined groups (folders) nested under the Project / Global roots, plus
-  drag-and-drop to reorder pins and move them between groups. Persisted via the existing
-  `order` field plus a group/parent field added to the model (versioned migration).
-- **Why.** A flat list does not scale past a handful of pins. Grouping (by task, by tool,
-  by area) is what makes a large pin set navigable.
-- **Acceptance criteria.**
-  - ~~Groups can be created, renamed, and deleted; deleting a non-empty group prompts and
-    either removes or re-parents its pins (defined behavior, not data loss).~~ Done — a
-    modal confirm precedes deletion; pins re-parent to the scope top level (never removed).
-  - ~~Drag-and-drop reorders within a group and moves between groups, persisting the new
-    order/parent.~~ Done — within-scope drag reorders (insert-before) and re-parents;
-    multi-select moves several pins at once.
-  - ~~The schema migration adds the group/parent field without breaking files written by the
-    pre-group version (`version` bump with a read migration).~~ Done — `version` 1 → 2;
-    a v1 file reads as an empty group list with its pins at top level, no field dropped.
-  - Auto-pins stay at the top level (they are recomputed, not stored as data, so group
-    membership cannot persist on them); imported pins land at the top level until moved.
-- **Depends on.** Schema versioning (Phase 1); a model change here ripples into the store,
-  tree, import (3.1), and export (Phase 5), so it precedes those that read group state.
-- **Deferred to 3.3 (multi-root).** A project group is created in the first workspace
-  folder, and a project pin can only join a group in its own folder (paths are
-  folder-relative). Cross-folder grouping is part of the multi-root refinement.
-
-### 3.3 Multi-root workspace handling refinements
+### 1.2 Multi-root workspace handling refinements
 
 - **What.** Correct, predictable behavior across multi-root workspaces: per-folder project
   pin files, clear attribution of which folder owns a pin, and correct working-directory /
@@ -245,227 +95,58 @@ secondary source formats (Project Manager, Bookmarks), folder/group import (need
   - A pin's default working directory resolves to its owning folder, matching the documented
     `PinExecConfig.cwd` fallback.
   - Adding or removing a workspace folder updates the tree and timers without a reload.
+  - Cross-folder grouping: a project group is currently created in the first workspace
+    folder, and a project pin can only join a group in its own folder (paths are
+    folder-relative). This item lifts that restriction where it is safe to do so.
 
 ---
 
-## Phase 4 — Fast access surfaces
+## Phase 2 — Sharing
 
-Once pins are configurable, organized, and importable, Phase 4 makes them fast to reach
-from anywhere in the editor.
+Project pins committed in `.vscode/saropa-workspace.json` already serve as the team-shared
+baseline. This phase adds explicit export/import for cross-project and cross-team sharing.
 
-### ~~4.1 "Run any pin" command-palette entry and recently-run list~~ — DONE
-
-- **What.** A command (e.g. "Saropa Workspace: Run Pin…") that opens a QuickPick of all
-  pins across scopes and groups to run one directly, with recently-run pins surfaced at the
-  top. Done — also a view-title button; recents live in on-device globalState, bounded and
-  never transmitted; selection runs through the shared runPinCommand path.
-- **Why.** Reaching a pin should not require opening the sidebar and clicking. A palette
-  entry with recents is the fastest path for frequent runs.
-- **Acceptance criteria.**
-  - The QuickPick lists pins from both scopes, labeled with scope and group, and runs the
-    selected pin with its configured parameters.
-  - A bounded recently-run list orders recents first; it persists across sessions and never
-    grows without limit.
-  - Selecting a pin runs it through the same runner as the tree's play action (single code
-    path).
-
-### ~~4.2 Keyboard shortcuts / keybindings for top pins~~ — DONE
-
-- **What.** Assignable keybindings to run designated "top" pins, exposed as parameterized
-  commands so users can bind them in VS Code's keybindings UI.
-- **Why.** The fastest possible access for a handful of high-frequency pins; it complements,
-  not replaces, the palette.
-- **Acceptance criteria.**
-  - ~~A documented, stable command id (with arguments) lets a user bind a specific pin.~~
-    Done — `saropaWorkspace.runPinById` with an `args` reference matched against id, label,
-    path, or basename.
-  - ~~A small number of generic "run top pin N" commands are available to bind without
-    knowing pin ids.~~ Done — `runTopPin1`–`runTopPin5` run the Nth pin in tree order;
-    reorder pins by dragging to designate which are "top".
-  - ~~Bindings invoke the same runner; behavior matches a tree run exactly.~~ Done — both
-    route through the shared `runPinCommand`.
-
-With 4.1, 4.2, and 4.3 done, Phase 4 (fast-access surfaces) is complete.
-
-### ~~4.3 Status bar entry for the next scheduled run~~ — DONE
-
-- **What.** A status-bar item showing the next upcoming scheduled run (pin name and time);
-  clicking it reveals the pin in the tree. Done — recomputed on store change and a 60s
-  tick; hidden when no schedule is enabled; reveal uses stable tree-item ids + getParent so
-  it expands the owning group.
-- **Why.** Makes scheduling visible at a glance without opening the sidebar; reinforces the
-  "no silent execution" principle by always showing what is queued.
-- **Acceptance criteria.**
-  - The item shows the soonest next run across all enabled schedules and updates as
-    schedules fire or change.
-  - With no scheduled pins, the item is hidden (no empty noise).
-  - Clicking reveals the relevant pin in the tree.
-- **Depends on.** Scheduler (2.2).
-
----
-
-## Phase 5 — Personalization and sharing
-
-Polish and team workflows once the core is complete.
-
-### ~~5.1 Per-pin icon and color customization~~ — DONE
-
-- **What.** Let a pin override its tree icon (from VS Code's product/codicon set) and
-  apply a theme color, persisted on the pin. Done — "Set Icon & Color..." picks a curated
-  codicon + a `charts.*` theme color; stored on `Pin.icon`/`Pin.color`; transient state
-  icons still take precedence; auto-pins are excluded (nothing to persist on).
-- **Why.** Visual differentiation in a large or grouped pin set; aids fast scanning.
-- **Acceptance criteria.**
-  - Icon and color are chosen from theme-aware sources (`ThemeIcon` / `ThemeColor`), never
-    hardcoded literals, satisfying the design-system principle.
-  - Choices persist via a versioned schema field and render in light, dark, and
-    high-contrast themes.
-  - A pin with no override falls back to the file-type default.
-
-### 5.2 Export / share pins and team-shared pin sets
+### 2.1 Export / share pins and team-shared pin sets
 
 - **What.** Export a pin set (selected groups or all) to a shareable file, and import it
-  elsewhere. Project pins committed in `.vscode/saropa-workspace.json` already serve as the
-  team-shared baseline; this adds explicit export/import for cross-project and cross-team
-  sharing.
+  elsewhere.
 - **Why.** Teams converge on a common set of build/lint/run shortcuts; sharing them should
   not mean copy-pasting JSON.
 - **Acceptance criteria.**
   - Export produces a versioned, self-describing file; import is idempotent and reuses the
-    3.1 import infrastructure where formats overlap.
+    import infrastructure where formats overlap.
   - Imported shared sets respect scope rules (a shared set does not silently overwrite a
     user's global pins; conflicts are surfaced and resolved, not clobbered).
   - Round-trip (export then import into an empty workspace) reproduces the set, including
     groups, run config, and icons.
-- **Depends on.** Groups (3.2) and import (3.1) for shared structure and parsing.
+- **Depends on.** Import (1.1) for shared structure and parsing; groups (shipped).
 
 ---
 
-## Phase 6 — Quality and confidence
-
-Tests are listed as their own phase because they cut across every other item, but the unit
-tests for shipped logic should be written alongside the feature, not deferred to the end.
-This phase tracks the test surface as a whole.
-
-### 6.1 Unit tests
-
-- **What.** Unit coverage for the pure logic:
-  - **Store** — load/save round-trip, auto-pin seeding with removal and restore, schema
-    migrations, scope resolution (relative vs absolute paths).
-  - **Command builder** — assembling the run command from command prefix, file path,
-    arguments, cwd, and env, including the interpreter-by-extension fallback.
-  - **Schedule next-occurrence** — computing the next fire for `atTime`, `everyMs`, and the
-    combination, plus `lastRun` de-duplication across a reopen.
-  - **Double-click discriminator** — open-vs-run timing logic.
-- **Why.** These are the load-bearing, easy-to-break-silently parts (path resolution, time
-  math, command assembly). They are testable without the VS Code host.
-- **Acceptance criteria.**
-  - Each module above has tests covering its documented behavior and its known edge cases
-    (empty config, missing file, DST boundary for time math, reopen de-dup).
-  - Tests run in CI as a scoped suite (no full-host launch required for unit coverage).
-
-### 6.2 Integration smoke test
-
-- **What.** A minimal VS Code integration test that activates the extension, registers the
-  view and commands, pins a file, and runs it.
-- **Why.** Catches manifest/activation regressions that unit tests cannot.
-- **Acceptance criteria.**
-  - The smoke test activates the extension and asserts the view container and core commands
-    register.
-  - It exercises one pin → run path end to end against the test host.
-
----
-
-## Phase 7 — Standout capabilities
+## Phase 3 — Standout capabilities
 
 These build on the configured, organized, fast-access core to make Saropa Workspace
-distinctly more capable than a plain favorites list. Each depends on earlier phases (noted
-per item) and is ordered after them, but the items are independent of one another — any can
-land once its own dependencies are met.
+distinctly more capable than a plain favorites list. The items are independent of one
+another — any can land once its own dependencies are met.
 
-### ~~7.1 Run-parameter prompt tokens~~ — DONE
-
-- **What.** Extend the 2.4 token system with tokens resolved interactively at run time:
-  `${prompt:Label}` opens an input box, `${pick:a,b,c}` opens a QuickPick. The collected
-  value substitutes into the command and arguments before assembly.
-- **Why.** One parameterized pin (branch name, environment, target) replaces a separate
-  pin per variant; interactive run parameters are not offered by Code Runner.
-- **Acceptance criteria.**
-  - `${prompt:Label}` collects free text and `${pick:...}` collects one of a fixed list;
-    both substitute into command and arguments.
-  - Canceling a prompt aborts the run with no partial execution and an output-channel note.
-  - A literal `$` that is not part of a known token is left untouched (no regression to the
-    2.4 static tokens).
-- **Depends on.** Token substitution (2.4); the run-parameters editor (2.1) for entering
-  tokens with inline help.
-
-### ~~7.2 Last-run status in the tree~~ — DONE
-
-- **What.** After a run, record the exit code and duration on the pin and render a status
-  badge / icon (success, failure, running) with the duration in the tooltip. A failed pin
-  offers a "Show Output" action that reveals its output-channel section.
-- **Why.** Turns the sidebar into a local run dashboard; the outcome of the last run is
-  visible without hunting through the terminal.
-- **Acceptance criteria.**
-  - The tree shows success / failure / running state per pin with the last duration in the
-    tooltip.
-  - Status is in-memory per session (not persisted as data) and clears on reload; nothing
-    is transmitted (no telemetry).
-  - A failure exposes a one-click path to the relevant output.
-- **Depends on.** The runner and stop-tracking (2.2 / 2.3) for exit codes and running state.
-
-### ~~7.3 Smart pin suggestions~~ — DONE
-
-- **What.** Maintain a local, on-device frequency count of files opened and run; when a
-  non-pinned file crosses a threshold, offer a one-tap "Pin this?" via a toast-with-action,
-  gated once per file (offered / dismissed flag) so it never reappears unsolicited. Done —
-  counts open activations (file scheme, noise-filtered) in globalState; threshold and an
-  on/off switch are settings; pinning targets project scope inside a workspace folder, else
-  global.
-- **Why.** Surfaces the files a user already treats as favorites without manual pinning —
-  the strongest zero-effort adoption lever.
-- **Acceptance criteria.**
-  - Counts persist on-device only (`globalState`); nothing is transmitted — satisfies the
-    no-telemetry principle.
-  - The prompt is gated per file (done / offered / dismissed) and never nags.
-  - Accepting pins the file through the existing store API; dismissing suppresses future
-    prompts for that file.
-
-### 7.4 Workspace boot sequence
+### 3.1 Workspace boot sequence
 
 - **What.** A named, ordered set of pins (open files and/or run scripts) that runs when the
   workspace opens, behind a one-time confirm per session.
 - **Why.** One action restores a working context — open the key files, start the dev
   server — instead of repeating the same opens and runs every session.
 - **Acceptance criteria.**
-  - A boot set can be defined, reordered, and enabled / disabled through the 2.1-style UX.
+  - A boot set can be defined, reordered, and enabled / disabled through the Configure-Run
+    style UX.
   - On workspace open it prompts once before running (no silent execution — see Principles);
     declining skips it for the session.
   - Each step surfaces an outcome; a failed step does not abort the rest unless configured
     to.
-- **Depends on.** Groups (3.2) for set membership; the runner.
+- **Depends on.** Groups (shipped) for set membership; the runner (shipped). The macro
+  action kind (shipped) already covers an ordered multi-step run; this adds the
+  open-on-workspace trigger and the per-session confirm.
 
-### ~~7.5 Run-target inference~~ — DONE
-
-- **What.** When pinning a file, detect runnable targets within it — `package.json`
-  scripts, Makefile targets, a shebang line — and offer those as the pin's run config
-  instead of, or alongside, running the file directly.
-- **Why.** Removes the manual step of typing the command prefix and arguments for common
-  project files; the pin runs the right thing out of the box.
-- **Acceptance criteria.**
-  - ~~Pinning a `package.json` offers its `scripts` as selectable run targets; a Makefile
-    offers its targets; a shebang script pre-fills a blank prefix from the shebang.~~ Done —
-    package.json scripts run via the detected package manager (npm/pnpm/yarn/bun from the
-    lockfile); Make targets via `make <target>`; a shebang offers "run directly".
-  - ~~The chosen target writes a normal `PinExecConfig`; there is no special-case run path.~~
-    Done — targets write `command`/`args`/`cwd` plus the new `includeFilePath` flag (false
-    for npm/Make targets, which name their work in args and run against cwd). The flag is
-    editable in Configure Run, so an inferred target round-trips with hand-written JSON.
-  - ~~A file with no detectable target falls back to today's behavior.~~ Done — an empty
-    target list means no prompt; Esc on the prompt also leaves the pin at its default.
-- **Depends on.** The run-parameters editor (2.1).
-
-### 7.6 Branch-aware pin sets
+### 3.2 Branch-aware pin sets
 
 - **What.** Associate pin sets with the current git branch — switch the active set on
   branch change, and optionally run a designated pin on switch (e.g. refresh dependencies).
@@ -477,59 +158,96 @@ land once its own dependencies are met.
   - An optional on-switch pin runs with a visible outcome (no silent execution).
   - Branch detection degrades gracefully outside a git repo (the feature is inert, no
     errors).
-- **Depends on.** Multiple favorite sets (Later / Exploratory) and groups (3.2).
+- **Depends on.** Multiple favorite sets (Later / Exploratory) and groups (shipped).
 
-### ~~7.7 Run-with-overrides from the palette~~ — DONE
+### 3.3 Local run-analytics summary
 
-- **What.** A palette path to run a pin with one-off argument / working-directory /
-  environment overrides for that invocation only, leaving the stored config untouched.
-  Done — "Run Pin with Overrides..." picks a pin (shared picker), pre-fills args/cwd/env,
-  and runs an ephemeral clone (sharing the pin id) through runPinCommand; canceling any
-  prompt runs nothing.
-- **Why.** Ad-hoc variations (a different flag, a different target directory) without
-  permanently editing the pin or creating a near-duplicate.
+The on-device run-telemetry store (recents + a lifetime run count per pin, recording
+every manual and scheduled run), the **Recent** sidebar group, the disable setting, and
+**Reset Run History** have shipped. This item adds a viewable summary over that same data.
+
+- **What.** A small, on-demand summary of pin activity — most-run pins, total runs,
+  success/failure split (from the per-session run status), and last-run times — plus the
+  per-pin lifetime run count in the pin's tooltip. Purely local; viewable on demand, never
+  sent anywhere.
+- **Why.** Lightweight visibility into which shortcuts earn their place, beyond the
+  most-recent ordering the Recent group already gives.
 - **Acceptance criteria.**
-  - The override flow pre-fills from the stored config and applies edits to that run only;
-    the persisted pin is unchanged.
-  - Overrides run through the same runner as a normal run (single code path).
-  - Canceling runs nothing.
-- **Depends on.** The run palette (4.1) and the run-parameters editor (2.1).
+  - The summary reads only the on-device telemetry store (`globalState`) and transmits
+    nothing — satisfies the no-remote-telemetry principle (local telemetry is permitted;
+    transmission is not).
+  - The summary respects the existing reset (Reset Run History clears it) and the disable
+    setting (collection off ⇒ nothing to summarize).
+  - The per-pin run count appears in the tooltip without a separate collection path (it
+    reuses the count the store already keeps).
 
-### ~~7.9 Project Files view~~ — DONE
+### 3.4 Dashboard webview (processes, analytics, trends)
 
-- **What.** A second, read-only view in the Saropa Workspace sidebar that lists interesting
-  project files (README, CHANGELOG, ROADMAP, contributing/security/license docs, and
-  package manifests — `package.json`, `pubspec.yaml`, `Cargo.toml`, `pyproject.toml`,
-  `go.mod`) when they exist in a workspace folder. Done — each row shows the file's
-  last-modified time (relative buckets — "just now", "5m ago", "3d ago" — then an absolute
-  date) and, where the file declares one, its version (read from the manifest or the top
-  entry of `CHANGELOG.md`). Single-click opens the file; the view refreshes on save, on
-  folder changes, and from a refresh button. Configurable via
-  `saropaWorkspace.projectFiles.enabled` and `saropaWorkspace.projectFiles.files`.
-- **Why.** Answers "is the changelog current?" and "what version is this project up to?" at
-  a glance without opening files — useful during release prep and when returning to a repo.
+- **What.** A single **"Saropa Dashboard"** webview with tabs — **Processes**, **Analytics**,
+  and **Trends** — hosting the three surfaces that native widgets genuinely cannot render:
+  the toolchain process monitor (live CPU bars per tool, a sparkline of recent samples,
+  sortable CPU / RAM / PID-count columns, with confirm-gated kill / reveal buttons), the
+  local run analytics from 3.3 (runs per pin, success/failure, duration trend), and the
+  trend-carrying scheduled reports (test pass/fail history, dependency staleness, tech-debt
+  growth). The concrete recipe entries are #53–#55 in
+  [plans/RECIPE_BOOK.md](plans/RECIPE_BOOK.md); the process-monitor capability and detection
+  table live there.
+- **Why.** Everything else in the extension is well served by tree view, QuickPick, markdown
+  preview, and the terminal — and stays there. These three surfaces are charts and sortable
+  grids: a TreeView can show a process row's CPU in its description but cannot draw a live
+  bar, a sparkline, or a sortable column header, and that visualization is the entire point
+  of a monitor or an analytics view. One shared webview (not three bespoke panels) keeps a
+  single CSP + nonce harness, one set of theme bindings, and one piece of chrome to maintain.
 - **Acceptance criteria.**
-  - The view lists only files that exist; a folder with none shows the empty-state welcome.
-  - Version reads from `package.json`, `pubspec.yaml`, `Cargo.toml`, `pyproject.toml`, and
-    the newest release heading in `CHANGELOG.md` (the `[Unreleased]` placeholder is skipped).
-  - Last-modified uses file mtime (live edits, not commits), so it reflects unsaved-then-
-    saved work, satisfying the no-network / local-first principles.
-  - With several folders open, files group under their owning folder.
-  - All strings are keyed (NLS / `l10n`); the scan is stat-based and reads only the small
-    version-bearing files (no project-wide crawl).
+  - The webview is **local-only**: a strict Content-Security-Policy with a per-load nonce, no
+    external script or CDN, no network access — satisfies the no-remote-telemetry principle.
+  - It is **theme-aware** via `--vscode-*` CSS variables and follows the active color theme,
+    including high-contrast.
+  - The **Processes** tab samples live CPU as a two-sample delta (never raw cumulative
+    CPU-seconds), rolls child processes up to their parent tool, and gates **End task** behind
+    a confirm that names the exact process and PID; OS/container rows are not killable.
+  - Each tab **degrades gracefully** if the webview is disabled or fails to load — the
+    underlying data is still reachable (a TreeView fallback for Processes; the markdown reports
+    and the CSV files for Trends), so the feature is never all-or-nothing.
+- **Depends on.** Local telemetry (3.3) for the Analytics tab's data; the process-poll helper
+  (recipes #53–#55) for the Processes tab; the scheduled trend reports (recipes #30–#32) for
+  the Trends tab. None blocks the Processes tab, which can ship first on the poll helper alone.
 
-### 7.8 Local run analytics
+---
 
-- **What.** An on-device tally of pin activity — runs per pin, total runs, last-run times —
-  shown in a small summary and per-pin tooltip. Purely local and viewable on demand; no
-  network.
-- **Why.** Lightweight visibility into which shortcuts earn their place, and a record of
-  use.
+## Phase 4 — Quality and confidence
+
+Tests cut across every other item; the unit tests for shipped logic should be written
+alongside each feature, not deferred. This phase tracks the test surface as a whole and
+closes gaps where shipped logic lacks coverage.
+
+### 4.1 Unit tests
+
+- **What.** Unit coverage for the pure logic:
+  - **Store** — load/save round-trip, auto-pin seeding with removal and restore, schema
+    migrations, scope resolution (relative vs absolute paths).
+  - **Command builder** — assembling the run command from command prefix, file path,
+    arguments, cwd, and env, including the interpreter-by-extension fallback and token
+    substitution (static, placeholder, and interactive).
+  - **Schedule next-occurrence** — computing the next fire for `atTime`, `everyMs`, and the
+    combination, plus `lastRun` de-duplication across a reopen.
+  - **Double-click discriminator** — open-vs-run timing logic.
+- **Why.** These are the load-bearing, easy-to-break-silently parts (path resolution, time
+  math, command assembly). They are testable without the VS Code host.
 - **Acceptance criteria.**
-  - All counters are stored on-device (`globalState`) and never transmitted — satisfies the
-    no-telemetry principle explicitly.
-  - The summary can be reset by the user; resetting clears all counters.
-  - Disabling analytics stops collection and hides the surface.
+  - Each module above has tests covering its documented behavior and its known edge cases
+    (empty config, missing file, DST boundary for time math, reopen de-dup).
+  - Tests run in CI as a scoped suite (no full-host launch required for unit coverage).
+
+### 4.2 Integration smoke test
+
+- **What.** A minimal VS Code integration test that activates the extension, registers the
+  view and commands, pins a file, and runs it.
+- **Why.** Catches manifest/activation regressions that unit tests cannot.
+- **Acceptance criteria.**
+  - The smoke test activates the extension and asserts the view container and core commands
+    register.
+  - It exercises one pin → run path end to end against the test host.
 
 ---
 
@@ -541,31 +259,44 @@ committing. Not yet ordered into a phase.
 - **Suite integration — "Better Together."** Cooperation with other Saropa Suite tools.
   Detect a sibling tool from the project (a marker file or its installed companion
   extension) and seed pins that drive it. The concrete recipe catalog (the suite set is
-  recipes 36–52) lives in [plans/RECIPE_BOOK.md](plans/RECIPE_BOOK.md). Stable entry points
-  confirmed against each tool's README:
+  recipes 36–59) lives in [plans/RECIPE_BOOK.md](plans/RECIPE_BOOK.md). All suite pins seed
+  into a dedicated top-level **"Saropa Suite"** group with a **per-tool subgroup** (reusing
+  pin groups), never the generic "Recipes" group; a subgroup appears only when its tool is
+  detected. Stable entry points confirmed against each tool's extension manifest and API:
   - **Saropa Lints** (`saropa.saropa-lints`) — detect from `analysis_options.yaml`
-    including `saropa_lints` or `saropa_lints` in `dev_dependencies`. Command pins for
-    `Run Analysis`, `Open Code Health Dashboard`, and `Export OWASP Compliance Report`;
-    run-target pins for the CLIs (`dart run saropa_lints:cross_file report`, `:baseline`,
-    `:quality_gate`); a file pin on `reports/.saropa_lints/violations.json`. The extension
-    exposes a public API (`getViolationsData()`, `getHealthScoreParams()`, `runAnalysis()`)
-    so a scheduled lint pin can read the health score directly instead of parsing output.
+    including `package:saropa_lints/` or a `plugins: saropa_lints:` block, `saropa_lints` in
+    `dev_dependencies`, or `reports/.saropa_lints/violations.json`. Command pins
+    `saropaLints.runAnalysis`, `saropaLints.openProjectVibrancyReport` (Code Health),
+    `saropaLints.openConfigDashboard` (rule packs), `saropaLints.openPackageVibrancy`,
+    `saropaLints.exportOwaspReport`; run-target pins for the CLIs
+    (`dart run saropa_lints:cross_file report`, `:baseline`, `:quality_gate`); a file pin on
+    `reports/.saropa_lints/violations.json`. The extension exposes a public API
+    (`getViolationsData()`, `getHealthScoreParams()`, `runAnalysis()`) so a scheduled lint
+    pin reads the health score directly instead of parsing output.
   - **Saropa Drift Advisor** (`saropa.drift-viewer`) — detect from `saropa_drift_advisor`
-    in `pubspec.yaml`. A URL pin to the debug server (`http://127.0.0.1:8642`, and
-    `/api/issues`); command pins for the SQL Notebook and offline Dart schema scan; a
-    run-target pin for `adb forward tcp:8642 tcp:8642`. The server runs only under
-    `kDebugMode`, so these pair with an active debug session.
-  - **Saropa Log Capture** (`saropa.saropa-log-capture`) — detect from the companion
-    extension or `reports/*.log`. A file pin on the latest capture (`$latestLog`); command
-    pins for `Search Log Files`, `Export Session Flow Map`, and `Compare Sessions`. Log
-    Capture nests peripheral logs under each run, so the scheduled reports (recipes 26–35)
-    appear in its Logs panel automatically.
-  Each integration is gated on the other tool's stable, documented entry point and ships
-  only when present; absence must degrade gracefully (no errors when a suite member is not
-  installed). Needs the **command-pin** and **URL-pin** kinds (also in Non-file run
-  targets) plus suite-tool detection.
+    in `pubspec.yaml`, a `startDriftViewer(` / `DriftDebugServer.start(` call, or the
+    extension. Command pins `driftViewer.openInBrowser`, `driftViewer.openSqlNotebook`,
+    `driftViewer.scanDartSchemaDefinitions`, `driftViewer.forwardPortAndroid`,
+    `driftViewer.schemaDiagram`, `driftViewer.exportReport`; a URL pin to the debug server
+    (`http://127.0.0.1:8642`, and `/api/issues`); a file pin opening `.vscode/launch.json`
+    to wire the `drift:` pre-launch task (`healthCheck` / `anomalyScan` / `indexCoverage`).
+    The server runs on 8642 (discovery 8642–8649) only under `kDebugMode`.
+  - **Saropa Log Capture** (`saropa.saropa-log-capture`) — detect from the extension,
+    `reports/*.log`, or `.saropa/index/`. A file pin on the latest capture (`$latestLog`);
+    command pins `saropaLogCapture.searchLogs`, `saropaLogCapture.exportFlowMap`,
+    `saropaLogCapture.compareSessions`, `saropaLogCapture.showSignals`,
+    `saropaLogCapture.start` / `.stop`. Log Capture nests peripheral logs under each run, so
+    the scheduled reports (recipes 26–35) appear in its Logs panel automatically.
+  The suite already wires into itself: Saropa Lints can pull Drift Advisor's `/api/issues`
+  into Problems (`saropaLints.driftAdvisor.integration`), and Drift Advisor streams session
+  metadata into Log Capture (`driftViewer.integrations.includeInLogCaptureSession`) — these
+  recipes add the one-click and scheduled entry points on top of that mesh. The url, command,
+  shell, and macro action kinds have shipped (they power Recipes), so this now needs only
+  suite-tool detection, the "Saropa Suite" grouping, and the per-tool pin sets. Each
+  integration is gated on the other tool's stable, documented entry point and ships only when
+  present; absence must degrade gracefully (no errors when a suite member is not installed).
 - **Additional import formats.** Any of Project Manager / Bookmarks (or others) that do not
-  make the cut in 3.1, with the per-format mapping assessment recorded here.
+  make the cut in 1.1, with the per-format mapping assessment recorded here.
 - **Richer scheduling.** Day-of-week selectors, cron-style expressions (5-field), a
   friendly interval/cron builder (raw cron syntax is a known user barrier), and
   run-on-startup triggers, evaluated against the in-process timer model's limits.
@@ -578,12 +309,6 @@ committing. Not yet ordered into a phase.
   fix (relocate or remove).
 - **Run on save.** Optionally auto-run a pin when its target file is saved (with auto-save-
   before-run), matching Code Runner's run-on-save.
-- ~~**Command sequences / macros.**~~ DONE — a pin can be a `macro` action that runs an
-  ordered list of steps (open a file, run a shell command, open a URL, invoke a command);
-  used by the boot-sequence recipe. See the recipe book and Recipes section.
-- ~~**Non-file run targets.**~~ DONE — a pin's `action.kind` may be `url` (open a link),
-  `command` (invoke a VS Code command id), `shell` (run a command line), or `macro`, not
-  only a file. This is the foundation the Recipes system is built on.
 - **Remote / virtual resources.** Support pinning files on remote and virtual file systems
   (Remote-SSH, WSL, dev containers), not just `file:` URIs.
 - **Multiple favorite sets.** Named, switchable pin sets per workspace with a status-bar
@@ -617,8 +342,7 @@ committing. Not yet ordered into a phase.
 ## Appendix — Competitive landscape
 
 Survey of existing VS Code extensions in the favorites, bookmarks, and run-script space,
-the features users expect, and how Saropa Workspace compares. This is the research that
-drives the phased backlog above.
+the features users expect, and the gaps that drive the backlog above.
 
 ### Landscape
 
@@ -636,55 +360,30 @@ drives the phased backlog above.
 | Task Explorer / Task Runner | spmeesseman / SanaAjani | mid | Tree to view and run npm/gulp/shell tasks |
 
 Closest direct competitor: **Favorites Panel** (sabitovvt) — the only one combining a
-favorites tree with executing commands/scripts/URLs and per-item config. Saropa Workspace
-overlaps it most.
+favorites tree with executing commands/scripts/URLs and per-item config.
 
-### Must-have features (table stakes) and our status
+### Remaining feature gaps
 
-| Feature | Status in Saropa Workspace |
-|---|---|
-| Add/remove favorite via Explorer + editor menu + Command Palette | **Built** (Explorer context, editor title, palette) |
-| Dedicated activity-bar tree view | **Built** |
-| Open on single click | **Built** (opens pinned, not preview) |
-| Rename / alias (display name decoupled from path) | **Built** (rename) |
-| Project (workspace) vs global (user) scope | **Built** (project file + globalState) |
-| Persistence across sessions | **Built** |
-| Settings Sync compatibility | **Built** (global pins ride globalState) |
-| Groups / nested folders | **Built** (Phase 3.2) |
-| Drag-and-drop reorder + sort modes | **Built** (Phase 3.2) |
-| Multi-root workspace support | Partial; refinements — Phase 3.3 |
-| "Browse/Run favorites" QuickPick + assignable shortcuts | Planned — Phase 4.1 / 4.2 |
-| Remote / local resource support | **Gap** — see Later / Exploratory |
-
-### Run-script features (Code Runner, Favorites Panel) and our status
+The table-stakes and run-script features are otherwise covered; these are the open gaps that
+map to the phases and Later / Exploratory items above.
 
 | Feature | Status |
 |---|---|
-| Per-extension / per-language run-command mapping | **Built** (`interpreterDefaults`) |
-| Interpreter / executor prefix (e.g. `python -u`, `node`) | **Built** (per-pin `command`) |
-| Custom command per item | **Built** (`exec.command`) |
-| Args, cwd, env per item | **Built** (`exec.args/cwd/env`) |
-| Run in integrated terminal vs output panel | **Built** (per-pin toggle) |
-| Command templates with placeholder tokens (`$dir`, `$fileName`, `$workspaceRoot`, …) | **Built** (Phase 2.4) |
-| Stop a running process | **Built** (Phase 2.3) |
-| Respect shebang for *nix scripts | Partial (blank prefix runs the file directly) |
-| Run on save | **Gap** — Later / Exploratory |
-| Command sequences / macros | **Gap** — Later / Exploratory |
-| Run targets beyond scripts (VS Code command, URL) | **Gap** — Later / Exploratory |
-
-Placeholder-token names adopted for familiarity (Code Runner convention):
-`$workspaceRoot`, `$dir`, `$fileName`, `$fileNameWithoutExt`, `$file`, `$execPath`.
+| Multi-root workspace support | Partial; refinements — Phase 1.2 |
+| Remote / local resource support | Gap — Later / Exploratory |
+| Respect shebang for *nix scripts | Partial (blank prefix runs the file directly) — Later / Exploratory |
+| Run on save | Gap — Later / Exploratory |
+| Export / share pin sets | Gap — Phase 2.1 |
 
 ### Scheduling
 
 - **Cron Tasks** stores `cronTasks.tasks` = `[{ at: "<cron>", run: "<command id>" }]` but
-  runs **VS Code commands only, not shell**. Saropa Workspace scheduling a *script/shell*
-  run on cron **or** interval is a direct differentiator.
+  runs **VS Code commands only, not shell**. Scheduling a *script/shell* run on cron **or**
+  interval is a direct differentiator.
 - Users dislike raw cron syntax. Offer **interval presets + a friendly builder**, not bare
-  cron (Phase 2.2 scheduler shipped; richer day-of-week/cron expressions are in Later /
-  Exploratory).
+  cron (richer day-of-week / cron expressions are in Later / Exploratory).
 
-### Storage formats to auto-detect and import
+### Storage formats to import
 
 Two shapes dominate: JSON files in `.vscode/` or workspace root, and `settings.json` keys.
 
@@ -697,34 +396,30 @@ Two shapes dominate: JSON files in `.vscode/` or workspace root, and `settings.j
 | Project Manager | JSON (global) | `projects.json` |
 | Bookmarks | global / project | `.vscode/bookmarks.json` when `bookmarks.saveBookmarksInProject` |
 
-**Built today:** `.favorites.json` (kdcro101) detect + import, idempotent, one-time prompt;
-plus the sibling-projects scan. **Planned (Phase 3.1):** the `favorites.resources` settings
-key (howardzuo), `favoritesPanel.json` (sabitovvt), and the `path|alias` text format
-(oleg-shilo).
+**Planned (Phase 1.1):** the `favorites.resources` settings key (howardzuo),
+`favoritesPanel.json` (sabitovvt), and the `path|alias` text format (oleg-shilo).
 
-### UX pitfalls to design around
+### UX constraints to design around
 
 - **Double-click on a native TreeView is not natively supported.** The TreeDataProvider API
   fires a single `command` per click; there is no double-click event
   ([vscode#39601](https://github.com/microsoft/vscode/issues/39601),
   [#85636](https://github.com/microsoft/vscode/issues/85636)). With
   `workbench.list.openMode: doubleClick`, item commands fire **twice** on expandable nodes
-  ([#105256](https://github.com/microsoft/vscode/issues/105256)).
-  - **Our design matches the recommended pattern:** single-click opens; the reliable run
-    path is the **inline play button + context-menu Run + (planned) Command Palette**. The
-    timing-based double-click is a convenience layer on top, not the only way to run. Pins
-    are non-expandable leaf nodes, so the expandable-node double-fire bug does not apply.
-    Do not advertise double-click-execute as the sole mechanism.
+  ([#105256](https://github.com/microsoft/vscode/issues/105256)). The reliable run path must
+  stay the inline play button + context-menu Run + Command Palette; the timing-based
+  double-click is a convenience layer on top, never the sole mechanism. Keep pins as
+  non-expandable leaf nodes so the expandable-node double-fire bug does not apply.
 - **Preview/italic tabs.** Tree-opened files open in preview mode unless `preview: false` is
-  passed ([#141145](https://github.com/microsoft/vscode/issues/141145)). We pass
+  passed ([#141145](https://github.com/microsoft/vscode/issues/141145)). Always pass
   `preview: false` on open.
 - **Settings Sync vs workspace files.** globalState syncs but is not shareable; workspace
-  files are shareable via git but do not sync (and do not reach Remote-SSH/WSL windows). We
-  offer both scopes explicitly — the correct resolution of this tension.
+  files are shareable via git but do not sync (and do not reach Remote-SSH/WSL windows).
+  Both scopes are offered explicitly — the correct resolution of this tension.
 - **Stop-process is expected.** A run feature without a stop/kill action draws complaints
-  (Code Runner users rely on it). Shipped in Phase 2.3.
+  (Code Runner users rely on it). Keep Stop and Force Kill on every background run.
 
-### Our differentiators (confirmed against the field)
+### Differentiators (confirmed against the field)
 
 1. **Import existing favorites** from other extensions — essentially unique; no major
    extension does cross-extension import.

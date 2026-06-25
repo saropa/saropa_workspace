@@ -42,7 +42,7 @@ export class ProjectFilesTreeProvider
         folders.filter((f) => f.name === element.folderName),
         names
       );
-      return found.map((info) => new ProjectFileItem(info));
+      return sortByName(found).map((info) => new ProjectFileItem(info));
     }
 
     // Roots. With a single folder the files are listed flat; with several open,
@@ -53,7 +53,7 @@ export class ProjectFilesTreeProvider
       if (folders.length > 1) {
         return folderNodes(found);
       }
-      return found.map((info) => new ProjectFileItem(info));
+      return sortByName(found).map((info) => new ProjectFileItem(info));
     }
 
     return [];
@@ -68,6 +68,22 @@ function folderNodes(found: readonly ProjectFileInfo[]): ProjectFolderNode[] {
     counts.set(info.folderName, (counts.get(info.folderName) ?? 0) + 1);
   }
   return [...counts].map(([name, count]) => new ProjectFolderNode(name, count));
+}
+
+// Sort surfaced files alphabetically by their displayed basename
+// (case-insensitive). Without this they list in configured-pattern order
+// (README, CHANGELOG, ROADMAP, ...), which is not what the user scans for.
+function sortByName(found: readonly ProjectFileInfo[]): ProjectFileInfo[] {
+  return [...found].sort((a, b) =>
+    displayName(a).localeCompare(displayName(b), undefined, {
+      sensitivity: "base",
+    })
+  );
+}
+
+// The row label: the basename of the configured (possibly nested) name.
+function displayName(info: ProjectFileInfo): string {
+  return info.name.split("/").pop() ?? info.name;
 }
 
 function isEnabled(): boolean {
@@ -87,10 +103,7 @@ function configuredFiles(): readonly string[] {
 // in the editor via the built-in vscode.open.
 class ProjectFileItem extends vscode.TreeItem {
   constructor(info: ProjectFileInfo) {
-    super(
-      info.name.split("/").pop() ?? info.name,
-      vscode.TreeItemCollapsibleState.None
-    );
+    super(displayName(info), vscode.TreeItemCollapsibleState.None);
     this.resourceUri = info.uri;
     this.contextValue = "projectFile";
 

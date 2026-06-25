@@ -17,6 +17,10 @@ export interface RecipeResult {
   color?: string;
   // Optional schedule (the scheduled-ritual recipes set this).
   schedule?: PinSchedule;
+  // Which synthetic top-level group the seeded pin lands in. "suite" routes the
+  // Saropa Suite integration recipes (section F) into their own "Saropa Suite"
+  // folder; undefined/"recipes" keeps the generic catalog in the "Recipes" folder.
+  group?: "recipes" | "suite";
   // Exactly one of these defines the action:
   filePath?: string; // a file pin, path relative to the folder
   action?: PinAction; // a non-file pin (url / shell / command / macro)
