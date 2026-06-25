@@ -17,7 +17,9 @@ extension/CHANGELOG.md
 # Private working note, not for the public repo.
 bugs/FINISH_GUIDE.md
 
-# Saropa Log Capture
-reports/
+# Saropa Log Capture: ignore generated report output, but keep the
+# organizer script (durable tooling, not generated).
+reports/*
+!reports/organize_reports.py
 .saropa/index/reports.idx.json
 .saropa/diagnostics/log-capture.json
