@@ -28,7 +28,6 @@ import {
   newRoutineFromSelection,
 } from "./pinExecution";
 import {
-  asPin,
   resolvePinRef,
   runAnyPin,
   runPinWithOverrides,
@@ -37,6 +36,7 @@ import {
 } from "./pinSelection";
 import { registerPinConfigCommands } from "./pinConfigCommands";
 import { registerPinManagementCommands } from "./pinManagementCommands";
+import { pinCommandRegistrar } from "./registerHelpers";
 
 // Re-exported so extension.ts keeps importing the routine hooks factory from here.
 export { createRoutineHooks } from "./pinExecution";
@@ -46,8 +46,7 @@ export function registerPinCommands(
   store: PinStore,
   dispatcher: DoubleClickDispatcher
 ): void {
-  const reg = (id: string, handler: (...args: any[]) => any) =>
-    context.subscriptions.push(vscode.commands.registerCommand(id, handler));
+  const { reg, regPin } = pinCommandRegistrar(context);
 
   // The manual Refresh is the user's explicit "re-scan now" — clear the cached
   // glob/detection so newly-added files matching auto-pin patterns or new recipes
@@ -148,70 +147,29 @@ export function registerPinCommands(
   }
 
   // Click dispatcher entry point: defer to single/double-click logic by pin id.
-  reg("saropaWorkspace.activatePin", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      dispatcher.activate(pin.id);
-    }
-  });
+  regPin("saropaWorkspace.activatePin", (pin) => dispatcher.activate(pin.id));
 
-  reg("saropaWorkspace.openPin", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      void openPin(store, pin);
-    }
-  });
-
-  reg("saropaWorkspace.peekPin", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      void peekPin(store, pin);
-    }
-  });
+  regPin("saropaWorkspace.openPin", (pin) => void openPin(store, pin));
+  regPin("saropaWorkspace.peekPin", (pin) => void peekPin(store, pin));
 
   // Tail-follow (WOW #5): toggle "auto-scroll to the end as the file grows" on a
   // file pin, and wire the listeners that keep followed docs pinned to their tail.
-  reg("saropaWorkspace.toggleTail", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      void toggleTail(store, pin);
-    }
-  });
+  regPin("saropaWorkspace.toggleTail", (pin) => void toggleTail(store, pin));
   registerTailFollow(context);
 
   // Masked / vault pin (WOW #26): toggle the screen-share guard on a stored file
   // pin — hides its identity in the tree and gates the open behind a reveal confirm.
-  reg("saropaWorkspace.toggleMask", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      void toggleMask(store, pin);
-    }
-  });
+  regPin("saropaWorkspace.toggleMask", (pin) => void toggleMask(store, pin));
 
-  reg("saropaWorkspace.runPin", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      void runPinCommand(store, pin);
-    }
-  });
+  regPin("saropaWorkspace.runPin", (pin) => void runPinCommand(store, pin));
 
   // "Run now" — the same run path as runPin, exposed under a distinct title so a
   // scheduled pin's context menu reads "Run now" (firing ahead of the timer is
   // intentional) rather than a generic "Run". The handler is identical; only the
   // label differs, gated by the pinScheduled / pinRecipeScheduled contextValue.
-  reg("saropaWorkspace.runPinNow", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      void runPinCommand(store, pin);
-    }
-  });
+  regPin("saropaWorkspace.runPinNow", (pin) => void runPinCommand(store, pin));
 
-  reg("saropaWorkspace.runPinLastParams", (arg: unknown) => {
-    const pin = asPin(arg);
-    if (pin) {
-      void runWithLastParams(store, pin);
-    }
-  });
+  regPin("saropaWorkspace.runPinLastParams", (pin) => void runWithLastParams(store, pin));
 
   registerPinConfigCommands(context, store);
   registerPinManagementCommands(context, store);

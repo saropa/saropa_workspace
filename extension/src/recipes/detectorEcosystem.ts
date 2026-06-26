@@ -7,6 +7,12 @@ import { exists, readText, packageManager } from "./detectorHelpers";
 // tooling, a version source). Split out of detectors.ts so the catalog file holds
 // recipe definitions and these reusable detectors live together.
 
+// Derive the command that starts the project's dev / watch server, used by the
+// "Start dev server" recipe and the boot-sequence macro. Precedence is most-
+// specific-first: an explicit package script (dev, then start) wins because the
+// author declared it, before falling back to the framework's conventional command
+// (Django, Flutter). Returns undefined when nothing matches, so the caller omits
+// the recipe rather than inventing a command that would fail.
 export async function detectDevCommand(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined
@@ -31,6 +37,12 @@ export async function detectDevCommand(
   return undefined;
 }
 
+// Derive the database-migration command for the "Run database migration" recipe.
+// Each branch keys off a marker unique to one migration tool (Prisma's schema,
+// Alembic's ini / migrations env, a Drizzle dependency, Rails' bin/rails), so a
+// match is unambiguous. Drizzle is detected from the dependency manifest rather
+// than a file because it has no fixed config path. Returns undefined when no known
+// migration tool is present.
 export async function detectMigrate(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined
@@ -52,6 +64,11 @@ export async function detectMigrate(
   return undefined;
 }
 
+// Find the application's entry file for the "Open the entry point" recipe. The
+// package.json main / module fields are tried first (the author's declared entry),
+// then a fixed list of conventional per-language entry paths. The first candidate
+// that actually exists on disk wins, so a stale main field never points the recipe
+// at a missing file. Returns undefined when none of the candidates exist.
 export async function detectEntryPoint(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined
@@ -82,6 +99,11 @@ export async function detectEntryPoint(
   return undefined;
 }
 
+// Derive the dev-server port so "Open localhost:<port>" and the boot macro point at
+// the right address. Sources are tried most-authoritative-first: an explicit PORT in
+// .env, then vite's server.port, then the first host port mapped in docker-compose.
+// Only when none is declared does it fall back to the conventional Vite/React 3000,
+// and only if a web dev/start script exists (so a non-web project gets no port).
 export async function detectPort(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined
@@ -118,6 +140,11 @@ export async function detectPort(
   return undefined;
 }
 
+// Whether ESLint is configured, which decides if the "Lint" run target uses it
+// over the language's default linter. True when package.json carries an inline
+// eslintConfig OR any of the recognized config file names is present (the flat
+// eslint.config.* and the legacy .eslintrc* family are both checked, since a
+// project may use either). hasPrettier below mirrors this shape for the formatter.
 export async function hasEslint(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined
@@ -142,6 +169,10 @@ export async function hasEslint(
   return false;
 }
 
+// Whether Prettier is configured, which lets the "Format code" run target prefer it
+// over the language's own formatter (Prettier formats more than a single language's
+// files, so when present it is the better default). True on an inline package.json
+// prettier key OR any recognized config file name. Mirrors hasEslint.
 export async function hasPrettier(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined
@@ -167,6 +198,12 @@ export async function hasPrettier(
   return false;
 }
 
+// Whether a project name@version can be read, which gates the "Copy name@version"
+// recipe so it is offered only when there is a real version to copy. True on a
+// package.json version field, or the presence of a manifest the copy command knows
+// how to parse (pubspec.yaml, Cargo.toml, pyproject.toml). Existence here mirrors
+// the manifests the copy command reads, so the gate never offers a version it
+// cannot actually produce.
 export async function hasVersionSource(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined

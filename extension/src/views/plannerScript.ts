@@ -137,6 +137,10 @@ function weekBlock(n, day){
   return b;
 }
 
+// Vertical drag retimes a week block; dropping over a different day column moves it.
+// A 3px movement threshold separates a real drag from a click: under it the gesture
+// is treated as a select (no retime), so a plain click never accidentally reschedules.
+// The dropped Y snaps to the nearest 15 minutes, and the host persists the change.
 function attachBlockDrag(b, n, day){
   let sx, sy, moved=false, startTop;
   b.onmousedown = (e) => {
@@ -150,6 +154,7 @@ function attachBlockDrag(b, n, day){
     const up = (ev) => {
       document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
       b.classList.remove('dragging');
+      // Below the move threshold the gesture was a click, not a drag: select, don't retime.
       if(!moved){ select(n.id); return; }
       const newMin = Math.round((parseFloat(b.style.top)/HOURH()*60)/15)*15;
       const col = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.daycol');
@@ -238,6 +243,10 @@ function wfNode(n){
   return d;
 }
 
+// Free-drag a workflow node to reposition it on the canvas. The same 3px threshold
+// distinguishes a reposition from a click-to-select; only a real move persists the
+// new coordinates (savePositions). Starting on the node's plug handle is ignored
+// here so that gesture is free to begin a link instead (see attachPlug).
 function attachNodeDrag(d, n){
   let sx, sy, ox, oy, moved=false;
   d.onmousedown = (e) => {
@@ -260,6 +269,10 @@ function attachNodeDrag(d, n){
   };
 }
 
+// Drag from a node's plug handle to another pin node to chain them: the release
+// target becomes a "run after this pin" trigger. A bezier preview line tracks the
+// cursor, and only a valid pin target (not self, not an event node) is accepted —
+// invalid hovers get no link, so a missed drop is a no-op rather than a bad edge.
 function attachPlug(plug, n){
   plug.onmousedown = (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -291,6 +304,11 @@ function centerOf(id){
 }
 function cssEsc(s){ return String(s).replace(/["\\\\]/g, '\\\\$&'); }
 
+// Redraw every workflow edge as a horizontal bezier from one node's right edge to
+// the next node's left edge. The control-point offset scales with the horizontal
+// gap (min 40px) so short and long links both curve smoothly; the <defs> arrow
+// marker is preserved across redraws, and an edge touching the selected node is
+// drawn "hot". Called on every node move, so it must be cheap and fully rebuild.
 function drawEdges(){
   const edges = document.querySelector('.edges'); if(!edges) return;
   const defs = edges.querySelector('defs');

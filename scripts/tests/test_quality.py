@@ -55,7 +55,7 @@ class TokenizerTest(unittest.TestCase):
         # Braces must balance to zero across the whole snippet.
         self.assertEqual(code.count("{"), code.count("}"))
         # The 3-line function must not register as a long function.
-        self.assertEqual(_find_long_functions(code), [])
+        self.assertEqual(_find_long_functions(code, set()), [])
 
     def test_division_is_not_treated_as_regex(self) -> None:
         # `a / b / c` is division; mishandling it as a regex would blank `b`.
@@ -69,21 +69,55 @@ class LongFunctionTest(unittest.TestCase):
         body = "\n".join(f"  const v{i} = {i};" for i in range(FUNCTION_LINES_WARN + 10))
         src = f"function big() {{\n{body}\n}}\n"
         _, code = _tokenize_ts(src)
-        found = _find_long_functions(code)
+        found = _find_long_functions(code, set())
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0][0], "big")
         self.assertGreater(found[0][1], FUNCTION_LINES_WARN)
 
     def test_short_function_is_not_flagged(self) -> None:
         _, code = _tokenize_ts("function small() {\n  return 1;\n}\n")
-        self.assertEqual(_find_long_functions(code), [])
+        self.assertEqual(_find_long_functions(code, set()), [])
 
     def test_control_flow_block_is_not_a_function(self) -> None:
         # A long `if` block must not be reported as a function.
         body = "\n".join(f"  doThing({i});" for i in range(FUNCTION_LINES_WARN + 10))
         src = f"if (ready) {{\n{body}\n}}\n"
         _, code = _tokenize_ts(src)
-        self.assertEqual(_find_long_functions(code), [])
+        self.assertEqual(_find_long_functions(code, set()), [])
+
+
+class CommentExclusionTest(unittest.TestCase):
+    """The function-length span counts CODE lines only — comment-only lines inside
+    a body are subtracted, so an encouraged WHY-comment never inflates a function
+    past the cap. A line carrying code plus a trailing comment still counts."""
+
+    @staticmethod
+    def _comment_only(comment_lines: set[int], code: str) -> set[int]:
+        # Mirror collect_file_quality: a comment-only line is a commented line whose
+        # code-only view is blank (not code with a trailing comment).
+        code_lines = code.splitlines()
+        return {
+            ln
+            for ln in comment_lines
+            if 1 <= ln <= len(code_lines) and not code_lines[ln - 1].strip()
+        }
+
+    def test_function_long_only_due_to_comments_is_not_flagged(self) -> None:
+        comments = "\n".join(f"  // explanation line {i}" for i in range(FUNCTION_LINES_WARN + 10))
+        src = f"function documented() {{\n{comments}\n  return 1;\n}}\n"
+        comment_lines, code = _tokenize_ts(src)
+        comment_only = self._comment_only(comment_lines, code)
+        # Raw span exceeds the cap; subtracting the comment-only lines drops it under.
+        self.assertEqual(_find_long_functions(code, comment_only), [])
+
+    def test_genuinely_long_function_still_flagged_with_comments(self) -> None:
+        body = "\n".join(f"  const v{i} = {i};" for i in range(FUNCTION_LINES_WARN + 5))
+        src = f"function big() {{\n  // a documenting comment\n{body}\n}}\n"
+        comment_lines, code = _tokenize_ts(src)
+        comment_only = self._comment_only(comment_lines, code)
+        found = _find_long_functions(code, comment_only)
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0][0], "big")
 
 
 class AnyDetectionTest(unittest.TestCase):

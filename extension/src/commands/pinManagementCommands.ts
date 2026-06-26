@@ -1,18 +1,8 @@
 import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
 import { PinFolderItem } from "../views/pinTreeItem";
-import {
-  detectFavoritesFiles,
-  detectSettingsFavoritesCount,
-  detectSabitovvtFavoritesCount,
-  importAllDetected,
-  detectSiblingFavorites,
-  importSiblingFavorites,
-  SiblingFavorites,
-} from "../import/favoritesImport";
 import { l10n } from "../i18n/l10n";
 import {
-  asPin,
   scopeFromAddGroupArg,
   editorTargetUri,
   targetUri,
@@ -21,17 +11,19 @@ import {
   removePinForUri,
   addAnnotation,
 } from "./pinSelection";
+import { pinCommandRegistrar } from "./registerHelpers";
+import { registerFavoritesImportCommands } from "./favoritesImportCommands";
 
 // The second half of the pin command registrations: pin groups, the add/remove and
-// pin-active-file gestures, recipe/auto-pin restore, and favorites import. Split out
-// of pinCommands.ts so that file (which registers the run / open / config / file-op
-// commands) stays under the size cap; registerPinCommands calls this at the end.
+// pin-active-file gestures, and recipe/auto-pin restore. Split out of pinCommands.ts
+// so that file (which registers the run / open / config / file-op commands) stays
+// under the size cap; registerPinCommands calls this at the end. The favorites-import
+// commands are split further into favoritesImportCommands.
 export function registerPinManagementCommands(
   context: vscode.ExtensionContext,
   store: PinStore
 ): void {
-  const reg = (id: string, handler: (...args: any[]) => any) =>
-    context.subscriptions.push(vscode.commands.registerCommand(id, handler));
+  const { reg, regPin } = pinCommandRegistrar(context);
 
   // Create a group in the project or global scope (see scopeFromAddGroupArg for
   // how the scope is resolved). Pins are dragged into it afterward.
@@ -127,16 +119,17 @@ export function registerPinManagementCommands(
     void pinUri(store, uri, "global");
   });
 
-  // Explorer context: VS Code passes (clickedUri, selectedUris[]).
-  reg("saropaWorkspace.pinFile", (uri: vscode.Uri) => {
-    if (uri) {
-      void pinUri(store, uri, "project");
+  // Explorer context: VS Code passes (clickedUri, selectedUris[]). Narrow the
+  // boundary argument to a Uri rather than assuming it (the no-any rule).
+  reg("saropaWorkspace.pinFile", (arg: unknown) => {
+    if (arg instanceof vscode.Uri) {
+      void pinUri(store, arg, "project");
     }
   });
 
-  reg("saropaWorkspace.pinFileGlobal", (uri: vscode.Uri) => {
-    if (uri) {
-      void pinUri(store, uri, "global");
+  reg("saropaWorkspace.pinFileGlobal", (arg: unknown) => {
+    if (arg instanceof vscode.Uri) {
+      void pinUri(store, arg, "global");
     }
   });
 
@@ -177,11 +170,7 @@ export function registerPinManagementCommands(
 
   // Convert a detected recipe into a stored, fully-editable pin (and suppress the
   // detected one so it does not duplicate).
-  reg("saropaWorkspace.promoteRecipe", async (arg: unknown) => {
-    const pin = asPin(arg);
-    if (!pin) {
-      return;
-    }
+  regPin("saropaWorkspace.promoteRecipe", async (pin) => {
     const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
     const promoted = await store.promoteRecipe(pin);
     if (promoted) {
@@ -207,84 +196,5 @@ export function registerPinManagementCommands(
     );
   });
 
-  reg("saropaWorkspace.importFavorites", async () => {
-    const detected = await detectFavoritesFiles();
-    const settingsCount = detectSettingsFavoritesCount();
-    const sabitovvtCount = await detectSabitovvtFavoritesCount();
-    if (detected.length === 0 && settingsCount === 0 && sabitovvtCount === 0) {
-      vscode.window.showInformationMessage(l10n("import.none"));
-      return;
-    }
-    const result = await importAllDetected(store);
-    // Name every source the import drew from (files plus the settings keys) so the
-    // toast tells the user exactly where the pins came from.
-    const sources = [
-      ...detected.map((d) => d.fileName),
-      ...(settingsCount > 0 ? ["favorites.resources"] : []),
-      ...(sabitovvtCount > 0 ? ["favoritesPanel.commands"] : []),
-    ];
-    const fileList = sources.join(", ");
-    if (result.added === 0) {
-      vscode.window.showInformationMessage(l10n("import.nothingNew", { file: fileList }));
-      return;
-    }
-    // Skipped entries (unsupported or malformed) are detailed in the output
-    // channel; offer a one-click jump to it rather than burying the count.
-    if (result.skipped > 0) {
-      const showOutput = l10n("run.showOutput");
-      const choice = await vscode.window.showInformationMessage(
-        l10n("import.doneWithSkips", {
-          count: result.added,
-          file: fileList,
-          skipped: result.skipped,
-        }),
-        showOutput
-      );
-      if (choice === showOutput) {
-        void vscode.commands.executeCommand("saropaWorkspace.showOutput");
-      }
-      return;
-    }
-    vscode.window.showInformationMessage(
-      l10n("import.done", { count: result.added, file: fileList })
-    );
-  });
-
-  // Scan immediate sibling projects (one directory level up) for favorites files
-  // and import the user's selection as GLOBAL pins. Explicit and user-invoked, so
-  // cross-project disk reads only happen on demand.
-  reg("saropaWorkspace.scanSiblingFavorites", async () => {
-    const found = await detectSiblingFavorites();
-    if (found.length === 0) {
-      vscode.window.showInformationMessage(l10n("import.sibling.none"));
-      return;
-    }
-
-    // Pre-checked multi-select: the user confirms which siblings to pull in.
-    type SiblingItem = vscode.QuickPickItem & { sibling: SiblingFavorites };
-    const items: SiblingItem[] = found.map((s) => ({
-      label: s.siblingName,
-      description: s.fileLabel,
-      detail: s.fileUri.fsPath,
-      picked: true,
-      sibling: s,
-    }));
-    const picks = await vscode.window.showQuickPick(items, {
-      canPickMany: true,
-      placeHolder: l10n("import.sibling.placeholder"),
-    });
-    if (!picks || picks.length === 0) {
-      return;
-    }
-
-    let total = 0;
-    for (const pick of picks) {
-      total += await importSiblingFavorites(pick.sibling, store);
-    }
-    vscode.window.showInformationMessage(
-      total > 0
-        ? l10n("import.sibling.done", { count: total })
-        : l10n("import.sibling.nothingNew")
-    );
-  });
+  registerFavoritesImportCommands(context, store);
 }

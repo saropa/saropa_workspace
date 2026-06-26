@@ -1,0 +1,286 @@
+import * as vscode from "vscode";
+import {
+  Pin,
+  PinExecConfig,
+  PinGroup,
+  PinMetric,
+  PinSchedule,
+  PinScope,
+  PinSet,
+  PinTrigger,
+  SystemEventName,
+  ProjectPinsFile,
+  PROJECT_PINS_VERSION,
+  PROJECT_FILE_RELATIVE,
+  DEFAULT_SET_NAME,
+  emptyProjectPinsFile,
+  pinKind,
+} from "./pin";
+import { parseGlobalPath, globalStoredPath } from "./pinPaths";
+import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
+import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
+import { detectSuiteRecipes } from "../recipes/suiteRecipes";
+import { detectProcessRecipes } from "../recipes/processRecipes";
+import { detectHygieneRecipes } from "../recipes/hygieneRecipes";
+import { detectRoutineRecipes } from "../recipes/routineRecipes";
+import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
+import { getOutputChannel } from "../exec/runner";
+import { SharedPin } from "../import/shareLink";
+import { l10n } from "../i18n/l10n";
+import {
+  MoveTarget,
+  GLOBAL_STATE_KEY,
+  GLOBAL_GROUPS_KEY,
+  RECIPE_GROUPS,
+  RECIPE_SUBGROUPS,
+  RECIPE_GROUP_EXPANDED_PREFIX,
+  recipeGroupId,
+  recipeSubGroupId,
+  isSyntheticRecipeGroupId,
+  recipeGroupColor,
+  isGlobPattern,
+  setsEqual,
+  sameSetName,
+} from "./pinStoreShared";
+import { PinStoreBase } from "./pinStoreBase";
+
+// Recipe + auto-pin detection layer: turns workspace files into the synthetic
+// recipe pins and the auto-pinned files that refresh() seeds into the tree.
+export abstract class PinStoreRecipes extends PinStoreBase {
+  // --- auto-pins ---------------------------------------------------------
+
+  protected autoPinPatterns(): string[] {
+    return vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .get<string[]>("autoPins.patterns", []);
+  }
+
+  // The auto-pin GLOB result per folder (matched relative paths only). The glob
+  // (findFiles per pattern across the workspace) is the dominant cost of a
+  // refresh; a pin add/remove/move/configure cannot change which files MATCH the
+  // patterns, so re-globbing on every mutation was the "pinning is slow" cause.
+  // Cached here and reused across refreshes; cleared by rescan() on the triggers
+  // that actually change the match set (folder or setting change, manual Refresh,
+  // reload). New files matching a pattern surface on the next rescan/reload.
+  protected readonly autoPinScanCache = new Map<string, string[]>();
+
+  // Glob the auto-pin patterns for a folder, returning the matched relative paths.
+  // Cached per folder uri so a mutation-triggered refresh reuses the scan instead
+  // of hitting the filesystem again.
+  protected async scanAutoPinPaths(
+    folder: vscode.WorkspaceFolder,
+    patterns: string[]
+  ): Promise<string[]> {
+    const key = folder.uri.toString();
+    const cached = this.autoPinScanCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    const paths: string[] = [];
+    const seen = new Set<string>();
+    const add = (relative: string): void => {
+      if (!seen.has(relative)) {
+        seen.add(relative);
+        paths.push(relative);
+      }
+    };
+    for (const pattern of patterns) {
+      // BUG FIX (2026-06-25, slow startup): an exact-name pattern (no glob
+      // metacharacters) can only ever match the one file at that relative path —
+      // a RelativePattern without `**` does not recurse — so resolve it with a
+      // single fs.stat instead of vscode.workspace.findFiles. findFiles spins up
+      // the workspace search service (a full file-tree walk) even when the file
+      // is absent, and this is the ONLY search-service call on the awaited
+      // activation path (store.init -> refresh -> seedAutoPins). For the default
+      // `pubspec.yaml` + `analysis_options.yaml` patterns that meant two
+      // whole-workspace searches on every launch — wasted entirely in a project
+      // that has neither (the common non-Dart case). A direct stat turns each
+      // into an instant hit/miss.
+      if (!isGlobPattern(pattern)) {
+        const uri = vscode.Uri.joinPath(folder.uri, pattern);
+        try {
+          const stat = await vscode.workspace.fs.stat(uri);
+          if (stat.type === vscode.FileType.File) {
+            add(this.toFolderRelative(folder, uri));
+          }
+        } catch {
+          // Absent — the normal case for a pattern that does not apply here.
+        }
+        continue;
+      }
+      // A real glob still needs the search service to expand it. Limit each
+      // pattern to a small result set; auto-pins are a convenience, not a
+      // project-wide scan.
+      const matches = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(folder, pattern),
+        "**/node_modules/**",
+        50
+      );
+      for (const uri of matches) {
+        add(this.toFolderRelative(folder, uri));
+      }
+    }
+    this.autoPinScanCache.set(key, paths);
+    return paths;
+  }
+
+  protected async seedAutoPins(
+    folder: vscode.WorkspaceFolder,
+    patterns: string[],
+    removed: string[],
+    autoGroups: Record<string, string>
+  ): Promise<Pin[]> {
+    // The removed filter is applied per call (not cached), so unpinning an
+    // auto-pin still takes effect on the very next refresh even though the glob
+    // scan itself is reused.
+    const paths = await this.scanAutoPinPaths(folder, patterns);
+    const pins: Pin[] = [];
+    for (const relative of paths) {
+      // Deterministic id so removedAutoPins / autoGroups stay stable across reloads.
+      const id = `auto:${folder.name}:${relative}`;
+      if (removed.includes(id)) {
+        continue;
+      }
+      pins.push({
+        id,
+        path: relative,
+        scope: "project",
+        isAuto: true,
+        // Re-apply the folder the user dragged this auto-pin into, if any.
+        groupId: autoGroups[id],
+        order: 1000 + pins.length, // auto-pins sort after explicit pins
+      });
+    }
+    return pins;
+  }
+
+  // Build the synthetic "Workspace config" example pin for a folder, or undefined
+  // when it should not appear. It links to the folder's own config file so a
+  // brand-new project still has one working pin. Returns undefined when the user
+  // removed it (sticky via removedAutoPins) or when a stored/auto pin already
+  // targets the config file, which avoids duplicating a project's own committed
+  // config pin (e.g. this repo's sample-config). The id matches the auto-pin
+  // scheme so removePin's isAuto branch suppresses it the same way.
+  protected configExamplePin(
+    folder: vscode.WorkspaceFolder,
+    file: ProjectPinsFile,
+    autoPins: readonly Pin[]
+  ): Pin | undefined {
+    const id = `auto:${folder.name}:${PROJECT_FILE_RELATIVE}`;
+    if (file.removedAutoPins.includes(id)) {
+      return undefined;
+    }
+    const alreadyPinned =
+      file.pins.some((p) => p.path === PROJECT_FILE_RELATIVE) ||
+      autoPins.some((p) => p.path === PROJECT_FILE_RELATIVE);
+    if (alreadyPinned) {
+      return undefined;
+    }
+    return {
+      id,
+      path: PROJECT_FILE_RELATIVE,
+      label: l10n("pin.sampleConfig"),
+      scope: "project",
+      isAuto: true,
+      // Re-apply the folder the user dragged the config pin into, if any.
+      groupId: file.autoGroups[id],
+      // Negative order sorts it ahead of explicit pins (order >= 0), so the
+      // example sits at the top of the Project scope.
+      order: -1,
+    };
+  }
+
+  // --- recipes -----------------------------------------------------------
+
+  protected recipesEnabled(): boolean {
+    return vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .get<boolean>("recipes.enabled", true);
+  }
+
+  protected recipeGroupExpanded(id: string): boolean {
+    // Default collapsed: a recipe group is discoverable but never clutters the
+    // view until the user opens it (the gesture is then persisted by group id).
+    return this.context.globalState.get<boolean>(
+      RECIPE_GROUP_EXPANDED_PREFIX + id,
+      false
+    );
+  }
+
+  // The expensive half of recipe seeding: run the three detector sweeps (dozens of
+  // folder-root file reads) and sort the results A->Z by label so each group reads
+  // in a stable order. Cached per folder so subsequent refreshes reuse the sweep —
+  // this is what stops a refresh from re-reading the whole project every time. New
+  // recipes from newly-created files appear on the next window reload.
+  protected async detectRecipes(
+    folder: vscode.WorkspaceFolder
+  ): Promise<RecipeResult[]> {
+    const key = folder.uri.toString();
+    const cached = this.recipeResultsCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    const results: RecipeResult[] = [
+      ...(await detectOnDemandRecipes(folder)),
+      ...(await detectScheduledRecipes(folder)),
+      ...(await detectSuiteRecipes(folder)),
+      ...(await detectProcessRecipes(folder)),
+      ...(await detectHygieneRecipes(folder)),
+      ...(await detectAiContextRecipes(folder)),
+    ];
+    // Routines compose OTHER detected recipes, so they are detected last from the set
+    // above — a Morning routine is offered only when >=2 of its morning members exist.
+    results.push(...detectRoutineRecipes(results));
+    results.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+    );
+    // Cache only a successful sweep (an exception above bubbles to the caller and is
+    // logged there, leaving this folder uncached so the next refresh retries).
+    this.recipeResultsCache.set(key, results);
+    return results;
+  }
+
+  // The cheap half: turn cached detection into recipe pins (isRecipe), dropping the
+  // ones the user removed (sticky via removedRecipes). `order` is a single ascending
+  // counter so each group's members stay alphabetical (the detect sort above);
+  // groupId routes each pin to its synthetic recipe group.
+  protected buildRecipePins(
+    folder: vscode.WorkspaceFolder,
+    results: RecipeResult[],
+    removed: string[]
+  ): Pin[] {
+    const pins: Pin[] = [];
+    let order = 2000;
+    for (const r of results) {
+      if (removed.includes(r.recipeId)) {
+        continue;
+      }
+      pins.push({
+        id: `recipe:${folder.name}:${r.recipeId}`,
+        path: r.filePath ?? "",
+        label: r.label,
+        scope: "project",
+        isRecipe: true,
+        recipeId: r.recipeId,
+        description: r.description,
+        action: r.action,
+        schedule: r.schedule,
+        icon: r.icon,
+        // Fall back to the category's color so every leaf in a subfolder shares its
+        // color family (the folder and its items read as one group); an explicit
+        // per-recipe color still wins.
+        color: r.color ?? recipeGroupColor(r.group),
+        // A recipe with a per-tool subGroup (the suite recipes) lands in the nested
+        // subgroup; everything else lands directly in its category's top-level group.
+        groupId: r.subGroup
+          ? recipeSubGroupId(recipeGroupId(r.group), r.subGroup)
+          : recipeGroupId(r.group),
+        order: order++,
+      });
+    }
+    return pins;
+  }
+
+  // Re-add every removed recipe across all folders (the Restore counterpart for
+  // recipes). Returns how many suppressions were cleared.
+}

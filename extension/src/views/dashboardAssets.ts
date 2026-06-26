@@ -146,6 +146,10 @@ function sortGroups(groups) {
   return copy;
 }
 
+// Render the CPU sparkline: map the trend samples to points in a fixed 0-100 x
+// 0-36 viewBox (x spread evenly across the width, y inverted and scaled to the
+// running max so the peak fills the height). A single sample has no line to draw,
+// so anything under two points clears the spark instead of rendering a flat dot.
 function renderSpark() {
   const el = document.getElementById('spark');
   const t = state.trend || [];

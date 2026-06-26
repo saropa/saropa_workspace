@@ -64,6 +64,76 @@ function report(
   };
 }
 
+// The git-repo report rituals (28, 29, 31, 33, 35) — each runs a single tracked-
+// file-safe git command into a dated reports/ file. They share one shape, so they
+// are a data table rather than a wall of near-identical push() blocks; the
+// project-stats ritual (27) runs an in-process command instead and stays separate.
+interface ReportRitual {
+  recipeId: string;
+  label: string;
+  description: string;
+  icon: string;
+  color?: string;
+  atTime: string;
+  command: string;
+  reportFile: string;
+  autoOpen: boolean;
+}
+
+const GIT_REPORT_RITUALS: ReportRitual[] = [
+  {
+    recipeId: "ritual.standup",
+    label: "Standup digest (since yesterday)",
+    description: "Scheduled (daily, default 08:30): writes and opens a dated report of your commits and touched files from the last 24 hours — your standup, pre-written. Seeds disabled. Detected from a git repository.",
+    icon: "comment-discussion",
+    atTime: "08:30",
+    command: 'git log --since="24 hours ago" --oneline --stat',
+    reportFile: "reports/$stamp_standup.md",
+    autoOpen: true,
+  },
+  {
+    recipeId: "ritual.eod",
+    label: "End-of-day uncommitted guard",
+    description: "Scheduled (daily, default 18:00): writes and opens a dated summary of every uncommitted / untracked file so nothing is lost overnight. Seeds disabled. Detected from a git repository.",
+    icon: "warning",
+    color: "charts.orange",
+    atTime: "18:00",
+    command: "git status --branch --porcelain=v1",
+    reportFile: "reports/$stamp_uncommitted.md",
+    autoOpen: true,
+  },
+  {
+    recipeId: "ritual.debt",
+    label: "Tech-debt harvest",
+    description: "Scheduled (daily, default 16:00): scans tracked files for TODO / FIXME / HACK / XXX markers and writes an opened, dated report — debt you can see growing or shrinking. Seeds disabled. Detected from a git repository.",
+    icon: "flame",
+    atTime: "16:00",
+    command: 'git grep -n -E "TODO|FIXME|HACK|XXX"',
+    reportFile: "reports/$stamp_debt.md",
+    autoOpen: true,
+  },
+  {
+    recipeId: "ritual.branches",
+    label: "Branch hygiene",
+    description: "Scheduled (daily, default 09:00): writes a dated report of local branches already merged into the default branch (safe to delete) and their tracking state — nothing is deleted automatically. Seeds disabled. Detected from a git repository.",
+    icon: "git-branch",
+    atTime: "09:00",
+    command: "git branch --merged && git branch -vv",
+    reportFile: "reports/$stamp_branches.md",
+    autoOpen: false,
+  },
+  {
+    recipeId: "ritual.journal",
+    label: "Dev journal",
+    description: "Scheduled (daily, default 17:30): appends today's commits and touched files to a running journal under reports/ — an effortless, durable record of what shipped. Seeds disabled. Detected from a git repository.",
+    icon: "book",
+    atTime: "17:30",
+    command: 'git log --since="00:00" --oneline --stat',
+    reportFile: "reports/$stamp_journal.md",
+    autoOpen: false,
+  },
+];
+
 export async function detectScheduledRecipes(
   folder: vscode.WorkspaceFolder
 ): Promise<RecipeResult[]> {
@@ -103,81 +173,18 @@ export async function detectScheduledRecipes(
       },
     });
 
-    // 28: standup digest ("since yesterday").
-    out.push({
-      recipeId: "ritual.standup",
-      label: "Standup digest (since yesterday)",
-      description: "Scheduled (daily, default 08:30): writes and opens a dated report of your commits and touched files from the last 24 hours — your standup, pre-written. Seeds disabled. Detected from a git repository.",
-      icon: "comment-discussion",
-      schedule: daily("08:30"),
-      action: report(
-        folder,
-        'git log --since="24 hours ago" --oneline --stat',
-        "reports/$stamp_standup.md",
-        true
-      ),
-    });
-
-    // 29: end-of-day uncommitted guard.
-    out.push({
-      recipeId: "ritual.eod",
-      label: "End-of-day uncommitted guard",
-      description: "Scheduled (daily, default 18:00): writes and opens a dated summary of every uncommitted / untracked file so nothing is lost overnight. Seeds disabled. Detected from a git repository.",
-      icon: "warning",
-      color: "charts.orange",
-      schedule: daily("18:00"),
-      action: report(
-        folder,
-        "git status --branch --porcelain=v1",
-        "reports/$stamp_uncommitted.md",
-        true
-      ),
-    });
-
-    // 31: tech-debt harvest (git grep over tracked files — cross-platform).
-    out.push({
-      recipeId: "ritual.debt",
-      label: "Tech-debt harvest",
-      description: "Scheduled (daily, default 16:00): scans tracked files for TODO / FIXME / HACK / XXX markers and writes an opened, dated report — debt you can see growing or shrinking. Seeds disabled. Detected from a git repository.",
-      icon: "flame",
-      schedule: daily("16:00"),
-      action: report(
-        folder,
-        'git grep -n -E "TODO|FIXME|HACK|XXX"',
-        "reports/$stamp_debt.md",
-        true
-      ),
-    });
-
-    // 33: branch hygiene.
-    out.push({
-      recipeId: "ritual.branches",
-      label: "Branch hygiene",
-      description: "Scheduled (daily, default 09:00): writes a dated report of local branches already merged into the default branch (safe to delete) and their tracking state — nothing is deleted automatically. Seeds disabled. Detected from a git repository.",
-      icon: "git-branch",
-      schedule: daily("09:00"),
-      action: report(
-        folder,
-        "git branch --merged && git branch -vv",
-        "reports/$stamp_branches.md",
-        false
-      ),
-    });
-
-    // 35: dev journal.
-    out.push({
-      recipeId: "ritual.journal",
-      label: "Dev journal",
-      description: "Scheduled (daily, default 17:30): appends today's commits and touched files to a running journal under reports/ — an effortless, durable record of what shipped. Seeds disabled. Detected from a git repository.",
-      icon: "book",
-      schedule: daily("17:30"),
-      action: report(
-        folder,
-        'git log --since="00:00" --oneline --stat',
-        "reports/$stamp_journal.md",
-        false
-      ),
-    });
+    // 28, 29, 31, 33, 35: the report rituals, seeded from the shared table.
+    for (const r of GIT_REPORT_RITUALS) {
+      out.push({
+        recipeId: r.recipeId,
+        label: r.label,
+        description: r.description,
+        icon: r.icon,
+        color: r.color,
+        schedule: daily(r.atTime),
+        action: report(folder, r.command, r.reportFile, r.autoOpen),
+      });
+    }
   }
 
   // 30: dependency freshness (per ecosystem).

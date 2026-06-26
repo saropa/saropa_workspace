@@ -7,7 +7,7 @@ quality bar:
 
   * File length            — flags files past a soft and a hard cap.
   * Function length         — heuristic brace scan; flags long functions.
-  * Documentation quality   — comment-line density + exported-symbol JSDoc rate.
+  * Documentation quality   — comment-line density + exported-symbol doc-comment rate.
   * Unit test coverage      — source modules with a matching *.test.ts.
   * `any` usage             — the TypeScript rule bans `any`; counts leaks.
   * TODO/FIXME/HACK markers  — deferred-work debt.
@@ -276,11 +276,28 @@ class FileQuality:
     any_count: int
     todo_count: int
     hardcoded_strings: int
+    # Lines whose entire content is string / template-literal interior (non-blank in
+    # the source but blank in the code-only view, and not a comment). A webview asset
+    # module is one big exported `…` CSS/JS template, so almost every line is this.
+    embedded_text_lines: int = 0
     long_functions: list[tuple[str, int]] = field(default_factory=list)  # (name, span)
 
     @property
     def comment_ratio(self) -> float:
         return self.comment_lines / self.lines if self.lines else 0.0
+
+    @property
+    def template_dominated(self) -> bool:
+        """True when the file is mostly one embedded template literal (a webview
+        asset module). The comment-density heuristic blanks template interiors, so
+        the `//` / `/* */` comments INSIDE such a script are invisible to it and the
+        file reads as "sparse" no matter how well its embedded code is documented.
+        Flagging those files is a false positive, so the sparse check skips them.
+        The threshold is deliberately high (most of the file must be template text)
+        so a normal module with a few inline strings is never excused.
+        """
+        nonblank = self.lines  # close enough; blank lines only dilute the ratio down
+        return nonblank > 0 and self.embedded_text_lines / nonblank >= 0.6
 
 
 # Function-like headers ending in `{`, evaluated against the code-only view.
@@ -309,11 +326,21 @@ def _match_brace_span(code: str, open_index: int) -> int | None:
     return None
 
 
-def _find_long_functions(code: str) -> list[tuple[str, int]]:
-    """Heuristic: function/arrow/method bodies spanning > FUNCTION_LINES_WARN lines.
+def _find_long_functions(
+    code: str, comment_only_lines: set[int]
+) -> list[tuple[str, int]]:
+    """Heuristic: function/arrow/method bodies spanning > FUNCTION_LINES_WARN
+    *code* lines.
 
     Brace-matched on the code-only view so strings/comments never miscount. Dedup
     by the opening-brace position because a method can match more than one regex.
+
+    The reported span counts CODE lines only — comment-only lines inside the body
+    are subtracted. WHY-comments are encouraged by the project rules, so a function
+    that is long only because it is well-documented must not flag as oversized; the
+    gate measures the code a reader has to hold, not the prose that explains it.
+    A line carrying code plus a trailing comment still counts as code (it is not in
+    comment_only_lines); only lines whose sole content is a comment are excluded.
     """
     seen_open: set[int] = set()
     found: list[tuple[str, int]] = []
@@ -336,7 +363,12 @@ def _find_long_functions(code: str) -> list[tuple[str, int]]:
         end = _match_brace_span(code, brace)
         if end is None:
             continue
-        span = _line_of(code, end - 1) - _line_of(code, brace) + 1
+        start_line = _line_of(code, brace)
+        end_line = _line_of(code, end - 1)
+        comments_inside = sum(
+            1 for ln in comment_only_lines if start_line <= ln <= end_line
+        )
+        span = end_line - start_line + 1 - comments_inside
         if span > FUNCTION_LINES_WARN:
             found.append((name, span))
     found.sort(key=lambda t: -t[1])
@@ -356,6 +388,15 @@ def collect_file_quality(path: Path) -> FileQuality:
     text = path.read_text(encoding="utf-8", errors="replace")
     comment_lines, code = _tokenize_ts(text)
     lines = len(text.splitlines())
+    # A "comment-only" line is a commented line whose code-only view is blank — i.e.
+    # the whole line is a comment, not code with a trailing comment. The function-
+    # length gate subtracts these so encouraged WHY-comments do not inflate spans.
+    code_view_lines = code.splitlines()
+    comment_only_lines = {
+        ln
+        for ln in comment_lines
+        if 1 <= ln <= len(code_view_lines) and not code_view_lines[ln - 1].strip()
+    }
     any_count = len(_ANY_RE.findall(code))
     hardcoded = len(_HARDCODED_MSG_RE.findall(code))
     # TODO markers are counted only on comment lines (the code-only view blanks
@@ -365,6 +406,17 @@ def collect_file_quality(path: Path) -> FileQuality:
     for ln in comment_lines:
         if 1 <= ln <= len(src_lines) and _TODO_RE.search(src_lines[ln - 1]):
             todo += 1
+    # Lines that are pure string / template-literal interior: non-blank in the source
+    # but blank in the code-only view (the tokenizer blanked them) and not a comment.
+    # A webview asset module is dominated by these, which is how template_dominated
+    # distinguishes it from real code so the sparse-comment check can excuse it.
+    embedded_text = sum(
+        1
+        for idx, raw in enumerate(src_lines, start=1)
+        if raw.strip()
+        and idx not in comment_lines
+        and (idx > len(code_view_lines) or not code_view_lines[idx - 1].strip())
+    )
     return FileQuality(
         rel_path=_rel(path),
         lines=lines,
@@ -372,15 +424,21 @@ def collect_file_quality(path: Path) -> FileQuality:
         any_count=any_count,
         todo_count=todo,
         hardcoded_strings=hardcoded,
-        long_functions=_find_long_functions(code),
+        embedded_text_lines=embedded_text,
+        long_functions=_find_long_functions(code, comment_only_lines),
     )
 
 
 # --------------------------------------------------------------------------- #
-# Exported-symbol JSDoc coverage. A real documentation-quality signal: an
-# exported function/class/type with no `/** */` block directly above it ships an
-# undocumented public surface. Re-exports (`export {`, `export * from`) are not
-# declarations and are excluded.
+# Exported-symbol doc-comment coverage. A real documentation-quality signal: an
+# exported function/class/type with no comment directly above it ships an
+# undocumented public surface. A "doc comment" is EITHER a block comment (JSDoc
+# `/** */` or a plain `/* */`, recognized by its closing `*/`) OR a `//` line
+# comment: this codebase documents exports with `//` WHY-comments as its house
+# style, not JSDoc (see the project rules — comments state the reason, not the
+# syntax), so a `//` block immediately above an export is real documentation and
+# must count. Re-exports (`export {`, `export * from`) are not declarations and
+# are excluded.
 # --------------------------------------------------------------------------- #
 
 _EXPORT_DECL_RE = re.compile(
@@ -401,12 +459,15 @@ def _exported_symbol_doc_coverage() -> tuple[int, int, list[str]]:
             if not m:
                 continue
             total += 1
-            # Walk back over blank lines / decorators to the nearest real line;
-            # a JSDoc block ends in `*/`, which is the documentation signal.
+            # Walk back over blank lines / decorators to the nearest real line, then
+            # accept it as documentation if it is the tail of a block comment (ends
+            # in `*/`) OR a `//` line comment — the house style here. Either form
+            # directly above the export means the public surface is explained.
             prev = idx - 1
             while prev >= 0 and not src_lines[prev].strip():
                 prev -= 1
-            if prev >= 0 and src_lines[prev].rstrip().endswith("*/"):
+            prev_text = src_lines[prev].strip() if prev >= 0 else ""
+            if prev_text.endswith("*/") or prev_text.startswith("//"):
                 documented += 1
             else:
                 undocumented.append(f"{_rel(path)}: {m.group(1)} {m.group(2)}")
@@ -501,16 +562,16 @@ def _print_file_length(report: QualityReport) -> None:
 
 
 def _print_function_length(report: QualityReport) -> None:
-    detail(_c("  Function length (heuristic)", Color.WHITE))
+    detail(_c("  Function length (heuristic, code lines only)", Color.WHITE))
     rows: list[tuple[int, str, str]] = []
     for f in report.files:
         for name, span in f.long_functions:
             rows.append((span, name, f.rel_path))
     rows.sort(key=lambda r: -r[0])
     if not rows:
-        success(f"No functions over {FUNCTION_LINES_WARN} lines detected.")
+        success(f"No functions over {FUNCTION_LINES_WARN} code lines detected.")
         return
-    detail(f"    {len(rows)} function(s) over {FUNCTION_LINES_WARN} lines:")
+    detail(f"    {len(rows)} function(s) over {FUNCTION_LINES_WARN} code lines:")
     for span, name, rel in rows[:TOP_N]:
         detail(_c(f"      ! {span:>4}  {name}  ({rel})", Color.YELLOW))
 
@@ -525,11 +586,20 @@ def _print_documentation(report: QualityReport) -> None:
         "(heuristic: //, /* */ outside strings)."
     )
     detail(
-        f"    Exported symbols with JSDoc: {report.doc_documented} / {report.doc_total} "
+        f"    Exported symbols with a doc comment: {report.doc_documented} / {report.doc_total} "
         f"({_pct(report.doc_documented, report.doc_total):.1f}%)."
     )
+    # Webview asset modules (one big exported template literal) are excused: the
+    # heuristic cannot see the comments embedded in their template, so flagging them
+    # as sparse is a false positive (see FileQuality.template_dominated).
     sparse = sorted(
-        (f for f in report.files if f.lines >= 30 and f.comment_ratio < SPARSE_COMMENT_RATIO),
+        (
+            f
+            for f in report.files
+            if f.lines >= 30
+            and f.comment_ratio < SPARSE_COMMENT_RATIO
+            and not f.template_dominated
+        ),
         key=lambda f: f.comment_ratio,
     )
     for f in sparse[:TOP_N]:

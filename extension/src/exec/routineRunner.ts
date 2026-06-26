@@ -48,6 +48,115 @@ interface MemberOutcome {
   detail?: string;
 }
 
+// Run one routine member to completion and report its outcome. Pulled out of the
+// runRoutine loop so the engine reads as resolve -> classify -> run -> derive
+// outcome at one level. Returns the summary-row outcome, whether it counts as a
+// failure (folded into the routine's worst-outcome badge), and — only when the
+// member actually ran — its pin id so the caller can fold in the member's badge
+// counts. The skip cases (missing member, nested routine, interactive under an
+// unattended fire) never run and carry no badge id.
+async function runRoutineMember(
+  hooks: RoutineHooks,
+  member: RoutineMember,
+  index: number,
+  count: number,
+  routineName: string,
+  unattended: boolean,
+  channel: vscode.OutputChannel
+): Promise<{ outcome: MemberOutcome; failed: boolean; badgePinId?: string }> {
+  const resolved = hooks.resolveMember(member);
+  const memberLabel =
+    member.label ??
+    resolved?.label ??
+    resolved?.id ??
+    member.recipeId ??
+    member.pinId ??
+    `#${index + 1}`;
+
+  // Per-member progress line into the shared channel ("Routine 'Morning' — 2/5: …").
+  channel.appendLine(
+    l10n("routine.step", {
+      name: routineName,
+      index: String(index + 1),
+      count: String(count),
+      member: memberLabel,
+    })
+  );
+
+  if (!resolved) {
+    channel.appendLine(l10n("routine.memberMissing", { member: memberLabel }));
+    return { outcome: { label: memberLabel, status: "missing" }, failed: false };
+  }
+  // Routines do not nest: a routine member is skipped (bounds sequencing/failure
+  // and prevents cycles), the one-level rule macros already enforce.
+  if (resolved.action?.kind === "routine") {
+    channel.appendLine(l10n("routine.nestedSkipped", { member: memberLabel }));
+    return {
+      outcome: {
+        label: memberLabel,
+        status: "skipped",
+        detail: l10n("routine.nestedSkippedDetail"),
+      },
+      failed: false,
+    };
+  }
+  if (unattended && hasInteractiveTokens(resolved)) {
+    channel.appendLine(l10n("routine.interactiveSkipped", { member: memberLabel }));
+    return {
+      outcome: {
+        label: memberLabel,
+        status: "skipped",
+        detail: l10n("routine.interactiveSkippedDetail"),
+      },
+      failed: false,
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    await hooks.runMember(resolved);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    channel.appendLine(l10n("routine.memberFailed", { member: memberLabel, error }));
+    return {
+      outcome: {
+        label: memberLabel,
+        status: "failed",
+        durationMs: Date.now() - startedAt,
+        detail: error,
+      },
+      failed: true,
+    };
+  }
+
+  // Read the member's tracked outcome — background / report runs record one. A
+  // terminal / url / command member has no tracked exit, so the absence of a fresh
+  // result reads as "dispatched", never a failure. Guard on endedAt >= startedAt so
+  // a stale prior-run result is not mistaken for this run's.
+  const result = runStatusRegistry.get(resolved.id);
+  const fresh = result && result.endedAt >= startedAt ? result : undefined;
+  if (fresh) {
+    return {
+      outcome: {
+        label: memberLabel,
+        status: fresh.outcome === "success" ? "ok" : "failed",
+        durationMs: fresh.durationMs,
+      },
+      failed: fresh.outcome === "failure",
+      badgePinId: resolved.id,
+    };
+  }
+  return {
+    outcome: {
+      label: memberLabel,
+      status: "dispatched",
+      durationMs: Date.now() - startedAt,
+    },
+    failed: false,
+    badgePinId: resolved.id,
+  };
+}
+
 // Run a routine's members strictly in sequence, continue-on-failure, then write a
 // one-row-per-member summary report and badge the routine pin with the worst member
 // outcome. Mirrors runMacro's failure policy (one broken member never blocks the
@@ -83,92 +192,25 @@ export async function runRoutine(
   let anyFailed = false;
 
   for (const [index, member] of members.entries()) {
-    const resolved = routineHooks.resolveMember(member);
-    const memberLabel =
-      member.label ??
-      resolved?.label ??
-      resolved?.id ??
-      member.recipeId ??
-      member.pinId ??
-      `#${index + 1}`;
-
-    // Per-member progress line into the shared channel ("Routine 'Morning' — 2/5: …").
-    channel.appendLine(
-      l10n("routine.step", {
-        name,
-        index: String(index + 1),
-        count: String(members.length),
-        member: memberLabel,
-      })
+    const { outcome, failed, badgePinId } = await runRoutineMember(
+      routineHooks,
+      member,
+      index,
+      members.length,
+      name,
+      unattended,
+      channel
     );
-
-    if (!resolved) {
-      outcomes.push({ label: memberLabel, status: "missing" });
-      channel.appendLine(l10n("routine.memberMissing", { member: memberLabel }));
-      continue;
-    }
-    // Routines do not nest: a routine member is skipped (bounds sequencing/failure
-    // and prevents cycles), the one-level rule macros already enforce.
-    if (resolved.action?.kind === "routine") {
-      outcomes.push({
-        label: memberLabel,
-        status: "skipped",
-        detail: l10n("routine.nestedSkippedDetail"),
-      });
-      channel.appendLine(l10n("routine.nestedSkipped", { member: memberLabel }));
-      continue;
-    }
-    if (unattended && hasInteractiveTokens(resolved)) {
-      outcomes.push({
-        label: memberLabel,
-        status: "skipped",
-        detail: l10n("routine.interactiveSkippedDetail"),
-      });
-      channel.appendLine(l10n("routine.interactiveSkipped", { member: memberLabel }));
-      continue;
-    }
-
-    const startedAt = Date.now();
-    try {
-      await routineHooks.runMember(resolved);
-    } catch (err) {
+    outcomes.push(outcome);
+    if (failed) {
       anyFailed = true;
-      const error = err instanceof Error ? err.message : String(err);
-      outcomes.push({
-        label: memberLabel,
-        status: "failed",
-        durationMs: Date.now() - startedAt,
-        detail: error,
-      });
-      channel.appendLine(l10n("routine.memberFailed", { member: memberLabel, error }));
-      continue;
-    }
-
-    // Read the member's tracked outcome — background / report runs record one. A
-    // terminal / url / command member has no tracked exit, so the absence of a fresh
-    // result reads as "dispatched", never a failure. Guard on endedAt >= startedAt so
-    // a stale prior-run result is not mistaken for this run's.
-    const result = runStatusRegistry.get(resolved.id);
-    const fresh = result && result.endedAt >= startedAt ? result : undefined;
-    if (fresh) {
-      if (fresh.outcome === "failure") {
-        anyFailed = true;
-      }
-      outcomes.push({
-        label: memberLabel,
-        status: fresh.outcome === "success" ? "ok" : "failed",
-        durationMs: fresh.durationMs,
-      });
-    } else {
-      outcomes.push({
-        label: memberLabel,
-        status: "dispatched",
-        durationMs: Date.now() - startedAt,
-      });
     }
     // Fold the member's diagnostic / test badge into the routine's aggregate, so the
-    // routine row shows the morning's total findings (#26 / #32 badge reuse).
-    mergeBadge(aggregate, pinBadges.get(resolved.id));
+    // routine row shows the morning's total findings (#26 / #32 badge reuse). Only a
+    // member that actually ran carries a badge pin id.
+    if (badgePinId) {
+      mergeBadge(aggregate, pinBadges.get(badgePinId));
+    }
   }
 
   // Badge the routine pin: a tracked worst-outcome result (red when any member
