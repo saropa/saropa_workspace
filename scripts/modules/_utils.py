@@ -157,6 +157,37 @@ def fail(msg: str, code: int) -> int:
     return code
 
 
+def prompt_on_failure(label: str) -> str:
+    """Ask how to handle a failed step: 'ignore', 'retry' (default), or 'abort'.
+
+    Retry is the default because most publish failures are transient — a flaky
+    npm registry, a tag that has not propagated yet, a PAT just refreshed — so
+    re-running the single failed step is cheaper than restarting the pipeline.
+    Ignore continues as though the step passed (only safe when the failure is
+    known-benign); abort stops the run.
+
+    A non-interactive stdin (CI, piped input) can't answer, so it defaults to
+    abort: an unattended run must never hang on the prompt nor silently swallow a
+    real failure by defaulting to retry forever.
+    """
+    if not sys.stdin or not sys.stdin.isatty():
+        error(f"{label} failed; non-interactive session, aborting.")
+        return "abort"
+    while True:
+        try:
+            choice = input(f"  {label} failed. [i]gnore / [r]etry / [a]bort (default retry): ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return "abort"
+        if choice in ("", "r", "retry"):
+            return "retry"
+        if choice in ("i", "ignore"):
+            return "ignore"
+        if choice in ("a", "abort"):
+            return "abort"
+        warn("Enter i, r, or a.")
+
+
 # cspell:disable
 def show_logo() -> None:
     """Print the Saropa 'S' logo. Pure branding; never references any tooling."""
@@ -197,7 +228,11 @@ def run(
     check: bool = True,
     capture: bool = False,
 ) -> subprocess.CompletedProcess:
-    """Run a command, echoing it first so the log shows exactly what ran.
+    """Run a command and return the completed process.
+
+    Commands are not echoed to the log: the step headers and result lines already
+    say what is happening, and printing the raw argv adds noise (and would surface
+    internal tooling invocations the operator does not need to read).
 
     shell=False (args list) to avoid quoting pitfalls with paths that contain
     spaces. On Windows, npm/vsce/ovsx/gh are .cmd shims, so resolve them via
@@ -206,7 +241,6 @@ def run(
     run on a Windows cp1252 console.
     """
     exe = shutil.which(args[0]) or args[0]
-    detail(_c(f"$ {' '.join(args)}", Color.DIM))
     return subprocess.run(
         [exe, *args[1:]],
         cwd=str(cwd),

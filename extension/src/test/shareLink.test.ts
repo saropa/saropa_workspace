@@ -38,9 +38,12 @@ test("toSharedPin keeps the portable fields and drops id / scope / order", () =>
   assert.equal(shared.icon, "rocket");
   assert.equal(shared.color, "charts.green");
   // The non-portable identity fields must never leak into the link.
-  assert.equal((shared as Record<string, unknown>).id, undefined, "the id is not shared");
-  assert.equal((shared as Record<string, unknown>).scope, undefined, "the scope is not shared");
-  assert.equal((shared as Record<string, unknown>).order, undefined, "the order is not shared");
+  // SharedPin has no index signature and intentionally omits these fields, so reach
+  // them through `unknown` to assert their absence rather than declared-property access.
+  const bag = shared as unknown as Record<string, unknown>;
+  assert.equal(bag.id, undefined, "the id is not shared");
+  assert.equal(bag.scope, undefined, "the scope is not shared");
+  assert.equal(bag.order, undefined, "the order is not shared");
 });
 
 test("toSharedPin carries an action pin's action and omits its path", () => {

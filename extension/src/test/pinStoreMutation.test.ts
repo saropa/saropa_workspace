@@ -19,9 +19,13 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { PinStore } from "../model/pinStore";
-import type { Uri as VscodeUri } from "vscode";
+import type { Uri as VscodeUri, WorkspaceFolder as VscodeWorkspaceFolder } from "vscode";
 
 const asUri = (u: Uri): VscodeUri => u as unknown as VscodeUri;
+// The stub's WorkspaceFolder carries the stub Uri, structurally distinct from the
+// vscode Uri restorePin's signature wants; the store only reads folder.uri.fsPath.
+const asFolder = (f: WorkspaceFolder): VscodeWorkspaceFolder =>
+  f as unknown as VscodeWorkspaceFolder;
 
 let tmpDir: string;
 let folder: WorkspaceFolder;
@@ -145,7 +149,7 @@ test("restorePin re-adds a swept pin to its folder with the expiry defused", asy
   await store.removePin(snapshot);
   assert.ok(!store.getProjectPins().some((p) => p.path === "back.ts"));
 
-  await store.restorePin(snapshot, folder);
+  await store.restorePin(snapshot, asFolder(folder));
   const restored = store.getProjectPins().find((p) => p.path === "back.ts");
   assert.ok(restored, "the pin is restored to its folder");
   assert.equal(restored!.id, snapshot.id, "the id is preserved on restore");

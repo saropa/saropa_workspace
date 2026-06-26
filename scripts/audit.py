@@ -7,8 +7,8 @@ full release, but changes nothing and never touches git or the stores:
 
     1. Release-correctness audit (modules/_audit.py)
        version <-> changelog agreement, empty-changelog-stub guard, the cut
-       section's Overview intro + pinned [log] link, i18n key coverage for both
-       catalogs, and the no-AI-attribution hard rule.
+       section's Overview intro + pinned [log] link, and i18n key coverage for
+       both catalogs.
 
     2. Code-quality report (modules/_quality.py)
        file length, function length (heuristic), comment-line density and

@@ -13,7 +13,7 @@ piece stays small and testable:
     modules/_utils.py             paths, constants, colored output, command runner
     modules/_timing.py            step timing and end-of-run summary
     modules/_version_changelog.py version + changelog reconciliation, prompts
-    modules/_audit.py             release-correctness pre-flight (version, i18n, attribution)
+    modules/_audit.py             release-correctness pre-flight (version, changelog, i18n)
     modules/_quality.py           code-quality metrics and gate (see also audit.py)
     modules/_build.py             doc sync, type check, build, package
     modules/_publish.py           PAT prompting, store publish, propagation verify
@@ -33,9 +33,10 @@ Modes (interactive menu, or pass --mode):
     audit               Read-only pre-publish checks + quality report; change nothing
     ci-fallback         Print the manual release playbook (URLs, commands, files)
 
-Version handling is automated. The single source of truth for the version is
-extension/package.json; release notes live in the top "## [x.y.z]" section of
-the root CHANGELOG.md.
+Version handling is automated. The version source of truth is the top
+"## [x.y.z]" section of the root CHANGELOG.md (which also holds the release
+notes); extension/package.json is reconciled to it at publish time, with the
+version prompt defaulting to the CHANGELOG version to confirm or overwrite.
 
 Auth comes from the environment the CLIs expect:
     VSCE_PAT  VS Code Marketplace (vsce publish)

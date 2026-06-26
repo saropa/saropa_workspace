@@ -2,11 +2,12 @@
 """
 package.json / CHANGELOG version helpers and the version-resolution workflow.
 
-The single source of truth for the version is extension/package.json; release
-notes live in the top "## [x.y.z]" section of the root CHANGELOG.md. This module
-reads and reconciles those two, drives the interactive version prompt, and bumps
-past any tag that already exists on the remote so a release can never collide
-with a published one.
+The version source of truth is the top "## [x.y.z]" section of the root
+CHANGELOG.md, which also carries the release notes; extension/package.json is
+reconciled to it at publish time. This module reads both, drives the interactive
+version prompt (which defaults to the CHANGELOG version so the author confirms or
+overwrites it), and bumps past any tag that already exists on the remote so a
+release can never collide with a published one.
 
 Version:   1.0
 Copyright: (c) 2026 Saropa
@@ -268,10 +269,11 @@ def resolve_version(timer: StepTimer) -> str | None:
 
     1. Refuse to proceed while any '## [x.y.z]' section is an empty stub.
     2. Offer a default: a patch bump when [Unreleased] is present (work is
-       pending), otherwise the current package.json value; never below the top
-       changelog version if the author already cut one ahead by hand.
-    3. Prompt (editable, with timeout); validate semver.
-    4. Write package.json and rename [Unreleased] -> [version].
+       pending), otherwise the top CHANGELOG version (the source of truth);
+       never below a release the author already cut ahead by hand.
+    3. Prompt (editable, with timeout) to confirm or overwrite; validate semver.
+    4. Write package.json (reconciling it to the chosen version) and rename
+       [Unreleased] -> [version].
     5. Bump past a remote tag clash so a published version can't be reused.
 
     Returns the resolved version, or None to abort the publish.
@@ -287,8 +289,16 @@ def resolve_version(timer: StepTimer) -> str | None:
         return None
 
     pkg_version = read_package_version()
-    default = increment_version(pkg_version) if has_unreleased_section(ROOT_CHANGELOG) else pkg_version
     top = top_changelog_version(ROOT_CHANGELOG)
+    if has_unreleased_section(ROOT_CHANGELOG):
+        # Work is pending under [Unreleased]: default to a patch bump of the
+        # current package version; the rename step turns [Unreleased] into it.
+        default = increment_version(pkg_version)
+    else:
+        # CHANGELOG is the version source of truth: a cut '## [x.y.z]' section is
+        # the version to publish, and package.json is reconciled to it. Fall back
+        # to package.json only when no cut version exists in the CHANGELOG yet.
+        default = top or pkg_version
     # Never offer a default below a release the author already wrote by hand.
     if top and parse_version(top) > parse_version(default):
         default = top

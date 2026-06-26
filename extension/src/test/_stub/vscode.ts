@@ -254,7 +254,11 @@ export const extensions = {
 // (undefined) until a test installs a handler; __resetHandlers restores that.
 type InputResult = string | undefined;
 type InputHandler = (opts?: { prompt?: string; value?: string }) => Promise<InputResult>;
-type PickHandler = (items: readonly string[]) => Promise<InputResult>;
+// showQuickPick is modeled with one settable handler, but the real API yields a
+// QuickPickItem object (or, with canPickMany, an array of them) — not just a string.
+// So the handler sees the item list as `unknown[]` and may return any shape (a chosen
+// item, an array of items, or undefined for cancel); the tested editors narrow it.
+type PickHandler = (items: readonly unknown[]) => Promise<unknown>;
 
 let inputHandler: InputHandler = async () => undefined;
 let pickHandler: PickHandler = async () => undefined;
@@ -317,7 +321,7 @@ export const window = {
   },
   // The real signature takes (items, options); the second arg is unused by the
   // tested code paths, so the stub ignores it.
-  showQuickPick(items: readonly string[]): Promise<InputResult> {
+  showQuickPick(items: readonly unknown[]): Promise<unknown> {
     return pickHandler(items);
   },
   // The branch-set binder and several command handlers emit toasts via these. No

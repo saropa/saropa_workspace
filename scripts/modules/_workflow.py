@@ -29,11 +29,43 @@ from modules._utils import (
     detail,
     fail,
     header,
+    prompt_on_failure,
     success,
+    warn,
 )
 from modules._version_changelog import read_package_version, resolve_version
 
 MODES = ("full", "package", "publish-existing", "dry-run", "audit", "ci-fallback")
+
+
+def _attempt(label, step, *, timer: StepTimer | None = None) -> tuple[int, bool]:
+    """Run *step* (a callable returning 0 on success, non-zero on failure).
+
+    On any failure the operator chooses ignore / retry (default) / abort. Retry
+    re-runs *step* from scratch, so a transient failure (registry hiccup, an
+    expired token just renewed, a file just fixed) clears without restarting the
+    whole pipeline. The retry default makes this the single failure policy for
+    every step in the run.
+
+    Returns (code, aborted):
+      - passed or ignored -> (0, False)
+      - aborted           -> (the failing code, True)
+    """
+    while True:
+        if timer is not None:
+            with timer.step(label):
+                code = step()
+        else:
+            code = step()
+        if not code:
+            return 0, False
+        choice = prompt_on_failure(label)
+        if choice == "retry":
+            continue
+        if choice == "ignore":
+            warn(f"{label}: failure ignored by request; continuing.")
+            return 0, False
+        return (code if isinstance(code, int) else 1), True
 
 
 def check_prerequisites(mode: str) -> int:
@@ -72,6 +104,28 @@ def prompt_mode() -> str:
     }.get(choice, "full")
 
 
+def _resolve_version_interactive(timer: StepTimer) -> str | None:
+    """resolve_version() wrapped in the standard ignore / retry / abort policy.
+
+    resolve_version returns None when the changelog can't be reconciled (an empty
+    stub, a duplicate heading, a post-sync top-vs-package mismatch). Retry re-runs
+    it after the author fixes the file; ignore falls back to the current
+    package.json version so the publish can proceed unchanged; abort stops.
+    """
+    while True:
+        version = resolve_version(timer)
+        if version is not None:
+            return version
+        choice = prompt_on_failure("Version")
+        if choice == "retry":
+            continue
+        if choice == "ignore":
+            fallback = read_package_version()
+            warn(f"Version resolution failed; falling back to package.json {fallback}.")
+            return fallback
+        return None
+
+
 def _run_publish_existing() -> int:
     timer = StepTimer()
     try:
@@ -80,9 +134,8 @@ def _run_publish_existing() -> int:
             return fail("No existing .vsix to publish; run package first.", 6)
         success(f"Selected: {vsix.name}")
         version_match = re.search(rf"-({VERSION_RE})\.vsix$", vsix.name)
-        with timer.step("Publish"):
-            code = publish_marketplaces()
-        if code:
+        code, aborted = _attempt("Publish", publish_marketplaces, timer=timer)
+        if aborted:
             return code
         if version_match:
             verify_store_publication(version_match.group(1))
@@ -110,31 +163,38 @@ def run_mode(mode: str) -> int:
     timer = StepTimer()
     try:
         strict = mode == "full"
-        if run_audit(mode) and strict:
-            return fail("Audit failed; fix the issues above before a full publish.", 3)
-        # Quality gate: blocks a full publish on hard violations, informational otherwise.
-        if run_quality_audit(strict=strict) and strict:
-            return fail("Quality gate failed; fix the issues above before a full publish.", 3)
+
+        # Gates block only a full publish. In package/dry-run they are
+        # informational, so a non-strict "failure" is not a stop and never
+        # prompts; only the strict path routes a gate failure through the
+        # ignore/retry/abort choice.
+        if strict:
+            _, aborted = _attempt("Audit", lambda: run_audit(mode))
+            if aborted:
+                return fail("Audit aborted; fix the issues above before a full publish.", 3)
+            _, aborted = _attempt("Quality gate", lambda: run_quality_audit(strict=True))
+            if aborted:
+                return fail("Quality gate aborted; fix the issues above before a full publish.", 3)
+        else:
+            run_audit(mode)
+            run_quality_audit(strict=False)
 
         version: str | None = read_package_version()
         if strict:
-            version = resolve_version(timer)
+            version = _resolve_version_interactive(timer)
             if version is None:
                 return 10
             check_working_tree()
 
-        with timer.step("Type check"):
-            code = type_check()
-        if code:
-            return code
-        with timer.step("Build"):
-            code = build()
-        if code:
-            return code
-        with timer.step("Package"):
-            code = package_vsix(version)
-        if code:
-            return code
+        # Each build step shares one failure policy: ignore / retry (default) / abort.
+        for label, step in (
+            ("Type check", type_check),
+            ("Build", build),
+            ("Package", lambda: package_vsix(version)),
+        ):
+            code, aborted = _attempt(label, step, timer=timer)
+            if aborted:
+                return code
 
         if mode in ("package", "dry-run"):
             header("DONE")
@@ -144,13 +204,15 @@ def run_mode(mode: str) -> int:
             return 0
 
         # Full publish: stores -> git tag/release -> store verification.
-        with timer.step("Publish"):
-            code = publish_marketplaces()
-        if code:
+        code, aborted = _attempt("Publish", publish_marketplaces, timer=timer)
+        if aborted:
             return code
-        with timer.step("Git + release"):
-            code = git_commit_release(version) or github_release(version)
-        if code:
+        code, aborted = _attempt(
+            "Git + release",
+            lambda: git_commit_release(version) or github_release(version),
+            timer=timer,
+        )
+        if aborted:
             return code
         verify_store_publication(version)
         success_banner(version)

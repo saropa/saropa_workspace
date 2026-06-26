@@ -154,19 +154,23 @@ test("editExtract clears the pattern on an empty entry", async () => {
 test("editExtract validateInput rejects a malformed regex inline", async () => {
   // The editor wires a validateInput that compiles the pattern; an unbalanced group
   // must be reported (a non-undefined message) so a broken pattern never persists.
-  let reported: string | undefined | null = null;
+  // A holder object, not a bare `let`: the validation result is only assigned inside
+  // the handler closure, and TS ignores closure assignments for control-flow narrowing
+  // of a local, collapsing `typeof reported === "string"` to `never`. Reading through a
+  // property keeps its declared `string | undefined` type at the assertion.
+  const probe: { message?: string } = {};
   __setInputHandler(async (opts) => {
     // The stub does not invoke validateInput, so call it directly the way the host
     // would as the user types an invalid pattern.
     const validate = (opts as { validateInput?: (v: string) => string | undefined })
       ?.validateInput;
-    reported = validate ? validate("(unterminated") : undefined;
+    probe.message = validate ? validate("(unterminated") : undefined;
     return undefined; // cancel after probing validation
   });
   const work: PinExecConfig = {};
   await editExtract(work, "Title");
   assert.ok(
-    typeof reported === "string" && reported.length > 0,
+    typeof probe.message === "string" && probe.message.length > 0,
     "an invalid regex yields a validation message"
   );
 });
