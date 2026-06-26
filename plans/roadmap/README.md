@@ -26,9 +26,11 @@ diverge, the plan records what is actually implemented today.
 - [3.3 Local run analytics](3.3-local-run-analytics.md) — **shipped.** Telemetry store +
   the Run Analytics Markdown summary exist. The chart/grid form is the 3.4 Analytics tab.
   Remaining: tests.
-- [3.4 Dashboard webview tabs](3.4-dashboard-webview-tabs.md) — **extend existing.** A
-  real process-monitor webview (CSP+nonce, theme-aware) already ships as a single view.
-  Remaining: tab shell, move Analytics into the webview, build a Trends tab.
+- 3.4 Dashboard webview tabs — **shipped.** The process-monitor webview is now a
+  three-tab Saropa Dashboard (Processes / Analytics / Trends) in one CSP+nonce frame,
+  with `saropaWorkspace.openDashboard` and the `openProcessMonitor` alias. Plan
+  archived to
+  [history/2026.06/2026.06.25/3.4-dashboard-webview-tabs.md](../history/2026.06/2026.06.25/3.4-dashboard-webview-tabs.md).
 
 ## Phase 4
 
@@ -55,8 +57,8 @@ diverge, the plan records what is actually implemented today.
 
 1. **[4.1 harness](4.1-unit-tests.md)** — unblocks the tests every other item needs.
 2. **[1.2 multi-root](1.2-multi-root-refinements.md)**, **[suite
-   subgroups](suite-integration.md)**, **[3.4 dashboard tabs](3.4-dashboard-webview-tabs.md)**
-   — all extend shipped code, low risk.
+   subgroups](suite-integration.md)** — all extend shipped code, low risk. (3.4
+   dashboard tabs shipped — see Phase 3.)
 3. **[1.1 import remaining](1.1-extend-favorites-import.md)** +
    **[additional formats](additional-import-formats.md)** — share the parser refactor.
 4. **[Multiple favorite sets](multiple-favorite-sets.md)** → **[3.2
