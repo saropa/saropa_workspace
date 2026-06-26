@@ -322,7 +322,7 @@ button.btn.icon { padding: 5px 8px; }
 /* The inspector is its own right-hand column (like the Workflow toolbox), sticky under
    the toolbar so it stays in view while the tall grid scrolls. It is hidden until a pin
    is selected; a header (x) closes it and returns the stage to full width. */
-.detail { flex: 0 0 300px; align-self: stretch; position: sticky; top: 56px; max-height: calc(100vh - 72px); overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: none; }
+.detail { flex: 0 0 300px; align-self: flex-start; position: sticky; top: 56px; max-height: calc(100vh - 72px); overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: none; }
 .detail.show { display: block; animation: rise 160ms var(--ease); }
 .detail .dh { display: flex; align-items: center; gap: 10px; }
 .detail .dh .dt { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

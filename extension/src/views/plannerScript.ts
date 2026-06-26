@@ -515,9 +515,8 @@ function layout(){
 
 // ---- selection + detail ----------------------------------------------
 // Selecting an item highlights every visual representation of it (workflow node, week
-// block, day marker) and opens the detail strip. In the Day/Week views the strip sits
-// below a full-height grid, so scroll it into view — otherwise a click updates a panel
-// the user has scrolled past and the gesture looks like it did nothing.
+// block, day marker, shelf pin) and opens the detail inspector. The inspector is a
+// sticky right-hand column, so it is always in view — no scroll-into-view is needed.
 function select(id){
   selected = id;
   document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel', n.dataset.id===id));
@@ -526,10 +525,6 @@ function select(id){
   document.querySelectorAll('.shelf-pin').forEach(s=>s.classList.toggle('sel', s.dataset.id===id));
   if(view==='workflow') drawEdges();
   renderDetail();
-  if(selected && view!=='workflow'){
-    const box = document.getElementById('detail');
-    if(box && box.classList.contains('show')) box.scrollIntoView({ block:'nearest' });
-  }
 }
 
 function renderDetail(){
@@ -568,6 +563,9 @@ function act(a, id){
   else if(a==='schedule') send({ type:'configureSchedule', id });
   else if(a==='triggers') send({ type:'configureTriggers', id });
   else if(a==='toggle') send({ type:'toggleEnabled', id });
+  // Close the inspector column: clear the selection so renderDetail hides it (and the
+  // stage flexes back to full width) and the node/block/marker highlight is removed.
+  else if(a==='close') select(null);
 }
 
 // ---- context menu -----------------------------------------------------

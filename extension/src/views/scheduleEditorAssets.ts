@@ -270,9 +270,11 @@ function applyInit(work){
   syncLocalState();
 }
 
-// Host-computed preview: the next-run text, and whether the typed cron parses.
+// Host-computed preview: the next-run text, the host's effective enabled state (so
+// the toggle visibly flips on when timing is added), and whether the typed cron parses.
 function applyPreview(m){
   $('nextRun').textContent = m.nextRun;
+  if (typeof m.enabled === 'boolean') { $('enabled').checked = m.enabled; }
   const cronEmpty = $('cron').value.trim() === '';
   $('cronInvalid').classList.toggle('show', !cronEmpty && !m.cronValid);
   // A typed-but-invalid cron can't be saved (it would silently never fire); every

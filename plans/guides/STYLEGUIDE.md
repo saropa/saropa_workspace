@@ -33,6 +33,11 @@ Current screens, for reference:
 | --- | --- |
 | `monitor.panel.title` | **Saropa Dashboard** |
 | `planner.title` | **Saropa Schedule & Workflow Planner** |
+| `scheduleEditor.title` | **Saropa Schedule: {name}** |
+
+A per-item screen title may carry an interpolated `{name}` after the Saropa
+prefix (e.g. **Saropa Schedule: `regen-types`**) so the tab names the item it
+edits — the Saropa-first rule still holds.
 
 When you add a new webview panel, its title key starts with `Saropa `. Do not
 hardcode the prefix at three call sites — set it once in the catalog value and
@@ -104,6 +109,16 @@ Localizing the client script requires a host→webview string bridge (inject a
 keyed string map into the page at render time, look it up in the script); until
 that bridge exists, keep client-script strings inline and consistent with their
 neighbors rather than half-externalizing.
+
+**Prefer host-rendered labels for static form markup.** When a webview's layout is
+a fixed form (not a generated canvas), render the markup and ALL its visible labels
+host-side via `l10n` in the panel's `renderShell` (see `scheduleEditorPanel.ts`),
+and keep the injected client script free of display strings — it only reads the
+host-posted initial state, wires controls, and writes host-computed text (e.g. a
+preview line) into place. This keeps the whole surface translation-ready today
+without the string bridge. Reserve inline client-script strings for surfaces that
+build their DOM dynamically in the script (the planner canvas), where host
+rendering is not practical.
 
 ---
 
