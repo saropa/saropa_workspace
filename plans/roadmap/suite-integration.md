@@ -66,3 +66,47 @@ subgroups. That is the main remaining work.
 - Pin groups — shipped. Tests depend on Phase 4.1.
 - This is the productized form of the suite recipes already in the catalog
   (`plans/history/2026.06/2026.06.25/RECIPE_BOOK.md`, recipes 36–59).
+
+## Finish Report (2026-06-26)
+
+All three remaining-work items are done.
+
+**1. Per-tool subgroups.** Suite pins now nest under a subfolder per tool beneath
+the "Saropa Suite" group; the boot macro stays at the suite top level.
+
+- `PinGroup` gained an optional `parentId` (the only model addition) so a synthetic
+  group can be a child of another — reused for the suite subgroups, not a
+  suite-specific type. (`extension/src/model/pin.ts`)
+- `RecipeResult` gained an optional `subGroup` key; the suite recipes tag each pin
+  with `"lints"` / `"drift"` / `"log"`, and the boot macro carries none.
+  (`extension/src/recipes/detectors.ts`, `extension/src/recipes/suiteRecipes.ts`)
+- The store defines the subgroups (`saropa-suite-lints|drift|log`), maps a pin's
+  `subGroup` to the nested group id (`recipeSubGroupId`), builds a subgroup only when
+  it owns a pin, and shows the parent when it has a direct pin OR a child subgroup
+  with a pin (the single-tool case has no boot macro). (`extension/src/model/pinStore.ts`)
+- The Recipes tree renders top-level groups at the root and a group's children as
+  its subgroups first, then its direct pins (boot macro). Parent folder count
+  includes descendant subgroup pins. (`extension/src/views/recipesTreeProvider.ts`)
+
+**2. Entry-point audit.** Every documented command id was checked against each
+tool's current manifest — all match, no divergences:
+
+- Lints (`saropa.saropa-lints`): `runAnalysis`, `openProjectVibrancyReport`,
+  `openConfigDashboard`, `openPackageVibrancy`, `exportOwaspReport` — all present.
+- Drift Advisor (`saropa.drift-viewer`): `openInBrowser`, `openSqlNotebook`,
+  `scanDartSchemaDefinitions`, `schemaDiagram`, `exportReport`, `forwardPortAndroid`
+  — all present.
+- Log Capture (`saropa.saropa-log-capture`): `openLogFile`, `searchLogs`,
+  `exportFlowMap`, `compareSessions`, `showSignals`, `start` — all present.
+- All three extension ids (publisher.name) confirmed.
+
+**3. Graceful-absence + subgroup tests.** `extension/src/test/suiteRecipes.test.ts`
+(6 tests, all passing) covers: the detector yields nothing and never throws when no
+tool is present; a tool tags its pins with the right subGroup and seeds no other
+tool; the boot macro seeds only with 2+ tools and carries no subGroup; the store
+seeds no Saropa Suite group when nothing is detected; a detected tool materializes
+its subgroup nested under the suite group while undetected tools show none; multiple
+tools nest as siblings with the boot macro at the suite top level. The test stub
+gained a settable `vscode.extensions.getExtension`.
+
+Verified: `tsc --noEmit` clean, `node esbuild.js` builds, the 6 new tests pass.

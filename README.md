@@ -67,7 +67,7 @@ A command can carry **placeholder tokens** (`$file`, `$workspaceRoot`, …) and 
 
 Run a pinned script at a **time of day**, on a **repeating interval**, on specific **days of the week**, every **N minutes / hours / days**, on a full **cron expression**, or **when the workspace opens** — for as long as VS Code is open. You rarely type cron: **Configure Schedule** includes a builder for the common patterns (every weekday at a time, the 1st of each month, every few minutes during work hours, every hour on the hour) and validates a hand-typed expression live before it can be saved. Scheduling runs **in-process** (it is not OS cron and does not survive a VS Code restart), which keeps it simple, project-local, and free of system configuration. A **status-bar item** shows the soonest upcoming scheduled run and reveals that pin when clicked, so what is queued is always visible.
 
-The **Schedule & Workflow Planner** (Pins toolbar, or the Command Palette) adds a visual layer — a Day ruler, a Week calendar where each pin is a draggable block you retime by dragging, and a Workflow node graph where you wire pins to each other and to events. A pin can also **chain off another pin or an event** (build, publish, git commit, git push), **run on save**, **run when idle**, or **wait on a prerequisite** — see [Chain & trigger runs](docs/FEATURES.md#chain--trigger-runs).
+The **Schedule & Workflow Planner** (Pins toolbar, or the Command Palette) adds a visual layer — a Day ruler, a Week calendar where each pin is a draggable block you retime by dragging, and a Workflow node graph where you wire pins to each other and to events. A pin can also **chain off another pin or an event** (build, publish, git commit, git push), **run on save**, **run when another file changes** (link it to a glob like `**/*.graphql`), **run when idle**, or **wait on a prerequisite** — see [Chain & trigger runs](docs/FEATURES.md#chain--trigger-runs).
 
 ### 🧩 Recipes
 
@@ -206,6 +206,7 @@ The everyday commands, from the Command Palette and the view's context menus. Ev
 | **Run Pin…** / **Run Pin with Overrides…** | Quick-pick any pin (recents first); run one with one-off args / cwd / env. |
 | **Configure Run…** | Edit command prefix, args, cwd, env, run location, run-on-save, depends-on, and concurrency. |
 | **Configure Schedule…** / **Configure Triggers…** | Set time / days / interval / cron / run-on-open; chain a pin off another pin or an event. |
+| **Run This Pin When a File Changes…** | Link a pin to files or globs (e.g. `**/*.graphql`); saving a match runs the pin in the background. |
 | **Open Schedule & Workflow Planner** / **Open Saropa Dashboard** | The visual Day / Week / Workflow planner; the Processes / Analytics / Trends dashboard. |
 | **Set Icon & Color…** / **New Group** / **Rename** / **Unpin** | Customize a pin; create a group; rename; remove. |
 | **Promote to Pin** / **Restore Recipes** / **Restore Auto-Pins** | Store a recipe as a pin; bring removed recipes or auto-pins back. |

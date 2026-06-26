@@ -70,9 +70,10 @@ See [Scheduling](SCHEDULING.md) for the full reference.
 
 Beyond a schedule, a pin can run itself off another pin or a project event. **Configure Triggers** sets a pin to run **after another pin** (optionally only when that pin succeeded) or **after an event** — *build*, *publish*, *git commit*, or *git push* (commits and pushes are read straight from `.git`, with no `git` process spawned). "Run X after Y" and "run Z after Y" are independent links, so one finished job can fan out to several; the chain engine guards against loops and logs every auto-run.
 
-Three more ways a run can start on its own:
+More ways a run can start on its own:
 
 - **Run on save** (in **Configure Run**) re-runs a script pin every time you save its file — Code-Runner's "run on save", scoped to the exact pin.
+- **Run This Pin When a File Changes** links a pin to one or more files or glob patterns (`**/*.graphql`, `src/**`) so saving any matching file runs the pin in the background — the cross-file companion to run-on-save (here the pin and the watched file differ), for "I edited the schema, regenerate the types." A save burst runs it at most once per short cooldown.
 - **Run when idle** fires a heavy pin in the background after a quiet stretch (default 3 minutes), so a slow pre-push check or integration suite runs while you step away.
 - **Depends on** (in **Configure Run**) blocks a pin until a named prerequisite has succeeded this session, showing a lock and a one-click offer to run the prerequisite first. The dependency is session-scoped, so a stale build can't be deployed.
 
