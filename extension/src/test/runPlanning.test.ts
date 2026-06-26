@@ -68,14 +68,27 @@ const asChild = (c: FakeChild): ChildProcess => c as unknown as ChildProcess;
 
 // --- planRun ------------------------------------------------------------
 
-test("planRun assembles <prefix> \"<file>\" <args> with an explicit command", () => {
+test("planRun assembles <prefix> <file> <args> with an explicit command", () => {
   __setConfig("saropaWorkspace", "defaultUseIntegratedTerminal", true);
   const uri = fileUri("script.py");
   const plan = planRun(pin({ exec: { command: "python", args: ["-v"] } }), uri);
-  assert.equal(plan.commandLine, `python "${tmpDir}/script.py" -v`);
+  // A space-free temp path is not quoted; assert the assembled order of the parts.
+  assert.equal(plan.commandLine, `python ${tmpDir}/script.py -v`);
   assert.equal(plan.cwd, tmpDir, "cwd defaults to the workspace root");
   assert.equal(plan.location, "terminal", "the workspace default routes to the terminal");
   assert.equal(plan.name, "script.py", "the label falls back to the file base name");
+});
+
+test("planRun quotes a file path that contains spaces", () => {
+  // A path with a space must be wrapped in one quoted arg so it is not split into two.
+  const dirWithSpace = `${tmpDir}/with space`;
+  nodeFs.mkdirSync(dirWithSpace, { recursive: true });
+  const uri = asUri(Uri.file(`${dirWithSpace}/run.py`));
+  const plan = planRun(pin({ path: "with space/run.py", exec: { command: "python" } }), uri);
+  assert.ok(
+    plan.commandLine.includes(`"${dirWithSpace}/run.py"`),
+    "a spaced path is quoted as a single argument"
+  );
 });
 
 test("planRun resolves the interpreter from the extension defaults when no command is set", () => {
