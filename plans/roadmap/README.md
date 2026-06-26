@@ -21,11 +21,16 @@ diverge, the plan records what is actually implemented today.
 
 ## Phase 3
 
-- [3.2 Branch-aware pin sets](3.2-branch-aware-pin-sets.md) — **blocked** on Multiple
-  favorite sets. Git detection plumbing exists; switching does not.
-- [3.3 Local run analytics](3.3-local-run-analytics.md) — **shipped.** Telemetry store +
-  the Run Analytics Markdown summary exist. The chart/grid form is the 3.4 Analytics tab.
-  Remaining: tests.
+- 3.2 Branch-aware pin sets — **shipped.** `saropaWorkspace.branchAware.enabled`
+  (default off) plus Link / Unlink Current Branch commands bind a git branch to a pin
+  set; checking out the branch switches the active set (and an optional on-switch pin
+  runs). Built on the existing branch tracker + named-set API; inert outside git. Plan
+  archived to
+  [history/2026.06/2026.06.26/3.2-branch-aware-pin-sets.md](../history/2026.06/2026.06.26/3.2-branch-aware-pin-sets.md).
+- 3.3 Local run analytics — **shipped.** Telemetry store + the Run Analytics Markdown
+  summary exist; the chart/grid form is the 3.4 Analytics tab. Tests landed
+  (`telemetry.test.ts`, `runAnalytics.test.ts`). Plan archived to
+  [history/2026.06/2026.06.26/3.3-local-run-analytics.md](../history/2026.06/2026.06.26/3.3-local-run-analytics.md).
 - 3.4 Dashboard webview tabs — **shipped.** The process-monitor webview is now a
   three-tab Saropa Dashboard (Processes / Analytics / Trends) in one CSP+nonce frame,
   with `saropaWorkspace.openDashboard` and the `openProcessMonitor` alias. Plan
@@ -67,8 +72,7 @@ diverge, the plan records what is actually implemented today.
    dashboard tabs shipped — see Phase 3.)
 3. **[1.1 import remaining](1.1-extend-favorites-import.md)** +
    **[additional formats](additional-import-formats.md)** — share the parser refactor.
-4. **[3.2 branch-aware](3.2-branch-aware-pin-sets.md)** — builds on multiple favorite
-   sets, which has shipped
-   ([archived](../history/2026.06/2026.06.25/multiple-favorite-sets.md)).
+4. **3.2 branch-aware** — shipped; built on multiple favorite sets
+   ([plan archived](../history/2026.06/2026.06.26/3.2-branch-aware-pin-sets.md)).
 5. **[remote run](remote-run.md)**, **[comments/separators](comments-and-separators.md)**
    — independent, pick by appetite. (Richer scheduling shipped.)
