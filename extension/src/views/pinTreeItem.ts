@@ -123,15 +123,21 @@ export class PinTreeItem extends vscode.TreeItem {
       lockedBy && !isRunning && !isStopping
         ? l10n("depends.treeBadge", { dep: lockedBy })
         : undefined;
+    // A paused pin shows a "paused" badge instead of its next-run time: the schedule
+    // is kept but no timer is armed, so surfacing a next-run instant it will not honor
+    // would mislead. Running / stopping / a lock still win — those are live, more
+    // actionable states, and a paused pin can still be run manually.
     const badge = isStopping
       ? l10n("run.stoppingBadge")
       : isRunning
         ? l10n("run.treeBadge")
         : lockBadge
           ? lockBadge
-          : nextLabel
-            ? l10n("schedule.treeBadge", { time: nextLabel })
-            : lastRunBadge;
+          : pin.paused
+            ? l10n("pause.treeBadge")
+            : nextLabel
+              ? l10n("schedule.treeBadge", { time: nextLabel })
+              : lastRunBadge;
     // For a file pin the trailing detail is its path; for a non-file pin it is a
     // summary of what the action does (the URL, the command line, etc.).
     const detail = isFile ? pin.path : actionSummary(pin);
@@ -202,7 +208,14 @@ export class PinTreeItem extends vscode.TreeItem {
     // reads as intentional. The suffix preserves the /^pin/ prefix, so the generic
     // run/open/unpin/peek clauses still match; only the exact-match clauses
     // (Configure Run/Schedule/Appearance, Promote) are widened to accept it.
+    // A paused stored pin appends a "Paused" suffix (pinPaused / pinScheduledPaused)
+    // so the context menu can swap "Pause" for "Unpause"; the suffix preserves the
+    // /^pin/ prefix and the config clauses match it via /^pin(Scheduled)?(Paused)?$/,
+    // so a paused pin keeps every edit/run action. Only explicit pins are pausable
+    // (auto/recipe pins are recomputed, not stored), so the suffix is applied to the
+    // stored-pin branch alone.
     const scheduled = pin.schedule !== undefined;
+    const pausedSuffix = pin.paused ? "Paused" : "";
     this.contextValue = isStopping
       ? "pinStopping"
       : isRunning
@@ -214,8 +227,8 @@ export class PinTreeItem extends vscode.TreeItem {
           : pin.isAuto
             ? "pinAuto"
             : scheduled
-              ? "pinScheduled"
-              : "pin";
+              ? `pinScheduled${pausedSuffix}`
+              : `pin${pausedSuffix}`;
 
     // Tooltip shows the full target (the complete URL for a url pin), even though
     // the row only shows the host — the hover is where the detail belongs.
@@ -331,6 +344,16 @@ export class PinTreeItem extends vscode.TreeItem {
       // winning over a stale last-run badge (a prior session's green check does not
       // mean the dependency is satisfied now).
       this.iconPath = new vscode.ThemeIcon("lock");
+    } else if (pin.paused) {
+      // Paused: render the pin's glyph muted so the row reads as "not running on its
+      // own" at a glance. Running / missing / locked above still win (they are more
+      // actionable, live states); a manual run is still possible, so this is a muted
+      // resting state, not an error tint. Wins over a stale last-run badge since being
+      // paused is the actionable resting fact.
+      this.iconPath = new vscode.ThemeIcon(
+        pin.icon ?? (isFile ? "circle-slash" : kindIcon(kind)),
+        new vscode.ThemeColor("disabledForeground")
+      );
     } else if (metricBadge?.over) {
       // Over its size threshold (#24): tint the row as a warning so "this file is too
       // big" reads at a glance (the badge text carries the actual size). Keeps the

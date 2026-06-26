@@ -58,6 +58,12 @@ export class ChainRunner implements vscode.Disposable {
   private syncIdleThresholds(): void {
     const minutes: number[] = [];
     for (const pin of this.allStoredPins()) {
+      // A paused pin contributes no idle threshold — pausing suspends its idle
+      // trigger like every other unattended runner, so the monitor need not poll
+      // for a stretch only a paused pin would react to.
+      if (pin.paused) {
+        continue;
+      }
       for (const trigger of pin.triggers ?? []) {
         if (trigger.kind === "idle") {
           minutes.push(trigger.minutes);
@@ -83,7 +89,10 @@ export class ChainRunner implements vscode.Disposable {
   // the pins chained directly after it.
   private onPinCompleted(pinId: string, outcome: PinRunOutcome): void {
     const source = this.store.findPin(pinId);
-    if (source?.emits && outcome !== "failure") {
+    // A paused pin emits no system events on completion (a manual run of a paused
+    // build pin should not trigger its downstream publish chain), matching how its
+    // own triggers are suppressed below.
+    if (source?.emits && !source.paused && outcome !== "failure") {
       for (const event of source.emits) {
         systemEvents.fire(event);
       }
@@ -126,6 +135,11 @@ export class ChainRunner implements vscode.Disposable {
     const now = Date.now();
     const channel = getOutputChannel();
     for (const pin of this.allStoredPins()) {
+      // A paused pin's triggers are inert: skip it before any cooldown / interactive
+      // bookkeeping so a paused dependent never auto-runs as part of a cascade.
+      if (pin.paused) {
+        continue;
+      }
       if (!pin.triggers?.some(predicate)) {
         continue;
       }

@@ -195,39 +195,41 @@ async function importKdcro(
   return { added, skipped };
 }
 
-// oleg-shilo "Favorites Manager" text list: one entry per line as `path` or
-// `path|alias`. A relative path resolves against the owning folder; the alias
-// becomes the pin's label. The format also uses `#` lines as visible comments and
-// blank lines as section dividers, which we import as annotation pins (a comment's
-// text is the line minus its leading `#`; a blank line becomes a separator),
-// preserving their source position so the imported list keeps the file's sectioning.
+// One parsed entry from an oleg-shilo favorites list, in source order:
+//   - "file"      a path / alias line that becomes a file pin
+//   - "comment"   a `#` line that becomes a comment annotation (text minus the `#`)
+//   - "separator" a blank-line divider that becomes a separator annotation
+//   - "skip"      a malformed path-less line the caller reports and skips
+// Kept as a discriminated union so importOlegShilo dispatches on `kind` with no
+// re-parsing, and the parser stays a pure transform (no store, no vscode) the unit
+// tests exercise directly.
+export type OlegShiloEntry =
+  | { kind: "file"; pathPart: string; alias?: string }
+  | { kind: "comment"; text: string }
+  | { kind: "separator" }
+  | { kind: "skip" };
+
+// Parse an oleg-shilo "Favorites Manager" text list into ordered entries. One entry
+// per line as `path` or `path|alias`; `#` lines are visible comments and blank lines
+// are section dividers, both preserved positionally so the imported list keeps the
+// source's sectioning.
 //
-// Annotations are positional and intentionally NOT deduplicated (mirroring the
-// pin-set import carve-out in pinSetExport.ts), so re-running the import re-adds them
-// — file pins still dedupe by path, keeping the real-pin import idempotent. Blank
-// lines collapse: a run of blanks, a leading blank before the first entry, and a
-// trailing blank at end-of-file produce no separator, so file formatting (a stray
-// double newline, a trailing newline) never leaks a divider into the list.
-async function importOlegShilo(
-  text: string,
-  detected: DetectedFavorites,
-  store: PinStore,
-  channel: vscode.OutputChannel
-): Promise<ImportResult> {
-  let added = 0;
-  let skipped = 0;
-  // A blank line is held pending and only materialized into a separator once a
-  // real entry (comment or file pin) follows it; this collapses blank runs and
-  // drops leading/trailing blanks. emittedReal gates the leading case.
+// Blank lines collapse: a divider is held pending and only emitted once a real entry
+// (comment or file) follows it, so a run of blanks, a leading blank before the first
+// entry, and a trailing blank at end-of-file all produce no separator — file
+// formatting (a stray double newline, a trailing newline) never leaks a divider.
+// Pure (no store / no vscode) so the collapse rules are unit-tested in isolation; the
+// caller turns each entry into a pin and owns dedup. A duplicate file line still
+// counts as a real entry for divider placement (the pin already exists in the list,
+// so a following blank is a genuine gap), so dedup is deliberately the caller's job.
+export function parseOlegShiloLines(text: string): OlegShiloEntry[] {
+  const entries: OlegShiloEntry[] = [];
   let emittedReal = false;
   let separatorPending = false;
-  const flushSeparator = async (): Promise<void> => {
-    if (!separatorPending) {
-      return;
-    }
-    separatorPending = false;
-    if (await store.addAnnotationPin("separator", "project", undefined, undefined, detected.folder)) {
-      added++;
+  const flushSeparator = (): void => {
+    if (separatorPending) {
+      entries.push({ kind: "separator" });
+      separatorPending = false;
     }
   };
 
@@ -242,37 +244,71 @@ async function importOlegShilo(
     }
     // `#` comment: a non-runnable label whose text is the line minus the marker.
     if (line.startsWith("#")) {
-      await flushSeparator();
-      const commentText = line.slice(1).trim();
-      if (await store.addAnnotationPin("comment", "project", commentText, undefined, detected.folder)) {
-        added++;
-        emittedReal = true;
-      }
+      flushSeparator();
+      entries.push({ kind: "comment", text: line.slice(1).trim() });
+      emittedReal = true;
       continue;
     }
     // Split on the FIRST `|` only, so an alias may itself contain a pipe.
     const sep = line.indexOf("|");
     const pathPart = (sep === -1 ? line : line.slice(0, sep)).trim();
     const alias = sep === -1 ? undefined : line.slice(sep + 1).trim() || undefined;
+    // A path-less malformed line (e.g. "|alias") is not a divider; the caller logs it.
     if (pathPart.length === 0) {
-      channel.appendLine(
-        l10n("import.log.skipBlankPath", { file: detected.fileName })
-      );
+      entries.push({ kind: "skip" });
+      continue;
+    }
+    flushSeparator();
+    entries.push({ kind: "file", pathPart, alias });
+    emittedReal = true;
+  }
+  return entries;
+}
+
+// oleg-shilo "Favorites Manager" text list: parse it (parseOlegShiloLines) and turn
+// each entry into a project pin in source order. File pins resolve against the owning
+// folder and dedupe by path (so re-import stays idempotent for real pins); comment /
+// separator annotations are positional and intentionally NOT deduped, mirroring the
+// pin-set import carve-out in commands/pinSetExport.ts, so they re-add per source
+// entry. Annotations target detected.folder so they land in the same folder and order
+// as the file pins they sit between (the no-anchor addAnnotationPin path otherwise
+// defaults to the first folder).
+async function importOlegShilo(
+  text: string,
+  detected: DetectedFavorites,
+  store: PinStore,
+  channel: vscode.OutputChannel
+): Promise<ImportResult> {
+  let added = 0;
+  let skipped = 0;
+  for (const entry of parseOlegShiloLines(text)) {
+    if (entry.kind === "skip") {
+      channel.appendLine(l10n("import.log.skipBlankPath", { file: detected.fileName }));
       skipped++;
       continue;
     }
-    // A real file entry flushes any pending divider above it, then is added; the
-    // divider materializes only here so it never trails past the last entry.
-    await flushSeparator();
-    const uri = path.isAbsolute(pathPart)
-      ? vscode.Uri.file(pathPart)
-      : vscode.Uri.joinPath(detected.folder.uri, pathPart);
-    if (await store.addPin(uri, "project", alias)) {
+    if (entry.kind === "comment") {
+      if (
+        await store.addAnnotationPin("comment", "project", entry.text, undefined, detected.folder)
+      ) {
+        added++;
+      }
+      continue;
+    }
+    if (entry.kind === "separator") {
+      if (
+        await store.addAnnotationPin("separator", "project", undefined, undefined, detected.folder)
+      ) {
+        added++;
+      }
+      continue;
+    }
+    const uri = path.isAbsolute(entry.pathPart)
+      ? vscode.Uri.file(entry.pathPart)
+      : vscode.Uri.joinPath(detected.folder.uri, entry.pathPart);
+    if (await store.addPin(uri, "project", entry.alias)) {
       added++;
     }
-    // A duplicate file pin (re-import) still counts as a real entry for divider
-    // placement: the pin exists in the list, so a following blank is a real gap.
-    emittedReal = true;
   }
   return { added, skipped };
 }

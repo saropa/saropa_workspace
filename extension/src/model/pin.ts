@@ -344,6 +344,16 @@ export interface Pin {
   branch?: string;
   // Sort order within the pin's group (or among top-level pins when ungrouped).
   order: number;
+  // Paused pin: automatic execution is suspended while its definition is kept. A
+  // paused pin is skipped by every UNATTENDED runner — the scheduler arms no timer
+  // for it, the chain engine ignores its triggers and emits no system events on its
+  // completion, an idle threshold it declares is dropped, and run-on-save does not
+  // fire it. A MANUAL run (the tree's Run / Run now, the palette, a keybinding) still
+  // works, so pausing is "stop running this on its own," not "disable the pin." The
+  // schedule/triggers stay intact, so unpausing resumes exactly where it left off
+  // without re-entering them. Stored on explicit pins only — auto/recipe pins are
+  // recomputed each refresh and carry no automation to pause. Absent/false = active.
+  paused?: boolean;
 }
 
 // The kind a pin runs as: its action's kind, or "file" when it has no action.

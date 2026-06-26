@@ -74,7 +74,7 @@ export class Scheduler implements vscode.Disposable {
     ];
     for (const pin of pins) {
       const schedule = pin.schedule;
-      if (!schedule?.enabled || !schedule.runOnStartup) {
+      if (pin.paused || !schedule?.enabled || !schedule.runOnStartup) {
         continue;
       }
       // Skip a pin that already fired within the reload window — a Reload Window
@@ -106,6 +106,12 @@ export class Scheduler implements vscode.Disposable {
     if (!pin.schedule) {
       return;
     }
+    // A paused pin keeps its schedule but arms no timer — pausing is the "stop
+    // running this on its own" switch; unpausing fires onDidChange, which re-runs
+    // rescheduleAll and re-arms it from its next slot.
+    if (pin.paused) {
+      return;
+    }
     const next = nextOccurrence(pin.schedule, Date.now());
     if (next === undefined) {
       return;
@@ -135,7 +141,9 @@ export class Scheduler implements vscode.Disposable {
     // Re-read from the store: the pin may have been edited or removed between
     // arming and firing.
     const pin = this.store.findPin(pinId);
-    if (!pin || !pin.schedule?.enabled) {
+    // Re-check paused as well as enabled: the pin may have been paused between
+    // arming and this fire (a timer armed before the pause survives until it pops).
+    if (!pin || pin.paused || !pin.schedule?.enabled) {
       return;
     }
     const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);

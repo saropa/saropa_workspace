@@ -208,6 +208,144 @@ test("a v1 file is migrated to the current version on read and persisted on the 
   );
 });
 
+// Raw file read that also exposes the pin-set fields (the typed readConfig above
+// predates sets). Used by the pin-set tests below to assert on-disk structure.
+const readRaw = (): {
+  version: number;
+  pins: Array<Record<string, unknown>>;
+  groups: unknown[];
+  activeSet?: string;
+  sets?: Array<{ name: string; pins: Array<Record<string, unknown>> }>;
+} => JSON.parse(nodeFs.readFileSync(configPath(), "utf8"));
+
+test("a v2 file migrates to the Default set with no pin moved or dropped", async () => {
+  // Write a v2 file by hand (groups present, but no activeSet/sets) with one pin.
+  nodeFs.mkdirSync(nodePath.join(tmpDir, ".vscode"), { recursive: true });
+  nodeFs.writeFileSync(
+    configPath(),
+    JSON.stringify({
+      version: 2,
+      pins: [{ id: "p1", path: "lib/main.ts", scope: "project", order: 0 }],
+      groups: [],
+    })
+  );
+
+  const store = new PinStore(fakeContext());
+  await store.init();
+  // The v2 pin renders unchanged and the workspace reads as the single Default set.
+  assert.ok(
+    store.getProjectPins().some((p) => p.id === "p1" && p.path === "lib/main.ts"),
+    "v2 pin should survive the v2->v3 migration on read"
+  );
+  assert.equal(store.getActiveSetName(), "Default");
+  assert.deepEqual(store.getSetNames(), ["Default"]);
+
+  // Read is non-destructive: the file stays v2 until something writes it.
+  assert.equal(readRaw().version, 2, "read alone must not rewrite the file");
+
+  // A mutation persists the current version with the set metadata; the pin stays
+  // at the top level (it IS the Default set's content), and sets is empty.
+  await store.createGroup("project", "Build");
+  const after = readRaw();
+  assert.equal(after.version, PROJECT_PINS_VERSION);
+  assert.equal(after.activeSet, "Default");
+  assert.deepEqual(after.sets, []);
+  assert.ok(
+    after.pins.some((p) => p.id === "p1"),
+    "the v2 pin must not be dropped by the migration"
+  );
+});
+
+test("creating a set switches to it (empty project pins) and the old set is restorable", async () => {
+  const store = new PinStore(fakeContext());
+  await store.init();
+  const target = Uri.joinPath(folder.uri, "src/app.ts");
+  await store.addPin(asUri(target), "project");
+
+  // Create + switch to a second set: the stored project pins start empty there.
+  assert.equal(await store.createSet("Feature"), "created");
+  assert.equal(store.getActiveSetName(), "Feature");
+  assert.deepEqual(store.getSetNames(), ["Default", "Feature"]);
+  assert.ok(
+    !store.getProjectPins().some((p) => !p.isAuto && p.path === "src/app.ts"),
+    "the new set should not carry the Default set's pins"
+  );
+  // The Default set's pin is stashed on disk, not lost.
+  assert.ok(
+    readRaw().sets?.some(
+      (s) => s.name === "Default" && s.pins.some((p) => p.path === "src/app.ts")
+    ),
+    "the outgoing set's pins should be stashed under its name"
+  );
+
+  // Switching back restores the original pin.
+  await store.switchSet("Default");
+  assert.equal(store.getActiveSetName(), "Default");
+  assert.ok(
+    store.getProjectPins().some((p) => p.path === "src/app.ts"),
+    "switching back should restore the Default set's pins"
+  );
+});
+
+test("createSet rejects a duplicate name (case-insensitive)", async () => {
+  const store = new PinStore(fakeContext());
+  await store.init();
+  assert.equal(await store.createSet("Release"), "created");
+  assert.equal(await store.createSet("release"), "exists");
+  assert.equal(store.getSetNames().length, 2); // Default + Release, no third
+});
+
+test("renameSet renames the active set across the file", async () => {
+  const store = new PinStore(fakeContext());
+  await store.init();
+  assert.equal(await store.renameSet("Default", "Main"), "renamed");
+  assert.equal(store.getActiveSetName(), "Main");
+  assert.equal(readRaw().activeSet, "Main");
+  // A clash with an existing name is rejected.
+  await store.createSet("Side");
+  assert.equal(await store.renameSet("Side", "Main"), "exists");
+});
+
+test("deleteSet drops a set's pins and refuses to delete the last one", async () => {
+  const store = new PinStore(fakeContext());
+  await store.init();
+  // The lone Default set cannot be deleted.
+  assert.equal((await store.deleteSet("Default")).outcome, "lastOne");
+
+  // Add a pin to Default, make a second set, then delete the active second set:
+  // the workspace falls back to Default and its pin is intact.
+  const target = Uri.joinPath(folder.uri, "keep.ts");
+  await store.addPin(asUri(target), "project");
+  await store.createSet("Temp");
+  assert.equal(store.getActiveSetName(), "Temp");
+  const result = await store.deleteSet("Temp");
+  assert.equal(result.outcome, "deleted");
+  assert.equal(result.active, "Default");
+  assert.deepEqual(store.getSetNames(), ["Default"]);
+  assert.ok(
+    store.getProjectPins().some((p) => p.path === "keep.ts"),
+    "deleting another set must not touch the Default set's pins"
+  );
+});
+
+test("duplicateSet copies pins with fresh ids and switches to the copy", async () => {
+  const store = new PinStore(fakeContext());
+  await store.init();
+  const target = Uri.joinPath(folder.uri, "dup.ts");
+  await store.addPin(asUri(target), "project");
+  const sourceId = store.getProjectPins().find((p) => p.path === "dup.ts")?.id;
+
+  assert.equal(await store.duplicateSet("Default", "Copy"), "duplicated");
+  assert.equal(store.getActiveSetName(), "Copy");
+  const copied = store.getProjectPins().find((p) => p.path === "dup.ts");
+  assert.ok(copied, "the duplicate set should carry a copy of the pin");
+  assert.notEqual(
+    copied!.id,
+    sourceId,
+    "the copied pin should get a fresh id, not share the source's"
+  );
+});
+
 test("the synthetic Workspace-config example pin targets the folder's own config file", async () => {
   // A brand-new project should always show at least one usable pin (the entry point
   // for editing pins) — the synthesized config example, recomputed, not stored.

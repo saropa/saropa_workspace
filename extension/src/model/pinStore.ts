@@ -697,6 +697,19 @@ export class PinStore {
     });
   }
 
+  // Persist a pin's paused flag. Pausing suspends every unattended runner for the
+  // pin (scheduler, chain triggers/emits, idle, run-on-save) while keeping its
+  // schedule/triggers intact; a manual run still works. Cleared (dropped) on
+  // unpause so an active pin carries no stale flag. Routed through mutatePin, so it
+  // no-ops on an auto/recipe pin (recomputed, not stored) — the command gates those
+  // out up front. The store fires onDidChange, which re-arms the scheduler (a paused
+  // pin then gets no timer) and re-syncs the idle thresholds.
+  async setPinPaused(pin: Pin, paused: boolean): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.paused = paused ? true : undefined;
+    });
+  }
+
   // Persist a file pin's tail-follow flag (WOW #5). Passing false clears it so the
   // pin opens normally again. Stored as a plain pin field, so it round-trips like
   // any other; the open path reads it to decide whether to auto-scroll the log.

@@ -52,7 +52,9 @@ diverge, the plan records what is actually implemented today.
   builder, and run-on-workspace-open all exist. Plan archived to
   [history/2026.06/2026.06.25/richer-scheduling.md](../history/2026.06/2026.06.25/richer-scheduling.md).
 - [Remote run](remote-run.md) — pin + open shipped; running on the remote host remains.
-- [Multiple favorite sets](multiple-favorite-sets.md) — net-new; **gates 3.2.**
+- Multiple favorite sets — **shipped**; named, switchable pin sets per workspace
+  with a status-bar switcher (global pins stay shared). Unblocks 3.2. Plan archived to
+  [history/2026.06/2026.06.25/multiple-favorite-sets.md](../history/2026.06/2026.06.25/multiple-favorite-sets.md).
 - [Comments and separators](comments-and-separators.md) — net-new; cross-cutting
   tree/run/badge surface.
 
@@ -65,7 +67,8 @@ diverge, the plan records what is actually implemented today.
    dashboard tabs shipped — see Phase 3.)
 3. **[1.1 import remaining](1.1-extend-favorites-import.md)** +
    **[additional formats](additional-import-formats.md)** — share the parser refactor.
-4. **[Multiple favorite sets](multiple-favorite-sets.md)** → **[3.2
-   branch-aware](3.2-branch-aware-pin-sets.md)** — the second depends on the first.
+4. **[3.2 branch-aware](3.2-branch-aware-pin-sets.md)** — builds on multiple favorite
+   sets, which has shipped
+   ([archived](../history/2026.06/2026.06.25/multiple-favorite-sets.md)).
 5. **[remote run](remote-run.md)**, **[comments/separators](comments-and-separators.md)**
    — independent, pick by appetite. (Richer scheduling shipped.)

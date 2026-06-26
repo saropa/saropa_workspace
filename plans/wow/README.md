@@ -29,7 +29,7 @@ conflated with them.
 ## Plans
 
 - [#1 Port Blocked Savior](../history/2026.06/2026.06.25/PLAN_01_port_unwedge.md) — auto-kill the PID holding a port on EADDRINUSE. (Shipped 2026-06-25.)
-- [#3 Branch-Linked Pin Sets](PLAN_03_branch_linked_pins.md) — pins that show only on their git branch.
+- [#3 Branch-Linked Pin Sets](../history/2026.06/2026.06.25/PLAN_03_branch_linked_pins.md) — pins that show only on their git branch. (Shipped 2026-06-25.)
 - [#9 Time-Bomb / Ephemeral Pins](../history/2026.06/2026.06.25/PLAN_09_time_bomb_pins.md) — pins that auto-remove on a date or branch change. (Shipped 2026-06-25.)
 - [#15 Git Conflict Command Center](PLAN_15_conflict_center.md) — a synthetic group of conflicted files during a merge.
 - [#17 Workspace Focus Tags](../history/2026.06/2026.06.25/PLAN_17_focus_tags.md) — tag pins and filter the tree to one mode. (Shipped 2026-06-25.)

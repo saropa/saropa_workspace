@@ -611,7 +611,9 @@ function runPinsOnSave(store: PinStore, savedUri: vscode.Uri): void {
   const saved = savedUri.fsPath;
   const pins = [...store.getProjectPins(), ...store.getGlobalPins()];
   for (const pin of pins) {
-    if (pin.exec?.runOnSave !== true || pinKind(pin) !== "file") {
+    // A paused pin does not run on save — run-on-save is an unattended runner, so
+    // pausing suspends it like the scheduler and chain triggers.
+    if (pin.paused || pin.exec?.runOnSave !== true || pinKind(pin) !== "file") {
       continue;
     }
     const uri = store.resolveUri(pin);

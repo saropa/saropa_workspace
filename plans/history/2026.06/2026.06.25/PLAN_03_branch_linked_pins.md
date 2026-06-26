@@ -73,3 +73,58 @@ and reappears on checkout of A.
 ## Complexity & risk
 Moderate. The branch watcher is straightforward (clone of the existing git watcher);
 the risk is the shared tree-filter coupling and the "hidden forever" escape hatch.
+
+## Finish Report (2026-06-25)
+
+Branch-linked pins shipped. A pin may carry an optional `Pin.branch` naming the git
+branch it is scoped to; absent (the default) means shown on every branch, so existing
+pins are fully backward compatible.
+
+### What changed
+- **Model** (`extension/src/model/pin.ts`): added `Pin.branch?: string`, stored on
+  explicit pins only (auto/recipe pins are recomputed each refresh and carry none).
+- **Branch reader + tracker** (`extension/src/exec/gitBranch.ts`, new): `readCurrentBranch`
+  was moved here from `pinExpiry.ts` so it is the single source shared by branch-linked
+  pins and time-bomb "until branch changes" expiry; `pinExpiry.ts` and
+  `configureExpiry.ts` now import it. A new `BranchTracker` watches each folder's
+  `.git/HEAD`, caches the current branch, and fires `onDidChangeBranch` on a checkout
+  (debounced; disposable). It reads `.git/HEAD` directly — no `git` process, no
+  dependency — mirroring `systemEvents.ts`.
+- **Store** (`extension/src/model/pinStore.ts`): added `setPinBranch(pin, branch?)`,
+  routed through `mutatePin` so it no-ops on auto/recipe pins.
+- **Tree filter** (`extension/src/views/pinsTreeProvider.ts`): a `branchMatches`
+  predicate applied inside `scopePins`, so branch filtering composes with — rather than
+  duplicates — the text/chip/tag filter. The data layer stays branch-agnostic. The
+  predicate fails OPEN: when the folder or its branch cannot be read, the pin is shown,
+  never hidden. A reveal-path count fix routes `makeScopeRoot` / `makeFolderItem`
+  through `scopePins` so reveal-built headers agree with live ones.
+- **Row affordance** (`extension/src/views/pinTreeItem.ts`): an `on <branch>` chip in
+  the row description plus a hover line, so a linked pin reads as branch-scoped even
+  while shown.
+- **Commands**: `toggleBranchLink` (`extension/src/commands/pinCommands.ts`) links the
+  pin to the current branch or clears the link; `showAllBranches` / `filterByBranch`
+  (`extension/src/extension.ts`) drive the escape-hatch toggle. The `BranchTracker` is
+  constructed in `activate`, its `init()` deferred so activation never blocks; the
+  `branchShowAll` / `branchHasHidden` context keys gate the title-bar buttons.
+- **Manifest + strings**: three commands, two title buttons, one context-menu entry,
+  `package.nls.json` titles, and `en.json` runtime strings.
+- **Tests** (`extension/src/test/gitBranch.test.ts`, new): five unit tests against the
+  fs-backed `vscode` stub — `readCurrentBranch` symbolic-ref / detached / no-repo
+  parsing, and `setPinBranch` link round-trip + clear. Full suite: 141 pass, 0 fail.
+
+### Deviations from the plan
+1. **Single toggle command instead of two state-gated menu entries.** The tree's
+   `contextValue` scheme has no spare per-item dimension to gate two labels
+   ("Link to Current Branch" vs "Show on All Branches") without widening the existing
+   exact-match menu clauses, which the code comments there explicitly warn against. The
+   established `toggleTail` single-toggle pattern was mirrored; the `on <branch>` row
+   chip makes the current state obvious.
+2. **Escape hatch is a "Show Pins from All Branches" toolbar toggle** (the plan's first
+   suggested option), gated by a `branchHasHidden` context key so it appears only when
+   branch filtering is actually hiding something — never a dead control.
+
+### Not covered
+- The pitch's "smooth animate away" is not a TreeView capability; pins filter in/out on
+  the branch-change refresh (instant, not animated) — as the plan anticipated.
+- The Recent group is not branch-filtered (it is cross-cutting run history, not the
+  branch-scoped view).

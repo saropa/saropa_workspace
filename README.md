@@ -79,6 +79,10 @@ Pins are not limited to files: a pin's action can **open a URL**, **run a shell 
 
 Create named **groups** (folders) under the Project and Global roots, then **drag pins** to reorder them and move them between groups (multi-select moves several at once). A group remembers its open/closed state. Give any pin a custom **icon and color** (**Set Icon & Color…**) — both theme-aware — to tell apart a large pin set at a glance.
 
+### 🗃️ Switch between pin sets
+
+Keep separate collections of project pins and switch between them in a click. A workspace can hold several named **pin sets** — one active at a time — so your `feature/auth` working pins and your release-checklist pins live side by side without cluttering each other. The active set's name shows in the **status bar** (it appears once you create a second set); click it to **switch**, or to **create**, **rename**, **duplicate**, or **delete** a set — the same actions are in the Pins toolbar `···` menu. Switching repaints the tree instantly. **Global pins are shared across every set**, so only your project pins change as you switch. Your existing pins become a starter set named **Default**, and nothing changes until you make a second set.
+
 ### ⚡ Fast access
 
 Reach a pin without opening the sidebar:
