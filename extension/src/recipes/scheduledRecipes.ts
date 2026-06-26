@@ -85,21 +85,22 @@ export async function detectScheduledRecipes(
   }
 
   if (isGit) {
-    // 27: sunrise project stats (recent activity snapshot; full per-language
-    // aggregation is a follow-up — this captures the most relevant git summary).
+    // 27: sunrise project stats. A per-language file/line breakdown of the tracked
+    // codebase (share of total) plus the recent git activity, written to a dated
+    // report and opened. Runs a command (computed in-process from `git ls-files`)
+    // rather than a raw shell line, so the aggregation is cross-platform.
     out.push({
       recipeId: "ritual.stats",
       label: "Sunrise project stats",
-      description: "Scheduled (daily, default 06:00): captures a git activity summary (recent commits and contributor shortlog) into a dated report under reports/ and opens it, a dashboard waiting each morning. Seeds disabled. Detected from a git repository.",
+      description: "Scheduled (daily, default 06:00): writes and opens a dated report breaking the tracked codebase down by language (files, lines, and each language's share) alongside recent commits and the contributor shortlog — a dashboard waiting each morning. Seeds disabled. Detected from a git repository.",
       icon: "dashboard",
       color: "charts.blue",
       schedule: daily("06:00"),
-      action: report(
-        folder,
-        "git log --oneline -30 && git shortlog -sn --since=\"30 days ago\"",
-        "reports/$stamp_project_stats.md",
-        true
-      ),
+      action: {
+        kind: "command",
+        commandId: "saropaWorkspace.recipe.projectStats",
+        commandArgs: [folder.uri.fsPath],
+      },
     });
 
     // 28: standup digest ("since yesterday").

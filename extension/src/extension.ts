@@ -22,6 +22,7 @@ import { Heartbeat } from "./exec/heartbeat";
 import { registerProcessMonitorCommands } from "./exec/processMonitorCommands";
 import { PlannerPanel } from "./views/plannerPanel";
 import { registerHygieneCommands } from "./exec/hygieneCommands";
+import { registerProjectStatsCommand } from "./exec/projectStats";
 import { processRegistry } from "./exec/processRegistry";
 import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
@@ -205,8 +206,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerProcessMonitorCommands(context);
 
   // Workspace hygiene scanner (recipe book section H, #63): the recursive
-  // empty/oversized outlier scan that writes a dated JSON report and a sticky toast.
-  registerHygieneCommands(context);
+  // empty/oversized outlier scan that writes a dated JSON report and a sticky toast,
+  // plus the per-instance saved-scan wizard.
+  registerHygieneCommands(context, store);
+
+  // Sunrise project stats (#27): the per-language file/line aggregation + git
+  // activity summary command, driven by the scheduled "Sunrise project stats" recipe.
+  registerProjectStatsCommand(context);
 
   // Schedule & Workflow Planner webview: the visual day/week timelines and the
   // chained-trigger graph. Opens (or reveals the single instance of) the panel.

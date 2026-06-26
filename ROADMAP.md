@@ -241,8 +241,12 @@ committing. Not yet ordered into a phase.
 - **Richer scheduling.** Day-of-week selectors, cron-style expressions (5-field), a
   friendly interval/cron builder (raw cron syntax is a known user barrier), and
   run-on-startup triggers, evaluated against the in-process timer model's limits.
-- **Remote / virtual resources.** Support pinning files on remote and virtual file systems
-  (Remote-SSH, WSL, dev containers), not just `file:` URIs.
+- **Remote / virtual resources — run on remote (pinning shipped).** Pinning and opening
+  files on remote and virtual file systems (Remote-SSH, WSL, dev containers, virtual
+  providers) has shipped: a global pin now stores the full resource URI, so it resolves
+  to the right filesystem instead of a wrong local path. What remains here is *running*
+  a pinned script on the remote host (the runner still assembles a local command line),
+  evaluated against the remote-terminal model.
 - **Multiple favorite sets.** Named, switchable pin sets per workspace with a status-bar
   switcher (as kdcro101 Favorites offers), for users who context-switch between task sets.
 - **Comments and separators in the pin list.** Allow non-pin entries — comment lines and
@@ -290,7 +294,7 @@ map to the phases and Later / Exploratory items above.
 | Feature | Status |
 |---|---|
 | Multi-root workspace support | Partial; refinements — Phase 1.2 |
-| Remote / local resource support | Gap — Later / Exploratory |
+| Remote / local resource support | Partial; pin + open shipped (global pins store the full URI), remote *run* remains — Later / Exploratory |
 | Respect shebang for *nix scripts | Shipped (a blank prefix honors the file's `#!` interpreter) |
 | Run on save | Shipped (a per-pin **Run on save** toggle in Configure Run) |
 | Export / share pin sets | Gap — Phase 2.1 |

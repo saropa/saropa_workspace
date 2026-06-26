@@ -99,6 +99,27 @@ function recipeGroupColor(category: RecipeCategory | undefined): string {
   return RECIPE_GROUPS.find((g) => g.category === category)?.color ?? "charts.purple";
 }
 
+// Resolve a global pin's stored target back to a URI. A global pin stores either an
+// absolute fsPath (the file: scheme, the common case) OR, for a file on a non-local
+// filesystem (Remote-SSH, WSL, dev container, or a virtual provider), the full URI
+// string. The two are told apart by a scheme separator: a real URI always carries
+// "<scheme>://", while a local path never does — a Windows drive path "C:\…" has a
+// single colon but no "://", so it is never mistaken for a URI. Files stored by older
+// versions are always plain fsPaths (no "://"), so this is backward compatible.
+function parseGlobalPath(stored: string): vscode.Uri {
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(stored)
+    ? vscode.Uri.parse(stored)
+    : vscode.Uri.file(stored);
+}
+
+// The string a global pin should store for a given URI: a plain absolute fsPath for
+// a local file (so it reads naturally and dedupes against older pins), or the full
+// URI string for any other scheme so the scheme survives the round-trip. The inverse
+// of parseGlobalPath.
+function globalStoredPath(uri: vscode.Uri): string {
+  return uri.scheme === "file" ? uri.fsPath : uri.toString();
+}
+
 // True when an auto-pin pattern uses glob syntax that needs the workspace search
 // service to expand (recursion `**`, wildcards `*`/`?`, character classes, or
 // brace alternation). A pattern with none of these is a literal relative path and
@@ -236,14 +257,20 @@ export class PinStore {
   // pin is added, to attach an inferred run config to the pin just created.
   findPinByUri(uri: vscode.Uri, scope: PinScope): Pin | undefined {
     const list = scope === "global" ? this.globalPins : this.projectPins;
-    return list.find((p) => this.resolveUri(p)?.fsPath === uri.fsPath);
+    // Compare full URI strings, not fsPath: two files on different filesystems
+    // (a local /home/x and a remote /home/x) share an fsPath but are distinct
+    // resources, so an fsPath compare would wrongly treat them as the same pin.
+    const target = uri.toString();
+    return list.find((p) => this.resolveUri(p)?.toString() === target);
   }
 
   // Resolve a pin to a concrete file URI. Project pins are relative to their
   // owning folder; global pins are absolute fsPaths.
   resolveUri(pin: Pin): vscode.Uri | undefined {
     if (pin.scope === "global") {
-      return vscode.Uri.file(pin.path);
+      // A global pin may target a remote/virtual filesystem, stored as a full URI
+      // string; parseGlobalPath round-trips both that and a plain local fsPath.
+      return parseGlobalPath(pin.path);
     }
     const folder = this.projectPinFolder.get(pin.id);
     if (!folder) {
@@ -266,13 +293,15 @@ export class PinStore {
     const labelField = label && label.trim().length > 0 ? { label: label.trim() } : {};
     if (scope === "global") {
       const pins = this.readGlobalPins();
-      const fsPath = uri.fsPath;
-      if (pins.some((p) => p.path === fsPath)) {
+      // Store a local file as its fsPath; a remote/virtual file as its full URI
+      // string (so the scheme survives). Dedup on the same stored form.
+      const stored = globalStoredPath(uri);
+      if (pins.some((p) => p.path === stored)) {
         return false;
       }
       pins.push({
         id: this.newId(),
-        path: fsPath,
+        path: stored,
         scope: "global",
         order: pins.length,
         ...labelField,
@@ -321,7 +350,9 @@ export class PinStore {
       const pins = this.readGlobalPins();
       pins.push({
         id: this.newId(),
-        path: uri.fsPath,
+        // Same local-fsPath / remote-URI storage as addPin, so a line pin on a
+        // remote file resolves back to the right filesystem.
+        path: globalStoredPath(uri),
         scope: "global",
         order: pins.length,
         line,
@@ -500,7 +531,9 @@ export class PinStore {
   async updatePinPath(pin: Pin, uri: vscode.Uri): Promise<boolean> {
     if (pin.scope === "global") {
       return this.mutatePin(pin, (target) => {
-        target.path = uri.fsPath;
+        // Keep the local-fsPath / remote-URI storage convention so re-pointing a
+        // global pin to a remote/virtual file preserves its scheme.
+        target.path = globalStoredPath(uri);
       });
     }
     const folder = this.projectPinFolder.get(pin.id);

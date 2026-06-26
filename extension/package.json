@@ -513,6 +513,18 @@
         "title": "%command.recipe.runHygieneScan.title%",
         "category": "%extension.displayName%",
         "icon": "$(search)"
+      },
+      {
+        "command": "saropaWorkspace.recipe.newHygieneScan",
+        "title": "%command.recipe.newHygieneScan.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "saropaWorkspace.recipe.lintsHealth",
+        "title": "%command.recipe.lintsHealth.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(pulse)"
       }
     ],
     "submenus": [
@@ -613,6 +625,11 @@
           "command": "saropaWorkspace.pinExternalFile",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@0"
+        },
+        {
+          "command": "saropaWorkspace.recipe.newHygieneScan",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@3"
         },
         {
           "command": "saropaWorkspace.importFavorites",
