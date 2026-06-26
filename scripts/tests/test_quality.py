@@ -25,6 +25,7 @@ if _SCRIPTS_DIR not in sys.path:
 from modules._quality import (  # noqa: E402
     FUNCTION_LINES_WARN,
     _ANY_RE,
+    FileQuality,
     _find_long_functions,
     _tokenize_ts,
 )
@@ -128,6 +129,42 @@ class AnyDetectionTest(unittest.TestCase):
     def test_any_inside_string_does_not_count(self) -> None:
         _, code = _tokenize_ts('const label = "accept any value";\n')
         self.assertEqual(len(_ANY_RE.findall(code)), 0)
+
+
+class TemplateDominatedTest(unittest.TestCase):
+    """Webview asset modules (one big exported `...` template literal) are excused
+    from the sparse-comment flag. The tokenizer blanks template interiors, so the
+    `//` / `/* */` comments embedded in the script are invisible to the density
+    heuristic and the file would otherwise read as a false-positive "sparse"."""
+
+    @staticmethod
+    def _fq(lines: int, embedded: int) -> FileQuality:
+        return FileQuality(
+            rel_path="x.ts",
+            lines=lines,
+            comment_lines=0,
+            any_count=0,
+            todo_count=0,
+            hardcoded_strings=0,
+            embedded_text_lines=embedded,
+        )
+
+    def test_mostly_template_is_dominated(self) -> None:
+        # A file that is overwhelmingly template-literal text is an asset module.
+        self.assertTrue(self._fq(100, 90).template_dominated)
+
+    def test_normal_module_with_a_few_strings_is_not_dominated(self) -> None:
+        # A handful of inline strings must NOT excuse a real code file from the flag.
+        self.assertFalse(self._fq(100, 10).template_dominated)
+
+    def test_threshold_is_inclusive_at_sixty_percent(self) -> None:
+        # The 0.6 cutoff: 60% excused, just under is not.
+        self.assertTrue(self._fq(100, 60).template_dominated)
+        self.assertFalse(self._fq(100, 59).template_dominated)
+
+    def test_empty_file_is_not_dominated(self) -> None:
+        # Guard the divide-by-zero edge: a zero-line file is never dominated.
+        self.assertFalse(self._fq(0, 0).template_dominated)
 
 
 if __name__ == "__main__":
