@@ -6,10 +6,6 @@ Here are some high-impact "WOW" features that align perfectly with Saropa Worksp
 **The Pain:** You double-click your "Start Dev Server" pin. It fails because "Port 3000 is already in use" (often by a zombie process from a previous crashed run). You have to open a terminal, find the PID, and kill it manually.
 **The WOW:** Saropa's background runner detects the standard `EADDRINUSE` or "address already in use" error in the output. It instantly pops a toast: *"Port 3000 is blocked by node (PID 4512). [Kill Process & Retry Pin]"*. One click clears the blockage and runs your server.
 
-### 2. Terminal Command Auto-Discovery ("Ghost Pins")
-**The Pain:** Developers type long, complex commands in the integrated terminal but never get around to formally configuring them as a recipe or pin.
-**The WOW:** Saropa quietly tails your local `.bash_history` / `.zsh_history`. If it notices you've typed the exact same complex CLI command 3 times today (e.g., `docker exec -it db-container pg_dump...`), a "Ghost Pin" appears in your Recent group with a sparkle icon. Click it to save it permanently. The extension learns from what you *actually* do, not just what's in your `package.json`.
-
 ### 3. Branch-Linked Pin Sets (The Context Time-Machine)
 *(Note: This touches an exploratory idea in your roadmap, but amplified).*
 **The Pain:** You are working on a massive refactor in `feature/auth` and have 6 specific files pinned. Your boss asks for a hotfix on `main`. You switch branches, and your pins are now completely irrelevant to the hotfix.

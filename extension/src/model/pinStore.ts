@@ -349,6 +349,46 @@ export class PinStore {
     return true;
   }
 
+  // Add a shell-action pin: a saved command line that runs when the pin is run.
+  // Used by the shell-history suggester (WOW #2) to turn a frequently-typed command
+  // into a one-click pin. Never runs it — adding only stores it. Project scope
+  // writes to the first workspace folder (returns false when none is open); global
+  // writes to globalState. A shell pin carries no file path, so a duplicate by path
+  // is not meaningful; the same command may be saved more than once.
+  async addShellPin(
+    label: string,
+    shellCommand: string,
+    scope: PinScope,
+    useIntegratedTerminal: boolean
+  ): Promise<boolean> {
+    const base = {
+      label,
+      path: "",
+      action: { kind: "shell" as const, shellCommand, useIntegratedTerminal },
+    };
+    if (scope === "global") {
+      const pins = this.readGlobalPins();
+      pins.push({ id: this.newId(), scope: "global", order: pins.length, ...base });
+      await this.writeGlobalPins(pins);
+      await this.refresh();
+      return true;
+    }
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+      return false;
+    }
+    const file = await this.readProjectFile(folder);
+    file.pins.push({
+      id: this.newId(),
+      scope: "project",
+      order: file.pins.length,
+      ...base,
+    });
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return true;
+  }
+
   // Add a pin from a shared link's portable configuration (WOW #4 import). The id
   // and order are freshly assigned; everything else (label, path, action, exec,
   // icon, color, schedule) is carried verbatim. An optional groupId drops the pin

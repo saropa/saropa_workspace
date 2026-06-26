@@ -245,9 +245,6 @@ committing. Not yet ordered into a phase.
   (Remote-SSH, WSL, dev containers), not just `file:` URIs.
 - **Multiple favorite sets.** Named, switchable pin sets per workspace with a status-bar
   switcher (as kdcro101 Favorites offers), for users who context-switch between task sets.
-- **Filesystem operations from the tree.** Copy, paste, create, delete, and duplicate a
-  pinned file directly from the Pins view (as kdcro101 Favorites offers), so the view
-  doubles as a lightweight file manager for the files a user actually works with.
 - **Comments and separators in the pin list.** Allow non-pin entries — comment lines and
   visual separators — to annotate and divide a long pin list (as oleg-shilo Favorites
   Manager offers).

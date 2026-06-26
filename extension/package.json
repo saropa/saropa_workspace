@@ -111,6 +111,12 @@
         "icon": "$(notebook)"
       },
       {
+        "command": "saropaWorkspace.suggestFromHistory",
+        "title": "%command.suggestFromHistory.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(sparkle)"
+      },
+      {
         "command": "saropaWorkspace.saveLayout",
         "title": "%command.saveLayout.title%",
         "category": "%extension.displayName%",
@@ -255,6 +261,36 @@
         "title": "%command.useAsTemplate.title%",
         "category": "%extension.displayName%",
         "icon": "$(files)"
+      },
+      {
+        "command": "saropaWorkspace.newFileHere",
+        "title": "%command.newFileHere.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "saropaWorkspace.duplicateFile",
+        "title": "%command.duplicateFile.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(files)"
+      },
+      {
+        "command": "saropaWorkspace.renameFileOnDisk",
+        "title": "%command.renameFileOnDisk.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(replace)"
+      },
+      {
+        "command": "saropaWorkspace.copyFileTo",
+        "title": "%command.copyFileTo.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(file-symlink-directory)"
+      },
+      {
+        "command": "saropaWorkspace.deleteFile",
+        "title": "%command.deleteFile.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(trash)"
       },
       {
         "command": "saropaWorkspace.copyPinLink",
@@ -547,6 +583,11 @@
           "group": "0_new@3"
         },
         {
+          "command": "saropaWorkspace.suggestFromHistory",
+          "when": "view == saropaWorkspace.pins",
+          "group": "0_new@4"
+        },
+        {
           "command": "saropaWorkspace.pinExternalFile",
           "when": "view == saropaWorkspace.pins",
           "group": "1_more@0"
@@ -774,6 +815,31 @@
           "group": "3_copy@2"
         },
         {
+          "command": "saropaWorkspace.newFileHere",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinScheduled || viewItem == pinAuto)",
+          "group": "4_file@1"
+        },
+        {
+          "command": "saropaWorkspace.duplicateFile",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinScheduled || viewItem == pinAuto)",
+          "group": "4_file@2"
+        },
+        {
+          "command": "saropaWorkspace.renameFileOnDisk",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinScheduled || viewItem == pinAuto)",
+          "group": "4_file@3"
+        },
+        {
+          "command": "saropaWorkspace.copyFileTo",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinScheduled || viewItem == pinAuto)",
+          "group": "4_file@4"
+        },
+        {
+          "command": "saropaWorkspace.deleteFile",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinScheduled || viewItem == pinAuto)",
+          "group": "4_file@5"
+        },
+        {
           "submenu": "saropaWorkspace.pinSubmenu",
           "when": "(view == saropaWorkspace.pins && viewItem =~ /^pin/ && !(viewItem =~ /^pinRecipe/)) || (view == saropaWorkspace.projectFiles && viewItem =~ /^projectFile/)",
           "group": "2_edit@6"
@@ -877,6 +943,26 @@
         },
         {
           "command": "saropaWorkspace.useAsTemplate",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.newFileHere",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.duplicateFile",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.renameFileOnDisk",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.copyFileTo",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.deleteFile",
           "when": "false"
         },
         {

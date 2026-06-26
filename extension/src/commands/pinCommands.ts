@@ -32,8 +32,16 @@ import { exportPinSet, importPinSet } from "./pinSetExport";
 import { editPinsConfig } from "./editConfig";
 import { newScratchpad } from "./scratchpad";
 import { saveLayout, restoreLayout } from "./layoutPins";
+import { suggestFromHistory } from "./ghostPins";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
+import {
+  newFileHere,
+  duplicateFile,
+  renameFileOnDisk,
+  copyFileTo,
+  deleteFile,
+} from "./fileOps";
 import { encodePinLink } from "../import/shareLink";
 import { runOutputs } from "../exec/runOutputs";
 import {
@@ -953,6 +961,10 @@ export function registerPinCommands(
   reg("saropaWorkspace.saveLayout", () => saveLayout(context));
   reg("saropaWorkspace.restoreLayout", () => restoreLayout(context));
 
+  // Suggest pins from frequently-typed shell commands (WOW #2): scans local shell
+  // history read-only and offers the repeated complex commands as new shell pins.
+  reg("saropaWorkspace.suggestFromHistory", () => suggestFromHistory(store));
+
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind
   // by a human-friendly reference instead of an opaque id:
@@ -1071,6 +1083,41 @@ export function registerPinCommands(
     const pin = asPin(pinArg);
     if (pin && typeof fsPath === "string") {
       await runPinOnDroppedFile(store, pin, fsPath);
+    }
+  });
+
+  // Filesystem operations on a pinned file, so the Pins view doubles as a light
+  // file manager: create a sibling, duplicate, rename (re-pointing the pin), copy
+  // elsewhere, and delete-to-trash. Each acts on the pin's resolved file; a
+  // non-file pin is rejected with a naming message inside the handler.
+  reg("saropaWorkspace.newFileHere", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await newFileHere(store, pin);
+    }
+  });
+  reg("saropaWorkspace.duplicateFile", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await duplicateFile(store, pin);
+    }
+  });
+  reg("saropaWorkspace.renameFileOnDisk", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await renameFileOnDisk(store, pin);
+    }
+  });
+  reg("saropaWorkspace.copyFileTo", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await copyFileTo(store, pin);
+    }
+  });
+  reg("saropaWorkspace.deleteFile", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await deleteFile(store, pin);
     }
   });
 
