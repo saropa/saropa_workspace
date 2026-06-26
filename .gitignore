@@ -21,5 +21,11 @@ bugs/FINISH_GUIDE.md
 # organizer script (durable tooling, not generated).
 reports/*
 !reports/organize_reports.py
-.saropa/index/reports.idx.json
-.saropa/diagnostics/log-capture.json
+
+# Saropa Suite diagnostics/index cache: machine-generated, per-run churn
+# (timestamps, buildTime, trigram search indexes). Not source.
+.saropa/
+
+# Project-scoped pin store: holds whatever paths the user pins, which can be
+# sensitive file names. Never publish it.
+.vscode/saropa-workspace.json
