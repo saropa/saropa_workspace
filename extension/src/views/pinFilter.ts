@@ -21,6 +21,11 @@ export interface PinFilter {
   // (the run-status registry is in-memory and per-session, so a fresh window has
   // no failures to filter on until something runs and fails).
   failedOnly?: boolean;
+  // The active "mode" tag (WOW #17): a single freeform lowercase tag without the
+  // leading '#'. When set, a pin shows only when its `tags` include it — the
+  // workspace-focus facet, composed into the same predicate as the text/kind/
+  // failed facets above. Undefined = no tag facet (all modes shown).
+  tag?: string;
 }
 
 // The action ("script") kinds, filtered as a unit behind the Scripts chip. A
@@ -39,7 +44,8 @@ export function isFilterActive(filter: PinFilter): boolean {
   return (
     (filter.text?.length ?? 0) > 0 ||
     (filter.kinds?.length ?? 0) > 0 ||
-    filter.failedOnly === true
+    filter.failedOnly === true ||
+    (filter.tag?.length ?? 0) > 0
   );
 }
 
@@ -90,6 +96,12 @@ export function pinMatchesFilter(
   if (filter.failedOnly && !failed) {
     return false;
   }
+  // Tag mode (WOW #17): a pin must carry the active tag. An untagged pin (no
+  // `tags`, the common case) never matches a tag filter — which is the point of
+  // "show only #ops": everything else collapses away.
+  if (filter.tag && !(pin.tags?.includes(filter.tag) ?? false)) {
+    return false;
+  }
   return true;
 }
 
@@ -124,6 +136,9 @@ export function filterSummary(filter: PinFilter): string {
   }
   if (filter.failedOnly) {
     parts.push(l10n("filter.facet.failed"));
+  }
+  if (filter.tag) {
+    parts.push(l10n("filter.facet.tag", { tag: filter.tag }));
   }
   return parts.join(" · ");
 }
@@ -199,6 +214,27 @@ export class PinFilterState {
       ...this.filter,
       failedOnly: this.filter.failedOnly ? undefined : true,
     });
+  }
+
+  // The active mode tag, or undefined when no tag facet is set. Lets the mode
+  // picker mark the current choice and the title affordance read it.
+  getTag(): string | undefined {
+    return this.filter.tag;
+  }
+
+  // Set (or clear, with undefined) the active mode tag (WOW #17). Normalized to
+  // lowercase so it matches the canonical stored tag form; only this facet
+  // changes, so a tag mode composes with any active text/chip facets.
+  setTag(tag: string | undefined): void {
+    const next =
+      tag && tag.trim().length > 0 ? tag.trim().toLowerCase() : undefined;
+    this.update({ ...this.filter, tag: next });
+  }
+
+  // Clear only the tag facet, leaving any text/kind/failed facets in place — the
+  // "exit this mode" action, distinct from clear() which drops every facet.
+  clearTag(): void {
+    this.setTag(undefined);
   }
 
   clear(): void {

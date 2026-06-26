@@ -783,8 +783,8 @@ async function writeRoutineSummary(
   const rows = outcomes
     .map((o) => {
       const duration = o.durationMs !== undefined ? formatDuration(o.durationMs) : "—";
-      const detail = o.detail ? ` ${o.detail}` : "";
-      return `| ${escapeCell(o.label)} | ${o.status} | ${duration} |${escapeCell(detail)}`;
+      const detail = o.detail ? escapeCell(o.detail) : "";
+      return `| ${escapeCell(o.label)} | ${o.status} | ${duration} | ${detail} |`;
     })
     .join("\n");
   const body =

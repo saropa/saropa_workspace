@@ -112,6 +112,24 @@
         "icon": "$(error)"
       },
       {
+        "command": "saropaWorkspace.pickMode",
+        "title": "%command.pickMode.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "saropaWorkspace.clearMode",
+        "title": "%command.clearMode.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "saropaWorkspace.tagPin",
+        "title": "%command.tagPin.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(tag)"
+      },
+      {
         "command": "saropaWorkspace.refreshProjectFiles",
         "title": "%command.refreshProjectFiles.title%",
         "category": "%extension.displayName%",
@@ -689,6 +707,11 @@
           "group": "navigation@0"
         },
         {
+          "command": "saropaWorkspace.pickMode",
+          "when": "view == saropaWorkspace.pins",
+          "group": "navigation@1"
+        },
+        {
           "command": "saropaWorkspace.clearPinFilter",
           "when": "view == saropaWorkspace.pins && saropaWorkspace.filterActive",
           "group": "navigation@1"
@@ -1006,6 +1029,11 @@
           "group": "2_edit@4"
         },
         {
+          "command": "saropaWorkspace.tagPin",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinScheduled)",
+          "group": "2_edit@9"
+        },
+        {
           "command": "saropaWorkspace.renamePin",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "2_edit@4"
@@ -1126,6 +1154,14 @@
         {
           "command": "saropaWorkspace.clearPinFilter",
           "when": "saropaWorkspace.filterActive"
+        },
+        {
+          "command": "saropaWorkspace.clearMode",
+          "when": "saropaWorkspace.filterActive"
+        },
+        {
+          "command": "saropaWorkspace.tagPin",
+          "when": "false"
         },
         {
           "command": "saropaWorkspace.copyPath",
@@ -1484,6 +1520,26 @@
             },
             "default": [],
             "description": "%config.hygiene.exclude.description%"
+          },
+          "saropaWorkspace.hygiene.bloat.folderCeilingMB": {
+            "type": "number",
+            "default": 1024,
+            "minimum": 1,
+            "description": "%config.hygiene.bloat.folderCeilingMB.description%"
+          },
+          "saropaWorkspace.hygiene.bloat.fileCountCeiling": {
+            "type": "number",
+            "default": 50000,
+            "minimum": 1,
+            "description": "%config.hygiene.bloat.fileCountCeiling.description%"
+          },
+          "saropaWorkspace.hygiene.roots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%config.hygiene.roots.description%"
           },
           "saropaWorkspace.sound.enabled": {
             "type": "boolean",

@@ -62,3 +62,60 @@ show and the clear-filter affordance is visible and works.
 ## Complexity & risk
 Moderate. The model + commands are simple; the care is in the shared filter design and
 the never-silently-empty guarantee.
+
+## Finish Report (2026-06-25)
+
+Status: Implemented.
+
+### Outcome
+Workspace focus tags ship as a facet of the existing shared Pins-view filter
+(`views/pinFilter.ts`), not a second filter. A pin carries freeform lowercase
+`tags`; the view can be narrowed to one tag ("mode"), collapsing the tree to the
+matching pins and the groups that hold them, with the active mode and a hidden
+count always shown in the filter banner.
+
+### What was already present
+The shared filter mechanism this plan depended on (originally scoped under #28,
+"instant search & chip filters") existed before this work: `PinFilter`,
+`PinFilterState`, `pinMatchesFilter`, `countHidden`, `filterMessage`,
+`isFilterActive`, the find-bar commands in `commands/filterCommands.ts`, the
+provider wiring in `views/pinsTreeProvider.ts` (predicate application, hide-empty
+groups, matching counts), and the `extension.ts` message/context-key sync. The
+model field `Pin.tags` and the store methods `setPinTags` / `tagsInUse` were also
+already in place. This work added only the tag facet and its UI on top.
+
+### Changes
+- `views/pinFilter.ts` — added the `tag` facet: a field on `PinFilter`, a branch in
+  `pinMatchesFilter` (a pin must carry the active tag; an untagged pin is hidden by
+  any tag mode), inclusion in `isFilterActive` and `filterSummary`, and
+  `setTag` / `getTag` / `clearTag` on `PinFilterState`. `clearTag` drops only the
+  tag facet, so a mode composes with any active text/kind/failed facet.
+- `views/pinTreeItem.ts` — `#ops` chips appended to the row description and a tags
+  line in the hover; both suppressed when a pin is untagged.
+- `commands/tagPin.ts` (new) — the Tag Pin action: a multi-select of tags in use
+  (pre-checking the pin's current tags) plus a "new tag" prompt; rejects auto and
+  recipe pins (recomputed, not stored).
+- `commands/filterCommands.ts` — `pickMode` (single-select tag picker with a
+  "show all" entry) and `clearMode`; took a `PinStore` argument to read tags in use.
+- `commands/pinCommands.ts` — registered `saropaWorkspace.tagPin`.
+- `extension.ts` — passed the store into `registerFilterCommands`.
+- `package.json` / `package.nls.json` / `i18n/locales/en.json` — the three commands,
+  the toolbar mode button, the per-pin Tag action, command-palette gating, and the
+  `tag.*` / `mode.*` / `filter.facet.tag` strings.
+
+### Deviations from the plan
+- `clearMode` clears only the tag facet; the existing generic Clear button still
+  clears every facet. The plan described `clearMode` as "clear the filter" — scoping
+  it to the tag keeps the single-shared-filter contract intact.
+- The "active mode + N hidden" affordance reuses the shared filter banner (which now
+  names the tag) rather than a #17-only message, per "do not build a second filter".
+- README was not extended: the sibling filter feature shipped without a README
+  section, the plan's file list did not include README, and the CHANGELOG carries the
+  user-facing announcement.
+
+### Verification
+- `tsc -p ./ --noEmit` — clean.
+- `node esbuild.js` production-equivalent bundle — built.
+- New unit test `src/test/pinFilter.test.ts` (6 cases: tag match / miss / untagged
+  hidden / no-tag shows all / `isFilterActive` with a tag / tag composes with the
+  kind facet) — all pass under `node --test`.

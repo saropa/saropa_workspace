@@ -105,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
   context.subscriptions.push(treeView);
 
-  registerFilterCommands(context, filterState);
+  registerFilterCommands(context, filterState, store);
 
   // Keep the filter affordances in sync: the chip context keys (which drive the
   // title-bar button visibility/icon) and the always-visible "filter active — N

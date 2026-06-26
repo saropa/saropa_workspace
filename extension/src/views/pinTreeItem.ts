@@ -154,6 +154,13 @@ export class PinTreeItem extends vscode.TreeItem {
         ? formatRelativeTime(metricBadge.mtime, Date.now())
         : metricBadge.text
       : undefined;
+    // The pin's mode tags as compact "#ops #dev" chips (WOW #17), so the modes a
+    // pin belongs to are visible on the row without opening the editor or the
+    // hover. Undefined when untagged, so it adds nothing to an untagged row.
+    const tagChip =
+      pin.tags && pin.tags.length > 0
+        ? pin.tags.map((t) => `#${t}`).join(" ")
+        : undefined;
     if (recentInfo) {
       const when = formatRelativeTime(recentInfo.at, Date.now());
       const tag =
@@ -165,7 +172,7 @@ export class PinTreeItem extends vscode.TreeItem {
       // the hover. Suppressed while running/stopping, where live state matters more.
       const expiryChip =
         !isRunning && !isStopping ? expirySummary(pin) : undefined;
-      this.description = [badgeLead, badge, expiryChip, detail, metricText]
+      this.description = [badgeLead, badge, expiryChip, detail, metricText, tagChip]
         .filter((part) => part)
         .join(" · ");
     }
@@ -271,6 +278,13 @@ export class PinTreeItem extends vscode.TreeItem {
     // telemetry pin reports).
     if (runCount > 0) {
       tooltipLines.push(l10n("run.countTooltip", { count: runCount }));
+    }
+    // Name the pin's mode tags in the hover (WOW #17), so the full set is one
+    // mouse-over away even when the row truncates the chips.
+    if (pin.tags && pin.tags.length > 0) {
+      tooltipLines.push(
+        l10n("tag.tooltip", { tags: pin.tags.map((t) => `#${t}`).join(" ") })
+      );
     }
     // Name the live metric in the hover: the current value, and — when it is over a
     // size threshold — that fact in words, so the warning tint is explained.

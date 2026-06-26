@@ -4,6 +4,7 @@ import {
   isScriptsChipOn,
   isFilesChipOn,
 } from "../views/pinFilter";
+import { PinStore } from "../model/pinStore";
 import { l10n } from "../i18n/l10n";
 
 // The Pins-view filter (WOW #28). A TreeView has no API for a persistent header
@@ -22,7 +23,8 @@ interface ChipButton extends vscode.QuickInputButton {
 
 export function registerFilterCommands(
   context: vscode.ExtensionContext,
-  filterState: PinFilterState
+  filterState: PinFilterState,
+  store: PinStore
 ): void {
   // The title button and its active-state twin both open the same find bar; the
   // two command ids exist only so the manifest can swap the icon (outline vs
@@ -53,7 +55,61 @@ export function registerFilterCommands(
     ),
     vscode.commands.registerCommand("saropaWorkspace.toggleFilterFailed", () =>
       filterState.toggleFailed()
-    )
+    ),
+    // WOW #17 tag "mode": pick a tag to collapse the tree to its pins, or clear it.
+    // These set the SAME shared filter's tag facet, so the active mode appears in
+    // the filter message and the generic Clear button alongside any text/chip facet.
+    vscode.commands.registerCommand("saropaWorkspace.pickMode", () =>
+      pickMode(filterState, store)
+    ),
+    vscode.commands.registerCommand("saropaWorkspace.clearMode", () => {
+      filterState.clearTag();
+      void vscode.window.showInformationMessage(l10n("mode.cleared"));
+    })
+  );
+}
+
+// The tag "mode" picker (WOW #17): a single-select QuickPick of every tag in use,
+// with a "show all" entry that clears the tag facet. The current mode is marked so
+// the active choice is obvious. No tags yet → a message pointing at Tag Pin rather
+// than an empty picker.
+async function pickMode(
+  filterState: PinFilterState,
+  store: PinStore
+): Promise<void> {
+  const tags = store.tagsInUse();
+  if (tags.length === 0) {
+    void vscode.window.showInformationMessage(l10n("mode.noTags"));
+    return;
+  }
+  const active = filterState.getTag();
+  interface ModeItem extends vscode.QuickPickItem {
+    // undefined marks the "show all" (clear) entry; a string is a real tag.
+    tag: string | undefined;
+  }
+  const items: ModeItem[] = [
+    {
+      label: l10n("mode.showAll"),
+      tag: undefined,
+      picked: active === undefined,
+    },
+    { label: l10n("mode.tagsSeparator"), kind: vscode.QuickPickItemKind.Separator, tag: undefined },
+    ...tags.map((t) => ({
+      label: `$(tag) ${t}`,
+      description: active === t ? l10n("mode.activeTag") : undefined,
+      tag: t,
+    })),
+  ];
+  const pick = await vscode.window.showQuickPick(items, {
+    title: l10n("mode.title"),
+    placeHolder: l10n("mode.placeholder"),
+  });
+  if (!pick) {
+    return;
+  }
+  filterState.setTag(pick.tag);
+  void vscode.window.showInformationMessage(
+    pick.tag ? l10n("mode.set", { tag: `#${pick.tag}` }) : l10n("mode.allShown")
   );
 }
 

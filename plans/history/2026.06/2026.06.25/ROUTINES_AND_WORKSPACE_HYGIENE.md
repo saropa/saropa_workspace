@@ -351,3 +351,101 @@ Slices 1–2 are the reusable engine; 3–4 are the concrete payoff; 5–6 are t
    04:45 vs folding it entirely into the routine.
 4. **Bloat ceilings.** Defaults 1 GB / 50,000 files per flagged dir. Confirm or
    tune.
+
+---
+
+## Finish Report (2026-06-25)
+
+Both features in this spec — composite recipes ("routines") and the Workspace
+bloat scan (recipe class H, #63) — are implemented in the VS Code extension. The
+four open decisions were resolved to their recommended values: continue-on-failure
+only (no `stopOnFailure`); routine members keyed by `recipeId` with a `pinId`
+fallback; the bloat scan scheduled standalone at 04:45 (the Morning routine's 08:00
+drives it inside the block); ceilings 1 GB / 50,000 files, both configurable.
+
+### Routines (the recipe-of-recipes engine)
+
+- **Model** (`extension/src/model/pin.ts`): the `routine` kind is added to the
+  `PinKind` union, a `RoutineMember` interface (`recipeId?` preferred, `pinId?`
+  fallback, optional `label`) is introduced, and `members?: RoutineMember[]` is
+  added to `PinAction`. No new top-level `Pin` field — a routine round-trips
+  through promote/persist as any other recipe action.
+- **Engine** (`extension/src/exec/runner.ts`): `runRoutine` runs members strictly
+  in sequence (awaiting each), continue-on-failure, emitting a per-member progress
+  line to the shared channel. It reads each member's tracked outcome from
+  `runStatusRegistry` (a member with no tracked exit — terminal/url/command —
+  records as "dispatched", never a failure), folds member lint/test badges into an
+  aggregate, records a worst-outcome run-status result + the aggregate badge on the
+  routine pin, and writes a one-row-per-member `reports/<stamp>_<slug>.md` summary
+  that auto-opens only on a failure (silent otherwise). Routines do not nest (a
+  routine member is skipped) and interactive members are skipped in an unattended
+  (scheduled) fire.
+- **Decoupling**: `runner.ts` cannot import the store/command layer without a
+  cycle (`pinCommands` already imports `runAction`), so the resolve + member-run
+  logic is injected at activation via `setRoutineHooks`. `createRoutineHooks`
+  (`extension/src/commands/pinCommands.ts`) resolves a member across both scopes by
+  `recipeId` then `pinId` and runs each member through the canonical
+  `runPinCommand`; `extension.ts` wires it after `registerPinCommands`. Both run
+  paths (manual `runPinCommand`, scheduler `fire`) reach the routine through one
+  `runAction` dispatch.
+- **Auto-offer + hand-compose**: `detectRoutineRecipes`
+  (`extension/src/recipes/routineRecipes.ts`) runs last in `PinStore.detectRecipes`,
+  handed the already-detected recipes, and offers a **Morning routine** (scheduled
+  08:00, disabled) pre-populated in run order from the morning members present —
+  only when at least two exist. **New Routine from Selection** composes the
+  multi-selected pins into a routine pin (skips routines and annotation pins,
+  de-dupes, `recipeId`-preferred members).
+- **Tree/filter/i18n**: the routine kind renders with the `run-all` codicon and an
+  "N recipes" subtitle (`pinTreeItem.ts`), is part of the Scripts filter facet
+  (`pinFilter.ts`), and all strings are keyed in `en.json` /
+  `package.nls.json` (`command.newRoutineFromSelection.title`).
+
+### Workspace bloat scan (#63)
+
+- **Engine** (`extension/src/exec/bloatScan.ts`, no VS Code dependency): measures
+  each immediate child directory of a project root (skipping node_modules / .git,
+  which VS Code excludes by default), short-circuiting once both ceilings are
+  exceeded so the 180k-file tree that motivated the spec cannot hang the scan. It
+  flags an oversized dir only when it is NOT already in `files.watcherExclude` (the
+  real freeze risk), and flags an unguarded `@vscode/test-(electron|cli)` cache
+  even when `.vscode-test` is small or absent. The settings reader tolerates JSONC
+  (strips comments + trailing commas before parse). `renderBloatReport` emits the
+  Markdown report with the exact remediation per finding.
+- **Commands** (`extension/src/exec/bloatCommands.ts`):
+  `saropaWorkspace.recipe.runBloatScan` builds the per-project root list (each open
+  folder, plus the immediate children of any `hygiene.roots` parent), scans, writes
+  `reports/<stamp>_workspace_hygiene.md`, and announces — opening the report and
+  warning only on a threshold cross, silent when clean. **Guard this project**
+  merges the flagged globs into the open workspace's `.vscode/settings.json` (never
+  overwrites; bails on an unparseable JSONC settings file rather than clobbering it);
+  **Prune .vscode-test** is a confirm-gated delete that measures and names the size
+  reclaimed. Both refuse a root that is not the open workspace (a swept sibling's
+  remediation is reported, not applied).
+- **Recipe + settings**: `detectHygieneRecipes` adds the `hygiene.bloat` recipe
+  (scheduled 04:45, disabled) alongside the existing empty/oversized file scan
+  (unchanged). New settings `saropaWorkspace.hygiene.bloat.folderCeilingMB` (1024),
+  `…bloat.fileCountCeiling` (50000), and `…hygiene.roots` (cross-project sweep,
+  report-only for other projects) are contributed in `package.json` /
+  `package.nls.json`.
+
+### Verification
+
+- `npx tsc -p ./ --noEmit` clean; `node esbuild.js` bundles; `package.json` /
+  `package.nls.json` / `en.json` parse as valid JSON.
+- `npm run test:unit` green — 97 tests, including four new ones in
+  `extension/src/test/bloatScan.test.ts` exercising `humanBytes`,
+  `measureDirectory`, and `scanBloat` against a real temporary directory tree
+  (oversized-dir + unguarded-cache findings, and the guarded-no-findings case via a
+  JSONC settings file). No existing test was altered; the pre-existing
+  `annotationPin.test.ts` enumerates explicit kind lists and is unaffected by the
+  new `routine` union member.
+
+### Known follow-up (not a blocker)
+
+The standalone bloat-scan **command** pin reports via a sticky toast + auto-open
+but does not paint a per-pin diagnostic badge, because the generic VS Code command
+dispatch is not handed the invoking pin's id — matching the sibling project-stats /
+hygiene command recipes, which also do not badge. The **routine** path does badge
+(it owns the pin id). Painting a badge on the standalone bloat command would require
+threading the pin id into the command-kind dispatch; it is deferred as a small,
+optional enhancement rather than left as a gap in the routine work.

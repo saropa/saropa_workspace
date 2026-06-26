@@ -28,6 +28,7 @@ import { configureSchedule } from "./configureSchedule";
 import { configureTriggers } from "./configureTriggers";
 import { pinUntil, pinUntilBranchChange, clearPinExpiry } from "./configureExpiry";
 import { configureAppearance } from "./configureAppearance";
+import { tagPin } from "./tagPin";
 import { setMetric } from "./setMetric";
 import { simulateRun } from "./simulateRun";
 import { showRunAnalytics } from "./runAnalytics";
@@ -1420,6 +1421,15 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureAppearance(store, pin);
+    }
+  });
+
+  // Assign mode tags to a pin (WOW #17); the tag picker drives the Pins-view mode
+  // filter (saropaWorkspace.pickMode).
+  reg("saropaWorkspace.tagPin", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await tagPin(store, pin);
     }
   });
 
