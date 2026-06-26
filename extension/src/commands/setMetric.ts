@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { Pin, PinMetric, pinKind } from "../model/pin";
 import { PinStore } from "../model/pinStore";
-import { formatBytes } from "../exec/metricBadges";
+import { formatBytes, parseSize } from "../exec/metricFormat";
 import { l10n } from "../i18n/l10n";
 
 // Roadmap #24 — Live metric badge editor.
@@ -120,22 +120,4 @@ export async function setMetric(store: PinStore, pin: Pin): Promise<void> {
         })
       : l10n("metric.saved", { name, kind: kindName })
   );
-}
-
-// Parse a human size into bytes: a bare number is bytes; a number with a unit
-// (b/kb/mb/gb/tb, case- and space-insensitive, optional "b" as in "kib") uses binary
-// 1024 steps. Returns undefined for an unparseable or negative value, so the input
-// box can reject it inline.
-function parseSize(input: string): number | undefined {
-  const match = /^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb|k|m|g|t)?b?$/i.exec(input.trim());
-  if (!match) {
-    return undefined;
-  }
-  const value = Number(match[1]);
-  if (!Number.isFinite(value) || value < 0) {
-    return undefined;
-  }
-  const unit = (match[2] ?? "b").toLowerCase();
-  const power = { b: 0, k: 1, kb: 1, m: 2, mb: 2, g: 3, gb: 3, t: 4, tb: 4 }[unit] ?? 0;
-  return Math.round(value * 1024 ** power);
 }

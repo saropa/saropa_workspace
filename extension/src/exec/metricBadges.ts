@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { PinMetric } from "../model/pin";
+import { countLines, formatBytes } from "./metricFormat";
 import { l10n } from "../i18n/l10n";
 
 // Live metric badges for file pins (#24): file size, line count, or last-modified,
@@ -253,39 +254,3 @@ class MetricBadgeRegistry implements vscode.Disposable {
 
 // Module-level singleton: the tree provider tracks + reads, the engine watches.
 export const metricBadges = new MetricBadgeRegistry();
-
-// Count newlines in a file's bytes. Counts '\n' (0x0A), which covers LF and CRLF; a
-// final line with no trailing newline is counted, so a one-line file with no newline
-// reads as 1. An empty file reads as 0.
-function countLines(bytes: Uint8Array): number {
-  if (bytes.length === 0) {
-    return 0;
-  }
-  let count = 0;
-  for (let i = 0; i < bytes.length; i++) {
-    if (bytes[i] === 0x0a) {
-      count++;
-    }
-  }
-  // A trailing newline means the last '\n' already closed the final line; without
-  // one, the bytes after the last newline are an extra (uncounted) line.
-  return bytes[bytes.length - 1] === 0x0a ? count : count + 1;
-}
-
-// Human-readable byte size with binary (1024) units. Units are symbols (B / KB / MB),
-// so they need no translation; one decimal below 10 of a unit, whole numbers above.
-// Exported so the setMetric editor can echo a chosen threshold back the same way.
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  const num = value < 10 ? value.toFixed(1) : Math.round(value).toString();
-  return `${num} ${units[unit]}`;
-}

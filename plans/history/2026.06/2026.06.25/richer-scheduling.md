@@ -60,9 +60,8 @@ current presets, and **run-on-startup** triggers.
 
 All three remaining items shipped; the plan is complete. Verification: the pure cron
 math was exercised against 25 parser / next-fire cases (all pass) and the esbuild bundle
-builds clean. No automated test was added: the extension carries no test harness (the
-`test` npm script targets a nonexistent `out/test/runTests.js`, with no runner
-devDependency), so wiring one is deferred as a separate infrastructure item.
+builds clean. A checked-in unit-test harness was added the same day (see the addendum
+below).
 
 - **Cron expressions.** `cron?: string` added to `PinSchedule` (`pin.ts`). An in-repo,
   dependency-free 5-field parser (`parseCron`) and next-fire computer (`nextCron`) live
@@ -86,3 +85,21 @@ devDependency), so wiring one is deferred as a separate infrastructure item.
 
 The pre-existing type errors in `configureTriggers.ts` / `plannerPanel.ts` / the
 `ChainRunner` call are from a separate in-flight idle-trigger change, not this work.
+
+### Addendum (2026-06-25) — unit-test harness
+
+The cron math is now covered by a checked-in, zero-dependency test harness rather than a
+throwaway script. The extension previously had no working runner — the `test` npm script
+targeted a nonexistent `out/test/runTests.js`. Because the scheduling functions
+(`parseCron` / `nextCron` / `nextOccurrence` in `exec/schedule.ts`) import no `vscode`
+API, they run under Node's built-in runner without the extension host:
+
+- `extension/src/test/schedule.test.ts` — 19 `node:test` cases over the three functions:
+  field validation and ranges/steps/names, DOW `7` = Sunday, the day-of-month OR
+  day-of-week rule, weekend skip, reopen same-minute de-dup, impossible-date `undefined`,
+  and earliest-slot selection across cron + interval.
+- `package.json` — `test` -> `test:unit`; `test:unit` esbuild-bundles the entry to
+  `out/test/` and runs `node --test out/test/schedule.test.cjs`. No new dependencies
+  (esbuild and Node are already present).
+- Host-dependent (`vscode`) tests still require `@vscode/test-electron`, which is not yet
+  wired; that remains a separate infrastructure item.
