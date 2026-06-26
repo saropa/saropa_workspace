@@ -34,7 +34,7 @@ diverge, the plan records what is actually implemented today.
 
 ## Phase 4
 
-- [4.1 Unit tests](4.1-unit-tests.md) — **shipped.** esbuild + `node --test` harness
+- [4.1 Unit tests](../history/2026.06/2026.06.25/4.1-unit-tests.md) — **shipped.** esbuild + `node --test` harness
   (no host, no new deps) covering store IO, command builder, token substitution +
   interactive/remembered tokens, schedule math + DST, and the double-click
   discriminator. The store-IO tests run against an fs-backed `vscode` stub, so the
@@ -60,7 +60,7 @@ diverge, the plan records what is actually implemented today.
 
 ## Suggested order
 
-1. **[4.1 harness](4.1-unit-tests.md)** — shipped; the test infra every other item
+1. **[4.1 harness](../history/2026.06/2026.06.25/4.1-unit-tests.md)** — shipped; the test infra every other item
    needs is now in place.
 2. **[1.2 multi-root](1.2-multi-root-refinements.md)**, **[suite
    subgroups](suite-integration.md)** — all extend shipped code, low risk. (3.4

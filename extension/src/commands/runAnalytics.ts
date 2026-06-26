@@ -84,7 +84,10 @@ function nameFor(store: PinStore, pinId: string): string {
   return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
 }
 
-function buildReport(store: PinStore): string {
+// Exported for unit tests: the disabled / empty / populated branches are pure
+// over the telemetry store + session registry, so they are asserted directly
+// without standing up the virtual-document preview or the extension host.
+export function buildReport(store: PinStore): string {
   const lines: string[] = [
     `# ${l10n("analytics.title")}`,
     "",

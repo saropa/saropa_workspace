@@ -61,7 +61,7 @@ repositories.
   `configPathForWorkspace`): read items from the pointed-at JSON file as well as the two
   settings keys.
 - Cover each shipped format with mapping + idempotency tests once the Phase 4.1 harness
-  lands (`4.1-unit-tests.md`): bookmarks 0-based→1-based line conversion, `$ROOTPATH$`
+  lands (`../history/2026.06/2026.06.25/4.1-unit-tests.md`): bookmarks 0-based→1-based line conversion, `$ROOTPATH$`
   strip, column-dropped, dedup on re-run; sabitovvt openFile/run/runCommand(url+command)
   mapping, sequence→macro all-or-nothing, insertNewCode/unknown skip, action-pin dedup,
   icon/color carry-over.

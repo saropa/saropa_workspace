@@ -1,13 +1,32 @@
 import * as vscode from "vscode";
-import { Pin, PinGroup, PinScope, pinKind, isAnnotationPin } from "../model/pin";
+import { Pin, pinKind, isAnnotationPin } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
-import { RunResult, formatDuration } from "../exec/runStatus";
+import { RunResult } from "../exec/runStatus";
 import { PinBadge, formatBadgeLead } from "../exec/pinBadges";
 import { MetricBadge } from "../exec/metricBadges";
 import { RunSource } from "../exec/telemetry";
 import { formatRelativeTime } from "./projectFilesProvider";
 import { resolvePinRowIcon } from "./pinRowTokens";
+import {
+  formatNextRun,
+  formatRunBadge,
+  expirySummary,
+  actionSummary,
+  formatExpiryInstant,
+  formatRunTooltip,
+  formatDiagTooltip,
+  formatTestTooltip,
+} from "./pinRowFormatting";
 import { l10n } from "../i18n/l10n";
+
+// The structural tree rows (Recent root, scope roots, group folders) live in
+// pinTreeItems; re-exported here so the tree providers keep importing every tree
+// node from one place.
+export {
+  RecentRootItem,
+  PinGroupItem,
+  PinFolderItem,
+} from "./pinTreeItems";
 
 // The divider glyph for a "separator" annotation row. A run of box-drawing dashes
 // reads as a horizontal rule in the narrow sidebar (it truncates cleanly to the
@@ -353,236 +372,5 @@ export class PinTreeItem extends vscode.TreeItem {
       title: "Activate",
       arguments: [pin],
     };
-  }
-}
-
-// Compact label for the next-run instant: time-of-day when it is today,
-// otherwise a short date plus time. Locale formatting is delegated to the OS so
-// the rendered clock matches the user's regional settings.
-function formatNextRun(ts: number): string {
-  const next = new Date(ts);
-  const now = new Date();
-  const sameDay =
-    next.getFullYear() === now.getFullYear() &&
-    next.getMonth() === now.getMonth() &&
-    next.getDate() === now.getDate();
-  const time = next.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  if (sameDay) {
-    return time;
-  }
-  const date = next.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-  return `${date} ${time}`;
-}
-
-// Compact expiry chip for a time-bombed pin's row (WOW #9): a wall-clock bomb shows
-// the time remaining ("2h left"), a branch bomb shows the branch it is tied to. When
-// both are set the countdown wins — it is the more concrete, time-sensitive fact.
-// The relative time is static per repaint (a TreeView row cannot tick live); it
-// re-renders on the next paint, which the expiry sweep and any store change trigger.
-function expirySummary(pin: Pin): string | undefined {
-  if (!pin.expires) {
-    return undefined;
-  }
-  if (pin.expires.at !== undefined) {
-    return formatTimeLeft(pin.expires.at, Date.now());
-  }
-  if (pin.expires.onBranchAway !== undefined) {
-    return l10n("expiry.chip.branch", { branch: pin.expires.onBranchAway });
-  }
-  return undefined;
-}
-
-// Time remaining until an expiry instant, in the coarsest useful unit. A past/now
-// instant reads "due" (the next sweep removes it). Minutes under an hour, hours
-// under a day, otherwise whole days.
-function formatTimeLeft(at: number, now: number): string {
-  const diffMs = at - now;
-  if (diffMs <= 0) {
-    return l10n("expiry.left.due");
-  }
-  const minutes = Math.round(diffMs / 60_000);
-  if (minutes < 60) {
-    return l10n("expiry.left.minutes", { count: Math.max(1, minutes) });
-  }
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) {
-    return l10n("expiry.left.hours", { count: hours });
-  }
-  return l10n("expiry.left.days", { count: Math.round(hours / 24) });
-}
-
-// The full expiry instant for the hover, in the user's locale.
-function formatExpiryInstant(at: number): string {
-  return new Date(at).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-// Compact inline badge for the last completed run: "ok 2.3s" on success, or
-// "exit 1 2.3s" on failure (a signal-killed run has no code and reads "exit ?").
-function formatRunBadge(result: RunResult): string {
-  const duration = formatDuration(result.durationMs);
-  if (result.outcome === "success") {
-    return l10n("run.statusOk", { duration });
-  }
-  const code = result.exitCode === null ? "?" : String(result.exitCode);
-  return l10n("run.statusFailed", { code, duration });
-}
-
-// Fuller last-run line for the tooltip, including the wall-clock time it ended.
-function formatRunTooltip(result: RunResult): string {
-  const duration = formatDuration(result.durationMs);
-  const time = new Date(result.endedAt).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  if (result.outcome === "success") {
-    return l10n("run.tooltipOk", { duration, time });
-  }
-  const code = result.exitCode === null ? "?" : String(result.exitCode);
-  return l10n("run.tooltipFailed", { code, duration, time });
-}
-
-// Full diagnostic breakdown line for the hover, or undefined when the badge carries
-// no diagnostic half. A clean sweep reads as "no issues".
-function formatDiagTooltip(badge: PinBadge): string | undefined {
-  const hasDiag =
-    badge.errors !== undefined ||
-    badge.warnings !== undefined ||
-    badge.infos !== undefined;
-  if (!hasDiag) {
-    return undefined;
-  }
-  return l10n("badge.diagTooltip", {
-    errors: badge.errors ?? 0,
-    warnings: badge.warnings ?? 0,
-    infos: badge.infos ?? 0,
-  });
-}
-
-// Full test-tally line for the hover, or undefined when the badge carries no test
-// half.
-function formatTestTooltip(badge: PinBadge): string | undefined {
-  if (badge.testsPassed === undefined && badge.testsFailed === undefined) {
-    return undefined;
-  }
-  return l10n("badge.testTooltip", {
-    passed: badge.testsPassed ?? 0,
-    failed: badge.testsFailed ?? 0,
-  });
-}
-
-// One-line summary of a non-file pin's action, shown as the tree row's detail.
-function actionSummary(pin: Pin): string {
-  const action = pin.action;
-  if (!action) {
-    return pin.path;
-  }
-  switch (action.kind) {
-    case "url":
-      // Full URLs are unreadable in the narrow sidebar row; show just the host
-      // (e.g. "github.com"). The full URL stays in the hover tooltip.
-      return urlHost(action.url);
-    case "shell":
-      return action.shellCommand ?? "";
-    case "command":
-      return action.commandId ?? "";
-    case "macro":
-      return l10n("action.macroSteps", { count: action.steps?.length ?? 0 });
-    case "routine":
-      return l10n("action.routineMembers", { count: action.members?.length ?? 0 });
-    default:
-      return pin.path;
-  }
-}
-
-// The host of a URL ("github.com") for the compact sidebar row. Falls back to the
-// raw string when it does not parse as a URL, so nothing is lost on a bad value.
-function urlHost(url: string | undefined): string {
-  if (!url) {
-    return "";
-  }
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
-}
-
-// Top-level "Recent" root listing the last-called pins across both scopes (local
-// telemetry, roadmap 3.3). Sits above the scope roots for quick re-run access; its
-// children are PinTreeItems built with recentInfo. Shown only when there is recent
-// history and telemetry is enabled (the provider gates it).
-export class RecentRootItem extends vscode.TreeItem {
-  constructor(count: number, expanded: boolean) {
-    super(
-      l10n("recent.group"),
-      expanded
-        ? vscode.TreeItemCollapsibleState.Expanded
-        : vscode.TreeItemCollapsibleState.Collapsed
-    );
-    this.id = "scope:recent";
-    // "recentRoot", deliberately NOT "pin*"/"scopeRoot": it must not pick up the
-    // per-pin menus or the "New Group" action. Its own "Reset Run History" action
-    // keys off this value.
-    this.contextValue = "recentRoot";
-    this.description = String(count);
-    this.iconPath = new vscode.ThemeIcon("history");
-  }
-}
-
-// Scope root node (Project Pins / Global Pins). The two fixed top-level groups.
-export class PinGroupItem extends vscode.TreeItem {
-  constructor(label: string, readonly group: PinScope, count: number) {
-    super(label, vscode.TreeItemCollapsibleState.Expanded);
-    this.id = `scope:${group}`;
-    // "scopeRoot", deliberately NOT prefixed "pin": the per-pin menus match
-    // viewItem =~ /^pin/, so a "pin"-prefixed contextValue would leak the
-    // Run/Unpin/Rename actions onto a header that has no single file to act on.
-    // The "New Group" action keys off this value.
-    this.contextValue = "scopeRoot";
-    this.description = String(count);
-    this.iconPath = new vscode.ThemeIcon(
-      group === "global" ? "globe" : "root-folder"
-    );
-  }
-}
-
-// A user-defined group (folder) under a scope root. Holds pins as children and
-// is itself a valid drag-and-drop target (drop a pin onto it to move it in).
-export class PinFolderItem extends vscode.TreeItem {
-  constructor(
-    readonly pinGroup: PinGroup,
-    readonly scope: PinScope,
-    count: number
-  ) {
-    super(
-      pinGroup.label,
-      pinGroup.collapsed
-        ? vscode.TreeItemCollapsibleState.Collapsed
-        : vscode.TreeItemCollapsibleState.Expanded
-    );
-    this.id = `group:${scope}:${pinGroup.id}`;
-    // "userGroup" (not "pin*") so Rename/Delete-Group target it without leaking
-    // the per-pin menus. The drop controller recognizes it by instance, not by
-    // this string.
-    this.contextValue = "userGroup";
-    this.description = String(count);
-    // A group may carry its own glyph + tint (the synthetic recipe category folders
-    // do, so each reads distinctly in the nested tree); a plain user group keeps the
-    // default gray folder.
-    this.iconPath = new vscode.ThemeIcon(
-      pinGroup.icon ?? "folder",
-      pinGroup.color ? new vscode.ThemeColor(pinGroup.color) : undefined
-    );
   }
 }
