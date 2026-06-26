@@ -222,8 +222,17 @@ button.btn.icon { padding: 5px 8px; }
 .shelf-head .sh-t { font-size: .8em; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
 .shelf-head .sh-c { font-size: .78em; color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); border-radius: var(--radius-pill); padding: 0 8px; font-variant-numeric: tabular-nums; }
 .shelf-head .sh-hint { margin-left: auto; font-size: .78em; color: var(--muted); }
+.shelf-filter-row { padding: 0 12px 8px; }
+.shelf.collapsed .shelf-filter-row { display: none; }
+.shelf-filter {
+  width: 100%; padding: 6px 11px; font: inherit; font-size: .86em;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--inset); color: var(--vscode-input-foreground); outline: none;
+}
+.shelf-filter:focus { border-color: var(--brand); }
 .shelf-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 12px 12px; max-height: 220px; overflow-y: auto; }
 .shelf.collapsed .shelf-grid { display: none; }
+.shelf.collapsed .shelf-empty { display: none; }
 .shelf-empty { padding: 8px 0; color: var(--muted); font-size: .85em; }
 .shelf-pin {
   display: inline-flex; align-items: center; gap: 7px; max-width: 230px;

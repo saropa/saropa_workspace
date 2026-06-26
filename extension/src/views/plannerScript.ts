@@ -321,6 +321,11 @@ function shelfPins(){
 // chips instead of a single tall column. Drag a chip onto a canvas step to wire it,
 // click to inspect, right-click for the same menu the canvas nodes use. Collapsible,
 // and that choice is remembered with the view.
+// Above this many chips the shelf is hard to scan at a glance, so a filter box is
+// worth its space; below it, every chip is visible at once and the box would just be
+// clutter — so it only appears once the shelf is genuinely long.
+const SHELF_FILTER_AT = 12;
+
 function renderShelf(){
   const pins = shelfPins().slice().sort((a,b)=> a.label.localeCompare(b.label));
   const box = el('div','shelf'+(shelfOpen?'':' collapsed'));
@@ -334,11 +339,12 @@ function renderShelf(){
   box.appendChild(head);
 
   const grid = el('div','shelf-grid');
+  const noMatch = el('div','shelf-empty'); noMatch.textContent = 'No pin matches.'; noMatch.style.display = 'none';
   if(!pins.length){
     const e = el('div','shelf-empty'); e.textContent = 'Every pin is wired into the workflow.'; grid.appendChild(e);
   }
   pins.forEach(n => {
-    const chip = el('div','shelf-pin'+(selected===n.id?' sel':'')); chip.draggable = true; chip.dataset.id = n.id;
+    const chip = el('div','shelf-pin'+(selected===n.id?' sel':'')); chip.draggable = true; chip.dataset.id = n.id; chip.dataset.label = n.label.toLowerCase();
     const clock = (n.schedule && (n.schedule.atTime||n.schedule.everyMs)) ? '<span class="sclock">\\u{1F551}</span>' : '';
     chip.innerHTML = '<span class="si">'+nodeIcon(n)+'</span><span class="sl">'+esc(n.label)+'</span>'+clock;
     chip.ondragstart = (e) => { e.dataTransfer.setData('text/pinId', n.id); e.dataTransfer.effectAllowed='copy'; };
@@ -346,7 +352,27 @@ function renderShelf(){
     chip.oncontextmenu = (e) => { e.preventDefault(); openNodeMenu(e, n); };
     grid.appendChild(chip);
   });
+
+  // Filter box: only for a long shelf. Hides non-matching chips live (no re-render, so
+  // a drag-in-progress is never interrupted) and shows a no-match note when nothing fits.
+  if(pins.length > SHELF_FILTER_AT){
+    const row = el('div','shelf-filter-row');
+    const input = el('input','shelf-filter'); input.type = 'search'; input.placeholder = 'Filter ' + pins.length + ' pins\\u2026';
+    input.oninput = () => {
+      const q = input.value.trim().toLowerCase();
+      let shown = 0;
+      grid.querySelectorAll('.shelf-pin').forEach(c => {
+        const match = !q || c.dataset.label.includes(q);
+        c.style.display = match ? '' : 'none';
+        if(match) shown++;
+      });
+      noMatch.style.display = shown ? 'none' : '';
+    };
+    row.appendChild(input);
+    box.appendChild(row);
+  }
   box.appendChild(grid);
+  box.appendChild(noMatch);
   return box;
 }
 

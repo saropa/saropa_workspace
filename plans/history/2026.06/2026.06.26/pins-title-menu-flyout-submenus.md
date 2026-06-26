@@ -35,11 +35,14 @@ the inline `navigation` icons. Every overflow command moved into the matching
 submenu's menu array, regrouped by function rather than by the prior divider
 layout:
 
-- **Add...** (`$(add)`) — New Group, New Scratchpad, Pin External File; Add
-  Comment, Add Separator.
-- **Editor Layout & Focus** (`$(editor-layout)`) — Save / Restore Editor Layout;
-  Focus on Pinned Files (the focus/exit pair retains its `focusActive` `when`
-  discriminator so exactly one shows).
+- **Add to Pins** (`$(add)`) — New Group, Pin External File; Add Comment, Add
+  Separator. Every item inserts a row into the Pins view, so the label names the
+  destination rather than the bare verb "Add".
+- **Editor Layout & Focus** (`$(editor-layout)`) — New Scratchpad; Save / Restore
+  Editor Layout; Focus on Pinned Files (the focus/exit pair retains its
+  `focusActive` `when` discriminator so exactly one shows). New Scratchpad opens
+  an editor buffer rather than adding a Pins row, so it lives with the other
+  editor-window actions and sorts first.
 - **Import & Suggest** (`$(cloud-download)`) — Suggest Pins from Shell History;
   Import Favorites, Scan Sibling Projects; Import / Export Pins, Edit Pins Config.
 - **Pin Sets** (`$(layers)`) — switch, new, rename, duplicate, delete; link /
@@ -64,9 +67,11 @@ in the `navigation` group and are unchanged, as are the `recipes` and
 No manifest-menu unit test exists; the publish audit is the structural validator
 for `view/title` / submenu command-and-key parity and was the verification used.
 
-### Open follow-up
+### Label refinement (resolved)
 
-The create submenu label is "Add..." with a trailing ellipsis. VS Code
-convention reserves the ellipsis for commands that open further input; a submenu
-does not. The label can be reduced to "Add" if the convention is preferred; the
-other five labels carry no ellipsis.
+The create flyout first shipped as "Add...". The bare verb did not say what it
+added, and the trailing ellipsis is a VS Code convention reserved for commands
+that open further input, which a submenu does not. It was renamed to "Add to
+Pins" — naming the destination — and New Scratchpad, which adds nothing to the
+tree, was moved to the Editor Layout & Focus flyout. No ellipsis remains on any
+submenu label.

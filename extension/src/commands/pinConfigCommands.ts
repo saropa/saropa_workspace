@@ -8,6 +8,7 @@ import { promptMemory } from "../exec/promptMemory";
 import { encodePinLink } from "../import/shareLink";
 import { configureRun } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
+import { ScheduleEditorPanel } from "../views/scheduleEditorPanel";
 import { configureTriggers } from "./configureTriggers";
 import { configureWatchLink } from "./configureWatchLink";
 import { pinUntil, pinUntilBranchChange, clearPinExpiry } from "./configureExpiry";
@@ -146,7 +147,15 @@ export function registerPinConfigCommands(
     }
   });
 
-  regPin("saropaWorkspace.configureSchedule", (pin) => configureSchedule(store, pin));
+  // Default schedule editor is the webview form (every field visible at once, live
+  // next-run preview); the keyboard-only QuickPick wizard stays reachable as the
+  // "Quick" variant for a fast edit without leaving the keyboard.
+  regPin("saropaWorkspace.configureSchedule", (pin) =>
+    ScheduleEditorPanel.show(context, store, pin)
+  );
+  regPin("saropaWorkspace.configureScheduleQuick", (pin) =>
+    configureSchedule(store, pin)
+  );
   regPin("saropaWorkspace.configureTriggers", (pin) => configureTriggers(store, pin));
 
   // Cross-file watch links (#25): link this pin to one or more file globs so saving
