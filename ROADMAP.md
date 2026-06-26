@@ -19,6 +19,17 @@ where the plan and the code diverge, the plan records what is actually implement
   pins, the git conflict center, focus tags, instant search, and more). See its
   [README index](plans/wow/README.md).
 
+## Reference
+
+Standing design context that informs every item above:
+
+- **[`plans/guides/principles.md`](plans/guides/principles.md)** — the design constraints
+  every change must satisfy (local-first, no remote telemetry, native-first UX,
+  translation-ready, forward-compatible data, safe execution).
+- **[`plans/guides/competitive-landscape.md`](plans/guides/competitive-landscape.md)** —
+  the survey of rival extensions, the feature gaps that drive the backlog, the import
+  formats, and the VS Code API constraints to design around.
+
 ## What has shipped
 
 See the [changelog](CHANGELOG.md) for shipped features, release by release.
