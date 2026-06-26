@@ -13,6 +13,9 @@ export async function pushRunTargets(
   pkg: Record<string, unknown> | undefined,
   out: RecipeResult[]
 ): Promise<void> {
+  // Recipes this function adds start here; the Flutter post-pass below tags only its
+  // own additions (not the URL recipes pushed before it) into the Flutter subgroup.
+  const startIndex = out.length;
   const pm = await packageManager(folder);
   const scripts = (pkg?.scripts as Record<string, string> | undefined) ?? {};
   const isDart = (await exists(folder, "pubspec.yaml"));
@@ -136,5 +139,33 @@ export async function pushRunTargets(
     : undefined;
   if (upgrade) {
     out.push({ recipeId: "upgrade", label: "Upgrade dependencies", description: `Moves the project's dependencies to newer versions (${upgrade}). Distinct from install, which only restores the locked versions. Detected from the manifest for the ecosystem (npm, pub, cargo, go).`, icon: "arrow-up", action: shell(folder, upgrade) });
+  }
+
+  // The "Flutter dance" — the canonical fix for stale build artifacts and dependency
+  // drift. Implemented as ONE shell command chained with `&&`, NOT a macro: a macro's
+  // shell steps fire into the terminal without waiting, so they cannot enforce "stop
+  // if a step fails". `&&` runs each step only when the previous one exits 0, which is
+  // exactly the "check there are no errors between steps" the dance requires.
+  if (isFlutter) {
+    out.push({
+      recipeId: "flutter.dance",
+      label: "Flutter dance",
+      description: "Resets the Flutter project end to end: flutter clean, then flutter pub get, stopping if a step fails (clean && pub get). The standard cure for stale build output and dependency drift.",
+      icon: "sync",
+      color: "charts.blue",
+      subGroup: "flutter",
+      action: shell(folder, "flutter clean && flutter pub get"),
+    });
+  }
+
+  // Cluster a Flutter project's flutter-prefixed run targets under the "Flutter"
+  // subfolder (Build & Run > Flutter). Keyed off the command text rather than the
+  // recipeId so only the genuinely flutter-driven targets move; the dart-tool ones
+  // (dart test, dart format) stay at the Build & Run root. The dance already carries
+  // its own subGroup, so re-setting it is a no-op.
+  for (const r of out.slice(startIndex)) {
+    if (r.action?.shellCommand?.startsWith("flutter ")) {
+      r.subGroup = "flutter";
+    }
   }
 }

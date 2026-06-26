@@ -91,7 +91,7 @@ function categorizeRecipes(out: RecipeResult[]): void {
   const RUN = new Set([
     "dev", "test", "lint", "build", "install", "typecheck",
     "compose.up", "db.migrate", "nearest.script",
-    "format", "clean", "upgrade",
+    "format", "clean", "upgrade", "flutter.dance",
   ]);
   const WORKSPACE = new Set([
     "entry", "env.setup", "config.open", "boot", "copy.version",

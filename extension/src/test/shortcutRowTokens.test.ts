@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { kindIcon } from "../views/shortcutRowTokens";
+import { kindIcon, fileTypeIcon } from "../views/shortcutRowTokens";
 import { ShortcutKind } from "../model/shortcut";
 
 test("kindIcon: each non-file action kind maps to its dedicated glyph", () => {
@@ -49,4 +49,41 @@ test("kindIcon: always returns a non-empty codicon id", () => {
     const glyph = kindIcon(kind);
     assert.ok(typeof glyph === "string" && glyph.length > 0, `empty glyph for "${kind}"`);
   }
+});
+
+test("fileTypeIcon: common extensions map to a glyph + chart tint", () => {
+  // The default file-type glyphs are the visual language for a resting file shortcut, so
+  // the key cases are pinned: a silent change would shift what ".yaml" or ".dart" reads as.
+  assert.deepEqual(fileTypeIcon("pubspec.yaml"), { icon: "settings-gear", color: "charts.purple" });
+  assert.deepEqual(fileTypeIcon("main.dart"), { icon: "symbol-class", color: "charts.blue" });
+  assert.deepEqual(fileTypeIcon("package.json"), { icon: "json", color: "charts.yellow" });
+  assert.deepEqual(fileTypeIcon("setup.py"), { icon: "snake", color: "charts.blue" });
+});
+
+test("fileTypeIcon: the LAST dot decides the extension", () => {
+  // A compound name like "widget.test.ts" must key on "ts", not "test", so multi-part
+  // filenames still resolve to their real type.
+  assert.equal(fileTypeIcon("widget.test.ts")?.icon, "file-code");
+});
+
+test("fileTypeIcon: exact-name files win over a bare extension lookup", () => {
+  // VS Code recognizes these by name, not extension; an exact-name match must be tried
+  // first so "Dockerfile" (no extension) and "LICENSE" land on a meaningful glyph.
+  assert.deepEqual(fileTypeIcon("Dockerfile"), { icon: "vm", color: "charts.blue" });
+  assert.deepEqual(fileTypeIcon("LICENSE"), { icon: "law", color: "charts.yellow" });
+  assert.deepEqual(fileTypeIcon(".gitignore"), { icon: "git-commit", color: "charts.foreground" });
+});
+
+test("fileTypeIcon: matching is case-insensitive", () => {
+  // Targets arrive with whatever case the filesystem reports; an uppercase extension
+  // must still resolve so "README.MD" reads the same as "readme.md".
+  assert.equal(fileTypeIcon("README.MD")?.icon, "markdown");
+});
+
+test("fileTypeIcon: an unmapped or extension-less name returns undefined", () => {
+  // The caller falls back to the generic pin/star for these, so nothing regresses for a
+  // file type the map does not cover.
+  assert.equal(fileTypeIcon("notes.xyz"), undefined);
+  assert.equal(fileTypeIcon("Makefile.unknownext"), undefined);
+  assert.equal(fileTypeIcon(undefined), undefined);
 });

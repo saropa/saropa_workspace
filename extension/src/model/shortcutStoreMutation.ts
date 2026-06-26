@@ -38,6 +38,7 @@ import {
   recipeSubGroupId,
   isSyntheticRecipeGroupId,
   recipeGroupColor,
+  recipeSectionAppearance,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -311,11 +312,17 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
     if (!file.removedRecipes.includes(shortcut.recipeId)) {
       file.removedRecipes.push(shortcut.recipeId);
     }
+    // File the promoted shortcut into a user group named after the recipe's section
+    // (a GitHub recipe -> a "GitHub" group, a Flutter recipe -> a "Flutter" group),
+    // creating the group if it does not exist yet, so a promoted recipe lands in a
+    // tidy folder rather than loose at the scope's top level.
+    const groupId = this.ensurePromotionGroup(file, shortcut.groupId);
     file.pins.push({
       id: this.newId(),
       path: shortcut.path,
       label: shortcut.label,
       scope: "project",
+      groupId,
       action: shortcut.action,
       schedule: shortcut.schedule,
       icon: shortcut.icon,
@@ -326,5 +333,38 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
     await this.writeProjectFile(folder, file);
     await this.refresh();
     return true;
+  }
+
+  // Find (or create, in `file`) the user group a promoted recipe should land in,
+  // returning its id — or undefined when the recipe carried no recognizable section
+  // (then the promoted shortcut stays at the scope's top level, the prior behavior).
+  // The match is case-insensitive on the label so a recipe and a hand-made group of
+  // the same name reuse one folder; a freshly created group inherits the section's
+  // glyph + tint so it reads like the recipe folder it came from. Mutates file.groups
+  // only — the caller persists the file.
+  private ensurePromotionGroup(
+    file: ProjectShortcutsFile,
+    sourceGroupId: string | undefined
+  ): string | undefined {
+    const section = recipeSectionAppearance(sourceGroupId);
+    if (!section) {
+      return undefined;
+    }
+    const wanted = section.label.trim().toLowerCase();
+    const existing = file.groups.find(
+      (g) => g.label.trim().toLowerCase() === wanted
+    );
+    if (existing) {
+      return existing.id;
+    }
+    const id = this.newId();
+    file.groups.push({
+      id,
+      label: section.label,
+      order: file.groups.length,
+      icon: section.icon,
+      color: section.color,
+    });
+    return id;
   }
 }

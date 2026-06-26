@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Shortcut } from "../model/shortcut";
+import { Shortcut, ShortcutGroup, ShortcutScope } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
@@ -77,21 +77,41 @@ const ICON_GROUPS: readonly IconGroup[] = [
     ids: [
       "book", "bookmark", "tag", "milestone", "target", "telescope", "key",
       "mail", "calendar", "clock", "history", "home", "organization", "person",
-      "account", "location", "map", "mortar-board", "trophy", "gift",
+      "account", "location", "map", "mortar-board", "verified-filled", "gift",
     ],
   },
 ];
 
-// Curated theme-color ids that exist across built-in themes (the chart palette),
-// so a chosen tint always resolves.
+// A 20-swatch named palette, registered as custom theme colors in package.json
+// (contributes.colors -> saropaWorkspace.tint.*). Each id carries explicit light /
+// dark / high-contrast hex there, so a chosen tint resolves to a deliberate RGB in
+// every theme — the built-in chart palette only offered ~7 hues with no control over
+// the exact shade. Order runs around the hue wheel (warm -> cool -> neutral) so the
+// QuickPick reads as a spectrum. The hex lives only in the manifest; this map names
+// the id and its label key, never restating a color value (single source of truth).
+// Pre-existing shortcuts saved with a `charts.*` id still render (that ThemeColor is
+// still valid); they are simply not pre-selected here.
 const COLOR_CHOICES: Array<{ id: string; key: string }> = [
-  { id: "charts.red", key: "appearance.color.red" },
-  { id: "charts.orange", key: "appearance.color.orange" },
-  { id: "charts.yellow", key: "appearance.color.yellow" },
-  { id: "charts.green", key: "appearance.color.green" },
-  { id: "charts.blue", key: "appearance.color.blue" },
-  { id: "charts.purple", key: "appearance.color.purple" },
-  { id: "charts.foreground", key: "appearance.color.neutral" },
+  { id: "saropaWorkspace.tint.crimson", key: "appearance.color.crimson" },
+  { id: "saropaWorkspace.tint.coral", key: "appearance.color.coral" },
+  { id: "saropaWorkspace.tint.amber", key: "appearance.color.amber" },
+  { id: "saropaWorkspace.tint.gold", key: "appearance.color.gold" },
+  { id: "saropaWorkspace.tint.lime", key: "appearance.color.lime" },
+  { id: "saropaWorkspace.tint.green", key: "appearance.color.green" },
+  { id: "saropaWorkspace.tint.emerald", key: "appearance.color.emerald" },
+  { id: "saropaWorkspace.tint.teal", key: "appearance.color.teal" },
+  { id: "saropaWorkspace.tint.cyan", key: "appearance.color.cyan" },
+  { id: "saropaWorkspace.tint.sky", key: "appearance.color.sky" },
+  { id: "saropaWorkspace.tint.blue", key: "appearance.color.blue" },
+  { id: "saropaWorkspace.tint.indigo", key: "appearance.color.indigo" },
+  { id: "saropaWorkspace.tint.violet", key: "appearance.color.violet" },
+  { id: "saropaWorkspace.tint.purple", key: "appearance.color.purple" },
+  { id: "saropaWorkspace.tint.magenta", key: "appearance.color.magenta" },
+  { id: "saropaWorkspace.tint.pink", key: "appearance.color.pink" },
+  { id: "saropaWorkspace.tint.rose", key: "appearance.color.rose" },
+  { id: "saropaWorkspace.tint.brown", key: "appearance.color.brown" },
+  { id: "saropaWorkspace.tint.slate", key: "appearance.color.slate" },
+  { id: "saropaWorkspace.tint.gray", key: "appearance.color.gray" },
 ];
 
 export async function configureAppearance(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
@@ -105,23 +125,54 @@ export async function configureAppearance(store: ShortcutStore, shortcut: Shortc
   const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   const title = l10n("appearance.title", { name });
 
-  const icon = await pickIcon(shortcut, title);
-  if (icon === CANCELED) {
+  const picked = await pickAppearance(shortcut.icon, shortcut.color, title);
+  if (picked === CANCELED) {
     return;
   }
-  // Color only matters when there is a glyph to tint; if the icon was cleared,
-  // clear the color too so no orphan tint persists.
-  let color: string | undefined;
-  if (icon !== undefined) {
-    const picked = await pickColor(shortcut, title);
-    if (picked === CANCELED) {
-      return;
-    }
-    color = picked;
-  }
-
-  await store.updateShortcutAppearance(shortcut, icon, color);
+  await store.updateShortcutAppearance(shortcut, picked.icon, picked.color);
   vscode.window.showInformationMessage(l10n("appearance.saved", { name }));
+}
+
+// Edit a USER group's tree icon + tint (Roadmap 5.1, extended to groups). The same
+// two-step picker the per-shortcut command uses, so the visual language is one set of
+// glyphs/colors. Synthetic recipe groups are not stored anywhere editable, so the
+// command is gated to user groups in the manifest and guarded here as well.
+export async function configureGroupAppearance(
+  store: ShortcutStore,
+  group: ShortcutGroup,
+  scope: ShortcutScope
+): Promise<void> {
+  const name = group.label;
+  const title = l10n("appearance.group.title", { name });
+
+  const picked = await pickAppearance(group.icon, group.color, title);
+  if (picked === CANCELED) {
+    return;
+  }
+  await store.updateGroupAppearance(group, scope, picked.icon, picked.color);
+  vscode.window.showInformationMessage(l10n("appearance.group.saved", { name }));
+}
+
+// The shared two-step flow: pick a glyph, then (only when a glyph remains) a tint.
+// Returns the chosen pair, or CANCELED when the user dismissed either step. Clearing
+// the icon clears the color too, so no orphan tint persists on a glyph-less item.
+async function pickAppearance(
+  currentIcon: string | undefined,
+  currentColor: string | undefined,
+  title: string
+): Promise<{ icon: string | undefined; color: string | undefined } | typeof CANCELED> {
+  const icon = await pickIcon(currentIcon, title);
+  if (icon === CANCELED) {
+    return CANCELED;
+  }
+  if (icon === undefined) {
+    return { icon: undefined, color: undefined };
+  }
+  const color = await pickColor(currentColor, title);
+  if (color === CANCELED) {
+    return CANCELED;
+  }
+  return { icon, color };
 }
 
 // Sentinel distinguishing "Esc / canceled" (abort, persist nothing) from
@@ -129,7 +180,7 @@ export async function configureAppearance(store: ShortcutStore, shortcut: Shortc
 const CANCELED = Symbol("canceled");
 
 async function pickIcon(
-  shortcut: Shortcut,
+  currentIcon: string | undefined,
   title: string
 ): Promise<string | undefined | typeof CANCELED> {
   // `value` is the chosen codicon id; undefined on the "default / clear" item.
@@ -158,7 +209,7 @@ async function pickIcon(
         label: `$(${id}) ${id}`,
         description: l10n(`appearance.iconKeyword.${id}`),
         value: id,
-        picked: shortcut.icon === id,
+        picked: currentIcon === id,
       });
     }
   }
@@ -171,7 +222,7 @@ async function pickIcon(
 }
 
 async function pickColor(
-  shortcut: Shortcut,
+  currentColor: string | undefined,
   title: string
 ): Promise<string | undefined | typeof CANCELED> {
   interface ColorItem extends vscode.QuickPickItem {
@@ -182,7 +233,7 @@ async function pickColor(
     ...COLOR_CHOICES.map((c) => ({
       label: l10n(c.key),
       value: c.id,
-      picked: shortcut.color === c.id,
+      picked: currentColor === c.id,
     })),
   ];
   const pick = await vscode.window.showQuickPick(items, {

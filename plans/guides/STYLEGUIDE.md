@@ -197,6 +197,30 @@ in [`principles.md`](./principles.md).)
   synonyms in the catalog (e.g. `appearance.iconKeyword.<id>`), not inline, so
   they stay externalized. One synonym may name several rows; that overlap is
   intended, not a bug.
+- **A user-selectable color comes from a registered, named theme color, never a
+  raw hex passed to `ThemeColor`.** `ThemeColor` only accepts a registered color
+  id, so an arbitrary RGB tint must be declared once in `package.json`
+  (`contributes.colors`, e.g. `saropaWorkspace.tint.<name>`) with explicit dark /
+  light / high-contrast hex, then referenced by id everywhere. The palette offered
+  to the user (shortcut and group icon tints) is the named set in
+  `COLOR_CHOICES` — extend that list and add a matching `appearance.color.<name>`
+  label rather than introducing an inline hex or a one-off chart color. This keeps
+  every tint theme-aware and the hex in one place (the manifest).
+- **Every `ThemeIcon` id must be a real product icon — verify, never assume.** A
+  codicon id that does not exist (e.g. `trophy`, `award` — neither is a product
+  icon) renders as nothing: `$(id)` resolves to blank in a QuickPick and the tree
+  shows an empty slot, with no error. Before adding an id to the icon picker, a
+  group definition, or any `new ThemeIcon(...)`, confirm it against the product-icon
+  reference. The picker is unit-tested for synonym coverage but not for id validity,
+  so the check is the author's.
+- **Default row glyphs and tints live in one token map, keyed by role.** A tree
+  row's resting icon/color is resolved in `views/shortcutRowTokens.ts` — the single
+  source of truth for the row visual language. A file shortcut with no user-chosen
+  icon gets a file-type glyph + tint from `fileTypeIcon` (keyed by extension or
+  exact name), grouped by role so the palette is learnable (source code blue,
+  config purple, data green, docs/media neutral). Add a new file type to that map
+  rather than inventing a glyph at a call site; an unmapped type falls back to the
+  generic shortcut glyph, never to a blank.
 
 ---
 
@@ -244,6 +268,21 @@ When state implies a likely next action the user has not taken, offer it via a
 toast-with-action or a one-tap dialog — and gate it on a per-feature
 "done / offered / dismissed" flag so it never reappears unsolicited. The gate is
 the rule; never nag.
+
+### 4.5 Standing counters clear when the user acts on them
+
+A persistent count surface — a per-row counter in a tree item's `description` and
+the matching activity-bar `TreeView.badge` total — represents "things you have not
+looked at yet" (e.g. the Watches view's unseen new-files count). Two rules keep it
+honest:
+
+- **The badge total is derived from the per-item counters, from one source.** Never
+  track the total separately from the per-item counts; sum them, so the row
+  counters and the activity-bar badge can never disagree.
+- **Acting on the item clears its counter, which updates the total.** Clicking a
+  row (or otherwise consuming what it counted) resets that item's count to zero and
+  the badge recalculates. Zero shows no badge (an undefined badge is hidden) — the
+  same "never show a zero" rule the untapped-shortcuts badge follows.
 
 ---
 

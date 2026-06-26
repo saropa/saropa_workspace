@@ -49,6 +49,11 @@
           "name": "%views.recipes.name%"
         },
         {
+          "id": "saropaWorkspace.watches",
+          "name": "%views.watches.name%",
+          "visibility": "collapsed"
+        },
+        {
           "id": "saropaWorkspace.projectFiles",
           "name": "%views.projectFiles.name%",
           "visibility": "collapsed"
@@ -63,6 +68,10 @@
       {
         "view": "saropaWorkspace.recipes",
         "contents": "%viewsWelcome.recipes.contents%"
+      },
+      {
+        "view": "saropaWorkspace.watches",
+        "contents": "%viewsWelcome.watches.contents%"
       },
       {
         "view": "saropaWorkspace.projectFiles",
@@ -153,6 +162,41 @@
         "title": "%command.refreshProjectFiles.title%",
         "category": "%extension.displayName%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "saropaWorkspace.watchFolder",
+        "title": "%command.watchFolder.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "saropaWorkspace.watchFile",
+        "title": "%command.watchFile.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "saropaWorkspace.manageWatches",
+        "title": "%command.manageWatches.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "saropaWorkspace.openWatch",
+        "title": "%command.openWatch.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.toggleWatch",
+        "title": "%command.toggleWatch.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "saropaWorkspace.removeWatch",
+        "title": "%command.removeWatch.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(trash)"
       },
       {
         "command": "saropaWorkspace.copyPath",
@@ -618,6 +662,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "saropaWorkspace.configureGroupAppearance",
+        "title": "%command.configureGroupAppearance.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(symbol-color)"
+      },
+      {
         "command": "saropaWorkspace.addComment",
         "title": "%command.addComment.title%",
         "category": "%extension.displayName%",
@@ -1042,9 +1092,29 @@
           "command": "saropaWorkspace.refreshProjectFiles",
           "when": "view == saropaWorkspace.projectFiles",
           "group": "navigation@1"
+        },
+        {
+          "command": "saropaWorkspace.watchFolder",
+          "when": "view == saropaWorkspace.watches",
+          "group": "navigation@1"
+        },
+        {
+          "command": "saropaWorkspace.manageWatches",
+          "when": "view == saropaWorkspace.watches",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
+        {
+          "command": "saropaWorkspace.toggleWatch",
+          "when": "view == saropaWorkspace.watches && (viewItem == watchEnabled || viewItem == watchDisabled)",
+          "group": "inline@1"
+        },
+        {
+          "command": "saropaWorkspace.removeWatch",
+          "when": "view == saropaWorkspace.watches && (viewItem == watchEnabled || viewItem == watchDisabled)",
+          "group": "inline@2"
+        },
         {
           "command": "saropaWorkspace.resetRunHistory",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == recentRoot",
@@ -1079,6 +1149,11 @@
           "command": "saropaWorkspace.renameGroup",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == userGroup",
           "group": "1_group@1"
+        },
+        {
+          "command": "saropaWorkspace.configureGroupAppearance",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == userGroup",
+          "group": "1_group@3"
         },
         {
           "command": "saropaWorkspace.deleteGroup",
@@ -1350,6 +1425,16 @@
         {
           "submenu": "saropaWorkspace.pinSubmenu",
           "group": "saropa@1"
+        },
+        {
+          "command": "saropaWorkspace.watchFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "saropa@2"
+        },
+        {
+          "command": "saropaWorkspace.watchFile",
+          "when": "!explorerResourceIsFolder",
+          "group": "saropa@2"
         }
       ],
       "editor/title/context": [
@@ -1372,6 +1457,18 @@
       "commandPalette": [
         {
           "command": "saropaWorkspace.activatePin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.openWatch",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.toggleWatch",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.removeWatch",
           "when": "false"
         },
         {
@@ -1576,6 +1673,10 @@
         },
         {
           "command": "saropaWorkspace.deleteGroup",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.configureGroupAppearance",
           "when": "false"
         },
         {
@@ -1842,6 +1943,108 @@
             "description": "%config.sound.onFailure.description%"
           }
         }
+      }
+    ],
+    "colors": [
+      {
+        "id": "saropaWorkspace.tint.crimson",
+        "description": "%color.crimson.description%",
+        "defaults": { "dark": "#F2555A", "light": "#D32F2F", "highContrast": "#F2555A", "highContrastLight": "#D32F2F" }
+      },
+      {
+        "id": "saropaWorkspace.tint.coral",
+        "description": "%color.coral.description%",
+        "defaults": { "dark": "#FF7A59", "light": "#E64A19", "highContrast": "#FF7A59", "highContrastLight": "#E64A19" }
+      },
+      {
+        "id": "saropaWorkspace.tint.amber",
+        "description": "%color.amber.description%",
+        "defaults": { "dark": "#FFB02E", "light": "#EF6C00", "highContrast": "#FFB02E", "highContrastLight": "#EF6C00" }
+      },
+      {
+        "id": "saropaWorkspace.tint.gold",
+        "description": "%color.gold.description%",
+        "defaults": { "dark": "#FFD23F", "light": "#F9A825", "highContrast": "#FFD23F", "highContrastLight": "#F9A825" }
+      },
+      {
+        "id": "saropaWorkspace.tint.lime",
+        "description": "%color.lime.description%",
+        "defaults": { "dark": "#B5D33D", "light": "#9E9D24", "highContrast": "#B5D33D", "highContrastLight": "#9E9D24" }
+      },
+      {
+        "id": "saropaWorkspace.tint.green",
+        "description": "%color.green.description%",
+        "defaults": { "dark": "#57C16A", "light": "#2E7D32", "highContrast": "#57C16A", "highContrastLight": "#2E7D32" }
+      },
+      {
+        "id": "saropaWorkspace.tint.emerald",
+        "description": "%color.emerald.description%",
+        "defaults": { "dark": "#2BC4A0", "light": "#00897B", "highContrast": "#2BC4A0", "highContrastLight": "#00897B" }
+      },
+      {
+        "id": "saropaWorkspace.tint.teal",
+        "description": "%color.teal.description%",
+        "defaults": { "dark": "#29C0CE", "light": "#00838F", "highContrast": "#29C0CE", "highContrastLight": "#00838F" }
+      },
+      {
+        "id": "saropaWorkspace.tint.cyan",
+        "description": "%color.cyan.description%",
+        "defaults": { "dark": "#38C7E8", "light": "#0097A7", "highContrast": "#38C7E8", "highContrastLight": "#0097A7" }
+      },
+      {
+        "id": "saropaWorkspace.tint.sky",
+        "description": "%color.sky.description%",
+        "defaults": { "dark": "#4FB6F7", "light": "#0277BD", "highContrast": "#4FB6F7", "highContrastLight": "#0277BD" }
+      },
+      {
+        "id": "saropaWorkspace.tint.blue",
+        "description": "%color.blue.description%",
+        "defaults": { "dark": "#5B8DEF", "light": "#1565C0", "highContrast": "#5B8DEF", "highContrastLight": "#1565C0" }
+      },
+      {
+        "id": "saropaWorkspace.tint.indigo",
+        "description": "%color.indigo.description%",
+        "defaults": { "dark": "#7986E8", "light": "#3949AB", "highContrast": "#7986E8", "highContrastLight": "#3949AB" }
+      },
+      {
+        "id": "saropaWorkspace.tint.violet",
+        "description": "%color.violet.description%",
+        "defaults": { "dark": "#A877E8", "light": "#6A1B9A", "highContrast": "#A877E8", "highContrastLight": "#6A1B9A" }
+      },
+      {
+        "id": "saropaWorkspace.tint.purple",
+        "description": "%color.purple.description%",
+        "defaults": { "dark": "#C264D6", "light": "#8E24AA", "highContrast": "#C264D6", "highContrastLight": "#8E24AA" }
+      },
+      {
+        "id": "saropaWorkspace.tint.magenta",
+        "description": "%color.magenta.description%",
+        "defaults": { "dark": "#EC5FA6", "light": "#C2185B", "highContrast": "#EC5FA6", "highContrastLight": "#C2185B" }
+      },
+      {
+        "id": "saropaWorkspace.tint.pink",
+        "description": "%color.pink.description%",
+        "defaults": { "dark": "#FF8FB3", "light": "#D81B60", "highContrast": "#FF8FB3", "highContrastLight": "#D81B60" }
+      },
+      {
+        "id": "saropaWorkspace.tint.rose",
+        "description": "%color.rose.description%",
+        "defaults": { "dark": "#F2728C", "light": "#AD1457", "highContrast": "#F2728C", "highContrastLight": "#AD1457" }
+      },
+      {
+        "id": "saropaWorkspace.tint.brown",
+        "description": "%color.brown.description%",
+        "defaults": { "dark": "#B08968", "light": "#6D4C41", "highContrast": "#B08968", "highContrastLight": "#6D4C41" }
+      },
+      {
+        "id": "saropaWorkspace.tint.slate",
+        "description": "%color.slate.description%",
+        "defaults": { "dark": "#8AA0B2", "light": "#546E7A", "highContrast": "#8AA0B2", "highContrastLight": "#546E7A" }
+      },
+      {
+        "id": "saropaWorkspace.tint.gray",
+        "description": "%color.gray.description%",
+        "defaults": { "dark": "#AEB6BE", "light": "#607D8B", "highContrast": "#AEB6BE", "highContrastLight": "#607D8B" }
       }
     ]
   },

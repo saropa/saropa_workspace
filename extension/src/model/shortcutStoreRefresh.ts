@@ -34,6 +34,8 @@ import {
   RECIPE_GROUPS,
   RECIPE_SUBGROUPS,
   RECIPE_GROUP_EXPANDED_PREFIX,
+  RECOMMENDED_GROUP_DEF,
+  RECOMMENDED_GROUP_ID,
   recipeGroupId,
   recipeSubGroupId,
   isSyntheticRecipeGroupId,
@@ -219,7 +221,13 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
         try {
           const file = await this.readProjectFile(folder);
           const results = await this.detectRecipes(folder);
-          const shortcuts = this.buildRecipeShortcuts(folder, results, file.removedRecipes);
+          const shortcuts = [
+            ...this.buildRecipeShortcuts(folder, results, file.removedRecipes),
+            // The Recommended shelf: pointer copies of the top recipes, in their own
+            // synthetic group. Built from the same detection results, so it costs no
+            // extra IO.
+            ...this.buildRecommendedShortcuts(folder, results, file.removedRecipes),
+          ];
           return { folder, shortcuts };
         } catch (err) {
           // A detector throwing must never hang or break the view; surface it in
@@ -250,6 +258,18 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
     // group never shows as an empty folder. These are kept separate from the
     // project groups so the tree can render them under their own top-level section.
     const groups: ShortcutGroup[] = [];
+    // The Recommended shelf sits above the category groups (lowest order) and shows
+    // only when it actually has a featured row, so it never appears as an empty folder.
+    if (recipeShortcuts.some((p) => p.groupId === RECOMMENDED_GROUP_ID)) {
+      groups.push({
+        id: RECOMMENDED_GROUP_DEF.id,
+        label: RECOMMENDED_GROUP_DEF.label,
+        order: RECOMMENDED_GROUP_DEF.order,
+        collapsed: !this.recipeGroupExpanded(RECOMMENDED_GROUP_DEF.id),
+        icon: RECOMMENDED_GROUP_DEF.icon,
+        color: RECOMMENDED_GROUP_DEF.color,
+      });
+    }
     for (const def of RECIPE_GROUPS) {
       const subDefs = RECIPE_SUBGROUPS.filter((s) => s.parentId === def.id);
       const hasDirectShortcut = recipeShortcuts.some((p) => p.groupId === def.id);

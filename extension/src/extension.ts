@@ -46,6 +46,7 @@ import {
   setupStatusBars,
   wireBackgroundEngines,
   wireWatchers,
+  wireFolderWatches,
 } from "./activation/wiring";
 import { wireTreeViewState, SHOW_ALL_BRANCHES_KEY } from "./activation/viewState";
 
@@ -149,6 +150,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const scheduler = wireBackgroundEngines(context, store);
 
   wireWatchers(context, store, branchSetBinder);
+
+  // Folder/file watches: register the add/manage commands and build the engine. Its
+  // startup scan is fired below, deferred past activation, so files written while
+  // the window was closed are surfaced on open without doing file IO in activate().
+  const folderWatchEngine = wireFolderWatches(context);
+
   // Track editor focus/close so a pinned file opened or closed by any means (not
   // just a shortcut click) lands in Recent and clears from the untapped badge.
   wireRecentEditorTracking(context, store);
@@ -173,6 +180,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Fire any run-on-startup shortcuts once, deferred past activation and de-duped on a
   // reload so a window reload storm does not re-run them.
   scheduler.runStartupShortcuts();
+
+  // Scan the folder/file watches against their cached baselines, so a file written
+  // while the window was closed is surfaced now. The engine defers the scan past
+  // activation on its own timer; it arms its live watchers once the scan finishes.
+  folderWatchEngine.runStartupScan();
 
   // Time-bomb / ephemeral shortcuts (WOW #9): sweep self-removing shortcuts now (a
   // shortcut whose deadline passed while the window was closed clears on open) and arm

@@ -20,6 +20,14 @@ import { ScheduleStatusBar } from "../views/scheduleStatusBar";
 import { SetStatusBar } from "../views/setStatusBar";
 import { PlannerPanel } from "../views/plannerPanel";
 import { registerTerminalCleanup, setRoutineHooks } from "../exec/runner";
+import { getOutputChannel } from "../exec/terminalRunner";
+import { FolderWatchStore } from "../model/folderWatch";
+import { FolderWatchEngine } from "../exec/folderWatchEngine";
+import { WatchesTreeProvider } from "../views/watchesTreeProvider";
+import {
+  registerFolderWatchCommands,
+  maybeSuggestBugsWatch,
+} from "../commands/folderWatchCommands";
 import { registerSimulationPreview } from "../commands/simulateRun";
 import { registerRunAnalytics } from "../commands/runAnalytics";
 import { registerRunOutputDiff } from "../commands/diffRuns";
@@ -384,4 +392,56 @@ export function wireWatchers(
     configWatcher.onDidCreate(debouncedConfigRefresh),
     configWatcher.onDidDelete(debouncedConfigRefresh)
   );
+}
+
+// Folder/file watches (PLAN_FILE_AND_FOLDER_WATCH): build the watch store + engine,
+// register the add/manage commands, and return the engine so activate() can run its
+// startup scan once (deferred past activation — the scan does file IO and must not
+// run in the activation path). The engine is a disposable so its live
+// FileSystemWatchers are released on deactivation.
+export function wireFolderWatches(
+  context: vscode.ExtensionContext
+): FolderWatchEngine {
+  const watchStore = new FolderWatchStore(context);
+  const engine = new FolderWatchEngine(watchStore, getOutputChannel());
+  context.subscriptions.push(engine);
+  registerFolderWatchCommands(context, watchStore);
+
+  // The "Watches" view: one row per watch, each carrying its unseen-files counter.
+  const watches = new WatchesTreeProvider(watchStore);
+  const watchesView = vscode.window.createTreeView("saropaWorkspace.watches", {
+    treeDataProvider: watches,
+  });
+  context.subscriptions.push(watchesView);
+
+  // View title shows the watch count; cleared to undefined at zero so no "0"
+  // appears on an empty view.
+  const syncWatchesCount = (count: number): void => {
+    watchesView.description = count > 0 ? String(count) : undefined;
+  };
+  context.subscriptions.push(watches.onDidChangeCount((c) => syncWatchesCount(c)));
+  syncWatchesCount(watches.count);
+
+  // Activity-bar badge: the total unseen new/changed files across all watches — the
+  // "sidebar counter." Recomputed when a watch's tally changes (new files detected,
+  // or a watch opened/cleared) and when the watch list changes. Zero shows no badge
+  // (VS Code hides an undefined badge), matching the untapped-shortcuts badge.
+  const syncWatchesBadge = (): void => {
+    const total = watchStore.totalUnseen();
+    watchesView.badge =
+      total > 0
+        ? { value: total, tooltip: l10n("watchesView.badgeTooltip", { count: total }) }
+        : undefined;
+  };
+  context.subscriptions.push(
+    watchStore.onDidChangeCounts(() => syncWatchesBadge()),
+    watchStore.onDidChange(() => syncWatchesBadge())
+  );
+  syncWatchesBadge();
+
+  // Offer to watch the project's bugs/ folder for new files, once per folder.
+  // Deferred (not awaited) so it never blocks activation.
+  void maybeSuggestBugsWatch(context, watchStore);
+
+  return engine;
 }

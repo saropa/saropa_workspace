@@ -95,6 +95,23 @@ export class ShortcutStore extends ShortcutStoreSets {
     });
   }
 
+  // Persist a user group's tree icon + tint (Roadmap 5.1, extended to groups).
+  // Undefined clears the override, falling back to the default "folder" glyph / no
+  // tint. The synthetic recipe groups are not stored in any file (mutateGroup finds
+  // no target and no-ops), and the command is gated to user groups, so this only ever
+  // writes a hand-made group.
+  async updateGroupAppearance(
+    group: ShortcutGroup,
+    scope: ShortcutScope,
+    icon: string | undefined,
+    color: string | undefined
+  ): Promise<void> {
+    await this.mutateGroup(group, scope, (target) => {
+      target.icon = icon;
+      target.color = color;
+    });
+  }
+
   // Delete a group and re-parent its shortcuts to the scope's top level (no data
   // loss). Returns how many shortcuts were re-parented so the caller can report it.
   async deleteGroup(group: ShortcutGroup, scope: ShortcutScope): Promise<number> {

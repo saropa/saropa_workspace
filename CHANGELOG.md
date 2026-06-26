@@ -21,6 +21,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
+## [Unreleased]
+
+Tell Saropa to keep an eye on a folder or a file and get a heads-up the moment something new lands — even files written while the window was closed. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- **Watch a folder for new files, or a file for changes — and hear about it on startup, not just live.** Right-click a folder in the Explorer and choose **Watch Folder for New Files...** (or a file → **Watch File for Changes...**), or run either from the command palette. You pick whether to be told about only new files or new-and-changed files, and can narrow a folder watch to a glob (e.g. `*.md`). Saropa remembers the folder's file list between sessions, so the next time you open the window it tells you about anything written while you were away — for example, a new bug report dropped into `bugs/` by another tool or teammate. A toast names the new files and offers to open the first one. Manage, pause, or remove your watches from **Manage Folder Watches...**.
+- **A Watches view with a new-files counter on the sidebar.** Your watches now appear in a **Watches** section in the Saropa Workspace sidebar, each row showing how many new or changed files have landed since you last looked, with the running total as a badge on the activity-bar icon. Click a watch to open what changed and clear its count — the badge updates to match. Enable, disable, or remove a watch right from its row.
+- **Saropa offers to watch your `bugs/` folder.** When a project has a `bugs/` folder, Saropa offers once to watch it for new files, so a new report dropped in by a tool or teammate shows up without you setting the watch up by hand. Dismiss it and it won't ask again; add it later from the Watches view if you change your mind.
+- **Pick from 20 named icon colors instead of 7.** When you set a shortcut's or group's icon with **Set Icon & Color...**, the color list now offers a full spectrum — Crimson, Coral, Amber, Gold, Lime, Green, Emerald, Teal, Cyan, Sky, Blue, Indigo, Violet, Purple, Magenta, Pink, Rose, Brown, Slate, and Gray. Each color is tuned for light, dark, and high-contrast themes, so the tint you pick looks right whichever theme you use. Shortcuts you colored before this update keep their existing tint.
+- **File shortcuts now show a colored, type-aware icon at a glance.** A `.yaml`, `.json`, `.py`, `.dart`, `.ts`, `.md`, `.sql`, shell script, image, lockfile, and many more common file types each get their own glyph and tint, so a list of shortcuts reads by file type instead of every row showing the same generic pin. A type the map doesn't cover keeps the plain shortcut glyph, and any icon you set yourself always wins.
+- **Set a group's icon and color.** Right-click any group you made and choose **Set Group Icon & Color...** to give it the same icon-and-tint picker shortcuts already have, so you can tell your folders apart at a glance.
+- **A "Recommended" shelf at the top of the Recipes view.** A collapsed-by-default section highlights the handful of recipes most worth adopting for this project — led by the scheduled rituals (dawn lint sweep, dependency freshness, standup digest, and the like) that otherwise sit switched off and undiscovered. It's a quiet shelf you open when curious; nothing pops up.
+- **The "Flutter dance" recipe, plus a Flutter section.** Flutter projects get a one-click **Flutter dance** that runs `flutter clean` then `flutter pub get`, stopping if a step fails — the standard cure for stale build output and dependency drift. It and the other flutter commands (run, analyze, build, clean, upgrade) now cluster under a **Flutter** subfolder in Build & Run.
+- **Promoting a recipe files it into a folder of the same name.** Turn a detected recipe into an editable shortcut and it lands in a group named after where it came from — a GitHub recipe in a "GitHub" group, a Flutter recipe in a "Flutter" group — created for you if it doesn't exist yet, instead of loose at the top of the list.
+
+### Fixed
+
+- **The trophy icon now shows in the icon picker.** It previously rendered as a blank entry because the underlying glyph name wasn't a real product icon; the achievement glyph it was meant to be now appears, and typing "trophy", "award", or "achievement" finds it.
+
 ## [1.5.1]
 
 Say goodbye to "pins" and hello to "shortcuts" alongside a massive, beautifully visual upgrade to how you schedule and plan your workflows. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.1/CHANGELOG.md)

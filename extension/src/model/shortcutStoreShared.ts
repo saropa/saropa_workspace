@@ -1,5 +1,5 @@
 import { ShortcutScope } from "./shortcut";
-import { RecipeCategory } from "../recipes/detectors";
+import { RecipeCategory, RecipeResult } from "../recipes/detectors";
 
 // Shared constants, helpers, and the MoveTarget type for the ShortcutStore class
 // chain (pinStoreBase -> pinStoreRecipes -> pinStoreRefresh -> pinStoreMutation ->
@@ -83,10 +83,80 @@ export interface RecipeSubGroupDef {
   color: string;
 }
 export const RECIPE_SUBGROUPS: readonly RecipeSubGroupDef[] = [
+  // Flutter projects get their own "Flutter" subfolder under Build & Run so the
+  // flutter-prefixed commands (run/analyze/build/clean/upgrade) and the composite
+  // "Flutter dance" cluster together instead of mixing with a polyglot project's
+  // npm/cargo/go targets in one flat Build & Run list.
+  { parentId: "recipes-run", key: "flutter", id: "recipes-run-flutter", label: "Flutter", order: 1, icon: "device-mobile", color: "charts.blue" },
   { parentId: "saropa-suite", key: "lints", id: "saropa-suite-lints", label: "Saropa Lints", order: 1, icon: "checklist", color: "charts.blue" },
   { parentId: "saropa-suite", key: "drift", id: "saropa-suite-drift", label: "Drift Advisor", order: 2, icon: "database", color: "charts.purple" },
   { parentId: "saropa-suite", key: "log", id: "saropa-suite-log", label: "Log Capture", order: 3, icon: "output", color: "charts.orange" },
 ];
+// The "Recommended" highlight group. Unlike the category groups it is NOT keyed off a
+// RecipeCategory: it is a cross-cutting featured section that surfaces a curated,
+// capped set of the highest-value recipes (especially the disabled scheduled rituals,
+// to nudge turning them on) WITHOUT any popup. It sits at the very top of the Recipes
+// section (lowest order) and is collapsed by default, so it is a passive "start here"
+// shelf the user opens, never an interruption. Its rows are pointer copies of recipes
+// that also live in their home category; promoting one suppresses the underlying recipe
+// (sticky by recipeId) exactly as promoting from the category would.
+export const RECOMMENDED_GROUP_ID = "recipes-recommended";
+export interface RecommendedGroupDef {
+  id: string;
+  label: string;
+  order: number;
+  icon: string;
+  color: string;
+}
+export const RECOMMENDED_GROUP_DEF: RecommendedGroupDef = {
+  id: RECOMMENDED_GROUP_ID,
+  label: "Recommended",
+  order: 9988,
+  icon: "lightbulb-sparkle",
+  color: "charts.yellow",
+};
+// Hard cap on featured rows so the shelf stays a short, scannable highlight rather
+// than a second copy of the whole catalog.
+export const RECOMMENDED_CAP = 8;
+// Curated high-value recipes worth featuring beyond the scheduled rituals, in priority
+// order. Ids that a given project does not have are simply skipped, so the shelf is
+// always the best of what THIS project actually offers.
+const RECOMMENDED_HIGH_VALUE: readonly string[] = [
+  "flutter.dance", "boot", "dev", "test", "lint", "github.pr", "github.home", "deployed",
+];
+
+// Pick the recipes to feature on the Recommended shelf, in display order: every
+// disabled scheduled ritual first (the primary "turn these on" nudge), then the
+// curated high-value recipes the project has, de-duplicated and capped. Pure (no host
+// API) so it is unit-tested directly.
+export function selectRecommendedRecipes(
+  results: readonly RecipeResult[]
+): RecipeResult[] {
+  const out: RecipeResult[] = [];
+  const seen = new Set<string>();
+  const add = (r: RecipeResult): void => {
+    if (!seen.has(r.recipeId)) {
+      seen.add(r.recipeId);
+      out.push(r);
+    }
+  };
+  // 1) Disabled scheduled rituals — the recipes a user most benefits from being
+  // nudged to enable, since they do nothing until promoted and switched on.
+  for (const r of results) {
+    if (r.schedule && r.schedule.enabled === false) {
+      add(r);
+    }
+  }
+  // 2) Curated high-value recipes the project actually has, in fixed priority order.
+  for (const id of RECOMMENDED_HIGH_VALUE) {
+    const match = results.find((r) => r.recipeId === id);
+    if (match) {
+      add(match);
+    }
+  }
+  return out.slice(0, RECOMMENDED_CAP);
+}
+
 // Per-group collapse state lives in globalState (synthetic groups are not in any
 // file). Keyed by group id; default collapsed so the groups are discoverable but
 // never clutter the view on first open.
@@ -110,11 +180,37 @@ export function recipeSubGroupId(baseGroupId: string, subGroup: string): string 
   );
 }
 
+// The display label + appearance of the recipe section a synthetic group/subgroup id
+// names (subgroup wins over its parent), or undefined for an unknown id. Used when a
+// recipe is promoted to a stored shortcut: the promoted shortcut is filed into a user
+// group of the SAME name (a GitHub recipe -> a "GitHub" group, a Flutter recipe -> a
+// "Flutter" group), and the group inherits the section's glyph + tint so it reads the
+// same as the recipe folder it came from.
+export interface RecipeSectionAppearance {
+  label: string;
+  icon: string;
+  color: string;
+}
+export function recipeSectionAppearance(
+  groupId: string | undefined
+): RecipeSectionAppearance | undefined {
+  const sub = RECIPE_SUBGROUPS.find((s) => s.id === groupId);
+  if (sub) {
+    return { label: sub.label, icon: sub.icon, color: sub.color };
+  }
+  const grp = RECIPE_GROUPS.find((g) => g.id === groupId);
+  if (grp) {
+    return { label: grp.label, icon: grp.icon, color: grp.color };
+  }
+  return undefined;
+}
+
 // True when an id is one of the synthetic recipe groups OR their nested subgroups.
 // Used to route a recipe folder under the Recipes section and to persist its collapse
 // state in globalState rather than a project file.
 export function isSyntheticRecipeGroupId(id: string): boolean {
   return (
+    id === RECOMMENDED_GROUP_ID ||
     RECIPE_GROUPS.some((g) => g.id === id) ||
     RECIPE_SUBGROUPS.some((s) => s.id === id)
   );

@@ -19,10 +19,15 @@ import {
   recipeSubGroupId,
   isSyntheticRecipeGroupId,
   recipeGroupColor,
+  recipeSectionAppearance,
+  selectRecommendedRecipes,
+  RECOMMENDED_CAP,
+  RECOMMENDED_GROUP_ID,
   isGlobPattern,
   setsEqual,
   sameSetName,
 } from "../model/shortcutStoreShared";
+import type { RecipeResult } from "../recipes/detectors";
 
 test("the global-state keys are namespaced and distinct", () => {
   // Shortcuts and groups live under separate mementos; a shared key would have one
@@ -54,14 +59,78 @@ test("recipeSubGroupId routes a known suite key, else falls back to the base gro
   );
 });
 
-test("isSyntheticRecipeGroupId recognizes both top-level groups and their subgroups", () => {
+test("isSyntheticRecipeGroupId recognizes top-level groups, subgroups, and the Recommended shelf", () => {
   // The tree routes a synthetic folder under the Recipes section and persists its
-  // collapse state in globalState; both group levels must be recognized.
+  // collapse state in globalState; every synthetic level must be recognized.
   assert.equal(isSyntheticRecipeGroupId("recipes-open"), true);
   assert.equal(isSyntheticRecipeGroupId("saropa-suite"), true);
   assert.equal(isSyntheticRecipeGroupId("saropa-suite-lints"), true);
+  assert.equal(isSyntheticRecipeGroupId(RECOMMENDED_GROUP_ID), true);
   // A user-created group id (the store's newId shape) is not synthetic.
   assert.equal(isSyntheticRecipeGroupId("abc123-deadbeef"), false);
+});
+
+test("recipeSectionAppearance resolves a subgroup, then a group, else undefined", () => {
+  // Promotion files a recipe into a user group of the same name; the label/glyph/tint
+  // come from the recipe's section. A subgroup id must win over its parent.
+  assert.deepEqual(recipeSectionAppearance("saropa-suite-lints"), {
+    label: "Saropa Lints",
+    icon: "checklist",
+    color: "charts.blue",
+  });
+  assert.equal(recipeSectionAppearance("recipes-open")?.label, "GitHub");
+  assert.equal(recipeSectionAppearance("recipes-run-flutter")?.label, "Flutter");
+  // The Recommended shelf is not a promote target (a recommendation promotes to the
+  // top level, not into a "Recommended" folder), and an unknown id resolves to nothing.
+  assert.equal(recipeSectionAppearance(RECOMMENDED_GROUP_ID), undefined);
+  assert.equal(recipeSectionAppearance("abc123-deadbeef"), undefined);
+  assert.equal(recipeSectionAppearance(undefined), undefined);
+});
+
+// Minimal RecipeResult helpers for the recommendation selector (only the fields it reads).
+function scheduledRecipe(recipeId: string, enabled: boolean): RecipeResult {
+  return { recipeId, label: recipeId, schedule: { enabled } };
+}
+function plainRecipe(recipeId: string): RecipeResult {
+  return { recipeId, label: recipeId };
+}
+
+test("selectRecommendedRecipes: disabled scheduled rituals come first, then curated favorites", () => {
+  // The shelf's purpose is to nudge enabling the scheduled rituals, so they rank ahead
+  // of the curated high-value recipes regardless of input order.
+  const results: RecipeResult[] = [
+    plainRecipe("test"),
+    plainRecipe("flutter.dance"),
+    scheduledRecipe("ritual.lint", false),
+  ];
+  const picked = selectRecommendedRecipes(results).map((r) => r.recipeId);
+  assert.deepEqual(picked, ["ritual.lint", "flutter.dance", "test"]);
+});
+
+test("selectRecommendedRecipes: an ENABLED schedule is not a recommendation", () => {
+  // Only DISABLED rituals are worth nudging — an already-on schedule needs no prompt.
+  const picked = selectRecommendedRecipes([scheduledRecipe("ritual.lint", true)]);
+  assert.deepEqual(picked, []);
+});
+
+test("selectRecommendedRecipes: a recipe that is both a ritual and curated is featured once", () => {
+  // flutter.dance is on the curated list; making it a disabled ritual too must not
+  // double-list it — the disabled-ritual pass adds it, the curated pass skips the dup.
+  const results: RecipeResult[] = [
+    scheduledRecipe("ritual.lint", false),
+    scheduledRecipe("flutter.dance", false),
+  ];
+  const picked = selectRecommendedRecipes(results).map((r) => r.recipeId);
+  assert.deepEqual(picked, ["ritual.lint", "flutter.dance"]);
+});
+
+test("selectRecommendedRecipes: the shelf is capped to a short highlight", () => {
+  // More featured-eligible recipes than the cap must not turn the shelf into a second
+  // copy of the whole catalog; only the top RECOMMENDED_CAP survive.
+  const many: RecipeResult[] = Array.from({ length: RECOMMENDED_CAP + 5 }, (_, i) =>
+    scheduledRecipe(`ritual.${i}`, false)
+  );
+  assert.equal(selectRecommendedRecipes(many).length, RECOMMENDED_CAP);
 });
 
 test("recipeGroupColor returns the category's color family, unknown -> purple", () => {

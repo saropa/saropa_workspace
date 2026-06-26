@@ -409,6 +409,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       hasExpiry: Boolean(shortcut.expires),
       isAuto: Boolean(shortcut.isAuto),
       kind,
+      fileName: isFile ? basename : undefined,
     });
 
     // Single command for click; the dispatcher reads timing to choose open/run.

@@ -13,6 +13,7 @@ import {
 } from "./shortcutSelection";
 import { shortcutCommandRegistrar } from "./registerHelpers";
 import { registerFavoritesImportCommands } from "./favoritesImportCommands";
+import { configureGroupAppearance } from "./configureAppearance";
 
 // The second half of the shortcut command registrations: shortcut groups, the add/remove
 // and add-active-file gestures, and recipe/auto-shortcut restore. Split out of
@@ -74,6 +75,16 @@ export function registerPinManagementCommands(
     if (label !== undefined) {
       await store.renameGroup(arg.shortcutGroup, arg.scope, label);
     }
+  });
+
+  // Edit a user group's tree icon + color. Same two-step picker as the per-shortcut
+  // appearance command; gated to user groups in the manifest (the synthetic recipe
+  // groups are not stored anywhere editable).
+  reg("saropaWorkspace.configureGroupAppearance", async (arg: unknown) => {
+    if (!(arg instanceof ShortcutFolderItem)) {
+      return;
+    }
+    await configureGroupAppearance(store, arg.shortcutGroup, arg.scope);
   });
 
   reg("saropaWorkspace.deleteGroup", async (arg: unknown) => {

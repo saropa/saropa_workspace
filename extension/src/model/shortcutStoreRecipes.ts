@@ -38,6 +38,8 @@ import {
   recipeSubGroupId,
   isSyntheticRecipeGroupId,
   recipeGroupColor,
+  RECOMMENDED_GROUP_ID,
+  selectRecommendedRecipes,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -276,6 +278,43 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
         groupId: r.subGroup
           ? recipeSubGroupId(recipeGroupId(r.group), r.subGroup)
           : recipeGroupId(r.group),
+        order: order++,
+      });
+    }
+    return shortcuts;
+  }
+
+  // Build the Recommended shelf's rows: pointer copies of the highest-value recipes
+  // (disabled scheduled rituals first, then curated favorites), filed into the
+  // synthetic Recommended group. A pointer uses a `recommend:` id namespace so it never
+  // collides with the same recipe's `recipe:` row in its home category, yet carries the
+  // SAME recipeId — so promoting or removing a recommendation acts on the underlying
+  // recipe (sticky by recipeId), and a recipe the user already removed never returns as
+  // a recommendation. Display-only: the row's appearance mirrors its source recipe.
+  protected buildRecommendedShortcuts(
+    folder: vscode.WorkspaceFolder,
+    results: RecipeResult[],
+    removed: string[]
+  ): Shortcut[] {
+    const shortcuts: Shortcut[] = [];
+    let order = 1900;
+    for (const r of selectRecommendedRecipes(results)) {
+      if (removed.includes(r.recipeId)) {
+        continue;
+      }
+      shortcuts.push({
+        id: `recommend:${folder.name}:${r.recipeId}`,
+        path: r.filePath ?? "",
+        label: r.label,
+        scope: "project",
+        isRecipe: true,
+        recipeId: r.recipeId,
+        description: r.description,
+        action: r.action,
+        schedule: r.schedule,
+        icon: r.icon,
+        color: r.color ?? recipeGroupColor(r.group),
+        groupId: RECOMMENDED_GROUP_ID,
         order: order++,
       });
     }
