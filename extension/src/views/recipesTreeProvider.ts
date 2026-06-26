@@ -22,6 +22,14 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  // Total detected-recipe count, published so the view title can show it as a
+  // description (extension.ts binds the TreeView's description to this). Computed
+  // during the root paint rather than re-counting elsewhere, and only re-emitted
+  // when it actually changes so the title does not flicker on every repaint.
+  private _count = 0;
+  private readonly _onDidChangeCount = new vscode.EventEmitter<number>();
+  readonly onDidChangeCount = this._onDidChangeCount.event;
+
   constructor(private readonly store: PinStore) {
     // Repaint when the detected recipe set changes (store rescan), when a recipe
     // run starts/stops (running indicator + Stop action), or when a run finishes
@@ -35,10 +43,27 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
     return element;
   }
 
+  // Current total count of detected recipe pins, so a late subscriber (the view
+  // is created after the provider) can paint the initial title without waiting
+  // for the next repaint.
+  get count(): number {
+    return this._count;
+  }
+
+  private setCount(next: number): void {
+    if (next === this._count) {
+      return;
+    }
+    this._count = next;
+    this._onDidChangeCount.fire(next);
+  }
+
   getChildren(element?: vscode.TreeItem): vscode.TreeItem[] {
     if (!element) {
       // Roots: the recipe category folders, already ordered by the store. The view
-      // is empty (welcome content shows) when nothing was detected.
+      // is empty (welcome content shows) when nothing was detected. The total
+      // recipe-pin count across all categories is the number shown on the title.
+      this.setCount(this.store.getRecipePins().length);
       return this.store.getRecipeGroups().map((group) => this.makeRecipeFolderItem(group));
     }
 

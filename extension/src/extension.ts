@@ -275,6 +275,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     showCollapseAll: true,
   });
   context.subscriptions.push(recipesView);
+  // Show the total detected-recipe count next to the view title. A zero count
+  // clears the description (no "0" when nothing was detected), and the provider
+  // only emits on a real change so the title does not flicker on every repaint.
+  const syncRecipesCount = (count: number): void => {
+    recipesView.description = count > 0 ? String(count) : undefined;
+  };
+  context.subscriptions.push(
+    recipes.onDidChangeCount((count) => syncRecipesCount(count))
+  );
+  syncRecipesCount(recipes.count);
 
   // Third view in the container: a read-only list of interesting project files
   // (README, CHANGELOG, manifests) with each file's last-modified time and
