@@ -438,7 +438,10 @@ export class PlannerPanel {
 </div>
 <div class="workarea">
   <div id="stage" class="stage"></div>
-  <div id="detail" class="detail" role="complementary" aria-label="${l10n("planner.detail.label")}"></div>
+  <div id="detail" class="detail" role="complementary" aria-label="${l10n("planner.detail.label")}">
+    <div id="rsz-detail" class="rsz" role="separator" aria-orientation="vertical" title="${l10n("planner.detail.resize")}"></div>
+    <div id="detail-body" class="detail-body"></div>
+  </div>
 </div>
 <script nonce="${nonce}">${PLANNER_SCRIPT}</script>
 </body>

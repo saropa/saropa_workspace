@@ -26,6 +26,7 @@ export const SCHEDULE_EDITOR_STYLE = `
   --muted: var(--vscode-descriptionForeground);
   --brand: #f97316;
   --brand-2: #ea580c;
+  --brand-glow: rgba(249,115,22,.22);
   --hero-tint: color-mix(in srgb, var(--brand) 16%, transparent);
   --bad: var(--vscode-editorError-foreground, #f85149);
   --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -149,6 +150,55 @@ button.btn.link { background: transparent; border-color: transparent; color: var
 .footer .nr .nv { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .footer .spacer { flex: 1; }
 
+/* Timeline ("Around your schedule") ------------------------------------- */
+.tl { position: relative; margin: 4px 0 2px; }
+.tl-track {
+  position: relative; height: 56px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-3); overflow: hidden;
+}
+.tl-grid {
+  position: absolute; inset: 0; opacity: .55;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent, transparent calc(100% / 24 - 1px),
+    var(--border) calc(100% / 24 - 1px), var(--border) calc(100% / 24)
+  );
+}
+/* The free-gap band sits behind the runs; a soft brand wash reads as "open time". */
+.tl-gap { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--brand) 9%, transparent); }
+/* Another scheduled pin's daily time. */
+.tl-tick {
+  position: absolute; top: 12px; bottom: 12px; width: 2px;
+  transform: translateX(-1px); background: var(--muted); border-radius: 1px; opacity: .85;
+}
+/* This pin's daily time — taller, brand-colored, and animated as the time changes. */
+.tl-me {
+  position: absolute; top: 4px; bottom: 4px; width: 3px;
+  transform: translateX(-1.5px); background: var(--brand); border-radius: 2px;
+  box-shadow: 0 0 0 3px var(--brand-glow);
+  transition: left var(--dur) var(--ease);
+}
+.tl-me .tl-melab {
+  position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+  font-size: .7em; font-variant-numeric: tabular-nums; color: var(--brand);
+  font-weight: 600; white-space: nowrap;
+}
+.tl-hours { position: relative; height: 15px; margin-top: 3px; }
+.tl-h { position: absolute; transform: translateX(-50%); font-size: .68em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tl-h:first-child { transform: none; }
+.tl-h:last-child { transform: translateX(-100%); }
+
+.insight { font-size: .88em; margin-top: 8px; color: var(--muted); display: none; }
+.insight.show { display: block; }
+.insight.warn.show {
+  display: flex; align-items: center; gap: 7px;
+  color: var(--vscode-foreground); padding: 7px 10px; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  border-left: 3px solid var(--brand);
+}
+.insight.warn.show::before { content: '\\26A0'; color: var(--brand); }
+
 @keyframes rise { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 `;
@@ -165,6 +215,9 @@ let enabledTouched = false;
 
 function $(id){ return document.getElementById(id); }
 function post(type, extra){ vscode.postMessage(Object.assign({ type: type }, extra || {})); }
+function pad2(n){ return String(n).padStart(2, '0'); }
+function fmtMin(m){ m = ((m % 1440) + 1440) % 1440; return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60); }
+function pct(m){ return (m / 1440 * 100) + '%'; }
 
 // Read every control into the wire 'work' shape the host normalizes.
 function gather(){
@@ -271,7 +324,8 @@ function applyInit(work){
 }
 
 // Host-computed preview: the next-run text, the host's effective enabled state (so
-// the toggle visibly flips on when timing is added), and whether the typed cron parses.
+// the toggle visibly flips on when timing is added), whether the typed cron parses,
+// and the "around your schedule" insights.
 function applyPreview(m){
   $('nextRun').textContent = m.nextRun;
   if (typeof m.enabled === 'boolean') { $('enabled').checked = m.enabled; }
@@ -280,6 +334,59 @@ function applyPreview(m){
   // A typed-but-invalid cron can't be saved (it would silently never fire); every
   // other state saves, including an empty form (which clears the schedule).
   $('save').disabled = !cronEmpty && !m.cronValid;
+  if (m.insights) { renderInsights(m.insights); }
+}
+
+// Draw the 24-hour strip from the host insights: a free-gap band, a tick per other
+// scheduled pin, and this pin's marker. All names come from the payload as data and
+// are set via .title / textContent (never innerHTML), so a pin label can't inject
+// markup. The two prose rows arrive already localized from the host.
+function renderInsights(ins){
+  const track = $('tlTrack');
+  Array.prototype.slice.call(track.querySelectorAll('.tl-tick,.tl-me,.tl-gap'))
+    .forEach(function(el){ el.remove(); });
+
+  if (ins.gapFrom !== null && ins.gapTo !== null) { addGap(track, ins.gapFrom, ins.gapTo); }
+
+  (ins.neighbors || []).forEach(function(nb){
+    const t = document.createElement('div');
+    t.className = 'tl-tick';
+    t.style.left = pct(nb.m);
+    t.title = nb.n + ' ' + fmtMin(nb.m);
+    track.appendChild(t);
+  });
+
+  if (ins.mine !== null && ins.mine !== undefined) {
+    const me = document.createElement('div');
+    me.className = 'tl-me';
+    me.style.left = pct(ins.mine);
+    const lab = document.createElement('span');
+    lab.className = 'tl-melab';
+    lab.textContent = fmtMin(ins.mine);
+    me.appendChild(lab);
+    track.appendChild(me);
+  }
+
+  const c = $('insConflict');
+  c.textContent = ins.conflict || '';
+  c.classList.toggle('show', !!ins.conflict);
+  const n = $('insNote');
+  n.textContent = ins.note || '';
+  n.classList.toggle('show', !!ins.note);
+}
+
+// Add the free-gap band; a gap that crosses midnight (end before start) draws as two
+// segments so the wrap is shown correctly.
+function addGap(track, from, to){
+  function seg(a, b){
+    const d = document.createElement('div');
+    d.className = 'tl-gap';
+    d.style.left = pct(a);
+    d.style.width = ((b - a) / 1440 * 100) + '%';
+    track.appendChild(d);
+  }
+  if (to > from) { seg(from, to); }
+  else { seg(from, 1440); seg(0, to); }
 }
 
 window.addEventListener('message', function(e){

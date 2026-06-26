@@ -108,6 +108,22 @@ test("PLANNER_STYLE declares the color-scheme so the panel honors light and dark
   assert.ok(PLANNER_STYLE.includes("color-scheme: light dark"));
 });
 
+test("the side columns are sized by resizable width vars with drag handles", () => {
+  // The detail inspector and the Workflow toolbox are user-resizable: their widths come
+  // from the --detail-w / --toolbox-w vars (set by the renderer's drag handlers), and
+  // each column carries a col-resize handle (.rsz / .tb-rsz). A regression that hardcodes
+  // the widths back, or drops a handle class, would make the columns un-draggable.
+  assert.ok(PLANNER_STYLE.includes("var(--detail-w"), "detail width is a resizable var");
+  assert.ok(PLANNER_STYLE.includes("var(--toolbox-w"), "toolbox width is a resizable var");
+  for (const cls of [".detail .rsz", ".tb-rsz"]) {
+    assert.ok(PLANNER_STYLE.includes(cls), `${cls} resize handle must be styled`);
+  }
+  assert.ok(
+    (PLANNER_STYLE.match(/cursor:\s*col-resize/g) ?? []).length >= 2,
+    "both handles must use the col-resize cursor"
+  );
+});
+
 test("plannerAssets re-exports PLANNER_SCRIPT from one place", () => {
   // plannerPanel.ts imports both PLANNER_STYLE and PLANNER_SCRIPT from this module;
   // the re-export keeps that single import site valid even though the script lives

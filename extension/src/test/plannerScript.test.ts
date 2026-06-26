@@ -123,3 +123,35 @@ test("addTrigger distinguishes pin links from event links", () => {
   assert.ok(PLANNER_SCRIPT.includes("kind:'pin'"), "pin-link trigger");
   assert.ok(PLANNER_SCRIPT.includes("kind:'event'"), "event-link trigger");
 });
+
+test("the detail inspector closes by clearing the selection", () => {
+  // The inspector's (x) carries data-act="close"; the act() handler maps that to
+  // select(null), which hides the panel and drops every selection highlight. Without
+  // this, the close button would be inert and the column could not be dismissed.
+  assert.ok(PLANNER_SCRIPT.includes('data-act="close"'), "close button must emit the close act");
+  assert.ok(PLANNER_SCRIPT.includes("select(null)"), "close must clear the selection");
+});
+
+test("the detail inspector surfaces the recipe description and a pause/resume toggle", () => {
+  // The inspector explains a seeded/paused recipe in place (the .dinfo note from the
+  // node's description) and lets a schedule be paused/resumed without the context menu.
+  assert.ok(PLANNER_SCRIPT.includes("n.description"), "renders the recipe description");
+  assert.ok(PLANNER_SCRIPT.includes('class="dinfo"'), "description shows as an info note");
+  assert.ok(PLANNER_SCRIPT.includes('data-act="toggle"'), "carries the pause/resume toggle");
+});
+
+test("the resizable columns persist their widths and drive the layout CSS vars", () => {
+  // Both side columns (the right detail inspector and the Workflow toolbox) are
+  // user-draggable. The renderer must own one resizer, write the chosen widths into
+  // the --detail-w / --toolbox-w vars the stylesheet reads, and persist them so a
+  // reload restores the sizes. A regression here silently freezes the columns.
+  assert.ok(PLANNER_SCRIPT.includes("attachResizer"), "a shared resize helper must exist");
+  assert.ok(PLANNER_SCRIPT.includes("--detail-w"), "applies the detail width var");
+  assert.ok(PLANNER_SCRIPT.includes("--toolbox-w"), "applies the toolbox width var");
+  for (const key of ["detailW", "toolboxW"]) {
+    assert.ok(
+      PLANNER_SCRIPT.includes(key),
+      `saveState must persist ${key} so the width survives a reload`
+    );
+  }
+});

@@ -195,8 +195,12 @@ button.btn.icon { padding: 5px 8px; }
 .block .bm { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* Workflow canvas ------------------------------------------------------- */
-.wf { display: grid; grid-template-columns: 168px 1fr; gap: 12px; }
+.wf { display: grid; grid-template-columns: var(--toolbox-w, 168px) 1fr; gap: 12px; }
 .toolbox { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); padding: 10px; align-self: start; position: sticky; top: 46px; }
+/* Resize handle on the toolbox's right edge, sitting in the column gap. */
+.tb-rsz { position: absolute; top: 0; right: -9px; width: 10px; height: 100%; cursor: col-resize; z-index: 5; }
+.tb-rsz::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background var(--dur); }
+.tb-rsz:hover::after, .tb-rsz.dragging::after { background: var(--brand); }
 .toolbox h3 { font-size: .78em; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 8px; }
 .tool {
   display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 7px;
@@ -322,8 +326,15 @@ button.btn.icon { padding: 5px 8px; }
 /* The inspector is its own right-hand column (like the Workflow toolbox), sticky under
    the toolbar so it stays in view while the tall grid scrolls. It is hidden until a pin
    is selected; a header (x) closes it and returns the stage to full width. */
-.detail { flex: 0 0 300px; align-self: flex-start; position: sticky; top: 56px; max-height: calc(100vh - 72px); overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: none; }
+.detail { flex: 0 0 var(--detail-w, 300px); align-self: flex-start; position: sticky; top: 56px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); display: none; }
 .detail.show { display: block; animation: rise 160ms var(--ease); }
+.detail-body { max-height: calc(100vh - 84px); overflow: auto; padding: 12px 14px; }
+/* Resize handle on the inspector's left edge. Sits just outside the border (overflow on
+   the body, not the panel, so the handle is not clipped) and spans the full height so it
+   is grabbable anywhere along the sticky panel. */
+.detail .rsz { position: absolute; left: -3px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 3; }
+.detail .rsz::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background var(--dur); }
+.detail .rsz:hover::after, .rsz.dragging::after { background: var(--brand); }
 .detail .dh { display: flex; align-items: center; gap: 10px; }
 .detail .dh .dt { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .detail .dclose { flex: 0 0 auto; margin-left: auto; width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; }

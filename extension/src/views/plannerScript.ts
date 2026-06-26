@@ -22,10 +22,45 @@ let hourH = density === 'comfortable' ? 60 : 30;
 // Whether the Workflow tab's "unlinked pins" shelf is expanded. Default open so the
 // pins you can wire are visible the first time; the choice is remembered.
 let shelfOpen = STATE0.shelfOpen !== false;
+// Persisted column widths (px): the right-hand detail inspector and the Workflow
+// toolbox. Both are user-draggable; defaults match the CSS var fallbacks.
+let detailW = typeof STATE0.detailW === 'number' ? STATE0.detailW : 300;
+let toolboxW = typeof STATE0.toolboxW === 'number' ? STATE0.toolboxW : 168;
 let selected = null;
 let nowMin = 0;
 
-function saveState(){ vscode.setState({ view, density, shelfOpen }); }
+function saveState(){ vscode.setState({ view, density, shelfOpen, detailW, toolboxW }); }
+
+// Apply the persisted column widths to the CSS vars the layout reads. Called at boot and
+// after each drag so a reload restores the chosen sizes. Kept on documentElement so the
+// Workflow grid (rebuilt on every render) picks the width up without re-plumbing.
+function applyWidths(){
+  document.documentElement.style.setProperty('--detail-w', detailW + 'px');
+  document.documentElement.style.setProperty('--toolbox-w', toolboxW + 'px');
+}
+
+// Wire a vertical resize handle. dirX is +1 when dragging right should GROW the target
+// (handle on the target's right edge, e.g. the toolbox) and -1 when dragging right
+// should SHRINK it (handle on the target's left edge, e.g. the detail inspector).
+// The new width is clamped to [min,max], applied live, and persisted on release.
+function attachResizer(handle, opts){
+  handle.onmousedown = (e) => {
+    if(e.button!==0) return; e.preventDefault();
+    const startX = e.clientX, startW = opts.get();
+    handle.classList.add('dragging'); document.body.classList.add('resizing');
+    const move = (ev) => {
+      let w = startW + opts.dirX*(ev.clientX-startX);
+      w = Math.max(opts.min, Math.min(opts.max, w));
+      opts.set(w); applyWidths();
+    };
+    const up = () => {
+      document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);
+      handle.classList.remove('dragging'); document.body.classList.remove('resizing');
+      saveState();
+    };
+    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+  };
+}
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -238,6 +273,11 @@ function renderToolbox(){
     tb.appendChild(t);
   });
   tb.insertAdjacentHTML('beforeend','<div class="hint">Drag an event onto a pin to run that pin after the event fires.</div>');
+  // Right-edge resize handle. Dragging right grows the toolbox (dirX +1). Re-created with
+  // the toolbox on each Workflow render, so it is wired here rather than at bootstrap.
+  const grip = el('div','tb-rsz'); grip.title = 'Drag to resize the toolbox';
+  attachResizer(grip, { get:()=>toolboxW, set:w=>{toolboxW=w;}, min:130, max:340, dirX:1 });
+  tb.appendChild(grip);
   return tb;
 }
 
@@ -529,9 +569,12 @@ function select(id){
 
 function renderDetail(){
   const box = document.getElementById('detail'); if(!box) return;
+  // Content is written into #detail-body, NOT #detail, so the persistent resize handle
+  // (a sibling of the body) survives every re-render and stays wired.
+  const body = document.getElementById('detail-body'); if(!body) return;
   const n = selected ? pin(selected) : null;
-  if(!n || n.kind!=='pin'){ box.className='detail'; box.innerHTML=''; return; }
-  box.className='detail show';
+  if(!n || n.kind!=='pin'){ box.classList.remove('show'); body.innerHTML=''; return; }
+  box.classList.add('show');
   let lines = [];
   if(n.schedule && n.schedule.atTime) lines.push('Daily at '+n.schedule.atTime+' \\u00b7 '+daysLabel(n.schedule)+(n.schedule.enabled?'':' (paused)'));
   if(n.schedule && n.schedule.everyMs) lines.push('Repeats '+fmtEvery(n.schedule.everyMs));
@@ -544,7 +587,7 @@ function renderDetail(){
   // Pause/Resume mirrors the right-click toggle: a scheduled pin must be resumable
   // from the same strip that shows it is "(paused)", not only from the context menu.
   const toggleBtn = n.schedule ? '<button class="btn" data-act="toggle">'+(n.schedule.enabled?'\\u23F8 Pause':'\\u25B6 Resume')+'</button>' : '';
-  box.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span><button class="dclose" data-act="close" title="Close details" aria-label="Close details">\\u00D7</button></div>'+
+  body.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span><button class="dclose" data-act="close" title="Close details" aria-label="Close details">\\u00D7</button></div>'+
     (lines.length?'<div class="dl">'+esc(lines.join('  \\u2014  '))+'</div>':'<div class="dl">No automation yet.</div>')+
     info+
     '<div class="da">'+
@@ -554,7 +597,7 @@ function renderDetail(){
     '<button class="btn" data-act="triggers">\\u{1F517} Triggers\\u2026</button>'+
     toggleBtn+
     '</div>';
-  box.querySelectorAll('button[data-act]').forEach(btn => btn.onclick = () => act(btn.dataset.act, n.id));
+  body.querySelectorAll('button[data-act]').forEach(btn => btn.onclick = () => act(btn.dataset.act, n.id));
 }
 
 function act(a, id){
@@ -673,6 +716,11 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => setView(t.datas
 document.getElementById('refresh').onclick = () => send({ type:'refresh' });
 document.getElementById('density').onclick = () => setDensity(density === 'comfortable' ? 'compact' : 'comfortable');
 applyDensity();
+applyWidths();
+// The inspector's resize handle is persistent (a sibling of #detail-body that survives
+// re-renders), so it is wired once here. Dragging right shrinks the inspector (dirX -1).
+const detailGrip = document.getElementById('rsz-detail');
+if(detailGrip) attachResizer(detailGrip, { get:()=>detailW, set:w=>{detailW=w;}, min:240, max:560, dirX:-1 });
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if(m.type==='data'){
