@@ -99,6 +99,8 @@ A **Recent** group at the top of the sidebar lists the pins you ran most recentl
 
 Open a file often enough without pinning it and a toast offers to pin it — to the project scope when it is inside a workspace folder, otherwise global. The offer is made at most once per file, and open counts stay on this machine and are never transmitted. Tune or disable it with `saropaWorkspace.suggestions.openThreshold` and `saropaWorkspace.suggestions.enabled`.
 
+Keep an editor tab pinned (right-click the tab, **Pin**) past a threshold — **2 hours** by default — and a toast offers to add that file to your pins, either to the workspace (shareable via the repo) or globally. A manually pinned tab is a strong "this file matters" signal. The elapsed time is tracked on this machine only and never transmitted; a tab pinned before the window opened starts counting from open, so it is never offered on an age that cannot be determined. Each file is offered at most once; **Don't ask again** suppresses it permanently, and **Restore Pinned-Tab Suggestions** brings those back. Tune the wait with `saropaWorkspace.suggestPinnedTab.afterHours`, or turn it off with `saropaWorkspace.suggestPinnedTab.enabled`.
+
 ### 🎯 Run-target inference
 
 When you pin a runnable file, Saropa Workspace offers the right command out of the box: a `package.json`'s **scripts** (run via the package manager detected from your lockfile — npm, pnpm, yarn, or bun), a **Makefile**'s targets (`make <target>`), or **run directly** for a shebang script. The choice becomes a normal, editable run config; a file with no detectable target falls back to the default behavior.
@@ -189,6 +191,8 @@ All settings live under the `saropaWorkspace.*` namespace.
 | `saropaWorkspace.telemetry.enabled` | `true` | Keep a local, on-device run history (the Recent group and palette recents). Never transmitted. |
 | `saropaWorkspace.suggestions.enabled` | `true` | Offer to pin a file you open often but have not pinned. |
 | `saropaWorkspace.suggestions.openThreshold` | `6` | How many opens of an unpinned file trigger the pin suggestion. |
+| `saropaWorkspace.suggestPinnedTab.enabled` | `true` | Offer to add a file to your pins when its editor tab has stayed pinned past the threshold. |
+| `saropaWorkspace.suggestPinnedTab.afterHours` | `2` | How many hours a tab must stay pinned before the suggestion is offered. |
 
 Default `interpreterDefaults` map:
 

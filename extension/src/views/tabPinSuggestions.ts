@@ -210,61 +210,34 @@ export class TabPinSuggester {
     if (!this.enabled()) {
       return;
     }
-    const state = this.readState();
     const current = this.pinnedFileTabs();
-    let changed = false;
-
-    // Reset the clock for any tab no longer pinned (unpinned or closed) so a later
-    // re-pin starts its threshold afresh rather than inheriting a stale stamp.
-    for (const fsPath of Object.keys(state.firstPinnedAt)) {
-      if (!current.has(fsPath)) {
-        delete state.firstPinnedAt[fsPath];
-        changed = true;
-      }
-    }
-
-    const now = Date.now();
     const thresholdMs = this.afterHours() * 60 * 60 * 1000;
-    const toOffer: vscode.Uri[] = [];
-
-    for (const [fsPath, uri] of current) {
-      // A permanent No: never stamp, never offer.
-      if (state.dismissed.includes(fsPath)) {
-        continue;
-      }
-      // Already a Saropa pin (any scope): nothing to suggest. Drop any stamp so it
-      // is not re-evaluated each tick.
-      if (this.isPinned(uri)) {
-        if (state.firstPinnedAt[fsPath] !== undefined) {
-          delete state.firstPinnedAt[fsPath];
-          changed = true;
-        }
-        continue;
-      }
-      // First sighting (incl. the activation snapshot of a pre-existing pin):
-      // stamp now and let the threshold elapse before any prompt.
-      const since = state.firstPinnedAt[fsPath];
-      if (since === undefined) {
-        state.firstPinnedAt[fsPath] = now;
-        changed = true;
-        continue;
-      }
-      if (now - since < thresholdMs) {
-        continue;
-      }
-      if (this.offeredThisSession.has(fsPath)) {
-        continue;
-      }
-      this.offeredThisSession.add(fsPath);
-      toOffer.push(uri);
-    }
+    const { state, changed, toOffer } = reconcileTabPins(
+      this.readState(),
+      new Set(current.keys()),
+      (fsPath) => {
+        const uri = current.get(fsPath);
+        return uri !== undefined && this.isPinned(uri);
+      },
+      Date.now(),
+      thresholdMs
+    );
 
     if (changed) {
       await this.writeState(state);
     }
-    // Offer outside the state-mutation loop; each offer re-reads/writes state so a
-    // dismissal/pin choice persists independently of this tick's stamp write.
-    for (const uri of toOffer) {
+    // Offer outside reconcile; each offer re-reads/writes state so a dismissal/pin
+    // choice persists independently of this tick's stamp write. The per-session
+    // gate suppresses a re-toast for a file already offered this session.
+    for (const fsPath of toOffer) {
+      if (this.offeredThisSession.has(fsPath)) {
+        continue;
+      }
+      const uri = current.get(fsPath);
+      if (!uri) {
+        continue;
+      }
+      this.offeredThisSession.add(fsPath);
       await this.offer(uri);
     }
   }
