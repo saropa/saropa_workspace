@@ -108,19 +108,35 @@ def publish_marketplaces() -> int:
         info(f"  File to upload: {vsix.name}")
         return 6
 
+    # The ovsx CLI only reads the generic OVSX_PAT. Each Saropa extension has its
+    # own Open VSX token, so the durable secret lives in a project-specific env
+    # var; map it into OVSX_PAT here, just before publishing this extension, so
+    # the per-project tokens never collide in the shared OVSX_PAT slot.
+    project_ovsx = os.environ.get("OVSX_PAT_SAROPA_WORKSPACE", "").strip()
+    if project_ovsx and not os.environ.get("OVSX_PAT", "").strip():
+        os.environ["OVSX_PAT"] = project_ovsx
+
     if not os.environ.get("OVSX_PAT", "").strip():
-        _prompt_for_pat(
-            "OVSX_PAT",
+        prompted = _prompt_for_pat(
+            "OVSX_PAT_SAROPA_WORKSPACE",
             "Open VSX",
             "https://open-vsx.org/user-settings/tokens",
-            ["Open VSX is a separate registry; the token is independent of VSCE_PAT."],
+            [
+                "Open VSX is a separate registry; the token is independent of VSCE_PAT.",
+                "Stored per-extension in OVSX_PAT_SAROPA_WORKSPACE; mapped to OVSX_PAT at publish.",
+            ],
         )
+        # _prompt_for_pat sets the project-specific var; map it into the generic
+        # slot the ovsx CLI actually reads.
+        if prompted:
+            os.environ["OVSX_PAT"] = prompted
+
     if os.environ.get("OVSX_PAT", "").strip():
         try:
             run(["npx", "ovsx", "publish", vsix.name], EXTENSION_DIR)
             success("Published to Open VSX.")
         except subprocess.CalledProcessError:
-            warn("Open VSX publish failed (check OVSX_PAT). The Marketplace publish stands.")
+            warn("Open VSX publish failed (check OVSX_PAT_SAROPA_WORKSPACE). The Marketplace publish stands.")
     else:
         info("Skipped Open VSX (no OVSX_PAT).")
     return 0

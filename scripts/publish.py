@@ -39,8 +39,11 @@ notes); extension/package.json is reconciled to it at publish time, with the
 version prompt defaulting to the CHANGELOG version to confirm or overwrite.
 
 Auth comes from the environment the CLIs expect:
-    VSCE_PAT  VS Code Marketplace (vsce publish)
-    OVSX_PAT  Open VSX (ovsx publish)
+    VSCE_PAT                    VS Code Marketplace (vsce publish)
+    OVSX_PAT_SAROPA_WORKSPACE   Open VSX, per-extension token; mapped to the
+                               generic OVSX_PAT (what `ovsx publish` reads) at
+                               publish time so each Saropa extension's token
+                               never collides in the shared slot.
 
 Version:   3.0
 Copyright: (c) 2026 Saropa

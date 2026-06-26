@@ -52,6 +52,9 @@ def ci_fallback() -> int:
     print()
     detail(_c("  2) Publish to the stores (needs VSCE_PAT / OVSX_PAT)", Color.WHITE))
     detail(_c(f"      npx vsce publish --packagePath {name}-{version}.vsix", Color.CYAN))
+    # The raw ovsx CLI reads the generic OVSX_PAT; the per-extension token is
+    # stored in OVSX_PAT_SAROPA_WORKSPACE, so copy it into OVSX_PAT for this run.
+    detail(_c("      $env:OVSX_PAT = $env:OVSX_PAT_SAROPA_WORKSPACE", Color.CYAN))
     detail(_c(f"      npx ovsx publish {name}-{version}.vsix", Color.CYAN))
     detail(_c(f"      Manual upload: {MARKETPLACE_MANAGE_URL}", Color.CYAN))
     print()
