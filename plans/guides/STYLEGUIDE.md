@@ -1,0 +1,239 @@
+# UI Style Guide
+
+The rules every user-facing surface in Saropa Workspace must follow. This guide
+sits beside [`principles.md`](./principles.md) (the standing design constraints)
+and is the concrete checklist for any change that adds or alters a screen, a
+command, a menu item, a toast, a webview, or a user-visible string.
+
+A change that breaks a rule here is not done. When a change exposes a situation
+this guide does not yet cover, the gap is itself the work: add the rule (see
+[Maintaining this guide](#maintaining-this-guide)) in the same change.
+
+Scope: this governs what the user sees. It does not restate the TypeScript,
+testing, or git conventions in [`.claude/rules/`](../../.claude/rules/) — those
+still apply.
+
+---
+
+## 1. Branding and naming
+
+### 1.1 Screens carry the Saropa name
+
+Every **full-screen surface** — a webview panel that opens as an editor tab —
+has a title whose first word is **Saropa**. This applies to all three places the
+title appears, which are driven by one i18n key:
+
+- the editor tab title (the `createWebviewPanel` title argument),
+- the HTML `<title>`,
+- the in-panel `<h1>` heading.
+
+Current screens, for reference:
+
+| i18n key | Screen title |
+| --- | --- |
+| `monitor.panel.title` | **Saropa Dashboard** |
+| `planner.title` | **Saropa Schedule & Workflow Planner** |
+
+When you add a new webview panel, its title key starts with `Saropa `. Do not
+hardcode the prefix at three call sites — set it once in the catalog value and
+reference the key everywhere (single source of truth).
+
+### 1.2 Menu items, buttons, and commands are NOT prefixed for branding
+
+The thing that *opens* a screen, and any button or context-menu action, keeps
+its plain wording. Two reasons it is already branded without a manual prefix:
+
+- Command-palette entries inherit the category `%extension.displayName%`
+  ("Saropa Workspace"), so the palette renders them as
+  *Saropa Workspace: Run Pin…* automatically.
+- Context-menu and view-toolbar actions live under the **Saropa Workspace**
+  view, so their origin is already clear.
+
+So `command.openPlanner.title` stays "Open Schedule & Workflow Planner" — the
+verb and the screen name, no extra prefix. The screen it opens is the surface
+that must read "Saropa Schedule & Workflow Planner". Do not add "Saropa:" to a
+menu item or button to brand it; only screens get the prefix.
+
+(A few command titles do contain "Saropa" because the word is part of the action
+itself — "Copy as Saropa Link", "Pin File" under an explicit `Saropa:` for a
+palette-only command. That is naming the feature, not the branding-prefix rule.)
+
+### 1.3 Product name spelling
+
+The product is **Saropa Workspace**, capital S, capital W. Sibling tools are
+**Saropa Lints**, **Saropa Drift Advisor**, **Saropa Log Capture** — named in
+full on first mention in any surface.
+
+---
+
+## 2. Internationalization (translation-ready at write time)
+
+Every string an end user can read is externalized at the moment it is written —
+never hardcoded, never deferred. There are two catalogs and you pick by where
+the string lives:
+
+| String lives in… | Mechanism | Catalog file |
+| --- | --- | --- |
+| `package.json` (command titles, view names, setting descriptions) | `%key%` NLS placeholder | `extension/package.nls.json` |
+| Code shown at runtime (toasts, panel text, QuickPick labels) | `l10n('key', { token })` | `extension/src/i18n/locales/en.json` |
+
+Rules:
+
+- **No inline English** in code or the manifest. A hardcoded display string ships
+  English in every locale — that is a localization bug at write time.
+- **Interpolate, never concatenate.** Use `{token}` placeholders inside the
+  catalog value (`"Linked {name}."`), not `'Linked ' + name + '.'`. Word order
+  differs across languages; a concatenated string cannot be reordered.
+- **Adding keys is routine.** Needing a new string is never a reason to drop,
+  shrink, or ask-permission-for a feature. Add the key as part of the change, the
+  way you would write a code comment. Do not narrate it.
+- **American English source** (see §6). There is no machine-translation pipeline
+  in this repo; you only author the English source values.
+
+Exempt (leave literal): log/console/debug strings, command/route/event IDs,
+config keys, URLs, CSS, pure symbols and numbers.
+
+**Webview client-script strings are currently inline.** A webview's injected
+client script (e.g. `PLANNER_SCRIPT` in `plannerScript.ts`) runs in the browser
+context and cannot call `l10n`, which imports the catalog and runs in the
+extension host. So display strings authored *inside* that script — view-tab
+labels, button captions, empty states, in-canvas hints — are written inline in
+American English, matching the rest of the script. Strings rendered host-side
+(the panel title, `showInformationMessage` toasts) still go through `l10n`.
+Localizing the client script requires a host→webview string bridge (inject a
+keyed string map into the page at render time, look it up in the script); until
+that bridge exists, keep client-script strings inline and consistent with their
+neighbors rather than half-externalizing.
+
+---
+
+## 3. Native-first surfaces
+
+Default to VS Code's own surfaces; a webview must earn its place. (Full rationale
+in [`principles.md`](./principles.md).)
+
+- **Reach for native first:** tree view, QuickPick, input box, `ThemeIcon`
+  product icons, markdown preview, the integrated terminal. They are theme-aware,
+  accessible, and free.
+- **A custom webview is the exception** — justified only when a native surface
+  genuinely cannot do the job (a live chart, a sparkline trend, a sortable
+  multi-column grid).
+- **Every webview is local-only:** a strict Content-Security-Policy with a
+  per-load nonce, no external script or CDN, no network of any kind.
+- **Theme the webview with `--vscode-*` CSS variables** so it tracks the active
+  color theme. Never hardcode a hex where a VS Code theme variable exists.
+- **A type-to-search QuickPick whose labels are codes or jargon carries a synonym
+  list.** When a row's label is a terse identifier (a codicon id, an enum value,
+  a short code) the user won't always know the exact word, so put a keyword list
+  in the item's `description` and enable `matchOnDescription: true` — the synonyms
+  are then both visible beside the label and matched as the user types. Keep the
+  synonyms in the catalog (e.g. `appearance.iconKeyword.<id>`), not inline, so
+  they stay externalized. One synonym may name several rows; that overlap is
+  intended, not a bug.
+
+---
+
+## 4. Feedback and acknowledgment
+
+### 4.1 No silent async
+
+Every action that runs file, terminal, network, or state work emits a visible
+outcome. Silence after a click reads as a frozen app. Acceptable acknowledgments:
+
+- a toast (`window.showInformationMessage` / `showWarningMessage` /
+  `showErrorMessage`), the default;
+- a new surface opening (a panel, a QuickPick, an input box);
+- a visible state change in the tree (a row re-icons, a count updates, the list
+  reorders).
+
+A silent return to the same surface is **not** acknowledgment.
+
+Background and scheduled runs always surface an outcome — a toast and/or the
+output channel. Terminal and external-window runs that cannot be tracked to an
+exit code report only on start, and that limitation is stated, not hidden.
+
+### 4.2 Name the item acted on, carry the concrete value
+
+A confirmation the user cannot tie to a specific item is noise. Surfaces name the
+exact pin, file, count, or value they acted on — never a generic message.
+
+- Good: *"Linked `regen-types`. It will auto-run when `schema.graphql` changes."*
+- Bad: *"Pin linked."*
+
+Pair the message with the matching semantic icon for the action or entity where a
+surface supports one. When choosing between a terse-but-vague message and a
+slightly longer specific one, pick specific.
+
+### 4.3 Surface failures, never swallow them
+
+A rejected promise behind a command emits a visible error
+(`window.showErrorMessage` or an output-channel line for background work). Never
+catch-and-ignore. Where the failure output names a fix, offer it as a toast
+action rather than making the user copy it out.
+
+### 4.4 Offer the helpful next step, gated to once
+
+When state implies a likely next action the user has not taken, offer it via a
+toast-with-action or a one-tap dialog — and gate it on a per-feature
+"done / offered / dismissed" flag so it never reappears unsolicited. The gate is
+the rule; never nag.
+
+---
+
+## 5. Voice and tone
+
+The app speaks **to** the user, never as a company and never in the user's voice.
+
+- **Second person** for instructions and toggle labels: *"Add a birthday"*,
+  *"Show suggestions to fix mistakes"*.
+- **Third person about the product** for behavior: *"Saropa Workspace seeds
+  demo pins on first install."*
+- **Banned both ways:** corporate plural (*"We'll find…"*, *"our picks"*) **and**
+  user-voice singular (*"Remind me…"*, *"my pins"*). A toggle is a second-person
+  command (*"Show suggestions…"*), not *"Prompt me…"*.
+- **Tell the user what to do next** when the action needs follow-through:
+  *"Restart your dev server to apply the new values."*
+
+---
+
+## 6. American English (hard rule)
+
+All output — code, comments, commits, docs, and every user-facing string — uses
+American English: color, favorite, behavior, center, gray, organize, license,
+catalog, dialog. The `scripts/hooks/spelling_guard.py` PostToolUse hook enforces
+this at write time and blocks the commit on a British spelling; do not rely on
+it as a substitute for writing it right.
+
+---
+
+## 7. Design quality bar
+
+- **Use the design system — never hardcode what a token defines.** Pull color,
+  spacing, and type from VS Code theme variables (`--vscode-*`) in webviews and
+  from `ThemeIcon` / `ThemeColor` in native surfaces. A raw hex or magic px where
+  a token exists is a defect.
+- **Consistency with the surrounding editor beats novelty.** Match VS Code's
+  spacing density, corner treatment, and iconography. A surface that ignores the
+  editor's visual language reads as broken even when it is technically correct.
+- **No embellishment for novelty** — no shimmer, rainbow color, or "premium"
+  treatment that was not asked for. Write the simplest version that does the job.
+- **Verify before declaring done:** the tokens resolve, dark and light themes
+  both render, nothing overflows at narrow and wide widths, and contrast meets
+  WCAG AA.
+
+---
+
+## Maintaining this guide
+
+This guide is a living document, not a fixed plan. Two triggers add to it:
+
+1. **A change introduces a new pattern** (a new screen type, a new feedback
+   surface, a new naming decision). Capture the decision here in the same change,
+   so the next author inherits it instead of re-deciding.
+2. **A developer asks for something that an existing rule would break, or that no
+   rule yet covers.** Before building, check this guide. If a rule is broken, say
+   so and reconcile it with the request before writing code. If no rule covers
+   it, decide the right convention, apply it, and write it down here.
+
+When a rule changes, update the affected surfaces to match — do not leave the
+guide describing a state the code no longer reflects.

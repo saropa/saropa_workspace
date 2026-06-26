@@ -19,10 +19,13 @@ let view = STATE0.view || 'week';
 // keeps the chosen density.
 let density = STATE0.density === 'comfortable' ? 'comfortable' : 'compact';
 let hourH = density === 'comfortable' ? 60 : 30;
+// Whether the Workflow tab's "unlinked pins" shelf is expanded. Default open so the
+// pins you can wire are visible the first time; the choice is remembered.
+let shelfOpen = STATE0.shelfOpen !== false;
 let selected = null;
 let nowMin = 0;
 
-function saveState(){ vscode.setState({ view, density }); }
+function saveState(){ vscode.setState({ view, density, shelfOpen }); }
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -188,7 +191,44 @@ function attachBlockDrag(b, n, day){
 // ---- Workflow graph ---------------------------------------------------
 function renderWorkflow(){
   const wrap = el('div','wf');
-  // toolbox
+  wrap.appendChild(renderToolbox());
+
+  // Right column: a persistent how-to band, the chain canvas, then the shelf of
+  // not-yet-wired pins. Splitting the unlinked pins out of the canvas is what keeps
+  // the graph short and legible — only pins that take part in a chain or event live
+  // on the canvas; everything else waits on the shelf until you wire it.
+  const right = el('div','wf-right');
+  right.appendChild(renderHowto());
+
+  const cw = el('div','canvas-wrap');
+  const canvas = el('div','canvas'); canvas.id = 'canvas';
+  layout();
+  const visibleNodes = workflowNodes();
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const edges = document.createElementNS(svgNS,'svg'); edges.setAttribute('class','edges');
+  edges.innerHTML = '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/></marker></defs>';
+  canvas.appendChild(edges);
+  if(visibleNodes.length){
+    visibleNodes.forEach(n => canvas.appendChild(wfNode(n)));
+  } else {
+    // No chains yet: teach the gesture in place instead of showing a blank canvas.
+    canvas.appendChild(emptyState('No chained pins yet','Drag a pin up from the shelf below onto another to run them in sequence, or drag an event from the Toolbox onto a pin.'));
+  }
+  fitCanvasHeight(canvas, visibleNodes);
+  cw.appendChild(canvas);
+  const ll = document.createElementNS(svgNS,'svg'); ll.setAttribute('class','linkline'); ll.id='linkline'; canvas.appendChild(ll);
+  wireCanvasDnd(cw);
+  right.appendChild(cw);
+
+  right.appendChild(renderShelf());
+  wrap.appendChild(right);
+
+  // Draw edges after layout in the next frame (node positions are set by then).
+  requestAnimationFrame(drawEdges);
+  return wrap;
+}
+
+function renderToolbox(){
   const tb = el('div','toolbox');
   tb.innerHTML = '<h3>Toolbox</h3>';
   [['build','Build done'],['publish','Publish done'],['gitCommit','Git commit'],['gitPush','Git push']].forEach(([ev,lab]) => {
@@ -197,50 +237,134 @@ function renderWorkflow(){
     t.ondragstart = (e) => { e.dataTransfer.setData('text/event', ev); e.dataTransfer.effectAllowed='copy'; };
     tb.appendChild(t);
   });
-  tb.insertAdjacentHTML('beforeend','<div class="hint">Drag an event onto a pin to run it after that event.<br><br>Hover a pin and drag its \\u25C9 handle onto another pin to chain them.<br><br>Right-click the canvas to search and add a link.</div>');
-  wrap.appendChild(tb);
+  tb.insertAdjacentHTML('beforeend','<div class="hint">Drag an event onto a pin to run that pin after the event fires.</div>');
+  return tb;
+}
 
-  // canvas
-  const cw = el('div','canvas-wrap');
-  const canvas = el('div','canvas'); canvas.id = 'canvas';
-  layout();
-  const visibleNodes = workflowNodes();
-  // edges svg
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const edges = document.createElementNS(svgNS,'svg'); edges.setAttribute('class','edges');
-  edges.innerHTML = '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/></marker></defs>';
-  canvas.appendChild(edges);
-  // nodes
-  visibleNodes.forEach(n => canvas.appendChild(wfNode(n)));
-  cw.appendChild(canvas);
-  // link overlay
-  const ll = document.createElementNS(svgNS,'svg'); ll.setAttribute('class','linkline'); ll.id='linkline'; canvas.appendChild(ll);
-  wrap.appendChild(cw);
+// The always-visible usage strip — the toolbox hint and the right-click link builder
+// were both easy to miss, so the core gestures live here above the canvas with a
+// visible Add link button (opens the same searchable builder as the right-click) and
+// an Auto-arrange button that re-lays the chains into tidy left-to-right columns.
+function renderHowto(){
+  const band = el('div','wf-howto');
+  band.innerHTML =
+    '<span class="steps">'+
+    '<span><b>Drag a pin</b> from the shelf onto a step to chain it</span>'+
+    '<span>\\u00b7 <b>drag an event</b> onto a pin</span>'+
+    '<span>\\u00b7 or use <b>Add link</b> to search any two pins</span>'+
+    '</span><span class="spacer"></span>';
+  // Add link surfaces the otherwise-hidden link builder (also on canvas right-click):
+  // open it anchored just under the button so the search box appears where the eye is.
+  const link = el('button','btn primary'); link.title = 'Search pins and add a link';
+  link.innerHTML = '\\u{1F517} Add link\\u2026';
+  link.onclick = (e) => { const r = e.currentTarget.getBoundingClientRect(); openAutocomplete(r.left, r.bottom + 4, null); };
+  band.appendChild(link);
+  const tidy = el('button','btn'); tidy.title = 'Auto-arrange the chains';
+  tidy.innerHTML = '\\u2727 Auto-arrange';
+  tidy.onclick = autoArrange;
+  band.appendChild(tidy);
+  return band;
+}
 
-  // wire DnD drop of toolbox events onto canvas/nodes
+function wireCanvasDnd(cw){
   cw.ondragover = (e) => { e.preventDefault(); cw.classList.add('droptarget'); };
   cw.ondragleave = () => cw.classList.remove('droptarget');
   cw.ondrop = (e) => {
     e.preventDefault(); cw.classList.remove('droptarget');
-    const ev = e.dataTransfer.getData('text/event'); if(!ev) return;
+    const ev = e.dataTransfer.getData('text/event');
+    const pinId = e.dataTransfer.getData('text/pinId');
     const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.node');
-    if(target && target.dataset.kind==='pin'){ send({ type:'addTrigger', to: target.dataset.id, kind:'event', event: ev }); }
-    else { flash('Drop the event onto a pin to chain it.'); }
+    // A toolbox event dropped on a pin makes that pin run after the event.
+    if(ev){
+      if(target && target.dataset.kind==='pin'){ send({ type:'addTrigger', to: target.dataset.id, kind:'event', event: ev }); }
+      else { flash('Drop the event onto a pin to chain it.'); }
+      return;
+    }
+    // A shelf pin dropped on a canvas step runs AFTER that step: the dropped pin gets a
+    // trigger pointing at the step it landed on. Wiring it is what moves it onto the
+    // canvas (it now has an edge), so the shelf only ever holds un-wired pins.
+    if(pinId){
+      if(target && target.dataset.kind==='pin' && target.dataset.id!==pinId){
+        send({ type:'addTrigger', to: pinId, kind:'pin', from: target.dataset.id });
+      } else {
+        flash('Drop the pin onto a step to run it after that step.');
+      }
+    }
   };
   cw.oncontextmenu = (e) => {
     if(e.target.closest('.node')) return; // node menu handles its own
     e.preventDefault(); openAutocomplete(e.clientX, e.clientY, null);
   };
-  // draw edges after layout in next frame (positions are set)
-  requestAnimationFrame(drawEdges);
-  return wrap;
 }
 
+// Canvas nodes = pins that take part in at least one edge (chain or event link), plus
+// the synthetic event nodes that are actually wired. Everything else is shelf-bound.
+function linkedPinIds(){
+  const s = new Set();
+  DATA.edges.forEach(e => { s.add(e.from); s.add(e.to); });
+  return s;
+}
 function workflowNodes(){
-  // pins always shown; event nodes shown only when some pin triggers on them
+  const linked = linkedPinIds();
   const usedEvents = new Set();
   DATA.edges.forEach(e => { if(e.kind==='event') usedEvents.add(e.from); });
-  return DATA.nodes.filter(n => n.kind==='pin' || usedEvents.has(n.id));
+  return DATA.nodes.filter(n =>
+    (n.kind==='pin' && linked.has(n.id)) || (n.kind==='event' && usedEvents.has(n.id))
+  );
+}
+function shelfPins(){
+  const linked = linkedPinIds();
+  return DATA.nodes.filter(n => n.kind==='pin' && !linked.has(n.id));
+}
+
+// The shelf: every pin not yet part of a chain, packed as a dense wrapped grid of
+// chips instead of a single tall column. Drag a chip onto a canvas step to wire it,
+// click to inspect, right-click for the same menu the canvas nodes use. Collapsible,
+// and that choice is remembered with the view.
+function renderShelf(){
+  const pins = shelfPins().slice().sort((a,b)=> a.label.localeCompare(b.label));
+  const box = el('div','shelf'+(shelfOpen?'':' collapsed'));
+  const head = el('div','shelf-head');
+  head.innerHTML =
+    '<span class="chev">\\u25BE</span>'+
+    '<span class="sh-t">Unlinked pins</span>'+
+    '<span class="sh-c">'+pins.length+'</span>'+
+    '<span class="sh-hint">drag onto a step to chain</span>';
+  head.onclick = () => { shelfOpen = !shelfOpen; saveState(); box.classList.toggle('collapsed', !shelfOpen); };
+  box.appendChild(head);
+
+  const grid = el('div','shelf-grid');
+  if(!pins.length){
+    const e = el('div','shelf-empty'); e.textContent = 'Every pin is wired into the workflow.'; grid.appendChild(e);
+  }
+  pins.forEach(n => {
+    const chip = el('div','shelf-pin'+(selected===n.id?' sel':'')); chip.draggable = true; chip.dataset.id = n.id;
+    const clock = (n.schedule && (n.schedule.atTime||n.schedule.everyMs)) ? '<span class="sclock">\\u{1F551}</span>' : '';
+    chip.innerHTML = '<span class="si">'+nodeIcon(n)+'</span><span class="sl">'+esc(n.label)+'</span>'+clock;
+    chip.ondragstart = (e) => { e.dataTransfer.setData('text/pinId', n.id); e.dataTransfer.effectAllowed='copy'; };
+    chip.onclick = () => select(n.id);
+    chip.oncontextmenu = (e) => { e.preventDefault(); openNodeMenu(e, n); };
+    grid.appendChild(chip);
+  });
+  box.appendChild(grid);
+  return box;
+}
+
+// Size the canvas to its content so there is no dead scroll space below the chains
+// (and no hidden nodes above a fixed cap). With the unlinked pins gone to the shelf,
+// the chained set is small, so this usually removes the scroll entirely.
+function fitCanvasHeight(canvas, nodes){
+  let maxB = 0;
+  nodes.forEach(n => { const p = POS[n.id]; if(p) maxB = Math.max(maxB, p.y + 120); });
+  canvas.style.height = Math.max(420, maxB + 40) + 'px';
+}
+
+// Re-lay every canvas node into the default layered columns and persist it.
+function autoArrange(){
+  workflowNodes().forEach(n => { delete POS[n.id]; });
+  layout();
+  send({ type:'savePositions', positions: POS });
+  renderStage();
 }
 
 function wfNode(n){
@@ -373,6 +497,7 @@ function select(id){
   document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel', n.dataset.id===id));
   document.querySelectorAll('.block').forEach(b=>b.classList.toggle('sel', b.dataset.id===id));
   document.querySelectorAll('.marker').forEach(m=>m.classList.toggle('sel', m.dataset.id===id));
+  document.querySelectorAll('.shelf-pin').forEach(s=>s.classList.toggle('sel', s.dataset.id===id));
   if(view==='workflow') drawEdges();
   renderDetail();
   if(selected && view!=='workflow'){
@@ -392,13 +517,21 @@ function renderDetail(){
   const ins = DATA.edges.filter(e=>e.to===n.id).map(e=> e.kind==='event'? ('after '+(EVENT_ICON[pin(e.from)?.event]||'')+' '+(pin(e.from)?.label||e.from)) : ('after '+(pin(e.from)?.label||e.from)));
   if(ins.length) lines.push('Runs '+ins.join(', '));
   if(n.emits && n.emits.length) lines.push('Emits '+n.emits.join(', '));
+  // The recipe's own prose, shown as an INFO tip so a seeded/paused recipe explains
+  // what it does in place — without making the user open the source to find out.
+  const info = n.description ? '<div class="dinfo"><span class="ii">\\u2139\\uFE0F</span><span>'+esc(n.description)+'</span></div>' : '';
+  // Pause/Resume mirrors the right-click toggle: a scheduled pin must be resumable
+  // from the same strip that shows it is "(paused)", not only from the context menu.
+  const toggleBtn = n.schedule ? '<button class="btn" data-act="toggle">'+(n.schedule.enabled?'\\u23F8 Pause':'\\u25B6 Resume')+'</button>' : '';
   box.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span></div>'+
     (lines.length?'<div class="dl">'+esc(lines.join('  \\u2014  '))+'</div>':'<div class="dl">No automation yet.</div>')+
+    info+
     '<div class="da">'+
     '<button class="btn primary" data-act="run">\\u25B6 Run now</button>'+
     (n.runnable===false?'':'<button class="btn" data-act="open">Open</button>')+
     '<button class="btn" data-act="schedule">\\u{1F551} Schedule\\u2026</button>'+
     '<button class="btn" data-act="triggers">\\u{1F517} Triggers\\u2026</button>'+
+    toggleBtn+
     '</div>';
   box.querySelectorAll('button[data-act]').forEach(btn => btn.onclick = () => act(btn.dataset.act, n.id));
 }

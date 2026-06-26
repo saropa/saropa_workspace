@@ -13,12 +13,20 @@ import * as vscode from "vscode";
 
 export type RunSource = "manual" | "scheduled";
 
-// One recorded run. `at` is epoch ms; `source` distinguishes a user-triggered run
-// from an unattended scheduled fire (shown as a hint in the Recent group).
+// One recorded entry of the Recent list. `at` is epoch ms; `source` distinguishes
+// a user-triggered run from an unattended scheduled fire (shown as a hint in the
+// Recent group).
+//
+// `kind` separates a RUN (double-click / play / scheduled fire, which also bumps
+// the lifetime run count) from a plain OPEN (single-click file open — recency
+// only, no run-count bump, so opening a file never inflates the run analytics).
+// Optional for back-compat: records persisted before opens were tracked carry no
+// `kind` and are read as runs.
 export interface RunRecord {
   pinId: string;
   at: number;
   source: RunSource;
+  kind?: "run" | "opened";
 }
 
 interface TelemetryData {
@@ -92,10 +100,40 @@ class Telemetry {
     const data = this.read();
     const at = Date.now();
     data.recent = [
-      { pinId, at, source },
+      { pinId, at, source, kind: "run" as const },
       ...data.recent.filter((r) => r.pinId !== pinId),
     ].slice(0, MAX_RECENT);
     data.counts[pinId] = (data.counts[pinId] ?? 0) + 1;
+    await this.write(data);
+    this._onDidChange.fire();
+  }
+
+  // Record a pin OPEN (single-click file open). Lands the pin at the front of the
+  // Recent list so a just-opened file is one click from re-opening, WITHOUT
+  // touching `counts`: an open is not a run, so it must never inflate the lifetime
+  // run total or the "most-run" ranking. De-duplicated by pinId like record(), and
+  // gated on enabled() so a disabled user records nothing. `source` is "manual"
+  // (an open is always user-driven); the "opened" kind is what the Recent row reads
+  // to tag it, so source is not consulted for an open entry.
+  async recordOpen(pinId: string): Promise<void> {
+    if (!this.context || !this.enabled()) {
+      return;
+    }
+    const data = this.read();
+    // Already the most-recent open: re-recording would only rewrite the same front
+    // row and fire a needless tree repaint. A single pin click both opens the file
+    // (this) and fires the editor-focus listener (which also records the open), and
+    // switching back to an already-front file repeats it — collapse all of those to
+    // a no-op so the steady state does not thrash globalState or the tree.
+    const front = data.recent[0];
+    if (front && front.pinId === pinId && front.kind === "opened") {
+      return;
+    }
+    const at = Date.now();
+    data.recent = [
+      { pinId, at, source: "manual" as const, kind: "opened" as const },
+      ...data.recent.filter((r) => r.pinId !== pinId),
+    ].slice(0, MAX_RECENT);
     await this.write(data);
     this._onDidChange.fire();
   }
@@ -152,7 +190,7 @@ class Telemetry {
       const counts: Record<string, number> = { ...existing.counts };
       const recent: RunRecord[] = legacy.slice(0, MAX_RECENT).map((pinId, i) => {
         counts[pinId] = (counts[pinId] ?? 0) + 1;
-        return { pinId, at: now - i * 1000, source: "manual" as const };
+        return { pinId, at: now - i * 1000, source: "manual" as const, kind: "run" as const };
       });
       void this.write({ recent, counts });
     }

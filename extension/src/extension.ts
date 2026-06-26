@@ -38,6 +38,7 @@ import {
   maybeOfferFavoritesImport,
   registerFavoritesImportWatchers,
   syncPinnedPathContext,
+  wireRecentEditorTracking,
 } from "./activation/activationHelpers";
 import {
   setupSecondaryViews,
@@ -147,6 +148,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const scheduler = wireBackgroundEngines(context, store);
 
   wireWatchers(context, store, branchSetBinder);
+  // Track editor focus/close so a pinned file opened or closed by any means (not
+  // just a pin click) lands in Recent and clears from the untapped badge.
+  wireRecentEditorTracking(context, store);
   await store.init();
   // Set the initial pinned-path context keys explicitly in case the init-time
   // onDidChange fired before the subscription above was attached.

@@ -16,6 +16,7 @@ import {
   formatRunTooltip,
   formatDiagTooltip,
   formatTestTooltip,
+  recentTag,
 } from "./pinRowFormatting";
 import { l10n } from "../i18n/l10n";
 
@@ -39,7 +40,7 @@ const SEPARATOR_LABEL = "─".repeat(40);
 // `recentInfo` renders the pin as an entry of the Recent group (local telemetry):
 // it gives the node a distinct id namespace (so the same pin can appear both in
 // its home scope and under Recent without an id collision) and shows when it last
-// ran instead of the schedule/last-run badge.
+// ran or was opened (tagged by kind) instead of the schedule/last-run badge.
 export class PinTreeItem extends vscode.TreeItem {
   // True when this node is a Recent-group entry; excluded from drag/drop so a
   // recent listing is read-only (the underlying pin is reordered from its home).
@@ -51,7 +52,7 @@ export class PinTreeItem extends vscode.TreeItem {
     isRunning: boolean,
     lastRun?: RunResult,
     isStopping = false,
-    recentInfo?: { at: number; source: RunSource },
+    recentInfo?: { at: number; source: RunSource; kind?: "run" | "opened" },
     // True when this file pin's target no longer exists on disk (computed by the
     // store's stat pass). Drives the warning glyph + "file not found" hover; the
     // open/run handlers re-stat at click time before acting on it.
@@ -196,8 +197,10 @@ export class PinTreeItem extends vscode.TreeItem {
         : undefined;
     if (recentInfo) {
       const when = formatRelativeTime(recentInfo.at, Date.now());
-      const tag =
-        recentInfo.source === "scheduled" ? ` ${l10n("recent.scheduledTag")}` : "";
+      // Tag a Recent entry as opened vs a scheduled fire (a plain manual run gets no
+      // tag), via the shared formatter so the sidebar, dashboard, and report agree.
+      const tagToken = recentTag(recentInfo);
+      const tag = tagToken ? ` ${tagToken}` : "";
       // A masked pin's detail is hidden, so a Recent entry shows only when it ran,
       // never the path — `detail` is undefined under mask.
       this.description = detail ? `${when}${tag} · ${detail}` : `${when}${tag}`;

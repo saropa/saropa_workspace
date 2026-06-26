@@ -265,12 +265,19 @@ async function showHub(
     { act: "done", label: l10n("boot.done") }
   );
 
-  // Separators are non-selectable, so showQuickPick only ever returns a HubItem.
-  const pick = (await vscode.window.showQuickPick(rows as HubItem[], {
+  // Separators are non-selectable, so the picker only ever returns a HubItem.
+  // Restore focus to the last-acted row (matched by act + pinId for a member step).
+  const items = rows as HubItem[];
+  const active = activeKey
+    ? items.find(
+        (row) => row.act === activeKey.act && row.pinId === activeKey.pinId
+      )
+    : undefined;
+  const pick = await showHubQuickPick(items, {
     title: l10n("boot.configure.title"),
-    placeHolder: l10n("boot.configure.placeholder"),
-    ignoreFocusOut: true,
-  })) as HubItem | undefined;
+    placeholder: l10n("boot.configure.placeholder"),
+    active,
+  });
   if (!pick) {
     return undefined;
   }

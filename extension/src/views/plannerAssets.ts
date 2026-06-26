@@ -203,6 +203,41 @@ button.btn.icon { padding: 5px 8px; }
 .tool:active { cursor: grabbing; }
 .tool .ti { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; flex: 0 0 auto; background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); font-size: 13px; }
 .toolbox .hint { font-size: .76em; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+/* Workflow right column: how-to band, canvas, unlinked-pin shelf ---------- */
+.wf-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.wf-howto {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--muted); font-size: .82em;
+}
+.wf-howto .steps { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.wf-howto .steps b { color: var(--vscode-foreground); font-weight: 600; }
+.wf-howto .spacer { flex: 1; min-width: 8px; }
+
+.shelf { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.shelf-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; user-select: none; }
+.shelf-head .chev { color: var(--muted); transition: transform var(--dur); font-size: .9em; }
+.shelf.collapsed .shelf-head .chev { transform: rotate(-90deg); }
+.shelf-head .sh-t { font-size: .8em; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
+.shelf-head .sh-c { font-size: .78em; color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); border-radius: var(--radius-pill); padding: 0 8px; font-variant-numeric: tabular-nums; }
+.shelf-head .sh-hint { margin-left: auto; font-size: .78em; color: var(--muted); }
+.shelf-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 12px 12px; max-height: 220px; overflow-y: auto; }
+.shelf.collapsed .shelf-grid { display: none; }
+.shelf-empty { padding: 8px 0; color: var(--muted); font-size: .85em; }
+.shelf-pin {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 230px;
+  padding: 6px 11px; border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: var(--surface-3); cursor: grab; font-size: .84em;
+  transition: border-color var(--dur), transform var(--dur), box-shadow var(--dur);
+}
+.shelf-pin:hover { border-color: var(--brand); transform: translateY(-1px); }
+.shelf-pin:active { cursor: grabbing; }
+.shelf-pin.sel { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-glow); }
+.shelf-pin .si { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; flex: 0 0 auto; background: var(--surface-1); font-size: 11px; }
+.shelf-pin .sl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shelf-pin .sclock { color: var(--brand); flex: 0 0 auto; font-size: .9em; }
+
 .canvas-wrap { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); overflow: hidden; }
 .canvas-wrap.droptarget { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
 .canvas { position: relative; width: 100%; height: 560px; overflow: auto; }
@@ -271,12 +306,20 @@ button.btn.icon { padding: 5px 8px; }
 .ac .none { padding: 10px 11px; color: var(--muted); font-size: .86em; }
 
 /* Detail strip ---------------------------------------------------------- */
-.detail { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: none; }
+/* The detail strip is sticky to the panel's bottom edge so a selected item's info and
+   actions stay in view instead of being buried below the full-height Day/Week grid —
+   the elevated background + shadow lift it clear of the grid scrolling behind it. */
+.detail { position: sticky; bottom: 0; z-index: 40; margin-top: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: none; box-shadow: 0 -6px 18px rgba(0,0,0,.28); }
 .detail.show { display: block; animation: rise 160ms var(--ease); }
 .detail .dh { display: flex; align-items: center; gap: 10px; }
 .detail .dh .dt { font-weight: 600; }
 .detail .da { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .detail .dl { color: var(--muted); font-size: .88em; margin-top: 6px; }
+/* INFO tip: the recipe's own description (what it does + what it was detected from),
+   surfaced here so a paused/seeded recipe explains itself in place instead of being an
+   unlabeled timer the user has to open the source to understand. */
+.detail .dinfo { display: flex; gap: 8px; margin-top: 10px; padding: 8px 10px; background: var(--surface-3); border-left: 2px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--muted); font-size: .85em; line-height: 1.45; }
+.detail .dinfo .ii { flex: 0 0 auto; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }

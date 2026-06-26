@@ -828,12 +828,8 @@
           "group": "1_add@1"
         },
         {
-          "command": "saropaWorkspace.newScratchpad",
-          "group": "1_add@2"
-        },
-        {
           "command": "saropaWorkspace.pinExternalFile",
-          "group": "1_add@3"
+          "group": "1_add@2"
         },
         {
           "command": "saropaWorkspace.addComment",
@@ -845,6 +841,10 @@
         }
       ],
       "saropaWorkspace.layoutSubmenu": [
+        {
+          "command": "saropaWorkspace.newScratchpad",
+          "group": "0_new@1"
+        },
         {
           "command": "saropaWorkspace.saveLayout",
           "group": "1_layout@1"

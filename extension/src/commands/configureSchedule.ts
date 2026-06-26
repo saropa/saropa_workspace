@@ -1,33 +1,32 @@
 import * as vscode from "vscode";
-import { Pin, PinSchedule } from "../model/pin";
+import { Pin } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { parseHourMinute, parseCron } from "../exec/schedule";
 import { showHubQuickPick } from "./hubQuickPick";
+import {
+  WorkSchedule,
+  workFromSchedule,
+  normalizeWork,
+  applyAutoEnable,
+} from "./scheduleModel";
 import { l10n } from "../i18n/l10n";
 
-// Roadmap 2.2 — schedule editor UI.
+// Roadmap 2.2 — schedule editor UI (keyboard-only QuickPick variant).
 //
 // A hub-and-spoke QuickPick to set a pin's daily time (atTime), repeating
-// interval (everyMs), and enabled flag without hand-editing JSON. Editing
-// through this flow refreshes the store, which re-arms the scheduler's timers, so
-// enabling/disabling a schedule takes effect without a reload (acceptance 2.2).
+// interval (everyMs), and enabled flag without hand-editing JSON. The default
+// "Configure Schedule..." opens the richer webview form (views/scheduleEditorPanel);
+// this stays reachable as "Configure Schedule (Quick)..." for a fast keyboard-only
+// edit. Both share the schedule model in scheduleModel.ts, so they normalize and
+// auto-enable identically. Editing through this flow refreshes the store, which
+// re-arms the scheduler's timers, so enabling/disabling takes effect without a
+// reload (acceptance 2.2).
 //
 // Edits accumulate in a working copy; nothing is persisted until Save. Esc at the
 // hub discards them.
 
 interface HubItem extends vscode.QuickPickItem {
   id: "atTime" | "days" | "interval" | "cron" | "runOnStartup" | "enabled" | "save";
-}
-
-// Working shape: enabled is always present; the timing fields are optional.
-interface WorkSchedule {
-  atTime?: string;
-  days?: number[];
-  everyMs?: number;
-  cron?: string;
-  runOnStartup?: boolean;
-  enabled: boolean;
-  lastRun?: number;
 }
 
 export async function configureSchedule(store: PinStore, pin: Pin): Promise<void> {
@@ -41,16 +40,7 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
   const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
   const title = l10n("schedule.title", { name });
 
-  const work: WorkSchedule = {
-    atTime: pin.schedule?.atTime,
-    days: pin.schedule?.days ? [...pin.schedule.days] : undefined,
-    everyMs: pin.schedule?.everyMs,
-    cron: pin.schedule?.cron,
-    runOnStartup: pin.schedule?.runOnStartup,
-    enabled: pin.schedule?.enabled ?? true,
-    // Preserve the prior fire stamp so reopen de-dup survives an edit.
-    lastRun: pin.schedule?.lastRun,
-  };
+  const work: WorkSchedule = workFromSchedule(pin.schedule);
 
   // Remember the row the user last acted on so each re-render of the hub restores
   // focus to it. Without this, editing a field or flipping a toggle bounced the
@@ -93,63 +83,15 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
         enabledTouched = true;
         break;
     }
-    autoEnable(work, enabledTouched);
+    applyAutoEnable(work, enabledTouched);
   }
 
   // Catch the no-edit case too: opening a stored-but-disabled schedule and saving
   // straight away should still turn it on, since having a time set means "run it".
-  autoEnable(work, enabledTouched);
+  applyAutoEnable(work, enabledTouched);
 
-  await store.updatePinSchedule(pin, normalize(work));
+  await store.updatePinSchedule(pin, normalizeWork(work));
   vscode.window.showInformationMessage(l10n("schedule.saved", { name }));
-}
-
-// Whether the working schedule carries any timing source (a daily time, an
-// interval, a cron, or run-on-startup). An enabled flag with no timing arms
-// nothing, so "has timing" is the precondition for auto-enabling.
-function hasTiming(work: WorkSchedule): boolean {
-  return (
-    !!work.atTime ||
-    work.everyMs !== undefined ||
-    !!work.cron ||
-    !!work.runOnStartup
-  );
-}
-
-// Auto-enable a schedule the moment it has timing: a user who sets a daily time
-// or an interval means "run this," so they should not also have to flip Enabled.
-// Suppressed once the user has used the Enabled toggle themselves, so a deliberate
-// disable stands. Visible immediately because the hub re-renders after each edit.
-function autoEnable(work: WorkSchedule, enabledTouched: boolean): void {
-  if (!enabledTouched && !work.enabled && hasTiming(work)) {
-    work.enabled = true;
-  }
-}
-
-// A schedule with no timing source would arm no timer and react to nothing;
-// collapse it to undefined so the pin reads as "not scheduled" rather than
-// carrying an inert object. runOnStartup is itself a timing source (fires on
-// workspace open), so a startup-only schedule is kept.
-function normalize(work: WorkSchedule): PinSchedule | undefined {
-  if (!work.atTime && work.everyMs === undefined && !work.cron && !work.runOnStartup) {
-    return undefined;
-  }
-  return {
-    atTime: work.atTime,
-    // Days only qualify a daily time; drop them when there is no atTime, and drop an
-    // empty/all-7 selection (both mean "every day") so the stored shape is minimal.
-    days:
-      work.atTime && work.days && work.days.length > 0 && work.days.length < 7
-        ? [...work.days].sort((a, b) => a - b)
-        : undefined,
-    everyMs: work.everyMs,
-    cron: work.cron,
-    // Store the flag only when on, so a pin that was never a startup pin carries
-    // no inert false.
-    runOnStartup: work.runOnStartup ? true : undefined,
-    enabled: work.enabled,
-    lastRun: work.lastRun,
-  };
 }
 
 // Local weekday short names, Sunday-first to match Date.getDay()'s 0..6 indexing.

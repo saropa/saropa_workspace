@@ -3,6 +3,7 @@ import { Pin } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
+import { recentTag } from "../views/pinRowFormatting";
 import { l10n } from "../i18n/l10n";
 
 // "Run Analytics" summary (roadmap 3.3). A small, on-demand view of pin activity
@@ -193,8 +194,9 @@ function sessionLabel(result: RunResult): string {
   });
 }
 
-// The most-recent runs with their timestamps and source (manual vs scheduled),
-// the same bounded list the Recent sidebar group draws on.
+// The most-recent activity with timestamps, tagged by how each entry landed (a
+// manual run is untagged, a scheduled fire and a plain open carry a tag) — the same
+// bounded list the Recent sidebar group draws on.
 function recentSection(store: PinStore, recent: RunRecord[]): string[] {
   if (recent.length === 0) {
     return [];
@@ -202,8 +204,8 @@ function recentSection(store: PinStore, recent: RunRecord[]): string[] {
   const out = [`## ${l10n("analytics.recentHeading")}`, ""];
   const now = Date.now();
   for (const record of recent) {
-    const tag =
-      record.source === "scheduled" ? ` ${l10n("recent.scheduledTag")}` : "";
+    const tagToken = recentTag(record);
+    const tag = tagToken ? ` ${tagToken}` : "";
     out.push(
       `- **${nameFor(store, record.pinId)}** — ${relativeTime(now, record.at)}${tag}`
     );

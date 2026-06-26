@@ -68,6 +68,58 @@ test("record keeps the recent list bounded at MAX_RECENT while counts stay exact
   assert.equal(Object.keys(telemetry.counts()).length, total);
 });
 
+test("recordOpen lands the pin in Recent tagged opened, without bumping the run count", async () => {
+  telemetry.init(fakeContext());
+
+  await telemetry.recordOpen("p1");
+
+  const recent = telemetry.recent();
+  assert.equal(recent.length, 1, "an open is recorded in the recent list");
+  assert.equal(recent[0].pinId, "p1");
+  assert.equal(recent[0].kind, "opened", "the entry is tagged as an open, not a run");
+  // An open is recency only — it must never inflate the lifetime run total that
+  // drives the most-run analytics.
+  assert.equal(telemetry.count("p1"), 0, "opening a pin does not count as a run");
+});
+
+test("recordOpen and record dedup to one front entry whose kind reflects the latest action", async () => {
+  telemetry.init(fakeContext());
+
+  await telemetry.record("p1", "manual"); // a run first
+  await telemetry.recordOpen("p1"); // then an open of the same pin
+
+  const recent = telemetry.recent();
+  assert.equal(recent.length, 1, "the open replaces the run entry, not a second row");
+  assert.equal(recent[0].kind, "opened", "the front entry reflects the most recent action");
+  // The earlier run still counts toward the lifetime total even though its recent
+  // row was superseded by the open.
+  assert.equal(telemetry.count("p1"), 1, "the prior run's count survives the later open");
+});
+
+test("recordOpen collapses a repeat of the already-front pin to a no-op", async () => {
+  telemetry.init(fakeContext());
+
+  await telemetry.recordOpen("p1");
+  const firstAt = telemetry.recent()[0].at;
+  // A single pin click both opens the file and fires the editor-focus listener, and
+  // re-focusing an already-front file repeats it; the front-dup guard must keep the
+  // second call from rewriting the front row.
+  await telemetry.recordOpen("p1");
+
+  const recent = telemetry.recent();
+  assert.equal(recent.length, 1, "the repeat does not add a second row");
+  assert.equal(recent[0].at, firstAt, "the front row is left untouched, not rewritten");
+});
+
+test("recordOpen is a no-op when collection is disabled", async () => {
+  __setConfig("saropaWorkspace", "telemetry.enabled", false);
+  telemetry.init(fakeContext());
+
+  await telemetry.recordOpen("p1");
+
+  assert.deepEqual(telemetry.recent(), [], "a disabled open stores nothing");
+});
+
 test("record is a no-op when collection is disabled", async () => {
   __setConfig("saropaWorkspace", "telemetry.enabled", false);
   telemetry.init(fakeContext());

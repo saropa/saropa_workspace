@@ -15,7 +15,9 @@ import { l10n } from "../i18n/l10n";
 // flat list — the user scans a category or types the icon name, instead of hunting
 // one long unstructured wall. Every id is a valid VS Code product icon; the leading
 // $(...) is added only for the QuickPick preview. Separators are rendered from each
-// group's label (see pickIcon).
+// group's label (see pickIcon). Each id also carries a synonym list in the catalog
+// (appearance.iconKeyword.<id>), shown as the row description and matched on, so an
+// alternate word or a name finds the icon — one word may legitimately name several.
 interface IconGroup {
   // l10n key for the category separator label.
   labelKey: string;
@@ -145,12 +147,25 @@ async function pickIcon(
       kind: vscode.QuickPickItemKind.Separator,
     });
     for (const id of group.ids) {
-      items.push({ label: `$(${id}) ${id}`, value: id, picked: pin.icon === id });
+      // The codicon id alone is a poor search term — "cog"/"preferences" won't
+      // surface "gear", "octocat" won't surface "github". Each id carries a
+      // synonym list (appearance.iconKeyword.<id>) shown as the row description,
+      // so typing an alternate word — or a name like "octocat" — finds the icon.
+      // The same synonym set may name several icons (e.g. "settings" matches both
+      // gear and settings-gear); that overlap is intended. matchOnDescription on
+      // the QuickPick makes the description filterable.
+      items.push({
+        label: `$(${id}) ${id}`,
+        description: l10n(`appearance.iconKeyword.${id}`),
+        value: id,
+        picked: pin.icon === id,
+      });
     }
   }
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("appearance.icon.placeholder"),
+    matchOnDescription: true,
   });
   return pick ? pick.value : CANCELED;
 }

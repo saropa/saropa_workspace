@@ -19,6 +19,7 @@ import { Pin } from "../model/pin";
 import { telemetry } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
+import { recentTag } from "./pinRowFormatting";
 import { PANEL_STYLE, PANEL_SCRIPT } from "./dashboardAssets";
 
 // The tabs the dashboard exposes. Webview-local selection; the host loads the data
@@ -284,7 +285,7 @@ export class DashboardPanel {
     const recentList = recent.map((record) => ({
       name: this.nameFor(record.pinId),
       ago: this.relativeTime(now, record.at),
-      tag: record.source === "scheduled" ? l10n("recent.scheduledTag") : "",
+      tag: recentTag(record),
     }));
 
     void this.panel.webview.postMessage({

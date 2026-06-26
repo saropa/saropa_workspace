@@ -29,3 +29,7 @@ reports/*
 # Project-scoped pin store: holds whatever paths the user pins, which can be
 # sensitive file names. Never publish it.
 .vscode/saropa-workspace.json
+
+# Private competitor research notes — internal planning only, not for the
+# public repo. (Unlike the rest of plans/, which is tracked.)
+plans/competitors/

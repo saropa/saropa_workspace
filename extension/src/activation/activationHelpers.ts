@@ -15,6 +15,8 @@ import {
   KNOWN_FAVORITES_SOURCES,
 } from "../import/favoritesImport";
 import { decodeSharedPin, describeSharedPin } from "../import/shareLink";
+import { tappedPins } from "../model/tappedPins";
+import { telemetry } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
 
 // Standalone activation helpers split out of extension.ts so activate() stays the
@@ -248,6 +250,54 @@ export function registerFavoritesImportWatchers(
       ) {
         offer();
       }
+    })
+  );
+}
+
+// Keep the Recent list and the untapped badge in step with the editor, not only
+// with pin clicks: a pinned file the user focuses by ANY means — Ctrl+P, the
+// Explorer, a tab switch — or closes counts as "used", so it lands in Recent and
+// clears from the activity-bar badge of pins not yet opened. This is the companion
+// to the pin-click open path (which records the same thing); recordOpen's front-dup
+// guard and the idempotent mark make the overlap a no-op, and a per-uri guard here
+// keeps a plain tab re-focus from re-firing for the file already at the front.
+export function wireRecentEditorTracking(
+  context: vscode.ExtensionContext,
+  store: PinStore
+): void {
+  // The last file URI we recorded, so re-activating the same editor (a frequent
+  // focus event) does not repeat the work. Cleared on a close so re-opening the
+  // same file after closing it records again (the close pushed it to the front).
+  let lastTouchedUri: string | undefined;
+  const touch = (uri: vscode.Uri | undefined): void => {
+    if (!uri) {
+      return;
+    }
+    const key = uri.toString();
+    if (key === lastTouchedUri) {
+      return;
+    }
+    // Match the focused/closed file to a pin in either scope; a non-pinned file is
+    // ignored, so ordinary editing never writes to the Recent store.
+    const pin =
+      store.findPinByUri(uri, "project") ?? store.findPinByUri(uri, "global");
+    if (!pin) {
+      return;
+    }
+    lastTouchedUri = key;
+    void tappedPins.mark(pin.id);
+    void telemetry.recordOpen(pin.id);
+  };
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor((editor) =>
+      touch(editor?.document.uri)
+    ),
+    // A closed pinned file jumps to the top of Recent (the "recently closed" model).
+    // Clearing the guard first lets the close record even if that file was the last
+    // one we touched while it was open.
+    vscode.workspace.onDidCloseTextDocument((doc) => {
+      lastTouchedUri = undefined;
+      touch(doc.uri);
     })
   );
 }

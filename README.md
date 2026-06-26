@@ -89,7 +89,7 @@ The full detail for every feature lives in the **[feature catalog](docs/FEATURES
 - **[Inspect before you run](docs/FEATURES.md#inspect-before-you-run)** — **Simulate Run**, inline **Peek**, **Diff Last Two Runs**, and graceful handling of a deleted file.
 - **[Tag, filter & focus](docs/FEATURES.md#tag-filter-and-focus)** — tag pins into modes, filter the tree by text and chips, and focus the Explorer on just your pins.
 - **[Branch-linked pins](docs/FEATURES.md#branch-linked-pins)** — show a pin only on the git branch it belongs to.
-- **[Pause, lock & expire](docs/FEATURES.md#pause-lock-and-expire)** — suspend a pin's automation, lock a file read-only on disk, or give a pin a self-removing expiry.
+- **[Pause, lock, mask & expire](docs/FEATURES.md#pause-lock-and-expire)** — suspend a pin's automation, lock a file read-only on disk, mask a sensitive pin for screen-sharing, or give a pin a self-removing expiry.
 - **[One run at a time](docs/FEATURES.md#one-run-at-a-time)** — single-instance runs by default, with an optional cross-process lock.
 - **[Power tools](docs/FEATURES.md#workspace-power-tools)** — scratchpad, save/restore editor layouts, `.env` profile switch, workspace boot sequence, pins from shell history, raw-JSON edit, and export/import.
 - **[More pin kinds](docs/FEATURES.md#more-kinds-of-pins-and-actions)** — line pins, `tail -f` log follow, remote/external files, templates, shareable links, in-tree file management, and drop-a-file-to-run.

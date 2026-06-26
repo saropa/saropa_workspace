@@ -42,7 +42,7 @@ export function buildRecentItem(
     processRegistry.isRunning(pin.id),
     runStatusRegistry.get(pin.id),
     processRegistry.isStopping(pin.id),
-    { at: record.at, source: record.source },
+    { at: record.at, source: record.source, kind: record.kind },
     store.isMissing(pin.id),
     runCount(pin.id)
   );

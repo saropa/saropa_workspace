@@ -5,8 +5,12 @@ scan. Set it from a pin's context menu with **Set Icon & Color…**.
 
 ## What you can set
 
-- **Icon** — chosen from a curated set of VS Code product icons (codicons), or
-  the default file-type glyph.
+- **Icon** — chosen from a curated set of VS Code product icons (codicons),
+  grouped into scannable categories, or the default file-type glyph. Type to
+  filter: the picker matches the icon name **and** a synonym list shown beside
+  each icon, so an alternate word finds it even when you don't know the exact
+  name — "settings" or "cog" surfaces the gear, "octocat" surfaces GitHub,
+  "deploy" surfaces the rocket. One word can match several icons.
 - **Color** — a theme-aware color applied to the icon. The available choices are
   red, orange, yellow, green, blue, purple, and neutral.
 

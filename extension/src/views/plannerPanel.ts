@@ -38,6 +38,9 @@ interface PlannerNode {
   // pin-only fields
   scope?: "project" | "global";
   pinKind?: PinKind;
+  // The recipe's own prose (what it does + what it was detected from), surfaced as
+  // the detail strip's INFO tip so a seeded/paused recipe explains itself in place.
+  description?: string;
   schedule?: PinSchedule;
   emits?: SystemEventName[];
   runnable?: boolean;
@@ -194,10 +197,17 @@ export class PlannerPanel {
     if (!pin?.schedule) {
       return;
     }
+    const resumed = !pin.schedule.enabled;
     await this.store.updatePinSchedule(pin, {
       ...pin.schedule,
-      enabled: !pin.schedule.enabled,
+      enabled: resumed,
     });
+    // Name the pin and the new state — the strip's "(paused)" text also updates, but a
+    // toast confirms the gesture took and which pin it acted on (no silent async).
+    const name = pin.label ?? pin.id;
+    vscode.window.showInformationMessage(
+      l10n(resumed ? "planner.scheduleResumed" : "planner.schedulePaused", { name })
+    );
   }
 
   // Drag-retime from the Week view: set the daily time, and move the dragged
@@ -340,6 +350,7 @@ export class PlannerPanel {
         label: pin.label ?? (pin.path.split("/").pop() ?? pin.path),
         scope: pin.scope,
         pinKind: pinKind(pin),
+        description: pin.description,
         schedule: pin.schedule,
         emits: pin.emits,
         runnable:

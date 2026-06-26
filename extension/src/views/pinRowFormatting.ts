@@ -1,12 +1,29 @@
 import { Pin } from "../model/pin";
 import { RunResult, formatDuration } from "../exec/runStatus";
 import { PinBadge } from "../exec/pinBadges";
+import { RunRecord } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
 
 // Text formatters for a pin's tree row and hover. Split out of pinTreeItem.ts so the
 // item class stays focused on assembling the TreeItem; these are pure label builders
 // (string in, string out) and carry no VS Code state, which also makes them unit-
 // testable in isolation. Icon/tint resolution is a separate concern in pinRowTokens.ts.
+
+// The Recent-list tag that says how a pin landed in the list: a single-click OPEN,
+// an unattended SCHEDULED fire, or (no tag) an ordinary manual run. Centralized so
+// the sidebar Recent group, the dashboard, and the analytics report label the same
+// record identically. Returns a bare token ("(opened)") with no surrounding space;
+// each call site spaces or joins it as its own layout needs. Takes only the two
+// fields it reads so the sidebar can pass its lighter recentInfo shape.
+export function recentTag(record: Pick<RunRecord, "source" | "kind">): string {
+  if (record.kind === "opened") {
+    return l10n("recent.openedTag");
+  }
+  if (record.source === "scheduled") {
+    return l10n("recent.scheduledTag");
+  }
+  return "";
+}
 
 // Compact label for the next-run instant: time-of-day when it is today,
 // otherwise a short date plus time. Locale formatting is delegated to the OS so

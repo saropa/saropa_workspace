@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
 import { Pin, pinKind, isAnnotationPin } from "../model/pin";
 import { tappedPins } from "../model/tappedPins";
+import { telemetry } from "../exec/telemetry";
 import { runStatusRegistry } from "../exec/runStatus";
 import { readCurrentBranch } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
@@ -149,6 +150,13 @@ export async function openPin(store: PinStore, pin: Pin): Promise<void> {
     .getConfiguration("saropaWorkspace")
     .get<boolean>("previewMode.enabled", false);
   const editor = await vscode.window.showTextDocument(uri, { preview: usePreview });
+  // Record the open in the Recent list so a just-opened file pin is one click from
+  // re-opening — the Recent group is no longer run-only. Distinct from a run: this
+  // does NOT bump the lifetime run count (an open is not a run). The tappedPins.mark
+  // above already cleared this pin from the untapped badge; this adds the recency
+  // entry. Only file pins reach here (the non-file branch returned above), which is
+  // exactly the "opened a file" semantics the Recent-on-open behavior targets.
+  void telemetry.recordOpen(pin.id);
   // A tail-follow pin (WOW #5) opens at the end and stays pinned there as the file
   // grows; it supersedes a line jump, since following means "show me the newest
   // lines", not "land on line N". A plain line pin (WOW #22) jumps + flashes.
