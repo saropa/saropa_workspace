@@ -42,6 +42,7 @@ import {
   RECOMMENDED_GROUP_ID,
   RECOMMENDED_HINT_DISMISSED_KEY,
   selectRecommendedRecipes,
+  DEFAULT_GROUP_EXPANDED_PREFIX,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -217,6 +218,27 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
     // view until the user opens it (the gesture is then persisted by group id).
     return this.context.globalState.get<boolean>(
       RECIPE_GROUP_EXPANDED_PREFIX + id,
+      false
+    );
+  }
+
+  // Whether the built-in default project groups (Build / Run / Deploy / Test / Docs /
+  // Data / Code) are shown in the Project scope and used to auto-sort an added file.
+  // On by default; turning it off hides the scaffolding and stops auto-assignment. A
+  // shortcut already filed into a default group keeps its groupId, so toggling back on
+  // restores it under the right folder.
+  protected defaultGroupsEnabled(): boolean {
+    return vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .get<boolean>("defaultGroups.enabled", true);
+  }
+
+  // A default group's collapse posture, persisted in globalState by group id (these
+  // groups are not stored in any file). Default collapsed so the Project scope shows
+  // seven tidy folders on first open rather than a wall of expanded empties.
+  protected defaultGroupExpanded(id: string): boolean {
+    return this.context.globalState.get<boolean>(
+      DEFAULT_GROUP_EXPANDED_PREFIX + id,
       false
     );
   }

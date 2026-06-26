@@ -39,6 +39,8 @@ import {
   isSyntheticRecipeGroupId,
   recipeGroupColor,
   RECOMMENDED_GROUP_ID,
+  DEFAULT_GROUP_EXPANDED_PREFIX,
+  isDefaultGroupId,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -182,6 +184,16 @@ export class ShortcutStore extends ShortcutStoreSets {
       }
       return;
     }
+    // The built-in default groups (Build / Run / Deploy / Test / Docs / Data / Code) are
+    // likewise not stored in any file; persist their posture in globalState under their
+    // own prefix so a collapsed/expanded default folder survives a reload.
+    if (isDefaultGroupId(group.id)) {
+      await this.context.globalState.update(
+        DEFAULT_GROUP_EXPANDED_PREFIX + group.id,
+        !collapsed
+      );
+      return;
+    }
     await this.mutateGroup(group, scope, (target) => {
       target.collapsed = collapsed;
     });
@@ -234,8 +246,14 @@ export class ShortcutStore extends ShortcutStoreSets {
     // group; the before-shortcut's folder when reordering at top level; otherwise the
     // first moved shortcut's folder. A project shortcut cannot move across folders (its
     // path is folder-relative), so only shortcuts already in that folder are applied.
+    // A built-in default group is synthetic and shared across folders, so it is NOT in
+    // projectGroupFolder; resolve the owning folder from the dropped shortcut instead
+    // (the shortcut keeps its own folder and just gains the default group's id). A user
+    // group does live in one folder's file, so it resolves through projectGroupFolder.
     const folder = groupId
-      ? this.projectGroupFolder.get(groupId)
+      ? isDefaultGroupId(groupId)
+        ? this.projectShortcutFolder.get(movable[0].id)
+        : this.projectGroupFolder.get(groupId)
       : beforeShortcutId
         ? this.projectShortcutFolder.get(beforeShortcutId)
         : this.projectShortcutFolder.get(movable[0].id);

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { ShortcutGroup, ShortcutScope } from "../model/shortcut";
+import { isDefaultGroupId } from "../model/shortcutStoreShared";
 import { l10n } from "../i18n/l10n";
 
 // The non-shortcut structural rows of the Shortcuts tree (Recent root, the two scope
@@ -63,9 +64,13 @@ export class ShortcutFolderItem extends vscode.TreeItem {
     );
     this.id = `group:${scope}:${shortcutGroup.id}`;
     // "userGroup" (not "shortcut*") so Rename/Delete-Group target it without leaking
-    // the per-shortcut menus. The drop controller recognizes it by instance, not by
-    // this string.
-    this.contextValue = "userGroup";
+    // the per-shortcut menus. A built-in default group (Build / Run / Deploy / …) uses
+    // "defaultGroup" instead so those edit actions do NOT appear — it is synthetic and
+    // not stored, so rename/delete/recolor would no-op. The drop controller recognizes a
+    // folder by instance, not by this string, so a default folder is still a drop target.
+    this.contextValue = isDefaultGroupId(shortcutGroup.id)
+      ? "defaultGroup"
+      : "userGroup";
     this.description = String(count);
     // A group may carry its own glyph + tint (the synthetic recipe category folders
     // do, so each reads distinctly in the nested tree); a plain user group keeps the

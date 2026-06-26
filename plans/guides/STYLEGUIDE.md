@@ -150,6 +150,19 @@ Rules:
 Exempt (leave literal): log/console/debug strings, command/route/event IDs,
 config keys, URLs, CSS, pure symbols and numbers.
 
+**Synthetic group folder labels are inline in their routing table.** The short
+category labels for the synthetic tree folders defined in
+`model/shortcutStoreShared.ts` — the recipe groups (`RECIPE_GROUPS`,
+`RECIPE_SUBGROUPS`, `RECOMMENDED_GROUP_DEF`) and the built-in default project
+groups (`DEFAULT_GROUPS`: Build / Run / Deploy / Test / Docs / Data / Code) — are
+written inline in American English alongside the folder's stable id, glyph, and
+tint, not through `l10n`. They are one-word structural folder names that live in a
+const routing table rather than at a call site, and keeping the label beside the
+id/icon/color keeps the table a single source of truth. This is the established
+convention for every synthetic group; match it rather than externalizing one table
+in isolation. Everything else a user reads from these features — the "added to
+{group}" toast, the setting description — stays externalized per the table above.
+
 **Webview client-script strings are currently inline.** A webview's injected
 client script (e.g. `PLANNER_SCRIPT` in `plannerScript.ts`) runs in the browser
 context and cannot call `l10n`, which imports the catalog and runs in the

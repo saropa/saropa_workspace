@@ -58,6 +58,58 @@ test("addPin into a named group creates the group once and assigns membership", 
   assert.equal(inGroup.length, 2, "both pins join the single named group");
 });
 
+test("an added file with no named group auto-sorts into its default group by name/type", async () => {
+  // The headline behavior: a file added without a chosen group is filed into a built-in
+  // default group by its name (a build file -> Build) or extension (.md -> Docs), and the
+  // synthetic default groups are present in the Project scope to render it.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "build.gradle")), "project");
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "README.md")), "project");
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "data.csv")), "project");
+  const byPath = (p: string): string | undefined =>
+    store.getProjectShortcuts().find((s) => s.path === p)?.groupId;
+  assert.equal(byPath("build.gradle"), "default:build");
+  assert.equal(byPath("README.md"), "default:docs");
+  assert.equal(byPath("data.csv"), "default:data");
+  // The default groups are injected (synthetic) so the shortcuts have a folder to land in.
+  const groupIds = store.getProjectGroups().map((g) => g.id);
+  assert.ok(groupIds.includes("default:build") && groupIds.includes("default:docs"));
+});
+
+test("a hand-made group of a default name absorbs the default — no duplicate folder", async () => {
+  // A user "Build" group must not coexist with a synthetic "Build": the synthetic one is
+  // suppressed and an auto-sorted build file lands in the USER group, so the scope never
+  // shows two same-named folders and the membership renders.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  // Create a user group named "Build" (the same label as the default).
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "a.ts")), "project", undefined, "Build");
+  // An auto-sorted build file then files into that user group, not "default:build".
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "build.gradle")), "project");
+  const builds = store.getProjectGroups().filter((g) => g.label === "Build");
+  assert.equal(builds.length, 1, "exactly one Build folder (the user's), not two");
+  assert.notEqual(builds[0].id, "default:build", "the user group, not the synthetic one");
+  const buildFile = store.getProjectShortcuts().find((s) => s.path === "build.gradle");
+  assert.equal(buildFile?.groupId, builds[0].id, "the file lands in the user Build group");
+});
+
+test("default groups off: no synthetic folders and no auto-assignment", async () => {
+  // The setting gates both the scaffolding and the auto-sort; off, an added file stays at
+  // the top level (no groupId) and no default folder is injected.
+  __setConfig("saropaWorkspace", "defaultGroups.enabled", false);
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "README.md")), "project");
+  const shortcut = store.getProjectShortcuts().find((s) => s.path === "README.md");
+  assert.equal(shortcut?.groupId, undefined, "no auto-assignment when disabled");
+  assert.equal(
+    store.getProjectGroups().some((g) => g.id.startsWith("default:")),
+    false,
+    "no synthetic default folders when disabled"
+  );
+});
+
 test("addPin returns false for a project file outside any workspace folder", async () => {
   // A file the workspace does not own cannot be a project shortcut (no folder to store it
   // relative to); the caller offers global instead.

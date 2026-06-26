@@ -1,5 +1,6 @@
 {
   "pin.added": "Added {name}",
+  "pin.addedToGroup": "Added {name} to {group}",
   "pin.removed": "Removed {name}",
   "pin.alreadyPinned": "{name} is already a shortcut here.",
   "pin.notPinned": "{name} is not a shortcut in {scope}.",

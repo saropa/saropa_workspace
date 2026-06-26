@@ -121,7 +121,9 @@ export async function importOlegShilo(
     const uri = path.isAbsolute(entry.pathPart)
       ? vscode.Uri.file(entry.pathPart)
       : vscode.Uri.joinPath(detected.folder.uri, entry.pathPart);
-    if (await store.addShortcut(uri, "project", entry.alias)) {
+    // autoGroup:false preserves the imported list as-is — an import is a reconstruction,
+    // not an interactive add, so files are not re-sorted into the built-in default groups.
+    if (await store.addShortcut(uri, "project", entry.alias, undefined, { autoGroup: false })) {
       added++;
     }
   }

@@ -39,6 +39,7 @@ import {
   isSyntheticRecipeGroupId,
   recipeGroupColor,
   recipeSectionAppearance,
+  recipeDefaultGroupId,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -338,11 +339,23 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
     if (!file.removedRecipes.includes(shortcut.recipeId)) {
       file.removedRecipes.push(shortcut.recipeId);
     }
-    // File the promoted shortcut into a user group named after the recipe's section
-    // (a GitHub recipe -> a "GitHub" group, a Flutter recipe -> a "Flutter" group),
-    // creating the group if it does not exist yet, so a promoted recipe lands in a
-    // tidy folder rather than loose at the scope's top level.
-    const groupId = this.ensurePromotionGroup(file, shortcut.groupId);
+    // File the promoted shortcut. A recipe pre-assigned to a built-in default group
+    // (recipeDefaultGroupId, keyed by stable recipeId — e.g. the "test" recipe -> the
+    // Test group, "deployed" -> Deploy) lands there directly: that id is synthetic, so
+    // no file.groups entry is created. This is gated on default groups being enabled,
+    // since a disabled default group would not render and would strand the shortcut.
+    // Otherwise fall back to a user group named after the recipe's section (a GitHub
+    // recipe -> a "GitHub" group), created on demand, so a promoted recipe still lands in
+    // a tidy folder rather than loose at the scope's top level.
+    const defaultGroupId = this.defaultGroupsEnabled()
+      ? recipeDefaultGroupId(shortcut.recipeId)
+      : undefined;
+    // effectiveDefaultGroupId routes into a hand-made group of the same name when one
+    // exists (the synthetic duplicate is suppressed at render), so a promoted recipe and
+    // an auto-added file with the same default home share one folder.
+    const groupId = defaultGroupId
+      ? this.effectiveDefaultGroupId(file.groups, defaultGroupId)
+      : this.ensurePromotionGroup(file, shortcut.groupId);
     file.pins.push({
       id: this.newId(),
       path: shortcut.path,

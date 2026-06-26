@@ -20,8 +20,15 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { ShortcutStore } from "../model/shortcutStore";
+import { isDefaultGroupId } from "../model/shortcutStoreShared";
 import { importKdcro } from "../import/favoritesKdcroBookmarks";
 import type { OutputChannel } from "vscode";
+
+// The Project scope now always carries the built-in default groups (Build / Run / … ),
+// which are synthetic scaffolding, not anything the importer produced. These tests assert
+// on what the IMPORT created, so they exclude the default groups before counting.
+const importedGroups = (store: ShortcutStore) =>
+  store.getProjectGroups().filter((g) => !isDefaultGroupId(g.id));
 
 // A line-collecting OutputChannel: the importer only ever calls appendLine, so the
 // rest of the channel surface is cast away.
@@ -78,7 +85,7 @@ test("File entries become pins; a Group entry becomes a pin group with its membe
   assert.equal(result.added, 2, "both File entries import");
   assert.equal(result.skipped, 0, "no entry is skipped");
 
-  const groups = store.getProjectGroups();
+  const groups = importedGroups(store);
   assert.equal(groups.length, 1, "the Group entry creates exactly one pin group");
   assert.equal(groups[0].label, "Backend");
 
@@ -114,7 +121,7 @@ test("a Directory entry and a path-less entry are reported and skipped", async (
   assert.equal(result.added, 1, "only the valid File imports");
   assert.equal(result.skipped, 2, "the Directory and the path-less File are skipped");
   assert.equal(
-    store.getProjectGroups().length,
+    importedGroups(store).length,
     0,
     "a Directory does not create a pin group"
   );
@@ -163,6 +170,6 @@ test("a malformed file imports nothing, logs the error, and does not throw", asy
   assert.deepEqual(result, { added: 0, skipped: 0 });
   // The store synthesizes a config-example shortcut on init, so assert on what the
   // import itself produced: no group, and nothing added.
-  assert.equal(store.getProjectGroups().length, 0, "no group is created");
+  assert.equal(importedGroups(store).length, 0, "no group is created");
   assert.equal(lines.length, 1, "the parse failure is reported once");
 });

@@ -38,6 +38,9 @@ import {
   recipeSubGroupId,
   isSyntheticRecipeGroupId,
   recipeGroupColor,
+  matchDefaultGroup,
+  defaultGroupLabel,
+  isDefaultGroupId,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -52,7 +55,13 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreRefresh {
     uri: vscode.Uri,
     scope: ShortcutScope,
     label?: string,
-    groupName?: string
+    groupName?: string,
+    // Bulk callers (the favorites importer) reconstruct an explicit group structure and
+    // pass autoGroup:false so an unparented entry stays at the top level instead of being
+    // re-sorted into a default group — that would scramble the imported layout. An
+    // interactive single-file add leaves it default (true), where name/type auto-sorting
+    // is the wanted behavior.
+    options: { autoGroup?: boolean } = {}
   ): Promise<boolean> {
     // Only carry a non-empty label so a shortcut without an alias keeps the basename
     // default rather than storing an empty override.
@@ -107,9 +116,25 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreRefresh {
     // pointed at a group in another folder would render as an orphaned membership.
     // ensureGroupId mutates file.groups in place; the writeProjectFile below
     // persists shortcut and group together in one write.
+    //
+    // When the caller named no group, sort the new file into a built-in default group by
+    // its name/type (matchDefaultGroup, e.g. a "publish" file -> Deploy, a .md -> Docs),
+    // but only when default groups are enabled. The matched id is a SYNTHETIC default-
+    // group id, so — unlike a user group — it is deliberately NOT added to file.groups;
+    // the group is injected at render time, not stored. A file matching no rule keeps no
+    // groupId and stays at the scope's top level (the prior behavior).
+    const matchedDefault =
+      !wantGroup && (options.autoGroup ?? true) && this.defaultGroupsEnabled()
+        ? matchDefaultGroup(relative)
+        : undefined;
+    const autoGroupId = matchedDefault
+      ? this.effectiveDefaultGroupId(file.groups, matchedDefault)
+      : undefined;
     const groupField = wantGroup
       ? { groupId: this.ensureGroupId(file.groups, groupName!) }
-      : {};
+      : autoGroupId
+        ? { groupId: autoGroupId }
+        : {};
     file.pins.push({
       id: this.newId(),
       path: relative,
@@ -302,6 +327,29 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreRefresh {
     ordered.forEach((shortcut, i) => {
       shortcut.order = i;
     });
+  }
+
+  // Resolve which group a default-group assignment should actually land in, given the
+  // groups already in a folder's file. When the user has hand-made a group with the SAME
+  // label as the matched built-in group (e.g. their own "Build"), refresh suppresses the
+  // duplicate synthetic folder, so the user's group is the one that renders — file the
+  // shortcut into ITS id, not the synthetic "default:build", or the shortcut would point
+  // at a hidden folder and float to the top level. With no such collision the synthetic
+  // default id is used as-is. Match is case-insensitive on the label, mirroring the
+  // suppression test in refresh and ensurePromotionGroup's reuse logic.
+  protected effectiveDefaultGroupId(
+    groups: ShortcutGroup[],
+    defaultGroupId: string
+  ): string {
+    const label = defaultGroupLabel(defaultGroupId);
+    if (!label) {
+      return defaultGroupId;
+    }
+    const wanted = label.toLowerCase();
+    const existing = groups.find(
+      (g) => !isDefaultGroupId(g.id) && g.label.trim().toLowerCase() === wanted
+    );
+    return existing?.id ?? defaultGroupId;
   }
 
   // Add a shortcut from a shared link's portable configuration (WOW #4 import). The id

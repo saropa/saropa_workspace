@@ -1840,6 +1840,11 @@
             "default": false,
             "description": "%config.recommend.aggressive.description%"
           },
+          "saropaWorkspace.defaultGroups.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.defaultGroups.enabled.description%"
+          },
           "saropaWorkspace.branchAware.enabled": {
             "type": "boolean",
             "default": false,

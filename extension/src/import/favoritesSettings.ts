@@ -88,7 +88,9 @@ export async function importSettingsFavorites(
       skipped++;
       continue;
     }
-    if (await store.addShortcut(uri, "project")) {
+    // autoGroup:false: an import reconstructs an existing list, so a file is not
+    // re-sorted into a built-in default group (that would scramble the imported layout).
+    if (await store.addShortcut(uri, "project", undefined, undefined, { autoGroup: false })) {
       added++;
     }
   }
@@ -338,7 +340,12 @@ async function importSabitovvtItemList(
         skipped++;
         continue;
       }
-      if (await store.addShortcut(mapped.file, "project", label)) {
+      // autoGroup:false: keep the imported layout; no re-sort into a default group.
+      if (
+        await store.addShortcut(mapped.file, "project", label, undefined, {
+          autoGroup: false,
+        })
+      ) {
         added++;
       }
       continue;

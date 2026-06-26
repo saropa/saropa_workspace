@@ -77,7 +77,17 @@ export async function importKdcro(
       : undefined;
     // addShortcut stores project shortcuts relative to the owning folder and skips
     // dupes, so re-running import is idempotent — the group is reused by name as well.
-    if (await store.addShortcut(vscode.Uri.file(entry.fsPath), "project", undefined, groupName)) {
+    // autoGroup:false preserves the imported layout: an unparented favorite stays at the
+    // top level rather than being re-sorted into a built-in default group.
+    if (
+      await store.addShortcut(
+        vscode.Uri.file(entry.fsPath),
+        "project",
+        undefined,
+        groupName,
+        { autoGroup: false }
+      )
+    ) {
       added++;
     }
   }

@@ -23,6 +23,12 @@ import {
   selectRecommendedRecipes,
   RECOMMENDED_CAP,
   RECOMMENDED_GROUP_ID,
+  DEFAULT_GROUPS,
+  DEFAULT_GROUP_EXPANDED_PREFIX,
+  isDefaultGroupId,
+  defaultGroupLabel,
+  matchDefaultGroup,
+  recipeDefaultGroupId,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -193,6 +199,102 @@ test("each subgroup's parentId names a real top-level recipe group", () => {
     // The id convention is `${parentId}-${key}` so seeding and group-build agree.
     assert.equal(sub.id, `${sub.parentId}-${sub.key}`);
   }
+});
+
+test("the default groups cover the seven built-in sections with stable ids and distinct orders", () => {
+  // The ids are persisted in stored shortcuts' groupId and in collapse-state keys, so a
+  // change would orphan every filed shortcut; assert the exact set and that each carries
+  // a glyph + tint (the scaffolding must read distinctly) at a unique sort position.
+  const ids = DEFAULT_GROUPS.map((g) => g.id);
+  assert.deepEqual(ids, [
+    "default:build",
+    "default:run",
+    "default:deploy",
+    "default:test",
+    "default:docs",
+    "default:data",
+    "default:code",
+  ]);
+  assert.equal(new Set(DEFAULT_GROUPS.map((g) => g.order)).size, DEFAULT_GROUPS.length);
+  for (const g of DEFAULT_GROUPS) {
+    assert.ok(g.icon.length > 0 && g.color.length > 0, `${g.id} needs an icon + color`);
+  }
+});
+
+test("a default group id is NOT a synthetic recipe id (it lives under Project, not Recipes)", () => {
+  // The two synthetic-group families must not overlap: a recipe id routes a folder into
+  // the read-only Recipes view, a default id renders under the Project scope. A collision
+  // would misroute a default folder out of Project.
+  for (const g of DEFAULT_GROUPS) {
+    assert.equal(isDefaultGroupId(g.id), true);
+    assert.equal(isSyntheticRecipeGroupId(g.id), false);
+  }
+  assert.equal(isDefaultGroupId("recipes-run"), false);
+  assert.equal(isDefaultGroupId(undefined), false);
+  assert.equal(isDefaultGroupId("abc123-deadbeef"), false);
+});
+
+test("defaultGroupLabel resolves a default id, else undefined", () => {
+  assert.equal(defaultGroupLabel("default:deploy"), "Deploy");
+  assert.equal(defaultGroupLabel("default:docs"), "Docs");
+  assert.equal(defaultGroupLabel("recipes-run"), undefined);
+  assert.equal(defaultGroupLabel(undefined), undefined);
+});
+
+test("matchDefaultGroup: name intent beats file type, first rule wins", () => {
+  // A "publish" script is a deploy step whatever its extension, so the name rule must be
+  // checked before the .ts file-type rule — the headline behavior the user asked for.
+  assert.equal(matchDefaultGroup("scripts/publish.ts"), "default:deploy");
+  assert.equal(matchDefaultGroup("deploy.sh"), "default:deploy");
+  assert.equal(matchDefaultGroup("release-notes.md"), "default:deploy");
+  // test / build / run verbs route by name regardless of type.
+  assert.equal(matchDefaultGroup("src/foo.test.ts"), "default:test");
+  assert.equal(matchDefaultGroup("test/helpers.ts"), "default:test");
+  assert.equal(matchDefaultGroup("build.gradle"), "default:build");
+  assert.equal(matchDefaultGroup("Dockerfile"), "default:build");
+  assert.equal(matchDefaultGroup("dev.sh"), "default:run");
+});
+
+test("matchDefaultGroup: file type sorts the rest into Docs / Data / Code", () => {
+  assert.equal(matchDefaultGroup("README.md"), "default:docs");
+  assert.equal(matchDefaultGroup("notes.txt"), "default:docs");
+  assert.equal(matchDefaultGroup("data/people.csv"), "default:data");
+  assert.equal(matchDefaultGroup("config/app.json"), "default:data");
+  assert.equal(matchDefaultGroup("settings.yaml"), "default:data");
+  assert.equal(matchDefaultGroup("lib/widget.dart"), "default:code");
+  assert.equal(matchDefaultGroup("main.go"), "default:code");
+});
+
+test("matchDefaultGroup: a name with no verb and no known extension matches nothing", () => {
+  // A file matching no rule keeps no groupId and stays at the scope's top level — the
+  // pre-feature behavior, so adding an arbitrary file is never forced into a folder.
+  assert.equal(matchDefaultGroup("LICENSE"), undefined);
+  assert.equal(matchDefaultGroup("assets/logo.png"), undefined);
+  // "development" must not trip the bounded "dev" run verb.
+  assert.equal(matchDefaultGroup("development"), undefined);
+});
+
+test("recipeDefaultGroupId maps catalog recipes to default groups, unknown -> undefined", () => {
+  // The recipe catalog declares each promoted recipe's home group by stable id (NOT a
+  // name match); every mapped target must be a real default group so promotion never
+  // files into a non-existent folder.
+  assert.equal(recipeDefaultGroupId("test"), "default:test");
+  assert.equal(recipeDefaultGroupId("build"), "default:build");
+  assert.equal(recipeDefaultGroupId("deployed"), "default:deploy");
+  assert.equal(recipeDefaultGroupId("dev"), "default:run");
+  assert.equal(recipeDefaultGroupId("docs"), "default:docs");
+  // A recipe with no declared default group keeps the section-named promotion path.
+  assert.equal(recipeDefaultGroupId("github.home"), undefined);
+  assert.equal(recipeDefaultGroupId(undefined), undefined);
+});
+
+test("the default-group expanded-state prefix is the stable globalState key prefix", () => {
+  // Collapse state is keyed by this prefix + group id (these groups are not in any file);
+  // a change would silently forget every user's open/closed posture.
+  assert.equal(
+    DEFAULT_GROUP_EXPANDED_PREFIX,
+    "saropaWorkspace.defaultGroupExpanded."
+  );
 });
 
 test("isGlobPattern: wildcards / braces / classes are globs, a plain path is not", () => {

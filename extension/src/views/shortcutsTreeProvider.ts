@@ -192,8 +192,20 @@ export class ShortcutsTreeProvider
               active ? g.visible.length : g.members.length
             )
         );
+      // Top-level shortcuts are those with no group OR whose group no longer exists in
+      // the store — e.g. a shortcut filed into a built-in default group after the user
+      // turned default groups off. It keeps its stored groupId (so it returns to its
+      // folder when the groups come back), but while that group is not rendered it must
+      // float to the top level rather than vanish. A group hidden only by the active
+      // text filter still EXISTS in getGroups, so its members are not pulled up here.
+      const existingGroupIds = new Set(
+        this.store.getGroups(scope).map((g) => g.id)
+      );
       const topLevel = this.scopeShortcuts(scope)
-        .filter((s) => !s.groupId && this.matches(s))
+        .filter(
+          (s) =>
+            (!s.groupId || !existingGroupIds.has(s.groupId)) && this.matches(s)
+        )
         .map((shortcut) => buildShortcutItem(this.store, shortcut));
       return [...groups, ...topLevel];
     }

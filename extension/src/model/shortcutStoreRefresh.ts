@@ -36,6 +36,7 @@ import {
   RECIPE_GROUP_EXPANDED_PREFIX,
   RECOMMENDED_GROUP_DEF,
   RECOMMENDED_GROUP_ID,
+  DEFAULT_GROUPS,
   recipeGroupId,
   recipeSubGroupId,
   isSyntheticRecipeGroupId,
@@ -148,6 +149,39 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
     // NOT block this first paint or the activation that awaits refresh(); it
     // streams in via seedRecipesAsync below. (Bug fix: detection ran inline here
     // and could stall the view in a multi-root workspace — "recipes never load".)
+    // Inject the built-in default groups (Build / Run / Deploy / Test / Docs / Data /
+    // Code) so the Project scope always offers a usable structure. These are synthetic
+    // (not in any project file), so they show even when EMPTY without writing seven
+    // folders into the committed config; a stored shortcut joins one by carrying its id
+    // in groupId (auto-assigned on add, or chosen by a promoted recipe). Pushed once
+    // (not per folder) and only when enabled AND a folder is open — their shortcuts must
+    // live in a workspace folder. Collapse posture comes from globalState (no file entry
+    // to hold it); they are deliberately NOT registered in projectGroupFolder, so a drop
+    // resolves the owning folder from the dropped shortcut instead (see moveProjectShortcuts).
+    if (this.defaultGroupsEnabled() && folders.length > 0) {
+      // A default group whose label collides with a hand-made project group is NOT
+      // injected — the user's own group wins, so the scope never shows two folders with
+      // the same name (e.g. a user "Build" group and the built-in "Build"). Auto-assign
+      // and recipe promotion file into that existing user group instead (see
+      // effectiveDefaultGroupId), so the membership lands in the folder that renders.
+      const userGroupLabels = new Set(
+        projectGroups.map((g) => g.label.trim().toLowerCase())
+      );
+      for (const def of DEFAULT_GROUPS) {
+        if (userGroupLabels.has(def.label.toLowerCase())) {
+          continue;
+        }
+        projectGroups.push({
+          id: def.id,
+          label: def.label,
+          order: def.order,
+          collapsed: !this.defaultGroupExpanded(def.id),
+          icon: def.icon,
+          color: def.color,
+        });
+      }
+    }
+
     this.baseProjectShortcuts = project;
     this.projectShortcuts = project;
     this.projectGroups = [...projectGroups].sort((a, b) => a.order - b.order);

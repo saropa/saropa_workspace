@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { Shortcut, ShortcutScope, shortcutKind, isAnnotationShortcut } from "../model/shortcut";
+import { defaultGroupLabel } from "../model/shortcutStoreShared";
 import { ShortcutTreeItem, ShortcutGroupItem } from "../views/shortcutTreeItem";
 import { telemetry } from "../exec/telemetry";
 import { runStatusRegistry } from "../exec/runStatus";
@@ -76,7 +77,15 @@ export async function shortcutUri(store: ShortcutStore, uri: vscode.Uri, scope: 
   const name = uri.path.split("/").pop() ?? uri.fsPath;
   const added = await store.addShortcut(uri, scope);
   if (added) {
-    vscode.window.showInformationMessage(l10n("pin.added", { name }));
+    // Name the default group the file was auto-sorted into (e.g. "Added publish.sh to
+    // Deploy"), so the user sees where it landed rather than guessing. The shortcut is
+    // in the store cache after addShortcut's refresh; a file that matched no rule (or a
+    // global add, where default groups do not apply) has no default group and shows the
+    // plain confirmation.
+    const group = defaultGroupLabel(store.findShortcutByUri(uri, scope)?.groupId);
+    vscode.window.showInformationMessage(
+      group ? l10n("pin.addedToGroup", { name, group }) : l10n("pin.added", { name })
+    );
     // Offer inferred run targets (npm scripts, Make targets, a shebang) so the
     // shortcut runs the right thing without the user typing a command (7.5).
     await offerRunTarget(store, uri, scope, name);
