@@ -106,6 +106,15 @@ export class PinTreeItem extends vscode.TreeItem {
       sweepBadge && !isRunning && !isStopping
         ? formatBadgeLead(sweepBadge)
         : undefined;
+    // The live metric value (#24), shared by the row and the hover. Size / line text
+    // is precomputed by the engine; "modified" is formatted relative here so it stays
+    // current between repaints (the engine cannot re-fire just because wall-clock
+    // advanced). Hoisted above the recent/normal split so the tooltip can reuse it.
+    const metricText = metricBadge
+      ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
+        ? formatRelativeTime(metricBadge.mtime, Date.now())
+        : metricBadge.text
+      : undefined;
     if (recentInfo) {
       const when = formatRelativeTime(recentInfo.at, Date.now());
       const tag =
@@ -117,14 +126,6 @@ export class PinTreeItem extends vscode.TreeItem {
       // the hover. Suppressed while running/stopping, where live state matters more.
       const expiryChip =
         !isRunning && !isStopping ? expirySummary(pin) : undefined;
-      // The live metric value (#24) as a trailing segment. Size / line text is
-      // precomputed; "modified" is formatted relative here so it stays current between
-      // repaints (the engine cannot re-fire just because wall-clock advanced).
-      const metricText = metricBadge
-        ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
-          ? formatRelativeTime(metricBadge.mtime, Date.now())
-          : metricBadge.text
-        : undefined;
       this.description = [badgeLead, badge, expiryChip, detail, metricText]
         .filter((part) => part)
         .join(" · ");

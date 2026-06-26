@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
-import { Pin, PinGroup, PinScope } from "../model/pin";
+import { Pin, PinGroup, PinScope, pinKind } from "../model/pin";
 import { MoveTarget, PinStore } from "../model/pinStore";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
 import { pinBadges } from "../exec/pinBadges";
+import { metricBadges, MetricTarget } from "../exec/metricBadges";
 import { dependencyState } from "../exec/dependencies";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
@@ -42,8 +43,14 @@ export class PinsTreeProvider
   ) {
     // Repaint whenever the store recomputes its cached pins, when a background
     // process starts/stops (running indicator + Stop action), or when a run
-    // finishes (success/failure badge).
-    store.onDidChange(() => this._onDidChangeTreeData.fire());
+    // finishes (success/failure badge). A store change can also add/remove a
+    // metric'd pin, so reconcile the metric engine's watchers off the same event.
+    store.onDidChange(() => {
+      this.syncMetrics();
+      this._onDidChangeTreeData.fire();
+    });
+    // A re-measured metric (#24) updates only a pin's inline value, so repaint.
+    metricBadges.onDidChange(() => this._onDidChangeTreeData.fire());
     processRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
     runStatusRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
     // A new lint/test sweep badge (severity counts / test tally) repaints the row.
@@ -345,8 +352,35 @@ export class PinsTreeProvider
       this.store.isMissing(pin.id),
       this.runCount(pin.id),
       this.lockedBy(pin),
-      pinBadges.get(pin.id)
+      pinBadges.get(pin.id),
+      metricBadges.get(pin.id)
     );
+  }
+
+  // Reconcile the metric engine's file watchers (#24) against the current set of
+  // metric'd file pins across both scopes. Only a file pin that carries a metric and
+  // resolves to a concrete URI is watched, so a workspace with no metric'd pins arms
+  // no watchers at all. Cheap and idempotent: the engine keeps an unchanged target's
+  // live watcher untouched, so calling this on every store change costs nothing in
+  // the steady state.
+  private syncMetrics(): void {
+    const targets: MetricTarget[] = [];
+    for (const pin of [...this.store.getProjectPins(), ...this.store.getGlobalPins()]) {
+      if (!pin.metric || pinKind(pin) !== "file") {
+        continue;
+      }
+      const uri = this.store.resolveUri(pin);
+      if (!uri) {
+        continue;
+      }
+      targets.push({
+        pinId: pin.id,
+        name: pin.label ?? (pin.path.split("/").pop() ?? pin.path),
+        uri,
+        metric: pin.metric,
+      });
+    }
+    metricBadges.track(targets);
   }
 
   // The display name of a pin's unmet run prerequisite (WOW #13), or undefined when

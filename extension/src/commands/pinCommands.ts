@@ -16,6 +16,7 @@ import { tappedPins } from "../model/tappedPins";
 import {
   detectFavoritesFiles,
   detectSettingsFavoritesCount,
+  detectSabitovvtFavoritesCount,
   importAllDetected,
   detectSiblingFavorites,
   importSiblingFavorites,
@@ -1465,16 +1466,18 @@ export function registerPinCommands(
   reg("saropaWorkspace.importFavorites", async () => {
     const detected = await detectFavoritesFiles();
     const settingsCount = detectSettingsFavoritesCount();
-    if (detected.length === 0 && settingsCount === 0) {
+    const sabitovvtCount = detectSabitovvtFavoritesCount();
+    if (detected.length === 0 && settingsCount === 0 && sabitovvtCount === 0) {
       vscode.window.showInformationMessage(l10n("import.none"));
       return;
     }
     const result = await importAllDetected(store);
-    // Name every source the import drew from (files plus the settings key) so the
+    // Name every source the import drew from (files plus the settings keys) so the
     // toast tells the user exactly where the pins came from.
     const sources = [
       ...detected.map((d) => d.fileName),
       ...(settingsCount > 0 ? ["favorites.resources"] : []),
+      ...(sabitovvtCount > 0 ? ["favoritesPanel.commands"] : []),
     ];
     const fileList = sources.join(", ");
     if (result.added === 0) {
