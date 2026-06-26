@@ -42,6 +42,7 @@ import {
   copyFileTo,
   deleteFile,
 } from "./fileOps";
+import { enterFocusMode, exitFocusMode } from "./focusMode";
 import { encodePinLink } from "../import/shareLink";
 import { runOutputs } from "../exec/runOutputs";
 import {
@@ -950,6 +951,13 @@ export function registerPinCommands(
   // Open the raw project pins JSON for direct editing; the file watcher in
   // activate() refreshes the tree live when it is saved.
   reg("saropaWorkspace.editPinsConfig", () => editPinsConfig());
+
+  // Focus the Explorer on pinned files only by driving files.exclude (hide
+  // everything not on the path to a favorite), and restore it. Two commands gated
+  // by the saropaWorkspace.focusActive context key so the title reads "Focus on
+  // Pinned Files" when off and "Exit Focus on Pinned Files" when on.
+  reg("saropaWorkspace.focusPinnedFiles", () => enterFocusMode(store, context));
+  reg("saropaWorkspace.exitFocusPinnedFiles", () => exitFocusMode(context));
 
   // Open a throwaway in-memory scratch buffer (WOW #6): an untitled doc that never
   // touches disk and never shows in git status. No store interaction — it is a pure

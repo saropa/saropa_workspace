@@ -377,6 +377,18 @@
         "icon": "$(json)"
       },
       {
+        "command": "saropaWorkspace.focusPinnedFiles",
+        "title": "%command.focusPinnedFiles.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "saropaWorkspace.exitFocusPinnedFiles",
+        "title": "%command.exitFocusPinnedFiles.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(eye-closed)"
+      },
+      {
         "command": "saropaWorkspace.showRunAnalytics",
         "title": "%command.showRunAnalytics.title%",
         "category": "%extension.displayName%",
@@ -586,6 +598,16 @@
           "command": "saropaWorkspace.suggestFromHistory",
           "when": "view == saropaWorkspace.pins",
           "group": "0_new@4"
+        },
+        {
+          "command": "saropaWorkspace.focusPinnedFiles",
+          "when": "view == saropaWorkspace.pins && !saropaWorkspace.focusActive",
+          "group": "0_new@5"
+        },
+        {
+          "command": "saropaWorkspace.exitFocusPinnedFiles",
+          "when": "view == saropaWorkspace.pins && saropaWorkspace.focusActive",
+          "group": "0_new@5"
         },
         {
           "command": "saropaWorkspace.pinExternalFile",
@@ -968,6 +990,14 @@
         {
           "command": "saropaWorkspace.copyPinLink",
           "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.focusPinnedFiles",
+          "when": "!saropaWorkspace.focusActive"
+        },
+        {
+          "command": "saropaWorkspace.exitFocusPinnedFiles",
+          "when": "saropaWorkspace.focusActive"
         },
         {
           "command": "saropaWorkspace.configureSchedule",

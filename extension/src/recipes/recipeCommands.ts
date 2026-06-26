@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import { showLintsHealthScore } from "../exec/lintsHealth";
 import { l10n } from "../i18n/l10n";
 
 // Helper commands invoked by the "command" recipes (set up .env, open all config
@@ -24,6 +25,9 @@ export function registerRecipeCommands(context: vscode.ExtensionContext): void {
   reg("saropaWorkspace.recipe.runNearestScript", (folderPath?: unknown) =>
     runNearestScript(asFolderUri(folderPath))
   );
+  // Reads the Saropa Lints public API and reports the exact Code Health score
+  // (recipe book #26, #36-40). Self-contained — no folder arg.
+  reg("saropaWorkspace.recipe.lintsHealth", () => showLintsHealthScore());
 }
 
 function asFolderUri(folderPath?: unknown): vscode.Uri | undefined {

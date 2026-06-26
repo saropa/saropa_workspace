@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { Pin, PinGroup, PinKind, PinScope, pinKind } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult, formatDuration } from "../exec/runStatus";
+import { PinBadge, formatBadgeLead } from "../exec/pinBadges";
 import { RunSource } from "../exec/telemetry";
 import { formatRelativeTime } from "./projectFilesProvider";
 import { l10n } from "../i18n/l10n";
@@ -37,7 +38,11 @@ export class PinTreeItem extends vscode.TreeItem {
     // When set, the display name of the prerequisite pin that has not yet succeeded
     // this session, so this pin is locked (WOW #13). Drives a lock glyph, a "waiting
     // on" badge, and a tooltip line. Undefined when the pin is cleared to run.
-    lockedBy?: string
+    lockedBy?: string,
+    // Lint severity counts / test tally from this pin's last sweep (#26, #32). When
+    // present, a compact glyph lead ("3✖ 5⚠", "12✓ 1✗") prefixes the row and a fuller
+    // line joins the hover. Undefined when the pin has produced no parseable sweep.
+    sweepBadge?: PinBadge
   ) {
     const kind = pinKind(pin);
     const isFile = kind === "file";
@@ -87,13 +92,22 @@ export class PinTreeItem extends vscode.TreeItem {
     // A Recent entry leads with when it last ran (and a hint if it was a scheduled
     // fire), since "how recently" is the reason it is in this group; otherwise the
     // leading slot is the most-actionable badge (running / next-run / last-run).
+    // A resting pin's last-sweep counts lead the row (the most informative resting
+    // fact for a lint / test pin), then the state badge, then the path/action detail.
+    // Suppressed while running/stopping, where the live state is what matters.
+    const badgeLead =
+      sweepBadge && !isRunning && !isStopping
+        ? formatBadgeLead(sweepBadge)
+        : undefined;
     if (recentInfo) {
       const when = formatRelativeTime(recentInfo.at, Date.now());
       const tag =
         recentInfo.source === "scheduled" ? ` ${l10n("recent.scheduledTag")}` : "";
       this.description = `${when}${tag} · ${detail}`;
     } else {
-      this.description = badge ? `${badge} · ${detail}` : detail;
+      this.description = [badgeLead, badge, detail]
+        .filter((part) => part)
+        .join(" · ");
     }
 
     // contextValue gates the menus. A running pin uses "pinRunning" so the Stop
@@ -163,6 +177,18 @@ export class PinTreeItem extends vscode.TreeItem {
     // the output channel (Show Output in the pin's context menu).
     if (lastRun) {
       tooltipLines.push(formatRunTooltip(lastRun));
+    }
+    // The last sweep's full breakdown in words (the row shows only compact glyphs),
+    // so the hover answers "what did the lint sweep / test run actually find".
+    if (sweepBadge && !isRunning && !isStopping) {
+      const diagLine = formatDiagTooltip(sweepBadge);
+      if (diagLine) {
+        tooltipLines.push(diagLine);
+      }
+      const testLine = formatTestTooltip(sweepBadge);
+      if (testLine) {
+        tooltipLines.push(testLine);
+      }
     }
     // Lifetime run total, so the hover answers "how much does this pin earn its
     // place?" beyond the single most-recent outcome above. Shown only once it has
@@ -265,6 +291,35 @@ function formatRunTooltip(result: RunResult): string {
   }
   const code = result.exitCode === null ? "?" : String(result.exitCode);
   return l10n("run.tooltipFailed", { code, duration, time });
+}
+
+// Full diagnostic breakdown line for the hover, or undefined when the badge carries
+// no diagnostic half. A clean sweep reads as "no issues".
+function formatDiagTooltip(badge: PinBadge): string | undefined {
+  const hasDiag =
+    badge.errors !== undefined ||
+    badge.warnings !== undefined ||
+    badge.infos !== undefined;
+  if (!hasDiag) {
+    return undefined;
+  }
+  return l10n("badge.diagTooltip", {
+    errors: badge.errors ?? 0,
+    warnings: badge.warnings ?? 0,
+    infos: badge.infos ?? 0,
+  });
+}
+
+// Full test-tally line for the hover, or undefined when the badge carries no test
+// half.
+function formatTestTooltip(badge: PinBadge): string | undefined {
+  if (badge.testsPassed === undefined && badge.testsFailed === undefined) {
+    return undefined;
+  }
+  return l10n("badge.testTooltip", {
+    passed: badge.testsPassed ?? 0,
+    failed: badge.testsFailed ?? 0,
+  });
 }
 
 // One-line summary of a non-file pin's action, shown as the tree row's detail.

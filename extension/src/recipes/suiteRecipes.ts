@@ -145,6 +145,7 @@ async function pushLints(
 
   // Command pins — only when the extension that owns these commands is installed.
   if (hasExt) {
+    out.push(suite("suite.lints.score", "Show Code Health score", "Reads the Saropa Lints public API and reports the exact 0-100 Code Health score with its error/warning/info breakdown — no report file to open. Offers to run the analysis first if no data exists yet. From the saropa.saropa-lints extension.", "pulse", color, command("saropaWorkspace.recipe.lintsHealth")));
     out.push(suite("suite.lints.analysis", "Run lint analysis", "Runs Saropa Lints analysis and writes the violations report. From the saropa.saropa-lints extension.", "checklist", color, command("saropaLints.runAnalysis")));
     out.push(suite("suite.lints.health", "Open Code Health dashboard", "Opens the Saropa Lints Code Health (project vibrancy) dashboard. From the saropa.saropa-lints extension.", "graph", color, command("saropaLints.openProjectVibrancyReport")));
     out.push(suite("suite.lints.config", "Manage rule packs", "Opens the Saropa Lints config dashboard to manage rule packs. From the saropa.saropa-lints extension.", "settings-gear", color, command("saropaLints.openConfigDashboard")));

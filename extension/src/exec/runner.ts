@@ -14,6 +14,7 @@ import {
 } from "./promptTokens";
 import { playCue } from "./soundCue";
 import { pinEvents } from "./pinEvents";
+import { pinBadges, parseRunBadge } from "./pinBadges";
 import { l10n } from "../i18n/l10n";
 
 // Builds and launches the command for a pin. Phase 1 supports the integrated
@@ -479,6 +480,13 @@ async function runShellToReport(
         playCue(code === 0 ? "success" : "failure");
         // Tracked outcome for the chain engine, same as the background path.
         pinEvents.fireComplete(pinId, code === 0 ? "success" : "failure");
+        // Badge the pin from the captured report body (#26, #32): the lint sweep /
+        // test-trend rituals run through this report path, so this is where their
+        // severity counts / test tally reach the pin.
+        const badge = parseRunBadge(body);
+        if (badge) {
+          pinBadges.record(pinId, badge);
+        }
         if (autoOpen) {
           const doc = await vscode.workspace.openTextDocument(
             vscode.Uri.file(reportPath)
@@ -799,6 +807,13 @@ async function runInBackground(
     pinEvents.fireComplete(pinId, outcome);
     // Keep this run's output for the "Diff Last Two Runs" command.
     runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
+    // Badge the pin with any lint severity counts or test tally found in the output
+    // (#26, #32) — so the lint sweep / test-trend ritual shows its result on the pin
+    // itself, not only in the report. No-op when the output is neither.
+    const badge = parseRunBadge(captured);
+    if (badge) {
+      pinBadges.record(pinId, badge);
+    }
     // Pull a configured value (a deploy URL, a generated id) out of the output and
     // copy it to the clipboard. Runs on any completion — a URL printed before a
     // non-zero exit is still worth grabbing.

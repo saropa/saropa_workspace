@@ -12,6 +12,7 @@ import { registerPinCommands } from "./commands/pinCommands";
 import { registerSimulationPreview } from "./commands/simulateRun";
 import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
+import { initFocusMode } from "./commands/focusMode";
 import { registerRunOutputDiff } from "./commands/diffRuns";
 import { registerTerminalCleanup, isRunnable } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
@@ -347,6 +348,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // enabled and non-empty (no prompt otherwise). Runs after the pin set is loaded
   // so the member pins resolve; the confirm is the "no silent execution" gate.
   void maybeRunBootSequenceOnOpen(store);
+
+  // Re-establish the focus-mode context key from its persisted flag, so a window
+  // reloaded while focus is active shows "Exit Focus" rather than "Focus" (the
+  // written files.exclude survives the reload, so the toggle state must too).
+  void initFocusMode(context);
 }
 
 // Import a pin from a shared "Copy as Saropa Link" URI. Decodes the payload, shows a

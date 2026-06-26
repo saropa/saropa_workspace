@@ -3,6 +3,7 @@ import { Pin, PinGroup, PinScope } from "../model/pin";
 import { MoveTarget, PinStore } from "../model/pinStore";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
+import { pinBadges } from "../exec/pinBadges";
 import { dependencyState } from "../exec/dependencies";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
@@ -41,6 +42,8 @@ export class PinsTreeProvider
     store.onDidChange(() => this._onDidChangeTreeData.fire());
     processRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
     runStatusRegistry.onDidChange(() => this._onDidChangeTreeData.fire());
+    // A new lint/test sweep badge (severity counts / test tally) repaints the row.
+    pinBadges.onDidChange(() => this._onDidChangeTreeData.fire());
     // A recorded run (or a reset) changes the Recent group's contents.
     telemetry.onDidChange(() => this._onDidChangeTreeData.fire());
   }
@@ -295,7 +298,8 @@ export class PinsTreeProvider
       undefined,
       this.store.isMissing(pin.id),
       this.runCount(pin.id),
-      this.lockedBy(pin)
+      this.lockedBy(pin),
+      pinBadges.get(pin.id)
     );
   }
 

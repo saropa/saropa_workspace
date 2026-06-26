@@ -248,9 +248,6 @@ committing. Not yet ordered into a phase.
 - **Comments and separators in the pin list.** Allow non-pin entries — comment lines and
   visual separators — to annotate and divide a long pin list (as oleg-shilo Favorites
   Manager offers).
-- **`files.exclude` integration.** Optionally drive VS Code's `files.exclude` from the pin
-  set to hide non-favorite files in the Explorer (as kdcro101 Favorites offers), for a
-  focused, favorites-only workspace view.
 
 ---
 

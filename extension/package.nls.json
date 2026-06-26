@@ -64,6 +64,8 @@
   "command.exportPins.title": "Export Pins to File...",
   "command.importPins.title": "Import Pins from File...",
   "command.editPinsConfig.title": "Edit Pins Config (JSON)",
+  "command.focusPinnedFiles.title": "Focus on Pinned Files",
+  "command.exitFocusPinnedFiles.title": "Exit Focus on Pinned Files",
   "command.showOutput.title": "Show Output",
   "command.addGroup.title": "New Group...",
   "command.renameGroup.title": "Rename Group...",
