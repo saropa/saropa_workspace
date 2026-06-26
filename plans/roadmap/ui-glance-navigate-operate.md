@@ -89,7 +89,13 @@ attention before they ask.
 **Verification:** `tsc -p ./ --noEmit` clean; manual smoke in the dev host that a
 fresh window opens with Pins front-and-center and the other surfaces folded.
 
-## Phase 1 — Row legibility (attacks problem A)
+## Phase 1 — Row legibility (attacks problem A) — SHIPPED
+
+Landed: the branch chip and mode-tag chips are no longer joined onto the visible
+row; the description is now `badgeLead · badge · expiry · detail · metric` (max
+five, down from seven). Both demoted signals already had a dedicated hover line,
+so nothing was lost — only the on-row crowding
+([pinTreeItem.ts row budget](../../extension/src/views/pinTreeItem.ts)).
 
 Goal: a resting pin row shows at most the leading state signal, the name, and one
 trailing detail. Everything else moves to hover or to an icon/tint.
@@ -110,7 +116,14 @@ description has ≤ N segments for a pin carrying every optional signal.
 **Verification:** `npm run test:unit` (the row test) + dev-host smoke against a
 pin loaded with branch + tags + metric + expiry simultaneously.
 
-## Phase 2 — Toolbar triage (attacks problem B)
+## Phase 2 — Toolbar triage (attacks problem B) — SHIPPED
+
+Landed: the Pins title bar now shows four permanent buttons — filter, mode
+(tag filter), run-any, refresh — plus the two conditional branch toggles that
+only appear when relevant. Planner, New Group, and Restore Auto-Pins moved into
+the `···` overflow ([package.json view/title](../../extension/package.json)).
+Manifest-only; every demoted command stays reachable from the overflow and the
+palette.
 
 Goal: ≤ 4 always-visible buttons on the Pins title bar; everything else in a
 well-sectioned overflow.
@@ -126,7 +139,15 @@ well-sectioned overflow.
 **Risk:** low (manifest only). **Verification:** dev-host smoke; confirm every
 demoted command is still reachable from the overflow and the palette.
 
-## Phase 3 — Teach the interaction (attacks problem C)
+## Phase 3 — Teach the interaction (attacks problem C) — SHIPPED
+
+Landed: every pin's hover now ends with a "Single-click opens · double-click
+runs" footer (recipe pins keep their own click hint), and a one-time information
+message states the gesture the first time the user has a real pin — gated on a
+global flag so it shows at most once ever, for the user who pins from the
+editor/Explorer menu and never sees the empty-view welcome (which already stated
+it). New l10n keys `pin.gestureHint` / `pin.gestureToast`
+([extension.ts one-time tip](../../extension/src/extension.ts)).
 
 Goal: a first-time user learns "single-click opens, double-click runs" without
 reading anything external.
@@ -143,7 +164,15 @@ reading anything external.
 **Verification:** dev-host: fresh profile shows the welcome copy and the
 one-time hint; second run does not.
 
-## Phase 4 — Icon and color token map (attacks problem D)
+## Phase 4 — Icon and color token map (attacks problem D) — SHIPPED
+
+Landed: a new `views/pinRowTokens.ts` is the single source of truth for the
+row's glyphs and tints — `resolvePinRowIcon` owns the priority (which state wins)
+and the per-state branches own the appearance, with a legend comment of what each
+glyph reads as. The row builder now states only its inputs and calls the resolver;
+no glyph/color literal remains at the call site
+([pinRowTokens.ts](../../extension/src/views/pinRowTokens.ts)). The behavior is
+byte-for-byte the prior chain — a pure extraction, no visual change.
 
 Goal: one documented source for every glyph and tint the tree uses, so the
 visual language is consistent and learnable.
@@ -161,18 +190,31 @@ pre-extraction behavior (no visual regression).
 
 ## Phase 5 — Information architecture review (attacks problem E — DECISION GATE)
 
-Not a code change yet — a decision to make with the user before building:
+Reviewed against the verified contributions. **Recommendation: no structural
+view-container change.** Once Phases 1-2 cut the row and toolbar weight, the three
+views are sound — each is a conceptually distinct surface, and the cheaper fix
+(starting them at the right density, done in Phase 0) addresses the glance cost
+without the blast radius of restructuring view containers.
 
-- Should **Recipes** stay an always-present second tree view, or fold into a
-  collapsible section so the default sidebar is one primary view plus optional
-  sections?
-- Are all current **status-bar items** (pin-set switcher, schedule status,
-  next-scheduled) earning their slot, or should some merge?
-- Is the **Project Files** view better as a fourth view (current) or as a
-  collapsed section under Pins?
+- **Recipes — keep as its own view.** Recipes are auto-detected shortcuts, a
+  different category from the user's own pins; the codebase deliberately split
+  them out of the Pins view so detected items never bury user pins
+  ([recipesTreeProvider.ts](../../extension/src/views/recipesTreeProvider.ts)
+  header). Its category groups already default collapsed and it carries a count.
+  Folding it back into Pins reverses a considered decision for no glance gain.
+- **Project Files — keep as a collapsed view.** VS Code cannot nest one view as a
+  section inside another's tree without merging them into a single provider; that
+  merge is a large structural change. Phase 0 already made it start collapsed and
+  lazy, which is the actual glance win. A fourth collapsed view costs one header
+  row at rest — cheaper than the merge.
+- **Status bar — keep; already gated.** The pin-set switcher stays hidden until a
+  second set exists, and the schedule status only shows with a scheduled pin.
+  Neither is always-on clutter, so neither warrants consolidation.
 
-This phase produces a recommendation + mockup, then waits for sign-off before
-any contribution change (blast-radius: view containers are structural).
+If the user still wants a single-primary-view sidebar, the only real lever is
+merging Recipes + Project Files into the Pins provider as collapsible synthetic
+roots — a genuine structural change behind the blast-radius gate, recorded here
+as the option, not taken without explicit sign-off.
 
 ## Open decisions (need user input)
 
@@ -194,3 +236,67 @@ any contribution change (blast-radius: view containers are structural).
   without the blast-radius gate.
 - No webview-panel redesign (Dashboard / Planner) — this plan is the sidebar
   tree surfaces; panels are a separate effort if raised.
+
+## Finish Report (2026-06-26)
+
+Phases 0 through 4 of the sidebar UI overhaul are implemented and verified; Phase
+5 (information architecture) is concluded as a recommendation requiring no code.
+The plan is retained in `roadmap/` rather than archived to history because a
+standing user decision remains open (the optional structural merge under Phase 5,
+and the row-budget/recipes confirmations under Open decisions); the actionable
+code is complete, the decisions are not.
+
+### What changed
+
+The sidebar carried too much default visual load and too dense a pin row to meet
+an "easy to glance, navigate, operate" bar. Five workstreams addressed it:
+
+- **Phase 0 — default visual load.** The Project Files view contributes
+  `visibility: "collapsed"`, which both starts it closed and defers its disk scan
+  until first expand (VS Code does not call `getChildren` on a collapsed tree
+  view). The Recent group's persisted default flipped to collapsed. The Global
+  Pins scope header is suppressed while it is empty and no filter is active —
+  Project always shows as the landing surface. Recipe category folders were
+  already collapsed by default (verified, unchanged).
+- **Phase 1 — row legibility.** The pin row's description previously joined up to
+  seven `·`-separated segments. The branch chip and mode-tag chips were removed
+  from the visible row (both already appear as dedicated hover lines), leaving a
+  five-segment maximum: leading sweep counts, the one most-actionable state badge,
+  an expiry chip, the identity detail, and the opted-in live metric.
+- **Phase 2 — toolbar triage.** The Pins title bar's permanent buttons were cut
+  to four (filter, tag filter, run-any, refresh) plus the two conditional branch
+  toggles; Open Planner, New Group, and Restore Auto-Pins moved into the `···`
+  overflow. Manifest-only; every command stays reachable from the overflow and
+  the command palette.
+- **Phase 3 — teach the interaction.** A "Single-click opens · double-click runs"
+  footer was added to every non-recipe pin's hover, and a one-time information
+  message states the same the first time an actionable pin exists, gated on a
+  global flag so it shows at most once. New keyed strings `pin.gestureHint` and
+  `pin.gestureToast`.
+- **Phase 4 — icon/color token map.** The row builder's inline glyph/tint
+  priority chain was extracted to `views/pinRowTokens.ts` as `resolvePinRowIcon`
+  plus `kindIcon`, a single documented source of truth with a legend. The
+  extraction is behavior-preserving (byte-for-byte the prior chain); the row
+  builder now passes a flat input object and holds no glyph/color literal.
+
+### Files
+
+- `extension/src/views/pinTreeItem.ts` — row description budget; hover gesture
+  footer; icon chain replaced by the resolver call; local `kindIcon` removed.
+- `extension/src/views/pinRowTokens.ts` — new token module (icon priority +
+  appearance + legend).
+- `extension/src/views/pinsTreeProvider.ts` — hide the empty/unfiltered Global
+  scope header.
+- `extension/src/exec/telemetry.ts` — Recent group defaults to collapsed.
+- `extension/src/extension.ts` — one-time gesture tip wiring + global gate key.
+- `extension/package.json` — Project Files `visibility: collapsed`; toolbar
+  triage.
+- `extension/src/i18n/locales/en.json` — `pin.gestureHint` / `pin.gestureToast`.
+- `CHANGELOG.md` — user-visible entries + one Maintenance note.
+
+### Verification
+
+`tsc -p ./ --noEmit` clean. `npm run test:unit` — 171 pass, 0 fail. The view-layer
+modules import `vscode` and are host-dependent, so they sit outside the
+`node --test` harness; they were validated by inspection and type-check, and the
+Phase 4 extraction preserves prior behavior exactly.

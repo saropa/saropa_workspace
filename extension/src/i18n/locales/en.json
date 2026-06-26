@@ -47,6 +47,8 @@
   "pin.group.global": "Global Pins",
   "pin.missingFile": "File not found: {path}",
   "pin.missingTooltip": "File not found — this pin's target no longer exists.",
+  "pin.gestureHint": "Single-click opens · double-click runs",
+  "pin.gestureToast": "Tip: single-click a pin to open it, double-click to run it.",
   "pin.missing.message": "Can't open {name} — the file no longer exists at {path}.",
   "pin.missing.unpin": "Unpin",
   "pin.missing.reveal": "Show in Folder",

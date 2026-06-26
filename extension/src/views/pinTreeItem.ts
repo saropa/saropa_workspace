@@ -1,11 +1,12 @@
 import * as vscode from "vscode";
-import { Pin, PinGroup, PinKind, PinScope, pinKind, isAnnotationPin } from "../model/pin";
+import { Pin, PinGroup, PinScope, pinKind, isAnnotationPin } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult, formatDuration } from "../exec/runStatus";
 import { PinBadge, formatBadgeLead } from "../exec/pinBadges";
 import { MetricBadge } from "../exec/metricBadges";
 import { RunSource } from "../exec/telemetry";
 import { formatRelativeTime } from "./projectFilesProvider";
+import { resolvePinRowIcon } from "./pinRowTokens";
 import { l10n } from "../i18n/l10n";
 
 // The divider glyph for a "separator" annotation row. A run of box-drawing dashes
@@ -160,20 +161,6 @@ export class PinTreeItem extends vscode.TreeItem {
         ? formatRelativeTime(metricBadge.mtime, Date.now())
         : metricBadge.text
       : undefined;
-    // The pin's mode tags as compact "#ops #dev" chips (WOW #17), so the modes a
-    // pin belongs to are visible on the row without opening the editor or the
-    // hover. Undefined when untagged, so it adds nothing to an untagged row.
-    const tagChip =
-      pin.tags && pin.tags.length > 0
-        ? pin.tags.map((t) => `#${t}`).join(" ")
-        : undefined;
-    // A branch-linked pin (WOW #3) carries an "on <branch>" chip so it reads as
-    // branch-scoped even while shown (the filter only hides it on OTHER branches).
-    // Undefined for an unlinked pin, so it adds nothing to the common row.
-    const branchChip =
-      pin.branch !== undefined
-        ? l10n("branch.chip", { branch: pin.branch })
-        : undefined;
     if (recentInfo) {
       const when = formatRelativeTime(recentInfo.at, Date.now());
       const tag =
@@ -185,15 +172,14 @@ export class PinTreeItem extends vscode.TreeItem {
       // the hover. Suppressed while running/stopping, where live state matters more.
       const expiryChip =
         !isRunning && !isStopping ? expirySummary(pin) : undefined;
-      this.description = [
-        badgeLead,
-        badge,
-        expiryChip,
-        branchChip,
-        detail,
-        metricText,
-        tagChip,
-      ]
+      // Row budget (UI plan, Phase 1): leading sweep counts, the one most-actionable
+      // state badge, a single expiry chip, the identity detail, and the live metric
+      // the user opted into per pin. The branch link and mode tags are deliberately
+      // NOT joined onto the row — both already have a dedicated hover line below, and
+      // crowding a narrow sidebar row with up to seven `·`-joined segments was the
+      // main "hard to glance" offender. Holding the row to these few parts lets the
+      // eye lock onto state and identity without parsing a long string.
+      this.description = [badgeLead, badge, expiryChip, detail, metricText]
         .filter((part) => part)
         .join(" · ");
     }
@@ -330,71 +316,36 @@ export class PinTreeItem extends vscode.TreeItem {
           : l10n("metric.tooltip", { value: metricText })
       );
     }
+    // The single/double-click gesture model, stated as a hover footer so the
+    // extension's core interaction is always one mouse-over away (UI plan, Phase 3).
+    // Recipe pins have their own click hint above (single click = details, play =
+    // run), so the generic line would contradict them; a running/stopping pin is
+    // mid-action and a gesture reminder there is noise.
+    if (!pin.isRecipe && !isRunning && !isStopping) {
+      tooltipLines.push(l10n("pin.gestureHint"));
+    }
     this.tooltip = tooltipLines.join("\n");
 
-    // Icon priority mirrors the badge: spinning while running; a missing target
-    // is flagged; then the last-run outcome (green pass / red error); then auto
-    // vs explicit pin glyph.
-    if (isRunning || isStopping) {
-      this.iconPath = new vscode.ThemeIcon("loading~spin");
-    } else if (isFile && (!resolvedUri || missing)) {
-      // Unresolvable folder OR a target deleted on disk: warn, and let this win
-      // over any stale last-run badge below (a green check on a gone file misleads).
-      this.iconPath = new vscode.ThemeIcon("warning");
-    } else if (lockedBy) {
-      // Locked on an unmet prerequisite: a lock glyph signals "not runnable yet",
-      // winning over a stale last-run badge (a prior session's green check does not
-      // mean the dependency is satisfied now).
-      this.iconPath = new vscode.ThemeIcon("lock");
-    } else if (pin.paused) {
-      // Paused: render the pin's glyph muted so the row reads as "not running on its
-      // own" at a glance. Running / missing / locked above still win (they are more
-      // actionable, live states); a manual run is still possible, so this is a muted
-      // resting state, not an error tint. Wins over a stale last-run badge since being
-      // paused is the actionable resting fact.
-      this.iconPath = new vscode.ThemeIcon(
-        pin.icon ?? (isFile ? "circle-slash" : kindIcon(kind)),
-        new vscode.ThemeColor("disabledForeground")
-      );
-    } else if (metricBadge?.over) {
-      // Over its size threshold (#24): tint the row as a warning so "this file is too
-      // big" reads at a glance (the badge text carries the actual size). Keeps the
-      // pin's own glyph when it has one, else a warning triangle; wins over a stale
-      // last-run badge since being over budget is the actionable resting state.
-      this.iconPath = new vscode.ThemeIcon(
-        pin.icon ?? "warning",
-        new vscode.ThemeColor("list.warningForeground")
-      );
-    } else if (lastRun) {
-      this.iconPath =
-        lastRun.outcome === "success"
-          ? new vscode.ThemeIcon("pass", new vscode.ThemeColor("testing.iconPassed"))
-          : new vscode.ThemeIcon("error", new vscode.ThemeColor("testing.iconFailed"));
-    } else if (!isFile && !pin.icon) {
-      // Default glyph per action kind for a non-file pin with no custom icon.
-      this.iconPath = new vscode.ThemeIcon(kindIcon(kind));
-    } else if (pin.icon) {
-      // User-chosen icon/color for the resting state (5.1). Transient state icons
-      // above (running / missing / last-run) deliberately win, since they convey
-      // actionable state; the custom glyph replaces the default pin/star glyph.
-      this.iconPath = new vscode.ThemeIcon(
-        pin.icon,
-        pin.color ? new vscode.ThemeColor(pin.color) : undefined
-      );
-    } else if (pin.expires) {
-      // A time-bombed pin (WOW #9) wears a watch glyph in its resting state, so the
-      // pending self-removal reads at a glance. Transient state icons (running /
-      // missing / last-run / locked) and a user-chosen custom icon all win above;
-      // this fills the otherwise-idle slot for a default-glyph pin.
-      this.iconPath = new vscode.ThemeIcon(
-        "watch",
-        new vscode.ThemeColor("charts.yellow")
-      );
-    } else if (pin.isAuto) {
-      this.iconPath = new vscode.ThemeIcon("star-empty");
-    } else {
-      this.iconPath = new vscode.ThemeIcon("pin");
-    }
+    // Row glyph + tint: the priority chain and every codicon/color token live in
+    // the shared token map (UI plan, Phase 4), so the visual language is consistent
+    // and learnable. The call site only states the inputs; the resolver owns which
+    // state wins and what it looks like.
+    this.iconPath = resolvePinRowIcon({
+      isRunning,
+      isStopping,
+      isFile,
+      hasResolvedUri: resolvedUri !== undefined,
+      missing,
+      locked: Boolean(lockedBy),
+      paused: Boolean(pin.paused),
+      metricOver: Boolean(metricBadge?.over),
+      lastRunOutcome: lastRun?.outcome,
+      customIcon: pin.icon,
+      customColor: pin.color,
+      hasExpiry: Boolean(pin.expires),
+      isAuto: Boolean(pin.isAuto),
+      kind,
+    });
 
     // Single command for click; the dispatcher reads timing to choose open/run.
     this.command = {
@@ -564,26 +515,6 @@ function urlHost(url: string | undefined): string {
     return new URL(url).host;
   } catch {
     return url;
-  }
-}
-
-// Default codicon for a non-file action kind when the pin has no custom icon.
-function kindIcon(kind: PinKind): string {
-  switch (kind) {
-    case "url":
-      return "link-external";
-    case "shell":
-      return "terminal";
-    case "command":
-      return "symbol-event";
-    case "macro":
-      return "list-ordered";
-    case "routine":
-      // A routine runs a block of recipes back-to-back, so it reads as "run all"
-      // rather than a single task.
-      return "run-all";
-    default:
-      return "pin";
   }
 }
 

@@ -805,24 +805,24 @@
           "group": "navigation@2"
         },
         {
-          "command": "saropaWorkspace.openPlanner",
-          "when": "view == saropaWorkspace.pins",
-          "group": "navigation@3"
-        },
-        {
-          "command": "saropaWorkspace.addGroup",
-          "when": "view == saropaWorkspace.pins",
-          "group": "navigation@4"
-        },
-        {
           "command": "saropaWorkspace.refresh",
           "when": "view == saropaWorkspace.pins",
           "group": "navigation@5"
         },
         {
+          "command": "saropaWorkspace.openPlanner",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_more@7"
+        },
+        {
+          "command": "saropaWorkspace.addGroup",
+          "when": "view == saropaWorkspace.pins",
+          "group": "0_new@0"
+        },
+        {
           "command": "saropaWorkspace.restoreAutoPins",
           "when": "view == saropaWorkspace.pins",
-          "group": "navigation@6"
+          "group": "1_more@8"
         },
         {
           "command": "saropaWorkspace.newScratchpad",

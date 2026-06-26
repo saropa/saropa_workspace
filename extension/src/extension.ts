@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
-import { Pin, pinKind } from "./model/pin";
+import { Pin, pinKind, isAnnotationPin } from "./model/pin";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import {
   PinFilterState,
@@ -64,6 +64,13 @@ const IMPORT_PROMPT_KEY = "saropaWorkspace.favoritesImportOffered";
 // a window reload keeps the chosen branch scope (filtering by current branch vs.
 // showing every branch-linked pin).
 const SHOW_ALL_BRANCHES_KEY = "saropaWorkspace.showAllBranches";
+
+// Gate flag (global, not per-workspace) so the one-time "single-click opens,
+// double-click runs" tip shows at most once ever — the first time the user has a
+// real pin. It teaches the core gesture to users who add a pin from the editor /
+// Explorer menu and so never see the empty-view welcome that states it (UI plan,
+// Phase 3). Once shown, the gesture still lives in every pin's hover.
+const GESTURE_TIP_SHOWN_KEY = "saropaWorkspace.gestureTipShown";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const store = new PinStore(context);
@@ -212,6 +219,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     store.onDidChange(() => refreshUntappedBadge()),
     tappedPins.onDidChange(() => refreshUntappedBadge())
   );
+
+  // One-time gesture tip (UI plan, Phase 3): the first time the user has a real,
+  // actionable pin, name the single/double-click model once. The empty-view welcome
+  // already states it, but a user who pins from the editor/Explorer menu lands
+  // straight on a populated tree and never sees that copy. Gated on a global flag so
+  // it shows at most once ever; annotation pins (comment/separator) are inert and do
+  // not count, so the tip waits for a pin a gesture actually applies to.
+  const maybeShowGestureTip = (): void => {
+    if (context.globalState.get<boolean>(GESTURE_TIP_SHOWN_KEY, false)) {
+      return;
+    }
+    const actionable = [
+      ...store.getProjectPins().filter((p) => !p.isRecipe),
+      ...store.getGlobalPins(),
+    ].some((p) => !isAnnotationPin(p));
+    if (!actionable) {
+      return;
+    }
+    void context.globalState.update(GESTURE_TIP_SHOWN_KEY, true);
+    void vscode.window.showInformationMessage(l10n("pin.gestureToast"));
+  };
+  context.subscriptions.push(store.onDidChange(() => maybeShowGestureTip()));
+  maybeShowGestureTip();
 
   // Branch-linked pins (WOW #3): keep the title-bar affordances in sync. The
   // "branchShowAll" key flips between the two toggle buttons (show-all vs filter-by-
