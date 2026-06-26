@@ -33,6 +33,12 @@
       "path": "plans/PLAN_PIN_COUNT.md",
       "scope": "project",
       "order": 4
+    },
+    {
+      "id": "mquatvir-gy3ehe6h",
+      "path": "scripts/publish.py",
+      "scope": "project",
+      "order": 5
     }
   ],
   "groups": [],
