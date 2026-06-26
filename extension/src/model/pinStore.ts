@@ -926,6 +926,27 @@ export class PinStore {
     return this.setNamesCache;
   }
 
+  // The stored (explicit) project pins of a named set WITHOUT switching to it, read
+  // from the first workspace folder's file. The active set's pins are already at the
+  // file's top level; an inactive set's pins live in `sets`. Used by the branch-set
+  // binder's link command to offer an on-switch pin from the set being linked (which
+  // may be inactive, so its pins are not in the projectPins cache). Returns [] when
+  // no folder is open or the name is unknown. Excludes auto/recipe pins by nature —
+  // those are recomputed, never stored in a set, so a file read yields only the
+  // user's explicit pins (a meaningful run target).
+  async getSetPins(name: string): Promise<Pin[]> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+      return [];
+    }
+    const file = await this.readProjectFile(folder);
+    if (file.activeSet === name) {
+      return file.pins.map((p) => ({ ...p, scope: "project" as const }));
+    }
+    const set = file.sets.find((s) => s.name === name);
+    return (set?.pins ?? []).map((p) => ({ ...p, scope: "project" as const }));
+  }
+
   // Switch every folder to the set named `name`, repainting the tree to its pins.
   // No-op for a folder already on that set. A folder that has never seen the name
   // gets a fresh empty set for it (keeps multi-root coherent under one name).

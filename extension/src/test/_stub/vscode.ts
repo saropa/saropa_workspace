@@ -304,6 +304,21 @@ export const window = {
   showQuickPick(items: readonly string[]): Promise<InputResult> {
     return pickHandler(items);
   },
+  // The branch-set binder and several command handlers emit toasts via these. No
+  // test asserts on their text, so they are inert no-ops that resolve to undefined
+  // (the "no action button chosen" result) — they must only exist and not throw.
+  showInformationMessage(
+    _message: string,
+    ..._items: string[]
+  ): Promise<string | undefined> {
+    return Promise.resolve(undefined);
+  },
+  showWarningMessage(
+    _message: string,
+    ..._items: string[]
+  ): Promise<string | undefined> {
+    return Promise.resolve(undefined);
+  },
   createOutputChannel,
   onDidChangeWindowState: windowStateEmitter.event,
   onDidChangeTextEditorSelection: selectionEmitter.event,
@@ -319,6 +334,31 @@ export function __fireSelection(): void {
 }
 export function __fireActiveEditor(): void {
   activeEditorEmitter.fire(undefined);
+}
+
+// commands.executeCommand: the analytics preview calls it to open the Markdown
+// preview, but the unit-tested path (buildReport) never reaches it. Modeled as an
+// inert async no-op. Each call is recorded so a test that DOES care which command
+// ran (the branch-set binder's on-switch pin runner) can assert it; the recording
+// is cleared by __resetRecordedCommands.
+const recordedCommands: Array<{ command: string; args: unknown[] }> = [];
+export const commands = {
+  executeCommand(command: string, ...rest: unknown[]): Promise<undefined> {
+    recordedCommands.push({ command, args: rest });
+    return Promise.resolve(undefined);
+  },
+};
+
+// The commands executeCommand was called with since the last reset, for tests that
+// assert a side-effecting command fired (e.g. saropaWorkspace.runPin).
+export function __recordedCommands(): ReadonlyArray<{
+  command: string;
+  args: unknown[];
+}> {
+  return recordedCommands;
+}
+export function __resetRecordedCommands(): void {
+  recordedCommands.length = 0;
 }
 
 export function __setInputHandler(handler: InputHandler): void {

@@ -1,20 +1,37 @@
 import * as vscode from "vscode";
-import * as path from "path";
 import { Pin, PinExecConfig, RunLocation } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { l10n } from "../i18n/l10n";
+import { editCommand, editArgs, formatArgs } from "./configureRunCommand";
+import { editCwd, editEnv, editDependsOn, resolveDepName } from "./configureRunEnv";
+import {
+  editLocation,
+  editElevated,
+  editFileArg,
+  editSound,
+  editRunOnSave,
+  editConcurrency,
+  editLock,
+  editExtract,
+} from "./configureRunMode";
 
 // Roadmap 2.1 — Run-parameters editor.
 //
 // A hub-and-spoke QuickPick flow to edit a pin's PinExecConfig (command prefix,
 // arguments, working directory, environment variables, terminal-vs-background
-// toggle) without hand-editing JSON.
+// toggle) without hand-editing JSON. The individual field editors live in sibling
+// modules (configureRunCommand / configureRunEnv / configureRunMode); this file
+// owns the working copy, the hub loop, and persistence.
 //
 // Edits accumulate in a working copy; nothing is persisted until the user
 // explicitly chooses Save at the hub. Dismissing (Esc) the hub discards the
 // working copy, so a canceled edit never reaches disk (acceptance: canceling
 // any step aborts with no partial write). Dismissing a sub-step returns to the
 // hub with that field unchanged.
+
+// Re-exported so the run-with-overrides palette keeps importing the command-line
+// parse/format pair from this module.
+export { parseArgs, formatArgs } from "./configureRunCommand";
 
 // A QuickPickItem tagged with the hub action it represents.
 interface HubItem extends vscode.QuickPickItem {
@@ -33,6 +50,14 @@ interface HubItem extends vscode.QuickPickItem {
     | "concurrency"
     | "lock"
     | "save";
+}
+
+// Mutable holder for the pin's top-level single-instance settings, threaded through
+// the hub the way `work` threads the exec config. Exported so the concurrency/lock
+// editors in configureRunMode share the type.
+export interface ConcurrencyEdit {
+  allowConcurrent: boolean;
+  lockName: string | undefined;
 }
 
 // Seed the working copy's location from a stored pin WITHOUT consulting the
@@ -81,7 +106,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
   // Single-instance settings live top-level on the Pin (so a recipe with no exec can
   // carry them too), not on PinExecConfig — kept in a small side holder and persisted
   // separately from the exec config below.
-  const conc = {
+  const conc: ConcurrencyEdit = {
     allowConcurrent: pin.allowConcurrent === true,
     lockName: pin.lockName,
   };
@@ -151,13 +176,6 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
   // second mutate, since they do not live on PinExecConfig).
   await store.setPinConcurrency(pin, conc.allowConcurrent, conc.lockName);
   vscode.window.showInformationMessage(l10n("configure.saved", { name }));
-}
-
-// Mutable holder for the pin's top-level single-instance settings, threaded through
-// the hub the way `work` threads the exec config.
-interface ConcurrencyEdit {
-  allowConcurrent: boolean;
-  lockName: string | undefined;
 }
 
 // Collapse empty collections to undefined so a saved config is identical to the
@@ -322,500 +340,4 @@ function locationLabel(value: RunLocation | undefined): string {
     default:
       return l10n("configure.terminal.default");
   }
-}
-
-async function editCommand(work: PinExecConfig, title: string): Promise<void> {
-  const value = await vscode.window.showInputBox({
-    title,
-    prompt: l10n("configure.command.prompt"),
-    placeHolder: l10n("configure.command.placeholder"),
-    value: work.command ?? "",
-    ignoreFocusOut: true,
-  });
-  if (value === undefined) {
-    // Esc on the sub-step: leave the field unchanged.
-    return;
-  }
-  // An empty entry means "use the interpreter default for this file type".
-  work.command = value.trim() === "" ? undefined : value;
-}
-
-async function editArgs(work: PinExecConfig, title: string): Promise<void> {
-  const value = await vscode.window.showInputBox({
-    title,
-    prompt: l10n("configure.args.prompt"),
-    placeHolder: l10n("configure.args.placeholder"),
-    value: work.args ? formatArgs(work.args) : "",
-    ignoreFocusOut: true,
-  });
-  if (value === undefined) {
-    return;
-  }
-  const parsed = parseArgs(value);
-  work.args = parsed.length > 0 ? parsed : undefined;
-}
-
-async function editCwd(
-  work: PinExecConfig,
-  title: string,
-  store: PinStore,
-  pin: Pin
-): Promise<void> {
-  const uri = store.resolveUri(pin);
-  const owningFolder = uri
-    ? vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath
-    : undefined;
-  const fileDir = uri ? path.dirname(uri.fsPath) : undefined;
-
-  interface CwdItem extends vscode.QuickPickItem {
-    id: "default" | "workspace" | "fileDir" | "custom";
-    value?: string;
-  }
-  const items: CwdItem[] = [
-    {
-      id: "default",
-      label: l10n("configure.cwd.default"),
-      description: owningFolder ?? l10n("configure.value.cwdDefault"),
-    },
-  ];
-  if (owningFolder) {
-    items.push({
-      id: "workspace",
-      label: l10n("configure.cwd.workspace"),
-      description: owningFolder,
-      value: owningFolder,
-    });
-  }
-  if (fileDir && fileDir !== owningFolder) {
-    items.push({
-      id: "fileDir",
-      label: l10n("configure.cwd.fileDir"),
-      description: fileDir,
-      value: fileDir,
-    });
-  }
-  items.push({ id: "custom", label: l10n("configure.cwd.custom") });
-
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.cwd.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  if (pick.id === "default") {
-    work.cwd = undefined;
-    return;
-  }
-  if (pick.id === "custom") {
-    const entered = await vscode.window.showInputBox({
-      title,
-      prompt: l10n("configure.cwd.customPrompt"),
-      value: work.cwd ?? "",
-      ignoreFocusOut: true,
-      // Validate existence inline so an invalid path never persists.
-      validateInput: async (input) => {
-        if (input.trim() === "") {
-          return l10n("configure.cwd.empty");
-        }
-        return (await directoryExists(input.trim()))
-          ? undefined
-          : l10n("configure.cwd.notFound");
-      },
-    });
-    if (entered === undefined) {
-      return;
-    }
-    work.cwd = entered.trim();
-    return;
-  }
-  work.cwd = pick.value;
-}
-
-async function directoryExists(fsPath: string): Promise<boolean> {
-  try {
-    const stat = await vscode.workspace.fs.stat(vscode.Uri.file(fsPath));
-    return (stat.type & vscode.FileType.Directory) !== 0;
-  } catch {
-    return false;
-  }
-}
-
-async function editEnv(work: PinExecConfig, title: string): Promise<void> {
-  // Sub-hub: list each KEY = value, an Add action, and per-entry edit/remove.
-  // Looping here lets the user manage several variables before returning.
-  for (;;) {
-    const env = work.env ?? {};
-    const keys = Object.keys(env);
-
-    interface EnvItem extends vscode.QuickPickItem {
-      id: string; // "add" or "var:<key>"
-    }
-    const items: EnvItem[] = [
-      { id: "add", label: l10n("configure.env.add") },
-    ];
-    for (const key of keys) {
-      items.push({
-        id: `var:${key}`,
-        label: `$(symbol-variable) ${key}`,
-        description: env[key],
-      });
-    }
-
-    const pick = await vscode.window.showQuickPick(items, {
-      title,
-      placeHolder: l10n("configure.env.placeholder"),
-      ignoreFocusOut: true,
-    });
-    if (!pick) {
-      // Esc returns to the hub with the env edits made so far retained in `work`.
-      return;
-    }
-
-    if (pick.id === "add") {
-      const key = await vscode.window.showInputBox({
-        title,
-        prompt: l10n("configure.env.keyPrompt"),
-        ignoreFocusOut: true,
-        validateInput: (input) => validateEnvKey(input, keys),
-      });
-      if (key === undefined) {
-        continue;
-      }
-      const value = await vscode.window.showInputBox({
-        title,
-        prompt: l10n("configure.env.valuePrompt", { key: key.trim() }),
-        ignoreFocusOut: true,
-      });
-      if (value === undefined) {
-        continue;
-      }
-      work.env = { ...env, [key.trim()]: value };
-      continue;
-    }
-
-    // Existing entry: edit its value or remove it.
-    const key = pick.id.slice("var:".length);
-    interface EnvActionItem extends vscode.QuickPickItem {
-      id: "edit" | "delete";
-    }
-    const action = await vscode.window.showQuickPick<EnvActionItem>(
-      [
-        { id: "edit", label: l10n("configure.env.edit") },
-        { id: "delete", label: l10n("configure.env.delete") },
-      ],
-      {
-        title,
-        placeHolder: l10n("configure.env.actionPlaceholder", { key }),
-        ignoreFocusOut: true,
-      }
-    );
-    if (!action) {
-      continue;
-    }
-    if (action.id === "edit") {
-      const value = await vscode.window.showInputBox({
-        title,
-        prompt: l10n("configure.env.valuePrompt", { key }),
-        value: env[key],
-        ignoreFocusOut: true,
-      });
-      if (value === undefined) {
-        continue;
-      }
-      work.env = { ...env, [key]: value };
-    } else {
-      const { [key]: _removed, ...rest } = env;
-      work.env = rest;
-    }
-  }
-}
-
-function validateEnvKey(input: string, existing: string[]): string | undefined {
-  const trimmed = input.trim();
-  if (trimmed === "") {
-    return l10n("configure.env.keyEmpty");
-  }
-  if (trimmed.includes("=")) {
-    return l10n("configure.env.keyEquals");
-  }
-  if (existing.includes(trimmed)) {
-    return l10n("configure.env.keyDuplicate", { key: trimmed });
-  }
-  return undefined;
-}
-
-async function editLocation(work: PinExecConfig, title: string): Promise<void> {
-  interface LocationItem extends vscode.QuickPickItem {
-    value: RunLocation | undefined;
-  }
-  const items: LocationItem[] = [
-    { label: l10n("configure.terminal.default"), value: undefined },
-    { label: l10n("configure.terminal.integrated"), value: "terminal" },
-    { label: l10n("configure.terminal.background"), value: "background" },
-    {
-      label: l10n("configure.terminal.external"),
-      detail: l10n("configure.terminal.externalDetail"),
-      value: "external",
-    },
-  ];
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.terminal.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  work.runLocation = pick.value;
-  // Choosing External immediately offers the admin toggle in the same sequence,
-  // so enabling elevation is one flow rather than picking External, returning to
-  // the hub, and hunting for a field that only appears once External is set. The
-  // toggle stays on the hub too, so it remains adjustable later.
-  if (pick.value === "external") {
-    await editElevated(work, title);
-  }
-}
-
-// Toggle administrator/elevated privileges for an external window. Reachable only
-// when the location is "external" (the hub hides this field otherwise).
-async function editElevated(work: PinExecConfig, title: string): Promise<void> {
-  interface ElevatedItem extends vscode.QuickPickItem {
-    value: boolean;
-  }
-  const items: ElevatedItem[] = [
-    { label: l10n("configure.elevated.offChoice"), value: false },
-    {
-      label: l10n("configure.elevated.onChoice"),
-      detail: l10n("configure.elevated.detail"),
-      value: true,
-    },
-  ];
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.elevated.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  work.elevated = pick.value;
-}
-
-// Toggle whether the file path is inserted into the command. Off suits run
-// targets that name their work in args (an npm script, a Make target) where the
-// file is the package.json / Makefile in cwd, not an argument.
-async function editFileArg(work: PinExecConfig, title: string): Promise<void> {
-  interface FileArgItem extends vscode.QuickPickItem {
-    value: boolean;
-  }
-  const items: FileArgItem[] = [
-    { label: l10n("configure.fileArg.on"), value: true },
-    { label: l10n("configure.fileArg.off"), value: false },
-  ];
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.fileArg.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  work.includeFilePath = pick.value;
-}
-
-// Per-pin audio-cue override (#64): follow the global sound settings, force the
-// cues on for this pin, or silence it. undefined = follow the settings; "on" /
-// "off" are the explicit overrides. The picker offers all three; dismissing leaves
-// the current choice unchanged (hub convention).
-async function editSound(work: PinExecConfig, title: string): Promise<void> {
-  interface SoundItem extends vscode.QuickPickItem {
-    value: "default" | "on" | "off";
-  }
-  const items: SoundItem[] = [
-    { label: l10n("configure.sound.followDefault"), value: "default" },
-    { label: l10n("configure.sound.on"), value: "on" },
-    { label: l10n("configure.sound.off"), value: "off" },
-  ];
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.sound.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  work.sound = pick.value === "default" ? undefined : pick.value;
-}
-
-// Toggle whether the pin runs automatically when its own target file is saved.
-// A two-option pick (On / Off) rather than a silent flip, so the current state is
-// always shown and the choice is explicit.
-async function editRunOnSave(work: PinExecConfig, title: string): Promise<void> {
-  interface RunOnSaveItem extends vscode.QuickPickItem {
-    value: boolean;
-  }
-  const items: RunOnSaveItem[] = [
-    { label: l10n("configure.runOnSave.off"), value: false },
-    { label: l10n("configure.runOnSave.on"), value: true },
-  ];
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.runOnSave.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  work.runOnSave = pick.value;
-}
-
-// Choose whether the pin may run while one of its own runs is already in flight.
-// Block (the default) is single-instance; Allow opts out for a pin that genuinely
-// runs in parallel. A two-option pick so the current state is always shown.
-async function editConcurrency(
-  conc: ConcurrencyEdit,
-  title: string
-): Promise<void> {
-  interface ConcItem extends vscode.QuickPickItem {
-    value: boolean; // true = allow overlapping runs
-  }
-  const items: ConcItem[] = [
-    {
-      label: l10n("configure.concurrency.blockChoice"),
-      detail: l10n("configure.concurrency.blockDetail"),
-      value: false,
-    },
-    {
-      label: l10n("configure.concurrency.allowChoice"),
-      detail: l10n("configure.concurrency.allowDetail"),
-      value: true,
-    },
-  ];
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.concurrency.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  conc.allowConcurrent = pick.value;
-}
-
-// Set (or clear) the cross-process lock name. When set, a run refuses to start
-// while a live holder owns the same-named lock in another window / terminal / a
-// script that honors the convention — extending the barrier beyond this window. An
-// empty entry clears it (the in-process guard still applies).
-async function editLock(conc: ConcurrencyEdit, title: string): Promise<void> {
-  const value = await vscode.window.showInputBox({
-    title,
-    prompt: l10n("configure.lock.prompt"),
-    placeHolder: l10n("configure.lock.placeholder"),
-    value: conc.lockName ?? "",
-    ignoreFocusOut: true,
-  });
-  if (value === undefined) {
-    return;
-  }
-  conc.lockName = value.trim() === "" ? undefined : value.trim();
-}
-
-// Set the output-extraction regex (WOW #16). The pattern is matched against a
-// BACKGROUND run's output when it finishes; the first capture group (or the whole
-// match) is copied to the clipboard. An empty entry clears it. Validated as a real
-// regex inline so a typo never persists and silently never matches.
-async function editExtract(work: PinExecConfig, title: string): Promise<void> {
-  const value = await vscode.window.showInputBox({
-    title,
-    prompt: l10n("configure.extract.prompt"),
-    placeHolder: l10n("configure.extract.placeholder"),
-    value: work.extractResult ?? "",
-    ignoreFocusOut: true,
-    validateInput: (input) => {
-      const trimmed = input.trim();
-      if (trimmed === "") {
-        return undefined; // empty clears the pattern
-      }
-      try {
-        new RegExp(trimmed, "m");
-        return undefined;
-      } catch {
-        return l10n("configure.extract.invalid");
-      }
-    },
-  });
-  if (value === undefined) {
-    return;
-  }
-  work.extractResult = value.trim() === "" ? undefined : value.trim();
-}
-
-// Display name for a dependency pin id (the hub shows the prerequisite's name, not
-// its opaque id). Falls back to a placeholder when the id no longer resolves.
-function resolveDepName(store: PinStore, id: string): string {
-  const dep = store.findPin(id);
-  return dep
-    ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
-    : l10n("configure.dependsOn.unknown");
-}
-
-// Pick the pin that must succeed before this one runs (WOW #13), or clear the
-// dependency. Lists the other pins across both scopes; recipe pins are excluded
-// (they are detected shortcuts, not the user's own build steps), and the pin itself
-// cannot depend on itself.
-async function editDependsOn(
-  work: PinExecConfig,
-  title: string,
-  store: PinStore,
-  pin: Pin
-): Promise<void> {
-  interface DepItem extends vscode.QuickPickItem {
-    id?: string;
-  }
-  const items: DepItem[] = [
-    { id: undefined, label: l10n("configure.dependsOn.none") },
-  ];
-  for (const candidate of [...store.getProjectPins(), ...store.getGlobalPins()]) {
-    if (candidate.id === pin.id || candidate.isRecipe) {
-      continue;
-    }
-    items.push({
-      id: candidate.id,
-      label: candidate.label ?? (candidate.path.split("/").pop() ?? candidate.path),
-      description:
-        candidate.scope === "global"
-          ? l10n("pin.group.global")
-          : l10n("pin.group.project"),
-    });
-  }
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("configure.dependsOn.placeholder"),
-    ignoreFocusOut: true,
-  });
-  if (!pick) {
-    return;
-  }
-  work.dependsOn = pick.id;
-}
-
-// Split a command-line string into args, honoring double-quoted spans so an
-// argument with spaces survives the round trip through the input box. Exported so
-// the run-with-overrides palette parses an edited argument line the same way.
-export function parseArgs(line: string): string[] {
-  const out: string[] = [];
-  const token = /"([^"]*)"|(\S+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = token.exec(line)) !== null) {
-    out.push(match[1] !== undefined ? match[1] : match[2]);
-  }
-  return out;
-}
-
-// Inverse of parseArgs: quote any arg containing whitespace so the displayed and
-// re-parsed forms agree. Exported alongside parseArgs for the overrides palette.
-export function formatArgs(args: string[]): string {
-  return args.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
 }

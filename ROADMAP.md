@@ -11,13 +11,10 @@ is part of the **Saropa Suite**.
 The forward-looking plan is maintained as **one document per backlog item** under
 [`plans/`](plans/), each written against the verified code state rather than a summary —
 where the plan and the code diverge, the plan records what is actually implemented today.
-
-- **[`plans/roadmap/`](plans/roadmap/)** — the phased backlog (import coverage, multi-root
-  refinements, branch-aware sets, the dashboard webview, tests, suite integration, and the
-  rest). Start at its [README index](plans/roadmap/README.md) for status and suggested order.
-- **[`plans/wow/`](plans/wow/)** — the "WOW" feature backlog (port auto-unwedge, ephemeral
-  pins, the git conflict center, focus tags, instant search, and more). See its
-  [README index](plans/wow/README.md).
+The backlog spans the phased work (import coverage, multi-root refinements, branch-aware
+sets, the dashboard webview, tests, suite integration) and the "WOW" features (port
+auto-unwedge, ephemeral pins, the git conflict center, focus tags, instant search, and
+more). See the [README index](plans/README.md) for status and suggested order.
 
 ## Reference
 

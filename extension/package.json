@@ -576,6 +576,18 @@
         "icon": "$(copy)"
       },
       {
+        "command": "saropaWorkspace.linkBranchToSet",
+        "title": "%command.linkBranchToSet.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "saropaWorkspace.unlinkBranch",
+        "title": "%command.unlinkBranch.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(git-branch)"
+      },
+      {
         "command": "saropaWorkspace.renameGroup",
         "title": "%command.renameGroup.title%",
         "category": "%extension.displayName%",
@@ -928,6 +940,16 @@
           "command": "saropaWorkspace.deletePinSet",
           "when": "view == saropaWorkspace.pins",
           "group": "3_sets@5"
+        },
+        {
+          "command": "saropaWorkspace.linkBranchToSet",
+          "when": "view == saropaWorkspace.pins",
+          "group": "3_sets@6"
+        },
+        {
+          "command": "saropaWorkspace.unlinkBranch",
+          "when": "view == saropaWorkspace.pins",
+          "group": "3_sets@7"
         },
         {
           "command": "saropaWorkspace.showOutput",
@@ -1554,6 +1576,11 @@
             "type": "boolean",
             "default": true,
             "description": "%config.recipes.enabled.description%"
+          },
+          "saropaWorkspace.branchAware.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.branchAware.enabled.description%"
           },
           "saropaWorkspace.aiContext.enabled": {
             "type": "boolean",

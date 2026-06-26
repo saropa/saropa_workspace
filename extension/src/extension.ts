@@ -20,6 +20,7 @@ import { SetStatusBar } from "./views/setStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands, createRoutineHooks } from "./commands/pinCommands";
 import { registerSetCommands } from "./commands/setCommands";
+import { registerBranchSetCommands } from "./commands/branchSetCommands";
 import { registerSimulationPreview } from "./commands/simulateRun";
 import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
@@ -37,6 +38,7 @@ import { Scheduler } from "./exec/scheduler";
 import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
 import { BranchTracker } from "./exec/gitBranch";
+import { BranchSetBinder } from "./exec/branchSets";
 import { IdleMonitor } from "./exec/idleMonitor";
 import { PinExpiry } from "./exec/pinExpiry";
 import { Heartbeat } from "./exec/heartbeat";
@@ -390,6 +392,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // status-bar switcher below is the discoverable entry point.
   registerSetCommands(context, store);
 
+  // Branch-aware pin sets (roadmap 3.2): bind a git branch to a pin set so the
+  // active set follows the current branch on checkout. Built on the existing branch
+  // tracker + named-set API; gated by saropaWorkspace.branchAware.enabled (off by
+  // default, so single-set / non-git users see no change). Constructed before
+  // branchTracker.init() below so it catches the initial branch read and aligns the
+  // set to the current branch on open. Disposable so its tracker subscription is
+  // released on deactivation.
+  const branchSetBinder = new BranchSetBinder(context, store, branchTracker);
+  context.subscriptions.push(branchSetBinder);
+  registerBranchSetCommands(context, store, branchSetBinder);
+
   // Inject the routine engine's resolve + run hooks now that the store exists (the
   // runner cannot import the store/command layer without a cycle). A routine pin's
   // members are resolved and run through the same single-pin path the tree uses.
@@ -551,6 +564,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void store.rescan();
       } else if (e.affectsConfiguration("saropaWorkspace.telemetry.enabled")) {
         void store.refresh();
+      } else if (
+        e.affectsConfiguration("saropaWorkspace.branchAware.enabled")
+      ) {
+        // Turning branch-awareness on aligns the active set to the current branch's
+        // binding immediately (applyNow ignores the change-guard); turning it off is
+        // a no-op here — the binder simply stops switching on the next checkout.
+        void branchSetBinder.applyNow();
       }
     })
   );
