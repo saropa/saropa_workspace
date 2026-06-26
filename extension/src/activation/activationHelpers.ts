@@ -9,7 +9,11 @@ import {
 } from "../exec/runner";
 import { toBackground } from "../exec/chainRunner";
 import { matchesAnyGlob } from "../exec/globMatch";
-import { detectFavoritesFiles, importAllDetected } from "../import/favoritesImport";
+import {
+  detectFavoritesFiles,
+  importAllDetected,
+  KNOWN_FAVORITES_SOURCES,
+} from "../import/favoritesImport";
 import { decodeSharedPin, describeSharedPin } from "../import/shareLink";
 import { l10n } from "../i18n/l10n";
 
@@ -209,6 +213,43 @@ export async function maybeOfferFavoritesImport(
       })
     );
   }
+}
+
+// Arm watchers so the one-time import offer also fires when a favorites source
+// APPEARS or CHANGES after activation — a user who installs Saropa first and then
+// uses another favorites extension (or a teammate who pulls a `.favorites.json`
+// mid-session) would otherwise never be offered the import. maybeOfferFavoritesImport
+// owns the gate: it prompts at most once per workspace until acted on or dismissed,
+// so re-running it on every file event is safe and cannot nag. A broad `**/<name>`
+// glob covers folders added later too; when an event names a file the root-only
+// detector does not recognize, the offer is a no-op (it gates nothing).
+export function registerFavoritesImportWatchers(
+  context: vscode.ExtensionContext,
+  store: PinStore
+): void {
+  const offer = (): void => void maybeOfferFavoritesImport(context, store);
+  for (const source of KNOWN_FAVORITES_SOURCES) {
+    const watcher = vscode.workspace.createFileSystemWatcher(`**/${source.fileName}`);
+    watcher.onDidCreate(offer, undefined, context.subscriptions);
+    watcher.onDidChange(offer, undefined, context.subscriptions);
+    // The watcher itself is disposable (its native file handle); dispose on reload
+    // so it does not survive and double-fire.
+    context.subscriptions.push(watcher);
+  }
+  // The settings-key sources (howardzuo `favorites.resources`, sabitovvt
+  // `favoritesPanel.*`) have no file on disk; a change to their configuration is
+  // the equivalent "appeared" signal.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (
+        e.affectsConfiguration("favorites.resources") ||
+        e.affectsConfiguration("favoritesPanel.commands") ||
+        e.affectsConfiguration("favoritesPanel.commandsForWorkspace")
+      ) {
+        offer();
+      }
+    })
+  );
 }
 
 // Publish the set of absolute paths pinned in each scope as when-clause context

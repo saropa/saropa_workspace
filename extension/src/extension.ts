@@ -53,6 +53,7 @@ import {
   makeDebounced,
   runPinsOnSave,
   maybeOfferFavoritesImport,
+  registerFavoritesImportWatchers,
   syncPinnedPathContext,
 } from "./activation/activationHelpers";
 
@@ -625,8 +626,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Offer to import favorites from other extensions once per workspace, only
   // when such a file actually exists, so first-time users keep their old pins
-  // without being nagged on every launch.
+  // without being nagged on every launch. The watchers re-run the same gated
+  // offer when a source file or settings key appears/changes later in the session.
   void maybeOfferFavoritesImport(context, store);
+  registerFavoritesImportWatchers(context, store);
 
   // Offer to run the workspace boot sequence once this session, only when it is
   // enabled and non-empty (no prompt otherwise). Runs after the pin set is loaded

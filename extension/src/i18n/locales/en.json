@@ -647,7 +647,7 @@
   "import.doneWithSkips": "Imported {count} pin(s) from {file}. Skipped {skipped} entry(ies) — open the output channel for details.",
   "import.nothingNew": "No new pins to import from {file}.",
   "import.log.malformed": "[Import] {file}: could not be parsed — {error}",
-  "import.log.skipFolder": "[Import] {file}: skipped folder/group entry \"{name}\" (only files become pins).",
+  "import.log.skipFolder": "[Import] {file}: skipped folder favorite \"{name}\" — a folder has no pin equivalent (its grouped files were imported).",
   "import.log.skipNoPath": "[Import] {file}: skipped an entry with no file path.",
   "import.log.skipBlankPath": "[Import] {file}: skipped a line with no path.",
   "import.log.skipSetting": "[Import] {key}: skipped a non-text entry.",

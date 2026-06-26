@@ -1,26 +1,29 @@
 import * as vscode from "vscode";
-import { Pin, PinGroup, PinScope, pinKind } from "../model/pin";
-import { MoveTarget, PinStore } from "../model/pinStore";
+import { Pin, PinGroup, PinScope } from "../model/pin";
+import { PinStore } from "../model/pinStore";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
 import { pinBadges } from "../exec/pinBadges";
-import { metricBadges, MetricTarget } from "../exec/metricBadges";
-import { dependencyState } from "../exec/dependencies";
-import { telemetry, RunRecord } from "../exec/telemetry";
+import { metricBadges } from "../exec/metricBadges";
+import { telemetry } from "../exec/telemetry";
 import { BranchTracker } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
 import { PinFilterState, pinMatchesFilter } from "./pinFilter";
 import { PinFolderItem, PinGroupItem, PinTreeItem, RecentRootItem } from "./pinTreeItem";
-
-// Custom drag-and-drop MIME for moving pins within the view. A custom type (vs
-// the auto-generated tree MIME) keeps the contract explicit and decoupled from
-// the view id; the payload is the JSON array of dragged pin ids, resolved back
-// to live pins through the store on drop.
-const PIN_MIME = "application/vnd.saropa.workspace.pins";
-
-// Standard MIME for files dragged from the Explorer (or the OS). Accepting it lets a
-// file be dropped onto a script pin to run that pin against the file (WOW #8).
-const URI_LIST_MIME = "text/uri-list";
+import {
+  PIN_MIME,
+  URI_LIST_MIME,
+  buildPinDragData,
+  parsePinIds,
+  resolveDropTarget,
+  handleExternalFileDrop,
+} from "./pinTreeDragDrop";
+import {
+  buildPinItem,
+  buildRecentItem,
+  recentEntries,
+  syncMetrics,
+} from "./pinTreeNodes";
 
 // Tree: scope roots (Project / Global) -> user groups + top-level pins -> pins.
 // Also the drag-and-drop controller, so a pin can be reordered and moved between
@@ -56,7 +59,7 @@ export class PinsTreeProvider
     // finishes (success/failure badge). A store change can also add/remove a
     // metric'd pin, so reconcile the metric engine's watchers off the same event.
     store.onDidChange(() => {
-      this.syncMetrics();
+      syncMetrics(this.store);
       this._onDidChangeTreeData.fire();
     });
     // A re-measured metric (#24) updates only a pin's inline value, so repaint.
@@ -120,7 +123,7 @@ export class PinsTreeProvider
       // is noise) — the always-visible filter message names what was hidden, so a
       // collapsed-away scope never reads as lost data.
       const roots: vscode.TreeItem[] = [];
-      const recent = this.recentEntries().filter((e) => this.matches(e.pin));
+      const recent = recentEntries(this.store).filter((e) => this.matches(e.pin));
       if (recent.length > 0) {
         roots.push(new RecentRootItem(recent.length, telemetry.recentExpanded()));
       }
@@ -152,9 +155,9 @@ export class PinsTreeProvider
     }
 
     if (element instanceof RecentRootItem) {
-      return this.recentEntries()
+      return recentEntries(this.store)
         .filter((e) => this.matches(e.pin))
-        .map((e) => this.toRecentItem(e.pin, e.record));
+        .map((e) => buildRecentItem(this.store, e.pin, e.record));
     }
 
     if (element instanceof PinGroupItem) {
@@ -183,14 +186,14 @@ export class PinsTreeProvider
         );
       const topLevel = this.scopePins(scope)
         .filter((p) => !p.groupId && this.matches(p))
-        .map((pin) => this.toPinItem(pin));
+        .map((pin) => buildPinItem(this.store, pin));
       return [...groups, ...topLevel];
     }
 
     if (element instanceof PinFolderItem) {
       return this.scopePins(element.scope)
         .filter((p) => p.groupId === element.pinGroup.id && this.matches(p))
-        .map((pin) => this.toPinItem(pin));
+        .map((pin) => buildPinItem(this.store, pin));
     }
 
     return [];
@@ -204,7 +207,7 @@ export class PinsTreeProvider
       // A Recent entry's parent is the Recent root, not the pin's home scope.
       if (element.isRecent) {
         return new RecentRootItem(
-          this.recentEntries().length,
+          recentEntries(this.store).length,
           telemetry.recentExpanded()
         );
       }
@@ -230,7 +233,7 @@ export class PinsTreeProvider
   // Build the tree item for a pin so the status bar can reveal it. Matched by its
   // stable id even though the tree recreates items on every render.
   revealItem(pin: Pin): PinTreeItem {
-    return this.toPinItem(pin);
+    return buildPinItem(this.store, pin);
   }
 
   // --- drag and drop -----------------------------------------------------
@@ -239,18 +242,7 @@ export class PinsTreeProvider
     source: readonly vscode.TreeItem[],
     dataTransfer: vscode.DataTransfer
   ): void {
-    // Only real pins are draggable; groups, scope roots, and read-only Recent
-    // entries stay put (a recent entry mirrors a pin reordered from its home).
-    const ids = source
-      .filter(
-        (item): item is PinTreeItem =>
-          item instanceof PinTreeItem && !item.isRecent
-      )
-      .map((item) => item.pin.id);
-    if (ids.length === 0) {
-      return;
-    }
-    dataTransfer.set(PIN_MIME, new vscode.DataTransferItem(JSON.stringify(ids)));
+    buildPinDragData(source, dataTransfer);
   }
 
   async handleDrop(
@@ -261,10 +253,10 @@ export class PinsTreeProvider
     if (!transferItem) {
       // No internal pin payload: this is an external file drag (Explorer / OS).
       // Dropping a file onto a script pin runs that pin against the file.
-      await this.handleExternalFileDrop(target, dataTransfer);
+      await handleExternalFileDrop(target, dataTransfer);
       return;
     }
-    const ids = this.parseIds(await transferItem.asString());
+    const ids = parsePinIds(await transferItem.asString());
     const pins = ids
       .map((id) => this.store.findPin(id))
       .filter((p): p is Pin => p !== undefined);
@@ -272,99 +264,11 @@ export class PinsTreeProvider
       return;
     }
 
-    const moveTarget = this.resolveDropTarget(target, pins);
+    const moveTarget = resolveDropTarget(target, pins);
     if (!moveTarget) {
       return;
     }
     await this.store.movePins(pins, moveTarget);
-  }
-
-  // Handle a file dragged from the Explorer (or OS) and dropped onto a pin: run that
-  // pin against the file via $droppedFile (WOW #8). Only a pin row is a valid target
-  // (a group/scope header has no command to run); the command handler rejects a
-  // non-runnable pin with a message. Only the first dropped file is used.
-  private async handleExternalFileDrop(
-    target: vscode.TreeItem | undefined,
-    dataTransfer: vscode.DataTransfer
-  ): Promise<void> {
-    if (!(target instanceof PinTreeItem) || target.isRecent) {
-      return;
-    }
-    const uriItem = dataTransfer.get(URI_LIST_MIME);
-    if (!uriItem) {
-      return;
-    }
-    // text/uri-list is CRLF-separated; comment lines start with '#'. Take the first
-    // real URI.
-    const first = (await uriItem.asString())
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => line.length > 0 && !line.startsWith("#"));
-    if (!first) {
-      return;
-    }
-    let fsPath: string;
-    try {
-      fsPath = vscode.Uri.parse(first).fsPath;
-    } catch {
-      return;
-    }
-    await vscode.commands.executeCommand(
-      "saropaWorkspace.runPinOnFile",
-      target.pin,
-      fsPath
-    );
-  }
-
-  // Map the dropped-on node to a concrete move destination. Dropping on a scope
-  // root moves to that scope's top level; on a group, into that group; on a pin,
-  // ahead of that pin in its group. Dropping on empty space keeps the dragged
-  // pins in their own scope at top level.
-  private resolveDropTarget(
-    target: vscode.TreeItem | undefined,
-    pins: Pin[]
-  ): MoveTarget | undefined {
-    // The Recent group is read-only: dropping onto it or one of its entries is a
-    // no-op (those entries are not a real location a pin can move into).
-    if (target instanceof RecentRootItem) {
-      return undefined;
-    }
-    if (target instanceof PinTreeItem && target.isRecent) {
-      return undefined;
-    }
-    if (target instanceof PinGroupItem) {
-      return { scope: target.group, groupId: undefined };
-    }
-    if (target instanceof PinFolderItem) {
-      return { scope: target.scope, groupId: target.pinGroup.id };
-    }
-    if (target instanceof PinTreeItem) {
-      return {
-        scope: target.pin.scope,
-        groupId: target.pin.groupId,
-        beforePinId: target.pin.id,
-      };
-    }
-    // Empty space: top level of the dragged pins' scope (skip if mixed scopes).
-    const scope = pins[0].scope;
-    if (pins.some((p) => p.scope !== scope)) {
-      return undefined;
-    }
-    return { scope, groupId: undefined };
-  }
-
-  private parseIds(raw: string | undefined): string[] {
-    if (!raw) {
-      return [];
-    }
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed)
-        ? parsed.filter((v): v is string => typeof v === "string")
-        : [];
-    } catch {
-      return [];
-    }
   }
 
   // --- helpers -----------------------------------------------------------
@@ -423,100 +327,6 @@ export class PinsTreeProvider
     }
     const failed = runStatusRegistry.get(pin.id)?.outcome === "failure";
     return pinMatchesFilter(pin, filter, failed);
-  }
-
-  private toPinItem(pin: Pin): PinTreeItem {
-    return new PinTreeItem(
-      pin,
-      this.store.resolveUri(pin),
-      processRegistry.isRunning(pin.id),
-      runStatusRegistry.get(pin.id),
-      processRegistry.isStopping(pin.id),
-      undefined,
-      this.store.isMissing(pin.id),
-      this.runCount(pin.id),
-      this.lockedBy(pin),
-      pinBadges.get(pin.id),
-      metricBadges.get(pin.id)
-    );
-  }
-
-  // Reconcile the metric engine's file watchers (#24) against the current set of
-  // metric'd file pins across both scopes. Only a file pin that carries a metric and
-  // resolves to a concrete URI is watched, so a workspace with no metric'd pins arms
-  // no watchers at all. Cheap and idempotent: the engine keeps an unchanged target's
-  // live watcher untouched, so calling this on every store change costs nothing in
-  // the steady state.
-  private syncMetrics(): void {
-    const targets: MetricTarget[] = [];
-    for (const pin of [...this.store.getProjectPins(), ...this.store.getGlobalPins()]) {
-      if (!pin.metric || pinKind(pin) !== "file") {
-        continue;
-      }
-      const uri = this.store.resolveUri(pin);
-      if (!uri) {
-        continue;
-      }
-      targets.push({
-        pinId: pin.id,
-        name: pin.label ?? (pin.path.split("/").pop() ?? pin.path),
-        uri,
-        metric: pin.metric,
-      });
-    }
-    metricBadges.track(targets);
-  }
-
-  // The display name of a pin's unmet run prerequisite (WOW #13), or undefined when
-  // the pin is cleared to run. The provider repaints on runStatusRegistry changes, so
-  // a pin unlocks the moment its prerequisite succeeds.
-  private lockedBy(pin: Pin): string | undefined {
-    const { pendingDependencyId } = dependencyState(pin, (id) =>
-      this.store.findPin(id)
-    );
-    if (!pendingDependencyId) {
-      return undefined;
-    }
-    const dep = this.store.findPin(pendingDependencyId);
-    return dep
-      ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
-      : pendingDependencyId;
-  }
-
-  // A Recent-group entry: the same pin node, tagged with when/how it last ran.
-  private toRecentItem(pin: Pin, record: RunRecord): PinTreeItem {
-    return new PinTreeItem(
-      pin,
-      this.store.resolveUri(pin),
-      processRegistry.isRunning(pin.id),
-      runStatusRegistry.get(pin.id),
-      processRegistry.isStopping(pin.id),
-      { at: record.at, source: record.source },
-      this.store.isMissing(pin.id),
-      this.runCount(pin.id)
-    );
-  }
-
-  // The lifetime run count to surface in a pin's tooltip — zero when telemetry is
-  // disabled, so a turned-off user sees no count (the data is left in place until
-  // they reset it, but it is not displayed).
-  private runCount(pinId: string): number {
-    return telemetry.enabled() ? telemetry.count(pinId) : 0;
-  }
-
-  // The recent run records that still resolve to a live pin (an unpinned/deleted
-  // pin is skipped, matching the palette). Empty when telemetry is disabled.
-  private recentEntries(): { pin: Pin; record: RunRecord }[] {
-    if (!telemetry.enabled()) {
-      return [];
-    }
-    return telemetry
-      .recent()
-      .map((record) => {
-        const pin = this.store.findPin(record.pinId);
-        return pin ? { pin, record } : undefined;
-      })
-      .filter((e): e is { pin: Pin; record: RunRecord } => e !== undefined);
   }
 
   private makeScopeRoot(scope: PinScope): PinGroupItem {

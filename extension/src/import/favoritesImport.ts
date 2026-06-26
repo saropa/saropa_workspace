@@ -40,8 +40,10 @@ export {
 type FileFavoritesFormat = "kdcro" | "olegShilo" | "bookmarks";
 
 // Files we look for per folder, with the format each carries. Extend as more
-// formats are added.
-const KNOWN_FAVORITES_SOURCES: ReadonlyArray<{
+// formats are added. Exported so the activation watchers arm on the same set of
+// filenames the detector scans — a single source of truth keeps the "newly
+// appeared file" prompt in lockstep with what import actually recognizes.
+export const KNOWN_FAVORITES_SOURCES: ReadonlyArray<{
   fileName: string;
   format: FileFavoritesFormat;
 }> = [
@@ -53,11 +55,22 @@ const KNOWN_FAVORITES_SOURCES: ReadonlyArray<{
 
 // One kdcro101 `.favorites.json` entry, as far as the importers read it. Declared
 // here (the orchestrator) because both the in-workspace kdcro importer and the
-// sibling scan consume the same shape.
+// sibling scan consume the same shape. kdcro stores a FLAT list: a "Group" entry
+// is a container carrying its own `id`, and a child references it through
+// `parent_id` (verified against the upstream StoredResource type — there is no
+// nested `children` array). `type` is "File", "Group", or "Directory".
 export interface KdcroFavoriteEntry {
   type?: string;
   name?: string;
+  // The user-facing group/file name some versions store separately from `name`;
+  // preferred over `name` when present so a renamed group keeps its label.
+  label?: string;
   fsPath?: string;
+  // Stable id of this entry; only meaningful on Group entries (a File references
+  // its group via parent_id).
+  id?: string;
+  // Id of the containing Group/Directory, or absent for a top-level entry.
+  parent_id?: string;
 }
 
 export interface DetectedFavorites {

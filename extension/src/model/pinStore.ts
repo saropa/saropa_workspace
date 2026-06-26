@@ -323,18 +323,39 @@ export class PinStore {
     return vscode.Uri.joinPath(folder.uri, pin.path);
   }
 
+  // Return the id of the user group with this label in `groups`, creating and
+  // appending one when absent. Matching by label is what keeps a re-import
+  // idempotent: a second pass reuses the same group instead of spawning a
+  // duplicate. The caller persists `groups` (it is the in-memory list the caller
+  // is about to write), so this never writes on its own.
+  private ensureGroupId(groups: PinGroup[], label: string): string {
+    const trimmed = label.trim();
+    const existing = groups.find((g) => g.label === trimmed);
+    if (existing) {
+      return existing.id;
+    }
+    const id = this.newId();
+    groups.push({ id, label: trimmed, order: groups.length });
+    return id;
+  }
+
   // Pin a file. Returns false if it is already pinned in that scope (no-op).
   // An optional label sets the pin's display name up front — used by importers
   // that carry an alias for the file (e.g. the oleg-shilo `path|alias` format); a
-  // blank/undefined label leaves the pin to fall back to the file basename.
+  // blank/undefined label leaves the pin to fall back to the file basename. An
+  // optional groupName drops the pin into a user group of that name within the
+  // SAME scope/folder, creating the group on first use and reusing it by name
+  // afterward (used by the kdcro group import to reconstruct group membership).
   async addPin(
     uri: vscode.Uri,
     scope: PinScope,
-    label?: string
+    label?: string,
+    groupName?: string
   ): Promise<boolean> {
     // Only carry a non-empty label so a pin without an alias keeps the basename
     // default rather than storing an empty override.
     const labelField = label && label.trim().length > 0 ? { label: label.trim() } : {};
+    const wantGroup = groupName !== undefined && groupName.trim().length > 0;
     if (scope === "global") {
       const pins = this.readGlobalPins();
       // Store a local file as its fsPath; a remote/virtual file as its full URI
@@ -343,12 +364,25 @@ export class PinStore {
       if (pins.some((p) => p.path === stored)) {
         return false;
       }
+      // Global groups live in their own memento; ensure (and persist) the group
+      // before the pin so the pin's groupId resolves immediately.
+      let groupField: { groupId?: string } = {};
+      if (wantGroup) {
+        const groups = this.readGlobalGroups();
+        const before = groups.length;
+        const groupId = this.ensureGroupId(groups, groupName!);
+        if (groups.length !== before) {
+          await this.writeGlobalGroups(groups);
+        }
+        groupField = { groupId };
+      }
       pins.push({
         id: this.newId(),
         path: stored,
         scope: "global",
         order: pins.length,
         ...labelField,
+        ...groupField,
       });
       await this.writeGlobalPins(pins);
       await this.refresh();
@@ -367,12 +401,20 @@ export class PinStore {
     if (file.pins.some((p) => p.path === relative && p.scope === "project")) {
       return false;
     }
+    // The group must live in this same folder's file as the pin — a groupId that
+    // pointed at a group in another folder would render as an orphaned membership.
+    // ensureGroupId mutates file.groups in place; the writeProjectFile below
+    // persists pin and group together in one write.
+    const groupField = wantGroup
+      ? { groupId: this.ensureGroupId(file.groups, groupName!) }
+      : {};
     file.pins.push({
       id: this.newId(),
       path: relative,
       scope: "project",
       order: file.pins.length,
       ...labelField,
+      ...groupField,
     });
     await this.writeProjectFile(folder, file);
     await this.refresh();

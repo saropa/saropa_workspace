@@ -13,8 +13,11 @@ import type {
 // marks). Both parse defensively — a malformed file imports nothing and is logged —
 // and add PROJECT pins to the store; the store owns folder-relative storage + dedup.
 
-// kdcro101 `.favorites.json`: a JSON array of typed entries. Only File entries
-// become pins; folder/group entries and path-less entries are reported as skips.
+// kdcro101 `.favorites.json`: a flat JSON array of typed entries. File entries
+// become pins; a "Group" entry becomes a pin group, and any File whose parent_id
+// points at that group is imported into it (created on first use, reused by name
+// so re-import stays idempotent). "Directory" entries are folder favorites with no
+// folder-pin equivalent and are reported as skips, as are path-less entries.
 export async function importKdcro(
   text: string,
   fileName: string,
@@ -36,10 +39,25 @@ export async function importKdcro(
     return { added: 0, skipped: 0 };
   }
 
+  // First pass: index every Group container by id so the file pass can resolve a
+  // File's parent_id to a group name. Only "Group" entries are pin-group
+  // containers; a Directory is a folder favorite, not a container of pins.
+  const groupNameById = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.type === "Group" && entry.id) {
+      groupNameById.set(entry.id, (entry.label ?? entry.name ?? "?").trim() || "?");
+    }
+  }
+
   let added = 0;
   let skipped = 0;
   for (const entry of entries) {
-    // Folder/group entries cannot map to a file pin; report and skip them.
+    // A Group is consumed via its members below, never pinned in its own right.
+    if (entry.type === "Group") {
+      continue;
+    }
+    // A Directory (folder favorite) and any other non-File type have no file-pin
+    // equivalent; report and skip them.
     if (entry.type && entry.type !== "File") {
       channel.appendLine(
         l10n("import.log.skipFolder", { file: fileName, name: entry.name ?? "?" })
@@ -52,9 +70,14 @@ export async function importKdcro(
       skipped++;
       continue;
     }
+    // Route into the parent group's pin group when the parent is a Group; a file
+    // parented to a Directory (or with no parent) imports at the top level.
+    const groupName = entry.parent_id
+      ? groupNameById.get(entry.parent_id)
+      : undefined;
     // addPin stores project pins relative to the owning folder and skips dupes,
-    // so re-running import is idempotent.
-    if (await store.addPin(vscode.Uri.file(entry.fsPath), "project")) {
+    // so re-running import is idempotent — the group is reused by name as well.
+    if (await store.addPin(vscode.Uri.file(entry.fsPath), "project", undefined, groupName)) {
       added++;
     }
   }
