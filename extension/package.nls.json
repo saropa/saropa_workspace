@@ -19,6 +19,7 @@
   "command.runBootSequence.title": "Run Workspace Boot Sequence",
   "command.newScratchpad.title": "New Scratchpad...",
   "command.suggestFromHistory.title": "Suggest Pins from Shell History...",
+  "command.switchEnvProfile.title": "Switch .env Profile...",
   "command.saveLayout.title": "Save Editor Layout...",
   "command.restoreLayout.title": "Restore Editor Layout...",
   "command.pinActiveFile.title": "Pin Active File (Project)",

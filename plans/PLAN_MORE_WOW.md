@@ -17,10 +17,6 @@ Here are 10 more "WOW" features that build on Saropa's local-first, frictionless
 **The Pain:** You pin `db_migration_v42.sql` or `hotfix_notes.txt` because you need them *today*. You forget to unpin them. Six months later, your sidebar is a graveyard of irrelevant files.
 **The WOW:** Right-click any file -> **"Pin until Friday"** or **"Pin until Branch Changes"**. The pin visually ticks down (e.g., a tiny hourglass icon) and gracefully auto-deletes itself from the workspace when the condition is met. No manual cleanup required.
 
-### 10. The `.env` Context Slider
-**The Pain:** Switching from local development to testing staging data means manually renaming `.env.staging` to `.env`, or editing 15 variables by hand, then changing them back later.
-**The WOW:** If Saropa detects multiple `.env.*` files, it creates an "Environment Context" pin group. It renders as a simple radio-button list (`( ) local  (x) staging  ( ) prod`). Clicking one instantly swaps your active `.env` file under the hood. Your dev servers automatically restart with the new config.
-
 ### 15. The Git Conflict Command Center
 **The Pain:** You rebase, and suddenly you have 8 files with conflicts. The native source control view is okay, but managing the "open, find conflict, test, mark resolved" loop requires jumping all over the UI.
 **The WOW:** The moment your repo enters a conflicted state, a dynamic **"Active Conflicts"** group appears at the very top of Saropa Workspace. It pins all conflicted files, plus a special macro pin: *"Accept Current for All & Continue"*. The moment the rebase finishes, the group vanishes.

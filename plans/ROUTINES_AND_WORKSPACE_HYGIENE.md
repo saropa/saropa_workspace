@@ -11,7 +11,7 @@ Two linked additions, born from a real incident:
    spec, writes a dated report, and offers a one-click guard. It is a natural
    first member of the Morning routine.
 
-This extends the existing recipe model in [RECIPE_BOOK.md](RECIPE_BOOK.md): the
+This extends the existing recipe model in [RECIPE_BOOK.md](history/2026.06/2026.06.25/RECIPE_BOOK.md) (now archived complete): the
 scheduled-ritual class (recipes 26–35) and the `macro` action already exist; this
 adds the **routine** action kind above them and one new recipe below them.
 

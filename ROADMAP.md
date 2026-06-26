@@ -130,7 +130,7 @@ another — any can land once its own dependencies are met.
   local run analytics from 3.3 (runs per pin, success/failure, duration trend), and the
   trend-carrying scheduled reports (test pass/fail history, dependency staleness, tech-debt
   growth). The concrete recipe entries are #53–#55 in
-  [plans/RECIPE_BOOK.md](plans/RECIPE_BOOK.md); the process-monitor capability and detection
+  [plans/history/2026.06/2026.06.25/RECIPE_BOOK.md](plans/history/2026.06/2026.06.25/RECIPE_BOOK.md); the process-monitor capability and detection
   table live there.
 - **Why.** Everything else in the extension is well served by tree view, QuickPick, markdown
   preview, and the terminal — and stays there. These three surfaces are charts and sortable
@@ -200,7 +200,7 @@ committing. Not yet ordered into a phase.
 - **Suite integration — "Better Together."** Cooperation with other Saropa Suite tools.
   Detect a sibling tool from the project (a marker file or its installed companion
   extension) and seed pins that drive it. The concrete recipe catalog (the suite set is
-  recipes 36–59) lives in [plans/RECIPE_BOOK.md](plans/RECIPE_BOOK.md). All suite pins seed
+  recipes 36–59) lives in [plans/history/2026.06/2026.06.25/RECIPE_BOOK.md](plans/history/2026.06/2026.06.25/RECIPE_BOOK.md). All suite pins seed
   into a dedicated top-level **"Saropa Suite"** group with a **per-tool subgroup** (reusing
   pin groups), never the generic "Recipes" group; a subgroup appears only when its tool is
   detected. Stable entry points confirmed against each tool's extension manifest and API:

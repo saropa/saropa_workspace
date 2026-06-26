@@ -1,5 +1,18 @@
 # Saropa Workspace — Recipe book (forward-looking)
 
+> **Status: COMPLETE — archived 2026-06-25.** Every recipe class in this roadmap has
+> shipped (sections G, H, I and all the shipped-section follow-ups: day-of-week
+> scheduling, recipe chaining + special events + the planner webview, pin
+> severity/test badges, the Saropa Lints health-score read, per-language Sunrise
+> stats, and per-instance saved hygiene scans). Two items did not ship here and were
+> carried out of this plan so it could close:
+> - **Haptics** — deferred by a hard platform blocker; see
+>   [deferred/HAPTIC_EVENT_CUES.md](../../../deferred/HAPTIC_EVENT_CUES.md).
+> - **Pin pass/fail trend sparkline** — a buildable follow-up on the shipped badges;
+>   see [PIN_BADGE_TREND.md](../../../PIN_BADGE_TREND.md).
+>
+> The body below is the historical roadmap as it stood at completion.
+
 This is the **remaining** recipe roadmap — the classes not yet built. The first
 59 recipes (sections A–F of the original catalog) already ship: URL / run-target /
 workspace / smart recipes (1–25), the scheduled rituals (26–35), the Saropa Suite
@@ -206,7 +219,7 @@ toast stays; the cue is an additional, dismissible channel.
   do not assume one.
 - **Haptics** are **deferred by a hard platform blocker** (no first-party VS Code
   extension haptics API). The full rationale, re-entry condition, and effort
-  estimate now live in [deferred/HAPTIC_EVENT_CUES.md](deferred/HAPTIC_EVENT_CUES.md)
+  estimate now live in [deferred/HAPTIC_EVENT_CUES.md](../../../deferred/HAPTIC_EVENT_CUES.md)
   — the single source for this deferral. Ship audio first; do not promise haptics in
   user-facing copy or settings until the blocker clears.
 

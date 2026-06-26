@@ -12,7 +12,7 @@ buildable today and simply not scheduled yet — those stay in the main plans.
 ## Haptic event cues
 
 **Source:** the haptic half of recipe 64, *Sensory feedback*, in
-[../RECIPE_BOOK.md](../RECIPE_BOOK.md) section I. The **audio** half of that recipe
+[../history/2026.06/2026.06.25/RECIPE_BOOK.md](../history/2026.06/2026.06.25/RECIPE_BOOK.md) section I. The **audio** half of that recipe
 is buildable and stays in the active plan; only haptics is deferred here.
 
 **The idea.** On a pin action, scheduled ritual, or hygiene scan **starting** or

@@ -33,6 +33,7 @@ import { editPinsConfig } from "./editConfig";
 import { newScratchpad } from "./scratchpad";
 import { saveLayout, restoreLayout } from "./layoutPins";
 import { suggestFromHistory } from "./ghostPins";
+import { switchEnvProfile } from "./envProfiles";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
 import {
@@ -972,6 +973,10 @@ export function registerPinCommands(
   // Suggest pins from frequently-typed shell commands (WOW #2): scans local shell
   // history read-only and offers the repeated complex commands as new shell pins.
   reg("saropaWorkspace.suggestFromHistory", () => suggestFromHistory(store));
+
+  // Swap the active .env between the project's .env.<name> profiles (WOW #10). A
+  // pure file action — no pin/store argument.
+  reg("saropaWorkspace.switchEnvProfile", () => switchEnvProfile());
 
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind
