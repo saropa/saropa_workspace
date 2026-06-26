@@ -60,18 +60,35 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
 
   getChildren(element?: vscode.TreeItem): vscode.TreeItem[] {
     if (!element) {
-      // Roots: the recipe category folders, already ordered by the store. The view
-      // is empty (welcome content shows) when nothing was detected. The total
-      // recipe-pin count across all categories is the number shown on the title.
+      // Roots: the TOP-LEVEL recipe category folders (no parentId), already ordered
+      // by the store. Nested subgroups (the per-tool suite subfolders) are excluded
+      // here — they render as children of their parent below. The view is empty
+      // (welcome content shows) when nothing was detected. The total recipe-pin count
+      // across all categories is the number shown on the title.
       this.setCount(this.store.getRecipePins().length);
-      return this.store.getRecipeGroups().map((group) => this.makeRecipeFolderItem(group));
+      return this.store
+        .getRecipeGroups()
+        .filter((group) => group.parentId === undefined)
+        .map((group) => this.makeRecipeFolderItem(group));
     }
 
     if (element instanceof PinFolderItem) {
-      return this.store
+      // A folder's children are its nested subgroups first (e.g. Saropa Lints / Drift
+      // Advisor / Log Capture under Saropa Suite), then the pins that sit directly in
+      // this folder (the boot macro stays at the suite top level this way). A leaf
+      // category folder has no subgroups, so this collapses to just its pins.
+      const id = element.pinGroup.id;
+      const subFolders = this.store
+        .getRecipeGroups()
+        .filter((group) => group.parentId === id)
+        .sort((a, b) => a.order - b.order)
+        .map((group) => this.makeRecipeFolderItem(group));
+      const pins = this.store
         .getRecipePins()
-        .filter((p) => p.groupId === element.pinGroup.id)
+        .filter((p) => p.groupId === id)
+        .sort((a, b) => a.order - b.order)
         .map((pin) => this.toPinItem(pin));
+      return [...subFolders, ...pins];
     }
 
     return [];
@@ -91,9 +108,19 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
   // "project") tagged with this group's id, so the PinFolderItem child lookup
   // finds them; the folder's own glyph/tint comes from the recipe group def.
   private makeRecipeFolderItem(group: PinGroup): PinFolderItem {
-    const count = this.store
-      .getRecipePins()
-      .filter((p) => p.groupId === group.id).length;
+    const pins = this.store.getRecipePins();
+    // A parent folder (e.g. Saropa Suite) counts its own direct pins plus every pin
+    // in a subgroup nested under it, so the header count reflects everything visible
+    // beneath it rather than just the boot macro that sits at its top level.
+    const childGroupIds = new Set(
+      this.store
+        .getRecipeGroups()
+        .filter((g) => g.parentId === group.id)
+        .map((g) => g.id)
+    );
+    const count = pins.filter(
+      (p) => p.groupId === group.id || childGroupIds.has(p.groupId ?? "")
+    ).length;
     return new PinFolderItem(group, "project", count);
   }
 }

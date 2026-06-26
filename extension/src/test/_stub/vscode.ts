@@ -110,6 +110,7 @@ export function __setConfig(section: string, key: string, value: unknown): void 
 }
 export function __resetConfig(): void {
   configValues.clear();
+  installedExtensions.clear();
 }
 
 function getConfiguration(section?: string): {
@@ -230,6 +231,21 @@ export const workspace = {
   },
   fs: fsApi,
   findFiles,
+};
+
+// vscode.extensions.getExtension: the suite recipes probe whether a sibling Saropa
+// tool's extension is installed (so they only seed a command the host can run). A
+// test installs the relevant ids; an unset id models "not installed" (the
+// graceful-absence path). getExtension returns a stand-in only carrying `.id`, the
+// single field the detector reads (it checks presence, not the activation surface).
+let installedExtensions = new Set<string>();
+export function __setInstalledExtensions(ids: string[]): void {
+  installedExtensions = new Set(ids);
+}
+export const extensions = {
+  getExtension(id: string): { id: string } | undefined {
+    return installedExtensions.has(id) ? { id } : undefined;
+  },
 };
 
 // window.showInputBox / showQuickPick: the interactive run-token tests drive these

@@ -61,6 +61,13 @@ export interface RecipeResult {
   // of piling every recipe into one flat "Recipes" folder. Undefined falls back to
   // "open" (see recipeGroupId in PinStore).
   group?: RecipeCategory;
+  // Optional per-tool subgroup key within the category's top-level group. The suite
+  // recipes set this ("lints" / "drift" / "log") so each tool's pins nest under their
+  // own subfolder beneath "Saropa Suite" instead of sitting flat in one suite group;
+  // the store maps it to a synthetic subgroup id (see recipeSubGroupId in PinStore).
+  // Undefined keeps the pin directly under the category's top-level group — the boot
+  // macro stays at the suite top level this way.
+  subGroup?: string;
   // Exactly one of these defines the action:
   filePath?: string; // a file pin, path relative to the folder
   action?: PinAction; // a non-file pin (url / shell / command / macro)

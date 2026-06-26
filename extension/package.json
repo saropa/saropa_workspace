@@ -300,6 +300,12 @@
         "icon": "$(arrow-down)"
       },
       {
+        "command": "saropaWorkspace.toggleMask",
+        "title": "%command.toggleMask.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(lock)"
+      },
+      {
         "command": "saropaWorkspace.peekFocusedPin",
         "title": "%command.peekFocusedPin.title%",
         "category": "%extension.displayName%",
@@ -418,6 +424,12 @@
         "title": "%command.configureTriggers.title%",
         "category": "%extension.displayName%",
         "icon": "$(git-merge)"
+      },
+      {
+        "command": "saropaWorkspace.configureWatchLink",
+        "title": "%command.configureWatchLink.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(broadcast)"
       },
       {
         "command": "saropaWorkspace.pinUntil",
@@ -1134,6 +1146,11 @@
           "group": "2_config@3"
         },
         {
+          "command": "saropaWorkspace.configureWatchLink",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin(Scheduled)?(Paused)?$/",
+          "group": "2_config@3"
+        },
+        {
           "command": "saropaWorkspace.pausePin",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^pin(Scheduled)?$/",
           "group": "2_config@4"
@@ -1167,6 +1184,11 @@
           "command": "saropaWorkspace.toggleBranchLink",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^pin(Scheduled)?(Paused)?$/",
           "group": "2_config@9"
+        },
+        {
+          "command": "saropaWorkspace.toggleMask",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^pin(Scheduled)?(Paused)?$/",
+          "group": "2_config@11"
         },
         {
           "submenu": "saropaWorkspace.expirySubmenu",
@@ -1346,6 +1368,10 @@
           "when": "false"
         },
         {
+          "command": "saropaWorkspace.toggleMask",
+          "when": "false"
+        },
+        {
           "command": "saropaWorkspace.runPin",
           "when": "false"
         },
@@ -1427,6 +1453,10 @@
         },
         {
           "command": "saropaWorkspace.configureTriggers",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.configureWatchLink",
           "when": "false"
         },
         {

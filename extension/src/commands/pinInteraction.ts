@@ -120,6 +120,25 @@ export async function openPin(store: PinStore, pin: Pin): Promise<void> {
     await handleMissingFile(store, pin, uri);
     return;
   }
+  // Masked / vault pin (WOW #26 — the screen-share guard): a stray click must never
+  // instantly display a secret file. Gate the open behind a modal reveal confirm that
+  // names the real target — the one place the real name is surfaced, and only on a
+  // deliberate confirm (the modal blocks, so a single errant click cannot fall
+  // through to Reveal). Cancel (any non-Reveal result) leaves the file unopened. This
+  // gates the OPEN; it cannot redact an already-open document (no API blurs editor
+  // text), which is the documented fidelity limit of this feature.
+  if (pin.masked) {
+    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    const reveal = l10n("mask.revealAction");
+    const choice = await vscode.window.showWarningMessage(
+      l10n("mask.revealConfirm", { name }),
+      { modal: true, detail: l10n("mask.revealDetail") },
+      reveal
+    );
+    if (choice !== reveal) {
+      return;
+    }
+  }
   // Preview mode (opt-in, default off) opens a single click in VS Code's native
   // transient tab (italic title), so clicking through a group of reference pins
   // reuses one tab instead of flooding the editor. When off, pins open as
@@ -256,6 +275,34 @@ export async function toggleTail(store: PinStore, pin: Pin): Promise<void> {
     followedDocs.delete(uri.toString());
   }
   vscode.window.showInformationMessage(l10n("tail.disabled", { name }));
+}
+
+// Toggle a stored file pin's masked / vault flag (WOW #26 — the screen-share guard).
+// Masking hides the pin's identity in the tree (generic label + lock glyph, path
+// hidden from row and hover) and gates its open behind a reveal confirm, so a secret
+// file (.env.production) never flashes on a shared screen from a stray click. A single
+// toggle (mirroring toggleTail / toggleBranchLink) since the row's lock glyph makes
+// the current state obvious. Restricted to a stored file pin: a non-file action has no
+// document to guard, and auto/recipe pins are recomputed (not stored) so a flag cannot
+// persist on them — both are rejected with a naming message.
+export async function toggleMask(store: PinStore, pin: Pin): Promise<void> {
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  if (pin.isAuto || pin.isRecipe) {
+    vscode.window.showWarningMessage(l10n("mask.unsupported", { name }));
+    return;
+  }
+  if (pinKind(pin) !== "file") {
+    vscode.window.showWarningMessage(l10n("mask.fileOnly", { name }));
+    return;
+  }
+  // Already masked: reveal it permanently (the row shows the real name again).
+  if (pin.masked) {
+    await store.setMasked(pin, false);
+    vscode.window.showInformationMessage(l10n("mask.off", { name }));
+    return;
+  }
+  await store.setMasked(pin, true);
+  vscode.window.showInformationMessage(l10n("mask.on", { name }));
 }
 
 // Toggle a stored pin's branch link (WOW #3). When the pin is unlinked, scope it to

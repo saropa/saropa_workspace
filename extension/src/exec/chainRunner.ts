@@ -212,8 +212,10 @@ function nameOf(pin: Pin): string {
 // window, so the saved run location is overridden here (the clone applies to this run
 // only; the stored pin is untouched). A shell-recipe pin carries its own terminal flag
 // on its action, so clear that the same way; a plain file pin overrides runLocation and
-// drops the deprecated useIntegratedTerminal so the two cannot disagree.
-function toBackground(pin: Pin): Pin {
+// drops the deprecated useIntegratedTerminal so the two cannot disagree. Exported so
+// the cross-file watch links (#25) reuse the one force-background clone instead of
+// re-deriving it.
+export function toBackground(pin: Pin): Pin {
   if (pin.action) {
     return { ...pin, action: { ...pin.action, useIntegratedTerminal: false } };
   }

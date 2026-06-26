@@ -22,6 +22,14 @@ const LINTS_EXT = "saropa.saropa-lints";
 const DRIFT_EXT = "saropa.drift-viewer";
 const LOG_EXT = "saropa.saropa-log-capture";
 
+// Per-tool subgroup keys. Each tool's pins carry its key so the store nests them
+// under a "Saropa Lints" / "Drift Advisor" / "Log Capture" subfolder beneath the
+// top-level "Saropa Suite" group, instead of every suite pin sitting flat in one
+// folder. The boot macro carries none, so it stays directly at the suite top level.
+const SUB_LINTS = "lints";
+const SUB_DRIFT = "drift";
+const SUB_LOG = "log";
+
 async function readText(
   folder: vscode.WorkspaceFolder,
   ...segments: string[]
@@ -145,19 +153,19 @@ async function pushLints(
 
   // Command pins — only when the extension that owns these commands is installed.
   if (hasExt) {
-    out.push(suite("suite.lints.score", "Show Code Health score", "Reads the Saropa Lints public API and reports the exact 0-100 Code Health score with its error/warning/info breakdown — no report file to open. Offers to run the analysis first if no data exists yet. From the saropa.saropa-lints extension.", "pulse", color, command("saropaWorkspace.recipe.lintsHealth")));
-    out.push(suite("suite.lints.analysis", "Run lint analysis", "Runs Saropa Lints analysis and writes the violations report. From the saropa.saropa-lints extension.", "checklist", color, command("saropaLints.runAnalysis")));
-    out.push(suite("suite.lints.health", "Open Code Health dashboard", "Opens the Saropa Lints Code Health (project vibrancy) dashboard. From the saropa.saropa-lints extension.", "graph", color, command("saropaLints.openProjectVibrancyReport")));
-    out.push(suite("suite.lints.config", "Manage rule packs", "Opens the Saropa Lints config dashboard to manage rule packs. From the saropa.saropa-lints extension.", "settings-gear", color, command("saropaLints.openConfigDashboard")));
-    out.push(suite("suite.lints.packages", "Open Package Vibrancy", "Opens the Saropa Lints Package Vibrancy view. From the saropa.saropa-lints extension.", "package", color, command("saropaLints.openPackageVibrancy")));
-    out.push(suite("suite.lints.owasp", "Export OWASP report", "Exports a Saropa Lints OWASP report. From the saropa.saropa-lints extension.", "shield", color, command("saropaLints.exportOwaspReport")));
+    out.push(suite("suite.lints.score", "Show Code Health score", "Reads the Saropa Lints public API and reports the exact 0-100 Code Health score with its error/warning/info breakdown — no report file to open. Offers to run the analysis first if no data exists yet. From the saropa.saropa-lints extension.", "pulse", color, command("saropaWorkspace.recipe.lintsHealth"), SUB_LINTS));
+    out.push(suite("suite.lints.analysis", "Run lint analysis", "Runs Saropa Lints analysis and writes the violations report. From the saropa.saropa-lints extension.", "checklist", color, command("saropaLints.runAnalysis"), SUB_LINTS));
+    out.push(suite("suite.lints.health", "Open Code Health dashboard", "Opens the Saropa Lints Code Health (project vibrancy) dashboard. From the saropa.saropa-lints extension.", "graph", color, command("saropaLints.openProjectVibrancyReport"), SUB_LINTS));
+    out.push(suite("suite.lints.config", "Manage rule packs", "Opens the Saropa Lints config dashboard to manage rule packs. From the saropa.saropa-lints extension.", "settings-gear", color, command("saropaLints.openConfigDashboard"), SUB_LINTS));
+    out.push(suite("suite.lints.packages", "Open Package Vibrancy", "Opens the Saropa Lints Package Vibrancy view. From the saropa.saropa-lints extension.", "package", color, command("saropaLints.openPackageVibrancy"), SUB_LINTS));
+    out.push(suite("suite.lints.owasp", "Export OWASP report", "Exports a Saropa Lints OWASP report. From the saropa.saropa-lints extension.", "shield", color, command("saropaLints.exportOwaspReport"), SUB_LINTS));
   }
 
   // CLI pins — only when the package is in the project (the CLIs run from it).
   if (hasPackage) {
-    out.push(suite("suite.lints.crossfile", "Lints: cross-file audit", "Runs the Saropa Lints cross-file audit CLI, producing an HTML report under reports/. Detected from saropa_lints in the project.", "references", color, shell(folder, "dart run saropa_lints:cross_file report")));
-    out.push(suite("suite.lints.baseline", "Lints: refresh baseline", "Refreshes the Saropa Lints baseline so existing violations are suppressed going forward. Detected from saropa_lints in the project.", "history", color, shell(folder, "dart run saropa_lints:baseline --update")));
-    out.push(suite("suite.lints.gate", "Lints: quality gate", "Runs the Saropa Lints CI-style quality gate against the violations report. Detected from saropa_lints in the project.", "pass", color, shell(folder, `dart run saropa_lints:quality_gate --report reports/${violationsPath}`)));
+    out.push(suite("suite.lints.crossfile", "Lints: cross-file audit", "Runs the Saropa Lints cross-file audit CLI, producing an HTML report under reports/. Detected from saropa_lints in the project.", "references", color, shell(folder, "dart run saropa_lints:cross_file report"), SUB_LINTS));
+    out.push(suite("suite.lints.baseline", "Lints: refresh baseline", "Refreshes the Saropa Lints baseline so existing violations are suppressed going forward. Detected from saropa_lints in the project.", "history", color, shell(folder, "dart run saropa_lints:baseline --update"), SUB_LINTS));
+    out.push(suite("suite.lints.gate", "Lints: quality gate", "Runs the Saropa Lints CI-style quality gate against the violations report. Detected from saropa_lints in the project.", "pass", color, shell(folder, `dart run saropa_lints:quality_gate --report reports/${violationsPath}`), SUB_LINTS));
   }
 
   // File pin — only when the report has actually been written.
@@ -169,6 +177,7 @@ async function pushLints(
       icon: "warning",
       color,
       group: "suite",
+      subGroup: SUB_LINTS,
       filePath: `reports/${violationsPath}`,
     });
   }
@@ -190,17 +199,17 @@ async function pushDrift(
 
   // Command pins — gated on the Drift Advisor extension being installed.
   if (hasExt) {
-    out.push(suite("suite.drift.browser", "Open Drift Advisor (browser)", "Opens the Drift Advisor DB inspector in the browser. Pairs with an active debug session (server on 8642). From the saropa.drift-viewer extension.", "browser", color, command("driftViewer.openInBrowser")));
-    out.push(suite("suite.drift.sql", "Open the SQL Notebook", "Opens the Drift Advisor SQL notebook. From the saropa.drift-viewer extension.", "notebook", color, command("driftViewer.openSqlNotebook")));
-    out.push(suite("suite.drift.scan", "Scan Dart schema (offline)", "Scans the Dart schema definitions offline — no running app needed. From the saropa.drift-viewer extension.", "search", color, command("driftViewer.scanDartSchemaDefinitions")));
-    out.push(suite("suite.drift.diagram", "Open the schema diagram", "Opens the Drift Advisor schema diagram. From the saropa.drift-viewer extension.", "type-hierarchy", color, command("driftViewer.schemaDiagram")));
-    out.push(suite("suite.drift.report", "Export a portable DB report", "Exports a portable Drift Advisor DB report. From the saropa.drift-viewer extension.", "output", color, command("driftViewer.exportReport")));
-    out.push(suite("suite.drift.forward", "Forward the emulator port", "Forwards the Android emulator port to the debug server (adb forward 8642). From the saropa.drift-viewer extension.", "plug", color, command("driftViewer.forwardPortAndroid")));
+    out.push(suite("suite.drift.browser", "Open Drift Advisor (browser)", "Opens the Drift Advisor DB inspector in the browser. Pairs with an active debug session (server on 8642). From the saropa.drift-viewer extension.", "browser", color, command("driftViewer.openInBrowser"), SUB_DRIFT));
+    out.push(suite("suite.drift.sql", "Open the SQL Notebook", "Opens the Drift Advisor SQL notebook. From the saropa.drift-viewer extension.", "notebook", color, command("driftViewer.openSqlNotebook"), SUB_DRIFT));
+    out.push(suite("suite.drift.scan", "Scan Dart schema (offline)", "Scans the Dart schema definitions offline — no running app needed. From the saropa.drift-viewer extension.", "search", color, command("driftViewer.scanDartSchemaDefinitions"), SUB_DRIFT));
+    out.push(suite("suite.drift.diagram", "Open the schema diagram", "Opens the Drift Advisor schema diagram. From the saropa.drift-viewer extension.", "type-hierarchy", color, command("driftViewer.schemaDiagram"), SUB_DRIFT));
+    out.push(suite("suite.drift.report", "Export a portable DB report", "Exports a portable Drift Advisor DB report. From the saropa.drift-viewer extension.", "output", color, command("driftViewer.exportReport"), SUB_DRIFT));
+    out.push(suite("suite.drift.forward", "Forward the emulator port", "Forwards the Android emulator port to the debug server (adb forward 8642). From the saropa.drift-viewer extension.", "plug", color, command("driftViewer.forwardPortAndroid"), SUB_DRIFT));
   }
 
   // The debug server's merged issues feed; useful whenever the package is used.
   if (hasPackage || hasExt) {
-    out.push(suite("suite.drift.issues", "Open the DB issues feed", "Opens the Drift Advisor issues feed (index suggestions + anomalies as JSON) from the local debug server on 8642. Requires an active debug session.", "link-external", color, url("http://127.0.0.1:8642/api/issues")));
+    out.push(suite("suite.drift.issues", "Open the DB issues feed", "Opens the Drift Advisor issues feed (index suggestions + anomalies as JSON) from the local debug server on 8642. Requires an active debug session.", "link-external", color, url("http://127.0.0.1:8642/api/issues"), SUB_DRIFT));
   }
 }
 
@@ -216,23 +225,26 @@ async function pushLogCapture(
     return;
   }
   const color = "charts.orange";
-  out.push(suite("suite.log.open", "Open a capture log", "Opens a Saropa Log Capture log file. From the saropa.saropa-log-capture extension.", "output", color, command("saropaLogCapture.openLogFile")));
-  out.push(suite("suite.log.search", "Search all logs", "Searches across all captured logs. From the saropa.saropa-log-capture extension.", "search", color, command("saropaLogCapture.searchLogs")));
-  out.push(suite("suite.log.flowmap", "Export a session Flow Map", "Exports a Flow Map for a capture session. From the saropa.saropa-log-capture extension.", "git-merge", color, command("saropaLogCapture.exportFlowMap")));
-  out.push(suite("suite.log.compare", "Compare two sessions", "Compares two capture sessions side by side. From the saropa.saropa-log-capture extension.", "diff", color, command("saropaLogCapture.compareSessions")));
-  out.push(suite("suite.log.signals", "Show the Signals panel", "Opens the Saropa Log Capture Signals panel. From the saropa.saropa-log-capture extension.", "lightbulb", color, command("saropaLogCapture.showSignals")));
-  out.push(suite("suite.log.start", "Start capture", "Starts a Saropa Log Capture session. From the saropa.saropa-log-capture extension.", "record", color, command("saropaLogCapture.start")));
+  out.push(suite("suite.log.open", "Open a capture log", "Opens a Saropa Log Capture log file. From the saropa.saropa-log-capture extension.", "output", color, command("saropaLogCapture.openLogFile"), SUB_LOG));
+  out.push(suite("suite.log.search", "Search all logs", "Searches across all captured logs. From the saropa.saropa-log-capture extension.", "search", color, command("saropaLogCapture.searchLogs"), SUB_LOG));
+  out.push(suite("suite.log.flowmap", "Export a session Flow Map", "Exports a Flow Map for a capture session. From the saropa.saropa-log-capture extension.", "git-merge", color, command("saropaLogCapture.exportFlowMap"), SUB_LOG));
+  out.push(suite("suite.log.compare", "Compare two sessions", "Compares two capture sessions side by side. From the saropa.saropa-log-capture extension.", "diff", color, command("saropaLogCapture.compareSessions"), SUB_LOG));
+  out.push(suite("suite.log.signals", "Show the Signals panel", "Opens the Saropa Log Capture Signals panel. From the saropa.saropa-log-capture extension.", "lightbulb", color, command("saropaLogCapture.showSignals"), SUB_LOG));
+  out.push(suite("suite.log.start", "Start capture", "Starts a Saropa Log Capture session. From the saropa.saropa-log-capture extension.", "record", color, command("saropaLogCapture.start"), SUB_LOG));
 }
 
 // Build a suite-group recipe result from its parts (every suite recipe shares the
 // group + the action-carrying shape; only file pins differ, built inline above).
+// `subGroup` nests the pin under its per-tool subfolder; omit it (the boot macro)
+// to keep the pin directly at the suite top level.
 function suite(
   recipeId: string,
   label: string,
   description: string,
   icon: string,
   color: string,
-  action: PinAction
+  action: PinAction,
+  subGroup?: string
 ): RecipeResult {
-  return { recipeId, label, description, icon, color, group: "suite", action };
+  return { recipeId, label, description, icon, color, group: "suite", subGroup, action };
 }

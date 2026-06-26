@@ -37,6 +37,9 @@ export interface PinRowIconInput {
   readonly hasResolvedUri: boolean;
   readonly missing: boolean;
   readonly locked: boolean;
+  // Masked / vault pin (WOW #26): renders a lock glyph instead of the file-type or
+  // custom icon, so a resting masked pin reveals nothing about its target.
+  readonly masked: boolean;
   readonly paused: boolean;
   readonly metricOver: boolean;
   readonly lastRunOutcome: "success" | "failure" | undefined;
@@ -62,6 +65,14 @@ export function resolvePinRowIcon(input: PinRowIconInput): vscode.ThemeIcon {
   // Blocked on an unmet prerequisite: a prior session's green check does not mean
   // the dependency is satisfied now, so "not runnable yet" wins.
   if (input.locked) {
+    return new vscode.ThemeIcon("lock");
+  }
+  // Masked / vault pin (WOW #26): a lock glyph that overrides the resting cosmetic
+  // glyphs below (custom icon, last-run pass/fail, the file-type or default pin
+  // icon), since any of those would leak a hint about the masked target on a shared
+  // screen. Placed under the transient running/missing/locked states, which convey
+  // actionable live state worth showing and reveal nothing about the file's identity.
+  if (input.masked) {
     return new vscode.ThemeIcon("lock");
   }
   // Paused: the pin's own glyph, muted, so the row reads as "not running on its

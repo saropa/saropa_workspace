@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
-import { Pin, pinKind, isAnnotationPin } from "./model/pin";
+import { isAnnotationPin } from "./model/pin";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
 import {
   PinFilterState,
@@ -26,14 +26,7 @@ import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
 import { initFocusMode } from "./commands/focusMode";
 import { registerRunOutputDiff } from "./commands/diffRuns";
-import {
-  registerTerminalCleanup,
-  isRunnable,
-  setRoutineHooks,
-  getOutputChannel,
-  runBlockReason,
-  blockReasonLabel,
-} from "./exec/runner";
+import { registerTerminalCleanup, setRoutineHooks } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
@@ -54,13 +47,14 @@ import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
 import { tappedPins } from "./model/tappedPins";
 import { registerRecipeCommands } from "./recipes/recipeCommands";
-import { detectFavoritesFiles, importAllDetected } from "./import/favoritesImport";
-import { decodeSharedPin, describeSharedPin } from "./import/shareLink";
 import { l10n } from "./i18n/l10n";
-
-// Gate flag so the one-time "import existing favorites" prompt does not reappear
-// once the user has answered (imported or dismissed) for this workspace.
-const IMPORT_PROMPT_KEY = "saropaWorkspace.favoritesImportOffered";
+import {
+  handlePinImportUri,
+  makeDebounced,
+  runPinsOnSave,
+  maybeOfferFavoritesImport,
+  syncPinnedPathContext,
+} from "./activation/activationHelpers";
 
 // Persists the "show pins from all branches" escape hatch (WOW #3) per-workspace, so
 // a window reload keeps the chosen branch scope (filtering by current branch vs.
@@ -643,160 +637,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // reloaded while focus is active shows "Exit Focus" rather than "Focus" (the
   // written files.exclude survives the reload, so the toggle state must too).
   void initFocusMode(context);
-}
-
-// Import a pin from a shared "Copy as Saropa Link" URI. Decodes the payload, shows a
-// modal confirm naming what the pin does (a shared shell command must be a visible,
-// deliberate choice — importing never runs it), then adds it. Targets the project
-// scope when a workspace folder is open, else global. A malformed/expired link
-// degrades to a single warning, never a crash.
-async function handlePinImportUri(
-  uri: vscode.Uri,
-  store: PinStore
-): Promise<void> {
-  if (uri.path !== "/import") {
-    return;
-  }
-  const data = new URLSearchParams(uri.query).get("data");
-  const shared = decodeSharedPin(data);
-  if (!shared) {
-    vscode.window.showWarningMessage(l10n("share.import.invalid"));
-    return;
-  }
-  const name = shared.label ?? shared.path ?? l10n("share.import.fallbackName");
-  const importAction = l10n("share.import.action");
-  const choice = await vscode.window.showInformationMessage(
-    l10n("share.import.confirm", { name }),
-    { modal: true, detail: describeSharedPin(shared) },
-    importAction
-  );
-  if (choice !== importAction) {
-    return;
-  }
-  const scope = (vscode.workspace.workspaceFolders?.length ?? 0) > 0
-    ? "project"
-    : "global";
-  const added = await store.importPin(shared, scope);
-  vscode.window.showInformationMessage(
-    added
-      ? l10n("share.import.done", { name })
-      : l10n("share.import.noFolder")
-  );
-}
-
-// Coalesce rapid calls into one trailing call after `delayMs` of quiet. Used by
-// the pins-config watcher so the store's write-then-notify burst (and a flurry of
-// editor saves) triggers a single refresh, not one per filesystem event.
-function makeDebounced(fn: () => void, delayMs: number): () => void {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return () => {
-    if (timer) {
-      clearTimeout(timer);
-    }
-    timer = setTimeout(fn, delayMs);
-  };
-}
-
-// Run every runnable file pin whose target is the just-saved file and which has
-// opted into run-on-save (exec.runOnSave). The same file can be pinned more than
-// once, so all matches fire. Runs through the normal Run command so the run reuses
-// token resolution, telemetry, and the per-run toast — and a non-runnable file pin
-// is filtered out (it would only "open" the file the user is already editing).
-function runPinsOnSave(store: PinStore, savedUri: vscode.Uri): void {
-  const saved = savedUri.fsPath;
-  const pins = [...store.getProjectPins(), ...store.getGlobalPins()];
-  for (const pin of pins) {
-    // A paused pin does not run on save — run-on-save is an unattended runner, so
-    // pausing suspends it like the scheduler and chain triggers.
-    if (pin.paused || pin.exec?.runOnSave !== true || pinKind(pin) !== "file") {
-      continue;
-    }
-    const uri = store.resolveUri(pin);
-    if (!uri || uri.fsPath !== saved || !isRunnable(pin, uri.fsPath)) {
-      continue;
-    }
-    // Single-instance guard: skip the save-triggered run when one is already in
-    // flight (or the cross-process lock is held) rather than stacking a second on
-    // every save. Quiet beyond a channel line — repeated saves must not spam toasts;
-    // the manual-run path is where the user gets the interactive "already running"
-    // choice. Checked here so an unattended save never reaches the manual toast.
-    const block = runBlockReason(pin);
-    if (block) {
-      const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
-      getOutputChannel().appendLine(
-        l10n("save.skipped", { name, reason: blockReasonLabel(block) })
-      );
-      continue;
-    }
-    void vscode.commands.executeCommand("saropaWorkspace.runPin", pin);
-  }
-}
-
-async function maybeOfferFavoritesImport(
-  context: vscode.ExtensionContext,
-  store: PinStore
-): Promise<void> {
-  if (context.workspaceState.get<boolean>(IMPORT_PROMPT_KEY, false)) {
-    return;
-  }
-  const detected = await detectFavoritesFiles();
-  if (detected.length === 0) {
-    return;
-  }
-  // Record that the offer was made before awaiting the user's answer, so a
-  // dismissal (or window reload mid-prompt) does not re-trigger it.
-  await context.workspaceState.update(IMPORT_PROMPT_KEY, true);
-
-  const first = detected[0];
-  const action = l10n("import.promptAction");
-  const choice = await vscode.window.showInformationMessage(
-    l10n("import.prompt", { file: first.fileName, count: detected.length }),
-    action
-  );
-  if (choice === action) {
-    const result = await importAllDetected(store);
-    vscode.window.showInformationMessage(
-      l10n("import.done", {
-        count: result.added,
-        file: detected.map((d) => d.fileName).join(", "),
-      })
-    );
-  }
-}
-
-// Publish the set of absolute paths pinned in each scope as when-clause context
-// objects, so the "Workspace Pin" submenu can hide the invalid action per file.
-// Both the OS path (uri.fsPath, e.g. "d:\\src\\a.ts") and the URI path (uri.path,
-// e.g. "/d:/src/a.ts") are registered for every pin because VS Code's resourcePath
-// context key uses one form or the other depending on platform; the `in` operator
-// only checks key existence, so registering both matches whichever VS Code supplies.
-// Non-file recipe pins have no on-disk path and are skipped.
-function syncPinnedPathContext(store: PinStore): void {
-  const collect = (pins: Pin[]): Record<string, true> => {
-    const set: Record<string, true> = {};
-    for (const pin of pins) {
-      if (pinKind(pin) !== "file") {
-        continue;
-      }
-      const uri = store.resolveUri(pin);
-      if (!uri) {
-        continue;
-      }
-      set[uri.fsPath] = true;
-      set[uri.path] = true;
-    }
-    return set;
-  };
-  void vscode.commands.executeCommand(
-    "setContext",
-    "saropaWorkspace.projectPinnedPaths",
-    collect(store.getProjectPins())
-  );
-  void vscode.commands.executeCommand(
-    "setContext",
-    "saropaWorkspace.globalPinnedPaths",
-    collect(store.getGlobalPins())
-  );
 }
 
 export function deactivate(): void {

@@ -86,6 +86,29 @@ const RECIPE_GROUPS: readonly RecipeGroupDef[] = [
   { category: "monitor", id: "process-monitor", label: "Process Monitor", order: 9994, icon: "pulse", color: "charts.red" },
   { category: "suite", id: "saropa-suite", label: "Saropa Suite", order: 10000, icon: "layers", color: "charts.orange" },
 ];
+
+// Per-tool subgroups nested under a top-level recipe group. Only "Saropa Suite"
+// uses these today: each detected sibling tool gets its own subfolder so a project
+// wired to all three tools does not show ~18 suite pins flat in one folder. A
+// subgroup id is `${parentId}-${key}`, the same shape recipeSubGroupId builds from a
+// recipe's `subGroup`, so the seeding and the synthetic-group build agree on the id.
+// A subgroup is injected only when it actually has a pin (mirrors the top-level
+// groups), so a subgroup appears exactly when its tool is detected. Orders are local
+// to the parent (the tree sorts each level independently).
+interface RecipeSubGroupDef {
+  parentId: string;
+  key: string;
+  id: string;
+  label: string;
+  order: number;
+  icon: string;
+  color: string;
+}
+const RECIPE_SUBGROUPS: readonly RecipeSubGroupDef[] = [
+  { parentId: "saropa-suite", key: "lints", id: "saropa-suite-lints", label: "Saropa Lints", order: 1, icon: "checklist", color: "charts.blue" },
+  { parentId: "saropa-suite", key: "drift", id: "saropa-suite-drift", label: "Drift Advisor", order: 2, icon: "database", color: "charts.purple" },
+  { parentId: "saropa-suite", key: "log", id: "saropa-suite-log", label: "Log Capture", order: 3, icon: "output", color: "charts.orange" },
+];
 // Per-group collapse state lives in globalState (synthetic groups are not in any
 // file). Keyed by group id; default collapsed so the groups are discoverable but
 // never clutter the view on first open.
@@ -96,6 +119,27 @@ const RECIPE_GROUP_EXPANDED_PREFIX = "saropaWorkspace.recipeGroupExpanded.";
 // that did not declare a category).
 function recipeGroupId(category: RecipeCategory | undefined): string {
   return RECIPE_GROUPS.find((g) => g.category === category)?.id ?? "recipes-open";
+}
+
+// Map a recipe's base group id + its per-tool subGroup key to the synthetic subgroup
+// id, falling back to the base group when the key names no known subgroup (so an
+// unrecognized key never strands a pin in a non-existent folder). Single source for
+// the id shape shared with RECIPE_SUBGROUPS.
+function recipeSubGroupId(baseGroupId: string, subGroup: string): string {
+  return (
+    RECIPE_SUBGROUPS.find((s) => s.parentId === baseGroupId && s.key === subGroup)
+      ?.id ?? baseGroupId
+  );
+}
+
+// True when an id is one of the synthetic recipe groups OR their nested subgroups.
+// Used to route a recipe folder under the Recipes section and to persist its collapse
+// state in globalState rather than a project file.
+function isSyntheticRecipeGroupId(id: string): boolean {
+  return (
+    RECIPE_GROUPS.some((g) => g.id === id) ||
+    RECIPE_SUBGROUPS.some((s) => s.id === id)
+  );
 }
 
 // The category's theme color, used as the fallback tint for a recipe leaf that did
@@ -227,7 +271,7 @@ export class PinStore {
   // True when a group id is one of the synthetic recipe groups (used by the tree to
   // route a recipe folder under the Recipes section rather than a scope root).
   isRecipeGroup(id: string): boolean {
-    return RECIPE_GROUPS.some((g) => g.id === id);
+    return isSyntheticRecipeGroupId(id);
   }
 
   // Recipe pins live in the project scope's pin list (so findPin / resolveUri / the
@@ -734,6 +778,35 @@ export class PinStore {
     await this.mutatePin(pin, (target) => {
       // Drop the field entirely when off, so an unfollowed pin carries no stale flag.
       target.tailFollow = follow ? true : undefined;
+    });
+  }
+
+  // Persist a pin's cross-file watch globs (#25). Empties/whitespace are trimmed out;
+  // an empty result clears the field (and the now-bare exec object is left as-is —
+  // other exec settings may still live on it) so an un-linked pin carries no stale
+  // watch list. Lives on exec beside runOnSave so the one save listener reads both.
+  // Routed through mutatePin, so it no-ops on an auto/recipe pin (recomputed, not
+  // stored) — the linking command gates those out before calling.
+  async setPinWatchGlobs(pin: Pin, globs: string[]): Promise<void> {
+    const cleaned = globs.map((g) => g.trim()).filter((g) => g.length > 0);
+    await this.mutatePin(pin, (target) => {
+      if (cleaned.length > 0) {
+        target.exec = { ...(target.exec ?? {}), runOnSaveGlobs: cleaned };
+      } else if (target.exec) {
+        target.exec.runOnSaveGlobs = undefined;
+      }
+    });
+  }
+
+  // Persist a file pin's masked / vault flag (WOW #26 — the screen-share guard). On
+  // masks the pin (generic label + lock glyph in the tree, real path hidden from the
+  // row and hover, and a reveal confirm before the file opens); off restores the
+  // normal pin. Dropped (set undefined) when off so an unmasked pin carries no stale
+  // flag — round-trip parity. Routed through mutatePin, so it no-ops on an auto/recipe
+  // pin (recomputed, not stored) — the toggle command gates those out up front.
+  async setMasked(pin: Pin, masked: boolean): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.masked = masked ? true : undefined;
     });
   }
 
@@ -1261,10 +1334,10 @@ export class PinStore {
     scope: PinScope,
     collapsed: boolean
   ): Promise<void> {
-    // The synthetic recipe groups (Recipes: * and Saropa Suite) are not stored in
-    // any file; persist their posture in globalState keyed by group id instead of
-    // through mutateGroup (which would find no target).
-    if (RECIPE_GROUPS.some((g) => g.id === group.id)) {
+    // The synthetic recipe groups (Recipes: * and Saropa Suite, plus the per-tool
+    // suite subgroups) are not stored in any file; persist their posture in
+    // globalState keyed by group id instead of through mutateGroup (no target there).
+    if (isSyntheticRecipeGroupId(group.id)) {
       await this.context.globalState.update(
         RECIPE_GROUP_EXPANDED_PREFIX + group.id,
         !collapsed
@@ -1622,7 +1695,15 @@ export class PinStore {
     // project groups so the tree can render them under their own top-level section.
     const groups: PinGroup[] = [];
     for (const def of RECIPE_GROUPS) {
-      if (recipePins.some((p) => p.groupId === def.id)) {
+      const subDefs = RECIPE_SUBGROUPS.filter((s) => s.parentId === def.id);
+      const hasDirectPin = recipePins.some((p) => p.groupId === def.id);
+      // A parent shows when it directly owns a pin OR a subgroup under it does — the
+      // single-tool suite case has no boot macro (needs 2+ tools) and all its pins
+      // sit in one subgroup, so a directness-only check would orphan that subgroup.
+      const hasChildPin = subDefs.some((sd) =>
+        recipePins.some((p) => p.groupId === sd.id)
+      );
+      if (hasDirectPin || hasChildPin) {
         groups.push({
           id: def.id,
           label: def.label,
@@ -1632,8 +1713,27 @@ export class PinStore {
           color: def.color,
         });
       }
+      // Each subgroup is injected only when it owns a pin, so a subfolder appears
+      // exactly when its tool is detected. parentId nests it under the group above.
+      for (const sd of subDefs) {
+        if (recipePins.some((p) => p.groupId === sd.id)) {
+          groups.push({
+            id: sd.id,
+            label: sd.label,
+            order: sd.order,
+            parentId: sd.parentId,
+            collapsed: !this.recipeGroupExpanded(sd.id),
+            icon: sd.icon,
+            color: sd.color,
+          });
+        }
+      }
     }
-    this.recipeGroups = groups.sort((a, b) => a.order - b.order);
+    // Do not flatten-sort across levels: top-level orders (9989..10000) and subgroup
+    // orders (1..3) live in different number spaces, so a global sort would interleave
+    // them. The tree filters by parentId and sorts each level, so the stored order is
+    // left as built (parents and their subgroups already emitted together above).
+    this.recipeGroups = groups;
     this.projectPins = [...this.baseProjectPins, ...recipePins].sort(
       (a, b) => a.order - b.order
     );
@@ -1863,7 +1963,11 @@ export class PinStore {
         // color family (the folder and its items read as one group); an explicit
         // per-recipe color still wins.
         color: r.color ?? recipeGroupColor(r.group),
-        groupId: recipeGroupId(r.group),
+        // A recipe with a per-tool subGroup (the suite recipes) lands in the nested
+        // subgroup; everything else lands directly in its category's top-level group.
+        groupId: r.subGroup
+          ? recipeSubGroupId(recipeGroupId(r.group), r.subGroup)
+          : recipeGroupId(r.group),
         order: order++,
       });
     }

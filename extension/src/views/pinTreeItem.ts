@@ -79,7 +79,13 @@ export class PinTreeItem extends vscode.TreeItem {
     const kind = pinKind(pin);
     const isFile = kind === "file";
     const basename = pin.path.split("/").pop() ?? pin.path;
-    super(pin.label ?? basename, vscode.TreeItemCollapsibleState.None);
+    // Masked / vault pin (WOW #26): the row must reveal nothing about the target, so
+    // it shows a generic localized label (never the filename/alias) and, below, hides
+    // the path from the detail/hover and shows a lock glyph. Computed before super()
+    // because the displayed label is the super() argument.
+    const masked = pin.masked === true;
+    const displayLabel = masked ? l10n("mask.label") : pin.label ?? basename;
+    super(displayLabel, vscode.TreeItemCollapsibleState.None);
 
     // Stable id (scope-qualified) so TreeView.reveal can match this node across
     // the tree being rebuilt — the status-bar "next scheduled run" reveals a pin
@@ -91,8 +97,11 @@ export class PinTreeItem extends vscode.TreeItem {
       ? `recent:${pin.scope}:${pin.id}`
       : `pin:${pin.scope}:${pin.id}`;
     // resourceUri drives the file-type icon/decorations; only meaningful for file
-    // pins. Non-file pins (url/shell/command/macro) render from their own glyph.
-    this.resourceUri = isFile ? resolvedUri : undefined;
+    // pins. Non-file pins (url/shell/command/macro) render from their own glyph. A
+    // masked pin sets none: the file-type icon (and the decoration VS Code derives
+    // from the path) would leak the target's extension/identity, the opposite of the
+    // mask. Its lock glyph comes from resolvePinRowIcon instead.
+    this.resourceUri = isFile && !masked ? resolvedUri : undefined;
 
     // Comment / separator: an inert annotation row. It has no command (a click does
     // nothing), no resourceUri, no badges — it only labels or divides the list.
@@ -159,8 +168,10 @@ export class PinTreeItem extends vscode.TreeItem {
               ? l10n("schedule.treeBadge", { time: nextLabel })
               : lastRunBadge;
     // For a file pin the trailing detail is its path; for a non-file pin it is a
-    // summary of what the action does (the URL, the command line, etc.).
-    const detail = isFile ? pin.path : actionSummary(pin);
+    // summary of what the action does (the URL, the command line, etc.). A masked
+    // pin contributes none — the path is exactly what must stay hidden — so the join
+    // below drops it (the falsy filter) and the row carries only state badges.
+    const detail = masked ? undefined : isFile ? pin.path : actionSummary(pin);
     // A Recent entry leads with when it last ran (and a hint if it was a scheduled
     // fire), since "how recently" is the reason it is in this group; otherwise the
     // leading slot is the most-actionable badge (running / next-run / last-run).
@@ -175,16 +186,21 @@ export class PinTreeItem extends vscode.TreeItem {
     // is precomputed by the engine; "modified" is formatted relative here so it stays
     // current between repaints (the engine cannot re-fire just because wall-clock
     // advanced). Hoisted above the recent/normal split so the tooltip can reuse it.
-    const metricText = metricBadge
-      ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
-        ? formatRelativeTime(metricBadge.mtime, Date.now())
-        : metricBadge.text
-      : undefined;
+    // A masked pin shows no metric: a size/line-count value is a hint about the
+    // target, and the point of masking is to leak nothing while resting.
+    const metricText =
+      metricBadge && !masked
+        ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
+          ? formatRelativeTime(metricBadge.mtime, Date.now())
+          : metricBadge.text
+        : undefined;
     if (recentInfo) {
       const when = formatRelativeTime(recentInfo.at, Date.now());
       const tag =
         recentInfo.source === "scheduled" ? ` ${l10n("recent.scheduledTag")}` : "";
-      this.description = `${when}${tag} · ${detail}`;
+      // A masked pin's detail is hidden, so a Recent entry shows only when it ran,
+      // never the path — `detail` is undefined under mask.
+      this.description = detail ? `${when}${tag} · ${detail}` : `${when}${tag}`;
     } else {
       // A time-bombed pin (WOW #9) shows a compact countdown / branch chip so the
       // row carries its pending self-removal at a glance; the full condition is in
@@ -236,20 +252,25 @@ export class PinTreeItem extends vscode.TreeItem {
               : `pin${pausedSuffix}`;
 
     // Tooltip shows the full target (the complete URL for a url pin), even though
-    // the row only shows the host — the hover is where the detail belongs.
-    const targetLine = isFile
-      ? resolvedUri
-        ? resolvedUri.fsPath
-        : pin.path
-      : pin.action?.kind === "url"
-        ? pin.action.url ?? ""
-        : actionSummary(pin);
+    // the row only shows the host — the hover is where the detail belongs. A masked
+    // pin replaces the target line with a generic notice: the hover is a passive
+    // surface that can sit on a shared screen, so it must never carry the real path.
+    // The real name is named only at the deliberate reveal confirm (see openPin).
+    const targetLine = masked
+      ? l10n("mask.tooltip")
+      : isFile
+        ? resolvedUri
+          ? resolvedUri.fsPath
+          : pin.path
+        : pin.action?.kind === "url"
+          ? pin.action.url ?? ""
+          : actionSummary(pin);
     // A recipe's description (what it does + what it was detected from) leads the
     // hover so the catalog prose is one mouse-over away, with the concrete target
-    // on the next line. Stored/file pins have no description and start at target.
-    const tooltipLines = pin.description
-      ? [pin.description, targetLine]
-      : [targetLine];
+    // on the next line. Stored/file pins have no description and start at target. A
+    // masked pin shows only the generic notice (its description, if any, could leak).
+    const tooltipLines =
+      pin.description && !masked ? [pin.description, targetLine] : [targetLine];
     if (isStopping) {
       tooltipLines.push(l10n("run.stoppingTooltip"));
     } else if (isRunning) {
@@ -356,6 +377,7 @@ export class PinTreeItem extends vscode.TreeItem {
       hasResolvedUri: resolvedUri !== undefined,
       missing,
       locked: Boolean(lockedBy),
+      masked,
       paused: Boolean(pin.paused),
       metricOver: Boolean(metricBadge?.over),
       lastRunOutcome: lastRun?.outcome,

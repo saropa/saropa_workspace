@@ -67,3 +67,58 @@ and no path in the hover; click it, confirm the reveal prompt precedes opening.
 ## Complexity & risk
 Low complexity, low technical risk, **high expectation risk** — manage the claim
 carefully.
+
+## Finish Report (2026-06-26)
+
+### Scope delivered
+The revised, achievable scope shipped in full: **label masking + a reveal confirm
+before open**. The pitch's headline — blurring an opened document's text — remains
+**not implemented** and is documented as API-blocked (no VS Code extension surface
+can redact editor content). The changelog copy states this limit explicitly, so the
+feature is not recorded as delivering content blur.
+
+### Deviation from the plan
+The plan offered an optional `Pin.maskLabel` (a per-pin custom masked name). It was
+**dropped**. A custom label would have no producer (the toggle is a single fast
+action with no prompt), leaving a field whose only reader is the tree — a
+documentation-only field. Every masked pin therefore renders one shared localized
+label (`mask.label` → "Protected file"), which also leaks less than a user-authored
+name. Only `Pin.masked?: boolean` was added to the model.
+
+### Implementation
+- **Model** (`extension/src/model/pin.ts`): `Pin.masked?: boolean`, stored on
+  explicit file pins only (auto/recipe pins are recomputed, never persisted).
+- **Store** (`extension/src/model/pinStore.ts`): `setMasked(pin, masked)`, routed
+  through `mutatePin` (no-ops on auto/recipe). The off flag collapses to `undefined`
+  for round-trip parity (no stale `masked:false`).
+- **Tree row** (`extension/src/views/pinTreeItem.ts`): a masked pin renders the
+  generic label, sets no `resourceUri` (so the file-type icon/extension cannot leak),
+  drops the path/metric from the row detail and the Recent entry, and replaces the
+  hover target line with `mask.tooltip` (no real path on a passive hover).
+- **Icon** (`extension/src/views/pinRowTokens.ts`): a `masked` input returns a `lock`
+  glyph, overriding the resting cosmetic glyphs (custom icon, last-run pass/fail, the
+  default pin/file icon) but sitting under the transient running/missing/locked
+  states, which reveal nothing identifying and convey live state worth showing.
+- **Open gate** (`extension/src/commands/pinInteraction.ts` `openPin`): a **modal**
+  reveal confirm naming the real target, gating the open. Modal so a stray click
+  cannot fall through to Reveal. `toggleMask` added next to `toggleTail`, restricted
+  to stored file pins.
+- **Wiring**: command + context-menu (group `2_config`) + hidden-palette entries in
+  `package.json`; title in `package.nls.json`; `mask.*` strings in
+  `src/i18n/locales/en.json`; registration in `commands/pinCommands.ts`.
+
+### Design decision: open gated, run not gated
+Double-click (run) is intentionally **not** gated. The reported pain is a secret
+file's contents flashing on a shared screen — that is the open/display path. Running
+a script does not display its contents, so gating run would add friction without
+addressing the stated risk.
+
+### Verification
+- `npx tsc -p ./ --noEmit` — clean.
+- `node esbuild.js` — bundle builds.
+- `npm test` — 189 pass / 0 fail, including a new `setMasked` persistence round-trip
+  test in `src/test/pinStore.test.ts` (masks, reloads from disk in a fresh store,
+  and confirms unmasking drops the field rather than storing `false`).
+- Tree-row rendering and the icon resolver depend on the `vscode` host (ThemeIcon),
+  so they are not unit-testable under the `node --test` stub; verified by inspection
+  and left to the manual smoke test below.

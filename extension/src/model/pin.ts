@@ -208,6 +208,18 @@ export interface PinExecConfig {
   // file pin has nothing to run. Off (undefined/false) by default so a save never
   // triggers an unexpected run; the user opts a specific pin in via Configure Run.
   runOnSave?: boolean;
+  // Cross-file watch links (#25 — "if this, then run that"): glob patterns matched
+  // against OTHER files. When any file whose workspace-relative path matches one of
+  // these globs is saved, this pin runs in the background — the "I edited
+  // schema.graphql, regenerate the types" automation. Distinct from runOnSave, which
+  // watches the pin's OWN target file; these watch arbitrary files, so a runnable
+  // pin of any kind (a generate script, an npm task) can react to a source file it
+  // does not itself point at. Patterns are POSIX-glob (`*`, `**`, `?`); the same
+  // save listener drives both this and runOnSave. Absent/empty by default so no pin
+  // reacts to a foreign save unless the user explicitly linked it (Run This Pin When
+  // a File Changes). Watch runs are background + per-pin cooldown so a save burst
+  // cannot spawn a run storm.
+  runOnSaveGlobs?: string[];
 }
 
 // Phase 1 scheduling is defined in the model so stored pins are forward-compatible
@@ -354,6 +366,17 @@ export interface Pin {
   // without re-entering them. Stored on explicit pins only — auto/recipe pins are
   // recomputed each refresh and carry no automation to pause. Absent/false = active.
   paused?: boolean;
+  // Masked / vault pin (WOW #26 — the screen-share guard). When true, the tree
+  // hides the pin's identity: it renders a generic localized label ("Protected
+  // file") and a lock glyph instead of the filename/icon, and OMITS the real path
+  // from the row detail and the hover, so a secret target (.env.production) is never
+  // visible while resting on a shared screen. Opening a masked pin first requires an
+  // explicit reveal confirm (see openPin), so a stray click cannot instantly display
+  // the file. This gates the OPEN and hides the LABEL; it does NOT redact the
+  // contents of an already-opened document (no VS Code API can blur editor text).
+  // File pins only and stored (explicit) pins only — auto/recipe pins are recomputed
+  // each refresh and carry no flag. Absent/false = a normal, fully-visible pin.
+  masked?: boolean;
   // Single-instance control. By default (allowConcurrent absent/false) a pin will
   // not start a fresh run while one of its OWN runs is still in flight: the
   // scheduler, chain triggers, run-on-save, and a manual run all defer to the
@@ -402,6 +425,13 @@ export interface PinGroup {
   label: string;
   // Sort order among groups under the same scope root.
   order: number;
+  // Optional parent group id for a nested subgroup. Undefined = a top-level group
+  // directly under the scope/section root. The synthetic recipe groups use this to
+  // nest a per-tool subgroup (Saropa Lints / Drift Advisor / Log Capture) under the
+  // "Saropa Suite" group: the tree renders a group carrying a parentId as a child of
+  // that parent rather than at the root. User groups leave it undefined — group
+  // nesting is not exposed for hand-made groups.
+  parentId?: string;
   // Persisted collapse state so a folder stays the way the user left it.
   collapsed?: boolean;
   // Optional tree-icon override: a codicon id WITHOUT $(...), e.g. "github". Set on

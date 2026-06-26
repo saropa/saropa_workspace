@@ -93,6 +93,43 @@ test("a project pin round-trips through the file across store instances", async 
   );
 });
 
+test("setMasked persists the flag and clearing drops it (round-trip parity)", async () => {
+  // WOW #26: masking a pin must survive a reload (so the screen-share guard sticks
+  // across sessions), and unmasking must remove the field entirely rather than
+  // leave masked:false behind — the store collapses an off flag to undefined.
+  const store = new PinStore(fakeContext());
+  await store.init();
+  const target = Uri.joinPath(folder.uri, ".env.production");
+  assert.equal(await store.addPin(asUri(target), "project"), true);
+  const pin = store
+    .getProjectPins()
+    .find((p) => p.path === ".env.production");
+  assert.ok(pin, "the pin should exist before masking");
+
+  await store.setMasked(pin!, true);
+  assert.equal(
+    readConfig().pins.find((p) => p.path === ".env.production")?.masked,
+    true,
+    "masked:true should be written to the project file"
+  );
+
+  // A fresh store reading the same folder sees the masked flag from disk.
+  const reopened = new PinStore(fakeContext());
+  await reopened.init();
+  const reloaded = reopened
+    .getProjectPins()
+    .find((p) => p.path === ".env.production");
+  assert.equal(reloaded?.masked, true, "masked flag should load from disk");
+
+  // Unmasking removes the field (no stale masked:false on a revealed pin).
+  await reopened.setMasked(reloaded!, false);
+  assert.equal(
+    "masked" in (readConfig().pins.find((p) => p.path === ".env.production") ?? {}),
+    false,
+    "unmasking should drop the masked field, not store false"
+  );
+});
+
 test("addPin dedupes the same project path (second add is a no-op)", async () => {
   const store = new PinStore(fakeContext());
   await store.init();
