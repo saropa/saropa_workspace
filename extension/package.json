@@ -721,6 +721,12 @@
         "icon": "$(pin)"
       },
       {
+        "command": "saropaWorkspace.enableScheduledRecipe",
+        "title": "%command.enableScheduledRecipe.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(check)"
+      },
+      {
         "command": "saropaWorkspace.restoreRecipes",
         "title": "%command.restoreRecipes.title%",
         "category": "%extension.displayName%",
@@ -1309,6 +1315,11 @@
           "group": "1_group@2"
         },
         {
+          "command": "saropaWorkspace.enableScheduledRecipe",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == shortcutRecommendScheduled",
+          "group": "inline@0"
+        },
+        {
           "command": "saropaWorkspace.promoteRecipe",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == shortcutRecipe || viewItem == shortcutRecipeScheduled)",
           "group": "inline@0"
@@ -1352,6 +1363,11 @@
           "command": "saropaWorkspace.unpin",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^annotation/",
           "group": "1_annotation@2"
+        },
+        {
+          "command": "saropaWorkspace.enableScheduledRecipe",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == shortcutRecommendScheduled",
+          "group": "1_run@0"
         },
         {
           "command": "saropaWorkspace.openPin",
@@ -1405,7 +1421,7 @@
         },
         {
           "command": "saropaWorkspace.promoteRecipe",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == shortcutRecipe || viewItem == shortcutRecipeScheduled)",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == shortcutRecipe || viewItem == shortcutRecipeScheduled || viewItem == shortcutRecommendScheduled)",
           "group": "3_edit@2"
         },
         {
@@ -1740,6 +1756,10 @@
           "when": "false"
         },
         {
+          "command": "saropaWorkspace.enableScheduledRecipe",
+          "when": "false"
+        },
+        {
           "command": "saropaWorkspace.forceKillPin",
           "when": "false"
         },
@@ -1814,6 +1834,11 @@
             "type": "boolean",
             "default": true,
             "description": "%config.recipes.enabled.description%"
+          },
+          "saropaWorkspace.recommend.aggressive": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.recommend.aggressive.description%"
           },
           "saropaWorkspace.branchAware.enabled": {
             "type": "boolean",

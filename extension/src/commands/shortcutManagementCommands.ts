@@ -189,6 +189,23 @@ export function registerPinManagementCommands(
     }
   });
 
+  // One-tap adoption for a recommended scheduled ritual: promote AND enable its schedule
+  // in one click, then confirm the state change the user explicitly requested with a
+  // single toast naming the ritual and its time. This is the one place a recommendation
+  // surface shows a toast — it confirms an action, never nudges.
+  regShortcut("saropaWorkspace.enableScheduledRecipe", async (shortcut) => {
+    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const enabled = await store.enableScheduledRecipe(shortcut);
+    if (enabled) {
+      const time = shortcut.schedule?.atTime;
+      vscode.window.showInformationMessage(
+        time
+          ? l10n("recipe.scheduleEnabledAt", { name, time })
+          : l10n("recipe.scheduleEnabled", { name })
+      );
+    }
+  });
+
   reg("saropaWorkspace.restoreRecipes", async () => {
     const count = await store.restoreRecipes();
     vscode.window.showInformationMessage(

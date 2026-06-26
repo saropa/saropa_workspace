@@ -7,6 +7,7 @@ import { MetricBadge } from "../exec/metricBadges";
 import { RunSource } from "../exec/telemetry";
 import { formatRelativeTime } from "./projectFilesProvider";
 import { resolveShortcutRowIcon } from "./shortcutRowTokens";
+import { RECOMMENDED_GROUP_ID } from "../model/shortcutStoreShared";
 import {
   formatNextRun,
   formatRunBadge,
@@ -251,13 +252,21 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // alone.
     const scheduled = shortcut.schedule !== undefined;
     const pausedSuffix = shortcut.paused ? "Paused" : "";
+    // A recommended scheduled-ritual row (a pointer on the Recommended shelf, identified
+    // by its synthetic group) gets a distinct "shortcutRecommendScheduled" value so the
+    // shelf can offer the one-tap "enable" inline action that category recipe rows do
+    // not. It still starts with "shortcut" and ends with "Scheduled", so the generic
+    // run/open/remove clauses and the /Scheduled$/ "Run now" clause keep matching.
+    const onRecommendShelf = shortcut.groupId === RECOMMENDED_GROUP_ID;
     this.contextValue = isStopping
       ? "shortcutStopping"
       : isRunning
         ? "shortcutRunning"
         : shortcut.isRecipe
           ? scheduled
-            ? "shortcutRecipeScheduled"
+            ? onRecommendShelf
+              ? "shortcutRecommendScheduled"
+              : "shortcutRecipeScheduled"
             : "shortcutRecipe"
           : shortcut.isAuto
             ? "shortcutAuto"

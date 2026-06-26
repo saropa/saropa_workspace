@@ -133,6 +133,37 @@ test("selectRecommendedRecipes: the shelf is capped to a short highlight", () =>
   assert.equal(selectRecommendedRecipes(many).length, RECOMMENDED_CAP);
 });
 
+test("selectRecommendedRecipes: aggressive mode lifts the cap and features every un-adopted recipe", () => {
+  // Power mode is the explicit "show me the full menu" opt-out of the cap: every disabled
+  // ritual plus every other recipe is featured, beyond both the cap and the curated list.
+  const results: RecipeResult[] = [
+    ...Array.from({ length: RECOMMENDED_CAP + 5 }, (_, i) =>
+      scheduledRecipe(`ritual.${i}`, false)
+    ),
+    plainRecipe("some.other.recipe"),
+  ];
+  const picked = selectRecommendedRecipes(results, { aggressive: true });
+  // All rituals plus the otherwise-uncurated recipe, none dropped by the cap.
+  assert.equal(picked.length, results.length);
+  assert.ok(picked.some((r) => r.recipeId === "some.other.recipe"));
+});
+
+test("selectRecommendedRecipes: an adopted curated recipe is demoted, an adopted ritual is not", () => {
+  // A recipe the user already ran on demand no longer needs featuring, so it is dropped —
+  // EXCEPT a disabled ritual, which still needs its schedule turned on (running it once
+  // on demand does not enable the schedule), so it stays the primary nudge.
+  const results: RecipeResult[] = [
+    scheduledRecipe("ritual.lint", false),
+    plainRecipe("test"),
+    plainRecipe("flutter.dance"),
+  ];
+  const picked = selectRecommendedRecipes(results, {
+    adoptedRecipeIds: new Set(["test", "ritual.lint"]),
+  }).map((r) => r.recipeId);
+  // "test" is demoted; the disabled ritual survives despite being adopted.
+  assert.deepEqual(picked, ["ritual.lint", "flutter.dance"]);
+});
+
 test("recipeGroupColor returns the category's color family, unknown -> purple", () => {
   // Every leaf in a category shares its color family (the folder and items read as
   // one group); an undeclared category gets the default tint.

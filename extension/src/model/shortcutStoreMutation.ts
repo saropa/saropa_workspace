@@ -301,6 +301,32 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
   // carrying its action/path, label, and appearance. Returns false for a non-recipe
   // shortcut.
   async promoteRecipe(shortcut: Shortcut): Promise<boolean> {
+    return this.promoteRecipeInternal(shortcut, false);
+  }
+
+  // One-tap adoption for a recommended scheduled ritual: promote it to a stored shortcut
+  // AND turn its schedule on in the same act, so a single click yields a running ritual
+  // rather than a disabled stored shortcut the user must then enable. The scheduler
+  // re-arms off the refresh promoteRecipeInternal fires. Returns false for a non-recipe
+  // or a recipe that carries no schedule (nothing to enable); the caller's confirming
+  // toast reads the ritual's time from the shortcut itself.
+  async enableScheduledRecipe(shortcut: Shortcut): Promise<boolean> {
+    if (!shortcut.schedule) {
+      return false;
+    }
+    return this.promoteRecipeInternal(shortcut, true);
+  }
+
+  // Shared promotion: suppress the detected recipe (so it does not duplicate) and add an
+  // equivalent stored shortcut carrying its action/path/label/appearance. When
+  // enableSchedule is true and the recipe has a schedule, the stored copy's schedule is
+  // turned on (the one-tap-enable path); otherwise the recipe's schedule is copied
+  // verbatim (disabled rituals stay disabled until the user enables them). Returns false
+  // for a non-recipe shortcut or one whose owning folder cannot be resolved.
+  private async promoteRecipeInternal(
+    shortcut: Shortcut,
+    enableSchedule: boolean
+  ): Promise<boolean> {
     if (!shortcut.isRecipe || !shortcut.recipeId) {
       return false;
     }
@@ -324,12 +350,20 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
       scope: "project",
       groupId,
       action: shortcut.action,
-      schedule: shortcut.schedule,
+      // Turn the schedule on for the one-tap-enable path; otherwise copy it verbatim so
+      // a plain promote leaves a disabled ritual disabled.
+      schedule:
+        enableSchedule && shortcut.schedule
+          ? { ...shortcut.schedule, enabled: true }
+          : shortcut.schedule,
       icon: shortcut.icon,
       color: shortcut.color,
       description: shortcut.description,
       order: file.pins.length,
     });
+    // Adopting from the shelf dismisses the one-time welcome hint (a one-way latch);
+    // the refresh below then drops the hint row.
+    await this.dismissRecommendHint();
     await this.writeProjectFile(folder, file);
     await this.refresh();
     return true;

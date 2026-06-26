@@ -125,17 +125,52 @@ const RECOMMENDED_HIGH_VALUE: readonly string[] = [
   "flutter.dance", "boot", "dev", "test", "lint", "github.pr", "github.home", "deployed",
 ];
 
+// One-time "start here" hint row inside the Recommended group (a passive welcome, never
+// a popup). Persisted dismissed-flag key in globalState: set true the first time the user
+// expands the Recommended group or adopts a recommendation, and never unset, so the hint
+// shows at most once. Stored separately from the group's collapse posture
+// (RECIPE_GROUP_EXPANDED_PREFIX) because that posture toggles on every collapse/expand,
+// while dismissal is a one-way latch.
+export const RECOMMENDED_HINT_DISMISSED_KEY = "saropaWorkspace.recommendHintDismissed";
+
+// Options for selectRecommendedRecipes. Bundled in one object (rather than parallel
+// positional flags) so the shelf's selection knobs extend in one place as they grow.
+export interface RecommendedSelectionOptions {
+  // Power mode (saropaWorkspace.recommend.aggressive): lift the cap and feature every
+  // disabled ritual PLUS every other un-adopted recipe the project has, not just the
+  // curated short list — the explicit "show me the full menu" opt-in. Off by default,
+  // where the capped curated shelf is the experience.
+  aggressive?: boolean;
+  // recipeIds the user has already RUN on demand (from local telemetry). These are
+  // demoted from the curated/aggressive picks so the shelf nudges toward what is NOT yet
+  // in use. Disabled scheduled rituals are deliberately NOT demoted by this: running a
+  // ritual once on demand does not turn its SCHEDULE on, which is exactly what the shelf
+  // exists to prompt. (A PROMOTED recipe is already suppressed upstream via
+  // removedRecipes, so this set covers the ran-but-not-promoted case.)
+  adoptedRecipeIds?: ReadonlySet<string>;
+}
+
 // Pick the recipes to feature on the Recommended shelf, in display order: every
 // disabled scheduled ritual first (the primary "turn these on" nudge), then the
 // curated high-value recipes the project has, de-duplicated and capped. Pure (no host
 // API) so it is unit-tested directly.
 export function selectRecommendedRecipes(
-  results: readonly RecipeResult[]
+  results: readonly RecipeResult[],
+  options: RecommendedSelectionOptions = {}
 ): RecipeResult[] {
+  const adopted = options.adoptedRecipeIds ?? new Set<string>();
   const out: RecipeResult[] = [];
   const seen = new Set<string>();
-  const add = (r: RecipeResult): void => {
+  // Rituals always nudge (the schedule is not "on" until enabled), so they bypass the
+  // adopted-demotion filter that the curated/aggressive picks honor.
+  const addRitual = (r: RecipeResult): void => {
     if (!seen.has(r.recipeId)) {
+      seen.add(r.recipeId);
+      out.push(r);
+    }
+  };
+  const add = (r: RecipeResult): void => {
+    if (!seen.has(r.recipeId) && !adopted.has(r.recipeId)) {
       seen.add(r.recipeId);
       out.push(r);
     }
@@ -144,7 +179,7 @@ export function selectRecommendedRecipes(
   // nudged to enable, since they do nothing until promoted and switched on.
   for (const r of results) {
     if (r.schedule && r.schedule.enabled === false) {
-      add(r);
+      addRitual(r);
     }
   }
   // 2) Curated high-value recipes the project actually has, in fixed priority order.
@@ -153,6 +188,14 @@ export function selectRecommendedRecipes(
     if (match) {
       add(match);
     }
+  }
+  // 3) Aggressive mode: after the rituals and curated picks, feature every remaining
+  // un-adopted recipe and skip the cap — the full menu the user opted into.
+  if (options.aggressive) {
+    for (const r of results) {
+      add(r);
+    }
+    return out;
   }
   return out.slice(0, RECOMMENDED_CAP);
 }

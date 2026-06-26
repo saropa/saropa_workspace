@@ -38,6 +38,7 @@ import {
   recipeSubGroupId,
   isSyntheticRecipeGroupId,
   recipeGroupColor,
+  RECOMMENDED_GROUP_ID,
   isGlobPattern,
   setsEqual,
   sameSetName,
@@ -173,6 +174,12 @@ export class ShortcutStore extends ShortcutStoreSets {
         RECIPE_GROUP_EXPANDED_PREFIX + group.id,
         !collapsed
       );
+      // First expand of the Recommended shelf dismisses its one-time welcome hint (a
+      // one-way latch): the already-rendered hint stays visible this session, gone next
+      // refresh. No refresh here — setGroupCollapsed never repaints (see its contract).
+      if (group.id === RECOMMENDED_GROUP_ID && !collapsed) {
+        await this.dismissRecommendHint();
+      }
       return;
     }
     await this.mutateGroup(group, scope, (target) => {

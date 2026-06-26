@@ -300,6 +300,25 @@ honest:
   the badge recalculates. Zero shows no badge (an undefined badge is hidden) — the
   same "never show a zero" rule the untapped-shortcuts badge follows.
 
+### 4.6 Discovery is passive — never a popup; confirm an explicit action with one toast
+
+Surfacing a feature the user has not found yet (the Recommended shelf, a "start
+here" hint) must live **in the tree**, never in a notification or modal. A popup
+that nudges steals focus and reads as nagging; the user opens a passive surface
+when curious. Two rules:
+
+- **A discovery hint is an in-tree row, gated by a one-way latch.** The one-time
+  Recommended-shelf welcome ("New here? These are worth turning on.") is an inert
+  comment row inside the group, shown only until a persisted `globalState` flag is
+  set the first time the user expands the group or adopts a recommendation — and the
+  flag never unsets, so the hint appears at most once. No notification surface is
+  involved at any point.
+- **A toast is for confirming an explicit action, not for nudging.** The single
+  permitted notification on a discovery surface is the one that confirms a state
+  change the user just requested — e.g. the Recommended shelf's one-tap enable emits
+  *"Dawn lint sweep enabled — runs daily at 05:00."* It names the item and carries
+  the concrete value (§4.2); it never fires unprompted.
+
 ---
 
 ## 5. Voice and tone

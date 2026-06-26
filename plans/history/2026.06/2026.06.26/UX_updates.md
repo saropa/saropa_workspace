@@ -76,7 +76,9 @@ recipe. The shelf is entirely passive — no popups. `recipeSectionAppearance`
 returns undefined for the Recommended id, so promoting a recommendation files at
 top level rather than into a "Recommended" folder. The broader recommendation
 strategy (usage-aware ranking, one-tap schedule enable, aggressive mode) is
-recorded for sign-off in `plans/PLAN_RECOMMENDED_RECIPES.md`.
+recorded for sign-off in
+`plans/history/2026.06/2026.06.26/PLAN_RECOMMENDED_RECIPES.md` (since implemented
+and archived).
 
 ### Groups
 

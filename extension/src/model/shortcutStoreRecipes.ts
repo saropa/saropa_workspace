@@ -25,6 +25,7 @@ import { detectHygieneRecipes } from "../recipes/hygieneRecipes";
 import { detectRoutineRecipes } from "../recipes/routineRecipes";
 import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
 import { getOutputChannel } from "../exec/runner";
+import { telemetry } from "../exec/telemetry";
 import { SharedShortcut } from "../import/shareLink";
 import { l10n } from "../i18n/l10n";
 import {
@@ -39,6 +40,7 @@ import {
   isSyntheticRecipeGroupId,
   recipeGroupColor,
   RECOMMENDED_GROUP_ID,
+  RECOMMENDED_HINT_DISMISSED_KEY,
   selectRecommendedRecipes,
   isGlobPattern,
   setsEqual,
@@ -201,6 +203,15 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
       .get<boolean>("recipes.enabled", true);
   }
 
+  // Power mode for the Recommended shelf: when on, the shelf drops its cap and features
+  // every disabled ritual plus every un-adopted recipe (the full menu). Off by default,
+  // where the capped curated shelf is the experience.
+  protected recommendAggressive(): boolean {
+    return vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .get<boolean>("recommend.aggressive", false);
+  }
+
   protected recipeGroupExpanded(id: string): boolean {
     // Default collapsed: a recipe group is discoverable but never clutters the
     // view until the user opens it (the gesture is then persisted by group id).
@@ -208,6 +219,26 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
       RECIPE_GROUP_EXPANDED_PREFIX + id,
       false
     );
+  }
+
+  // Whether the one-time Recommended-shelf welcome hint has been dismissed (the user
+  // expanded the group or adopted a recommendation). A one-way latch: once true it stays
+  // true, so the hint row shows at most once and never reappears.
+  protected recommendHintDismissed(): boolean {
+    return this.context.globalState.get<boolean>(
+      RECOMMENDED_HINT_DISMISSED_KEY,
+      false
+    );
+  }
+
+  // Latch the Recommended-shelf hint dismissed. Called when the user first expands the
+  // group or adopts a recommendation. Does NOT refresh: on expand, the already-rendered
+  // hint row stays visible for this session (so the user sees it once) and is gone on the
+  // next refresh; an adopt path refreshes on its own afterward.
+  async dismissRecommendHint(): Promise<void> {
+    if (!this.recommendHintDismissed()) {
+      await this.context.globalState.update(RECOMMENDED_HINT_DISMISSED_KEY, true);
+    }
   }
 
   // The expensive half of recipe seeding: run the three detector sweeps (dozens of
@@ -296,9 +327,13 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
     results: RecipeResult[],
     removed: string[]
   ): Shortcut[] {
+    const picks = selectRecommendedRecipes(results, {
+      aggressive: this.recommendAggressive(),
+      adoptedRecipeIds: this.adoptedRecipeIds(folder, results),
+    });
     const shortcuts: Shortcut[] = [];
     let order = 1900;
-    for (const r of selectRecommendedRecipes(results)) {
+    for (const r of picks) {
       if (removed.includes(r.recipeId)) {
         continue;
       }
@@ -318,7 +353,49 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
         order: order++,
       });
     }
+    // Prepend the one-time "start here" hint as an inert comment row at the top of the
+    // shelf, but only when the shelf has at least one real recommendation AND the user
+    // has not yet dismissed it (by expanding the group or adopting a recommendation).
+    // It carries no command, so it never runs or opens — a passive welcome, not a popup.
+    if (shortcuts.length > 0 && !this.recommendHintDismissed()) {
+      shortcuts.unshift({
+        id: `recommend-hint:${folder.name}`,
+        path: "",
+        label: l10n("recommend.hint"),
+        scope: "project",
+        action: { kind: "comment" },
+        // isRecipe so it flows through getRecipeShortcuts (which filters on it) and renders
+        // under the Recommended group. A "comment" action makes it an annotation row — the
+        // tree item renders it inert (no command, no run/promote menus) and the recipe
+        // count excludes it (see RecipesTreeProvider), so it neither runs nor inflates totals.
+        isRecipe: true,
+        groupId: RECOMMENDED_GROUP_ID,
+        // Sort ahead of the featured rows (which start at order 1900).
+        order: 1899,
+      });
+    }
     return shortcuts;
+  }
+
+  // recipeIds the user has already RUN on demand, used to demote them from the curated /
+  // aggressive picks (a recipe in use no longer needs featuring). A run records local
+  // telemetry under the shortcut id it ran from: the home-category row (`recipe:`) or the
+  // shelf pointer (`recommend:`), so both ids are checked. Disabled rituals are not
+  // demoted by this (see RecommendedSelectionOptions). Returns an empty set when telemetry
+  // is disabled — count() reads 0 for every id then, so nothing is demoted.
+  private adoptedRecipeIds(
+    folder: vscode.WorkspaceFolder,
+    results: readonly RecipeResult[]
+  ): Set<string> {
+    const adopted = new Set<string>();
+    for (const r of results) {
+      const ranFromCategory = telemetry.count(`recipe:${folder.name}:${r.recipeId}`) > 0;
+      const ranFromShelf = telemetry.count(`recommend:${folder.name}:${r.recipeId}`) > 0;
+      if (ranFromCategory || ranFromShelf) {
+        adopted.add(r.recipeId);
+      }
+    }
+    return adopted;
   }
 
   // Re-add every removed recipe across all folders (the Restore counterpart for

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Shortcut, ShortcutGroup } from "../model/shortcut";
+import { Shortcut, ShortcutGroup, isAnnotationShortcut } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
@@ -65,7 +65,11 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
       // here — they render as children of their parent below. The view is empty
       // (welcome content shows) when nothing was detected. The total recipe-shortcut count
       // across all categories is the number shown on the title.
-      this.setCount(this.store.getRecipeShortcuts().length);
+      // Exclude annotation rows (the one-time Recommended-shelf hint) from the total —
+      // it is a passive note, not a detected recipe, so counting it would mislead.
+      this.setCount(
+        this.store.getRecipeShortcuts().filter((s) => !isAnnotationShortcut(s)).length
+      );
       return this.store
         .getRecipeGroups()
         .filter((group) => group.parentId === undefined)
@@ -119,7 +123,9 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
         .map((g) => g.id)
     );
     const count = shortcuts.filter(
-      (s) => s.groupId === group.id || childGroupIds.has(s.groupId ?? "")
+      (s) =>
+        !isAnnotationShortcut(s) &&
+        (s.groupId === group.id || childGroupIds.has(s.groupId ?? ""))
     ).length;
     return new ShortcutFolderItem(group, "project", count);
   }
