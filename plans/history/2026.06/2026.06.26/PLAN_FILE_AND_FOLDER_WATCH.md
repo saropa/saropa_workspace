@@ -15,7 +15,7 @@ can do the same for not-github commited files/folders
 Implemented for filesystem (new/changed) watches. The "not-git-committed
 files/folders" item is a distinct engine (git index/working-tree state, not an
 mtime diff) and is split into the still-active
-[`PLAN_UNCOMMITTED_FILES_WATCH.md`](../PLAN_UNCOMMITTED_FILES_WATCH.md).
+[`PLAN_UNCOMMITTED_FILES_WATCH.md`](../../../PLAN_UNCOMMITTED_FILES_WATCH.md).
 
 ### What shipped
 

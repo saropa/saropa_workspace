@@ -1,6 +1,7 @@
 # Plan: watch for uncommitted files/folders
 
-The last line of [`PLAN_FILE_AND_FOLDER_WATCH.md`](./PLAN_FILE_AND_FOLDER_WATCH.md)
+The last line of
+[`PLAN_FILE_AND_FOLDER_WATCH.md`](./history/2026.06/2026.06.26/PLAN_FILE_AND_FOLDER_WATCH.md)
 — "can do the same for not-github committed files/folders" — is a separate engine
 from the new/changed folder watch that already shipped. This plan covers it.
 

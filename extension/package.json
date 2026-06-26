@@ -1995,19 +1995,24 @@
     ],
     "colors": [
       {
-        "id": "saropaWorkspace.tint.crimson",
-        "description": "%color.crimson.description%",
-        "defaults": { "dark": "#F2555A", "light": "#D32F2F", "highContrast": "#F2555A", "highContrastLight": "#D32F2F" }
+        "id": "saropaWorkspace.tint.red",
+        "description": "%color.red.description%",
+        "defaults": { "dark": "#F2545B", "light": "#D32F2F", "highContrast": "#F2545B", "highContrastLight": "#D32F2F" }
       },
       {
         "id": "saropaWorkspace.tint.coral",
         "description": "%color.coral.description%",
-        "defaults": { "dark": "#FF7A59", "light": "#E64A19", "highContrast": "#FF7A59", "highContrastLight": "#E64A19" }
+        "defaults": { "dark": "#FF7A50", "light": "#E64A19", "highContrast": "#FF7A50", "highContrastLight": "#E64A19" }
+      },
+      {
+        "id": "saropaWorkspace.tint.orange",
+        "description": "%color.orange.description%",
+        "defaults": { "dark": "#FF9D3C", "light": "#EF6C00", "highContrast": "#FF9D3C", "highContrastLight": "#EF6C00" }
       },
       {
         "id": "saropaWorkspace.tint.amber",
         "description": "%color.amber.description%",
-        "defaults": { "dark": "#FFB02E", "light": "#EF6C00", "highContrast": "#FFB02E", "highContrastLight": "#EF6C00" }
+        "defaults": { "dark": "#FFB72E", "light": "#F57F17", "highContrast": "#FFB72E", "highContrastLight": "#F57F17" }
       },
       {
         "id": "saropaWorkspace.tint.gold",
@@ -2017,67 +2022,62 @@
       {
         "id": "saropaWorkspace.tint.lime",
         "description": "%color.lime.description%",
-        "defaults": { "dark": "#B5D33D", "light": "#9E9D24", "highContrast": "#B5D33D", "highContrastLight": "#9E9D24" }
+        "defaults": { "dark": "#CBD93B", "light": "#9E9D24", "highContrast": "#CBD93B", "highContrastLight": "#9E9D24" }
+      },
+      {
+        "id": "saropaWorkspace.tint.chartreuse",
+        "description": "%color.chartreuse.description%",
+        "defaults": { "dark": "#93CC42", "light": "#689F38", "highContrast": "#93CC42", "highContrastLight": "#689F38" }
       },
       {
         "id": "saropaWorkspace.tint.green",
         "description": "%color.green.description%",
-        "defaults": { "dark": "#57C16A", "light": "#2E7D32", "highContrast": "#57C16A", "highContrastLight": "#2E7D32" }
+        "defaults": { "dark": "#4FC15E", "light": "#2E7D32", "highContrast": "#4FC15E", "highContrastLight": "#2E7D32" }
       },
       {
         "id": "saropaWorkspace.tint.emerald",
         "description": "%color.emerald.description%",
-        "defaults": { "dark": "#2BC4A0", "light": "#00897B", "highContrast": "#2BC4A0", "highContrastLight": "#00897B" }
+        "defaults": { "dark": "#20C58E", "light": "#00897B", "highContrast": "#20C58E", "highContrastLight": "#00897B" }
       },
       {
         "id": "saropaWorkspace.tint.teal",
         "description": "%color.teal.description%",
-        "defaults": { "dark": "#29C0CE", "light": "#00838F", "highContrast": "#29C0CE", "highContrastLight": "#00838F" }
+        "defaults": { "dark": "#1CB9B0", "light": "#00838F", "highContrast": "#1CB9B0", "highContrastLight": "#00838F" }
       },
       {
         "id": "saropaWorkspace.tint.cyan",
         "description": "%color.cyan.description%",
-        "defaults": { "dark": "#38C7E8", "light": "#0097A7", "highContrast": "#38C7E8", "highContrastLight": "#0097A7" }
-      },
-      {
-        "id": "saropaWorkspace.tint.sky",
-        "description": "%color.sky.description%",
-        "defaults": { "dark": "#4FB6F7", "light": "#0277BD", "highContrast": "#4FB6F7", "highContrastLight": "#0277BD" }
+        "defaults": { "dark": "#38C6E8", "light": "#0097A7", "highContrast": "#38C6E8", "highContrastLight": "#0097A7" }
       },
       {
         "id": "saropaWorkspace.tint.blue",
         "description": "%color.blue.description%",
-        "defaults": { "dark": "#5B8DEF", "light": "#1565C0", "highContrast": "#5B8DEF", "highContrastLight": "#1565C0" }
+        "defaults": { "dark": "#4E8DF0", "light": "#1565C0", "highContrast": "#4E8DF0", "highContrastLight": "#1565C0" }
       },
       {
         "id": "saropaWorkspace.tint.indigo",
         "description": "%color.indigo.description%",
-        "defaults": { "dark": "#7986E8", "light": "#3949AB", "highContrast": "#7986E8", "highContrastLight": "#3949AB" }
+        "defaults": { "dark": "#6E78E8", "light": "#3949AB", "highContrast": "#6E78E8", "highContrastLight": "#3949AB" }
       },
       {
         "id": "saropaWorkspace.tint.violet",
         "description": "%color.violet.description%",
-        "defaults": { "dark": "#A877E8", "light": "#6A1B9A", "highContrast": "#A877E8", "highContrastLight": "#6A1B9A" }
+        "defaults": { "dark": "#9B6BEA", "light": "#673AB7", "highContrast": "#9B6BEA", "highContrastLight": "#673AB7" }
       },
       {
         "id": "saropaWorkspace.tint.purple",
         "description": "%color.purple.description%",
-        "defaults": { "dark": "#C264D6", "light": "#8E24AA", "highContrast": "#C264D6", "highContrastLight": "#8E24AA" }
+        "defaults": { "dark": "#C25BD8", "light": "#8E24AA", "highContrast": "#C25BD8", "highContrastLight": "#8E24AA" }
       },
       {
         "id": "saropaWorkspace.tint.magenta",
         "description": "%color.magenta.description%",
-        "defaults": { "dark": "#EC5FA6", "light": "#C2185B", "highContrast": "#EC5FA6", "highContrastLight": "#C2185B" }
+        "defaults": { "dark": "#EA4F9E", "light": "#C2185B", "highContrast": "#EA4F9E", "highContrastLight": "#C2185B" }
       },
       {
         "id": "saropaWorkspace.tint.pink",
         "description": "%color.pink.description%",
-        "defaults": { "dark": "#FF8FB3", "light": "#D81B60", "highContrast": "#FF8FB3", "highContrastLight": "#D81B60" }
-      },
-      {
-        "id": "saropaWorkspace.tint.rose",
-        "description": "%color.rose.description%",
-        "defaults": { "dark": "#F2728C", "light": "#AD1457", "highContrast": "#F2728C", "highContrastLight": "#AD1457" }
+        "defaults": { "dark": "#FF85B0", "light": "#D81B60", "highContrast": "#FF85B0", "highContrastLight": "#D81B60" }
       },
       {
         "id": "saropaWorkspace.tint.brown",

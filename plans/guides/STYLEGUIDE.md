@@ -221,6 +221,22 @@ in [`principles.md`](./principles.md).)
   config purple, data green, docs/media neutral). Add a new file type to that map
   rather than inventing a glyph at a call site; an unmapped type falls back to the
   generic shortcut glyph, never to a blank.
+- **A context menu past roughly a dozen items folds into labeled submenus, not one
+  long flyout.** A `view/item/context` dropdown that grows past a screen-height of
+  items is unscannable. Keep the few most-used actions (Open, Run) at the top
+  level and group the rest into themed submenus declared in `contributes.submenus`
+  (e.g. the shortcut menu's **Output & Logs**, **Configure & Schedule**,
+  **Appearance & Tags**, **File Actions**). Each moved command keeps its original
+  `when` clause so per-item-type visibility is preserved, and an empty submenu is
+  auto-hidden by VS Code. Submenu labels are externalized through
+  `package.nls.json` (`submenu.<id>.label`) and are noun phrases, unbranded, like
+  the existing submenus.
+- **A submenu's `icon` shows; a dropdown row's command `icon` does NOT.** VS Code
+  renders a command's `icon` only as an inline (hover-toolbar) action and on the
+  submenu's own `▸` row — it is ignored on ordinary `view/item/context` dropdown
+  rows, which are text-only by design. So set an icon on each submenu definition,
+  but do not expect (or ask for) per-row icons inside the flyout; declutter the
+  flyout with grouping and submenus instead.
 
 ---
 
