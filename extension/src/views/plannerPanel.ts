@@ -419,6 +419,7 @@ export class PlannerPanel {
     <button class="tab" role="tab" data-v="workflow">&#x1F517; Workflow</button>
   </div>
   <div class="spacer"></div>
+  <button id="density" class="btn" title="Toggle row height (compact / comfortable)">&#x2261; Compact</button>
   <div class="legend">
     <span class="dot"><span class="sw" style="background:var(--brand)"></span>scheduled</span>
     <span class="dot"><span class="sw" style="background:var(--ok)"></span>last run ok</span>

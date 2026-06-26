@@ -145,6 +145,7 @@ button.btn.icon { padding: 5px 8px; }
   background: var(--surface-3); border: 1px solid var(--border);
 }
 .marker:hover .tag { border-color: var(--brand); }
+.marker.sel .tag { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, var(--surface-3)); }
 .interval-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .interval-chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -183,6 +184,7 @@ button.btn.icon { padding: 5px 8px; }
   animation: pop 280ms var(--ease) backwards;
 }
 .block:hover { box-shadow: 0 3px 10px rgba(0,0,0,.28); z-index: 9; }
+.block.sel { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-glow), 0 3px 10px rgba(0,0,0,.32); z-index: 12; }
 .block.off { background: var(--surface-3); border-color: var(--border); opacity: .8; }
 .block.dragging { opacity: .85; cursor: grabbing; box-shadow: 0 8px 22px rgba(0,0,0,.4); z-index: 20; }
 .block .bt { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

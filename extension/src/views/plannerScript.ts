@@ -11,9 +11,18 @@ const KIND_ICON = { file:'\\u{1F4C4}', shell:'\\u{1F4BB}', url:'\\u{1F517}', com
 
 let DATA = { nodes: [], edges: [] };
 let POS = {};
-let view = (vscode.getState() && vscode.getState().view) || 'week';
+const STATE0 = vscode.getState() || {};
+let view = STATE0.view || 'week';
+// Row-height density for the Day/Week time grids. 'comfortable' doubles the per-hour
+// height so tightly-stacked blocks (the morning cluster in the screenshot) get room to
+// breathe; 'compact' keeps the dense overview. Persisted with the view so a reload
+// keeps the chosen density.
+let density = STATE0.density === 'comfortable' ? 'comfortable' : 'compact';
+let hourH = density === 'comfortable' ? 60 : 30;
 let selected = null;
 let nowMin = 0;
+
+function saveState(){ vscode.setState({ view, density }); }
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -26,7 +35,18 @@ function scheduledPins(){ return DATA.nodes.filter(n => n.kind==='pin' && n.sche
 function dailyPins(){ return DATA.nodes.filter(n => n.kind==='pin' && n.schedule && n.schedule.atTime); }
 function activeDays(s){ return (s.days && s.days.length) ? s.days : [0,1,2,3,4,5,6]; }
 
-function setView(v){ view = v; vscode.setState({ view }); document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.v===v))); renderStage(); }
+function setView(v){ view = v; saveState(); document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.v===v))); renderStage(); }
+
+// Apply the current density to both layers that must agree on hour height: the JS
+// HOURH() (block top/height, column height, now-line) and the --hour-h CSS var (grid
+// lines, gutter labels). hourH is the single source; both readers derive from it.
+function applyDensity(){
+  hourH = density === 'comfortable' ? 60 : 30;
+  document.documentElement.style.setProperty('--hour-h', hourH + 'px');
+  const btn = document.getElementById('density');
+  if(btn){ btn.innerHTML = density === 'comfortable' ? '\\u2195 Comfortable' : '\\u2261 Compact'; }
+}
+function setDensity(d){ density = d; saveState(); applyDensity(); renderStage(); }
 
 function send(msg){ vscode.postMessage(msg); }
 
@@ -62,7 +82,7 @@ function renderDay(){
     const x = min/1440*100;
     let row = 0; while(placed.some(p => p.row===row && Math.abs(p.x-x)<8)) row++;
     placed.push({ x, row });
-    const mk = el('div','marker'); mk.style.left = x+'%'; mk.style.bottom = (8 + row*26)+'px';
+    const mk = el('div','marker'); mk.dataset.id = n.id; mk.style.left = x+'%'; mk.style.bottom = (8 + row*26)+'px';
     const tag = el('div','tag'); tag.textContent = n.label + '  ' + n.schedule.atTime; mk.appendChild(tag);
     const dot = el('div','pin-dot' + (n.schedule.enabled?'':' off')); mk.appendChild(dot);
     mk.title = n.label + ' \\u2014 ' + n.schedule.atTime + ' \\u00b7 ' + daysLabel(n.schedule);
@@ -124,7 +144,7 @@ function renderWeek(){
   return grid;
 }
 
-function HOURH(){ return 30; }
+function HOURH(){ return hourH; }
 
 function weekBlock(n, day){
   const min = toMin(n.schedule.atTime) || 0;
@@ -344,7 +364,22 @@ function layout(){
 }
 
 // ---- selection + detail ----------------------------------------------
-function select(id){ selected = id; document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel', n.dataset.id===id)); if(view==='workflow') drawEdges(); renderDetail(); }
+// Selecting an item highlights every visual representation of it (workflow node, week
+// block, day marker) and opens the detail strip. In the Day/Week views the strip sits
+// below a full-height grid, so scroll it into view — otherwise a click updates a panel
+// the user has scrolled past and the gesture looks like it did nothing.
+function select(id){
+  selected = id;
+  document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel', n.dataset.id===id));
+  document.querySelectorAll('.block').forEach(b=>b.classList.toggle('sel', b.dataset.id===id));
+  document.querySelectorAll('.marker').forEach(m=>m.classList.toggle('sel', m.dataset.id===id));
+  if(view==='workflow') drawEdges();
+  renderDetail();
+  if(selected && view!=='workflow'){
+    const box = document.getElementById('detail');
+    if(box && box.classList.contains('show')) box.scrollIntoView({ block:'nearest' });
+  }
+}
 
 function renderDetail(){
   const box = document.getElementById('detail'); if(!box) return;
@@ -479,6 +514,8 @@ function flash(msg){ clearTimeout(flashT); let f=document.getElementById('flash'
 // ---- bootstrap --------------------------------------------------------
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => setView(t.dataset.v));
 document.getElementById('refresh').onclick = () => send({ type:'refresh' });
+document.getElementById('density').onclick = () => setDensity(density === 'comfortable' ? 'compact' : 'comfortable');
+applyDensity();
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if(m.type==='data'){

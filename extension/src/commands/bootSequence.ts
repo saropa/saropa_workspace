@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { Pin, pinKind } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { isRunnable, getOutputChannel } from "../exec/runner";
+import { showHubQuickPick } from "./hubQuickPick";
 import { l10n } from "../i18n/l10n";
 
 // Workspace boot sequence (roadmap 3.1). A named, ordered set of existing pins
@@ -182,9 +183,12 @@ function memberActionLabel(store: PinStore, pinId: string): string {
 // hub-and-spoke shape as Configure Run. Loops until the user picks Done or Esc;
 // every change is persisted immediately so an Esc never loses edits.
 export async function configureBootSequence(store: PinStore): Promise<void> {
+  // Keep focus on the row the user last acted on, so adding a step or toggling a
+  // flag does not reset the selection to the top of the list on every re-render.
+  let activeKey: { act: HubItem["act"]; pinId?: string } | undefined;
   for (;;) {
     const data = bootSequence.get();
-    const choice = await showHub(store, data);
+    const choice = await showHub(store, data, activeKey);
     if (!choice) {
       return;
     }
@@ -194,6 +198,7 @@ export async function configureBootSequence(store: PinStore): Promise<void> {
       );
       return;
     }
+    activeKey = { act: choice.act, pinId: choice.pinId };
     if (choice.act === "enabled") {
       await bootSequence.save({ ...data, enabled: !data.enabled });
     } else if (choice.act === "stopOnError") {
@@ -224,7 +229,8 @@ function separator(label: string): vscode.QuickPickItem {
 
 async function showHub(
   store: PinStore,
-  data: BootSequenceData
+  data: BootSequenceData,
+  activeKey?: { act: HubItem["act"]; pinId?: string }
 ): Promise<{ act: HubItem["act"]; pinId?: string } | undefined> {
   const onOff = (on: boolean): string =>
     on ? l10n("boot.value.on") : l10n("boot.value.off");

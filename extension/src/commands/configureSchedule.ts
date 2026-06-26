@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { Pin, PinSchedule } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { parseHourMinute, parseCron } from "../exec/schedule";
+import { showHubQuickPick } from "./hubQuickPick";
 import { l10n } from "../i18n/l10n";
 
 // Roadmap 2.2 — schedule editor UI.
@@ -51,8 +52,16 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
     lastRun: pin.schedule?.lastRun,
   };
 
+  // Remember the row the user last acted on so each re-render of the hub restores
+  // focus to it. Without this, editing a field or flipping a toggle bounced the
+  // selection back to the top of the list every time ("the menu keeps reopening
+  // from the start"), and a toggle row gave no sense its change took.
+  let activeId: HubItem["id"] | undefined;
+  // Once the user flips the Enabled toggle themselves, stop auto-enabling so a
+  // deliberate "keep this schedule but switch it off" is respected.
+  let enabledTouched = false;
   for (;;) {
-    const choice = await showHub(work, title);
+    const choice = await showHub(work, title, activeId);
     if (!choice) {
       // Esc: discard, write nothing.
       return;
@@ -60,6 +69,7 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
     if (choice === "save") {
       break;
     }
+    activeId = choice;
     switch (choice) {
       case "atTime":
         await editDailyTime(work, title);
@@ -80,12 +90,40 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
       case "enabled":
         // Toggle directly from the hub for a snappy on/off.
         work.enabled = !work.enabled;
+        enabledTouched = true;
         break;
     }
+    autoEnable(work, enabledTouched);
   }
+
+  // Catch the no-edit case too: opening a stored-but-disabled schedule and saving
+  // straight away should still turn it on, since having a time set means "run it".
+  autoEnable(work, enabledTouched);
 
   await store.updatePinSchedule(pin, normalize(work));
   vscode.window.showInformationMessage(l10n("schedule.saved", { name }));
+}
+
+// Whether the working schedule carries any timing source (a daily time, an
+// interval, a cron, or run-on-startup). An enabled flag with no timing arms
+// nothing, so "has timing" is the precondition for auto-enabling.
+function hasTiming(work: WorkSchedule): boolean {
+  return (
+    !!work.atTime ||
+    work.everyMs !== undefined ||
+    !!work.cron ||
+    !!work.runOnStartup
+  );
+}
+
+// Auto-enable a schedule the moment it has timing: a user who sets a daily time
+// or an interval means "run this," so they should not also have to flip Enabled.
+// Suppressed once the user has used the Enabled toggle themselves, so a deliberate
+// disable stands. Visible immediately because the hub re-renders after each edit.
+function autoEnable(work: WorkSchedule, enabledTouched: boolean): void {
+  if (!enabledTouched && !work.enabled && hasTiming(work)) {
+    work.enabled = true;
+  }
 }
 
 // A schedule with no timing source would arm no timer and react to nothing;
@@ -138,9 +176,14 @@ function describeDays(days: number[] | undefined): string {
     .join(", ");
 }
 
+// Render the hub as a persistent QuickPick. `activeId`, when given, restores focus
+// to that row so editing a field or flipping a toggle does not reset the selection
+// to the top of the list on every re-render. ignoreFocusOut keeps the menu up when
+// focus shifts (e.g. to a notification), so a stray click no longer discards edits.
 async function showHub(
   work: WorkSchedule,
-  title: string
+  title: string,
+  activeId?: HubItem["id"]
 ): Promise<HubItem["id"] | undefined> {
   const items: HubItem[] = [
     {
@@ -190,9 +233,11 @@ async function showHub(
     },
   ];
 
-  const pick = await vscode.window.showQuickPick(items, {
+  const active = activeId ? items.find((i) => i.id === activeId) : undefined;
+  const pick = await showHubQuickPick(items, {
     title,
-    placeHolder: l10n("schedule.hubPlaceholder"),
+    placeholder: l10n("schedule.hubPlaceholder"),
+    active,
   });
   return pick?.id;
 }

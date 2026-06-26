@@ -525,7 +525,7 @@
   "stats.collecting": "Collecting project stats...",
   "stats.failed": "Could not write the project stats report: {error}",
   "stats.done": "Project stats: {languages} language(s), {files} file(s), {lines} line(s). Report opened.",
-  "planner.title": "Schedule & Workflow Planner",
+  "planner.title": "Saropa Schedule & Workflow Planner",
   "planner.subtitle": "Day and week timelines, plus a graph of chained and event-triggered pins. Drag to retime; link pins to chain them.",
   "planner.linked": "Linked {name}. It will auto-run when the source fires.",
   "chain.firing": "[Chain] Running {name} ({cause}).",

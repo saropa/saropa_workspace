@@ -6,6 +6,7 @@ import {
   SYSTEM_EVENTS,
 } from "../model/pin";
 import { PinStore } from "../model/pinStore";
+import { showHubQuickPick } from "./hubQuickPick";
 import { l10n } from "../i18n/l10n";
 
 // Configure Triggers (WOW: recipe chaining + special events). A hub-and-spoke
@@ -47,14 +48,19 @@ export async function configureTriggers(
     emits: pin.emits ? [...pin.emits] : [],
   };
 
+  // Restore focus to the row the user last acted on so adding a trigger or
+  // flipping the success gate does not bounce the selection back to the top of the
+  // list on every re-render (the hub-and-spoke "menu reopens from the start" feel).
+  let activeKey: { act: HubChoice["act"]; index?: number } | undefined;
   for (;;) {
-    const choice = await showHub(store, pin, work, title);
+    const choice = await showHub(store, pin, work, title, activeKey);
     if (!choice) {
       return; // Esc discards.
     }
     if (choice.act === "save") {
       break;
     }
+    activeKey = { act: choice.act, index: choice.index };
     switch (choice.act) {
       case "addPin":
         await addPinTrigger(store, pin, work, title);
@@ -125,7 +131,8 @@ async function showHub(
   store: PinStore,
   pin: Pin,
   work: WorkTriggers,
-  title: string
+  title: string,
+  activeKey?: { act: HubChoice["act"]; index?: number }
 ): Promise<HubChoice | undefined> {
   const rows: Array<HubItem | vscode.QuickPickItem> = [
     { act: "addPin", label: l10n("triggers.addPin") },
@@ -171,11 +178,20 @@ async function showHub(
     { act: "save", label: l10n("triggers.save"), description: l10n("triggers.saveHint") }
   );
 
-  const pick = (await vscode.window.showQuickPick(rows as HubItem[], {
+  // Find the row matching the last-acted key so focus stays on it across re-renders.
+  // After a removal the indices shift, so a stale index simply finds nothing and
+  // focus falls back to the top — acceptable for the rare remove-then-reopen case.
+  const items = rows as HubItem[];
+  const active = activeKey
+    ? items.find(
+        (row) => row.act === activeKey.act && row.index === activeKey.index
+      )
+    : undefined;
+  const pick = await showHubQuickPick(items, {
     title,
-    placeHolder: l10n("triggers.hubPlaceholder"),
-    ignoreFocusOut: true,
-  })) as HubItem | undefined;
+    placeholder: l10n("triggers.hubPlaceholder"),
+    active,
+  });
   // Esc returns undefined (discard). The noop hint row returns its act so the main
   // loop re-renders without discarding (it has no case for "noop").
   if (!pick) {
