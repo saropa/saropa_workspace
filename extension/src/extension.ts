@@ -16,13 +16,13 @@ import { PinFolderItem, PinTreeItem, RecentRootItem } from "./views/pinTreeItem"
 import { SuggestionTracker } from "./views/suggestions";
 import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
-import { registerPinCommands } from "./commands/pinCommands";
+import { registerPinCommands, createRoutineHooks } from "./commands/pinCommands";
 import { registerSimulationPreview } from "./commands/simulateRun";
 import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
 import { initFocusMode } from "./commands/focusMode";
 import { registerRunOutputDiff } from "./commands/diffRuns";
-import { registerTerminalCleanup, isRunnable } from "./exec/runner";
+import { registerTerminalCleanup, isRunnable, setRoutineHooks } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
@@ -259,6 +259,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerRunAnalytics(context);
   registerRunOutputDiff(context);
   registerPinCommands(context, store, dispatcher);
+
+  // Inject the routine engine's resolve + run hooks now that the store exists (the
+  // runner cannot import the store/command layer without a cycle). A routine pin's
+  // members are resolved and run through the same single-pin path the tree uses.
+  setRoutineHooks(createRoutineHooks(store));
 
   // Handle vscode://saropa.saropa-workspace/import?data=... links (WOW #4 import), so
   // a shared pin link opens VS Code, confirms, and adds the pin. Registered as a

@@ -42,12 +42,13 @@ coverage (`%key%` in `package.json` resolved in `package.nls.json`), runtime
 i18n key coverage (`l10n('key')` in `src/` resolved in `locales/en.json`), and
 an AI-authorship attribution scan. A full publish aborts on a blocking finding.
 
-The attribution scan targets only the canonical attribution footer forms
-(`Co-Authored-By: Claude`, `noreply@anthropic.com`, `Generated with [Claude`,
-the robot-glyph form), not the words "AI"/"Claude" themselves, because the
-extension ships an "Active AI Threads" feature that names those tools as
-integration targets on purpose. The scanner excludes itself from its own scan,
-since it necessarily contains the patterns as literal regex source.
+The attribution scan targets only the canonical machine-authorship footer forms
+(a co-author trailer naming the assistant, the vendor no-reply commit email, and
+the "generated with" footer in both its bracketed and glyph variants), not the
+words "AI"/"Claude" themselves, because the extension ships an "Active AI
+Threads" feature that names those tools as integration targets on purpose. The
+scanner excludes itself from its own scan, since it necessarily contains the
+patterns as literal regex source.
 
 **Publish resilience.** Missing `VSCE_PAT` / `OVSX_PAT` are prompted for with
 platform-specific permanent-set instructions; the Marketplace gates the run

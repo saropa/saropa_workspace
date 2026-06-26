@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
-import { Pin, PinScope, pinKind } from "../model/pin";
+import { Pin, PinScope, RoutineMember, pinKind, isAnnotationPin } from "../model/pin";
 import { PinFolderItem, PinGroupItem, PinTreeItem } from "../views/pinTreeItem";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
 import {
@@ -8,6 +8,7 @@ import {
   runAction,
   getOutputChannel,
   isRunnable,
+  RoutineHooks,
 } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
@@ -174,6 +175,12 @@ async function relocatePin(store: PinStore, pin: Pin): Promise<void> {
 }
 
 async function openPin(store: PinStore, pin: Pin): Promise<void> {
+  // A comment / separator annotation has nothing to open — it only labels or
+  // divides the list. Inert by design (its tree row also carries no command, so
+  // this guards only the command-palette / keybinding paths).
+  if (isAnnotationPin(pin)) {
+    return;
+  }
   // Opening counts as "tapping" the pin: it clears the pin from the untapped
   // count that drives the activity-bar badge (a discovery cue for unused pins).
   void tappedPins.mark(pin.id);
@@ -340,6 +347,10 @@ async function toggleTail(store: PinStore, pin: Pin): Promise<void> {
 // instead), and with no active editor there is nothing to overlay, so the file is
 // opened normally.
 async function peekPin(store: PinStore, pin: Pin): Promise<void> {
+  // A comment / separator annotation has no file to peek — inert by design.
+  if (isAnnotationPin(pin)) {
+    return;
+  }
   // Peeking is a use of the pin, like opening: clear it from the untapped badge.
   void tappedPins.mark(pin.id);
   if (pinKind(pin) !== "file") {
@@ -458,7 +469,37 @@ async function ensureDependency(store: PinStore, pin: Pin): Promise<boolean> {
   return false;
 }
 
+// Build the hooks the routine engine needs (runner.ts cannot import the store /
+// command layer without a cycle, so they are injected at activation). resolveMember
+// finds the live member pin across both scopes — by recipeId first (survives the
+// recipe -> promoted-pin transition and reloads), then by pin id (a member
+// hand-composed from a non-recipe stored pin). runMember reuses the canonical
+// single-pin path so a member runs exactly as it does from the tree.
+export function createRoutineHooks(store: PinStore): RoutineHooks {
+  return {
+    resolveMember(member: RoutineMember): Pin | undefined {
+      const pins = orderedPins(store);
+      const byRecipe = member.recipeId
+        ? pins.find((p) => p.recipeId === member.recipeId)
+        : undefined;
+      if (byRecipe) {
+        return byRecipe;
+      }
+      return member.pinId ? pins.find((p) => p.id === member.pinId) : undefined;
+    },
+    runMember(pin: Pin): Promise<void> {
+      return runPinCommand(store, pin);
+    },
+  };
+}
+
 async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
+  // A comment / separator annotation is not runnable. Inert by design (no run
+  // badge, no telemetry) — this guards the command-palette / keybinding paths,
+  // since the tree row itself carries no command to reach here.
+  if (isAnnotationPin(pin)) {
+    return;
+  }
   // Running counts as "tapping" the pin (clears it from the untapped badge
   // count), the same as opening — every run path funnels through here.
   void tappedPins.mark(pin.id);
@@ -714,9 +755,13 @@ async function removePinForUri(
 const TOP_PIN_SLOTS = 5;
 
 // The pins in tree order (project first, then global) — the order the "top pin N"
-// keybindings and reorder-by-drag designate.
+// keybindings and reorder-by-drag designate. Comment / separator annotations are
+// excluded: they are not runnable, so they must not consume a "top pin N" slot or
+// resolve as a run-by-reference target.
 function orderedPins(store: PinStore): Pin[] {
-  return [...store.getProjectPins(), ...store.getGlobalPins()];
+  return [...store.getProjectPins(), ...store.getGlobalPins()].filter(
+    (p) => !isAnnotationPin(p)
+  );
 }
 
 // Run the Nth pin (1-based) for the runTopPinN keybindings.
@@ -766,7 +811,11 @@ async function pickPin(
   store: PinStore,
   placeHolder: string
 ): Promise<Pin | undefined> {
-  const all = [...store.getProjectPins(), ...store.getGlobalPins()];
+  // Comment / separator annotations are not runnable, so they never appear in the
+  // "Run Pin..." list (picking one would do nothing).
+  const all = [...store.getProjectPins(), ...store.getGlobalPins()].filter(
+    (p) => !isAnnotationPin(p)
+  );
   if (all.length === 0) {
     vscode.window.showInformationMessage(l10n("runAny.empty"));
     return undefined;
@@ -900,6 +949,44 @@ function parseEnv(line: string): Record<string, string> | undefined {
 // scope). Default to project so a title-bar click has a defined home.
 function scopeFromAddGroupArg(arg: unknown): PinScope {
   return arg instanceof PinGroupItem ? arg.group : "project";
+}
+
+// Add a comment or separator annotation that labels / divides the pin list. When
+// invoked from a pin's context menu the annotation is inserted right after that
+// pin (same scope + group), so it lands where the user clicked; from the view
+// title it appends to the project scope's top level. A comment prompts for its
+// text; a separator carries none. Reports the added entry, naming its text.
+async function addAnnotation(
+  store: PinStore,
+  kind: "comment" | "separator",
+  arg: unknown
+): Promise<void> {
+  const after = asPin(arg);
+  let label: string | undefined;
+  if (kind === "comment") {
+    label = await vscode.window.showInputBox({
+      prompt: l10n("annotation.commentPrompt"),
+      placeHolder: l10n("annotation.commentPlaceholder"),
+      validateInput: (value) =>
+        value.trim().length === 0 ? l10n("annotation.commentEmptyError") : undefined,
+    });
+    // Esc / empty cancels — nothing is added.
+    if (label === undefined) {
+      return;
+    }
+  }
+  const scope: PinScope = after?.scope ?? "project";
+  const added = await store.addAnnotationPin(kind, scope, label, after);
+  if (!added) {
+    // The only failure path is a project annotation with no workspace folder open.
+    vscode.window.showWarningMessage(l10n("annotation.noWorkspace"));
+    return;
+  }
+  vscode.window.showInformationMessage(
+    kind === "comment"
+      ? l10n("annotation.commentAdded", { text: label?.trim() ?? "" })
+      : l10n("annotation.separatorAdded")
+  );
 }
 
 export function registerPinCommands(
@@ -1335,6 +1422,17 @@ export function registerPinCommands(
       vscode.window.showWarningMessage(l10n("group.noWorkspace"));
     }
   });
+
+  // Add a comment label or a visual separator to divide a long pin list. Invoked
+  // from the view title (appends to the project scope) or a pin's context menu
+  // (inserts right after that pin). Rename uses the shared renamePin command;
+  // remove uses unpin — both already operate on any stored pin.
+  reg("saropaWorkspace.addComment", (arg: unknown) =>
+    void addAnnotation(store, "comment", arg)
+  );
+  reg("saropaWorkspace.addSeparator", (arg: unknown) =>
+    void addAnnotation(store, "separator", arg)
+  );
 
   reg("saropaWorkspace.renameGroup", async (arg: unknown) => {
     if (!(arg instanceof PinFolderItem)) {

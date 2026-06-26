@@ -81,6 +81,8 @@
   "command.addGroup.title": "New Group...",
   "command.renameGroup.title": "Rename Group...",
   "command.deleteGroup.title": "Delete Group",
+  "command.addComment.title": "Add Comment...",
+  "command.addSeparator.title": "Add Separator",
   "command.revealNextScheduled.title": "Reveal Next Scheduled Pin",
   "command.runPinById.title": "Run Pin by Reference (for keybindings)",
   "command.runTopPin1.title": "Run Top Pin 1",

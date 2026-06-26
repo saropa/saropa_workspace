@@ -401,6 +401,97 @@ export class PinStore {
     return true;
   }
 
+  // Add a non-action annotation pin — a comment label or a visual separator — that
+  // divides a long pin list (Favorites-style comments/dividers). It carries no path
+  // and no real action; the kind ("comment" / "separator") lives in `action.kind` so
+  // pinKind / isAnnotationPin route it, and a comment's text is its `label`. When
+  // `after` is given the entry is inserted immediately below that pin in the same
+  // scope and group (so it annotates exactly where the user clicked); otherwise it
+  // appends to the project scope's top level. Returns false only when a project entry
+  // is requested with no workspace folder open. Never runs anything — these are inert.
+  async addAnnotationPin(
+    kind: "comment" | "separator",
+    scope: PinScope,
+    label: string | undefined,
+    after?: Pin
+  ): Promise<boolean> {
+    // An anchor decides scope + group (so an inserted entry lands beside it); a
+    // title-bar invocation has no anchor and falls back to the requested scope.
+    const targetScope = after?.scope ?? scope;
+    const groupId = after?.groupId;
+    // Only carry a non-empty label so a separator (or a blank comment) stores none.
+    const labelField =
+      label && label.trim().length > 0 ? { label: label.trim() } : {};
+
+    if (targetScope === "global") {
+      const pins = this.readGlobalPins();
+      const newPin: Pin = {
+        id: this.newId(),
+        path: "",
+        scope: "global",
+        order: pins.length,
+        action: { kind },
+        ...(groupId ? { groupId } : {}),
+        ...labelField,
+      };
+      pins.push(newPin);
+      this.placeAfter(pins, newPin, after?.id);
+      await this.writeGlobalPins(pins);
+      await this.refresh();
+      return true;
+    }
+
+    // Project scope: write to the anchor's owning folder, else the first folder.
+    const folder = after
+      ? this.projectPinFolder.get(after.id) ?? vscode.workspace.workspaceFolders?.[0]
+      : vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+      return false;
+    }
+    const file = await this.readProjectFile(folder);
+    const newPin: Pin = {
+      id: this.newId(),
+      path: "",
+      scope: "project",
+      order: file.pins.length,
+      action: { kind },
+      ...(groupId ? { groupId } : {}),
+      ...labelField,
+    };
+    file.pins.push(newPin);
+    this.placeAfter(file.pins, newPin, after?.id);
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return true;
+  }
+
+  // Renumber `newPin`'s group so it sits immediately after `afterPinId`, or at the
+  // group's end when the anchor is absent / in another group. Mirrors reorderWithin
+  // (which renumbers a single group's members from 0), so an inserted annotation
+  // positions the same way a drag would. Operates on `all` in place.
+  private placeAfter(
+    all: Pin[],
+    newPin: Pin,
+    afterPinId: string | undefined
+  ): void {
+    const groupId = newPin.groupId ?? undefined;
+    const members = all.filter(
+      (p) => (p.groupId ?? undefined) === groupId && p.id !== newPin.id
+    );
+    const anchorIndex = afterPinId
+      ? members.findIndex((p) => p.id === afterPinId)
+      : -1;
+    const insertAt = anchorIndex >= 0 ? anchorIndex + 1 : members.length;
+    const ordered = [
+      ...members.slice(0, insertAt),
+      newPin,
+      ...members.slice(insertAt),
+    ];
+    ordered.forEach((pin, i) => {
+      pin.order = i;
+    });
+  }
+
   // Add a pin from a shared link's portable configuration (WOW #4 import). The id
   // and order are freshly assigned; everything else (label, path, action, exec,
   // icon, color, schedule) is carried verbatim. An optional groupId drops the pin

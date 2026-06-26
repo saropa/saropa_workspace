@@ -229,8 +229,14 @@ async function resolveGroups(
 // Whether a pin from the file is already present in the target scope. File pins
 // match on path (the same resolved-path idempotency the favorites import uses);
 // action pins (no path) match on label + action kind, so re-importing a shared
-// macro/shell set does not duplicate it.
+// macro/shell set does not duplicate it. Comment / separator annotations are never
+// treated as duplicates: they are positional dividers, so two identical separators
+// (or repeated comment text) are intentional and must each survive the round-trip.
 function isDuplicate(existing: Pin[], pin: ExportedPin): boolean {
+  const kind = pin.action?.kind;
+  if (kind === "comment" || kind === "separator") {
+    return false;
+  }
   if (pin.path) {
     return existing.some((p) => p.path === pin.path);
   }

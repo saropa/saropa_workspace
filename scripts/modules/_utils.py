@@ -160,17 +160,25 @@ def fail(msg: str, code: int) -> int:
 # cspell:disable
 def show_logo() -> None:
     """Print the Saropa 'S' logo. Pure branding; never references any tooling."""
-    logo = (
-        "\033[38;5;208m                       `-+shdmNMMMMNmdhs+-\033[0m\n"
-        "\033[38;5;215m                 `/dMMMMMM/`          ``````\033[0m\n"
-        "\033[38;5;226m                /MMMMMMMMMMMMMMMMMMMMMMMMMMMNh\\\033[0m\n"
-        "\033[38;5;154m              o     `..~~~::~+==+~:/+sdNMMMMMMMo\033[0m\n"
-        "\033[38;5;87m              /N:                        :MMMMMM/\033[0m\n"
-        "\033[38;5;45m                :dNy/.              ./smMMMMMMm:\033[0m\n"
-        "\033[38;5;33m                    .odMMMMMMMMMMMMMMMMMMdo-\033[0m\n"
-        "\033[38;5;57m                       `-+shdNNMMMMNNdhs+-\033[0m"
-    )
-    print()
+    logo = """
+\033[38;5;208m                               ....\033[0m
+\033[38;5;208m                       `-+shdmNMMMMNmdhs+-\033[0m
+\033[38;5;209m                    -odMMMNyo/-..````.++:+o+/-\033[0m
+\033[38;5;215m                 `/dMMMMMM/`          ``````````\033[0m
+\033[38;5;220m                `dMMMMMMMMNdhhhdddmmmNmmddhs+-\033[0m
+\033[38;5;226m                /MMMMMMMMMMMMMMMMMMMMMMMMMMMMMNh\\\033[0m
+\033[38;5;190m              . :sdmNNNNMMMMMNNNMMMMMMMMMMMMMMMMm+\033[0m
+\033[38;5;154m              o     `..~~~::~+==+~:/+sdNMMMMMMMMMMMo\033[0m
+\033[38;5;118m              m                        .+NMMMMMMMMMN\033[0m
+\033[38;5;123m              m+                         :MMMMMMMMMm\033[0m
+\033[38;5;87m              /N:                        :MMMMMMMMM/\033[0m
+\033[38;5;51m               oNs.                    `+NMMMMMMMMo\033[0m
+\033[38;5;45m                :dNy/.              ./smMMMMMMMMm:\033[0m
+\033[38;5;39m                 `/dMNmhyso+++oosydNNMMMMMMMMMd/\033[0m
+\033[38;5;33m                    .odMMMMMMMMMMMMMMMMMMMMdo-\033[0m
+\033[38;5;57m                       `-+shdNNMMMMNNdhs+-\033[0m
+\033[38;5;57m                               ````\033[0m
+"""
     print(logo)
     print(_c("  Saropa Workspace publisher", Color.WHITE))
     print(_c("  (c) 2026 Saropa  -  https://saropa.com", Color.DIM))

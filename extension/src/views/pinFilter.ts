@@ -27,7 +27,7 @@ export interface PinFilter {
 // file pin is the Files chip; everything a pin can DO without a target file is a
 // Script. This is the model's PinKind partitioned cleanly so the chip mapping has
 // a single source of truth.
-const SCRIPT_KINDS: readonly PinKind[] = ["shell", "url", "command", "macro"];
+const SCRIPT_KINDS: readonly PinKind[] = ["shell", "url", "command", "macro", "routine"];
 
 // Persisted per-workspace so a filter survives a reload (the user set it for a
 // reason; losing it on every window reload would read as the filter "forgetting").

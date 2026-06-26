@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Pin, PinGroup, PinKind, PinScope, pinKind } from "../model/pin";
+import { Pin, PinGroup, PinKind, PinScope, pinKind, isAnnotationPin } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult, formatDuration } from "../exec/runStatus";
 import { PinBadge, formatBadgeLead } from "../exec/pinBadges";
@@ -7,6 +7,11 @@ import { MetricBadge } from "../exec/metricBadges";
 import { RunSource } from "../exec/telemetry";
 import { formatRelativeTime } from "./projectFilesProvider";
 import { l10n } from "../i18n/l10n";
+
+// The divider glyph for a "separator" annotation row. A run of box-drawing dashes
+// reads as a horizontal rule in the narrow sidebar (it truncates cleanly to the
+// view width). Fixed here as the single source for the separator's appearance.
+const SEPARATOR_LABEL = "─".repeat(40);
 
 // Tree node for a single pin. Selecting it fires the activate dispatcher, which
 // decides open (single click) vs run (double click within the configured window).
@@ -68,6 +73,40 @@ export class PinTreeItem extends vscode.TreeItem {
     // resourceUri drives the file-type icon/decorations; only meaningful for file
     // pins. Non-file pins (url/shell/command/macro) render from their own glyph.
     this.resourceUri = isFile ? resolvedUri : undefined;
+
+    // Comment / separator: an inert annotation row. It has no command (a click does
+    // nothing), no resourceUri, no badges — it only labels or divides the list.
+    // Returning here keeps every run/badge/icon path below from treating it as a
+    // real pin; combined with the absent `command`, that makes the row unreachable
+    // by the click dispatcher (the model's discriminated-union guard in practice).
+    if (isAnnotationPin(pin)) {
+      this.resourceUri = undefined;
+      if (kind === "separator") {
+        // VS Code tree rows have no native divider, so a run of box-drawing
+        // characters reads as a horizontal rule between groups of pins. No icon:
+        // the line itself is the whole visual, and a glyph would break it up.
+        this.label = SEPARATOR_LABEL;
+        this.tooltip = l10n("annotation.separatorTooltip");
+        this.contextValue = "annotationSeparator";
+        this.iconPath = undefined;
+      } else {
+        // Comment: the text is the label, marked by a muted comment glyph so it
+        // reads as a note rather than a runnable pin. Empty text falls back to a
+        // placeholder so the row stays selectable (and renamable).
+        const text = pin.label?.trim();
+        this.label =
+          text && text.length > 0 ? text : l10n("annotation.commentEmpty");
+        this.tooltip = this.label;
+        this.contextValue = "annotationComment";
+        this.iconPath = new vscode.ThemeIcon(
+          "comment",
+          new vscode.ThemeColor("descriptionForeground")
+        );
+      }
+      // Deliberately NO this.command: an annotation is inert, so a click neither
+      // opens nor runs. Returning leaves it a plain leaf node.
+      return;
+    }
 
     // Leading inline badge, by priority: a running pin's live state wins; then a
     // scheduled pin's queued next-run time (2.2); then the last completed run's
@@ -449,6 +488,8 @@ function actionSummary(pin: Pin): string {
       return action.commandId ?? "";
     case "macro":
       return l10n("action.macroSteps", { count: action.steps?.length ?? 0 });
+    case "routine":
+      return l10n("action.routineMembers", { count: action.members?.length ?? 0 });
     default:
       return pin.path;
   }
@@ -478,6 +519,10 @@ function kindIcon(kind: PinKind): string {
       return "symbol-event";
     case "macro":
       return "list-ordered";
+    case "routine":
+      // A routine runs a block of recipes back-to-back, so it reads as "run all"
+      // rather than a single task.
+      return "run-all";
     default:
       return "pin";
   }
