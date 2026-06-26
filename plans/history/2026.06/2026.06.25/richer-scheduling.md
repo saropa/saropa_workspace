@@ -56,9 +56,13 @@ current presets, and **run-on-startup** triggers.
   blast-radius sign-off. Tests depend on Phase 4.1 (cron next-fire is prime unit-test
   material).
 
-## Implemented (2026-06-25)
+## Finish Report (2026-06-25)
 
-All three remaining items shipped; the plan is complete.
+All three remaining items shipped; the plan is complete. Verification: the pure cron
+math was exercised against 25 parser / next-fire cases (all pass) and the esbuild bundle
+builds clean. No automated test was added: the extension carries no test harness (the
+`test` npm script targets a nonexistent `out/test/runTests.js`, with no runner
+devDependency), so wiring one is deferred as a separate infrastructure item.
 
 - **Cron expressions.** `cron?: string` added to `PinSchedule` (`pin.ts`). An in-repo,
   dependency-free 5-field parser (`parseCron`) and next-fire computer (`nextCron`) live
@@ -80,7 +84,5 @@ All three remaining items shipped; the plan is complete.
   by `enabled`, and de-duped on `lastRun` within `STARTUP_DEDUP_MS` so a reload storm
   does not re-run them. A startup-only schedule (no time fields) is valid.
 
-Verification: the pure cron math was checked against 25 next-fire / parser cases (all
-pass); the bundle builds clean. The pre-existing type errors in `configureTriggers.ts` /
-`plannerPanel.ts` / the `ChainRunner` call are from a separate in-flight idle-trigger
-change, not this work.
+The pre-existing type errors in `configureTriggers.ts` / `plannerPanel.ts` / the
+`ChainRunner` call are from a separate in-flight idle-trigger change, not this work.

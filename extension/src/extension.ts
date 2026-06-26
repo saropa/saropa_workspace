@@ -34,6 +34,7 @@ import { PlannerPanel } from "./views/plannerPanel";
 import { registerHygieneCommands } from "./exec/hygieneCommands";
 import { registerProjectStatsCommand } from "./exec/projectStats";
 import { processRegistry } from "./exec/processRegistry";
+import { metricBadges } from "./exec/metricBadges";
 import { runStatusRegistry } from "./exec/runStatus";
 import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
@@ -360,6 +361,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Background process registry: kill any still-running background runs on
   // deactivation so they do not outlive the extension.
   context.subscriptions.push(processRegistry);
+
+  // Live metric badges (#24): dispose the engine on deactivation so its per-pin file
+  // watchers are released (a leaked FileSystemWatcher would survive a reload). The
+  // tree provider arms/reconciles the watchers; this only owns their teardown.
+  context.subscriptions.push(metricBadges);
 
   // Smart pin suggestions: count file opens on-device and offer to pin a file
   // the user opens often (gated once per file). No-op when disabled by setting.

@@ -389,6 +389,12 @@
         "icon": "$(symbol-color)"
       },
       {
+        "command": "saropaWorkspace.setMetric",
+        "title": "%command.setMetric.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(dashboard)"
+      },
+      {
         "command": "saropaWorkspace.renamePin",
         "title": "%command.renamePin.title%",
         "category": "%extension.displayName%",
@@ -952,6 +958,11 @@
           "group": "2_edit@7"
         },
         {
+          "command": "saropaWorkspace.setMetric",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
+          "group": "2_edit@8"
+        },
+        {
           "submenu": "saropaWorkspace.expirySubmenu",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem == pin || viewItem == pinScheduled)",
           "group": "2_edit@8"
@@ -1159,6 +1170,10 @@
         },
         {
           "command": "saropaWorkspace.configureAppearance",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.setMetric",
           "when": "false"
         },
         {

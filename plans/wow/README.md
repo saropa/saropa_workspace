@@ -38,4 +38,4 @@ conflated with them.
 - [#24 Live Metric Badges](PLAN_24_live_metrics.md) — a live size/lines/modified badge on a file pin.
 - [#25 "Watch This" Linkage](PLAN_25_watch_link.md) — run a script pin when a watched file is saved.
 - [#26 Masked / Vault Pins](PLAN_26_masked_pins.md) — obscure a pin's label and gate opening behind a reveal.
-- [#28 Instant Search & Chip Filters](PLAN_28_search_filter.md) — filter the tree by text and facet chips.
+- [#28 Instant Search & Chip Filters](../history/2026.06/2026.06.25/PLAN_28_search_filter.md) — filter the tree by text and facet chips. (Shipped 2026-06-25.)

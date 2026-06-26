@@ -66,6 +66,7 @@
   "command.clearPinExpiry.title": "Clear Expiry",
   "command.openPlanner.title": "Open Schedule & Workflow Planner",
   "command.configureAppearance.title": "Set Icon & Color...",
+  "command.setMetric.title": "Set Live Metric...",
   "command.renamePin.title": "Rename",
   "command.unpin.title": "Unpin",
   "command.restoreAutoPins.title": "Restore Auto-Pins",

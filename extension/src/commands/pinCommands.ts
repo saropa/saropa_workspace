@@ -27,6 +27,7 @@ import { configureSchedule } from "./configureSchedule";
 import { configureTriggers } from "./configureTriggers";
 import { pinUntil, pinUntilBranchChange, clearPinExpiry } from "./configureExpiry";
 import { configureAppearance } from "./configureAppearance";
+import { setMetric } from "./setMetric";
 import { simulateRun } from "./simulateRun";
 import { showRunAnalytics } from "./runAnalytics";
 import { configureBootSequence, runBootSequence } from "./bootSequence";
@@ -1262,6 +1263,16 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureAppearance(store, pin);
+    }
+  });
+
+  // Live metric badge (#24): give a file pin a size / line-count / last-modified
+  // badge that updates as the file changes, with an optional size threshold that
+  // warns + toasts when the file grows past it.
+  reg("saropaWorkspace.setMetric", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await setMetric(store, pin);
     }
   });
 
