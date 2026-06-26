@@ -1,12 +1,25 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { MacroStep, Pin, PinExecConfig, RunLocation, SoundOverride } from "../model/pin";
+import {
+  MacroStep,
+  Pin,
+  PinExecConfig,
+  RoutineMember,
+  RunLocation,
+  SoundOverride,
+} from "../model/pin";
 import { processRegistry } from "./processRegistry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
 import { runOutputs } from "./runOutputs";
 import { telemetry, RunSource } from "./telemetry";
 import { buildTokenMap, expandTokens } from "./tokens";
+import {
+  resolveInterpreter,
+  isRunnablePlan,
+  quoteArg,
+  assembleCommandLine,
+} from "./commandPlan";
 import {
   hasInteractiveTokens,
   resolveInteractiveTokens,
@@ -74,53 +87,40 @@ function shebangInterpreter(fsPath: string): string | undefined {
   return rest;
 }
 
-// Resolve the command prefix for a file: explicit per-pin command wins, else the
-// configured default for the file extension, else a `#!` shebang when present.
-// Empty result means "run directly".
-function resolveCommandPrefix(pin: Pin, fsPath: string): string {
-  if (pin.exec?.command !== undefined) {
-    return pin.exec.command;
-  }
-  const ext = path.extname(fsPath).toLowerCase();
-  const defaults = vscode.workspace
+// Read the configured interpreter-defaults map (file extension -> command prefix).
+// One reader so the prefix resolution and the runnable check share a source.
+function interpreterDefaults(): Record<string, string> {
+  return vscode.workspace
     .getConfiguration("saropaWorkspace")
     .get<Record<string, string>>("interpreterDefaults", {});
-  const byExtension = defaults[ext];
-  if (byExtension !== undefined) {
-    return byExtension;
-  }
-  // No explicit prefix and no extension default: honor a shebang so a *nix script
-  // runs through its declared interpreter rather than only being flung directly at
-  // the shell (which needs the executable bit). Absent shebang keeps "run directly".
-  return shebangInterpreter(fsPath) ?? "";
+}
+
+// Resolve the command prefix for a file. Reads the config + shebang here (the IO),
+// then defers the precedence decision to the pure resolveInterpreter so the
+// fallback order is unit-testable without the host. Empty result means "run
+// directly".
+function resolveCommandPrefix(pin: Pin, fsPath: string): string {
+  return resolveInterpreter({
+    explicitCommand: pin.exec?.command,
+    ext: path.extname(fsPath).toLowerCase(),
+    defaults: interpreterDefaults(),
+    shebang: shebangInterpreter(fsPath),
+  });
 }
 
 // Whether running this pin makes sense, i.e. there is a way to execute it. True
 // when the user set an explicit command (including an explicit empty string,
 // which means "run the file directly" — e.g. a shebang script), or the file's
-// extension has a configured default interpreter. False for an ordinary document
-// (a .txt, .md, image, etc.) with no interpreter, where "run" has no meaning and
-// the caller should open the file instead of throwing it at the shell.
+// extension has a configured default interpreter, or the file carries a `#!`
+// shebang. False for an ordinary document (.txt, .md, image, etc.) with no
+// interpreter, where "run" has no meaning and the caller should open the file.
 export function isRunnable(pin: Pin, fsPath: string): boolean {
-  if (pin.exec?.command !== undefined) {
-    return true;
-  }
-  const ext = path.extname(fsPath).toLowerCase();
-  const defaults = vscode.workspace
-    .getConfiguration("saropaWorkspace")
-    .get<Record<string, string>>("interpreterDefaults", {});
-  if (defaults[ext] !== undefined) {
-    return true;
-  }
-  // An extensionless script carrying a `#!` shebang is runnable through the
-  // interpreter it names, even with no extension-default mapping.
-  return shebangInterpreter(fsPath) !== undefined;
-}
-
-// Quote a path/arg for the shell. Simple double-quote wrapping covers the common
-// case (paths with spaces) without a full shell-escaping dependency.
-function quote(value: string): string {
-  return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+  return isRunnablePlan({
+    explicitCommand: pin.exec?.command,
+    ext: path.extname(fsPath).toLowerCase(),
+    defaults: interpreterDefaults(),
+    hasShebang: shebangInterpreter(fsPath) !== undefined,
+  });
 }
 
 // Resolve where a run happens. runLocation is the source of truth; for pins
@@ -191,16 +191,11 @@ export function planRun(
 
   const name = pin.label ?? path.basename(fsPath);
 
-  // Assemble: <prefix> "<file>" <args...>. A blank prefix runs the file directly.
-  // includeFilePath === false omits the file entirely (npm-script / Make-target
-  // run configs name their work in args and run against cwd, not the file path).
+  // Assemble <prefix> "<file>" <args...> via the pure core. includeFilePath ===
+  // false omits the file entirely (npm-script / Make-target run configs name their
+  // work in args and run against cwd, not the file path).
   const includeFile = pin.exec?.includeFilePath !== false;
-  const parts = [
-    prefix,
-    ...(includeFile ? [quote(fsPath)] : []),
-    ...args.map(quote),
-  ].filter((p) => p.length > 0);
-  const commandLine = parts.join(" ");
+  const commandLine = assembleCommandLine({ prefix, fsPath, args, includeFile });
 
   const location = resolveRunLocation(pin.exec);
 
@@ -599,7 +594,7 @@ function runInTerminal(
   }
   sharedTerminal.show(true);
   // cd first so relative args/cwd behave; quoting handles spaces in the path.
-  sharedTerminal.sendText(`cd ${quote(cwd)}`);
+  sharedTerminal.sendText(`cd ${quoteArg(cwd)}`);
   sharedTerminal.sendText(commandLine);
 }
 
@@ -665,7 +660,7 @@ function launchExternalWindows(
   env: Record<string, string> | undefined,
   elevated: boolean
 ): void {
-  const inner = `/k cd /d ${quote(cwd)} & ${commandLine}`;
+  const inner = `/k cd /d ${quoteArg(cwd)} & ${commandLine}`;
   const startArgs = [
     "-FilePath",
     "'cmd.exe'",
@@ -702,7 +697,7 @@ function launchExternalMac(
   elevated: boolean
 ): void {
   const shellCmd = elevated ? `sudo ${commandLine}` : commandLine;
-  const inner = `cd ${quote(cwd)}; ${shellCmd}`;
+  const inner = `cd ${quoteArg(cwd)}; ${shellCmd}`;
   // Escape for embedding inside an AppleScript double-quoted string.
   const escaped = inner.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   const script = `tell application "Terminal" to do script "${escaped}"`;
@@ -724,7 +719,7 @@ function launchExternalLinux(
 ): void {
   const shellCmd = elevated ? `pkexec ${commandLine}` : commandLine;
   // Run the command, then drop into an interactive shell so the window stays open.
-  const inner = `cd ${quote(cwd)}; ${shellCmd}; exec ${process.env.SHELL ?? "bash"}`;
+  const inner = `cd ${quoteArg(cwd)}; ${shellCmd}; exec ${process.env.SHELL ?? "bash"}`;
   const emulators: Array<[string, string[]]> = [
     ["x-terminal-emulator", ["-e", "bash", "-c", inner]],
     ["gnome-terminal", ["--", "bash", "-c", inner]],

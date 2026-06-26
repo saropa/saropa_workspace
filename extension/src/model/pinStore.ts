@@ -14,6 +14,7 @@ import {
   emptyProjectPinsFile,
   pinKind,
 } from "./pin";
+import { parseGlobalPath, globalStoredPath } from "./pinPaths";
 import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
@@ -98,27 +99,6 @@ function recipeGroupId(category: RecipeCategory | undefined): string {
 // not set its own color, so every recipe in a category shares its color family.
 function recipeGroupColor(category: RecipeCategory | undefined): string {
   return RECIPE_GROUPS.find((g) => g.category === category)?.color ?? "charts.purple";
-}
-
-// Resolve a global pin's stored target back to a URI. A global pin stores either an
-// absolute fsPath (the file: scheme, the common case) OR, for a file on a non-local
-// filesystem (Remote-SSH, WSL, dev container, or a virtual provider), the full URI
-// string. The two are told apart by a scheme separator: a real URI always carries
-// "<scheme>://", while a local path never does — a Windows drive path "C:\…" has a
-// single colon but no "://", so it is never mistaken for a URI. Files stored by older
-// versions are always plain fsPaths (no "://"), so this is backward compatible.
-function parseGlobalPath(stored: string): vscode.Uri {
-  return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(stored)
-    ? vscode.Uri.parse(stored)
-    : vscode.Uri.file(stored);
-}
-
-// The string a global pin should store for a given URI: a plain absolute fsPath for
-// a local file (so it reads naturally and dedupes against older pins), or the full
-// URI string for any other scheme so the scheme survives the round-trip. The inverse
-// of parseGlobalPath.
-function globalStoredPath(uri: vscode.Uri): string {
-  return uri.scheme === "file" ? uri.fsPath : uri.toString();
 }
 
 // True when an auto-pin pattern uses glob syntax that needs the workspace search
