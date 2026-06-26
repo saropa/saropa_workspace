@@ -194,10 +194,11 @@ toast stays; the cue is an additional, dismissible channel.
   `Audio`, an OS sound helper, or the editor's own sound cues/accessibility-signal
   surface) is the implementation choice to settle — record it here as the decision,
   do not assume one.
-- **Haptics** have **no first-party VS Code extension API**; delivering a haptic
-  pulse would require an OS-level integration and only lands on hardware that
-  exposes one. Treat haptics as **exploratory** — confirm the platform path before
-  promising it; ship audio first, gate haptics behind capability detection.
+- **Haptics** are **deferred by a hard platform blocker** (no first-party VS Code
+  extension haptics API). The full rationale, re-entry condition, and effort
+  estimate now live in [deferred/HAPTIC_EVENT_CUES.md](deferred/HAPTIC_EVENT_CUES.md)
+  — the single source for this deferral. Ship audio first; do not promise haptics in
+  user-facing copy or settings until the blocker clears.
 
 Both respect the user's environment: a single mute toggle, volume from the OS, and
 no cue while a "Do Not Disturb" / focus mode is active where that state is readable.

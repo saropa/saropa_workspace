@@ -25,6 +25,7 @@ from modules._utils import (
     Color,
     GITHUB_REPO,
     PACKAGE_JSON,
+    REPO_ROOT,
     ROOT_CHANGELOG,
     VERSION_RE,
     _c,
@@ -255,7 +256,7 @@ def tag_exists_on_remote(version: str) -> bool:
     """True if tag v{version} already exists on origin (would collide on push)."""
     result = run(
         ["git", "ls-remote", "--tags", "origin", f"refs/tags/v{version}"],
-        ROOT_CHANGELOG.parent,
+        REPO_ROOT,
         capture=True,
         check=False,
     )

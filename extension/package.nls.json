@@ -18,6 +18,8 @@
   "command.configureBootSequence.title": "Configure Workspace Boot Sequence...",
   "command.runBootSequence.title": "Run Workspace Boot Sequence",
   "command.newScratchpad.title": "New Scratchpad...",
+  "command.saveLayout.title": "Save Editor Layout...",
+  "command.restoreLayout.title": "Restore Editor Layout...",
   "command.pinActiveFile.title": "Pin Active File (Project)",
   "command.pinActiveFileGlobal.title": "Pin Active File (Global)",
   "command.pinToLine.title": "Pin This Line",

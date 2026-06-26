@@ -31,6 +31,7 @@ import { configureBootSequence, runBootSequence } from "./bootSequence";
 import { exportPinSet, importPinSet } from "./pinSetExport";
 import { editPinsConfig } from "./editConfig";
 import { newScratchpad } from "./scratchpad";
+import { saveLayout, restoreLayout } from "./layoutPins";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templatePin";
 import { encodePinLink } from "../import/shareLink";
@@ -946,6 +947,11 @@ export function registerPinCommands(
   // touches disk and never shows in git status. No store interaction — it is a pure
   // editor action — so it takes no pin/store argument.
   reg("saropaWorkspace.newScratchpad", () => newScratchpad());
+
+  // Save / restore a named editor-grid layout (WOW #19). Pure editor actions backed
+  // by globalState (passed the extension context), so they take no pin/store arg.
+  reg("saropaWorkspace.saveLayout", () => saveLayout(context));
+  reg("saropaWorkspace.restoreLayout", () => restoreLayout(context));
 
   // Bind a specific pin to a key. The keybinding's `args` is matched against a
   // pin's id, label, file path, or basename (in that order), so a user can bind

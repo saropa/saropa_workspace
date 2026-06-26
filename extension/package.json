@@ -111,6 +111,18 @@
         "icon": "$(notebook)"
       },
       {
+        "command": "saropaWorkspace.saveLayout",
+        "title": "%command.saveLayout.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(editor-layout)"
+      },
+      {
+        "command": "saropaWorkspace.restoreLayout",
+        "title": "%command.restoreLayout.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(editor-layout)"
+      },
+      {
         "command": "saropaWorkspace.pinActiveFile",
         "title": "%command.pinActiveFile.title%",
         "category": "%extension.displayName%",
@@ -523,6 +535,16 @@
           "command": "saropaWorkspace.newScratchpad",
           "when": "view == saropaWorkspace.pins",
           "group": "0_new@1"
+        },
+        {
+          "command": "saropaWorkspace.saveLayout",
+          "when": "view == saropaWorkspace.pins",
+          "group": "0_new@2"
+        },
+        {
+          "command": "saropaWorkspace.restoreLayout",
+          "when": "view == saropaWorkspace.pins",
+          "group": "0_new@3"
         },
         {
           "command": "saropaWorkspace.pinExternalFile",
