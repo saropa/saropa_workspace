@@ -37,8 +37,11 @@ repositories.
    - `command: "insertNewCode"`, unknown commands, and unmappable sequences → reported
      and skipped (the pin model has no insert-code action). The item's `icon` (a codicon
      id) and `iconColor` (a ThemeColor id) line up with the pin model's icon/color and
-     are carried over for action pins. **Not yet covered:** items stored in a custom file
-     via `favoritesPanel.configPath(ForWorkspace)` (only the two settings keys are read).
+     are carried over for action pins. The custom-file variant is also covered: items
+     stored in the JSON file the `favoritesPanel.configPath` / `configPathForWorkspace`
+     settings point at are read with the same mapping, accepting both the v1.4.0+
+     top-level array and the legacy `{ "favoritesPanel.commands": [...] }` object
+     wrapper. A missing file imports nothing; a malformed file is reported and skipped.
 2. **Project Manager** (`projects.json`, global) — **DEFERRED.** Verified shape: an array
    of `{ name, rootPath, paths?, tags?, enabled?, profile? }`. Every entry's `rootPath`
    is a *folder/workspace root*, not a file or a runnable target, and the pin model has
@@ -57,14 +60,21 @@ repositories.
 
 ## Remaining work
 
+All complete.
+
 - **Custom-file variant of sabitovvt** (`favoritesPanel.configPath` /
-  `configPathForWorkspace`): read items from the pointed-at JSON file as well as the two
-  settings keys.
-- Cover each shipped format with mapping + idempotency tests once the Phase 4.1 harness
-  lands (`../history/2026.06/2026.06.25/4.1-unit-tests.md`): bookmarks 0-based→1-based line conversion, `$ROOTPATH$`
-  strip, column-dropped, dedup on re-run; sabitovvt openFile/run/runCommand(url+command)
-  mapping, sequence→macro all-or-nothing, insertNewCode/unknown skip, action-pin dedup,
-  icon/color carry-over.
+  `configPathForWorkspace`) — **DONE.** `readSabitovvtConfigFileItems` in
+  `favoritesSettings.ts` reads the pointed-at JSON file (absolute path as-is, relative
+  resolved against the first folder), accepts the top-level array and the legacy object
+  wrapper, and feeds the items through the same `importSabitovvtItemList` mapping as the
+  two settings keys, with one shared dedup set across all sources.
+  `detectSabitovvtFavoritesCount` is now async so the import gate counts file items too.
+- **Mapping + idempotency tests** — **DONE.** `test/bookmarksImport.test.ts` (0-based→
+  1-based line conversion, `$ROOTPATH$` strip, label fallback, column-dropped, outside-
+  folder skip, malformed guard, dedup on re-run) and `test/sabitovvtImport.test.ts`
+  (openFile/run/runCommand url+command mapping, sequence→macro all-or-nothing,
+  insertNewCode/unknown/unlabeled skip, icon/color carry-over, action-pin dedup, the
+  configPath array + legacy-wrapper shapes) — 12 tests, all passing under `node --test`.
 
 ## Acceptance criteria
 
@@ -78,4 +88,21 @@ repositories.
 
 - Shares the parser refactor and the Project Manager / Bookmarks decision with
   `1.1-extend-favorites-import.md`.
-- Tests depend on Phase 4.1.
+- Tests depend on Phase 4.1 (the `node --test` harness), now landed.
+
+## Finish Report (2026-06-26)
+
+Closed the two open items, completing the plan.
+
+- **sabitovvt custom-file import** (`extension/src/import/favoritesSettings.ts`):
+  extracted the per-item loop into `importSabitovvtItemList` (shared by the settings
+  keys and the file), added `readSabitovvtConfigFileItems` (reads
+  `favoritesPanel.configPath` + `configPathForWorkspace`; accepts the top-level array
+  and the legacy `{ "favoritesPanel.commands": [...] }` wrapper; missing file → nothing,
+  malformed → logged + skipped), and made `detectSabitovvtFavoritesCount` async so the
+  import gate counts file items. Updated the one caller
+  (`commands/pinManagementCommands.ts`) to await it.
+- **Tests**: `extension/src/test/bookmarksImport.test.ts` (5) and
+  `extension/src/test/sabitovvtImport.test.ts` (7) — 12 tests, all passing.
+- **Verification**: `npx tsc -p ./ --noEmit` clean; the two test files pass under
+  `node --test`. No other workstream touched.

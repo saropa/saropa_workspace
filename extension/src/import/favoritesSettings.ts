@@ -9,7 +9,9 @@ import type { ImportResult } from "./favoritesImport";
 // The settings-key favorites importers (no file on disk): howardzuo "favorites"
 // (`favorites.resources`, an array of paths) and sabitovvt "Favorites Panel"
 // (`favoritesPanel.commands[ForWorkspace]`, command-dispatch items mapping to
-// file / url / command / shell pins and sequences to macros).
+// file / url / command / shell pins and sequences to macros). sabitovvt can also
+// keep its items in a custom JSON file the `favoritesPanel.configPath[ForWorkspace]`
+// settings point at; those file items are imported with the same mapping.
 
 // The howardzuo "favorites" extension stores its files under this settings key.
 const HOWARDZUO_SETTINGS_KEY = "favorites.resources";
@@ -22,8 +24,18 @@ const SABITOVVT_SETTINGS_KEYS = [
   "favoritesPanel.commands",
   "favoritesPanel.commandsForWorkspace",
 ] as const;
-// Shown as the source name for the sabitovvt import in toasts and the log.
+// Shown as the source name for the sabitovvt settings-key import in toasts/logs.
 const SABITOVVT_SOURCE_LABEL = "favoritesPanel.commands";
+
+// The sabitovvt "Favorites Panel" custom-file settings keys: each holds a path to
+// a JSON file carrying the same command-dispatch items as the settings keys above
+// (a global file and a per-workspace file).
+const SABITOVVT_CONFIG_PATH_KEYS = [
+  "favoritesPanel.configPath",
+  "favoritesPanel.configPathForWorkspace",
+] as const;
+// Shown as the source name for the custom-file sabitovvt import in toasts/logs.
+const SABITOVVT_CONFIG_SOURCE_LABEL = "favoritesPanel.configPath";
 
 // How many importable entries the howardzuo `favorites.resources` settings key
 // holds right now (string paths only). Used by the command to decide whether
@@ -97,6 +109,12 @@ export async function importSettingsFavorites(
 //     (the pin model has no insert-code action, so importing it would lose data).
 // The item's `icon` (a codicon id) and `iconColor` (a ThemeColor id) line up with
 // the pin model's icon/color, so they are carried over for action pins.
+//
+// The same items can also live in a custom JSON file pointed at by the
+// `favoritesPanel.configPath` / `favoritesPanel.configPathForWorkspace` settings.
+// That file is either a top-level array of items (sabitovvt v1.4.0+) or the legacy
+// object wrapper `{ "favoritesPanel.commands": [ ... ] }` (pre-1.3.0); both shapes
+// are accepted and mapped identically to the settings-key items.
 
 interface SabitovvtItem {
   label?: string;
@@ -190,32 +208,164 @@ function actionSignature(label: string | undefined, action: PinAction): string {
   return JSON.stringify({ label: label ?? "", action });
 }
 
-// How many importable sabitovvt items the two settings keys hold right now. Used
-// by the command to decide whether there is anything to import.
-export function detectSabitovvtFavoritesCount(): number {
-  const config = vscode.workspace.getConfiguration();
-  let count = 0;
-  for (const key of SABITOVVT_SETTINGS_KEYS) {
-    const items = config.get<unknown>(key);
-    if (!Array.isArray(items)) {
-      continue;
-    }
-    count += items.filter(
-      (i): i is SabitovvtItem =>
-        !!i &&
-        typeof i === "object" &&
-        typeof (i as SabitovvtItem).label === "string" &&
-        ((i as SabitovvtItem).command !== undefined ||
-          Array.isArray((i as SabitovvtItem).sequence))
-    ).length;
-  }
-  return count;
+// A well-formed, importable sabitovvt item: a labeled entry that carries either a
+// command (single dispatch) or a sequence (a macro). Shared by the count and the
+// import so the "is there anything here" gate and the importer agree on what counts.
+function isImportableSabitovvtItem(i: unknown): i is SabitovvtItem {
+  return (
+    !!i &&
+    typeof i === "object" &&
+    typeof (i as SabitovvtItem).label === "string" &&
+    ((i as SabitovvtItem).command !== undefined ||
+      Array.isArray((i as SabitovvtItem).sequence))
+  );
 }
 
-// sabitovvt "Favorites Panel": import the command-dispatch items from both
-// settings keys as project pins. File items go through addPin (folder-relative,
-// deduped); non-file items go through importPin with an action, deduped here by
-// signature so a re-run adds nothing new. Unmappable items are logged and skipped.
+// Read every sabitovvt item from a custom config file the configPath settings point
+// at. The file is a top-level array (v1.4.0+) or the legacy
+// `{ "favoritesPanel.commands": [...] }` object (pre-1.3.0); both are accepted. A
+// missing file is the normal "setting points at a not-yet-created file" state and
+// contributes nothing; a malformed file is reported (when a channel is given) and
+// contributes nothing. An absolute path is read as-is; a relative one resolves
+// against the first workspace folder (the global file is typically absolute).
+async function readSabitovvtConfigFileItems(
+  channel?: vscode.OutputChannel
+): Promise<SabitovvtItem[]> {
+  const config = vscode.workspace.getConfiguration();
+  const firstFolder = vscode.workspace.workspaceFolders?.[0];
+  const items: SabitovvtItem[] = [];
+  for (const key of SABITOVVT_CONFIG_PATH_KEYS) {
+    const raw = config.get<unknown>(key);
+    if (typeof raw !== "string" || raw.trim().length === 0) {
+      continue;
+    }
+    const value = raw.trim();
+    let uri: vscode.Uri;
+    if (path.isAbsolute(value)) {
+      uri = vscode.Uri.file(value);
+    } else if (firstFolder) {
+      uri = vscode.Uri.joinPath(firstFolder.uri, value);
+    } else {
+      continue; // A relative path with no folder open cannot be resolved.
+    }
+    let bytes: Uint8Array;
+    try {
+      bytes = await vscode.workspace.fs.readFile(uri);
+    } catch {
+      continue; // Pointed-at file not present yet; import nothing from it.
+    }
+    try {
+      const parsed: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      // Both file shapes: a bare array, or the legacy object keyed by the same
+      // settings name. Anything else yields no items.
+      if (Array.isArray(parsed)) {
+        items.push(...(parsed as SabitovvtItem[]));
+      } else if (parsed && typeof parsed === "object") {
+        const wrapped = (parsed as Record<string, unknown>)[SABITOVVT_SOURCE_LABEL];
+        if (Array.isArray(wrapped)) {
+          items.push(...(wrapped as SabitovvtItem[]));
+        }
+      }
+    } catch (err) {
+      channel?.appendLine(
+        l10n("import.log.malformed", {
+          file: value,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+  }
+  return items;
+}
+
+// How many importable sabitovvt items exist right now across the two settings keys
+// AND any custom config file the configPath settings point at. Async because the
+// custom-file count requires reading those files. Used by the command to decide
+// whether there is anything to import.
+export async function detectSabitovvtFavoritesCount(): Promise<number> {
+  const config = vscode.workspace.getConfiguration();
+  const items: SabitovvtItem[] = [];
+  for (const key of SABITOVVT_SETTINGS_KEYS) {
+    const arr = config.get<unknown>(key);
+    if (Array.isArray(arr)) {
+      items.push(...(arr as SabitovvtItem[]));
+    }
+  }
+  items.push(...(await readSabitovvtConfigFileItems()));
+  return items.filter(isImportableSabitovvtItem).length;
+}
+
+// Import one list of sabitovvt items (from a settings key or a custom config file)
+// as project pins. File items go through addPin (folder-relative, deduped); non-file
+// items go through importPin with an action, deduped via the shared `seenActions`
+// signature set so a duplicate listed in more than one source is collapsed.
+// Unmappable/malformed items are logged against `sourceLabel` and skipped. The
+// caller owns `seenActions` so dedup spans every source in one import run.
+async function importSabitovvtItemList(
+  items: readonly SabitovvtItem[],
+  sourceLabel: string,
+  folder: vscode.WorkspaceFolder | undefined,
+  store: PinStore,
+  channel: vscode.OutputChannel,
+  seenActions: Set<string>
+): Promise<ImportResult> {
+  let added = 0;
+  let skipped = 0;
+  for (const raw of items) {
+    const label = typeof raw.label === "string" ? raw.label.trim() : "";
+    if (label.length === 0) {
+      channel.appendLine(l10n("import.log.skipSetting", { key: sourceLabel }));
+      skipped++;
+      continue;
+    }
+    const mapped = mapSabitovvtItem(raw, folder);
+    if (mapped === "skip") {
+      channel.appendLine(
+        l10n("import.log.skipUnsupported", { file: sourceLabel, name: label })
+      );
+      skipped++;
+      continue;
+    }
+    if ("file" in mapped) {
+      // A file outside the workspace folder cannot be a project pin.
+      if (!vscode.workspace.getWorkspaceFolder(mapped.file)) {
+        channel.appendLine(
+          l10n("import.log.skipOutsideFolder", {
+            file: sourceLabel,
+            path: mapped.file.fsPath,
+          })
+        );
+        skipped++;
+        continue;
+      }
+      if (await store.addPin(mapped.file, "project", label)) {
+        added++;
+      }
+      continue;
+    }
+    // Action pin: dedup by signature, then import carrying icon/color when set.
+    const sig = actionSignature(label, mapped.action);
+    if (seenActions.has(sig)) {
+      continue; // Already present — idempotent, not a reportable skip.
+    }
+    const icon = typeof raw.icon === "string" && raw.icon.trim() ? raw.icon.trim() : undefined;
+    const color =
+      typeof raw.iconColor === "string" && raw.iconColor.trim()
+        ? raw.iconColor.trim()
+        : undefined;
+    // `v` is ignored by importPin (it reads only the pin fields); set to 1.
+    if (await store.importPin({ v: 1, label, action: mapped.action, icon, color }, "project")) {
+      seenActions.add(sig);
+      added++;
+    }
+  }
+  return { added, skipped };
+}
+
+// sabitovvt "Favorites Panel": import the command-dispatch items from both settings
+// keys AND any custom config file the configPath settings point at, as project pins.
+// All sources share one `seenActions` set so an action listed in more than one of
+// them imports once. Unmappable items are logged and skipped.
 export async function importSabitovvtFavorites(
   store: PinStore
 ): Promise<ImportResult> {
@@ -223,7 +373,7 @@ export async function importSabitovvtFavorites(
   const config = vscode.workspace.getConfiguration();
   const folder = vscode.workspace.workspaceFolders?.[0];
   // Seed action-pin dedup from existing project pins; add to it as we import so a
-  // duplicate listed in both settings keys is also collapsed.
+  // duplicate listed across sources is also collapsed.
   const seenActions = new Set(
     store
       .getProjectPins()
@@ -238,54 +388,32 @@ export async function importSabitovvtFavorites(
     if (!Array.isArray(items)) {
       continue;
     }
-    for (const raw of items as SabitovvtItem[]) {
-      const label = typeof raw.label === "string" ? raw.label.trim() : "";
-      if (label.length === 0) {
-        channel.appendLine(l10n("import.log.skipSetting", { key: SABITOVVT_SOURCE_LABEL }));
-        skipped++;
-        continue;
-      }
-      const mapped = mapSabitovvtItem(raw, folder);
-      if (mapped === "skip") {
-        channel.appendLine(
-          l10n("import.log.skipUnsupported", { file: SABITOVVT_SOURCE_LABEL, name: label })
-        );
-        skipped++;
-        continue;
-      }
-      if ("file" in mapped) {
-        // A file outside the workspace folder cannot be a project pin.
-        if (!vscode.workspace.getWorkspaceFolder(mapped.file)) {
-          channel.appendLine(
-            l10n("import.log.skipOutsideFolder", {
-              file: SABITOVVT_SOURCE_LABEL,
-              path: mapped.file.fsPath,
-            })
-          );
-          skipped++;
-          continue;
-        }
-        if (await store.addPin(mapped.file, "project", label)) {
-          added++;
-        }
-        continue;
-      }
-      // Action pin: dedup by signature, then import carrying icon/color when set.
-      const sig = actionSignature(label, mapped.action);
-      if (seenActions.has(sig)) {
-        continue; // Already present — idempotent, not a reportable skip.
-      }
-      const icon = typeof raw.icon === "string" && raw.icon.trim() ? raw.icon.trim() : undefined;
-      const color =
-        typeof raw.iconColor === "string" && raw.iconColor.trim()
-          ? raw.iconColor.trim()
-          : undefined;
-      // `v` is ignored by importPin (it reads only the pin fields); set to 1.
-      if (await store.importPin({ v: 1, label, action: mapped.action, icon, color }, "project")) {
-        seenActions.add(sig);
-        added++;
-      }
-    }
+    const result = await importSabitovvtItemList(
+      items as SabitovvtItem[],
+      SABITOVVT_SOURCE_LABEL,
+      folder,
+      store,
+      channel,
+      seenActions
+    );
+    added += result.added;
+    skipped += result.skipped;
   }
+
+  // Custom-file variant: items kept in the JSON file the configPath settings name.
+  const fileItems = await readSabitovvtConfigFileItems(channel);
+  if (fileItems.length > 0) {
+    const result = await importSabitovvtItemList(
+      fileItems,
+      SABITOVVT_CONFIG_SOURCE_LABEL,
+      folder,
+      store,
+      channel,
+      seenActions
+    );
+    added += result.added;
+    skipped += result.skipped;
+  }
+
   return { added, skipped };
 }

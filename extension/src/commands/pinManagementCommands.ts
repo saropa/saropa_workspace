@@ -210,7 +210,7 @@ export function registerPinManagementCommands(
   reg("saropaWorkspace.importFavorites", async () => {
     const detected = await detectFavoritesFiles();
     const settingsCount = detectSettingsFavoritesCount();
-    const sabitovvtCount = detectSabitovvtFavoritesCount();
+    const sabitovvtCount = await detectSabitovvtFavoritesCount();
     if (detected.length === 0 && settingsCount === 0 && sabitovvtCount === 0) {
       vscode.window.showInformationMessage(l10n("import.none"));
       return;
