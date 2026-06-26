@@ -130,6 +130,24 @@
         "icon": "$(tag)"
       },
       {
+        "command": "saropaWorkspace.toggleBranchLink",
+        "title": "%command.toggleBranchLink.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "saropaWorkspace.showAllBranches",
+        "title": "%command.showAllBranches.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "saropaWorkspace.filterByBranch",
+        "title": "%command.filterByBranch.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(git-branch)"
+      },
+      {
         "command": "saropaWorkspace.refreshProjectFiles",
         "title": "%command.refreshProjectFiles.title%",
         "category": "%extension.displayName%",
@@ -503,6 +521,36 @@
         "icon": "$(new-folder)"
       },
       {
+        "command": "saropaWorkspace.switchPinSet",
+        "title": "%command.switchPinSet.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(layers)"
+      },
+      {
+        "command": "saropaWorkspace.newPinSet",
+        "title": "%command.newPinSet.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "saropaWorkspace.renamePinSet",
+        "title": "%command.renamePinSet.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "saropaWorkspace.deletePinSet",
+        "title": "%command.deletePinSet.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "saropaWorkspace.duplicatePinSet",
+        "title": "%command.duplicatePinSet.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(copy)"
+      },
+      {
         "command": "saropaWorkspace.renameGroup",
         "title": "%command.renameGroup.title%",
         "category": "%extension.displayName%",
@@ -717,6 +765,16 @@
           "group": "navigation@1"
         },
         {
+          "command": "saropaWorkspace.showAllBranches",
+          "when": "view == saropaWorkspace.pins && !saropaWorkspace.branchShowAll && saropaWorkspace.branchHasHidden",
+          "group": "navigation@1"
+        },
+        {
+          "command": "saropaWorkspace.filterByBranch",
+          "when": "view == saropaWorkspace.pins && saropaWorkspace.branchShowAll",
+          "group": "navigation@1"
+        },
+        {
           "command": "saropaWorkspace.runAnyPin",
           "when": "view == saropaWorkspace.pins",
           "group": "navigation@2"
@@ -820,6 +878,31 @@
           "command": "saropaWorkspace.editPinsConfig",
           "when": "view == saropaWorkspace.pins",
           "group": "2_share@3"
+        },
+        {
+          "command": "saropaWorkspace.switchPinSet",
+          "when": "view == saropaWorkspace.pins",
+          "group": "3_sets@1"
+        },
+        {
+          "command": "saropaWorkspace.newPinSet",
+          "when": "view == saropaWorkspace.pins",
+          "group": "3_sets@2"
+        },
+        {
+          "command": "saropaWorkspace.renamePinSet",
+          "when": "view == saropaWorkspace.pins",
+          "group": "3_sets@3"
+        },
+        {
+          "command": "saropaWorkspace.duplicatePinSet",
+          "when": "view == saropaWorkspace.pins",
+          "group": "3_sets@4"
+        },
+        {
+          "command": "saropaWorkspace.deletePinSet",
+          "when": "view == saropaWorkspace.pins",
+          "group": "3_sets@5"
         },
         {
           "command": "saropaWorkspace.showOutput",
@@ -1034,6 +1117,11 @@
           "group": "2_edit@9"
         },
         {
+          "command": "saropaWorkspace.toggleBranchLink",
+          "when": "view == saropaWorkspace.pins && (viewItem == pin || viewItem == pinScheduled)",
+          "group": "2_edit@10"
+        },
+        {
           "command": "saropaWorkspace.renamePin",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "2_edit@4"
@@ -1161,6 +1249,18 @@
         },
         {
           "command": "saropaWorkspace.tagPin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.toggleBranchLink",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.showAllBranches",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.filterByBranch",
           "when": "false"
         },
         {

@@ -341,6 +341,42 @@ async function toggleTail(store: PinStore, pin: Pin): Promise<void> {
   vscode.window.showInformationMessage(l10n("tail.disabled", { name }));
 }
 
+// Toggle a stored pin's branch link (WOW #3). When the pin is unlinked, scope it to
+// the current git branch of its owning folder (the first workspace folder for a
+// global pin); when already linked, clear the link so it shows on every branch.
+// Single toggle (mirroring toggleTail) rather than two menu entries, because the
+// tree's contextValue scheme has no spare per-item dimension to gate two labels on
+// without destabilizing the existing exact-match menu clauses; the row's "on
+// <branch>" chip makes the current state obvious. Auto/recipe pins are recomputed
+// (not stored) and cannot carry a branch, so they are rejected up front. A read
+// failure warns instead of guessing, so a pin never gets a branch it can never match.
+async function toggleBranchLink(store: PinStore, pin: Pin): Promise<void> {
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  if (pin.isAuto || pin.isRecipe) {
+    vscode.window.showWarningMessage(l10n("branch.unsupported", { name }));
+    return;
+  }
+  // Already linked: clear it ("show on all branches").
+  if (pin.branch !== undefined) {
+    await store.setPinBranch(pin, undefined);
+    vscode.window.showInformationMessage(l10n("branch.unlinked", { name }));
+    return;
+  }
+  // Unlinked: scope it to the owning folder's current branch.
+  const folder = store.folderOf(pin) ?? vscode.workspace.workspaceFolders?.[0];
+  if (!folder) {
+    vscode.window.showWarningMessage(l10n("branch.noRepo", { name }));
+    return;
+  }
+  const branch = await readCurrentBranch(folder);
+  if (!branch) {
+    vscode.window.showWarningMessage(l10n("branch.noBranch", { name }));
+    return;
+  }
+  await store.setPinBranch(pin, branch);
+  vscode.window.showInformationMessage(l10n("branch.linked", { name, branch }));
+}
+
 // Show a file pin inside VS Code's native Peek overlay, floating over the active
 // editor at the cursor, instead of opening a new tab (roadmap WOW #14). This lets
 // the user glance at a pinned file without leaving the editor they are in — focus
@@ -1431,6 +1467,17 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await tagPin(store, pin);
+    }
+  });
+
+  // Link a pin to the current git branch (or clear the link) — WOW #3. A linked pin
+  // shows in the tree only while the owning folder is on that branch; switching
+  // branches re-filters the view live. A single toggle since the row chip shows the
+  // current state.
+  reg("saropaWorkspace.toggleBranchLink", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await toggleBranchLink(store, pin);
     }
   });
 

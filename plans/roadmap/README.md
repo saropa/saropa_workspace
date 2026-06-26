@@ -34,8 +34,11 @@ diverge, the plan records what is actually implemented today.
 
 ## Phase 4
 
-- [4.1 Unit tests](4.1-unit-tests.md) — **harness unshipped.** No test infra at all;
-  build it first, then cover store / command builder / schedule math / double-click.
+- [4.1 Unit tests](4.1-unit-tests.md) — **shipped.** esbuild + `node --test` harness
+  (no host, no new deps) covering store IO, command builder, token substitution +
+  interactive/remembered tokens, schedule math + DST, and the double-click
+  discriminator. The store-IO tests run against an fs-backed `vscode` stub, so the
+  `@vscode/test-electron` host suite the plan once parked them under was not needed.
 - [4.2 Integration smoke test](4.2-integration-smoke-test.md) — depends on the 4.1
   harness; activate + register + pin-and-run end to end.
 
@@ -55,7 +58,8 @@ diverge, the plan records what is actually implemented today.
 
 ## Suggested order
 
-1. **[4.1 harness](4.1-unit-tests.md)** — unblocks the tests every other item needs.
+1. **[4.1 harness](4.1-unit-tests.md)** — shipped; the test infra every other item
+   needs is now in place.
 2. **[1.2 multi-root](1.2-multi-root-refinements.md)**, **[suite
    subgroups](suite-integration.md)** — all extend shipped code, low risk. (3.4
    dashboard tabs shipped — see Phase 3.)

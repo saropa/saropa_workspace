@@ -15,8 +15,10 @@ import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
 import { PinFolderItem, PinTreeItem, RecentRootItem } from "./views/pinTreeItem";
 import { SuggestionTracker } from "./views/suggestions";
 import { ScheduleStatusBar } from "./views/scheduleStatusBar";
+import { SetStatusBar } from "./views/setStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
 import { registerPinCommands, createRoutineHooks } from "./commands/pinCommands";
+import { registerSetCommands } from "./commands/setCommands";
 import { registerSimulationPreview } from "./commands/simulateRun";
 import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
@@ -26,6 +28,7 @@ import { registerTerminalCleanup, isRunnable, setRoutineHooks } from "./exec/run
 import { Scheduler } from "./exec/scheduler";
 import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
+import { BranchTracker } from "./exec/gitBranch";
 import { IdleMonitor } from "./exec/idleMonitor";
 import { PinExpiry } from "./exec/pinExpiry";
 import { Heartbeat } from "./exec/heartbeat";
@@ -48,6 +51,11 @@ import { l10n } from "./i18n/l10n";
 // Gate flag so the one-time "import existing favorites" prompt does not reappear
 // once the user has answered (imported or dismissed) for this workspace.
 const IMPORT_PROMPT_KEY = "saropaWorkspace.favoritesImportOffered";
+
+// Persists the "show pins from all branches" escape hatch (WOW #3) per-workspace, so
+// a window reload keeps the chosen branch scope (filtering by current branch vs.
+// showing every branch-linked pin).
+const SHOW_ALL_BRANCHES_KEY = "saropaWorkspace.showAllBranches";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const store = new PinStore(context);
@@ -96,7 +104,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // bar (registered below) mutates it.
   const filterState = new PinFilterState(context);
 
-  const tree = new PinsTreeProvider(store, filterState);
+  // Branch-linked pins (WOW #3): the tracker reads each folder's current branch and
+  // fires on a checkout so the tree re-filters live. The "show all branches" escape
+  // hatch (for a pin scoped to a deleted branch) is persisted per-workspace so a
+  // reload keeps the chosen scope. Disposable so its .git/HEAD watchers are released.
+  const branchTracker = new BranchTracker();
+  context.subscriptions.push(branchTracker);
+  const showAllBranches = context.workspaceState.get<boolean>(
+    SHOW_ALL_BRANCHES_KEY,
+    false
+  );
+
+  const tree = new PinsTreeProvider(
+    store,
+    filterState,
+    branchTracker,
+    showAllBranches
+  );
   const treeView = vscode.window.createTreeView("saropaWorkspace.pins", {
     treeDataProvider: tree,
     dragAndDropController: tree,
@@ -181,6 +205,47 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     tappedPins.onDidChange(() => refreshUntappedBadge())
   );
 
+  // Branch-linked pins (WOW #3): keep the title-bar affordances in sync. The
+  // "branchShowAll" key flips between the two toggle buttons (show-all vs filter-by-
+  // branch); "branchHasHidden" reveals the "Show pins from all branches" button only
+  // when branch filtering is actually hiding something, so it never appears as a dead
+  // control. Re-run on a store change (pins added/linked) and on a checkout.
+  const syncBranchView = (): void => {
+    void vscode.commands.executeCommand(
+      "setContext",
+      "saropaWorkspace.branchShowAll",
+      tree.isShowingAllBranches()
+    );
+    void vscode.commands.executeCommand(
+      "setContext",
+      "saropaWorkspace.branchHasHidden",
+      tree.hasBranchHiddenPins()
+    );
+  };
+  context.subscriptions.push(
+    store.onDidChange(() => syncBranchView()),
+    branchTracker.onDidChangeBranch(() => syncBranchView())
+  );
+  syncBranchView();
+
+  // The two branch-scope toggle commands (title-bar): one suspends branch filtering
+  // (the deleted-branch escape hatch), the other resumes it. Both persist the choice
+  // per-workspace and re-sync the affordances. Separate commands so each shows its
+  // own label/icon gated by the branchShowAll context key.
+  const setBranchScope = (showAll: boolean): void => {
+    tree.setShowAllBranches(showAll);
+    void context.workspaceState.update(SHOW_ALL_BRANCHES_KEY, showAll);
+    syncBranchView();
+  };
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.showAllBranches", () =>
+      setBranchScope(true)
+    ),
+    vscode.commands.registerCommand("saropaWorkspace.filterByBranch", () =>
+      setBranchScope(false)
+    )
+  );
+
   // Persist a group's open/closed posture so a folder stays the way the user
   // left it across sessions.
   context.subscriptions.push(
@@ -261,6 +326,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerRunOutputDiff(context);
   registerPinCommands(context, store, dispatcher);
 
+  // Named pin sets (multiple-favorite-sets roadmap): switch / create / rename /
+  // delete / duplicate. The active set's project pins are the tree's project pins,
+  // so switching simply swaps which set is live; global pins stay shared. The
+  // status-bar switcher below is the discoverable entry point.
+  registerSetCommands(context, store);
+
   // Inject the routine engine's resolve + run hooks now that the store exists (the
   // runner cannot import the store/command layer without a cycle). A routine pin's
   // members are resolved and run through the same single-pin path the tree uses.
@@ -311,6 +382,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // view handle created above.
   const scheduleStatusBar = new ScheduleStatusBar(store);
   context.subscriptions.push(scheduleStatusBar);
+
+  // Status-bar pin-set switcher: shows the active set's name and opens the switcher
+  // QuickPick on click. Hidden while the workspace is on the lone default set, so
+  // single-set users see no new chrome until they create a second set. Disposable
+  // so its status-bar item and store subscription are released on deactivation.
+  context.subscriptions.push(new SetStatusBar(store));
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.revealNextScheduled", async () => {
       const id = scheduleStatusBar.getCurrentPinId();
@@ -435,6 +512,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   syncPinnedPathContext(store);
   // Paint the initial untapped badge from the loaded pin set, for the same reason.
   refreshUntappedBadge();
+
+  // Read each folder's current branch now that the pin set is loaded; on completion
+  // it fires onDidChangeBranch, which repaints the tree with branch filtering applied
+  // and re-syncs the branch affordances. Deferred (not awaited) so it never blocks
+  // activation — until it resolves, every branch-linked pin shows (the safe default).
+  void branchTracker.init();
 
   // Arm timers now that the initial pin set is loaded. The scheduler also re-arms
   // itself on every subsequent store change via its onDidChange subscription.
