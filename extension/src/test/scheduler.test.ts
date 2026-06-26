@@ -1,12 +1,12 @@
 // Unit tests for the Scheduler's run-on-startup pass (roadmap 2.2). The scheduler
-// drives in-process timers off a REAL PinStore (the same fs-backed store shim the
-// pinStore / branchSets tests use), so these exercise the actual eligibility and
+// drives in-process timers off a REAL ShortcutStore (the same fs-backed store shim the
+// shortcutStore / branchSets tests use), so these exercise the actual eligibility and
 // advance logic: which startup pins fire, which are skipped, and that a skip still
 // records lastRun so the schedule advances rather than tight-looping.
 //
-// IMPORTANT — what is NOT driven here: a startup pin that actually RUNS reaches
+// IMPORTANT — what is NOT driven here: a startup shortcut that actually RUNS reaches
 // runPin -> the terminal/background launchers, which need vscode.window.createTerminal
-// (not modeled by the stub). So every pin in these tests is arranged to hit a SKIP
+// (not modeled by the stub). So every shortcut in these tests is arranged to hit a SKIP
 // branch (paused / not-on-startup / within the reload-dedup window / interactive
 // token), each of which returns before any launch. The skip branches are the ones
 // with the subtle invariant worth pinning down (advance-on-skip), so this is the
@@ -28,14 +28,14 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { Scheduler } from "../exec/scheduler";
-import type { PinSchedule } from "../model/pin";
+import type { ShortcutSchedule } from "../model/shortcut";
 import type { Uri as VscodeUri } from "vscode";
 
 const asUri = (u: Uri): VscodeUri => u as unknown as VscodeUri;
 
-// Let the timer-driven, fire-and-forget fireStartupPins (kicked off via `void` from
+// Let the timer-driven, fire-and-forget fireStartupShortcuts (kicked off via `void` from
 // the timer callback, so not awaitable by the caller) settle its async store IO. The
 // store's fs shim is node-backed, so a few macrotask turns cover the read/write.
 const flush = async (): Promise<void> => {
@@ -49,7 +49,7 @@ let folder: WorkspaceFolder;
 
 beforeEach(() => {
   __resetConfig();
-  // Skip recipe detection so a refresh exercises only store IO (mirrors pinStore.test).
+  // Skip recipe detection so a refresh exercises only store IO (mirrors shortcutStore.test).
   __setConfig("saropaWorkspace", "recipes.enabled", false);
   tmpDir = nodeFs
     .mkdtempSync(nodePath.join(os.tmpdir(), "sw-scheduler-"))
@@ -65,50 +65,50 @@ afterEach(() => {
   nodeFs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-// A store with a single project file pin carrying the given schedule. Returns the
-// store and the pin id so a test can read lastRun back after a pass.
-async function storeWithScheduledPin(
+// A store with a single project file shortcut carrying the given schedule. Returns the
+// store and the shortcut id so a test can read lastRun back after a pass.
+async function storeWithScheduledShortcut(
   relPath: string,
-  schedule: PinSchedule
-): Promise<{ store: PinStore; pinId: string }> {
-  const store = new PinStore(fakeContext());
+  schedule: ShortcutSchedule
+): Promise<{ store: ShortcutStore; pinId: string }> {
+  const store = new ShortcutStore(fakeContext());
   await store.init();
-  await store.addPin(asUri(Uri.joinPath(folder.uri, relPath)), "project");
-  const pin = store.getProjectPins().find((p) => p.path === relPath)!;
-  await store.updatePinSchedule(pin, schedule);
-  const refreshed = store.getProjectPins().find((p) => p.path === relPath)!;
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, relPath)), "project");
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === relPath)!;
+  await store.updateShortcutSchedule(shortcut, schedule);
+  const refreshed = store.getProjectShortcuts().find((p) => p.path === relPath)!;
   return { store, pinId: refreshed.id };
 }
 
-function lastRunOf(store: PinStore, pinId: string): number | undefined {
-  return store.findPin(pinId)?.schedule?.lastRun;
+function lastRunOf(store: ShortcutStore, pinId: string): number | undefined {
+  return store.findShortcut(pinId)?.schedule?.lastRun;
 }
 
 // Run the deferred startup pass to completion: advance past the 1.5s delay, then
 // flush the async store IO the fire path performs.
 async function runStartup(scheduler: Scheduler): Promise<void> {
-  scheduler.runStartupPins();
+  scheduler.runStartupShortcuts();
   mock.timers.tick(2_000); // past STARTUP_RUN_DELAY_MS (1.5s)
   await flush();
 }
 
 test("a paused run-on-startup pin does not fire (its lastRun is untouched)", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
-  // Seed an old lastRun OUTSIDE the dedup window so the only thing keeping the pin
+  // Seed an old lastRun OUTSIDE the dedup window so the only thing keeping the shortcut
   // from firing is the pause — isolating the paused guard from the dedup guard.
   const stale = Date.now() - 10 * 60_000;
-  const { store, pinId } = await storeWithScheduledPin("paused.sh", {
+  const { store, pinId } = await storeWithScheduledShortcut("paused.sh", {
     enabled: true,
     runOnStartup: true,
     lastRun: stale,
   });
-  // Pause the pin through the real toggle: an unattended startup fire must skip it.
-  await store.setPinPaused(store.findPin(pinId)!, true);
+  // Pause the shortcut through the real toggle: an unattended startup fire must skip it.
+  await store.setShortcutPaused(store.findShortcut(pinId)!, true);
 
   const scheduler = new Scheduler(store);
   try {
     await runStartup(scheduler);
-    // A paused pin is skipped before fire(), so lastRun is never refreshed by the pass.
+    // A paused shortcut is skipped before fire(), so lastRun is never refreshed by the pass.
     assert.equal(lastRunOf(store, pinId), stale, "the paused pin's lastRun is untouched");
   } finally {
     scheduler.dispose();
@@ -119,7 +119,7 @@ test("a schedule without runOnStartup is not fired by the startup pass", async (
   mock.timers.enable({ apis: ["setTimeout"] });
   // A time-based-only schedule (no runOnStartup) must not be picked up by the
   // startup pass — it fires via its time slot, not on activation.
-  const { store, pinId } = await storeWithScheduledPin("daily.sh", {
+  const { store, pinId } = await storeWithScheduledShortcut("daily.sh", {
     enabled: true,
     atTime: "09:00",
   });
@@ -135,7 +135,7 @@ test("a schedule without runOnStartup is not fired by the startup pass", async (
 test("a startup pin that fired within the reload-dedup window is skipped", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   const recent = Date.now() - 5_000; // well inside the 2-minute reload window
-  const { store, pinId } = await storeWithScheduledPin("startup.sh", {
+  const { store, pinId } = await storeWithScheduledShortcut("startup.sh", {
     enabled: true,
     runOnStartup: true,
     lastRun: recent,
@@ -156,18 +156,18 @@ test("a startup pin that fired within the reload-dedup window is skipped", async
 
 test("a startup pin needing interactive input is skipped but its schedule still advances", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
-  // An interactive token cannot be answered in an unattended pass, so the pin is
+  // An interactive token cannot be answered in an unattended pass, so the shortcut is
   // skipped — but fire() still records lastRun so the slot does not tight-loop. The
   // ${prompt:} lives in an arg, which planRun/hasInteractiveTokens inspects.
   const before = Date.now();
-  const { store, pinId } = await storeWithScheduledPin("interactive.sh", {
+  const { store, pinId } = await storeWithScheduledShortcut("interactive.sh", {
     enabled: true,
     runOnStartup: true,
   });
   // Attach an interactive-token exec config through the real updater. The
   // ${prompt:} in an arg is what hasInteractiveTokens detects, so fire() takes the
   // interactive-skip branch (which still advances lastRun) rather than launching.
-  await store.updatePinExec(store.findPin(pinId)!, {
+  await store.updateShortcutExec(store.findShortcut(pinId)!, {
     command: "echo",
     args: ["${prompt:name}"],
   });
@@ -185,14 +185,14 @@ test("a startup pin needing interactive input is skipped but its schedule still 
 
 test("runStartupPins on a disposed scheduler is inert (no timer armed)", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
-  const { store, pinId } = await storeWithScheduledPin("startup.sh", {
+  const { store, pinId } = await storeWithScheduledShortcut("startup.sh", {
     enabled: true,
     runOnStartup: true,
   });
   const scheduler = new Scheduler(store);
   scheduler.dispose();
   // After dispose, the startup pass is a no-op: ticking past the delay fires nothing.
-  scheduler.runStartupPins();
+  scheduler.runStartupShortcuts();
   mock.timers.tick(2_000);
   await flush();
   assert.equal(lastRunOf(store, pinId), undefined, "a disposed scheduler does not fire");
@@ -202,7 +202,7 @@ test("dispose clears an armed schedule timer so a far slot never fires after tea
   mock.timers.enable({ apis: ["setTimeout"] });
   // A near-future interval slot arms a real timer via start(); dispose must clear it
   // so it cannot fire into a torn-down store.
-  const { store, pinId } = await storeWithScheduledPin("interval.sh", {
+  const { store, pinId } = await storeWithScheduledShortcut("interval.sh", {
     enabled: true,
     everyMs: 1_000,
   });

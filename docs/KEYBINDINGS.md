@@ -4,18 +4,18 @@ Saropa Workspace ships no default key bindings (to avoid clashing with your
 existing ones). Bind any of the commands below in **File → Preferences →
 Keyboard Shortcuts** (`Ctrl+K Ctrl+S`), or directly in `keybindings.json`.
 
-## Run a "top" pin by position
+## Run a "top" shortcut by position
 
-Five commands run the Nth pin in tree order — reorder pins by dragging to choose
-which are your "top" pins:
+Five commands run the Nth shortcut in tree order — reorder shortcuts by dragging
+to choose which are your "top" shortcuts:
 
 | Command id | Title |
 |---|---|
-| `saropaWorkspace.runTopPin1` | Run Top Pin 1 |
-| `saropaWorkspace.runTopPin2` | Run Top Pin 2 |
-| `saropaWorkspace.runTopPin3` | Run Top Pin 3 |
-| `saropaWorkspace.runTopPin4` | Run Top Pin 4 |
-| `saropaWorkspace.runTopPin5` | Run Top Pin 5 |
+| `saropaWorkspace.runTopPin1` | Run Top Shortcut 1 |
+| `saropaWorkspace.runTopPin2` | Run Top Shortcut 2 |
+| `saropaWorkspace.runTopPin3` | Run Top Shortcut 3 |
+| `saropaWorkspace.runTopPin4` | Run Top Shortcut 4 |
+| `saropaWorkspace.runTopPin5` | Run Top Shortcut 5 |
 
 Example `keybindings.json`:
 
@@ -26,11 +26,11 @@ Example `keybindings.json`:
 ]
 ```
 
-## Run a specific pin by reference
+## Run a specific shortcut by reference
 
-`saropaWorkspace.runPinById` takes a binding argument matched against a pin's id,
-label, path, or basename — bind it to run one specific pin regardless of its
-position:
+`saropaWorkspace.runPinById` takes a binding argument matched against a
+shortcut's id, label, path, or basename — bind it to run one specific shortcut
+regardless of its position:
 
 ```json
 [
@@ -42,7 +42,7 @@ position:
 ]
 ```
 
-The `args` value is matched against, in order, the pin's id, its label, its
+The `args` value is matched against, in order, the shortcut's id, its label, its
 stored path, and its basename — so `"build.sh"`, a label like `"Build"`, or the
 full relative path all work.
 
@@ -52,11 +52,11 @@ These have no default binding either, but are useful to bind:
 
 | Command id | Title |
 |---|---|
-| `saropaWorkspace.runAnyPin` | Run Pin… (QuickPick of all pins, recents first) |
-| `saropaWorkspace.runPinWithOverrides` | Run Pin with Overrides… |
-| `saropaWorkspace.pinActiveFile` | Pin Active File (Project) |
-| `saropaWorkspace.pinActiveFileGlobal` | Pin Active File (Global) |
-| `saropaWorkspace.refresh` | Refresh the Pins view |
+| `saropaWorkspace.runAnyPin` | Run Shortcut… (QuickPick of all shortcuts, recents first) |
+| `saropaWorkspace.runPinWithOverrides` | Run Shortcut with Overrides… |
+| `saropaWorkspace.pinActiveFile` | Add Active File as Shortcut (Project) |
+| `saropaWorkspace.pinActiveFileGlobal` | Add Active File as Shortcut (Global) |
+| `saropaWorkspace.refresh` | Refresh the Shortcuts view |
 | `saropaWorkspace.refreshProjectFiles` | Refresh the Project Files view |
 
 All run paths route through the same runner, so a key-bound run behaves exactly

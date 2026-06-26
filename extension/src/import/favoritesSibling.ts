@@ -1,18 +1,18 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import type { KdcroFavoriteEntry } from "./favoritesImport";
 
 // --- sibling-project scan ------------------------------------------------
 //
 // Bring favorites in from OTHER projects on disk: the immediate sibling folders
 // one directory level up from each open workspace folder. Unlike the in-workspace
-// import (which writes folder-relative PROJECT pins), a sibling's favorite is an
+// import (which writes folder-relative PROJECT shortcuts), a sibling's favorite is an
 // absolute path outside the current workspace folder, so it can only be a GLOBAL
-// pin. The scan is explicit (a command), never automatic on activation, to keep
+// shortcut. The scan is explicit (a command), never automatic on activation, to keep
 // cross-project disk reads a deliberate user action.
 
 // We recognize two on-disk formats in a sibling project: the kdcro101
-// `.favorites.json` (absolute fsPath entries) and our own project pins file
+// `.favorites.json` (absolute fsPath entries) and our own project shortcuts file
 // (paths relative to the sibling folder).
 type SiblingFormat = "kdcro" | "saropa";
 
@@ -30,15 +30,15 @@ export interface SiblingFavorites {
   format: SiblingFormat;
 }
 
-// Our own project pins file shape, as far as the sibling scan needs it: each pin
-// carries a folder-relative path. (auto-pins are never stored in pins[].)
-interface SaropaPinsFile {
+// Our own project shortcuts file shape, as far as the sibling scan needs it: each
+// shortcut carries a folder-relative path. (auto-shortcuts are never stored in pins[].)
+interface SaropaShortcutsFile {
   pins?: { path?: string }[];
 }
 
 // Scan the immediate sibling folders of every open workspace folder for known
 // favorites files. Skips the workspace folders themselves (their favorites are
-// project pins, not cross-project imports) and de-duplicates shared parents.
+// project shortcuts, not cross-project imports) and de-duplicates shared parents.
 export async function detectSiblingFavorites(): Promise<SiblingFavorites[]> {
   const openFolderPaths = new Set(
     (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath)
@@ -68,7 +68,7 @@ export async function detectSiblingFavorites(): Promise<SiblingFavorites[]> {
         continue;
       }
       const siblingDir = vscode.Uri.joinPath(parent, name);
-      // A sibling that is itself open owns its favorites as project pins.
+      // A sibling that is itself open owns its favorites as project shortcuts.
       if (openFolderPaths.has(siblingDir.fsPath)) {
         continue;
       }
@@ -124,24 +124,24 @@ async function resolveSiblingUris(
   }
 
   // saropa format: paths are relative to the sibling folder.
-  const file = parsed as SaropaPinsFile;
-  const pins = Array.isArray(file.pins) ? file.pins : [];
-  return pins
+  const file = parsed as SaropaShortcutsFile;
+  const shortcuts = Array.isArray(file.pins) ? file.pins : [];
+  return shortcuts
     .filter((p) => !!p.path)
     .map((p) => vscode.Uri.joinPath(sibling.siblingDir, p.path as string));
 }
 
-// Import one detected sibling favorites file as GLOBAL pins. Returns the number
-// of newly added pins (the store skips duplicates by absolute path, so re-running
+// Import one detected sibling favorites file as GLOBAL shortcuts. Returns the number
+// of newly added shortcuts (the store skips duplicates by absolute path, so re-running
 // the scan is idempotent).
 export async function importSiblingFavorites(
   sibling: SiblingFavorites,
-  store: PinStore
+  store: ShortcutStore
 ): Promise<number> {
   const uris = await resolveSiblingUris(sibling);
   let added = 0;
   for (const uri of uris) {
-    if (await store.addPin(uri, "global")) {
+    if (await store.addShortcut(uri, "global")) {
       added++;
     }
   }

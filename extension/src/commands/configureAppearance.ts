@@ -1,16 +1,16 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
-// Roadmap 5.1 — per-pin icon and color customization.
+// Roadmap 5.1 — per-shortcut icon and color customization.
 //
 // A two-step QuickPick: pick a product-icon (codicon) from a curated set, then a
 // theme color. Both offer a "default" choice to clear the override. Icons and
 // colors are theme-aware sources (ThemeIcon / ThemeColor), never raw literals, so
 // they render correctly in light, dark, and high-contrast themes.
 
-// Curated codicon ids offered for a pin, grouped into scannable categories. A
+// Curated codicon ids offered for a shortcut, grouped into scannable categories. A
 // single grouped QuickPick (category separators + type-to-filter) replaces the old
 // flat list — the user scans a category or types the icon name, instead of hunting
 // one long unstructured wall. Every id is a valid VS Code product icon; the leading
@@ -94,18 +94,18 @@ const COLOR_CHOICES: Array<{ id: string; key: string }> = [
   { id: "charts.foreground", key: "appearance.color.neutral" },
 ];
 
-export async function configureAppearance(store: PinStore, pin: Pin): Promise<void> {
-  // Auto-pins are recomputed each refresh and not stored in pins[], so there is
+export async function configureAppearance(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  // Auto-shortcuts are recomputed each refresh and not stored in pins[], so there is
   // nowhere to persist an icon/color; surface that rather than silently failing.
-  if (pin.isAuto) {
+  if (shortcut.isAuto) {
     vscode.window.showWarningMessage(l10n("appearance.autoUnsupported"));
     return;
   }
 
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   const title = l10n("appearance.title", { name });
 
-  const icon = await pickIcon(pin, title);
+  const icon = await pickIcon(shortcut, title);
   if (icon === CANCELED) {
     return;
   }
@@ -113,14 +113,14 @@ export async function configureAppearance(store: PinStore, pin: Pin): Promise<vo
   // clear the color too so no orphan tint persists.
   let color: string | undefined;
   if (icon !== undefined) {
-    const picked = await pickColor(pin, title);
+    const picked = await pickColor(shortcut, title);
     if (picked === CANCELED) {
       return;
     }
     color = picked;
   }
 
-  await store.updatePinAppearance(pin, icon, color);
+  await store.updateShortcutAppearance(shortcut, icon, color);
   vscode.window.showInformationMessage(l10n("appearance.saved", { name }));
 }
 
@@ -129,7 +129,7 @@ export async function configureAppearance(store: PinStore, pin: Pin): Promise<vo
 const CANCELED = Symbol("canceled");
 
 async function pickIcon(
-  pin: Pin,
+  shortcut: Shortcut,
   title: string
 ): Promise<string | undefined | typeof CANCELED> {
   // `value` is the chosen codicon id; undefined on the "default / clear" item.
@@ -158,7 +158,7 @@ async function pickIcon(
         label: `$(${id}) ${id}`,
         description: l10n(`appearance.iconKeyword.${id}`),
         value: id,
-        picked: pin.icon === id,
+        picked: shortcut.icon === id,
       });
     }
   }
@@ -171,7 +171,7 @@ async function pickIcon(
 }
 
 async function pickColor(
-  pin: Pin,
+  shortcut: Shortcut,
   title: string
 ): Promise<string | undefined | typeof CANCELED> {
   interface ColorItem extends vscode.QuickPickItem {
@@ -182,7 +182,7 @@ async function pickColor(
     ...COLOR_CHOICES.map((c) => ({
       label: l10n(c.key),
       value: c.id,
-      picked: pin.color === c.id,
+      picked: shortcut.color === c.id,
     })),
   ];
   const pick = await vscode.window.showQuickPick(items, {

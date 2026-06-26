@@ -5,11 +5,11 @@
 // anything else is intentionally absent so an accidental new host dependency fails
 // loudly at bundle/run time rather than silently passing against a fake.
 //
-// The store-IO tests (pinStore) need real persistence, so workspace.fs is backed
+// The store-IO tests (shortcutStore) need real persistence, so workspace.fs is backed
 // by the actual node filesystem against a temp directory the test creates, and
 // workspace.workspaceFolders / getConfiguration are settable per test. This makes
-// the REAL PinStore code run (readProjectFile / writeProjectFile / migration /
-// seedAutoPins) — only the host shell is faked, which is unavoidable outside the
+// the REAL ShortcutStore code run (readProjectFile / writeProjectFile / migration /
+// seedAutoShortcuts) — only the host shell is faked, which is unavoidable outside the
 // Electron host. globalState / workspaceState are faked by the test's own
 // ExtensionContext (an in-memory Map), not here.
 
@@ -17,7 +17,7 @@ import * as nodeFs from "node:fs";
 import * as nodePath from "node:path";
 
 // vscode.FileType: the store reads `.type` from a stat to tell a file from a
-// directory (the auto-pin literal-path branch). Only File/Directory are exercised.
+// directory (the auto-shortcut literal-path branch). Only File/Directory are exercised.
 export const FileType = {
   Unknown: 0,
   File: 1,
@@ -65,14 +65,14 @@ export class Uri {
 }
 
 // A workspace folder: the store reads `.uri` (for joinPath / fsPath) and `.name`
-// (for stable auto-pin ids). `index` completes the vscode shape.
+// (for stable auto-shortcut ids). `index` completes the vscode shape.
 export interface WorkspaceFolder {
   readonly uri: Uri;
   readonly name: string;
   readonly index: number;
 }
 
-// vscode.RelativePattern: constructed by the store only on the GLOB auto-pin
+// vscode.RelativePattern: constructed by the store only on the GLOB auto-shortcut
 // branch (a pattern with wildcards). Holds the base folder + the glob string;
 // findFiles below reads both.
 export class RelativePattern {
@@ -103,7 +103,7 @@ function ownerFolder(uri: Uri): WorkspaceFolder | undefined {
 // Settable configuration. Keyed by the full "section.key" the store requests; an
 // unset key returns the caller's default (the common path the unit tests took
 // before store IO existed). A test sets recipes.enabled=false to skip the recipe
-// detection graph, or autoPins.patterns to drive seeding.
+// detection graph, or autoShortcuts.patterns to drive seeding.
 const configValues = new Map<string, unknown>();
 export function __setConfig(section: string, key: string, value: unknown): void {
   configValues.set(section ? `${section}.${key}` : key, value);
@@ -125,7 +125,7 @@ function getConfiguration(section?: string): {
 }
 
 // Convert a VS Code glob to a RegExp anchored to a folder-relative POSIX path.
-// Handles the constructs the auto-pin patterns use: `**` (any depth), `*` (one
+// Handles the constructs the auto-shortcut patterns use: `**` (any depth), `*` (one
 // segment), `?` (one char). Enough to expand a real glob against the temp tree;
 // literal patterns never reach here (the store stats those directly).
 function globToRegExp(glob: string): RegExp {
@@ -157,7 +157,7 @@ function globToRegExp(glob: string): RegExp {
   return new RegExp("^" + re + "$");
 }
 
-// workspace.findFiles for the glob auto-pin branch: walk the base folder, match
+// workspace.findFiles for the glob auto-shortcut branch: walk the base folder, match
 // each file's folder-relative POSIX path against the pattern, skip the excluded
 // subtree (the store passes node_modules), and cap at maxResults. The non-glob
 // branch never calls this — the store stats a literal path directly.
@@ -359,7 +359,7 @@ export function __fireActiveEditor(): void {
 // commands.executeCommand: the analytics preview calls it to open the Markdown
 // preview, but the unit-tested path (buildReport) never reaches it. Modeled as an
 // inert async no-op. Each call is recorded so a test that DOES care which command
-// ran (the branch-set binder's on-switch pin runner) can assert it; the recording
+// ran (the branch-set binder's on-switch shortcut runner) can assert it; the recording
 // is cleared by __resetRecordedCommands.
 const recordedCommands: Array<{ command: string; args: unknown[] }> = [];
 export const commands = {

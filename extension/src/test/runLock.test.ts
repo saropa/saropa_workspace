@@ -136,7 +136,7 @@ test("release of an absent lock is a harmless no-op", () => {
 });
 
 test("lock names with filesystem-hostile characters still round-trip", () => {
-  // The name is user-chosen (a pin's lockName); characters outside [A-Za-z0-9._-] are
+  // The name is user-chosen (a shortcut's lockName); characters outside [A-Za-z0-9._-] are
   // collapsed to a single filename, so a name with slashes/spaces must still acquire,
   // read back, and release cleanly rather than escape the lock directory.
   const name = "gpu/0: heavy run!!";

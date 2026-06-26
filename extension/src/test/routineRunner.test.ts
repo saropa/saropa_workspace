@@ -24,15 +24,15 @@ import {
 } from "./_stub/vscode";
 import { runRoutine, setRoutineHooks, type RoutineHooks } from "../exec/routineRunner";
 import { runStatusRegistry } from "../exec/runStatus";
-import { pinEvents, type PinCompletion } from "../exec/pinEvents";
-import type { Pin, RoutineMember } from "../model/pin";
+import { shortcutEvents, type ShortcutCompletion } from "../exec/shortcutEvents";
+import type { Shortcut, RoutineMember } from "../model/shortcut";
 
 let tmpDir: string;
 let folder: WorkspaceFolder;
 
-// Pin ids the tests record results for, cleared after so the singleton registry does
+// Shortcut ids the tests record results for, cleared after so the singleton registry does
 // not leak a session entry into another test.
-const usedPinIds = new Set<string>();
+const usedShortcutIds = new Set<string>();
 
 beforeEach(() => {
   __resetConfig();
@@ -46,15 +46,15 @@ beforeEach(() => {
 afterEach(() => {
   __setWorkspaceFolders(undefined);
   __resetConfig();
-  for (const id of usedPinIds) {
+  for (const id of usedShortcutIds) {
     runStatusRegistry.clear(id);
   }
-  usedPinIds.clear();
+  usedShortcutIds.clear();
   nodeFs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-function pin(over: Partial<Pin> = {}): Pin {
-  return { id: "routine", path: "", scope: "project", order: 0, ...over } as Pin;
+function shortcut(over: Partial<Shortcut> = {}): Shortcut {
+  return { id: "routine", path: "", scope: "project", order: 0, ...over } as Shortcut;
 }
 
 function member(over: Partial<RoutineMember> = {}): RoutineMember {
@@ -64,16 +64,16 @@ function member(over: Partial<RoutineMember> = {}): RoutineMember {
 // Subscribe to the completion bus and collect what the routine fires, so the
 // success/failure/dispatched outcome the engine reports can be asserted. Returns the
 // collected list plus the disposer.
-function captureCompletions(): { seen: PinCompletion[]; dispose(): void } {
-  const seen: PinCompletion[] = [];
-  const sub = pinEvents.onDidComplete((c) => seen.push(c));
+function captureCompletions(): { seen: ShortcutCompletion[]; dispose(): void } {
+  const seen: ShortcutCompletion[] = [];
+  const sub = shortcutEvents.onDidComplete((c) => seen.push(c));
   return { seen, dispose: () => sub.dispose() };
 }
 
 test("an empty routine fires a dispatched completion and writes no report", async () => {
   const cap = captureCompletions();
   try {
-    await runRoutine(pin({ id: "empty", label: "Empty" }), [], "manual");
+    await runRoutine(shortcut({ id: "empty", label: "Empty" }), [], "manual");
     assert.deepEqual(cap.seen, [{ pinId: "empty", outcome: "dispatched" }]);
   } finally {
     cap.dispose();
@@ -81,13 +81,13 @@ test("an empty routine fires a dispatched completion and writes no report", asyn
 });
 
 test("a routine of one passing member badges success and reports its outcome", async () => {
-  const memberPin = pin({ id: "m-ok", label: "Build" });
+  const memberShortcut = shortcut({ id: "m-ok", label: "Build" });
   const hooks: RoutineHooks = {
-    resolveMember: () => memberPin,
+    resolveMember: () => memberShortcut,
     // The fake run records a tracked success result, so the engine classifies the
     // member as "ok" and the routine as a success.
     runMember: async (p) => {
-      usedPinIds.add(p.id);
+      usedShortcutIds.add(p.id);
       runStatusRegistry.record(p.id, {
         outcome: "success",
         exitCode: 0,
@@ -97,13 +97,13 @@ test("a routine of one passing member badges success and reports its outcome", a
     },
   };
   setRoutineHooks(hooks);
-  usedPinIds.add("routine-ok");
+  usedShortcutIds.add("routine-ok");
 
   const cap = captureCompletions();
   try {
-    await runRoutine(pin({ id: "routine-ok", label: "Morning" }), [member({ pinId: "m-ok" })], "manual");
+    await runRoutine(shortcut({ id: "routine-ok", label: "Morning" }), [member({ pinId: "m-ok" })], "manual");
     assert.deepEqual(cap.seen, [{ pinId: "routine-ok", outcome: "success" }]);
-    // The routine pin is badged with a tracked worst-outcome result.
+    // The routine shortcut is badged with a tracked worst-outcome result.
     const result = runStatusRegistry.get("routine-ok");
     assert.equal(result?.outcome, "success", "a clean routine badges success");
   } finally {
@@ -112,13 +112,13 @@ test("a routine of one passing member badges success and reports its outcome", a
 });
 
 test("a failing member makes the whole routine fail (continue-on-failure, worst outcome)", async () => {
-  const okPin = pin({ id: "m1", label: "Lint" });
-  const badPin = pin({ id: "m2", label: "Test" });
-  const byId: Record<string, Pin> = { m1: okPin, m2: badPin };
+  const okShortcut = shortcut({ id: "m1", label: "Lint" });
+  const badShortcut = shortcut({ id: "m2", label: "Test" });
+  const byId: Record<string, Shortcut> = { m1: okShortcut, m2: badShortcut };
   const hooks: RoutineHooks = {
     resolveMember: (m) => byId[m.pinId ?? ""],
     runMember: async (p) => {
-      usedPinIds.add(p.id);
+      usedShortcutIds.add(p.id);
       // m1 succeeds, m2 fails — but both run (the engine does not stop at the failure).
       runStatusRegistry.record(p.id, {
         outcome: p.id === "m2" ? "failure" : "success",
@@ -129,12 +129,12 @@ test("a failing member makes the whole routine fail (continue-on-failure, worst 
     },
   };
   setRoutineHooks(hooks);
-  usedPinIds.add("routine-fail");
+  usedShortcutIds.add("routine-fail");
 
   const cap = captureCompletions();
   try {
     await runRoutine(
-      pin({ id: "routine-fail", label: "Checks" }),
+      shortcut({ id: "routine-fail", label: "Checks" }),
       [member({ pinId: "m1" }), member({ pinId: "m2" })],
       "manual"
     );
@@ -155,12 +155,12 @@ test("a missing member is skipped, not failed, and the routine still completes",
     },
   };
   setRoutineHooks(hooks);
-  usedPinIds.add("routine-missing");
+  usedShortcutIds.add("routine-missing");
 
   const cap = captureCompletions();
   try {
     await runRoutine(
-      pin({ id: "routine-missing", label: "Partial" }),
+      shortcut({ id: "routine-missing", label: "Partial" }),
       [member({ pinId: "gone" })],
       "manual"
     );
@@ -174,20 +174,20 @@ test("a missing member is skipped, not failed, and the routine still completes",
 test("a member that is itself a routine is skipped (routines do not nest)", async () => {
   // A nested-routine member is skipped to bound sequencing and prevent cycles, so it
   // never runs and is not a failure.
-  const nestedPin = pin({ id: "nested", label: "Inner", action: { kind: "routine" } });
+  const nestedShortcut = shortcut({ id: "nested", label: "Inner", action: { kind: "routine" } });
   const hooks: RoutineHooks = {
-    resolveMember: () => nestedPin,
+    resolveMember: () => nestedShortcut,
     runMember: async () => {
       throw new Error("a nested routine member must not run");
     },
   };
   setRoutineHooks(hooks);
-  usedPinIds.add("routine-nested");
+  usedShortcutIds.add("routine-nested");
 
   const cap = captureCompletions();
   try {
     await runRoutine(
-      pin({ id: "routine-nested", label: "Outer" }),
+      shortcut({ id: "routine-nested", label: "Outer" }),
       [member({ pinId: "nested" })],
       "manual"
     );
@@ -198,9 +198,9 @@ test("a member that is itself a routine is skipped (routines do not nest)", asyn
 });
 
 test("a thrown member run is caught and counts as a failure", async () => {
-  const memberPin = pin({ id: "m-throw", label: "Flaky" });
+  const memberShortcut = shortcut({ id: "m-throw", label: "Flaky" });
   const hooks: RoutineHooks = {
-    resolveMember: () => memberPin,
+    resolveMember: () => memberShortcut,
     runMember: async () => {
       // A member that throws (e.g. a spawn error) must not abort the routine; it is
       // recorded as a failed member and folded into the routine's worst outcome.
@@ -208,12 +208,12 @@ test("a thrown member run is caught and counts as a failure", async () => {
     },
   };
   setRoutineHooks(hooks);
-  usedPinIds.add("routine-throw");
+  usedShortcutIds.add("routine-throw");
 
   const cap = captureCompletions();
   try {
     await runRoutine(
-      pin({ id: "routine-throw", label: "Risky" }),
+      shortcut({ id: "routine-throw", label: "Risky" }),
       [member({ pinId: "m-throw" })],
       "manual"
     );

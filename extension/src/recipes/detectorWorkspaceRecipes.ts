@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinAction } from "../model/pin";
+import { ShortcutAction } from "../model/shortcut";
 import { firstExisting, exists } from "./detectorHelpers";
 import {
   detectEntryPoint,
@@ -21,7 +21,7 @@ export async function pushWorkspaceRecipes(
   pkg: Record<string, unknown> | undefined,
   out: RecipeResult[]
 ): Promise<void> {
-  // 17: entry point (a file pin).
+  // 17: entry point (a file shortcut).
   const entry = await detectEntryPoint(folder, pkg);
   if (entry) {
     out.push({
@@ -33,12 +33,12 @@ export async function pushWorkspaceRecipes(
     });
   }
 
-  // 69-72: canonical project docs (file pins). Each is offered only when the file
+  // 69-72: canonical project docs (file shortcuts). Each is offered only when the file
   // is actually present at the folder root, so a project without a CHANGELOG never
   // shows a dead opener. Standalone openers — the boot macro opens the README as a
   // step, but a direct one-click "open the changelog / license / contributing" is
   // what a reader reaches for outside a boot sequence.
-  const docPins: Array<{
+  const docShortcuts: Array<{
     recipeId: string;
     label: string;
     description: string;
@@ -74,7 +74,7 @@ export async function pushWorkspaceRecipes(
       names: ["CONTRIBUTING.md", "contributing.md", "CONTRIBUTING"],
     },
   ];
-  for (const doc of docPins) {
+  for (const doc of docShortcuts) {
     const found = await firstExisting(folder, doc.names);
     if (found) {
       out.push({
@@ -87,7 +87,7 @@ export async function pushWorkspaceRecipes(
     }
   }
 
-  // 18: set up .env (command pin -> helper command), only when example exists and
+  // 18: set up .env (command shortcut -> helper command), only when example exists and
   // .env is missing.
   if ((await exists(folder, ".env.example")) && !(await exists(folder, ".env"))) {
     out.push({
@@ -103,7 +103,7 @@ export async function pushWorkspaceRecipes(
     });
   }
 
-  // 19: open all config files (command pin -> helper command).
+  // 19: open all config files (command shortcut -> helper command).
   out.push({
     recipeId: "config.open",
     label: "Open all config files",
@@ -121,7 +121,7 @@ export async function pushWorkspaceRecipes(
   const devCommand = await detectDevCommand(folder, pkg);
   if (readme && devCommand) {
     const port = await detectPort(folder, pkg);
-    const steps: PinAction["steps"] = [
+    const steps: ShortcutAction["steps"] = [
       { kind: "open", path: vscode.Uri.joinPath(folder.uri, readme).fsPath },
       { kind: "shell", shellCommand: devCommand, cwd: folder.uri.fsPath },
     ];
@@ -150,7 +150,7 @@ export async function pushWorkspaceRecipes(
     });
   }
 
-  // 22: copy name@version (command pin -> helper command).
+  // 22: copy name@version (command shortcut -> helper command).
   if (await hasVersionSource(folder, pkg)) {
     out.push({
       recipeId: "copy.version",
@@ -165,7 +165,7 @@ export async function pushWorkspaceRecipes(
     });
   }
 
-  // 24: run the nearest package script (command pin -> helper command).
+  // 24: run the nearest package script (command shortcut -> helper command).
   if (pkg && pkg.scripts && typeof pkg.scripts === "object") {
     out.push({
       recipeId: "nearest.script",

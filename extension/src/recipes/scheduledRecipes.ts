@@ -1,20 +1,20 @@
 import * as vscode from "vscode";
-import { PinSchedule } from "../model/pin";
+import { ShortcutSchedule } from "../model/shortcut";
 import { RecipeResult } from "./detectors";
 import { getGitRemote } from "./gitMeta";
 
-// Scheduled-ritual recipes (recipe book category E, 26-35). Each is a recipe pin
+// Scheduled-ritual recipes (recipe book category E, 26-35). Each is a recipe shortcut
 // carrying a shell action that captures its output to a dated file under
 // reports/ (and opens it when useful), plus a suggested daily time.
 //
 // Safety: scheduled recipes seed with the schedule DISABLED. They are detected
 // suggestions, not unattended jobs that start running on their own (that would
 // violate the no-surprise / safe-execution principles). To actually schedule one,
-// the user promotes it to a stored pin and enables its schedule — promotion is
+// the user promotes it to a stored shortcut and enables its schedule — promotion is
 // the explicit act of creation. Until then it can still be run on demand.
 //
 // Day-of-week triggers (the doc's "weekday"/"weekly Mon") are not yet expressible
-// in PinSchedule (daily atTime + interval only), so those default to a daily time;
+// in ShortcutSchedule (daily atTime + interval only), so those default to a daily time;
 // richer scheduling is a separate roadmap item.
 
 async function readText(
@@ -44,7 +44,7 @@ async function exists(
 }
 
 // A disabled daily schedule at the suggested time (the user enables on promote).
-function daily(atTime: string): PinSchedule {
+function daily(atTime: string): ShortcutSchedule {
   return { atTime, enabled: false };
 }
 
@@ -146,7 +146,7 @@ export async function detectScheduledRecipes(
     out.push({
       recipeId: "ritual.lint",
       label: "Dawn lint sweep",
-      description: "Scheduled (daily, default 05:00): runs the project's linter unattended into a background channel and writes a dated report under reports/, so the project's health is known before the day starts. Seeds disabled — enable it by promoting the recipe to a stored pin. Detected from the analyzer/linter config for the ecosystem.",
+      description: "Scheduled (daily, default 05:00): runs the project's linter unattended into a background channel and writes a dated report under reports/, so the project's health is known before the day starts. Seeds disabled — enable it by promoting the recipe to a stored shortcut. Detected from the analyzer/linter config for the ecosystem.",
       icon: "checklist",
       color: "charts.yellow",
       schedule: daily("05:00"),

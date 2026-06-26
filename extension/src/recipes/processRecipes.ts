@@ -9,8 +9,8 @@ import { RecipeResult } from "./detectors";
 //   - #62 the grouped snapshot: the two-sample, per-tool rolled-up table written to
 //     a dated report and opened — the upgrade over the old one-instant tasklist/ps
 //     capture (the CPU column is now a live delta, not cumulative CPU time).
-// The heartbeat (#61) is not a pin — it is a setting-gated background sampler wired
-// at activation, so it has no recipe row here.
+// The heartbeat (#61) is not a shortcut — it is a setting-gated background sampler
+// wired at activation, so it has no recipe row here.
 
 export async function detectProcessRecipes(
   _folder: vscode.WorkspaceFolder

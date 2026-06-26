@@ -15,21 +15,21 @@ import { buildReport } from "../commands/runAnalytics";
 import { telemetry } from "../exec/telemetry";
 import { runStatusRegistry } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
-import type { Pin } from "../model/pin";
-import type { PinStore } from "../model/pinStore";
+import type { Shortcut } from "../model/shortcut";
+import type { ShortcutStore } from "../model/shortcutStore";
 
-// buildReport only calls store.findPin(id) to resolve a recorded id to a display
-// name, so a minimal map-backed stub stands in for the full PinStore. An id with
-// no pin (an unpinned-since run) returns undefined and exercises the "removed pin"
+// buildReport only calls store.findShortcut(id) to resolve a recorded id to a display
+// name, so a minimal map-backed stub stands in for the full ShortcutStore. An id with
+// no shortcut (an removed-since run) returns undefined and exercises the "removed shortcut"
 // fallback.
-function storeWith(pins: Record<string, Pin>): PinStore {
+function storeWith(pins: Record<string, Shortcut>): ShortcutStore {
   return {
-    findPin: (id: string): Pin | undefined => pins[id],
-  } as unknown as PinStore;
+    findShortcut: (id: string): Shortcut | undefined => pins[id],
+  } as unknown as ShortcutStore;
 }
 
-function pin(id: string, label: string): Pin {
-  return { id, path: `${id}.sh`, label, scope: "project", order: 0 } as Pin;
+function shortcut(id: string, label: string): Shortcut {
+  return { id, path: `${id}.sh`, label, scope: "project", order: 0 } as Shortcut;
 }
 
 beforeEach(() => {
@@ -71,7 +71,7 @@ test("buildReport ranks most-run pins by lifetime count and shows totals", async
   await telemetry.record("p1", "manual");
 
   const report = buildReport(
-    storeWith({ p1: pin("p1", "Build"), p2: pin("p2", "Test") })
+    storeWith({ p1: shortcut("p1", "Build"), p2: shortcut("p2", "Test") })
   );
 
   assert.ok(report.includes(l10n("analytics.totalsHeading")));
@@ -90,7 +90,7 @@ test("buildReport falls back to a removed-pin marker for an unpinned-since run",
   telemetry.init(fakeContext());
   await telemetry.record("gone", "manual");
 
-  // No pin resolves "gone" — the recent line must not leak the opaque id.
+  // No shortcut resolves "gone" — the recent line must not leak the opaque id.
   const report = buildReport(storeWith({}));
 
   assert.ok(report.includes(l10n("analytics.unknownPin")));
@@ -110,7 +110,7 @@ test("buildReport includes the session split, then the registry is left empty", 
   });
 
   try {
-    const report = buildReport(storeWith({ p1: pin("p1", "Build") }));
+    const report = buildReport(storeWith({ p1: shortcut("p1", "Build") }));
     assert.ok(report.includes(l10n("analytics.sessionHeading")), "renders the session section");
     assert.ok(
       report.includes(l10n("analytics.sessionOk", { duration: "1.5s", code: 0 })),

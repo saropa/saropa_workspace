@@ -1,15 +1,15 @@
 import { RecipeResult } from "./detectors";
-import { RoutineMember } from "../model/pin";
+import { RoutineMember } from "../model/shortcut";
 
 // Composite-recipe ("routine") detection. A routine runs an ordered set of other
-// recipe pins in sequence as one action. The headline is the Morning routine: when
+// recipe shortcuts in sequence as one action. The headline is the Morning routine: when
 // the folder already has two or more morning-appropriate scheduled rituals, offer a
 // single recipe that fires them back-to-back when the user arrives.
 //
 // This detector runs AFTER the others and is handed the recipes they produced, so it
 // pre-populates the member list from what actually exists (never proposing an empty
 // or single-member routine). The user edits membership/order afterward — a routine is
-// just a pin with an ordered members list.
+// just a shortcut with an ordered members list.
 
 // The morning members, in run order. Hygiene runs FIRST so a frozen-tree project is
 // caught before the heavier members; the rest follow the recipe book's morning
@@ -44,7 +44,7 @@ export function detectRoutineRecipes(detected: RecipeResult[]): RecipeResult[] {
       description:
         "A routine (a recipe of recipes): runs this morning's scheduled checks in " +
         `sequence as one action — ${memberNames}. Scheduled daily at 08:00, seeds ` +
-        "disabled; enable it by promoting the recipe to a stored pin. One timer drives " +
+        "disabled; enable it by promoting the recipe to a stored shortcut. One timer drives " +
         "the whole block (the members keep their own times only when run standalone). " +
         "Each member writes its own report; the routine writes a one-screen summary " +
         "linking them and badges red if any member needs attention. Run now fires the " +

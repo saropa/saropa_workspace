@@ -274,7 +274,7 @@ function renderAnalytics() {
   let html = '';
   if (a.totals) {
     html += '<h2>' + escapeHtml(STRINGS.analyticsHeading) + '</h2>' +
-      '<div class="row"><span>' + escapeHtml(a.totals.pins) + '</span></div>' +
+      '<div class="row"><span>' + escapeHtml(a.totals.shortcuts) + '</span></div>' +
       '<div class="row"><span>' + escapeHtml(a.totals.runs) + '</span></div>';
   }
   if (a.mostRun && a.mostRun.length) {

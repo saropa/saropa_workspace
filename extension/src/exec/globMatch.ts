@@ -49,7 +49,7 @@ export function globToRegExp(glob: string): RegExp {
 }
 
 // True when the forward-slashed path matches any one of the globs. An empty/absent
-// glob list never matches (an un-linked pin reacts to no save). A glob that fails to
+// glob list never matches (an un-linked shortcut reacts to no save). A glob that fails to
 // compile is skipped rather than thrown, so one malformed pattern cannot disable the
 // whole save listener.
 export function matchesAnyGlob(relPath: string, globs: readonly string[]): boolean {

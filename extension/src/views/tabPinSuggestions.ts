@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
-// Suggest promoting a long-lived native VS Code tab pin into a Saropa workspace pin.
+// Suggest promoting a long-lived native VS Code tab pin into a Saropa workspace shortcut.
 //
 // A manually pinned editor tab is a strong "this file matters" signal. When the
 // user has kept one pinned past a threshold (default 2h) and it is not already a
-// Saropa pin, offer a one-tap "Pin to workspace / globally" toast.
+// Saropa shortcut, offer a one-tap "Add to workspace / globally" toast.
 //
 // Two constraints shape the design:
 //   1. VS Code's tab API exposes `tab.isPinned` but NO timestamp — there is no
@@ -17,9 +17,9 @@ import { l10n } from "../i18n/l10n";
 //      pinned tabs, so the stored stamp stays valid across sessions.
 //   2. On startup a tab may already be pinned with no stored stamp (it was pinned
 //      before this extension watched, or the stamp was never written). Those are
-//      snapshotted at activation: stamped with `now`, so a pre-existing pin starts
-//      its clock at snapshot time rather than firing immediately on data we cannot
-//      date — the safe direction (never prompt on an unknown age).
+//      snapshotted at activation: stamped with `now`, so a pre-existing pinned tab
+//      starts its clock at snapshot time rather than firing immediately on data we
+//      cannot date — the safe direction (never prompt on an unknown age).
 //
 // Once the user dismisses a file ("Don't ask again"), it is recorded permanently
 // in `dismissed` and never offered again, surviving unpin/re-pin and reloads. The
@@ -53,7 +53,7 @@ export interface TabPinReconcileResult {
   // True when `state` differs from the input (so the caller can skip a redundant write).
   changed: boolean;
   // fsPaths that have sat pinned past the threshold and are eligible to offer
-  // (not dismissed, not already a Saropa pin). The caller applies its own
+  // (not dismissed, not already a Saropa shortcut). The caller applies its own
   // per-session de-dup before actually prompting.
   toOffer: string[];
 }
@@ -63,15 +63,15 @@ export interface TabPinReconcileResult {
 // stored state, it returns the next state plus the files eligible to offer:
 //   - a tab no longer pinned has its stamp dropped (clock resets on unpin/close);
 //   - a dismissed file is never stamped or offered;
-//   - a file already a Saropa pin has any stamp cleared and is not offered;
+//   - a file already a Saropa shortcut has any stamp cleared and is not offered;
 //   - a first sighting is stamped with `now` (this is also the activation-snapshot
-//     path — a pre-existing pin starts its clock now, never offered on undatable age);
+//     path — a pre-existing pinned tab starts its clock now, never offered on undatable age);
 //   - a stamped file older than the threshold is eligible to offer.
 // The input state is not mutated; a fresh state object is returned.
 export function reconcileTabPins(
   state: TabPinState,
   pinned: ReadonlySet<string>,
-  isAlreadyPinned: (fsPath: string) => boolean,
+  isAlreadyShortcut: (fsPath: string) => boolean,
   now: number,
   thresholdMs: number
 ): TabPinReconcileResult {
@@ -91,7 +91,7 @@ export function reconcileTabPins(
     if (state.dismissed.includes(fsPath)) {
       continue;
     }
-    if (isAlreadyPinned(fsPath)) {
+    if (isAlreadyShortcut(fsPath)) {
       if (firstPinnedAt[fsPath] !== undefined) {
         delete firstPinnedAt[fsPath];
         changed = true;
@@ -113,7 +113,7 @@ export function reconcileTabPins(
 }
 
 // Path fragments never worth suggesting: VCS internals, dependency trees, and the
-// extension's own pin/favorites files (mirrors the open-frequency suggester).
+// extension's own shortcut/favorites files (mirrors the open-frequency suggester).
 const NOISE = [
   `${path.sep}node_modules${path.sep}`,
   `${path.sep}.git${path.sep}`,
@@ -124,7 +124,7 @@ const NOISE = [
 export class TabPinSuggester {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly timer: ReturnType<typeof setInterval>;
-  // Per-session gate: a file offered (and not yet pinned/dismissed) is not
+  // Per-session gate: a file offered (and not yet added/dismissed) is not
   // re-toasted on the next timer tick or tab change. Closing the toast without
   // choosing leaves the file eligible again on the NEXT session (it is not added
   // to the persistent `dismissed` list), matching "only a No is permanent".
@@ -132,7 +132,7 @@ export class TabPinSuggester {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly store: PinStore
+    private readonly store: ShortcutStore
   ) {
     // A pin/unpin (or any tab open/close) reconciles stamps immediately, so an
     // unpinned tab's clock resets at once and a newly pinned tab is stamped.
@@ -205,7 +205,7 @@ export class TabPinSuggester {
   }
 
   // Reconcile stamps against the live pinned-tab set, then offer any that have sat
-  // pinned past the threshold and are neither already a Saropa pin nor dismissed.
+  // pinned past the threshold and are neither already a Saropa shortcut nor dismissed.
   private async tick(): Promise<void> {
     if (!this.enabled()) {
       return;
@@ -217,7 +217,7 @@ export class TabPinSuggester {
       new Set(current.keys()),
       (fsPath) => {
         const uri = current.get(fsPath);
-        return uri !== undefined && this.isPinned(uri);
+        return uri !== undefined && this.isShortcut(uri);
       },
       Date.now(),
       thresholdMs
@@ -226,7 +226,7 @@ export class TabPinSuggester {
     if (changed) {
       await this.writeState(state);
     }
-    // Offer outside reconcile; each offer re-reads/writes state so a dismissal/pin
+    // Offer outside reconcile; each offer re-reads/writes state so a dismissal/add
     // choice persists independently of this tick's stamp write. The per-session
     // gate suppresses a re-toast for a file already offered this session.
     for (const fsPath of toOffer) {
@@ -277,12 +277,12 @@ export class TabPinSuggester {
 
     if (choice === toWorkspace || choice === toGlobal) {
       const scope = choice === toWorkspace ? "project" : "global";
-      const added = await this.store.addPin(uri, scope);
+      const added = await this.store.addShortcut(uri, scope);
       vscode.window.showInformationMessage(
         added ? l10n("pin.added", { name }) : l10n("pin.alreadyPinned", { name })
       );
-      // Now a Saropa pin (or already was): drop the stamp so tick() does not
-      // re-consider it. Not added to `dismissed` — pinning is a yes, not a no.
+      // Now a Saropa shortcut (or already was): drop the stamp so tick() does not
+      // re-consider it. Not added to `dismissed` — adding is a yes, not a no.
       const state = this.readState();
       if (state.firstPinnedAt[uri.fsPath] !== undefined) {
         delete state.firstPinnedAt[uri.fsPath];
@@ -294,10 +294,10 @@ export class TabPinSuggester {
     // suppresses a re-toast this session; it stays eligible next session.
   }
 
-  private isPinned(uri: vscode.Uri): boolean {
+  private isShortcut(uri: vscode.Uri): boolean {
     return (
-      this.store.findPinByUri(uri, "project") !== undefined ||
-      this.store.findPinByUri(uri, "global") !== undefined
+      this.store.findShortcutByUri(uri, "project") !== undefined ||
+      this.store.findShortcutByUri(uri, "global") !== undefined
     );
   }
 

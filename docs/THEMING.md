@@ -1,7 +1,7 @@
-# Pin icons and colors
+# Shortcut icons and colors
 
-Give a pin a custom tree icon and color so a large or grouped pin set is fast to
-scan. Set it from a pin's context menu with **Set Icon & Color…**.
+Give a shortcut a custom tree icon and color so a large or grouped shortcut set
+is fast to scan. Set it from a shortcut's context menu with **Set Icon & Color…**.
 
 ## What you can set
 
@@ -20,23 +20,23 @@ high-contrast themes. Choosing the default for either reverts that aspect.
 
 ## How it renders
 
-The custom glyph replaces the default pin/star glyph for the pin's **resting**
-state. Transient state icons still take precedence, because they convey something
-actionable that should not be hidden by decoration:
+The custom glyph replaces the default shortcut/star glyph for the shortcut's
+**resting** state. Transient state icons still take precedence, because they
+convey something actionable that should not be hidden by decoration:
 
 1. **Running** — a spinner while a background run is in progress.
-2. **Missing target** — a warning glyph when the pinned file no longer exists.
+2. **Missing target** — a warning glyph when the shortcut file no longer exists.
 3. **Last run** — a green check (success) or red error (failure) after a
    background run completes.
 4. **Custom icon/color** — your chosen glyph and tint, when none of the above
    apply.
-5. **Default** — the auto-pin star or the standard pin glyph.
+5. **Default** — the auto-shortcut star or the standard shortcut glyph.
 
 ## Notes
 
-- Custom icon and color persist on the pin (a versioned schema field), so they
-  survive reloads and travel with the pin (project pins via the repository file,
-  global pins via Settings Sync).
-- **Auto-pins cannot take a custom icon** — they are recomputed each refresh
-  rather than stored, so there is nothing to persist the choice on. Pin the file
-  explicitly first if you want to customize it.
+- Custom icon and color persist on the shortcut (a versioned schema field), so
+  they survive reloads and travel with the shortcut (project shortcuts via the
+  repository file, global shortcuts via Settings Sync).
+- **Auto-shortcuts cannot take a custom icon** — they are recomputed each refresh
+  rather than stored, so there is nothing to persist the choice on. Add the file
+  as a shortcut explicitly first if you want to customize it.

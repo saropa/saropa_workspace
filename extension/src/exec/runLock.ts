@@ -3,14 +3,14 @@ import * as os from "os";
 import * as path from "path";
 
 // A cross-process run lock backed by a small JSON file in the OS temp dir, so a
-// single-instance pin is barred from overlapping even across VS Code windows, an
+// single-instance shortcut is barred from overlapping even across VS Code windows, an
 // external terminal, cron, or any script that honors the same convention. The
 // in-process processRegistry guard only sees runs in THIS extension host; this is
 // the shared-disk primitive that extends the barrier beyond it.
 //
-// A lock is identified by NAME (a pin's lockName, which several pins or an external
-// script may share to serialize one resource, e.g. a single GPU). The file records
-// the holder PID, host, and start time. A lock counts as HELD only while its holder
+// A lock is identified by NAME (a shortcut's lockName, which several shortcuts or an
+// external script may share to serialize one resource, e.g. a single GPU). The file
+// records the holder PID, host, and start time. A lock counts as HELD only while its holder
 // is still alive on this host; a holder whose PID is gone is stale and the next run
 // steals it, so a crash never wedges the lock forever.
 
@@ -18,12 +18,12 @@ export interface LockRecord {
   pid: number;
   host: string;
   startedAt: number;
-  // Human label of the run holding the lock (the pin name), for diagnostics.
+  // Human label of the run holding the lock (the shortcut name), for diagnostics.
   label?: string;
 }
 
-// Machine-global so a workspace pin and an unrelated launcher (a terminal, cron, a
-// self-locking script in another project) agree on the same path by name alone.
+// Machine-global so a workspace shortcut and an unrelated launcher (a terminal, cron,
+// a self-locking script in another project) agree on the same path by name alone.
 const LOCK_DIR = path.join(os.tmpdir(), "saropa-workspace-locks");
 
 // Filesystem-safe file for a lock name: the name is user-chosen, so collapse any

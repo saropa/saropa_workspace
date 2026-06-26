@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
-import { PinAction, MacroStep } from "../model/pin";
+import { ShortcutStore } from "../model/shortcutStore";
+import { ShortcutAction, MacroStep } from "../model/shortcut";
 import { getOutputChannel } from "../exec/runner";
 import { l10n } from "../i18n/l10n";
 import type { ImportResult } from "./favoritesImport";
@@ -9,7 +9,7 @@ import type { ImportResult } from "./favoritesImport";
 // The settings-key favorites importers (no file on disk): howardzuo "favorites"
 // (`favorites.resources`, an array of paths) and sabitovvt "Favorites Panel"
 // (`favoritesPanel.commands[ForWorkspace]`, command-dispatch items mapping to
-// file / url / command / shell pins and sequences to macros). sabitovvt can also
+// file / url / command / shell shortcuts and sequences to macros). sabitovvt can also
 // keep its items in a custom JSON file the `favoritesPanel.configPath[ForWorkspace]`
 // settings point at; those file items are imported with the same mapping.
 
@@ -56,7 +56,7 @@ export function detectSettingsFavoritesCount(): number {
 // absolute path is used as-is, a relative one resolves against the first
 // workspace folder (the configuration is workspace-wide, not per-folder).
 export async function importSettingsFavorites(
-  store: PinStore
+  store: ShortcutStore
 ): Promise<ImportResult> {
   const channel = getOutputChannel();
   const resources = vscode.workspace
@@ -88,7 +88,7 @@ export async function importSettingsFavorites(
       skipped++;
       continue;
     }
-    if (await store.addPin(uri, "project")) {
+    if (await store.addShortcut(uri, "project")) {
       added++;
     }
   }
@@ -100,15 +100,15 @@ export async function importSettingsFavorites(
 // This extension stores command-dispatch items (not plain paths) in two settings
 // keys. Each item is `{ label, icon?, iconColor?, command, arguments[] }` or a
 // `{ label, sequence: [...] }`. The `command` value selects the action:
-//   - "openFile"   -> a FILE pin on arguments[0] (resolved against the folder).
-//   - "run"        -> a SHELL pin running arguments[0] (a program/terminal line).
-//   - "runCommand" with arguments[0] === "vscode.open" -> a URL pin on arguments[1].
-//   - "runCommand" otherwise -> a COMMAND pin on arguments[0] (commandId) + rest.
-//   - a "sequence" -> a MACRO pin, one step per command, when EVERY step maps.
+//   - "openFile"   -> a FILE shortcut on arguments[0] (resolved against the folder).
+//   - "run"        -> a SHELL shortcut running arguments[0] (a program/terminal line).
+//   - "runCommand" with arguments[0] === "vscode.open" -> a URL shortcut on arguments[1].
+//   - "runCommand" otherwise -> a COMMAND shortcut on arguments[0] (commandId) + rest.
+//   - a "sequence" -> a MACRO shortcut, one step per command, when EVERY step maps.
 //   - "insertNewCode" / unknown / an unmappable sequence -> reported and skipped
-//     (the pin model has no insert-code action, so importing it would lose data).
+//     (the shortcut model has no insert-code action, so importing it would lose data).
 // The item's `icon` (a codicon id) and `iconColor` (a ThemeColor id) line up with
-// the pin model's icon/color, so they are carried over for action pins.
+// the shortcut model's icon/color, so they are carried over for action shortcuts.
 //
 // The same items can also live in a custom JSON file pointed at by the
 // `favoritesPanel.configPath` / `favoritesPanel.configPathForWorkspace` settings.
@@ -126,7 +126,7 @@ interface SabitovvtItem {
 }
 
 // A non-empty string at args[i], or undefined. Used to validate the dispatch
-// arguments before building a pin from them.
+// arguments before building a shortcut from them.
 function argString(args: unknown[] | undefined, i: number): string | undefined {
   const v = args?.[i];
   return typeof v === "string" && v.trim().length > 0 ? v.trim() : undefined;
@@ -157,13 +157,13 @@ function mapSabitovvtStep(
   return null; // insertNewCode and unknown commands have no step equivalent.
 }
 
-// Map one top-level sabitovvt item to either a file URI (handled via addPin, so
-// the relative path and dedup stay the store's job) or a non-file PinAction.
-// Returns "skip" for anything with no lossless pin equivalent.
+// Map one top-level sabitovvt item to either a file URI (handled via addShortcut, so
+// the relative path and dedup stay the store's job) or a non-file ShortcutAction.
+// Returns "skip" for anything with no lossless shortcut equivalent.
 function mapSabitovvtItem(
   item: SabitovvtItem,
   folder: vscode.WorkspaceFolder | undefined
-): { file: vscode.Uri } | { action: PinAction } | "skip" {
+): { file: vscode.Uri } | { action: ShortcutAction } | "skip" {
   if (item.command === "openFile") {
     const p = argString(item.arguments, 0);
     if (!p || !folder) {
@@ -202,9 +202,9 @@ function mapSabitovvtItem(
   return { action: { kind: "command", commandId: step.commandId, commandArgs: step.commandArgs } };
 }
 
-// A stable signature for an action pin (label + action), used to make the
-// sabitovvt import idempotent: importPin always adds, so the dedup lives here.
-function actionSignature(label: string | undefined, action: PinAction): string {
+// A stable signature for an action shortcut (label + action), used to make the
+// sabitovvt import idempotent: importShortcut always adds, so the dedup lives here.
+function actionSignature(label: string | undefined, action: ShortcutAction): string {
   return JSON.stringify({ label: label ?? "", action });
 }
 
@@ -296,16 +296,16 @@ export async function detectSabitovvtFavoritesCount(): Promise<number> {
 }
 
 // Import one list of sabitovvt items (from a settings key or a custom config file)
-// as project pins. File items go through addPin (folder-relative, deduped); non-file
-// items go through importPin with an action, deduped via the shared `seenActions`
-// signature set so a duplicate listed in more than one source is collapsed.
-// Unmappable/malformed items are logged against `sourceLabel` and skipped. The
-// caller owns `seenActions` so dedup spans every source in one import run.
+// as project shortcuts. File items go through addShortcut (folder-relative, deduped);
+// non-file items go through importShortcut with an action, deduped via the shared
+// `seenActions` signature set so a duplicate listed in more than one source is
+// collapsed. Unmappable/malformed items are logged against `sourceLabel` and skipped.
+// The caller owns `seenActions` so dedup spans every source in one import run.
 async function importSabitovvtItemList(
   items: readonly SabitovvtItem[],
   sourceLabel: string,
   folder: vscode.WorkspaceFolder | undefined,
-  store: PinStore,
+  store: ShortcutStore,
   channel: vscode.OutputChannel,
   seenActions: Set<string>
 ): Promise<ImportResult> {
@@ -327,7 +327,7 @@ async function importSabitovvtItemList(
       continue;
     }
     if ("file" in mapped) {
-      // A file outside the workspace folder cannot be a project pin.
+      // A file outside the workspace folder cannot be a project shortcut.
       if (!vscode.workspace.getWorkspaceFolder(mapped.file)) {
         channel.appendLine(
           l10n("import.log.skipOutsideFolder", {
@@ -338,12 +338,12 @@ async function importSabitovvtItemList(
         skipped++;
         continue;
       }
-      if (await store.addPin(mapped.file, "project", label)) {
+      if (await store.addShortcut(mapped.file, "project", label)) {
         added++;
       }
       continue;
     }
-    // Action pin: dedup by signature, then import carrying icon/color when set.
+    // Action shortcut: dedup by signature, then import carrying icon/color when set.
     const sig = actionSignature(label, mapped.action);
     if (seenActions.has(sig)) {
       continue; // Already present — idempotent, not a reportable skip.
@@ -353,8 +353,8 @@ async function importSabitovvtItemList(
       typeof raw.iconColor === "string" && raw.iconColor.trim()
         ? raw.iconColor.trim()
         : undefined;
-    // `v` is ignored by importPin (it reads only the pin fields); set to 1.
-    if (await store.importPin({ v: 1, label, action: mapped.action, icon, color }, "project")) {
+    // `v` is ignored by importShortcut (it reads only the shortcut fields); set to 1.
+    if (await store.importShortcut({ v: 1, label, action: mapped.action, icon, color }, "project")) {
       seenActions.add(sig);
       added++;
     }
@@ -363,22 +363,22 @@ async function importSabitovvtItemList(
 }
 
 // sabitovvt "Favorites Panel": import the command-dispatch items from both settings
-// keys AND any custom config file the configPath settings point at, as project pins.
-// All sources share one `seenActions` set so an action listed in more than one of
-// them imports once. Unmappable items are logged and skipped.
+// keys AND any custom config file the configPath settings point at, as project
+// shortcuts. All sources share one `seenActions` set so an action listed in more than
+// one of them imports once. Unmappable items are logged and skipped.
 export async function importSabitovvtFavorites(
-  store: PinStore
+  store: ShortcutStore
 ): Promise<ImportResult> {
   const channel = getOutputChannel();
   const config = vscode.workspace.getConfiguration();
   const folder = vscode.workspace.workspaceFolders?.[0];
-  // Seed action-pin dedup from existing project pins; add to it as we import so a
-  // duplicate listed across sources is also collapsed.
+  // Seed action-shortcut dedup from existing project shortcuts; add to it as we import
+  // so a duplicate listed across sources is also collapsed.
   const seenActions = new Set(
     store
-      .getProjectPins()
+      .getProjectShortcuts()
       .filter((p) => p.action)
-      .map((p) => actionSignature(p.label, p.action as PinAction))
+      .map((p) => actionSignature(p.label, p.action as ShortcutAction))
   );
 
   let added = 0;

@@ -1,8 +1,8 @@
 import * as cp from "child_process";
 import * as vscode from "vscode";
-import { SoundOverride } from "../model/pin";
+import { SoundOverride } from "../model/shortcut";
 
-// Sensory feedback (recipe book section I, #64): a short audio cue when a pin run
+// Sensory feedback (recipe book section I, #64): a short audio cue when a shortcut run
 // STARTS, FINISHES successfully, or FINISHES with failure — so a long-running or
 // unattended job announces its outcome without the user watching the output channel.
 // Opt-in (off by default) and additive to the existing "no silent async" toasts: the
@@ -33,11 +33,11 @@ export type SoundEvent = "start" | "success" | "failure";
 
 const CONFIG = "saropaWorkspace.sound";
 
-// Whether to play the cue for this event, honoring the per-pin override and the
+// Whether to play the cue for this event, honoring the per-shortcut override and the
 // global master + per-event toggles. The master toggle is the hard gate (off means
-// silence everywhere); a per-pin "on" bypasses the per-event toggles but still
+// silence everywhere); a per-shortcut "on" bypasses the per-event toggles but still
 // requires the master on, so a single job can chime even when global per-event cues
-// are off. A per-pin "off" silences the pin regardless.
+// are off. A per-shortcut "off" silences the shortcut regardless.
 function shouldPlay(event: SoundEvent, override: SoundOverride | undefined): boolean {
   if (override === "off") {
     return false;
@@ -104,7 +104,7 @@ function spawnSilent(cmd: string, args: string[], onError?: () => void): void {
   }
 }
 
-// Play the cue for an event if the settings (and any per-pin override) allow it.
+// Play the cue for an event if the settings (and any per-shortcut override) allow it.
 // Fire-and-forget: never awaited, never throws into the run path.
 export function playCue(event: SoundEvent, override?: SoundOverride): void {
   if (!shouldPlay(event, override)) {

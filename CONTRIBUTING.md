@@ -4,9 +4,9 @@ Thank you for your interest in contributing! This guide will help you get
 started.
 
 Saropa Workspace is a Visual Studio Code extension written in TypeScript. It
-lets you pin files and scripts as favorites: single-click opens a pin,
-double-click runs a script, with per-pin run parameters (command prefix,
-args, working directory, environment). Pins are scoped per project
+lets you add files and scripts as shortcuts: single-click opens a shortcut,
+double-click runs a script, with per-shortcut run parameters (command prefix,
+args, working directory, environment). Shortcuts are scoped per project
 (`.vscode/saropa-workspace.json`) or globally (synced via Settings Sync).
 
 ## Code of Conduct
@@ -30,7 +30,7 @@ Be respectful and constructive. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
    - What the feature does and where it appears (sidebar, command palette,
      context menu, settings).
    - Why it matters (the manual step it removes, the mistake it prevents).
-   - Any new settings keys, commands, or pin fields it would need.
+   - Any new settings keys, commands, or shortcut fields it would need.
 
 ### Submitting Code
 
@@ -61,11 +61,11 @@ The extension source lives in `extension/src/`, grouped by concern:
 
 | Folder | Purpose |
 |--------|---------|
-| `model/` | Pin data model and storage (`pin.ts`, `pinStore.ts`) — project file + `globalState`. |
-| `views/` | Activity-bar tree view (`pinsTreeProvider.ts`, `pinTreeItem.ts`). |
-| `commands/` | Command handlers (`pinCommands.ts`): pin, open, run, rename, unpin, restore. |
+| `model/` | Shortcut data model and storage (`shortcut.ts`, `shortcutStore.ts`) — project file + `globalState`. |
+| `views/` | Activity-bar tree view (`shortcutsTreeProvider.ts`, `shortcutTreeItem.ts`). |
+| `commands/` | Command handlers (`shortcutCommands.ts`): add, open, run, rename, remove, restore. |
 | `exec/` | Script execution (`runner.ts`) and double-click detection (`doubleClick.ts`). |
-| `schedule/` | Scheduled runs for pinned scripts. |
+| `schedule/` | Scheduled runs for saved scripts. |
 | `i18n/` | Runtime string lookup (`l10n.ts`) reading `i18n/locales/en.json`. |
 
 Other key files:
@@ -102,8 +102,8 @@ There is no Dart, no analyzer, and no `dart test` here. Verify a change by:
 1. **TypeScript compiles clean** — `tsc -p ./ --noEmit` reports no errors.
 2. **The bundle builds** — `npm run build` succeeds.
 3. **Manual smoke test** in the Extension Development Host — exercise the
-   behavior you changed (pin a file, run a script, rename, unpin, restore
-   auto-pins, etc.) and confirm it works and shows the right feedback.
+   behavior you changed (add a shortcut, run a script, rename, remove, restore
+   auto-shortcuts, etc.) and confirm it works and shows the right feedback.
 
 State which of these you ran in the PR description.
 
@@ -119,7 +119,7 @@ State which of these you ran in the PR description.
   default) lives in exactly one place. Reference it; do not duplicate the
   literal. Command ids and settings keys declared in `package.json` are the
   source of truth — match them exactly in code.
-- **Use existing utilities.** Read pins through `pinStore`, run scripts
+- **Use existing utilities.** Read shortcuts through `shortcutStore`, run scripts
   through `runner`, look up strings through `l10n()`. Do not reimplement these
   inline.
 - **Small, readable functions.** Favor early returns and vertical spacing over
@@ -144,7 +144,7 @@ There are two catalogs, by where the string appears:
    ```
    ```json
    // package.nls.json
-   { "command.runPin.title": "Run Pin" }
+   { "command.runPin.title": "Run Shortcut" }
    ```
 
 2. **Runtime strings** (anything shown from TypeScript at run time — messages,
@@ -173,17 +173,17 @@ Rules:
    with the right `when` clause. If it should be hidden from the command
    palette, add a `commandPalette` entry with `"when": "false"`.
 4. Register the handler in `extension/src/extension.ts`, implementing it in
-   `extension/src/commands/` (e.g. extend `pinCommands.ts`).
+   `extension/src/commands/` (e.g. extend `shortcutCommands.ts`).
 5. Verify: compile, build, and exercise the command in the dev host.
 
 ## How to Add a View Item / Change the Tree
 
-The activity-bar view is driven by `views/pinsTreeProvider.ts` (the
-`TreeDataProvider`) and `views/pinTreeItem.ts` (the items). To change what the
+The activity-bar view is driven by `views/shortcutsTreeProvider.ts` (the
+`TreeDataProvider`) and `views/shortcutTreeItem.ts` (the items). To change what the
 tree shows:
 
 1. Update the provider to produce the items/groups you want.
-2. Update `pinTreeItem.ts` for label, icon, `contextValue`, tooltip, and the
+2. Update `shortcutTreeItem.ts` for label, icon, `contextValue`, tooltip, and the
    `command` fired on selection.
 3. If a new context-menu action is needed, gate it in `package.json` menus by
    `viewItem` (the item's `contextValue`).
@@ -192,7 +192,7 @@ tree shows:
 ## Changelog Requirement
 
 Update [CHANGELOG.md](CHANGELOG.md) (root) in the **same change** as any
-user-visible work — new or changed commands, settings, pin behavior, view
+user-visible work — new or changed commands, settings, shortcut behavior, view
 behavior, or packaging. Add bullets under `## [Unreleased]` in the correct
 subsection (`Added` / `Changed` / `Fixed` / `Removed`). Never append to an
 already-released version section. Pure internal refactors with no user-visible
@@ -217,10 +217,10 @@ effect do not need an entry.
 Use conventional commits:
 
 ```
-feat: add scheduled runs for pinned scripts
+feat: add scheduled runs for saved scripts
 fix: correct double-click detection on slow machines
-docs: clarify project vs global pin storage
-refactor: extract pin lookup into pinStore
+docs: clarify project vs global shortcut storage
+refactor: extract shortcut lookup into shortcutStore
 ```
 
 **Only human authors as contributors.** Do not add trailers or lines that

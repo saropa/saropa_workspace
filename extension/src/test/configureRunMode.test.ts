@@ -1,7 +1,7 @@
 // Execution-mode and output field editors for the run-parameters hub (roadmap 2.1):
 // run location, elevation, the file-arg toggle, the audio cue, run-on-save,
 // single-instance concurrency, the cross-process lock name, and the output-
-// extraction regex. Each editor is a small picker/toggle over a pin field, driven
+// extraction regex. Each editor is a small picker/toggle over a shortcut field, driven
 // here through the vscode stub's settable handlers.
 //
 // The stub's showQuickPick passes the item array straight to the pick handler and
@@ -26,7 +26,7 @@ import {
   editLock,
   editExtract,
 } from "../commands/configureRunMode";
-import type { PinExecConfig } from "../model/pin";
+import type { ShortcutExecConfig } from "../model/shortcut";
 import type { ConcurrencyEdit } from "../commands/configureRun";
 
 beforeEach(() => {
@@ -44,14 +44,14 @@ function selectByValue<T>(value: T): void {
 
 test("editLocation stores the chosen run location", async () => {
   selectByValue<"terminal">("terminal");
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editLocation(work, "Title");
   assert.equal(work.runLocation, "terminal");
 });
 
 test("editLocation maps the default row to undefined (follow the setting)", async () => {
   selectByValue<undefined>(undefined);
-  const work: PinExecConfig = { runLocation: "background" };
+  const work: ShortcutExecConfig = { runLocation: "background" };
   await editLocation(work, "Title");
   assert.equal(work.runLocation, undefined);
 });
@@ -67,51 +67,51 @@ test("editLocation choosing External immediately offers the elevation toggle", a
       ? list.find((i) => i.value === "external")
       : list.find((i) => i.value === true)) as never;
   });
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editLocation(work, "Title");
   assert.equal(work.runLocation, "external");
   assert.equal(work.elevated, true, "External chains straight into the admin toggle");
 });
 
 test("editLocation leaves the location unchanged on Esc", async () => {
-  const work: PinExecConfig = { runLocation: "terminal" };
+  const work: ShortcutExecConfig = { runLocation: "terminal" };
   await editLocation(work, "Title");
   assert.equal(work.runLocation, "terminal");
 });
 
 test("editElevated stores the chosen boolean", async () => {
   selectByValue<boolean>(true);
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editElevated(work, "Title");
   assert.equal(work.elevated, true);
 });
 
 test("editFileArg toggles the include-file flag off", async () => {
   selectByValue<boolean>(false);
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editFileArg(work, "Title");
   assert.equal(work.includeFilePath, false);
 });
 
 test("editSound maps the follow-default row to undefined", async () => {
   // The picker's default row carries the literal "default"; the editor stores
-  // undefined for it so the pin follows the global sound settings.
+  // undefined for it so the shortcut follows the global sound settings.
   selectByValue<string>("default");
-  const work: PinExecConfig = { sound: "on" };
+  const work: ShortcutExecConfig = { sound: "on" };
   await editSound(work, "Title");
   assert.equal(work.sound, undefined);
 });
 
 test("editSound stores an explicit on/off override", async () => {
   selectByValue<string>("off");
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editSound(work, "Title");
   assert.equal(work.sound, "off");
 });
 
 test("editRunOnSave stores the chosen boolean", async () => {
   selectByValue<boolean>(true);
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editRunOnSave(work, "Title");
   assert.equal(work.runOnSave, true);
 });
@@ -139,14 +139,14 @@ test("editLock clears the lock name on an empty entry", async () => {
 
 test("editExtract stores a valid regex pattern", async () => {
   __setInputHandler(async () => "version (\\d+)");
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editExtract(work, "Title");
   assert.equal(work.extractResult, "version (\\d+)");
 });
 
 test("editExtract clears the pattern on an empty entry", async () => {
   __setInputHandler(async () => "");
-  const work: PinExecConfig = { extractResult: "old" };
+  const work: ShortcutExecConfig = { extractResult: "old" };
   await editExtract(work, "Title");
   assert.equal(work.extractResult, undefined);
 });
@@ -167,7 +167,7 @@ test("editExtract validateInput rejects a malformed regex inline", async () => {
     probe.message = validate ? validate("(unterminated") : undefined;
     return undefined; // cancel after probing validation
   });
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editExtract(work, "Title");
   assert.ok(
     typeof probe.message === "string" && probe.message.length > 0,

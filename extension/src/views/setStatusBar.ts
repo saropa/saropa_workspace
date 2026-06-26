@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
-import { DEFAULT_SET_NAME } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { DEFAULT_SET_NAME } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
-// Multiple-favorite-sets roadmap — a status-bar item showing the active pin set's
-// name. Clicking it opens the switcher QuickPick (switch / new / rename / delete /
-// duplicate). It stays hidden while the workspace is on a single set named
+// Multiple-favorite-sets roadmap — a status-bar item showing the active shortcut
+// set's name. Clicking it opens the switcher QuickPick (switch / new / rename /
+// delete / duplicate). It stays hidden while the workspace is on a single set named
 // "Default" (the migrated/first-run state), so existing single-set users see no
 // new chrome until they opt into sets — the "single-set behavior is unchanged"
 // guarantee. It appears once a second set exists or the sole set has been renamed,
@@ -15,7 +15,7 @@ export class SetStatusBar {
   private readonly item: vscode.StatusBarItem;
   private readonly disposables: vscode.Disposable[] = [];
 
-  constructor(private readonly store: PinStore) {
+  constructor(private readonly store: ShortcutStore) {
     // Left-aligned, low priority: this is workspace context, not a transient
     // notification, so it sits with the other workspace indicators on the left.
     this.item = vscode.window.createStatusBarItem(

@@ -5,7 +5,7 @@ import { promisify } from "util";
 // fails because a zombie process from a crashed run still holds the port, this
 // reads the port from the captured output, resolves the owning process
 // cross-platform, and (after an explicit confirm in the runner) frees it so the
-// pin can retry. Everything here is host-free (no `vscode` import) so the pure
+// shortcut can retry. Everything here is host-free (no `vscode` import) so the pure
 // detection/parsing is unit-testable; the runner owns the toast + confirm UX.
 
 const execFileAsync = promisify(execFile);

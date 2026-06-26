@@ -1,19 +1,19 @@
 import * as vscode from "vscode";
-import { PROJECT_FILE_RELATIVE, emptyProjectPinsFile } from "../model/pin";
+import { PROJECT_FILE_RELATIVE, emptyProjectShortcutsFile } from "../model/shortcut";
 import { l10n } from "../i18n/l10n";
 
-// "Edit Pins Config (JSON)" (roadmap Later / Exploratory — raw-config editability).
-// Opens the project pins file (.vscode/saropa-workspace.json) for direct editing,
-// the power-user path alongside the GUI editors. Paired with the file watcher in
-// activate(), which refreshes the tree live when the JSON is saved, so a hand edit
-// shows up without a reload.
+// "Edit Shortcuts Config (JSON)" (roadmap Later / Exploratory — raw-config
+// editability). Opens the project shortcuts file (.vscode/saropa-workspace.json)
+// for direct editing, the power-user path alongside the GUI editors. Paired with
+// the file watcher in activate(), which refreshes the tree live when the JSON is
+// saved, so a hand edit shows up without a reload.
 //
-// The store writes project pins relative to each workspace folder, so the config
-// is per-folder; with several folders open the user picks which one to edit. The
-// file is created (empty, valid) on first edit when it does not exist yet, so the
-// command never dead-ends on "file not found".
+// The store writes project shortcuts relative to each workspace folder, so the
+// config is per-folder; with several folders open the user picks which one to edit.
+// The file is created (empty, valid) on first edit when it does not exist yet, so
+// the command never dead-ends on "file not found".
 
-export async function editPinsConfig(): Promise<void> {
+export async function editShortcutsConfig(): Promise<void> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.length === 0) {
     vscode.window.showWarningMessage(l10n("pinsConfig.noFolder"));
@@ -53,9 +53,10 @@ async function pickFolder(
   return pick?.folder;
 }
 
-// Create an empty, valid config file when none exists yet, so editing the "pins
-// JSON" always has a file to open. Matches the store's write shape (the .vscode
-// directory is created if missing, the file is the empty ProjectPinsFile).
+// Create an empty, valid config file when none exists yet, so editing the
+// "shortcuts JSON" always has a file to open. Matches the store's write shape (the
+// .vscode directory is created if missing, the file is the empty
+// ProjectShortcutsFile).
 async function ensureExists(
   folder: vscode.WorkspaceFolder,
   uri: vscode.Uri
@@ -69,6 +70,6 @@ async function ensureExists(
   await vscode.workspace.fs.createDirectory(
     vscode.Uri.joinPath(folder.uri, ".vscode")
   );
-  const json = JSON.stringify(emptyProjectPinsFile(), null, 2) + "\n";
+  const json = JSON.stringify(emptyProjectShortcutsFile(), null, 2) + "\n";
   await vscode.workspace.fs.writeFile(uri, Buffer.from(json, "utf8"));
 }

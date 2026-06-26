@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 
 // VS Code tree views have no native double-click event: selecting an item fires
 // its `command` once. This discriminator times successive activations of the SAME
-// pin id — a second activation within the configured window counts as a
+// shortcut id — a second activation within the configured window counts as a
 // double-click (run); otherwise it is a single click (open).
 //
 // The single-click action is deferred by the window length so a fast second click

@@ -1,5 +1,5 @@
 // Unit tests for the pure run-planning + single-instance guard (roadmap 4.1 / 7.x).
-// No process is launched here: planRun turns a pin + target into a concrete RunPlan
+// No process is launched here: planRun turns a shortcut + target into a concrete RunPlan
 // (command line, cwd, env, location, elevation, unknown tokens), and runBlockReason
 // decides whether a fresh run may start. The vscode surface used (workspace config,
 // getWorkspaceFolder) is modeled by the stub; shebang reads and the cross-process lock
@@ -26,7 +26,7 @@ import type { Uri as VscodeUri } from "vscode";
 import { planRun, runBlockReason, isRunnable } from "../exec/runPlanning";
 import { processRegistry } from "../exec/processRegistry";
 import * as runLock from "../exec/runLock";
-import type { Pin } from "../model/pin";
+import type { Shortcut } from "../model/shortcut";
 
 const asUri = (u: Uri): VscodeUri => u as unknown as VscodeUri;
 
@@ -46,9 +46,9 @@ afterEach(() => {
   nodeFs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-// A pin under the temp workspace. Callers override exec / flags per case.
-function pin(over: Partial<Pin> = {}): Pin {
-  return { id: "p1", path: "script.py", scope: "project", order: 0, ...over } as Pin;
+// A shortcut under the temp workspace. Callers override exec / flags per case.
+function shortcut(over: Partial<Shortcut> = {}): Shortcut {
+  return { id: "p1", path: "script.py", scope: "project", order: 0, ...over } as Shortcut;
 }
 
 function fileUri(rel: string): VscodeUri {
@@ -71,7 +71,7 @@ const asChild = (c: FakeChild): ChildProcess => c as unknown as ChildProcess;
 test("planRun assembles <prefix> <file> <args> with an explicit command", () => {
   __setConfig("saropaWorkspace", "defaultUseIntegratedTerminal", true);
   const uri = fileUri("script.py");
-  const plan = planRun(pin({ exec: { command: "python", args: ["-v"] } }), uri);
+  const plan = planRun(shortcut({ exec: { command: "python", args: ["-v"] } }), uri);
   // A space-free temp path is not quoted; assert the assembled order of the parts.
   assert.equal(plan.commandLine, `python ${tmpDir}/script.py -v`);
   assert.equal(plan.cwd, tmpDir, "cwd defaults to the workspace root");
@@ -84,7 +84,7 @@ test("planRun quotes a file path that contains spaces", () => {
   const dirWithSpace = `${tmpDir}/with space`;
   nodeFs.mkdirSync(dirWithSpace, { recursive: true });
   const uri = asUri(Uri.file(`${dirWithSpace}/run.py`));
-  const plan = planRun(pin({ path: "with space/run.py", exec: { command: "python" } }), uri);
+  const plan = planRun(shortcut({ path: "with space/run.py", exec: { command: "python" } }), uri);
   assert.ok(
     plan.commandLine.includes(`"${dirWithSpace}/run.py"`),
     "a spaced path is quoted as a single argument"
@@ -93,14 +93,14 @@ test("planRun quotes a file path that contains spaces", () => {
 
 test("planRun resolves the interpreter from the extension defaults when no command is set", () => {
   __setConfig("saropaWorkspace", "interpreterDefaults", { ".py": "python3" });
-  const plan = planRun(pin(), fileUri("script.py"));
+  const plan = planRun(shortcut(), fileUri("script.py"));
   assert.ok(plan.commandLine.startsWith("python3 "), "the .py default prefix is applied");
 });
 
 test("planRun expands tokens and reports unknown $names", () => {
   // $fileName resolves; $nope is unknown — left literal and surfaced once.
   const plan = planRun(
-    pin({ exec: { command: "echo", args: ["$fileName", "$nope"] } }),
+    shortcut({ exec: { command: "echo", args: ["$fileName", "$nope"] } }),
     fileUri("script.py")
   );
   assert.ok(plan.commandLine.includes("script.py"), "$fileName expands to the base name");
@@ -111,7 +111,7 @@ test("planRun expands tokens and reports unknown $names", () => {
 test("planRun omits the file path when includeFilePath is false", () => {
   // An npm-script / Make-target config names its work in args and runs against cwd.
   const plan = planRun(
-    pin({ exec: { command: "npm", args: ["run", "build"], includeFilePath: false } }),
+    shortcut({ exec: { command: "npm", args: ["run", "build"], includeFilePath: false } }),
     fileUri("package.json")
   );
   assert.equal(plan.commandLine, "npm run build", "the file path is omitted");
@@ -121,7 +121,7 @@ test("planRun honors an explicit runLocation over the legacy boolean and the def
   // runLocation is the source of truth; it wins even when the deprecated boolean would
   // say otherwise.
   const plan = planRun(
-    pin({ exec: { command: "x", runLocation: "background", useIntegratedTerminal: true } }),
+    shortcut({ exec: { command: "x", runLocation: "background", useIntegratedTerminal: true } }),
     fileUri("script.py")
   );
   assert.equal(plan.location, "background");
@@ -129,12 +129,12 @@ test("planRun honors an explicit runLocation over the legacy boolean and the def
 
 test("planRun falls back to the legacy useIntegratedTerminal boolean when runLocation is unset", () => {
   const terminal = planRun(
-    pin({ exec: { command: "x", useIntegratedTerminal: true } }),
+    shortcut({ exec: { command: "x", useIntegratedTerminal: true } }),
     fileUri("a.py")
   );
   assert.equal(terminal.location, "terminal");
   const background = planRun(
-    pin({ exec: { command: "x", useIntegratedTerminal: false } }),
+    shortcut({ exec: { command: "x", useIntegratedTerminal: false } }),
     fileUri("a.py")
   );
   assert.equal(background.location, "background");
@@ -143,13 +143,13 @@ test("planRun falls back to the legacy useIntegratedTerminal boolean when runLoc
 test("planRun only elevates an external run", () => {
   __setConfig("saropaWorkspace", "interpreterDefaults", {});
   const external = planRun(
-    pin({ exec: { command: "x", runLocation: "external", elevated: true } }),
+    shortcut({ exec: { command: "x", runLocation: "external", elevated: true } }),
     fileUri("a.py")
   );
   assert.equal(external.elevated, true, "an external run honors elevation");
   // The same flag on a terminal run is ignored — elevation only applies externally.
   const terminal = planRun(
-    pin({ exec: { command: "x", runLocation: "terminal", elevated: true } }),
+    shortcut({ exec: { command: "x", runLocation: "terminal", elevated: true } }),
     fileUri("a.py")
   );
   assert.equal(terminal.elevated, false, "elevation is ignored off the external path");
@@ -157,7 +157,7 @@ test("planRun only elevates an external run", () => {
 
 test("planRun carries env and the background extractResult regex", () => {
   const plan = planRun(
-    pin({ exec: { command: "x", env: { FOO: "bar" }, extractResult: "url=(\\S+)" } }),
+    shortcut({ exec: { command: "x", env: { FOO: "bar" }, extractResult: "url=(\\S+)" } }),
     fileUri("a.py")
   );
   assert.deepEqual(plan.env, { FOO: "bar" });
@@ -169,8 +169,8 @@ test("planRun carries env and the background extractResult regex", () => {
 test("isRunnable is true for an explicit command and false for a plain document", () => {
   // An explicit command (even empty) means runnable; a .md with no interpreter is not.
   nodeFs.writeFileSync(`${tmpDir}/notes.md`, "# notes\n");
-  assert.equal(isRunnable(pin({ exec: { command: "pandoc" } }), `${tmpDir}/notes.md`), true);
-  assert.equal(isRunnable(pin(), `${tmpDir}/notes.md`), false, "a plain doc is not runnable");
+  assert.equal(isRunnable(shortcut({ exec: { command: "pandoc" } }), `${tmpDir}/notes.md`), true);
+  assert.equal(isRunnable(shortcut(), `${tmpDir}/notes.md`), false, "a plain doc is not runnable");
 });
 
 test("isRunnable honors a #! shebang on an extensionless script", () => {
@@ -178,7 +178,7 @@ test("isRunnable honors a #! shebang on an extensionless script", () => {
   // interpreter, so it is runnable through that shebang.
   const scriptPath = `${tmpDir}/deploy`;
   nodeFs.writeFileSync(scriptPath, "#!/usr/bin/env python3\nprint('hi')\n");
-  assert.equal(isRunnable(pin({ path: "deploy" }), scriptPath), true);
+  assert.equal(isRunnable(shortcut({ path: "deploy" }), scriptPath), true);
 });
 
 test("planRun runs an extensionless shebang script through its declared interpreter", () => {
@@ -186,14 +186,14 @@ test("planRun runs an extensionless shebang script through its declared interpre
   // resolved prefix.
   const scriptPath = `${tmpDir}/deploy`;
   nodeFs.writeFileSync(scriptPath, "#!/usr/bin/env python3\nprint('hi')\n");
-  const plan = planRun(pin({ path: "deploy" }), asUri(Uri.file(scriptPath)));
+  const plan = planRun(shortcut({ path: "deploy" }), asUri(Uri.file(scriptPath)));
   assert.ok(plan.commandLine.startsWith("python3 "), "the shebang interpreter leads the command");
 });
 
 // --- runBlockReason -----------------------------------------------------
 
 test("runBlockReason is undefined when the pin is idle and unlocked", () => {
-  assert.equal(runBlockReason(pin({ id: "rb-idle" })), undefined);
+  assert.equal(runBlockReason(shortcut({ id: "rb-idle" })), undefined);
 });
 
 test("runBlockReason reports 'running' while a tracked run of the pin is in flight", () => {
@@ -201,7 +201,7 @@ test("runBlockReason reports 'running' while a tracked run of the pin is in flig
   const child = new FakeChild(123);
   processRegistry.register(pinId, asChild(child));
   try {
-    assert.equal(runBlockReason(pin({ id: pinId })), "running", "an in-flight run blocks a second");
+    assert.equal(runBlockReason(shortcut({ id: pinId })), "running", "an in-flight run blocks a second");
   } finally {
     child.emit("close");
   }
@@ -213,7 +213,7 @@ test("runBlockReason reports 'locked' when the cross-process lock is held by a l
   // The test process is alive, so the lock it acquires reads as held by a live holder.
   runLock.acquire(lockName, process.pid, "owner");
   try {
-    assert.equal(runBlockReason(pin({ id: pinId, lockName })), "locked");
+    assert.equal(runBlockReason(shortcut({ id: pinId, lockName })), "locked");
   } finally {
     runLock.release(lockName, process.pid);
   }
@@ -228,7 +228,7 @@ test("allowConcurrent opts the pin out of both guards", () => {
   try {
     // Even with a tracked run AND a held lock, allowConcurrent permits a fresh run.
     assert.equal(
-      runBlockReason(pin({ id: pinId, lockName, allowConcurrent: true })),
+      runBlockReason(shortcut({ id: pinId, lockName, allowConcurrent: true })),
       undefined
     );
   } finally {

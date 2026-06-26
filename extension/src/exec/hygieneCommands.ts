@@ -2,24 +2,25 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { ScanMode, ScanOptions, ScanReport, scanOutliers } from "./hygieneScan";
 import { expandRecipeTokens } from "./runner";
-import { PinStore } from "../model/pinStore";
-import { SharedPin } from "../import/shareLink";
+import { ShortcutStore } from "../model/shortcutStore";
+import { SharedShortcut } from "../import/shareLink";
 import { l10n } from "../i18n/l10n";
 
 // Commands for the workspace hygiene scanner (recipe book #63). Three entry points:
 //   - runHygieneScan: the whole-project scan configured by saropaWorkspace.hygiene.*
 //     settings (the original single scan).
 //   - newHygieneScan: a wizard that captures a scope + mode + ceilings and SAVES them
-//     as a reusable pin with an auto-generated name (the per-instance scan follow-up).
-//   - runSavedHygieneScan: runs a saved scan pin's stored config (invoked by that
-//     pin's command action, manually or on a schedule).
+//     as a reusable shortcut with an auto-generated name (the per-instance scan
+//     follow-up).
+//   - runSavedHygieneScan: runs a saved scan shortcut's stored config (invoked by that
+//     shortcut's command action, manually or on a schedule).
 // All three share one execute-and-report path, so a saved scan reports identically to
 // the settings scan: a structured dated JSON report plus a sticky toast.
 const CONFIG = "saropaWorkspace.hygiene";
 
 export function registerHygieneCommands(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.recipe.runHygieneScan", () =>
@@ -66,8 +67,8 @@ async function runHygieneScan(): Promise<void> {
   await executeAndReport(options);
 }
 
-// Run a saved scan pin's stored config. The pin's command action carries the
-// ScanOptions verbatim in commandArgs[0]; validate the shape defensively (it came
+// Run a saved scan shortcut's stored config. The shortcut's command action carries
+// the ScanOptions verbatim in commandArgs[0]; validate the shape defensively (it came
 // from disk and could be hand-edited) before scanning.
 async function runSavedHygieneScan(config?: unknown): Promise<void> {
   const options = asScanOptions(config);
@@ -115,9 +116,9 @@ function numOr(value: unknown, fallback: number): number {
 }
 
 // The wizard: capture a scope folder, a mode, and (for an oversized scan) the
-// ceilings, generate a descriptive name, and save it as a command-action pin that
+// ceilings, generate a descriptive name, and save it as a command-action shortcut that
 // re-runs this exact scan. Saved to project scope when a folder is open, else global.
-async function newHygieneScan(store: PinStore): Promise<void> {
+async function newHygieneScan(store: ShortcutStore): Promise<void> {
   const root = await pickScope();
   if (!root) {
     return;
@@ -157,8 +158,8 @@ async function newHygieneScan(store: PinStore): Promise<void> {
     excludeGlobs: [],
   };
   const name = buildScanName(root, options);
-  const pin: SharedPin = {
-    // v is the share-link envelope version; importPin reads the fields below, not v.
+  const shortcut: SharedShortcut = {
+    // v is the share-link envelope version; importShortcut reads the fields below, not v.
     v: 1,
     label: name,
     action: {
@@ -172,7 +173,7 @@ async function newHygieneScan(store: PinStore): Promise<void> {
   const scope = (vscode.workspace.workspaceFolders?.length ?? 0) > 0
     ? "project"
     : "global";
-  const added = await store.importPin(pin, scope);
+  const added = await store.importShortcut(shortcut, scope);
   if (added) {
     vscode.window.showInformationMessage(l10n("hygiene.new.saved", { name }));
   } else {

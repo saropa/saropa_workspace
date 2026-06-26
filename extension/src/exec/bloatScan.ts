@@ -266,7 +266,7 @@ export async function measureDirectory(
 
 // Scan one project root: measure its immediate child dirs, read its watcher guards,
 // and emit findings for oversized crawlable dirs + an unguarded test-downloader
-// cache. Pure of UI — the command layer writes the report and badges the pin.
+// cache. Pure of UI — the command layer writes the report and badges the shortcut.
 async function scanRoot(
   root: string,
   options: BloatOptions,

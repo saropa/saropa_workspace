@@ -1,7 +1,7 @@
 // Mapping tests for the kdcro101 `.favorites.json` importer (roadmap 1.1 — the
-// group-import slice). These run the REAL importer against the REAL PinStore: the
+// group-import slice). These run the REAL importer against the REAL ShortcutStore: the
 // fs-backed vscode stub persists the project file to a temp directory, so File ->
-// pin, Group -> pin group, parent_id -> membership, the Directory/path-less skip
+// shortcut, Group -> shortcut group, parent_id -> membership, the Directory/path-less skip
 // path, and idempotency on re-run all execute end to end. Only the host SHELL (the
 // vscode API surface) is faked. The OutputChannel is a line collector so skip
 // reporting can be asserted without a real channel.
@@ -19,7 +19,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { importKdcro } from "../import/favoritesKdcroBookmarks";
 import type { OutputChannel } from "vscode";
 
@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 test("File entries become pins; a Group entry becomes a pin group with its members", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   // A Group container, one File inside it (parent_id -> group), and one top-level
@@ -82,8 +82,8 @@ test("File entries become pins; a Group entry becomes a pin group with its membe
   assert.equal(groups.length, 1, "the Group entry creates exactly one pin group");
   assert.equal(groups[0].label, "Backend");
 
-  const grouped = store.getProjectPins().find((p) => p.path === "api/server.ts");
-  const topLevel = store.getProjectPins().find((p) => p.path === "README.md");
+  const grouped = store.getProjectShortcuts().find((p) => p.path === "api/server.ts");
+  const topLevel = store.getProjectShortcuts().find((p) => p.path === "README.md");
   assert.ok(grouped, "the grouped file is pinned");
   assert.ok(topLevel, "the top-level file is pinned");
   assert.equal(
@@ -99,7 +99,7 @@ test("File entries become pins; a Group entry becomes a pin group with its membe
 });
 
 test("a Directory entry and a path-less entry are reported and skipped", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   const json = JSON.stringify([
@@ -124,7 +124,7 @@ test("a Directory entry and a path-less entry are reported and skipped", async (
 
 test("re-importing the same file adds no duplicate pins or groups (idempotent)", async () => {
   const context = fakeContext();
-  const store = new PinStore(context);
+  const store = new ShortcutStore(context);
   await store.init();
 
   const json = JSON.stringify([
@@ -136,13 +136,13 @@ test("re-importing the same file adds no duplicate pins or groups (idempotent)",
   const first = await importKdcro(json, ".favorites.json", store, channel);
   assert.equal(first.added, 1);
 
-  // Second pass over the identical source: the pin dedupes by path and the group
+  // Second pass over the identical source: the shortcut dedupes by path and the group
   // is reused by name, so nothing new is created.
   const second = await importKdcro(json, ".favorites.json", store, channel);
   assert.equal(second.added, 0, "the second import adds no pin");
 
   assert.equal(
-    store.getProjectPins().filter((p) => p.path === "docs/intro.md").length,
+    store.getProjectShortcuts().filter((p) => p.path === "docs/intro.md").length,
     1,
     "the pin exists exactly once"
   );
@@ -154,14 +154,14 @@ test("re-importing the same file adds no duplicate pins or groups (idempotent)",
 });
 
 test("a malformed file imports nothing, logs the error, and does not throw", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel, lines } = fakeChannel();
 
   const result = await importKdcro("{ not valid json", ".favorites.json", store, channel);
 
   assert.deepEqual(result, { added: 0, skipped: 0 });
-  // The store synthesizes a config-example pin on init, so assert on what the
+  // The store synthesizes a config-example shortcut on init, so assert on what the
   // import itself produced: no group, and nothing added.
   assert.equal(store.getProjectGroups().length, 0, "no group is created");
   assert.equal(lines.length, 1, "the parse failure is reported once");

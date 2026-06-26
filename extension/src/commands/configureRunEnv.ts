@@ -1,21 +1,21 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { Pin, PinExecConfig } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut, ShortcutExecConfig } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
 // The path / environment / dependency field editors for the run-parameters hub:
 // working directory (with presets + inline existence validation), environment
-// variables (an add/edit/delete sub-hub), and the prerequisite-pin dependency.
+// variables (an add/edit/delete sub-hub), and the prerequisite-shortcut dependency.
 // Split out of configureRun.ts so the hub file holds the flow.
 
 export async function editCwd(
-  work: PinExecConfig,
+  work: ShortcutExecConfig,
   title: string,
-  store: PinStore,
-  pin: Pin
+  store: ShortcutStore,
+  shortcut: Shortcut
 ): Promise<void> {
-  const uri = store.resolveUri(pin);
+  const uri = store.resolveUri(shortcut);
   const owningFolder = uri
     ? vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath
     : undefined;
@@ -96,7 +96,7 @@ async function directoryExists(fsPath: string): Promise<boolean> {
   }
 }
 
-export async function editEnv(work: PinExecConfig, title: string): Promise<void> {
+export async function editEnv(work: ShortcutExecConfig, title: string): Promise<void> {
   // Sub-hub: list each KEY = value, an Add action, and per-entry edit/remove.
   // Looping here lets the user manage several variables before returning.
   for (;;) {
@@ -200,24 +200,24 @@ function validateEnvKey(input: string, existing: string[]): string | undefined {
   return undefined;
 }
 
-// Display name for a dependency pin id (the hub shows the prerequisite's name, not
+// Display name for a dependency shortcut id (the hub shows the prerequisite's name, not
 // its opaque id). Falls back to a placeholder when the id no longer resolves.
-export function resolveDepName(store: PinStore, id: string): string {
-  const dep = store.findPin(id);
+export function resolveDepName(store: ShortcutStore, id: string): string {
+  const dep = store.findShortcut(id);
   return dep
     ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
     : l10n("configure.dependsOn.unknown");
 }
 
-// Pick the pin that must succeed before this one runs (WOW #13), or clear the
-// dependency. Lists the other pins across both scopes; recipe pins are excluded
-// (they are detected shortcuts, not the user's own build steps), and the pin itself
+// Pick the shortcut that must succeed before this one runs (WOW #13), or clear the
+// dependency. Lists the other shortcuts across both scopes; recipe shortcuts are excluded
+// (they are detected shortcuts, not the user's own build steps), and the shortcut itself
 // cannot depend on itself.
 export async function editDependsOn(
-  work: PinExecConfig,
+  work: ShortcutExecConfig,
   title: string,
-  store: PinStore,
-  pin: Pin
+  store: ShortcutStore,
+  shortcut: Shortcut
 ): Promise<void> {
   interface DepItem extends vscode.QuickPickItem {
     id?: string;
@@ -225,8 +225,8 @@ export async function editDependsOn(
   const items: DepItem[] = [
     { id: undefined, label: l10n("configure.dependsOn.none") },
   ];
-  for (const candidate of [...store.getProjectPins(), ...store.getGlobalPins()]) {
-    if (candidate.id === pin.id || candidate.isRecipe) {
+  for (const candidate of [...store.getProjectShortcuts(), ...store.getGlobalShortcuts()]) {
+    if (candidate.id === shortcut.id || candidate.isRecipe) {
       continue;
     }
     items.push({

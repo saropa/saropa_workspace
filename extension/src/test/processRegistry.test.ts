@@ -1,5 +1,5 @@
 // Unit tests for the background-process registry (roadmap 2.3): the in-memory map
-// that lets the tree show a pin as running and offer a Stop / Force-kill action. The
+// that lets the tree show a shortcut as running and offer a Stop / Force-kill action. The
 // registry wraps a VS Code EventEmitter (modeled by the stub) and child_process
 // handles. The tests drive a FAKE ChildProcess — a Node EventEmitter carrying a `pid`
 // — so the running / stopping state machine, the close-handler cleanup, the
@@ -64,7 +64,7 @@ test("a relaunch that replaces a child does not let the old child's exit clear i
   const first = new FakeChild(1);
   const second = new FakeChild(2);
   processRegistry.register(pinId, asChild(first));
-  // A new run replaces the handle for the same pin.
+  // A new run replaces the handle for the same shortcut.
   processRegistry.register(pinId, asChild(second));
   assert.equal(processRegistry.isRunning(pinId), true);
   // The FIRST (replaced) child now exits late: its close handler must NOT remove the

@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { pollProcesses, buildProcessReportMarkdown } from "./processPoll";
 import { DashboardPanel } from "../views/dashboardPanel";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { expandRecipeTokens } from "./runner";
 import { l10n } from "../i18n/l10n";
 
@@ -11,13 +11,13 @@ import { l10n } from "../i18n/l10n";
 //   - openDashboard opens the three-tab dashboard (Processes / Analytics / Trends),
 //     defaulting to the Processes tab; a string argument selects a starting tab.
 //   - openProcessMonitor (#60) is kept as an alias that opens the Processes tab, so
-//     existing callers (the heartbeat toast, the recipe pin) keep working unchanged.
+//     existing callers (the heartbeat toast, the recipe shortcut) keep working unchanged.
 //   - recipe.snapshotProcesses (#62, grouped) writes the two-sample, per-tool
 //     rolled-up table to a dated report and opens it — the upgrade over the basic
 //     one-instant tasklist/ps snapshot, now that the process-poll helper exists.
 export function registerProcessMonitorCommands(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): void {
   // Accept an optional tab argument so the dashboard can be opened directly on
   // Analytics or Trends; an unrecognized value falls through to the Processes tab.

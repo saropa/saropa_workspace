@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinExecConfig, RunLocation } from "../model/pin";
+import { ShortcutExecConfig, RunLocation } from "../model/shortcut";
 import { l10n } from "../i18n/l10n";
 import type { ConcurrencyEdit } from "./configureRun";
 
@@ -7,9 +7,9 @@ import type { ConcurrencyEdit } from "./configureRun";
 // location (terminal / background / external), elevation, file-arg toggle, audio
 // cue, run-on-save, single-instance concurrency, the cross-process lock name, and
 // the output-extraction regex. Split out of configureRun.ts so the hub file holds
-// the flow; each editor here is a small toggle/picker over a pin field.
+// the flow; each editor here is a small toggle/picker over a shortcut field.
 
-export async function editLocation(work: PinExecConfig, title: string): Promise<void> {
+export async function editLocation(work: ShortcutExecConfig, title: string): Promise<void> {
   interface LocationItem extends vscode.QuickPickItem {
     value: RunLocation | undefined;
   }
@@ -43,7 +43,7 @@ export async function editLocation(work: PinExecConfig, title: string): Promise<
 
 // Toggle administrator/elevated privileges for an external window. Reachable only
 // when the location is "external" (the hub hides this field otherwise).
-export async function editElevated(work: PinExecConfig, title: string): Promise<void> {
+export async function editElevated(work: ShortcutExecConfig, title: string): Promise<void> {
   interface ElevatedItem extends vscode.QuickPickItem {
     value: boolean;
   }
@@ -69,7 +69,7 @@ export async function editElevated(work: PinExecConfig, title: string): Promise<
 // Toggle whether the file path is inserted into the command. Off suits run
 // targets that name their work in args (an npm script, a Make target) where the
 // file is the package.json / Makefile in cwd, not an argument.
-export async function editFileArg(work: PinExecConfig, title: string): Promise<void> {
+export async function editFileArg(work: ShortcutExecConfig, title: string): Promise<void> {
   interface FileArgItem extends vscode.QuickPickItem {
     value: boolean;
   }
@@ -88,11 +88,11 @@ export async function editFileArg(work: PinExecConfig, title: string): Promise<v
   work.includeFilePath = pick.value;
 }
 
-// Per-pin audio-cue override (#64): follow the global sound settings, force the
-// cues on for this pin, or silence it. undefined = follow the settings; "on" /
+// Per-shortcut audio-cue override (#64): follow the global sound settings, force the
+// cues on for this shortcut, or silence it. undefined = follow the settings; "on" /
 // "off" are the explicit overrides. The picker offers all three; dismissing leaves
 // the current choice unchanged (hub convention).
-export async function editSound(work: PinExecConfig, title: string): Promise<void> {
+export async function editSound(work: ShortcutExecConfig, title: string): Promise<void> {
   interface SoundItem extends vscode.QuickPickItem {
     value: "default" | "on" | "off";
   }
@@ -112,10 +112,10 @@ export async function editSound(work: PinExecConfig, title: string): Promise<voi
   work.sound = pick.value === "default" ? undefined : pick.value;
 }
 
-// Toggle whether the pin runs automatically when its own target file is saved.
+// Toggle whether the shortcut runs automatically when its own target file is saved.
 // A two-option pick (On / Off) rather than a silent flip, so the current state is
 // always shown and the choice is explicit.
-export async function editRunOnSave(work: PinExecConfig, title: string): Promise<void> {
+export async function editRunOnSave(work: ShortcutExecConfig, title: string): Promise<void> {
   interface RunOnSaveItem extends vscode.QuickPickItem {
     value: boolean;
   }
@@ -134,8 +134,8 @@ export async function editRunOnSave(work: PinExecConfig, title: string): Promise
   work.runOnSave = pick.value;
 }
 
-// Choose whether the pin may run while one of its own runs is already in flight.
-// Block (the default) is single-instance; Allow opts out for a pin that genuinely
+// Choose whether the shortcut may run while one of its own runs is already in flight.
+// Block (the default) is single-instance; Allow opts out for a shortcut that genuinely
 // runs in parallel. A two-option pick so the current state is always shown.
 export async function editConcurrency(
   conc: ConcurrencyEdit,
@@ -189,7 +189,7 @@ export async function editLock(conc: ConcurrencyEdit, title: string): Promise<vo
 // BACKGROUND run's output when it finishes; the first capture group (or the whole
 // match) is copied to the clipboard. An empty entry clears it. Validated as a real
 // regex inline so a typo never persists and silently never matches.
-export async function editExtract(work: PinExecConfig, title: string): Promise<void> {
+export async function editExtract(work: ShortcutExecConfig, title: string): Promise<void> {
   const value = await vscode.window.showInputBox({
     title,
     prompt: l10n("configure.extract.prompt"),

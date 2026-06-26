@@ -2,8 +2,8 @@ import * as vscode from "vscode";
 
 // Editor-idle detector for the run-on-idle trigger (WOW #18 — the "coffee break"
 // runner). Tracks the time since the user last interacted with VS Code and fires
-// onDidGoIdle once each time that span crosses a configured per-pin threshold, so a
-// heavy pin can run in the background while the user is away from the keyboard.
+// onDidGoIdle once each time that span crosses a configured per-shortcut threshold, so a
+// heavy shortcut can run in the background while the user is away from the keyboard.
 //
 // "Idle" here is EDITOR-scoped, not OS-wide: VS Code exposes no global input hook, so
 // this watches window focus, cursor/selection movement, and the active editor — the
@@ -22,14 +22,14 @@ export class IdleMonitor implements vscode.Disposable {
   private readonly _onDidGoIdle = new vscode.EventEmitter<number>();
 
   // Fires with the threshold (in minutes) that was just crossed. The consumer runs the
-  // pins whose idle threshold equals that value. Firing the exact crossed threshold
-  // (rather than the raw idle span) means a 3-minute pin never re-runs when a separate
-  // 10-minute pin's boundary is later crossed in the same idle period.
+  // shortcuts whose idle threshold equals that value. Firing the exact crossed threshold
+  // (rather than the raw idle span) means a 3-minute shortcut never re-runs when a separate
+  // 10-minute shortcut's boundary is later crossed in the same idle period.
   readonly onDidGoIdle = this._onDidGoIdle.event;
 
   private readonly disposables: vscode.Disposable[] = [];
   private lastActivity = Date.now();
-  // Distinct idle thresholds in minutes, ascending. Empty => no idle-triggered pins
+  // Distinct idle thresholds in minutes, ascending. Empty => no idle-triggered shortcuts
   // exist => the poll timer stays off (no background work when nothing needs it).
   private thresholds: number[] = [];
   // Thresholds already emitted since the last activity, so each fires at most once per
@@ -39,7 +39,7 @@ export class IdleMonitor implements vscode.Disposable {
 
   // Poll cadence. Fine enough that a crossed threshold fires within this window of the
   // boundary, coarse enough to be a negligible background cost; the timer only runs
-  // while at least one idle-triggered pin exists.
+  // while at least one idle-triggered shortcut exists.
   private static readonly TICK_MS = 15_000;
 
   constructor() {
@@ -59,7 +59,7 @@ export class IdleMonitor implements vscode.Disposable {
   }
 
   // Replace the set of idle thresholds (in minutes) the monitor watches. The consumer
-  // calls this whenever the pin set changes so adding/removing an idle pin takes effect
+  // calls this whenever the shortcut set changes so adding/removing an idle shortcut takes effect
   // without a reload. Drops fired flags for thresholds that no longer exist, then arms
   // or stops the poll timer to match whether any thresholds remain.
   setThresholds(minutes: number[]): void {

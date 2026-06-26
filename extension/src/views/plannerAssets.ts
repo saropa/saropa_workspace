@@ -118,7 +118,7 @@ button.btn.icon { padding: 5px 8px; }
 /* Stage ----------------------------------------------------------------- */
 /* The work area is two columns: the timeline/graph stage (flexes to fill) and the
    detail inspector docked on the right. The inspector only occupies a column while a
-   pin is selected — when hidden it collapses to zero width and the stage spans full. */
+   shortcut is selected — when hidden it collapses to zero width and the stage spans full. */
 .workarea { display: flex; align-items: flex-start; gap: 12px; }
 .stage { flex: 1 1 auto; min-width: 0; animation: fade 200ms var(--ease); }
 .empty {
@@ -141,8 +141,8 @@ button.btn.icon { padding: 5px 8px; }
   position: absolute; bottom: 100%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; cursor: pointer;
 }
-.marker .pin-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); animation: pop 360ms var(--ease) backwards; }
-.marker .pin-dot.off { background: var(--muted); box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 20%, transparent); }
+.marker .shortcut-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); animation: pop 360ms var(--ease) backwards; }
+.marker .shortcut-dot.off { background: var(--muted); box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 20%, transparent); }
 .marker .tag {
   margin-bottom: 4px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: .78em; padding: 1px 7px; border-radius: var(--radius-pill);
@@ -212,7 +212,7 @@ button.btn.icon { padding: 5px 8px; }
 .tool .ti { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; flex: 0 0 auto; background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); font-size: 13px; }
 .toolbox .hint { font-size: .76em; color: var(--muted); margin-top: 8px; line-height: 1.4; }
 
-/* Workflow right column: how-to band, canvas, unlinked-pin shelf ---------- */
+/* Workflow right column: how-to band, canvas, unlinked-shortcut shelf ---------- */
 .wf-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .wf-howto {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -242,18 +242,18 @@ button.btn.icon { padding: 5px 8px; }
 .shelf.collapsed .shelf-grid { display: none; }
 .shelf.collapsed .shelf-empty { display: none; }
 .shelf-empty { padding: 8px 0; color: var(--muted); font-size: .85em; }
-.shelf-pin {
+.shelf-shortcut {
   display: inline-flex; align-items: center; gap: 7px; max-width: 230px;
   padding: 6px 11px; border: 1px solid var(--border); border-radius: var(--radius-pill);
   background: var(--surface-3); cursor: grab; font-size: .84em;
   transition: border-color var(--dur), transform var(--dur), box-shadow var(--dur);
 }
-.shelf-pin:hover { border-color: var(--brand); transform: translateY(-1px); }
-.shelf-pin:active { cursor: grabbing; }
-.shelf-pin.sel { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-glow); }
-.shelf-pin .si { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; flex: 0 0 auto; background: var(--surface-1); font-size: 11px; }
-.shelf-pin .sl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.shelf-pin .sclock { color: var(--brand); flex: 0 0 auto; font-size: .9em; }
+.shelf-shortcut:hover { border-color: var(--brand); transform: translateY(-1px); }
+.shelf-shortcut:active { cursor: grabbing; }
+.shelf-shortcut.sel { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-glow); }
+.shelf-shortcut .si { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; flex: 0 0 auto; background: var(--surface-1); font-size: 11px; }
+.shelf-shortcut .sl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shelf-shortcut .sclock { color: var(--brand); flex: 0 0 auto; font-size: .9em; }
 
 .canvas-wrap { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); overflow: hidden; }
 .canvas-wrap.droptarget { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
@@ -324,7 +324,7 @@ button.btn.icon { padding: 5px 8px; }
 
 /* Detail inspector ------------------------------------------------------ */
 /* The inspector is its own right-hand column (like the Workflow toolbox), sticky under
-   the toolbar so it stays in view while the tall grid scrolls. It is hidden until a pin
+   the toolbar so it stays in view while the tall grid scrolls. It is hidden until a shortcut
    is selected; a header (x) closes it and returns the stage to full width. */
 .detail { flex: 0 0 var(--detail-w, 300px); align-self: flex-start; position: sticky; top: 56px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); display: none; }
 .detail.show { display: block; animation: rise 160ms var(--ease); }

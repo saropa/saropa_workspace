@@ -5,7 +5,7 @@
 //     inverse re-quoting, the contract the overrides palette also relies on.
 //   - editCommand / editArgs, driven through the vscode stub's settable input
 //     handler so each branch (a value, an empty entry that clears the field, and an
-//     Esc that leaves it unchanged) mutates the working PinExecConfig as documented.
+//     Esc that leaves it unchanged) mutates the working ShortcutExecConfig as documented.
 //
 // These editors touch only window.showInputBox, which the stub models, so the real
 // handler logic runs without the extension host.
@@ -19,7 +19,7 @@ import {
   editCommand,
   editArgs,
 } from "../commands/configureRunCommand";
-import type { PinExecConfig } from "../model/pin";
+import type { ShortcutExecConfig } from "../model/shortcut";
 
 beforeEach(() => {
   // Reset so an unhandled prompt defaults to a cancel (undefined).
@@ -52,7 +52,7 @@ test("parseArgs and formatArgs round-trip a line with a quoted span", () => {
 
 test("editCommand stores a typed prefix verbatim", async () => {
   __setInputHandler(async () => "python3");
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editCommand(work, "Title");
   assert.equal(work.command, "python3");
 });
@@ -60,28 +60,28 @@ test("editCommand stores a typed prefix verbatim", async () => {
 test("editCommand clears the prefix to undefined on an empty entry", async () => {
   // An empty entry means "use the interpreter default", which is undefined — not "".
   __setInputHandler(async () => "   ");
-  const work: PinExecConfig = { command: "node" };
+  const work: ShortcutExecConfig = { command: "node" };
   await editCommand(work, "Title");
   assert.equal(work.command, undefined);
 });
 
 test("editCommand leaves the field unchanged on Esc", async () => {
   // The stub default returns undefined (a cancel); the prior value must survive.
-  const work: PinExecConfig = { command: "deno" };
+  const work: ShortcutExecConfig = { command: "deno" };
   await editCommand(work, "Title");
   assert.equal(work.command, "deno", "Esc must not touch the command");
 });
 
 test("editArgs parses the entered line into the args array", async () => {
   __setInputHandler(async () => '--out "a b.txt" -v');
-  const work: PinExecConfig = {};
+  const work: ShortcutExecConfig = {};
   await editArgs(work, "Title");
   assert.deepEqual(work.args, ["--out", "a b.txt", "-v"]);
 });
 
 test("editArgs collapses an empty line to undefined (no inert empty array)", async () => {
   __setInputHandler(async () => "");
-  const work: PinExecConfig = { args: ["--old"] };
+  const work: ShortcutExecConfig = { args: ["--old"] };
   await editArgs(work, "Title");
   assert.equal(work.args, undefined);
 });
@@ -94,7 +94,7 @@ test("editArgs seeds the input box with the existing args, formatted", async () 
     seeded = opts?.value;
     return undefined; // cancel after capturing the seed
   });
-  const work: PinExecConfig = { args: ["--msg", "hello world"] };
+  const work: ShortcutExecConfig = { args: ["--msg", "hello world"] };
   await editArgs(work, "Title");
   assert.equal(seeded, '--msg "hello world"');
 });

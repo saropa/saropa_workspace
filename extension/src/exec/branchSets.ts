@@ -1,32 +1,32 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { BranchTracker } from "./gitBranch";
 import { getOutputChannel } from "./runner";
 import { l10n } from "../i18n/l10n";
 
-// Branch-aware pin sets (roadmap 3.2). Binds a git branch name to a named pin set
+// Branch-aware shortcut sets (roadmap 3.2). Binds a git branch name to a named shortcut set
 // so that, when the feature is enabled, the active set follows the current branch:
 // a checkout switches the tree to that branch's set (and can run one designated
-// pin, e.g. "refresh dependencies"). Built ENTIRELY on top of the existing
-// primitives — the named-pin-set API on PinStore and the .git/HEAD branch tracker
+// shortcut, e.g. "refresh dependencies"). Built ENTIRELY on top of the existing
+// primitives — the named-shortcut-set API on ShortcutStore and the .git/HEAD branch tracker
 // (BranchTracker) — so there is no second git layer and no new set machinery.
 //
 // Gated by saropaWorkspace.branchAware.enabled (default OFF): with it off the
 // binder observes branch changes but never switches, so behavior is identical to
-// plain pin sets. Outside a git repo the tracker reports no branch, so the binder
+// plain shortcut sets. Outside a git repo the tracker reports no branch, so the binder
 // is inert and raises no errors (graceful degradation).
 //
 // The branch -> binding map is per-workspace (workspaceState), mirroring the
 // "show all branches" scope flag: a branch binding is a personal workflow choice
 // for this checkout, not data shared via the repo. It is keyed by the PRIMARY
-// folder's branch name; pin sets are coordinated across a multi-root workspace by
-// name (see PinStore), so a single map keyed by the primary branch stays coherent
+// folder's branch name; shortcut sets are coordinated across a multi-root workspace by
+// name (see ShortcutStore), so a single map keyed by the primary branch stays coherent
 // with the rest of the set machinery.
 const BRANCH_SETS_KEY = "saropaWorkspace.branchSets";
 
-// One branch's binding: the set to activate, and an optional pin id to run after
-// the switch. The pin is resolved AFTER the switch (so a project pin living in the
-// now-active set is found); a deleted pin fails safe — logged and skipped, never
+// One branch's binding: the set to activate, and an optional shortcut id to run after
+// the switch. The shortcut is resolved AFTER the switch (so a project shortcut living in the
+// now-active set is found); a deleted shortcut fails safe — logged and skipped, never
 // thrown.
 export interface BranchSetBinding {
   set: string;
@@ -45,7 +45,7 @@ export class BranchSetBinder implements vscode.Disposable {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly store: PinStore,
+    private readonly store: ShortcutStore,
     private readonly tracker: BranchTracker
   ) {
     // React to checkouts. The tracker debounces a checkout's HEAD-write burst into a
@@ -99,7 +99,7 @@ export class BranchSetBinder implements vscode.Disposable {
   }
 
   // Core: when enabled and the branch actually changed, switch to the branch's bound
-  // set and optionally run its on-switch pin. Every early return leaves the active
+  // set and optionally run its on-switch shortcut. Every early return leaves the active
   // set untouched, so the feature is a no-op when off, outside git, or unbound.
   private async onBranchSignal(): Promise<void> {
     if (!this.isEnabled()) {
@@ -126,7 +126,7 @@ export class BranchSetBinder implements vscode.Disposable {
     }
     await this.store.switchSet(binding.set);
     if (binding.runPinId) {
-      this.runOnSwitchPin(binding.runPinId, binding.set, branch);
+      this.runOnSwitchShortcut(binding.runPinId, binding.set, branch);
     } else {
       void vscode.window.showInformationMessage(
         l10n("branchSet.switched", { set: binding.set, branch })
@@ -134,24 +134,24 @@ export class BranchSetBinder implements vscode.Disposable {
     }
   }
 
-  // Run the binding's on-switch pin through the normal Run command, so the run is
+  // Run the binding's on-switch shortcut through the normal Run command, so the run is
   // visible (no silent execution) and reuses token resolution / telemetry. Resolved
-  // AFTER the switch, so a project pin that lives in the now-active set is found; a
-  // deleted pin is logged and skipped (the switch still stands).
-  private runOnSwitchPin(pinId: string, set: string, branch: string): void {
-    const pin = this.store.findPin(pinId);
-    if (!pin) {
+  // AFTER the switch, so a project shortcut that lives in the now-active set is found; a
+  // deleted shortcut is logged and skipped (the switch still stands).
+  private runOnSwitchShortcut(pinId: string, set: string, branch: string): void {
+    const shortcut = this.store.findShortcut(pinId);
+    if (!shortcut) {
       getOutputChannel().appendLine(l10n("branchSet.pinMissing", { branch, set }));
       void vscode.window.showInformationMessage(
         l10n("branchSet.switched", { set, branch })
       );
       return;
     }
-    const name = pin.label ?? pin.path.split("/").pop() ?? pin.path;
+    const name = shortcut.label ?? shortcut.path.split("/").pop() ?? shortcut.path;
     void vscode.window.showInformationMessage(
       l10n("branchSet.switchedAndRan", { set, branch, name })
     );
-    void vscode.commands.executeCommand("saropaWorkspace.runPin", pin);
+    void vscode.commands.executeCommand("saropaWorkspace.runPin", shortcut);
   }
 
   dispose(): void {

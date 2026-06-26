@@ -1,14 +1,14 @@
 import * as vscode from "vscode";
-import { SystemEventName } from "../model/pin";
+import { SystemEventName } from "../model/shortcut";
 
-// In-process bus for system-level events that pins can chain off (WOW: special
+// In-process bus for system-level events that shortcuts can chain off (WOW: special
 // trigger events). Two sources feed it:
-//   - The ChainRunner forwards a pin's `emits` (build / publish) when that pin
+//   - The ChainRunner forwards a shortcut's `emits` (build / publish) when that shortcut
 //     completes — there is no generic build system here, so "a build happened" is
-//     defined as "a pin the user marked as the build step finished".
+//     defined as "a shortcut the user marked as the build step finished".
 //   - GitEventWatcher (below) detects commits and pushes directly from the repo's
-//     .git logs, so gitCommit / gitPush fire with no pin needed.
-// The ChainRunner subscribes and runs every pin whose triggers name the event.
+//     .git logs, so gitCommit / gitPush fire with no shortcut needed.
+// The ChainRunner subscribes and runs every shortcut whose triggers name the event.
 class SystemEventBus {
   private readonly _onDidFire = new vscode.EventEmitter<SystemEventName>();
 

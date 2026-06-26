@@ -71,7 +71,7 @@ test("retime carries the day move and snapped time the host expects", () => {
 });
 
 test("esc() escapes all five markup-significant characters", () => {
-  // The escaping map is the security boundary: a pin label is untrusted text and is
+  // The escaping map is the security boundary: a shortcut label is untrusted text and is
   // run through esc() before reaching innerHTML. All five of & < > " ' must be
   // mapped, or an injected label could break out into markup.
   for (const pair of [
@@ -95,7 +95,7 @@ test("esc() escapes all five markup-significant characters", () => {
 });
 
 test("context-menu item labels use textContent, not innerHTML", () => {
-  // The node context menu renders a pin's label into a button. The comment in the
+  // The node context menu renders a shortcut's label into a button. The comment in the
   // source flags it must use textContent so a crafted label cannot inject markup;
   // assert that contract holds (textContent assignment for the menu-item text).
   assert.ok(
@@ -116,9 +116,9 @@ test("the inline SVG arrow marker fills from a theme token, not a raw color", ()
 });
 
 test("addTrigger distinguishes pin links from event links", () => {
-  // The host addTrigger() branches on kind ('pin' records a source pin id; 'event'
+  // The host addTrigger() branches on kind ('shortcut' records a source shortcut id; 'event'
   // records an event). Both link kinds must be emitted by the renderer (plug-drag /
-  // autocomplete produce pin links; the toolbox drop produces event links).
+  // autocomplete produce shortcut links; the toolbox drop produces event links).
   assert.ok(PLANNER_SCRIPT.includes("type:'addTrigger'"));
   assert.ok(PLANNER_SCRIPT.includes("kind:'pin'"), "pin-link trigger");
   assert.ok(PLANNER_SCRIPT.includes("kind:'event'"), "event-link trigger");

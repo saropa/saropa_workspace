@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { Pin, pinKind } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut, shortcutKind } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { planRun, expandRecipeTokens } from "../exec/runner";
 import {
   hasInteractiveTokens,
@@ -9,7 +9,7 @@ import {
 } from "../exec/promptTokens";
 import { l10n } from "../i18n/l10n";
 
-// "Simulate Run" (Dry Run / Audit Mode, roadmap WOW #11). A shared or complex pin
+// "Simulate Run" (Dry Run / Audit Mode, roadmap WOW #11). A shared or complex shortcut
 // — a multi-step macro, a run config full of $tokens and ${prompt:...} — is risky
 // to double-click when you cannot see what it will actually execute. This builds
 // the EXACT command line, working directory, run location, and environment that a
@@ -25,7 +25,7 @@ import { l10n } from "../i18n/l10n";
 // Read-only virtual document backing the preview. A virtual scheme (not an untitled
 // buffer) keeps the audit clean: there is no dirty editor to dismiss, and the
 // content cannot be accidentally edited or saved. Content is keyed by uri so
-// re-simulating the same pin refreshes its existing preview rather than piling up
+// re-simulating the same shortcut refreshes its existing preview rather than piling up
 // tabs.
 class SimulationPreviewProvider implements vscode.TextDocumentContentProvider {
   static readonly scheme = "saropa-simulate";
@@ -33,7 +33,7 @@ class SimulationPreviewProvider implements vscode.TextDocumentContentProvider {
   private readonly _onDidChange = new vscode.EventEmitter<vscode.Uri>();
   readonly onDidChange = this._onDidChange.event;
 
-  // uri.toString() -> markdown body. Holds only the most recent simulation per pin.
+  // uri.toString() -> markdown body. Holds only the most recent simulation per shortcut.
   private readonly contents = new Map<string, string>();
 
   provideTextDocumentContent(uri: vscode.Uri): string {
@@ -41,13 +41,13 @@ class SimulationPreviewProvider implements vscode.TextDocumentContentProvider {
   }
 
   // Render the report. The uri path ends in ".md" so the built-in Markdown preview
-  // treats the virtual document as Markdown; the pin id keys the uri so the same
-  // pin reuses one preview (fire onDidChange to repaint it with fresh content).
-  async show(pin: Pin, title: string, content: string): Promise<void> {
+  // treats the virtual document as Markdown; the shortcut id keys the uri so the same
+  // shortcut reuses one preview (fire onDidChange to repaint it with fresh content).
+  async show(shortcut: Shortcut, title: string, content: string): Promise<void> {
     const safe = title.replace(/[\\/:*?"<>|]/g, "_");
     const uri = vscode.Uri.from({
       scheme: SimulationPreviewProvider.scheme,
-      path: `/${pin.id}/${safe}.md`,
+      path: `/${shortcut.id}/${safe}.md`,
     });
     this.contents.set(uri.toString(), content);
     this._onDidChange.fire(uri);
@@ -77,31 +77,31 @@ export function registerSimulationPreview(
   );
 }
 
-// Entry point for the "Simulate Run" command. Decides between the file-pin path
+// Entry point for the "Simulate Run" command. Decides between the file-shortcut path
 // (assemble a command via planRun) and the non-file recipe path (describe the
-// action), then renders the report. Returns without rendering when the pin's file
+// action), then renders the report. Returns without rendering when the shortcut's file
 // is unresolved/missing (named in a toast) or an interactive prompt is canceled.
-export async function simulateRun(store: PinStore, pin: Pin): Promise<void> {
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+export async function simulateRun(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 
-  if (pinKind(pin) !== "file") {
-    await preview.show(pin, l10n("simulate.title", { name }), buildActionReport(pin, name));
+  if (shortcutKind(shortcut) !== "file") {
+    await preview.show(shortcut, l10n("simulate.title", { name }), buildActionReport(shortcut, name));
     return;
   }
 
-  const uri = store.resolveUri(pin);
+  const uri = store.resolveUri(shortcut);
   if (!uri) {
-    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: shortcut.path }));
     return;
   }
 
   // Answer ${prompt:...} / ${pick:...} virtually so the simulated command shows the
   // values the user picked, matching what a real run would assemble. A cancel
   // aborts the simulation with nothing rendered (mirrors the real-run cancel).
-  let effectivePin = pin;
+  let effectiveShortcut = shortcut;
   const resolvedPrompts: Array<{ token: string; value: string }> = [];
-  if (hasInteractiveTokens(pin)) {
-    const values = await resolveInteractiveTokens(pin);
+  if (hasInteractiveTokens(shortcut)) {
+    const values = await resolveInteractiveTokens(shortcut);
     if (values === undefined) {
       vscode.window.showInformationMessage(l10n("simulate.canceled", { name }));
       return;
@@ -109,22 +109,22 @@ export async function simulateRun(store: PinStore, pin: Pin): Promise<void> {
     for (const [token, value] of values) {
       resolvedPrompts.push({ token, value });
     }
-    effectivePin = cloneWithResolvedTokens(pin, values);
+    effectiveShortcut = cloneWithResolvedTokens(shortcut, values);
   }
 
-  const report = buildFileReport(effectivePin, uri, name, resolvedPrompts);
-  await preview.show(pin, l10n("simulate.title", { name }), report);
+  const report = buildFileReport(effectiveShortcut, uri, name, resolvedPrompts);
+  await preview.show(shortcut, l10n("simulate.title", { name }), report);
 }
 
-// Markdown for a file pin: the exact command planRun would launch, plus its cwd,
+// Markdown for a file shortcut: the exact command planRun would launch, plus its cwd,
 // location, environment, any answered prompts, and any unrecognized $placeholders.
 function buildFileReport(
-  pin: Pin,
+  shortcut: Shortcut,
   uri: vscode.Uri,
   name: string,
   resolvedPrompts: Array<{ token: string; value: string }>
 ): string {
-  const plan = planRun(pin, uri);
+  const plan = planRun(shortcut, uri);
   const lines: string[] = [
     `# ${l10n("simulate.title", { name })}`,
     "",
@@ -132,7 +132,7 @@ function buildFileReport(
     "",
   ];
 
-  // A pin with no interpreter and no explicit command has an empty command line:
+  // A shortcut with no interpreter and no explicit command has an empty command line:
   // a real double-click would OPEN the file, not run it. Say so plainly instead of
   // showing an empty code fence that reads as "runs nothing".
   if (plan.commandLine.trim().length === 0) {
@@ -187,7 +187,7 @@ function buildFileReport(
   return lines.join("\n");
 }
 
-// Render the merged-over environment as a bullet list, or "(none)" when the pin
+// Render the merged-over environment as a bullet list, or "(none)" when the shortcut
 // adds no variables (the run inherits the ambient environment unchanged).
 function envSection(env: Record<string, string> | undefined): string[] {
   const out = [`## ${l10n("simulate.envHeading")}`, ""];
@@ -220,11 +220,11 @@ function locationLabel(location: string, elevated: boolean): string {
   }
 }
 
-// Markdown for a non-file recipe pin (url / shell / command / macro): what running
+// Markdown for a non-file recipe shortcut (url / shell / command / macro): what running
 // it would do, with $workspaceRoot/$date tokens resolved the same way a real run
 // resolves them so the audit shows concrete paths, not raw tokens.
-function buildActionReport(pin: Pin, name: string): string {
-  const action = pin.action;
+function buildActionReport(shortcut: Shortcut, name: string): string {
+  const action = shortcut.action;
   const lines: string[] = [
     `# ${l10n("simulate.title", { name })}`,
     "",
@@ -232,7 +232,7 @@ function buildActionReport(pin: Pin, name: string): string {
     "",
   ];
   if (!action) {
-    lines.push(`_${pin.path}_`, "");
+    lines.push(`_${shortcut.path}_`, "");
     return lines.join("\n");
   }
 

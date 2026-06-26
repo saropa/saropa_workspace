@@ -1,6 +1,6 @@
 // Unit tests for parseOlegShiloLines — the pure transform that turns an oleg-shilo
 // "Favorites Manager" text list into ordered import entries. The store dispatch and
-// pin creation need the extension host and are exercised manually (see the finish
+// shortcut creation need the extension host and are exercised manually (see the finish
 // handoff); the genuinely subtle part — preserving source order and collapsing blank
 // lines into section dividers — is pure string logic and pinned here.
 

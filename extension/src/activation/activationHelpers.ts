@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
-import { Pin, pinKind } from "../model/pin";
+import { ShortcutStore } from "../model/shortcutStore";
+import { Shortcut, shortcutKind } from "../model/shortcut";
 import {
   isRunnable,
   runBlockReason,
@@ -14,14 +14,14 @@ import {
   importAllDetected,
   KNOWN_FAVORITES_SOURCES,
 } from "../import/favoritesImport";
-import { decodeSharedPin, describeSharedPin } from "../import/shareLink";
-import { tappedPins } from "../model/tappedPins";
+import { decodeSharedShortcut, describeSharedShortcut } from "../import/shareLink";
+import { tappedShortcuts } from "../model/tappedShortcuts";
 import { telemetry } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
 
 // Standalone activation helpers split out of extension.ts so activate() stays the
 // wiring sequence and these self-contained functions (URI import, run-on-save, the
-// one-time favorites-import offer, the pinned-path context publisher, and a debounce
+// one-time favorites-import offer, the shortcut-path context publisher, and a debounce
 // utility) live on their own. Each takes its dependencies as explicit parameters, so
 // none captures activate()'s locals.
 
@@ -29,20 +29,20 @@ import { l10n } from "../i18n/l10n";
 // once the user has answered (imported or dismissed) for this workspace.
 const IMPORT_PROMPT_KEY = "saropaWorkspace.favoritesImportOffered";
 
-// Import a pin from a shared "Copy as Saropa Link" URI. Decodes the payload, shows a
-// modal confirm naming what the pin does (a shared shell command must be a visible,
-// deliberate choice — importing never runs it), then adds it. Targets the project
-// scope when a workspace folder is open, else global. A malformed/expired link
+// Import a shortcut from a shared "Copy as Saropa Link" URI. Decodes the payload,
+// shows a modal confirm naming what the shortcut does (a shared shell command must be
+// a visible, deliberate choice — importing never runs it), then adds it. Targets the
+// project scope when a workspace folder is open, else global. A malformed/expired link
 // degrades to a single warning, never a crash.
-export async function handlePinImportUri(
+export async function handleShortcutImportUri(
   uri: vscode.Uri,
-  store: PinStore
+  store: ShortcutStore
 ): Promise<void> {
   if (uri.path !== "/import") {
     return;
   }
   const data = new URLSearchParams(uri.query).get("data");
-  const shared = decodeSharedPin(data);
+  const shared = decodeSharedShortcut(data);
   if (!shared) {
     vscode.window.showWarningMessage(l10n("share.import.invalid"));
     return;
@@ -51,7 +51,7 @@ export async function handlePinImportUri(
   const importAction = l10n("share.import.action");
   const choice = await vscode.window.showInformationMessage(
     l10n("share.import.confirm", { name }),
-    { modal: true, detail: describeSharedPin(shared) },
+    { modal: true, detail: describeSharedShortcut(shared) },
     importAction
   );
   if (choice !== importAction) {
@@ -60,7 +60,7 @@ export async function handlePinImportUri(
   const scope = (vscode.workspace.workspaceFolders?.length ?? 0) > 0
     ? "project"
     : "global";
-  const added = await store.importPin(shared, scope);
+  const added = await store.importShortcut(shared, scope);
   vscode.window.showInformationMessage(
     added
       ? l10n("share.import.done", { name })
@@ -69,7 +69,7 @@ export async function handlePinImportUri(
 }
 
 // Coalesce rapid calls into one trailing call after `delayMs` of quiet. Used by
-// the pins-config watcher so the store's write-then-notify burst (and a flurry of
+// the shortcuts-config watcher so the store's write-then-notify burst (and a flurry of
 // editor saves) triggers a single refresh, not one per filesystem event.
 export function makeDebounced(fn: () => void, delayMs: number): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -81,37 +81,39 @@ export function makeDebounced(fn: () => void, delayMs: number): () => void {
   };
 }
 
-// Re-entrancy / storm guard for the cross-file watch links (#25): pinId -> epoch ms
-// of its last watch-triggered run. A burst of saves (format-on-save touching several
-// files, Save All) must not fan out into a run storm, so a watch run is suppressed
-// within COOLDOWN_MS of the pin's previous watch run. Mirrors the ChainRunner cooldown
-// but is independent of it (a watch run and a chain run are separate causes). Keyed
-// per pin, so unrelated watch links still fire concurrently.
+// Re-entrancy / storm guard for the cross-file watch links (#25): shortcutId -> epoch
+// ms of its last watch-triggered run. A burst of saves (format-on-save touching
+// several files, Save All) must not fan out into a run storm, so a watch run is
+// suppressed within COOLDOWN_MS of the shortcut's previous watch run. Mirrors the
+// ChainRunner cooldown but is independent of it (a watch run and a chain run are
+// separate causes). Keyed per shortcut, so unrelated watch links still fire
+// concurrently.
 const WATCH_COOLDOWN_MS = 3000;
 const watchLastRun = new Map<string, number>();
 
 // React to a saved document: fire both kinds of save-driven run.
-//   1. run-on-save (exec.runOnSave) — a runnable file pin whose OWN target is the
+//   1. run-on-save (exec.runOnSave) — a runnable file shortcut whose OWN target is the
 //      saved file, run with its configured location (unchanged behavior).
-//   2. watch links (exec.runOnSaveGlobs, #25) — any pin whose watch globs match the
-//      saved file's path, run in the BACKGROUND with a per-pin cooldown. This is the
-//      cross-file case: "I saved schema.graphql, run the generate-types pin."
-// The same file can be pinned/linked more than once, so all matches fire; a pin that
-// already fired as a run-on-save match this save is not also fired as a watch match
-// (a pin that both targets and globs the saved file runs once, not twice).
-export function runPinsOnSave(store: PinStore, savedUri: vscode.Uri): void {
+//   2. watch links (exec.runOnSaveGlobs, #25) — any shortcut whose watch globs match
+//      the saved file's path, run in the BACKGROUND with a per-shortcut cooldown. This
+//      is the cross-file case: "I saved schema.graphql, run the generate-types shortcut."
+// The same file can have a shortcut/link more than once, so all matches fire; a
+// shortcut that already fired as a run-on-save match this save is not also fired as a
+// watch match (a shortcut that both targets and globs the saved file runs once, not
+// twice).
+export function runShortcutsOnSave(store: ShortcutStore, savedUri: vscode.Uri): void {
   const saved = savedUri.fsPath;
-  const pins = [...store.getProjectPins(), ...store.getGlobalPins()];
+  const shortcuts = [...store.getProjectShortcuts(), ...store.getGlobalShortcuts()];
   // Ids fired by the run-on-save pass, so the watch pass below does not double-run them.
   const fired = new Set<string>();
-  for (const pin of pins) {
-    // A paused pin does not run on save — run-on-save is an unattended runner, so
+  for (const shortcut of shortcuts) {
+    // A paused shortcut does not run on save — run-on-save is an unattended runner, so
     // pausing suspends it like the scheduler and chain triggers.
-    if (pin.paused || pin.exec?.runOnSave !== true || pinKind(pin) !== "file") {
+    if (shortcut.paused || shortcut.exec?.runOnSave !== true || shortcutKind(shortcut) !== "file") {
       continue;
     }
-    const uri = store.resolveUri(pin);
-    if (!uri || uri.fsPath !== saved || !isRunnable(pin, uri.fsPath)) {
+    const uri = store.resolveUri(shortcut);
+    if (!uri || uri.fsPath !== saved || !isRunnable(shortcut, uri.fsPath)) {
       continue;
     }
     // Single-instance guard: skip the save-triggered run when one is already in
@@ -119,75 +121,76 @@ export function runPinsOnSave(store: PinStore, savedUri: vscode.Uri): void {
     // every save. Quiet beyond a channel line — repeated saves must not spam toasts;
     // the manual-run path is where the user gets the interactive "already running"
     // choice. Checked here so an unattended save never reaches the manual toast.
-    const block = runBlockReason(pin);
+    const block = runBlockReason(shortcut);
     if (block) {
-      const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+      const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
       getOutputChannel().appendLine(
         l10n("save.skipped", { name, reason: blockReasonLabel(block) })
       );
       continue;
     }
-    fired.add(pin.id);
-    void vscode.commands.executeCommand("saropaWorkspace.runPin", pin);
+    fired.add(shortcut.id);
+    void vscode.commands.executeCommand("saropaWorkspace.runPin", shortcut);
   }
 
-  runWatchLinksOnSave(store, savedUri, pins, fired);
+  runWatchLinksOnSave(store, savedUri, shortcuts, fired);
 }
 
-// Cross-file watch-link pass (#25). Match the saved file against each pin's watch
+// Cross-file watch-link pass (#25). Match the saved file against each shortcut's watch
 // globs and run the matches in the background. Matching is done against the
 // workspace-relative path (the natural form to author a glob in) AND the absolute
 // fsPath, both forward-slashed, so either an in-workspace relative glob or an
-// absolute glob (a global pin watching a file outside the workspace) resolves.
+// absolute glob (a global shortcut watching a file outside the workspace) resolves.
 function runWatchLinksOnSave(
-  store: PinStore,
+  store: ShortcutStore,
   savedUri: vscode.Uri,
-  pins: Pin[],
+  shortcuts: Shortcut[],
   fired: Set<string>
 ): void {
   const relPath = vscode.workspace.asRelativePath(savedUri, false).replace(/\\/g, "/");
   const absPath = savedUri.fsPath.replace(/\\/g, "/");
   const fileName = relPath.split("/").pop() ?? relPath;
   const now = Date.now();
-  for (const pin of pins) {
-    const globs = pin.exec?.runOnSaveGlobs;
-    // Skip a paused pin, a pin already fired by run-on-save above, and any pin with
-    // no watch globs. Annotation pins never carry exec, so the glob check excludes them.
-    if (pin.paused || fired.has(pin.id) || !globs || globs.length === 0) {
+  for (const shortcut of shortcuts) {
+    const globs = shortcut.exec?.runOnSaveGlobs;
+    // Skip a paused shortcut, a shortcut already fired by run-on-save above, and any
+    // shortcut with no watch globs. Annotation shortcuts never carry exec, so the glob
+    // check excludes them.
+    if (shortcut.paused || fired.has(shortcut.id) || !globs || globs.length === 0) {
       continue;
     }
     if (!matchesAnyGlob(relPath, globs) && !matchesAnyGlob(absPath, globs)) {
       continue;
     }
-    const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
     // Single-instance guard, same stance as run-on-save: never stack a watch run on
     // top of one already in flight; note it on the channel rather than toasting.
-    const block = runBlockReason(pin);
+    const block = runBlockReason(shortcut);
     if (block) {
       getOutputChannel().appendLine(
         l10n("watch.skipped", { name, reason: blockReasonLabel(block) })
       );
       continue;
     }
-    // Cooldown: collapse a save burst into at most one run per pin per window.
-    const previous = watchLastRun.get(pin.id);
+    // Cooldown: collapse a save burst into at most one run per shortcut per window.
+    const previous = watchLastRun.get(shortcut.id);
     if (previous !== undefined && now - previous < WATCH_COOLDOWN_MS) {
       getOutputChannel().appendLine(l10n("watch.cooldown", { name, file: fileName }));
       continue;
     }
-    watchLastRun.set(pin.id, now);
-    fired.add(pin.id);
+    watchLastRun.set(shortcut.id, now);
+    fired.add(shortcut.id);
     // Audit line names the script AND the file that triggered it (the run's own
     // "Running…"/"finished" toasts are the user-facing acknowledgment). Forced to the
     // background so a foreign save never steals the terminal or pops an OS window.
     getOutputChannel().appendLine(l10n("watch.firing", { name, file: fileName }));
-    void vscode.commands.executeCommand("saropaWorkspace.runPin", toBackground(pin));
+    void vscode.commands.executeCommand("saropaWorkspace.runPin", toBackground(shortcut));
   }
 }
 
 export async function maybeOfferFavoritesImport(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): Promise<void> {
   if (context.workspaceState.get<boolean>(IMPORT_PROMPT_KEY, false)) {
     return;
@@ -227,7 +230,7 @@ export async function maybeOfferFavoritesImport(
 // detector does not recognize, the offer is a no-op (it gates nothing).
 export function registerFavoritesImportWatchers(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): void {
   const offer = (): void => void maybeOfferFavoritesImport(context, store);
   for (const source of KNOWN_FAVORITES_SOURCES) {
@@ -255,15 +258,16 @@ export function registerFavoritesImportWatchers(
 }
 
 // Keep the Recent list and the untapped badge in step with the editor, not only
-// with pin clicks: a pinned file the user focuses by ANY means — Ctrl+P, the
-// Explorer, a tab switch — or closes counts as "used", so it lands in Recent and
-// clears from the activity-bar badge of pins not yet opened. This is the companion
-// to the pin-click open path (which records the same thing); recordOpen's front-dup
-// guard and the idempotent mark make the overlap a no-op, and a per-uri guard here
-// keeps a plain tab re-focus from re-firing for the file already at the front.
+// with shortcut clicks: a file with a shortcut the user focuses by ANY means —
+// Ctrl+P, the Explorer, a tab switch — or closes counts as "used", so it lands in
+// Recent and clears from the activity-bar badge of shortcuts not yet opened. This is
+// the companion to the shortcut-click open path (which records the same thing);
+// recordOpen's front-dup guard and the idempotent mark make the overlap a no-op, and a
+// per-uri guard here keeps a plain tab re-focus from re-firing for the file already at
+// the front.
 export function wireRecentEditorTracking(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): void {
   // The last file URI we recorded, so re-activating the same editor (a frequent
   // focus event) does not repeat the work. Cleared on a close so re-opening the
@@ -277,24 +281,24 @@ export function wireRecentEditorTracking(
     if (key === lastTouchedUri) {
       return;
     }
-    // Match the focused/closed file to a pin in either scope; a non-pinned file is
-    // ignored, so ordinary editing never writes to the Recent store.
-    const pin =
-      store.findPinByUri(uri, "project") ?? store.findPinByUri(uri, "global");
-    if (!pin) {
+    // Match the focused/closed file to a shortcut in either scope; a file without a
+    // shortcut is ignored, so ordinary editing never writes to the Recent store.
+    const shortcut =
+      store.findShortcutByUri(uri, "project") ?? store.findShortcutByUri(uri, "global");
+    if (!shortcut) {
       return;
     }
     lastTouchedUri = key;
-    void tappedPins.mark(pin.id);
-    void telemetry.recordOpen(pin.id);
+    void tappedShortcuts.mark(shortcut.id);
+    void telemetry.recordOpen(shortcut.id);
   };
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) =>
       touch(editor?.document.uri)
     ),
-    // A closed pinned file jumps to the top of Recent (the "recently closed" model).
-    // Clearing the guard first lets the close record even if that file was the last
-    // one we touched while it was open.
+    // A closed file with a shortcut jumps to the top of Recent (the "recently closed"
+    // model). Clearing the guard first lets the close record even if that file was the
+    // last one we touched while it was open.
     vscode.workspace.onDidCloseTextDocument((doc) => {
       lastTouchedUri = undefined;
       touch(doc.uri);
@@ -302,21 +306,21 @@ export function wireRecentEditorTracking(
   );
 }
 
-// Publish the set of absolute paths pinned in each scope as when-clause context
-// objects, so the "Workspace Pin" submenu can hide the invalid action per file.
-// Both the OS path (uri.fsPath, e.g. "d:\\src\\a.ts") and the URI path (uri.path,
-// e.g. "/d:/src/a.ts") are registered for every pin because VS Code's resourcePath
-// context key uses one form or the other depending on platform; the `in` operator
-// only checks key existence, so registering both matches whichever VS Code supplies.
-// Non-file recipe pins have no on-disk path and are skipped.
-export function syncPinnedPathContext(store: PinStore): void {
-  const collect = (pins: Pin[]): Record<string, true> => {
+// Publish the set of absolute paths that have a shortcut in each scope as when-clause
+// context objects, so the "Workspace Shortcut" submenu can hide the invalid action per
+// file. Both the OS path (uri.fsPath, e.g. "d:\\src\\a.ts") and the URI path
+// (uri.path, e.g. "/d:/src/a.ts") are registered for every shortcut because VS Code's
+// resourcePath context key uses one form or the other depending on platform; the `in`
+// operator only checks key existence, so registering both matches whichever VS Code
+// supplies. Non-file recipe shortcuts have no on-disk path and are skipped.
+export function syncShortcutPathContext(store: ShortcutStore): void {
+  const collect = (shortcuts: Shortcut[]): Record<string, true> => {
     const set: Record<string, true> = {};
-    for (const pin of pins) {
-      if (pinKind(pin) !== "file") {
+    for (const shortcut of shortcuts) {
+      if (shortcutKind(shortcut) !== "file") {
         continue;
       }
-      const uri = store.resolveUri(pin);
+      const uri = store.resolveUri(shortcut);
       if (!uri) {
         continue;
       }
@@ -328,11 +332,11 @@ export function syncPinnedPathContext(store: PinStore): void {
   void vscode.commands.executeCommand(
     "setContext",
     "saropaWorkspace.projectPinnedPaths",
-    collect(store.getProjectPins())
+    collect(store.getProjectShortcuts())
   );
   void vscode.commands.executeCommand(
     "setContext",
     "saropaWorkspace.globalPinnedPaths",
-    collect(store.getGlobalPins())
+    collect(store.getGlobalShortcuts())
   );
 }

@@ -121,7 +121,7 @@ test("nextOccurrence returns undefined for a disabled schedule", () => {
 });
 
 test("nextOccurrence returns undefined when no timing field is set", () => {
-  // A startup-only schedule has no time-based slot — it fires via runStartupPins,
+  // A startup-only schedule has no time-based slot — it fires via runStartupShortcuts,
   // not nextOccurrence.
   assert.equal(nextOccurrence({ enabled: true, runOnStartup: true }, THU_AUG), undefined);
 });

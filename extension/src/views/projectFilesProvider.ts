@@ -4,13 +4,13 @@ import {
   ProjectFileInfo,
   scanProjectFiles,
 } from "../model/projectFiles";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
 // Second view in the Saropa Workspace container: a read-only, at-a-glance list
 // of "interesting" project files (README, CHANGELOG, manifests) showing each
 // file's last-modified time and declared version. Single-click opens the file.
-// Kept separate from the pins tree so it never mixes editable pins with these
+// Kept separate from the shortcuts tree so it never mixes editable shortcuts with these
 // informational rows. Scans on demand in getChildren (a handful of stats), so it
 // holds no cache to invalidate; the host repaints when refresh() fires.
 export class ProjectFilesTreeProvider
@@ -27,10 +27,11 @@ export class ProjectFilesTreeProvider
   private readonly _onDidChangeCount = new vscode.EventEmitter<number>();
   readonly onDidChangeCount = this._onDidChangeCount.event;
 
-  // The store is needed to mark each row pinned/unpinned and to drive the inline
-  // pin/unpin toggle. The view repaints on store changes (wired in extension.ts),
-  // so a pin added or removed elsewhere updates the indicator here too.
-  constructor(private readonly store: PinStore) {}
+  // The store is needed to mark each row as a shortcut (or not) and to drive the
+  // inline add/remove toggle. The view repaints on store changes (wired in
+  // extension.ts), so a shortcut added or removed elsewhere updates the indicator
+  // here too.
+  constructor(private readonly store: ShortcutStore) {}
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
@@ -93,12 +94,12 @@ export class ProjectFilesTreeProvider
     return [];
   }
 
-  // Build a row, marking it pinned when the project scope already has a pin
-  // resolving to this file. Pinned state drives both the visible "pinned" tag and
-  // which inline toggle (pin vs unpin) the row exposes.
+  // Build a row, marking it as a shortcut when the project scope already has a
+  // shortcut resolving to this file. That state drives both the visible "shortcut"
+  // tag and which inline toggle (add vs remove) the row exposes.
   private toItem(info: ProjectFileInfo): ProjectFileItem {
-    const pinned = this.store.findPinByUri(info.uri, "project") !== undefined;
-    return new ProjectFileItem(info, pinned);
+    const isShortcut = this.store.findShortcutByUri(info.uri, "project") !== undefined;
+    return new ProjectFileItem(info, isShortcut);
   }
 }
 
@@ -144,25 +145,27 @@ function configuredFiles(): readonly string[] {
 // the row inherit the editor's file decorations; clicking opens it read-or-edit
 // in the editor via the built-in vscode.open.
 class ProjectFileItem extends vscode.TreeItem {
-  constructor(info: ProjectFileInfo, pinned: boolean) {
+  constructor(info: ProjectFileInfo, isShortcut: boolean) {
     super(displayName(info), vscode.TreeItemCollapsibleState.None);
     this.resourceUri = info.uri;
-    // Distinct contextValue per state so the inline toggle shows "pin" on an
-    // unpinned row and "unpin" on a pinned one (see package.json menus). Both
-    // start with "projectFile" so the Copy Path menu still matches either.
-    this.contextValue = pinned ? "projectFilePinned" : "projectFile";
+    // Distinct contextValue per state so the inline toggle shows "add" on a row
+    // that is not yet a shortcut and "remove" on one that is (see package.json
+    // menus). Both start with "projectFile" so the Copy Path menu still matches
+    // either. The contextValue strings stay literal because package.json `when`
+    // clauses are bound to these exact values.
+    this.contextValue = isShortcut ? "projectFilePinned" : "projectFile";
 
     const relative = formatRelativeTime(info.modified, Date.now());
     // Version (when known) leads the description because "what version is it up
-    // to" is the headline question; the freshness follows it. A pinned tag is
-    // appended so pinned state is visible at a glance, not only on hover.
+    // to" is the headline question; the freshness follows it. A shortcut tag is
+    // appended so the shortcut state is visible at a glance, not only on hover.
     const base = info.version
       ? l10n("projectFiles.descVersioned", {
           version: info.version,
           when: relative,
         })
       : relative;
-    this.description = pinned
+    this.description = isShortcut
       ? l10n("projectFiles.descPinned", { base })
       : base;
 
@@ -175,7 +178,7 @@ class ProjectFileItem extends vscode.TreeItem {
         date: new Date(info.modified).toLocaleString(),
       })
     );
-    if (pinned) {
+    if (isShortcut) {
       tooltip.push(l10n("projectFiles.tooltipPinned"));
     }
     this.tooltip = tooltip.join("\n");

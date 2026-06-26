@@ -38,7 +38,7 @@ test("a synonym lookup returns the catalog value, not the key fallback", () => {
 });
 
 test("documented aliases resolve to the icon the changelog promises", () => {
-  // These specific words are advertised to users; pin them so a future catalog edit
+  // These specific words are advertised to users; shortcut them so a future catalog edit
   // that drops one is caught here rather than by a confused user typing "octocat".
   assert.match(l10n(`${KEYWORD_PREFIX}gear`), /\bsettings\b/);
   assert.match(l10n(`${KEYWORD_PREFIX}gear`), /\bcog\b/);

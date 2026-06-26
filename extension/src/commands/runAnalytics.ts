@@ -1,14 +1,14 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
-import { recentTag } from "../views/pinRowFormatting";
+import { recentTag } from "../views/shortcutRowFormatting";
 import { l10n } from "../i18n/l10n";
 
-// "Run Analytics" summary (roadmap 3.3). A small, on-demand view of pin activity
-// built ENTIRELY from the on-device telemetry store (globalState) plus the
-// in-memory per-session run-status registry — most-run pins, total runs, the
+// "Run Analytics" summary (roadmap 3.3). A small, on-demand view of shortcut
+// activity built ENTIRELY from the on-device telemetry store (globalState) plus the
+// in-memory per-session run-status registry — most-run shortcuts, total runs, the
 // session's success / failure split, and last-run times. Purely local: every read
 // here is from on-machine state, nothing is transmitted, so it satisfies the
 // no-remote-telemetry principle. It respects the same controls as the rest of the
@@ -21,8 +21,8 @@ import { l10n } from "../i18n/l10n";
 // save by accident.
 
 // How many entries to show in the bounded sections, so a heavy user's summary
-// stays scannable rather than listing every pin ever run.
-const TOP_PINS = 10;
+// stays scannable rather than listing every shortcut ever run.
+const TOP_SHORTCUTS = 10;
 
 class AnalyticsPreviewProvider implements vscode.TextDocumentContentProvider {
   static readonly scheme = "saropa-analytics";
@@ -68,27 +68,27 @@ export function registerRunAnalytics(context: vscode.ExtensionContext): void {
 }
 
 // Entry point for the "View Run Analytics" command. Builds the Markdown summary
-// from the local stores and renders it. The store is used only to resolve pin ids
-// to display names — no run data is read from it.
-export async function showRunAnalytics(store: PinStore): Promise<void> {
+// from the local stores and renders it. The store is used only to resolve shortcut
+// ids to display names — no run data is read from it.
+export async function showRunAnalytics(store: ShortcutStore): Promise<void> {
   await preview.show(buildReport(store));
 }
 
-// Resolve a recorded pin id to a human display name. A run can outlive the pin
-// that produced it (the pin was unpinned since), so fall back to a clear
-// "removed pin" marker rather than leaking the opaque id.
-function nameFor(store: PinStore, pinId: string): string {
-  const pin: Pin | undefined = store.findPin(pinId);
-  if (!pin) {
+// Resolve a recorded shortcut id to a human display name. A run can outlive the
+// shortcut that produced it (the shortcut was removed since), so fall back to a
+// clear "removed shortcut" marker rather than leaking the opaque id.
+function nameFor(store: ShortcutStore, pinId: string): string {
+  const shortcut: Shortcut | undefined = store.findShortcut(pinId);
+  if (!shortcut) {
     return l10n("analytics.unknownPin");
   }
-  return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
 // Exported for unit tests: the disabled / empty / populated branches are pure
 // over the telemetry store + session registry, so they are asserted directly
 // without standing up the virtual-document preview or the extension host.
-export function buildReport(store: PinStore): string {
+export function buildReport(store: ShortcutStore): string {
   const lines: string[] = [
     `# ${l10n("analytics.title")}`,
     "",
@@ -105,7 +105,7 @@ export function buildReport(store: PinStore): string {
 
   const counts = telemetry.counts();
   const recent = telemetry.recent();
-  const pinsRun = Object.keys(counts).length;
+  const shortcutsRun = Object.keys(counts).length;
   const totalRuns = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
   // No runs recorded yet (fresh install or just after a reset): a single prompt to
@@ -118,7 +118,7 @@ export function buildReport(store: PinStore): string {
   lines.push(
     `## ${l10n("analytics.totalsHeading")}`,
     "",
-    `- ${l10n("analytics.pinsRun", { count: pinsRun })}`,
+    `- ${l10n("analytics.pinsRun", { count: shortcutsRun })}`,
     `- ${l10n("analytics.totalRuns", { count: totalRuns })}`,
     ""
   );
@@ -130,17 +130,17 @@ export function buildReport(store: PinStore): string {
   return lines.join("\n");
 }
 
-// Most-run pins, highest lifetime count first, bounded to TOP_PINS so the list
-// stays scannable. Ties keep the store's iteration order, which is stable enough
-// for a glance ("which shortcuts earn their place").
+// Most-run shortcuts, highest lifetime count first, bounded to TOP_SHORTCUTS so
+// the list stays scannable. Ties keep the store's iteration order, which is stable
+// enough for a glance ("which shortcuts earn their place").
 function mostRunSection(
-  store: PinStore,
+  store: ShortcutStore,
   counts: Record<string, number>
 ): string[] {
   const ranked = Object.entries(counts)
     .filter(([, n]) => n > 0)
     .sort(([, a], [, b]) => b - a)
-    .slice(0, TOP_PINS);
+    .slice(0, TOP_SHORTCUTS);
   if (ranked.length === 0) {
     return [];
   }
@@ -159,7 +159,7 @@ function mostRunSection(
 // The current session's background-run outcomes (success / failure), read from the
 // in-memory run-status registry. Per-session by design — it clears on reload — so
 // it is labeled as such, separate from the lifetime totals above.
-function sessionSection(store: PinStore): string[] {
+function sessionSection(store: ShortcutStore): string[] {
   const entries = runStatusRegistry.entries();
   if (entries.length === 0) {
     return [];
@@ -197,7 +197,7 @@ function sessionLabel(result: RunResult): string {
 // The most-recent activity with timestamps, tagged by how each entry landed (a
 // manual run is untagged, a scheduled fire and a plain open carry a tag) — the same
 // bounded list the Recent sidebar group draws on.
-function recentSection(store: PinStore, recent: RunRecord[]): string[] {
+function recentSection(store: ShortcutStore, recent: RunRecord[]): string[] {
   if (recent.length === 0) {
     return [];
   }

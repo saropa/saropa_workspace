@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { Pin, PinExecConfig, RunLocation } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut, ShortcutExecConfig, RunLocation } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 import { editCommand, editArgs, formatArgs } from "./configureRunCommand";
 import { editCwd, editEnv, editDependsOn, resolveDepName } from "./configureRunEnv";
@@ -17,7 +17,7 @@ import {
 
 // Roadmap 2.1 — Run-parameters editor.
 //
-// A hub-and-spoke QuickPick flow to edit a pin's PinExecConfig (command prefix,
+// A hub-and-spoke QuickPick flow to edit a shortcut's ShortcutExecConfig (command prefix,
 // arguments, working directory, environment variables, terminal-vs-background
 // toggle) without hand-editing JSON. The individual field editors live in sibling
 // modules (configureRunCommand / configureRunEnv / configureRunMode); this file
@@ -52,7 +52,7 @@ interface HubItem extends vscode.QuickPickItem {
     | "save";
 }
 
-// Mutable holder for the pin's top-level single-instance settings, threaded through
+// Mutable holder for the shortcut's top-level single-instance settings, threaded through
 // the hub the way `work` threads the exec config. Exported so the concurrency/lock
 // editors in configureRunMode share the type.
 export interface ConcurrencyEdit {
@@ -60,11 +60,11 @@ export interface ConcurrencyEdit {
   lockName: string | undefined;
 }
 
-// Seed the working copy's location from a stored pin WITHOUT consulting the
-// workspace default (the hub shows the pin's own choice, where undefined means
+// Seed the working copy's location from a stored shortcut WITHOUT consulting the
+// workspace default (the hub shows the shortcut's own choice, where undefined means
 // "follow the default setting"). Maps the deprecated useIntegratedTerminal flag
-// for pins written before runLocation existed.
-function seedLocation(exec: PinExecConfig | undefined): RunLocation | undefined {
+// for shortcuts written before runLocation existed.
+function seedLocation(exec: ShortcutExecConfig | undefined): RunLocation | undefined {
   if (exec?.runLocation) {
     return exec.runLocation;
   }
@@ -77,38 +77,38 @@ function seedLocation(exec: PinExecConfig | undefined): RunLocation | undefined 
   return undefined;
 }
 
-export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
-  // Auto-pins are recomputed each refresh and never stored in pins[], so there
+export async function configureRun(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  // Auto-shortcuts are recomputed each refresh and never stored in pins[], so there
   // is nowhere to persist run config; surface that rather than silently failing.
-  if (pin.isAuto) {
+  if (shortcut.isAuto) {
     vscode.window.showWarningMessage(l10n("configure.autoUnsupported"));
     return;
   }
 
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 
   // Working copy: a deep-enough clone so canceling discards every edit. args and
   // env are copied by value; the rest are primitives.
-  const work: PinExecConfig = {
-    command: pin.exec?.command,
-    args: pin.exec?.args ? [...pin.exec.args] : undefined,
-    cwd: pin.exec?.cwd,
-    env: pin.exec?.env ? { ...pin.exec.env } : undefined,
-    runLocation: seedLocation(pin.exec),
-    elevated: pin.exec?.elevated,
-    includeFilePath: pin.exec?.includeFilePath,
-    extractResult: pin.exec?.extractResult,
-    dependsOn: pin.exec?.dependsOn,
-    sound: pin.exec?.sound,
-    runOnSave: pin.exec?.runOnSave,
+  const work: ShortcutExecConfig = {
+    command: shortcut.exec?.command,
+    args: shortcut.exec?.args ? [...shortcut.exec.args] : undefined,
+    cwd: shortcut.exec?.cwd,
+    env: shortcut.exec?.env ? { ...shortcut.exec.env } : undefined,
+    runLocation: seedLocation(shortcut.exec),
+    elevated: shortcut.exec?.elevated,
+    includeFilePath: shortcut.exec?.includeFilePath,
+    extractResult: shortcut.exec?.extractResult,
+    dependsOn: shortcut.exec?.dependsOn,
+    sound: shortcut.exec?.sound,
+    runOnSave: shortcut.exec?.runOnSave,
   };
 
-  // Single-instance settings live top-level on the Pin (so a recipe with no exec can
-  // carry them too), not on PinExecConfig — kept in a small side holder and persisted
+  // Single-instance settings live top-level on the Shortcut (so a recipe with no exec can
+  // carry them too), not on ShortcutExecConfig — kept in a small side holder and persisted
   // separately from the exec config below.
   const conc: ConcurrencyEdit = {
-    allowConcurrent: pin.allowConcurrent === true,
-    lockName: pin.lockName,
+    allowConcurrent: shortcut.allowConcurrent === true,
+    lockName: shortcut.lockName,
   };
 
   const title = l10n("configure.title", { name });
@@ -136,7 +136,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
         await editArgs(work, title);
         break;
       case "cwd":
-        await editCwd(work, title, store, pin);
+        await editCwd(work, title, store, shortcut);
         break;
       case "env":
         await editEnv(work, title);
@@ -154,7 +154,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
         await editExtract(work, title);
         break;
       case "dependsOn":
-        await editDependsOn(work, title, store, pin);
+        await editDependsOn(work, title, store, shortcut);
         break;
       case "sound":
         await editSound(work, title);
@@ -171,10 +171,10 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     }
   }
 
-  await store.updatePinExec(pin, normalize(work));
+  await store.updateShortcutExec(shortcut, normalize(work));
   // Persist the top-level single-instance settings alongside the exec config (a
-  // second mutate, since they do not live on PinExecConfig).
-  await store.setPinConcurrency(pin, conc.allowConcurrent, conc.lockName);
+  // second mutate, since they do not live on ShortcutExecConfig).
+  await store.setShortcutConcurrency(shortcut, conc.allowConcurrent, conc.lockName);
   vscode.window.showInformationMessage(l10n("configure.saved", { name }));
 }
 
@@ -182,7 +182,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
 // equivalent hand-written JSON (round-trip parity). command is left as-is: ""
 // (run directly, overriding the interpreter default) is a distinct, meaningful
 // value from undefined (use the default).
-function normalize(work: PinExecConfig): PinExecConfig {
+function normalize(work: ShortcutExecConfig): ShortcutExecConfig {
   return {
     command: work.command,
     args: work.args && work.args.length > 0 ? work.args : undefined,
@@ -193,7 +193,7 @@ function normalize(work: PinExecConfig): PinExecConfig {
     // stored config has no stray flag.
     elevated: work.runLocation === "external" && work.elevated === true ? true : undefined,
     // Writing runLocation supersedes the deprecated flag; clear it so a re-saved
-    // pin carries the location in exactly one field (no two-source drift).
+    // shortcut carries the location in exactly one field (no two-source drift).
     useIntegratedTerminal: undefined,
     // true is the default assembly, so collapse it to undefined for parity; only
     // an explicit false (omit the file path) is meaningful to persist.
@@ -208,14 +208,14 @@ function normalize(work: PinExecConfig): PinExecConfig {
     // Only a real "on"/"off" override is persisted; the default (follow the global
     // sound settings) collapses to undefined for round-trip parity.
     sound: work.sound === "on" || work.sound === "off" ? work.sound : undefined,
-    // Off is the default; collapse it to undefined so only an opted-in pin carries
+    // Off is the default; collapse it to undefined so only an opted-in shortcut carries
     // the flag (round-trip parity with hand-written JSON that omits it).
     runOnSave: work.runOnSave === true ? true : undefined,
   };
 }
 
 async function showHub(
-  work: PinExecConfig,
+  work: ShortcutExecConfig,
   conc: ConcurrencyEdit,
   title: string,
   depName: string | undefined

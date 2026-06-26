@@ -1,20 +1,20 @@
 import * as vscode from "vscode";
-import { Pin, PinMetric, pinKind } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut, ShortcutMetric, shortcutKind } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { formatBytes, parseSize } from "../exec/metricFormat";
 import { l10n } from "../i18n/l10n";
 
 // Roadmap #24 — Live metric badge editor.
 //
-// A small QuickPick flow to give a file pin a live inline badge: file size, line
+// A small QuickPick flow to give a file shortcut a live inline badge: file size, line
 // count, or last-modified. For the size metric it then offers an optional threshold
 // — the file's badge turns to a warning and a one-time toast fires the moment the
 // file grows past it ("tell me when bundle.js blows past 250 KB"). Choosing "Off"
-// clears the metric (the engine disposes that pin's watcher on the next reconcile).
+// clears the metric (the engine disposes that shortcut's watcher on the next reconcile).
 
 // The metric kinds offered, each with its l10n label/detail key.
 interface KindChoice {
-  kind: PinMetric["kind"] | "off";
+  kind: ShortcutMetric["kind"] | "off";
   labelKey: string;
   detailKey: string;
 }
@@ -30,21 +30,21 @@ const KIND_CHOICES: readonly KindChoice[] = [
   { kind: "off", labelKey: "metric.kind.off", detailKey: "metric.kind.offDetail" },
 ];
 
-export async function setMetric(store: PinStore, pin: Pin): Promise<void> {
-  // Auto-pins are recomputed each refresh and never stored in pins[], so there is
+export async function setMetric(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  // Auto-shortcuts are recomputed each refresh and never stored in pins[], so there is
   // nowhere to persist a metric; surface that rather than silently failing.
-  if (pin.isAuto) {
+  if (shortcut.isAuto) {
     vscode.window.showWarningMessage(l10n("metric.autoUnsupported"));
     return;
   }
-  // A metric watches one file on disk; a non-file action pin (url / shell / command /
+  // A metric watches one file on disk; a non-file action shortcut (url / shell / command /
   // macro) has no single file to measure.
-  if (pinKind(pin) !== "file") {
+  if (shortcutKind(shortcut) !== "file") {
     vscode.window.showWarningMessage(l10n("metric.fileOnly"));
     return;
   }
 
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   const title = l10n("metric.title", { name });
 
   interface KindItem extends vscode.QuickPickItem {
@@ -54,8 +54,8 @@ export async function setMetric(store: PinStore, pin: Pin): Promise<void> {
     label: l10n(c.labelKey),
     detail: l10n(c.detailKey),
     value: c.kind,
-    // Mark the pin's current kind so the picker opens on it.
-    picked: (pin.metric?.kind ?? "off") === c.kind,
+    // Mark the shortcut's current kind so the picker opens on it.
+    picked: (shortcut.metric?.kind ?? "off") === c.kind,
   }));
   const pick = await vscode.window.showQuickPick(items, {
     title,
@@ -66,18 +66,18 @@ export async function setMetric(store: PinStore, pin: Pin): Promise<void> {
   }
 
   if (pick.value === "off") {
-    await store.setPinMetric(pin, undefined);
+    await store.setShortcutMetric(shortcut, undefined);
     vscode.window.showInformationMessage(l10n("metric.cleared", { name }));
     return;
   }
 
   // A threshold only makes sense for the size metric (line count / modified have no
-  // byte ceiling). For size, offer one; pre-fill the pin's current threshold.
+  // byte ceiling). For size, offer one; pre-fill the shortcut's current threshold.
   let thresholdBytes: number | undefined;
   if (pick.value === "size") {
     const seed =
-      pin.metric?.kind === "size" && pin.metric.thresholdBytes !== undefined
-        ? formatBytes(pin.metric.thresholdBytes)
+      shortcut.metric?.kind === "size" && shortcut.metric.thresholdBytes !== undefined
+        ? formatBytes(shortcut.metric.thresholdBytes)
         : "";
     const entered = await vscode.window.showInputBox({
       title,
@@ -100,11 +100,11 @@ export async function setMetric(store: PinStore, pin: Pin): Promise<void> {
     thresholdBytes = entered.trim() === "" ? undefined : parseSize(entered.trim());
   }
 
-  const metric: PinMetric =
+  const metric: ShortcutMetric =
     pick.value === "size" && thresholdBytes !== undefined
       ? { kind: "size", thresholdBytes }
       : { kind: pick.value };
-  await store.setPinMetric(pin, metric);
+  await store.setShortcutMetric(shortcut, metric);
 
   // Name the metric (and the threshold when set) so the confirmation ties to the
   // concrete choice rather than a generic "saved".

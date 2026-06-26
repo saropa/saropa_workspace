@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinAction, PinSchedule } from "../model/pin";
+import { ShortcutAction, ShortcutSchedule } from "../model/shortcut";
 import { getGitRemote } from "./gitMeta";
 import { readJson } from "./detectorHelpers";
 import { pushRunTargets } from "./detectorRunTargets";
@@ -8,8 +8,8 @@ import { pushWorkspaceRecipes } from "./detectorWorkspaceRecipes";
 
 // Roadmap recipe book — detectors. Each looks at well-known files in a workspace
 // folder root (never a recursive crawl) and returns zero or more recipes derived
-// from what it finds. The store seeds the results as auto-detected pins; removal
-// is sticky and they can be restored (mirrors the auto-pin mechanism). Recipes are
+// from what it finds. The store seeds the results as auto-detected shortcuts; removal
+// is sticky and they can be restored (mirrors the auto-shortcut mechanism). Recipes are
 // detected, never "created" by a standing button.
 
 // The logical category a recipe belongs to, used to route it into a top-level
@@ -25,7 +25,7 @@ export type RecipeCategory =
   | "ai";
 
 export interface RecipeResult {
-  // Stable per-recipe id (combined with the folder for the pin id), so sticky
+  // Stable per-recipe id (combined with the folder for the shortcut id), so sticky
   // removal and de-duplication survive reloads.
   recipeId: string;
   label: string;
@@ -36,23 +36,23 @@ export interface RecipeResult {
   icon?: string;
   color?: string;
   // Optional schedule (the scheduled-ritual recipes set this).
-  schedule?: PinSchedule;
-  // Which logical top-level group the seeded pin lands in, mirroring the recipe
+  schedule?: ShortcutSchedule;
+  // Which logical top-level group the seeded shortcut lands in, mirroring the recipe
   // book's catalog sections. The store maps each category to its own synthetic
   // group (Recipes: Open / Run / Workspace / Scheduled, and Saropa Suite) instead
   // of piling every recipe into one flat "Recipes" folder. Undefined falls back to
-  // "open" (see recipeGroupId in PinStore).
+  // "open" (see recipeGroupId in ShortcutStore).
   group?: RecipeCategory;
   // Optional per-tool subgroup key within the category's top-level group. The suite
-  // recipes set this ("lints" / "drift" / "log") so each tool's pins nest under their
-  // own subfolder beneath "Saropa Suite" instead of sitting flat in one suite group;
-  // the store maps it to a synthetic subgroup id (see recipeSubGroupId in PinStore).
-  // Undefined keeps the pin directly under the category's top-level group — the boot
-  // macro stays at the suite top level this way.
+  // recipes set this ("lints" / "drift" / "log") so each tool's shortcuts nest under
+  // their own subfolder beneath "Saropa Suite" instead of sitting flat in one suite
+  // group; the store maps it to a synthetic subgroup id (see recipeSubGroupId in
+  // ShortcutStore). Undefined keeps the shortcut directly under the category's top-level
+  // group — the boot macro stays at the suite top level this way.
   subGroup?: string;
   // Exactly one of these defines the action:
-  filePath?: string; // a file pin, path relative to the folder
-  action?: PinAction; // a non-file pin (url / shell / command / macro)
+  filePath?: string; // a file shortcut, path relative to the folder
+  action?: ShortcutAction; // a non-file shortcut (url / shell / command / macro)
 }
 
 // This file is the catalog orchestrator. The recipe blocks themselves live in
@@ -73,7 +73,7 @@ export async function detectOnDemandRecipes(
 
   // Each pusher appends in catalog order: URL openers (1-8, 23, 25), then the
   // run-target shell recipes (9-16, 66-68), then the workspace actions (17-22, 24,
-  // 69-72). Ordering is preserved so the seeded pin layout is unchanged.
+  // 69-72). Ordering is preserved so the seeded shortcut layout is unchanged.
   await pushUrlRecipes(folder, pkg, remote, out);
   await pushRunTargets(folder, pkg, out);
   await pushWorkspaceRecipes(folder, pkg, out);

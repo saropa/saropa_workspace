@@ -14,7 +14,7 @@ import {
 
 const HOUR = 60 * 60 * 1000;
 const THRESHOLD = 2 * HOUR;
-const NONE = (): boolean => false; // no file is already a Saropa pin
+const NONE = (): boolean => false; // no file is already a Saropa shortcut
 
 function emptyState(): TabPinState {
   return { firstPinnedAt: {}, dismissed: [] };
@@ -54,7 +54,7 @@ test("a file already a Saropa pin has its stamp cleared and is not offered", () 
   const r = reconcileTabPins(
     state,
     new Set(["a.ts"]),
-    (p) => p === "a.ts", // already pinned in Saropa
+    (p) => p === "a.ts", // already a Saropa shortcut
     THRESHOLD,
     THRESHOLD
   );

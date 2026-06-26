@@ -31,7 +31,7 @@ function memento(): Memento & { setKeysForSync(keys: readonly string[]): void } 
   };
 }
 
-// Build a fresh fake context. Reuse the SAME returned object across two PinStore /
+// Build a fresh fake context. Reuse the SAME returned object across two ShortcutStore /
 // promptMemory instances to exercise a persistence round-trip; build a new one for
 // an isolated test.
 export function fakeContext(): ExtensionContext {

@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { MacroStep, PinAction } from "../model/pin";
+import { MacroStep, ShortcutAction } from "../model/shortcut";
 import { RecipeResult } from "./detectors";
 
 // Saropa Suite integration recipes (recipe book section F, 36-59). Each detected
-// sibling Saropa tool contributes a set of pins that drive it — its VS Code
+// sibling Saropa tool contributes a set of shortcuts that drive it — its VS Code
 // commands, its debug URLs, its CLIs, its reports. All carry group: "suite" so the
 // store seeds them into the dedicated "Saropa Suite" folder rather than the generic
 // "Recipes" group.
@@ -11,10 +11,10 @@ import { RecipeResult } from "./detectors";
 // Detection is folder-root cheap (a few manifest reads) plus an extension-presence
 // check; never a recursive crawl. A recipe is only suggested when the thing it
 // drives is actually present:
-//   - command pins (the other extension's command ids) are seeded only when that
+//   - command shortcuts (the other extension's command ids) are seeded only when that
 //     extension is installed, so the command exists when run;
-//   - CLI / shell pins are seeded only when the package is a project dependency;
-//   - file pins are seeded only when the target file exists.
+//   - CLI / shell shortcuts are seeded only when the package is a project dependency;
+//   - file shortcuts are seeded only when the target file exists.
 // So a subgroup never offers a command for a tool you have not installed. (The
 // runner still degrades gracefully if a command is unavailable at run time.)
 
@@ -22,9 +22,9 @@ const LINTS_EXT = "saropa.saropa-lints";
 const DRIFT_EXT = "saropa.drift-viewer";
 const LOG_EXT = "saropa.saropa-log-capture";
 
-// Per-tool subgroup keys. Each tool's pins carry its key so the store nests them
+// Per-tool subgroup keys. Each tool's shortcuts carry its key so the store nests them
 // under a "Saropa Lints" / "Drift Advisor" / "Log Capture" subfolder beneath the
-// top-level "Saropa Suite" group, instead of every suite pin sitting flat in one
+// top-level "Saropa Suite" group, instead of every suite shortcut sitting flat in one
 // folder. The boot macro carries none, so it stays directly at the suite top level.
 const SUB_LINTS = "lints";
 const SUB_DRIFT = "drift";
@@ -60,16 +60,16 @@ function extensionInstalled(id: string): boolean {
   return vscode.extensions.getExtension(id) !== undefined;
 }
 
-function command(commandId: string): PinAction {
+function command(commandId: string): ShortcutAction {
   return { kind: "command", commandId };
 }
 
-function url(target: string): PinAction {
+function url(target: string): ShortcutAction {
   return { kind: "url", url: target };
 }
 
 // A shell action run visibly in the integrated terminal, in the folder root.
-function shell(folder: vscode.WorkspaceFolder, commandLine: string): PinAction {
+function shell(folder: vscode.WorkspaceFolder, commandLine: string): ShortcutAction {
   return {
     kind: "shell",
     shellCommand: commandLine,
@@ -151,7 +151,7 @@ async function pushLints(
   }
   const color = "charts.blue";
 
-  // Command pins — only when the extension that owns these commands is installed.
+  // Command shortcuts — only when the extension that owns these commands is installed.
   if (hasExt) {
     out.push(suite("suite.lints.score", "Show Code Health score", "Reads the Saropa Lints public API and reports the exact 0-100 Code Health score with its error/warning/info breakdown — no report file to open. Offers to run the analysis first if no data exists yet. From the saropa.saropa-lints extension.", "pulse", color, command("saropaWorkspace.recipe.lintsHealth"), SUB_LINTS));
     out.push(suite("suite.lints.analysis", "Run lint analysis", "Runs Saropa Lints analysis and writes the violations report. From the saropa.saropa-lints extension.", "checklist", color, command("saropaLints.runAnalysis"), SUB_LINTS));
@@ -161,14 +161,14 @@ async function pushLints(
     out.push(suite("suite.lints.owasp", "Export OWASP report", "Exports a Saropa Lints OWASP report. From the saropa.saropa-lints extension.", "shield", color, command("saropaLints.exportOwaspReport"), SUB_LINTS));
   }
 
-  // CLI pins — only when the package is in the project (the CLIs run from it).
+  // CLI shortcuts — only when the package is in the project (the CLIs run from it).
   if (hasPackage) {
     out.push(suite("suite.lints.crossfile", "Lints: cross-file audit", "Runs the Saropa Lints cross-file audit CLI, producing an HTML report under reports/. Detected from saropa_lints in the project.", "references", color, shell(folder, "dart run saropa_lints:cross_file report"), SUB_LINTS));
     out.push(suite("suite.lints.baseline", "Lints: refresh baseline", "Refreshes the Saropa Lints baseline so existing violations are suppressed going forward. Detected from saropa_lints in the project.", "history", color, shell(folder, "dart run saropa_lints:baseline --update"), SUB_LINTS));
     out.push(suite("suite.lints.gate", "Lints: quality gate", "Runs the Saropa Lints CI-style quality gate against the violations report. Detected from saropa_lints in the project.", "pass", color, shell(folder, `dart run saropa_lints:quality_gate --report reports/${violationsPath}`), SUB_LINTS));
   }
 
-  // File pin — only when the report has actually been written.
+  // File shortcut — only when the report has actually been written.
   if (hasViolations) {
     out.push({
       recipeId: "suite.lints.violations",
@@ -197,7 +197,7 @@ async function pushDrift(
   }
   const color = "charts.purple";
 
-  // Command pins — gated on the Drift Advisor extension being installed.
+  // Command shortcuts — gated on the Drift Advisor extension being installed.
   if (hasExt) {
     out.push(suite("suite.drift.browser", "Open Drift Advisor (browser)", "Opens the Drift Advisor DB inspector in the browser. Pairs with an active debug session (server on 8642). From the saropa.drift-viewer extension.", "browser", color, command("driftViewer.openInBrowser"), SUB_DRIFT));
     out.push(suite("suite.drift.sql", "Open the SQL Notebook", "Opens the Drift Advisor SQL notebook. From the saropa.drift-viewer extension.", "notebook", color, command("driftViewer.openSqlNotebook"), SUB_DRIFT));
@@ -234,16 +234,16 @@ async function pushLogCapture(
 }
 
 // Build a suite-group recipe result from its parts (every suite recipe shares the
-// group + the action-carrying shape; only file pins differ, built inline above).
-// `subGroup` nests the pin under its per-tool subfolder; omit it (the boot macro)
-// to keep the pin directly at the suite top level.
+// group + the action-carrying shape; only file shortcuts differ, built inline above).
+// `subGroup` nests the shortcut under its per-tool subfolder; omit it (the boot macro)
+// to keep the shortcut directly at the suite top level.
 function suite(
   recipeId: string,
   label: string,
   description: string,
   icon: string,
   color: string,
-  action: PinAction,
+  action: ShortcutAction,
   subGroup?: string
 ): RecipeResult {
   return { recipeId, label, description, icon, color, group: "suite", subGroup, action };

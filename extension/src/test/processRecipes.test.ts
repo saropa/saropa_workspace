@@ -2,8 +2,8 @@
 // is unconditional — every dev machine runs processes, so there is no marker-file
 // gate — and returns a fixed pair: the live monitor panel and the snapshot report.
 // The vscode import is type-only here, so it runs under Node's built-in runner with
-// the vscode stub. The assertions pin each recipe's monitor group routing and its
-// command-pin target, since those decide where the pins land and what they invoke.
+// the vscode stub. The assertions shortcut each recipe's monitor group routing and its
+// command-shortcut target, since those decide where the pins land and what they invoke.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

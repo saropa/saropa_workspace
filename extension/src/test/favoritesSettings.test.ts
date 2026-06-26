@@ -2,8 +2,8 @@
 // (detectSettingsFavoritesCount + importSettingsFavorites). The sabitovvt
 // "Favorites Panel" importer in this same module is covered by sabitovvtImport.test;
 // this file pins the howardzuo half, which reads `favorites.resources` (an array of
-// paths) from the active configuration and adds each as a PROJECT pin against the
-// REAL PinStore via the fs-backed vscode stub. It covers: a string path -> file pin,
+// paths) from the active configuration and adds each as a PROJECT shortcut against the
+// REAL ShortcutStore via the fs-backed vscode stub. It covers: a string path -> file shortcut,
 // the non-string / blank skip, absolute-vs-relative resolution against the first
 // folder, the no-folder unresolved skip, the count gate, and dedup on re-run.
 
@@ -20,7 +20,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import {
   detectSettingsFavoritesCount,
   importSettingsFavorites,
@@ -69,7 +69,7 @@ test("detectSettingsFavoritesCount is zero when the setting is unset or not an a
 });
 
 test("a relative path resolves against the first folder as a project file pin", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   setResources(["src/server.ts"]);
 
@@ -77,12 +77,12 @@ test("a relative path resolves against the first folder as a project file pin", 
 
   assert.equal(result.added, 1, "the relative path imports");
   assert.equal(result.skipped, 0, "nothing is skipped");
-  const pin = store.getProjectPins().find((p) => p.path === "src/server.ts");
-  assert.ok(pin, "the relative path is stored folder-relative");
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === "src/server.ts");
+  assert.ok(shortcut, "the relative path is stored folder-relative");
 });
 
 test("an absolute path inside the folder imports as a project file pin", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   // An absolute path under the temp folder is used as-is and lands folder-relative.
   setResources([`${tmpDir}/lib/util.ts`]);
@@ -90,12 +90,12 @@ test("an absolute path inside the folder imports as a project file pin", async (
   const result = await importSettingsFavorites(store);
 
   assert.equal(result.added, 1, "the absolute path imports");
-  const pin = store.getProjectPins().find((p) => p.path === "lib/util.ts");
-  assert.ok(pin, "the absolute path is stored as a folder-relative project pin");
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === "lib/util.ts");
+  assert.ok(shortcut, "the absolute path is stored as a folder-relative project pin");
 });
 
 test("non-string and blank entries are reported and skipped", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   setResources([123, "   ", "real/file.ts"]);
 
@@ -106,7 +106,7 @@ test("non-string and blank entries are reported and skipped", async () => {
 });
 
 test("a relative path with no workspace folder open is reported and skipped", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   // No folder open: a relative path cannot be resolved, so it is reported and skipped
   // rather than silently dropped. (Set resources AFTER init so the store seeded with
@@ -121,7 +121,7 @@ test("a relative path with no workspace folder open is reported and skipped", as
 });
 
 test("a non-array setting imports nothing and skips nothing", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   setResources({ not: "an array" });
 
@@ -130,7 +130,7 @@ test("a non-array setting imports nothing and skips nothing", async () => {
 });
 
 test("re-importing the same resources adds no duplicate pins (idempotent)", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   setResources(["src/main.ts", "src/main.ts"]);
 
@@ -141,7 +141,7 @@ test("re-importing the same resources adds no duplicate pins (idempotent)", asyn
   assert.equal(second.added, 0, "re-running adds no duplicate");
 
   assert.equal(
-    store.getProjectPins().filter((p) => p.path === "src/main.ts").length,
+    store.getProjectShortcuts().filter((p) => p.path === "src/main.ts").length,
     1,
     "the pin exists exactly once"
   );

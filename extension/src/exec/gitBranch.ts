@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
 
-// Git branch awareness, shared by branch-linked pins (WOW #3) and time-bomb
+// Git branch awareness, shared by branch-linked shortcuts (WOW #3) and time-bomb
 // "until branch changes" expiry (WOW #9). The reader and the live tracker both
 // read .git/HEAD directly — no `git` process, no dependency — mirroring the log-
 // watch approach in systemEvents.ts. Reading is best-effort: every failure path
 // returns undefined, and every consumer treats undefined as "do not hide / do not
-// remove", so an unreadable / detached / worktree repo never silently loses pins.
+// remove", so an unreadable / detached / worktree repo never silently loses shortcuts.
 
 // Read the current git branch of a folder, or undefined when it cannot be
 // determined (no repo, unreadable, or a shape this minimal reader does not handle).
@@ -41,14 +41,14 @@ export async function readCurrentBranch(
     const ref = head.match(/^ref:\s*refs\/heads\/(.+)$/);
     return ref ? ref[1].trim() : head;
   } catch {
-    // No repo, unreadable, or an unexpected shape — caller keeps the pin.
+    // No repo, unreadable, or an unexpected shape — caller keeps the shortcut.
     return undefined;
   }
 }
 
 // Tracks each workspace folder's current branch and fires onDidChangeBranch when a
-// checkout rewrites .git/HEAD, so the Pins view can re-filter branch-linked pins
-// live (WOW #3). The cache is read synchronously by the tree's branch predicate
+// checkout rewrites .git/HEAD, so the Shortcuts view can re-filter branch-linked
+// shortcuts live (WOW #3). The cache is read synchronously by the tree's branch predicate
 // (getChildren is synchronous), so the value is held here and only refreshed by the
 // watcher / init — never read off disk in the paint path. Disposable so every
 // FileSystemWatcher and debounce timer is torn down on deactivation (a leaked
@@ -90,7 +90,7 @@ export class BranchTracker implements vscode.Disposable {
 
   // Populate the branch cache for every folder, then notify once so the first paint
   // applies branch filtering. Called after the store's initial load; until it runs,
-  // the cache is empty and every branch-linked pin shows (the safe default).
+  // the cache is empty and every branch-linked shortcut shows (the safe default).
   async init(): Promise<void> {
     await Promise.all(
       (vscode.workspace.workspaceFolders ?? []).map((f) => this.refreshFolder(f))
@@ -104,8 +104,8 @@ export class BranchTracker implements vscode.Disposable {
     return this.branches.get(folder.uri.toString());
   }
 
-  // The first workspace folder's branch, used to scope global branch-linked pins
-  // (a global pin is not owned by any folder; global pins are rarely branch-linked).
+  // The first workspace folder's branch, used to scope global branch-linked shortcuts
+  // (a global shortcut is not owned by any folder; global shortcuts are rarely branch-linked).
   primaryBranch(): string | undefined {
     const first = vscode.workspace.workspaceFolders?.[0];
     return first ? this.branchOf(first) : undefined;

@@ -4,8 +4,8 @@ import { RecipeResult } from "./detectors";
 // Workspace hygiene scan recipe (recipe book section H, #63). Always applicable —
 // every project can be scanned for empty/oversized outliers — so there is no
 // marker-file gate; it lands in the Workspace recipe group. The recipe is a command
-// pin that runs the recursive scan, writes a dated JSON report, and raises a sticky
-// toast. The crawl is explicit and user-run (the "no full disk crawl" rule governs
+// shortcut that runs the recursive scan, writes a dated JSON report, and raises a
+// sticky toast. The crawl is explicit and user-run (the "no full disk crawl" rule governs
 // auto-detection, not a scan the user asks for); thresholds, mode, and excludes come
 // from the saropaWorkspace.hygiene.* settings.
 export async function detectHygieneRecipes(

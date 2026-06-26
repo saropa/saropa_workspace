@@ -3,7 +3,7 @@
 //   - runBootSequence: the ordered run path. It reads the per-workspace sequence
 //     from the fake ExtensionContext's workspaceState, then dispatches each member
 //     through the "saropaWorkspace.runPin" command — recorded by the vscode stub —
-//     so the order, the skip-a-removed-pin branch, the empty-sequence guard, and the
+//     so the order, the skip-a-removed-shortcut branch, the empty-sequence guard, and the
 //     stop-on-error halt are all observable without the extension host.
 //   - maybeRunBootSequenceOnOpen: the once-per-session open offer. The stub's
 //     showInformationMessage resolves to undefined (a dismiss), so the offer is made
@@ -30,7 +30,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import {
   bootSequence,
   runBootSequence,
@@ -66,44 +66,44 @@ afterEach(() => {
 });
 
 // A store seeded with `count` project pins (a.ts, b.ts, ...), returned alongside
-// their ids in add order so a test can build the sequence from real pin ids.
-async function storeWithPins(
+// their ids in add order so a test can build the sequence from real shortcut ids.
+async function storeWithShortcuts(
   count: number
-): Promise<{ store: PinStore; ids: string[] }> {
-  const store = new PinStore(fakeContext());
+): Promise<{ store: ShortcutStore; ids: string[] }> {
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   for (let i = 0; i < count; i++) {
     const name = String.fromCharCode("a".charCodeAt(0) + i) + ".ts";
-    await store.addPin(asUri(Uri.joinPath(folder.uri, name)), "project");
+    await store.addShortcut(asUri(Uri.joinPath(folder.uri, name)), "project");
   }
-  // Pins are returned in stored order, which is the add order here. Filter out the
-  // seeded auto-pin (the saropa-workspace.json record), which is not an explicit
+  // Shortcuts are returned in stored order, which is the add order here. Filter out the
+  // seeded auto-shortcut (the saropa-workspace.json record), which is not an explicit
   // member and carries a synthetic id.
   const ids = store
-    .getProjectPins()
+    .getProjectShortcuts()
     .filter((p) => !p.isAuto)
     .map((p) => p.id);
   return { store, ids };
 }
 
 // runPin commands recorded since the last reset, in fire order.
-function ranPinCount(): number {
+function ranShortcutCount(): number {
   return __recordedCommands().filter((c) => c.command === "saropaWorkspace.runPin")
     .length;
 }
 
 test("runBootSequence with an empty sequence runs nothing", async () => {
-  const { store } = await storeWithPins(2);
+  const { store } = await storeWithShortcuts(2);
   // The singleton reads from this context's workspaceState; KEY is unset, so get()
   // yields the empty default and the run path takes its no-member guard.
   bootSequence.init(fakeContext());
 
   await runBootSequence(store);
-  assert.equal(ranPinCount(), 0, "no members => no runPin dispatch");
+  assert.equal(ranShortcutCount(), 0, "no members => no runPin dispatch");
 });
 
 test("runBootSequence dispatches each member in stored order", async () => {
-  const { store, ids } = await storeWithPins(3);
+  const { store, ids } = await storeWithShortcuts(3);
   const ctx = fakeContext();
   bootSequence.init(ctx);
   // Order in pinIds IS the run order; store all three.
@@ -114,8 +114,8 @@ test("runBootSequence dispatches each member in stored order", async () => {
   });
 
   await runBootSequence(store);
-  // One dispatch per resolvable member, and the dispatched pin objects match the
-  // sequence order (the command's first arg is the pin).
+  // One dispatch per resolvable member, and the dispatched shortcut objects match the
+  // sequence order (the command's first arg is the shortcut).
   const ran = __recordedCommands().filter(
     (c) => c.command === "saropaWorkspace.runPin"
   );
@@ -128,10 +128,10 @@ test("runBootSequence dispatches each member in stored order", async () => {
 });
 
 test("runBootSequence skips a removed pin but runs the rest", async () => {
-  const { store, ids } = await storeWithPins(2);
+  const { store, ids } = await storeWithShortcuts(2);
   const ctx = fakeContext();
   bootSequence.init(ctx);
-  // A middle id that resolves to no pin must be skipped, not abort the run.
+  // A middle id that resolves to no shortcut must be skipped, not abort the run.
   await ctx.workspaceState.update(KEY, {
     enabled: true,
     stopOnError: false,
@@ -139,7 +139,7 @@ test("runBootSequence skips a removed pin but runs the rest", async () => {
   });
 
   await runBootSequence(store);
-  assert.equal(ranPinCount(), 2, "the two surviving members still run");
+  assert.equal(ranShortcutCount(), 2, "the two surviving members still run");
 });
 
 test("get() coerces a malformed stored shape to the safe empty default", async () => {
@@ -160,7 +160,7 @@ test("get() coerces a malformed stored shape to the safe empty default", async (
 });
 
 test("maybeRunBootSequenceOnOpen makes no offer and runs nothing when disabled", async () => {
-  const { store, ids } = await storeWithPins(1);
+  const { store, ids } = await storeWithShortcuts(1);
   const ctx = fakeContext();
   bootSequence.init(ctx);
   // Populated but NOT enabled: the open offer must short-circuit before any prompt.
@@ -171,11 +171,11 @@ test("maybeRunBootSequenceOnOpen makes no offer and runs nothing when disabled",
   });
 
   await maybeRunBootSequenceOnOpen(store);
-  assert.equal(ranPinCount(), 0, "a disabled sequence is never offered or run");
+  assert.equal(ranShortcutCount(), 0, "a disabled sequence is never offered or run");
 });
 
 test("maybeRunBootSequenceOnOpen offers at most once per session", async () => {
-  const { store, ids } = await storeWithPins(1);
+  const { store, ids } = await storeWithShortcuts(1);
   const ctx = fakeContext();
   bootSequence.init(ctx);
   // Enabled + populated, so the first call reaches the prompt (the stub dismisses
@@ -189,6 +189,6 @@ test("maybeRunBootSequenceOnOpen offers at most once per session", async () => {
   await maybeRunBootSequenceOnOpen(store);
   await maybeRunBootSequenceOnOpen(store);
   // The stub's showInformationMessage resolves undefined (dismiss), so neither pass
-  // runs a pin; the assertion is that the second call is a no-op, not a re-prompt.
-  assert.equal(ranPinCount(), 0, "a dismissed offer runs nothing on either pass");
+  // runs a shortcut; the assertion is that the second call is a no-op, not a re-prompt.
+  assert.equal(ranShortcutCount(), 0, "a dismissed offer runs nothing on either pass");
 });

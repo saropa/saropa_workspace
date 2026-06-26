@@ -19,8 +19,8 @@ let view = STATE0.view || 'week';
 // keeps the chosen density.
 let density = STATE0.density === 'comfortable' ? 'comfortable' : 'compact';
 let hourH = density === 'comfortable' ? 60 : 30;
-// Whether the Workflow tab's "unlinked pins" shelf is expanded. Default open so the
-// pins you can wire are visible the first time; the choice is remembered.
+// Whether the Workflow tab's "unlinked shortcuts" shelf is expanded. Default open so the
+// shortcuts you can wire are visible the first time; the choice is remembered.
 let shelfOpen = STATE0.shelfOpen !== false;
 // Persisted column widths (px): the right-hand detail inspector and the Workflow
 // toolbox. Both are user-draggable; defaults match the CSS var fallbacks.
@@ -67,10 +67,10 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function toMin(t){ if(!t) return null; const m=/^(\\d{1,2}):(\\d{2})$/.exec(t); if(!m) return null; return (+m[1])*60 + (+m[2]); }
 function fmtMin(m){ m=((Math.round(m)%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
 function fmtEvery(ms){ const min=Math.round(ms/60000); if(min%1440===0) return 'every '+(min/1440)+'d'; if(min%60===0) return 'every '+(min/60)+'h'; return 'every '+min+'m'; }
-function pin(id){ return DATA.nodes.find(n => n.id===id); }
-function nodeIcon(n){ return n.kind==='event' ? (EVENT_ICON[n.event]||'\\u{26A1}') : (KIND_ICON[n.pinKind]||'\\u{1F4C4}'); }
-function scheduledPins(){ return DATA.nodes.filter(n => n.kind==='pin' && n.schedule && (n.schedule.atTime || n.schedule.everyMs)); }
-function dailyPins(){ return DATA.nodes.filter(n => n.kind==='pin' && n.schedule && n.schedule.atTime); }
+function shortcut(id){ return DATA.nodes.find(n => n.id===id); }
+function nodeIcon(n){ return n.kind==='event' ? (EVENT_ICON[n.event]||'\\u{26A1}') : (KIND_ICON[n.shortcutKind]||'\\u{1F4C4}'); }
+function scheduledShortcuts(){ return DATA.nodes.filter(n => n.kind==='pin' && n.schedule && (n.schedule.atTime || n.schedule.everyMs)); }
+function dailyShortcuts(){ return DATA.nodes.filter(n => n.kind==='pin' && n.schedule && n.schedule.atTime); }
 function activeDays(s){ return (s.days && s.days.length) ? s.days : [0,1,2,3,4,5,6]; }
 
 function setView(v){ view = v; saveState(); document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.v===v))); renderStage(); }
@@ -101,9 +101,9 @@ function renderStage(){
 // ---- Day timeline -----------------------------------------------------
 function renderDay(){
   const wrap = el('div','day-wrap');
-  const daily = dailyPins().slice().sort((a,b)=> (toMin(a.schedule.atTime)||0)-(toMin(b.schedule.atTime)||0));
+  const daily = dailyShortcuts().slice().sort((a,b)=> (toMin(a.schedule.atTime)||0)-(toMin(b.schedule.atTime)||0));
   const intervals = DATA.nodes.filter(n=> n.kind==='pin' && n.schedule && n.schedule.everyMs && !n.schedule.atTime);
-  if(!daily.length && !intervals.length){ wrap.appendChild(emptyState('Nothing scheduled for a daily time','Drag a pin in the Week view, or right-click a pin to add a schedule.')); return wrap; }
+  if(!daily.length && !intervals.length){ wrap.appendChild(emptyState('Nothing scheduled for a daily time','Drag a shortcut in the Week view, or right-click a shortcut to add a schedule.')); return wrap; }
 
   wrap.appendChild(sectionTitle('\\u{1F551} 24-hour day'));
   const ruler = el('div','ruler');
@@ -122,7 +122,7 @@ function renderDay(){
     placed.push({ x, row });
     const mk = el('div','marker'); mk.dataset.id = n.id; mk.style.left = x+'%'; mk.style.bottom = (8 + row*26)+'px';
     const tag = el('div','tag'); tag.textContent = n.label + '  ' + n.schedule.atTime; mk.appendChild(tag);
-    const dot = el('div','pin-dot' + (n.schedule.enabled?'':' off')); mk.appendChild(dot);
+    const dot = el('div','shortcut-dot' + (n.schedule.enabled?'':' off')); mk.appendChild(dot);
     mk.title = n.label + ' \\u2014 ' + n.schedule.atTime + ' \\u00b7 ' + daysLabel(n.schedule);
     mk.onclick = () => select(n.id);
     mk.ondblclick = () => send({ type:'run', id:n.id });
@@ -156,7 +156,7 @@ function daysLabel(s){
 
 // ---- Week planner (drag to retime / move day) -------------------------
 function renderWeek(){
-  const daily = dailyPins();
+  const daily = dailyShortcuts();
   const grid = el('div','week');
   const today = new Date().getDay();
   // header row
@@ -178,7 +178,7 @@ function renderWeek(){
     daily.filter(n => activeDays(n.schedule).includes(d)).forEach(n => col.appendChild(weekBlock(n, d)));
     grid.appendChild(col);
   });
-  if(!daily.length){ const wrap=el('div'); wrap.appendChild(emptyState('No daily schedules yet','Right-click a pin \\u2192 Add schedule, then drag it here to retime.')); wrap.appendChild(grid); return wrap; }
+  if(!daily.length){ const wrap=el('div'); wrap.appendChild(emptyState('No daily schedules yet','Right-click a shortcut \\u2192 Add schedule, then drag it here to retime.')); wrap.appendChild(grid); return wrap; }
   return grid;
 }
 
@@ -229,9 +229,9 @@ function renderWorkflow(){
   wrap.appendChild(renderToolbox());
 
   // Right column: a persistent how-to band, the chain canvas, then the shelf of
-  // not-yet-wired pins. Splitting the unlinked pins out of the canvas is what keeps
-  // the graph short and legible — only pins that take part in a chain or event live
-  // on the canvas; everything else waits on the shelf until you wire it.
+  // not-yet-wired shortcuts. Splitting the unlinked shortcuts out of the canvas is what
+  // keeps the graph short and legible — only shortcuts that take part in a chain or
+  // event live on the canvas; everything else waits on the shelf until you wire it.
   const right = el('div','wf-right');
   right.appendChild(renderHowto());
 
@@ -247,7 +247,7 @@ function renderWorkflow(){
     visibleNodes.forEach(n => canvas.appendChild(wfNode(n)));
   } else {
     // No chains yet: teach the gesture in place instead of showing a blank canvas.
-    canvas.appendChild(emptyState('No chained pins yet','Drag a pin up from the shelf below onto another to run them in sequence, or drag an event from the Toolbox onto a pin.'));
+    canvas.appendChild(emptyState('No chained shortcuts yet','Drag a shortcut up from the shelf below onto another to run them in sequence, or drag an event from the Toolbox onto a shortcut.'));
   }
   fitCanvasHeight(canvas, visibleNodes);
   cw.appendChild(canvas);
@@ -272,7 +272,7 @@ function renderToolbox(){
     t.ondragstart = (e) => { e.dataTransfer.setData('text/event', ev); e.dataTransfer.effectAllowed='copy'; };
     tb.appendChild(t);
   });
-  tb.insertAdjacentHTML('beforeend','<div class="hint">Drag an event onto a pin to run that pin after the event fires.</div>');
+  tb.insertAdjacentHTML('beforeend','<div class="hint">Drag an event onto a shortcut to run that shortcut after the event fires.</div>');
   // Right-edge resize handle. Dragging right grows the toolbox (dirX +1). Re-created with
   // the toolbox on each Workflow render, so it is wired here rather than at bootstrap.
   const grip = el('div','tb-rsz'); grip.title = 'Drag to resize the toolbox';
@@ -289,13 +289,13 @@ function renderHowto(){
   const band = el('div','wf-howto');
   band.innerHTML =
     '<span class="steps">'+
-    '<span><b>Drag a pin</b> from the shelf onto a step to chain it</span>'+
-    '<span>\\u00b7 <b>drag an event</b> onto a pin</span>'+
-    '<span>\\u00b7 or use <b>Add link</b> to search any two pins</span>'+
+    '<span><b>Drag a shortcut</b> from the shelf onto a step to chain it</span>'+
+    '<span>\\u00b7 <b>drag an event</b> onto a shortcut</span>'+
+    '<span>\\u00b7 or use <b>Add link</b> to search any two shortcuts</span>'+
     '</span><span class="spacer"></span>';
   // Add link surfaces the otherwise-hidden link builder (also on canvas right-click):
   // open it anchored just under the button so the search box appears where the eye is.
-  const link = el('button','btn primary'); link.title = 'Search pins and add a link';
+  const link = el('button','btn primary'); link.title = 'Search shortcuts and add a link';
   link.innerHTML = '\\u{1F517} Add link\\u2026';
   link.onclick = (e) => { const r = e.currentTarget.getBoundingClientRect(); openAutocomplete(r.left, r.bottom + 4, null); };
   band.appendChild(link);
@@ -312,22 +312,25 @@ function wireCanvasDnd(cw){
   cw.ondrop = (e) => {
     e.preventDefault(); cw.classList.remove('droptarget');
     const ev = e.dataTransfer.getData('text/event');
+    // pinId: dataTransfer key paired with the chip drag below — kept literal so both
+    // ends of the same in-webview drag agree on the token.
     const pinId = e.dataTransfer.getData('text/pinId');
     const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.node');
-    // A toolbox event dropped on a pin makes that pin run after the event.
+    // A toolbox event dropped on a shortcut makes that shortcut run after the event.
     if(ev){
       if(target && target.dataset.kind==='pin'){ send({ type:'addTrigger', to: target.dataset.id, kind:'event', event: ev }); }
-      else { flash('Drop the event onto a pin to chain it.'); }
+      else { flash('Drop the event onto a shortcut to chain it.'); }
       return;
     }
-    // A shelf pin dropped on a canvas step runs AFTER that step: the dropped pin gets a
-    // trigger pointing at the step it landed on. Wiring it is what moves it onto the
-    // canvas (it now has an edge), so the shelf only ever holds un-wired pins.
+    // A shelf shortcut dropped on a canvas step runs AFTER that step: the dropped
+    // shortcut gets a trigger pointing at the step it landed on. Wiring it is what moves
+    // it onto the canvas (it now has an edge), so the shelf only ever holds un-wired
+    // shortcuts.
     if(pinId){
       if(target && target.dataset.kind==='pin' && target.dataset.id!==pinId){
         send({ type:'addTrigger', to: pinId, kind:'pin', from: target.dataset.id });
       } else {
-        flash('Drop the pin onto a step to run it after that step.');
+        flash('Drop the shortcut onto a step to run it after that step.');
       }
     }
   };
@@ -337,27 +340,27 @@ function wireCanvasDnd(cw){
   };
 }
 
-// Canvas nodes = pins that take part in at least one edge (chain or event link), plus
-// the synthetic event nodes that are actually wired. Everything else is shelf-bound.
-function linkedPinIds(){
+// Canvas nodes = shortcuts that take part in at least one edge (chain or event link),
+// plus the synthetic event nodes that are actually wired. Everything else is shelf-bound.
+function linkedShortcutIds(){
   const s = new Set();
   DATA.edges.forEach(e => { s.add(e.from); s.add(e.to); });
   return s;
 }
 function workflowNodes(){
-  const linked = linkedPinIds();
+  const linked = linkedShortcutIds();
   const usedEvents = new Set();
   DATA.edges.forEach(e => { if(e.kind==='event') usedEvents.add(e.from); });
   return DATA.nodes.filter(n =>
     (n.kind==='pin' && linked.has(n.id)) || (n.kind==='event' && usedEvents.has(n.id))
   );
 }
-function shelfPins(){
-  const linked = linkedPinIds();
+function shelfShortcuts(){
+  const linked = linkedShortcutIds();
   return DATA.nodes.filter(n => n.kind==='pin' && !linked.has(n.id));
 }
 
-// The shelf: every pin not yet part of a chain, packed as a dense wrapped grid of
+// The shelf: every shortcut not yet part of a chain, packed as a dense wrapped grid of
 // chips instead of a single tall column. Drag a chip onto a canvas step to wire it,
 // click to inspect, right-click for the same menu the canvas nodes use. Collapsible,
 // and that choice is remembered with the view.
@@ -367,24 +370,24 @@ function shelfPins(){
 const SHELF_FILTER_AT = 12;
 
 function renderShelf(){
-  const pins = shelfPins().slice().sort((a,b)=> a.label.localeCompare(b.label));
+  const shortcuts = shelfShortcuts().slice().sort((a,b)=> a.label.localeCompare(b.label));
   const box = el('div','shelf'+(shelfOpen?'':' collapsed'));
   const head = el('div','shelf-head');
   head.innerHTML =
     '<span class="chev">\\u25BE</span>'+
-    '<span class="sh-t">Unlinked pins</span>'+
-    '<span class="sh-c">'+pins.length+'</span>'+
+    '<span class="sh-t">Unlinked shortcuts</span>'+
+    '<span class="sh-c">'+shortcuts.length+'</span>'+
     '<span class="sh-hint">drag onto a step to chain</span>';
   head.onclick = () => { shelfOpen = !shelfOpen; saveState(); box.classList.toggle('collapsed', !shelfOpen); };
   box.appendChild(head);
 
   const grid = el('div','shelf-grid');
-  const noMatch = el('div','shelf-empty'); noMatch.textContent = 'No pin matches.'; noMatch.style.display = 'none';
-  if(!pins.length){
-    const e = el('div','shelf-empty'); e.textContent = 'Every pin is wired into the workflow.'; grid.appendChild(e);
+  const noMatch = el('div','shelf-empty'); noMatch.textContent = 'No shortcut matches.'; noMatch.style.display = 'none';
+  if(!shortcuts.length){
+    const e = el('div','shelf-empty'); e.textContent = 'Every shortcut is wired into the workflow.'; grid.appendChild(e);
   }
-  pins.forEach(n => {
-    const chip = el('div','shelf-pin'+(selected===n.id?' sel':'')); chip.draggable = true; chip.dataset.id = n.id; chip.dataset.label = n.label.toLowerCase();
+  shortcuts.forEach(n => {
+    const chip = el('div','shelf-shortcut'+(selected===n.id?' sel':'')); chip.draggable = true; chip.dataset.id = n.id; chip.dataset.label = n.label.toLowerCase();
     const clock = (n.schedule && (n.schedule.atTime||n.schedule.everyMs)) ? '<span class="sclock">\\u{1F551}</span>' : '';
     chip.innerHTML = '<span class="si">'+nodeIcon(n)+'</span><span class="sl">'+esc(n.label)+'</span>'+clock;
     chip.ondragstart = (e) => { e.dataTransfer.setData('text/pinId', n.id); e.dataTransfer.effectAllowed='copy'; };
@@ -395,13 +398,13 @@ function renderShelf(){
 
   // Filter box: only for a long shelf. Hides non-matching chips live (no re-render, so
   // a drag-in-progress is never interrupted) and shows a no-match note when nothing fits.
-  if(pins.length > SHELF_FILTER_AT){
+  if(shortcuts.length > SHELF_FILTER_AT){
     const row = el('div','shelf-filter-row');
-    const input = el('input','shelf-filter'); input.type = 'search'; input.placeholder = 'Filter ' + pins.length + ' pins\\u2026';
+    const input = el('input','shelf-filter'); input.type = 'search'; input.placeholder = 'Filter ' + shortcuts.length + ' shortcuts\\u2026';
     input.oninput = () => {
       const q = input.value.trim().toLowerCase();
       let shown = 0;
-      grid.querySelectorAll('.shelf-pin').forEach(c => {
+      grid.querySelectorAll('.shelf-shortcut').forEach(c => {
         const match = !q || c.dataset.label.includes(q);
         c.style.display = match ? '' : 'none';
         if(match) shown++;
@@ -417,7 +420,7 @@ function renderShelf(){
 }
 
 // Size the canvas to its content so there is no dead scroll space below the chains
-// (and no hidden nodes above a fixed cap). With the unlinked pins gone to the shelf,
+// (and no hidden nodes above a fixed cap). With the unlinked shortcuts gone to the shelf,
 // the chained set is small, so this usually removes the scroll entirely.
 function fitCanvasHeight(canvas, nodes){
   let maxB = 0;
@@ -447,7 +450,7 @@ function wfNode(n){
     meta += '<span class="badge">event</span>';
   }
   d.innerHTML = '<div class="nh"><span class="nicon">'+nodeIcon(n)+'</span><span class="nt">'+esc(n.label)+'</span></div>'+(meta?'<div class="nmeta">'+meta+'</div>':'');
-  if(n.kind==='pin'){ const plug = el('div','plug'); plug.title='Drag to another pin to chain'; d.appendChild(plug); attachPlug(plug, n); }
+  if(n.kind==='pin'){ const plug = el('div','plug'); plug.title='Drag to another shortcut to chain'; d.appendChild(plug); attachPlug(plug, n); }
   attachNodeDrag(d, n);
   d.oncontextmenu = (e) => { e.preventDefault(); openNodeMenu(e, n); };
   return d;
@@ -479,9 +482,9 @@ function attachNodeDrag(d, n){
   };
 }
 
-// Drag from a node's plug handle to another pin node to chain them: the release
-// target becomes a "run after this pin" trigger. A bezier preview line tracks the
-// cursor, and only a valid pin target (not self, not an event node) is accepted —
+// Drag from a node's plug handle to another shortcut node to chain them: the release
+// target becomes a "run after this shortcut" trigger. A bezier preview line tracks the
+// cursor, and only a valid shortcut target (not self, not an event node) is accepted —
 // invalid hovers get no link, so a missed drop is a no-op rather than a bad edge.
 function attachPlug(plug, n){
   plug.onmousedown = (e) => {
@@ -555,14 +558,14 @@ function layout(){
 
 // ---- selection + detail ----------------------------------------------
 // Selecting an item highlights every visual representation of it (workflow node, week
-// block, day marker, shelf pin) and opens the detail inspector. The inspector is a
+// block, day marker, shelf shortcut) and opens the detail inspector. The inspector is a
 // sticky right-hand column, so it is always in view — no scroll-into-view is needed.
 function select(id){
   selected = id;
   document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel', n.dataset.id===id));
   document.querySelectorAll('.block').forEach(b=>b.classList.toggle('sel', b.dataset.id===id));
   document.querySelectorAll('.marker').forEach(m=>m.classList.toggle('sel', m.dataset.id===id));
-  document.querySelectorAll('.shelf-pin').forEach(s=>s.classList.toggle('sel', s.dataset.id===id));
+  document.querySelectorAll('.shelf-shortcut').forEach(s=>s.classList.toggle('sel', s.dataset.id===id));
   if(view==='workflow') drawEdges();
   renderDetail();
 }
@@ -572,19 +575,19 @@ function renderDetail(){
   // Content is written into #detail-body, NOT #detail, so the persistent resize handle
   // (a sibling of the body) survives every re-render and stays wired.
   const body = document.getElementById('detail-body'); if(!body) return;
-  const n = selected ? pin(selected) : null;
+  const n = selected ? shortcut(selected) : null;
   if(!n || n.kind!=='pin'){ box.classList.remove('show'); body.innerHTML=''; return; }
   box.classList.add('show');
   let lines = [];
   if(n.schedule && n.schedule.atTime) lines.push('Daily at '+n.schedule.atTime+' \\u00b7 '+daysLabel(n.schedule)+(n.schedule.enabled?'':' (paused)'));
   if(n.schedule && n.schedule.everyMs) lines.push('Repeats '+fmtEvery(n.schedule.everyMs));
-  const ins = DATA.edges.filter(e=>e.to===n.id).map(e=> e.kind==='event'? ('after '+(EVENT_ICON[pin(e.from)?.event]||'')+' '+(pin(e.from)?.label||e.from)) : ('after '+(pin(e.from)?.label||e.from)));
+  const ins = DATA.edges.filter(e=>e.to===n.id).map(e=> e.kind==='event'? ('after '+(EVENT_ICON[shortcut(e.from)?.event]||'')+' '+(shortcut(e.from)?.label||e.from)) : ('after '+(shortcut(e.from)?.label||e.from)));
   if(ins.length) lines.push('Runs '+ins.join(', '));
   if(n.emits && n.emits.length) lines.push('Emits '+n.emits.join(', '));
   // The recipe's own prose, shown as an INFO tip so a seeded/paused recipe explains
   // what it does in place — without making the user open the source to find out.
   const info = n.description ? '<div class="dinfo"><span class="ii">\\u2139\\uFE0F</span><span>'+esc(n.description)+'</span></div>' : '';
-  // Pause/Resume mirrors the right-click toggle: a scheduled pin must be resumable
+  // Pause/Resume mirrors the right-click toggle: a scheduled shortcut must be resumable
   // from the same strip that shows it is "(paused)", not only from the context menu.
   const toggleBtn = n.schedule ? '<button class="btn" data-act="toggle">'+(n.schedule.enabled?'\\u23F8 Pause':'\\u25B6 Resume')+'</button>' : '';
   body.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span><button class="dclose" data-act="close" title="Close details" aria-label="Close details">\\u00D7</button></div>'+
@@ -631,13 +634,13 @@ function openNodeMenu(e, n){
   // removable incoming links
   const ins = DATA.edges.filter(ed=>ed.to===n.id);
   if(ins.length){ items.push(['head','Remove trigger']); ins.forEach(ed => {
-    const src = pin(ed.from); items.push(['\\u2716 '+(ed.kind==='event'?'after '+(EVENT_ICON[src?.event]||'')+' '+(src?.label||ed.from):'after '+(src?.label||ed.from)),'rm:'+ed.from]);
+    const src = shortcut(ed.from); items.push(['\\u2716 '+(ed.kind==='event'?'after '+(EVENT_ICON[src?.event]||'')+' '+(src?.label||ed.from):'after '+(src?.label||ed.from)),'rm:'+ed.from]);
   }); }
   items.forEach(it => {
     if(it[0]==='sep'){ m.appendChild(el('div','msep')); return; }
     if(it[0]==='head'){ const h=el('div','mhead'); h.textContent=it[1]; m.appendChild(h); return; }
     const b = el('button','mi'+(String(it[1]).startsWith('rm:')?' danger':''));
-    b.textContent = it[0]; // text + emoji only; textContent so a pin label can't inject markup
+    b.textContent = it[0]; // text + emoji only; textContent so a shortcut label can't inject markup
     b.onclick = () => {
       closeMenus();
       if(it[1]==='link'){ openAutocomplete(e.clientX, e.clientY, n.id); }
@@ -654,11 +657,11 @@ function openNodeMenu(e, n){
 function openAutocomplete(cx, cy, sourceId){
   closeMenus();
   const box = el('div','ac');
-  const input = el('input'); input.placeholder = sourceId ? 'Link to a pin\\u2026' : 'Add a link: search pins & events\\u2026';
+  const input = el('input'); input.placeholder = sourceId ? 'Link to a shortcut\\u2026' : 'Add a link: search shortcuts & events\\u2026';
   const results = el('div','results');
   box.appendChild(input); box.appendChild(results);
   document.body.appendChild(box); positionFixed(box, cx, cy);
-  // candidates: when sourceId set, list target pins; else list everything as a "from"
+  // candidates: when sourceId set, list target shortcuts; else list everything as a "from"
   const candidates = sourceId
     ? DATA.nodes.filter(n=>n.kind==='pin' && n.id!==sourceId).map(n=>({ n, role:'to' }))
     : DATA.nodes.filter(n=>n.kind==='pin').map(n=>({ n, role:'from' }));
@@ -727,7 +730,7 @@ window.addEventListener('message', (ev) => {
     DATA = m.data || { nodes:[], edges:[] };
     POS = m.positions || {};
     nowMin = m.nowMin || 0;
-    if(selected && !pin(selected)) selected = null;
+    if(selected && !shortcut(selected)) selected = null;
     document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.v===view)));
     renderStage();
   }

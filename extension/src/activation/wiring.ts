@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { BranchTracker } from "../exec/gitBranch";
 import { BranchSetBinder } from "../exec/branchSets";
@@ -12,8 +12,8 @@ import { processRegistry } from "../exec/processRegistry";
 import { metricBadges } from "../exec/metricBadges";
 import { RecipesTreeProvider } from "../views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "../views/projectFilesProvider";
-import { PinsTreeProvider } from "../views/pinsTreeProvider";
-import { PinTreeItem } from "../views/pinTreeItem";
+import { ShortcutsTreeProvider } from "../views/shortcutsTreeProvider";
+import { ShortcutTreeItem } from "../views/shortcutTreeItem";
 import { SuggestionTracker } from "../views/suggestions";
 import { TabPinSuggester } from "../views/tabPinSuggestions";
 import { ScheduleStatusBar } from "../views/scheduleStatusBar";
@@ -23,7 +23,7 @@ import { registerTerminalCleanup, setRoutineHooks } from "../exec/runner";
 import { registerSimulationPreview } from "../commands/simulateRun";
 import { registerRunAnalytics } from "../commands/runAnalytics";
 import { registerRunOutputDiff } from "../commands/diffRuns";
-import { registerPinCommands, createRoutineHooks } from "../commands/pinCommands";
+import { registerShortcutCommands, createRoutineHooks } from "../commands/shortcutCommands";
 import { registerSetCommands } from "../commands/setCommands";
 import { registerBranchSetCommands } from "../commands/branchSetCommands";
 import { registerProcessMonitorCommands } from "../exec/processMonitorCommands";
@@ -33,10 +33,10 @@ import { registerProjectStatsCommand } from "../exec/projectStats";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
 import { l10n } from "../i18n/l10n";
 import {
-  handlePinImportUri,
-  runPinsOnSave,
+  handleShortcutImportUri,
+  runShortcutsOnSave,
   makeDebounced,
-  syncPinnedPathContext,
+  syncShortcutPathContext,
 } from "./activationHelpers";
 
 // Activation wiring blocks split out of extension.ts so activate() stays a short,
@@ -47,12 +47,12 @@ import {
 // listeners that repaint them.
 export function setupSecondaryViews(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): void {
   // Dedicated "Recipes" view: the auto-detected shortcuts (open on GitHub, run
   // scripts, Saropa Suite tools), grouped by category. Kept as its own section so
-  // detected recipes never bury the user's own pins in the Pins view. Read-only and
-  // not arrangeable, so it is a plain provider (no drag-and-drop controller).
+  // detected recipes never bury the user's own shortcuts in the Shortcuts view. Read-
+  // only and not arrangeable, so it is a plain provider (no drag-and-drop controller).
   const recipes = new RecipesTreeProvider(store);
   const recipesView = vscode.window.createTreeView("saropaWorkspace.recipes", {
     treeDataProvider: recipes,
@@ -90,19 +90,19 @@ export function setupSecondaryViews(
     projectFiles.onDidChangeCount((count) => syncProjectFilesCount(count))
   );
   syncProjectFilesCount(projectFiles.count);
-  // Repaint the project-files rows whenever pins change, so the pinned indicator
-  // and the pin/unpin toggle reflect the current state immediately.
+  // Repaint the project-files rows whenever shortcuts change, so the shortcut
+  // indicator and the add/remove toggle reflect the current state immediately.
   context.subscriptions.push(store.onDidChange(() => projectFiles.refresh()));
 
-  // Keep the "Workspace Pin" submenu showing only the valid action (Add when not
-  // pinned, Remove when pinned) for the exact file right-clicked. Each scope's
-  // pinned files are published as a when-clause context-key object; the submenu
+  // Keep the "Workspace Shortcut" submenu showing only the valid action (Add when not
+  // a shortcut, Remove when a shortcut) for the exact file right-clicked. Each scope's
+  // shortcut files are published as a when-clause context-key object; the submenu
   // items gate on `resourcePath in/not in` it. This is per-resource accurate in
   // every surface (Explorer, editor body, editor tab, sidebar row) because the `in`
   // operator tests the acted-on resource, not the active editor. Synced on every
-  // pin change (init fires onDidChange too, so the keys are set before first paint).
+  // shortcut change (init fires onDidChange too, so the keys are set before first paint).
   context.subscriptions.push(
-    store.onDidChange(() => syncPinnedPathContext(store))
+    store.onDidChange(() => syncShortcutPathContext(store))
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshProjectFiles", () =>
@@ -129,7 +129,7 @@ export function setupSecondaryViews(
 // branch-set binder (the config watcher re-applies it on a settings change).
 export function registerCommandModules(
   context: vscode.ExtensionContext,
-  store: PinStore,
+  store: ShortcutStore,
   dispatcher: DoubleClickDispatcher,
   branchTracker: BranchTracker
 ): BranchSetBinder {
@@ -137,16 +137,16 @@ export function registerCommandModules(
   registerSimulationPreview(context);
   registerRunAnalytics(context);
   registerRunOutputDiff(context);
-  registerPinCommands(context, store, dispatcher);
+  registerShortcutCommands(context, store, dispatcher);
 
-  // Named pin sets (multiple-favorite-sets roadmap): switch / create / rename /
-  // delete / duplicate. The active set's project pins are the tree's project pins,
-  // so switching simply swaps which set is live; global pins stay shared. The
-  // status-bar switcher below is the discoverable entry point.
+  // Named shortcut sets (multiple-favorite-sets roadmap): switch / create / rename /
+  // delete / duplicate. The active set's project shortcuts are the tree's project
+  // shortcuts, so switching simply swaps which set is live; global shortcuts stay
+  // shared. The status-bar switcher below is the discoverable entry point.
   registerSetCommands(context, store);
 
-  // Branch-aware pin sets (roadmap 3.2): bind a git branch to a pin set so the
-  // active set follows the current branch on checkout. Built on the existing branch
+  // Branch-aware shortcut sets (roadmap 3.2): bind a git branch to a shortcut set so
+  // the active set follows the current branch on checkout. Built on the existing branch
   // tracker + named-set API; gated by saropaWorkspace.branchAware.enabled (off by
   // default, so single-set / non-git users see no change). Constructed before
   // branchTracker.init() below so it catches the initial branch read and aligns the
@@ -157,16 +157,17 @@ export function registerCommandModules(
   registerBranchSetCommands(context, store, branchSetBinder);
 
   // Inject the routine engine's resolve + run hooks now that the store exists (the
-  // runner cannot import the store/command layer without a cycle). A routine pin's
-  // members are resolved and run through the same single-pin path the tree uses.
+  // runner cannot import the store/command layer without a cycle). A routine
+  // shortcut's members are resolved and run through the same single-shortcut path the
+  // tree uses.
   setRoutineHooks(createRoutineHooks(store));
 
   // Handle vscode://saropa.saropa-workspace/import?data=... links (WOW #4 import), so
-  // a shared pin link opens VS Code, confirms, and adds the pin. Registered as a
-  // disposable so the handler is torn down on deactivation.
+  // a shared shortcut link opens VS Code, confirms, and adds the shortcut. Registered
+  // as a disposable so the handler is torn down on deactivation.
   context.subscriptions.push(
     vscode.window.registerUriHandler({
-      handleUri: (uri) => void handlePinImportUri(uri, store),
+      handleUri: (uri) => void handleShortcutImportUri(uri, store),
     })
   );
   // Helper commands invoked by "command" recipes (set up .env, open config files,
@@ -176,7 +177,7 @@ export function registerCommandModules(
   // Saropa Dashboard (roadmap 3.4): the openDashboard command (three tabs —
   // Processes / Analytics / Trends), the openProcessMonitor alias (#60) that opens
   // the Processes tab, and the grouped-snapshot command (#62). The store backs the
-  // Analytics tab's pin-name resolution.
+  // Analytics tab's shortcut-name resolution.
   registerProcessMonitorCommands(context, store);
 
   // Workspace hygiene scanner (recipe book section H, #63): the recursive
@@ -207,29 +208,30 @@ export function registerCommandModules(
 // tree-view handle.
 export function setupStatusBars(
   context: vscode.ExtensionContext,
-  store: PinStore,
-  tree: PinsTreeProvider,
+  store: ShortcutStore,
+  tree: ShortcutsTreeProvider,
   treeView: vscode.TreeView<vscode.TreeItem>
 ): void {
   // Status-bar item for the soonest upcoming scheduled run; clicking it reveals
-  // the pin in the tree. The reveal command lives here because it needs the tree
+  // the shortcut in the tree. The reveal command lives here because it needs the tree
   // view handle created above.
   const scheduleStatusBar = new ScheduleStatusBar(store);
   context.subscriptions.push(scheduleStatusBar);
 
-  // Status-bar pin-set switcher: shows the active set's name and opens the switcher
-  // QuickPick on click. Hidden while the workspace is on the lone default set, so
-  // single-set users see no new chrome until they create a second set. Disposable
-  // so its status-bar item and store subscription are released on deactivation.
+  // Status-bar shortcut-set switcher: shows the active set's name and opens the
+  // switcher QuickPick on click. Hidden while the workspace is on the lone default
+  // set, so single-set users see no new chrome until they create a second set.
+  // Disposable so its status-bar item and store subscription are released on
+  // deactivation.
   context.subscriptions.push(new SetStatusBar(store));
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.revealNextScheduled", async () => {
-      const id = scheduleStatusBar.getCurrentPinId();
-      const pin = id ? store.findPin(id) : undefined;
-      if (!pin) {
+      const id = scheduleStatusBar.getCurrentShortcutId();
+      const shortcut = id ? store.findShortcut(id) : undefined;
+      if (!shortcut) {
         return;
       }
-      await treeView.reveal(tree.revealItem(pin), {
+      await treeView.reveal(tree.revealItem(shortcut), {
         select: true,
         focus: true,
         expand: true,
@@ -237,17 +239,18 @@ export function setupStatusBars(
     })
   );
 
-  // Keyboard peek: peek the file pin currently selected in the Pins view. A
+  // Keyboard peek: peek the file shortcut currently selected in the Shortcuts view. A
   // keybinding cannot receive the focused tree item as an argument, so the command
   // reads the view's selection here (where the tree view handle lives) and delegates
-  // to the shared peekPin command. No-op when nothing (or a non-pin row) is selected.
+  // to the shared peekShortcut command. No-op when nothing (or a non-shortcut row) is
+  // selected.
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.peekFocusedPin", () => {
       const selected = treeView.selection.find(
-        (item) => item instanceof PinTreeItem
+        (item) => item instanceof ShortcutTreeItem
       );
-      if (selected instanceof PinTreeItem) {
-        void vscode.commands.executeCommand("saropaWorkspace.peekPin", selected.pin);
+      if (selected instanceof ShortcutTreeItem) {
+        void vscode.commands.executeCommand("saropaWorkspace.peekPin", selected.shortcut);
       }
     })
   );
@@ -258,9 +261,9 @@ export function setupStatusBars(
 // scheduler so activate can start it once the pin set is loaded.
 export function wireBackgroundEngines(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): Scheduler {
-  // In-process scheduler for pins with a schedule. Registered as a disposable so
+  // In-process scheduler for shortcuts with a schedule. Registered as a disposable so
   // every timer is cleared on deactivation (no orphaned timers leak).
   const scheduler = new Scheduler(store);
   context.subscriptions.push(scheduler);
@@ -271,10 +274,11 @@ export function wireBackgroundEngines(
   const idleMonitor = new IdleMonitor();
   context.subscriptions.push(idleMonitor);
 
-  // Chain engine (recipe chaining + special events + run-on-idle): listens for pin
-  // completions, system events (build / publish emitted by a marked pin, gitCommit /
-  // gitPush from the repo watcher below), and idle crossings, and auto-runs the pins
-  // triggered by each. Disposable so every bus subscription is released on deactivation.
+  // Chain engine (recipe chaining + special events + run-on-idle): listens for
+  // shortcut completions, system events (build / publish emitted by a marked shortcut,
+  // gitCommit / gitPush from the repo watcher below), and idle crossings, and auto-
+  // runs the shortcuts triggered by each. Disposable so every bus subscription is
+  // released on deactivation.
   context.subscriptions.push(new ChainRunner(store, idleMonitor));
 
   // Git event watcher: fires gitCommit / gitPush on the system-event bus by watching
@@ -292,17 +296,17 @@ export function wireBackgroundEngines(
   // deactivation so they do not outlive the extension.
   context.subscriptions.push(processRegistry);
 
-  // Live metric badges (#24): dispose the engine on deactivation so its per-pin file
-  // watchers are released (a leaked FileSystemWatcher would survive a reload). The
+  // Live metric badges (#24): dispose the engine on deactivation so its per-shortcut
+  // file watchers are released (a leaked FileSystemWatcher would survive a reload). The
   // tree provider arms/reconciles the watchers; this only owns their teardown.
   context.subscriptions.push(metricBadges);
 
-  // Smart pin suggestions: count file opens on-device and offer to pin a file
-  // the user opens often (gated once per file). No-op when disabled by setting.
+  // Smart shortcut suggestions: count file opens on-device and offer to add a shortcut
+  // to a file the user opens often (gated once per file). No-op when disabled by setting.
   context.subscriptions.push(new SuggestionTracker(context, store));
 
   // Long-pinned-tab suggestions: when a native editor tab has stayed pinned past
-  // the threshold and is not already a Saropa pin, offer to promote it. The
+  // the threshold and is not already a Saropa shortcut, offer to promote it. The
   // instance is held so the Restore command can clear its permanent dismissals.
   const tabPinSuggester = new TabPinSuggester(context, store);
   context.subscriptions.push(
@@ -321,16 +325,16 @@ export function wireBackgroundEngines(
 }
 
 // The reactive listeners: folder/config changes (rescan/refresh), run-on-save, and
-// the hand-edited pins-config file watcher.
+// the hand-edited shortcuts-config file watcher.
 export function wireWatchers(
   context: vscode.ExtensionContext,
-  store: PinStore,
+  store: ShortcutStore,
   branchSetBinder: BranchSetBinder
 ): void {
-  // Re-seed auto-pins and refresh when folders change or the auto-pin patterns
-  // setting is edited.
+  // Re-seed auto-shortcuts and refresh when folders change or the auto-shortcut
+  // patterns setting is edited.
   context.subscriptions.push(
-    // Folder set or auto-pin/recipe settings changed: the set of files that match
+    // Folder set or auto-shortcut/recipe settings changed: the set of files that match
     // can change, so re-scan (clears the cached glob/detection). Telemetry only
     // shows/hides the Recent group, so a plain repaint refresh is enough there.
     vscode.workspace.onDidChangeWorkspaceFolders(() => void store.rescan()),
@@ -355,17 +359,17 @@ export function wireWatchers(
     })
   );
 
-  // Run-on-save: when a file is saved, run any runnable file pin that targets it
+  // Run-on-save: when a file is saved, run any runnable file shortcut that targets it
   // and has opted in (exec.runOnSave). Registered as a disposable so the listener
   // is torn down on deactivation; a leaked listener would double-fire after a
   // reload.
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((doc) =>
-      runPinsOnSave(store, doc.uri)
+      runShortcutsOnSave(store, doc.uri)
     )
   );
 
-  // Live refresh on a hand-edited pins config: watch every folder's
+  // Live refresh on a hand-edited shortcuts config: watch every folder's
   // .vscode/saropa-workspace.json and re-read it into the tree when it changes on
   // disk (the power-user path alongside the GUI editors). The store's OWN writes
   // also trip the watcher, so refreshes are debounced to coalesce the write-then-

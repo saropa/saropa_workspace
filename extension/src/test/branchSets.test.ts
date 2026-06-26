@@ -1,13 +1,13 @@
-// Branch-aware pin sets (roadmap 3.2). Two things are under test here:
-//   - PinStore.getSetPins: reading a named set's stored pins WITHOUT switching to
+// Branch-aware shortcut sets (roadmap 3.2). Two things are under test here:
+//   - ShortcutStore.getSetShortcuts: reading a named set's stored pins WITHOUT switching to
 //     it (the active set's pins are at the file top level; an inactive set's pins
-//     live in `sets`), backed by the same fs-backed store shim the pinStore tests
+//     live in `sets`), backed by the same fs-backed store shim the shortcutStore tests
 //     use — so this runs the real read path, not a reimplementation.
 //   - BranchSetBinder: the switch-on-branch logic. A hand-rolled fake BranchTracker
 //     stands in for the real .git/HEAD watcher (which needs createFileSystemWatcher,
 //     a host API), so the binder's decision logic is exercised in isolation: gated
 //     by the enabled flag, keyed by branch binding, a no-op when already on the set,
-//     the on-switch pin run, and the change-guard that must not undo a manual switch.
+//     the on-switch shortcut run, and the change-guard that must not undo a manual switch.
 
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -25,7 +25,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { BranchSetBinder } from "../exec/branchSets";
 import type { BranchTracker } from "../exec/gitBranch";
 import type { Uri as VscodeUri } from "vscode";
@@ -70,7 +70,7 @@ let folder: WorkspaceFolder;
 beforeEach(() => {
   __resetConfig();
   __resetRecordedCommands();
-  // Skip recipe detection so a refresh exercises only store IO (mirrors pinStore.test).
+  // Skip recipe detection so a refresh exercises only store IO (mirrors shortcutStore.test).
   __setConfig("saropaWorkspace", "recipes.enabled", false);
   tmpDir = nodeFs
     .mkdtempSync(nodePath.join(os.tmpdir(), "sw-branchset-"))
@@ -87,43 +87,43 @@ afterEach(() => {
 });
 
 // A store with two sets: Default (active, holds default.ts) and Release (inactive,
-// holds release.ts). Returns the store plus the release pin's id for on-switch tests.
-async function storeWithTwoSets(): Promise<{ store: PinStore; releasePinId: string }> {
-  const store = new PinStore(fakeContext());
+// holds release.ts). Returns the store plus the release shortcut's id for on-switch tests.
+async function storeWithTwoSets(): Promise<{ store: ShortcutStore; releaseShortcutId: string }> {
+  const store = new ShortcutStore(fakeContext());
   await store.init();
-  await store.addPin(asUri(Uri.joinPath(folder.uri, "default.ts")), "project");
-  // createSet switches to the new (empty) set; add the Release-only pin there.
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "default.ts")), "project");
+  // createSet switches to the new (empty) set; add the Release-only shortcut there.
   await store.createSet("Release");
-  await store.addPin(asUri(Uri.joinPath(folder.uri, "release.ts")), "project");
-  const releasePinId = store
-    .getProjectPins()
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "release.ts")), "project");
+  const releaseShortcutId = store
+    .getProjectShortcuts()
     .find((p) => p.path === "release.ts")!.id;
   // Switch back so Default is the active set at the start of each test.
   await store.switchSet("Default");
-  return { store, releasePinId };
+  return { store, releaseShortcutId };
 }
 
 test("getSetPins returns the active set's pins, an inactive set's pins, and [] for an unknown set", async () => {
   const { store } = await storeWithTwoSets();
   assert.equal(store.getActiveSetName(), "Default");
 
-  const defaultPins = await store.getSetPins("Default");
+  const defaultShortcuts = await store.getSetShortcuts("Default");
   assert.ok(
-    defaultPins.some((p) => p.path === "default.ts"),
+    defaultShortcuts.some((p) => p.path === "default.ts"),
     "the active set's pins should be read from the file top level"
   );
   assert.ok(
-    !defaultPins.some((p) => p.path === "release.ts"),
+    !defaultShortcuts.some((p) => p.path === "release.ts"),
     "the active set must not leak another set's pins"
   );
 
-  const releasePins = await store.getSetPins("Release");
+  const releaseShortcuts = await store.getSetShortcuts("Release");
   assert.ok(
-    releasePins.some((p) => p.path === "release.ts"),
+    releaseShortcuts.some((p) => p.path === "release.ts"),
     "an inactive set's pins should be read from `sets` without switching"
   );
 
-  assert.deepEqual(await store.getSetPins("Nope"), [], "unknown set -> []");
+  assert.deepEqual(await store.getSetShortcuts("Nope"), [], "unknown set -> []");
 });
 
 test("when enabled, applyNow switches the active set to the current branch's bound set", async () => {
@@ -200,10 +200,10 @@ test("outside a git repo (no branch) the binder is inert", async () => {
 });
 
 test("an on-switch pin runs through saropaWorkspace.runPin after the switch", async () => {
-  const { store, releasePinId } = await storeWithTwoSets();
+  const { store, releaseShortcutId } = await storeWithTwoSets();
   const ctx = fakeContext();
   await ctx.workspaceState.update("saropaWorkspace.branchSets", {
-    feature: { set: "Release", runPinId: releasePinId },
+    feature: { set: "Release", runPinId: releaseShortcutId },
   });
   __setConfig("saropaWorkspace", "branchAware.enabled", true);
 

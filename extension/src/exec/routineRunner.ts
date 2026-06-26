@@ -1,37 +1,37 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { Pin, RoutineMember } from "../model/pin";
+import { Shortcut, RoutineMember } from "../model/shortcut";
 import { RunSource } from "./telemetry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
-import { pinEvents } from "./pinEvents";
-import { PinBadge, pinBadges } from "./pinBadges";
+import { shortcutEvents } from "./shortcutEvents";
+import { ShortcutBadge, shortcutBadges } from "./shortcutBadges";
 import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel } from "./terminalRunner";
 import { expandRecipeTokens, firstWorkspacePath } from "./actionRunner";
 
-// The routine engine: run a "recipe of recipes" — its member pins strictly in
+// The routine engine: run a "recipe of recipes" — its member shortcuts strictly in
 // sequence, continue-on-failure — then write a one-row-per-member summary report and
-// badge the routine pin with the worst member outcome. Split out of actionRunner so
-// the action dispatcher stays focused on the single-pin kinds. The resolve + run
+// badge the routine shortcut with the worst member outcome. Split out of actionRunner so
+// the action dispatcher stays focused on the single-shortcut kinds. The resolve + run
 // hooks are injected at activation (the runner cannot import the store/command layer
 // without a cycle); runAction dispatches a routine action here.
 // --- routine (a recipe of recipes) -------------------------------------
 
 // Hooks injected once at activation (extension.ts) so the runner can resolve a
-// routine member to its live pin and run it through the same single-pin path the
+// routine member to its live shortcut and run it through the same single-shortcut path the
 // tree / palette use, WITHOUT importing the store / command layer (that import
 // would cycle: pinCommands already imports runAction). runRoutine no-ops with a
 // logged note when the hooks are unset.
 export interface RoutineHooks {
-  // Resolve a member reference to the live pin, or undefined when the member recipe
-  // / pin is absent (removed, not yet detected). recipeId is tried before pinId.
-  resolveMember(member: RoutineMember): Pin | undefined;
-  // Run one member pin to completion through the canonical single-pin path (handles
+  // Resolve a member reference to the live shortcut, or undefined when the member recipe
+  // / shortcut is absent (removed, not yet detected). recipeId is tried before pinId.
+  resolveMember(member: RoutineMember): Shortcut | undefined;
+  // Run one member shortcut to completion through the canonical single-shortcut path (handles
   // file vs action, dependency gating, missing files). Awaited so members run
   // strictly in sequence — overlapping report-writing members would interleave
   // output and spike CPU, the exact failure the hygiene member guards against.
-  runMember(pin: Pin): Promise<void>;
+  runMember(shortcut: Shortcut): Promise<void>;
 }
 
 let routineHooks: RoutineHooks | undefined;
@@ -52,7 +52,7 @@ interface MemberOutcome {
 // runRoutine loop so the engine reads as resolve -> classify -> run -> derive
 // outcome at one level. Returns the summary-row outcome, whether it counts as a
 // failure (folded into the routine's worst-outcome badge), and — only when the
-// member actually ran — its pin id so the caller can fold in the member's badge
+// member actually ran — its shortcut id so the caller can fold in the member's badge
 // counts. The skip cases (missing member, nested routine, interactive under an
 // unattended fire) never run and carry no badge id.
 async function runRoutineMember(
@@ -63,7 +63,7 @@ async function runRoutineMember(
   routineName: string,
   unattended: boolean,
   channel: vscode.OutputChannel
-): Promise<{ outcome: MemberOutcome; failed: boolean; badgePinId?: string }> {
+): Promise<{ outcome: MemberOutcome; failed: boolean; badgeShortcutId?: string }> {
   const resolved = hooks.resolveMember(member);
   const memberLabel =
     member.label ??
@@ -143,7 +143,7 @@ async function runRoutineMember(
         durationMs: fresh.durationMs,
       },
       failed: fresh.outcome === "failure",
-      badgePinId: resolved.id,
+      badgeShortcutId: resolved.id,
     };
   }
   return {
@@ -153,33 +153,33 @@ async function runRoutineMember(
       durationMs: Date.now() - startedAt,
     },
     failed: false,
-    badgePinId: resolved.id,
+    badgeShortcutId: resolved.id,
   };
 }
 
 // Run a routine's members strictly in sequence, continue-on-failure, then write a
-// one-row-per-member summary report and badge the routine pin with the worst member
+// one-row-per-member summary report and badge the routine shortcut with the worst member
 // outcome. Mirrors runMacro's failure policy (one broken member never blocks the
-// rest) but over real recipe pins rather than inline steps.
+// rest) but over real recipe shortcuts rather than inline steps.
 export async function runRoutine(
-  pin: Pin,
+  shortcut: Shortcut,
   members: RoutineMember[],
   source: RunSource
 ): Promise<void> {
   const channel = getOutputChannel();
-  const name = pin.label ?? pin.id;
+  const name = shortcut.label ?? shortcut.id;
   // A scheduled fire is unattended: interactive members cannot be answered, so they
-  // are skipped (same rule the scheduler applies to scheduled pins).
+  // are skipped (same rule the scheduler applies to scheduled shortcuts).
   const unattended = source === "scheduled";
 
   if (!routineHooks) {
     channel.appendLine(l10n("routine.notReady", { name }));
-    pinEvents.fireComplete(pin.id, "dispatched");
+    shortcutEvents.fireComplete(shortcut.id, "dispatched");
     return;
   }
   if (members.length === 0) {
     vscode.window.showInformationMessage(l10n("routine.empty", { name }));
-    pinEvents.fireComplete(pin.id, "dispatched");
+    shortcutEvents.fireComplete(shortcut.id, "dispatched");
     return;
   }
 
@@ -188,11 +188,11 @@ export async function runRoutine(
   );
 
   const outcomes: MemberOutcome[] = [];
-  const aggregate: PinBadge = { at: Date.now() };
+  const aggregate: ShortcutBadge = { at: Date.now() };
   let anyFailed = false;
 
   for (const [index, member] of members.entries()) {
-    const { outcome, failed, badgePinId } = await runRoutineMember(
+    const { outcome, failed, badgeShortcutId } = await runRoutineMember(
       routineHooks,
       member,
       index,
@@ -207,32 +207,32 @@ export async function runRoutine(
     }
     // Fold the member's diagnostic / test badge into the routine's aggregate, so the
     // routine row shows the morning's total findings (#26 / #32 badge reuse). Only a
-    // member that actually ran carries a badge pin id.
-    if (badgePinId) {
-      mergeBadge(aggregate, pinBadges.get(badgePinId));
+    // member that actually ran carries a badge shortcut id.
+    if (badgeShortcutId) {
+      mergeBadge(aggregate, shortcutBadges.get(badgeShortcutId));
     }
   }
 
-  // Badge the routine pin: a tracked worst-outcome result (red when any member
-  // failed) plus the aggregated finding counts, both through the per-pin machinery
+  // Badge the routine shortcut: a tracked worst-outcome result (red when any member
+  // failed) plus the aggregated finding counts, both through the per-shortcut machinery
   // the tree already paints.
-  runStatusRegistry.record(pin.id, {
+  runStatusRegistry.record(shortcut.id, {
     outcome: anyFailed ? "failure" : "success",
     exitCode: anyFailed ? 1 : 0,
     durationMs: 0,
     endedAt: Date.now(),
   });
   if (hasBadgeCounts(aggregate)) {
-    pinBadges.record(pin.id, aggregate);
+    shortcutBadges.record(shortcut.id, aggregate);
   }
-  pinEvents.fireComplete(pin.id, anyFailed ? "failure" : "success");
+  shortcutEvents.fireComplete(shortcut.id, anyFailed ? "failure" : "success");
 
   await writeRoutineSummary(name, outcomes, anyFailed);
 }
 
 // Sum a member's badge counts into the routine aggregate. Undefined member badge
 // (a non-lint / non-test member) contributes nothing.
-function mergeBadge(into: PinBadge, from: PinBadge | undefined): void {
+function mergeBadge(into: ShortcutBadge, from: ShortcutBadge | undefined): void {
   if (!from) {
     return;
   }
@@ -245,7 +245,7 @@ function mergeBadge(into: PinBadge, from: PinBadge | undefined): void {
   into.testsFailed = add(into.testsFailed, from.testsFailed);
 }
 
-function hasBadgeCounts(badge: PinBadge): boolean {
+function hasBadgeCounts(badge: ShortcutBadge): boolean {
   return (
     badge.errors !== undefined ||
     badge.warnings !== undefined ||

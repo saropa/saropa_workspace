@@ -20,9 +20,9 @@ import {
   resolveInteractiveTokens,
   resolveRememberedTokens,
 } from "../exec/promptTokens";
-import { Pin } from "../model/pin";
+import { Shortcut } from "../model/shortcut";
 
-function pinWith(exec: Pin["exec"]): Pin {
+function shortcutWith(exec: Shortcut["exec"]): Shortcut {
   return { id: "p1", path: "x", scope: "project", order: 0, exec };
 }
 
@@ -56,8 +56,8 @@ test("forget drops a pin's remembered values", async () => {
 test("resolveInteractiveTokens remembers the answer and pre-fills it next run", async () => {
   // First run: the user types a value; it must be remembered.
   __setInputHandler(async () => "server1");
-  const pin = pinWith({ command: "deploy ${prompt:Target}" });
-  await resolveInteractiveTokens(pin);
+  const shortcut = shortcutWith({ command: "deploy ${prompt:Target}" });
+  await resolveInteractiveTokens(shortcut);
   assert.equal(promptMemory.getValue("p1", "${prompt:Target}"), "server1");
 
   // Second run: the input box should be SEEDED with the remembered value, so the
@@ -67,7 +67,7 @@ test("resolveInteractiveTokens remembers the answer and pre-fills it next run", 
     seenValue = opts?.value;
     return "server2";
   });
-  await resolveInteractiveTokens(pin);
+  await resolveInteractiveTokens(shortcut);
   assert.equal(seenValue, "server1", "input box should default to the last answer");
 });
 
@@ -80,7 +80,7 @@ test("resolveRememberedTokens uses a remembered value without prompting", async 
     return "dev";
   });
   const result = await resolveRememberedTokens(
-    pinWith({ command: "run ${pick:dev,prod}" })
+    shortcutWith({ command: "run ${pick:dev,prod}" })
   );
   assert.equal(asked, 0, "a remembered token must not be prompted");
   assert.equal((result as Map<string, string>).get("${pick:dev,prod}"), "prod");
@@ -92,15 +92,15 @@ test("resolveRememberedTokens asks once for an unremembered token, then remember
     asked++;
     return "v1";
   });
-  const pin = pinWith({ command: "deploy ${prompt:Target}" });
+  const shortcut = shortcutWith({ command: "deploy ${prompt:Target}" });
 
   // First bypass with no memory: it must ask once so the run still works.
-  const first = await resolveRememberedTokens(pin);
+  const first = await resolveRememberedTokens(shortcut);
   assert.equal(asked, 1);
   assert.equal((first as Map<string, string>).get("${prompt:Target}"), "v1");
 
   // Second bypass: the just-entered value is remembered, so no prompt.
-  const second = await resolveRememberedTokens(pin);
+  const second = await resolveRememberedTokens(shortcut);
   assert.equal(asked, 1, "a value entered on the first bypass must be remembered");
   assert.equal((second as Map<string, string>).get("${prompt:Target}"), "v1");
 });
@@ -109,7 +109,7 @@ test("resolveRememberedTokens aborts (undefined) when a still-needed prompt is c
   // No memory + a canceled prompt (undefined) must abort the whole run.
   __setInputHandler(async () => undefined);
   const result = await resolveRememberedTokens(
-    pinWith({ command: "deploy ${prompt:Target}" })
+    shortcutWith({ command: "deploy ${prompt:Target}" })
   );
   assert.equal(result, undefined);
 });

@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 import type {
   DetectedFavorites,
@@ -11,17 +11,17 @@ import type {
 // The two JSON file-format importers: kdcro101 `.favorites.json` (a typed array of
 // path entries) and alefragnani "Bookmarks" `.vscode/bookmarks.json` (line-level
 // marks). Both parse defensively — a malformed file imports nothing and is logged —
-// and add PROJECT pins to the store; the store owns folder-relative storage + dedup.
+// and add PROJECT shortcuts to the store; the store owns folder-relative storage + dedup.
 
 // kdcro101 `.favorites.json`: a flat JSON array of typed entries. File entries
-// become pins; a "Group" entry becomes a pin group, and any File whose parent_id
-// points at that group is imported into it (created on first use, reused by name
-// so re-import stays idempotent). "Directory" entries are folder favorites with no
-// folder-pin equivalent and are reported as skips, as are path-less entries.
+// become shortcuts; a "Group" entry becomes a shortcut group, and any File whose
+// parent_id points at that group is imported into it (created on first use, reused by
+// name so re-import stays idempotent). "Directory" entries are folder favorites with
+// no folder-shortcut equivalent and are reported as skips, as are path-less entries.
 export async function importKdcro(
   text: string,
   fileName: string,
-  store: PinStore,
+  store: ShortcutStore,
   channel: vscode.OutputChannel
 ): Promise<ImportResult> {
   let entries: KdcroFavoriteEntry[];
@@ -40,8 +40,8 @@ export async function importKdcro(
   }
 
   // First pass: index every Group container by id so the file pass can resolve a
-  // File's parent_id to a group name. Only "Group" entries are pin-group
-  // containers; a Directory is a folder favorite, not a container of pins.
+  // File's parent_id to a group name. Only "Group" entries are shortcut-group
+  // containers; a Directory is a folder favorite, not a container of shortcuts.
   const groupNameById = new Map<string, string>();
   for (const entry of entries) {
     if (entry.type === "Group" && entry.id) {
@@ -52,11 +52,11 @@ export async function importKdcro(
   let added = 0;
   let skipped = 0;
   for (const entry of entries) {
-    // A Group is consumed via its members below, never pinned in its own right.
+    // A Group is consumed via its members below, never added in its own right.
     if (entry.type === "Group") {
       continue;
     }
-    // A Directory (folder favorite) and any other non-File type have no file-pin
+    // A Directory (folder favorite) and any other non-File type have no file-shortcut
     // equivalent; report and skip them.
     if (entry.type && entry.type !== "File") {
       channel.appendLine(
@@ -70,14 +70,14 @@ export async function importKdcro(
       skipped++;
       continue;
     }
-    // Route into the parent group's pin group when the parent is a Group; a file
+    // Route into the parent group's shortcut group when the parent is a Group; a file
     // parented to a Directory (or with no parent) imports at the top level.
     const groupName = entry.parent_id
       ? groupNameById.get(entry.parent_id)
       : undefined;
-    // addPin stores project pins relative to the owning folder and skips dupes,
-    // so re-running import is idempotent — the group is reused by name as well.
-    if (await store.addPin(vscode.Uri.file(entry.fsPath), "project", undefined, groupName)) {
+    // addShortcut stores project shortcuts relative to the owning folder and skips
+    // dupes, so re-running import is idempotent — the group is reused by name as well.
+    if (await store.addShortcut(vscode.Uri.file(entry.fsPath), "project", undefined, groupName)) {
       added++;
     }
   }
@@ -85,11 +85,11 @@ export async function importKdcro(
 }
 
 // The shape of `.vscode/bookmarks.json` (alefragnani "Bookmarks"). Only the
-// fields the line-pin mapping reads are declared; `column` is intentionally
-// ignored (a line pin has no column, and a jump target does not need one).
+// fields the line-shortcut mapping reads are declared; `column` is intentionally
+// ignored (a line shortcut has no column, and a jump target does not need one).
 interface BookmarkEntry {
   // 0-based line index, as stored by the extension (it serializes the raw
-  // vscode.Position.line). The pin model's `line` is 1-based, so we add 1.
+  // vscode.Position.line). The shortcut model's `line` is 1-based, so we add 1.
   line?: number;
   label?: string;
 }
@@ -126,16 +126,17 @@ function resolveBookmarkUri(
 }
 
 // alefragnani "Bookmarks": a JSON document of files, each with line-level marks.
-// Each mark becomes a LINE pin (the pin model has a `line` field), so opening the
-// pin jumps back to that line. Re-import is idempotent: a line pin for the same
-// resolved file + line is left untouched (addLinePin itself does NOT dedupe — it
-// is built to allow several marks in one file — so the dedup lives here). The
-// bookmark's label, when present, becomes the pin label; otherwise the pin falls
-// back to the "basename:line" default. The column is dropped (no pin equivalent).
+// Each mark becomes a LINE shortcut (the shortcut model has a `line` field), so opening
+// the shortcut jumps back to that line. Re-import is idempotent: a line shortcut for the
+// same resolved file + line is left untouched (addLineShortcut itself does NOT dedupe —
+// it is built to allow several marks in one file — so the dedup lives here). The
+// bookmark's label, when present, becomes the shortcut label; otherwise the shortcut
+// falls back to the "basename:line" default. The column is dropped (no shortcut
+// equivalent).
 export async function importBookmarks(
   text: string,
   detected: DetectedFavorites,
-  store: PinStore,
+  store: ShortcutStore,
   channel: vscode.OutputChannel
 ): Promise<ImportResult> {
   let doc: BookmarksDocument;
@@ -152,11 +153,11 @@ export async function importBookmarks(
     return { added: 0, skipped: 0 };
   }
 
-  // Seed the dedup set from existing project line pins so re-running import never
-  // duplicates a mark; new pins are added to it as we go to dedup within this run.
+  // Seed the dedup set from existing project line shortcuts so re-running import never
+  // duplicates a mark; new shortcuts are added to it as we go to dedup within this run.
   const seen = new Set(
     store
-      .getProjectPins()
+      .getProjectShortcuts()
       .filter((p) => p.line !== undefined)
       .map((p) => `${store.resolveUri(p)?.toString() ?? ""}#${p.line}`)
   );
@@ -170,7 +171,7 @@ export async function importBookmarks(
       continue;
     }
     const uri = resolveBookmarkUri(file.path, detected.folder);
-    // A bookmark file outside any workspace folder cannot be a project line pin.
+    // A bookmark file outside any workspace folder cannot be a project line shortcut.
     if (!vscode.workspace.getWorkspaceFolder(uri)) {
       channel.appendLine(
         l10n("import.log.skipOutsideFolder", {
@@ -187,17 +188,17 @@ export async function importBookmarks(
         skipped++;
         continue;
       }
-      // Stored line is 0-based; the pin model is 1-based.
-      const pinLine = mark.line + 1;
-      const key = `${uri.toString()}#${pinLine}`;
+      // Stored line is 0-based; the shortcut model is 1-based.
+      const shortcutLine = mark.line + 1;
+      const key = `${uri.toString()}#${shortcutLine}`;
       if (seen.has(key)) {
         continue; // Already imported — idempotent, not a reportable skip.
       }
       const label =
         mark.label && mark.label.trim().length > 0
           ? mark.label.trim()
-          : l10n("linePin.label", { name: path.basename(uri.fsPath), line: pinLine });
-      if (await store.addLinePin(uri, "project", pinLine, label)) {
+          : l10n("linePin.label", { name: path.basename(uri.fsPath), line: shortcutLine });
+      if (await store.addLineShortcut(uri, "project", shortcutLine, label)) {
         seen.add(key);
         added++;
       }

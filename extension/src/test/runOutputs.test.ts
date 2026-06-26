@@ -1,10 +1,10 @@
-// Unit tests for the per-pin last-two-runs capture (WOW #20 "Diff Last Two Runs").
-// The registry is a pure in-memory, bounded ring of two entries per pin with no VS
+// Unit tests for the per-shortcut last-two-runs capture (WOW #20 "Diff Last Two Runs").
+// The registry is a pure in-memory, bounded ring of two entries per shortcut with no VS
 // Code dependency, so its eviction, ordering, the "need two to diff" guard, and
-// per-pin isolation are asserted directly under Node's built-in runner.
+// per-shortcut isolation are asserted directly under Node's built-in runner.
 //
 // runOutputs is a module-level singleton, so each test records under its own unique
-// pin id and clears it at the end, leaving the registry empty for the next test.
+// shortcut id and clears it at the end, leaving the registry empty for the next test.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -58,18 +58,18 @@ test("a third run evicts the oldest, keeping only the last two", () => {
 });
 
 test("captures are isolated per pin", () => {
-  const pinA = "ro-iso-a";
-  const pinB = "ro-iso-b";
+  const shortcutA = "ro-iso-a";
+  const shortcutB = "ro-iso-b";
   try {
-    runOutputs.record(pinA, run("a1", 1));
-    runOutputs.record(pinA, run("a2", 2));
-    runOutputs.record(pinB, run("b1", 1));
-    // pinA has two; pinB has only one — one pin's runs never leak into another's.
-    assert.ok(runOutputs.lastTwo(pinA));
-    assert.equal(runOutputs.lastTwo(pinB), undefined);
+    runOutputs.record(shortcutA, run("a1", 1));
+    runOutputs.record(shortcutA, run("a2", 2));
+    runOutputs.record(shortcutB, run("b1", 1));
+    // shortcutA has two; shortcutB has only one — one shortcut's runs never leak into another's.
+    assert.ok(runOutputs.lastTwo(shortcutA));
+    assert.equal(runOutputs.lastTwo(shortcutB), undefined);
   } finally {
-    runOutputs.clear(pinA);
-    runOutputs.clear(pinB);
+    runOutputs.clear(shortcutA);
+    runOutputs.clear(shortcutB);
   }
 });
 

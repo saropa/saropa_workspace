@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-// Tracks the LAST completed result of a background run per pin so the tree can
+// Tracks the LAST completed result of a background run per shortcut so the tree can
 // show a success / failure badge and duration (roadmap 7.2). Deliberately
 // in-memory and per-session: it is never persisted to disk and never leaves the
 // machine (no telemetry). It clears on reload, which is the intended behavior —
@@ -38,15 +38,15 @@ class RunStatusRegistry {
     return this.last.get(pinId);
   }
 
-  // Snapshot of every recorded result this session, keyed by pin id. Read by the
-  // run-analytics summary to show the session's success / failure split. Returns a
-  // copied array so a caller cannot mutate the registry's backing map.
+  // Snapshot of every recorded result this session, keyed by shortcut id. Read by
+  // the run-analytics summary to show the session's success / failure split. Returns
+  // a copied array so a caller cannot mutate the registry's backing map.
   entries(): Array<[string, RunResult]> {
     return [...this.last.entries()];
   }
 
-  // Drop a pin's result, e.g. when the pin is removed so a stale badge does not
-  // outlive it.
+  // Drop a shortcut's result, e.g. when the shortcut is removed so a stale badge
+  // does not outlive it.
   clear(pinId: string): void {
     if (this.last.delete(pinId)) {
       this._onDidChange.fire();

@@ -1,19 +1,19 @@
 import * as vscode from "vscode";
-import { Pin, pinKind } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut, shortcutKind } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { isRunnable, getOutputChannel } from "../exec/runner";
 import { showHubQuickPick } from "./hubQuickPick";
 import { l10n } from "../i18n/l10n";
 
-// Workspace boot sequence (roadmap 3.1). A named, ordered set of existing pins
-// that runs when the workspace opens, behind a one-time per-session confirm —
-// one action restores a working context (open the key files, start the dev
-// server) instead of repeating the same opens and runs every session.
+// Workspace boot sequence (roadmap 3.1). A named, ordered set of existing
+// shortcuts that runs when the workspace opens, behind a one-time per-session
+// confirm — one action restores a working context (open the key files, start the
+// dev server) instead of repeating the same opens and runs every session.
 //
 // Storage: workspaceState (on-device, per-workspace, NOT synced), because a boot
 // sequence is about THIS workspace's files and tasks. The sequence references
-// existing pins by id; a member whose pin was since removed is skipped at run
-// time, never blocking the rest.
+// existing shortcuts by id; a member whose shortcut was since removed is skipped
+// at run time, never blocking the rest.
 //
 // Safe execution (see the Principles): nothing runs silently. On open the user is
 // asked once before any step runs; declining skips it for the session (a window
@@ -70,19 +70,19 @@ export const bootSequence = new BootSequenceStore();
 // so the offer returns next session — the intended "once per session" behavior.
 let offeredThisSession = false;
 
-// The display name for a pin, falling back to its file basename, then a clear
-// "removed pin" marker when the id no longer resolves.
-function nameFor(store: PinStore, pinId: string): string {
-  const pin = store.findPin(pinId);
-  if (!pin) {
+// The display name for a shortcut, falling back to its file basename, then a
+// clear "removed shortcut" marker when the id no longer resolves.
+function nameFor(store: ShortcutStore, pinId: string): string {
+  const shortcut = store.findShortcut(pinId);
+  if (!shortcut) {
     return l10n("boot.unknownPin");
   }
-  return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
 // Offer to run the boot sequence on workspace open. No-op (no prompt) when the
 // sequence is disabled or empty, so a user who has not opted in never sees it.
-export async function maybeRunBootSequenceOnOpen(store: PinStore): Promise<void> {
+export async function maybeRunBootSequenceOnOpen(store: ShortcutStore): Promise<void> {
   if (offeredThisSession) {
     return;
   }
@@ -110,10 +110,10 @@ export async function maybeRunBootSequenceOnOpen(store: PinStore): Promise<void>
 
 // Run the sequence in order. Each member runs through the normal Run command, so
 // it reuses token resolution, missing-file handling, telemetry, and the per-run
-// toast — a runnable pin runs, a non-runnable file pin opens, an action pin fires
-// its action. A removed pin is logged and skipped; a step that throws is logged
-// and, unless stop-on-error is set, the run continues.
-export async function runBootSequence(store: PinStore): Promise<void> {
+// toast — a runnable shortcut runs, a non-runnable file shortcut opens, an action
+// shortcut fires its action. A removed shortcut is logged and skipped; a step
+// that throws is logged and, unless stop-on-error is set, the run continues.
+export async function runBootSequence(store: ShortcutStore): Promise<void> {
   const data = bootSequence.get();
   if (data.pinIds.length === 0) {
     vscode.window.showInformationMessage(l10n("boot.run.empty"));
@@ -133,8 +133,8 @@ export async function runBootSequence(store: PinStore): Promise<void> {
     if (pinId === undefined) {
       continue;
     }
-    const pin = store.findPin(pinId);
-    if (!pin) {
+    const shortcut = store.findShortcut(pinId);
+    if (!shortcut) {
       channel.appendLine(l10n("boot.run.missing", { index: step }));
       continue;
     }
@@ -142,9 +142,9 @@ export async function runBootSequence(store: PinStore): Promise<void> {
       l10n("boot.run.step", { index: step, total, name: nameFor(store, pinId) })
     );
     try {
-      // Run command dispatch covers all pin kinds: a runnable file runs, a
-      // non-runnable file opens, an action pin fires its action.
-      await vscode.commands.executeCommand("saropaWorkspace.runPin", pin);
+      // Run command dispatch covers all shortcut kinds: a runnable file runs, a
+      // non-runnable file opens, an action shortcut fires its action.
+      await vscode.commands.executeCommand("saropaWorkspace.runPin", shortcut);
       ran++;
     } catch (err) {
       channel.appendLine(
@@ -163,18 +163,18 @@ export async function runBootSequence(store: PinStore): Promise<void> {
   vscode.window.showInformationMessage(l10n("boot.run.done", { ran, total }));
 }
 
-// Whether a pin would RUN (vs merely open) when included — used only to label a
-// member in the configure UX so the user can see what each step will do.
-function memberActionLabel(store: PinStore, pinId: string): string {
-  const pin = store.findPin(pinId);
-  if (!pin) {
+// Whether a shortcut would RUN (vs merely open) when included — used only to label
+// a member in the configure UX so the user can see what each step will do.
+function memberActionLabel(store: ShortcutStore, pinId: string): string {
+  const shortcut = store.findShortcut(pinId);
+  if (!shortcut) {
     return l10n("boot.member.actionMissing");
   }
-  if (pinKind(pin) !== "file") {
+  if (shortcutKind(shortcut) !== "file") {
     return l10n("boot.member.actionRun");
   }
-  const uri = store.resolveUri(pin);
-  return uri && isRunnable(pin, uri.fsPath)
+  const uri = store.resolveUri(shortcut);
+  return uri && isRunnable(shortcut, uri.fsPath)
     ? l10n("boot.member.actionRun")
     : l10n("boot.member.actionOpen");
 }
@@ -182,7 +182,7 @@ function memberActionLabel(store: PinStore, pinId: string): string {
 // Hub QuickPick to define, reorder, and enable/disable the sequence — the same
 // hub-and-spoke shape as Configure Run. Loops until the user picks Done or Esc;
 // every change is persisted immediately so an Esc never loses edits.
-export async function configureBootSequence(store: PinStore): Promise<void> {
+export async function configureBootSequence(store: ShortcutStore): Promise<void> {
   // Keep focus on the row the user last acted on, so adding a step or toggling a
   // flag does not reset the selection to the top of the list on every re-render.
   let activeKey: { act: HubItem["act"]; pinId?: string } | undefined;
@@ -228,7 +228,7 @@ function separator(label: string): vscode.QuickPickItem {
 }
 
 async function showHub(
-  store: PinStore,
+  store: ShortcutStore,
   data: BootSequenceData,
   activeKey?: { act: HubItem["act"]; pinId?: string }
 ): Promise<{ act: HubItem["act"]; pinId?: string } | undefined> {
@@ -284,29 +284,29 @@ async function showHub(
   return { act: pick.act, pinId: pick.pinId };
 }
 
-// Multi-select picker of pins not already in the sequence; the chosen pins are
-// appended in the order the list presents them.
+// Multi-select picker of shortcuts not already in the sequence; the chosen
+// shortcuts are appended in the order the list presents them.
 async function addMembers(
-  store: PinStore,
+  store: ShortcutStore,
   data: BootSequenceData
 ): Promise<void> {
   const existing = new Set(data.pinIds);
-  const candidates: Pin[] = [
-    ...store.getProjectPins(),
-    ...store.getGlobalPins(),
+  const candidates: Shortcut[] = [
+    ...store.getProjectShortcuts(),
+    ...store.getGlobalShortcuts(),
   ].filter((p) => !existing.has(p.id));
   if (candidates.length === 0) {
     vscode.window.showInformationMessage(l10n("boot.add.none"));
     return;
   }
 
-  interface PinItem extends vscode.QuickPickItem {
-    pin: Pin;
+  interface ShortcutItem extends vscode.QuickPickItem {
+    shortcut: Shortcut;
   }
-  const items: PinItem[] = candidates.map((p) => ({
+  const items: ShortcutItem[] = candidates.map((p) => ({
     label: p.label ?? (p.path.split("/").pop() ?? p.path),
     description: p.scope === "global" ? l10n("pin.group.global") : l10n("pin.group.project"),
-    pin: p,
+    shortcut: p,
   }));
   const picks = await vscode.window.showQuickPick(items, {
     canPickMany: true,
@@ -319,13 +319,13 @@ async function addMembers(
   }
   await bootSequence.save({
     ...data,
-    pinIds: [...data.pinIds, ...picks.map((i) => i.pin.id)],
+    pinIds: [...data.pinIds, ...picks.map((i) => i.shortcut.id)],
   });
 }
 
 // Per-member action menu: move the step up or down, or remove it.
 async function editMember(
-  store: PinStore,
+  store: ShortcutStore,
   data: BootSequenceData,
   pinId: string
 ): Promise<void> {

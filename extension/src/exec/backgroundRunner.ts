@@ -1,12 +1,12 @@
 import * as vscode from "vscode";
-import { SoundOverride } from "../model/pin";
+import { SoundOverride } from "../model/shortcut";
 import { processRegistry } from "./processRegistry";
 import * as runLock from "./runLock";
 import { runStatusRegistry, formatDuration } from "./runStatus";
 import { runOutputs } from "./runOutputs";
 import { playCue } from "./soundCue";
-import { pinEvents } from "./pinEvents";
-import { pinBadges, parseRunBadge } from "./pinBadges";
+import { shortcutEvents } from "./shortcutEvents";
+import { shortcutBadges, parseRunBadge } from "./shortcutBadges";
 import {
   detectBlockedPort,
   findPortHolder,
@@ -33,7 +33,7 @@ export async function runInBackground(
   // Re-dispatch this same run. Used only by the port-unwedge kill+retry path so a
   // freed port can be retried in one click; absent for callers with no retry route.
   retry?: () => void,
-  // Cross-process lock name held for this run's lifetime when the pin opts in.
+  // Cross-process lock name held for this run's lifetime when the shortcut opts in.
   lockName?: string
 ): Promise<void> {
   const cp = await import("child_process");
@@ -91,21 +91,21 @@ export async function runInBackground(
       durationMs,
       endedAt,
     });
-    // Audio finish cue (#64): distinct success/failure tone, honoring the pin's
+    // Audio finish cue (#64): distinct success/failure tone, honoring the shortcut's
     // override. Paired with the notifyCompletion toast below — the cue is the
     // additive channel, the toast stays the visible feedback.
     playCue(outcome, soundOverride);
-    // Real tracked outcome for the chain engine — a pin chained "after" this one
+    // Real tracked outcome for the chain engine — a shortcut chained "after" this one
     // (with onlyOnSuccess) runs only when this background run actually succeeded.
-    pinEvents.fireComplete(pinId, outcome);
+    shortcutEvents.fireComplete(pinId, outcome);
     // Keep this run's output for the "Diff Last Two Runs" command.
     runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
-    // Badge the pin with any lint severity counts or test tally found in the output
-    // (#26, #32) — so the lint sweep / test-trend ritual shows its result on the pin
+    // Badge the shortcut with any lint severity counts or test tally found in the output
+    // (#26, #32) — so the lint sweep / test-trend ritual shows its result on the shortcut
     // itself, not only in the report. No-op when the output is neither.
     const badge = parseRunBadge(captured);
     if (badge) {
-      pinBadges.record(pinId, badge);
+      shortcutBadges.record(pinId, badge);
     }
     // Pull a configured value (a deploy URL, a generated id) out of the output and
     // copy it to the clipboard. Runs on any completion — a URL printed before a
@@ -145,7 +145,7 @@ export async function runInBackground(
   });
 }
 
-// Match a pin's extract pattern against its background output and copy the result
+// Match a shortcut's extract pattern against its background output and copy the result
 // to the clipboard with a toast (WOW #16). The first capture group is preferred (so
 // `Live at: (https://\S+)` yields just the URL); with no group, the whole match is
 // used. The pattern compiles with the "m" flag so `^`/`$` anchor to lines, the

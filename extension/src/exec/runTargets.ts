@@ -1,27 +1,27 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { PinExecConfig } from "../model/pin";
+import { ShortcutExecConfig } from "../model/shortcut";
 
 // Roadmap 7.5 — Run-target inference.
 //
-// When a file is pinned, detect runnable targets WITHIN it and offer them as the
-// pin's run config, so the pin runs the right thing without the user typing a
-// command. Three sources are recognized:
+// When a file is added as a shortcut, detect runnable targets WITHIN it and offer
+// them as the shortcut's run config, so the shortcut runs the right thing without the
+// user typing a command. Three sources are recognized:
 //   - package.json  -> its `scripts` (run via the detected package manager)
 //   - Makefile      -> its targets (run via `make <target>`)
 //   - a shebang     -> run the file directly (a blank command prefix)
-// Each target produces a normal PinExecConfig; there is no special run path. A
+// Each target produces a normal ShortcutExecConfig; there is no special run path. A
 // file with no detectable target yields an empty list and the caller falls back
-// to today's behavior (the pin runs the file with its interpreter default).
+// to today's behavior (the shortcut runs the file with its interpreter default).
 
-// A discovered way to run the pinned file. `exec` is written verbatim onto the
-// pin when chosen.
+// A discovered way to run the shortcut's file. `exec` is written verbatim onto the
+// shortcut when chosen.
 export interface RunTarget {
   // QuickPick label (carries a codicon).
   label: string;
   // Secondary line: the underlying command or script body, for disambiguation.
   detail?: string;
-  exec: PinExecConfig;
+  exec: ShortcutExecConfig;
 }
 
 // Files larger than this are not parsed for targets — a multi-megabyte file is

@@ -1,21 +1,21 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { readCurrentBranch } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
 
-// Time-bomb / ephemeral pins (WOW #9) — the user-facing setup for Pin.expires.
-// Three entry points: a wall-clock "Pin until..." preset picker, "Pin until branch
+// Time-bomb / ephemeral shortcuts (WOW #9) — the user-facing setup for Shortcut.expires.
+// Three entry points: a wall-clock "Expire until..." preset picker, "Expire until branch
 // changes" (bombs on the current git branch), and "Clear expiry" (defuse). All three
-// gate out auto-pins, which are recomputed each refresh and so cannot carry stored
+// gate out auto-shortcuts, which are recomputed each refresh and so cannot carry stored
 // state.
 
 // The display name used in the confirmation toasts.
-function pinName(pin: Pin): string {
-  return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+function shortcutName(shortcut: Shortcut): string {
+  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
-// Format an expiry instant for a toast: the local date + time the pin will vanish.
+// Format an expiry instant for a toast: the local date + time the shortcut will vanish.
 function formatInstant(at: number): string {
   return new Date(at).toLocaleString(undefined, {
     month: "short",
@@ -26,7 +26,7 @@ function formatInstant(at: number): string {
 }
 
 // End of the given Date's local day (23:59), the natural "until end of" boundary so
-// a pin set "until end of day / Friday" survives through that whole day.
+// a shortcut set "until end of day / Friday" survives through that whole day.
 function endOfDay(date: Date): number {
   const end = new Date(date);
   end.setHours(23, 59, 0, 0);
@@ -118,15 +118,15 @@ async function promptCustom(): Promise<number | undefined> {
   return parseCustom(entered);
 }
 
-// "Pin until..." — set a wall-clock expiry from a preset (or a custom date/time).
+// "Expire until..." — set a wall-clock expiry from a preset (or a custom date/time).
 // Preserves any existing branch condition: the two are independent, so setting a
-// time must not silently drop an onBranchAway already on the pin.
-export async function pinUntil(store: PinStore, pin: Pin): Promise<void> {
-  if (pin.isAuto) {
+// time must not silently drop an onBranchAway already on the shortcut.
+export async function shortcutUntil(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  if (shortcut.isAuto) {
     vscode.window.showWarningMessage(l10n("expiry.autoUnsupported"));
     return;
   }
-  const name = pinName(pin);
+  const name = shortcutName(shortcut);
   const pick = await vscode.window.showQuickPick(buildPresets(), {
     title: l10n("expiry.pick.title", { name }),
     placeHolder: l10n("expiry.pick.placeholder"),
@@ -138,26 +138,26 @@ export async function pinUntil(store: PinStore, pin: Pin): Promise<void> {
   if (at === undefined) {
     return;
   }
-  await store.setPinExpiry(pin, { ...pin.expires, at });
+  await store.setShortcutExpiry(shortcut, { ...shortcut.expires, at });
   vscode.window.showInformationMessage(
     l10n("expiry.set", { name, when: formatInstant(at) })
   );
 }
 
-// "Pin until branch changes" — bomb the pin on the current git branch of its owning
-// folder (or the first workspace folder for a global pin). Preserves any existing
-// wall-clock condition. Warns instead of guessing when no repo / branch is readable,
-// so the pin is never given a condition that can never be evaluated.
-export async function pinUntilBranchChange(
-  store: PinStore,
-  pin: Pin
+// "Expire until branch changes" — bomb the shortcut on the current git branch of its
+// owning folder (or the first workspace folder for a global shortcut). Preserves any
+// existing wall-clock condition. Warns instead of guessing when no repo / branch is
+// readable, so the shortcut is never given a condition that can never be evaluated.
+export async function shortcutUntilBranchChange(
+  store: ShortcutStore,
+  shortcut: Shortcut
 ): Promise<void> {
-  if (pin.isAuto) {
+  if (shortcut.isAuto) {
     vscode.window.showWarningMessage(l10n("expiry.autoUnsupported"));
     return;
   }
-  const name = pinName(pin);
-  const folder = store.folderOf(pin) ?? vscode.workspace.workspaceFolders?.[0];
+  const name = shortcutName(shortcut);
+  const folder = store.folderOf(shortcut) ?? vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     vscode.window.showWarningMessage(l10n("expiry.noRepo", { name }));
     return;
@@ -167,20 +167,20 @@ export async function pinUntilBranchChange(
     vscode.window.showWarningMessage(l10n("expiry.noBranch", { name }));
     return;
   }
-  await store.setPinExpiry(pin, { ...pin.expires, onBranchAway: branch });
+  await store.setShortcutExpiry(shortcut, { ...shortcut.expires, onBranchAway: branch });
   vscode.window.showInformationMessage(
     l10n("expiry.branchSet", { name, branch })
   );
 }
 
 // "Clear expiry" — defuse the bomb. A no-op-with-feedback when nothing was set, so
-// the action (which is shown on every stored pin) reads clearly either way.
-export async function clearPinExpiry(store: PinStore, pin: Pin): Promise<void> {
-  const name = pinName(pin);
-  if (!pin.expires) {
+// the action (which is shown on every stored shortcut) reads clearly either way.
+export async function clearShortcutExpiry(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const name = shortcutName(shortcut);
+  if (!shortcut.expires) {
     vscode.window.showInformationMessage(l10n("expiry.noneSet", { name }));
     return;
   }
-  await store.setPinExpiry(pin, undefined);
+  await store.setShortcutExpiry(shortcut, undefined);
   vscode.window.showInformationMessage(l10n("expiry.cleared", { name }));
 }

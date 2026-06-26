@@ -2,7 +2,7 @@
 // top-level detector: it reads a folder's package.json, .git metadata, and other
 // manifests through the stub's workspace.fs (real node fs against a temp dir) and
 // composes the full catalog — the git-remote URL recipes, registry/marketplace
-// listings, doc-file openers, the entry-point file pin, and the command/macro pins —
+// listings, doc-file openers, the entry-point file shortcut, and the command/macro pins —
 // then routes every recipe into a top-level group by id. The REAL detection runs, so
 // the assertions cover the git-remote gate, the registry/marketplace branch, the
 // doc-opener gate, and the open/run/workspace group routing. The vscode types are
@@ -142,7 +142,7 @@ test("the entry point is a file pin pointing at the resolved entry", async () =>
   const out = byId(await detectOnDemandRecipes(asFolder(folder)));
   const entry = out.get("entry");
   assert.ok(entry, "a conventional entry path should seed the entry recipe");
-  // A file pin carries filePath (no action) so it opens through the standard path.
+  // A file shortcut carries filePath (no action) so it opens through the standard path.
   assert.equal(entry!.filePath, "src/index.ts");
   assert.equal(entry!.action, undefined);
 });

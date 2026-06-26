@@ -1,51 +1,51 @@
 import * as vscode from "vscode";
 import {
-  Pin,
-  PinTrigger,
+  Shortcut,
+  ShortcutTrigger,
   SystemEventName,
   SYSTEM_EVENTS,
-} from "../model/pin";
-import { PinStore } from "../model/pinStore";
+} from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { showHubQuickPick } from "./hubQuickPick";
 import { l10n } from "../i18n/l10n";
 
 // Configure Triggers (WOW: recipe chaining + special events). A hub-and-spoke
-// QuickPick to set what auto-runs a pin beyond its schedule:
-//   - "Run after a pin": when another pin completes (optionally only on success).
+// QuickPick to set what auto-runs a shortcut beyond its schedule:
+//   - "Run after a shortcut": when another shortcut completes (optionally only on success).
 //   - "Run after an event": build / publish / git commit / git push.
 //   - "Run when idle": after N minutes of no VS Code interaction (WOW #18), forced to
 //     the background channel so an unattended run never hijacks the terminal.
-//   - "This pin emits": mark this pin as a build / publish step, so its completion
-//     fires that event for OTHER pins to chain off.
+//   - "This shortcut emits": mark this shortcut as a build / publish step, so its completion
+//     fires that event for OTHER shortcuts to chain off.
 // Edits accumulate in a working copy and are written on Save; Esc at the hub
 // discards. Mirrors the Configure Schedule / Boot Sequence hub shape so the three
 // automation editors feel the same.
 //
 // This is the QuickPick entry point; the Planner & Workflow webview drives the same
-// store method (updatePinTriggers) for the visual graph editing.
+// store method (updateShortcutTriggers) for the visual graph editing.
 
 interface WorkTriggers {
-  triggers: PinTrigger[];
+  triggers: ShortcutTrigger[];
   emits: SystemEventName[];
 }
 
 export async function configureTriggers(
-  store: PinStore,
-  pin: Pin
+  store: ShortcutStore,
+  shortcut: Shortcut
 ): Promise<void> {
-  if (pin.isAuto) {
-    // Auto-pins are recomputed each refresh and never stored, so a trigger cannot
+  if (shortcut.isAuto) {
+    // Auto-shortcuts are recomputed each refresh and never stored, so a trigger cannot
     // persist on them — same constraint as scheduling.
     vscode.window.showWarningMessage(l10n("triggers.autoUnsupported"));
     return;
   }
 
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   const title = l10n("triggers.title", { name });
 
   const work: WorkTriggers = {
-    triggers: pin.triggers ? pin.triggers.map((t) => ({ ...t })) : [],
-    emits: pin.emits ? [...pin.emits] : [],
+    triggers: shortcut.triggers ? shortcut.triggers.map((t) => ({ ...t })) : [],
+    emits: shortcut.emits ? [...shortcut.emits] : [],
   };
 
   // Restore focus to the row the user last acted on so adding a trigger or
@@ -53,7 +53,7 @@ export async function configureTriggers(
   // list on every re-render (the hub-and-spoke "menu reopens from the start" feel).
   let activeKey: { act: HubChoice["act"]; index?: number } | undefined;
   for (;;) {
-    const choice = await showHub(store, pin, work, title, activeKey);
+    const choice = await showHub(store, shortcut, work, title, activeKey);
     if (!choice) {
       return; // Esc discards.
     }
@@ -62,8 +62,8 @@ export async function configureTriggers(
     }
     activeKey = { act: choice.act, index: choice.index };
     switch (choice.act) {
-      case "addPin":
-        await addPinTrigger(store, pin, work, title);
+      case "addShortcut":
+        await addShortcutTrigger(store, shortcut, work, title);
         break;
       case "addEvent":
         await addEventTrigger(work, title);
@@ -87,17 +87,17 @@ export async function configureTriggers(
     }
   }
 
-  await store.updatePinTriggers(
-    pin,
+  await store.updateShortcutTriggers(
+    shortcut,
     work.triggers.length > 0 ? work.triggers : undefined,
     work.emits.length > 0 ? work.emits : undefined
   );
   vscode.window.showInformationMessage(l10n("triggers.saved", { name }));
 }
 
-// Flip the onlyOnSuccess flag of a pin trigger in place (no-op for an event trigger,
+// Flip the onlyOnSuccess flag of a shortcut trigger in place (no-op for an event trigger,
 // which has no success concept).
-function toggleOnlyOnSuccess(trigger: PinTrigger | undefined): void {
+function toggleOnlyOnSuccess(trigger: ShortcutTrigger | undefined): void {
   if (trigger && trigger.kind === "pin") {
     trigger.onlyOnSuccess = !trigger.onlyOnSuccess;
   }
@@ -105,7 +105,7 @@ function toggleOnlyOnSuccess(trigger: PinTrigger | undefined): void {
 
 interface HubChoice {
   act:
-    | "addPin"
+    | "addShortcut"
     | "addEvent"
     | "addIdle"
     | "emits"
@@ -128,14 +128,14 @@ function separator(label: string): vscode.QuickPickItem {
 }
 
 async function showHub(
-  store: PinStore,
-  pin: Pin,
+  store: ShortcutStore,
+  shortcut: Shortcut,
   work: WorkTriggers,
   title: string,
   activeKey?: { act: HubChoice["act"]; index?: number }
 ): Promise<HubChoice | undefined> {
   const rows: Array<HubItem | vscode.QuickPickItem> = [
-    { act: "addPin", label: l10n("triggers.addPin") },
+    { act: "addShortcut", label: l10n("triggers.addPin") },
     { act: "addEvent", label: l10n("triggers.addEvent") },
     { act: "addIdle", label: l10n("triggers.addIdle") },
     {
@@ -159,7 +159,7 @@ async function showHub(
         label: describeTrigger(store, trigger),
         description: l10n("triggers.removeHint"),
       });
-      // A pin trigger gets a second row to toggle the success gate, so the whole
+      // A shortcut trigger gets a second row to toggle the success gate, so the whole
       // thing stays keyboard-drivable without a nested menu.
       if (trigger.kind === "pin") {
         rows.push({
@@ -202,7 +202,7 @@ async function showHub(
 
 // One-line description of a trigger for the hub list: "After Build", "On git push",
 // or "When idle 3m".
-function describeTrigger(store: PinStore, trigger: PinTrigger): string {
+function describeTrigger(store: ShortcutStore, trigger: ShortcutTrigger): string {
   if (trigger.kind === "event") {
     return l10n("triggers.row.event", {
       event: l10n(`chain.event.${trigger.event}`),
@@ -211,42 +211,42 @@ function describeTrigger(store: PinStore, trigger: PinTrigger): string {
   if (trigger.kind === "idle") {
     return l10n("triggers.row.idle", { minutes: trigger.minutes });
   }
-  const source = store.findPin(trigger.pinId);
+  const source = store.findShortcut(trigger.pinId);
   const name = source
     ? source.label ?? (source.path.split("/").pop() ?? source.path)
     : l10n("triggers.row.missingPin");
   return l10n("triggers.row.pin", { name });
 }
 
-// Pick another pin to run this one after. Excludes the pin itself (a self-trigger is
-// a guaranteed loop) and any pin already linked.
-async function addPinTrigger(
-  store: PinStore,
-  pin: Pin,
+// Pick another shortcut to run this one after. Excludes the shortcut itself (a self-trigger is
+// a guaranteed loop) and any shortcut already linked.
+async function addShortcutTrigger(
+  store: ShortcutStore,
+  shortcut: Shortcut,
   work: WorkTriggers,
   title: string
 ): Promise<void> {
   const linked = new Set(
     work.triggers
-      .filter((t): t is Extract<PinTrigger, { kind: "pin" }> => t.kind === "pin")
+      .filter((t): t is Extract<ShortcutTrigger, { kind: "pin" }> => t.kind === "pin")
       .map((t) => t.pinId)
   );
-  const candidates: Pin[] = [
-    ...store.getProjectPins(),
-    ...store.getGlobalPins(),
-  ].filter((p) => p.id !== pin.id && !linked.has(p.id));
+  const candidates: Shortcut[] = [
+    ...store.getProjectShortcuts(),
+    ...store.getGlobalShortcuts(),
+  ].filter((p) => p.id !== shortcut.id && !linked.has(p.id));
   if (candidates.length === 0) {
     vscode.window.showInformationMessage(l10n("triggers.addPin.none"));
     return;
   }
-  interface PinItem extends vscode.QuickPickItem {
-    pin: Pin;
+  interface ShortcutItem extends vscode.QuickPickItem {
+    shortcut: Shortcut;
   }
-  const items: PinItem[] = candidates.map((p) => ({
+  const items: ShortcutItem[] = candidates.map((p) => ({
     label: p.label ?? (p.path.split("/").pop() ?? p.path),
     description:
       p.scope === "global" ? l10n("pin.group.global") : l10n("pin.group.project"),
-    pin: p,
+    shortcut: p,
   }));
   const choice = await vscode.window.showQuickPick(items, {
     title,
@@ -256,17 +256,17 @@ async function addPinTrigger(
   if (!choice) {
     return;
   }
-  work.triggers.push({ kind: "pin", pinId: choice.pin.id });
+  work.triggers.push({ kind: "pin", pinId: choice.shortcut.id });
 }
 
-// Pick a system event to run this pin after.
+// Pick a system event to run this shortcut after.
 async function addEventTrigger(
   work: WorkTriggers,
   title: string
 ): Promise<void> {
   const existing = new Set(
     work.triggers
-      .filter((t): t is Extract<PinTrigger, { kind: "event" }> => t.kind === "event")
+      .filter((t): t is Extract<ShortcutTrigger, { kind: "event" }> => t.kind === "event")
       .map((t) => t.event)
   );
   interface EventItem extends vscode.QuickPickItem {
@@ -294,13 +294,13 @@ async function addEventTrigger(
   work.triggers.push({ kind: "event", event: choice.event });
 }
 
-// Set (or replace) the idle trigger: run this pin after N minutes of no VS Code
-// interaction (WOW #18). At most one idle trigger per pin — two would run the pin twice
+// Set (or replace) the idle trigger: run this shortcut after N minutes of no VS Code
+// interaction (WOW #18). At most one idle trigger per shortcut — two would run the shortcut twice
 // in one idle period — so an existing one is replaced rather than stacked. The default
 // seeds from the current value, else 3 minutes (the pitch's default coffee-break span).
 async function addIdleTrigger(work: WorkTriggers, title: string): Promise<void> {
   const existing = work.triggers.find(
-    (t): t is Extract<PinTrigger, { kind: "idle" }> => t.kind === "idle"
+    (t): t is Extract<ShortcutTrigger, { kind: "idle" }> => t.kind === "idle"
   );
   const entered = await vscode.window.showInputBox({
     title,
@@ -319,13 +319,13 @@ async function addIdleTrigger(work: WorkTriggers, title: string): Promise<void> 
     return;
   }
   const minutes = Number(entered.trim());
-  // Drop any prior idle trigger, then add the new one, so the pin carries exactly one.
+  // Drop any prior idle trigger, then add the new one, so the shortcut carries exactly one.
   work.triggers = work.triggers.filter((t) => t.kind !== "idle");
   work.triggers.push({ kind: "idle", minutes });
 }
 
-// Multi-select which system events this pin's completion emits (build / publish).
-// gitCommit / gitPush are detected from the repo and are not emittable by a pin, so
+// Multi-select which system events this shortcut's completion emits (build / publish).
+// gitCommit / gitPush are detected from the repo and are not emittable by a shortcut, so
 // only build / publish are offered.
 async function editEmits(work: WorkTriggers, title: string): Promise<void> {
   const current = new Set(work.emits);

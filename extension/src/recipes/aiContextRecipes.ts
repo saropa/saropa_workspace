@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { PinAction } from "../model/pin";
+import { ShortcutAction } from "../model/shortcut";
 import { RecipeResult } from "./detectors";
 
 // AI Context recipes (recipe book section I, 64-65). Surfaces active Claude/AI
-// conversations as pins so the thread you were refactoring in is one click away
+// conversations as shortcuts so the thread you were refactoring in is one click away
 // instead of a hunt through a wall of identically styled chat tabs.
 //
 // Claude exposes no local API, so detection is a file scan of the folders where
@@ -19,7 +19,7 @@ const DEFAULT_FOLDERS: readonly string[] = [".claude", ".cline/tasks", "docs/cha
 
 // Only the N most recently modified transcripts are offered, across all configured
 // folders combined. AI chats age out fast (a bug is fixed, the context is stale),
-// so the freshest handful is what is worth a pin — older ones are noise.
+// so the freshest handful is what is worth a shortcut — older ones are noise.
 const MAX_THREADS = 10;
 
 // A chat label is the human title of a long conversation; cap it so one verbose
@@ -37,7 +37,7 @@ async function readText(uri: vscode.Uri): Promise<string | undefined> {
   }
 }
 
-function url(target: string): PinAction {
+function url(target: string): ShortcutAction {
   return { kind: "url", url: target };
 }
 
@@ -64,7 +64,7 @@ function clampLabel(text: string): string {
 interface Candidate {
   uri: vscode.Uri;
   // Workspace-folder-relative path (e.g. ".claude/refactor.md"), used as the file
-  // pin target and as the basis for the stable recipe id.
+  // shortcut target and as the basis for the stable recipe id.
   relPath: string;
   mtime: number;
 }
@@ -111,8 +111,8 @@ export async function detectAiContextRecipes(
   for (const candidate of freshest) {
     const recipe = await parseThread(candidate);
     // A file with no recognizable chat content (no title/H1, no id/URL) is skipped
-    // rather than pinned, so a stray config JSON or notes file in a scan folder does
-    // not masquerade as a conversation.
+    // rather than added as a shortcut, so a stray config JSON or notes file in a scan
+    // folder does not masquerade as a conversation.
     if (recipe) {
       out.push(recipe);
     }
@@ -173,8 +173,8 @@ async function parseThread(candidate: Candidate): Promise<RecipeResult | undefin
 
   const label = clampLabel(parsed.title ?? baseName(candidate.relPath));
   // A deep link to the web/desktop chat when we have one; otherwise the local
-  // transcript file (recipe 64's two action shapes). The file pin reuses the
-  // standard file-open path, so it honors preview/peek like any other file pin.
+  // transcript file (recipe 64's two action shapes). The file shortcut reuses the
+  // standard file-open path, so it honors preview/peek like any other file shortcut.
   const action = parsed.chatUrl ? url(parsed.chatUrl) : undefined;
   const where = parsed.chatUrl
     ? `opens the conversation at ${parsed.chatUrl}`
@@ -183,7 +183,7 @@ async function parseThread(candidate: Candidate): Promise<RecipeResult | undefin
   return {
     recipeId: recipeIdFor(candidate.relPath),
     label,
-    description: `Pinned AI conversation "${label}", detected from ${candidate.relPath}. Single-click ${where}. Only the most recently modified chats are offered; remove one to keep it from re-appearing.`,
+    description: `Saved AI conversation "${label}", detected from ${candidate.relPath}. Single-click ${where}. Only the most recently modified chats are offered; remove one to keep it from re-appearing.`,
     icon: "sparkle",
     color,
     group: "ai",
@@ -222,7 +222,7 @@ function parseJsonThread(text: string): ParsedThread | undefined {
 
 // A Markdown transcript. The first H1 is the title; a claude.ai URL anywhere
 // (frontmatter or footer) is the deep link. With neither an H1 nor a URL there is
-// nothing chat-shaped to pin, so the file is skipped.
+// nothing chat-shaped to add as a shortcut, so the file is skipped.
 function parseMarkdownThread(text: string): ParsedThread | undefined {
   const title = /^#\s+(.+)$/m.exec(text)?.[1]?.trim();
   const raw = /https?:\/\/claude\.ai\/\S+/i.exec(text)?.[0];

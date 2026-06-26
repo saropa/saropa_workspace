@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 
 // Saropa Lints health-score read (recipe book #26, #36-40). The suite already offers
-// pins that RUN the linter and open its dashboards; this reads the Lints extension's
+// shortcuts that RUN the linter and open its dashboards; this reads the Lints extension's
 // PUBLIC API directly to surface the exact 0-100 Code Health score the Lints status
 // bar shows — no shell, no report file to open — and reports it as a toast with the
 // severity breakdown and a one-click path to the full dashboard.

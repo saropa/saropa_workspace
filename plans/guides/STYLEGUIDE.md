@@ -69,6 +69,58 @@ The product is **Saropa Workspace**, capital S, capital W. Sibling tools are
 **Saropa Lints**, **Saropa Drift Advisor**, **Saropa Log Capture** — named in
 full on first mention in any surface.
 
+### 1.4 The feature is a Shortcut, never a Pin
+
+The thing a user creates — a saved file or script that single-click opens and
+double-click runs — is a **Shortcut** (plural **Shortcuts**). This replaced the
+earlier name "Pin". Every user-visible surface, every code identifier, every
+comment, and every doc uses Shortcut. The old word survives only in the
+backward-compatibility exceptions listed below.
+
+Copy rules:
+
+- **Noun:** a *shortcut* / *shortcuts*. The view is **Shortcuts**; the groups are
+  **Project Shortcuts** and **Global Shortcuts**; a curated collection is a
+  **Shortcut Set**.
+- **Do not verb "shortcut".** There is no "shortcutted". Use a plain verb for the
+  action: *Add* (create one), *Remove* (delete one), *Save*. So "Pinned {name}"
+  became **"Added {name}"**, "Unpin" became **"Remove"**, "Pin it" became
+  **"Add shortcut"**.
+- **A recipe is an auto-detected shortcut.** Because "shortcut" is now the noun
+  for the user's own entries, describe a recipe as an *auto-detected* (or
+  *ready-made*) shortcut so the two read as one family, not two competing words.
+
+**VS Code's native "pinned tab" keeps the word "pin".** The tab-suggestion
+feature watches editor tabs the user pinned with VS Code's own right-click → Pin
+and offers to add them as Saropa shortcuts. There, "pinned tab" / "pin the tab"
+is VS Code's terminology and stays literal; only the Saropa entity in the same
+sentence becomes "shortcut" (e.g. "Add it to your Saropa shortcuts").
+
+**Backward-compatibility exceptions — these keep the legacy `pin` spelling on
+purpose, because v1.5.0 users have data and keybindings bound to them. Renaming
+them would silently break shipped installs.** Do not "finish the rename" by
+touching any of these:
+
+- The on-disk project-file JSON field **`pins`** (and `removedAutoPins`) in
+  `.vscode/saropa-workspace.json`, and the `pins` array of a stored set.
+- The globalState keys **`saropaWorkspace.globalPins`** and
+  **`saropaWorkspace.globalGroups`**.
+- All **`saropaWorkspace.*` command and view IDs** (e.g. `saropaWorkspace.runPin`,
+  the `saropaWorkspace.pins` view id). Their user-visible *titles* are renamed to
+  Shortcut wording; the IDs themselves are a contract with user keybindings.
+- The serialized **`pinId`** field (on a routine member and a trigger) and the
+  **`"pin"`** trigger-kind discriminant value.
+- The **i18n catalog key names** in `en.json` and `package.nls.json` (e.g. the
+  key `pin.added`, the NLS key `command.pinFile.title`). These are internal,
+  non-visible string identifiers referenced from code and the manifest; like the
+  command IDs, they are kept to avoid silent runtime breakage. Only the catalog
+  *values* (the text users read) are rewritten to Shortcut wording.
+
+The compiler is the safety net for the field names: because the TypeScript
+interfaces still declare `pins` / `pinId` / `removedAutoPins`, any accidental
+rename of a `.pins` access becomes a type error rather than a silent wire-format
+break.
+
 ---
 
 ## 2. Internationalization (translation-ready at write time)

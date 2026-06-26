@@ -1,19 +1,19 @@
 import * as vscode from "vscode";
-import { Pin, isAnnotationPin } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut, isAnnotationShortcut } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { BranchSetBinder } from "../exec/branchSets";
 import { l10n } from "../i18n/l10n";
 
-// Branch-aware pin sets (roadmap 3.2) — the user-facing link/unlink commands.
-// "Link Current Branch to Pin Set" stores a branch -> set binding (with an optional
-// on-switch pin); "Unlink Current Branch" removes it. The BranchSetBinder performs
+// Branch-aware shortcut sets (roadmap 3.2) — the user-facing link/unlink commands.
+// "Link Current Branch to Shortcut Set" stores a branch -> set binding (with an optional
+// on-switch shortcut); "Unlink Current Branch" removes it. The BranchSetBinder performs
 // the actual switching on checkout when the feature is enabled — these commands only
 // edit the binding map. Both need a current git branch and degrade to a clear
 // warning outside a repo.
 
 export function registerBranchSetCommands(
   context: vscode.ExtensionContext,
-  store: PinStore,
+  store: ShortcutStore,
   binder: BranchSetBinder
 ): void {
   context.subscriptions.push(
@@ -26,10 +26,10 @@ export function registerBranchSetCommands(
   );
 }
 
-// A pin's display name for the on-switch picker: its label, else the file basename,
-// else the raw path (shell/url pins carry a label and an empty path).
-function pinDisplayName(pin: Pin): string {
-  return pin.label ?? pin.path.split("/").pop() ?? pin.path;
+// A shortcut's display name for the on-switch picker: its label, else the file basename,
+// else the raw path (shell/url shortcuts carry a label and an empty path).
+function shortcutDisplayName(shortcut: Shortcut): string {
+  return shortcut.label ?? shortcut.path.split("/").pop() ?? shortcut.path;
 }
 
 // The set-row description: tag the currently active set and the set this branch is
@@ -50,7 +50,7 @@ function setRowDescription(
 }
 
 async function linkBranchToSet(
-  store: PinStore,
+  store: ShortcutStore,
   binder: BranchSetBinder
 ): Promise<void> {
   if ((vscode.workspace.workspaceFolders?.length ?? 0) === 0) {
@@ -78,32 +78,32 @@ async function linkBranchToSet(
   }
   const set = pickedSet.label;
 
-  // Step 2: optionally pick a pin to run on the switch. Candidates are the target
-  // set's stored project pins (read without switching) plus the shared global pins;
-  // annotation pins (comment/separator) are excluded since they never run. A "None"
-  // row keeps the on-switch pin optional, and Escape cancels the whole flow.
-  interface PinPick extends vscode.QuickPickItem {
+  // Step 2: optionally pick a shortcut to run on the switch. Candidates are the target
+  // set's stored project shortcuts (read without switching) plus the shared global shortcuts;
+  // annotation shortcuts (comment/separator) are excluded since they never run. A "None"
+  // row keeps the on-switch shortcut optional, and Escape cancels the whole flow.
+  interface ShortcutPick extends vscode.QuickPickItem {
     pinId?: string;
   }
   const candidates = [
-    ...(await store.getSetPins(set)),
-    ...store.getGlobalPins(),
-  ].filter((p) => !isAnnotationPin(p));
-  const pinItems: PinPick[] = [
+    ...(await store.getSetShortcuts(set)),
+    ...store.getGlobalShortcuts(),
+  ].filter((p) => !isAnnotationShortcut(p));
+  const shortcutItems: ShortcutPick[] = [
     { label: l10n("branchSet.link.noPin") },
     ...candidates.map((p) => ({
-      label: pinDisplayName(p),
+      label: shortcutDisplayName(p),
       description: p.path.length > 0 ? p.path : undefined,
       pinId: p.id,
     })),
   ];
-  const pickedPin = await vscode.window.showQuickPick(pinItems, {
+  const pickedShortcut = await vscode.window.showQuickPick(shortcutItems, {
     placeHolder: l10n("branchSet.link.pinPlaceholder", { set }),
   });
-  if (!pickedPin) {
+  if (!pickedShortcut) {
     return;
   }
-  const runPinId = pickedPin.pinId;
+  const runPinId = pickedShortcut.pinId;
 
   await binder.setBinding(branch, {
     set,

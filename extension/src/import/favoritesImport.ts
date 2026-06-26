@@ -1,12 +1,12 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { getOutputChannel } from "../exec/runner";
 import { l10n } from "../i18n/l10n";
 import { importKdcro, importBookmarks } from "./favoritesKdcroBookmarks";
 import { importOlegShilo } from "./favoritesOlegShilo";
 import { importSettingsFavorites, importSabitovvtFavorites } from "./favoritesSettings";
 
-// Imports pins from other VS Code "favorites" extensions so users migrating to
+// Imports shortcuts from other VS Code "favorites" extensions so users migrating to
 // Saropa Workspace keep their existing favorites. This file holds the shared types,
 // the file-format detection, the per-file dispatcher, and the import-everything
 // orchestrator; the format-specific importers live in sibling modules:
@@ -80,8 +80,8 @@ export interface DetectedFavorites {
   format: FileFavoritesFormat;
 }
 
-// What one source contributed: pins newly added, and entries recognized but not
-// pinned (reported in the output channel). Duplicate entries the store already
+// What one source contributed: shortcuts newly added, and entries recognized but not
+// added (reported in the output channel). Duplicate entries the store already
 // holds are NOT counted as skipped — re-running import is idempotent by design,
 // so a dedup is expected, not a problem worth reporting.
 export interface ImportResult {
@@ -113,12 +113,12 @@ export async function detectFavoritesFiles(): Promise<DetectedFavorites[]> {
   return found;
 }
 
-// Parse one detected favorites file and add its entries as project pins,
+// Parse one detected favorites file and add its entries as project shortcuts,
 // dispatching on the file's format. Unsupported/malformed entries are logged to
 // the channel and skipped. Returns the per-file added/skipped tally.
 export async function importFavoritesFile(
   detected: DetectedFavorites,
-  store: PinStore
+  store: ShortcutStore
 ): Promise<ImportResult> {
   const channel = getOutputChannel();
   let bytes: Uint8Array;
@@ -139,10 +139,10 @@ export async function importFavoritesFile(
 }
 
 // Import every detected favorites source — each known file across all folders,
-// plus the howardzuo and sabitovvt settings keys — as project pins. Returns the
+// plus the howardzuo and sabitovvt settings keys — as project shortcuts. Returns the
 // combined added/skipped tally and writes a one-line summary to the channel when
 // anything was skipped, so the user can open the output to see what and why.
-export async function importAllDetected(store: PinStore): Promise<ImportResult> {
+export async function importAllDetected(store: ShortcutStore): Promise<ImportResult> {
   const channel = getOutputChannel();
   let added = 0;
   let skipped = 0;

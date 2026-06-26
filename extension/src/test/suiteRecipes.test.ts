@@ -23,7 +23,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
 import type { WorkspaceFolder as VscodeFolder } from "vscode";
 
@@ -65,7 +65,7 @@ const writePubspec = (body: string): void => {
 // is fired-and-forget from refresh and signals completion via onDidChange). A short
 // timer fallback prevents a hung test if the predicate never becomes true.
 const waitUntil = (
-  store: PinStore,
+  store: ShortcutStore,
   predicate: () => boolean
 ): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -140,7 +140,7 @@ test("detectSuiteRecipes seeds the boot macro (no subGroup) only with 2+ tools",
 test("the store seeds no Saropa Suite group when no tool is detected", async () => {
   __setConfig("saropaWorkspace", "recipes.enabled", true);
   __setInstalledExtensions([]);
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   // Wait for the (other, non-suite) recipes to seed so we assert on a settled tree.
   await waitUntil(store, () => store.getRecipeGroups().length > 0);
@@ -150,7 +150,7 @@ test("the store seeds no Saropa Suite group when no tool is detected", async () 
     "the Saropa Suite group must not appear with no tool present"
   );
   assert.ok(
-    !store.getRecipePins().some((p) => (p.groupId ?? "").startsWith(SUITE_GROUP)),
+    !store.getRecipeShortcuts().some((p) => (p.groupId ?? "").startsWith(SUITE_GROUP)),
     "no suite pin should be seeded with no tool present"
   );
 });
@@ -159,7 +159,7 @@ test("a detected tool materializes its subgroup nested under Saropa Suite", asyn
   writePubspec("name: app\ndependencies:\n  saropa_lints: ^1.0.0\n");
   __setConfig("saropaWorkspace", "recipes.enabled", true);
   __setInstalledExtensions([]);
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   await waitUntil(store, () =>
     store.getRecipeGroups().some((g) => g.id === SUITE_LINTS)
@@ -180,7 +180,7 @@ test("a detected tool materializes its subgroup nested under Saropa Suite", asyn
   );
   // The lints pins land in the subgroup, not flat in the suite group.
   assert.ok(
-    store.getRecipePins().some((p) => p.groupId === SUITE_LINTS),
+    store.getRecipeShortcuts().some((p) => p.groupId === SUITE_LINTS),
     "lints pins should be assigned to the lints subgroup"
   );
 });
@@ -191,10 +191,10 @@ test("multiple detected tools nest as siblings with the boot macro at the suite 
   );
   __setConfig("saropaWorkspace", "recipes.enabled", true);
   __setInstalledExtensions([LINTS_EXT, DRIFT_EXT, LOG_EXT]);
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   await waitUntil(store, () =>
-    store.getRecipePins().some((p) => p.recipeId === "suite.boot")
+    store.getRecipeShortcuts().some((p) => p.recipeId === "suite.boot")
   );
 
   const groups = store.getRecipeGroups();
@@ -204,7 +204,7 @@ test("multiple detected tools nest as siblings with the boot macro at the suite 
     assert.equal(sub!.parentId, SUITE_GROUP, `${id} should nest under the suite group`);
   }
   // The boot macro is a direct child of the suite group (top level), not a subgroup.
-  const boot = store.getRecipePins().find((p) => p.recipeId === "suite.boot");
+  const boot = store.getRecipeShortcuts().find((p) => p.recipeId === "suite.boot");
   assert.ok(boot, "the boot macro pin should be seeded");
   assert.equal(boot!.groupId, SUITE_GROUP, "the boot macro stays at the suite top level");
 });

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { parseHourMinute, parseCron } from "../exec/schedule";
 import { showHubQuickPick } from "./hubQuickPick";
 import {
@@ -13,7 +13,7 @@ import { l10n } from "../i18n/l10n";
 
 // Roadmap 2.2 — schedule editor UI (keyboard-only QuickPick variant).
 //
-// A hub-and-spoke QuickPick to set a pin's daily time (atTime), repeating
+// A hub-and-spoke QuickPick to set a shortcut's daily time (atTime), repeating
 // interval (everyMs), and enabled flag without hand-editing JSON. The default
 // "Configure Schedule..." opens the richer webview form (views/scheduleEditorPanel);
 // this stays reachable as "Configure Schedule (Quick)..." for a fast keyboard-only
@@ -29,18 +29,18 @@ interface HubItem extends vscode.QuickPickItem {
   id: "atTime" | "days" | "interval" | "cron" | "runOnStartup" | "enabled" | "save";
 }
 
-export async function configureSchedule(store: PinStore, pin: Pin): Promise<void> {
-  // Auto-pins are recomputed each refresh and never stored, so a schedule cannot
+export async function configureSchedule(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  // Auto-shortcuts are recomputed each refresh and never stored, so a schedule cannot
   // persist on them.
-  if (pin.isAuto) {
+  if (shortcut.isAuto) {
     vscode.window.showWarningMessage(l10n("schedule.autoUnsupported"));
     return;
   }
 
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   const title = l10n("schedule.title", { name });
 
-  const work: WorkSchedule = workFromSchedule(pin.schedule);
+  const work: WorkSchedule = workFromSchedule(shortcut.schedule);
 
   // Remember the row the user last acted on so each re-render of the hub restores
   // focus to it. Without this, editing a field or flipping a toggle bounced the
@@ -90,7 +90,7 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
   // straight away should still turn it on, since having a time set means "run it".
   applyAutoEnable(work, enabledTouched);
 
-  await store.updatePinSchedule(pin, normalizeWork(work));
+  await store.updateShortcutSchedule(shortcut, normalizeWork(work));
   vscode.window.showInformationMessage(l10n("schedule.saved", { name }));
 }
 

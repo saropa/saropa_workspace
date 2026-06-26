@@ -1,6 +1,6 @@
 // Unit tests for run-target inference (roadmap 7.5). detectRunTargets reads a
-// pinned file through the stub's workspace.fs (real node fs against a temp dir) and
-// derives a PinExecConfig per discoverable way to run it — package.json scripts,
+// target file through the stub's workspace.fs (real node fs against a temp dir) and
+// derives a ShortcutExecConfig per discoverable way to run it — package.json scripts,
 // Makefile targets, or a shebang. The REAL parsing runs (the package-manager pick
 // from the sibling lockfile, the Makefile rule regex, the shebang detection); only
 // the vscode host shell is faked, so these assertions check the derived exec shape.

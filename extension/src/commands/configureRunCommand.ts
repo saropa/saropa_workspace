@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinExecConfig } from "../model/pin";
+import { ShortcutExecConfig } from "../model/shortcut";
 import { l10n } from "../i18n/l10n";
 
 // The command-prefix and argument-line editors for the run-parameters hub, plus the
@@ -7,7 +7,7 @@ import { l10n } from "../i18n/l10n";
 // Split out of configureRun.ts so the hub file holds the flow and these field
 // editors live with the parsing they depend on.
 
-export async function editCommand(work: PinExecConfig, title: string): Promise<void> {
+export async function editCommand(work: ShortcutExecConfig, title: string): Promise<void> {
   const value = await vscode.window.showInputBox({
     title,
     prompt: l10n("configure.command.prompt"),
@@ -23,7 +23,7 @@ export async function editCommand(work: PinExecConfig, title: string): Promise<v
   work.command = value.trim() === "" ? undefined : value;
 }
 
-export async function editArgs(work: PinExecConfig, title: string): Promise<void> {
+export async function editArgs(work: ShortcutExecConfig, title: string): Promise<void> {
   const value = await vscode.window.showInputBox({
     title,
     prompt: l10n("configure.args.prompt"),

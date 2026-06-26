@@ -1,6 +1,6 @@
 // Mapping + idempotency tests for the alefragnani "Bookmarks" importer (roadmap
 // "additional import formats" — the Bookmarks slice). These run the REAL importer
-// against the REAL PinStore: the fs-backed vscode stub persists the project file to
+// against the REAL ShortcutStore: the fs-backed vscode stub persists the project file to
 // a temp directory, so the 0-based->1-based line conversion, the "$ROOTPATH$" strip,
 // the label fallback, the outside-folder skip, the malformed-file guard, and dedup
 // on re-run all execute end to end. Only the host SHELL (the vscode API) is faked.
@@ -18,7 +18,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { importBookmarks } from "../import/favoritesKdcroBookmarks";
 import type { DetectedFavorites } from "../import/favoritesImport";
 import type { OutputChannel } from "vscode";
@@ -70,7 +70,7 @@ afterEach(() => {
 });
 
 test("a bookmark imports as a line pin with the 0-based line converted to 1-based", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   // Stored line 9 is the raw vscode.Position.line (0-based); it must import as 10.
@@ -84,15 +84,15 @@ test("a bookmark imports as a line pin with the 0-based line converted to 1-base
   assert.equal(result.added, 1, "the bookmark imports");
   assert.equal(result.skipped, 0, "nothing is skipped");
 
-  const pin = store.getProjectPins().find((p) => p.line !== undefined);
-  assert.ok(pin, "a line pin is created");
-  assert.equal(pin!.line, 10, "the 0-based line 9 became the 1-based line 10");
-  assert.equal(pin!.path, "src/app.ts", "the path is stored folder-relative");
-  assert.equal(pin!.label, "entry point", "the bookmark label becomes the pin label");
+  const shortcut = store.getProjectShortcuts().find((p) => p.line !== undefined);
+  assert.ok(shortcut, "a line pin is created");
+  assert.equal(shortcut!.line, 10, "the 0-based line 9 became the 1-based line 10");
+  assert.equal(shortcut!.path, "src/app.ts", "the path is stored folder-relative");
+  assert.equal(shortcut!.label, "entry point", "the bookmark label becomes the pin label");
 });
 
 test("the legacy $ROOTPATH$ prefix is stripped before resolving the path", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   const json = JSON.stringify({
@@ -103,18 +103,18 @@ test("the legacy $ROOTPATH$ prefix is stripped before resolving the path", async
   const result = await importBookmarks(json, detected(), store, channel);
 
   assert.equal(result.added, 1, "the bookmark imports");
-  const pin = store.getProjectPins().find((p) => p.line !== undefined);
-  assert.ok(pin, "a line pin is created");
-  assert.equal(pin!.path, "lib/util.ts", "the $ROOTPATH$ token and its separator are stripped");
-  // No label on the mark, so the pin falls back to the "basename:line" default.
-  assert.equal(pin!.label, "util.ts:1", "the label falls back to basename:line (line 0 -> 1)");
+  const shortcut = store.getProjectShortcuts().find((p) => p.line !== undefined);
+  assert.ok(shortcut, "a line pin is created");
+  assert.equal(shortcut!.path, "lib/util.ts", "the $ROOTPATH$ token and its separator are stripped");
+  // No label on the mark, so the shortcut falls back to the "basename:line" default.
+  assert.equal(shortcut!.label, "util.ts:1", "the label falls back to basename:line (line 0 -> 1)");
 });
 
 test("a bookmark file outside any workspace folder is reported and skipped", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
-  // An absolute path outside the temp folder cannot become a project line pin.
+  // An absolute path outside the temp folder cannot become a project line shortcut.
   const outside = `${os.tmpdir().replace(/\\/g, "/")}/elsewhere/foreign.ts`;
   const json = JSON.stringify({
     files: [{ path: outside, bookmarks: [{ line: 2 }] }],
@@ -127,14 +127,14 @@ test("a bookmark file outside any workspace folder is reported and skipped", asy
   assert.equal(result.skipped, 1, "the outside-folder file is skipped");
   assert.equal(lines.length, 1, "the skip is reported to the channel");
   assert.equal(
-    store.getProjectPins().filter((p) => p.line !== undefined).length,
+    store.getProjectShortcuts().filter((p) => p.line !== undefined).length,
     0,
     "no line pin is created"
   );
 });
 
 test("re-importing the same bookmarks adds no duplicate line pins (idempotent)", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   const json = JSON.stringify({
@@ -156,17 +156,17 @@ test("re-importing the same bookmarks adds no duplicate line pins (idempotent)",
   const second = await importBookmarks(json, detected(), store, channel);
   assert.equal(second.added, 0, "the second import adds nothing");
 
-  const linePins = store.getProjectPins().filter((p) => p.line !== undefined);
-  assert.equal(linePins.length, 2, "exactly the two line pins exist");
+  const lineShortcuts = store.getProjectShortcuts().filter((p) => p.line !== undefined);
+  assert.equal(lineShortcuts.length, 2, "exactly the two line pins exist");
   assert.deepEqual(
-    linePins.map((p) => p.line).sort((a, b) => (a ?? 0) - (b ?? 0)),
+    lineShortcuts.map((p) => p.line).sort((a, b) => (a ?? 0) - (b ?? 0)),
     [1, 42],
     "the two pins are the 1-based conversions of lines 0 and 41"
   );
 });
 
 test("a malformed bookmarks file imports nothing, logs the error, and does not throw", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel, lines } = fakeChannel();
 
@@ -174,7 +174,7 @@ test("a malformed bookmarks file imports nothing, logs the error, and does not t
 
   assert.deepEqual(result, { added: 0, skipped: 0 });
   assert.equal(
-    store.getProjectPins().filter((p) => p.line !== undefined).length,
+    store.getProjectShortcuts().filter((p) => p.line !== undefined).length,
     0,
     "no line pin is created"
   );

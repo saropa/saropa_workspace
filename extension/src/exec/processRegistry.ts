@@ -1,20 +1,20 @@
 import * as vscode from "vscode";
 import * as cp from "child_process";
 
-// Tracks background child processes started for pins so the tree can show a pin
-// as running and offer a Stop action (roadmap 2.3). Integrated-terminal runs are
-// intentionally NOT tracked here: the terminal owns their lifecycle, and killing
-// them out from under the terminal would be the regression the roadmap warns
-// against. One process per pin id; a relaunch replaces the prior handle.
+// Tracks background child processes started for shortcuts so the tree can show a
+// shortcut as running and offer a Stop action (roadmap 2.3). Integrated-terminal
+// runs are intentionally NOT tracked here: the terminal owns their lifecycle, and
+// killing them out from under the terminal would be the regression the roadmap warns
+// against. One process per shortcut id; a relaunch replaces the prior handle.
 // Graceful stop sends SIGTERM (posix) / taskkill without /F (win) so the process
-// can clean up; if it has not exited after this long, the stop auto-escalates to
-// a forced kill so a wedged process cannot leave the pin stuck "stopping" forever.
+// can clean up; if it has not exited after this long, the stop auto-escalates to a
+// forced kill so a wedged process cannot leave the shortcut stuck "stopping" forever.
 const ESCALATE_AFTER_MS = 4000;
 
 class ProcessRegistry implements vscode.Disposable {
   private readonly running = new Map<string, cp.ChildProcess>();
-  // Pins whose process has been asked to stop but has not exited yet, so the tree
-  // can show a "stopping…" state until the close handler clears it.
+  // Shortcuts whose process has been asked to stop but has not exited yet, so the
+  // tree can show a "stopping…" state until the close handler clears it.
   private readonly stopping = new Set<string>();
   // Pending auto-escalation timers, cleared when the process exits in time.
   private readonly escalateTimers = new Map<string, NodeJS.Timeout>();

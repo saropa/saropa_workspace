@@ -1,7 +1,7 @@
 // Import tests for the cross-project sibling scan (importSiblingFavorites). A
 // sibling's favorite is an absolute path outside the open workspace folder, so it
-// can only become a GLOBAL pin; this file exercises that resolve-and-add path
-// against the REAL PinStore via the fs-backed vscode stub: a kdcro `.favorites.json`
+// can only become a GLOBAL shortcut; this file exercises that resolve-and-add path
+// against the REAL ShortcutStore via the fs-backed vscode stub: a kdcro `.favorites.json`
 // (absolute fsPath File entries, Group/Directory entries filtered out), our own
 // `.vscode/saropa-workspace.json` (paths relative to the sibling folder), a malformed
 // file (imports nothing), and dedup on re-run (the store dedupes by absolute path).
@@ -24,7 +24,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import {
   importSiblingFavorites,
   type SiblingFavorites,
@@ -69,7 +69,7 @@ afterEach(() => {
 });
 
 test("a kdcro sibling file imports its absolute-path File entries as global pins", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   // kdcro stores absolute fsPaths. A Group and a Directory entry are NOT files, so
@@ -87,9 +87,9 @@ test("a kdcro sibling file imports its absolute-path File entries as global pins
   const added = await importSiblingFavorites(sibling("kdcro", ".favorites.json"), store);
 
   assert.equal(added, 2, "only the two File entries import (Group and Directory are skipped)");
-  // A sibling favorite is outside the open folder, so it is a GLOBAL pin storing the
+  // A sibling favorite is outside the open folder, so it is a GLOBAL shortcut storing the
   // absolute path.
-  const globalPaths = store.getGlobalPins().map((p) => p.path.replace(/\\/g, "/"));
+  const globalPaths = store.getGlobalShortcuts().map((p) => p.path.replace(/\\/g, "/"));
   assert.ok(
     globalPaths.includes(`${siblingDirPath}/api/server.ts`),
     "the server file is a global pin at its absolute path"
@@ -101,7 +101,7 @@ test("a kdcro sibling file imports its absolute-path File entries as global pins
 });
 
 test("a kdcro entry with no type is treated as a File", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   // A type-less entry (older kdcro files) carries a fsPath and counts as a File.
@@ -115,7 +115,7 @@ test("a kdcro entry with no type is treated as a File", async () => {
 });
 
 test("a saropa sibling file resolves its relative paths against the sibling folder", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   // Our own format stores folder-relative paths; they join back to the sibling dir
@@ -131,7 +131,7 @@ test("a saropa sibling file resolves its relative paths against the sibling fold
   );
 
   assert.equal(added, 2, "both relative pins resolve and import");
-  const globalPaths = store.getGlobalPins().map((p) => p.path.replace(/\\/g, "/"));
+  const globalPaths = store.getGlobalShortcuts().map((p) => p.path.replace(/\\/g, "/"));
   assert.ok(
     globalPaths.includes(`${siblingDirPath}/src/app.ts`),
     "the relative path joins to the sibling folder as an absolute global pin"
@@ -139,7 +139,7 @@ test("a saropa sibling file resolves its relative paths against the sibling fold
 });
 
 test("a malformed sibling file imports nothing and does not throw", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   nodeFs.writeFileSync(`${siblingDirPath}/.favorites.json`, "{ not valid json");
@@ -149,7 +149,7 @@ test("a malformed sibling file imports nothing and does not throw", async () => 
 });
 
 test("a missing sibling file imports nothing", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   // No file written: the readFile rejects and resolveSiblingUris returns nothing.
@@ -158,7 +158,7 @@ test("a missing sibling file imports nothing", async () => {
 });
 
 test("re-importing the same sibling file adds no duplicate global pins (idempotent)", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
 
   nodeFs.writeFileSync(
@@ -176,7 +176,7 @@ test("re-importing the same sibling file adds no duplicate global pins (idempote
 
   assert.equal(
     store
-      .getGlobalPins()
+      .getGlobalShortcuts()
       .filter((p) => p.path.replace(/\\/g, "/") === `${siblingDirPath}/main.ts`).length,
     1,
     "the global pin exists exactly once"

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
+import { Shortcut } from "../model/shortcut";
 import { promptMemory } from "./promptMemory";
 import { l10n } from "../i18n/l10n";
 
@@ -8,8 +8,8 @@ import { l10n } from "../i18n/l10n";
 // VS Code UI and cannot live in the pure substitution path:
 //   ${prompt:Label}     opens an input box, the label is the prompt text
 //   ${pick:dev,stage}   opens a QuickPick over the comma-separated options
-// One parameterized pin then covers many variants (a branch, an environment, a
-// target) instead of a near-duplicate pin per value.
+// One parameterized shortcut then covers many variants (a branch, an environment, a
+// target) instead of a near-duplicate shortcut per value.
 //
 // Unattended callers (the scheduler) must NOT reach the prompt — they check
 // hasInteractiveTokens and skip, since there is no user to answer a dialog.
@@ -30,24 +30,24 @@ interface InteractiveToken {
 
 // Every string a run is assembled from: the command prefix, each argument, and a
 // custom working directory.
-function runStrings(pin: Pin): string[] {
+function runStrings(shortcut: Shortcut): string[] {
   const out: string[] = [];
-  if (pin.exec?.command) {
-    out.push(pin.exec.command);
+  if (shortcut.exec?.command) {
+    out.push(shortcut.exec.command);
   }
-  if (pin.exec?.args) {
-    out.push(...pin.exec.args);
+  if (shortcut.exec?.args) {
+    out.push(...shortcut.exec.args);
   }
-  if (pin.exec?.cwd) {
-    out.push(pin.exec.cwd);
+  if (shortcut.exec?.cwd) {
+    out.push(shortcut.exec.cwd);
   }
   return out;
 }
 
-// Whether running this pin would require interactive input. The scheduler uses
+// Whether running this shortcut would require interactive input. The scheduler uses
 // this to skip unattended fires that cannot be answered.
-export function hasInteractiveTokens(pin: Pin): boolean {
-  return runStrings(pin).some((s) => {
+export function hasInteractiveTokens(shortcut: Shortcut): boolean {
+  return runStrings(shortcut).some((s) => {
     // .test on a /g regex advances lastIndex; reset so each string starts clean.
     INTERACTIVE_RE.lastIndex = 0;
     return INTERACTIVE_RE.test(s);
@@ -55,9 +55,9 @@ export function hasInteractiveTokens(pin: Pin): boolean {
 }
 
 // Unique interactive tokens across all run strings, in first-seen order.
-function collectInteractiveTokens(pin: Pin): InteractiveToken[] {
+function collectInteractiveTokens(shortcut: Shortcut): InteractiveToken[] {
   const seen = new Map<string, InteractiveToken>();
-  for (const s of runStrings(pin)) {
+  for (const s of runStrings(shortcut)) {
     INTERACTIVE_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = INTERACTIVE_RE.exec(s)) !== null) {
@@ -112,14 +112,14 @@ async function promptForToken(
 // caller must then abort the run with nothing executed (acceptance 7.1: a cancel
 // leaves no partial run). Successful answers are remembered for next time.
 export async function resolveInteractiveTokens(
-  pin: Pin
+  shortcut: Shortcut
 ): Promise<Map<string, string> | undefined> {
-  const tokens = collectInteractiveTokens(pin);
+  const tokens = collectInteractiveTokens(shortcut);
   const values = new Map<string, string>();
   for (const token of tokens) {
     const value = await promptForToken(
       token,
-      promptMemory.getValue(pin.id, token.raw)
+      promptMemory.getValue(shortcut.id, token.raw)
     );
     // Escape / dismiss yields undefined; treat as a cancel of the whole run.
     if (value === undefined) {
@@ -127,23 +127,23 @@ export async function resolveInteractiveTokens(
     }
     values.set(token.raw, value);
   }
-  await promptMemory.remember(pin.id, values);
+  await promptMemory.remember(shortcut.id, values);
   return values;
 }
 
 // Resolve interactive tokens WITHOUT prompting where a previous choice is
-// remembered; prompt only for tokens never answered for this pin. Backs "Run with
-// Last Parameters", the bypass for a parameterized pin you run the same way every
-// time. Returns undefined if a still-needed prompt is canceled; newly entered values
-// are remembered so the next bypass skips them too.
+// remembered; prompt only for tokens never answered for this shortcut. Backs "Run with
+// Last Parameters", the bypass for a parameterized shortcut you run the same way
+// every time. Returns undefined if a still-needed prompt is canceled; newly entered
+// values are remembered so the next bypass skips them too.
 export async function resolveRememberedTokens(
-  pin: Pin
+  shortcut: Shortcut
 ): Promise<Map<string, string> | undefined> {
-  const tokens = collectInteractiveTokens(pin);
+  const tokens = collectInteractiveTokens(shortcut);
   const values = new Map<string, string>();
   const newlyEntered = new Map<string, string>();
   for (const token of tokens) {
-    const last = promptMemory.getValue(pin.id, token.raw);
+    const last = promptMemory.getValue(shortcut.id, token.raw);
     if (last !== undefined) {
       values.set(token.raw, last);
       continue;
@@ -157,19 +157,19 @@ export async function resolveRememberedTokens(
     values.set(token.raw, value);
     newlyEntered.set(token.raw, value);
   }
-  await promptMemory.remember(pin.id, newlyEntered);
+  await promptMemory.remember(shortcut.id, newlyEntered);
   return values;
 }
 
-// Shallow-clone the pin with every interactive token replaced by its resolved
-// value in the command, args, and cwd. The stored pin is untouched — the
+// Shallow-clone the shortcut with every interactive token replaced by its resolved
+// value in the command, args, and cwd. The stored shortcut is untouched — the
 // substitution applies to this run only.
 export function cloneWithResolvedTokens(
-  pin: Pin,
+  shortcut: Shortcut,
   values: Map<string, string>
-): Pin {
-  if (!pin.exec) {
-    return pin;
+): Shortcut {
+  if (!shortcut.exec) {
+    return shortcut;
   }
   const apply = (s: string): string => {
     let out = s;
@@ -179,13 +179,13 @@ export function cloneWithResolvedTokens(
     return out;
   };
   return {
-    ...pin,
+    ...shortcut,
     exec: {
-      ...pin.exec,
+      ...shortcut.exec,
       command:
-        pin.exec.command !== undefined ? apply(pin.exec.command) : undefined,
-      args: pin.exec.args?.map(apply),
-      cwd: pin.exec.cwd !== undefined ? apply(pin.exec.cwd) : undefined,
+        shortcut.exec.command !== undefined ? apply(shortcut.exec.command) : undefined,
+      args: shortcut.exec.args?.map(apply),
+      cwd: shortcut.exec.cwd !== undefined ? apply(shortcut.exec.cwd) : undefined,
     },
   };
 }

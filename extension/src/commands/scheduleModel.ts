@@ -1,4 +1,4 @@
-import { PinSchedule } from "../model/pin";
+import { ShortcutSchedule } from "../model/shortcut";
 
 // Shared, UI-agnostic schedule-edit model used by BOTH the QuickPick wizard
 // (configureSchedule.ts) and the webview form (views/scheduleEditorPanel.ts), so
@@ -17,9 +17,9 @@ export interface WorkSchedule {
   lastRun?: number;
 }
 
-// Seed a working copy from a pin's stored schedule (or a blank, enabled default
-// when the pin has none). Arrays are copied so edits never mutate the stored pin.
-export function workFromSchedule(schedule: PinSchedule | undefined): WorkSchedule {
+// Seed a working copy from a shortcut's stored schedule (or a blank, enabled default
+// when the shortcut has none). Arrays are copied so edits never mutate the stored shortcut.
+export function workFromSchedule(schedule: ShortcutSchedule | undefined): WorkSchedule {
   return {
     atTime: schedule?.atTime,
     days: schedule?.days ? [...schedule.days] : undefined,
@@ -57,11 +57,11 @@ export function applyAutoEnable(
   }
 }
 
-// Collapse a working copy to a stored PinSchedule, or undefined when it carries no
-// timing source (so the pin reads as "not scheduled" rather than holding an inert
+// Collapse a working copy to a stored ShortcutSchedule, or undefined when it carries no
+// timing source (so the shortcut reads as "not scheduled" rather than holding an inert
 // object). runOnStartup is itself a timing source (fires on workspace open), so a
 // startup-only schedule is kept.
-export function normalizeWork(work: WorkSchedule): PinSchedule | undefined {
+export function normalizeWork(work: WorkSchedule): ShortcutSchedule | undefined {
   if (!hasTiming(work)) {
     return undefined;
   }
@@ -75,7 +75,7 @@ export function normalizeWork(work: WorkSchedule): PinSchedule | undefined {
         : undefined,
     everyMs: work.everyMs,
     cron: work.cron,
-    // Store the flag only when on, so a pin that was never a startup pin carries
+    // Store the flag only when on, so a shortcut that was never a startup shortcut carries
     // no inert false.
     runOnStartup: work.runOnStartup ? true : undefined,
     enabled: work.enabled,

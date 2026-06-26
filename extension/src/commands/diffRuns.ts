@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
+import { Shortcut } from "../model/shortcut";
 import { runOutputs, CapturedRun } from "../exec/runOutputs";
 import { l10n } from "../i18n/l10n";
 
@@ -11,7 +11,7 @@ import { l10n } from "../i18n/l10n";
 
 // Read-only virtual document backing the two sides of the diff. A virtual scheme
 // keeps the captured output out of any real file and out of the editor's dirty
-// state. Content is keyed by uri (pin id + which run), refreshed each invocation.
+// state. Content is keyed by uri (shortcut id + which run), refreshed each invocation.
 class RunOutputProvider implements vscode.TextDocumentContentProvider {
   static readonly scheme = "saropa-runoutput";
 
@@ -24,8 +24,8 @@ class RunOutputProvider implements vscode.TextDocumentContentProvider {
     return this.contents.get(uri.toString()) ?? "";
   }
 
-  // Publish one side's text under a stable per-pin/side uri and return that uri.
-  // Re-diffing the same pin reuses the uri and repaints via onDidChange.
+  // Publish one side's text under a stable per-shortcut/side uri and return that uri.
+  // Re-diffing the same shortcut reuses the uri and repaints via onDidChange.
   set(pinId: string, side: "previous" | "latest", text: string): vscode.Uri {
     const uri = vscode.Uri.from({
       scheme: RunOutputProvider.scheme,
@@ -55,19 +55,19 @@ export function registerRunOutputDiff(context: vscode.ExtensionContext): void {
   );
 }
 
-// Open a diff of a pin's last two background-run outputs. When fewer than two runs
-// have been captured (the pin was never run in the background, or only once this
+// Open a diff of a shortcut's last two background-run outputs. When fewer than two runs
+// have been captured (the shortcut was never run in the background, or only once this
 // session), there is nothing to compare, so it says so and does nothing.
-export async function diffLastRuns(pin: Pin): Promise<void> {
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
-  const pair = runOutputs.lastTwo(pin.id);
+export async function diffLastRuns(shortcut: Shortcut): Promise<void> {
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const pair = runOutputs.lastTwo(shortcut.id);
   if (!pair) {
     vscode.window.showInformationMessage(l10n("diffRuns.needTwo", { name }));
     return;
   }
   const [previous, latest] = pair;
-  const left = provider.set(pin.id, "previous", runText(previous));
-  const right = provider.set(pin.id, "latest", runText(latest));
+  const left = provider.set(shortcut.id, "previous", runText(previous));
+  const right = provider.set(shortcut.id, "latest", runText(latest));
   await vscode.commands.executeCommand(
     "vscode.diff",
     left,

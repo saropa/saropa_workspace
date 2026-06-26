@@ -1,18 +1,18 @@
 import * as vscode from "vscode";
-import { PinMetric } from "../model/pin";
+import { ShortcutMetric } from "../model/shortcut";
 import { countLines, formatBytes } from "./metricFormat";
 import { l10n } from "../i18n/l10n";
 
-// Live metric badges for file pins (#24): file size, line count, or last-modified,
+// Live metric badges for file shortcuts (#24): file size, line count, or last-modified,
 // shown inline in the tree and refreshed as the file changes on disk. The point is
 // to watch a build artifact / dump / log shrink or grow without switching to a
 // terminal and typing `ls -lh` — and, when a size threshold is set, to be toasted
 // the moment the file grows past it.
 //
 // PERFORMANCE (the whole design is built around not slowing the editor down):
-//   - OPT-IN ONLY. A pin is watched only when the user explicitly set a metric on
-//     it; a workspace with no metric'd pins arms zero watchers and costs nothing.
-//   - ONE NON-RECURSIVE WATCHER PER METRIC'D PIN, scoped to the single exact file
+//   - OPT-IN ONLY. A shortcut is watched only when the user explicitly set a metric on
+//     it; a workspace with no metric'd shortcuts arms zero watchers and costs nothing.
+//   - ONE NON-RECURSIVE WATCHER PER METRIC'D SHORTCUT, scoped to the single exact file
 //     (a RelativePattern of dir + basename, never `**`). VS Code file watchers are
 //     OS-backed (inotify / ReadDirectoryChangesW), not polling, so an idle watcher
 //     is free.
@@ -23,7 +23,7 @@ import { l10n } from "../i18n/l10n";
 //     cap the badge degrades to showing size, so a multi-GB dump is never read.
 //   - stat, not read, for size / modified — a single cheap syscall.
 //
-// In-memory and per-session like runStatusRegistry / pinBadges: a badge is recomputed
+// In-memory and per-session like runStatusRegistry / shortcutBadges: a badge is recomputed
 // from disk on demand and a fresh window re-measures. The engine owns disposables
 // (the watchers), so it is disposed on deactivation (see extension.ts).
 
@@ -41,7 +41,7 @@ const DEBOUNCE_MS = 400;
 // changes, so it is precomputed; "modified" carries the raw mtime and is formatted
 // relative at paint time so it never goes stale between repaints (5 min -> 1 hour).
 export interface MetricBadge {
-  kind: PinMetric["kind"];
+  kind: ShortcutMetric["kind"];
   // size / lines: the formatted value ("245 KB", "1,203 lines"). Undefined for the
   // "modified" kind (which uses mtime instead).
   text?: string;
@@ -52,42 +52,42 @@ export interface MetricBadge {
   over: boolean;
 }
 
-// A pin the provider asks the engine to watch: its id, a display name (for the
+// A shortcut the provider asks the engine to watch: its id, a display name (for the
 // over-threshold toast), the resolved file URI, and the metric to compute.
 export interface MetricTarget {
   pinId: string;
   name: string;
   uri: vscode.Uri;
-  metric: PinMetric;
+  metric: ShortcutMetric;
 }
 
-// Per-watched-pin live state: the watcher to dispose, the URI + metric it was armed
+// Per-watched-shortcut live state: the watcher to dispose, the URI + metric it was armed
 // for (so a changed target re-arms), a pending debounce timer, and the last over
 // state (undefined = not yet measured, so the first measure never toasts).
 interface Entry {
   name: string;
   uri: vscode.Uri;
-  metric: PinMetric;
+  metric: ShortcutMetric;
   watcher: vscode.FileSystemWatcher;
   debounce?: ReturnType<typeof setTimeout>;
   lastOver?: boolean;
 }
 
 class MetricBadgeRegistry implements vscode.Disposable {
-  private readonly byPin = new Map<string, Entry>();
+  private readonly byShortcut = new Map<string, Entry>();
   private readonly badges = new Map<string, MetricBadge>();
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
 
-  // Reconcile the set of watched pins against the current metric'd pins. Arms a
-  // watcher for a newly-metric'd pin, re-arms one whose file or metric changed, and
+  // Reconcile the set of watched shortcuts against the current metric'd shortcuts. Arms a
+  // watcher for a newly-metric'd shortcut, re-arms one whose file or metric changed, and
   // disposes one no longer metric'd — so watchers exactly track the opted-in set and
   // never leak. Called on every store change (cheap: a no-op when nothing changed).
   track(targets: MetricTarget[]): void {
     const wanted = new Map(targets.map((t) => [t.pinId, t]));
 
-    // Drop watchers for pins that are no longer metric'd (or vanished).
-    for (const [pinId, entry] of this.byPin) {
+    // Drop watchers for shortcuts that are no longer metric'd (or vanished).
+    for (const [pinId, entry] of this.byShortcut) {
       if (!wanted.has(pinId)) {
         this.disposeEntry(pinId, entry);
       }
@@ -95,10 +95,10 @@ class MetricBadgeRegistry implements vscode.Disposable {
 
     // Add or re-arm watchers for the wanted set.
     for (const target of targets) {
-      const existing = this.byPin.get(target.pinId);
+      const existing = this.byShortcut.get(target.pinId);
       if (existing && this.sameTarget(existing, target)) {
         // Unchanged: keep the live watcher and its measured badge (avoids churn on
-        // an unrelated refresh — e.g. another pin added).
+        // an unrelated refresh — e.g. another shortcut added).
         existing.name = target.name;
         continue;
       }
@@ -114,7 +114,7 @@ class MetricBadgeRegistry implements vscode.Disposable {
   }
 
   dispose(): void {
-    for (const [pinId, entry] of this.byPin) {
+    for (const [pinId, entry] of this.byShortcut) {
       this.disposeEntry(pinId, entry);
     }
     this._onDidChange.dispose();
@@ -146,7 +146,7 @@ class MetricBadgeRegistry implements vscode.Disposable {
       metric: target.metric,
       watcher,
     };
-    this.byPin.set(target.pinId, entry);
+    this.byShortcut.set(target.pinId, entry);
     // A create / change / delete on the file all schedule a (debounced) re-measure.
     const onEvent = (): void => this.scheduleMeasure(target.pinId);
     watcher.onDidChange(onEvent);
@@ -158,7 +158,7 @@ class MetricBadgeRegistry implements vscode.Disposable {
 
   // Coalesce a burst of file-change events into one measurement after a quiet window.
   private scheduleMeasure(pinId: string): void {
-    const entry = this.byPin.get(pinId);
+    const entry = this.byShortcut.get(pinId);
     if (!entry) {
       return;
     }
@@ -175,7 +175,7 @@ class MetricBadgeRegistry implements vscode.Disposable {
   // fires only on the under->over threshold crossing, and never on the first measure
   // (so opening a workspace with an already-over file shows the red badge silently).
   private async measure(pinId: string): Promise<void> {
-    const entry = this.byPin.get(pinId);
+    const entry = this.byShortcut.get(pinId);
     if (!entry) {
       return;
     }
@@ -247,7 +247,7 @@ class MetricBadgeRegistry implements vscode.Disposable {
       clearTimeout(entry.debounce);
     }
     entry.watcher.dispose();
-    this.byPin.delete(pinId);
+    this.byShortcut.delete(pinId);
     this.badges.delete(pinId);
   }
 }

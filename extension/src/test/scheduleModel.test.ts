@@ -1,7 +1,7 @@
 // Unit tests for the shared schedule-edit model (scheduleModel.ts) — the UI-agnostic
 // normalize / auto-enable / has-timing logic that BOTH the QuickPick wizard and the
 // webview form route through, so the two surfaces can never diverge. These functions
-// carry no VS Code dependency (they import only the PinSchedule type), so they run
+// carry no VS Code dependency (they import only the ShortcutSchedule type), so they run
 // under Node's built-in runner without the extension host.
 
 import { test } from "node:test";
@@ -45,7 +45,7 @@ test("workFromSchedule copies the day array so edits do not mutate the stored pi
   const work = workFromSchedule(stored);
   assert.deepEqual(work.days, [1, 2, 3]);
   work.days?.push(4);
-  // The source array must be untouched — a shared reference would corrupt the pin.
+  // The source array must be untouched — a shared reference would corrupt the shortcut.
   assert.deepEqual(stored.days, [1, 2, 3]);
 });
 

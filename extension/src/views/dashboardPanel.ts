@@ -14,12 +14,12 @@ import {
   readDebtTrend,
   validateReportPath,
 } from "../exec/trendReports";
-import { PinStore } from "../model/pinStore";
-import { Pin } from "../model/pin";
+import { ShortcutStore } from "../model/shortcutStore";
+import { Shortcut } from "../model/shortcut";
 import { telemetry } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
-import { recentTag } from "./pinRowFormatting";
+import { recentTag } from "./shortcutRowFormatting";
 import { PANEL_STYLE, PANEL_SCRIPT } from "./dashboardAssets";
 
 // The tabs the dashboard exposes. Webview-local selection; the host loads the data
@@ -27,9 +27,9 @@ import { PANEL_STYLE, PANEL_SCRIPT } from "./dashboardAssets";
 // process poll only runs while the Processes tab is showing.
 type DashboardTab = "processes" | "analytics" | "trends";
 
-// How many most-run pins / report files / trend samples to surface, so a heavy
+// How many most-run shortcuts / report files / trend samples to surface, so a heavy
 // user's dashboard stays scannable rather than unbounded.
-const TOP_PINS = 10;
+const TOP_SHORTCUTS = 10;
 const TREND_SAMPLES = 60;
 const DEBT_SAMPLES = 20;
 const RECENT_REPORTS = 8;
@@ -55,8 +55,8 @@ export class DashboardPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly disposables: vscode.Disposable[] = [];
-  // The store backs the Analytics tab (resolving recorded pin ids to display names).
-  private readonly store: PinStore;
+  // The store backs the Analytics tab (resolving recorded shortcut ids to display names).
+  private readonly store: ShortcutStore;
   // The most recent process poll, reused by Copy report / the snapshot so the
   // clipboard content matches exactly what the Processes tab last rendered.
   private lastResult: PollResult | undefined;
@@ -68,7 +68,7 @@ export class DashboardPanel {
 
   static show(
     context: vscode.ExtensionContext,
-    store: PinStore,
+    store: ShortcutStore,
     tab: DashboardTab = "processes"
   ): void {
     const column = vscode.window.activeTextEditor?.viewColumn;
@@ -88,7 +88,7 @@ export class DashboardPanel {
     DashboardPanel.current = new DashboardPanel(panel, store, tab);
   }
 
-  private constructor(panel: vscode.WebviewPanel, store: PinStore, initialTab: DashboardTab) {
+  private constructor(panel: vscode.WebviewPanel, store: ShortcutStore, initialTab: DashboardTab) {
     this.panel = panel;
     this.store = store;
     this.activeTab = initialTab;
@@ -251,7 +251,7 @@ export class DashboardPanel {
     }
     const counts = telemetry.counts();
     const recent = telemetry.recent();
-    const pinsRun = Object.keys(counts).length;
+    const shortcutsRun = Object.keys(counts).length;
     const totalRuns = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
     if (totalRuns === 0 && recent.length === 0) {
@@ -266,24 +266,25 @@ export class DashboardPanel {
     const mostRun = Object.entries(counts)
       .filter(([, n]) => n > 0)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, TOP_PINS)
-      .map(([pinId, n]) => ({
-        name: this.nameFor(pinId),
+      .slice(0, TOP_SHORTCUTS)
+      .map(([shortcutId, n]) => ({
+        name: this.nameFor(shortcutId),
         sub: l10n("analytics.runsLabel", { count: n }),
       }));
 
     const session = runStatusRegistry
       .entries()
       .sort(([, a], [, b]) => b.endedAt - a.endedAt)
-      .map(([pinId, result]) => ({
-        name: this.nameFor(pinId),
+      .map(([shortcutId, result]) => ({
+        name: this.nameFor(shortcutId),
         detail: this.sessionLabel(result),
         ok: result.outcome === "success",
       }));
 
     const now = Date.now();
     const recentList = recent.map((record) => ({
-      name: this.nameFor(record.pinId),
+      name: this.nameFor(record.pinId), // pinId: serialized telemetry-record field — wire token, keep literal
+
       ago: this.relativeTime(now, record.at),
       tag: recentTag(record),
     }));
@@ -292,7 +293,7 @@ export class DashboardPanel {
       type: "analytics",
       enabled: true,
       totals: {
-        pins: l10n("analytics.pinsRun", { count: pinsRun }),
+        shortcuts: l10n("analytics.pinsRun", { count: shortcutsRun }),
         runs: l10n("analytics.totalRuns", { count: totalRuns }),
       },
       mostRun,
@@ -301,14 +302,15 @@ export class DashboardPanel {
     });
   }
 
-  // Resolve a recorded pin id to a human display name; a run can outlive the pin that
-  // produced it, so fall back to a clear marker rather than leaking the opaque id.
-  private nameFor(pinId: string): string {
-    const pin: Pin | undefined = this.store.findPin(pinId);
-    if (!pin) {
+  // Resolve a recorded shortcut id to a human display name; a run can outlive the
+  // shortcut that produced it, so fall back to a clear marker rather than leaking the
+  // opaque id.
+  private nameFor(shortcutId: string): string {
+    const shortcut: Shortcut | undefined = this.store.findShortcut(shortcutId);
+    if (!shortcut) {
       return l10n("analytics.unknownPin");
     }
-    return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+    return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   }
 
   private sessionLabel(result: RunResult): string {

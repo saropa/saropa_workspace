@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import {
   detectFavoritesFiles,
   detectSettingsFavoritesCount,
@@ -10,7 +10,7 @@ import {
   SiblingFavorites,
 } from "../import/favoritesImport";
 import { l10n } from "../i18n/l10n";
-import { pinCommandRegistrar } from "./registerHelpers";
+import { shortcutCommandRegistrar } from "./registerHelpers";
 
 // The favorites-import command registrations, split out of pinManagementCommands so
 // that file stays under the size cap. Two user-invoked entry points: import every
@@ -18,9 +18,9 @@ import { pinCommandRegistrar } from "./registerHelpers";
 // favorites files. Both name every source they drew from in the result toast.
 export function registerFavoritesImportCommands(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): void {
-  const { reg } = pinCommandRegistrar(context);
+  const { reg } = shortcutCommandRegistrar(context);
 
   reg("saropaWorkspace.importFavorites", async () => {
     const detected = await detectFavoritesFiles();
@@ -32,7 +32,7 @@ export function registerFavoritesImportCommands(
     }
     const result = await importAllDetected(store);
     // Name every source the import drew from (files plus the settings keys) so the
-    // toast tells the user exactly where the pins came from.
+    // toast tells the user exactly where the shortcuts came from.
     const sources = [
       ...detected.map((d) => d.fileName),
       ...(settingsCount > 0 ? ["favorites.resources"] : []),
@@ -66,7 +66,7 @@ export function registerFavoritesImportCommands(
   });
 
   // Scan immediate sibling projects (one directory level up) for favorites files
-  // and import the user's selection as GLOBAL pins. Explicit and user-invoked, so
+  // and import the user's selection as GLOBAL shortcuts. Explicit and user-invoked, so
   // cross-project disk reads only happen on demand.
   reg("saropaWorkspace.scanSiblingFavorites", async () => {
     const found = await detectSiblingFavorites();

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as crypto from "crypto";
-import { Pin } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { nextOccurrence, parseCron, parseHourMinute } from "../exec/schedule";
 import {
   WorkSchedule,
@@ -15,7 +15,7 @@ import {
 } from "./scheduleEditorAssets";
 import { l10n } from "../i18n/l10n";
 
-// The Schedule editor webview — a single-screen form to set ONE pin's schedule
+// The Schedule editor webview — a single-screen form to set ONE shortcut's schedule
 // (daily time, days, repeat interval, cron, run-on-open, enabled) with every field
 // visible at once, inline descriptions, and a live "next run" preview. It is the
 // default "Configure Schedule..."; the keyboard-only QuickPick wizard stays reachable
@@ -25,12 +25,13 @@ import { l10n } from "../i18n/l10n";
 // Local-only and safe (the native-first / webview rules): a strict CSP with a
 // per-load nonce, no remote or bundled resource, themed entirely via --vscode-*
 // variables. Save routes through the same store method the tree and QuickPick use, so
-// it re-arms the scheduler without a reload, and reports a toast that names the pin
-// and its next run. A second open reuses the one panel, repointed at the new pin.
+// it re-arms the scheduler without a reload, and reports a toast that names the
+// shortcut and its next run. A second open reuses the one panel, repointed at the new
+// shortcut.
 
-// Last-used timing, remembered across pins so scheduling a second pin starts from the
-// values you just used rather than blank. Stored in globalState (machine-wide, like
-// other cross-workspace preferences here).
+// Last-used timing, remembered across shortcuts so scheduling a second shortcut starts
+// from the values you just used rather than blank. Stored in globalState (machine-wide,
+// like other cross-workspace preferences here).
 interface ScheduleDefaults {
   atTime?: string;
   everyMs?: number;
@@ -65,22 +66,24 @@ const HOUR_MS = 60 * MIN_MS;
 const DAY_MS = 24 * HOUR_MS;
 const MINUTES_PER_DAY = 24 * 60;
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
-// Cap on how many clashing pin names to spell out before collapsing to "+N more",
+// Cap on how many clashing shortcut names to spell out before collapsing to "+N more",
 // so a busy time slot does not produce an unreadable wall of names.
 const MAX_NAMED = 3;
 
-// One other scheduled pin placed on the 24-hour strip: its name and its daily time
-// as minutes-of-day. Sent to the client as {n, m} (terse keys keep the payload small).
+// One other scheduled shortcut placed on the 24-hour strip: its name and its daily
+// time as minutes-of-day. Sent to the client as {n, m} (terse keys keep the payload
+// small).
 interface Neighbor {
   name: string;
   minutes: number;
   days: number[];
 }
 
-// What the "Around your schedule" card renders: this pin's daily time (minutes, or
-// null when it has none), the other daily-scheduled pins as ticks, a same-minute
-// conflict warning, a free-gap note, and the gap's bounds for the visual band. The
-// two prose lines are localized host-side so the client carries no display strings.
+// What the "Around your schedule" card renders: this shortcut's daily time (minutes,
+// or null when it has none), the other daily-scheduled shortcuts as ticks, a
+// same-minute conflict warning, a free-gap note, and the gap's bounds for the visual
+// band. The two prose lines are localized host-side so the client carries no display
+// strings.
 interface Insights {
   mine: number | null;
   neighbors: Array<{ n: string; m: number }>;
@@ -95,39 +98,39 @@ export class ScheduleEditorPanel {
   private static readonly viewType = "saropaWorkspace.scheduleEditor";
 
   private readonly disposables: vscode.Disposable[] = [];
-  // The pin being edited; re-read from the store on save in case it changed.
-  private pinId: string;
+  // The shortcut being edited; re-read from the store on save in case it changed.
+  private shortcutId: string;
 
-  static show(context: vscode.ExtensionContext, store: PinStore, pin: Pin): void {
-    // Auto-pins are recomputed each refresh and never stored, so a schedule cannot
-    // persist on them — same guard as the QuickPick editor.
-    if (pin.isAuto) {
+  static show(context: vscode.ExtensionContext, store: ShortcutStore, shortcut: Shortcut): void {
+    // Auto-shortcuts are recomputed each refresh and never stored, so a schedule
+    // cannot persist on them — same guard as the QuickPick editor.
+    if (shortcut.isAuto) {
       vscode.window.showWarningMessage(l10n("schedule.autoUnsupported"));
       return;
     }
     const column = vscode.window.activeTextEditor?.viewColumn;
     if (ScheduleEditorPanel.current) {
-      ScheduleEditorPanel.current.repoint(pin);
+      ScheduleEditorPanel.current.repoint(shortcut);
       ScheduleEditorPanel.current.panel.reveal(column);
       return;
     }
     const panel = vscode.window.createWebviewPanel(
       ScheduleEditorPanel.viewType,
-      l10n("scheduleEditor.title", { name: pinName(pin) }),
+      l10n("scheduleEditor.title", { name: shortcutName(shortcut) }),
       column ?? vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true }
     );
-    ScheduleEditorPanel.current = new ScheduleEditorPanel(panel, context, store, pin);
+    ScheduleEditorPanel.current = new ScheduleEditorPanel(panel, context, store, shortcut);
   }
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     private readonly context: vscode.ExtensionContext,
-    private readonly store: PinStore,
-    pin: Pin
+    private readonly store: ShortcutStore,
+    shortcut: Shortcut
   ) {
-    this.pinId = pin.id;
-    this.panel.webview.html = this.renderShell(pin);
+    this.shortcutId = shortcut.id;
+    this.panel.webview.html = this.renderShell(shortcut);
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
       (message: unknown) => void this.onMessage(message),
@@ -136,21 +139,21 @@ export class ScheduleEditorPanel {
     );
   }
 
-  // Reuse the open panel for a different pin: repoint, rebuild the form, retitle.
-  private repoint(pin: Pin): void {
-    this.pinId = pin.id;
-    this.panel.title = l10n("scheduleEditor.title", { name: pinName(pin) });
-    this.panel.webview.html = this.renderShell(pin);
+  // Reuse the open panel for a different shortcut: repoint, rebuild the form, retitle.
+  private repoint(shortcut: Shortcut): void {
+    this.shortcutId = shortcut.id;
+    this.panel.title = l10n("scheduleEditor.title", { name: shortcutName(shortcut) });
+    this.panel.webview.html = this.renderShell(shortcut);
   }
 
   // ---- initial working copy --------------------------------------------
 
-  // Seed the form for a pin: its stored schedule, or a blank-but-enabled default
-  // pre-filled with the last-used time/interval so a second pin starts where the
+  // Seed the form for a shortcut: its stored schedule, or a blank-but-enabled default
+  // pre-filled with the last-used time/interval so a second shortcut starts where the
   // previous one left off (the "remember previous settings" ask).
-  private initialWork(pin: Pin): WorkSchedule {
-    const work = workFromSchedule(pin.schedule);
-    if (!pin.schedule) {
+  private initialWork(shortcut: Shortcut): WorkSchedule {
+    const work = workFromSchedule(shortcut.schedule);
+    if (!shortcut.schedule) {
       const defaults = this.context.globalState.get<ScheduleDefaults>(DEFAULTS_KEY);
       if (defaults?.atTime) {
         work.atTime = defaults.atTime;
@@ -194,13 +197,13 @@ export class ScheduleEditorPanel {
   }
 
   private async postInit(): Promise<void> {
-    const pin = this.store.findPin(this.pinId);
-    if (!pin) {
+    const shortcut = this.store.findShortcut(this.shortcutId);
+    if (!shortcut) {
       return;
     }
     await this.panel.webview.postMessage({
       type: "init",
-      work: this.initialWork(pin),
+      work: this.initialWork(shortcut),
     });
   }
 
@@ -223,11 +226,12 @@ export class ScheduleEditorPanel {
     });
   }
 
-  // Place this pin's daily time against every other enabled, daily-scheduled pin: a
-  // 24-hour strip of neighbor ticks, a same-minute conflict warning (two pins firing
-  // in the same minute contend for CPU), and the largest free gap in the day. Cron and
-  // interval pins have no single clock time, so they are not plotted here; this view is
-  // about the daily-time landscape, which is what "conflicts and gaps" most concerns.
+  // Place this shortcut's daily time against every other enabled, daily-scheduled
+  // shortcut: a 24-hour strip of neighbor ticks, a same-minute conflict warning (two
+  // shortcuts firing in the same minute contend for CPU), and the largest free gap in
+  // the day. Cron and interval shortcuts have no single clock time, so they are not
+  // plotted here; this view is about the daily-time landscape, which is what "conflicts
+  // and gaps" most concerns.
   private buildInsights(work: WireWork): Insights {
     const mineParsed = work.atTime ? parseHourMinute(work.atTime) : undefined;
     const mine = mineParsed ? mineParsed.hour * 60 + mineParsed.minute : null;
@@ -235,12 +239,12 @@ export class ScheduleEditorPanel {
       work.days && work.days.length > 0 ? work.days : ALL_DAYS;
 
     const neighbors: Neighbor[] = [];
-    for (const pin of [
-      ...this.store.getProjectPins(),
-      ...this.store.getGlobalPins(),
+    for (const shortcut of [
+      ...this.store.getProjectShortcuts(),
+      ...this.store.getGlobalShortcuts(),
     ]) {
-      const schedule = pin.schedule;
-      if (pin.id === this.pinId || !schedule?.enabled || !schedule.atTime) {
+      const schedule = shortcut.schedule;
+      if (shortcut.id === this.shortcutId || !schedule?.enabled || !schedule.atTime) {
         continue;
       }
       const parsed = parseHourMinute(schedule.atTime);
@@ -248,7 +252,7 @@ export class ScheduleEditorPanel {
         continue;
       }
       neighbors.push({
-        name: pinName(pin),
+        name: shortcutName(shortcut),
         minutes: parsed.hour * 60 + parsed.minute,
         days:
           schedule.days && schedule.days.length > 0 ? schedule.days : ALL_DAYS,
@@ -263,7 +267,7 @@ export class ScheduleEditorPanel {
     };
   }
 
-  // Names of other pins firing in the SAME minute on an overlapping weekday, as a
+  // Names of other shortcuts firing in the SAME minute on an overlapping weekday, as a
   // localized warning — or '' when nothing clashes.
   private conflictText(
     mine: number | null,
@@ -287,8 +291,8 @@ export class ScheduleEditorPanel {
 
   // The largest stretch of the day with no daily run, as a localized note plus the
   // gap's bounds for the visual band. Needs at least two distinct times to be
-  // meaningful; with only this pin (no daily neighbors) it reports "nothing else", and
-  // with no daily time at all it prompts to add one.
+  // meaningful; with only this shortcut (no daily neighbors) it reports "nothing else",
+  // and with no daily time at all it prompts to add one.
   private gapInfo(
     mine: number | null,
     neighbors: Neighbor[]
@@ -355,15 +359,15 @@ export class ScheduleEditorPanel {
 
   // Persist the form: auto-enable when it has timing, normalize, write through the
   // store (which re-arms the scheduler), remember the timing as defaults, report a
-  // toast that names the pin and its next run, and close.
+  // toast that names the shortcut and its next run, and close.
   private async save(wire: WireWork, enabledTouched: boolean): Promise<void> {
-    const pin = this.store.findPin(this.pinId);
-    if (!pin) {
+    const shortcut = this.store.findShortcut(this.shortcutId);
+    if (!shortcut) {
       vscode.window.showWarningMessage(l10n("scheduleEditor.gone"));
       this.panel.dispose();
       return;
     }
-    const prior = pin.schedule;
+    const prior = shortcut.schedule;
     const work: WorkSchedule = {
       atTime: wire.atTime,
       days: wire.days,
@@ -377,10 +381,10 @@ export class ScheduleEditorPanel {
     applyAutoEnable(work, enabledTouched);
 
     const schedule = normalizeWork(work);
-    await this.store.updatePinSchedule(pin, schedule);
+    await this.store.updateShortcutSchedule(shortcut, schedule);
     await this.rememberDefaults(work);
 
-    const name = pinName(pin);
+    const name = shortcutName(shortcut);
     if (!schedule) {
       vscode.window.showInformationMessage(l10n("scheduleEditor.cleared", { name }));
     } else if (!schedule.enabled) {
@@ -402,7 +406,7 @@ export class ScheduleEditorPanel {
 
   private async rememberDefaults(work: WorkSchedule): Promise<void> {
     // Only remember positive timing values; clearing a field should not wipe the
-    // remembered default for the next pin.
+    // remembered default for the next shortcut.
     const defaults: ScheduleDefaults = {
       atTime: work.atTime,
       everyMs: work.everyMs,
@@ -415,7 +419,7 @@ export class ScheduleEditorPanel {
 
   // ---- shell ------------------------------------------------------------
 
-  private renderShell(pin: Pin): string {
+  private renderShell(shortcut: Shortcut): string {
     const nonce = crypto.randomBytes(16).toString("base64");
     const csp = [
       "default-src 'none'",
@@ -423,7 +427,7 @@ export class ScheduleEditorPanel {
       "style-src 'unsafe-inline'",
       `script-src 'nonce-${nonce}'`,
     ].join("; ");
-    const title = l10n("scheduleEditor.title", { name: pinName(pin) });
+    const title = l10n("scheduleEditor.title", { name: shortcutName(shortcut) });
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -439,7 +443,7 @@ export class ScheduleEditorPanel {
   <div class="glyph">&#x1F551;</div>
   <div class="htext">
     <h1>${esc(title)}</h1>
-    <div class="sub">${esc(l10n("scheduleEditor.subtitle", { name: pinName(pin) }))}</div>
+    <div class="sub">${esc(l10n("scheduleEditor.subtitle", { name: shortcutName(shortcut) }))}</div>
   </div>
 </div>
 
@@ -565,12 +569,12 @@ ${this.aroundCard()}
 </div>`;
   }
 
-  // "Around your schedule": a 24-hour strip showing how this pin's daily time sits
-  // against the other scheduled pins, a same-minute conflict warning, and the largest
-  // free gap. The track contents (ticks, this pin's marker, the gap band) are drawn by
-  // the client from the host's insights payload; the hour rail and the prose rows are
-  // host-rendered. Hour labels are 24-hour numerals (locale-neutral), so they need no
-  // catalog key.
+  // "Around your schedule": a 24-hour strip showing how this shortcut's daily time sits
+  // against the other scheduled shortcuts, a same-minute conflict warning, and the
+  // largest free gap. The track contents (ticks, this shortcut's marker, the gap band)
+  // are drawn by the client from the host's insights payload; the hour rail and the
+  // prose rows are host-rendered. Hour labels are 24-hour numerals (locale-neutral), so
+  // they need no catalog key.
   private aroundCard(): string {
     const hours = [0, 6, 12, 18, 24]
       .map(
@@ -601,9 +605,9 @@ ${this.aroundCard()}
   }
 }
 
-// The display name for a pin, falling back to its file basename.
-function pinName(pin: Pin): string {
-  return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+// The display name for a shortcut, falling back to its file basename.
+function shortcutName(shortcut: Shortcut): string {
+  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
 // Whether two weekday sets share any day (an empty set already means "every day" by
@@ -613,7 +617,7 @@ function daysOverlap(a: number[], b: number[]): boolean {
   return b.some((d) => set.has(d));
 }
 
-// Join clashing pin names for the conflict warning, collapsing a long list to the
+// Join clashing shortcut names for the conflict warning, collapsing a long list to the
 // first few plus a localized "+N more" so a busy slot stays readable.
 function formatNames(names: string[]): string {
   if (names.length <= MAX_NAMED) {
@@ -643,8 +647,8 @@ function formatSpan(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-// Escape text destined for an HTML text node or a double-quoted attribute, so a pin
-// label or cron string can never inject markup into the webview.
+// Escape text destined for an HTML text node or a double-quoted attribute, so a
+// shortcut label or cron string can never inject markup into the webview.
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => {
     switch (c) {

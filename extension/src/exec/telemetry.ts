@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
 
-// Local, on-device run telemetry (roadmap 3.3). Records every pin run — manual or
+// Local, on-device run telemetry (roadmap 3.3). Records every shortcut run — manual or
 // scheduled — so the sidebar's Recent group can list last-called items and the
-// "Run Pin..." palette can surface frequent runs first.
+// "Run Shortcut..." palette can surface frequent runs first.
 //
 // ON-DEVICE ONLY: stored in extension globalState (rides VS Code Settings Sync
-// like the global pins), NEVER transmitted — see the "No remote telemetry"
+// like the global shortcuts), NEVER transmitted — see the "No remote telemetry"
 // principle. Collection can be turned off (saropaWorkspace.telemetry.enabled) and
 // the whole history reset (the "Reset Run History" command). When disabled,
 // record() is a no-op and the Recent group is hidden; existing data is left in
@@ -30,11 +30,11 @@ export interface RunRecord {
 }
 
 interface TelemetryData {
-  // Most-recent-first, de-duplicated by pinId (a re-run moves the pin to the
+  // Most-recent-first, de-duplicated by pinId (a re-run moves the shortcut to the
   // front and refreshes its timestamp). Bounded so it cannot grow without limit.
   recent: RunRecord[];
-  // Per-pin lifetime run count, keyed by pin id. Survives recent-list eviction,
-  // so the count is a true total, not just "within the last N runs".
+  // Per-shortcut lifetime run count, keyed by shortcut id. Survives recent-list
+  // eviction, so the count is a true total, not just "within the last N runs".
   counts: Record<string, number>;
 }
 
@@ -67,8 +67,8 @@ class Telemetry {
       .get<boolean>("telemetry.enabled", true);
   }
 
-  // Ordered, de-duplicated pin ids, most-recent first. Used by the "Run Pin..."
-  // palette to list recents above the full set.
+  // Ordered, de-duplicated shortcut ids, most-recent first. Used by the "Run
+  // Shortcut..." palette to list recents above the full set.
   list(): string[] {
     return this.read().recent.map((r) => r.pinId);
   }
@@ -78,21 +78,21 @@ class Telemetry {
     return this.read().recent;
   }
 
-  // Lifetime run count for a pin (0 if never run / after a reset).
+  // Lifetime run count for a shortcut (0 if never run / after a reset).
   count(pinId: string): number {
     return this.read().counts[pinId] ?? 0;
   }
 
-  // A copy of the lifetime per-pin run counts, keyed by pin id. Read by the run-
-  // analytics summary to rank most-run pins and total runs. Copied so a caller
-  // cannot mutate the stored data through the returned object.
+  // A copy of the lifetime per-shortcut run counts, keyed by shortcut id. Read by
+  // the run-analytics summary to rank most-run shortcuts and total runs. Copied so
+  // a caller cannot mutate the stored data through the returned object.
   counts(): Record<string, number> {
     return { ...this.read().counts };
   }
 
   // Record a run. Gated on enabled() so a disabled user collects nothing. Moves
-  // the pin to the front of recents, refreshes its timestamp, and increments its
-  // lifetime count.
+  // the shortcut to the front of recents, refreshes its timestamp, and increments
+  // its lifetime count.
   async record(pinId: string, source: RunSource): Promise<void> {
     if (!this.context || !this.enabled()) {
       return;
@@ -108,8 +108,8 @@ class Telemetry {
     this._onDidChange.fire();
   }
 
-  // Record a pin OPEN (single-click file open). Lands the pin at the front of the
-  // Recent list so a just-opened file is one click from re-opening, WITHOUT
+  // Record a shortcut OPEN (single-click file open). Lands the shortcut at the front
+  // of the Recent list so a just-opened file is one click from re-opening, WITHOUT
   // touching `counts`: an open is not a run, so it must never inflate the lifetime
   // run total or the "most-run" ranking. De-duplicated by pinId like record(), and
   // gated on enabled() so a disabled user records nothing. `source` is "manual"
@@ -121,9 +121,9 @@ class Telemetry {
     }
     const data = this.read();
     // Already the most-recent open: re-recording would only rewrite the same front
-    // row and fire a needless tree repaint. A single pin click both opens the file
-    // (this) and fires the editor-focus listener (which also records the open), and
-    // switching back to an already-front file repeats it — collapse all of those to
+    // row and fire a needless tree repaint. A single shortcut click both opens the
+    // file (this) and fires the editor-focus listener (which also records the open),
+    // and switching back to an already-front file repeats it — collapse all of those to
     // a no-op so the steady state does not thrash globalState or the tree.
     const front = data.recent[0];
     if (front && front.pinId === pinId && front.kind === "opened") {
@@ -148,10 +148,10 @@ class Telemetry {
   }
 
   // Recent group open/closed posture, persisted so it stays the way the user left
-  // it. Default COLLAPSED — the Pins/Recipes views are the primary surface, so
+  // it. Default COLLAPSED — the Shortcuts/Recipes views are the primary surface, so
   // Recent starts out of the way and expands only when the user opens it (the
-  // gesture is then remembered). A first-run user sees their own pins first, not a
-  // run-history list pushing them down.
+  // gesture is then remembered). A first-run user sees their own shortcuts first, not
+  // a run-history list pushing them down.
   recentExpanded(): boolean {
     return this.context?.globalState.get<boolean>(RECENT_EXPANDED_KEY, false) ?? false;
   }

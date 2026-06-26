@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { Pin, PinExecConfig, RunLocation } from "../model/pin";
+import { Shortcut, ShortcutExecConfig, RunLocation } from "../model/shortcut";
 import { processRegistry } from "./processRegistry";
 import { isConcurrencyBlocked } from "./concurrency";
 import * as runLock from "./runLock";
@@ -14,8 +14,8 @@ import {
 import { l10n } from "../i18n/l10n";
 
 // Pure run planning + the single-instance guard. No process launching happens here:
-// these turn a pin + target into a concrete RunPlan (command line, cwd, env, where
-// it runs) and decide whether a fresh run may start. Kept free of the terminal /
+// these turn a shortcut + target into a concrete RunPlan (command line, cwd, env,
+// where it runs) and decide whether a fresh run may start. Kept free of the terminal /
 // background / external launchers so the assembly path is the one source of truth
 // the scheduler's log line and the dry-run audit share with an actual run.
 
@@ -70,35 +70,35 @@ function interpreterDefaults(): Record<string, string> {
 // then defers the precedence decision to the pure resolveInterpreter so the
 // fallback order is unit-testable without the host. Empty result means "run
 // directly".
-function resolveCommandPrefix(pin: Pin, fsPath: string): string {
+function resolveCommandPrefix(shortcut: Shortcut, fsPath: string): string {
   return resolveInterpreter({
-    explicitCommand: pin.exec?.command,
+    explicitCommand: shortcut.exec?.command,
     ext: path.extname(fsPath).toLowerCase(),
     defaults: interpreterDefaults(),
     shebang: shebangInterpreter(fsPath),
   });
 }
 
-// Whether running this pin makes sense, i.e. there is a way to execute it. True
+// Whether running this shortcut makes sense, i.e. there is a way to execute it. True
 // when the user set an explicit command (including an explicit empty string,
 // which means "run the file directly" — e.g. a shebang script), or the file's
 // extension has a configured default interpreter, or the file carries a `#!`
 // shebang. False for an ordinary document (.txt, .md, image, etc.) with no
 // interpreter, where "run" has no meaning and the caller should open the file.
-export function isRunnable(pin: Pin, fsPath: string): boolean {
+export function isRunnable(shortcut: Shortcut, fsPath: string): boolean {
   return isRunnablePlan({
-    explicitCommand: pin.exec?.command,
+    explicitCommand: shortcut.exec?.command,
     ext: path.extname(fsPath).toLowerCase(),
     defaults: interpreterDefaults(),
     hasShebang: shebangInterpreter(fsPath) !== undefined,
   });
 }
 
-// Resolve where a run happens. runLocation is the source of truth; for pins
+// Resolve where a run happens. runLocation is the source of truth; for shortcuts
 // written before it existed, fall back to the deprecated useIntegratedTerminal
 // boolean (true -> terminal, false -> background); if neither is set, follow the
 // workspace default. One resolver so the legacy field is read in exactly one place.
-function resolveRunLocation(exec: PinExecConfig | undefined): RunLocation {
+function resolveRunLocation(exec: ShortcutExecConfig | undefined): RunLocation {
   if (exec?.runLocation) {
     return exec.runLocation;
   }
@@ -114,7 +114,7 @@ function resolveRunLocation(exec: PinExecConfig | undefined): RunLocation {
   return defaultIntegrated ? "terminal" : "background";
 }
 
-// Everything needed to launch a pin, resolved from its config and target. Kept
+// Everything needed to launch a shortcut, resolved from its config and target. Kept
 // as a single value so the scheduler can log the exact command it is about to
 // run from one source of truth (planRun), rather than reassembling it.
 export interface RunPlan {
@@ -123,7 +123,7 @@ export interface RunPlan {
   env: Record<string, string> | undefined;
   name: string;
   // Where this run executes (integrated terminal / background channel / external
-  // OS window), resolved from the pin's config and the workspace default.
+  // OS window), resolved from the shortcut's config and the workspace default.
   location: RunLocation;
   // Request administrator/elevated privileges; only meaningful when location is
   // "external".
@@ -137,12 +137,12 @@ export interface RunPlan {
   extractResult?: string;
 }
 
-// Resolve a pin + target into a concrete RunPlan. Pure of side effects so both
+// Resolve a shortcut + target into a concrete RunPlan. Pure of side effects so both
 // runPin and the scheduler's log line share one assembly path. `extraTokens` adds
 // run-specific token values (e.g. $droppedFile from a drag-and-drop run, WOW #8)
 // merged over the standard file tokens.
 export function planRun(
-  pin: Pin,
+  shortcut: Shortcut,
   uri: vscode.Uri,
   extraTokens?: Record<string, string>
 ): RunPlan {
@@ -154,54 +154,54 @@ export function planRun(
   const tokens = { ...buildTokenMap(fsPath, workspaceRoot), ...(extraTokens ?? {}) };
   const unknown = new Set<string>();
 
-  const prefix = expandTokens(resolveCommandPrefix(pin, fsPath), tokens, unknown);
-  const args = (pin.exec?.args ?? []).map((a) => expandTokens(a, tokens, unknown));
-  const cwd = pin.exec?.cwd
-    ? expandTokens(pin.exec.cwd, tokens, unknown)
+  const prefix = expandTokens(resolveCommandPrefix(shortcut, fsPath), tokens, unknown);
+  const args = (shortcut.exec?.args ?? []).map((a) => expandTokens(a, tokens, unknown));
+  const cwd = shortcut.exec?.cwd
+    ? expandTokens(shortcut.exec.cwd, tokens, unknown)
     : workspaceRoot ?? path.dirname(fsPath);
 
-  const name = pin.label ?? path.basename(fsPath);
+  const name = shortcut.label ?? path.basename(fsPath);
 
   // Assemble <prefix> "<file>" <args...> via the pure core. includeFilePath ===
   // false omits the file entirely (npm-script / Make-target run configs name their
   // work in args and run against cwd, not the file path).
-  const includeFile = pin.exec?.includeFilePath !== false;
+  const includeFile = shortcut.exec?.includeFilePath !== false;
   const commandLine = assembleCommandLine({ prefix, fsPath, args, includeFile });
 
-  const location = resolveRunLocation(pin.exec);
+  const location = resolveRunLocation(shortcut.exec);
 
   return {
     commandLine,
     cwd,
-    env: pin.exec?.env,
+    env: shortcut.exec?.env,
     name,
     location,
     // Elevation only applies to an external window; ignored otherwise.
-    elevated: location === "external" && pin.exec?.elevated === true,
+    elevated: location === "external" && shortcut.exec?.elevated === true,
     unknownTokens: [...unknown],
-    extractResult: pin.exec?.extractResult,
+    extractResult: shortcut.exec?.extractResult,
   };
 }
 
-// Why a fresh run of this pin must not start, or undefined when it may. The single
-// source of truth both the unattended runners (scheduler, chain, run-on-save) and
-// the manual Run command consult, so the single-instance rule lives in one place:
-//   - "running": one of THIS pin's runs is already tracked in this window (a
+// Why a fresh run of this shortcut must not start, or undefined when it may. The
+// single source of truth both the unattended runners (scheduler, chain, run-on-save)
+// and the manual Run command consult, so the single-instance rule lives in one place:
+//   - "running": one of THIS shortcut's runs is already tracked in this window (a
 //     background / report-capture run); the in-process guard.
-//   - "locked":  the pin's cross-process lock (lockName) is held by a LIVE holder
+//   - "locked":  the shortcut's cross-process lock (lockName) is held by a LIVE holder
 //     in another window / terminal / process.
-// allowConcurrent:true opts a pin out of both. Integrated-terminal and external
+// allowConcurrent:true opts a shortcut out of both. Integrated-terminal and external
 // runs are untracked, so "running" never applies to them — only a lockName can
 // guard those, and only against runs that also honor the lock.
 export type RunBlockReason = "running" | "locked";
 
-export function runBlockReason(pin: Pin): RunBlockReason | undefined {
-  // The in-process guard: a tracked run of this exact pin is still in flight.
-  if (isConcurrencyBlocked(pin.allowConcurrent, processRegistry.isRunning(pin.id))) {
+export function runBlockReason(shortcut: Shortcut): RunBlockReason | undefined {
+  // The in-process guard: a tracked run of this exact shortcut is still in flight.
+  if (isConcurrencyBlocked(shortcut.allowConcurrent, processRegistry.isRunning(shortcut.id))) {
     return "running";
   }
-  // The cross-process guard: a live holder owns this pin's shared lock elsewhere.
-  if (!pin.allowConcurrent && pin.lockName && runLock.isHeld(pin.lockName)) {
+  // The cross-process guard: a live holder owns this shortcut's shared lock elsewhere.
+  if (!shortcut.allowConcurrent && shortcut.lockName && runLock.isHeld(shortcut.lockName)) {
     return "locked";
   }
   return undefined;

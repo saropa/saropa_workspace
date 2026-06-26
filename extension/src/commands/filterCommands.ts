@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
 import {
-  PinFilterState,
+  ShortcutFilterState,
   isScriptsChipOn,
   isFilesChipOn,
-} from "../views/pinFilter";
-import { PinStore } from "../model/pinStore";
+} from "../views/shortcutFilter";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
-// The Pins-view filter (WOW #28). A TreeView has no API for a persistent header
+// The Shortcuts-view filter (WOW #28). A TreeView has no API for a persistent header
 // input field, so the "find it now" bar is delivered as a single InputBox that
 // stays the filter surface: typing applies the text facet live (the tree updates
 // on every keystroke), and three title-bar buttons toggle the Scripts / Files /
@@ -23,8 +23,8 @@ interface ChipButton extends vscode.QuickInputButton {
 
 export function registerFilterCommands(
   context: vscode.ExtensionContext,
-  filterState: PinFilterState,
-  store: PinStore
+  filterState: ShortcutFilterState,
+  store: ShortcutStore
 ): void {
   // The title button and its active-state twin both open the same find bar; the
   // two command ids exist only so the manifest can swap the icon (outline vs
@@ -45,7 +45,7 @@ export function registerFilterCommands(
     }),
     // The facet toggles are also standalone commands so they work from the
     // command palette and are reusable by #17's tag mode; the find-bar buttons
-    // call the same PinFilterState mutators.
+    // call the same ShortcutFilterState mutators.
     vscode.commands.registerCommand(
       "saropaWorkspace.toggleFilterScripts",
       () => filterState.toggleScripts()
@@ -56,7 +56,7 @@ export function registerFilterCommands(
     vscode.commands.registerCommand("saropaWorkspace.toggleFilterFailed", () =>
       filterState.toggleFailed()
     ),
-    // WOW #17 tag "mode": pick a tag to collapse the tree to its pins, or clear it.
+    // WOW #17 tag "mode": pick a tag to collapse the tree to its shortcuts, or clear it.
     // These set the SAME shared filter's tag facet, so the active mode appears in
     // the filter message and the generic Clear button alongside any text/chip facet.
     vscode.commands.registerCommand("saropaWorkspace.pickMode", () =>
@@ -71,11 +71,11 @@ export function registerFilterCommands(
 
 // The tag "mode" picker (WOW #17): a single-select QuickPick of every tag in use,
 // with a "show all" entry that clears the tag facet. The current mode is marked so
-// the active choice is obvious. No tags yet → a message pointing at Tag Pin rather
+// the active choice is obvious. No tags yet → a message pointing at Tag Shortcut rather
 // than an empty picker.
 async function pickMode(
-  filterState: PinFilterState,
-  store: PinStore
+  filterState: ShortcutFilterState,
+  store: ShortcutStore
 ): Promise<void> {
   const tags = store.tagsInUse();
   if (tags.length === 0) {
@@ -113,9 +113,9 @@ async function pickMode(
   );
 }
 
-// Open the find bar. Reads/writes the shared PinFilterState so its state survives
+// Open the find bar. Reads/writes the shared ShortcutFilterState so its state survives
 // closing and reopening the box, and so the title-bar message stays in sync.
-function showFilterInput(filterState: PinFilterState): void {
+function showFilterInput(filterState: ShortcutFilterState): void {
   const input = vscode.window.createInputBox();
   input.title = l10n("filter.input.title");
   input.prompt = l10n("filter.input.prompt");
@@ -161,7 +161,7 @@ function showFilterInput(filterState: PinFilterState): void {
 // The current chip buttons, with each lit facet showing a $(check) so its on/off
 // state is visible at a glance (the title-bar buttons themselves carry no toggled
 // styling). Order is stable so positions are learnable.
-function chipButtons(filterState: PinFilterState): ChipButton[] {
+function chipButtons(filterState: ShortcutFilterState): ChipButton[] {
   const filter = filterState.get();
   const scriptsOn = isScriptsChipOn(filter);
   const filesOn = isFilesChipOn(filter);

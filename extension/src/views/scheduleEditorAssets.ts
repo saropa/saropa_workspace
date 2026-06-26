@@ -167,12 +167,12 @@ button.btn.link { background: transparent; border-color: transparent; color: var
 }
 /* The free-gap band sits behind the runs; a soft brand wash reads as "open time". */
 .tl-gap { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--brand) 9%, transparent); }
-/* Another scheduled pin's daily time. */
+/* Another scheduled shortcut's daily time. */
 .tl-tick {
   position: absolute; top: 12px; bottom: 12px; width: 2px;
   transform: translateX(-1px); background: var(--muted); border-radius: 1px; opacity: .85;
 }
-/* This pin's daily time — taller, brand-colored, and animated as the time changes. */
+/* This shortcut's daily time — taller, brand-colored, and animated as the time changes. */
 .tl-me {
   position: absolute; top: 4px; bottom: 4px; width: 3px;
   transform: translateX(-1.5px); background: var(--brand); border-radius: 2px;
@@ -338,9 +338,9 @@ function applyPreview(m){
 }
 
 // Draw the 24-hour strip from the host insights: a free-gap band, a tick per other
-// scheduled pin, and this pin's marker. All names come from the payload as data and
-// are set via .title / textContent (never innerHTML), so a pin label can't inject
-// markup. The two prose rows arrive already localized from the host.
+// scheduled shortcut, and this shortcut's marker. All names come from the payload as
+// data and are set via .title / textContent (never innerHTML), so a shortcut label
+// can't inject markup. The two prose rows arrive already localized from the host.
 function renderInsights(ins){
   const track = $('tlTrack');
   Array.prototype.slice.call(track.querySelectorAll('.tl-tick,.tl-me,.tl-gap'))

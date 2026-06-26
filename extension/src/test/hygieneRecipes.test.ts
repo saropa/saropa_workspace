@@ -2,8 +2,8 @@
 // no marker file — every project can be scanned — so it returns a fixed pair of
 // recipes regardless of folder contents. The vscode import is type-only for this
 // path, so it bundles and runs under Node's built-in runner with the vscode stub.
-// The assertions pin the two recipes' routing (one in the Workspace group, one a
-// disabled Scheduled bloat scan) and their command-pin shape, since those drive
+// The assertions shortcut the two recipes' routing (one in the Workspace group, one a
+// disabled Scheduled bloat scan) and their command-shortcut shape, since those drive
 // where the pins land in the tree and what they fire.
 
 import { test } from "node:test";

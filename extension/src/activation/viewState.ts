@@ -1,32 +1,32 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
-import { isAnnotationPin } from "../model/pin";
-import { PinsTreeProvider } from "../views/pinsTreeProvider";
+import { ShortcutStore } from "../model/shortcutStore";
+import { isAnnotationShortcut } from "../model/shortcut";
+import { ShortcutsTreeProvider } from "../views/shortcutsTreeProvider";
 import {
-  PinFilterState,
+  ShortcutFilterState,
   countHidden,
   filterMessage,
   isFilesChipOn,
   isScriptsChipOn,
-} from "../views/pinFilter";
-import { PinFolderItem, RecentRootItem } from "../views/pinTreeItem";
+} from "../views/shortcutFilter";
+import { ShortcutFolderItem, RecentRootItem } from "../views/shortcutTreeItem";
 import { runStatusRegistry } from "../exec/runStatus";
-import { tappedPins } from "../model/tappedPins";
+import { tappedShortcuts } from "../model/tappedShortcuts";
 import { telemetry } from "../exec/telemetry";
 import { BranchTracker } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
 
-// Persists the "show pins from all branches" escape hatch (WOW #3) per-workspace, so
-// a window reload keeps the chosen branch scope (filtering by current branch vs.
-// showing every branch-linked pin). Read by activate to seed the tree, and written
-// by the branch-scope toggle commands wired here.
+// Persists the "show shortcuts from all branches" escape hatch (WOW #3) per-workspace,
+// so a window reload keeps the chosen branch scope (filtering by current branch vs.
+// showing every branch-linked shortcut). Read by activate to seed the tree, and
+// written by the branch-scope toggle commands wired here.
 export const SHOW_ALL_BRANCHES_KEY = "saropaWorkspace.showAllBranches";
 
 // Gate flag (global, not per-workspace) so the one-time "single-click opens,
 // double-click runs" tip shows at most once ever — the first time the user has a
-// real pin. It teaches the core gesture to users who add a pin from the editor /
-// Explorer menu and so never see the empty-view welcome that states it (UI plan,
-// Phase 3). Once shown, the gesture still lives in every pin's hover.
+// real shortcut. It teaches the core gesture to users who add a shortcut from the
+// editor / Explorer menu and so never see the empty-view welcome that states it (UI
+// plan, Phase 3). Once shown, the gesture still lives in every shortcut's hover.
 const GESTURE_TIP_SHOWN_KEY = "saropaWorkspace.gestureTipShown";
 
 // Wire all the live tree-view state that reacts to filter, store, branch, and
@@ -35,19 +35,19 @@ const GESTURE_TIP_SHOWN_KEY = "saropaWorkspace.gestureTipShown";
 // two toggle commands, and group/recent collapse persistence. Extracted from
 // activate() so activation reads as a sequence of wiring calls rather than a wall of
 // closures. Returns refreshUntappedBadge so activate can repaint the badge once more
-// after the pin set finishes loading.
+// after the shortcut set finishes loading.
 export function wireTreeViewState(
   context: vscode.ExtensionContext,
-  store: PinStore,
-  tree: PinsTreeProvider,
+  store: ShortcutStore,
+  tree: ShortcutsTreeProvider,
   treeView: vscode.TreeView<vscode.TreeItem>,
-  filterState: PinFilterState,
+  filterState: ShortcutFilterState,
   branchTracker: BranchTracker
 ): { refreshUntappedBadge: () => void } {
   // Keep the filter affordances in sync: the chip context keys (which drive the
   // title-bar button visibility/icon) and the always-visible "filter active — N
   // hidden — clear" message. Re-run on any filter change AND on any store change,
-  // since adding/removing a pin changes the hidden count while a filter is on.
+  // since adding/removing a shortcut changes the hidden count while a filter is on.
   // This is the never-silently-empty guarantee: while filtering, the message is
   // always present, so a tree that collapsed to nothing never reads as data loss.
   const syncFilterView = (): void => {
@@ -75,8 +75,8 @@ export function wireTreeViewState(
     );
     if (active) {
       const all = [
-        ...store.getProjectPins().filter((p) => !p.isRecipe),
-        ...store.getGlobalPins(),
+        ...store.getProjectShortcuts().filter((p) => !p.isRecipe),
+        ...store.getGlobalShortcuts(),
       ];
       const hidden = countHidden(
         all,
@@ -96,18 +96,18 @@ export function wireTreeViewState(
   // open, before any change event fires).
   syncFilterView();
 
-  // Activity-bar badge: the number of Pins-view pins the user has not yet opened
-  // or run ("untapped"), as a discovery cue for pins added but never used. Recipe
-  // pins live in their own Recipes view and are excluded so detected shortcuts
-  // never inflate the count. Zero shows no badge (VS Code hides an undefined
+  // Activity-bar badge: the number of Shortcuts-view shortcuts the user has not yet
+  // opened or run ("untapped"), as a discovery cue for shortcuts added but never used.
+  // Recipe shortcuts live in their own Recipes view and are excluded so detected
+  // shortcuts never inflate the count. Zero shows no badge (VS Code hides an undefined
   // badge) — the "don't show a zero" requirement. Recomputed on every store change
-  // (a new pin bumps it) and on every tap (using a pin clears it).
+  // (a new shortcut bumps it) and on every tap (using a shortcut clears it).
   const refreshUntappedBadge = (): void => {
-    const pins = [
-      ...store.getProjectPins().filter((p) => !p.isRecipe),
-      ...store.getGlobalPins(),
+    const shortcuts = [
+      ...store.getProjectShortcuts().filter((p) => !p.isRecipe),
+      ...store.getGlobalShortcuts(),
     ];
-    const untapped = pins.filter((p) => !tappedPins.has(p.id)).length;
+    const untapped = shortcuts.filter((p) => !tappedShortcuts.has(p.id)).length;
     treeView.badge =
       untapped > 0
         ? { value: untapped, tooltip: l10n("badge.untapped", { count: untapped }) }
@@ -115,23 +115,24 @@ export function wireTreeViewState(
   };
   context.subscriptions.push(
     store.onDidChange(() => refreshUntappedBadge()),
-    tappedPins.onDidChange(() => refreshUntappedBadge())
+    tappedShortcuts.onDidChange(() => refreshUntappedBadge())
   );
 
   // One-time gesture tip (UI plan, Phase 3): the first time the user has a real,
-  // actionable pin, name the single/double-click model once. The empty-view welcome
-  // already states it, but a user who pins from the editor/Explorer menu lands
-  // straight on a populated tree and never sees that copy. Gated on a global flag so
-  // it shows at most once ever; annotation pins (comment/separator) are inert and do
-  // not count, so the tip waits for a pin a gesture actually applies to.
+  // actionable shortcut, name the single/double-click model once. The empty-view
+  // welcome already states it, but a user who adds a shortcut from the editor/Explorer
+  // menu lands straight on a populated tree and never sees that copy. Gated on a global
+  // flag so it shows at most once ever; annotation shortcuts (comment/separator) are
+  // inert and do not count, so the tip waits for a shortcut a gesture actually applies
+  // to.
   const maybeShowGestureTip = (): void => {
     if (context.globalState.get<boolean>(GESTURE_TIP_SHOWN_KEY, false)) {
       return;
     }
     const actionable = [
-      ...store.getProjectPins().filter((p) => !p.isRecipe),
-      ...store.getGlobalPins(),
-    ].some((p) => !isAnnotationPin(p));
+      ...store.getProjectShortcuts().filter((p) => !p.isRecipe),
+      ...store.getGlobalShortcuts(),
+    ].some((p) => !isAnnotationShortcut(p));
     if (!actionable) {
       return;
     }
@@ -141,11 +142,11 @@ export function wireTreeViewState(
   context.subscriptions.push(store.onDidChange(() => maybeShowGestureTip()));
   maybeShowGestureTip();
 
-  // Branch-linked pins (WOW #3): keep the title-bar affordances in sync. The
+  // Branch-linked shortcuts (WOW #3): keep the title-bar affordances in sync. The
   // "branchShowAll" key flips between the two toggle buttons (show-all vs filter-by-
-  // branch); "branchHasHidden" reveals the "Show pins from all branches" button only
-  // when branch filtering is actually hiding something, so it never appears as a dead
-  // control. Re-run on a store change (pins added/linked) and on a checkout.
+  // branch); "branchHasHidden" reveals the "Show shortcuts from all branches" button
+  // only when branch filtering is actually hiding something, so it never appears as a
+  // dead control. Re-run on a store change (shortcuts added/linked) and on a checkout.
   const syncBranchView = (): void => {
     void vscode.commands.executeCommand(
       "setContext",
@@ -155,7 +156,7 @@ export function wireTreeViewState(
     void vscode.commands.executeCommand(
       "setContext",
       "saropaWorkspace.branchHasHidden",
-      tree.hasBranchHiddenPins()
+      tree.hasBranchHiddenShortcuts()
     );
   };
   context.subscriptions.push(
@@ -186,15 +187,15 @@ export function wireTreeViewState(
   // left it across sessions.
   context.subscriptions.push(
     treeView.onDidCollapseElement((e) => {
-      if (e.element instanceof PinFolderItem) {
-        void store.setGroupCollapsed(e.element.pinGroup, e.element.scope, true);
+      if (e.element instanceof ShortcutFolderItem) {
+        void store.setGroupCollapsed(e.element.shortcutGroup, e.element.scope, true);
       } else if (e.element instanceof RecentRootItem) {
         void telemetry.setRecentExpanded(false);
       }
     }),
     treeView.onDidExpandElement((e) => {
-      if (e.element instanceof PinFolderItem) {
-        void store.setGroupCollapsed(e.element.pinGroup, e.element.scope, false);
+      if (e.element instanceof ShortcutFolderItem) {
+        void store.setGroupCollapsed(e.element.shortcutGroup, e.element.scope, false);
       } else if (e.element instanceof RecentRootItem) {
         void telemetry.setRecentExpanded(true);
       }

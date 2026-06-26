@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
-// Multiple-favorite-sets roadmap — commands that switch and manage named pin sets.
-// The hub command (switchPinSet) opens a QuickPick listing the sets plus the
+// Multiple-favorite-sets roadmap — commands that switch and manage named shortcut sets.
+// The hub command (switchShortcutSet) opens a QuickPick listing the sets plus the
 // manage actions; the status-bar item and the view-title menu both route here. The
 // individual new/rename/delete/duplicate commands are also exposed directly (view
 // title + palette). Every action names the set it acted on in its toast, and a
@@ -25,17 +25,17 @@ function hasWorkspaceFolder(): boolean {
 
 export function registerSetCommands(
   context: vscode.ExtensionContext,
-  store: PinStore
+  store: ShortcutStore
 ): void {
   const reg = (id: string, handler: () => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(id, handler));
   };
 
-  reg("saropaWorkspace.switchPinSet", () => switchPinSet(store));
-  reg("saropaWorkspace.newPinSet", () => newPinSet(store));
-  reg("saropaWorkspace.renamePinSet", () => renamePinSet(store));
-  reg("saropaWorkspace.deletePinSet", () => deletePinSet(store));
-  reg("saropaWorkspace.duplicatePinSet", () => duplicatePinSet(store));
+  reg("saropaWorkspace.switchPinSet", () => switchShortcutSet(store));
+  reg("saropaWorkspace.newPinSet", () => newShortcutSet(store));
+  reg("saropaWorkspace.renamePinSet", () => renameShortcutSet(store));
+  reg("saropaWorkspace.deletePinSet", () => deleteShortcutSet(store));
+  reg("saropaWorkspace.duplicatePinSet", () => duplicateShortcutSet(store));
 }
 
 // QuickPick item carrying which action the row performs and, for a set row, the
@@ -46,8 +46,8 @@ interface SetPickItem extends vscode.QuickPickItem {
 }
 
 // The switcher hub: pick a set to switch to, or a manage action. Opened by the
-// status-bar item and the "Switch Pin Set..." view-title command.
-async function switchPinSet(store: PinStore): Promise<void> {
+// status-bar item and the "Switch Shortcut Set..." view-title command.
+async function switchShortcutSet(store: ShortcutStore): Promise<void> {
   if (!hasWorkspaceFolder()) {
     vscode.window.showWarningMessage(l10n("pinSet.noWorkspace"));
     return;
@@ -106,21 +106,21 @@ async function switchPinSet(store: PinStore): Promise<void> {
       }
       return;
     case "new":
-      await newPinSet(store);
+      await newShortcutSet(store);
       return;
     case "rename":
-      await renamePinSet(store);
+      await renameShortcutSet(store);
       return;
     case "delete":
-      await deletePinSet(store);
+      await deleteShortcutSet(store);
       return;
     case "duplicate":
-      await duplicatePinSet(store);
+      await duplicateShortcutSet(store);
       return;
   }
 }
 
-async function newPinSet(store: PinStore): Promise<void> {
+async function newShortcutSet(store: ShortcutStore): Promise<void> {
   if (!hasWorkspaceFolder()) {
     vscode.window.showWarningMessage(l10n("pinSet.noWorkspace"));
     return;
@@ -149,7 +149,7 @@ async function newPinSet(store: PinStore): Promise<void> {
   }
 }
 
-async function renamePinSet(store: PinStore): Promise<void> {
+async function renameShortcutSet(store: ShortcutStore): Promise<void> {
   if (!hasWorkspaceFolder()) {
     vscode.window.showWarningMessage(l10n("pinSet.noWorkspace"));
     return;
@@ -178,7 +178,7 @@ async function renamePinSet(store: PinStore): Promise<void> {
   }
 }
 
-async function deletePinSet(store: PinStore): Promise<void> {
+async function deleteShortcutSet(store: ShortcutStore): Promise<void> {
   if (!hasWorkspaceFolder()) {
     vscode.window.showWarningMessage(l10n("pinSet.noWorkspace"));
     return;
@@ -189,8 +189,8 @@ async function deletePinSet(store: PinStore): Promise<void> {
     vscode.window.showWarningMessage(l10n("pinSet.delete.lastOne", { name }));
     return;
   }
-  // Modal confirm: deleting a set removes its project pins (data loss), unlike
-  // deleting a group (which only re-parents). Global pins are untouched.
+  // Modal confirm: deleting a set removes its project shortcuts (data loss), unlike
+  // deleting a group (which only re-parents). Global shortcuts are untouched.
   const confirm = l10n("pinSet.delete.confirmAction");
   const choice = await vscode.window.showWarningMessage(
     l10n("pinSet.delete.confirm", { name }),
@@ -210,7 +210,7 @@ async function deletePinSet(store: PinStore): Promise<void> {
   }
 }
 
-async function duplicatePinSet(store: PinStore): Promise<void> {
+async function duplicateShortcutSet(store: ShortcutStore): Promise<void> {
   if (!hasWorkspaceFolder()) {
     vscode.window.showWarningMessage(l10n("pinSet.noWorkspace"));
     return;

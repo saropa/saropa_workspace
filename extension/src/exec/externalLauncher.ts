@@ -14,7 +14,7 @@ import { l10n } from "../i18n/l10n";
 // fire-and-forget: VS Code does not own the process, so there is no Stop action
 // or completion toast — the window itself is the feedback). When `elevated`, the
 // window is requested with administrator privileges (Windows UAC prompt). On
-// Windows, elevation spawns a fresh elevated environment, so per-pin env vars do
+// Windows, elevation spawns a fresh elevated environment, so per-shortcut env vars do
 // not propagate into an elevated window — surfaced to the user once below.
 export async function runInExternal(
   commandLine: string,
@@ -44,7 +44,7 @@ export async function runInExternal(
     return;
   }
 
-  // Elevation drops per-pin env vars (the elevated process gets a fresh
+  // Elevation drops per-shortcut env vars (the elevated process gets a fresh
   // environment); say so once so a missing var is not a silent surprise.
   if (elevated && env && Object.keys(env).length > 0) {
     vscode.window.showWarningMessage(l10n("run.elevatedEnvDropped", { name }));

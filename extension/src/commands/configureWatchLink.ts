@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
-import { Pin } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
-// "Run This Pin When a File Changes" (#25 — cross-file watch links). A QuickPick hub
-// to manage the glob patterns that trigger a pin on another file's save: list the
+// "Run This Shortcut When a File Changes" (#25 — cross-file watch links). A QuickPick hub
+// to manage the glob patterns that trigger a shortcut on another file's save: list the
 // current watches, add one by picking a file or typing a glob, remove individual
 // entries, and save. The drag-to-link gesture from the pitch is deferred — the tree's
-// internal drag already means "reorder," so dropping a file-pin onto a script-pin to
+// internal drag already means "reorder," so dropping a file-shortcut onto a script-shortcut to
 // link it would collide with that; this unambiguous command ships first.
 //
 // Edits accumulate in a local working copy; nothing persists until the user chooses
@@ -19,19 +19,19 @@ interface HubItem extends vscode.QuickPickItem {
   id: string;
 }
 
-export async function configureWatchLink(store: PinStore, pin: Pin): Promise<void> {
-  // Auto/recipe pins are recomputed each refresh and never stored, so there is
+export async function configureWatchLink(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  // Auto/recipe shortcuts are recomputed each refresh and never stored, so there is
   // nowhere to persist watch globs; surface that rather than silently failing,
   // matching configureRun's stance.
-  if (pin.isAuto) {
+  if (shortcut.isAuto) {
     vscode.window.showWarningMessage(l10n("configure.autoUnsupported"));
     return;
   }
 
-  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   const title = l10n("watch.title", { name });
   // Working copy of the globs; de-duplicated as entries are added.
-  const globs = [...(pin.exec?.runOnSaveGlobs ?? [])];
+  const globs = [...(shortcut.exec?.runOnSaveGlobs ?? [])];
 
   for (;;) {
     const choice = await showHub(globs, title, name);
@@ -55,7 +55,7 @@ export async function configureWatchLink(store: PinStore, pin: Pin): Promise<voi
     }
   }
 
-  await store.setPinWatchGlobs(pin, globs);
+  await store.setShortcutWatchGlobs(shortcut, globs);
   vscode.window.showInformationMessage(
     globs.length > 0
       ? l10n("watch.saved", { name, globs: globs.join(", ") })

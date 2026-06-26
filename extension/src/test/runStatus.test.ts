@@ -94,10 +94,10 @@ test("registry: onDidChange fires on record and on a clear that removed somethin
   try {
     runStatusRegistry.record("rs-e", result());
     assert.equal(fires, 1, "record repaints the tree");
-    // Clearing a present pin removes it and fires once.
+    // Clearing a present shortcut removes it and fires once.
     runStatusRegistry.clear("rs-e");
     assert.equal(fires, 2, "a real removal repaints the tree");
-    // Clearing an absent pin is a no-op and must NOT fire (no stale repaint).
+    // Clearing an absent shortcut is a no-op and must NOT fire (no stale repaint).
     runStatusRegistry.clear("rs-e");
     assert.equal(fires, 2, "clearing nothing does not fire");
   } finally {

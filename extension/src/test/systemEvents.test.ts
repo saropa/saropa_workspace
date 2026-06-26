@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { systemEvents } from "../exec/systemEvents";
-import type { SystemEventName } from "../model/pin";
+import type { SystemEventName } from "../model/shortcut";
 
 test("a subscriber receives the exact event name the bus fires", () => {
   const received: SystemEventName[] = [];

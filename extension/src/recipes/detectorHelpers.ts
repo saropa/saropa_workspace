@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { PinAction } from "../model/pin";
+import { ShortcutAction } from "../model/shortcut";
 import { GitRemote } from "./gitMeta";
 
 // Leaf helpers shared by the recipe detectors: folder-root file reads, the small
@@ -50,7 +50,7 @@ export async function readJson<T = Record<string, unknown>>(
 }
 
 // Build a shell-kind action that runs in the folder, visibly, in the terminal.
-export function shell(folder: vscode.WorkspaceFolder, commandLine: string): PinAction {
+export function shell(folder: vscode.WorkspaceFolder, commandLine: string): ShortcutAction {
   return {
     kind: "shell",
     shellCommand: commandLine,
@@ -59,7 +59,7 @@ export function shell(folder: vscode.WorkspaceFolder, commandLine: string): PinA
   };
 }
 
-export function url(target: string): PinAction {
+export function url(target: string): ShortcutAction {
   return { kind: "url", url: target };
 }
 

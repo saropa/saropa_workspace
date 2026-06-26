@@ -1,7 +1,7 @@
 // Import tests for the oleg-shilo "Favorites Manager" store dispatcher
 // (importOlegShilo). The pure line parser (parseOlegShiloLines) has its own
 // blank-line / comment-collapse tests; this file covers the half that turns each
-// parsed entry into a PROJECT pin against the REAL PinStore via the fs-backed vscode
+// parsed entry into a PROJECT shortcut against the REAL ShortcutStore via the fs-backed vscode
 // stub — file pins resolve folder-relative and dedupe, comment / separator
 // annotations are positional and intentionally NOT deduped (so re-import re-adds
 // them), a path-less line is reported and skipped, and an absolute path resolves
@@ -20,11 +20,11 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import { importOlegShilo } from "../import/favoritesOlegShilo";
 import type { DetectedFavorites } from "../import/favoritesImport";
 import type { OutputChannel } from "vscode";
-import { pinKind } from "../model/pin";
+import { shortcutKind } from "../model/shortcut";
 
 // A line-collecting OutputChannel: the importer only ever calls appendLine, so the
 // rest of the channel surface is cast away (mirrors the kdcro / bookmarks tests).
@@ -70,7 +70,7 @@ afterEach(() => {
 });
 
 test("a path|alias line imports as a file pin whose label is the alias", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel } = fakeChannel();
 
@@ -78,26 +78,26 @@ test("a path|alias line imports as a file pin whose label is the alias", async (
 
   assert.equal(result.added, 1, "the file line imports");
   assert.equal(result.skipped, 0, "nothing is skipped");
-  const pin = store.getProjectPins().find((p) => p.path === "src/build.ts");
-  assert.ok(pin, "a file pin is created at the relative path");
-  assert.equal(pin!.label, "Build", "the alias becomes the pin label");
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === "src/build.ts");
+  assert.ok(shortcut, "a file pin is created at the relative path");
+  assert.equal(shortcut!.label, "Build", "the alias becomes the pin label");
 });
 
 test("a `#` line imports as a comment annotation carrying its text", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel } = fakeChannel();
 
   const result = await importOlegShilo("# Deploy scripts\ndeploy.sh", detected(), store, channel);
 
   assert.equal(result.added, 2, "the comment and the file both import");
-  const comment = store.getProjectPins().find((p) => pinKind(p) === "comment");
+  const comment = store.getProjectShortcuts().find((p) => shortcutKind(p) === "comment");
   assert.ok(comment, "a comment annotation pin is created");
   assert.equal(comment!.label, "Deploy scripts", "the comment text becomes the annotation label");
 });
 
 test("a blank-line divider imports as a separator annotation between entries", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel } = fakeChannel();
 
@@ -106,18 +106,18 @@ test("a blank-line divider imports as a separator annotation between entries", a
 
   assert.equal(result.added, 3, "two files and one separator import");
   assert.equal(
-    store.getProjectPins().filter((p) => pinKind(p) === "separator").length,
+    store.getProjectShortcuts().filter((p) => shortcutKind(p) === "separator").length,
     1,
     "exactly one separator annotation is created"
   );
 });
 
 test("a path-less malformed line is reported and skipped, not pinned", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel, lines } = fakeChannel();
 
-  // "|orphan" has no path; it must surface as a reportable skip and pin nothing.
+  // "|orphan" has no path; it must surface as a reportable skip and shortcut nothing.
   const result = await importOlegShilo("foo.py\n|orphan\nbar.py", detected(), store, channel);
 
   assert.equal(result.added, 2, "only the two real files import");
@@ -126,7 +126,7 @@ test("a path-less malformed line is reported and skipped, not pinned", async () 
 });
 
 test("re-importing dedupes file pins but re-adds positional annotations", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel } = fakeChannel();
 
@@ -140,34 +140,34 @@ test("re-importing dedupes file pins but re-adds positional annotations", async 
   assert.equal(second.added, 1, "only the annotation re-adds (the file pin dedupes)");
 
   assert.equal(
-    store.getProjectPins().filter((p) => p.path === "foo.py").length,
+    store.getProjectShortcuts().filter((p) => p.path === "foo.py").length,
     1,
     "the file pin exists exactly once after both passes"
   );
   assert.equal(
-    store.getProjectPins().filter((p) => pinKind(p) === "comment").length,
+    store.getProjectShortcuts().filter((p) => shortcutKind(p) === "comment").length,
     2,
     "the comment annotation was re-added, so two now exist"
   );
 });
 
 test("an absolute path inside the folder imports as a project file pin", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel } = fakeChannel();
 
   // An absolute path under the temp folder resolves directly and lands as a project
-  // pin stored folder-relative.
+  // shortcut stored folder-relative.
   const abs = `${tmpDir}/lib/util.ts`;
   const result = await importOlegShilo(abs, detected(), store, channel);
 
   assert.equal(result.added, 1, "the absolute-path line imports");
-  const pin = store.getProjectPins().find((p) => p.path === "lib/util.ts");
-  assert.ok(pin, "the absolute path is stored as a folder-relative project pin");
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === "lib/util.ts");
+  assert.ok(shortcut, "the absolute path is stored as a folder-relative project pin");
 });
 
 test("empty input imports nothing and skips nothing", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const { channel } = fakeChannel();
 

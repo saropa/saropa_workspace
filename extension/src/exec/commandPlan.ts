@@ -4,13 +4,13 @@
 // here. Keeping the decision logic pure makes the interpreter fallback and the
 // shell assembly unit-testable without the extension host (roadmap 4.1).
 
-// The interpreter prefix for a file: an explicit per-pin command wins (including
+// The interpreter prefix for a file: an explicit per-shortcut command wins (including
 // an explicit empty string, which means "run the file directly" — e.g. a shebang
 // script); else the configured default for the file extension; else the file's
 // own `#!` interpreter; else "" (run directly). A single ordered fallback so the
 // precedence lives in one place.
 export function resolveInterpreter(opts: {
-  // pin.exec?.command — undefined means the user set no explicit prefix.
+  // shortcut.exec?.command — undefined means the user set no explicit prefix.
   explicitCommand: string | undefined;
   // Lowercased file extension including the dot, e.g. ".py".
   ext: string;
@@ -29,7 +29,7 @@ export function resolveInterpreter(opts: {
   return opts.shebang ?? "";
 }
 
-// Whether a pin can be executed at all (there is some interpreter path). True for
+// Whether a shortcut can be executed at all (there is some interpreter path). True for
 // an explicit command, an extension with a configured default, or a file carrying
 // a shebang. False for an ordinary document (.txt, .md, image) with no
 // interpreter, where "run" has no meaning and the caller should open it instead.

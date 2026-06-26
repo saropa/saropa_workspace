@@ -1,7 +1,7 @@
 # Saropa Workspace — Roadmap
 
 Saropa Workspace is a Visual Studio Code extension for **file and script shortcuts**:
-pin any file as a favorite — a single click opens it, a double click runs it. Pins are
+add any file as a shortcut — a single click opens it, a double click runs it. Shortcuts are
 project-scoped (committed in `.vscode/saropa-workspace.json`) or global (carried across
 machines by Settings Sync), and each can carry run parameters, schedules, and groups. It
 is part of the **Saropa Suite**.
@@ -13,7 +13,7 @@ The forward-looking plan is maintained as **one document per backlog item** unde
 where the plan and the code diverge, the plan records what is actually implemented today.
 The backlog spans the phased work (import coverage, multi-root refinements, branch-aware
 sets, the dashboard webview, tests, suite integration) and the "WOW" features (port
-auto-unwedge, ephemeral pins, the git conflict center, focus tags, instant search, and
+auto-unwedge, ephemeral shortcuts, the git conflict center, focus tags, instant search, and
 more). See the [README index](plans/README.md) for status and suggested order.
 
 ## Reference

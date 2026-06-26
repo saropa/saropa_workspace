@@ -1,7 +1,7 @@
 // Branch-linked pins (WOW #3). Two units run here against the fs-backed vscode stub
-// (see pinStore.test for the harness rationale): readCurrentBranch's HEAD parsing
+// (see shortcutStore.test for the harness rationale): readCurrentBranch's HEAD parsing
 // (the single source the tree's branch filter and time-bomb expiry both read), and
-// the store's setPinBranch persistence round-trip. Both touch only workspace.fs and
+// the store's setShortcutBranch persistence round-trip. Both touch only workspace.fs and
 // the project file, which the stub backs with a real temp directory, so the REAL
 // code runs — not a reimplementation.
 
@@ -19,7 +19,7 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { readCurrentBranch } from "../exec/gitBranch";
-import { PinStore } from "../model/pinStore";
+import { ShortcutStore } from "../model/shortcutStore";
 import type { WorkspaceFolder as VscodeFolder, Uri as VscodeUri } from "vscode";
 
 // The store/reader type their args as the real vscode shapes; the stub models only
@@ -71,50 +71,50 @@ test("readCurrentBranch returns the raw commit hash for a detached HEAD", async 
 
 test("readCurrentBranch returns undefined when there is no repository", async () => {
   // No .git at all: the reader fails closed to undefined, which every consumer
-  // treats as "show the pin / do not remove it" — never losing a pin on a read miss.
+  // treats as "show the shortcut / do not remove it" — never losing a shortcut on a read miss.
   assert.equal(await readCurrentBranch(asFolder(folder)), undefined);
 });
 
 test("setPinBranch links a stored pin to a branch and round-trips across instances", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const target = Uri.joinPath(folder.uri, "src/app.ts");
-  assert.equal(await store.addPin(asUri(target), "project"), true);
-  const pin = store.getProjectPins().find((p) => p.path === "src/app.ts");
-  assert.ok(pin, "pin should be added");
+  assert.equal(await store.addShortcut(asUri(target), "project"), true);
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === "src/app.ts");
+  assert.ok(shortcut, "pin should be added");
 
-  await store.setPinBranch(pin!, "feature/auth");
+  await store.setShortcutBranch(shortcut!, "feature/auth");
   assert.equal(
-    store.getProjectPins().find((p) => p.path === "src/app.ts")?.branch,
+    store.getProjectShortcuts().find((p) => p.path === "src/app.ts")?.branch,
     "feature/auth"
   );
 
   // A fresh store reading the same folder must see the branch link — proving it
   // persisted to the project file, not just the in-memory cache.
-  const reopened = new PinStore(fakeContext());
+  const reopened = new ShortcutStore(fakeContext());
   await reopened.init();
   assert.equal(
-    reopened.getProjectPins().find((p) => p.path === "src/app.ts")?.branch,
+    reopened.getProjectShortcuts().find((p) => p.path === "src/app.ts")?.branch,
     "feature/auth",
     "branch link should load from disk"
   );
 });
 
 test("setPinBranch with undefined clears the link (pin shows on all branches)", async () => {
-  const store = new PinStore(fakeContext());
+  const store = new ShortcutStore(fakeContext());
   await store.init();
   const target = Uri.joinPath(folder.uri, "README.md");
-  await store.addPin(asUri(target), "project");
-  const pin = store.getProjectPins().find((p) => p.path === "README.md");
-  assert.ok(pin);
+  await store.addShortcut(asUri(target), "project");
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === "README.md");
+  assert.ok(shortcut);
 
-  await store.setPinBranch(pin!, "main");
-  await store.setPinBranch(
-    store.getProjectPins().find((p) => p.path === "README.md")!,
+  await store.setShortcutBranch(shortcut!, "main");
+  await store.setShortcutBranch(
+    store.getProjectShortcuts().find((p) => p.path === "README.md")!,
     undefined
   );
   assert.equal(
-    store.getProjectPins().find((p) => p.path === "README.md")?.branch,
+    store.getProjectShortcuts().find((p) => p.path === "README.md")?.branch,
     undefined,
     "cleared branch should be absent, not an empty string"
   );

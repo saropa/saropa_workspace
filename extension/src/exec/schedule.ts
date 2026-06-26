@@ -1,6 +1,6 @@
-import { PinSchedule } from "../model/pin";
+import { ShortcutSchedule } from "../model/shortcut";
 
-// Pure next-occurrence math for a pin schedule. Deliberately has NO VS Code
+// Pure next-occurrence math for a shortcut schedule. Deliberately has NO VS Code
 // dependency so it is unit-testable in isolation without the extension host
 // (roadmap 6.1: "testable without the VS Code host").
 //
@@ -13,7 +13,7 @@ import { PinSchedule } from "../model/pin";
 // Next fire at or after `now` (epoch ms), or undefined when the schedule is
 // disabled, malformed, or carries no timing fields.
 export function nextOccurrence(
-  schedule: PinSchedule,
+  schedule: ShortcutSchedule,
   now: number
 ): number | undefined {
   if (!schedule.enabled) {
@@ -320,7 +320,7 @@ function fullRange(min: number, max: number): Set<number> {
 // How far ahead the next-fire search will look before giving up. Four years
 // covers Feb-29-only schedules (the classic cron horizon); an expression that
 // matches no instant within it (e.g. "0 0 30 2 *", Feb 30) returns undefined and
-// the pin simply never fires on cron, mirroring "malformed disables".
+// the shortcut simply never fires on cron, mirroring "malformed disables".
 const CRON_SEARCH_LIMIT_MS = 4 * 366 * 24 * 60 * 60_000;
 
 // Next cron fire at or after `now` (epoch ms), or undefined when the expression is

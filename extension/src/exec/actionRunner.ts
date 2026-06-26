@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { MacroStep, Pin, RoutineMember } from "../model/pin";
+import { MacroStep, Shortcut, RoutineMember } from "../model/shortcut";
 import { telemetry, RunSource } from "./telemetry";
 import { runStatusRegistry, formatDuration } from "./runStatus";
 import { playCue } from "./soundCue";
-import { pinEvents } from "./pinEvents";
-import { PinBadge, pinBadges, parseRunBadge } from "./pinBadges";
+import { shortcutEvents } from "./shortcutEvents";
+import { ShortcutBadge, shortcutBadges, parseRunBadge } from "./shortcutBadges";
 import { processRegistry } from "./processRegistry";
 import * as runLock from "./runLock";
 import { hasInteractiveTokens } from "./promptTokens";
@@ -13,57 +13,57 @@ import { l10n } from "../i18n/l10n";
 import { getOutputChannel, runInTerminal } from "./terminalRunner";
 import { runInBackground } from "./backgroundRunner";
 
-// The non-file pin kinds (recipes): url / command / shell, plus the multi-step
-// orchestrators (macro and routine). The file kind is handled by runPin in
-// runner.ts; callers branch on pinKind and route non-file pins here. Split out of
+// The non-file shortcut kinds (recipes): url / command / shell, plus the multi-step
+// orchestrators (macro and routine). The file kind is handled by runShortcut in
+// runner.ts; callers branch on the kind and route non-file shortcuts here. Split out of
 // runner.ts so the file-run dispatcher stays small and these action handlers live
 // with the report-capture + summary writing they share.
 
-// Run a non-file pin (url / shell / command / macro). Returns without error for an
+// Run a non-file shortcut (url / shell / command / macro). Returns without error for an
 // unknown/empty action so a malformed recipe cannot throw.
 export async function runAction(
-  pin: Pin,
+  shortcut: Shortcut,
   source: RunSource = "manual"
 ): Promise<void> {
-  const action = pin.action;
+  const action = shortcut.action;
   if (!action) {
     return;
   }
-  const name = pin.label ?? pin.id;
+  const name = shortcut.label ?? shortcut.id;
   // Recipe/non-file runs feed the same local telemetry as file runs.
-  void telemetry.record(pin.id, source);
-  // The pin's cross-process lock, passed down to the shell paths that own a child
+  void telemetry.record(shortcut.id, source);
+  // The shortcut's cross-process lock, passed down to the shell paths that own a child
   // process and can hold it (background / report capture). Other action kinds are
   // fire-and-forget and only the upstream runBlockReason check applies to them.
-  const lockName = pin.lockName;
+  const lockName = shortcut.lockName;
 
   switch (action.kind) {
     case "url":
       await openUrl(action.url, name);
-      // url / command / macro pins have no tracked exit; chain off their dispatch so
-      // a pin can still be triggered "after" an open-the-dashboard or run-a-macro pin.
-      pinEvents.fireComplete(pin.id, "dispatched");
+      // url / command / macro shortcuts have no tracked exit; chain off their dispatch so
+      // a shortcut can still be triggered "after" an open-the-dashboard or run-a-macro shortcut.
+      shortcutEvents.fireComplete(shortcut.id, "dispatched");
       return;
     case "command":
       await runVsCommand(action.commandId, action.commandArgs, name);
-      pinEvents.fireComplete(pin.id, "dispatched");
+      shortcutEvents.fireComplete(shortcut.id, "dispatched");
       return;
     case "shell":
       // runShellAction fires its own completion: a real outcome from the background /
       // report path, or a dispatch from the terminal path. Not fired here, to avoid
       // a duplicate.
-      await runShellAction(action, name, pin.id, lockName);
+      await runShellAction(action, name, shortcut.id, lockName);
       return;
     case "macro":
       await runMacro(action.steps ?? [], name);
-      pinEvents.fireComplete(pin.id, "dispatched");
+      shortcutEvents.fireComplete(shortcut.id, "dispatched");
       return;
     case "routine":
-      // A routine resolves and runs OTHER recipe pins in sequence. The resolve +
-      // single-pin-run logic lives in the store/command layer (which this module must
+      // A routine resolves and runs OTHER recipe shortcuts in sequence. The resolve +
+      // single-shortcut-run logic lives in the store/command layer (which this module must
       // not import — it would cycle), so it is injected once at activation via
       // setRoutineHooks. runRoutine fires its own aggregated completion.
-      await runRoutine(pin, action.members ?? [], source);
+      await runRoutine(shortcut, action.members ?? [], source);
       return;
     default:
       return;
@@ -86,7 +86,7 @@ async function runVsCommand(
   if (!commandId) {
     return;
   }
-  // A command pin may target another extension's command (e.g. a Saropa Suite
+  // A command shortcut may target another extension's command (e.g. a Saropa Suite
   // recipe driving Saropa Lints / Drift Advisor / Log Capture). If that extension
   // is not installed or not yet activated, executeCommand rejects with "command
   // not found". Degrade gracefully with a visible toast instead of an unhandled
@@ -137,14 +137,14 @@ async function runShellAction(
       .getConfiguration("saropaWorkspace")
       .get<boolean>("defaultUseIntegratedTerminal", true);
   vscode.window.showInformationMessage(l10n("run.starting", { name }));
-  // Start cue for a recipe shell run (#64). A recipe pin has no exec override, so it
+  // Start cue for a recipe shell run (#64). A recipe shortcut has no exec override, so it
   // follows the global cue settings; the background path below plays the finish cue.
   playCue("start");
   if (useTerminal) {
     runInTerminal(commandLine, cwd, undefined);
     // Terminal shell run: no tracked exit, so chain off the dispatch (background
     // fires its real outcome from settle()).
-    pinEvents.fireComplete(pinId, "dispatched");
+    shortcutEvents.fireComplete(pinId, "dispatched");
   } else {
     await runInBackground(
       commandLine,
@@ -220,17 +220,17 @@ async function runShellToReport(
           endedAt: Date.now(),
         });
         // Finish cue (#64) for a captured-to-report run (scheduled rituals, the
-        // process snapshot). Report recipes carry no per-pin override, so they
+        // process snapshot). Report recipes carry no per-shortcut override, so they
         // follow the global cue settings.
         playCue(code === 0 ? "success" : "failure");
         // Tracked outcome for the chain engine, same as the background path.
-        pinEvents.fireComplete(pinId, code === 0 ? "success" : "failure");
-        // Badge the pin from the captured report body (#26, #32): the lint sweep /
+        shortcutEvents.fireComplete(pinId, code === 0 ? "success" : "failure");
+        // Badge the shortcut from the captured report body (#26, #32): the lint sweep /
         // test-trend rituals run through this report path, so this is where their
-        // severity counts / test tally reach the pin.
+        // severity counts / test tally reach the shortcut.
         const badge = parseRunBadge(body);
         if (badge) {
-          pinBadges.record(pinId, badge);
+          shortcutBadges.record(pinId, badge);
         }
         if (autoOpen) {
           const doc = await vscode.workspace.openTextDocument(

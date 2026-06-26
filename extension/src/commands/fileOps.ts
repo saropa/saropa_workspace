@@ -1,37 +1,37 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { Pin, pinKind, PinScope } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { Shortcut, shortcutKind, ShortcutScope } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { runStatusRegistry } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
 
-// Lightweight file-manager operations on a pinned file, run from the Pins view
-// (roadmap Later / Exploratory: "Filesystem operations from the tree"). The Pins
+// Lightweight file-manager operations on a file shortcut's target, run from the Shortcuts
+// view (roadmap Later / Exploratory: "Filesystem operations from the tree"). The Shortcuts
 // view already lists the files a user actually works with; these let them create,
 // duplicate, rename, copy, and delete those files without round-tripping through the
-// Explorer. All five act on a file pin's resolved target; a non-file pin (recipe /
+// Explorer. All five act on a file shortcut's resolved target; a non-file shortcut (recipe /
 // url / shell / command / macro) has no file on disk and is rejected with a naming
 // message. The plain "Duplicate File" here is distinct from "Use as Template…",
 // which copies AND rewrites the file's identifiers across case styles — this one is
 // a byte-for-byte copy.
 
-// The pin's display name for messages: its label, else the target's basename.
-function pinName(pin: Pin): string {
-  return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+// The shortcut's display name for messages: its label, else the target's basename.
+function shortcutName(shortcut: Shortcut): string {
+  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
-// Resolve a file pin to its on-disk URI, surfacing the same warnings the open/run
-// paths use when the pin is not a file or cannot be resolved. Returns undefined
+// Resolve a file shortcut to its on-disk URI, surfacing the same warnings the open/run
+// paths use when the shortcut is not a file or cannot be resolved. Returns undefined
 // (after showing the message) when there is nothing to act on.
-function resolveFilePin(store: PinStore, pin: Pin): vscode.Uri | undefined {
-  if (pinKind(pin) !== "file") {
-    vscode.window.showWarningMessage(l10n("fileOps.notFile", { name: pinName(pin) }));
+function resolveFileShortcut(store: ShortcutStore, shortcut: Shortcut): vscode.Uri | undefined {
+  if (shortcutKind(shortcut) !== "file") {
+    vscode.window.showWarningMessage(l10n("fileOps.notFile", { name: shortcutName(shortcut) }));
     return undefined;
   }
-  const uri = store.resolveUri(pin);
+  const uri = store.resolveUri(shortcut);
   if (!uri) {
-    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: shortcut.path }));
     return undefined;
   }
   return uri;
@@ -68,29 +68,30 @@ async function uniqueSiblingUri(
   return undefined;
 }
 
-// Pin a freshly-created file in the SAME scope as the pin it came from, so a
-// duplicate of a project pin becomes a project pin and a duplicate of a global pin
-// becomes a global one. A project pin requires the file to sit inside a workspace
-// folder; a file created beside an existing project pin always does, so addPin
-// succeeds. Failure to pin is non-fatal — the file exists and is open regardless —
-// so it is logged via the returned flag, not thrown.
-async function pinNewFile(
-  store: PinStore,
+// Add a freshly-created file as a shortcut in the SAME scope as the shortcut it came
+// from, so a duplicate of a project shortcut becomes a project shortcut and a duplicate
+// of a global shortcut becomes a global one. A project shortcut requires the file to sit
+// inside a workspace folder; a file created beside an existing project shortcut always
+// does, so addShortcut succeeds. Failure to add is non-fatal — the file exists and is
+// open regardless — so it is logged via the returned flag, not thrown.
+async function addNewShortcut(
+  store: ShortcutStore,
   uri: vscode.Uri,
-  scope: PinScope
+  scope: ShortcutScope
 ): Promise<void> {
-  // A file outside any workspace folder cannot be a project pin; fall back to a
-  // global pin so the new file is still pinned rather than silently unpinned.
+  // A file outside any workspace folder cannot be a project shortcut; fall back to a
+  // global shortcut so the new file is still saved rather than silently dropped.
   const inFolder = vscode.workspace.getWorkspaceFolder(uri) !== undefined;
-  const effective: PinScope = scope === "project" && !inFolder ? "global" : scope;
-  await store.addPin(uri, effective);
+  const effective: ShortcutScope = scope === "project" && !inFolder ? "global" : scope;
+  await store.addShortcut(uri, effective);
 }
 
-// Create a new, empty file in the pinned file's own directory, pin it (same scope),
-// and open it. The Pins-view counterpart to right-clicking a folder in the Explorer
-// and choosing New File, but anchored to where the user's pinned files already live.
-export async function newFileHere(store: PinStore, pin: Pin): Promise<void> {
-  const uri = resolveFilePin(store, pin);
+// Create a new, empty file in the shortcut file's own directory, add it as a shortcut
+// (same scope), and open it. The Shortcuts-view counterpart to right-clicking a folder
+// in the Explorer and choosing New File, but anchored to where the user's shortcut files
+// already live.
+export async function newFileHere(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const uri = resolveFileShortcut(store, shortcut);
   if (!uri) {
     return;
   }
@@ -117,23 +118,24 @@ export async function newFileHere(store: PinStore, pin: Pin): Promise<void> {
     return;
   }
   await vscode.workspace.fs.writeFile(target, new Uint8Array());
-  await pinNewFile(store, target, pin.scope);
+  await addNewShortcut(store, target, shortcut.scope);
   await vscode.window.showTextDocument(target, { preview: false });
   vscode.window.showInformationMessage(
     l10n("fileOps.created", { name: name.trim() })
   );
 }
 
-// Byte-for-byte copy of the pinned file into a non-colliding sibling, pinned (same
-// scope) and opened. Distinct from "Use as Template…", which also rewrites the
-// file's identifiers; this is a plain copy for when the user just wants another one.
-export async function duplicateFile(store: PinStore, pin: Pin): Promise<void> {
-  const uri = resolveFilePin(store, pin);
+// Byte-for-byte copy of the shortcut file into a non-colliding sibling, added as a
+// shortcut (same scope) and opened. Distinct from "Use as Template…", which also
+// rewrites the file's identifiers; this is a plain copy for when the user just wants
+// another one.
+export async function duplicateFile(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const uri = resolveFileShortcut(store, shortcut);
   if (!uri) {
     return;
   }
   if (!(await exists(uri))) {
-    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: shortcut.path }));
     return;
   }
   const dir = vscode.Uri.joinPath(uri, "..");
@@ -148,7 +150,7 @@ export async function duplicateFile(store: PinStore, pin: Pin): Promise<void> {
   // already proved the target is free; it guards a file racing into existence
   // between the check and the copy.
   await vscode.workspace.fs.copy(uri, target, { overwrite: false });
-  await pinNewFile(store, target, pin.scope);
+  await addNewShortcut(store, target, shortcut.scope);
   await vscode.window.showTextDocument(target, { preview: false });
   const newName = target.path.split("/").pop() ?? target.fsPath;
   vscode.window.showInformationMessage(
@@ -156,20 +158,20 @@ export async function duplicateFile(store: PinStore, pin: Pin): Promise<void> {
   );
 }
 
-// Rename the pinned file on disk and re-point the pin at the new name, so the pin
-// (and its run config, schedule, icon) survives the rename intact. A project pin
-// can only be re-pointed inside its own workspace folder; a rename keeps the file
-// in the same directory, so that always holds. The file is renamed first, then the
-// pin updated — if the pin update somehow fails, the file move has still happened,
-// and updatePinPath is a pure metadata write that does not fail for an in-folder
-// target.
-export async function renameFileOnDisk(store: PinStore, pin: Pin): Promise<void> {
-  const uri = resolveFilePin(store, pin);
+// Rename the shortcut file on disk and re-point the shortcut at the new name, so the
+// shortcut (and its run config, schedule, icon) survives the rename intact. A project
+// shortcut can only be re-pointed inside its own workspace folder; a rename keeps the
+// file in the same directory, so that always holds. The file is renamed first, then the
+// shortcut updated — if the shortcut update somehow fails, the file move has still
+// happened, and updateShortcutPath is a pure metadata write that does not fail for an
+// in-folder target.
+export async function renameFileOnDisk(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const uri = resolveFileShortcut(store, shortcut);
   if (!uri) {
     return;
   }
   if (!(await exists(uri))) {
-    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: shortcut.path }));
     return;
   }
   const dir = vscode.Uri.joinPath(uri, "..");
@@ -196,27 +198,27 @@ export async function renameFileOnDisk(store: PinStore, pin: Pin): Promise<void>
     return;
   }
   await vscode.workspace.fs.rename(uri, target, { overwrite: false });
-  // Re-point the pin so it keeps tracking the file under its new name. An auto-pin
-  // or recipe pin has no stored path to update (it is recomputed), so the rename
-  // there simply removes the matched file; that is acceptable and rare.
-  await store.updatePinPath(pin, target);
+  // Re-point the shortcut so it keeps tracking the file under its new name. An
+  // auto-shortcut or recipe shortcut has no stored path to update (it is recomputed),
+  // so the rename there simply removes the matched file; that is acceptable and rare.
+  await store.updateShortcutPath(shortcut, target);
   vscode.window.showInformationMessage(
     l10n("fileOps.renamed", { from: current, to: input.trim() })
   );
 }
 
-// Copy the pinned file into a user-picked folder (the one-step "copy then paste
+// Copy the shortcut file into a user-picked folder (the one-step "copy then paste
 // elsewhere" gesture, without a hidden clipboard). Aborts rather than overwrite an
-// existing file at the destination. The copy is NOT pinned — it landed somewhere the
-// user chose, which may be outside the workspace; they can pin it from there if they
-// want.
-export async function copyFileTo(store: PinStore, pin: Pin): Promise<void> {
-  const uri = resolveFilePin(store, pin);
+// existing file at the destination. The copy is NOT added as a shortcut — it landed
+// somewhere the user chose, which may be outside the workspace; they can add it from
+// there if they want.
+export async function copyFileTo(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const uri = resolveFileShortcut(store, shortcut);
   if (!uri) {
     return;
   }
   if (!(await exists(uri))) {
-    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: shortcut.path }));
     return;
   }
   const picked = await vscode.window.showOpenDialog({
@@ -224,7 +226,7 @@ export async function copyFileTo(store: PinStore, pin: Pin): Promise<void> {
     canSelectFiles: false,
     canSelectFolders: true,
     openLabel: l10n("fileOps.copyToOpenLabel"),
-    title: l10n("fileOps.copyToTitle", { name: pinName(pin) }),
+    title: l10n("fileOps.copyToTitle", { name: shortcutName(shortcut) }),
   });
   if (!picked || picked.length === 0) {
     return;
@@ -249,20 +251,20 @@ export async function copyFileTo(store: PinStore, pin: Pin): Promise<void> {
   }
 }
 
-// Delete the pinned file from disk (to the OS trash, so it is recoverable) after a
-// modal confirm that names the file, then offer to unpin the now-dangling pin. The
-// pin is NOT auto-removed: a deletion may be deliberate-but-temporary, and leaving
-// the pin lets the user relocate or re-create the file. useTrash means the file is
-// recoverable from the OS trash, so this is not the irreversible operation a hard
-// delete would be.
-export async function deleteFile(store: PinStore, pin: Pin): Promise<void> {
-  const uri = resolveFilePin(store, pin);
+// Delete the shortcut file from disk (to the OS trash, so it is recoverable) after a
+// modal confirm that names the file, then offer to remove the now-dangling shortcut.
+// The shortcut is NOT auto-removed: a deletion may be deliberate-but-temporary, and
+// leaving the shortcut lets the user relocate or re-create the file. useTrash means the
+// file is recoverable from the OS trash, so this is not the irreversible operation a
+// hard delete would be.
+export async function deleteFile(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const uri = resolveFileShortcut(store, shortcut);
   if (!uri) {
     return;
   }
   const fileName = uri.path.split("/").pop() ?? uri.fsPath;
   if (!(await exists(uri))) {
-    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: shortcut.path }));
     return;
   }
   const confirm = l10n("fileOps.deleteConfirmAction");
@@ -275,17 +277,18 @@ export async function deleteFile(store: PinStore, pin: Pin): Promise<void> {
     return;
   }
   await vscode.workspace.fs.delete(uri, { useTrash: true });
-  // The file is gone; offer to drop the pin too. Declining keeps the pin so it can
-  // be relocated to a moved/re-created file later (the pin flags itself missing).
-  const unpin = l10n("fileOps.deleteUnpinAction");
+  // The file is gone; offer to drop the shortcut too. Declining keeps the shortcut so
+  // it can be relocated to a moved/re-created file later (the shortcut flags itself
+  // missing).
+  const remove = l10n("fileOps.deleteUnpinAction");
   const after = await vscode.window.showInformationMessage(
     l10n("fileOps.deleted", { name: fileName }),
-    unpin
+    remove
   );
-  if (after === unpin) {
-    await store.removePin(pin);
-    // Drop any last-run badge so it does not outlive the pin.
-    runStatusRegistry.clear(pin.id);
+  if (after === remove) {
+    await store.removeShortcut(shortcut);
+    // Drop any last-run badge so it does not outlive the shortcut.
+    runStatusRegistry.clear(shortcut.id);
   }
 }
 
@@ -295,16 +298,16 @@ export async function deleteFile(store: PinStore, pin: Pin): Promise<void> {
 // and restoring it clears the attribute; on POSIX it flips the actual write bits.
 const OWNER_WRITE = 0o200;
 
-// Lock / unlock the pinned file at the FILESYSTEM level by toggling its read-only
+// Lock / unlock the shortcut file at the FILESYSTEM level by toggling its read-only
 // attribute (not a VS Code-only guard) — the "stop me (or a script) from clobbering
-// this by accident" gesture, straight from the Pins view. A single toggle rather than
-// two commands because the lock state is an OS attribute, not stored on the pin, so it
-// is read live here and the toast names the resulting state (locked/unlocked) and the
-// file. Read-only is cleared from owner-write only; group/other bits are preserved so
-// a deliberate POSIX permission set is not flattened. A non-file pin is rejected with a
-// naming message, like the other file operations.
-export async function toggleFileLock(store: PinStore, pin: Pin): Promise<void> {
-  const uri = resolveFilePin(store, pin);
+// this by accident" gesture, straight from the Shortcuts view. A single toggle rather
+// than two commands because the lock state is an OS attribute, not stored on the
+// shortcut, so it is read live here and the toast names the resulting state
+// (locked/unlocked) and the file. Read-only is cleared from owner-write only;
+// group/other bits are preserved so a deliberate POSIX permission set is not flattened.
+// A non-file shortcut is rejected with a naming message, like the other file operations.
+export async function toggleFileLock(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
+  const uri = resolveFileShortcut(store, shortcut);
   if (!uri) {
     return;
   }
@@ -315,7 +318,7 @@ export async function toggleFileLock(store: PinStore, pin: Pin): Promise<void> {
   } catch {
     // Missing/unreadable target: same stance as the other file ops — name it and stop
     // rather than failing the chmod with a cryptic errno.
-    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: shortcut.path }));
     return;
   }
   const currentlyWritable = (mode & OWNER_WRITE) !== 0;
@@ -335,8 +338,8 @@ export async function toggleFileLock(store: PinStore, pin: Pin): Promise<void> {
     );
     return;
   }
-  // Name the file and the resulting state so the confirmation ties to a concrete pin
-  // and tells the user what changed (the no-silent-async / name-the-item rules).
+  // Name the file and the resulting state so the confirmation ties to a concrete
+  // shortcut and tells the user what changed (the no-silent-async / name-the-item rules).
   vscode.window.showInformationMessage(
     currentlyWritable
       ? l10n("fileOps.locked", { name: fileName })

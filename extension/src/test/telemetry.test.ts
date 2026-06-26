@@ -60,11 +60,11 @@ test("record keeps the recent list bounded at MAX_RECENT while counts stay exact
 
   const recent = telemetry.recent();
   assert.equal(recent.length, MAX_RECENT, "recents are trimmed to the cap");
-  // Most-recent-first: the last pin recorded is at the front, and the oldest five
+  // Most-recent-first: the last shortcut recorded is at the front, and the oldest five
   // fell off the bounded list.
   assert.equal(recent[0].pinId, `pin${total - 1}`);
   assert.equal(telemetry.count(`pin0`), 1, "an evicted pin keeps its lifetime count");
-  // Every distinct pin still has a count even though most left the recent list.
+  // Every distinct shortcut still has a count even though most left the recent list.
   assert.equal(Object.keys(telemetry.counts()).length, total);
 });
 
@@ -86,7 +86,7 @@ test("recordOpen and record dedup to one front entry whose kind reflects the lat
   telemetry.init(fakeContext());
 
   await telemetry.record("p1", "manual"); // a run first
-  await telemetry.recordOpen("p1"); // then an open of the same pin
+  await telemetry.recordOpen("p1"); // then an open of the same shortcut
 
   const recent = telemetry.recent();
   assert.equal(recent.length, 1, "the open replaces the run entry, not a second row");
@@ -101,7 +101,7 @@ test("recordOpen collapses a repeat of the already-front pin to a no-op", async 
 
   await telemetry.recordOpen("p1");
   const firstAt = telemetry.recent()[0].at;
-  // A single pin click both opens the file and fires the editor-focus listener, and
+  // A single shortcut click both opens the file and fires the editor-focus listener, and
   // re-focusing an already-front file repeats it; the front-dup guard must keep the
   // second call from rewriting the front row.
   await telemetry.recordOpen("p1");

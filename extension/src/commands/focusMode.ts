@@ -1,19 +1,19 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { pinKind } from "../model/pin";
-import { PinStore } from "../model/pinStore";
+import { shortcutKind } from "../model/shortcut";
+import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
-// "Focus on Pinned Files" (roadmap Later / Exploratory: files.exclude integration).
-// Drive VS Code's `files.exclude` from the pin set so the Explorer shows only the
-// pinned files and the folders that lead to them — a favorites-only workspace view,
-// as kdcro101 Favorites offers. Toggling off restores the exact prior `files.exclude`
-// that was in effect, so the user's own excludes are never lost.
+// "Focus on Shortcut Files" (roadmap Later / Exploratory: files.exclude integration).
+// Drive VS Code's `files.exclude` from the shortcut set so the Explorer shows only
+// the shortcut files and the folders that lead to them — a favorites-only workspace
+// view, as kdcro101 Favorites offers. Toggling off restores the exact prior
+// `files.exclude` that was in effect, so the user's own excludes are never lost.
 //
 // files.exclude has no "show only" / negation operator, so focus is built the only
-// way the setting allows: walk the directories on the path to each pinned file and
-// hide the siblings that are neither a pinned file nor an ancestor of one. Folders
-// with no pinned file inside them are left untouched (a workspace root cannot be
+// way the setting allows: walk the directories on the path to each shortcut file and
+// hide the siblings that are neither a shortcut file nor an ancestor of one. Folders
+// with no shortcut file inside them are left untouched (a workspace root cannot be
 // hidden, and blanking an unrelated root is not the intent).
 
 // Whether focus mode is currently applied. Persisted in workspaceState so a window
@@ -31,8 +31,8 @@ function savedKey(folder: vscode.WorkspaceFolder): string {
 }
 
 // The folder-relative, forward-slash path of a URI inside a workspace folder, or
-// undefined when the URI is not under that folder. Used to map a resolved pin to a
-// path that a folder-scoped files.exclude glob can match.
+// undefined when the URI is not under that folder. Used to map a resolved shortcut
+// to a path that a folder-scoped files.exclude glob can match.
 function relativeWithin(
   folder: vscode.WorkspaceFolder,
   uri: vscode.Uri
@@ -50,22 +50,23 @@ function relativeWithin(
 }
 
 // Compute the files.exclude additions for one folder: hide every Explorer entry that
-// is neither a pinned file nor on the path to one. Only directories that lead to a
-// pinned file are scanned, so the walk is bounded by the pin set, not the tree size.
-// Returns an empty map when the folder holds no pinned files (it is then left alone).
+// is neither a shortcut file nor on the path to one. Only directories that lead to a
+// shortcut file are scanned, so the walk is bounded by the shortcut set, not the
+// tree size. Returns an empty map when the folder holds no shortcut files (it is
+// then left alone).
 async function computeExcludes(
   folder: vscode.WorkspaceFolder,
-  pinnedRel: ReadonlySet<string>
+  shortcutRel: ReadonlySet<string>
 ): Promise<Record<string, true>> {
-  if (pinnedRel.size === 0) {
+  if (shortcutRel.size === 0) {
     return {};
   }
-  // keep = pinned files + all their ancestor directories (these must stay visible).
+  // keep = shortcut files + all their ancestor directories (these must stay visible).
   // dirs = the ancestor directories themselves (root included), the only places we
   // scan for siblings to hide.
   const keep = new Set<string>();
   const dirs = new Set<string>([""]);
-  for (const rel of pinnedRel) {
+  for (const rel of shortcutRel) {
     keep.add(rel);
     const parts = rel.split("/");
     for (let i = 1; i < parts.length; i++) {
@@ -98,19 +99,20 @@ async function computeExcludes(
   return excludes;
 }
 
-// The folder-relative paths of every resolvable, non-recipe file pin that lives
-// inside a given folder (project pins are folder-relative already; a global pin is
-// included when its absolute path happens to fall inside this folder).
-function pinnedPathsIn(
-  store: PinStore,
+// The folder-relative paths of every resolvable, non-recipe file shortcut that
+// lives inside a given folder (project shortcuts are folder-relative already; a
+// global shortcut is included when its absolute path happens to fall inside this
+// folder).
+function shortcutPathsIn(
+  store: ShortcutStore,
   folder: vscode.WorkspaceFolder
 ): Set<string> {
   const out = new Set<string>();
-  for (const pin of [...store.getProjectPins(), ...store.getGlobalPins()]) {
-    if (pin.isRecipe || pinKind(pin) !== "file") {
+  for (const shortcut of [...store.getProjectShortcuts(), ...store.getGlobalShortcuts()]) {
+    if (shortcut.isRecipe || shortcutKind(shortcut) !== "file") {
       continue;
     }
-    const uri = store.resolveUri(pin);
+    const uri = store.resolveUri(shortcut);
     if (!uri) {
       continue;
     }
@@ -144,7 +146,7 @@ export async function initFocusMode(
 // computed "hide everything but the favorites" globs. The user's own excludes are
 // preserved in the merge and restored verbatim on exit.
 export async function enterFocusMode(
-  store: PinStore,
+  store: ShortcutStore,
   context: vscode.ExtensionContext
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders ?? [];
@@ -153,14 +155,14 @@ export async function enterFocusMode(
     return;
   }
   let hidden = 0;
-  let foldersWithPins = 0;
+  let foldersWithShortcuts = 0;
   for (const folder of folders) {
-    const pinnedRel = pinnedPathsIn(store, folder);
-    const excludes = await computeExcludes(folder, pinnedRel);
+    const shortcutRel = shortcutPathsIn(store, folder);
+    const excludes = await computeExcludes(folder, shortcutRel);
     if (Object.keys(excludes).length === 0) {
       continue;
     }
-    foldersWithPins++;
+    foldersWithShortcuts++;
     hidden += Object.keys(excludes).length;
     const cfg = vscode.workspace.getConfiguration("files", folder.uri);
     const prior = cfg.inspect<Record<string, boolean>>("exclude")
@@ -174,9 +176,9 @@ export async function enterFocusMode(
       vscode.ConfigurationTarget.WorkspaceFolder
     );
   }
-  if (foldersWithPins === 0) {
-    // Nothing to hide: every open folder either has no pinned files or only pins at
-    // its root. Tell the user rather than silently toggling a no-op on.
+  if (foldersWithShortcuts === 0) {
+    // Nothing to hide: every open folder either has no shortcut files or only
+    // shortcuts at its root. Tell the user rather than silently toggling a no-op on.
     vscode.window.showInformationMessage(l10n("focus.nothingToHide"));
     return;
   }

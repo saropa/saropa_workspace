@@ -117,7 +117,7 @@ test("clearing all thresholds stops the monitor from firing", () => {
     const monitor = new IdleMonitor();
     const fired = record(monitor);
     monitor.setThresholds([1]);
-    monitor.setThresholds([]); // e.g. the last idle pin was removed
+    monitor.setThresholds([]); // e.g. the last idle shortcut was removed
 
     mock.timers.tick(10 * MIN);
     assert.deepEqual(fired, []);

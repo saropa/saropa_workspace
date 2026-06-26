@@ -14,8 +14,8 @@ test("a plain key with no placeholders returns the catalog value verbatim", () =
 });
 
 test("a {token} placeholder is replaced by the matching param", () => {
-  // "pin.added" is "Pinned {name}"; the name fills the single placeholder.
-  assert.equal(l10n("pin.added", { name: "server.ts" }), "Pinned server.ts");
+  // "pin.added" is "Added {name}"; the name fills the single placeholder.
+  assert.equal(l10n("pin.added", { name: "server.ts" }), "Added server.ts");
 });
 
 test("multiple distinct placeholders are each replaced", () => {
@@ -37,8 +37,8 @@ test("the same placeholder appearing twice is replaced at every occurrence", () 
 
 test("a numeric param is stringified before substitution", () => {
   // Params are typed string | number; a number must render as its decimal text so
-  // count-style strings ("Imported {count} pin(s)") read correctly.
-  assert.equal(l10n("import.done", { count: 5, file: ".favorites.json" }), "Imported 5 pin(s) from .favorites.json.");
+  // count-style strings ("Imported {count} shortcut(s)") read correctly.
+  assert.equal(l10n("import.done", { count: 5, file: ".favorites.json" }), "Imported 5 shortcut(s) from .favorites.json.");
 });
 
 test("a missing key falls back to the key itself so a typo is visible, not empty", () => {
@@ -59,13 +59,13 @@ test("a missing key still runs interpolation over its key-name fallback", () => 
 test("a placeholder with no matching param is left literal", () => {
   // "pin.added" needs {name}; calling with an empty/foreign param leaves {name} in
   // place rather than emptying it, so a missing argument is visible, not silent.
-  assert.equal(l10n("pin.added", { other: "y" }), "Pinned {name}");
+  assert.equal(l10n("pin.added", { other: "y" }), "Added {name}");
 });
 
 test("calling with no params returns a value that still contains its placeholders", () => {
   // With params undefined the interpolation loop is skipped entirely; the raw value
   // (placeholders intact) is returned, which is the correct no-op behavior.
-  assert.equal(l10n("pin.added"), "Pinned {name}");
+  assert.equal(l10n("pin.added"), "Added {name}");
 });
 
 test("an empty-string param replaces the placeholder with nothing", () => {

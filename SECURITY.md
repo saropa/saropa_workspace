@@ -14,32 +14,32 @@ Please always use the latest version to ensure you have any security patches.
 ## Scope
 
 Saropa Workspace is a Visual Studio Code extension that runs locally inside
-your editor. It manages "pins" (shortcuts to files and scripts) and can run
-the scripts you pin.
+your editor. It manages shortcuts to files and scripts and can run
+the scripts you add.
 
 What it does:
 
-- Stores project pins in a workspace file (`.vscode/saropa-workspace.json`)
-  and global/user pins in the extension's `globalState` (synced via VS Code
+- Stores project shortcuts in a workspace file (`.vscode/saropa-workspace.json`)
+  and global/user shortcuts in the extension's `globalState` (synced via VS Code
   Settings Sync when you enable that).
-- Executes scripts **you choose to pin**, using the command prefix, args,
-  working directory, and environment variables you configure per pin. These
+- Executes scripts **you choose to add**, using the command prefix, args,
+  working directory, and environment variables you configure per shortcut. These
   run through the integrated terminal or a background output channel on your
   own machine, with your own permissions.
 
 What it does **not** do:
 
 - It sends and phones home nothing — no remote telemetry, no analytics, no
-  network calls. The only data it keeps (a local run history and pin-suggestion
+  network calls. The only data it keeps (a local run history and shortcut-suggestion
   counts) lives in VS Code's storage on your machine and is never transmitted.
 - It does not require network access or external services for its own
   operation.
-- It does not run anything you did not explicitly pin and trigger.
+- It does not run anything you did not explicitly add and trigger.
 
-Because the extension runs scripts on your behalf, treat a pinned script the
-same way you would treat any local executable: only pin files you trust, and
+Because the extension runs scripts on your behalf, treat a saved script the
+same way you would treat any local executable: only add files you trust, and
 review the run parameters (command prefix, args, cwd, env) before running a
-pin you did not create yourself — for example, one imported from a shared
+shortcut you did not create yourself — for example, one imported from a shared
 `.favorites.json`.
 
 ## Reporting a Vulnerability
