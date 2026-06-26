@@ -48,7 +48,7 @@ import {
   deleteFile,
 } from "./fileOps";
 import { enterFocusMode, exitFocusMode } from "./focusMode";
-import { encodePinLink } from "../import/shareLink";
+import { encodePinLink, SharedPin } from "../import/shareLink";
 import { runOutputs } from "../exec/runOutputs";
 import {
   hasInteractiveTokens,
@@ -491,6 +491,70 @@ export function createRoutineHooks(store: PinStore): RoutineHooks {
       return runPinCommand(store, pin);
     },
   };
+}
+
+// "New routine from selection": compose the multi-selected pins into one routine pin
+// that runs them in sequence. Members reference each pin by recipeId (preferred — it
+// survives promote/reload) or pin id (a non-recipe stored pin), skipping routines (no
+// nesting) and de-duping. The auto-offered Morning routine is the convenient default;
+// this lets any set of recipe pins be hand-composed.
+async function newRoutineFromSelection(store: PinStore, arg: unknown, args: unknown[]): Promise<void> {
+  // A view/item context-menu command receives (clickedItem, allSelectedItems[]). Fall
+  // back to the single clicked item when no multi-selection array is passed.
+  const rawItems = Array.isArray(args) && args.length > 0 ? args : arg !== undefined ? [arg] : [];
+  const members: RoutineMember[] = [];
+  const seen = new Set<string>();
+  for (const raw of rawItems) {
+    const pin = asPin(raw);
+    if (!pin) {
+      continue;
+    }
+    // Routines do not nest, and an annotation pin (comment / separator) has nothing
+    // to run — neither belongs in a member list.
+    if (pin.action?.kind === "routine" || isAnnotationPin(pin)) {
+      continue;
+    }
+    const key = pin.recipeId ?? pin.id;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    members.push(
+      pin.recipeId
+        ? { recipeId: pin.recipeId, label: pin.label }
+        : { pinId: pin.id, label: pin.label }
+    );
+  }
+
+  if (members.length < 2) {
+    vscode.window.showWarningMessage(l10n("routine.new.needTwo"));
+    return;
+  }
+
+  const name = await vscode.window.showInputBox({
+    title: l10n("routine.new.title"),
+    prompt: l10n("routine.new.prompt", { count: members.length }),
+    value: l10n("routine.new.defaultName"),
+    validateInput: (v) => (v.trim().length > 0 ? undefined : l10n("routine.new.nameEmpty")),
+  });
+  if (name === undefined) {
+    return;
+  }
+
+  const shared: SharedPin = {
+    v: 1,
+    label: name.trim(),
+    action: { kind: "routine", members },
+    icon: "run-all",
+    color: "charts.green",
+  };
+  const scope: PinScope = (vscode.workspace.workspaceFolders?.length ?? 0) > 0 ? "project" : "global";
+  const added = await store.importPin(shared, scope);
+  vscode.window.showInformationMessage(
+    added
+      ? l10n("routine.new.saved", { name: name.trim(), count: members.length })
+      : l10n("routine.new.notSaved")
+  );
 }
 
 async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
@@ -1003,6 +1067,12 @@ export function registerPinCommands(
   reg("saropaWorkspace.refresh", () => store.rescan());
 
   reg("saropaWorkspace.runAnyPin", () => runAnyPin(store));
+
+  // Compose the multi-selected pins into one routine pin (runs them in sequence). The
+  // tree passes (clickedItem, allSelectedItems[]) for a multi-select context action.
+  reg("saropaWorkspace.newRoutineFromSelection", (item?: unknown, items?: unknown) =>
+    newRoutineFromSelection(store, item, Array.isArray(items) ? items : [])
+  );
 
   reg("saropaWorkspace.runPinWithOverrides", () => runPinWithOverrides(store));
 

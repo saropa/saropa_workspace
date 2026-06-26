@@ -1,0 +1,61 @@
+import { RecipeResult } from "./detectors";
+import { RoutineMember } from "../model/pin";
+
+// Composite-recipe ("routine") detection. A routine runs an ordered set of other
+// recipe pins in sequence as one action. The headline is the Morning routine: when
+// the folder already has two or more morning-appropriate scheduled rituals, offer a
+// single recipe that fires them back-to-back when the user arrives.
+//
+// This detector runs AFTER the others and is handed the recipes they produced, so it
+// pre-populates the member list from what actually exists (never proposing an empty
+// or single-member routine). The user edits membership/order afterward — a routine is
+// just a pin with an ordered members list.
+
+// The morning members, in run order. Hygiene runs FIRST so a frozen-tree project is
+// caught before the heavier members; the rest follow the recipe book's morning
+// cadence. Each entry is the recipeId the morning ritual is detected under.
+const MORNING_MEMBER_ORDER: ReadonlyArray<{ recipeId: string; label: string }> = [
+  { recipeId: "hygiene.bloat", label: "Workspace bloat scan" },
+  { recipeId: "ritual.lint", label: "Dawn lint sweep" },
+  { recipeId: "ritual.stats", label: "Sunrise project stats" },
+  { recipeId: "ritual.standup", label: "Standup digest" },
+  { recipeId: "ritual.prs", label: "PR review queue" },
+];
+
+// The minimum detected morning members before a Morning routine is offered — never
+// propose an empty or single-member routine.
+const MIN_MEMBERS = 2;
+
+export function detectRoutineRecipes(detected: RecipeResult[]): RecipeResult[] {
+  const present = new Set(detected.map((r) => r.recipeId));
+  const members: RoutineMember[] = MORNING_MEMBER_ORDER.filter((m) =>
+    present.has(m.recipeId)
+  ).map((m) => ({ recipeId: m.recipeId, label: m.label }));
+
+  if (members.length < MIN_MEMBERS) {
+    return [];
+  }
+
+  const memberNames = members.map((m) => m.label).join(", ");
+  return [
+    {
+      recipeId: "routine.morning",
+      label: "Morning routine",
+      description:
+        "A routine (a recipe of recipes): runs this morning's scheduled checks in " +
+        `sequence as one action — ${memberNames}. Scheduled daily at 08:00, seeds ` +
+        "disabled; enable it by promoting the recipe to a stored pin. One timer drives " +
+        "the whole block (the members keep their own times only when run standalone). " +
+        "Each member writes its own report; the routine writes a one-screen summary " +
+        "linking them and badges red if any member needs attention. Run now fires the " +
+        "whole block on demand. Edit the membership and order freely afterward.",
+      icon: "run-all",
+      color: "charts.green",
+      group: "scheduled",
+      // The routine carries the schedule (disabled by default, like every scheduled
+      // ritual); one fire runs all members in sequence.
+      schedule: { atTime: "08:00", enabled: false },
+      action: { kind: "routine", members },
+    },
+  ];
+}

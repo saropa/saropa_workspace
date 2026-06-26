@@ -72,3 +72,63 @@ stop typing, confirm it runs once and badges, and does not re-run until you type
 ## Complexity & risk
 Moderate. Low blast radius if it reuses the existing trigger/cooldown plumbing; the idle
 detector is small and self-contained.
+
+## Finish Report (2026-06-25)
+
+Status: Complete.
+
+### What shipped
+A "Run when idle" pin trigger. After a per-pin number of minutes with no VS Code
+interaction, the pin runs once in the background; it re-arms only after the next burst
+of activity, firing at most once per idle period.
+
+The trigger union was extended rather than a parallel field added: `PinTrigger` gained
+`{ kind: "idle"; minutes: number }` (`extension/src/model/pin.ts`), so run-on-idle sits
+with the existing pin/event causes and reuses the chain engine's per-pin cooldown and
+output-channel audit log.
+
+### Components
+- `exec/idleMonitor.ts` (new) — an editor-idle detector. It records a last-activity
+  timestamp, reset on window focus regained, cursor/selection movement, and active-editor
+  switch. A poll timer (15s, armed only while at least one idle-triggered pin exists)
+  fires `onDidGoIdle(minutes)` once for each configured threshold the idle span crosses
+  within a period; the fired set clears on the next activity. The monitor fires the exact
+  threshold crossed (not the raw idle span), so a 3-minute pin never re-runs when a
+  separate 10-minute pin's boundary is later crossed in the same period.
+- `exec/chainRunner.ts` — subscribes to the monitor, re-derives the distinct thresholds on
+  every store change, and on an idle crossing runs every pin whose idle trigger names that
+  threshold. Idle runs are forced to the background channel via a shallow per-run clone
+  (`toBackground`); a pin needing interactive `${prompt}`/`${pick}` input is skipped
+  (an unattended run cannot answer it), matching the scheduler's stance. The existing
+  per-pin cooldown and audit-log path are reused unchanged.
+- `commands/configureTriggers.ts` — a "Run when idle..." hub action prompts for whole
+  minutes (default 3) and writes a single idle trigger per pin (a second would run the pin
+  twice per idle period, so an existing one is replaced).
+- `views/plannerPanel.ts` — an idle trigger draws no chain-graph edge (it has no source
+  node); the graph-build and trigger-removal paths were updated to handle the new kind
+  explicitly instead of assuming pin-or-event.
+- `extension.ts` — constructs the `IdleMonitor` and hands it to the `ChainRunner`; both
+  are disposables released on deactivation.
+- `i18n/locales/en.json` — trigger labels, the idle audit line, and the
+  interactive-skip message.
+
+### Design decision: text-document changes are not activity
+A `vscode.workspace.onDidChangeTextDocument` event is deliberately excluded from the
+activity signals (the plan listed it and separately flagged a self-retrigger risk). An
+idle run that writes files the editor reloads would fire that event, reset the idle clock,
+and — after another idle stretch — re-run, looping. Human typing already moves the cursor,
+which `onDidChangeTextEditorSelection` catches, so dropping the document signal loses
+nothing for presence detection while closing the loop. Window blur is likewise not
+activity: stepping away must let the idle span accrue, so only the focused transition
+resets.
+
+### Verification
+- `extension/src/test/idleMonitor.test.ts` (new, 5 cases) pins the behavior under Node's
+  mock timers: ordered once-per-threshold firing, re-arm after activity, the focus-resets
+  / blur-does-not asymmetry (which proves the self-retrigger guard direction), threshold
+  clearing stops the poll, and duplicate/non-positive thresholds collapse. The test stub
+  (`src/test/_stub/vscode.ts`) gained a minimal `EventEmitter` and the three window
+  activity events with `__fire*` drivers.
+- Full unit suite: 87 passing, 0 failing. `tsc --noEmit`: clean. `esbuild`: bundles.
+- Device/manual verification of the live run is listed in the handoff (a unit test cannot
+  exercise the real VS Code event timing).

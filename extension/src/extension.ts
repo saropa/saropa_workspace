@@ -32,6 +32,7 @@ import { Heartbeat } from "./exec/heartbeat";
 import { registerProcessMonitorCommands } from "./exec/processMonitorCommands";
 import { PlannerPanel } from "./views/plannerPanel";
 import { registerHygieneCommands } from "./exec/hygieneCommands";
+import { registerBloatCommands } from "./exec/bloatCommands";
 import { registerProjectStatsCommand } from "./exec/projectStats";
 import { processRegistry } from "./exec/processRegistry";
 import { metricBadges } from "./exec/metricBadges";
@@ -287,6 +288,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // empty/oversized outlier scan that writes a dated JSON report and a sticky toast,
   // plus the per-instance saved-scan wizard.
   registerHygieneCommands(context, store);
+
+  // Workspace bloat scan (#63): the directory-bloat half — measures the dirs VS Code
+  // crawls on open + the test-downloader watcher guard, writes a dated Markdown
+  // report, and offers Guard / Prune remediation for the open workspace.
+  registerBloatCommands(context);
 
   // Sunrise project stats (#27): the per-language file/line aggregation + git
   // activity summary command, driven by the scheduled "Sunrise project stats" recipe.

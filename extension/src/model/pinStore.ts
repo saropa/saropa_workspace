@@ -20,6 +20,7 @@ import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
 import { detectProcessRecipes } from "../recipes/processRecipes";
 import { detectHygieneRecipes } from "../recipes/hygieneRecipes";
+import { detectRoutineRecipes } from "../recipes/routineRecipes";
 import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
 import { getOutputChannel } from "../exec/runner";
 import { SharedPin } from "../import/shareLink";
@@ -1469,6 +1470,9 @@ export class PinStore {
       ...(await detectHygieneRecipes(folder)),
       ...(await detectAiContextRecipes(folder)),
     ];
+    // Routines compose OTHER detected recipes, so they are detected last from the set
+    // above — a Morning routine is offered only when >=2 of its morning members exist.
+    results.push(...detectRoutineRecipes(results));
     results.sort((a, b) =>
       a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
     );

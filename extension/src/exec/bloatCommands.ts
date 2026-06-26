@@ -237,7 +237,6 @@ async function pruneVscodeTest(root: string | undefined): Promise<void> {
   }
   const cacheDir = path.join(target, ".vscode-test");
   const fs = await import("fs/promises");
-  let sizeLabel = "";
   try {
     const stat = await fs.stat(cacheDir);
     if (!stat.isDirectory()) {
@@ -248,9 +247,15 @@ async function pruneVscodeTest(root: string | undefined): Promise<void> {
     vscode.window.showInformationMessage(l10n("bloat.pruneAbsent"));
     return;
   }
+  // Name the exact size reclaimed in the confirm — a delete prompt the user can tie
+  // to a concrete number, not a vague "clear the cache".
+  const { bytes } = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: l10n("bloat.pruneMeasuring") },
+    () => measureDirectory(cacheDir)
+  );
   const confirm = l10n("bloat.pruneConfirm");
   const choice = await vscode.window.showWarningMessage(
-    l10n("bloat.pruneMessage", { project: path.basename(target), size: sizeLabel || "the test cache" }),
+    l10n("bloat.pruneMessage", { project: path.basename(target), size: humanBytes(bytes) }),
     { modal: true },
     confirm
   );
@@ -266,7 +271,7 @@ async function pruneVscodeTest(root: string | undefined): Promise<void> {
     return;
   }
   vscode.window.showInformationMessage(
-    l10n("bloat.pruned", { project: path.basename(target) })
+    l10n("bloat.pruned", { project: path.basename(target), size: humanBytes(bytes) })
   );
 }
 
