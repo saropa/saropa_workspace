@@ -341,6 +341,13 @@ export async function runAction(
       await runMacro(action.steps ?? [], name);
       pinEvents.fireComplete(pin.id, "dispatched");
       return;
+    case "routine":
+      // A routine resolves and runs OTHER recipe pins in sequence. The resolve +
+      // single-pin-run logic lives in the store/command layer (which runner.ts must
+      // not import — it would cycle), so it is injected once at activation via
+      // setRoutineHooks. runRoutine fires its own aggregated completion.
+      await runRoutine(pin, action.members ?? [], source);
+      return;
     default:
       return;
   }

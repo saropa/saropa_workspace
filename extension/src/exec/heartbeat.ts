@@ -221,10 +221,15 @@ export async function readTrendSeries(count: number): Promise<TrendSeries> {
   } catch {
     return { labels: [], tools: [] };
   }
-  // Group cpuPercent by (timestamp, tool), preserving first-seen timestamp order so
-  // the series reads left-to-right oldest-to-newest. A Map keyed by timestamp keeps
-  // per-sample per-tool values; a separate ordered list of timestamps drives the
-  // x-axis.
+  return parseTrendSeries(text, count);
+}
+
+// Pure CSV-to-series transform, split out from the file IO so it is unit-testable
+// without the extension host (the project's pure-helper test convention). Groups
+// cpuPercent by (timestamp, tool), preserving first-seen timestamp order so the
+// series reads left-to-right oldest-to-newest, keeps the last `count` samples, and
+// aligns every tool's points to that shared x-axis with 0 where the tool was absent.
+export function parseTrendSeries(text: string, count: number): TrendSeries {
   const order: string[] = [];
   const perSample = new Map<string, Map<string, number>>();
   const toolSet = new Set<string>();

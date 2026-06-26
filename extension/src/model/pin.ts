@@ -9,8 +9,44 @@ export type PinScope = "project" | "global";
 //   - "shell"   runs a command line not tied to a file (e.g. "npm test")
 //   - "url"     opens an external URL (e.g. the project's GitHub page)
 //   - "command" invokes a VS Code command id (e.g. copy version to clipboard)
-//   - "macro"   runs an ordered list of steps
-export type PinKind = "file" | "shell" | "url" | "command" | "macro";
+//   - "macro"   runs an ordered list of inline steps
+//   - "routine" runs an ordered list of OTHER recipe pins in sequence (a recipe of
+//               recipes — the Morning routine). Distinct from "macro": a macro's
+//               steps are inline and identity-less, a routine's members are real
+//               pins edited in one place and each carrying its own report/badge.
+// The last two are annotation-only entries — they have NO target and NO action,
+// so they never run or open. They exist to label and divide a long pin list:
+//   - "comment"   a non-runnable text label (the comment text is the pin label)
+//   - "separator" a non-runnable visual divider (carries neither label nor path)
+// Every consumer that assumes a pin has something to run/open must guard these.
+// They fail closed (no action) wherever a switch does not handle them, so the
+// discriminated union on this type is the single guard point. See isAnnotationPin.
+export type PinKind =
+  | "file"
+  | "shell"
+  | "url"
+  | "command"
+  | "macro"
+  | "routine"
+  | "comment"
+  | "separator";
+
+// One member of a routine: a reference to another recipe pin, run in sequence.
+// Referenced by stable recipeId (so the link survives the recipe -> promoted-pin
+// transition and reloads, matching how sticky removal keys on recipeId), with a
+// pin-id fallback for a member hand-composed from a non-recipe stored pin. Exactly
+// one of recipeId / pinId identifies the member; recipeId is preferred when both
+// resolve. Resolved to the live pin at run time, so an edited/promoted member is
+// still found.
+export interface RoutineMember {
+  // The member recipe's stable recipeId (detected members).
+  recipeId?: string;
+  // The member pin's id (hand-composed members over a non-recipe stored pin).
+  pinId?: string;
+  // Optional display override for the routine's per-member progress line; defaults
+  // to the resolved member pin's label.
+  label?: string;
+}
 
 // One step of a macro pin. Each step is a single non-macro action (macros do not
 // nest). Only the fields for its `kind` are read.
@@ -50,6 +86,12 @@ export interface PinAction {
   commandArgs?: unknown[];
   // macro
   steps?: MacroStep[];
+  // routine: ordered members run strictly in sequence (see runRoutine). A routine
+  // is a PinAction like every other recipe, so it round-trips through
+  // promote/persist with no new top-level Pin field. Routines do not nest — a
+  // member that is itself a routine is skipped, bounding sequencing/failure
+  // semantics and preventing cycles.
+  members?: RoutineMember[];
 }
 
 // Where a pinned file runs when executed. "terminal" is the shared integrated
@@ -297,6 +339,16 @@ export interface Pin {
 // The kind a pin runs as: its action's kind, or "file" when it has no action.
 export function pinKind(pin: Pin): PinKind {
   return pin.action?.kind ?? "file";
+}
+
+// A comment or separator entry: a non-runnable, non-openable annotation that only
+// labels or divides the list. Every code path that assumes a pin has a target to
+// run/open consults this so the new kinds stay inert (the runner, the click
+// dispatcher, the run palette, badges). Kept as one predicate so a third annotation
+// kind added later updates every guard from a single place.
+export function isAnnotationPin(pin: Pin): boolean {
+  const kind = pinKind(pin);
+  return kind === "comment" || kind === "separator";
 }
 
 // A user-defined group (folder) that holds pins, nested under a scope root.
