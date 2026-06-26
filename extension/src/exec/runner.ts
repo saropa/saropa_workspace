@@ -28,6 +28,12 @@ import {
 import { playCue } from "./soundCue";
 import { pinEvents } from "./pinEvents";
 import { PinBadge, pinBadges, parseRunBadge } from "./pinBadges";
+import {
+  detectBlockedPort,
+  findPortHolder,
+  killProcess,
+  PortHolder,
+} from "./portUnwedge";
 import { l10n } from "../i18n/l10n";
 
 // Builds and launches the command for a pin. Phase 1 supports the integrated
@@ -297,7 +303,10 @@ export async function runPin(
         plan.name,
         pin.id,
         plan.extractResult,
-        effectivePin.exec?.sound
+        effectivePin.exec?.sound,
+        // Re-run from the original pin (not effectivePin) so a kill+retry re-resolves
+        // any interactive ${prompt:}/${pick:} tokens, matching a fresh manual run.
+        () => void runPin(pin, uri, source, extraTokens)
       );
       break;
   }
@@ -427,7 +436,18 @@ async function runShellAction(
     // fires its real outcome from settle()).
     pinEvents.fireComplete(pinId, "dispatched");
   } else {
-    await runInBackground(commandLine, cwd, undefined, name, pinId);
+    await runInBackground(
+      commandLine,
+      cwd,
+      undefined,
+      name,
+      pinId,
+      undefined,
+      undefined,
+      // A shell recipe retries by re-dispatching itself; the action carries its own
+      // command/cwd, so the kill+retry path can re-run it without a file/uri.
+      () => void runShellAction(action, name, pinId)
+    );
   }
 }
 
@@ -1008,7 +1028,10 @@ async function runInBackground(
   name: string,
   pinId: string,
   extractResult?: string,
-  soundOverride?: SoundOverride
+  soundOverride?: SoundOverride,
+  // Re-dispatch this same run. Used only by the port-unwedge kill+retry path so a
+  // freed port can be retried in one click; absent for callers with no retry route.
+  retry?: () => void
 ): Promise<void> {
   const cp = await import("child_process");
   const channel = getOutputChannel();
@@ -1076,18 +1099,15 @@ async function runInBackground(
     if (extractResult) {
       extractAndCopy(extractResult, captured, name);
     }
-    // On failure, scan the output for a fix command the tool itself suggested
-    // (e.g. "Run `npm install lodash` to fix") and offer to run it in one click,
-    // so the user does not have to select/copy/paste it (WOW #12).
-    const fix =
-      outcome === "failure" ? detectFixCommand(captured) : undefined;
-    notifyCompletion(
-      name,
-      outcome,
-      code,
-      durationMs,
-      fix ? { command: fix, cwd } : undefined
-    );
+    // A success is a quiet confirmation; a failure may carry an actionable cause —
+    // a held port (WOW #1) or a tool-suggested fix command (WOW #12) — so the
+    // failure path resolves those (async, for the port-holder lookup) before its
+    // toast. Routed off settle so the run record above is written synchronously.
+    if (outcome === "failure") {
+      void notifyFailure(name, code, durationMs, captured, cwd, retry);
+    } else {
+      notifyCompletion(name, outcome, code, durationMs, undefined);
+    }
   };
 
   // On exit, record the result so the tree shows a success/failure badge (7.2)
@@ -1136,6 +1156,116 @@ function extractAndCopy(pattern: string, output: string, name: string): void {
   const value = match[1] ?? match[0];
   void vscode.env.clipboard.writeText(value);
   vscode.window.showInformationMessage(l10n("extract.copied", { name, value }));
+}
+
+// Resolve and surface a failed background run's actionable cause, then show the
+// completion toast. A held port (WOW #1) takes precedence over a suggested fix
+// command (WOW #12): freeing the port is the direct unblock, whereas a fix command
+// is the fallback. The port-holder lookup is the only async step, which is why this
+// path is async while the success path is not.
+async function notifyFailure(
+  name: string,
+  code: number | null,
+  durationMs: number,
+  captured: string,
+  cwd: string,
+  retry?: () => void
+): Promise<void> {
+  const port = detectBlockedPort(captured);
+  if (port !== undefined) {
+    const holder = await findPortHolder(port);
+    notifyPortBlocked(name, port, holder, cwd, retry);
+    return;
+  }
+  const fix = detectFixCommand(captured);
+  notifyCompletion(name, "failure", code, durationMs, fix ? { command: fix, cwd } : undefined);
+}
+
+// Toast for a run blocked by a held port. When the holder is known, offer the
+// kill+retry action (gated behind a modal confirm in confirmKillAndRetry); when it
+// could not be identified, name the port and offer to open a terminal pre-filled
+// with the inspect command so the user can free it manually. Show Output is always
+// available as the diagnostic fallback.
+function notifyPortBlocked(
+  name: string,
+  port: number,
+  holder: PortHolder | undefined,
+  cwd: string,
+  retry?: () => void
+): void {
+  const showOutput = l10n("run.showOutput");
+  if (!holder) {
+    const inspect = l10n("portUnwedge.inspectPort");
+    void vscode.window
+      .showErrorMessage(
+        l10n("portUnwedge.blockedUnknown", { name, port }),
+        inspect,
+        showOutput
+      )
+      .then((choice) => {
+        if (choice === inspect) {
+          runInTerminal(inspectPortCommand(port), cwd, undefined);
+        } else if (choice === showOutput) {
+          getOutputChannel().show(true);
+        }
+      });
+    return;
+  }
+  const processName = holder.name ?? l10n("portUnwedge.unknownProcess");
+  const killAndRetry = l10n("portUnwedge.killAndRetry");
+  void vscode.window
+    .showErrorMessage(
+      l10n("portUnwedge.blocked", { name, port, process: processName, pid: holder.pid }),
+      killAndRetry,
+      showOutput
+    )
+    .then((choice) => {
+      if (choice === killAndRetry) {
+        void confirmKillAndRetry(name, port, holder, processName, retry);
+      } else if (choice === showOutput) {
+        getOutputChannel().show(true);
+      }
+    });
+}
+
+// Modal confirm naming the exact PID + image before killing — never auto-kill. On
+// a confirmed kill that frees the port, re-dispatch the run (when a retry route
+// exists); a failed kill leaves everything as-is and says so.
+async function confirmKillAndRetry(
+  name: string,
+  port: number,
+  holder: PortHolder,
+  processName: string,
+  retry?: () => void
+): Promise<void> {
+  const confirm = l10n("portUnwedge.confirmKill");
+  const choice = await vscode.window.showWarningMessage(
+    l10n("portUnwedge.confirmBody", { process: processName, pid: holder.pid, port }),
+    { modal: true },
+    confirm
+  );
+  if (choice !== confirm) {
+    return;
+  }
+  const killed = await killProcess(holder.pid);
+  if (!killed) {
+    vscode.window.showErrorMessage(
+      l10n("portUnwedge.killFailed", { process: processName, pid: holder.pid, port })
+    );
+    return;
+  }
+  vscode.window.showInformationMessage(
+    l10n("portUnwedge.killed", { process: processName, pid: holder.pid, port, name })
+  );
+  retry?.();
+}
+
+// The platform command that lists what holds a port, used to pre-fill the terminal
+// when the holder could not be resolved automatically.
+function inspectPortCommand(port: number): string {
+  return process.platform === "win32"
+    ? `netstat -ano | findstr :${port}`
+    : `lsof -nP -iTCP:${port} -sTCP:LISTEN`;
 }
 
 // Visible outcome for a finished background run. Failures get an error toast with

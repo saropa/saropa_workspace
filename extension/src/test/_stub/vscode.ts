@@ -4,20 +4,232 @@
 // extension host. It models ONLY the surface the unit-tested code paths use;
 // anything else is intentionally absent so an accidental new host dependency fails
 // loudly at bundle/run time rather than silently passing against a fake.
+//
+// The store-IO tests (pinStore) need real persistence, so workspace.fs is backed
+// by the actual node filesystem against a temp directory the test creates, and
+// workspace.workspaceFolders / getConfiguration are settable per test. This makes
+// the REAL PinStore code run (readProjectFile / writeProjectFile / migration /
+// seedAutoPins) — only the host shell is faked, which is unavoidable outside the
+// Electron host. globalState / workspaceState are faked by the test's own
+// ExtensionContext (an in-memory Map), not here.
 
-// workspace.getConfiguration(section).get(key, default): the unit tests exercise
-// the DEFAULT-config path, so every key returns its supplied default. Behavior
-// under custom user settings is a host concern (4.2 integration), not a unit one.
-export const workspace = {
-  getConfiguration(_section?: string): {
-    get<T>(key: string, defaultValue: T): T;
-  } {
+import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
+
+// vscode.FileType: the store reads `.type` from a stat to tell a file from a
+// directory (the auto-pin literal-path branch). Only File/Directory are exercised.
+export const FileType = {
+  Unknown: 0,
+  File: 1,
+  Directory: 2,
+  SymbolicLink: 64,
+} as const;
+
+// A faithful-enough URI for both the store path helpers and real file IO. file()
+// yields the "file" scheme and echoes the path as fsPath; parse() reads the scheme
+// from a "scheme://..." string and round-trips toString(); joinPath() composes a
+// file URI from a base + path segments (used by every project-file read/write).
+// Real platform-specific fsPath normalization is not modeled — the tests use
+// forward-slash paths, which node's fs accepts on every OS — so this verifies the
+// store's BRANCHING and IO, not OS path canonicalization.
+export class Uri {
+  private constructor(
+    public readonly scheme: string,
+    public readonly fsPath: string,
+    private readonly raw: string
+  ) {}
+
+  static file(p: string): Uri {
+    return new Uri("file", p, p);
+  }
+
+  static parse(value: string): Uri {
+    const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(value);
+    const scheme = match ? match[1] : "file";
+    return new Uri(scheme, value, value);
+  }
+
+  // Compose a child file URI. Mirrors vscode.Uri.joinPath: append the segments to
+  // the base path with "/" separators (the store always passes POSIX-style
+  // relative segments). A trailing slash on the base is collapsed so the result
+  // never contains a double slash.
+  static joinPath(base: Uri, ...segments: string[]): Uri {
+    const head = base.fsPath.replace(/[\\/]+$/, "");
+    const joined = [head, ...segments].join("/");
+    return new Uri("file", joined, joined);
+  }
+
+  toString(): string {
+    return this.raw;
+  }
+}
+
+// A workspace folder: the store reads `.uri` (for joinPath / fsPath) and `.name`
+// (for stable auto-pin ids). `index` completes the vscode shape.
+export interface WorkspaceFolder {
+  readonly uri: Uri;
+  readonly name: string;
+  readonly index: number;
+}
+
+// vscode.RelativePattern: constructed by the store only on the GLOB auto-pin
+// branch (a pattern with wildcards). Holds the base folder + the glob string;
+// findFiles below reads both.
+export class RelativePattern {
+  constructor(
+    public readonly base: WorkspaceFolder,
+    public readonly pattern: string
+  ) {}
+}
+
+// Settable workspace folders. undefined models "no folder open" (the store guards
+// that path); a test installs folders pointing at its temp directory.
+let folders: WorkspaceFolder[] | undefined;
+export function __setWorkspaceFolders(next: WorkspaceFolder[] | undefined): void {
+  folders = next;
+}
+
+// The folder that owns a URI (prefix match on fsPath), mirroring
+// workspace.getWorkspaceFolder. Returns undefined for a path outside every folder
+// (the store's "offer global instead" branch).
+function ownerFolder(uri: Uri): WorkspaceFolder | undefined {
+  const target = uri.fsPath.replace(/\\/g, "/");
+  return (folders ?? []).find((f) => {
+    const base = f.uri.fsPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    return target === base || target.startsWith(base + "/");
+  });
+}
+
+// Settable configuration. Keyed by the full "section.key" the store requests; an
+// unset key returns the caller's default (the common path the unit tests took
+// before store IO existed). A test sets recipes.enabled=false to skip the recipe
+// detection graph, or autoPins.patterns to drive seeding.
+const configValues = new Map<string, unknown>();
+export function __setConfig(section: string, key: string, value: unknown): void {
+  configValues.set(section ? `${section}.${key}` : key, value);
+}
+export function __resetConfig(): void {
+  configValues.clear();
+}
+
+function getConfiguration(section?: string): {
+  get<T>(key: string, defaultValue: T): T;
+} {
+  return {
+    get<T>(key: string, defaultValue: T): T {
+      const full = section ? `${section}.${key}` : key;
+      return (configValues.has(full) ? configValues.get(full) : defaultValue) as T;
+    },
+  };
+}
+
+// Convert a VS Code glob to a RegExp anchored to a folder-relative POSIX path.
+// Handles the constructs the auto-pin patterns use: `**` (any depth), `*` (one
+// segment), `?` (one char). Enough to expand a real glob against the temp tree;
+// literal patterns never reach here (the store stats those directly).
+function globToRegExp(glob: string): RegExp {
+  let re = "";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*") {
+      if (glob[i + 1] === "*") {
+        // `**/` matches any number of leading segments (including none); a bare
+        // `**` matches anything.
+        if (glob[i + 2] === "/") {
+          re += "(?:.*/)?";
+          i += 2;
+        } else {
+          re += ".*";
+          i += 1;
+        }
+      } else {
+        re += "[^/]*";
+      }
+    } else if (c === "?") {
+      re += "[^/]";
+    } else if ("\\^$.|+()[]{}".includes(c)) {
+      re += "\\" + c;
+    } else {
+      re += c;
+    }
+  }
+  return new RegExp("^" + re + "$");
+}
+
+// workspace.findFiles for the glob auto-pin branch: walk the base folder, match
+// each file's folder-relative POSIX path against the pattern, skip the excluded
+// subtree (the store passes node_modules), and cap at maxResults. The non-glob
+// branch never calls this — the store stats a literal path directly.
+async function findFiles(
+  include: RelativePattern,
+  exclude?: string,
+  maxResults?: number
+): Promise<Uri[]> {
+  const root = include.base.uri.fsPath;
+  const matcher = globToRegExp(include.pattern);
+  const excludeName = exclude ? exclude.replace(/[*/]/g, "") : undefined;
+  const out: Uri[] = [];
+  const walk = (dir: string): void => {
+    if (maxResults !== undefined && out.length >= maxResults) {
+      return;
+    }
+    for (const entry of nodeFs.readdirSync(dir, { withFileTypes: true })) {
+      if (excludeName && entry.name === excludeName) {
+        continue;
+      }
+      const full = nodePath.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else {
+        const rel = nodePath.relative(root, full).replace(/\\/g, "/");
+        if (matcher.test(rel)) {
+          out.push(Uri.joinPath(include.base.uri, rel));
+        }
+      }
+    }
+  };
+  walk(root);
+  return out;
+}
+
+// workspace.fs backed by the real node filesystem. The store awaits these and
+// catches rejections (a missing file is the normal first-run state), so a sync
+// throw inside an async function — which becomes a rejected promise — is the right
+// shape for stat/readFile on an absent path.
+const fsApi = {
+  async stat(uri: Uri): Promise<{ type: number; size: number; ctime: number; mtime: number }> {
+    const s = nodeFs.statSync(uri.fsPath);
     return {
-      get<T>(_key: string, defaultValue: T): T {
-        return defaultValue;
-      },
+      type: s.isDirectory() ? FileType.Directory : FileType.File,
+      size: s.size,
+      ctime: Math.trunc(s.ctimeMs),
+      mtime: Math.trunc(s.mtimeMs),
     };
   },
+  async readFile(uri: Uri): Promise<Uint8Array> {
+    return nodeFs.readFileSync(uri.fsPath);
+  },
+  async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
+    nodeFs.writeFileSync(uri.fsPath, content);
+  },
+  async createDirectory(uri: Uri): Promise<void> {
+    nodeFs.mkdirSync(uri.fsPath, { recursive: true });
+  },
+  async delete(uri: Uri, options?: { recursive?: boolean }): Promise<void> {
+    nodeFs.rmSync(uri.fsPath, { recursive: !!options?.recursive, force: true });
+  },
+};
+
+export const workspace = {
+  getConfiguration,
+  get workspaceFolders(): WorkspaceFolder[] | undefined {
+    return folders;
+  },
+  getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined {
+    return ownerFolder(uri);
+  },
+  fs: fsApi,
+  findFiles,
 };
 
 // window.showInputBox / showQuickPick: the interactive run-token tests drive these
@@ -59,6 +271,30 @@ const windowStateEmitter = new EventEmitter<{ focused: boolean }>();
 const selectionEmitter = new EventEmitter<unknown>();
 const activeEditorEmitter = new EventEmitter<unknown>();
 
+// A no-op OutputChannel: the store's getOutputChannel() constructs one lazily on an
+// error/diagnostic path. The tests do not assert on it; it must only not throw.
+function createOutputChannel(name: string): {
+  name: string;
+  appendLine(value: string): void;
+  append(value: string): void;
+  clear(): void;
+  show(preserveFocus?: boolean): void;
+  hide(): void;
+  replace(value: string): void;
+  dispose(): void;
+} {
+  return {
+    name,
+    appendLine(): void {},
+    append(): void {},
+    clear(): void {},
+    show(): void {},
+    hide(): void {},
+    replace(): void {},
+    dispose(): void {},
+  };
+}
+
 export const window = {
   showInputBox(opts?: { prompt?: string; value?: string }): Promise<InputResult> {
     return inputHandler(opts);
@@ -68,6 +304,7 @@ export const window = {
   showQuickPick(items: readonly string[]): Promise<InputResult> {
     return pickHandler(items);
   },
+  createOutputChannel,
   onDidChangeWindowState: windowStateEmitter.event,
   onDidChangeTextEditorSelection: selectionEmitter.event,
   onDidChangeActiveTextEditor: activeEditorEmitter.event,
@@ -93,31 +330,4 @@ export function __setPickHandler(handler: PickHandler): void {
 export function __resetHandlers(): void {
   inputHandler = async () => undefined;
   pickHandler = async () => undefined;
-}
-
-// A faithful-enough URI for the store path helpers: file() yields the "file"
-// scheme and echoes the path as fsPath; parse() reads the scheme from a
-// "scheme://..." string and round-trips toString(). This is enough to verify the
-// helpers' BRANCHING (file vs non-file scheme, fsPath vs toString); real
-// platform-specific fsPath normalization is a host concern (4.2), not a unit one.
-export class Uri {
-  private constructor(
-    public readonly scheme: string,
-    public readonly fsPath: string,
-    private readonly raw: string
-  ) {}
-
-  static file(p: string): Uri {
-    return new Uri("file", p, p);
-  }
-
-  static parse(value: string): Uri {
-    const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(value);
-    const scheme = match ? match[1] : "file";
-    return new Uri(scheme, value, value);
-  }
-
-  toString(): string {
-    return this.raw;
-  }
 }

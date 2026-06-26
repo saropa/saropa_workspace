@@ -6,11 +6,13 @@ import {
   PinMetric,
   PinSchedule,
   PinScope,
+  PinSet,
   PinTrigger,
   SystemEventName,
   ProjectPinsFile,
   PROJECT_PINS_VERSION,
   PROJECT_FILE_RELATIVE,
+  DEFAULT_SET_NAME,
   emptyProjectPinsFile,
   pinKind,
 } from "./pin";
@@ -125,6 +127,14 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return true;
 }
 
+// Pin-set names are compared case-insensitively for duplicate detection (so
+// "Release" and "release" are treated as the same set), while their stored,
+// display, and lookup form keeps the user's original casing. A pure case change
+// on rename is therefore allowed — the caller excludes the old name explicitly.
+function sameSetName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 export class PinStore {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
@@ -173,6 +183,14 @@ export class PinStore {
   // A project group lives in one folder's file; a pin can only join a group in
   // its own folder (paths are folder-relative). Rebuilt every refresh().
   private projectGroupFolder = new Map<string, vscode.WorkspaceFolder>();
+
+  // The active pin set's name and the de-duplicated union of all set names across
+  // folders, cached during refresh() so the status-bar switcher can read them
+  // synchronously (the project file read is async). The first workspace folder is
+  // authoritative for the active name — sets are kept in sync across folders by
+  // name, so any folder would agree after a switch. See getActiveSetName / switchSet.
+  private activeSetName = DEFAULT_SET_NAME;
+  private setNamesCache: string[] = [DEFAULT_SET_NAME];
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -408,13 +426,17 @@ export class PinStore {
   // pinKind / isAnnotationPin route it, and a comment's text is its `label`. When
   // `after` is given the entry is inserted immediately below that pin in the same
   // scope and group (so it annotates exactly where the user clicked); otherwise it
-  // appends to the project scope's top level. Returns false only when a project entry
-  // is requested with no workspace folder open. Never runs anything — these are inert.
+  // appends to the top level of `targetFolder` (the favorites importer passes the
+  // file's owning folder so an annotation lands in the same folder, and the same
+  // source order, as the file pins it sits between) or the first folder when none is
+  // given. Returns false only when a project entry is requested with no workspace
+  // folder open. Never runs anything — these are inert.
   async addAnnotationPin(
     kind: "comment" | "separator",
     scope: PinScope,
     label: string | undefined,
-    after?: Pin
+    after?: Pin,
+    targetFolder?: vscode.WorkspaceFolder
   ): Promise<boolean> {
     // An anchor decides scope + group (so an inserted entry lands beside it); a
     // title-bar invocation has no anchor and falls back to the requested scope.
@@ -442,10 +464,11 @@ export class PinStore {
       return true;
     }
 
-    // Project scope: write to the anchor's owning folder, else the first folder.
+    // Project scope: write to the anchor's owning folder, else the caller's
+    // targetFolder (the importer's owning folder), else the first folder.
     const folder = after
       ? this.projectPinFolder.get(after.id) ?? vscode.workspace.workspaceFolders?.[0]
-      : vscode.workspace.workspaceFolders?.[0];
+      : targetFolder ?? vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
       return false;
     }
@@ -725,6 +748,16 @@ export class PinStore {
     });
   }
 
+  // Persist a pin's branch link (WOW #3). A branch name scopes the pin to that
+  // branch (shown only while the owning folder is on it); undefined clears the link
+  // (shown on every branch). Routed through mutatePin, so it no-ops on an auto/recipe
+  // pin (recomputed, not stored) — the toggle command gates those out up front.
+  async setPinBranch(pin: Pin, branch: string | undefined): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.branch = branch && branch.length > 0 ? branch : undefined;
+    });
+  }
+
   // Every distinct tag in use across stored project + global pins, sorted A->Z so
   // the tag picker and the mode filter offer a stable, de-duplicated list. Recipe
   // and auto pins carry no tags (recomputed, not stored), so they contribute none.
@@ -837,6 +870,250 @@ export class PinStore {
       await this.refresh();
     }
     return restored;
+  }
+
+  // --- pin sets ----------------------------------------------------------
+  //
+  // A pin set is a named, switchable collection of the user's project pins +
+  // groups (multiple-favorite-sets roadmap). Only the ACTIVE set's contents live
+  // at the file's top level (so every other consumer reads it unchanged); the
+  // inactive sets live in ProjectPinsFile.sets. Sets are coordinated across a
+  // multi-root workspace by NAME — every operation below applies to all folders,
+  // so switching to "Release" switches each folder to its own "Release" (creating
+  // an empty one where a folder has never seen that name). Global pins are not part
+  // of any set: a global favorite is cross-workspace by definition, so it stays
+  // shared across all sets. Auto/recipe seeding is likewise workspace-level and
+  // shared (it lives on ProjectPinsFile, not PinSet).
+
+  // The active set's display name (cached from the first folder during refresh).
+  getActiveSetName(): string {
+    return this.activeSetName;
+  }
+
+  // Every distinct set name across folders (active + inactive), sorted A->Z and
+  // de-duplicated, for the switcher list. Always holds at least the active name.
+  getSetNames(): string[] {
+    return this.setNamesCache;
+  }
+
+  // Switch every folder to the set named `name`, repainting the tree to its pins.
+  // No-op for a folder already on that set. A folder that has never seen the name
+  // gets a fresh empty set for it (keeps multi-root coherent under one name).
+  async switchSet(name: string): Promise<void> {
+    const target = name.trim();
+    if (!target) {
+      return;
+    }
+    let changed = false;
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const file = await this.readProjectFile(folder);
+      if (file.activeSet === target) {
+        continue; // already active in this folder
+      }
+      this.activateSetInFile(file, target);
+      await this.writeProjectFile(folder, file);
+      changed = true;
+    }
+    if (changed) {
+      await this.refresh();
+    }
+  }
+
+  // Create a new, empty set and switch to it. Returns "exists" when the name is
+  // already taken (case-insensitive, no change) or "noFolder" when no workspace
+  // folder is open (project sets need a folder to live in).
+  async createSet(name: string): Promise<"created" | "exists" | "noFolder"> {
+    const target = name.trim();
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (folders.length === 0) {
+      return "noFolder";
+    }
+    if (this.setNamesCache.some((n) => sameSetName(n, target))) {
+      return "exists";
+    }
+    for (const folder of folders) {
+      const file = await this.readProjectFile(folder);
+      // Seed an empty set, then activate it (which stashes the current active set).
+      if (
+        !sameSetName(file.activeSet, target) &&
+        !file.sets.some((s) => sameSetName(s.name, target))
+      ) {
+        file.sets.push({ name: target, pins: [], groups: [] });
+      }
+      this.activateSetInFile(file, target);
+      await this.writeProjectFile(folder, file);
+    }
+    await this.refresh();
+    return "created";
+  }
+
+  // Rename a set (active or inactive) across all folders. A pure case change is
+  // allowed; any other collision with an existing name returns "exists".
+  async renameSet(
+    oldName: string,
+    newName: string
+  ): Promise<"renamed" | "exists" | "missing"> {
+    const to = newName.trim();
+    if (!to) {
+      return "missing";
+    }
+    // The new name must be free, except when it differs from the old name only in
+    // case (renaming "release" -> "Release").
+    if (
+      this.setNamesCache.some(
+        (n) => sameSetName(n, to) && !sameSetName(n, oldName)
+      )
+    ) {
+      return "exists";
+    }
+    let found = false;
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const file = await this.readProjectFile(folder);
+      let changed = false;
+      if (file.activeSet === oldName) {
+        file.activeSet = to;
+        changed = true;
+      }
+      for (const s of file.sets) {
+        if (s.name === oldName) {
+          s.name = to;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await this.writeProjectFile(folder, file);
+        found = true;
+      }
+    }
+    if (found) {
+      await this.refresh();
+    }
+    return found ? "renamed" : "missing";
+  }
+
+  // Delete a set across all folders. Deleting a set drops its project pins (a
+  // destructive, confirmed action). Never deletes the last remaining set. When the
+  // deleted set is active, the folder switches to `active` (the first remaining
+  // name) so the tree is never left without an active set. The returned `active`
+  // names the set now shown, so the caller can report it.
+  async deleteSet(
+    name: string
+  ): Promise<{ outcome: "deleted" | "lastOne" | "missing"; active: string }> {
+    if (this.setNamesCache.length <= 1) {
+      return { outcome: "lastOne", active: this.activeSetName };
+    }
+    const fallback =
+      this.setNamesCache.find((n) => !sameSetName(n, name)) ?? DEFAULT_SET_NAME;
+    let found = false;
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const file = await this.readProjectFile(folder);
+      let changed = false;
+      if (file.activeSet === name) {
+        // Activate the fallback (this stashes the outgoing set under `name`), then
+        // drop that stash so the deleted set's pins are actually gone.
+        this.activateSetInFile(file, fallback);
+        file.sets = file.sets.filter((s) => s.name !== name);
+        changed = true;
+      } else if (file.sets.some((s) => s.name === name)) {
+        file.sets = file.sets.filter((s) => s.name !== name);
+        changed = true;
+      }
+      if (changed) {
+        await this.writeProjectFile(folder, file);
+        found = true;
+      }
+    }
+    if (found) {
+      await this.refresh();
+    }
+    return { outcome: found ? "deleted" : "missing", active: fallback };
+  }
+
+  // Duplicate a set's pins + groups under a new name and switch to it. The copy is
+  // fully independent: contents are deep-cloned and given fresh ids (a shared id
+  // could let an edit in one set leak into the other). Intra-set trigger /
+  // dependsOn links reference pin ids, which are regenerated and not remapped, so
+  // such links in the copy fail safe (a dangling dependsOn is treated as satisfied;
+  // a dangling trigger resolves to nothing) — the rare cost of a clean copy.
+  async duplicateSet(
+    source: string,
+    newName: string
+  ): Promise<"duplicated" | "exists" | "noFolder"> {
+    const to = newName.trim();
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (folders.length === 0) {
+      return "noFolder";
+    }
+    if (this.setNamesCache.some((n) => sameSetName(n, to))) {
+      return "exists";
+    }
+    for (const folder of folders) {
+      const file = await this.readProjectFile(folder);
+      const src =
+        file.activeSet === source
+          ? { pins: file.pins, groups: file.groups }
+          : file.sets.find((s) => s.name === source);
+      // A folder that never had the source set still gets an empty copy, so the new
+      // set name exists coherently across the whole workspace.
+      const contents = src
+        ? this.cloneSetContents(src.pins, src.groups)
+        : { pins: [], groups: [] };
+      file.sets.push({ name: to, ...contents });
+      this.activateSetInFile(file, to);
+      await this.writeProjectFile(folder, file);
+    }
+    await this.refresh();
+    return "duplicated";
+  }
+
+  // Make `target` the active set within one file: stash the outgoing active set's
+  // pins/groups into `sets` under its name, then hoist the target set's pins/groups
+  // to the top level (an empty set when the folder has never seen the name).
+  // Mutates `file` in place; the caller persists. Keeps exactly one copy of each
+  // name across {active, sets}. Precondition: file.activeSet !== target.
+  private activateSetInFile(file: ProjectPinsFile, target: string): void {
+    const incoming = file.sets.find((s) => s.name === target);
+    const outgoing: PinSet = {
+      name: file.activeSet,
+      pins: file.pins,
+      groups: file.groups,
+    };
+    // Drop the incoming set (becomes active) and any stale stash of the outgoing
+    // name before re-adding the outgoing one.
+    file.sets = file.sets.filter(
+      (s) => s.name !== target && s.name !== outgoing.name
+    );
+    file.sets.push(outgoing);
+    file.activeSet = target;
+    file.pins = incoming?.pins ?? [];
+    file.groups = incoming?.groups ?? [];
+  }
+
+  // Deep-clone a set's pins + groups with fresh ids for a duplicate. Groups get new
+  // ids and each pin's groupId is remapped to the cloned group, so the copy's
+  // grouping is self-contained. JSON clone first so nested exec/action/schedule
+  // objects are not shared with the source set.
+  private cloneSetContents(
+    pins: Pin[],
+    groups: PinGroup[]
+  ): { pins: Pin[]; groups: PinGroup[] } {
+    const groupIdMap = new Map<string, string>();
+    const clonedGroups = (JSON.parse(JSON.stringify(groups)) as PinGroup[]).map(
+      (g) => {
+        const newGroupId = this.newId();
+        groupIdMap.set(g.id, newGroupId); // g.id is still the source id here
+        g.id = newGroupId;
+        return g;
+      }
+    );
+    const clonedPins = (JSON.parse(JSON.stringify(pins)) as Pin[]).map((p) => {
+      p.id = this.newId();
+      if (p.groupId) {
+        p.groupId = groupIdMap.get(p.groupId);
+      }
+      return p;
+    });
+    return { pins: clonedPins, groups: clonedGroups };
   }
 
   // --- groups ------------------------------------------------------------
@@ -1113,12 +1390,28 @@ export class PinStore {
     const folders = vscode.workspace.workspaceFolders ?? [];
     const patterns = this.autoPinPatterns();
 
+    // Recompute the cached set state from the files read below. The first folder's
+    // active set is authoritative for the switcher's label; the names union spans
+    // every folder so a set created in one is offered everywhere.
+    let firstActiveSet: string | undefined;
+    const setNames = new Set<string>();
+
     for (const folder of folders) {
       // Create the config file up front for any folder that lacks one, so every
       // opened project gets a committed, shareable .vscode/saropa-workspace.json
       // immediately — not only after the first pin is added.
       await this.ensureProjectFile(folder);
       const file = await this.readProjectFile(folder);
+
+      // The active set's name from this folder, plus every set name it knows, feed
+      // the switcher's cached state (read synchronously by the status-bar item).
+      if (firstActiveSet === undefined) {
+        firstActiveSet = file.activeSet;
+      }
+      setNames.add(file.activeSet);
+      for (const s of file.sets) {
+        setNames.add(s.name);
+      }
 
       // User groups for this folder.
       for (const group of file.groups) {
@@ -1160,6 +1453,13 @@ export class PinStore {
         project.push(configPin);
       }
     }
+
+    // Publish the cached set state. With no folder open there are no project sets,
+    // so the default name is shown and the switcher hides itself (see SetStatusBar).
+    this.activeSetName = firstActiveSet ?? DEFAULT_SET_NAME;
+    this.setNamesCache = Array.from(setNames).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
 
     project.sort((a, b) => a.order - b.order);
     // Cache the non-recipe ("base") set and render it immediately. Recipe
@@ -1608,13 +1908,41 @@ export class PinStore {
     try {
       const bytes = await vscode.workspace.fs.readFile(this.projectFileUri(folder));
       const parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
-      // Defensive defaults + v1->v2 migration: a v1 file (or a hand-edited one)
-      // has no `groups`; it reads as an empty group list and its pins, which
-      // lack groupId, render at the scope top level. No pin field is dropped.
+      // Defensive defaults + staged migration. v1->v2: a v1 file has no `groups`;
+      // it reads as an empty group list and its pins (which lack groupId) render
+      // at the top level. v2->v3: a v2 file has no `activeSet`/`sets`; its existing
+      // top-level pins/groups BECOME the default set's contents (activeSet defaults
+      // to DEFAULT_SET_NAME, sets defaults to []), so nothing is moved or dropped —
+      // a single-set workspace stays identical to the pre-sets layout. No pin field
+      // is ever lost. `sets` entries are sanitized so a hand-edited file with a
+      // malformed set never crashes the reader.
       return {
         version: PROJECT_PINS_VERSION,
         pins: Array.isArray(parsed.pins) ? parsed.pins : [],
         groups: Array.isArray(parsed.groups) ? parsed.groups : [],
+        // A non-empty string wins; anything else (missing/blank/non-string from a
+        // v2 file or a bad hand-edit) falls back to the default set name.
+        activeSet:
+          typeof parsed.activeSet === "string" &&
+          parsed.activeSet.trim().length > 0
+            ? parsed.activeSet
+            : DEFAULT_SET_NAME,
+        // Only well-formed, named sets survive the read; each set's pins/groups
+        // default to [] when absent so a partial hand-edit can't throw later.
+        sets: Array.isArray(parsed.sets)
+          ? parsed.sets
+              .filter(
+                (s: unknown): s is PinSet =>
+                  !!s &&
+                  typeof (s as PinSet).name === "string" &&
+                  (s as PinSet).name.trim().length > 0
+              )
+              .map((s: PinSet) => ({
+                name: s.name,
+                pins: Array.isArray(s.pins) ? s.pins : [],
+                groups: Array.isArray(s.groups) ? s.groups : [],
+              }))
+          : [],
         removedAutoPins: Array.isArray(parsed.removedAutoPins)
           ? parsed.removedAutoPins
           : [],

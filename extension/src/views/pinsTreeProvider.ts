@@ -7,6 +7,7 @@ import { pinBadges } from "../exec/pinBadges";
 import { metricBadges, MetricTarget } from "../exec/metricBadges";
 import { dependencyState } from "../exec/dependencies";
 import { telemetry, RunRecord } from "../exec/telemetry";
+import { BranchTracker } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
 import { PinFilterState, pinMatchesFilter } from "./pinFilter";
 import { PinFolderItem, PinGroupItem, PinTreeItem, RecentRootItem } from "./pinTreeItem";
@@ -37,10 +38,19 @@ export class PinsTreeProvider
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  // When true, branch filtering is suspended and every branch-linked pin is shown
+  // regardless of the current branch — the escape hatch for a pin scoped to a
+  // deleted/unreachable branch (WOW #3). Persisted by the caller in workspaceState;
+  // the initial value is passed in so a reload keeps the chosen scope.
+  private showAllBranches: boolean;
+
   constructor(
     private readonly store: PinStore,
-    private readonly filter: PinFilterState
+    private readonly filter: PinFilterState,
+    private readonly branches: BranchTracker,
+    showAllBranches: boolean
   ) {
+    this.showAllBranches = showAllBranches;
     // Repaint whenever the store recomputes its cached pins, when a background
     // process starts/stops (running indicator + Stop action), or when a run
     // finishes (success/failure badge). A store change can also add/remove a
@@ -59,6 +69,40 @@ export class PinsTreeProvider
     telemetry.onDidChange(() => this._onDidChangeTreeData.fire());
     // The text/chip filter (WOW #28) changes which rows and groups are visible.
     this.filter.onDidChange(() => this._onDidChangeTreeData.fire());
+    // A branch checkout (WOW #3) changes which branch-linked pins are visible, so
+    // repaint the tree to re-filter against the new current branch.
+    this.branches.onDidChangeBranch(() => this._onDidChangeTreeData.fire());
+  }
+
+  // Suspend or resume branch filtering (the "Show pins from all branches" toggle).
+  // Fires a repaint so the change is immediately visible; persistence is the
+  // caller's (it owns the workspace-state key and the context-key sync).
+  setShowAllBranches(value: boolean): void {
+    if (this.showAllBranches === value) {
+      return;
+    }
+    this.showAllBranches = value;
+    this._onDidChangeTreeData.fire();
+  }
+
+  isShowingAllBranches(): boolean {
+    return this.showAllBranches;
+  }
+
+  // True when at least one branch-linked pin is currently hidden by branch filtering,
+  // so the caller can reveal the "Show pins from all branches" affordance only when
+  // it would actually surface something (never silently unreachable). Always false
+  // while showing all branches (nothing is hidden then). Excludes recipe pins, which
+  // never carry a branch.
+  hasBranchHiddenPins(): boolean {
+    if (this.showAllBranches) {
+      return false;
+    }
+    const all = [
+      ...this.store.getProjectPins().filter((p) => !p.isRecipe),
+      ...this.store.getGlobalPins(),
+    ];
+    return all.some((p) => p.branch !== undefined && !this.branchMatches(p));
   }
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
@@ -321,12 +365,41 @@ export class PinsTreeProvider
   }
 
   // The pins this view actually renders for a scope: the project list carries
-  // recipe pins (served by the separate Recipes view), so they are excluded here.
-  // Used by the filter visibility/count logic so a "0 hidden" count and a hidden
-  // scope agree on the same population the headers show.
+  // recipe pins (served by the separate Recipes view), so they are excluded here,
+  // and branch-linked pins not on the current branch are dropped (WOW #3). Used by
+  // the filter visibility/count logic so a "0 hidden" count and a hidden scope agree
+  // on the same population the headers show. Branch filtering composes with — does
+  // not duplicate — the text/chip/tag filter (that runs separately via matches()):
+  // branch filtering is always-on context, the text filter is a user-chosen facet.
   private scopePins(scope: PinScope): Pin[] {
     const all = this.pinsInScope(scope);
-    return scope === "project" ? all.filter((p) => !p.isRecipe) : all;
+    const visible = scope === "project" ? all.filter((p) => !p.isRecipe) : all;
+    return visible.filter((p) => this.branchMatches(p));
+  }
+
+  // Whether a pin passes branch filtering (WOW #3). An unlinked pin (the default)
+  // always shows. A linked pin shows only while its owning folder is on the linked
+  // branch — a project pin against its own folder, a global pin against the first
+  // workspace folder. The safety invariant mirrors the time-bomb sweep: when the
+  // folder or its branch cannot be read, the pin is SHOWN, never hidden, so an
+  // unreadable / detached / worktree repo never makes a pin vanish. The show-all
+  // toggle short-circuits to true (the deleted-branch escape hatch).
+  private branchMatches(pin: Pin): boolean {
+    if (this.showAllBranches || !pin.branch) {
+      return true;
+    }
+    const folder =
+      pin.scope === "global"
+        ? vscode.workspace.workspaceFolders?.[0]
+        : this.store.folderOf(pin);
+    if (!folder) {
+      return true;
+    }
+    const current = this.branches.branchOf(folder);
+    if (current === undefined) {
+      return true;
+    }
+    return pin.branch === current;
   }
 
   // Whether a pin passes the active filter (WOW #28). Always true when no filter
@@ -440,17 +513,15 @@ export class PinsTreeProvider
       scope === "global"
         ? l10n("pin.group.global")
         : l10n("pin.group.project");
-    // The project count excludes recipe pins, which render under the Recipes
-    // section, not the Project scope.
-    const count =
-      scope === "project"
-        ? this.pinsInScope(scope).filter((p) => !p.isRecipe).length
-        : this.pinsInScope(scope).length;
+    // The count reflects the rendered population — recipe pins (served by the
+    // Recipes view) and branch-hidden pins are already excluded by scopePins, so the
+    // reveal-built header agrees with the live one.
+    const count = this.scopePins(scope).length;
     return new PinGroupItem(label, scope, count);
   }
 
   private makeFolderItem(group: PinGroup, scope: PinScope): PinFolderItem {
-    const count = this.pinsInScope(scope).filter(
+    const count = this.scopePins(scope).filter(
       (p) => p.groupId === group.id
     ).length;
     return new PinFolderItem(group, scope, count);

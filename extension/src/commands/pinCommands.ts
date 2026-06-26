@@ -28,6 +28,7 @@ import { configureSchedule } from "./configureSchedule";
 import { configureTriggers } from "./configureTriggers";
 import { pinUntil, pinUntilBranchChange, clearPinExpiry } from "./configureExpiry";
 import { configureAppearance } from "./configureAppearance";
+import { readCurrentBranch } from "../exec/gitBranch";
 import { tagPin } from "./tagPin";
 import { setMetric } from "./setMetric";
 import { simulateRun } from "./simulateRun";

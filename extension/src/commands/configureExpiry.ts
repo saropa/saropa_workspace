@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { Pin } from "../model/pin";
 import { PinStore } from "../model/pinStore";
-import { readCurrentBranch } from "../exec/pinExpiry";
+import { readCurrentBranch } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
 
 // Time-bomb / ephemeral pins (WOW #9) — the user-facing setup for Pin.expires.

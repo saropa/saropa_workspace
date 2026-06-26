@@ -161,6 +161,13 @@ export class PinTreeItem extends vscode.TreeItem {
       pin.tags && pin.tags.length > 0
         ? pin.tags.map((t) => `#${t}`).join(" ")
         : undefined;
+    // A branch-linked pin (WOW #3) carries an "on <branch>" chip so it reads as
+    // branch-scoped even while shown (the filter only hides it on OTHER branches).
+    // Undefined for an unlinked pin, so it adds nothing to the common row.
+    const branchChip =
+      pin.branch !== undefined
+        ? l10n("branch.chip", { branch: pin.branch })
+        : undefined;
     if (recentInfo) {
       const when = formatRelativeTime(recentInfo.at, Date.now());
       const tag =
@@ -172,7 +179,15 @@ export class PinTreeItem extends vscode.TreeItem {
       // the hover. Suppressed while running/stopping, where live state matters more.
       const expiryChip =
         !isRunning && !isStopping ? expirySummary(pin) : undefined;
-      this.description = [badgeLead, badge, expiryChip, detail, metricText, tagChip]
+      this.description = [
+        badgeLead,
+        badge,
+        expiryChip,
+        branchChip,
+        detail,
+        metricText,
+        tagChip,
+      ]
         .filter((part) => part)
         .join(" · ");
     }
@@ -285,6 +300,11 @@ export class PinTreeItem extends vscode.TreeItem {
       tooltipLines.push(
         l10n("tag.tooltip", { tags: pin.tags.map((t) => `#${t}`).join(" ") })
       );
+    }
+    // Name the branch this pin is linked to (WOW #3), so the hover explains why it
+    // shows on some branches and not others.
+    if (pin.branch !== undefined) {
+      tooltipLines.push(l10n("branch.tooltip", { branch: pin.branch }));
     }
     // Name the live metric in the hover: the current value, and — when it is over a
     // size threshold — that fact in words, so the warning tint is explained.

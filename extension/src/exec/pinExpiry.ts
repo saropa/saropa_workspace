@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { Pin } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { runStatusRegistry } from "./runStatus";
+import { readCurrentBranch } from "./gitBranch";
 import { l10n } from "../i18n/l10n";
 
 // Time-bomb / ephemeral pins (WOW #9). A pin the user explicitly time-bombed
@@ -21,47 +22,9 @@ import { l10n } from "../i18n/l10n";
 // keeps the cost flat regardless of how many pins are bombed.
 const SWEEP_INTERVAL_MS = 60_000;
 
-// Read the current git branch of a folder, or undefined when it cannot be
-// determined (no repo, unreadable, or a shape this minimal reader does not handle).
-// Reads .git/HEAD directly — no `git` process, no dependency — mirroring the log-
-// watch approach in systemEvents.ts. `.git` is usually a directory; in a worktree /
-// submodule it is a file pointing at the real gitdir ("gitdir: <path>"), which is
-// followed once. A symbolic-ref HEAD ("ref: refs/heads/<branch>") yields the branch
-// name; a detached HEAD yields the raw commit hash, so checking out a different
-// commit still reads as a branch change. Any error returns undefined, which the
-// sweep treats as "do not remove" — never losing a pin on a read failure.
-export async function readCurrentBranch(
-  folder: vscode.WorkspaceFolder
-): Promise<string | undefined> {
-  try {
-    let gitDir = vscode.Uri.joinPath(folder.uri, ".git");
-    const stat = await vscode.workspace.fs.stat(gitDir);
-    if (stat.type === vscode.FileType.File) {
-      // A `.git` file points at the real gitdir (worktree / submodule).
-      const pointer = Buffer.from(
-        await vscode.workspace.fs.readFile(gitDir)
-      ).toString("utf8");
-      const match = pointer.match(/^gitdir:\s*(.+)\s*$/m);
-      if (!match) {
-        return undefined;
-      }
-      const target = match[1].trim();
-      gitDir = target.match(/^([a-zA-Z]:[\\/]|[\\/])/)
-        ? vscode.Uri.file(target)
-        : vscode.Uri.joinPath(folder.uri, target);
-    }
-    const head = Buffer.from(
-      await vscode.workspace.fs.readFile(vscode.Uri.joinPath(gitDir, "HEAD"))
-    )
-      .toString("utf8")
-      .trim();
-    const ref = head.match(/^ref:\s*refs\/heads\/(.+)$/);
-    return ref ? ref[1].trim() : head;
-  } catch {
-    // No repo, unreadable, or an unexpected shape — caller keeps the pin.
-    return undefined;
-  }
-}
+// The branch reader now lives in gitBranch.ts as the single source shared with
+// branch-linked pins (WOW #3); the sweep treats its undefined return as "do not
+// remove", so an unreadable repo never loses a pin.
 
 // A pin removed by the sweep, paired with the folder that owned it (captured before
 // removal, since the store's pin->folder map no longer holds a removed id). Used to

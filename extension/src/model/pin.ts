@@ -332,6 +332,16 @@ export interface Pin {
   // explicit pins only — auto/recipe pins are recomputed each refresh, so there is
   // nowhere to persist a tag on them.
   tags?: string[];
+  // Branch-linked pin (WOW #3 — the context time-machine). When set to a git
+  // branch name, this pin shows in the tree ONLY while the owning folder is on that
+  // branch (a global pin checks the first workspace folder); switching branches
+  // re-filters the view live. Absent (the default, fully backward compatible) =
+  // shown on every branch. Reading the branch is best-effort: when it cannot be
+  // determined the pin is shown rather than hidden, so an unreadable repo never
+  // makes a pin vanish. The escape hatch for a pin scoped to a deleted/unreachable
+  // branch is the view's "Show pins from all branches" toggle. Stored on explicit
+  // pins only — auto/recipe pins are recomputed each refresh and carry no branch.
+  branch?: string;
   // Sort order within the pin's group (or among top-level pins when ungrouped).
   order: number;
 }
@@ -371,16 +381,49 @@ export interface PinGroup {
   color?: string;
 }
 
-// Current on-disk schema version. Bumped from 1 to 2 to add `groups`; v1 files
-// are migrated on read (groups default to [], pins keep their fields).
-export const PROJECT_PINS_VERSION = 2;
+// Current on-disk schema version. Bumped 1->2 to add `groups`, and 2->3 to add
+// named pin sets (`activeSet` + `sets`). Older files are migrated on read: a v2
+// file's existing top-level pins/groups become the contents of the default set,
+// with no pin field dropped (see readProjectFile).
+export const PROJECT_PINS_VERSION = 3;
+
+// Name of the set a migrated (or brand-new) file starts on. Its contents ARE the
+// file's top-level pins/groups, so a single-set workspace is byte-for-byte the
+// pre-sets layout plus the `activeSet`/`sets` metadata — single-set behavior is
+// unchanged until the user creates a second set. Single source for the literal so
+// the migration, the switcher, and the delete-fallback cannot drift.
+export const DEFAULT_SET_NAME = "Default";
+
+// One named, switchable pin set within a workspace folder. A set is purely the
+// user's curated pins + groups; auto-pin / recipe seeding (removedAutoPins,
+// removedRecipes, autoGroups) is a workspace-level concern shared across sets, so
+// it stays on ProjectPinsFile rather than per set. Only the INACTIVE sets are
+// stored in ProjectPinsFile.sets — the ACTIVE set's pins/groups live at the file's
+// top level, so every consumer (tree, scheduler, commands) reads the active set
+// with no change. Identified by name, which doubles as the cross-folder key in a
+// multi-root workspace (switching set "X" switches every folder to its "X").
+export interface PinSet {
+  name: string;
+  pins: Pin[];
+  groups: PinGroup[];
+}
 
 // On-disk shape for a single workspace folder's project pins.
 export interface ProjectPinsFile {
   version: number;
+  // The ACTIVE set's pins. Consumers read this as "the project pins"; switching a
+  // set swaps these for the chosen set's pins (the old active set is stashed into
+  // `sets`). See PinStore.switchSet.
   pins: Pin[];
-  // User-defined groups in this folder's project scope.
+  // The ACTIVE set's user-defined groups (mirrors `pins`).
   groups: PinGroup[];
+  // Name of the active set; its pins/groups are the top-level fields above. Never
+  // appears in `sets` (the active set is never duplicated there).
+  activeSet: string;
+  // The INACTIVE sets, each holding its own pins + groups. Empty until the user
+  // creates a second set, which keeps a single-set file identical to the pre-sets
+  // layout.
+  sets: PinSet[];
   // Ids of auto-pins the user removed, so they are not re-seeded.
   removedAutoPins: string[];
   // recipeIds the user removed, so detected recipes are not re-seeded (sticky).
@@ -398,6 +441,8 @@ export function emptyProjectPinsFile(): ProjectPinsFile {
     version: PROJECT_PINS_VERSION,
     pins: [],
     groups: [],
+    activeSet: DEFAULT_SET_NAME,
+    sets: [],
     removedAutoPins: [],
     removedRecipes: [],
     autoGroups: {},
