@@ -2,6 +2,14 @@ import * as vscode from "vscode";
 import { PinStore } from "./model/pinStore";
 import { Pin, pinKind } from "./model/pin";
 import { PinsTreeProvider } from "./views/pinsTreeProvider";
+import {
+  PinFilterState,
+  countHidden,
+  filterMessage,
+  isFilesChipOn,
+  isScriptsChipOn,
+} from "./views/pinFilter";
+import { registerFilterCommands } from "./commands/filterCommands";
 import { RecipesTreeProvider } from "./views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
 import { PinFolderItem, PinTreeItem, RecentRootItem } from "./views/pinTreeItem";
@@ -18,12 +26,15 @@ import { registerTerminalCleanup, isRunnable } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
+import { IdleMonitor } from "./exec/idleMonitor";
+import { PinExpiry } from "./exec/pinExpiry";
 import { Heartbeat } from "./exec/heartbeat";
 import { registerProcessMonitorCommands } from "./exec/processMonitorCommands";
 import { PlannerPanel } from "./views/plannerPanel";
 import { registerHygieneCommands } from "./exec/hygieneCommands";
 import { registerProjectStatsCommand } from "./exec/projectStats";
 import { processRegistry } from "./exec/processRegistry";
+import { runStatusRegistry } from "./exec/runStatus";
 import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
 import { tappedPins } from "./model/tappedPins";
@@ -78,7 +89,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // the drag-and-drop controller too — pins are reordered and moved between
   // groups by dragging. canSelectMany lets a multi-select drag move several pins
   // at once.
-  const tree = new PinsTreeProvider(store);
+  // The Pins-view text/chip filter (WOW #28). Persisted per-workspace; the
+  // provider reads it to decide which rows and groups are visible, and the find
+  // bar (registered below) mutates it.
+  const filterState = new PinFilterState(context);
+
+  const tree = new PinsTreeProvider(store, filterState);
   const treeView = vscode.window.createTreeView("saropaWorkspace.pins", {
     treeDataProvider: tree,
     dragAndDropController: tree,
@@ -86,6 +102,60 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     showCollapseAll: true,
   });
   context.subscriptions.push(treeView);
+
+  registerFilterCommands(context, filterState);
+
+  // Keep the filter affordances in sync: the chip context keys (which drive the
+  // title-bar button visibility/icon) and the always-visible "filter active — N
+  // hidden — clear" message. Re-run on any filter change AND on any store change,
+  // since adding/removing a pin changes the hidden count while a filter is on.
+  // This is the never-silently-empty guarantee: while filtering, the message is
+  // always present, so a tree that collapsed to nothing never reads as data loss.
+  const syncFilterView = (): void => {
+    const filter = filterState.get();
+    const active = filterState.isActive();
+    void vscode.commands.executeCommand(
+      "setContext",
+      "saropaWorkspace.filterActive",
+      active
+    );
+    void vscode.commands.executeCommand(
+      "setContext",
+      "saropaWorkspace.filterScripts",
+      isScriptsChipOn(filter)
+    );
+    void vscode.commands.executeCommand(
+      "setContext",
+      "saropaWorkspace.filterFiles",
+      isFilesChipOn(filter)
+    );
+    void vscode.commands.executeCommand(
+      "setContext",
+      "saropaWorkspace.filterFailed",
+      filter.failedOnly === true
+    );
+    if (active) {
+      const all = [
+        ...store.getProjectPins().filter((p) => !p.isRecipe),
+        ...store.getGlobalPins(),
+      ];
+      const hidden = countHidden(
+        all,
+        filter,
+        (id) => runStatusRegistry.get(id)?.outcome === "failure"
+      );
+      treeView.message = filterMessage(filter, hidden);
+    } else {
+      treeView.message = undefined;
+    }
+  };
+  context.subscriptions.push(
+    filterState.onDidChange(() => syncFilterView()),
+    store.onDidChange(() => syncFilterView())
+  );
+  // Paint the initial state now (a persisted filter must show its message on
+  // open, before any change event fires).
+  syncFilterView();
 
   // Activity-bar badge: the number of Pins-view pins the user has not yet opened
   // or run ("untapped"), as a discovery cue for pins added but never used. Recipe
@@ -201,9 +271,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // copy version, run nearest script).
   registerRecipeCommands(context);
 
-  // Developer process monitor (recipe book section G): the command that opens the
-  // live Saropa Dashboard webview (#60) and the grouped-snapshot command (#62).
-  registerProcessMonitorCommands(context);
+  // Saropa Dashboard (roadmap 3.4): the openDashboard command (three tabs —
+  // Processes / Analytics / Trends), the openProcessMonitor alias (#60) that opens
+  // the Processes tab, and the grouped-snapshot command (#62). The store backs the
+  // Analytics tab's pin-name resolution.
+  registerProcessMonitorCommands(context, store);
 
   // Workspace hygiene scanner (recipe book section H, #63): the recursive
   // empty/oversized outlier scan that writes a dated JSON report and a sticky toast,
@@ -262,11 +334,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const scheduler = new Scheduler(store);
   context.subscriptions.push(scheduler);
 
-  // Chain engine (recipe chaining + special events): listens for pin completions and
-  // system events (build / publish emitted by a marked pin, gitCommit / gitPush from
-  // the repo watcher below) and auto-runs the pins triggered by each. Disposable so
-  // both bus subscriptions are released on deactivation.
-  context.subscriptions.push(new ChainRunner(store));
+  // Editor-idle detector (WOW #18): tracks time since the last VS Code interaction and
+  // feeds the chain engine's run-on-idle triggers. Constructed before the chain engine
+  // so it can be handed in; disposable so its listeners and poll timer are cleared.
+  const idleMonitor = new IdleMonitor();
+  context.subscriptions.push(idleMonitor);
+
+  // Chain engine (recipe chaining + special events + run-on-idle): listens for pin
+  // completions, system events (build / publish emitted by a marked pin, gitCommit /
+  // gitPush from the repo watcher below), and idle crossings, and auto-runs the pins
+  // triggered by each. Disposable so every bus subscription is released on deactivation.
+  context.subscriptions.push(new ChainRunner(store, idleMonitor));
 
   // Git event watcher: fires gitCommit / gitPush on the system-event bus by watching
   // the repo's .git logs (no `git` process spawned). Feeds the chain engine's
@@ -344,6 +422,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Arm timers now that the initial pin set is loaded. The scheduler also re-arms
   // itself on every subsequent store change via its onDidChange subscription.
   scheduler.start();
+
+  // Fire any run-on-startup pins once, deferred past activation and de-duped on a
+  // reload so a window reload storm does not re-run them.
+  scheduler.runStartupPins();
+
+  // Time-bomb / ephemeral pins (WOW #9): sweep self-removing pins now (a pin whose
+  // deadline passed while the window was closed clears on open) and arm the low-
+  // frequency timer + per-folder .git/HEAD watchers. Constructed after the pin set
+  // is loaded so its activation sweep sees the real pins. Disposable so its timer
+  // and watchers are cleared on deactivation (a leaked timer would keep firing).
+  context.subscriptions.push(new PinExpiry(store));
 
   // Offer to import favorites from other extensions once per workspace, only
   // when such a file actually exists, so first-time users keep their old pins

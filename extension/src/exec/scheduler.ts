@@ -11,6 +11,19 @@ import { l10n } from "../i18n/l10n";
 // MAX_TIMEOUT-sized hops instead.
 const MAX_TIMEOUT = 2_147_483_647;
 
+// Delay before run-on-startup pins fire, so the run lands AFTER activation
+// finishes and the window has settled rather than competing with it (the
+// activation rule: no eager file/terminal work in the activation path).
+const STARTUP_RUN_DELAY_MS = 1_500;
+
+// Reopen de-dup window for run-on-startup. A VS Code "Reload Window" re-activates
+// the extension within seconds, so a startup pin whose last fire is within this
+// window is skipped to avoid a reload storm re-running it. A deliberate reopen
+// later than the window is treated as a fresh session and fires — "run on
+// startup" means "when I open this workspace," and the only thing guarded against
+// is the involuntary rapid reload, not a genuine later reopen.
+const STARTUP_DEDUP_MS = 2 * 60_000;
+
 // Drives in-process timers for scheduled pins (roadmap 2.2). One timer per
 // scheduled+enabled pin, recomputed whenever the store changes (a pin added,
 // removed, or its schedule edited) so enabling/disabling a schedule takes effect
@@ -19,6 +32,9 @@ const MAX_TIMEOUT = 2_147_483_647;
 export class Scheduler implements vscode.Disposable {
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private readonly storeListener: vscode.Disposable;
+  // One-shot timer for the deferred run-on-startup pass, cleared on dispose so a
+  // fast deactivation does not leave it firing into a torn-down store.
+  private startupTimer: NodeJS.Timeout | undefined;
   private disposed = false;
 
   constructor(private readonly store: PinStore) {
@@ -31,6 +47,45 @@ export class Scheduler implements vscode.Disposable {
   // Arm timers for the current pin set. Call once after the store is initialized.
   start(): void {
     this.rescheduleAll();
+  }
+
+  // Fire pins marked runOnStartup once, shortly after activation. Call once from
+  // activate() after the store is loaded. The run is deferred (the activation rule:
+  // no eager file/terminal work in the activation path) and de-duped on lastRun so
+  // a window-reload storm does not re-run a startup pin.
+  runStartupPins(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.startupTimer = setTimeout(() => {
+      this.startupTimer = undefined;
+      void this.fireStartupPins();
+    }, STARTUP_RUN_DELAY_MS);
+  }
+
+  private async fireStartupPins(): Promise<void> {
+    if (this.disposed) {
+      return;
+    }
+    const now = Date.now();
+    const pins = [
+      ...this.store.getProjectPins(),
+      ...this.store.getGlobalPins(),
+    ];
+    for (const pin of pins) {
+      const schedule = pin.schedule;
+      if (!schedule?.enabled || !schedule.runOnStartup) {
+        continue;
+      }
+      // Skip a pin that already fired within the reload window — a Reload Window
+      // re-activates within seconds and we do not want it to re-run.
+      if (schedule.lastRun !== undefined && now - schedule.lastRun < STARTUP_DEDUP_MS) {
+        continue;
+      }
+      // fire() does the file-resolve / interactive-skip / run + records lastRun,
+      // exactly as a time-based slot does, so the startup run reuses one code path.
+      await this.fire(pin.id);
+    }
   }
 
   private rescheduleAll(): void {
@@ -141,6 +196,10 @@ export class Scheduler implements vscode.Disposable {
   dispose(): void {
     this.disposed = true;
     this.storeListener.dispose();
+    if (this.startupTimer) {
+      clearTimeout(this.startupTimer);
+      this.startupTimer = undefined;
+    }
     this.clearAll();
   }
 }

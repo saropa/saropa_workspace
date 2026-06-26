@@ -1,6 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { PinStore } from "../model/pinStore";
+import { PinAction, MacroStep } from "../model/pin";
 import { getOutputChannel } from "../exec/runner";
 import { l10n } from "../i18n/l10n";
 
@@ -16,16 +17,23 @@ import { l10n } from "../i18n/l10n";
 //     or `.fav/local.list.txt`, one entry per line as `path` or `path|alias`,
 //     with `#` comment lines. A relative path resolves against the folder; an
 //     alias becomes the pin's display label.
+//   - alefragnani "Bookmarks" — `.vscode/bookmarks.json` (written when the
+//     bookmarks.saveBookmarksInProject setting is on). Line-level marks map to
+//     line pins (one pin per bookmark), since the pin model has a line field.
 //   - howardzuo "favorites" — the `favorites.resources` settings key (an array of
 //     paths), read from the active configuration rather than a file on disk.
+//   - sabitovvt "Favorites Panel" — the `favoritesPanel.commands` /
+//     `favoritesPanel.commandsForWorkspace` settings keys. Its command-dispatch
+//     items map to file / url / command / shell pins (and sequences to macros);
+//     see importSabitovvtFavorites for the per-command mapping.
 //
 // Every recognized-but-unsupported or malformed entry (a folder/group entry, a
-// blank or path-less line, a non-string settings value, an unparseable file) is
-// reported in the shared output channel and skipped — a single bad entry never
-// aborts the whole import.
+// blank or path-less line, a non-string settings value, an unparseable file, an
+// item type with no pin equivalent) is reported in the shared output channel and
+// skipped — a single bad entry never aborts the whole import.
 
 // The on-disk file formats scanned across the open workspace folders.
-type FileFavoritesFormat = "kdcro" | "olegShilo";
+type FileFavoritesFormat = "kdcro" | "olegShilo" | "bookmarks";
 
 // Files we look for per folder, with the format each carries. Extend as more
 // formats are added.
@@ -36,12 +44,22 @@ const KNOWN_FAVORITES_SOURCES: ReadonlyArray<{
   { fileName: ".favorites.json", format: "kdcro" },
   { fileName: ".vscode/fav.local.list.txt", format: "olegShilo" },
   { fileName: ".fav/local.list.txt", format: "olegShilo" },
+  { fileName: ".vscode/bookmarks.json", format: "bookmarks" },
 ];
 
 // The howardzuo "favorites" extension stores its files under this settings key.
 const HOWARDZUO_SETTINGS_KEY = "favorites.resources";
 // Shown as the source name for the settings-key import in toasts and the log.
 const HOWARDZUO_SOURCE_LABEL = "favorites.resources";
+
+// The sabitovvt "Favorites Panel" settings keys: a global list and a
+// per-workspace list, both arrays of command-dispatch items.
+const SABITOVVT_SETTINGS_KEYS = [
+  "favoritesPanel.commands",
+  "favoritesPanel.commandsForWorkspace",
+] as const;
+// Shown as the source name for the sabitovvt import in toasts and the log.
+const SABITOVVT_SOURCE_LABEL = "favoritesPanel.commands";
 
 interface KdcroFavoriteEntry {
   type?: string;
@@ -121,6 +139,9 @@ export async function importFavoritesFile(
 
   if (detected.format === "kdcro") {
     return importKdcro(text, detected.fileName, store, channel);
+  }
+  if (detected.format === "bookmarks") {
+    return importBookmarks(text, detected, store, channel);
   }
   return importOlegShilo(text, detected, store, channel);
 }
@@ -206,6 +227,128 @@ async function importOlegShilo(
       : vscode.Uri.joinPath(detected.folder.uri, pathPart);
     if (await store.addPin(uri, "project", alias)) {
       added++;
+    }
+  }
+  return { added, skipped };
+}
+
+// The shape of `.vscode/bookmarks.json` (alefragnani "Bookmarks"). Only the
+// fields the line-pin mapping reads are declared; `column` is intentionally
+// ignored (a line pin has no column, and a jump target does not need one).
+interface BookmarkEntry {
+  // 0-based line index, as stored by the extension (it serializes the raw
+  // vscode.Position.line). The pin model's `line` is 1-based, so we add 1.
+  line?: number;
+  label?: string;
+}
+interface BookmarkFile {
+  // Folder-relative (forward-slashed) for an in-project file, or absolute for a
+  // file outside the folder. Older files prefix the relative path with a
+  // "$ROOTPATH$/" token, which we strip.
+  path?: string;
+  bookmarks?: BookmarkEntry[];
+}
+interface BookmarksDocument {
+  files?: BookmarkFile[];
+}
+
+// Legacy path token some Bookmarks versions prefix onto an in-project relative
+// path; stripped before the remainder is resolved against the owning folder.
+const BOOKMARKS_ROOTPATH_TOKEN = "$ROOTPATH$";
+
+// Resolve one bookmarks.json file path to a URI against the owning folder. A path
+// carrying the legacy "$ROOTPATH$" prefix, or a plain relative path, joins to the
+// folder; an absolute path is used as-is.
+function resolveBookmarkUri(
+  rawPath: string,
+  folder: vscode.WorkspaceFolder
+): vscode.Uri {
+  let p = rawPath.trim().replace(/\\/g, "/");
+  if (p.startsWith(BOOKMARKS_ROOTPATH_TOKEN)) {
+    // Drop the token and any single separator that follows it.
+    p = p.slice(BOOKMARKS_ROOTPATH_TOKEN.length).replace(/^[/\\]/, "");
+  }
+  return path.isAbsolute(p)
+    ? vscode.Uri.file(p)
+    : vscode.Uri.joinPath(folder.uri, p);
+}
+
+// alefragnani "Bookmarks": a JSON document of files, each with line-level marks.
+// Each mark becomes a LINE pin (the pin model has a `line` field), so opening the
+// pin jumps back to that line. Re-import is idempotent: a line pin for the same
+// resolved file + line is left untouched (addLinePin itself does NOT dedupe — it
+// is built to allow several marks in one file — so the dedup lives here). The
+// bookmark's label, when present, becomes the pin label; otherwise the pin falls
+// back to the "basename:line" default. The column is dropped (no pin equivalent).
+async function importBookmarks(
+  text: string,
+  detected: DetectedFavorites,
+  store: PinStore,
+  channel: vscode.OutputChannel
+): Promise<ImportResult> {
+  let doc: BookmarksDocument;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    doc = parsed && typeof parsed === "object" ? (parsed as BookmarksDocument) : {};
+  } catch (err) {
+    channel.appendLine(
+      l10n("import.log.malformed", {
+        file: detected.fileName,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+    return { added: 0, skipped: 0 };
+  }
+
+  // Seed the dedup set from existing project line pins so re-running import never
+  // duplicates a mark; new pins are added to it as we go to dedup within this run.
+  const seen = new Set(
+    store
+      .getProjectPins()
+      .filter((p) => p.line !== undefined)
+      .map((p) => `${store.resolveUri(p)?.toString() ?? ""}#${p.line}`)
+  );
+
+  let added = 0;
+  let skipped = 0;
+  for (const file of doc.files ?? []) {
+    if (!file.path || file.path.trim().length === 0) {
+      channel.appendLine(l10n("import.log.skipNoPath", { file: detected.fileName }));
+      skipped++;
+      continue;
+    }
+    const uri = resolveBookmarkUri(file.path, detected.folder);
+    // A bookmark file outside any workspace folder cannot be a project line pin.
+    if (!vscode.workspace.getWorkspaceFolder(uri)) {
+      channel.appendLine(
+        l10n("import.log.skipOutsideFolder", {
+          file: detected.fileName,
+          path: file.path,
+        })
+      );
+      skipped++;
+      continue;
+    }
+    for (const mark of file.bookmarks ?? []) {
+      if (typeof mark.line !== "number") {
+        channel.appendLine(l10n("import.log.skipNoPath", { file: detected.fileName }));
+        skipped++;
+        continue;
+      }
+      // Stored line is 0-based; the pin model is 1-based.
+      const pinLine = mark.line + 1;
+      const key = `${uri.toString()}#${pinLine}`;
+      if (seen.has(key)) {
+        continue; // Already imported — idempotent, not a reportable skip.
+      }
+      const label =
+        mark.label && mark.label.trim().length > 0
+          ? mark.label.trim()
+          : l10n("linePin.label", { name: path.basename(uri.fsPath), line: pinLine });
+      if (await store.addLinePin(uri, "project", pinLine, label)) {
+        seen.add(key);
+        added++;
+      }
     }
   }
   return { added, skipped };

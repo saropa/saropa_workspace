@@ -3,6 +3,7 @@ import { Pin, PinGroup, PinKind, PinScope, pinKind } from "../model/pin";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult, formatDuration } from "../exec/runStatus";
 import { PinBadge, formatBadgeLead } from "../exec/pinBadges";
+import { MetricBadge } from "../exec/metricBadges";
 import { RunSource } from "../exec/telemetry";
 import { formatRelativeTime } from "./projectFilesProvider";
 import { l10n } from "../i18n/l10n";
@@ -42,7 +43,13 @@ export class PinTreeItem extends vscode.TreeItem {
     // Lint severity counts / test tally from this pin's last sweep (#26, #32). When
     // present, a compact glyph lead ("3✖ 5⚠", "12✓ 1✗") prefixes the row and a fuller
     // line joins the hover. Undefined when the pin has produced no parseable sweep.
-    sweepBadge?: PinBadge
+    sweepBadge?: PinBadge,
+    // Live metric for a file pin (#24): size / line count / last-modified, measured by
+    // the metric engine. Appended to the row as an inline value ("245 KB"); when `over`
+    // a size threshold, the icon is tinted as a warning. Undefined when the pin carries
+    // no metric. Appended last (a narrow, well-named param) rather than threaded through
+    // an options refactor, matching how sweepBadge above was added.
+    metricBadge?: MetricBadge
   ) {
     const kind = pinKind(pin);
     const isFile = kind === "file";
@@ -105,7 +112,20 @@ export class PinTreeItem extends vscode.TreeItem {
         recentInfo.source === "scheduled" ? ` ${l10n("recent.scheduledTag")}` : "";
       this.description = `${when}${tag} · ${detail}`;
     } else {
-      this.description = [badgeLead, badge, detail]
+      // A time-bombed pin (WOW #9) shows a compact countdown / branch chip so the
+      // row carries its pending self-removal at a glance; the full condition is in
+      // the hover. Suppressed while running/stopping, where live state matters more.
+      const expiryChip =
+        !isRunning && !isStopping ? expirySummary(pin) : undefined;
+      // The live metric value (#24) as a trailing segment. Size / line text is
+      // precomputed; "modified" is formatted relative here so it stays current between
+      // repaints (the engine cannot re-fire just because wall-clock advanced).
+      const metricText = metricBadge
+        ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
+          ? formatRelativeTime(metricBadge.mtime, Date.now())
+          : metricBadge.text
+        : undefined;
+      this.description = [badgeLead, badge, expiryChip, detail, metricText]
         .filter((part) => part)
         .join(" · ");
     }
@@ -172,6 +192,21 @@ export class PinTreeItem extends vscode.TreeItem {
     if (lockedBy && !isRunning && !isStopping) {
       tooltipLines.push(l10n("depends.lockedTooltip", { dep: lockedBy }));
     }
+    // A time-bombed pin (WOW #9) explains its pending self-removal in the hover:
+    // the exact instant for a wall-clock bomb, the branch for a branch bomb. Both
+    // lines show when both conditions are set (either one removes the pin).
+    if (pin.expires && !isRunning && !isStopping) {
+      if (pin.expires.at !== undefined) {
+        tooltipLines.push(
+          l10n("expiry.tooltip.at", { when: formatExpiryInstant(pin.expires.at) })
+        );
+      }
+      if (pin.expires.onBranchAway !== undefined) {
+        tooltipLines.push(
+          l10n("expiry.tooltip.branch", { branch: pin.expires.onBranchAway })
+        );
+      }
+    }
     // Always surface the last run in the tooltip, even when a schedule badge is
     // showing, so the most recent outcome is one hover away. A failure points at
     // the output channel (Show Output in the pin's context menu).
@@ -197,6 +232,15 @@ export class PinTreeItem extends vscode.TreeItem {
     if (runCount > 0) {
       tooltipLines.push(l10n("run.countTooltip", { count: runCount }));
     }
+    // Name the live metric in the hover: the current value, and — when it is over a
+    // size threshold — that fact in words, so the warning tint is explained.
+    if (metricText) {
+      tooltipLines.push(
+        metricBadge?.over
+          ? l10n("metric.overTooltip", { value: metricText })
+          : l10n("metric.tooltip", { value: metricText })
+      );
+    }
     this.tooltip = tooltipLines.join("\n");
 
     // Icon priority mirrors the badge: spinning while running; a missing target
@@ -213,6 +257,15 @@ export class PinTreeItem extends vscode.TreeItem {
       // winning over a stale last-run badge (a prior session's green check does not
       // mean the dependency is satisfied now).
       this.iconPath = new vscode.ThemeIcon("lock");
+    } else if (metricBadge?.over) {
+      // Over its size threshold (#24): tint the row as a warning so "this file is too
+      // big" reads at a glance (the badge text carries the actual size). Keeps the
+      // pin's own glyph when it has one, else a warning triangle; wins over a stale
+      // last-run badge since being over budget is the actionable resting state.
+      this.iconPath = new vscode.ThemeIcon(
+        pin.icon ?? "warning",
+        new vscode.ThemeColor("list.warningForeground")
+      );
     } else if (lastRun) {
       this.iconPath =
         lastRun.outcome === "success"
@@ -228,6 +281,15 @@ export class PinTreeItem extends vscode.TreeItem {
       this.iconPath = new vscode.ThemeIcon(
         pin.icon,
         pin.color ? new vscode.ThemeColor(pin.color) : undefined
+      );
+    } else if (pin.expires) {
+      // A time-bombed pin (WOW #9) wears a watch glyph in its resting state, so the
+      // pending self-removal reads at a glance. Transient state icons (running /
+      // missing / last-run / locked) and a user-chosen custom icon all win above;
+      // this fills the otherwise-idle slot for a default-glyph pin.
+      this.iconPath = new vscode.ThemeIcon(
+        "watch",
+        new vscode.ThemeColor("charts.yellow")
       );
     } else if (pin.isAuto) {
       this.iconPath = new vscode.ThemeIcon("star-empty");
@@ -266,6 +328,53 @@ function formatNextRun(ts: number): string {
     day: "numeric",
   });
   return `${date} ${time}`;
+}
+
+// Compact expiry chip for a time-bombed pin's row (WOW #9): a wall-clock bomb shows
+// the time remaining ("2h left"), a branch bomb shows the branch it is tied to. When
+// both are set the countdown wins — it is the more concrete, time-sensitive fact.
+// The relative time is static per repaint (a TreeView row cannot tick live); it
+// re-renders on the next paint, which the expiry sweep and any store change trigger.
+function expirySummary(pin: Pin): string | undefined {
+  if (!pin.expires) {
+    return undefined;
+  }
+  if (pin.expires.at !== undefined) {
+    return formatTimeLeft(pin.expires.at, Date.now());
+  }
+  if (pin.expires.onBranchAway !== undefined) {
+    return l10n("expiry.chip.branch", { branch: pin.expires.onBranchAway });
+  }
+  return undefined;
+}
+
+// Time remaining until an expiry instant, in the coarsest useful unit. A past/now
+// instant reads "due" (the next sweep removes it). Minutes under an hour, hours
+// under a day, otherwise whole days.
+function formatTimeLeft(at: number, now: number): string {
+  const diffMs = at - now;
+  if (diffMs <= 0) {
+    return l10n("expiry.left.due");
+  }
+  const minutes = Math.round(diffMs / 60_000);
+  if (minutes < 60) {
+    return l10n("expiry.left.minutes", { count: Math.max(1, minutes) });
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return l10n("expiry.left.hours", { count: hours });
+  }
+  return l10n("expiry.left.days", { count: Math.round(hours / 24) });
+}
+
+// The full expiry instant for the hover, in the user's locale.
+function formatExpiryInstant(at: number): string {
+  return new Date(at).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // Compact inline badge for the last completed run: "ok 2.3s" on success, or

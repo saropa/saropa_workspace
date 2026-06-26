@@ -3,6 +3,7 @@ import {
   Pin,
   PinExecConfig,
   PinGroup,
+  PinMetric,
   PinSchedule,
   PinScope,
   PinTrigger,
@@ -609,6 +610,98 @@ export class PinStore {
       // Drop the field entirely when off, so an unfollowed pin carries no stale flag.
       target.tailFollow = follow ? true : undefined;
     });
+  }
+
+  // Persist a file pin's live-metric badge (#24). Passing undefined clears it (the
+  // metric engine then disposes that pin's file watcher on the next reconcile).
+  // Routed through mutatePin, so it no-ops on an auto-pin (recomputed, not stored) —
+  // the setMetric command gates those out up front.
+  async setPinMetric(pin: Pin, metric: PinMetric | undefined): Promise<void> {
+    await this.mutatePin(pin, (target) => {
+      target.metric = metric;
+    });
+  }
+
+  // Persist a pin's time-bomb expiry (WOW #9). An empty/all-undefined condition
+  // collapses to undefined so a defused pin carries no inert object and reads as
+  // "never expires". Routed through mutatePin, so it no-ops on an auto-pin (which
+  // is recomputed, not stored) — the configure command gates those out up front.
+  async setPinExpiry(
+    pin: Pin,
+    expires: { at?: number; onBranchAway?: string } | undefined
+  ): Promise<void> {
+    const meaningful =
+      expires && (expires.at !== undefined || expires.onBranchAway !== undefined)
+        ? expires
+        : undefined;
+    await this.mutatePin(pin, (target) => {
+      target.expires = meaningful;
+    });
+  }
+
+  // Persist a pin's classification tags (WOW #17). Lowercased, trimmed, blank-
+  // stripped, and de-duplicated so the stored set is canonical; an empty result
+  // collapses to undefined so an untagged pin carries no inert array. Routed
+  // through mutatePin, so it no-ops on an auto/recipe pin (recomputed, not stored)
+  // — the tag command gates those out up front.
+  async setPinTags(pin: Pin, tags: string[]): Promise<void> {
+    const cleaned = Array.from(
+      new Set(tags.map((t) => t.trim().toLowerCase()).filter((t) => t.length > 0))
+    );
+    await this.mutatePin(pin, (target) => {
+      target.tags = cleaned.length > 0 ? cleaned : undefined;
+    });
+  }
+
+  // Every distinct tag in use across stored project + global pins, sorted A->Z so
+  // the tag picker and the mode filter offer a stable, de-duplicated list. Recipe
+  // and auto pins carry no tags (recomputed, not stored), so they contribute none.
+  tagsInUse(): string[] {
+    const set = new Set<string>();
+    for (const pin of [...this.projectPins, ...this.globalPins]) {
+      for (const tag of pin.tags ?? []) {
+        set.add(tag);
+      }
+    }
+    return Array.from(set).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+  }
+
+  // The workspace folder that owns a project pin, or undefined for a global pin or
+  // when the owner cannot be resolved. Lets the expiry engine read the right
+  // repo's branch for an onBranchAway pin, and the restore path re-add to the
+  // correct folder.
+  folderOf(pin: Pin): vscode.WorkspaceFolder | undefined {
+    return this.projectPinFolder.get(pin.id);
+  }
+
+  // Re-add a pin removed by the time-bomb sweep — the Undo path (WOW #9). The
+  // expiry condition is dropped on the way back in, so an already-expired snapshot
+  // is not swept away again the instant it returns (Undo defuses the bomb). The id
+  // is preserved so any reused per-pin state lines up. A global pin is pushed back
+  // to globalState; a project pin is written to its captured owning folder (passed
+  // in, since the projectPinFolder map no longer holds the removed id), falling
+  // back to the first workspace folder.
+  async restorePin(snapshot: Pin, folder?: vscode.WorkspaceFolder): Promise<void> {
+    const restored: Pin = { ...snapshot, expires: undefined };
+    if (snapshot.scope === "global") {
+      const pins = this.readGlobalPins();
+      restored.order = pins.length;
+      pins.push(restored);
+      await this.writeGlobalPins(pins);
+      await this.refresh();
+      return;
+    }
+    const owner = folder ?? vscode.workspace.workspaceFolders?.[0];
+    if (!owner) {
+      return;
+    }
+    const file = await this.readProjectFile(owner);
+    restored.order = file.pins.length;
+    file.pins.push(restored);
+    await this.writeProjectFile(owner, file);
+    await this.refresh();
   }
 
   // Record the epoch-ms of a scheduled fire. Used for reopen de-duplication and

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { Pin, PinSchedule } from "../model/pin";
 import { PinStore } from "../model/pinStore";
-import { parseHourMinute } from "../exec/schedule";
+import { parseHourMinute, parseCron } from "../exec/schedule";
 import { l10n } from "../i18n/l10n";
 
 // Roadmap 2.2 — schedule editor UI.
@@ -15,7 +15,7 @@ import { l10n } from "../i18n/l10n";
 // hub discards them.
 
 interface HubItem extends vscode.QuickPickItem {
-  id: "atTime" | "days" | "interval" | "enabled" | "save";
+  id: "atTime" | "days" | "interval" | "cron" | "runOnStartup" | "enabled" | "save";
 }
 
 // Working shape: enabled is always present; the timing fields are optional.
@@ -23,6 +23,8 @@ interface WorkSchedule {
   atTime?: string;
   days?: number[];
   everyMs?: number;
+  cron?: string;
+  runOnStartup?: boolean;
   enabled: boolean;
   lastRun?: number;
 }
@@ -42,6 +44,8 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
     atTime: pin.schedule?.atTime,
     days: pin.schedule?.days ? [...pin.schedule.days] : undefined,
     everyMs: pin.schedule?.everyMs,
+    cron: pin.schedule?.cron,
+    runOnStartup: pin.schedule?.runOnStartup,
     enabled: pin.schedule?.enabled ?? true,
     // Preserve the prior fire stamp so reopen de-dup survives an edit.
     lastRun: pin.schedule?.lastRun,
@@ -66,6 +70,13 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
       case "interval":
         await editInterval(work, title);
         break;
+      case "cron":
+        await editCron(work, title);
+        break;
+      case "runOnStartup":
+        // Toggle directly from the hub for a snappy on/off.
+        work.runOnStartup = !work.runOnStartup;
+        break;
       case "enabled":
         // Toggle directly from the hub for a snappy on/off.
         work.enabled = !work.enabled;
@@ -77,10 +88,12 @@ export async function configureSchedule(store: PinStore, pin: Pin): Promise<void
   vscode.window.showInformationMessage(l10n("schedule.saved", { name }));
 }
 
-// A schedule with no timing fields would arm no timer; collapse it to undefined
-// so the pin reads as "not scheduled" rather than carrying an inert object.
+// A schedule with no timing source would arm no timer and react to nothing;
+// collapse it to undefined so the pin reads as "not scheduled" rather than
+// carrying an inert object. runOnStartup is itself a timing source (fires on
+// workspace open), so a startup-only schedule is kept.
 function normalize(work: WorkSchedule): PinSchedule | undefined {
-  if (!work.atTime && work.everyMs === undefined) {
+  if (!work.atTime && work.everyMs === undefined && !work.cron && !work.runOnStartup) {
     return undefined;
   }
   return {
@@ -92,6 +105,10 @@ function normalize(work: WorkSchedule): PinSchedule | undefined {
         ? [...work.days].sort((a, b) => a - b)
         : undefined,
     everyMs: work.everyMs,
+    cron: work.cron,
+    // Store the flag only when on, so a pin that was never a startup pin carries
+    // no inert false.
+    runOnStartup: work.runOnStartup ? true : undefined,
     enabled: work.enabled,
     lastRun: work.lastRun,
   };
@@ -146,6 +163,18 @@ async function showHub(
         work.everyMs !== undefined
           ? describeInterval(work.everyMs)
           : l10n("schedule.value.none"),
+    },
+    {
+      id: "cron",
+      label: l10n("schedule.field.cron"),
+      description: work.cron ?? l10n("schedule.value.none"),
+    },
+    {
+      id: "runOnStartup",
+      label: l10n("schedule.field.runOnStartup"),
+      description: work.runOnStartup
+        ? l10n("schedule.value.on")
+        : l10n("schedule.value.off"),
     },
     {
       id: "enabled",
@@ -324,6 +353,172 @@ async function editCustomInterval(
     return;
   }
   work.everyMs = Number(entered.trim()) * unit.unitMs;
+}
+
+// Friendly cron builder. The user composes a common schedule from presets (some
+// of which prompt for a time or weekday); the cron string is emitted under the
+// hood, so raw cron is only ever typed via the explicit "advanced" path. Every
+// path stores a cron string already validated by parseCron, so a built schedule
+// can never be malformed (acceptance: the builder produces valid schedules).
+async function editCron(work: WorkSchedule, title: string): Promise<void> {
+  interface CronItem extends vscode.QuickPickItem {
+    action:
+      | "clear"
+      | "weekdayAt" // every weekday (Mon-Fri) at a chosen time
+      | "dailyAt" // every day at a chosen time
+      | "weeklyAt" // a chosen weekday each week at a chosen time
+      | "monthlyAt" // the 1st of each month at a chosen time
+      | "workHours" // every N minutes during Mon-Fri 09:00-17:00
+      | "hourly" // top of every hour
+      | "advanced"; // type a raw cron expression
+  }
+  const items: CronItem[] = [
+    { label: l10n("schedule.cron.clear"), action: "clear" },
+    { label: l10n("schedule.cron.preset.weekdayAt"), action: "weekdayAt" },
+    { label: l10n("schedule.cron.preset.dailyAt"), action: "dailyAt" },
+    { label: l10n("schedule.cron.preset.weeklyAt"), action: "weeklyAt" },
+    { label: l10n("schedule.cron.preset.monthlyAt"), action: "monthlyAt" },
+    { label: l10n("schedule.cron.preset.workHours"), action: "workHours" },
+    { label: l10n("schedule.cron.preset.hourly"), action: "hourly" },
+    {
+      label: l10n("schedule.cron.advanced"),
+      detail: work.cron,
+      action: "advanced",
+    },
+  ];
+
+  const pick = await vscode.window.showQuickPick(items, {
+    title,
+    placeHolder: l10n("schedule.cron.placeholder"),
+  });
+  if (!pick) {
+    return;
+  }
+  switch (pick.action) {
+    case "clear":
+      work.cron = undefined;
+      return;
+    case "hourly":
+      work.cron = "0 * * * *";
+      return;
+    case "advanced":
+      await editCronAdvanced(work, title);
+      return;
+    case "workHours":
+      await editCronWorkHours(work, title);
+      return;
+    case "weekdayAt":
+      await composeCronAtTime(work, title, (h, m) => `${m} ${h} * * 1-5`);
+      return;
+    case "dailyAt":
+      await composeCronAtTime(work, title, (h, m) => `${m} ${h} * * *`);
+      return;
+    case "monthlyAt":
+      await composeCronAtTime(work, title, (h, m) => `${m} ${h} 1 * *`);
+      return;
+    case "weeklyAt":
+      await editCronWeekly(work, title);
+      return;
+  }
+}
+
+// Prompt for a daily time and store the cron the `build` callback derives from its
+// hour/minute. Shared by the "every weekday", "every day", and "1st of the month"
+// presets — they differ only in the cron's day fields.
+async function composeCronAtTime(
+  work: WorkSchedule,
+  title: string,
+  build: (hour: number, minute: number) => string
+): Promise<void> {
+  const time = await promptCronTime(work, title);
+  if (!time) {
+    return;
+  }
+  work.cron = build(time.hour, time.minute);
+}
+
+// "On a weekday each week at a time": pick the weekday, then the time.
+async function editCronWeekly(work: WorkSchedule, title: string): Promise<void> {
+  interface DayItem extends vscode.QuickPickItem {
+    day: number;
+  }
+  const dayItems: DayItem[] = WEEKDAY_LABELS.map((label, day) => ({ label, day }));
+  const dayPick = await vscode.window.showQuickPick(dayItems, {
+    title,
+    placeHolder: l10n("schedule.cron.weekdayPlaceholder"),
+  });
+  if (!dayPick) {
+    return;
+  }
+  const time = await promptCronTime(work, title);
+  if (!time) {
+    return;
+  }
+  work.cron = `${time.minute} ${time.hour} * * ${dayPick.day}`;
+}
+
+// "Every N minutes during work hours" (Mon-Fri 09:00-17:00): pick the cadence.
+async function editCronWorkHours(work: WorkSchedule, title: string): Promise<void> {
+  interface StepItem extends vscode.QuickPickItem {
+    minutes: number;
+  }
+  const steps: StepItem[] = [15, 20, 30, 60].map((minutes) => ({
+    label: l10n("schedule.interval.everyMinutes", { count: minutes }),
+    minutes,
+  }));
+  const pick = await vscode.window.showQuickPick(steps, {
+    title,
+    placeHolder: l10n("schedule.cron.workHoursPlaceholder"),
+  });
+  if (!pick) {
+    return;
+  }
+  // Hourly cadence is "0" minutes within 9-17; sub-hourly is "*/N".
+  const minuteField = pick.minutes >= 60 ? "0" : `*/${pick.minutes}`;
+  work.cron = `${minuteField} 9-17 * * 1-5`;
+}
+
+// The "advanced" path: type a raw 5-field cron expression, validated live by
+// parseCron so an invalid expression cannot be saved. Empty clears the cron.
+async function editCronAdvanced(work: WorkSchedule, title: string): Promise<void> {
+  const value = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("schedule.cron.advancedPrompt"),
+    placeHolder: l10n("schedule.cron.advancedPlaceholder"),
+    value: work.cron ?? "",
+    validateInput: (input) => {
+      const trimmed = input.trim();
+      if (trimmed === "") {
+        return undefined; // empty clears the cron
+      }
+      return parseCron(trimmed) ? undefined : l10n("schedule.cron.invalid");
+    },
+  });
+  if (value === undefined) {
+    return;
+  }
+  work.cron = value.trim() === "" ? undefined : value.trim();
+}
+
+// Shared HH:mm prompt for the cron builder presets. Returns the parsed hour/minute,
+// or undefined when the user cancels. Defaults to the schedule's existing daily
+// time if one is set, so building a cron near an existing time is one keystroke.
+async function promptCronTime(
+  work: WorkSchedule,
+  title: string
+): Promise<{ hour: number; minute: number } | undefined> {
+  const value = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("schedule.cron.timePrompt"),
+    placeHolder: l10n("schedule.atTime.placeholder"),
+    value: work.atTime ?? "",
+    validateInput: (input) =>
+      parseHourMinute(input.trim()) ? undefined : l10n("schedule.atTime.invalid"),
+  });
+  if (value === undefined) {
+    return undefined;
+  }
+  return parseHourMinute(value.trim());
 }
 
 // Human-readable interval label from a millisecond span (e.g. "Every 15 minutes",

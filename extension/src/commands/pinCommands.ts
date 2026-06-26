@@ -24,6 +24,7 @@ import {
 import { configureRun, parseArgs, formatArgs } from "./configureRun";
 import { configureSchedule } from "./configureSchedule";
 import { configureTriggers } from "./configureTriggers";
+import { pinUntil, pinUntilBranchChange, clearPinExpiry } from "./configureExpiry";
 import { configureAppearance } from "./configureAppearance";
 import { simulateRun } from "./simulateRun";
 import { showRunAnalytics } from "./runAnalytics";
@@ -1228,6 +1229,31 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureTriggers(store, pin);
+    }
+  });
+
+  // Time-bomb / ephemeral pins (WOW #9): set a self-removal condition on a stored
+  // pin (a wall-clock instant or leaving the current git branch) and clear it. Only
+  // pins the user explicitly bombs ever auto-remove; the expiry engine (wired in
+  // activate) sweeps them and offers Undo.
+  reg("saropaWorkspace.pinUntil", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await pinUntil(store, pin);
+    }
+  });
+
+  reg("saropaWorkspace.pinUntilBranchChange", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await pinUntilBranchChange(store, pin);
+    }
+  });
+
+  reg("saropaWorkspace.clearPinExpiry", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await clearPinExpiry(store, pin);
     }
   });
 

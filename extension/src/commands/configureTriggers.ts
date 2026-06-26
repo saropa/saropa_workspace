@@ -12,6 +12,8 @@ import { l10n } from "../i18n/l10n";
 // QuickPick to set what auto-runs a pin beyond its schedule:
 //   - "Run after a pin": when another pin completes (optionally only on success).
 //   - "Run after an event": build / publish / git commit / git push.
+//   - "Run when idle": after N minutes of no VS Code interaction (WOW #18), forced to
+//     the background channel so an unattended run never hijacks the terminal.
 //   - "This pin emits": mark this pin as a build / publish step, so its completion
 //     fires that event for OTHER pins to chain off.
 // Edits accumulate in a working copy and are written on Save; Esc at the hub
@@ -60,6 +62,9 @@ export async function configureTriggers(
       case "addEvent":
         await addEventTrigger(work, title);
         break;
+      case "addIdle":
+        await addIdleTrigger(work, title);
+        break;
       case "emits":
         await editEmits(work, title);
         break;
@@ -96,6 +101,7 @@ interface HubChoice {
   act:
     | "addPin"
     | "addEvent"
+    | "addIdle"
     | "emits"
     | "removeTrigger"
     | "toggleSuccess"
@@ -124,6 +130,7 @@ async function showHub(
   const rows: Array<HubItem | vscode.QuickPickItem> = [
     { act: "addPin", label: l10n("triggers.addPin") },
     { act: "addEvent", label: l10n("triggers.addEvent") },
+    { act: "addIdle", label: l10n("triggers.addIdle") },
     {
       act: "emits",
       label: l10n("triggers.field.emits"),
@@ -177,13 +184,16 @@ async function showHub(
   return { act: pick.act, index: pick.index };
 }
 
-// One-line description of a trigger for the hub list: "After Build (deploy.sh)" or
-// "On git push".
+// One-line description of a trigger for the hub list: "After Build", "On git push",
+// or "When idle 3m".
 function describeTrigger(store: PinStore, trigger: PinTrigger): string {
   if (trigger.kind === "event") {
     return l10n("triggers.row.event", {
       event: l10n(`chain.event.${trigger.event}`),
     });
+  }
+  if (trigger.kind === "idle") {
+    return l10n("triggers.row.idle", { minutes: trigger.minutes });
   }
   const source = store.findPin(trigger.pinId);
   const name = source
@@ -266,6 +276,36 @@ async function addEventTrigger(
     return;
   }
   work.triggers.push({ kind: "event", event: choice.event });
+}
+
+// Set (or replace) the idle trigger: run this pin after N minutes of no VS Code
+// interaction (WOW #18). At most one idle trigger per pin — two would run the pin twice
+// in one idle period — so an existing one is replaced rather than stacked. The default
+// seeds from the current value, else 3 minutes (the pitch's default coffee-break span).
+async function addIdleTrigger(work: WorkTriggers, title: string): Promise<void> {
+  const existing = work.triggers.find(
+    (t): t is Extract<PinTrigger, { kind: "idle" }> => t.kind === "idle"
+  );
+  const entered = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("triggers.idle.prompt"),
+    placeHolder: l10n("triggers.idle.placeholder"),
+    value: String(existing?.minutes ?? 3),
+    validateInput: (input) => {
+      const minutes = Number(input.trim());
+      if (!Number.isInteger(minutes) || minutes <= 0) {
+        return l10n("triggers.idle.invalid");
+      }
+      return undefined;
+    },
+  });
+  if (entered === undefined) {
+    return;
+  }
+  const minutes = Number(entered.trim());
+  // Drop any prior idle trigger, then add the new one, so the pin carries exactly one.
+  work.triggers = work.triggers.filter((t) => t.kind !== "idle");
+  work.triggers.push({ kind: "idle", minutes });
 }
 
 // Multi-select which system events this pin's completion emits (build / publish).

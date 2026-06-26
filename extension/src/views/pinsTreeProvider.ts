@@ -7,6 +7,7 @@ import { pinBadges } from "../exec/pinBadges";
 import { dependencyState } from "../exec/dependencies";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
+import { PinFilterState, pinMatchesFilter } from "./pinFilter";
 import { PinFolderItem, PinGroupItem, PinTreeItem, RecentRootItem } from "./pinTreeItem";
 
 // Custom drag-and-drop MIME for moving pins within the view. A custom type (vs
@@ -35,7 +36,10 @@ export class PinsTreeProvider
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private readonly store: PinStore) {
+  constructor(
+    private readonly store: PinStore,
+    private readonly filter: PinFilterState
+  ) {
     // Repaint whenever the store recomputes its cached pins, when a background
     // process starts/stops (running indicator + Stop action), or when a run
     // finishes (success/failure badge).
@@ -46,6 +50,8 @@ export class PinsTreeProvider
     pinBadges.onDidChange(() => this._onDidChangeTreeData.fire());
     // A recorded run (or a reset) changes the Recent group's contents.
     telemetry.onDidChange(() => this._onDidChangeTreeData.fire());
+    // The text/chip filter (WOW #28) changes which rows and groups are visible.
+    this.filter.onDidChange(() => this._onDidChangeTreeData.fire());
   }
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
@@ -53,56 +59,75 @@ export class PinsTreeProvider
   }
 
   getChildren(element?: vscode.TreeItem): vscode.TreeItem[] {
+    const active = this.filter.isActive();
     if (!element) {
       // Roots: an optional Recent group (last-called pins, local telemetry) above
-      // the two scope roots. Both scopes are always shown so the user can see
-      // where a new pin will land even when one is empty; Recent appears only when
-      // there is history to show.
+      // the two scope roots. With no filter, both scopes are always shown so the
+      // user can see where a new pin will land even when one is empty; Recent
+      // appears only when there is history. While a filter IS active, a scope with
+      // no matching pin is hidden (showing an empty Project header during a search
+      // is noise) — the always-visible filter message names what was hidden, so a
+      // collapsed-away scope never reads as lost data.
       const roots: vscode.TreeItem[] = [];
-      const recent = this.recentEntries();
+      const recent = this.recentEntries().filter((e) => this.matches(e.pin));
       if (recent.length > 0) {
         roots.push(new RecentRootItem(recent.length, telemetry.recentExpanded()));
       }
-      roots.push(
-        new PinGroupItem(
-          l10n("pin.group.project"),
-          "project",
-          // Exclude recipe pins: they live in the project pin list but render under
-          // the separate Recipes section, so the Project header must not count them.
-          this.store.getProjectPins().filter((p) => !p.isRecipe).length
-        ),
-        new PinGroupItem(
-          l10n("pin.group.global"),
-          "global",
-          this.store.getGlobalPins().length
-        )
-      );
+      for (const scope of ["project", "global"] as const) {
+        const label =
+          scope === "project"
+            ? l10n("pin.group.project")
+            : l10n("pin.group.global");
+        const visible = this.scopePins(scope).filter((p) => this.matches(p));
+        if (!active || visible.length > 0) {
+          // Count reflects what the header's subtree actually shows: the matching
+          // count while filtering, the full (recipe-excluded) count otherwise.
+          const count = active ? visible.length : this.scopePins(scope).length;
+          roots.push(new PinGroupItem(label, scope, count));
+        }
+      }
       return roots;
     }
 
     if (element instanceof RecentRootItem) {
-      return this.recentEntries().map((e) => this.toRecentItem(e.pin, e.record));
+      return this.recentEntries()
+        .filter((e) => this.matches(e.pin))
+        .map((e) => this.toRecentItem(e.pin, e.record));
     }
 
     if (element instanceof PinGroupItem) {
       const scope = element.group;
       // Groups first (sorted by the store), then the scope's top-level pins
       // (those with no groupId). Auto-pins are never grouped, so they fall here.
-      const groups = this.store.getGroups(scope).map((group) => {
-        const count = this.pinsInScope(scope).filter(
-          (p) => p.groupId === group.id
-        ).length;
-        return new PinFolderItem(group, scope, count);
-      });
-      const topLevel = this.pinsInScope(scope)
-        .filter((p) => !p.groupId)
+      // While filtering, a group with no matching child is hidden (hide-empty-
+      // groups) and each header's count is the matching count.
+      const groups = this.store
+        .getGroups(scope)
+        .map((group) => {
+          const members = this.scopePins(scope).filter(
+            (p) => p.groupId === group.id
+          );
+          const visible = members.filter((p) => this.matches(p));
+          return { group, members, visible };
+        })
+        .filter((g) => !active || g.visible.length > 0)
+        .map(
+          (g) =>
+            new PinFolderItem(
+              g.group,
+              scope,
+              active ? g.visible.length : g.members.length
+            )
+        );
+      const topLevel = this.scopePins(scope)
+        .filter((p) => !p.groupId && this.matches(p))
         .map((pin) => this.toPinItem(pin));
       return [...groups, ...topLevel];
     }
 
     if (element instanceof PinFolderItem) {
-      return this.pinsInScope(element.scope)
-        .filter((p) => p.groupId === element.pinGroup.id)
+      return this.scopePins(element.scope)
+        .filter((p) => p.groupId === element.pinGroup.id && this.matches(p))
         .map((pin) => this.toPinItem(pin));
     }
 
@@ -286,6 +311,27 @@ export class PinsTreeProvider
     return scope === "global"
       ? this.store.getGlobalPins()
       : this.store.getProjectPins();
+  }
+
+  // The pins this view actually renders for a scope: the project list carries
+  // recipe pins (served by the separate Recipes view), so they are excluded here.
+  // Used by the filter visibility/count logic so a "0 hidden" count and a hidden
+  // scope agree on the same population the headers show.
+  private scopePins(scope: PinScope): Pin[] {
+    const all = this.pinsInScope(scope);
+    return scope === "project" ? all.filter((p) => !p.isRecipe) : all;
+  }
+
+  // Whether a pin passes the active filter (WOW #28). Always true when no filter
+  // is set, so the unfiltered tree is unchanged. The last-run-failed state is read
+  // from the session run-status registry and handed to the pure predicate.
+  private matches(pin: Pin): boolean {
+    const filter = this.filter.get();
+    if (!this.filter.isActive()) {
+      return true;
+    }
+    const failed = runStatusRegistry.get(pin.id)?.outcome === "failure";
+    return pinMatchesFilter(pin, filter, failed);
   }
 
   private toPinItem(pin: Pin): PinTreeItem {

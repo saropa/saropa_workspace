@@ -277,9 +277,15 @@ export class PlannerPanel {
       return;
     }
     // `from` is a pin id for a pin trigger, or an event id ("event:build") for an
-    // event trigger. Match either shape.
+    // event trigger. An idle trigger has no graph edge, so it can never be the removal
+    // target — give it a sentinel that no `from` value matches, leaving it untouched.
     const remaining = target.triggers.filter((t) => {
-      const sourceId = t.kind === "pin" ? t.pinId : `event:${t.event}`;
+      const sourceId =
+        t.kind === "pin"
+          ? t.pinId
+          : t.kind === "event"
+            ? `event:${t.event}`
+            : "idle";
       return sourceId !== from;
     });
     await this.store.updatePinTriggers(target, remaining, target.emits);
@@ -344,7 +350,7 @@ export class PlannerPanel {
       for (const trigger of pin.triggers ?? []) {
         if (trigger.kind === "pin") {
           edges.push({ from: trigger.pinId, to: pin.id, kind: "pin" });
-        } else {
+        } else if (trigger.kind === "event") {
           eventsUsed.add(trigger.event);
           edges.push({
             from: `event:${trigger.event}`,
@@ -352,6 +358,8 @@ export class PlannerPanel {
             kind: "event",
           });
         }
+        // An idle trigger has no source node (it fires from elapsed inactivity, not
+        // from another pin or event), so it draws no edge in the chain graph.
       }
     }
 

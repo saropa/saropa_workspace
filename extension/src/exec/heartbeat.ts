@@ -194,3 +194,67 @@ export async function readTrendTotals(count: number): Promise<number[]> {
   }
   return [...totals.values()].slice(-count);
 }
+
+// A per-tool CPU time series over the last `count` samples, for the Trends tab's
+// multi-line chart. Where readTrendTotals collapses every tool into one summed
+// sparkline, this keeps each tool as its own line so a single hot toolchain is
+// visible rather than hidden inside the total. Labels are the sample timestamps in
+// chronological order; each tool's `points` array aligns to those labels, with 0
+// filled in for a sample where that tool was absent (so all series share an x-axis).
+// Returns empty arrays when the file is absent or unreadable, so the tab simply
+// shows its no-data state before any heartbeat has run.
+export interface TrendSeries {
+  labels: string[];
+  tools: { tool: string; points: number[] }[];
+}
+
+export async function readTrendSeries(count: number): Promise<TrendSeries> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) {
+    return { labels: [], tools: [] };
+  }
+  const file = path.join(folder.uri.fsPath, ...CSV_RELATIVE.split("/"));
+  let text: string;
+  try {
+    const fs = await import("fs/promises");
+    text = await fs.readFile(file, "utf8");
+  } catch {
+    return { labels: [], tools: [] };
+  }
+  // Group cpuPercent by (timestamp, tool), preserving first-seen timestamp order so
+  // the series reads left-to-right oldest-to-newest. A Map keyed by timestamp keeps
+  // per-sample per-tool values; a separate ordered list of timestamps drives the
+  // x-axis.
+  const order: string[] = [];
+  const perSample = new Map<string, Map<string, number>>();
+  const toolSet = new Set<string>();
+  for (const line of text.split("\n")) {
+    if (!line || line.startsWith("timestamp,")) {
+      continue;
+    }
+    const cols = line.split(",");
+    if (cols.length < 5) {
+      continue;
+    }
+    const stamp = cols[0];
+    // tool is everything between the timestamp and the trailing three numeric
+    // columns, rejoined so a quoted tool name containing a comma stays intact.
+    const tool = cols.slice(1, cols.length - 3).join(",").replace(/^"|"$/g, "");
+    const cpu = Number(cols[cols.length - 3]);
+    if (!Number.isFinite(cpu)) {
+      continue;
+    }
+    if (!perSample.has(stamp)) {
+      perSample.set(stamp, new Map());
+      order.push(stamp);
+    }
+    perSample.get(stamp)?.set(tool, cpu);
+    toolSet.add(tool);
+  }
+  const labels = order.slice(-count);
+  const tools = [...toolSet].map((tool) => ({
+    tool,
+    points: labels.map((stamp) => perSample.get(stamp)?.get(tool) ?? 0),
+  }));
+  return { labels, tools };
+}

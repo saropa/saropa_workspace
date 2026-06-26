@@ -3,7 +3,9 @@ import { Pin, PinTrigger, SystemEventName } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { pinEvents, PinRunOutcome } from "./pinEvents";
 import { systemEvents } from "./systemEvents";
+import { IdleMonitor } from "./idleMonitor";
 import { getOutputChannel } from "./runner";
+import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 
 // The chain engine (WOW: recipe chaining + special events). It listens on two buses
@@ -31,10 +33,48 @@ export class ChainRunner implements vscode.Disposable {
   // pinId -> epoch ms of its last auto-run, for the re-entrancy cooldown.
   private readonly lastAutoRun = new Map<string, number>();
 
-  constructor(private readonly store: PinStore) {
+  constructor(
+    private readonly store: PinStore,
+    private readonly idleMonitor: IdleMonitor
+  ) {
     this.disposables.push(
       pinEvents.onDidComplete((c) => this.onPinCompleted(c.pinId, c.outcome)),
-      systemEvents.onDidFire((event) => this.onSystemEvent(event))
+      systemEvents.onDidFire((event) => this.onSystemEvent(event)),
+      // Run-on-idle (WOW #18): the monitor fires the exact idle threshold crossed; run
+      // every pin whose idle trigger names that threshold.
+      idleMonitor.onDidGoIdle((minutes) => this.onIdle(minutes)),
+      // Keep the monitor's watched thresholds in step with the pin set: any store
+      // change can add or remove an idle-triggered pin (or edit its minutes), so the
+      // set of distinct thresholds is re-derived each time. The store fires onDidChange
+      // on init too, so the monitor is seeded before the first idle stretch.
+      store.onDidChange(() => this.syncIdleThresholds())
+    );
+    // Seed immediately in case the store's init refresh already fired above.
+    this.syncIdleThresholds();
+  }
+
+  // Collect the distinct idle thresholds (minutes) across all stored pins and hand them
+  // to the monitor, which only runs its poll timer while at least one exists.
+  private syncIdleThresholds(): void {
+    const minutes: number[] = [];
+    for (const pin of this.allStoredPins()) {
+      for (const trigger of pin.triggers ?? []) {
+        if (trigger.kind === "idle") {
+          minutes.push(trigger.minutes);
+        }
+      }
+    }
+    this.idleMonitor.setThresholds(minutes);
+  }
+
+  // The window has been idle long enough to cross `minutes`. Run every pin whose idle
+  // trigger names exactly that threshold, forced to the background channel so an
+  // unattended run never hijacks the terminal or pops an external window.
+  private onIdle(minutes: number): void {
+    this.runMatching(
+      (trigger) => trigger.kind === "idle" && trigger.minutes === minutes,
+      l10n("chain.cause.idle", { minutes }),
+      true
     );
   }
 
@@ -73,16 +113,28 @@ export class ChainRunner implements vscode.Disposable {
   }
 
   // Run every stored pin that carries a trigger matching `predicate`, subject to the
-  // per-pin cooldown. `cause` is a short human phrase ("after Build", "on git push")
-  // logged with each fire so the output channel reads as an audit trail.
+  // per-pin cooldown. `cause` is a short human phrase ("after Build", "on git push",
+  // "while idle 3m") logged with each fire so the output channel reads as an audit
+  // trail. `forceBackground` is set for the idle path: the run is routed to the
+  // background channel regardless of the pin's saved location, and a pin needing
+  // interactive input is skipped (an unattended idle run cannot answer a prompt).
   private runMatching(
     predicate: (trigger: PinTrigger) => boolean,
-    cause: string
+    cause: string,
+    forceBackground = false
   ): void {
     const now = Date.now();
     const channel = getOutputChannel();
     for (const pin of this.allStoredPins()) {
       if (!pin.triggers?.some(predicate)) {
+        continue;
+      }
+      // An idle run is unattended; a pin whose run needs ${prompt}/${pick} input
+      // cannot be answered, so skip it and note why (same stance as the scheduler).
+      if (forceBackground && hasInteractiveTokens(pin)) {
+        channel.appendLine(
+          l10n("chain.idleInteractiveSkipped", { name: nameOf(pin) })
+        );
         continue;
       }
       const previous = this.lastAutoRun.get(pin.id);
@@ -100,8 +152,9 @@ export class ChainRunner implements vscode.Disposable {
       // Fire-and-forget through the normal Run command so the dependent gets the
       // same treatment a manual run does (and fires its own completion to continue
       // the chain). A throw here must not break the cascade for sibling pins.
+      const target = forceBackground ? toBackground(pin) : pin;
       void vscode.commands
-        .executeCommand("saropaWorkspace.runPin", pin)
+        .executeCommand("saropaWorkspace.runPin", target)
         .then(undefined, (err: unknown) => {
           channel.appendLine(
             l10n("chain.failed", {
@@ -127,4 +180,24 @@ export class ChainRunner implements vscode.Disposable {
 
 function nameOf(pin: Pin): string {
   return pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+}
+
+// A shallow clone of a pin forced to run in the background, for the idle trigger. An
+// unattended idle run must never steal the integrated terminal or pop a separate OS
+// window, so the saved run location is overridden here (the clone applies to this run
+// only; the stored pin is untouched). A shell-recipe pin carries its own terminal flag
+// on its action, so clear that the same way; a plain file pin overrides runLocation and
+// drops the deprecated useIntegratedTerminal so the two cannot disagree.
+function toBackground(pin: Pin): Pin {
+  if (pin.action) {
+    return { ...pin, action: { ...pin.action, useIntegratedTerminal: false } };
+  }
+  return {
+    ...pin,
+    exec: {
+      ...(pin.exec ?? {}),
+      runLocation: "background",
+      useIntegratedTerminal: undefined,
+    },
+  };
 }

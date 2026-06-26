@@ -2,20 +2,33 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { pollProcesses, buildProcessReportMarkdown } from "./processPoll";
 import { DashboardPanel } from "../views/dashboardPanel";
+import { PinStore } from "../model/pinStore";
 import { expandRecipeTokens } from "./runner";
 import { l10n } from "../i18n/l10n";
 
-// Commands that drive the developer process monitor (recipe book section G):
-//   - openProcessMonitor (#60) opens the live Saropa Dashboard webview.
+// Commands that open the Saropa Dashboard and drive the developer process monitor
+// (recipe book section G, roadmap 3.4):
+//   - openDashboard opens the three-tab dashboard (Processes / Analytics / Trends),
+//     defaulting to the Processes tab; a string argument selects a starting tab.
+//   - openProcessMonitor (#60) is kept as an alias that opens the Processes tab, so
+//     existing callers (the heartbeat toast, the recipe pin) keep working unchanged.
 //   - recipe.snapshotProcesses (#62, grouped) writes the two-sample, per-tool
 //     rolled-up table to a dated report and opens it — the upgrade over the basic
 //     one-instant tasklist/ps snapshot, now that the process-poll helper exists.
 export function registerProcessMonitorCommands(
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  store: PinStore
 ): void {
+  // Accept an optional tab argument so the dashboard can be opened directly on
+  // Analytics or Trends; an unrecognized value falls through to the Processes tab.
+  const toTab = (value: unknown): "processes" | "analytics" | "trends" =>
+    value === "analytics" || value === "trends" ? value : "processes";
   context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.openDashboard", (tab?: unknown) =>
+      DashboardPanel.show(context, store, toTab(tab))
+    ),
     vscode.commands.registerCommand("saropaWorkspace.openProcessMonitor", () =>
-      DashboardPanel.show(context)
+      DashboardPanel.show(context, store, "processes")
     ),
     vscode.commands.registerCommand("saropaWorkspace.recipe.snapshotProcesses", () =>
       snapshotProcesses()
