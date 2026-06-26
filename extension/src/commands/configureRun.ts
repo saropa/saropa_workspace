@@ -30,6 +30,8 @@ interface HubItem extends vscode.QuickPickItem {
     | "dependsOn"
     | "sound"
     | "runOnSave"
+    | "concurrency"
+    | "lock"
     | "save";
 }
 
@@ -76,6 +78,14 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     runOnSave: pin.exec?.runOnSave,
   };
 
+  // Single-instance settings live top-level on the Pin (so a recipe with no exec can
+  // carry them too), not on PinExecConfig — kept in a small side holder and persisted
+  // separately from the exec config below.
+  const conc = {
+    allowConcurrent: pin.allowConcurrent === true,
+    lockName: pin.lockName,
+  };
+
   const title = l10n("configure.title", { name });
 
   // Hub loop: show the field summary, dispatch to the chosen sub-editor, repeat.
@@ -84,7 +94,7 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
     const depName = work.dependsOn
       ? resolveDepName(store, work.dependsOn)
       : undefined;
-    const choice = await showHub(work, title, depName);
+    const choice = await showHub(work, conc, title, depName);
     if (!choice) {
       // Esc at the hub: discard the working copy and write nothing (canceling
       // leaves the persisted config untouched).
@@ -127,11 +137,27 @@ export async function configureRun(store: PinStore, pin: Pin): Promise<void> {
       case "runOnSave":
         await editRunOnSave(work, title);
         break;
+      case "concurrency":
+        await editConcurrency(conc, title);
+        break;
+      case "lock":
+        await editLock(conc, title);
+        break;
     }
   }
 
   await store.updatePinExec(pin, normalize(work));
+  // Persist the top-level single-instance settings alongside the exec config (a
+  // second mutate, since they do not live on PinExecConfig).
+  await store.setPinConcurrency(pin, conc.allowConcurrent, conc.lockName);
   vscode.window.showInformationMessage(l10n("configure.saved", { name }));
+}
+
+// Mutable holder for the pin's top-level single-instance settings, threaded through
+// the hub the way `work` threads the exec config.
+interface ConcurrencyEdit {
+  allowConcurrent: boolean;
+  lockName: string | undefined;
 }
 
 // Collapse empty collections to undefined so a saved config is identical to the
@@ -172,6 +198,7 @@ function normalize(work: PinExecConfig): PinExecConfig {
 
 async function showHub(
   work: PinExecConfig,
+  conc: ConcurrencyEdit,
   title: string,
   depName: string | undefined
 ): Promise<HubItem["id"] | undefined> {
@@ -253,6 +280,18 @@ async function showHub(
       description: work.runOnSave
         ? l10n("configure.runOnSave.on")
         : l10n("configure.runOnSave.off"),
+    },
+    {
+      id: "concurrency",
+      label: l10n("configure.field.concurrency"),
+      description: conc.allowConcurrent
+        ? l10n("configure.concurrency.allow")
+        : l10n("configure.concurrency.block"),
+    },
+    {
+      id: "lock",
+      label: l10n("configure.field.lock"),
+      description: conc.lockName ?? l10n("configure.value.none"),
     },
     {
       id: "save",
@@ -630,6 +669,57 @@ async function editRunOnSave(work: PinExecConfig, title: string): Promise<void> 
     return;
   }
   work.runOnSave = pick.value;
+}
+
+// Choose whether the pin may run while one of its own runs is already in flight.
+// Block (the default) is single-instance; Allow opts out for a pin that genuinely
+// runs in parallel. A two-option pick so the current state is always shown.
+async function editConcurrency(
+  conc: ConcurrencyEdit,
+  title: string
+): Promise<void> {
+  interface ConcItem extends vscode.QuickPickItem {
+    value: boolean; // true = allow overlapping runs
+  }
+  const items: ConcItem[] = [
+    {
+      label: l10n("configure.concurrency.blockChoice"),
+      detail: l10n("configure.concurrency.blockDetail"),
+      value: false,
+    },
+    {
+      label: l10n("configure.concurrency.allowChoice"),
+      detail: l10n("configure.concurrency.allowDetail"),
+      value: true,
+    },
+  ];
+  const pick = await vscode.window.showQuickPick(items, {
+    title,
+    placeHolder: l10n("configure.concurrency.placeholder"),
+    ignoreFocusOut: true,
+  });
+  if (!pick) {
+    return;
+  }
+  conc.allowConcurrent = pick.value;
+}
+
+// Set (or clear) the cross-process lock name. When set, a run refuses to start
+// while a live holder owns the same-named lock in another window / terminal / a
+// script that honors the convention — extending the barrier beyond this window. An
+// empty entry clears it (the in-process guard still applies).
+async function editLock(conc: ConcurrencyEdit, title: string): Promise<void> {
+  const value = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("configure.lock.prompt"),
+    placeHolder: l10n("configure.lock.placeholder"),
+    value: conc.lockName ?? "",
+    ignoreFocusOut: true,
+  });
+  if (value === undefined) {
+    return;
+  }
+  conc.lockName = value.trim() === "" ? undefined : value.trim();
 }
 
 // Set the output-extraction regex (WOW #16). The pattern is matched against a

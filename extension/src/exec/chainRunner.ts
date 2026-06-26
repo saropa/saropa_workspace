@@ -4,7 +4,7 @@ import { PinStore } from "../model/pinStore";
 import { pinEvents, PinRunOutcome } from "./pinEvents";
 import { systemEvents } from "./systemEvents";
 import { IdleMonitor } from "./idleMonitor";
-import { getOutputChannel } from "./runner";
+import { getOutputChannel, runBlockReason, blockReasonLabel } from "./runner";
 import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 
@@ -141,6 +141,17 @@ export class ChainRunner implements vscode.Disposable {
         continue;
       }
       if (!pin.triggers?.some(predicate)) {
+        continue;
+      }
+      // Single-instance guard: never auto-run a pin whose previous run is still in
+      // flight (a background run that hung) or whose cross-process lock is held. A
+      // chained dependent must not stack on itself. Checked before the cooldown so a
+      // genuinely-running pin is reported as such, not as a re-entrancy bounce.
+      const block = runBlockReason(pin);
+      if (block) {
+        channel.appendLine(
+          l10n("chain.skipped", { name: nameOf(pin), cause, reason: blockReasonLabel(block) })
+        );
         continue;
       }
       // An idle run is unattended; a pin whose run needs ${prompt}/${pick} input

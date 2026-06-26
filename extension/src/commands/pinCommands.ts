@@ -8,9 +8,13 @@ import {
   runAction,
   getOutputChannel,
   isRunnable,
+  runBlockReason,
+  blockReasonLabel,
   RoutineHooks,
+  RunBlockReason,
 } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
+import * as runLock from "../exec/runLock";
 import { runStatusRegistry } from "../exec/runStatus";
 import { telemetry } from "../exec/telemetry";
 import { tappedPins } from "../model/tappedPins";
@@ -596,12 +600,30 @@ async function newRoutineFromSelection(store: PinStore, arg: unknown, args: unkn
   );
 }
 
-async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
+async function runPinCommand(
+  store: PinStore,
+  pin: Pin,
+  // Set by the "Run anyway" / "Stop and re-run" choices below to bypass the
+  // single-instance guard (the user has explicitly chosen to overlap or has just
+  // stopped the prior run). Every other caller leaves it false.
+  force = false
+): Promise<void> {
   // A comment / separator annotation is not runnable. Inert by design (no run
   // badge, no telemetry) — this guards the command-palette / keybinding paths,
   // since the tree row itself carries no command to reach here.
   if (isAnnotationPin(pin)) {
     return;
+  }
+  // Single-instance guard: a previous run of this pin is still in flight (a tracked
+  // background run) or its cross-process lock is held elsewhere. Offer the user a
+  // choice rather than silently launching a second (no silent async) — unless this
+  // is already a forced re-run from one of those choices.
+  if (!force) {
+    const block = runBlockReason(pin);
+    if (block) {
+      await handleAlreadyRunning(store, pin, block);
+      return;
+    }
   }
   // Running counts as "tapping" the pin (clears it from the untapped badge
   // count), the same as opening — every run path funnels through here.
@@ -639,6 +661,85 @@ async function runPinCommand(store: PinStore, pin: Pin): Promise<void> {
     return;
   }
   await execRunPin(pin, uri);
+}
+
+// A manual run was blocked because the pin is already running (or its cross-process
+// lock is held). Surface the conflict and let the user choose, naming the pin so the
+// message ties to a concrete row (no silent async). A same-window "running" block can
+// offer Stop-and-re-run (we own the process); a "locked" block by a holder in another
+// window / process cannot — we never kill a process we do not own — so it offers only
+// Run anyway, and names the holder PID so the user knows what to look for.
+async function handleAlreadyRunning(
+  store: PinStore,
+  pin: Pin,
+  reason: RunBlockReason
+): Promise<void> {
+  const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+  const runAnyway = l10n("run.runAnyway");
+  const showOutput = l10n("run.showOutput");
+
+  if (reason === "running") {
+    const stopAndRerun = l10n("run.stopAndRerun");
+    const choice = await vscode.window.showWarningMessage(
+      l10n("run.alreadyRunning", { name }),
+      stopAndRerun,
+      runAnyway,
+      showOutput
+    );
+    if (choice === stopAndRerun) {
+      // Stop the tracked run, wait for it to actually exit, then re-run forced so
+      // the relaunch does not see the old process still in the registry.
+      if (processRegistry.stop(pin.id)) {
+        await waitUntilStopped(pin.id);
+      }
+      await runPinCommand(store, pin, true);
+    } else if (choice === runAnyway) {
+      await runPinCommand(store, pin, true);
+    } else if (choice === showOutput) {
+      getOutputChannel().show(true);
+    }
+    return;
+  }
+
+  // locked: a live holder in another window / process owns the shared lock.
+  const holder = pin.lockName ? runLock.holderOf(pin.lockName) : undefined;
+  const choice = await vscode.window.showWarningMessage(
+    l10n("run.alreadyLocked", {
+      name,
+      lock: pin.lockName ?? "",
+      pid: holder?.pid ?? 0,
+    }),
+    runAnyway,
+    showOutput
+  );
+  if (choice === runAnyway) {
+    await runPinCommand(store, pin, true);
+  } else if (choice === showOutput) {
+    getOutputChannel().show(true);
+  }
+}
+
+// Resolve once a pin's tracked process has cleared, so a Stop-and-re-run does not
+// relaunch while the old child is still exiting. Bounded by a timeout so a process
+// that refuses to die never hangs the command — the registry independently escalates
+// a graceful stop to a forced kill, so the wait is a courtesy, not the killer.
+function waitUntilStopped(pinId: string, timeoutMs = 6000): Promise<void> {
+  if (!processRegistry.isRunning(pinId)) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const done = (): void => {
+      sub.dispose();
+      clearTimeout(timer);
+      resolve();
+    };
+    const sub = processRegistry.onDidChange(() => {
+      if (!processRegistry.isRunning(pinId)) {
+        done();
+      }
+    });
+    const timer = setTimeout(done, timeoutMs);
+  });
 }
 
 // Run a parameterized pin reusing the values entered last time, without re-asking

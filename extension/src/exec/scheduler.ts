@@ -1,7 +1,14 @@
 import * as vscode from "vscode";
 import { Pin, pinKind } from "../model/pin";
 import { PinStore } from "../model/pinStore";
-import { planRun, runPin, runAction, getOutputChannel } from "./runner";
+import {
+  planRun,
+  runPin,
+  runAction,
+  getOutputChannel,
+  runBlockReason,
+  blockReasonLabel,
+} from "./runner";
 import { hasInteractiveTokens } from "./promptTokens";
 import { nextOccurrence } from "./schedule";
 import { l10n } from "../i18n/l10n";
@@ -149,6 +156,20 @@ export class Scheduler implements vscode.Disposable {
     const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
     const channel = getOutputChannel();
     const stamp = new Date().toLocaleString();
+
+    // Single-instance guard: if a previous run of this pin is still in flight (a
+    // background run that hung, or a cross-process lock held elsewhere), skip THIS
+    // slot rather than launching a second — the "an hourly job that hangs must not
+    // stack up" case. Still advance the schedule so it re-arms for the next slot
+    // instead of tight-looping on this now-past one (same stance as a missing file).
+    const block = runBlockReason(pin);
+    if (block) {
+      channel.appendLine(
+        l10n("schedule.skipped", { time: stamp, name, reason: blockReasonLabel(block) })
+      );
+      await this.store.updatePinScheduleLastRun(pin, Date.now());
+      return;
+    }
 
     // Non-file scheduled pins (shell/url/command/macro — e.g. a promoted
     // scheduled-ritual recipe) run through the action dispatcher; there is no

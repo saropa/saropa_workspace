@@ -710,6 +710,23 @@ export class PinStore {
     });
   }
 
+  // Persist a pin's single-instance settings. allowConcurrent true opts the pin out
+  // of the run guard (overlapping runs allowed); false/cleared restores the default
+  // block. lockName names the optional cross-process lock; a blank name clears it.
+  // Both collapse to undefined when off so a default pin carries no inert fields
+  // (round-trip parity). Routed through mutatePin, so it no-ops on an auto/recipe pin.
+  async setPinConcurrency(
+    pin: Pin,
+    allowConcurrent: boolean,
+    lockName: string | undefined
+  ): Promise<void> {
+    const cleaned = lockName && lockName.trim().length > 0 ? lockName.trim() : undefined;
+    await this.mutatePin(pin, (target) => {
+      target.allowConcurrent = allowConcurrent ? true : undefined;
+      target.lockName = cleaned;
+    });
+  }
+
   // Persist a file pin's tail-follow flag (WOW #5). Passing false clears it so the
   // pin opens normally again. Stored as a plain pin field, so it round-trips like
   // any other; the open path reads it to decide whether to auto-scroll the log.

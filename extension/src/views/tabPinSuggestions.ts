@@ -40,11 +40,76 @@ const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 // acceptable — the user can dismiss again, and the Restore command exists).
 const MAX_DISMISSED = 500;
 
-interface TabPinState {
+export interface TabPinState {
   // fsPath -> epoch-ms when the tab was first seen pinned (and still is).
   firstPinnedAt: Record<string, number>;
   // fsPaths the user permanently dismissed; never offered again while present.
   dismissed: string[];
+}
+
+export interface TabPinReconcileResult {
+  // The next persisted state after stamping new sightings and dropping stale ones.
+  state: TabPinState;
+  // True when `state` differs from the input (so the caller can skip a redundant write).
+  changed: boolean;
+  // fsPaths that have sat pinned past the threshold and are eligible to offer
+  // (not dismissed, not already a Saropa pin). The caller applies its own
+  // per-session de-dup before actually prompting.
+  toOffer: string[];
+}
+
+// Pure reconcile core, extracted so the threshold / snapshot / dismiss logic is
+// unit-testable without the VS Code host. Given the live pinned-tab set and the
+// stored state, it returns the next state plus the files eligible to offer:
+//   - a tab no longer pinned has its stamp dropped (clock resets on unpin/close);
+//   - a dismissed file is never stamped or offered;
+//   - a file already a Saropa pin has any stamp cleared and is not offered;
+//   - a first sighting is stamped with `now` (this is also the activation-snapshot
+//     path — a pre-existing pin starts its clock now, never offered on undatable age);
+//   - a stamped file older than the threshold is eligible to offer.
+// The input state is not mutated; a fresh state object is returned.
+export function reconcileTabPins(
+  state: TabPinState,
+  pinned: ReadonlySet<string>,
+  isAlreadyPinned: (fsPath: string) => boolean,
+  now: number,
+  thresholdMs: number
+): TabPinReconcileResult {
+  const firstPinnedAt: Record<string, number> = { ...state.firstPinnedAt };
+  let changed = false;
+  const toOffer: string[] = [];
+
+  // Reset the clock for any tab no longer pinned, so a later re-pin starts fresh.
+  for (const fsPath of Object.keys(firstPinnedAt)) {
+    if (!pinned.has(fsPath)) {
+      delete firstPinnedAt[fsPath];
+      changed = true;
+    }
+  }
+
+  for (const fsPath of pinned) {
+    if (state.dismissed.includes(fsPath)) {
+      continue;
+    }
+    if (isAlreadyPinned(fsPath)) {
+      if (firstPinnedAt[fsPath] !== undefined) {
+        delete firstPinnedAt[fsPath];
+        changed = true;
+      }
+      continue;
+    }
+    const since = firstPinnedAt[fsPath];
+    if (since === undefined) {
+      firstPinnedAt[fsPath] = now;
+      changed = true;
+      continue;
+    }
+    if (now - since >= thresholdMs) {
+      toOffer.push(fsPath);
+    }
+  }
+
+  return { state: { firstPinnedAt, dismissed: state.dismissed }, changed, toOffer };
 }
 
 // Path fragments never worth suggesting: VCS internals, dependency trees, and the

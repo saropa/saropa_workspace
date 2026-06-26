@@ -10,6 +10,8 @@ import {
   SoundOverride,
 } from "../model/pin";
 import { processRegistry } from "./processRegistry";
+import { isConcurrencyBlocked } from "./concurrency";
+import * as runLock from "./runLock";
 import { runStatusRegistry, formatDuration } from "./runStatus";
 import { runOutputs } from "./runOutputs";
 import { telemetry, RunSource } from "./telemetry";
@@ -218,6 +220,38 @@ export function planRun(
   };
 }
 
+// Why a fresh run of this pin must not start, or undefined when it may. The single
+// source of truth both the unattended runners (scheduler, chain, run-on-save) and
+// the manual Run command consult, so the single-instance rule lives in one place:
+//   - "running": one of THIS pin's runs is already tracked in this window (a
+//     background / report-capture run); the in-process guard.
+//   - "locked":  the pin's cross-process lock (lockName) is held by a LIVE holder
+//     in another window / terminal / process.
+// allowConcurrent:true opts a pin out of both. Integrated-terminal and external
+// runs are untracked, so "running" never applies to them — only a lockName can
+// guard those, and only against runs that also honor the lock.
+export type RunBlockReason = "running" | "locked";
+
+export function runBlockReason(pin: Pin): RunBlockReason | undefined {
+  // The in-process guard: a tracked run of this exact pin is still in flight.
+  if (isConcurrencyBlocked(pin.allowConcurrent, processRegistry.isRunning(pin.id))) {
+    return "running";
+  }
+  // The cross-process guard: a live holder owns this pin's shared lock elsewhere.
+  if (!pin.allowConcurrent && pin.lockName && runLock.isHeld(pin.lockName)) {
+    return "locked";
+  }
+  return undefined;
+}
+
+// Localized one-phrase reason for a block, shared by every skip/blocked message so
+// the wording is defined once.
+export function blockReasonLabel(reason: RunBlockReason): string {
+  return l10n(
+    reason === "locked" ? "concurrency.reasonLocked" : "concurrency.reasonRunning"
+  );
+}
+
 // Lazily create (and reuse) the shared output channel. Shared so scheduled-run
 // log lines and background-run output land in the same "Saropa Workspace" panel.
 export function getOutputChannel(): vscode.OutputChannel {
@@ -306,7 +340,9 @@ export async function runPin(
         effectivePin.exec?.sound,
         // Re-run from the original pin (not effectivePin) so a kill+retry re-resolves
         // any interactive ${prompt:}/${pick:} tokens, matching a fresh manual run.
-        () => void runPin(pin, uri, source, extraTokens)
+        () => void runPin(pin, uri, source, extraTokens),
+        // Cross-process lock held for this run's lifetime when the pin opts in.
+        pin.lockName
       );
       break;
   }
@@ -328,6 +364,10 @@ export async function runAction(
   const name = pin.label ?? pin.id;
   // Recipe/non-file runs feed the same local telemetry as file runs.
   void telemetry.record(pin.id, source);
+  // The pin's cross-process lock, passed down to the shell paths that own a child
+  // process and can hold it (background / report capture). Other action kinds are
+  // fire-and-forget and only the upstream runBlockReason check applies to them.
+  const lockName = pin.lockName;
 
   switch (action.kind) {
     case "url":
@@ -344,7 +384,7 @@ export async function runAction(
       // runShellAction fires its own completion: a real outcome from the background /
       // report path, or a dispatch from the terminal path. Not fired here, to avoid
       // a duplicate.
-      await runShellAction(action, name, pin.id);
+      await runShellAction(action, name, pin.id, lockName);
       return;
     case "macro":
       await runMacro(action.steps ?? [], name);
@@ -400,7 +440,8 @@ async function runVsCommand(
 async function runShellAction(
   action: { shellCommand?: string; cwd?: string; useIntegratedTerminal?: boolean; reportFile?: string; autoOpen?: boolean },
   name: string,
-  pinId: string
+  pinId: string,
+  lockName?: string
 ): Promise<void> {
   const raw = action.shellCommand;
   if (!raw) {
@@ -416,7 +457,8 @@ async function runShellAction(
       expandRecipeTokens(action.reportFile),
       action.autoOpen === true,
       name,
-      pinId
+      pinId,
+      lockName
     );
     return;
   }
@@ -446,7 +488,8 @@ async function runShellAction(
       undefined,
       // A shell recipe retries by re-dispatching itself; the action carries its own
       // command/cwd, so the kill+retry path can re-run it without a file/uri.
-      () => void runShellAction(action, name, pinId)
+      () => void runShellAction(action, name, pinId, lockName),
+      lockName
     );
   }
 }
@@ -459,7 +502,8 @@ async function runShellToReport(
   reportRelOrAbs: string,
   autoOpen: boolean,
   name: string,
-  pinId: string
+  pinId: string,
+  lockName?: string
 ): Promise<void> {
   const cp = await import("child_process");
   const nodePath = await import("path");
@@ -479,12 +523,23 @@ async function runShellToReport(
     env: { ...process.env },
   });
   processRegistry.register(pinId, child);
+  // Hold the cross-process lock for this run's lifetime (opt-in). Keyed to the
+  // child PID so release() only clears OUR record, and so a crash leaves a stale
+  // (dead-PID) record the next run steals rather than a permanent block.
+  if (lockName && child.pid !== undefined) {
+    runLock.acquire(lockName, child.pid, name);
+  }
   child.stdout?.on("data", (d) => (body += d.toString()));
   child.stderr?.on("data", (d) => (body += d.toString()));
 
   await new Promise<void>((resolve) => {
     const finish = async (code: number | null): Promise<void> => {
       const durationMs = Date.now() - startedAt;
+      // Free the cross-process lock now this run has ended (release only clears our
+      // own record, so a run that already stole the lock is unaffected).
+      if (lockName && child.pid !== undefined) {
+        runLock.release(lockName, child.pid);
+      }
       try {
         const fs = await import("fs/promises");
         await fs.mkdir(nodePath.dirname(reportPath), { recursive: true });
@@ -1031,7 +1086,9 @@ async function runInBackground(
   soundOverride?: SoundOverride,
   // Re-dispatch this same run. Used only by the port-unwedge kill+retry path so a
   // freed port can be retried in one click; absent for callers with no retry route.
-  retry?: () => void
+  retry?: () => void,
+  // Cross-process lock name held for this run's lifetime when the pin opts in.
+  lockName?: string
 ): Promise<void> {
   const cp = await import("child_process");
   const channel = getOutputChannel();
@@ -1047,6 +1104,12 @@ async function runInBackground(
   // Track the child so the tree can show it running and a Stop action can kill
   // it; the registry clears itself on exit.
   processRegistry.register(pinId, child);
+  // Hold the cross-process lock for this run's lifetime (opt-in). Keyed to the
+  // child PID so release() only clears OUR record, and a crash leaves a stale
+  // (dead-PID) record the next run steals rather than a permanent block.
+  if (lockName && child.pid !== undefined) {
+    runLock.acquire(lockName, child.pid, name);
+  }
   // Accumulate the combined output so the last two runs can be diffed (WOW #20),
   // in addition to streaming it live to the channel.
   let captured = "";
@@ -1071,6 +1134,11 @@ async function runInBackground(
     settled = true;
     const durationMs = Date.now() - startedAt;
     const endedAt = Date.now();
+    // Free the cross-process lock now this run has ended (release only clears our
+    // own record, so a run that already stole the lock is unaffected).
+    if (lockName && child.pid !== undefined) {
+      runLock.release(lockName, child.pid);
+    }
     runStatusRegistry.record(pinId, {
       outcome,
       exitCode: code,

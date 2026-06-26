@@ -25,7 +25,14 @@ import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
 import { initFocusMode } from "./commands/focusMode";
 import { registerRunOutputDiff } from "./commands/diffRuns";
-import { registerTerminalCleanup, isRunnable, setRoutineHooks } from "./exec/runner";
+import {
+  registerTerminalCleanup,
+  isRunnable,
+  setRoutineHooks,
+  getOutputChannel,
+  runBlockReason,
+  blockReasonLabel,
+} from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
@@ -656,6 +663,19 @@ function runPinsOnSave(store: PinStore, savedUri: vscode.Uri): void {
     }
     const uri = store.resolveUri(pin);
     if (!uri || uri.fsPath !== saved || !isRunnable(pin, uri.fsPath)) {
+      continue;
+    }
+    // Single-instance guard: skip the save-triggered run when one is already in
+    // flight (or the cross-process lock is held) rather than stacking a second on
+    // every save. Quiet beyond a channel line — repeated saves must not spam toasts;
+    // the manual-run path is where the user gets the interactive "already running"
+    // choice. Checked here so an unattended save never reaches the manual toast.
+    const block = runBlockReason(pin);
+    if (block) {
+      const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+      getOutputChannel().appendLine(
+        l10n("save.skipped", { name, reason: blockReasonLabel(block) })
+      );
       continue;
     }
     void vscode.commands.executeCommand("saropaWorkspace.runPin", pin);
