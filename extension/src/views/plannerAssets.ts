@@ -116,7 +116,11 @@ button.btn.icon { padding: 5px 8px; }
 .legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
 /* Stage ----------------------------------------------------------------- */
-.stage { animation: fade 200ms var(--ease); }
+/* The work area is two columns: the timeline/graph stage (flexes to fill) and the
+   detail inspector docked on the right. The inspector only occupies a column while a
+   pin is selected — when hidden it collapses to zero width and the stage spans full. */
+.workarea { display: flex; align-items: flex-start; gap: 12px; }
+.stage { flex: 1 1 auto; min-width: 0; animation: fade 200ms var(--ease); }
 .empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: 48px 16px; margin: 12px 0; text-align: center;
@@ -314,15 +318,19 @@ button.btn.icon { padding: 5px 8px; }
 .ac .opt:hover, .ac .opt.active { background: var(--vscode-list-hoverBackground, var(--surface-3)); }
 .ac .none { padding: 10px 11px; color: var(--muted); font-size: .86em; }
 
-/* Detail strip ---------------------------------------------------------- */
-/* The detail strip is sticky to the panel's bottom edge so a selected item's info and
-   actions stay in view instead of being buried below the full-height Day/Week grid —
-   the elevated background + shadow lift it clear of the grid scrolling behind it. */
-.detail { position: sticky; bottom: 0; z-index: 40; margin-top: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: none; box-shadow: 0 -6px 18px rgba(0,0,0,.28); }
+/* Detail inspector ------------------------------------------------------ */
+/* The inspector is its own right-hand column (like the Workflow toolbox), sticky under
+   the toolbar so it stays in view while the tall grid scrolls. It is hidden until a pin
+   is selected; a header (x) closes it and returns the stage to full width. */
+.detail { flex: 0 0 300px; align-self: stretch; position: sticky; top: 56px; max-height: calc(100vh - 72px); overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: none; }
 .detail.show { display: block; animation: rise 160ms var(--ease); }
 .detail .dh { display: flex; align-items: center; gap: 10px; }
-.detail .dh .dt { font-weight: 600; }
-.detail .da { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.detail .dh .dt { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.detail .dclose { flex: 0 0 auto; margin-left: auto; width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; }
+.detail .dclose:hover { background: var(--surface-3); color: var(--vscode-foreground); border-color: var(--border); }
+.detail .dclose:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.detail .da { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 12px; }
+.detail .da .btn { justify-content: center; }
 .detail .dl { color: var(--muted); font-size: .88em; margin-top: 6px; }
 /* INFO tip: the recipe's own description (what it does + what it was detected from),
    surfaced here so a paused/seeded recipe explains itself in place instead of being an

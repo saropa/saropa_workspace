@@ -436,8 +436,10 @@ export class PlannerPanel {
     <span class="dot"><span class="sw" style="background:var(--ok)"></span>last run ok</span>
   </div>
 </div>
-<div id="stage" class="stage"></div>
-<div id="detail" class="detail"></div>
+<div class="workarea">
+  <div id="stage" class="stage"></div>
+  <div id="detail" class="detail" role="complementary" aria-label="${l10n("planner.detail.label")}"></div>
+</div>
 <script nonce="${nonce}">${PLANNER_SCRIPT}</script>
 </body>
 </html>`;

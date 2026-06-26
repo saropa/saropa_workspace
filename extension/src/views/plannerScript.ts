@@ -549,7 +549,7 @@ function renderDetail(){
   // Pause/Resume mirrors the right-click toggle: a scheduled pin must be resumable
   // from the same strip that shows it is "(paused)", not only from the context menu.
   const toggleBtn = n.schedule ? '<button class="btn" data-act="toggle">'+(n.schedule.enabled?'\\u23F8 Pause':'\\u25B6 Resume')+'</button>' : '';
-  box.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span></div>'+
+  box.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span><button class="dclose" data-act="close" title="Close details" aria-label="Close details">\\u00D7</button></div>'+
     (lines.length?'<div class="dl">'+esc(lines.join('  \\u2014  '))+'</div>':'<div class="dl">No automation yet.</div>')+
     info+
     '<div class="da">'+

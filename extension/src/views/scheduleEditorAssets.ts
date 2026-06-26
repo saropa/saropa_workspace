@@ -203,8 +203,10 @@ function syncLocalState(){
   $('customWrap').style.display = $('interval').value === 'custom' ? '' : 'none';
 }
 
-// Ask the host to recompute the next-run preview from the current form.
-function requestPreview(){ post('change', { work: gather() }); }
+// Ask the host to recompute the next-run preview from the current form. enabledTouched
+// travels with it so the host can apply (and echo back) the same "setting a time turns
+// it on" auto-enable rule it uses at save — the rule lives host-side, never here.
+function requestPreview(){ post('change', { work: gather(), enabledTouched: enabledTouched }); }
 
 function changed(){ syncLocalState(); requestPreview(); }
 

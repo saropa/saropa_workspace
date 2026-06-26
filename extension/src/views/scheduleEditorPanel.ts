@@ -153,7 +153,7 @@ export class ScheduleEditorPanel {
         return;
       case "change":
         if (msg.work) {
-          await this.postPreview(msg.work);
+          await this.postPreview(msg.work, msg.enabledTouched === true);
         }
         return;
       case "save":
@@ -180,13 +180,19 @@ export class ScheduleEditorPanel {
 
   // Compute the next-run preview and cron validity from the live form, using the
   // real scheduler math (nextOccurrence / parseCron) so the footer can never disagree
-  // with what the scheduler will actually do.
-  private async postPreview(work: WireWork): Promise<void> {
+  // with what the scheduler will actually do. The same auto-enable rule the save
+  // applies is computed here and echoed back as `enabled`, so the visible Enabled
+  // toggle and the preview both reflect "setting a time turns it on" before save —
+  // the rule lives only in applyAutoEnable (one source of truth), never in the client.
+  private async postPreview(work: WireWork, enabledTouched: boolean): Promise<void> {
+    const effective: WorkSchedule = { ...work };
+    applyAutoEnable(effective, enabledTouched);
     const cronValid = !work.cron || parseCron(work.cron) !== undefined;
     await this.panel.webview.postMessage({
       type: "preview",
-      nextRun: this.previewText(work),
+      nextRun: this.previewText(effective),
       cronValid,
+      enabled: effective.enabled,
     });
   }
 

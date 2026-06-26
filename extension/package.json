@@ -420,6 +420,12 @@
         "icon": "$(clock)"
       },
       {
+        "command": "saropaWorkspace.configureScheduleQuick",
+        "title": "%command.configureScheduleQuick.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(clock)"
+      },
+      {
         "command": "saropaWorkspace.configureTriggers",
         "title": "%command.configureTriggers.title%",
         "category": "%extension.displayName%",
@@ -1185,6 +1191,11 @@
           "group": "2_config@2"
         },
         {
+          "command": "saropaWorkspace.configureScheduleQuick",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin(Scheduled)?(Paused)?$/",
+          "group": "2_config@2"
+        },
+        {
           "command": "saropaWorkspace.configureTriggers",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin(Scheduled)?(Paused)?$/",
           "group": "2_config@3"
@@ -1493,6 +1504,10 @@
         },
         {
           "command": "saropaWorkspace.configureSchedule",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.configureScheduleQuick",
           "when": "false"
         },
         {
