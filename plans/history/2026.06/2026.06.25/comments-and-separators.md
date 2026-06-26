@@ -56,3 +56,53 @@ oleg-shilo Favorites Manager offers comment lines and dividers; this adds the eq
 
 - None blocking. Touches the tree, runner, double-click, badges, palette, and
   export/import — verify each consumer guards the new kinds. Tests depend on Phase 4.1.
+
+## Finish Report (2026-06-25)
+
+The core feature shipped: comment and separator entries now label and divide the
+pin list. One sub-item of the export/import work is carried forward (see below).
+
+### What was implemented
+
+- **Model** (`extension/src/model/pin.ts`): `PinKind` extended with `"comment"`
+  and `"separator"`. New `isAnnotationPin(pin)` predicate is the single
+  discriminated-union guard every consumer reads. The kind lives in `action.kind`
+  (so `pinKind` routes it); `path` stays a required string with an empty-string
+  sentinel for annotations (no schema-version bump — existing stored pins are
+  untouched, and the new kinds only appear in entries the user creates).
+- **Store** (`pinStore.ts`): `addAnnotationPin(kind, scope, label?, after?)` creates
+  the entry. With an anchor pin it inserts immediately after that pin in the same
+  scope and group via the new `placeAfter` helper (mirrors the drag-reorder
+  renumbering); with no anchor it appends to the project scope's top level.
+- **Tree** (`pinTreeItem.ts`): a comment renders as a muted comment-glyph label row;
+  a separator renders as a box-drawing divider row (`SEPARATOR_LABEL`). Both are
+  leaf nodes with **no `command`** (a click is inert), no `resourceUri`, and no
+  badges. Their `contextValue` is `annotationComment` / `annotationSeparator` —
+  deliberately not `pin`-prefixed, so the `viewItem =~ /^pin/` menus do not leak
+  Run / Open / Configure onto them.
+- **Run/click safety** (`pinCommands.ts`): `openPin`, `peekPin`, and `runPinCommand`
+  fail closed on annotations. They are excluded from the "Run Pin..." palette
+  (`pickPin`) and from the "top pin N" / run-by-reference ordering (`orderedPins`).
+  They still drag and reorder like any pin (the drop controller keys off the
+  `PinTreeItem` instance, not the contextValue), so they divide the list.
+- **Authoring** (`pinCommands.ts` + `package.json`): `saropaWorkspace.addComment`
+  and `saropaWorkspace.addSeparator` commands, surfaced on the Pins view title
+  (append) and a pin's / annotation's context menu (insert after). Rename reuses
+  `renamePin` (comments only); remove reuses `unpin`. Strings via `l10n()` +
+  `package.nls.json`.
+- **Export/import** (`pinSetExport.ts`): annotations round-trip through the pin-set
+  file; `isDuplicate` never dedupes a comment/separator, so repeated dividers each
+  survive a re-import.
+- **Tests** (`src/test/annotationPin.test.ts`): pure unit tests pinning the
+  `pinKind` / `isAnnotationPin` guard for every kind (87 total pass).
+
+Verification: `tsc --noEmit` clean for all touched files; `npm run test:unit`
+green (87/87); `node esbuild.js` bundles.
+
+### Carried forward
+
+The external-favorites import round-trip is not implemented — see
+`comments-and-separators-import.md`. `favoritesImport.ts` currently treats `#`
+comment lines and blank lines in a kdcro101-format favorites file as structural and
+drops them; importing them as comment / separator annotation pins is the remaining
+work.

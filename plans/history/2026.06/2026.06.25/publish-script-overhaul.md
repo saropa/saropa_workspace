@@ -78,3 +78,47 @@ placeholder in its link; after the rename that placeholder is not auto-corrected
 to the cut tag, and the audit will not flag it on the same run. Fixing the
 placeholder remains the author's step. A post-cut re-validation was not added to
 avoid forcing a mid-publish edit of an intentional placeholder.
+
+## Finish Report (2026-06-25)
+
+Two defects in the publisher tooling were corrected.
+
+**1. Publisher banner art was a corrupted derivative.** The shared
+`show_logo()` in `scripts/modules/_utils.py` (consumed by both `audit.py` and
+`publish.py`) rendered a truncated Saropa "S": only 8 of the canonical 17 art
+rows, and those 8 were themselves narrowed (for example `sdNMMMMMMMMMMMo` had
+been shortened to `sdNMMMMMMMo`, and `:MMMMMMMMM/` to `:MMMMMM/`), with the top
+cap, the lower curl, and nine middle rows dropped. The canonical source is
+`show_saropa_logo()` in the sibling `saropa_lints` analyzer
+(`scripts/modules/_analyze_pubspec.py`). The art block was replaced byte-for-byte
+with that source — all 17 rows and the full 256-color gradient
+(208, 209, 215, 220, 226, 190, 154, 118, 123, 87, 51, 45, 39, 33, 57) — while the
+project-specific publisher and copyright text lines were left unchanged. Byte
+identity of the rendered, color-stripped art was confirmed against the source.
+
+**2. The release audit blocked on its own documentation.** The attribution
+scan (added in the overhaul above) failed against this plan file because the
+prose quoted the scanner's regex patterns verbatim, so `git grep` matched the
+documentation as if it were a real machine-authorship footer. The passage was
+reworded to describe the footer forms in plain language (a co-author trailer, the
+vendor no-reply commit email, the bracketed and glyph "generated with" variants)
+without reproducing the literal trigger strings. The scanner still excludes its
+own source file; this change removes the second self-match. After the reword the
+release audit reports no attribution in tracked files.
+
+### Verification (finish)
+
+- `python scripts/audit.py --release` reports `+ No AI-authorship attribution in
+  tracked files.` and the full 17-row logo renders.
+- The rendered, ANSI-stripped art diffs byte-identical against the
+  `saropa_lints` source art.
+- `scripts/modules/_utils.py` parses clean; the script test suite
+  (`scripts/tests/test_quality.py`) passes 9/9.
+
+### Out of scope (left untouched)
+
+A separate, unrelated blocker surfaced during verification: eight `annotation.*`
+runtime l10n keys are called in code but absent from
+`extension/src/i18n/locales/en.json`. These originate from in-flight
+annotation-feature work (the staged `setMetric.ts` and modified `en.json`), not
+from this change, and were deliberately not modified here.
