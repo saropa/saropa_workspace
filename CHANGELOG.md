@@ -21,9 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
-## [Unreleased]
+## [1.5.1]
 
- [log](https://github.com/saropa/saropa_workspace/blob/v1.5.1/CHANGELOG.md)
+Say goodbye to "pins" and hello to "shortcuts" alongside a massive, beautifully visual upgrade to how you schedule and plan your workflows. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.1/CHANGELOG.md)
 
 ### Added
 
