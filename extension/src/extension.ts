@@ -286,6 +286,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     { treeDataProvider: projectFiles }
   );
   context.subscriptions.push(projectFilesView);
+  // Show the total surfaced-file count next to the view title. A zero count
+  // clears the description (no "0" on an empty/disabled view), and the provider
+  // only emits on a real change so the title does not flicker on every repaint.
+  const syncProjectFilesCount = (count: number): void => {
+    projectFilesView.description = count > 0 ? String(count) : undefined;
+  };
+  context.subscriptions.push(
+    projectFiles.onDidChangeCount((count) => syncProjectFilesCount(count))
+  );
+  syncProjectFilesCount(projectFiles.count);
   // Repaint the project-files rows whenever pins change, so the pinned indicator
   // and the pin/unpin toggle reflect the current state immediately.
   context.subscriptions.push(store.onDidChange(() => projectFiles.refresh()));

@@ -19,6 +19,14 @@ export class ProjectFilesTreeProvider
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  // Total surfaced-file count, published so the view title can show it as a
+  // description (extension.ts binds the TreeView's description to this). Computed
+  // during the root scan rather than re-scanning, and only re-emitted when it
+  // actually changes so the title does not flicker on every repaint.
+  private _count = 0;
+  private readonly _onDidChangeCount = new vscode.EventEmitter<number>();
+  readonly onDidChangeCount = this._onDidChangeCount.event;
+
   // The store is needed to mark each row pinned/unpinned and to drive the inline
   // pin/unpin toggle. The view repaints on store changes (wired in extension.ts),
   // so a pin added or removed elsewhere updates the indicator here too.
@@ -28,21 +36,39 @@ export class ProjectFilesTreeProvider
     this._onDidChangeTreeData.fire();
   }
 
+  // Current total count of surfaced files, so a late subscriber (the view is
+  // created after the provider) can paint the initial title without waiting for
+  // the next scan.
+  get count(): number {
+    return this._count;
+  }
+
+  private setCount(next: number): void {
+    if (next === this._count) {
+      return;
+    }
+    this._count = next;
+    this._onDidChangeCount.fire(next);
+  }
+
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
     return element;
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
     if (!isEnabled()) {
+      this.setCount(0);
       return [];
     }
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (folders.length === 0) {
+      this.setCount(0);
       return [];
     }
     const names = configuredFiles();
 
-    // A folder node was expanded: list just that folder's files.
+    // A folder node was expanded: list just that folder's files. This is a
+    // sub-scan of one folder, so it does not change the published total count.
     if (element instanceof ProjectFolderNode) {
       const found = await scanProjectFiles(
         folders.filter((f) => f.name === element.folderName),
@@ -53,9 +79,11 @@ export class ProjectFilesTreeProvider
 
     // Roots. With a single folder the files are listed flat; with several open,
     // they are grouped under a folder node so the same filename in two folders
-    // stays distinguishable.
+    // stays distinguishable. Either way `found` is the full set across all
+    // folders, so its length is the total shown on the view title.
     if (!element) {
       const found = await scanProjectFiles(folders, names);
+      this.setCount(found.length);
       if (folders.length > 1) {
         return folderNodes(found);
       }

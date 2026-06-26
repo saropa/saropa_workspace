@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import * as fs from "fs";
 import { Pin, pinKind, PinScope } from "../model/pin";
 import { PinStore } from "../model/pinStore";
 import { runStatusRegistry } from "../exec/runStatus";
@@ -286,4 +287,59 @@ export async function deleteFile(store: PinStore, pin: Pin): Promise<void> {
     // Drop any last-run badge so it does not outlive the pin.
     runStatusRegistry.clear(pin.id);
   }
+}
+
+// The owner-write bit (0o200). A file is "writable" when this bit is set in its
+// mode. Toggling it is how a read-only lock is set/cleared cross-platform: on
+// Windows, Node maps clearing owner-write to the FILE_ATTRIBUTE_READONLY attribute
+// and restoring it clears the attribute; on POSIX it flips the actual write bits.
+const OWNER_WRITE = 0o200;
+
+// Lock / unlock the pinned file at the FILESYSTEM level by toggling its read-only
+// attribute (not a VS Code-only guard) — the "stop me (or a script) from clobbering
+// this by accident" gesture, straight from the Pins view. A single toggle rather than
+// two commands because the lock state is an OS attribute, not stored on the pin, so it
+// is read live here and the toast names the resulting state (locked/unlocked) and the
+// file. Read-only is cleared from owner-write only; group/other bits are preserved so
+// a deliberate POSIX permission set is not flattened. A non-file pin is rejected with a
+// naming message, like the other file operations.
+export async function toggleFileLock(store: PinStore, pin: Pin): Promise<void> {
+  const uri = resolveFilePin(store, pin);
+  if (!uri) {
+    return;
+  }
+  const fileName = uri.path.split("/").pop() ?? uri.fsPath;
+  let mode: number;
+  try {
+    mode = (await fs.promises.stat(uri.fsPath)).mode;
+  } catch {
+    // Missing/unreadable target: same stance as the other file ops — name it and stop
+    // rather than failing the chmod with a cryptic errno.
+    vscode.window.showWarningMessage(l10n("pin.missingFile", { path: pin.path }));
+    return;
+  }
+  const currentlyWritable = (mode & OWNER_WRITE) !== 0;
+  // Locking clears owner-write; unlocking restores it. Preserve every other permission
+  // bit so a lock/unlock round-trip is a no-op on group/other permissions.
+  const nextMode = currentlyWritable
+    ? mode & ~OWNER_WRITE
+    : mode | OWNER_WRITE;
+  try {
+    await fs.promises.chmod(uri.fsPath, nextMode);
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      l10n("fileOps.lockFailed", {
+        name: fileName,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+    return;
+  }
+  // Name the file and the resulting state so the confirmation ties to a concrete pin
+  // and tells the user what changed (the no-silent-async / name-the-item rules).
+  vscode.window.showInformationMessage(
+    currentlyWritable
+      ? l10n("fileOps.locked", { name: fileName })
+      : l10n("fileOps.unlocked", { name: fileName })
+  );
 }

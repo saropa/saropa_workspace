@@ -48,6 +48,7 @@ import {
   renameFileOnDisk,
   copyFileTo,
   deleteFile,
+  toggleFileLock,
 } from "./fileOps";
 import { enterFocusMode, exitFocusMode } from "./focusMode";
 import { encodePinLink, SharedPin } from "../import/shareLink";

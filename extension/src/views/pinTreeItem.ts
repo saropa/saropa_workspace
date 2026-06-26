@@ -249,6 +249,8 @@ export class PinTreeItem extends vscode.TreeItem {
       tooltipLines.push(l10n("run.stoppingTooltip"));
     } else if (isRunning) {
       tooltipLines.push(l10n("run.runningTooltip"));
+    } else if (pin.paused) {
+      tooltipLines.push(l10n("pause.tooltip"));
     } else if (nextLabel) {
       tooltipLines.push(l10n("schedule.nextRun", { time: nextLabel }));
     }
