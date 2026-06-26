@@ -15,13 +15,17 @@ delta + working-set RAM + parent-PID roll-up, cross-platform), the **live toolch
 monitor** webview (#60), the **heartbeat** trend/threshold sampler (#61), and the
 **grouped, two-sample snapshot** (#62). Section H's **file & folder outlier scan**
 (#63) now ships too — the recursive empty/oversized crawl, dated JSON report, and
-sticky toast, configured via `saropaWorkspace.hygiene.*` (the per-instance scan pins
-with auto-generated names remain a follow-up). Section I's **event cues** (#64) ship
-as **audio** — start / success / failure cues via the OS's built-in system sounds,
-gated by `saropaWorkspace.sound.*` with a per-pin override in Configure Run; haptics
-are deferred (no VS Code extension API). What is left: the **remaining gaps** in the
-already-shipped sections (day-of-week scheduling, pin severity badges, the Saropa
-Lints health-score read) and the richer per-instance hygiene-scan pins.
+sticky toast, configured via `saropaWorkspace.hygiene.*`, plus **per-instance saved
+scans** (**New Hygiene Scan** captures a scope + mode + ceilings into a reusable pin
+with an auto-generated name). Section I's **event cues** (#64) ship as **audio** —
+start / success / failure cues via the OS's built-in system sounds, gated by
+`saropaWorkspace.sound.*` with a per-pin override in Configure Run; haptics are
+deferred (no VS Code extension API). The shipped-section follow-ups are now also
+done: **day-of-week scheduling**, **recipe chaining + special events + the planner
+webview**, **pin severity/test badges** (#26, #32), the **Saropa Lints health-score
+read** (#26, #36–40), and the **per-language Sunrise stats** (#27). What is left:
+haptics (platform-blocked) and the **pin pass/fail trend** (a sparkline of badge
+history over time, beyond the latest counts).
 
 The same principle governs all of it: a recipe is created/configured explicitly
 and run as a visible act — nothing here auto-executes or scans the disk without
@@ -49,15 +53,21 @@ These sections ship, but with known follow-ups:
 - **Schedule & Workflow planner webview** — **SHIPPED.** Day / Week timelines (drag
   to retime) and a draggable node graph of chained + event-triggered pins, with a
   toolbox and right-click autocomplete link builder.
-- **Sunrise project stats (#27)** captures a git activity summary, not yet the full
-  per-language file/line aggregation the original design described.
-- **Status badge / severity counts on a pin (#26, #32)** — the dawn lint sweep and
-  test-trend ritual write a report; they do not yet badge the pin with
-  error/warning/info counts or a pass/fail trend.
-- **Saropa Lints health-score API (#26, #36–40)** — the lint sweep runs the linter
-  to a report file; it does not yet read the Saropa Lints public API
-  (`getViolationsData()` / `getHealthScoreParams()`) to badge the exact health
-  score the Lints status bar shows.
+- **Sunrise project stats (#27)** — **SHIPPED.** The ritual now writes a per-language
+  file/line/share breakdown (from `git ls-files`, bounded by a file cap + per-file
+  size cap + binary skipping) alongside the git activity summary, via a cross-platform
+  `saropaWorkspace.recipe.projectStats` command.
+- **Status badge / severity counts on a pin (#26, #32)** — **SHIPPED.** A run's output
+  is parsed for lint severity counts (error/warning/info) and a test pass/fail tally
+  (`pinBadges`), and the pin renders a compact `3✖ 5⚠ 2ⓘ` / `12✓ 1✗` lead with a full
+  hover line. Covers Dart/Flutter analyze, ESLint, tsc; Dart/Flutter test, Jest,
+  vitest, mocha, pytest, cargo test. Session-scoped, in-memory.
+- **Saropa Lints health-score API (#26, #36–40)** — **SHIPPED.** A
+  `saropaWorkspace.recipe.lintsHealth` command reads the Lints public API
+  (`getViolationsData()` + `getHealthScoreParams()`), replicates `computeHealthScore`
+  (with the partial-sweep guard), and reports the exact 0–100 score + breakdown with a
+  link to the Code Health dashboard. Surfaced as a Saropa Suite recipe when the Lints
+  extension is installed.
 
 ---
 
@@ -218,8 +228,10 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
 | **Day-of-week scheduling** (cron-style weekday/weekly triggers) — **SHIPPED** (`PinSchedule.days` + interval units) | refines shipped 28–34 | extends the scheduler model fields |
 | **Recipe chaining + special events** (run after a pin / build / publish / git commit / git push) — **SHIPPED** (`Pin.triggers` / `Pin.emits`, ChainRunner, GitEventWatcher) | new cross-cutting automation | new event-bus + chain-runner items |
 | **Schedule & Workflow planner webview** (day/week timelines, drag-to-retime, node graph, toolbox, autocomplete links) — **SHIPPED** | visual home for scheduling + chaining | second justified webview surface |
-| **Pin status badge / severity counts** (green/red, error·warning·info) | refines shipped 26, 32 | extends the tree item |
-| **Sibling-tool API reads** (Saropa Lints `getViolationsData()` / health score) | refines shipped 26, 36–40 | Suite integration — Better Together |
+| **Pin status badge / severity counts** (error·warning·info, test pass/fail) — **SHIPPED** (`pinBadges`, parsed from run output) | refines shipped 26, 32 | extends the tree item |
+| **Sibling-tool API reads** (Saropa Lints `getViolationsData()` / health score) — **SHIPPED** (`lintsHealth`) | refines shipped 26, 36–40 | Suite integration — Better Together |
+| **Per-language Sunrise stats** (files/lines/share by language) — **SHIPPED** (`projectStats`) | refines shipped 27 | cross-platform `git ls-files` aggregation |
+| **Per-instance hygiene scans** (saved scope/thresholds + auto-generated name) — **SHIPPED** (`newHygieneScan`) | refines shipped 63 | reuses the scan engine + a saved command pin |
 
 ---
 
@@ -238,7 +250,9 @@ no cue while a "Do Not Disturb" / focus mode is active where that state is reada
 3. **Sensory feedback** (64) — cross-cutting and last, since it hooks the
    start/finish events that the run, scheduled, and scan machinery already emit.
    Ship audio first; gate haptics behind platform-capability detection.
-4. **Close the shipped-section gaps** — day-of-week scheduling **(SHIPPED)** and
-   recipe chaining + special events + the planner webview **(SHIPPED)**; still open
-   are pin severity badges and the Saropa Lints health-score read, each a small
-   refinement on machinery that already ships.
+4. **Close the shipped-section gaps** — **all SHIPPED**: day-of-week scheduling;
+   recipe chaining + special events + the planner webview; pin severity/test badges
+   (#26, #32); the Saropa Lints health-score read (#26, #36–40); per-language Sunrise
+   stats (#27); and per-instance saved hygiene scans (#63). The only remaining items
+   are haptics (platform-blocked, see `deferred/HAPTIC_EVENT_CUES.md`) and a pin
+   pass/fail *trend* sparkline (history beyond the latest badge counts).
