@@ -609,6 +609,12 @@
         "title": "%command.recipe.lintsHealth.title%",
         "category": "%extension.displayName%",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "saropaWorkspace.newRoutineFromSelection",
+        "title": "%command.newRoutineFromSelection.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(run-all)"
       }
     ],
     "submenus": [
@@ -973,6 +979,11 @@
           "command": "saropaWorkspace.diffLastRuns",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
           "group": "1_actions@7"
+        },
+        {
+          "command": "saropaWorkspace.newRoutineFromSelection",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^pin/",
+          "group": "2_edit@0"
         },
         {
           "command": "saropaWorkspace.configureRun",

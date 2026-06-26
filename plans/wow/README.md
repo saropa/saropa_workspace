@@ -33,7 +33,7 @@ conflated with them.
 - [#9 Time-Bomb / Ephemeral Pins](../history/2026.06/2026.06.25/PLAN_09_time_bomb_pins.md) — pins that auto-remove on a date or branch change. (Shipped 2026-06-25.)
 - [#15 Git Conflict Command Center](PLAN_15_conflict_center.md) — a synthetic group of conflicted files during a merge.
 - [#17 Workspace Focus Tags](PLAN_17_focus_tags.md) — tag pins and filter the tree to one mode.
-- [#18 Idle-Triggered Routines](PLAN_18_idle_runner.md) — run a pin after N minutes of no input.
+- [#18 Idle-Triggered Routines](../history/2026.06/2026.06.25/PLAN_18_idle_runner.md) — run a pin after N minutes of no input. (Shipped 2026-06-25.)
 - [#23 Run Rollback](PLAN_23_run_rollback.md) — revert only the files a macro/shell run changed.
 - [#24 Live Metric Badges](../history/2026.06/2026.06.25/PLAN_24_live_metrics.md) — a live size/lines/modified badge on a file pin. (Shipped 2026-06-25.)
 - [#25 "Watch This" Linkage](PLAN_25_watch_link.md) — run a script pin when a watched file is saved.
