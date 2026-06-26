@@ -1455,7 +1455,7 @@
     "build": "node esbuild.js",
     "package": "node esbuild.js --production",
     "test": "npm run test:unit",
-    "test:unit": "esbuild src/test/schedule.test.ts --bundle --platform=node --outfile=out/test/schedule.test.cjs && node --test out/test/schedule.test.cjs"
+    "test:unit": "node esbuild.test.js"
   },
   "devDependencies": {
     "@types/node": "^20.x",
