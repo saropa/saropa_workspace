@@ -828,6 +828,26 @@
         "id": "saropaWorkspace.workspaceSubmenu",
         "label": "%submenu.workspaceTools.label%",
         "icon": "$(gear)"
+      },
+      {
+        "id": "saropaWorkspace.outputSubmenu",
+        "label": "%submenu.output.label%",
+        "icon": "$(output)"
+      },
+      {
+        "id": "saropaWorkspace.configureSubmenu",
+        "label": "%submenu.configure.label%",
+        "icon": "$(gear)"
+      },
+      {
+        "id": "saropaWorkspace.appearanceSubmenu",
+        "label": "%submenu.appearance.label%",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "id": "saropaWorkspace.fileSubmenu",
+        "label": "%submenu.file.label%",
+        "icon": "$(file)"
       }
     ],
     "keybindings": [
@@ -876,6 +896,134 @@
           "command": "saropaWorkspace.clearPinExpiry",
           "when": "view == saropaWorkspace.pins || view == saropaWorkspace.recipes",
           "group": "2_clear@1"
+        }
+      ],
+      "saropaWorkspace.outputSubmenu": [
+        {
+          "command": "saropaWorkspace.peekPin",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/ && !(viewItem =~ /^shortcutRecipe/)",
+          "group": "1_view@1"
+        },
+        {
+          "command": "saropaWorkspace.showOutput",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
+          "group": "1_view@2"
+        },
+        {
+          "command": "saropaWorkspace.toggleTail",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
+          "group": "1_view@3"
+        },
+        {
+          "command": "saropaWorkspace.diffLastRuns",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
+          "group": "2_inspect@1"
+        },
+        {
+          "command": "saropaWorkspace.simulateRun",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
+          "group": "2_inspect@2"
+        }
+      ],
+      "saropaWorkspace.configureSubmenu": [
+        {
+          "command": "saropaWorkspace.configureRun",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "1_run@1"
+        },
+        {
+          "command": "saropaWorkspace.configureScheduleQuick",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "2_schedule@1"
+        },
+        {
+          "command": "saropaWorkspace.configureSchedule",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "2_schedule@2"
+        },
+        {
+          "command": "saropaWorkspace.configureTriggers",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "3_trigger@1"
+        },
+        {
+          "command": "saropaWorkspace.configureWatchLink",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "3_trigger@2"
+        },
+        {
+          "command": "saropaWorkspace.pausePin",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?$/",
+          "group": "4_pause@1"
+        },
+        {
+          "command": "saropaWorkspace.unpausePin",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?Paused$/",
+          "group": "4_pause@1"
+        }
+      ],
+      "saropaWorkspace.appearanceSubmenu": [
+        {
+          "command": "saropaWorkspace.configureAppearance",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "1_look@1"
+        },
+        {
+          "command": "saropaWorkspace.setMetric",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "1_look@2"
+        },
+        {
+          "command": "saropaWorkspace.tagPin",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "1_look@3"
+        },
+        {
+          "command": "saropaWorkspace.toggleBranchLink",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "2_visibility@1"
+        },
+        {
+          "submenu": "saropaWorkspace.expirySubmenu",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "2_visibility@2"
+        },
+        {
+          "command": "saropaWorkspace.toggleMask",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "2_visibility@3"
+        }
+      ],
+      "saropaWorkspace.fileSubmenu": [
+        {
+          "command": "saropaWorkspace.newFileHere",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
+          "group": "1_create@1"
+        },
+        {
+          "command": "saropaWorkspace.duplicateFile",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
+          "group": "1_create@2"
+        },
+        {
+          "command": "saropaWorkspace.renameFileOnDisk",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
+          "group": "2_modify@1"
+        },
+        {
+          "command": "saropaWorkspace.copyFileTo",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
+          "group": "2_modify@2"
+        },
+        {
+          "command": "saropaWorkspace.toggleFileLock",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
+          "group": "2_modify@3"
+        },
+        {
+          "command": "saropaWorkspace.deleteFile",
+          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
+          "group": "3_destroy@1"
         }
       ],
       "saropaWorkspace.addSubmenu": [
@@ -1236,94 +1384,19 @@
           "group": "1_run@4"
         },
         {
-          "command": "saropaWorkspace.peekPin",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/ && !(viewItem =~ /^shortcutRecipe/)",
-          "group": "1_run@5"
-        },
-        {
-          "command": "saropaWorkspace.simulateRun",
+          "submenu": "saropaWorkspace.outputSubmenu",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
-          "group": "1_run@6"
+          "group": "2_menu@1"
         },
         {
-          "command": "saropaWorkspace.showOutput",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
-          "group": "1_run@7"
-        },
-        {
-          "command": "saropaWorkspace.diffLastRuns",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
-          "group": "1_run@8"
-        },
-        {
-          "command": "saropaWorkspace.configureRun",
+          "submenu": "saropaWorkspace.configureSubmenu",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@1"
+          "group": "2_menu@2"
         },
         {
-          "command": "saropaWorkspace.configureSchedule",
+          "submenu": "saropaWorkspace.appearanceSubmenu",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@2"
-        },
-        {
-          "command": "saropaWorkspace.configureScheduleQuick",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@2"
-        },
-        {
-          "command": "saropaWorkspace.configureTriggers",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@3"
-        },
-        {
-          "command": "saropaWorkspace.configureWatchLink",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@3"
-        },
-        {
-          "command": "saropaWorkspace.pausePin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?$/",
-          "group": "2_config@4"
-        },
-        {
-          "command": "saropaWorkspace.unpausePin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?Paused$/",
-          "group": "2_config@4"
-        },
-        {
-          "command": "saropaWorkspace.configureAppearance",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@5"
-        },
-        {
-          "command": "saropaWorkspace.setMetric",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@6"
-        },
-        {
-          "command": "saropaWorkspace.toggleTail",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
-          "group": "2_config@7"
-        },
-        {
-          "command": "saropaWorkspace.tagPin",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@8"
-        },
-        {
-          "command": "saropaWorkspace.toggleBranchLink",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@9"
-        },
-        {
-          "command": "saropaWorkspace.toggleMask",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@11"
-        },
-        {
-          "submenu": "saropaWorkspace.expirySubmenu",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
-          "group": "2_config@10"
+          "group": "2_menu@3"
         },
         {
           "command": "saropaWorkspace.renamePin",
@@ -1351,34 +1424,9 @@
           "group": "3_edit@5"
         },
         {
-          "command": "saropaWorkspace.newFileHere",
+          "submenu": "saropaWorkspace.fileSubmenu",
           "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
           "group": "4_file@1"
-        },
-        {
-          "command": "saropaWorkspace.duplicateFile",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
-          "group": "4_file@2"
-        },
-        {
-          "command": "saropaWorkspace.renameFileOnDisk",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
-          "group": "4_file@3"
-        },
-        {
-          "command": "saropaWorkspace.copyFileTo",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
-          "group": "4_file@4"
-        },
-        {
-          "command": "saropaWorkspace.toggleFileLock",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
-          "group": "4_file@5"
-        },
-        {
-          "command": "saropaWorkspace.deleteFile",
-          "when": "view == saropaWorkspace.pins && viewItem =~ /^shortcut(Scheduled|Auto)?(Paused)?$/",
-          "group": "4_file@6"
         },
         {
           "command": "saropaWorkspace.copyPath",
