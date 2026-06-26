@@ -91,7 +91,11 @@ const ICON_GROUPS: readonly IconGroup[] = [
 // the id and its label key, never restating a color value (single source of truth).
 // Pre-existing shortcuts saved with a `charts.*` id still render (that ThemeColor is
 // still valid); they are simply not pre-selected here.
-const COLOR_CHOICES: Array<{ id: string; key: string }> = [
+// Exported so a parity test can confirm every offered tint has a registered
+// theme color (package.json contributes.colors) and a label (en.json) — the two
+// cross-file drifts that would silently render a blank picker row or an
+// unresolved tint.
+export const COLOR_CHOICES: Array<{ id: string; key: string }> = [
   { id: "saropaWorkspace.tint.red", key: "appearance.color.red" },
   { id: "saropaWorkspace.tint.coral", key: "appearance.color.coral" },
   { id: "saropaWorkspace.tint.orange", key: "appearance.color.orange" },

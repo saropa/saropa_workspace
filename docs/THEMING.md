@@ -11,12 +11,16 @@ is fast to scan. Set it from a shortcut's context menu with **Set Icon & Color�
   each icon, so an alternate word finds it even when you don't know the exact
   name — "settings" or "cog" surfaces the gear, "octocat" surfaces GitHub,
   "deploy" surfaces the rocket. One word can match several icons.
-- **Color** — a theme-aware color applied to the icon. The available choices are
-  red, orange, yellow, green, blue, purple, and neutral.
+- **Color** — a theme-aware color applied to the icon, chosen from a named
+  20-swatch palette spread evenly around the color wheel: red, coral, orange,
+  amber, gold, lime, chartreuse, green, emerald, teal, cyan, blue, indigo,
+  violet, purple, magenta, pink, brown, slate, and gray.
 
 Both are theme-aware: the icon is a codicon id and the color is a `ThemeColor`
-key (never a raw hex), so they render correctly in light, dark, and
-high-contrast themes. Choosing the default for either reverts that aspect.
+key (never a raw hex passed at the call site), so they render correctly in light,
+dark, and high-contrast themes. Each palette color is a registered theme color
+(`saropaWorkspace.tint.*`) with its own light, dark, and high-contrast values.
+Choosing the default for either reverts that aspect.
 
 ## How it renders
 
