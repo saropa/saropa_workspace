@@ -129,13 +129,24 @@ export class PinsTreeProvider
           scope === "project"
             ? l10n("pin.group.project")
             : l10n("pin.group.global");
-        const visible = this.scopePins(scope).filter((p) => this.matches(p));
-        if (!active || visible.length > 0) {
-          // Count reflects what the header's subtree actually shows: the matching
-          // count while filtering, the full (recipe-excluded) count otherwise.
-          const count = active ? visible.length : this.scopePins(scope).length;
-          roots.push(new PinGroupItem(label, scope, count));
+        const all = this.scopePins(scope);
+        const visible = all.filter((p) => this.matches(p));
+        // While filtering, hide a scope with no matching pin (an empty header during
+        // a search is noise; the filter banner names what was hidden). Unfiltered,
+        // Project always shows — it is the primary surface and the landing spot for a
+        // first pin — but Global shows only when it actually holds pins: an always-on
+        // "Global Pins 0" is pure clutter, since a global pin is created by command
+        // ("Pin (Global)") rather than by needing a visible empty header to aim at.
+        const show = active
+          ? visible.length > 0
+          : scope === "project" || all.length > 0;
+        if (!show) {
+          continue;
         }
+        // Count reflects what the header's subtree actually shows: the matching
+        // count while filtering, the full (recipe-excluded) count otherwise.
+        const count = active ? visible.length : all.length;
+        roots.push(new PinGroupItem(label, scope, count));
       }
       return roots;
     }

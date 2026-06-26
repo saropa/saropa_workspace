@@ -110,9 +110,12 @@ class Telemetry {
   }
 
   // Recent group open/closed posture, persisted so it stays the way the user left
-  // it. Default expanded — quick access to last-run items is the point of it.
+  // it. Default COLLAPSED — the Pins/Recipes views are the primary surface, so
+  // Recent starts out of the way and expands only when the user opens it (the
+  // gesture is then remembered). A first-run user sees their own pins first, not a
+  // run-history list pushing them down.
   recentExpanded(): boolean {
-    return this.context?.globalState.get<boolean>(RECENT_EXPANDED_KEY, true) ?? true;
+    return this.context?.globalState.get<boolean>(RECENT_EXPANDED_KEY, false) ?? false;
   }
 
   async setRecentExpanded(expanded: boolean): Promise<void> {

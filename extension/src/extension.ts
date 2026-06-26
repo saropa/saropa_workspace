@@ -14,6 +14,7 @@ import { RecipesTreeProvider } from "./views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "./views/projectFilesProvider";
 import { PinFolderItem, PinTreeItem, RecentRootItem } from "./views/pinTreeItem";
 import { SuggestionTracker } from "./views/suggestions";
+import { TabPinSuggester } from "./views/tabPinSuggestions";
 import { ScheduleStatusBar } from "./views/scheduleStatusBar";
 import { SetStatusBar } from "./views/setStatusBar";
 import { DoubleClickDispatcher } from "./exec/doubleClick";
@@ -478,6 +479,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Smart pin suggestions: count file opens on-device and offer to pin a file
   // the user opens often (gated once per file). No-op when disabled by setting.
   context.subscriptions.push(new SuggestionTracker(context, store));
+
+  // Long-pinned-tab suggestions: when a native editor tab has stayed pinned past
+  // the threshold and is not already a Saropa pin, offer to promote it. The
+  // instance is held so the Restore command can clear its permanent dismissals.
+  const tabPinSuggester = new TabPinSuggester(context, store);
+  context.subscriptions.push(
+    tabPinSuggester,
+    vscode.commands.registerCommand(
+      "saropaWorkspace.restoreTabSuggestions",
+      async () => {
+        const cleared = await tabPinSuggester.restoreDismissed();
+        vscode.window.showInformationMessage(
+          l10n("tabSuggest.restored", { count: cleared })
+        );
+      }
+    )
+  );
 
   // Re-seed auto-pins and refresh when folders change or the auto-pin patterns
   // setting is edited.

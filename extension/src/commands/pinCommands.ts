@@ -1332,6 +1332,14 @@ export function registerPinCommands(
       await deleteFile(store, pin);
     }
   });
+  // Lock / unlock the pinned file's read-only attribute at the filesystem level (a
+  // single toggle — the lock state is an OS attribute read live, not stored on the pin).
+  reg("saropaWorkspace.toggleFileLock", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      await toggleFileLock(store, pin);
+    }
+  });
 
   // Diff a pin's last two background-run outputs to see what changed (WOW #20).
   reg("saropaWorkspace.diffLastRuns", async (arg: unknown) => {
@@ -1427,6 +1435,29 @@ export function registerPinCommands(
     const pin = asPin(arg);
     if (pin) {
       await configureTriggers(store, pin);
+    }
+  });
+
+  // Pause / unpause a stored pin's automatic execution. Pausing suspends the
+  // scheduler, chain triggers/emits, idle, and run-on-save for it while keeping the
+  // schedule/triggers intact; a manual run still works. Two commands so the menu can
+  // show "Pause" on an active pin and "Unpause" on a paused one (gated by the
+  // pin*Paused contextValue). Each names the pin in its toast. setPinPaused no-ops on
+  // an auto/recipe pin (recomputed, not stored), and the menu gates those out anyway.
+  reg("saropaWorkspace.pausePin", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+      await store.setPinPaused(pin, true);
+      vscode.window.showInformationMessage(l10n("pause.paused", { name }));
+    }
+  });
+  reg("saropaWorkspace.unpausePin", async (arg: unknown) => {
+    const pin = asPin(arg);
+    if (pin) {
+      const name = pin.label ?? (pin.path.split("/").pop() ?? pin.path);
+      await store.setPinPaused(pin, false);
+      vscode.window.showInformationMessage(l10n("pause.unpaused", { name }));
     }
   });
 

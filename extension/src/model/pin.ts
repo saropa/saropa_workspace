@@ -354,6 +354,28 @@ export interface Pin {
   // without re-entering them. Stored on explicit pins only — auto/recipe pins are
   // recomputed each refresh and carry no automation to pause. Absent/false = active.
   paused?: boolean;
+  // Single-instance control. By default (allowConcurrent absent/false) a pin will
+  // not start a fresh run while one of its OWN runs is still in flight: the
+  // scheduler, chain triggers, run-on-save, and a manual run all defer to the
+  // running one (the unattended paths skip and log; a manual run offers Stop-and-
+  // re-run / Run anyway). This is the "an hourly job that hangs must not stack up"
+  // guard. Set true to allow overlapping runs (the pre-guard behavior). The guard
+  // can only observe runs this extension TRACKS — background and report-capture runs
+  // spawn a child whose exit we see; integrated-terminal and external-window runs
+  // are fire-and-forget and are never blocked by this flag alone (use lockName for
+  // those). Stored on explicit pins only — auto/recipe pins are recomputed.
+  allowConcurrent?: boolean;
+  // Cross-process run lock name (opt-in). When set, a run first checks a shared
+  // on-disk lock under this name (in the OS temp dir) and refuses to start while a
+  // LIVE holder owns it — extending the single-instance barrier beyond this window
+  // to other VS Code windows, an external terminal, cron, or any script that honors
+  // the same convention (e.g. a 4 GB GPU job guarded by lockName "nllb-gpu"). Several
+  // pins may share one name to serialize a common resource. A holder whose process is
+  // no longer alive is treated as stale and stolen, so a crash never wedges the lock.
+  // Only background/report runs HOLD the lock (they own a child PID whose exit frees
+  // it); terminal/external runs only CHECK it. allowConcurrent:true disables this too.
+  // Absent = no cross-process lock (the in-process guard still applies).
+  lockName?: string;
 }
 
 // The kind a pin runs as: its action's kind, or "file" when it has no action.
