@@ -192,6 +192,74 @@ test("the label defaults to the path basename when no label override is set", ()
   assert.equal(items[0].sub, "scripts/deploy.sh");
 });
 
+test("a file shortcut carries its file-type glyph + tint and files under the 'mine' pane", () => {
+  // The launcher reuses the SAME file-type token map the sidebar tree uses, so a .py
+  // shortcut reads as the snake glyph in blue in both surfaces.
+  const items = buildLauncherItems(
+    asStore({ ...empty, project: [sc({ id: "p1", scope: "project", path: "scripts/deploy.py" })] })
+  );
+  assert.equal(items[0].pane, "mine");
+  assert.equal(items[0].icon, "snake");
+  assert.equal(items[0].color, "charts.blue");
+});
+
+test("a user-chosen icon/color overrides the file-type default", () => {
+  const items = buildLauncherItems(
+    asStore({
+      ...empty,
+      project: [sc({ id: "p1", scope: "project", path: "a.py", icon: "rocket", color: "charts.red" })],
+    })
+  );
+  assert.equal(items[0].icon, "rocket");
+  assert.equal(items[0].color, "charts.red");
+});
+
+test("an action shortcut gets a kind glyph + tint when it has no custom icon", () => {
+  const items = buildLauncherItems(
+    asStore({
+      ...empty,
+      project: [sc({ id: "act", scope: "project", action: { kind: "shell", shellCommand: "ls", useIntegratedTerminal: true } as Shortcut["action"] })],
+    })
+  );
+  assert.equal(items[0].icon, "terminal");
+  assert.equal(items[0].color, "charts.green");
+});
+
+test("a stored shortcut's menu mirrors the sidebar actions, including a danger Remove", () => {
+  const items = buildLauncherItems(
+    asStore({ ...empty, project: [sc({ id: "p1", scope: "project", path: "deploy.sh" })] })
+  );
+  const commands = items[0].menu.map((m) => m.command);
+  assert.ok(commands.includes("saropaWorkspace.runPin"));
+  assert.ok(commands.includes("saropaWorkspace.customizeShortcut"));
+  const remove = items[0].menu.find((m) => m.command === "saropaWorkspace.unpin");
+  assert.equal(remove?.danger, true);
+});
+
+test("a paused shortcut's menu offers Resume, not Pause", () => {
+  const items = buildLauncherItems(
+    asStore({ ...empty, project: [sc({ id: "p1", scope: "project", paused: true })] })
+  );
+  const commands = items[0].menu.map((m) => m.command);
+  assert.ok(commands.includes("saropaWorkspace.unpausePin"));
+  assert.ok(!commands.includes("saropaWorkspace.pausePin"));
+});
+
+test("a recipe's menu is the pre-adoption set (add-to-shortcuts, no remove)", () => {
+  const items = buildLauncherItems(
+    asStore({
+      ...empty,
+      recipes: [
+        sc({ id: "r1", scope: "project", isRecipe: true, action: { kind: "shell", shellCommand: "x", useIntegratedTerminal: true } as Shortcut["action"] }),
+      ],
+    })
+  );
+  assert.equal(items[0].pane, "recipes");
+  const commands = items[0].menu.map((m) => m.command);
+  assert.ok(commands.includes("saropaWorkspace.promoteRecipe"));
+  assert.ok(!commands.includes("saropaWorkspace.unpin"));
+});
+
 test("an empty store yields no items", () => {
   assert.deepEqual(buildLauncherItems(asStore(empty)), []);
 });

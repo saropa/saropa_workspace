@@ -138,7 +138,7 @@ export function setupSecondaryViews(
   // opening the activity-bar icon. A second window onto the store, not a copy — it
   // repaints from the same onDidChange the tree does. retainContextWhenHidden keeps the
   // search text and scroll position while the Panel tab is in the background.
-  const launcher = new LauncherViewProvider(store);
+  const launcher = new LauncherViewProvider(store, context.extensionUri);
   context.subscriptions.push(
     launcher,
     vscode.window.registerWebviewViewProvider(

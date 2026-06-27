@@ -29,20 +29,35 @@ test("LAUNCHER_STYLE: every color binds to a --vscode-* theme variable", () => {
   assert.ok(LAUNCHER_STYLE.includes("var(--vscode-"));
 });
 
-test("LAUNCHER_STYLE: the grid is responsive (auto-fill columns)", () => {
+test("LAUNCHER_STYLE: the card grid is responsive (auto-fill columns)", () => {
   // The whole reason this is a webview and not a TreeView: the Panel is wide and short,
-  // so the grid must reflow into multiple columns to use the width. An auto-fill /
-  // minmax track is what makes the column count follow the Panel width.
+  // so each group's card grid must reflow into multiple columns to use the width. An
+  // auto-fill / minmax track is what makes the column count follow the Panel width.
   assert.ok(/grid-template-columns:\s*repeat\(\s*auto-fill/.test(LAUNCHER_STYLE));
   assert.ok(/minmax\(/.test(LAUNCHER_STYLE));
 });
 
-test("LAUNCHER_STYLE: hides filtered cards and empty sections via the .hidden class", () => {
-  // The client toggles `.hidden { display: none }` on non-matching cards and on a
-  // section left with no visible card; losing these rules would show everything during
+test("LAUNCHER_STYLE: the two panes reflow (auto-fit columns)", () => {
+  // My-shortcuts and Recipes sit side by side when the Panel is wide and stack when
+  // narrow; an auto-fit track on .panes is what collapses two columns to one.
+  assert.ok(/\.panes\s*\{[^}]*grid-template-columns:\s*repeat\(\s*auto-fit/.test(LAUNCHER_STYLE));
+});
+
+test("LAUNCHER_STYLE: hides filtered cards and empty groups/panes via the .hidden class", () => {
+  // The client toggles `.hidden { display: none }` on non-matching cards and on a group
+  // or pane left with no visible card; losing these rules would show everything during
   // a search.
   assert.ok(/\.card\.hidden\s*\{\s*display:\s*none/.test(LAUNCHER_STYLE));
-  assert.ok(/\.section\.hidden\s*\{\s*display:\s*none/.test(LAUNCHER_STYLE));
+  assert.ok(/\.group\.hidden\s*\{\s*display:\s*none/.test(LAUNCHER_STYLE));
+  assert.ok(/\.pane\.hidden\s*\{\s*display:\s*none/.test(LAUNCHER_STYLE));
+});
+
+test("LAUNCHER_SCRIPT: routes right-click menu choices as command messages", () => {
+  // A right-click posts the chosen command id back to the host, which re-resolves the
+  // shortcut and executes it. Both halves (the 'command' type and the contextmenu hook)
+  // must stay present or the menu silently does nothing.
+  assert.ok(LAUNCHER_SCRIPT.includes("'command'"));
+  assert.ok(LAUNCHER_SCRIPT.includes("contextmenu"));
 });
 
 // --- LAUNCHER_SCRIPT ----------------------------------------------------

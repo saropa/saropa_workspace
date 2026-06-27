@@ -65,12 +65,53 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   field. The Panel is wide and short, so the launcher lays cards out in a
   responsive grid (`repeat(auto-fill, minmax(...))`) that reflows to use the
   width, with an always-visible search box at the top.
+- **Split the user's own entries from auto-detected ones into two reflowing
+  panes.** The launcher renders **My shortcuts** and **Recipes** as two panes on a
+  `repeat(auto-fit, minmax(340px, 1fr))` track: side by side when the Panel is
+  wide, stacked (mine first) when narrow. The user's own shortcuts must never be
+  visually mixed with the detected recipes — they are different kinds of thing
+  (one you curated, one the extension guessed), so they get different columns.
+- **Groups are collapsible, and the fold state persists.** Each group inside a
+  pane is a disclosure header (chevron + the group's own glyph/tint + a count) over
+  its card grid. The collapse posture is stored in the webview's `getState`/
+  `setState` so a folded group stays folded across reloads. While a search query is
+  active, a collapsed group still reveals its matching cards (a result is never
+  hidden behind a fold).
+- **Every card carries a colored icon, reusing the tree's token map.** A launcher
+  card shows the SAME glyph + tint the sidebar row would (`fileTypeIcon` / `kindIcon`
+  / `kindColor` in the vscode-free `fileTypeTokens` module, plus the user's custom
+  icon/color when set), so a `.py` shortcut reads as the same blue snake in both
+  surfaces. Drawing real codicon glyphs in the webview ships the icon font the same
+  way the Customize panel does (esbuild copies `codicon.css` + `codicon.ttf` to
+  `dist/`; the view loads it via `asWebviewUri` under a CSP that allows the
+  webview's own origin for `style-src`/`font-src`, with `localResourceRoots` set to
+  `dist/`).
+- **A primary click expands the card; it does not open or run.** The launcher
+  diverges from the product's single-click-opens model on purpose: a click toggles
+  an inline drawer (full name, full path, description, and Open/Run buttons) so
+  browsing is non-destructive. One-click execution still exists — the always-visible
+  ▶ button runs. (Reconciled with the developer 2026-06-27: the launcher is a
+  browse-and-choose surface, where an accidental open/run on a click is the worse
+  failure; the tree keeps single-click-opens.)
+- **A webview surface mirrors the sidebar context menu as a flat, grouped custom
+  menu — it cannot host native submenus.** Right-click opens an HTML menu built
+  from a host-supplied, localized spec (`LauncherMenuEntry[]` from `launcherItems`),
+  separator-grouped rather than nested. It routes a choice back to the host as a
+  `command` message; the host re-resolves the shortcut by id and `executeCommand`s
+  it. Only commands that accept a raw `Shortcut` via `asShortcut` may be listed
+  (verify before adding — `copyPath`/`removeProjectPin` need a real tree item and
+  must NOT be used; use `copyPinLink`/`unpin`), and the host gates the incoming id
+  against an allowlist so the webview can never drive an arbitrary command.
 - **Filter client-side.** The host posts the full item set on each change; the
-  webview filters on every keystroke with no host round-trip. Empty groups are
-  hidden (a section renders only when it has a visible card).
+  webview filters on every keystroke with no host round-trip. Empty groups and
+  empty panes are hidden (a group renders only when it has a visible card; a pane
+  only when it has a visible group).
 - Same webview hardening as the editor-tab panels: strict CSP with a per-load
-  nonce, no remote content, theme via `--vscode-*` variables, and every visible
-  string externalized through `l10n`.
+  nonce, no remote content (the codicon font is the one sanctioned LOCAL resource),
+  theme via `--vscode-*` variables, and every host-rendered string externalized
+  through `l10n`. The injected client script builds its DOM with `textContent`
+  only (never `innerHTML`), so an untrusted label/path/description cannot inject
+  markup.
 
 ### 1.2 Menu items, buttons, and commands are NOT prefixed for branding
 
