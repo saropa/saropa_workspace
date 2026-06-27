@@ -394,6 +394,14 @@ honest:
   row (or otherwise consuming what it counted) resets that item's count to zero and
   the badge recalculates. Zero shows no badge (an undefined badge is hidden) — the
   same "never show a zero" rule the untapped-shortcuts badge follows.
+- **The badge must point at a visible per-row marker — never a number with no rows
+  to find.** A count surface where the rows it counts look identical to every other
+  row is a dead end: the user sees "3", opens the view, and cannot tell which three.
+  When the counted state is binary (unseen vs seen) rather than a numeric per-row
+  tally, carry a marker on each counted row — the untapped-shortcuts dot (`●`)
+  prepended to the row `description`, with a hover line naming what clears it — so the
+  badge is actionable. The provider repaints on the same event that recomputes the
+  badge, so the marker and the total clear together the instant the user acts.
 
 ### 4.6 Discovery is passive — never a popup; confirm an explicit action with one toast
 

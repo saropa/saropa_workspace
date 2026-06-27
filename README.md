@@ -48,7 +48,7 @@ Shortcuts appear in a dedicated **Saropa Workspace** sidebar (activity-bar view)
 - **Project Shortcuts** — scoped to the current repository.
 - **Global Shortcuts** — scoped to your VS Code profile.
 
-The activity-bar icon carries a **badge counting the shortcuts you haven't used yet** — opened or run. Newly added shortcuts stand out, and the count drops as you use them; the badge clears once you've touched everything (it never shows a zero).
+The activity-bar icon carries a **badge counting the shortcuts you haven't used yet** — opened or run. Those shortcuts are marked with a **leading dot (●)** in the sidebar, so you can see exactly which ones the count refers to. Newly added shortcuts stand out, and the count drops as you use them; opening or running a shortcut clears its dot and the count together, and the badge clears once you've touched everything (it never shows a zero).
 
 The same shortcuts are also reachable from a **Saropa Launcher** tab in the bottom panel (beside Terminal and Output), so you can find and run one without opening the activity-bar icon. It adds an **always-visible search box** over your shortcuts and the detected recipes, and lays them out in a grid that uses the panel's width — more columns when the panel is wide. The sidebar view is unchanged; the launcher is a second way in.
 

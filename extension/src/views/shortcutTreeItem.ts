@@ -35,6 +35,14 @@ export {
 // view width). Fixed here as the single source for the separator's appearance.
 const SEPARATOR_LABEL = "─".repeat(40);
 
+// Leading marker on a shortcut the user has not yet opened or run ("untapped"). It
+// makes the activity-bar count badge actionable: the badge says how many are untapped,
+// and this dot says exactly WHICH rows that number points at. The row repaints the
+// instant the shortcut is tapped (the provider listens to tappedShortcuts), so the
+// dot disappears and the badge recounts together. A plain filled dot reads as
+// "unseen/new" and stays legible in the muted description color across themes.
+const UNTAPPED_MARKER = "●";
+
 // Tree node for a single shortcut. Selecting it fires the activate dispatcher, which
 // decides open (single click) vs run (double click within the configured window).
 //
@@ -78,7 +86,13 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // when `over` a size threshold, the icon is tinted as a warning. Undefined when the
     // shortcut carries no metric. Appended last (a narrow, well-named param) rather than
     // threaded through an options refactor, matching how sweepBadge above was added.
-    metricBadge?: MetricBadge
+    metricBadge?: MetricBadge,
+    // True when the user has not yet opened or run this shortcut. Drives the leading
+    // untapped dot + a hover line, so the activity-bar count badge (which counts exactly
+    // these) points at visible rows. Recent entries are tapped by definition, so they
+    // pass false. Annotation rows return before this is read (a comment/separator is
+    // never "untapped").
+    untapped = false
   ) {
     const kind = shortcutKind(shortcut);
     const isFile = kind === "file";
@@ -227,9 +241,13 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       // below, and crowding a narrow sidebar row with up to seven `·`-joined segments
       // was the main "hard to glance" offender. Holding the row to these few parts lets
       // the eye lock onto state and identity without parsing a long string.
-      this.description = [badgeLead, badge, expiryChip, detail, metricText]
+      const body = [badgeLead, badge, expiryChip, detail, metricText]
         .filter((part) => part)
         .join(" · ");
+      // Prepend the untapped dot so the row visibly matches the count badge. Kept out
+      // of the `·`-joined parts above (a leading marker, not another segment) so it
+      // reads as a status dot rather than the first detail field.
+      this.description = untapped ? `${UNTAPPED_MARKER} ${body}`.trimEnd() : body;
     }
 
     // contextValue gates the menus. A running shortcut uses "shortcutRunning" so the
@@ -387,6 +405,12 @@ export class ShortcutTreeItem extends vscode.TreeItem {
           ? l10n("metric.overTooltip", { value: metricText })
           : l10n("metric.tooltip", { value: metricText })
       );
+    }
+    // Explain the untapped dot in words, so the hover answers "why is this row marked
+    // and what clears it". Suppressed while running/stopping, where live state is what
+    // the hover should lead with (and a running shortcut is already marked tapped).
+    if (untapped && !isRunning && !isStopping) {
+      tooltipLines.push(l10n("untapped.rowTooltip"));
     }
     // The single/double-click gesture model, stated as a hover footer so the
     // extension's core interaction is always one mouse-over away (UI plan, Phase 3).

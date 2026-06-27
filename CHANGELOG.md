@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
+## [Unreleased]
+
+The side bar now marks the shortcuts behind the count on the Saropa Workspace icon, so you can see exactly which ones you haven't used yet. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- **See which shortcuts the activity-bar count points at.** The number on the Saropa Workspace side-bar icon counts shortcuts you've added but never opened or run. Those rows now carry a leading dot (●) in the side bar, so the count is no longer a mystery — you can see exactly which shortcuts it refers to. Open, run, or peek a shortcut and its dot clears and the count drops together. Hover a marked row for a one-line explanation of what clears it.
+
 ## [1.5.3]
 
 Pinned scripts now run through the right interpreter on Windows instead of opening in the editor, and your shortcuts now have a home in the bottom panel with a search box. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.3/CHANGELOG.md)

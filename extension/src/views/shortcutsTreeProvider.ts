@@ -6,6 +6,7 @@ import { runStatusRegistry } from "../exec/runStatus";
 import { shortcutBadges } from "../exec/shortcutBadges";
 import { metricBadges } from "../exec/metricBadges";
 import { telemetry } from "../exec/telemetry";
+import { tappedShortcuts } from "../model/tappedShortcuts";
 import { BranchTracker } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
 import { ShortcutFilterState, shortcutMatchesFilter } from "./shortcutFilter";
@@ -75,6 +76,11 @@ export class ShortcutsTreeProvider
     shortcutBadges.onDidChange(() => this._onDidChangeTreeData.fire());
     // A recorded run (or a reset) changes the Recent group's contents.
     telemetry.onDidChange(() => this._onDidChangeTreeData.fire());
+    // Tapping a shortcut (open/run/peek) clears its untapped dot; repaint so the dot
+    // disappears in step with the activity-bar count badge, which recounts off the same
+    // event. Without this the badge would drop but the dot would linger until the next
+    // unrelated repaint.
+    tappedShortcuts.onDidChange(() => this._onDidChangeTreeData.fire());
     // The text/chip filter (WOW #28) changes which rows and groups are visible.
     this.filter.onDidChange(() => this._onDidChangeTreeData.fire());
     // A branch checkout (WOW #3) changes which branch-linked shortcuts are visible, so

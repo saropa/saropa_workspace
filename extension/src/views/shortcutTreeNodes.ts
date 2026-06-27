@@ -6,6 +6,7 @@ import { shortcutBadges } from "../exec/shortcutBadges";
 import { metricBadges, MetricTarget } from "../exec/metricBadges";
 import { dependencyState } from "../exec/dependencies";
 import { telemetry, RunRecord } from "../exec/telemetry";
+import { tappedShortcuts } from "../model/tappedShortcuts";
 import { ShortcutTreeItem } from "./shortcutTreeItem";
 
 // The per-shortcut tree-row constructors and the data each row reads (run state,
@@ -29,7 +30,11 @@ export function buildShortcutItem(
     runCount(shortcut.id),
     lockedBy(store, shortcut),
     shortcutBadges.get(shortcut.id),
-    metricBadges.get(shortcut.id)
+    metricBadges.get(shortcut.id),
+    // Untapped: never opened or run. Drives the leading dot that makes the activity-bar
+    // count badge actionable (the badge counts exactly these). Recent entries below
+    // never pass it — being in Recent means it has been tapped.
+    !tappedShortcuts.has(shortcut.id)
   );
 }
 
