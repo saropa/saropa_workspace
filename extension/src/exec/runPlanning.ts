@@ -10,6 +10,7 @@ import {
   resolveInterpreter,
   isRunnablePlan,
   assembleCommandLine,
+  parseShebangLine,
 } from "./commandPlan";
 import { l10n } from "../i18n/l10n";
 
@@ -42,20 +43,9 @@ function shebangInterpreter(fsPath: string): string | undefined {
     // Missing/unreadable file: no shebang to honor (the caller falls back to "").
     return undefined;
   }
-  if (!firstLine.startsWith("#!")) {
-    return undefined;
-  }
-  const rest = firstLine.slice(2).trim();
-  if (!rest) {
-    return undefined;
-  }
-  const parts = rest.split(/\s+/);
-  // `#!/usr/bin/env python3` -> run `python3`: env's job is to locate the real
-  // interpreter on PATH, which the shell already does for us, so drop it.
-  if (path.basename(parts[0]) === "env" && parts.length > 1) {
-    return parts.slice(1).join(" ");
-  }
-  return rest;
+  // The env-stripping precedence lives in the pure parser (shared with the run-target
+  // detector) so there is one shebang convention, not two.
+  return parseShebangLine(firstLine);
 }
 
 // Read the configured interpreter-defaults map (file extension -> command prefix).
@@ -76,7 +66,17 @@ function resolveCommandPrefix(shortcut: Shortcut, fsPath: string): string {
     ext: path.extname(fsPath).toLowerCase(),
     defaults: interpreterDefaults(),
     shebang: shebangInterpreter(fsPath),
+    platform: process.platform,
   });
+}
+
+// The interpreter prefix a run would resolve for this shortcut + target, exposed so the
+// Configure Run UI can show what a blank command falls back to (the file-type default or
+// the file's shebang) without re-implementing the precedence. Pass a shortcut whose
+// exec.command is undefined to read the pure default; pass the real shortcut to read its
+// effective prefix.
+export function resolveRunPrefix(shortcut: Shortcut, fsPath: string): string {
+  return resolveCommandPrefix(shortcut, fsPath);
 }
 
 // Whether running this shortcut makes sense, i.e. there is a way to execute it. True

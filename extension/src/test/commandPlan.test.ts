@@ -20,22 +20,57 @@ test("resolveInterpreter: an explicit command wins over everything", () => {
       ext: ".py",
       defaults: DEFAULTS,
       shebang: "python3",
+      platform: "linux",
     }),
     "pwsh -File"
   );
 });
 
-test("resolveInterpreter: an explicit empty string means run directly", () => {
-  // An empty string is a real choice ("run the file directly", e.g. a shebang
-  // script) and must NOT fall through to the extension default.
+test("resolveInterpreter: a blank command runs directly on Unix (shebang honored)", () => {
+  // On Unix an empty string is a real choice ("run the file directly", e.g. a
+  // shebang script): the OS honors the `#!` line, so it must NOT fall through to the
+  // extension default.
   assert.equal(
     resolveInterpreter({
       explicitCommand: "",
       ext: ".py",
       defaults: DEFAULTS,
       shebang: "python3",
+      platform: "linux",
     }),
     ""
+  );
+});
+
+test("resolveInterpreter: a blank command resolves to a real interpreter on Windows", () => {
+  // Windows has no shebang honoring — a bare `.py` path opens via its file
+  // association instead of running — so a blank "run directly" prefix must resolve
+  // to the extension default (the reported bug: a pinned shebang script ran as a
+  // bare path and never reached Python).
+  assert.equal(
+    resolveInterpreter({
+      explicitCommand: "",
+      ext: ".py",
+      defaults: DEFAULTS,
+      shebang: "python3",
+      platform: "win32",
+    }),
+    "python"
+  );
+});
+
+test("resolveInterpreter: a blank command on Windows falls to the shebang when no default", () => {
+  // No configured default for the extension, but the file declares an interpreter:
+  // use it rather than running the bare path.
+  assert.equal(
+    resolveInterpreter({
+      explicitCommand: "",
+      ext: ".unknown",
+      defaults: DEFAULTS,
+      shebang: "python3",
+      platform: "win32",
+    }),
+    "python3"
   );
 });
 
@@ -46,6 +81,7 @@ test("resolveInterpreter: falls back to the extension default", () => {
       ext: ".py",
       defaults: DEFAULTS,
       shebang: undefined,
+      platform: "linux",
     }),
     "python"
   );
@@ -58,6 +94,7 @@ test("resolveInterpreter: falls back to the shebang when no default", () => {
       ext: ".sh",
       defaults: DEFAULTS,
       shebang: "bash",
+      platform: "linux",
     }),
     "bash"
   );
@@ -70,6 +107,7 @@ test("resolveInterpreter: no command, no default, no shebang -> run directly", (
       ext: ".txt",
       defaults: DEFAULTS,
       shebang: undefined,
+      platform: "linux",
     }),
     ""
   );

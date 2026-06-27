@@ -21,6 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
+## [Unreleased]
+
+Pinned scripts now run through the right interpreter on Windows instead of opening in the editor. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- **A new Customize screen sets a shortcut's name, icon, color, and tags in one place.** Right-click a shortcut and choose **Customize...** to open a single screen with the name field, a searchable grid of hundreds of icons shown as real glyphs, real color swatches you can actually see, and a tag editor — with a live preview of how the row will look. The old step-by-step pickers (**Set Icon & Color...**, **Rename**, tagging) are still there for quick keyboard edits.
+- **Color swatches now show their real color.** The color list used to show the same gray dot for every choice because a menu row can't paint a color; the new Customize screen shows each color as an actual swatch, tuned to the current theme, so you pick by sight.
+- **Hundreds more icons, with real search.** The Customize screen offers the full icon set grouped into categories (files, source control, run and debug, devices, people, and more), and you can type to filter by name or keyword to find the right glyph fast.
+- **Configure Run is now a single form with every option on one screen.** Right-click a shortcut and choose **Configure Run...** to set the command prefix, arguments, working directory, environment variables, where it runs, output extraction, dependency, audio cues, run-on-save, overlapping runs, and the cross-process lock — all visible and editable at once, with a live preview of the exact command that will run. The old step-by-step menu is still there as **Configure Run (Quick)...** for a fast keyboard-only edit.
+- **Run as administrator is now easy to find.** The administrator toggle used to appear only after you set the run location to a new external window, so "run this elevated" was hard to discover. In the new form the toggle is always shown — disabled, with a one-line note telling you to set **Run in** to a new external window first — so you can see the option exists and what it needs.
+
+### Fixed
+
+- **A pinned shebang script (e.g. a `#!/usr/bin/env python3` file) now runs through its interpreter on Windows instead of being opened by its file association.** Windows has no shebang honoring, so a "run directly" pin handed the bare script path to the shell, which opened the `.py` rather than executing it. The runner now resolves a real interpreter on Windows — the configured default for the file type (`python` for `.py`), falling back to the script's own shebang — while Unix keeps running such scripts directly via the shebang. To pin a specific runtime, set its extension in **Interpreter defaults** to an absolute path, e.g. `".py": "D:/Tools/Python/Python314/python.exe"`.
+
 ## [1.5.2]
 
 Tell Saropa to keep an eye on a folder or a file and get a heads-up the moment something new lands — even files written while the window was closed. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)

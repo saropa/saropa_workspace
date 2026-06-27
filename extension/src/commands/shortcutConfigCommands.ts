@@ -7,12 +7,15 @@ import { runOutputs } from "../exec/runOutputs";
 import { promptMemory } from "../exec/promptMemory";
 import { encodeShortcutLink } from "../import/shareLink";
 import { configureRun } from "./configureRun";
+import { runWith } from "./runWith";
+import { ConfigureRunPanel } from "../views/configureRunPanel";
 import { configureSchedule } from "./configureSchedule";
 import { ScheduleEditorPanel } from "../views/scheduleEditorPanel";
 import { configureTriggers } from "./configureTriggers";
 import { configureWatchLink } from "./configureWatchLink";
 import { shortcutUntil, shortcutUntilBranchChange, clearShortcutExpiry } from "./configureExpiry";
 import { configureAppearance } from "./configureAppearance";
+import { CustomizePanel } from "../views/customizePanel";
 import { tagShortcut } from "./tagShortcut";
 import { setMetric } from "./setMetric";
 import { simulateRun } from "./simulateRun";
@@ -55,7 +58,20 @@ export function registerPinConfigCommands(
     }
   });
 
-  regShortcut("saropaWorkspace.configureRun", (shortcut) => configureRun(store, shortcut));
+  // Default run-parameters editor is the webview form (every field visible at once, a
+  // live command preview, and the administrator toggle shown inline instead of hidden
+  // until External is picked). The keyboard-only hub-and-spoke QuickPick stays reachable
+  // as the "Quick" variant for a fast edit without leaving the keyboard.
+  regShortcut("saropaWorkspace.configureRun", (shortcut) =>
+    ConfigureRunPanel.show(context, store, shortcut)
+  );
+  regShortcut("saropaWorkspace.configureRunQuick", (shortcut) => configureRun(store, shortcut));
+
+  // "Run with…": pick an interpreter detected on this machine (or browse for one),
+  // persist it as the shortcut's runtime, and run — the no-JSON, no-typing way to set
+  // how a pinned script runs. The Configure Run panel offers the same choices as chips;
+  // this is the fast right-click / palette path.
+  regShortcut("saropaWorkspace.runWith", (shortcut) => runWith(store, shortcut));
 
   // Dry-run audit: show the exact command/cwd/env/location a run would use, in a
   // read-only Markdown preview, without executing anything. Available on every shortcut
@@ -188,6 +204,12 @@ export function registerPinConfigCommands(
   regShortcut("saropaWorkspace.pinUntilBranchChange", (shortcut) => shortcutUntilBranchChange(store, shortcut));
   regShortcut("saropaWorkspace.clearPinExpiry", (shortcut) => clearShortcutExpiry(store, shortcut));
 
+  // Unified Customize editor (webview form): name, icon, color, and tags on one screen,
+  // with real color swatches and the full searchable codicon set. The granular commands
+  // (Set Icon & Color, Rename, Tag) stay registered for keyboard-only edits.
+  regShortcut("saropaWorkspace.customizeShortcut", (shortcut) =>
+    CustomizePanel.show(context, store, shortcut)
+  );
   regShortcut("saropaWorkspace.configureAppearance", (shortcut) => configureAppearance(store, shortcut));
 
   // Assign mode tags to a shortcut (WOW #17); the tag picker drives the Shortcuts-view mode

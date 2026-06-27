@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { ShortcutExecConfig } from "../model/shortcut";
+import { parseShebangLine } from "./commandPlan";
 
 // Roadmap 7.5 — Run-target inference.
 //
@@ -128,18 +129,23 @@ function makefileTargets(text: string): RunTarget[] {
   return targets;
 }
 
-// Offer "run directly" for a shebang script — a blank command prefix means the
-// runner executes the file itself (the OS honors the shebang on *nix).
+// Offer running a shebang script through the interpreter the shebang names. The stored
+// command is that interpreter (e.g. "python3"), NOT a blank "run directly" prefix: a
+// blank prefix only works on Unix (the OS honors the `#!` + exec bit), whereas on Windows
+// the shell hands a bare script path to its file association and the script opens instead
+// of running. Writing the interpreter makes the pin work on every platform, and keeps
+// the value visible and editable in Configure Run rather than a hidden empty string.
 function shebangTargets(text: string): RunTarget[] {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
-  if (!firstLine.startsWith("#!")) {
+  const interpreter = parseShebangLine(firstLine);
+  if (interpreter === undefined) {
     return [];
   }
   return [
     {
-      label: "$(play) Run directly (shebang)",
+      label: `$(play) Run with ${interpreter}`,
       detail: firstLine,
-      exec: { command: "", includeFilePath: true },
+      exec: { command: interpreter, includeFilePath: true },
     },
   ];
 }

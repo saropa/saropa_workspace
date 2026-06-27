@@ -204,11 +204,11 @@ The everyday commands, from the Command Palette and the view's context menus. Ev
 | **Add Active File as Shortcut (Project)** / **(Global)** | Add the file in the active editor as a shortcut to project or global scope. |
 | **Open** / **Run** | Open a file shortcut (single-click); execute a script shortcut (double-click / play button). |
 | **Run Shortcut…** / **Run Shortcut with Overrides…** | Quick-pick any shortcut (recents first); run one with one-off args / cwd / env. |
-| **Configure Run…** | Edit command prefix, args, cwd, env, run location, run-on-save, depends-on, and concurrency. |
+| **Configure Run…** | A single-screen form for command prefix, args, cwd, env, run location, **Run as administrator** (for an external window), output extraction, run-on-save, depends-on, and concurrency, with a live command preview. **Configure Run (Quick)…** is the keyboard-only step-by-step variant. |
 | **Configure Schedule…** / **Configure Triggers…** | Set time / days / interval / cron / run-on-open; chain a shortcut off another shortcut or an event. |
 | **Run This Shortcut When a File Changes…** | Link a shortcut to files or globs (e.g. `**/*.graphql`); saving a match runs the shortcut in the background. |
 | **Open Schedule & Workflow Planner** / **Open Saropa Dashboard** | The visual Day / Week / Workflow planner; the Processes / Analytics / Trends dashboard. |
-| **Set Icon & Color…** / **New Group** / **Rename** / **Remove** | Customize a shortcut; create a group; rename; remove. |
+| **Customize…** / **Set Icon & Color…** / **New Group** / **Rename** / **Remove** | One screen to set a shortcut's name, icon (the full searchable codicon set), color (real swatches), and tags; the granular icon/color picker; create a group; rename; remove. |
 | **Promote to Shortcut** / **Restore Recipes** / **Restore Auto-Shortcuts** | Store a recipe as a shortcut; bring removed recipes or auto-shortcuts back. |
 | **Import Favorites…** / **Scan Sibling Projects for Favorites…** | Import other extensions' favorites; import from sibling projects. |
 | **Show Output** / **Refresh** / **Copy Path** | Reveal the output channel; reload a view; copy a file's full path. |

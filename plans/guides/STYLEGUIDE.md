@@ -198,10 +198,49 @@ in [`principles.md`](./principles.md).)
 - **A custom webview is the exception** — justified only when a native surface
   genuinely cannot do the job (a live chart, a sparkline trend, a sortable
   multi-column grid).
+- **A many-field configuration may offer a webview FORM as the default editor,
+  with the native QuickPick kept as a `(Quick)` fallback.** A hub-and-spoke
+  QuickPick (pick a field, edit it, return, repeat) hides every value behind a
+  step and buries conditional fields; once a configuration has more than a handful
+  of fields, a single-screen form that shows them all at once is the better default
+  (the Schedule editor and the Configure Run editor both do this). Keep the
+  QuickPick command registered under a `…Quick` id and a `Configure X (Quick)…`
+  title for keyboard-only use, and share ONE seed + ONE persistence/normalize path
+  between the two so a config saved from either is byte-for-byte identical. The form
+  obeys every webview rule above (nonce CSP, no remote resource, `--vscode-*`
+  theming) and the asset CSS/JS lives in a sibling `*Assets.ts` so the panel module
+  stays the host/logic side.
+- **In a form, a conditionally-applicable control is shown DISABLED with an inline
+  reason, never hidden.** A field that only applies under another setting (the
+  administrator toggle, which applies only to a new external window) must stay
+  visible and merely disable until its precondition holds, with a one-line hint
+  naming what to set first. Hiding it makes the option undiscoverable — a user
+  hunting for "run elevated" cannot find a row that does not exist. (This is the
+  defect the Configure Run form was built to fix: the QuickPick hid the elevation
+  field until the location was External.) A QuickPick, which cannot disable a row,
+  is the one place where conditionally appending the row is acceptable.
 - **Every webview is local-only:** a strict Content-Security-Policy with a
   per-load nonce, no external script or CDN, no network of any kind.
 - **Theme the webview with `--vscode-*` CSS variables** so it tracks the active
   color theme. Never hardcode a hex where a VS Code theme variable exists.
+- **To draw codicon glyphs in a webview, ship the icon font — VS Code does NOT
+  expose its built-in codicon font to webviews.** `esbuild.js` copies
+  `@vscode/codicons`' `codicon.css` + `codicon.ttf` into `dist/`; the panel loads
+  the stylesheet via `webview.asWebviewUri` under a CSP that allows the webview's
+  own resource origin for `style-src` and `font-src` (`${webview.cspSource}`) and
+  sets `localResourceRoots` to `dist/`. This is the sanctioned exception to "no
+  bundled resource": a LOCAL font, still no network, no CDN. The full icon set is
+  generated into `views/iconCatalog.ts` from the codicons metadata, so every
+  offered id is a real product icon by construction (no manual verification), and
+  its search keywords come from the upstream metadata as a non-displayed search aid
+  (not l10n — they are matched, never shown as translated prose).
+- **Render a color choice as a real swatch from the manifest hex — a QuickPick row
+  cannot tint its glyph.** A `ThemeColor` shown in a QuickPick paints every row the
+  same foreground color, so a color picker MUST be a webview that draws each swatch
+  from its registered `contributes.colors` hex, resolved for the active theme
+  (`activeColorTheme.kind` -> the matching `defaults` key). Read the hex from the
+  extension's OWN `packageJSON.contributes.colors` (one source of truth with the
+  registered `ThemeColor` the tree uses); never restate the palette hex in code.
 - **A type-to-search QuickPick whose labels are codes or jargon carries a synonym
   list.** When a row's label is a terse identifier (a codicon id, an enum value,
   a short code) the user won't always know the exact word, so put a keyword list

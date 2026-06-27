@@ -64,7 +64,7 @@ export interface ConcurrencyEdit {
 // workspace default (the hub shows the shortcut's own choice, where undefined means
 // "follow the default setting"). Maps the deprecated useIntegratedTerminal flag
 // for shortcuts written before runLocation existed.
-function seedLocation(exec: ShortcutExecConfig | undefined): RunLocation | undefined {
+export function seedLocation(exec: ShortcutExecConfig | undefined): RunLocation | undefined {
   if (exec?.runLocation) {
     return exec.runLocation;
   }
@@ -182,7 +182,7 @@ export async function configureRun(store: ShortcutStore, shortcut: Shortcut): Pr
 // equivalent hand-written JSON (round-trip parity). command is left as-is: ""
 // (run directly, overriding the interpreter default) is a distinct, meaningful
 // value from undefined (use the default).
-function normalize(work: ShortcutExecConfig): ShortcutExecConfig {
+export function normalize(work: ShortcutExecConfig): ShortcutExecConfig {
   return {
     command: work.command,
     args: work.args && work.args.length > 0 ? work.args : undefined,

@@ -4,24 +4,46 @@
 // here. Keeping the decision logic pure makes the interpreter fallback and the
 // shell assembly unit-testable without the extension host (roadmap 4.1).
 
-// The interpreter prefix for a file: an explicit per-shortcut command wins (including
-// an explicit empty string, which means "run the file directly" — e.g. a shebang
-// script); else the configured default for the file extension; else the file's
-// own `#!` interpreter; else "" (run directly). A single ordered fallback so the
-// precedence lives in one place.
+// The interpreter prefix for a file. Precedence, in one place:
+//   1. A non-blank explicit per-shortcut command always wins.
+//   2. A blank explicit command ("") means "run the file directly":
+//        - on Unix it stays blank — the OS honors the file's `#!` shebang + exec bit;
+//        - on Windows it must STILL resolve to a real interpreter (the shell has no
+//          shebang honoring; a bare script path is handed to its file association and
+//          opens instead of executing), so it falls through to the resolution in 3.
+//   3. No explicit command -> the configured default for the extension; else the
+//      file's own `#!` interpreter; else "" (run directly).
+// Splitting (2) by platform is why this takes `platform`: a pinned `.py` carrying a
+// blank "Run directly (shebang)" command would otherwise run as a bare path on
+// Windows and never reach Python.
 export function resolveInterpreter(opts: {
   // shortcut.exec?.command — undefined means the user set no explicit prefix.
   explicitCommand: string | undefined;
   // Lowercased file extension including the dot, e.g. ".py".
   ext: string;
-  // The saropaWorkspace.interpreterDefaults map (extension -> prefix).
+  // The saropaWorkspace.interpreterDefaults map (extension -> prefix). Set a value
+  // to an absolute interpreter path here to pin a specific runtime (e.g. ".py" ->
+  // "D:/Tools/Python/Python314/python.exe").
   defaults: Record<string, string>;
   // Interpreter parsed from the file's `#!` line, or undefined when it has none.
   shebang: string | undefined;
+  // Host platform (process.platform). Only win32 is special-cased; injectable so the
+  // Unix vs Windows branch of the blank-command rule is testable without the host.
+  platform: NodeJS.Platform;
 }): string {
-  if (opts.explicitCommand !== undefined) {
+  const blankExplicit = opts.explicitCommand === "";
+
+  // A non-blank explicit command always wins.
+  if (opts.explicitCommand !== undefined && !blankExplicit) {
     return opts.explicitCommand;
   }
+
+  // Unix honors a blank "run directly" via the shebang + exec bit; Windows cannot,
+  // so a blank prefix there resolves like an unset command below.
+  if (blankExplicit && opts.platform !== "win32") {
+    return "";
+  }
+
   const byExtension = opts.defaults[opts.ext];
   if (byExtension !== undefined) {
     return byExtension;
@@ -46,6 +68,35 @@ export function isRunnablePlan(opts: {
     return true;
   }
   return opts.hasShebang;
+}
+
+// Parse the interpreter out of a `#!` shebang LINE (the raw first line of a file), or
+// undefined when it is not a shebang / names nothing. Honors the Unix `env` convention:
+// `#!/usr/bin/env python3 [args]` yields `python3 [args]` (the env wrapper is dropped,
+// since the shell already resolves the binary on PATH); any other shebang yields its
+// literal interpreter path + args. Pure (takes the line, reads no file) so the runner's
+// shebang resolution and the run-target detector share ONE parser instead of two copies.
+export function parseShebangLine(firstLine: string): string | undefined {
+  if (!firstLine.startsWith("#!")) {
+    return undefined;
+  }
+  const rest = firstLine.slice(2).trim();
+  if (!rest) {
+    return undefined;
+  }
+  const parts = rest.split(/\s+/);
+  // basename so an absolute `/usr/bin/env` (or a bare `env`) is recognized either way.
+  if (basename(parts[0]) === "env" && parts.length > 1) {
+    return parts.slice(1).join(" ");
+  }
+  return rest;
+}
+
+// Minimal POSIX basename for parseShebangLine: the segment after the last '/'. A shebang
+// path is always POSIX-style ('/'), so this needs no platform path module.
+function basename(p: string): string {
+  const slash = p.lastIndexOf("/");
+  return slash === -1 ? p : p.slice(slash + 1);
 }
 
 // Quote a path/arg for the shell. Simple double-quote wrapping covers the common
