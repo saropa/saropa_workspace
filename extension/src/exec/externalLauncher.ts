@@ -91,9 +91,22 @@ function launchExternalWindows(
     // -NonInteractive anyway. Verified: with the flag the elevated process never
     // runs; without it, UAC fires and the window opens.
     ["-NoProfile", "-Command", psCommand],
-    // Non-elevated windows inherit env from this launcher; detach so the window
-    // outlives the launcher process. Elevated windows get a fresh environment.
-    { detached: true, stdio: "ignore", env: { ...process.env, ...(env ?? {}) } }
+    {
+      // detached:true (DETACHED_PROCESS on Windows) strips the inherited window
+      // station from the launching PowerShell. ShellExecute's "runas" verb
+      // (-Verb RunAs) then has no desktop on which the AppInfo service can raise
+      // the UAC consent, so elevation is dropped SILENTLY — no prompt, no window,
+      // PowerShell still exits 0. Verified: detached + RunAs shows nothing;
+      // non-detached + RunAs shows the UAC prompt and the window. So only the
+      // non-elevated launch detaches (to outlive this launcher). The elevated
+      // PowerShell needs no detach: it exits on its own once Start-Process hands
+      // off to the independent elevated window, which survives regardless.
+      detached: !elevated,
+      stdio: "ignore",
+      // Non-elevated windows inherit env from this launcher; elevated windows get
+      // a fresh environment from ShellExecute, so this env is unused there.
+      env: { ...process.env, ...(env ?? {}) },
+    }
   );
   child.unref();
 }

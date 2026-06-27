@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
-## [Unreleased]
+## [1.5.4]
 
 The bottom-panel launcher is now a color, two-pane board — your shortcuts on one side, recipes on the other — with collapsible groups, click-to-expand cards, and a right-click menu; and the side bar marks the shortcuts behind the icon count so you can see which ones you haven't used yet. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.4/CHANGELOG.md)
 
@@ -29,6 +29,10 @@ The bottom-panel launcher is now a color, two-pane board — your shortcuts on o
 
 - **The Saropa Launcher is now a two-pane board with color, icons, and a right-click menu.** The bottom-panel launcher now splits into **My shortcuts** on the left and **Recipes** on the right, sitting side by side when the panel is wide and stacking when it is narrow, so your own entries are never mixed in with the detected ones. Every card now carries a colored icon matching its file type or action — the same glyphs the side bar uses — with a tinted accent stripe, so the board reads at a glance. Each group header is collapsible (its folded state is remembered), shows its own icon and a count, and searching reveals matches even inside a folded group. Click a card to expand it in place for the full name, full path, and description, with Open and Run buttons; the ▶ button still runs in one click. Right-click any card for a menu that mirrors the side bar — Run, Configure Run, Schedule, Customize, file actions, Copy as Saropa Link, Rename, Remove (and Add to Shortcuts on a recipe).
 - **See which shortcuts the activity-bar count points at.** The number on the Saropa Workspace side-bar icon counts shortcuts you've added but never opened or run. Those rows now carry a leading dot (●) in the side bar, so the count is no longer a mystery — you can see exactly which shortcuts it refers to. Open, run, or peek a shortcut and its dot clears and the count drops together. Hover a marked row for a one-line explanation of what clears it.
+
+### Fixed
+
+- **Run as administrator now actually opens the elevated window on Windows.** Running a shortcut in a new external window with administrator privileges showed the "Launched … (approve the elevation prompt)" message but no UAC prompt and no window ever appeared. The launcher was starting PowerShell detached, which stripped the desktop the Windows UAC consent needs, so the elevation was dropped silently. Elevated launches now keep that desktop and the administrator window opens as expected.
 
 ## [1.5.3]
 
