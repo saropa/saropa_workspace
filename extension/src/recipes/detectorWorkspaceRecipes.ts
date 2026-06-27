@@ -21,7 +21,22 @@ export async function pushWorkspaceRecipes(
   pkg: Record<string, unknown> | undefined,
   out: RecipeResult[]
 ): Promise<void> {
-  // 17: entry point (a file shortcut).
+  // Each helper pushes its own recipe category onto `out`; they run strictly in this order
+  // so the catalog ordering matches the original single-function version. Split by category
+  // only to keep each piece under the function-length cap.
+  await pushEntryRecipe(folder, pkg, out);
+  await pushDocRecipes(folder, out);
+  await pushEnvAndConfigRecipes(folder, out);
+  await pushBootAndLocalhostRecipes(folder, pkg, out);
+  await pushVersionAndScriptRecipes(folder, pkg, out);
+}
+
+// 17: entry point (a file shortcut).
+async function pushEntryRecipe(
+  folder: vscode.WorkspaceFolder,
+  pkg: Record<string, unknown> | undefined,
+  out: RecipeResult[]
+): Promise<void> {
   const entry = await detectEntryPoint(folder, pkg);
   if (entry) {
     out.push({
@@ -32,12 +47,17 @@ export async function pushWorkspaceRecipes(
       filePath: entry,
     });
   }
+}
 
-  // 69-72: canonical project docs (file shortcuts). Each is offered only when the file
-  // is actually present at the folder root, so a project without a CHANGELOG never
-  // shows a dead opener. Standalone openers — the boot macro opens the README as a
-  // step, but a direct one-click "open the changelog / license / contributing" is
-  // what a reader reaches for outside a boot sequence.
+// 69-72: canonical project docs (file shortcuts). Each is offered only when the file
+// is actually present at the folder root, so a project without a CHANGELOG never
+// shows a dead opener. Standalone openers — the boot macro opens the README as a
+// step, but a direct one-click "open the changelog / license / contributing" is
+// what a reader reaches for outside a boot sequence.
+async function pushDocRecipes(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   const docShortcuts: Array<{
     recipeId: string;
     label: string;
@@ -86,7 +106,13 @@ export async function pushWorkspaceRecipes(
       });
     }
   }
+}
 
+// 18-19: the .env setup helper and the open-all-config-files action.
+async function pushEnvAndConfigRecipes(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   // 18: set up .env (command shortcut -> helper command), only when example exists and
   // .env is missing.
   if ((await exists(folder, ".env.example")) && !(await exists(folder, ".env"))) {
@@ -115,7 +141,15 @@ export async function pushWorkspaceRecipes(
       commandArgs: [folder.uri.fsPath],
     },
   });
+}
 
+// 20-21: the boot-sequence macro (open README, start dev, open localhost) and the
+// standalone localhost opener.
+async function pushBootAndLocalhostRecipes(
+  folder: vscode.WorkspaceFolder,
+  pkg: Record<string, unknown> | undefined,
+  out: RecipeResult[]
+): Promise<void> {
   // 20: boot sequence (macro): open README, start dev, open localhost.
   const readme = await firstExisting(folder, ["README.md", "readme.md", "README"]);
   const devCommand = await detectDevCommand(folder, pkg);
@@ -149,7 +183,14 @@ export async function pushWorkspaceRecipes(
       action: { kind: "url", url: `http://localhost:${port}` },
     });
   }
+}
 
+// 22, 24: copy the project name@version, and run the nearest package script.
+async function pushVersionAndScriptRecipes(
+  folder: vscode.WorkspaceFolder,
+  pkg: Record<string, unknown> | undefined,
+  out: RecipeResult[]
+): Promise<void> {
   // 22: copy name@version (command shortcut -> helper command).
   if (await hasVersionSource(folder, pkg)) {
     out.push({

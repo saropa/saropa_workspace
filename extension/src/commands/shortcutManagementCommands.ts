@@ -24,7 +24,22 @@ export function registerPinManagementCommands(
   context: vscode.ExtensionContext,
   store: ShortcutStore
 ): void {
-  const { reg, regShortcut } = shortcutCommandRegistrar(context);
+  // Thin orchestrator: the registrations are grouped by concern into the helpers below so
+  // no single function breaches the length cap. Order is irrelevant — each command is
+  // independent — but kept groups → file shortcuts → recipes → favorites for readability.
+  registerGroupCreateCommands(context, store);
+  registerGroupEditCommands(context, store);
+  registerPinFileCommands(context, store);
+  registerRecipeRestoreCommands(context, store);
+  registerFavoritesImportCommands(context, store);
+}
+
+// Group creation and the comment/separator annotations that divide a long list.
+function registerGroupCreateCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { reg } = shortcutCommandRegistrar(context);
 
   // Create a group in the project or global scope (see scopeFromAddGroupArg for
   // how the scope is resolved). Shortcuts are dragged into it afterward.
@@ -61,6 +76,14 @@ export function registerPinManagementCommands(
   reg("saropaWorkspace.addSeparator", (arg: unknown) =>
     void addAnnotation(store, "separator", arg)
   );
+}
+
+// Editing an existing user group: rename, icon/color appearance, and delete.
+function registerGroupEditCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { reg } = shortcutCommandRegistrar(context);
 
   reg("saropaWorkspace.renameGroup", async (arg: unknown) => {
     if (!(arg instanceof ShortcutFolderItem)) {
@@ -108,6 +131,15 @@ export function registerPinManagementCommands(
       l10n("group.deleted", { name, count: reparented })
     );
   });
+}
+
+// Add-file gestures across both scopes: the active editor file, a cursor-line shortcut, the
+// Explorer "pin file" entries, and the add/remove toggles backing the submenus.
+function registerPinFileCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { reg } = shortcutCommandRegistrar(context);
 
   reg("saropaWorkspace.pinActiveFile", (arg: unknown) => {
     const uri = editorTargetUri(arg);
@@ -178,6 +210,15 @@ export function registerPinManagementCommands(
       await removeShortcutForUri(store, uri, "global");
     }
   });
+}
+
+// Recipe / auto-shortcut lifecycle: promote a detected recipe to a stored shortcut, one-tap
+// adopt a scheduled ritual, and restore previously-removed recipes / auto-shortcuts.
+function registerRecipeRestoreCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { reg, regShortcut } = shortcutCommandRegistrar(context);
 
   // Convert a detected recipe into a stored, fully-editable shortcut (and suppress the
   // detected one so it does not duplicate).
@@ -223,6 +264,4 @@ export function registerPinManagementCommands(
         : l10n("pin.autoNoneRemoved")
     );
   });
-
-  registerFavoritesImportCommands(context, store);
 }

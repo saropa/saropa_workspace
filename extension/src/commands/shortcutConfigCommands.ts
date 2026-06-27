@@ -45,6 +45,22 @@ export function registerPinConfigCommands(
   context: vscode.ExtensionContext,
   store: ShortcutStore
 ): void {
+  // Thin orchestrator: the registrations are grouped by concern into the helpers below so
+  // no single function breaches the length cap. Commands are independent, so grouping is
+  // for readability only.
+  registerRunConfigCommands(context, store);
+  registerFileOpCommands(context, store);
+  registerProcessControlCommands(context, store);
+  registerScheduleTriggerCommands(context, store);
+  registerLifecycleCommands(context, store);
+}
+
+// Rename, the run-config editors (webview + Quick QuickPick), Run with…, the dry-run
+// audit, and drag-a-file-onto-a-shortcut execution.
+function registerRunConfigCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
   const { reg, regShortcut } = shortcutCommandRegistrar(context);
 
   regShortcut("saropaWorkspace.renamePin", async (shortcut) => {
@@ -88,6 +104,16 @@ export function registerPinConfigCommands(
       await runShortcutOnDroppedFile(store, shortcut, fsPath);
     }
   });
+}
+
+// File operations on a shortcut's target (new sibling, duplicate, rename, copy, delete,
+// lock), the last-runs diff, the template duplicator, the share-link copy, and adding an
+// external file as a global shortcut.
+function registerFileOpCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { reg, regShortcut } = shortcutCommandRegistrar(context);
 
   // Filesystem operations on a shortcut's file, so the Shortcuts view doubles as a light
   // file manager: create a sibling, duplicate, rename (re-pointing the shortcut), copy
@@ -132,6 +158,14 @@ export function registerPinConfigCommands(
       await shortcutUri(store, picked[0], "global");
     }
   });
+}
+
+// Process control for a running shortcut: graceful stop and the force-kill escape hatch.
+function registerProcessControlCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { regShortcut } = shortcutCommandRegistrar(context);
 
   regShortcut("saropaWorkspace.stopPin", (shortcut) => {
     const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
@@ -162,6 +196,15 @@ export function registerPinConfigCommands(
       vscode.window.showInformationMessage(l10n("run.notRunning", { name }));
     }
   });
+}
+
+// Schedule editors (webview + Quick QuickPick), trigger configuration, and cross-file
+// watch links.
+function registerScheduleTriggerCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { regShortcut } = shortcutCommandRegistrar(context);
 
   // Default schedule editor is the webview form (every field visible at once, live
   // next-run preview); the keyboard-only QuickPick wizard stays reachable as the
@@ -178,6 +221,16 @@ export function registerPinConfigCommands(
   // a matching file runs the shortcut in the background (e.g. save schema.graphql, run the
   // generate-types shortcut). Distinct from the own-file run-on-save toggle in Configure Run.
   regShortcut("saropaWorkspace.configureWatchLink", (shortcut) => configureWatchLink(store, shortcut));
+}
+
+// Lifecycle and presentation: pause/unpause, expiry (time-bomb / branch-away), the
+// Customize editor and granular appearance/tag/branch commands, the metric badge, remove,
+// copy-path, and reveal-output.
+function registerLifecycleCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { reg, regShortcut } = shortcutCommandRegistrar(context);
 
   // Pause / unpause a stored shortcut's automatic execution. Pausing suspends the
   // scheduler, chain triggers/emits, idle, and run-on-save for it while keeping the
