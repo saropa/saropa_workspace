@@ -92,11 +92,11 @@ function buildItems(
   });
 
   // The file-type default (clears the per-pin prefix so the interpreterDefaults map /
-  // shebang resolution applies).
+  // shebang resolution applies). The short "Default" reads cleanly in the result toast.
   items.push({
     label: `$(settings-gear) ${l10n("runWith.useDefault")}`,
     detail: l10n("runWith.useDefault.detail"),
-    choice: { kind: "set", command: undefined, display: l10n("runWith.useDefault") },
+    choice: { kind: "set", command: undefined, display: l10n("configureRun.interp.useDefault") },
   });
   // Run directly — honored on Unix via the shebang; on Windows the runner still resolves
   // a real interpreter (a bare script path would otherwise open in the editor).

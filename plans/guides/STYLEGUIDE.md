@@ -219,6 +219,20 @@ in [`principles.md`](./principles.md).)
   defect the Configure Run form was built to fix: the QuickPick hid the elevation
   field until the location was External.) A QuickPick, which cannot disable a row,
   is the one place where conditionally appending the row is acceptable.
+- **A free-text field that names a tool/path the host can detect carries
+  one-click choices and shows what blank resolves to.** When a form field expects
+  a value the extension can discover on the machine (an interpreter binary, an
+  installed runtime, an executable path), do not leave the user a bare text box to
+  guess into: detect the real options host-side and render them as selectable chips
+  above the box, and when the field is empty show an inline hint naming what the
+  blank value falls back to (e.g. "Empty runs with `python`, the default for this
+  file type"). The text box stays for power users; the chips + hint make the common
+  case no-typing and the empty case unambiguous. (This is why the Configure Run
+  command box lists detected interpreters as chips with a default-resolution hint;
+  the matching keyboard path is the **Run With…** QuickPick.) Detection is IO, so it
+  is posted to the client AFTER init — the client holds no display strings, so the
+  chip pseudo-labels (default / browse) and the hint text are host-localized and
+  passed in the message, exactly like the env-row template.
 - **Every webview is local-only:** a strict Content-Security-Policy with a
   per-load nonce, no external script or CDN, no network of any kind.
 - **Theme the webview with `--vscode-*` CSS variables** so it tracks the active

@@ -287,7 +287,7 @@
   "runWith.notFile": "Only a file shortcut runs through an interpreter.",
   "runWith.title": "Run {name} with",
   "runWith.placeholder": "Choose an interpreter — runtimes found on this machine are listed first",
-  "runWith.set": "{name} now runs with {interpreter}",
+  "runWith.set": "Updated how {name} runs: {interpreter}",
   "runWith.useDefault": "Use the default for this file type",
   "runWith.useDefault.detail": "Clear the interpreter so the file-type default applies",
   "runWith.runDirectly": "Run directly",

@@ -121,13 +121,14 @@ test("Makefile: a .mk file is parsed the same as a Makefile", async () => {
   );
 });
 
-test("shebang: a script with a #! offers a run-directly target with a blank command", async () => {
+test("shebang: a script with a #! offers a target running through its interpreter", async () => {
   const uri = writeFile("deploy", "#!/usr/bin/env python3\nprint('hi')\n");
   const targets = await detectRunTargets(asUri(uri));
   assert.equal(targets.length, 1);
-  // A blank command prefix means the runner executes the file itself (the OS honors
-  // the shebang); the file path is included so the script is the run target.
-  assert.equal(targets[0].exec.command, "");
+  // The interpreter the shebang names becomes the stored command (the env wrapper is
+  // stripped), NOT a blank "run directly" prefix — a blank prefix opens the file on
+  // Windows instead of running it. The file path is included so the script is the target.
+  assert.equal(targets[0].exec.command, "python3");
   assert.equal(targets[0].exec.includeFilePath, true);
   // The shebang line is the detail, for disambiguation.
   assert.equal(targets[0].detail, "#!/usr/bin/env python3");

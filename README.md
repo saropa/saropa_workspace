@@ -204,7 +204,8 @@ The everyday commands, from the Command Palette and the view's context menus. Ev
 | **Add Active File as Shortcut (Project)** / **(Global)** | Add the file in the active editor as a shortcut to project or global scope. |
 | **Open** / **Run** | Open a file shortcut (single-click); execute a script shortcut (double-click / play button). |
 | **Run Shortcut…** / **Run Shortcut with Overrides…** | Quick-pick any shortcut (recents first); run one with one-off args / cwd / env. |
-| **Configure Run…** | A single-screen form for command prefix, args, cwd, env, run location, **Run as administrator** (for an external window), output extraction, run-on-save, depends-on, and concurrency, with a live command preview. **Configure Run (Quick)…** is the keyboard-only step-by-step variant. |
+| **Run With…** | Choose an interpreter detected on this machine for the file type — the `py` launcher, versioned Python installs found off `PATH`, `node`, `pwsh`, and more (or **Browse…** for an executable) — then save it as the shortcut's runtime and run. |
+| **Configure Run…** | A single-screen form for command prefix, args, cwd, env, run location, **Run as administrator** (for an external window), output extraction, run-on-save, depends-on, and concurrency, with a live command preview. Detected interpreters appear as one-click chips under the command box, with a hint showing what an empty prefix resolves to. **Configure Run (Quick)…** is the keyboard-only step-by-step variant. |
 | **Configure Schedule…** / **Configure Triggers…** | Set time / days / interval / cron / run-on-open; chain a shortcut off another shortcut or an event. |
 | **Run This Shortcut When a File Changes…** | Link a shortcut to files or globs (e.g. `**/*.graphql`); saving a match runs the shortcut in the background. |
 | **Open Schedule & Workflow Planner** / **Open Saropa Dashboard** | The visual Day / Week / Workflow planner; the Processes / Analytics / Trends dashboard. |
