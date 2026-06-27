@@ -4,6 +4,8 @@
   "views.container.title": "Saropa Workspace",
   "views.pins.name": "Shortcuts",
   "views.recipes.name": "Recipes",
+  "views.launcher.container.title": "Saropa Launcher",
+  "views.launcher.name": "Shortcuts & recipes",
   "views.watches.name": "Watches",
   "views.projectFiles.name": "Project Files",
   "viewsWelcome.pins.contents": "No shortcuts yet.\nAdd a file as a shortcut from the editor title menu or the Explorer right-click menu, then single-click to open it or double-click to run it.\n[Add the active file as a shortcut](command:saropaWorkspace.pinActiveFile)",

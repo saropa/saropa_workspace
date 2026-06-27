@@ -19,13 +19,18 @@ still apply.
 
 ### 1.1 Screens carry the Saropa name
 
-Every **full-screen surface** — a webview panel that opens as an editor tab —
-has a title whose first word is **Saropa**. This applies to all three places the
-title appears, which are driven by one i18n key:
+Every **full-screen surface** — a webview that opens as an editor tab, OR a
+webview *view* docked in the Panel / side bar — has a title whose first word is
+**Saropa**. For an editor-tab panel this applies to all three places the title
+appears, driven by one i18n key:
 
 - the editor tab title (the `createWebviewPanel` title argument),
 - the HTML `<title>`,
 - the in-panel `<h1>` heading.
+
+For a docked webview view the title surfaces are the **view-container title**
+(the Panel/side-bar tab label, an NLS `%key%` in `viewsContainers`) and the HTML
+`<title>`; the same Saropa-first rule holds.
 
 Current screens, for reference:
 
@@ -34,14 +39,38 @@ Current screens, for reference:
 | `monitor.panel.title` | **Saropa Dashboard** |
 | `planner.title` | **Saropa Schedule & Workflow Planner** |
 | `scheduleEditor.title` | **Saropa Schedule: {name}** |
+| `views.launcher.container.title` / `launcher.title` | **Saropa Launcher** |
 
 A per-item screen title may carry an interpolated `{name}` after the Saropa
 prefix (e.g. **Saropa Schedule: `regen-types`**) so the tab names the item it
 edits — the Saropa-first rule still holds.
 
-When you add a new webview panel, its title key starts with `Saropa `. Do not
-hardcode the prefix at three call sites — set it once in the catalog value and
-reference the key everywhere (single source of truth).
+When you add a new webview panel or view, its title key starts with `Saropa `.
+Do not hardcode the prefix at the call sites — set it once in the catalog value
+and reference the key everywhere (single source of truth).
+
+### 1.1a Panel launcher: a second window onto the tree, not a copy
+
+The **Saropa Launcher** (a webview view in the bottom Panel) mirrors the same
+shortcut + recipe data the sidebar tree shows, so a shortcut is reachable
+without opening the activity-bar icon. Conventions for any surface of this kind:
+
+- **It is a second view onto the store, never a second copy of the data.** It
+  reads through the same `ShortcutStore` accessors and repaints on the same
+  `store.onDidChange` the tree uses, so the two never diverge. The sidebar tree
+  stays the canonical *arrange/manage* surface (drag-reorder, context menus); the
+  Panel surface is a *fast launcher* (search + run).
+- **Use a webview, not a second TreeView, when the Panel's width matters.** A
+  native TreeView is always a single vertical column with no embedded search
+  field. The Panel is wide and short, so the launcher lays cards out in a
+  responsive grid (`repeat(auto-fill, minmax(...))`) that reflows to use the
+  width, with an always-visible search box at the top.
+- **Filter client-side.** The host posts the full item set on each change; the
+  webview filters on every keystroke with no host round-trip. Empty groups are
+  hidden (a section renders only when it has a visible card).
+- Same webview hardening as the editor-tab panels: strict CSP with a per-load
+  nonce, no remote content, theme via `--vscode-*` variables, and every visible
+  string externalized through `l10n`.
 
 ### 1.2 Menu items, buttons, and commands are NOT prefixed for branding
 

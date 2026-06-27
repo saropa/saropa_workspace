@@ -13,6 +13,7 @@ import { metricBadges } from "../exec/metricBadges";
 import { RecipesTreeProvider } from "../views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "../views/projectFilesProvider";
 import { ShortcutsTreeProvider } from "../views/shortcutsTreeProvider";
+import { LauncherViewProvider } from "../views/launcherView";
 import { ShortcutTreeItem } from "../views/shortcutTreeItem";
 import { SuggestionTracker } from "../views/suggestions";
 import { TabPinSuggester } from "../views/tabPinSuggestions";
@@ -130,6 +131,21 @@ export function setupSecondaryViews(
         projectFiles.refresh();
       }
     })
+  );
+
+  // The "Saropa Launcher" Panel webview: the same shortcut + recipe data as the
+  // sidebar tree, in the bottom Panel, so a shortcut can be searched and run without
+  // opening the activity-bar icon. A second window onto the store, not a copy — it
+  // repaints from the same onDidChange the tree does. retainContextWhenHidden keeps the
+  // search text and scroll position while the Panel tab is in the background.
+  const launcher = new LauncherViewProvider(store);
+  context.subscriptions.push(
+    launcher,
+    vscode.window.registerWebviewViewProvider(
+      LauncherViewProvider.viewId,
+      launcher,
+      { webviewOptions: { retainContextWhenHidden: true } }
+    )
   );
 }
 

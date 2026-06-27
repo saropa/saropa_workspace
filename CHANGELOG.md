@@ -21,12 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
-## [Unreleased]
+## [1.5.3]
 
-Pinned scripts now run through the right interpreter on Windows instead of opening in the editor. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+Pinned scripts now run through the right interpreter on Windows instead of opening in the editor, and your shortcuts now have a home in the bottom panel with a search box. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.3/CHANGELOG.md)
 
 ### Added
 
+- **Saropa Launcher — reach your shortcuts from the bottom panel, with a search box.** A new **Saropa Launcher** tab sits in the bottom panel beside Terminal and Output, so you can find and run any shortcut without opening the Saropa icon in the side bar. It shows the same shortcuts as the sidebar plus the detected recipes, laid out as a grid that uses the panel's width — more columns when the panel is wide, fewer when it is narrow — instead of one tall column. Type in the always-visible search box to filter shortcuts and recipes live; empty groups stay hidden. Click a file shortcut to open it, an action to run it, or the ▶ button to run any of them. The sidebar Shortcuts view is unchanged — this is a second way in, not a replacement.
 - **Run With… — choose an interpreter from what is actually installed.** Right-click a script shortcut and pick **Run With…** to see the runtimes detected on this machine for that file type — the `py` launcher, versioned Python installs found even when they are not on `PATH` (e.g. `D:\Tools\Python\Python314\python.exe`), `node`, `pwsh`, and more — each showing its resolved path. Pick one (or **Browse…** for an executable) and the shortcut runs with it and remembers the choice. The same choices appear as one-click chips in **Configure Run**, where the command box now also shows what an empty prefix resolves to, so "default" is never a mystery. No settings JSON required.
 - **A new Customize screen sets a shortcut's name, icon, color, and tags in one place.** Right-click a shortcut and choose **Customize...** to open a single screen with the name field, a searchable grid of hundreds of icons shown as real glyphs, real color swatches you can actually see, and a tag editor — with a live preview of how the row will look. The old step-by-step pickers (**Set Icon & Color...**, **Rename**, tagging) are still there for quick keyboard edits.
 - **Color swatches now show their real color.** The color list used to show the same gray dot for every choice because a menu row can't paint a color; the new Customize screen shows each color as an actual swatch, tuned to the current theme, so you pick by sight.
@@ -40,7 +41,7 @@ Pinned scripts now run through the right interpreter on Windows instead of openi
 
 ## [1.5.2]
 
-Tell Saropa to keep an eye on a folder or a file and get a heads-up the moment something new lands — even files written while the window was closed. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+Tell Saropa to keep an eye on a folder or a file and get a heads-up the moment something new lands — even files written while the window was closed. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.2/CHANGELOG.md)
 
 ### Added
 
