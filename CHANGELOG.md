@@ -23,9 +23,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.8]
 
-The Project Files view now reaches into platform subfolders and groups what it finds by area. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+The Project Files view now reaches into platform subfolders and groups what it finds by area. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.8/CHANGELOG.md)
 
 ### Added
 
