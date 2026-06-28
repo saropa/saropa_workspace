@@ -34,6 +34,7 @@ The expanded launcher card is tidier: one Run button instead of two, its Open/Ru
 - **Expanding a card no longer stretches its neighbors.** Cards in a row now keep their natural height, so opening one card's drawer grows only that card instead of stretching every card beside it.
 - **Launcher cards have more horizontal padding** so the content sits less cramped against the edges.
 - **The launcher search bar no longer stretches across the whole panel** — it is capped to a compact width on the leading edge.
+- **Launcher cards are indented under their group heading** so the group-to-cards hierarchy reads at a glance.
 
 ---
 

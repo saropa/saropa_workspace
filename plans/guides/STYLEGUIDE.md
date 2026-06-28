@@ -124,6 +124,9 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
 - **The search bar is a compact group on the leading edge, not full-width.** The
   Panel is very wide; `.search` is capped (`max-width: 420px`) so the icon + input +
   count stay a tidy cluster rather than stretching across the surface.
+- **The card grid is indented under its group heading.** `.group-body` carries a
+  left padding (20px) so cards sit past the header's chevron + glyph, making the
+  group-to-cards containment visible rather than flush with the pane edge.
 - **Filter client-side.** The host posts the full item set on each change; the
   webview filters on every keystroke with no host round-trip. Empty groups and
   empty panes are hidden (a group renders only when it has a visible card; a pane

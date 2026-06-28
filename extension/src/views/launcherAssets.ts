@@ -116,6 +116,9 @@ header {
   gap: 7px;
   align-items: start;
 }
+/* Indent the card grid so cards sit under the group label (past the chevron +
+   glyph in the header), making the group-to-cards hierarchy read at a glance. */
+.group-body { padding-left: 20px; }
 
 .card {
   position: relative;
