@@ -158,25 +158,41 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   The Panel is very wide, so a search box alone left dead space beside it. `.head-bar`
   is a `space-between` flex row: the **project block** (`.project`) on the leading edge
   and the compact **search group** (`.search`) on the trailing edge, wrapping (search
-  below) when the Panel is narrow. The search stays capped (`flex: 0 1 420px;
-  max-width: 420px`) so it never grows to fill the bar — the project block takes the
-  freed width instead. (Superseded the earlier "search on the leading edge" rule;
+  below) when the Panel is narrow. The search stays capped (`flex: 0 1 260px;
+  max-width: 260px`) so it never grows to fill the bar — the project block takes the
+  freed width instead. The narrower cap (was 420px) leaves room for the project summary
+  to read on one line. (Superseded the earlier "search on the leading edge" rule;
   developer feedback 2026-06-28.)
-- **The project block names the current project and summarizes the board, computed
-  asynchronously.** `.project` shows the open folder's name (`.project-name`) over a
-  meta line (`.project-meta`) of the declared **version** plus per-pane **counts**
-  (shortcuts / recipes / watches / files, each an icon + value, zero buckets omitted).
-  The name paints synchronously from the host's initial HTML so the header is never
-  blank; the version and counts ride the first `data` message — the version read from
-  the same single project-files disk scan that builds the file cards (no second scan),
-  the counts tallied from the built items — and `renderHeader` writes them in when they
-  arrive. The version is the headline fact, so it reads in the regular foreground while
-  the counts stay in the dimmed description color. The host derives the version from the
-  scanned manifests in a fixed precedence (`package.json`, `pubspec.yaml`, `Cargo.toml`,
-  `pyproject.toml`, then `CHANGELOG.md`), scoped to the primary folder, and omits the
-  chip entirely when nothing declares one. The folder name is HTML-escaped before it is
-  baked into the initial markup (the one host-interpolated value); every later update
-  goes through `textContent`.
+- **The project block names the current project and summarizes the board on ONE line,
+  computed asynchronously.** `.project` is a single horizontal row (`flex-direction: row;
+  align-items: baseline`): the open folder's name (`.project-name`) then, inline beside
+  it, the meta line (`.project-meta`) of the declared **version** plus per-pane **counts**
+  (shortcuts / scheduled / watches / files, each an icon + value, zero buckets omitted).
+  The name can ellipsize and the meta clips (both `min-width: 0`, meta `overflow: hidden;
+  flex-wrap: nowrap`) before either pushes the search box off the bar. The name paints
+  synchronously from the host's initial HTML so the header is never blank; the version and
+  counts ride the first `data` message — the version read from the same single
+  project-files disk scan that builds the file cards (no second scan), the counts tallied
+  from the built items — and `renderHeader` writes them in when they arrive. The version is
+  the headline fact, so it reads in the regular foreground while the counts stay in the
+  dimmed description color. The host derives the version from the scanned manifests in a
+  fixed precedence (`package.json`, `pubspec.yaml`, `Cargo.toml`, `pyproject.toml`, then
+  `CHANGELOG.md`), scoped to the primary folder, and omits the chip entirely when nothing
+  declares one. The folder name is HTML-escaped before it is baked into the initial markup
+  (the one host-interpolated value); every later update goes through `textContent`. (One-line
+  layout: developer feedback 2026-06-28, superseding the earlier name-over-meta stack.)
+- **A header count is a one-tap pane filter; the recipes count is scheduled-only.** Each
+  count chip carries its pane (`LauncherStat.pane`) and renders as a `<button class="meta-item
+  filter">`; clicking it sets `activePane` to narrow the board to that pane's cards, clicking
+  the active chip again clears it. The filter is transient (it resets on reload, unlike the
+  persisted collapse posture — a filter is a momentary focus) and combines with the text
+  search: a card shows only when it matches both. The active chip keeps an `.active`
+  highlight; the header count scopes to the focused set (the active pane, else mine + recipes).
+  The **recipes** chip counts only *scheduled* recipes (`schedule !== undefined`, the same
+  signal the tree uses), labeled "scheduled" with a clock glyph — a recipe is a recommendation,
+  so the headline should report what is actually automated, not the full detected set; the
+  Recipes pane still lists every detected recipe, and the chip filters the board to it.
+  (Developer feedback 2026-06-28.)
 - **The card grid is indented under its group heading.** `.group-body` carries a
   left padding (20px) so cards sit past the header's chevron + glyph, making the
   group-to-cards containment visible rather than flush with the pane edge.
@@ -223,8 +239,9 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   opens by their own validated target (`openWatch` by watch id; `vscode.open` by an
   fsPath re-checked against the live surfaced-file set), never through the store, so
   the untrusted webview can neither drive an arbitrary watch nor open an arbitrary
-  path. The header count stays "{n} shortcuts" — it counts only the mine + recipes
-  cards, never the mirrored panes.
+  path. The header search count reads "{n} shortcuts" by default — it counts only the
+  mine + recipes cards, never the mirrored panes — and switches to "{shown} of {total}"
+  scoped to the focused set while a text search or a stat filter narrows the board.
 - **Filter client-side.** The host posts the full item set on each change; the
   webview filters on every keystroke with no host round-trip. Empty groups and
   empty panes are hidden (a group renders only when it has a visible card; a pane

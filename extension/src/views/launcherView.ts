@@ -336,16 +336,29 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     // what is actually present rather than a row of zeros.
     const count = (pane: LauncherItem["pane"]): number =>
       items.reduce((n, it) => (it.pane === pane ? n + 1 : n), 0);
+    // Recipes are recommendations; only the ones the user actually put on a schedule are
+    // "live", so the recipes stat counts scheduled recipes (schedule !== undefined, the same
+    // signal the tree uses) rather than the full detected set — a "3 scheduled" headline is
+    // truthful where "69 recipes" overstated what is automated. The recipes pane still lists
+    // every detected recipe; clicking the stat filters the board to that pane.
+    const scheduledRecipes = this.store
+      .getRecipeShortcuts()
+      .filter((r) => r.schedule !== undefined).length;
     const stats: LauncherStat[] = [];
-    const pushStat = (n: number, icon: string, key: string): void => {
+    const pushStat = (
+      n: number,
+      pane: LauncherItem["pane"],
+      icon: string,
+      key: string
+    ): void => {
       if (n > 0) {
-        stats.push({ icon, text: l10n(key, { count: n }) });
+        stats.push({ pane, icon, text: l10n(key, { count: n }) });
       }
     };
-    pushStat(count("mine"), "star-full", "launcher.statShortcuts");
-    pushStat(count("recipes"), "book", "launcher.statRecipes");
-    pushStat(count("watches"), "eye", "launcher.statWatches");
-    pushStat(count("files"), "files", "launcher.statFiles");
+    pushStat(count("mine"), "mine", "star-full", "launcher.statShortcuts");
+    pushStat(scheduledRecipes, "recipes", "clock", "launcher.statRecipes");
+    pushStat(count("watches"), "watches", "eye", "launcher.statWatches");
+    pushStat(count("files"), "files", "files", "launcher.statFiles");
 
     return {
       project,
@@ -409,9 +422,11 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
-// One count shown in the header's meta line: a codicon id and its pre-localized label
-// (e.g. "6 shortcuts"). Built host-side so the webview holds no display strings.
+// One count shown in the header's meta line: the pane it summarizes (so a click can filter
+// the board to that pane), a codicon id, and its pre-localized label (e.g. "6 shortcuts").
+// Built host-side so the webview holds no display strings.
 interface LauncherStat {
+  readonly pane: LauncherItem["pane"];
   readonly icon: string;
   readonly text: string;
 }

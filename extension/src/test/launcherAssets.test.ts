@@ -178,6 +178,32 @@ test("LAUNCHER_STYLE: the project name ellipsizes and the version reads in the f
   );
 });
 
+test("LAUNCHER_STYLE: the project block lays its parts on one row", () => {
+  // The name + version + counts read as a single line (developer feedback 2026-06-28),
+  // which only holds when .project is a flex row rather than the earlier name-over-meta
+  // column. A regression back to a column would re-stack the header.
+  const project = LAUNCHER_STYLE.match(/\.project\s*\{[^}]*\}/);
+  assert.ok(project, ".project rule must exist");
+  assert.ok(
+    project[0].includes("flex-direction: row"),
+    ".project must be a row so the name and counts share one line"
+  );
+});
+
+test("LAUNCHER_STYLE: a header stat is a clickable filter chip", () => {
+  // Each count is a filter toggle (a <button class='meta-item filter'>); the .filter rule
+  // gives it the hover/active affordance and an .active highlight for the engaged filter.
+  // Losing either rule would make the stat look like plain text, not a control.
+  assert.ok(
+    /\.meta-item\.filter\s*\{/.test(LAUNCHER_STYLE),
+    ".meta-item.filter rule must exist so a stat reads as clickable"
+  );
+  assert.ok(
+    /\.meta-item\.filter\.active\s*\{/.test(LAUNCHER_STYLE),
+    ".meta-item.filter.active rule must exist so the engaged filter stays highlighted"
+  );
+});
+
 test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", () => {
   // The host posts { project, version, stats }; renderHeader writes the name, version chip,
   // and per-pane counts. Both the call from the data handler and the function must persist.
@@ -188,6 +214,18 @@ test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", (
   assert.ok(LAUNCHER_SCRIPT.includes("projName.textContent"));
 });
 
+test("LAUNCHER_SCRIPT: a header stat filters the board to its pane", () => {
+  // A stat carries a pane; clicking it sets activePane to narrow the board to that pane's
+  // cards, and the card filter must combine the pane match with the text match (a card shows
+  // only when it passes both). Guards a regression that dropped the filter wiring or let the
+  // pane filter and the search diverge.
+  assert.ok(LAUNCHER_SCRIPT.includes("activePane"), "the filter state must exist");
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("matchText && matchPane"),
+    "a card must match both the text needle and the active pane filter"
+  );
+});
+
 test("LAUNCHER_SCRIPT: recipe cards expose Pin and Schedule drawer buttons", () => {
   // A recipe is detected, not adopted. The drawer must surface Pin (promoteRecipe) and
   // Schedule (scheduleRecipe) on the recipes pane so those actions are discoverable on the
@@ -196,6 +234,16 @@ test("LAUNCHER_SCRIPT: recipe cards expose Pin and Schedule drawer buttons", () 
   assert.ok(LAUNCHER_SCRIPT.includes("it.pane === 'recipes'"));
   assert.ok(LAUNCHER_SCRIPT.includes("saropaWorkspace.promoteRecipe"));
   assert.ok(LAUNCHER_SCRIPT.includes("saropaWorkspace.scheduleRecipe"));
+});
+
+test("LAUNCHER_SCRIPT: suppresses the card subtitle when it only echoes the name", () => {
+  // A root-level file shortcut carries its bare filename as both label and path (e.g.
+  // CHANGELOG.md), so rendering the path under the title duplicated the text. makeCard must
+  // gate the .card-sub element on the sub differing from the label, never render it blindly.
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("it.sub !== it.label"),
+    "makeCard must skip the subtitle when it equals the label"
+  );
 });
 
 test("LAUNCHER_SCRIPT: routes right-click menu choices as command messages", () => {

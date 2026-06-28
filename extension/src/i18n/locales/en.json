@@ -24,7 +24,7 @@
   "launcher.noProject": "No folder open",
   "launcher.version": "v{version}",
   "launcher.statShortcuts": "{count} shortcuts",
-  "launcher.statRecipes": "{count} recipes",
+  "launcher.statRecipes": "{count} scheduled",
   "launcher.statWatches": "{count} watches",
   "launcher.statFiles": "{count} files",
   "launcher.menu.open": "Open",

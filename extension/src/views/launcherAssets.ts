@@ -4,12 +4,13 @@
 // codicon font, loaded host-side via asWebviewUri). All colors/spacing bind to --vscode-*
 // theme variables so the surface matches the editor in light/dark/high-contrast.
 //
-// Header: a two-part bar (.head-bar) — the project block (folder name, then a meta line of
-// the declared version + per-pane counts) on the leading edge, and the compact search group
-// on the trailing edge. The Panel is wide, so the project summary fills the space the search
-// box does not need; the bar wraps when the Panel is narrow. The name paints synchronously
-// from the host's initial HTML; the version + counts arrive in the first data message
-// (they need the disk scan) and are written by renderHeader.
+// Header: a two-part bar (.head-bar) — the project block on the leading edge, the compact
+// search group on the trailing edge. The project block reads as one line: the folder name,
+// then the declared version + per-pane counts inline beside it. Each count is a filter chip —
+// clicking it narrows the board to that pane (combining with the text search); the recipes
+// chip counts only scheduled recipes (host-side), so it headlines what is actually automated.
+// The name paints synchronously from the host's initial HTML; the version + counts arrive in
+// the first data message (they need the disk scan) and are written by renderHeader.
 //
 // Layout (the design the launcher earns over a TreeView): the Panel is wide and short, so
 // the surface splits into two responsive panes — "My shortcuts" (the user's own entries)
@@ -51,20 +52,30 @@ header {
    the search is filled with the project summary. It wraps when the Panel is narrow, the
    search dropping below the project line, so neither block is crushed. */
 .head-bar {
-  display: flex; align-items: flex-start; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   gap: 8px 16px; flex-wrap: wrap;
 }
-/* The project block grows to take the freed width; the meta line under the name wraps
-   within it. min-width:0 lets a long folder name ellipsize instead of forcing overflow. */
-.project { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* The project block grows to take the freed width and lays its parts on ONE line — the
+   folder name, then the version + counts inline beside it — so the header reads as a single
+   summary row rather than a stacked name-over-meta block. min-width:0 lets a long folder
+   name ellipsize instead of forcing overflow. */
+.project {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: row; align-items: baseline; gap: 12px;
+}
 .project-name {
+  flex: 0 1 auto;
   font-weight: 600; font-size: 1.05em;
   color: var(--vscode-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* The version + counts row: small, muted, wrapping. Each item is an icon + value. */
+/* The version + counts, inline on the project line. nowrap + overflow keeps it a single row
+   beside the name; min-width:0 lets it shrink (clipping the trailing stats) before it pushes
+   the search box off the bar. Each item is an icon + value. */
 .project-meta {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-wrap: nowrap; align-items: baseline; gap: 4px 10px;
+  overflow: hidden;
   color: var(--vscode-descriptionForeground); font-size: 0.85em;
 }
 .meta-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -72,10 +83,28 @@ header {
 /* The version is the headline fact (which release is this), so it reads in the regular
    foreground rather than the dimmed description color the counts use. */
 .meta-item.version { color: var(--vscode-foreground); }
-/* Cap the search group's width: the Panel is very wide, and a full-width input left the
-   search bar stretched across the whole surface. flex 0 1 keeps it a compact group
-   (icon + input + count) on the trailing edge that may shrink but not grow past the cap. */
-.search { display: flex; align-items: center; gap: 6px; flex: 0 1 420px; max-width: 420px; }
+/* A stat that carries a pane is a filter toggle: clicking it shows only that pane's cards.
+   It is a real <button>, so reset the native chrome to match the inline meta text, and give
+   it a hover/active affordance so it reads as clickable. The active filter stays highlighted
+   until toggled off. */
+.meta-item.filter {
+  background: none; border: none; font: inherit; color: inherit;
+  cursor: pointer; border-radius: 3px; padding: 1px 5px;
+}
+.meta-item.filter:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-foreground);
+}
+.meta-item.filter:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.meta-item.filter.active {
+  background: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground));
+  color: var(--vscode-foreground);
+}
+/* Cap the search group's width: the Panel is very wide, and a wide input left the search bar
+   stretched across the whole surface, crowding out the project summary. flex 0 1 keeps it a
+   compact group (icon + input + count) on the trailing edge that may shrink but not grow past
+   the cap. */
+.search { display: flex; align-items: center; gap: 6px; flex: 0 1 260px; max-width: 260px; }
 .search .codicon { color: var(--vscode-input-placeholderForeground); flex: none; }
 #q {
   flex: 1;
@@ -308,6 +337,10 @@ const vscode = acquireVsCodeApi();
 let strings = {};
 let items = [];
 let activeMenu = null;
+// The pane a header stat filters the board to, or null for "show all". Toggled by clicking a
+// stat chip; combines with the text search (a card must match both). Transient — it resets on
+// reload, unlike the per-section collapse posture, because a filter is a momentary focus.
+let activePane = null;
 
 // Persisted collapse posture: { collapsed: { <groupId>: true } }. Restored on load so a
 // folded group stays folded across reloads.
@@ -348,19 +381,40 @@ function renderHeader(h) {
   if (!h) { return; }
   if (typeof h.project === 'string' && h.project) { projName.textContent = h.project; }
   projMeta.textContent = '';
-  if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true)); }
+  // If the active filter's pane vanished from the new stat set (e.g. its count dropped to
+  // zero), drop the filter so the board does not stay narrowed to nothing.
   const stats = Array.isArray(h.stats) ? h.stats : [];
-  for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false)); }
+  if (activePane && !stats.some(function (s) { return s.pane === activePane; })) {
+    activePane = null;
+  }
+  if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true, null)); }
+  for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false, s.pane)); }
 }
 
-function metaItem(icon, text, isVersion) {
-  const span = document.createElement('span');
-  span.className = isVersion ? 'meta-item version' : 'meta-item';
-  span.appendChild(codicon(icon));
+// A header meta entry. The version is a plain label (pane null); a stat carries a pane and so
+// renders as a filter-toggle button — clicking it narrows the board to that pane (or clears
+// the filter when it is already active). The active chip keeps an .active highlight.
+function metaItem(icon, text, isVersion, pane) {
+  const el = document.createElement(pane ? 'button' : 'span');
+  el.className = isVersion ? 'meta-item version' : 'meta-item';
+  if (pane) {
+    el.classList.add('filter');
+    el.type = 'button';
+    el.dataset.pane = pane;
+    if (pane === activePane) { el.classList.add('active'); }
+    el.addEventListener('click', function () {
+      activePane = activePane === pane ? null : pane;
+      for (const f of projMeta.querySelectorAll('.meta-item.filter')) {
+        f.classList.toggle('active', f.dataset.pane === activePane);
+      }
+      applyFilter();
+    });
+  }
+  el.appendChild(codicon(icon));
   const t = document.createElement('span');
   t.textContent = text;
-  span.appendChild(t);
-  return span;
+  el.appendChild(t);
+  return el;
 }
 
 // Group the flat item list into the four panes in fixed order: mine, recipes, watches, files.
@@ -657,16 +711,23 @@ function render() {
 // Runs entirely in the webview, so typing is instant on hundreds of items.
 function applyFilter() {
   const needle = q.value.trim().toLowerCase();
-  root.classList.toggle('searching', needle !== '');
-  // The header reads "{n} shortcuts", so its total counts only the shortcut + recipe cards,
-  // not the Watches / Project files panes; shown is the visible subset of that same total.
+  // Either narrowing reveals collapsed sections so a match is never hidden behind a fold.
+  const filtering = needle !== '' || activePane !== null;
+  root.classList.toggle('searching', filtering);
+  // The count scopes to the cards in focus: the active pane when a stat filter is on, else the
+  // shortcut + recipe cards the search box covers (the Watches / Project files panes are not
+  // part of the "shortcuts and recipes" total). shown is the visible subset of that scope.
   let total = 0;
   let shown = 0;
   for (const card of root.querySelectorAll('.card')) {
-    const match = needle === '' || card.dataset.hay.indexOf(needle) !== -1;
+    const matchText = needle === '' || card.dataset.hay.indexOf(needle) !== -1;
+    const matchPane = activePane === null || card.dataset.pane === activePane;
+    const match = matchText && matchPane;
     card.classList.toggle('hidden', !match);
-    const counted = card.dataset.pane === 'mine' || card.dataset.pane === 'recipes';
-    if (counted) { total++; if (match) { shown++; } }
+    const inScope = activePane === null
+      ? (card.dataset.pane === 'mine' || card.dataset.pane === 'recipes')
+      : card.dataset.pane === activePane;
+    if (inScope) { total++; if (match) { shown++; } }
   }
   for (const group of root.querySelectorAll('.group')) {
     group.classList.toggle('hidden', !group.querySelector('.card:not(.hidden)'));
@@ -674,7 +735,7 @@ function applyFilter() {
   for (const pane of root.querySelectorAll('.pane')) {
     pane.classList.toggle('hidden', !pane.querySelector('.card:not(.hidden)'));
   }
-  count.textContent = needle === ''
+  count.textContent = !filtering
     ? (strings.count || '{n}').replace('{n}', total)
     : (strings.countFiltered || '{shown}/{total}')
         .replace('{shown}', shown).replace('{total}', total);
