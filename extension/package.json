@@ -1983,26 +1983,52 @@
             "default": true,
             "description": "%config.projectFiles.enabled.description%"
           },
-          "saropaWorkspace.projectFiles.files": {
-            "type": "array",
-            "items": {
-              "type": "string"
+          "saropaWorkspace.projectFiles.groups": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
-            "default": [
-              "README.md",
-              "CHANGELOG.md",
-              "ROADMAP.md",
-              "CONTRIBUTING.md",
-              "SECURITY.md",
-              "LICENSE",
-              "LICENSE.md",
-              "package.json",
-              "pubspec.yaml",
-              "Cargo.toml",
-              "pyproject.toml",
-              "go.mod"
-            ],
-            "description": "%config.projectFiles.files.description%"
+            "default": {
+              "Project": [
+                "README.md",
+                "CHANGELOG.md",
+                "ROADMAP.md",
+                "CONTRIBUTING.md",
+                "SECURITY.md",
+                "LICENSE",
+                "LICENSE.md",
+                "package.json",
+                "pubspec.yaml",
+                "Cargo.toml",
+                "pyproject.toml",
+                "go.mod",
+                "analysis_options.yaml",
+                "l10n.yaml"
+              ],
+              "Android": [
+                "android/build.gradle",
+                "android/build.gradle.kts",
+                "android/settings.gradle",
+                "android/settings.gradle.kts",
+                "android/gradle.properties",
+                "android/app/build.gradle",
+                "android/app/build.gradle.kts",
+                "android/local.properties",
+                "android/app/src/main/AndroidManifest.xml"
+              ],
+              "iOS": [
+                "ios/Podfile",
+                "ios/Runner/Info.plist"
+              ],
+              "Web": [
+                "web/index.html",
+                "web/manifest.json"
+              ]
+            },
+            "description": "%config.projectFiles.groups.description%"
           },
           "saropaWorkspace.processMonitor.heartbeat.enabled": {
             "type": "boolean",

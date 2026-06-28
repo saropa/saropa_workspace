@@ -69,11 +69,19 @@ test("LAUNCHER_STYLE: the kind pill is neutral gray, not tinted with --card-tint
   );
 });
 
-test("LAUNCHER_STYLE: an expanded card hides the head run button (no duplicate Run)", () => {
-  // The drawer carries a full labeled Run button, so the head's compact play button must be
-  // hidden once expanded — otherwise the same card shows two Run affordances. This guards a
-  // regression that left the head .run visible in the expanded state.
-  assert.ok(/\.card\.expanded\s+\.run\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE));
+test("LAUNCHER_STYLE: the head action button reveals its text label only when expanded", () => {
+  // The head's primary-action button (Open for a file shortcut, Run for a non-file action)
+  // is icon-only in the compact grid and grows its text label when the card expands. The
+  // label span is hidden by default and revealed under .card.expanded; no-duplicate-action is
+  // now enforced by the drawer omitting whatever the head carries (see makeCard), not by
+  // hiding the head — so the head must stay visible in both states. Guards a regression that
+  // either always shows the label (crowding the grid) or hides the head on expand.
+  assert.ok(/\.run-label\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE));
+  assert.ok(/\.card\.expanded\s+\.run-label\s*\{[^}]*display:\s*inline/.test(LAUNCHER_STYLE));
+  assert.ok(
+    !/\.card\.expanded\s+\.run\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
+    "the head action button must remain visible when the card is expanded"
+  );
 });
 
 test("LAUNCHER_STYLE: drawer actions are right-aligned", () => {

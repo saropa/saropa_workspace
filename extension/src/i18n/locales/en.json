@@ -10,6 +10,8 @@
   "launcher.searchPlaceholder": "Search shortcuts and recipes",
   "launcher.run": "Run",
   "launcher.open": "Open",
+  "launcher.copyPath": "Copy path",
+  "launcher.copiedPath": "Copied path to {name}.",
   "launcher.pin": "Pin",
   "launcher.schedule": "Schedule",
   "launcher.empty": "No shortcuts yet. Add a file as a shortcut, then it shows here and in the Shortcuts view.",

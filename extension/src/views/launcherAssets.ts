@@ -135,7 +135,7 @@ header {
    expanded card grows downward alone and its neighbors keep their natural height. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(247px, 1fr));
   gap: 10px;
   align-items: start;
 }
@@ -143,9 +143,10 @@ header {
    glyph in the header), making the group-to-cards hierarchy read at a glance. */
 .group-body { padding-left: 20px; }
 
-/* A flat pane (Watches / Project files) has no inner collapsible group — its cards
-   sit directly under the pane head, like the sidebar's flat lists. A little top
-   margin keeps the first row off the pane-head divider so the board still breathes. */
+/* A pane rendered flat (Watches always; Project files when only one area is present)
+   has no inner collapsible group — its cards sit directly under the pane head, like the
+   sidebar's flat lists. A little top margin keeps the first row off the pane-head divider
+   so the board still breathes. */
 .pane-flat { margin-top: 10px; }
 
 .card {
@@ -185,19 +186,24 @@ header {
   border: 1px solid var(--vscode-descriptionForeground);
   border-radius: 3px; padding: 0 5px; opacity: 0.7;
 }
+/* The head's primary-action button (blue): Open for a file shortcut (a document leads
+   with Open), Run for a non-file action. Icon-only in the compact grid via gap+hidden
+   label; the label appears only once the card expands, so the head stays narrow among its
+   row-mates but names its action when opened. */
 .run {
   flex: none;
-  display: inline-flex; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
   border: none; border-radius: 4px; padding: 2px 7px; cursor: pointer;
 }
 .run:hover { background: var(--vscode-button-hoverBackground); }
 .run .codicon { font-size: 13px; }
-/* When the card is expanded the drawer carries the full Run button, so the head's
-   compact ▶ would be a redundant second Run on the same card — hide it and let the
-   labeled drawer button be the single run affordance. */
-.card.expanded .run { display: none; }
+/* Label hidden while collapsed (icon-only), revealed when the card expands. The head button
+   stays visible in both states; the drawer omits whichever action the head already carries
+   (see makeCard), so a card never shows a duplicate Open or Run. */
+.run-label { display: none; }
+.card.expanded .run-label { display: inline; }
 
 /* The expand drawer: revealed under the card head on a primary click. */
 .drawer { display: none; margin-top: 9px; padding-top: 2px; }
@@ -297,17 +303,20 @@ function codicon(id) {
   return i;
 }
 
-// Group the flat item list into the four panes in fixed order: the two grouped panes (mine,
-// then recipes — each split into collapsible groups in first-seen order) followed by the two
-// flat panes (watches, then files — a single card grid, no inner groups, like the sidebar's
-// flat lists). The host controls ordering; an empty pane/group is hidden by render/filter.
+// Group the flat item list into the four panes in fixed order: mine, recipes, watches, files.
+// Mine, recipes, and files are grouped panes (collapsible category/scope groups, in first-seen
+// order — which the host emits in catalog order); watches is a single flat list. The files
+// pane groups by area (Project / Android / iOS / Web), but only when more than one area has
+// matches: with a single area it renders flat, so a lone "Project" header never doubles the
+// pane title (the same "group only when it earns it" rule the sidebar tree follows). The host
+// controls ordering; an empty pane/group is hidden by render/filter.
 function paneModel(list) {
   const mine = { id: 'mine', title: strings.mine || 'My shortcuts', order: [], byId: {} };
   const recipes = { id: 'recipes', title: strings.recipes || 'Recipes', order: [], byId: {} };
+  const files = { id: 'files', title: strings.files || 'Project files', order: [], byId: {} };
   const watches = { id: 'watches', title: strings.watches || 'Watches', items: [] };
-  const files = { id: 'files', title: strings.files || 'Project files', items: [] };
-  const grouped = { mine: mine, recipes: recipes };
-  const flat = { watches: watches, files: files };
+  const grouped = { mine: mine, recipes: recipes, files: files };
+  const flat = { watches: watches };
   for (const it of list) {
     if (flat[it.pane]) { flat[it.pane].items.push(it); continue; }
     const pane = grouped[it.pane] || mine;
@@ -320,11 +329,17 @@ function paneModel(list) {
     pane.byId[it.groupId].items.push(it);
   }
   function groupsOf(p) { return p.order.map(function (gid) { return p.byId[gid]; }); }
+  const fileGroups = groupsOf(files);
+  // Files: grouped once a second area appears, otherwise flat over the single area's cards
+  // (the flat branch covers both the no-files case — empty array — and the one-area case).
+  const filesPane = fileGroups.length > 1
+    ? { id: 'files', title: files.title, flat: false, groups: fileGroups }
+    : { id: 'files', title: files.title, flat: true, items: fileGroups[0] ? fileGroups[0].items : [] };
   return [
     { id: 'mine', title: mine.title, flat: false, groups: groupsOf(mine) },
     { id: 'recipes', title: recipes.title, flat: false, groups: groupsOf(recipes) },
     { id: 'watches', title: watches.title, flat: true, items: watches.items },
-    { id: 'files', title: files.title, flat: true, items: files.items },
+    filesPane,
   ];
 }
 
@@ -370,17 +385,29 @@ function makeCard(it) {
     row.appendChild(chip);
   }
 
+  // The head's primary-action button. A file shortcut leads with Open (a document's main
+  // intent — running it is secondary and lives in the drawer); a non-file action leads with
+  // Run. Icon-only while collapsed, the label appears on expand (the .run-label span). Gated
+  // on runnable so the browse-only watch/file panes keep no head button (their deliberate
+  // expand-then-act model — see watchLauncherItem / the styleguide 1.1a mirrored-pane rule).
   if (it.runnable) {
-    const run = document.createElement('button');
-    run.className = 'run';
-    run.title = strings.run || 'Run';
-    run.setAttribute('aria-label', strings.run || 'Run');
-    run.appendChild(codicon('play'));
-    run.addEventListener('click', function (e) {
+    const headOpens = it.openable;
+    const headLabel = headOpens ? (strings.open || 'Open') : (strings.run || 'Run');
+    const head = document.createElement('button');
+    head.className = 'run';
+    head.title = headLabel;
+    head.setAttribute('aria-label', headLabel);
+    head.appendChild(codicon(headOpens ? 'go-to-file' : 'play'));
+    const headText = document.createElement('span');
+    headText.className = 'run-label';
+    headText.textContent = headLabel;
+    head.appendChild(headText);
+    head.addEventListener('click', function (e) {
       e.stopPropagation();
-      vscode.postMessage({ type: 'run', id: it.id });
+      if (headOpens) { postOpen(it); }
+      else { vscode.postMessage({ type: 'run', id: it.id }); }
     });
-    row.appendChild(run);
+    row.appendChild(head);
   }
   card.appendChild(row);
 
@@ -397,16 +424,27 @@ function makeCard(it) {
   }
   const actions = document.createElement('div');
   actions.className = 'drawer-actions';
-  if (it.openable) {
-    // Open is the primary drawer action when the card has no Run (a watch/file card), and
-    // secondary when it does (a file shortcut, where Run is primary).
-    actions.appendChild(actionButton(strings.open || 'Open', 'go-to-file', !it.runnable, function () {
+  // Open in the drawer only for the browse-only panes (watches, project files), which carry
+  // no head button — a file shortcut's Open lives on the head, so repeating it here would
+  // double the affordance.
+  if (it.openable && !it.runnable) {
+    actions.appendChild(actionButton(strings.open || 'Open', 'go-to-file', true, function () {
       postOpen(it);
     }));
   }
-  if (it.runnable) {
-    actions.appendChild(actionButton(strings.run || 'Run', 'play', true, function () {
+  // Run in the drawer only for a file shortcut, where the head leads with Open and Run is the
+  // secondary action. A non-file action already carries Run on the head, so it is omitted here.
+  if (it.runnable && it.openable) {
+    actions.appendChild(actionButton(strings.run || 'Run', 'play', false, function () {
       vscode.postMessage({ type: 'run', id: it.id });
+    }));
+  }
+  // A file-backed card (a file shortcut/recipe or a project file) exposes Copy path so the
+  // user can grab the file's location without opening it. The host resolves the real on-disk
+  // path from the id (a shortcut via the store, a project file by its validated fsPath).
+  if (it.copyable) {
+    actions.appendChild(actionButton(strings.copyPath || 'Copy path', 'copy', false, function () {
+      vscode.postMessage({ type: 'copyPath', id: it.id });
     }));
   }
   // A recipe is detected, not yet adopted: surface Pin (adopt into My shortcuts) and

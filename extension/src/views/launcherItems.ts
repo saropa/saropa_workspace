@@ -36,8 +36,9 @@ export interface LauncherItem {
   // the entry carries none); the catalog prose for a recipe, surfaced on click.
   readonly desc: string | undefined;
   // Which pane the row files under: the user's own entries, auto-detected recipes,
-  // the folder/file watches, or the surfaced project files. The last two are flat,
-  // single-category panes (no inner groups) — see watchLauncherItem / fileLauncherItem.
+  // the folder/file watches, or the surfaced project files. Watches is always a flat
+  // list; files groups by area (Project / Android / iOS / Web) when more than one area
+  // is present and renders flat otherwise — see watchLauncherItem / fileLauncherItem.
   readonly pane: "mine" | "recipes" | "watches" | "files";
   readonly section: string;
   readonly groupId: string;
@@ -48,6 +49,12 @@ export interface LauncherItem {
   readonly kind: string;
   readonly runnable: boolean;
   readonly openable: boolean;
+  // Whether the drawer shows a "Copy path" button. True for cards backed by a real file on
+  // disk — a file shortcut/recipe, or a surfaced project file — and false for non-file
+  // actions (shell/macro/routine) and watches. The host resolves the actual on-disk path by
+  // the card's id (a file shortcut via the store, a project file by its validated fsPath),
+  // so the webview never carries or trusts the path itself.
+  readonly copyable?: boolean;
   // The right-click menu for this row, mirroring the sidebar's actions in a flat,
   // separator-grouped form (a webview cannot host native submenus). Every command here is
   // verified to accept a raw Shortcut argument via asShortcut, so the host routes the
@@ -123,6 +130,9 @@ function toItem(
     kind,
     runnable: true,
     openable: isFile,
+    // Only a file shortcut/recipe has a real on-disk path to copy; a shell/macro/routine
+    // shortcut's "path" is a command, not a file location.
+    copyable: isFile,
     menu: buildMenu(shortcut, pane, isFile),
   };
 }
@@ -365,13 +375,22 @@ export interface FileItemInput {
   readonly version?: string;
   readonly relative: string;
   readonly isShortcut: boolean;
+  // The category that surfaced this file (Project / Android / iOS / Web …) and its
+  // codicon, both supplied by the host. They drive the files pane's collapsible
+  // group header so the launcher groups by area exactly as the sidebar tree does.
+  // Passed in (not derived here) so this module stays free of the vscode-importing
+  // model that owns the glyph map.
+  readonly category: string;
+  readonly categoryGlyph: string;
 }
 
-// Build the launcher card for one surfaced project file (README / CHANGELOG / manifest).
-// The glyph + tint come from the SAME fileTypeIcon map the tree row uses, and the
-// secondary line mirrors the Project Files sidebar row: version (when known) leads, then
-// freshness, then a "· shortcut" tag when the file is already a project shortcut. Openable,
-// not runnable — a primary click expands the drawer; its Open opens the file in the editor.
+// Build the launcher card for one surfaced project file (README / CHANGELOG / manifest /
+// platform config). The glyph + tint come from the SAME fileTypeIcon map the tree row uses;
+// the category drives the files pane's group header so the launcher groups by area exactly as
+// the sidebar tree does. The secondary line mirrors the Project Files sidebar row: version
+// (when known) leads, then freshness, then a "· shortcut" tag when the file is already a
+// project shortcut. Openable, not runnable — a primary click expands the drawer; its Open
+// opens the file in the editor.
 export function fileLauncherItem(f: FileItemInput): LauncherItem {
   const token = fileTypeIcon(f.fileName) ?? {
     icon: "file",
@@ -388,15 +407,24 @@ export function fileLauncherItem(f: FileItemInput): LauncherItem {
     sub,
     desc: f.path,
     pane: "files",
-    section: l10n("launcher.filesSection"),
-    groupId: "files",
-    groupIcon: "files",
+    // The group header IS the category name (the pane title already says "Project
+    // files", so the header need not repeat it). The id is namespaced by category so
+    // its collapse state is stable and never collides with another pane's group id.
+    // The webview renders these flat when only one category is present (no lone
+    // header over the pane title) and grouped once a second category appears.
+    section: f.category,
+    groupId: "files:" + f.category,
+    groupIcon: f.categoryGlyph,
     groupColor: "charts.green",
     icon: token.icon,
     color: token.color,
     kind: "file",
     runnable: false,
     openable: true,
+    // A surfaced project file has a concrete on-disk path; expose the drawer's Copy path
+    // button so the user can grab the location without opening the file. The host resolves
+    // the path from the card id (which is the absolute fsPath for a project file).
+    copyable: true,
     menu: [],
   };
 }

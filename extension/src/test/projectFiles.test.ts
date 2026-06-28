@@ -18,7 +18,10 @@ import {
 import {
   scanProjectFiles,
   extractVersion,
-  DEFAULT_PROJECT_FILES,
+  groupFilesByCategory,
+  glyphForCategory,
+  DEFAULT_PROJECT_FILE_GROUPS,
+  type ProjectFileGroup,
   type ProjectFileInfo,
 } from "../model/projectFiles";
 import type { WorkspaceFolder as VscodeFolder } from "vscode";
@@ -27,6 +30,13 @@ import type { WorkspaceFolder as VscodeFolder } from "vscode";
 // models the slice the scan reads (uri / name). Cast at the call site.
 const asFolders = (f: WorkspaceFolder[]): readonly VscodeFolder[] =>
   f as unknown as readonly VscodeFolder[];
+
+// Wrap a flat list of paths as a single ad-hoc category, so the existing scan
+// tests can pass names without restating the group shape each time.
+const oneGroup = (
+  category: string,
+  ...files: string[]
+): readonly ProjectFileGroup[] => [{ category, glyph: "package", files }];
 
 let tmpDir: string;
 let folder: WorkspaceFolder;
@@ -58,7 +68,7 @@ test("scan surfaces only the configured files that actually exist", async () => 
   write("package.json", '{ "version": "1.2.3" }\n');
   const results = await scanProjectFiles(
     asFolders([folder]),
-    ["README.md", "package.json", "CHANGELOG.md"]
+    oneGroup("Project", "README.md", "package.json", "CHANGELOG.md")
   );
   const names = results.map((r) => r.name).sort();
   assert.deepEqual(names, ["README.md", "package.json"]);
@@ -71,7 +81,7 @@ test("scan reads a version from a version-bearing file and leaves others version
   write("README.md", "no version here\n");
   const results = await scanProjectFiles(
     asFolders([folder]),
-    ["package.json", "README.md"]
+    oneGroup("Project", "package.json", "README.md")
   );
   const pkg = results.find((r) => r.name === "package.json");
   const readme = results.find((r) => r.name === "README.md");
@@ -83,9 +93,14 @@ test("scan carries the owning folder name and the file mtime", async () => {
   // folderName groups rows when several folders are open; modified reflects live
   // edits (file mtime), which is what answers "is the changelog current".
   write("CHANGELOG.md", "## [2.0.0] - 2026-06-25\n");
-  const results = await scanProjectFiles(asFolders([folder]), ["CHANGELOG.md"]);
+  const results = await scanProjectFiles(
+    asFolders([folder]),
+    oneGroup("Project", "CHANGELOG.md")
+  );
   const info = results[0] as ProjectFileInfo;
   assert.equal(info.folderName, "proj");
+  // The surfacing category is carried on every result so the view can group by it.
+  assert.equal(info.category, "Project");
   assert.equal(typeof info.modified, "number");
   assert.ok(info.modified > 0, "mtime should be a real epoch-ms value");
   // CHANGELOG is version-bearing: the first real release heading is reported.
@@ -95,27 +110,92 @@ test("scan carries the owning folder name and the file mtime", async () => {
 test("a directory named like a candidate is ignored (file type guard)", async () => {
   // A folder named "LICENSE" must not be surfaced — only a real file qualifies.
   nodeFs.mkdirSync(nodePath.join(tmpDir, "LICENSE"), { recursive: true });
-  const results = await scanProjectFiles(asFolders([folder]), ["LICENSE"]);
+  const results = await scanProjectFiles(
+    asFolders([folder]),
+    oneGroup("Project", "LICENSE")
+  );
   assert.equal(results.length, 0, "a directory matching a candidate name is skipped");
 });
 
 test("a malformed manifest surfaces the file with no version rather than throwing", async () => {
   // One bad manifest must not break the whole view: it is surfaced version-less.
   write("package.json", "{ this is not valid json ");
-  const results = await scanProjectFiles(asFolders([folder]), ["package.json"]);
+  const results = await scanProjectFiles(
+    asFolders([folder]),
+    oneGroup("Project", "package.json")
+  );
   assert.equal(results.length, 1, "the malformed file is still surfaced");
   assert.equal(results[0].version, undefined);
 });
 
-test("the default file list spans the common manifests and docs", async () => {
-  // The default set is the provenance/version-bearing manifests across stacks plus
-  // the standard docs; assert the load-bearing members are present.
-  for (const name of ["README.md", "CHANGELOG.md", "package.json", "pubspec.yaml", "Cargo.toml"]) {
+test("the default catalog spans the common manifests, docs, and platform configs", () => {
+  // Flatten the curated groups and assert the load-bearing members are present:
+  // the cross-stack root manifests/docs in Project, plus the curated Android core
+  // (including a nested path) so the catalog actually reaches into subfolders.
+  const byCategory = new Map(
+    DEFAULT_PROJECT_FILE_GROUPS.map((g) => [g.category, g.files])
+  );
+  for (const name of ["README.md", "CHANGELOG.md", "package.json", "pubspec.yaml", "analysis_options.yaml"]) {
     assert.ok(
-      DEFAULT_PROJECT_FILES.includes(name),
-      `default project files should include ${name}`
+      byCategory.get("Project")?.includes(name),
+      `Project group should include ${name}`
     );
   }
+  assert.ok(
+    byCategory.get("Android")?.includes("android/app/build.gradle"),
+    "Android group should reach the nested app build.gradle"
+  );
+  assert.ok(byCategory.has("iOS"), "catalog carries an iOS group");
+  assert.ok(byCategory.has("Web"), "catalog carries a Web group");
+});
+
+test("scan tags each file with the category that surfaced it and reaches nested paths", async () => {
+  // A nested path under a category surfaces by its full relative name and carries
+  // the owning category, which is what lets the view group it under "Android".
+  write("android/app/build.gradle", "// app gradle\n");
+  write("README.md", "# hi\n");
+  const groups: readonly ProjectFileGroup[] = [
+    { category: "Project", glyph: "package", files: ["README.md"] },
+    { category: "Android", glyph: "device-mobile", files: ["android/app/build.gradle"] },
+  ];
+  const results = await scanProjectFiles(asFolders([folder]), groups);
+  const gradle = results.find((r) => r.name === "android/app/build.gradle");
+  assert.equal(gradle?.category, "Android");
+  const readme = results.find((r) => r.name === "README.md");
+  assert.equal(readme?.category, "Project");
+});
+
+// --- groupFilesByCategory (pure grouping) --------------------------------
+
+// A minimal ProjectFileInfo for the pure grouping tests — only category is read.
+const infoIn = (category: string, name: string): ProjectFileInfo =>
+  ({ category, name } as unknown as ProjectFileInfo);
+
+test("groupFilesByCategory buckets in catalog order and drops empty categories", () => {
+  const found = [
+    infoIn("Android", "android/build.gradle"),
+    infoIn("Project", "README.md"),
+    infoIn("Android", "android/gradle.properties"),
+  ];
+  // Order lists iOS before it has any files: an empty category must not appear.
+  const grouped = groupFilesByCategory(found, ["Project", "Android", "iOS"]);
+  assert.deepEqual(grouped.map((g) => g.category), ["Project", "Android"]);
+  assert.equal(grouped[1].files.length, 2, "both Android files land in one bucket");
+});
+
+test("groupFilesByCategory keeps a user-defined category after the known ones", () => {
+  const found = [infoIn("Project", "README.md"), infoIn("Custom", "notes.md")];
+  const grouped = groupFilesByCategory(found, ["Project", "Android"]);
+  // "Custom" is not in the supplied order, so it follows the ordered groups.
+  assert.deepEqual(grouped.map((g) => g.category), ["Project", "Custom"]);
+});
+
+test("glyphForCategory returns the catalog glyph for a known category, folder for unknown", () => {
+  assert.equal(glyphForCategory("Web"), "globe");
+  assert.equal(glyphForCategory("Android"), "device-mobile");
+  // An unknown (user-defined) category falls back to the generic folder glyph
+  // rather than an id that would render blank.
+  assert.equal(glyphForCategory("Whatever"), "folder");
 });
 
 // --- extractVersion (pure parser) ---------------------------------------

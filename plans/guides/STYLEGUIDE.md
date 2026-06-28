@@ -105,18 +105,26 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   the tint; structural labels stay neutral.
 - **A primary click expands the card; it does not open or run.** The launcher
   diverges from the product's single-click-opens model on purpose: a click toggles
-  an inline drawer (full name, full path, description, and Open/Run buttons) so
-  browsing is non-destructive. One-click execution still exists — the compact ▶ in
-  the card head runs without expanding. (Reconciled with the developer 2026-06-27:
-  the launcher is a browse-and-choose surface, where an accidental open/run on a
-  click is the worse failure; the tree keeps single-click-opens.)
-- **One Run affordance per state: head ▶ when collapsed, labeled Run when
-  expanded — never both at once.** The drawer carries a full labeled Run button, so
-  the head's compact ▶ (`.card.expanded .run`) is hidden once expanded; showing both
-  put two Run buttons on the same card (developer feedback 2026-06-27). The drawer's
-  Open/Run actions are right-aligned (`.drawer-actions { justify-content: flex-end }`)
-  at the card's trailing edge, away from the leading name/path column, with a little
-  extra vertical space around the drawer so the actions are easier to hit.
+  an inline drawer (full name, full path, description, and secondary action buttons)
+  so browsing is non-destructive. One-click execution still exists — the head button
+  acts without expanding. (Reconciled with the developer 2026-06-27: the launcher is
+  a browse-and-choose surface, where an accidental open/run on a click is the worse
+  failure; the tree keeps single-click-opens.)
+- **The head button carries the card's primary action; the drawer carries the
+  rest.** The head's blue button leads with the action that matches the card: **Open**
+  for a file shortcut (a document's main intent — running it is secondary), **Run**
+  for a non-file action. It is icon-only in the compact grid and grows its text label
+  (`.run-label`) only when the card expands, so the head stays narrow among its
+  row-mates but names its action once opened — and it stays visible in both states
+  (it is no longer hidden on expand). The drawer omits whatever action the head
+  already carries, so a card never shows a duplicate Open or Run: a file shortcut
+  reads **Open** on the head and **Run** in the drawer; a non-file action reads
+  **Run** on the head and nothing redundant below (developer feedback 2026-06-28,
+  superseding the earlier "head ▶ hidden once expanded" rule — a document leading
+  with a Run button read wrong). The drawer's actions are right-aligned
+  (`.drawer-actions { justify-content: flex-end }`) at the card's trailing edge, away
+  from the leading name/path column, with a little extra vertical space around the
+  drawer so the actions are easier to hit.
 - **A webview surface mirrors the sidebar context menu as a flat, grouped custom
   menu — it cannot host native submenus.** Right-click opens an HTML menu built
   from a host-supplied, localized spec (`LauncherMenuEntry[]` from `launcherItems`),
@@ -152,16 +160,22 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   back the new id so the editor opens on the stored copy, pre-filled from the
   recipe's own schedule when it carries one (developer feedback 2026-06-28). Both
   command ids are on the launcher's `MENU_COMMANDS` allowlist.
-- **A single-category sidebar surface joins the launcher as a FLAT pane, not a
-  grouped one.** Beyond My shortcuts and Recipes, the launcher also mirrors the
-  Watches and Project files sidebar views. Those are flat lists (no inner folders),
-  so their launcher panes render their cards directly under the pane head with no
-  collapsible group — wrapping a single category in one group would just double the
-  header ("WATCHES" over a lone "Watches" group). The pane title + count is the only
-  header; `.pane-flat` adds a little top margin so the first row clears the pane-head
-  divider. The grouped panes (mine / recipes) keep their collapsible groups. The
-  reflowing `repeat(auto-fit, minmax(340px, 1fr))` track is unchanged — flat and
-  grouped panes sit on the same grid, in fixed order (mine, recipes, watches, files).
+- **A mirrored pane is flat ONLY while it has a single category; it groups the
+  moment a second appears.** Beyond My shortcuts and Recipes, the launcher mirrors
+  the Watches and Project files sidebar views. Watches is always a single flat list,
+  so its pane renders cards directly under the pane head with no collapsible group —
+  wrapping a lone category in one group would just double the header ("WATCHES" over a
+  lone "Watches" group). The Project files pane follows the SAME "group only when it
+  earns it" rule the tree does (§3): it renders flat when only one area (Project /
+  Android / iOS / Web) has matches, and switches to collapsible per-area groups —
+  glyph + count headers, identical to the mine/recipes groups — once a second area is
+  present. `paneModel` decides this per paint from the file groups' count; the host
+  emits the file cards in catalog order (Project first, then the platform areas) and
+  name-sorted within an area, and each card carries its category as `section` + a
+  `files:<category>` `groupId` so collapse state is stable. `.pane-flat` adds a little
+  top margin so a flat pane's first row clears the pane-head divider. The reflowing
+  `repeat(auto-fit, minmax(340px, 1fr))` track is unchanged — flat and grouped panes
+  sit on the same grid, in fixed order (mine, recipes, watches, files).
 - **A mirrored pane reads from its OWN source and stays openable-not-runnable.** A
   watch/file card is built from the same source the sidebar tree reads (the
   `FolderWatchStore`; the project-files provider's `listSurfacedFiles`), wears the
@@ -300,12 +314,15 @@ category labels for the synthetic tree folders defined in
 `RECIPE_SUBGROUPS`, `RECOMMENDED_GROUP_DEF`) and the built-in default project
 groups (`DEFAULT_GROUPS`: Build / Run / Deploy / Test / Docs / Data / Code) — are
 written inline in American English alongside the folder's stable id, glyph, and
-tint, not through `l10n`. They are one-word structural folder names that live in a
-const routing table rather than at a call site, and keeping the label beside the
-id/icon/color keeps the table a single source of truth. This is the established
-convention for every synthetic group; match it rather than externalizing one table
-in isolation. Everything else a user reads from these features — the "added to
-{group}" toast, the setting description — stays externalized per the table above.
+tint, not through `l10n`. The same convention covers the **Project Files category
+groups** (`DEFAULT_PROJECT_FILE_GROUPS` in `model/projectFiles.ts`: Project /
+Android / iOS / Web): each category's label + glyph sit inline beside its file
+list. They are one-word structural folder names that live in a const routing table
+rather than at a call site, and keeping the label beside the id/icon/color keeps
+the table a single source of truth. This is the established convention for every
+synthetic group; match it rather than externalizing one table in isolation.
+Everything else a user reads from these features — the "added to {group}" toast,
+the setting description — stays externalized per the table above.
 
 **Webview client-script strings are currently inline.** A webview's injected
 client script (e.g. `PLANNER_SCRIPT` in `plannerScript.ts`) runs in the browser
@@ -431,6 +448,19 @@ in [`principles.md`](./principles.md).)
   config purple, data green, docs/media neutral). Add a new file type to that map
   rather than inventing a glyph at a call site; an unmapped type falls back to the
   generic shortcut glyph, never to a blank.
+- **A tree introduces a grouping level only when it earns one — never a header
+  over a single group.** When a view can group its rows (the Project Files view by
+  category, a multi-folder workspace by folder), render the group headers ONLY when
+  more than one group actually has rows; with a single group, list the rows flat
+  under the view. A lone "Project" header over the only files present is pure
+  indirection — an extra expand for no disambiguation. Project Files applies this
+  twice: category headers (Project / Android / iOS / Web) appear only when a second
+  category has matches, and they nest under the folder headers that already appear
+  only when a second workspace folder is open. The grouping rule is the call site's,
+  not the data's — the pure `groupFilesByCategory` always returns every non-empty
+  bucket in catalog order, and the provider decides flat-vs-grouped from the bucket
+  count. A category's glyph comes from the catalog (`glyphForCategory`); a
+  user-defined category falls back to the generic `folder` glyph rather than a blank.
 - **A context menu past roughly a dozen items folds into labeled submenus, not one
   long flyout.** A `view/item/context` dropdown that grows past a screen-height of
   items is unscannable. Keep the few most-used actions (Open, Run) at the top

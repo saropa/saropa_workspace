@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as crypto from "crypto";
 import * as path from "path";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutKind } from "../model/shortcut";
 import { FolderWatchStore } from "../model/folderWatch";
 import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutInteraction";
@@ -13,6 +14,7 @@ import {
   LauncherItem,
 } from "./launcherItems";
 import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
+import { glyphForCategory } from "../model/projectFiles";
 import { LAUNCHER_STYLE, LAUNCHER_SCRIPT } from "./launcherAssets";
 
 // The "Saropa Launcher" Panel webview: a second, always-reachable window onto the same
@@ -161,6 +163,39 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       }
       return;
     }
+    // Copy a file-backed card's full on-disk path to the clipboard, resolved host-side by
+    // the card's id so the webview never carries or is trusted with a path. A file shortcut/
+    // recipe resolves through the store (its stored path may be folder-relative, so resolve
+    // to the absolute fsPath); a surfaced project file's id is its absolute path, re-validated
+    // against the live surfaced-files list. Either way the toast names the file.
+    if (msg.type === "copyPath" && typeof msg.id === "string") {
+      const shortcut = this.store.findShortcut(msg.id);
+      if (shortcut) {
+        // Only file shortcuts have a meaningful on-disk path; a shell/macro/routine does not.
+        if (shortcutKind(shortcut) !== "file") {
+          return;
+        }
+        const full = this.store.resolveUri(shortcut)?.fsPath ?? shortcut.path;
+        await vscode.env.clipboard.writeText(full);
+        void vscode.window.showInformationMessage(
+          l10n("launcher.copiedPath", {
+            name: shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path),
+          })
+        );
+        return;
+      }
+      const files = await this.projectFiles.listSurfacedFiles();
+      const target = files.find((f) => f.uri.fsPath === msg.id);
+      if (target) {
+        await vscode.env.clipboard.writeText(target.uri.fsPath);
+        void vscode.window.showInformationMessage(
+          l10n("launcher.copiedPath", {
+            name: target.name.split("/").pop() ?? target.name,
+          })
+        );
+      }
+      return;
+    }
 
     if (typeof msg.id !== "string") {
       return;
@@ -198,6 +233,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       strings: {
         run: l10n("launcher.run"),
         open: l10n("launcher.open"),
+        copyPath: l10n("launcher.copyPath"),
         pin: l10n("launcher.pin"),
         schedule: l10n("launcher.schedule"),
         mine: l10n("launcher.mineSection"),
@@ -234,25 +270,42 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       );
     }
 
-    // One card per surfaced project file, sorted by displayed name to match the tree's
-    // ordering. The relative time is stamped from one clock read so every card in this
-    // paint shares the same "now".
+    // One card per surfaced project file. Ordered by category first (the scan returns
+    // files in catalog order — Project, then the platform groups — so first appearance
+    // here gives the launcher's group order), then by displayed name within a category
+    // to match the tree. The relative time is stamped from one clock read so every card
+    // in this paint shares the same "now".
     const now = Date.now();
     const files = await this.projectFiles.listSurfacedFiles();
-    const fileItems = files
-      .map((f) =>
-        fileLauncherItem({
-          path: f.uri.fsPath,
-          fileName: f.name.split("/").pop() ?? f.name,
-          version: f.version,
-          relative: formatRelativeTime(f.modified, now),
-          isShortcut:
-            this.store.findShortcutByUri(f.uri, "project") !== undefined,
-        })
-      )
-      .sort((a, b) =>
-        a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
-      );
+    const categoryOrder: string[] = [];
+    for (const f of files) {
+      if (!categoryOrder.includes(f.category)) {
+        categoryOrder.push(f.category);
+      }
+    }
+    const fileName = (name: string): string => name.split("/").pop() ?? name;
+    const ordered = [...files].sort((a, b) => {
+      const byCategory =
+        categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category);
+      if (byCategory !== 0) {
+        return byCategory;
+      }
+      return fileName(a.name).localeCompare(fileName(b.name), undefined, {
+        sensitivity: "base",
+      });
+    });
+    const fileItems = ordered.map((f) =>
+      fileLauncherItem({
+        path: f.uri.fsPath,
+        fileName: fileName(f.name),
+        version: f.version,
+        relative: formatRelativeTime(f.modified, now),
+        isShortcut:
+          this.store.findShortcutByUri(f.uri, "project") !== undefined,
+        category: f.category,
+        categoryGlyph: glyphForCategory(f.category),
+      })
+    );
     items.push(...fileItems);
 
     return items;

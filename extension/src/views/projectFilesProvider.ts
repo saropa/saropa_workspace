@@ -1,7 +1,10 @@
 import * as vscode from "vscode";
 import {
-  DEFAULT_PROJECT_FILES,
+  DEFAULT_PROJECT_FILE_GROUPS,
+  ProjectFileGroup,
   ProjectFileInfo,
+  glyphForCategory,
+  groupFilesByCategory,
   scanProjectFiles,
 } from "../model/projectFiles";
 import { ShortcutStore } from "../model/shortcutStore";
@@ -68,39 +71,63 @@ export class ProjectFilesTreeProvider
     if (folders.length === 0) {
       return [];
     }
-    return scanProjectFiles(folders, configuredFiles());
+    return scanProjectFiles(folders, configuredGroups());
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
     const folders = vscode.workspace.workspaceFolders ?? [];
 
-    // A folder node was expanded: list just that folder's files. This is a
-    // sub-scan of one folder, so it does not change the published total count.
+    // A category node was expanded: list just that category's files (already
+    // resolved when the node was built, so no re-scan).
+    if (element instanceof ProjectCategoryNode) {
+      return sortByName(element.files).map((info) => this.toItem(info));
+    }
+
+    // A folder node was expanded (only when several folders are open): list that
+    // folder's files, themselves grouped by category when more than one category
+    // is present there. A sub-scan of one folder, so the total count is unchanged.
     if (element instanceof ProjectFolderNode) {
       if (!isEnabled() || folders.length === 0) {
         return [];
       }
       const found = await scanProjectFiles(
         folders.filter((f) => f.name === element.folderName),
-        configuredFiles()
+        configuredGroups()
       );
-      return sortByName(found).map((info) => this.toItem(info));
+      return this.byCategoryOrFlat(found);
     }
 
-    // Roots. With a single folder the files are listed flat; with several open,
-    // they are grouped under a folder node so the same filename in two folders
-    // stays distinguishable. Either way `found` is the full set across all
-    // folders, so its length is the total shown on the view title.
+    // Roots. With several folders open the files group under a folder node first
+    // so the same filename in two folders stays distinguishable; within a folder
+    // (or, with one folder, at the root) they group by category — but only when
+    // more than one category is actually present, otherwise they list flat.
+    // Either way `found` is the full set across all folders, so its length is the
+    // total shown on the view title.
     if (!element) {
       const found = await this.listSurfacedFiles();
       this.setCount(found.length);
       if (folders.length > 1) {
         return folderNodes(found);
       }
-      return sortByName(found).map((info) => this.toItem(info));
+      return this.byCategoryOrFlat(found);
     }
 
     return [];
+  }
+
+  // Render a set of surfaced files either as category group nodes or as a flat,
+  // name-sorted list. Grouping appears only when more than one category is
+  // present (the "don't add a header for a single group" rule): a plain repo with
+  // only root docs reads as one flat list exactly as before.
+  private byCategoryOrFlat(found: readonly ProjectFileInfo[]): vscode.TreeItem[] {
+    const order = configuredGroups().map((g) => g.category);
+    const grouped = groupFilesByCategory(found, order);
+    if (grouped.length <= 1) {
+      return sortByName(found).map((info) => this.toItem(info));
+    }
+    return grouped.map(
+      (g) => new ProjectCategoryNode(g.category, g.files)
+    );
   }
 
   // Build a row, marking it as a shortcut when the project scope already has a
@@ -144,10 +171,31 @@ function isEnabled(): boolean {
     .get<boolean>("projectFiles.enabled", true);
 }
 
-function configuredFiles(): readonly string[] {
-  return vscode.workspace
+// The configured category catalog: a `{ category: [paths] }` map from settings,
+// resolved into ordered groups. The setting carries paths only; each category's
+// glyph is looked up from the curated defaults (a user-defined category falls
+// back to the folder glyph), so settings stay a simple path list. Falls back to
+// the default catalog when the setting is unset. Object key order is the JSON
+// insertion order, which is the order the groups render in.
+function configuredGroups(): readonly ProjectFileGroup[] {
+  const map = vscode.workspace
     .getConfiguration("saropaWorkspace")
-    .get<string[]>("projectFiles.files", [...DEFAULT_PROJECT_FILES]);
+    .get<Record<string, string[]>>("projectFiles.groups", defaultGroupsMap());
+  return Object.entries(map).map(([category, files]) => ({
+    category,
+    glyph: glyphForCategory(category),
+    files,
+  }));
+}
+
+// The default catalog as the `{ category: [paths] }` shape the setting uses, so
+// the in-code default and the configured value share one structure.
+function defaultGroupsMap(): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  for (const group of DEFAULT_PROJECT_FILE_GROUPS) {
+    map[group.category] = [...group.files];
+  }
+  return map;
 }
 
 // A single surfaced file. resourceUri gives the themed file-type icon and lets
@@ -207,6 +255,23 @@ class ProjectFolderNode extends vscode.TreeItem {
     this.contextValue = "projectFolder";
     this.description = String(count);
     this.iconPath = new vscode.ThemeIcon("folder");
+  }
+}
+
+// Category grouping node (Project / Android / iOS / Web …), shown only when more
+// than one category has surfaced files. Carries its own resolved files so the
+// expand does not re-scan; its glyph comes from the catalog. The label is the
+// category name itself — a structural folder name, inline American English, like
+// the synthetic shortcut groups (STYLEGUIDE §2).
+class ProjectCategoryNode extends vscode.TreeItem {
+  constructor(
+    readonly category: string,
+    readonly files: readonly ProjectFileInfo[]
+  ) {
+    super(category, vscode.TreeItemCollapsibleState.Expanded);
+    this.contextValue = "projectCategory";
+    this.description = String(files.length);
+    this.iconPath = new vscode.ThemeIcon(glyphForCategory(category));
   }
 }
 

@@ -23,6 +23,23 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Project Files view now reaches into platform subfolders and groups what it finds by area. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- **Project Files now surfaces platform config and groups files by area.** Beyond the root README / changelog / manifests, the view now finds the config files that live in subfolders — the Android Gradle files (`android/settings.gradle`, `android/gradle.properties`, `android/app/build.gradle`, the top-level `build.gradle`, plus their `.kts` Kotlin-DSL spellings and the `AndroidManifest.xml`), the iOS `Podfile` and `Info.plist`, and the web `index.html` / `manifest.json` — and shows them under collapsible **Project / Android / iOS / Web** group headers. Each file still appears only when it actually exists, so a project without an `android/` folder shows no Android group. `analysis_options.yaml` and `l10n.yaml` are now recognized in the Project group.
+- **The Saropa Launcher's Project files pane groups by area too.** The bottom-Panel launcher's Project files pane now mirrors the sidebar's area grouping: its cards fold under collapsible **Project / Android / iOS / Web** headers when more than one area is present, and stay one flat list otherwise. Each group folds independently and its state persists across reloads, like the My shortcuts and Recipes groups.
+
+### Changed
+
+- **Project Files grouping only appears when it earns its place.** Files group under area headers only when more than one area has matches; a plain repo with just a README and a manifest still reads as one flat list, with no header to expand.
+- **The Project Files setting is now a category map.** `saropaWorkspace.projectFiles.files` (a flat list) is replaced by `saropaWorkspace.projectFiles.groups`, a map of category name to file paths, so you can curate which files show under which area — or add your own category. Paths may be nested (for example `android/app/build.gradle`); only the file name shows in the row. A custom category you add gets a generic folder icon.
+- **A file shortcut in the Saropa Launcher now leads with Open, not Run.** A document card's blue head button opens the file (its main intent); running it moves to the drawer as the secondary action. A non-file action card still leads with Run. The head button is icon-only in the compact grid and shows its **Open** / **Run** label once you expand the card.
+
+---
+
 ## [1.5.7]
 
 The launcher now shows your watches and project files too, has more breathing room, and lets you pin or schedule a recommended recipe straight from its card. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.7/CHANGELOG.md)
@@ -32,10 +49,12 @@ The launcher now shows your watches and project files too, has more breathing ro
 - **Watches and Project files now show in the Saropa Launcher.** The bottom-Panel launcher gains two new panes beside My shortcuts and Recipes: **Watches** (every folder/file watch, with the same eye / bell state and unseen-file count as the sidebar) and **Project files** (every surfaced README / changelog / manifest, with its version and how long ago it changed). They are searchable with everything else; opening a watch card opens what changed and clears its count, and opening a file card opens the file.
 - **Pin and Schedule buttons on recipe cards.** A detected recipe's expanded card (and its right-click menu) now offers **Pin** — adopt it into My shortcuts — and **Schedule** — adopt it and open the schedule editor on the new shortcut, pre-filled from the recipe's own time when it carries one (for example a "daily 09:00" recommendation), so keeping or automating a recommendation takes one step instead of hunting for the action.
 - **Collapsible launcher sections.** Each major section in the launcher — My shortcuts, Recipes, Watches, and Project files — now has a clickable heading that folds the whole section away, so you can keep only the sections you are using on screen. The fold state persists across reloads, the panes still reflow side by side or stacked as the Panel resizes, and a search reveals matches inside a folded section.
+- **Copy path button on file cards.** Any file-backed card's expanded drawer — a file shortcut, a file recipe, or a Project files entry — now has a **Copy path** button that copies the file's full path to the clipboard and confirms with a message naming the file, so you can grab a file's location without opening it.
 
 ### Changed
 
 - **More space around launcher cards and group headings.** The card grid has a larger gap, cards carry more vertical padding, and each group heading has more room above and around it so the board no longer reads as one dense block.
+- **Wider launcher cards.** Each card is about 30% wider so longer names and paths fit on one line before clipping.
 
 ### Fixed
 

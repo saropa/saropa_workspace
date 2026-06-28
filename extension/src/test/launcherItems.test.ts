@@ -353,6 +353,8 @@ test("a project file card carries version + freshness and its file-type glyph", 
     version: "1.2.3",
     relative: "2h ago",
     isShortcut: false,
+    category: "Project",
+    categoryGlyph: "package",
   });
   assert.equal(item.pane, "files");
   assert.equal(item.label, "pubspec.yaml");
@@ -364,6 +366,29 @@ test("a project file card carries version + freshness and its file-type glyph", 
   assert.equal(item.desc, "d:/src/app/pubspec.yaml");
   assert.equal(item.openable, true);
   assert.equal(item.runnable, false);
+  // The category drives the files-pane group header: the section is the bare category
+  // name, the groupId is namespaced so it cannot collide with another pane's group, and
+  // the header glyph is the category's, not the file's.
+  assert.equal(item.section, "Project");
+  assert.equal(item.groupId, "files:Project");
+  assert.equal(item.groupIcon, "package");
+});
+
+test("a project file card in a platform category carries that category's group identity", () => {
+  // An Android-category file groups under "Android" with the device-mobile glyph, so the
+  // launcher mirrors the sidebar tree's per-area grouping.
+  const item = fileLauncherItem({
+    path: "d:/src/app/android/app/build.gradle",
+    fileName: "build.gradle",
+    version: undefined,
+    relative: "1d ago",
+    isShortcut: false,
+    category: "Android",
+    categoryGlyph: "device-mobile",
+  });
+  assert.equal(item.section, "Android");
+  assert.equal(item.groupId, "files:Android");
+  assert.equal(item.groupIcon, "device-mobile");
 });
 
 test("a versionless project file that is already a shortcut shows freshness + the tag", () => {
@@ -373,6 +398,8 @@ test("a versionless project file that is already a shortcut shows freshness + th
     version: undefined,
     relative: "5d ago",
     isShortcut: true,
+    category: "Project",
+    categoryGlyph: "package",
   });
   assert.equal(item.sub, "5d ago · shortcut");
 });
@@ -384,6 +411,8 @@ test("an unmapped file type falls back to the generic file glyph", () => {
     version: undefined,
     relative: "just now",
     isShortcut: false,
+    category: "Project",
+    categoryGlyph: "package",
   });
   assert.equal(item.icon, "file");
   assert.equal(item.color, "charts.foreground");
