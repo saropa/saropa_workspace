@@ -23,9 +23,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.6]
 
-The expanded launcher card is tidier: one Run button instead of two, its Open/Run buttons right-aligned, and a little more breathing room. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+The expanded launcher card is tidier: one Run button instead of two, its Open/Run buttons right-aligned, and a little more breathing room. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.6/CHANGELOG.md)
 
 ### Changed
 
