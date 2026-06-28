@@ -13,7 +13,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Shortcut, ShortcutGroup, ShortcutScope } from "../model/shortcut";
 import type { ShortcutStore } from "../model/shortcutStore";
-import { buildLauncherItems } from "../views/launcherItems";
+import {
+  buildLauncherItems,
+  watchLauncherItem,
+  fileLauncherItem,
+} from "../views/launcherItems";
 
 // A crafted Shortcut with sensible defaults; each test overrides only the fields it
 // asserts on, so the intent of a row reads at its call site.
@@ -279,4 +283,108 @@ test("a recipe's menu offers Pin and Schedule (adopt-then-schedule)", () => {
 
 test("an empty store yields no items", () => {
   assert.deepEqual(buildLauncherItems(asStore(empty)), []);
+});
+
+// --- watchLauncherItem ---------------------------------------------------------------
+// The Watches launcher card mirrors the Watches sidebar row's state visuals exactly (bell
+// when files are unseen, plain eye when idle, closed eye when disabled) and is openable but
+// never runnable. The sub line is the same English the watchesView.row* catalog keys define.
+
+test("an enabled watch with unseen files shows a blue bell and leads with the count", () => {
+  const item = watchLauncherItem({
+    id: "w1",
+    label: "bugs",
+    target: "d:/src/app/bugs",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+    unseen: 3,
+  });
+  assert.equal(item.pane, "watches");
+  assert.equal(item.icon, "bell-dot");
+  assert.equal(item.color, "charts.blue");
+  assert.equal(item.sub, "3 new - folder - Only new files");
+  assert.equal(item.label, "bugs");
+  // The drawer surfaces the watched path; the card opens, never runs.
+  assert.equal(item.desc, "d:/src/app/bugs");
+  assert.equal(item.openable, true);
+  assert.equal(item.runnable, false);
+  assert.deepEqual(item.menu, []);
+});
+
+test("an idle enabled watch shows a plain eye with no count", () => {
+  const item = watchLauncherItem({
+    id: "w1",
+    label: "schema",
+    target: "d:/src/app/schema.graphql",
+    isFile: true,
+    mode: "changed",
+    enabled: true,
+    unseen: 0,
+  });
+  assert.equal(item.icon, "eye");
+  assert.equal(item.color, "foreground");
+  assert.equal(item.sub, "file - New and changed files");
+});
+
+test("a disabled watch reads muted (closed eye, off) and shows no count", () => {
+  const item = watchLauncherItem({
+    id: "w1",
+    label: "bugs",
+    target: "d:/src/app/bugs",
+    isFile: false,
+    mode: "new",
+    enabled: false,
+    unseen: 5,
+  });
+  assert.equal(item.icon, "eye-closed");
+  assert.equal(item.color, "descriptionForeground");
+  assert.equal(item.sub, "off - folder - Only new files");
+});
+
+// --- fileLauncherItem ----------------------------------------------------------------
+// The Project Files launcher card reuses the tree's file-type token map and the Project
+// Files sidebar row's description (version leads, then freshness, then a "· shortcut" tag).
+
+test("a project file card carries version + freshness and its file-type glyph", () => {
+  const item = fileLauncherItem({
+    path: "d:/src/app/pubspec.yaml",
+    fileName: "pubspec.yaml",
+    version: "1.2.3",
+    relative: "2h ago",
+    isShortcut: false,
+  });
+  assert.equal(item.pane, "files");
+  assert.equal(item.label, "pubspec.yaml");
+  assert.equal(item.sub, "v1.2.3 · 2h ago");
+  assert.equal(item.icon, "settings-gear");
+  assert.equal(item.color, "charts.purple");
+  // The id IS the fsPath — the launcher host validates the open message against it.
+  assert.equal(item.id, "d:/src/app/pubspec.yaml");
+  assert.equal(item.desc, "d:/src/app/pubspec.yaml");
+  assert.equal(item.openable, true);
+  assert.equal(item.runnable, false);
+});
+
+test("a versionless project file that is already a shortcut shows freshness + the tag", () => {
+  const item = fileLauncherItem({
+    path: "d:/src/app/README.md",
+    fileName: "README.md",
+    version: undefined,
+    relative: "5d ago",
+    isShortcut: true,
+  });
+  assert.equal(item.sub, "5d ago · shortcut");
+});
+
+test("an unmapped file type falls back to the generic file glyph", () => {
+  const item = fileLauncherItem({
+    path: "d:/src/app/NOTES",
+    fileName: "NOTES",
+    version: undefined,
+    relative: "just now",
+    isShortcut: false,
+  });
+  assert.equal(item.icon, "file");
+  assert.equal(item.color, "charts.foreground");
 });

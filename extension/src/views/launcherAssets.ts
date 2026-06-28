@@ -121,6 +121,11 @@ header {
    glyph in the header), making the group-to-cards hierarchy read at a glance. */
 .group-body { padding-left: 20px; }
 
+/* A flat pane (Watches / Project files) has no inner collapsible group — its cards
+   sit directly under the pane head, like the sidebar's flat lists. A little top
+   margin keeps the first row off the pane-head divider so the board still breathes. */
+.pane-flat { margin-top: 10px; }
+
 .card {
   position: relative;
   display: flex; flex-direction: column;
@@ -270,17 +275,20 @@ function codicon(id) {
   return i;
 }
 
-// Group the flat item list into the two panes (fixed order: mine, then recipes), and within
-// each pane into groups in first-seen order — so the host controls ordering and a group/pane
-// renders only when it has an item.
+// Group the flat item list into the four panes in fixed order: the two grouped panes (mine,
+// then recipes — each split into collapsible groups in first-seen order) followed by the two
+// flat panes (watches, then files — a single card grid, no inner groups, like the sidebar's
+// flat lists). The host controls ordering; an empty pane/group is hidden by render/filter.
 function paneModel(list) {
-  const panes = [
-    { id: 'mine', title: strings.mine || 'My shortcuts', order: [], byId: {} },
-    { id: 'recipes', title: strings.recipes || 'Recipes', order: [], byId: {} },
-  ];
-  const byPane = { mine: panes[0], recipes: panes[1] };
+  const mine = { id: 'mine', title: strings.mine || 'My shortcuts', order: [], byId: {} };
+  const recipes = { id: 'recipes', title: strings.recipes || 'Recipes', order: [], byId: {} };
+  const watches = { id: 'watches', title: strings.watches || 'Watches', items: [] };
+  const files = { id: 'files', title: strings.files || 'Project files', items: [] };
+  const grouped = { mine: mine, recipes: recipes };
+  const flat = { watches: watches, files: files };
   for (const it of list) {
-    const pane = byPane[it.pane] || panes[0];
+    if (flat[it.pane]) { flat[it.pane].items.push(it); continue; }
+    const pane = grouped[it.pane] || mine;
     if (!pane.byId[it.groupId]) {
       pane.byId[it.groupId] = {
         id: it.groupId, label: it.section, icon: it.groupIcon, color: it.groupColor, items: [],
@@ -289,14 +297,28 @@ function paneModel(list) {
     }
     pane.byId[it.groupId].items.push(it);
   }
-  return panes.map(function (p) {
-    return { id: p.id, title: p.title, groups: p.order.map(function (gid) { return p.byId[gid]; }) };
-  });
+  function groupsOf(p) { return p.order.map(function (gid) { return p.byId[gid]; }); }
+  return [
+    { id: 'mine', title: mine.title, flat: false, groups: groupsOf(mine) },
+    { id: 'recipes', title: recipes.title, flat: false, groups: groupsOf(recipes) },
+    { id: 'watches', title: watches.title, flat: true, items: watches.items },
+    { id: 'files', title: files.title, flat: true, items: files.items },
+  ];
+}
+
+// Post the open action for a card, routed by pane: a watch opens its watch (clearing the
+// unseen counter host-side), a project file opens by its validated fsPath, and a shortcut/
+// recipe opens through the store by id. The host re-validates every target.
+function postOpen(it) {
+  if (it.pane === 'watches') { vscode.postMessage({ type: 'openWatch', id: it.id }); }
+  else if (it.pane === 'files') { vscode.postMessage({ type: 'openFile', path: it.id }); }
+  else { vscode.postMessage({ type: 'open', id: it.id }); }
 }
 
 function makeCard(it) {
   const card = document.createElement('div');
   card.className = 'card';
+  card.dataset.pane = it.pane;
   card.style.setProperty('--card-tint', cssVar(it.color));
   card.dataset.hay = (it.label + ' ' + it.sub + ' ' + (it.desc || '') + ' ' + it.section).toLowerCase();
 
@@ -354,8 +376,10 @@ function makeCard(it) {
   const actions = document.createElement('div');
   actions.className = 'drawer-actions';
   if (it.openable) {
-    actions.appendChild(actionButton(strings.open || 'Open', 'go-to-file', false, function () {
-      vscode.postMessage({ type: 'open', id: it.id });
+    // Open is the primary drawer action when the card has no Run (a watch/file card), and
+    // secondary when it does (a file shortcut, where Run is primary).
+    actions.appendChild(actionButton(strings.open || 'Open', 'go-to-file', !it.runnable, function () {
+      postOpen(it);
     }));
   }
   if (it.runnable) {
@@ -383,10 +407,15 @@ function makeCard(it) {
   card.addEventListener('click', function () {
     card.classList.toggle('expanded');
   });
-  card.addEventListener('contextmenu', function (e) {
-    e.preventDefault();
-    openMenu(it, e.clientX, e.clientY);
-  });
+  // Watch/file cards carry no right-click menu (empty it.menu); only the shortcut/recipe
+  // cards mirror the sidebar context menu, so the listener is attached only when there is
+  // something to show.
+  if (it.menu && it.menu.length) {
+    card.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      openMenu(it, e.clientX, e.clientY);
+    });
+  }
   return card;
 }
 
@@ -446,7 +475,11 @@ function render() {
     const paneEl = document.createElement('div');
     paneEl.className = 'pane';
     paneEl.dataset.pane = pane.id;
-    if (pane.groups.length === 0) { paneEl.classList.add('hidden'); }
+
+    // A grouped pane is empty when it has no groups; a flat pane when it has no cards.
+    const flatItems = pane.flat ? pane.items : null;
+    const isEmpty = pane.flat ? flatItems.length === 0 : pane.groups.length === 0;
+    if (isEmpty) { paneEl.classList.add('hidden'); }
 
     const head = document.createElement('div');
     head.className = 'pane-head';
@@ -457,12 +490,25 @@ function render() {
     const pc = document.createElement('span');
     pc.className = 'pane-count';
     let n = 0;
-    for (const g of pane.groups) { n += g.items.length; }
+    if (pane.flat) {
+      n = flatItems.length;
+    } else {
+      for (const g of pane.groups) { n += g.items.length; }
+    }
     pc.textContent = String(n);
     head.appendChild(pc);
     paneEl.appendChild(head);
 
-    for (const group of pane.groups) { paneEl.appendChild(makeGroup(group)); }
+    // Flat panes (Watches / Project files) render their cards directly under the pane head;
+    // grouped panes (My shortcuts / Recipes) render their collapsible groups.
+    if (pane.flat) {
+      const grid = document.createElement('div');
+      grid.className = 'grid pane-flat';
+      for (const it of flatItems) { grid.appendChild(makeCard(it)); }
+      paneEl.appendChild(grid);
+    } else {
+      for (const group of pane.groups) { paneEl.appendChild(makeGroup(group)); }
+    }
     panesEl.appendChild(paneEl);
   }
   root.appendChild(panesEl);
@@ -475,11 +521,15 @@ function render() {
 function applyFilter() {
   const needle = q.value.trim().toLowerCase();
   root.classList.toggle('searching', needle !== '');
+  // The header reads "{n} shortcuts", so its total counts only the shortcut + recipe cards,
+  // not the Watches / Project files panes; `shown` is the visible subset of that same total.
+  let total = 0;
   let shown = 0;
   for (const card of root.querySelectorAll('.card')) {
     const match = needle === '' || card.dataset.hay.indexOf(needle) !== -1;
     card.classList.toggle('hidden', !match);
-    if (match) { shown++; }
+    const counted = card.dataset.pane === 'mine' || card.dataset.pane === 'recipes';
+    if (counted) { total++; if (match) { shown++; } }
   }
   for (const group of root.querySelectorAll('.group')) {
     group.classList.toggle('hidden', !group.querySelector('.card:not(.hidden)'));
@@ -488,9 +538,9 @@ function applyFilter() {
     pane.classList.toggle('hidden', !pane.querySelector('.card:not(.hidden)'));
   }
   count.textContent = needle === ''
-    ? (strings.count || '{n}').replace('{n}', items.length)
+    ? (strings.count || '{n}').replace('{n}', total)
     : (strings.countFiltered || '{shown}/{total}')
-        .replace('{shown}', shown).replace('{total}', items.length);
+        .replace('{shown}', shown).replace('{total}', total);
 }
 
 // Build and show the right-click menu for a row at (x, y), drawing a divider whenever the

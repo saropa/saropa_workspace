@@ -25,15 +25,20 @@ cspell:disable
 
 ## [Unreleased]
 
-The launcher board has more breathing room, and recommended recipes can now be pinned or scheduled straight from the card. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+The launcher now shows your watches and project files too, has more breathing room, and lets you pin or schedule a recommended recipe straight from its card. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
 
 ### Added
 
+- **Watches and Project files now show in the Saropa Launcher.** The bottom-Panel launcher gains two new panes beside My shortcuts and Recipes: **Watches** (every folder/file watch, with the same eye / bell state and unseen-file count as the sidebar) and **Project files** (every surfaced README / changelog / manifest, with its version and how long ago it changed). They are searchable with everything else; opening a watch card opens what changed and clears its count, and opening a file card opens the file.
 - **Pin and Schedule buttons on recipe cards.** A detected recipe's expanded card (and its right-click menu) now offers **Pin** — adopt it into My shortcuts — and **Schedule** — adopt it and open the schedule editor on the new shortcut, pre-filled from the recipe's own time when it carries one (for example a "daily 09:00" recommendation), so keeping or automating a recommendation takes one step instead of hunting for the action.
 
 ### Changed
 
 - **More space around launcher cards and group headings.** The card grid has a larger gap, cards carry more vertical padding, and each group heading has more room above and around it so the board no longer reads as one dense block.
+
+### Fixed
+
+- **Folder-watch confirmations now clear themselves.** The "Watching `bugs` for new and changed files" message (and the matching added / removed / no-watches confirmations) used to linger on screen until dismissed by hand. These one-time acknowledgments now disappear on their own a few seconds after they appear. The "files changed — Open" alert is unchanged: it carries an action and stays until you act on it.
 
 ---
 

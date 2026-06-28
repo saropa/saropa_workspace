@@ -435,6 +435,29 @@ Background and scheduled runs always surface an outcome — a toast and/or the
 output channel. Terminal and external-window runs that cannot be tracked to an
 exit code report only on start, and that limitation is stated, not hidden.
 
+### 4.1a Transient confirmations auto-dismiss; action alerts persist
+
+A toast that only *confirms* something already happened ("Watching `bugs` for new
+and changed files", "Stopped watching `bugs`") must clear itself — it has served
+its purpose the moment it is read. A buttonless `showInformationMessage` carries
+no timeout and can linger in the toast stack until the user dismisses it by hand,
+which reads as a stuck notification. Route a transient confirmation through a
+progress notification that resolves after a short delay so it auto-dismisses:
+
+```ts
+vscode.window.withProgress(
+  { location: vscode.ProgressLocation.Notification, title: message },
+  () => new Promise<void>((resolve) => setTimeout(resolve, 4000))
+);
+```
+
+A toast that the user is expected to **act on** keeps its plain
+`showInformationMessage(message, action)` form and persists until dismissed — the
+action button is the whole point, and auto-dismissing it would drop the offer. Rule
+of thumb: a notification with an action button stays; a pure acknowledgment goes.
+The folder-watch confirmations use the auto-dismiss helper; the engine's "files
+changed — Open" alert keeps the persistent action form.
+
 ### 4.2 Name the item acted on, carry the concrete value
 
 A confirmation the user cannot tie to a specific item is noise. Surfaces name the

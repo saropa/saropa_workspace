@@ -15,6 +15,8 @@
   "launcher.empty": "No shortcuts yet. Add a file as a shortcut, then it shows here and in the Shortcuts view.",
   "launcher.mineSection": "My shortcuts",
   "launcher.recipesSection": "Recipes",
+  "launcher.watchesSection": "Watches",
+  "launcher.filesSection": "Project files",
   "launcher.count": "{n} shortcuts",
   "launcher.countFiltered": "{shown} of {total}",
   "launcher.menu.open": "Open",

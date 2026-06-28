@@ -21,6 +21,27 @@ function newId(): string {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
 }
 
+// How long a one-time watch confirmation stays on screen before clearing itself.
+// Long enough to read the sentence, short enough that it never becomes clutter.
+const WATCH_NOTICE_MS = 4000;
+
+// Show a self-dismissing acknowledgment for a watch config change (added/removed).
+//
+// BUG FIX (2026-06-28): these confirmations were shown with
+// `showInformationMessage(message)` and no action button. VS Code exposes no
+// timeout for that call, and a buttonless info toast can sit in the stack until the
+// user dismisses it by hand — the "snackbar never times out" report. A progress
+// notification closes the instant its task settles, so resolving one after a fixed
+// delay gives the guaranteed auto-dismiss the plain message API does not. Used only
+// for transient acknowledgments here; the engine's change alerts keep their plain
+// message because they carry an "Open" action and are meant to persist until acted on.
+function notifyWatchChange(message: string): void {
+  void vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: message },
+    () => new Promise<void>((resolve) => setTimeout(resolve, WATCH_NOTICE_MS))
+  );
+}
+
 export function registerFolderWatchCommands(
   context: vscode.ExtensionContext,
   store: FolderWatchStore
@@ -113,7 +134,7 @@ async function removeWatchRow(
   }
   const name = item.watch.label ?? path.basename(item.watch.target);
   await store.remove(item.watch.id);
-  vscode.window.showInformationMessage(l10n("folderWatch.removed", { name }));
+  notifyWatchChange(l10n("folderWatch.removed", { name }));
 }
 
 // Gate key prefix for the one-time "this project has a bugs folder" offer, keyed by
@@ -170,7 +191,7 @@ export async function maybeSuggestBugsWatch(
       enabled: true,
     };
     await store.add(watch);
-    vscode.window.showInformationMessage(
+    notifyWatchChange(
       l10n("folderWatch.addedNew", { name: path.basename(bugsPath) })
     );
   }
@@ -207,7 +228,7 @@ async function addFolderWatch(
   };
   const stored = await store.add(watch);
   const name = path.basename(stored.target);
-  vscode.window.showInformationMessage(
+  notifyWatchChange(
     stored.mode === "changed"
       ? l10n("folderWatch.addedChanged", { name })
       : l10n("folderWatch.addedNew", { name })
@@ -232,7 +253,7 @@ async function addFileWatch(
     enabled: true,
   };
   const stored = await store.add(watch);
-  vscode.window.showInformationMessage(
+  notifyWatchChange(
     l10n("folderWatch.addedFile", { name: path.basename(stored.target) })
   );
 }
@@ -320,7 +341,7 @@ async function manageWatches(store: FolderWatchStore): Promise<void> {
   for (;;) {
     const watches = store.list();
     if (watches.length === 0) {
-      vscode.window.showInformationMessage(l10n("folderWatch.none"));
+      notifyWatchChange(l10n("folderWatch.none"));
       return;
     }
     const items: WatchItem[] = watches.map((w) => ({
@@ -381,7 +402,7 @@ async function actOnWatch(
     return "continue";
   }
   await store.remove(watch.id);
-  vscode.window.showInformationMessage(
+  notifyWatchChange(
     l10n("folderWatch.removed", { name: watch.label ?? path.basename(watch.target) })
   );
   return store.list().length === 0 ? "removed-last" : "continue";

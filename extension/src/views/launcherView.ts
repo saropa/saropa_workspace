@@ -1,10 +1,18 @@
 import * as vscode from "vscode";
 import * as crypto from "crypto";
+import * as path from "path";
 import { ShortcutStore } from "../model/shortcutStore";
+import { FolderWatchStore } from "../model/folderWatch";
 import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutInteraction";
 import { l10n } from "../i18n/l10n";
-import { buildLauncherItems } from "./launcherItems";
+import {
+  buildLauncherItems,
+  watchLauncherItem,
+  fileLauncherItem,
+  LauncherItem,
+} from "./launcherItems";
+import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
 import { LAUNCHER_STYLE, LAUNCHER_SCRIPT } from "./launcherAssets";
 
 // The "Saropa Launcher" Panel webview: a second, always-reachable window onto the same
@@ -63,12 +71,28 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly store: ShortcutStore,
+    private readonly watchStore: FolderWatchStore,
+    private readonly projectFiles: ProjectFilesTreeProvider,
     private readonly extensionUri: vscode.Uri
   ) {
-    // Repaint whenever the shortcut/recipe set changes so the launcher never lags the
-    // sidebar. The view may not be resolved yet (the Panel tab was never opened); the
-    // post is a no-op until it is, and resolve does the first paint.
-    this.disposables.push(this.store.onDidChange(() => this.post()));
+    // Repaint whenever any of the surfaces the launcher mirrors changes, so it never lags
+    // the sidebar: the shortcut/recipe set (store), the watch list and its unseen counts
+    // (watchStore — two events: the list itself, and the per-watch unseen tally), and the
+    // project files' freshness/version on a save or a folder/setting change. The view may
+    // not be resolved yet (the Panel tab was never opened); post() is a no-op until it is,
+    // and resolve does the first paint.
+    this.disposables.push(
+      this.store.onDidChange(() => void this.post()),
+      this.watchStore.onDidChange(() => void this.post()),
+      this.watchStore.onDidChangeCounts(() => void this.post()),
+      vscode.workspace.onDidSaveTextDocument(() => void this.post()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => void this.post()),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration("saropaWorkspace.projectFiles")) {
+          void this.post();
+        }
+      })
+    );
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -105,11 +129,39 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     if (typeof message !== "object" || message === null) {
       return;
     }
-    const msg = message as { type?: string; id?: string; command?: string };
+    const msg = message as {
+      type?: string;
+      id?: string;
+      command?: string;
+      path?: string;
+    };
     if (msg.type === "ready") {
-      this.post();
+      void this.post();
       return;
     }
+
+    // The Watches and Project Files panes route their opens by their OWN validated
+    // targets, not through the store: a watch id is not a shortcut id, and a surfaced
+    // project file is often not a shortcut at all. Each id/path is re-validated against
+    // the live source here so the untrusted webview can never drive an arbitrary watch
+    // or open an arbitrary file path.
+    if (msg.type === "openWatch" && typeof msg.id === "string") {
+      if (this.watchStore.find(msg.id)) {
+        // openWatch opens what changed and clears the watch's unseen counter; the
+        // launcher's watch card carries that same counter, so it stays in sync.
+        await vscode.commands.executeCommand("saropaWorkspace.openWatch", msg.id);
+      }
+      return;
+    }
+    if (msg.type === "openFile" && typeof msg.path === "string") {
+      const files = await this.projectFiles.listSurfacedFiles();
+      const target = files.find((f) => f.uri.fsPath === msg.path);
+      if (target) {
+        await vscode.commands.executeCommand("vscode.open", target.uri);
+      }
+      return;
+    }
+
     if (typeof msg.id !== "string") {
       return;
     }
@@ -132,14 +184,16 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   }
 
   // Push the current item set + UI strings to the webview. No-op until the view is
-  // resolved.
-  private post(): void {
+  // resolved. Async because the project-files scan does a handful of file stats (the same
+  // scan the tree does); the watch + shortcut data is in-memory.
+  private async post(): Promise<void> {
     if (!this.view) {
       return;
     }
+    const items = await this.buildAllItems();
     void this.view.webview.postMessage({
       type: "data",
-      items: buildLauncherItems(this.store),
+      items,
       placeholder: l10n("launcher.searchPlaceholder"),
       strings: {
         run: l10n("launcher.run"),
@@ -148,12 +202,60 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         schedule: l10n("launcher.schedule"),
         mine: l10n("launcher.mineSection"),
         recipes: l10n("launcher.recipesSection"),
+        watches: l10n("launcher.watchesSection"),
+        files: l10n("launcher.filesSection"),
         // {n} / {shown} / {total} stay literal here: the webview substitutes the live
         // counts, so these are fetched without l10n params.
         count: l10n("launcher.count"),
         countFiltered: l10n("launcher.countFiltered"),
       },
     });
+  }
+
+  // Assemble every launcher row: the shortcut + recipe cards (the two existing panes),
+  // then the watch cards and the project-file cards (the two flat panes). Each watch/file
+  // card is formatted by the vscode-free builders in launcherItems; the host supplies the
+  // bits those builders cannot compute (the watch's unseen tally, a file's shortcut state
+  // and freshness clock).
+  private async buildAllItems(): Promise<LauncherItem[]> {
+    const items = buildLauncherItems(this.store);
+
+    for (const w of this.watchStore.list()) {
+      items.push(
+        watchLauncherItem({
+          id: w.id,
+          label: w.label ?? path.basename(w.target),
+          target: w.target,
+          isFile: w.isFile,
+          mode: w.mode,
+          enabled: w.enabled,
+          unseen: this.watchStore.unseenCount(w.id),
+        })
+      );
+    }
+
+    // One card per surfaced project file, sorted by displayed name to match the tree's
+    // ordering. The relative time is stamped from one clock read so every card in this
+    // paint shares the same "now".
+    const now = Date.now();
+    const files = await this.projectFiles.listSurfacedFiles();
+    const fileItems = files
+      .map((f) =>
+        fileLauncherItem({
+          path: f.uri.fsPath,
+          fileName: f.name.split("/").pop() ?? f.name,
+          version: f.version,
+          relative: formatRelativeTime(f.modified, now),
+          isShortcut:
+            this.store.findShortcutByUri(f.uri, "project") !== undefined,
+        })
+      )
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+      );
+    items.push(...fileItems);
+
+    return items;
   }
 
   private renderHtml(webview: vscode.Webview): string {

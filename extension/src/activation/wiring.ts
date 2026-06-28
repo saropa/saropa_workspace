@@ -56,7 +56,8 @@ import {
 // listeners that repaint them.
 export function setupSecondaryViews(
   context: vscode.ExtensionContext,
-  store: ShortcutStore
+  store: ShortcutStore,
+  watchStore: FolderWatchStore
 ): void {
   // Dedicated "Recipes" view: the auto-detected shortcuts (open on GitHub, run
   // scripts, Saropa Suite tools), grouped by category. Kept as its own section so
@@ -133,12 +134,18 @@ export function setupSecondaryViews(
     })
   );
 
-  // The "Saropa Launcher" Panel webview: the same shortcut + recipe data as the
-  // sidebar tree, in the bottom Panel, so a shortcut can be searched and run without
-  // opening the activity-bar icon. A second window onto the store, not a copy — it
-  // repaints from the same onDidChange the tree does. retainContextWhenHidden keeps the
+  // The "Saropa Launcher" Panel webview: the sidebar's surfaces in the bottom Panel, so
+  // they can be searched without opening the activity-bar icon — the shortcut + recipe
+  // panes (from the store), plus flat Watches and Project files panes (from the watch
+  // store and the project-files provider). A second window onto those sources, not a copy:
+  // it repaints from the same change events the trees do. retainContextWhenHidden keeps the
   // search text and scroll position while the Panel tab is in the background.
-  const launcher = new LauncherViewProvider(store, context.extensionUri);
+  const launcher = new LauncherViewProvider(
+    store,
+    watchStore,
+    projectFiles,
+    context.extensionUri
+  );
   context.subscriptions.push(
     launcher,
     vscode.window.registerWebviewViewProvider(
@@ -411,13 +418,14 @@ export function wireWatchers(
 }
 
 // Folder/file watches (PLAN_FILE_AND_FOLDER_WATCH): build the watch store + engine,
-// register the add/manage commands, and return the engine so activate() can run its
-// startup scan once (deferred past activation — the scan does file IO and must not
-// run in the activation path). The engine is a disposable so its live
+// register the add/manage commands, and return both the engine (so activate() can run its
+// startup scan once, deferred past activation — the scan does file IO and must not run in
+// the activation path) and the watch store (so the Saropa Launcher can show a Watches pane
+// from the same source the Watches tree reads). The engine is a disposable so its live
 // FileSystemWatchers are released on deactivation.
 export function wireFolderWatches(
   context: vscode.ExtensionContext
-): FolderWatchEngine {
+): { engine: FolderWatchEngine; watchStore: FolderWatchStore } {
   const watchStore = new FolderWatchStore(context);
   const engine = new FolderWatchEngine(watchStore, getOutputChannel());
   context.subscriptions.push(engine);
@@ -459,5 +467,5 @@ export function wireFolderWatches(
   // Deferred (not awaited) so it never blocks activation.
   void maybeSuggestBugsWatch(context, watchStore);
 
-  return engine;
+  return { engine, watchStore };
 }

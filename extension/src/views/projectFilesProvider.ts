@@ -56,24 +56,33 @@ export class ProjectFilesTreeProvider
     return element;
   }
 
-  async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
+  // The full set of surfaced files across every workspace folder, honoring the
+  // enabled toggle and the configured name list. The single source of truth for
+  // "what the Project Files surface shows" — used by the root getChildren below and
+  // by the Saropa Launcher, so the two never diverge on which files count.
+  async listSurfacedFiles(): Promise<ProjectFileInfo[]> {
     if (!isEnabled()) {
-      this.setCount(0);
       return [];
     }
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (folders.length === 0) {
-      this.setCount(0);
       return [];
     }
-    const names = configuredFiles();
+    return scanProjectFiles(folders, configuredFiles());
+  }
+
+  async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
+    const folders = vscode.workspace.workspaceFolders ?? [];
 
     // A folder node was expanded: list just that folder's files. This is a
     // sub-scan of one folder, so it does not change the published total count.
     if (element instanceof ProjectFolderNode) {
+      if (!isEnabled() || folders.length === 0) {
+        return [];
+      }
       const found = await scanProjectFiles(
         folders.filter((f) => f.name === element.folderName),
-        names
+        configuredFiles()
       );
       return sortByName(found).map((info) => this.toItem(info));
     }
@@ -83,7 +92,7 @@ export class ProjectFilesTreeProvider
     // stays distinguishable. Either way `found` is the full set across all
     // folders, so its length is the total shown on the view title.
     if (!element) {
-      const found = await scanProjectFiles(folders, names);
+      const found = await this.listSurfacedFiles();
       this.setCount(found.length);
       if (folders.length > 1) {
         return folderNodes(found);

@@ -138,7 +138,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     branchTracker
   );
 
-  setupSecondaryViews(context, store);
+  // Folder/file watches: register the add/manage commands and build the engine + store.
+  // Constructed before setupSecondaryViews so the Saropa Launcher can be handed the watch
+  // store and show a Watches pane from the same source the Watches tree reads. The engine's
+  // startup scan is fired below, deferred past activation, so files written while the window
+  // was closed are surfaced on open without doing file IO in activate().
+  const { engine: folderWatchEngine, watchStore } = wireFolderWatches(context);
+
+  setupSecondaryViews(context, store, watchStore);
 
   // Register the command-module subsystems; the returned binder is re-applied by
   // the config watcher when branch-awareness is toggled.
@@ -150,11 +157,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const scheduler = wireBackgroundEngines(context, store);
 
   wireWatchers(context, store, branchSetBinder);
-
-  // Folder/file watches: register the add/manage commands and build the engine. Its
-  // startup scan is fired below, deferred past activation, so files written while
-  // the window was closed are surfaced on open without doing file IO in activate().
-  const folderWatchEngine = wireFolderWatches(context);
 
   // Track editor focus/close so a pinned file opened or closed by any means (not
   // just a shortcut click) lands in Recent and clears from the untapped badge.

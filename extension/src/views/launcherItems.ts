@@ -5,6 +5,7 @@ import {
   shortcutKind,
   isAnnotationShortcut,
 } from "../model/shortcut";
+import type { FolderWatchMode } from "../model/folderWatch";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 import { fileTypeIcon, kindIcon, kindColor } from "./fileTypeTokens";
@@ -34,8 +35,10 @@ export interface LauncherItem {
   // The recipe/shortcut description shown in the expanded card drawer (undefined when
   // the entry carries none); the catalog prose for a recipe, surfaced on click.
   readonly desc: string | undefined;
-  // Which pane the row files under: the user's own entries vs auto-detected recipes.
-  readonly pane: "mine" | "recipes";
+  // Which pane the row files under: the user's own entries, auto-detected recipes,
+  // the folder/file watches, or the surfaced project files. The last two are flat,
+  // single-category panes (no inner groups) — see watchLauncherItem / fileLauncherItem.
+  readonly pane: "mine" | "recipes" | "watches" | "files";
   readonly section: string;
   readonly groupId: string;
   readonly groupIcon: string;
@@ -283,5 +286,117 @@ function recipeGroup(store: ShortcutStore, recipe: Shortcut): GroupInfo {
     label: `${recipesLabel} / ${group.label}`,
     icon: group.icon ?? "book",
     color: group.color ?? "charts.purple",
+  };
+}
+
+// The plain inputs the host distills a FolderWatch + its unseen count into, so the row
+// builder below stays vscode-free and unit-testable. The host (launcherView) owns the
+// FolderWatchStore reads (label fallback, unseen tally); this only formats the card.
+export interface WatchItemInput {
+  readonly id: string;
+  readonly label: string;
+  readonly target: string;
+  readonly isFile: boolean;
+  readonly mode: FolderWatchMode;
+  readonly enabled: boolean;
+  readonly unseen: number;
+}
+
+// Build the launcher card for one folder/file watch. The glyph, tint, and secondary line
+// mirror the Watches sidebar row (watchesTreeProvider) exactly so the two surfaces never
+// disagree: a disabled watch reads muted (closed eye, "off"), an enabled watch with unseen
+// files leads with the count on a blue bell, an idle one shows a plain eye. The card is
+// openable but not runnable — a primary click expands the drawer (whose Open clears the
+// unseen counter), never opens on the bare click, so an accidental click cannot mark a
+// watch seen (the launcher's deliberate browse-then-act model; styleguide 1.1a / 4.5).
+export function watchLauncherItem(w: WatchItemInput): LauncherItem {
+  const kind = l10n(w.isFile ? "folderWatch.kindFile" : "folderWatch.kindFolder");
+  const mode = l10n(
+    w.mode === "changed" ? "folderWatch.modeChanged" : "folderWatch.modeNew"
+  );
+
+  let icon: string;
+  let color: string;
+  let sub: string;
+  if (!w.enabled) {
+    icon = "eye-closed";
+    color = "descriptionForeground";
+    sub = l10n("watchesView.rowOff", { kind, mode });
+  } else if (w.unseen > 0) {
+    icon = "bell-dot";
+    color = "charts.blue";
+    sub = l10n("watchesView.rowUnseen", { count: w.unseen, kind, mode });
+  } else {
+    icon = "eye";
+    color = "foreground";
+    sub = l10n("watchesView.rowIdle", { kind, mode });
+  }
+
+  return {
+    id: w.id,
+    label: w.label,
+    sub,
+    // The drawer surfaces the watched path so the user can confirm which target this is
+    // before opening it (the card head shows only the label + state line).
+    desc: w.target,
+    pane: "watches",
+    section: l10n("launcher.watchesSection"),
+    groupId: "watches",
+    groupIcon: "eye",
+    groupColor: "charts.blue",
+    icon,
+    color,
+    // "file" so no kind chip renders — a watch is not a runnable shell/macro/routine.
+    kind: "file",
+    runnable: false,
+    openable: true,
+    menu: [],
+  };
+}
+
+// The plain inputs the host distills a ProjectFileInfo into. `relative` is preformatted
+// host-side (formatRelativeTime needs the wall clock, kept out of this pure module);
+// `isShortcut` comes from the store lookup the host already does for the tree row.
+export interface FileItemInput {
+  // Absolute fsPath: the card id, the drawer detail line, and the open target the host
+  // validates the open message against.
+  readonly path: string;
+  readonly fileName: string;
+  readonly version?: string;
+  readonly relative: string;
+  readonly isShortcut: boolean;
+}
+
+// Build the launcher card for one surfaced project file (README / CHANGELOG / manifest).
+// The glyph + tint come from the SAME fileTypeIcon map the tree row uses, and the
+// secondary line mirrors the Project Files sidebar row: version (when known) leads, then
+// freshness, then a "· shortcut" tag when the file is already a project shortcut. Openable,
+// not runnable — a primary click expands the drawer; its Open opens the file in the editor.
+export function fileLauncherItem(f: FileItemInput): LauncherItem {
+  const token = fileTypeIcon(f.fileName) ?? {
+    icon: "file",
+    color: "charts.foreground",
+  };
+  const base = f.version
+    ? l10n("projectFiles.descVersioned", { version: f.version, when: f.relative })
+    : f.relative;
+  const sub = f.isShortcut ? l10n("projectFiles.descPinned", { base }) : base;
+
+  return {
+    id: f.path,
+    label: f.fileName,
+    sub,
+    desc: f.path,
+    pane: "files",
+    section: l10n("launcher.filesSection"),
+    groupId: "files",
+    groupIcon: "files",
+    groupColor: "charts.green",
+    icon: token.icon,
+    color: token.color,
+    kind: "file",
+    runnable: false,
+    openable: true,
+    menu: [],
   };
 }
