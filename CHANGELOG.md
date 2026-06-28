@@ -21,9 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
-## [Unreleased]
+## [1.5.5]
 
-The kind labels on launcher cards (SHELL, MACRO, COMMAND, ROUTINE) are now a calm gray pill instead of a colored one, so the board reads less busy. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+The kind labels on launcher cards (SHELL, MACRO, COMMAND, ROUTINE) are now a calm gray pill instead of a colored one, so the board reads less busy. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.5/CHANGELOG.md)
 
 ### Changed
 
