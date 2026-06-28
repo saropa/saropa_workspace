@@ -86,6 +86,35 @@ test("LAUNCHER_STYLE: drawer actions are right-aligned", () => {
   );
 });
 
+test("LAUNCHER_STYLE: the card grid sizes cards to content, never stretches a row", () => {
+  // align-items:start keeps each card at its own content height. Without it the grid's
+  // default stretch made every card in a row match the tallest, so expanding one card's
+  // drawer stretched all its row-mates. This guards that regression.
+  const grid = LAUNCHER_STYLE.match(/\.grid\s*\{[^}]*\}/);
+  assert.ok(grid, ".grid rule must exist");
+  assert.ok(
+    grid[0].includes("align-items: start"),
+    ".grid must use align-items: start so an expanded card does not stretch its row"
+  );
+});
+
+test("LAUNCHER_STYLE: the card grid is indented under its group heading", () => {
+  // .group-body carries a left padding so cards sit under the group label (past the
+  // header chevron + glyph), making the group-to-cards hierarchy legible.
+  assert.ok(/\.group-body\s*\{[^}]*padding-left:/.test(LAUNCHER_STYLE));
+});
+
+test("LAUNCHER_STYLE: the search group is width-capped, not full-width", () => {
+  // The Panel is very wide; an uncapped search input stretched across the whole surface.
+  // .search must carry a max-width so it stays a compact cluster on the leading edge.
+  const search = LAUNCHER_STYLE.match(/\.search\s*\{[^}]*\}/);
+  assert.ok(search, ".search rule must exist");
+  assert.ok(
+    search[0].includes("max-width:"),
+    ".search must cap its width so it does not span the wide Panel"
+  );
+});
+
 test("LAUNCHER_SCRIPT: routes right-click menu choices as command messages", () => {
   // A right-click posts the chosen command id back to the host, which re-resolves the
   // shortcut and executes it. Both halves (the 'command' type and the contextmenu hook)
