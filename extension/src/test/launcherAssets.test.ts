@@ -115,6 +115,16 @@ test("LAUNCHER_STYLE: the search group is width-capped, not full-width", () => {
   );
 });
 
+test("LAUNCHER_SCRIPT: recipe cards expose Pin and Schedule drawer buttons", () => {
+  // A recipe is detected, not adopted. The drawer must surface Pin (promoteRecipe) and
+  // Schedule (scheduleRecipe) on the recipes pane so those actions are discoverable on the
+  // card rather than only in the right-click menu. Guards a regression that dropped either
+  // button or the pane gate.
+  assert.ok(LAUNCHER_SCRIPT.includes("it.pane === 'recipes'"));
+  assert.ok(LAUNCHER_SCRIPT.includes("saropaWorkspace.promoteRecipe"));
+  assert.ok(LAUNCHER_SCRIPT.includes("saropaWorkspace.scheduleRecipe"));
+});
+
 test("LAUNCHER_SCRIPT: routes right-click menu choices as command messages", () => {
   // A right-click posts the chosen command id back to the host, which re-resolves the
   // shortcut and executes it. Both halves (the 'command' type and the contextmenu hook)

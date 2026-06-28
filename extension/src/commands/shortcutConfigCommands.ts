@@ -215,6 +215,24 @@ function registerScheduleTriggerCommands(
   regShortcut("saropaWorkspace.configureScheduleQuick", (shortcut) =>
     configureSchedule(store, shortcut)
   );
+
+  // Schedule a detected recipe from the launcher: a recipe stores nothing, so a schedule
+  // cannot persist on it. Adopt it first, then open the schedule editor on the stored copy
+  // (pre-filled from the recipe's own schedule when it carries one — e.g. a "daily 09:00"
+  // recommendation — so the user confirms or edits the time and saves to enable). Silent
+  // when promotion does nothing or the new shortcut cannot be resolved; promoteRecipe's own
+  // adoption is the visible outcome in that path.
+  regShortcut("saropaWorkspace.scheduleRecipe", async (recipe) => {
+    const newId = await store.promoteRecipeReturningId(recipe);
+    if (!newId) {
+      return;
+    }
+    const promoted = store.findShortcut(newId);
+    if (!promoted) {
+      return;
+    }
+    await ScheduleEditorPanel.show(context, store, promoted);
+  });
   regShortcut("saropaWorkspace.configureTriggers", (shortcut) => configureTriggers(store, shortcut));
 
   // Cross-file watch links (#25): link this shortcut to one or more file globs so saving

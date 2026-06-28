@@ -52,6 +52,7 @@ const MENU_COMMANDS: ReadonlySet<string> = new Set([
   "saropaWorkspace.renamePin",
   "saropaWorkspace.unpin",
   "saropaWorkspace.promoteRecipe",
+  "saropaWorkspace.scheduleRecipe",
 ]);
 
 export class LauncherViewProvider implements vscode.WebviewViewProvider {
@@ -143,6 +144,8 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       strings: {
         run: l10n("launcher.run"),
         open: l10n("launcher.open"),
+        pin: l10n("launcher.pin"),
+        schedule: l10n("launcher.schedule"),
         mine: l10n("launcher.mineSection"),
         recipes: l10n("launcher.recipesSection"),
         // {n} / {shown} / {total} stay literal here: the webview substitutes the live

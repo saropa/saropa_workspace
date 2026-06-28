@@ -465,9 +465,12 @@ honest:
   row is a dead end: the user sees "3", opens the view, and cannot tell which three.
   When the counted state is binary (unseen vs seen) rather than a numeric per-row
   tally, carry a marker on each counted row — the untapped-shortcuts dot (`●`)
-  prepended to the row `description`, with a hover line naming what clears it — so the
-  badge is actionable. The provider repaints on the same event that recomputes the
-  badge, so the marker and the total clear together the instant the user acts.
+  prepended to the row **label** (not the description), with a hover line naming what
+  clears it — so the badge is actionable. Lead the label, not the description: a glyph
+  in the dimmed `descriptionForeground` color, beside an already-gray detail, is too
+  faint to spot, which defeats the marker. The provider repaints on the same event that
+  recomputes the badge, so the marker and the total clear together the instant the user
+  acts.
 
 ### 4.6 Discovery is passive — never a popup; confirm an explicit action with one toast
 

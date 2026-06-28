@@ -77,8 +77,9 @@ header {
 .pane-count { color: var(--vscode-descriptionForeground); font-size: 0.8em; }
 
 /* A collapsible group: a clickable header (chevron + tinted glyph + label + count) over a
-   responsive card grid. */
-.group { margin-top: 8px; }
+   responsive card grid. The generous margin-top + header padding give each group's title
+   room to breathe so the board does not read as one dense block of cards. */
+.group { margin-top: 14px; }
 .group.hidden { display: none; }
 .group-head {
   display: flex; align-items: center; gap: 6px;
@@ -87,7 +88,7 @@ header {
   color: var(--vscode-descriptionForeground);
   font-family: inherit; font-size: 0.8em;
   text-transform: uppercase; letter-spacing: 0.04em;
-  padding: 3px 2px; cursor: pointer;
+  padding: 7px 2px; cursor: pointer;
 }
 .group-head:hover { color: var(--vscode-foreground); }
 .group-head:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
@@ -113,7 +114,7 @@ header {
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 7px;
+  gap: 10px;
   align-items: start;
 }
 /* Indent the card grid so cards sit under the group label (past the chevron +
@@ -129,7 +130,7 @@ header {
   border: 1px solid var(--vscode-widget-border, transparent);
   border-left: 3px solid var(--card-tint, var(--vscode-foreground));
   border-radius: 5px;
-  padding: 5px 11px;
+  padding: 8px 11px;
   cursor: pointer;
   min-width: 0;
 }
@@ -360,6 +361,18 @@ function makeCard(it) {
   if (it.runnable) {
     actions.appendChild(actionButton(strings.run || 'Run', 'play', true, function () {
       vscode.postMessage({ type: 'run', id: it.id });
+    }));
+  }
+  // A recipe is detected, not yet adopted: surface Pin (adopt into My shortcuts) and
+  // Schedule (adopt, then open the schedule editor) as visible drawer buttons rather than
+  // burying them in the right-click menu — the recipes pane is where a user decides to keep
+  // or automate a recommendation, so those actions must be discoverable on the card itself.
+  if (it.pane === 'recipes') {
+    actions.appendChild(actionButton(strings.pin || 'Pin', 'star-full', false, function () {
+      vscode.postMessage({ type: 'command', command: 'saropaWorkspace.promoteRecipe', id: it.id });
+    }));
+    actions.appendChild(actionButton(strings.schedule || 'Schedule', 'clock', false, function () {
+      vscode.postMessage({ type: 'command', command: 'saropaWorkspace.scheduleRecipe', id: it.id });
     }));
   }
   drawer.appendChild(actions);

@@ -260,6 +260,23 @@ test("a recipe's menu is the pre-adoption set (add-to-shortcuts, no remove)", ()
   assert.ok(!commands.includes("saropaWorkspace.unpin"));
 });
 
+test("a recipe's menu offers Pin and Schedule (adopt-then-schedule)", () => {
+  // The recipes pane is where a user decides to keep or automate a recommendation, so both
+  // Pin (promote) and Schedule (promote, then open the schedule editor) must be present. A
+  // detected recipe stores nothing, so scheduling necessarily adopts first.
+  const items = buildLauncherItems(
+    asStore({
+      ...empty,
+      recipes: [
+        sc({ id: "r1", scope: "project", isRecipe: true, action: { kind: "shell", shellCommand: "x", useIntegratedTerminal: true } as Shortcut["action"] }),
+      ],
+    })
+  );
+  const commands = items[0].menu.map((m) => m.command);
+  assert.ok(commands.includes("saropaWorkspace.promoteRecipe"), "recipe menu must offer Pin");
+  assert.ok(commands.includes("saropaWorkspace.scheduleRecipe"), "recipe menu must offer Schedule");
+});
+
 test("an empty store yields no items", () => {
   assert.deepEqual(buildLauncherItems(asStore(empty)), []);
 });

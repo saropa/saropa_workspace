@@ -149,7 +149,11 @@ function buildMenu(
       recipeMenu.push(entry("saropaWorkspace.openPin", "open", "go-to-file", "run"));
     }
     recipeMenu.push(entry("saropaWorkspace.runPin", "run", "play", "run"));
+    // Adopt group: Pin (store the recipe as-is) and Schedule (store it, then open the
+    // schedule editor on the stored copy). Both make sense only before adoption, which is
+    // exactly what the recipes pane offers.
     recipeMenu.push(entry("saropaWorkspace.promoteRecipe", "addToShortcuts", "star-full", "adopt"));
+    recipeMenu.push(entry("saropaWorkspace.scheduleRecipe", "schedule", "clock", "adopt"));
     recipeMenu.push(entry("saropaWorkspace.copyPinLink", "copyLink", "link", "copy"));
     return recipeMenu;
   }

@@ -35,12 +35,14 @@ export {
 // view width). Fixed here as the single source for the separator's appearance.
 const SEPARATOR_LABEL = "─".repeat(40);
 
-// Leading marker on a shortcut the user has not yet opened or run ("untapped"). It
-// makes the activity-bar count badge actionable: the badge says how many are untapped,
-// and this dot says exactly WHICH rows that number points at. The row repaints the
-// instant the shortcut is tapped (the provider listens to tappedShortcuts), so the
-// dot disappears and the badge recounts together. A plain filled dot reads as
-// "unseen/new" and stays legible in the muted description color across themes.
+// Leading marker on the NAME of a shortcut the user has not yet opened or run
+// ("untapped"). It makes the activity-bar count badge actionable: the badge says how
+// many are untapped, and this dot says exactly WHICH rows that number points at. It
+// leads the label (rendered in the full-strength foreground), NOT the description — a
+// dot in the dimmed descriptionForeground color, next to an already-gray path, was too
+// faint to spot, which defeats the point of pointing at the badge count. The row
+// repaints the instant the shortcut is tapped (the provider listens to tappedShortcuts),
+// so the dot disappears and the badge recounts together.
 const UNTAPPED_MARKER = "●";
 
 // Tree node for a single shortcut. Selecting it fires the activate dispatcher, which
@@ -102,9 +104,14 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // hides the path from the detail/hover and shows a lock glyph. Computed before
     // super() because the displayed label is the super() argument.
     const masked = shortcut.masked === true;
-    const displayLabel = masked
+    const baseLabel = masked
       ? l10n("mask.label")
       : shortcut.label ?? basename;
+    // Lead the row name with the untapped dot so the marker sits in the full-strength
+    // label color and is actually visible. Annotation rows overwrite this.label in their
+    // early-return branch below, so a comment/separator never carries the dot even when
+    // it is technically untapped.
+    const displayLabel = untapped ? `${UNTAPPED_MARKER} ${baseLabel}` : baseLabel;
     super(displayLabel, vscode.TreeItemCollapsibleState.None);
 
     // Stable id (scope-qualified) so TreeView.reveal can match this node across
@@ -241,13 +248,9 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       // below, and crowding a narrow sidebar row with up to seven `·`-joined segments
       // was the main "hard to glance" offender. Holding the row to these few parts lets
       // the eye lock onto state and identity without parsing a long string.
-      const body = [badgeLead, badge, expiryChip, detail, metricText]
+      this.description = [badgeLead, badge, expiryChip, detail, metricText]
         .filter((part) => part)
         .join(" · ");
-      // Prepend the untapped dot so the row visibly matches the count badge. Kept out
-      // of the `·`-joined parts above (a leading marker, not another segment) so it
-      // reads as a status dot rather than the first detail field.
-      this.description = untapped ? `${UNTAPPED_MARKER} ${body}`.trimEnd() : body;
     }
 
     // contextValue gates the menus. A running shortcut uses "shortcutRunning" so the

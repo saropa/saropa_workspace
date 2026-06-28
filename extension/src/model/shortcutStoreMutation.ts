@@ -302,6 +302,15 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
   // carrying its action/path, label, and appearance. Returns false for a non-recipe
   // shortcut.
   async promoteRecipe(shortcut: Shortcut): Promise<boolean> {
+    return (await this.promoteRecipeInternal(shortcut, false)) !== undefined;
+  }
+
+  // Adopt a recipe and hand back the new stored shortcut's id so a caller can act on the
+  // promoted copy (the launcher's "Schedule" button promotes, then opens the schedule
+  // editor on the result — a recipe stores nothing, so a schedule cannot persist on it
+  // until it is adopted). Returns undefined when promotion does nothing (non-recipe or its
+  // owning folder cannot be resolved).
+  async promoteRecipeReturningId(shortcut: Shortcut): Promise<string | undefined> {
     return this.promoteRecipeInternal(shortcut, false);
   }
 
@@ -315,7 +324,7 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
     if (!shortcut.schedule) {
       return false;
     }
-    return this.promoteRecipeInternal(shortcut, true);
+    return (await this.promoteRecipeInternal(shortcut, true)) !== undefined;
   }
 
   // Shared promotion: suppress the detected recipe (so it does not duplicate) and add an
@@ -323,17 +332,19 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
   // enableSchedule is true and the recipe has a schedule, the stored copy's schedule is
   // turned on (the one-tap-enable path); otherwise the recipe's schedule is copied
   // verbatim (disabled rituals stay disabled until the user enables them). Returns false
-  // for a non-recipe shortcut or one whose owning folder cannot be resolved.
+  // for a non-recipe shortcut or one whose owning folder cannot be resolved. On success
+  // returns the new stored shortcut's id (undefined otherwise), so a caller can resolve and
+  // act on the promoted copy after the refresh.
   private async promoteRecipeInternal(
     shortcut: Shortcut,
     enableSchedule: boolean
-  ): Promise<boolean> {
+  ): Promise<string | undefined> {
     if (!shortcut.isRecipe || !shortcut.recipeId) {
-      return false;
+      return undefined;
     }
     const folder = this.projectShortcutFolder.get(shortcut.id);
     if (!folder) {
-      return false;
+      return undefined;
     }
     const file = await this.readProjectFile(folder);
     if (!file.removedRecipes.includes(shortcut.recipeId)) {
@@ -356,8 +367,9 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
     const groupId = defaultGroupId
       ? this.effectiveDefaultGroupId(file.groups, defaultGroupId)
       : this.ensurePromotionGroup(file, shortcut.groupId);
+    const newId = this.newId();
     file.pins.push({
-      id: this.newId(),
+      id: newId,
       path: shortcut.path,
       label: shortcut.label,
       scope: "project",
@@ -379,7 +391,7 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
     await this.dismissRecommendHint();
     await this.writeProjectFile(folder, file);
     await this.refresh();
-    return true;
+    return newId;
   }
 
   // Find (or create, in `file`) the user group a promoted recipe should land in,

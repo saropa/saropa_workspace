@@ -185,3 +185,14 @@ test("promoteRecipe returns false for a non-recipe pin", async () => {
   const shortcut = store.getProjectShortcuts().find((p) => p.path === "plain.ts")!;
   assert.equal(await store.promoteRecipe(shortcut), false);
 });
+
+test("promoteRecipeReturningId returns undefined for a non-recipe pin", async () => {
+  // The id-returning variant (the launcher's Schedule button promotes, then schedules the
+  // returned id) shares promoteRecipe's guard: a plain stored shortcut is not promotable, so
+  // it yields undefined rather than a new id.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "plain.ts")), "project");
+  const shortcut = store.getProjectShortcuts().find((p) => p.path === "plain.ts")!;
+  assert.equal(await store.promoteRecipeReturningId(shortcut), undefined);
+});
