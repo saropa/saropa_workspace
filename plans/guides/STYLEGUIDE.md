@@ -142,10 +142,34 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   back the new id so the editor opens on the stored copy, pre-filled from the
   recipe's own schedule when it carries one (developer feedback 2026-06-28). Both
   command ids are on the launcher's `MENU_COMMANDS` allowlist.
+- **A single-category sidebar surface joins the launcher as a FLAT pane, not a
+  grouped one.** Beyond My shortcuts and Recipes, the launcher also mirrors the
+  Watches and Project files sidebar views. Those are flat lists (no inner folders),
+  so their launcher panes render their cards directly under the pane head with no
+  collapsible group — wrapping a single category in one group would just double the
+  header ("WATCHES" over a lone "Watches" group). The pane title + count is the only
+  header; `.pane-flat` adds a little top margin so the first row clears the pane-head
+  divider. The grouped panes (mine / recipes) keep their collapsible groups. The
+  reflowing `repeat(auto-fit, minmax(340px, 1fr))` track is unchanged — flat and
+  grouped panes sit on the same grid, in fixed order (mine, recipes, watches, files).
+- **A mirrored pane reads from its OWN source and stays openable-not-runnable.** A
+  watch/file card is built from the same source the sidebar tree reads (the
+  `FolderWatchStore`; the project-files provider's `listSurfacedFiles`), wears the
+  same state visuals (the Watches row's eye / bell + unseen count; the Project Files
+  row's version + freshness + "· shortcut" tag, via the shared `fileTypeIcon` map),
+  and carries no Run and no right-click menu. Crucially it is NOT single-click-open:
+  it follows the launcher's expand-then-act rule (a primary click opens the drawer,
+  whose **Open** is the action), because opening a watch clears its unseen counter —
+  an accidental bare-click open would silently mark it seen. The host routes these
+  opens by their own validated target (`openWatch` by watch id; `vscode.open` by an
+  fsPath re-checked against the live surfaced-file set), never through the store, so
+  the untrusted webview can neither drive an arbitrary watch nor open an arbitrary
+  path. The header count stays "{n} shortcuts" — it counts only the mine + recipes
+  cards, never the mirrored panes.
 - **Filter client-side.** The host posts the full item set on each change; the
   webview filters on every keystroke with no host round-trip. Empty groups and
   empty panes are hidden (a group renders only when it has a visible card; a pane
-  only when it has a visible group).
+  only when it has a visible group or, for a flat pane, a visible card).
 - Same webview hardening as the editor-tab panels: strict CSP with a per-load
   nonce, no remote content (the codicon font is the one sanctioned LOCAL resource),
   theme via `--vscode-*` variables, and every host-rendered string externalized

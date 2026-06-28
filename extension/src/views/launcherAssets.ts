@@ -522,7 +522,7 @@ function applyFilter() {
   const needle = q.value.trim().toLowerCase();
   root.classList.toggle('searching', needle !== '');
   // The header reads "{n} shortcuts", so its total counts only the shortcut + recipe cards,
-  // not the Watches / Project files panes; `shown` is the visible subset of that same total.
+  // not the Watches / Project files panes; shown is the visible subset of that same total.
   let total = 0;
   let shown = 0;
   for (const card of root.querySelectorAll('.card')) {

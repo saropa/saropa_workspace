@@ -25,7 +25,7 @@ cspell:disable
 
 ## [Unreleased]
 
-The launcher now shows your watches and project files too, has more breathing room, and lets you pin or schedule a recommended recipe straight from its card. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+The launcher now shows your watches and project files too, has more breathing room, and lets you pin or schedule a recommended recipe straight from its card. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.7/CHANGELOG.md)
 
 ### Added
 
