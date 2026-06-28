@@ -1,5 +1,29 @@
 # Changelog
 
+```text
+                                    ....
+                             -+shdmNMMMMNmdhs+-
+                          -odMMMNyo/-..``.++:+o+/-
+                       /dMMMMMM/               `````
+                      dMMMMMMMMNdhhhdddmmmNmmddhs+-
+                      /MMMMMMMMMMMMMMMMMMMMMMMMMMMMMNh/
+                    . :sdmNNNNMMMMMNNNMMMMMMMMMMMMMMMMm+
+                    o     ..~~~::~+==+~:/+sdNMMMMMMMMMMMo
+                    m                        .+NMMMMMMMMMN
+                    m+                         :MMMMMMMMMm
+                    /N:                        :MMMMMMMMM/
+                     oNs.                    +NMMMMMMMMo
+                      :dNy/.              ./smMMMMMMMMm:
+                       /dMNmhyso+++oosydNNMMMMMMMMMd/
+                          .odMMMMMMMMMMMMMMMMMMMMdo-
+                             -+shdNNMMMMNNdhs+-
+                                     ``
+
+Made by Saropa. All rights reserved.
+
+Learn more at https://saropa.com, or mailto://dev.tools@saropa.com
+```
+
 All notable changes to Saropa Workspace are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -23,9 +47,34 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+Launcher header polish.
+
+### Changed
+
+- **Each launcher section now leads with its own icon, and collapsing a section also collapses its width.** The four panes — My shortcuts, Recipes, Watches, Project files — each carry a glyph in their header matching the section's filter chip, so a pane is identifiable at a glance even when folded. Folding a section now shrinks it to just its header instead of holding a full column, freeing the row for the sections still open.
+- **The launcher search box hint now reads "Search", and the shortcut count moved inside the box as a badge.** The placeholder is the single word "Search"; the running count that sat beside the box is now a compact badge overlaid on the input's trailing edge, showing the number alone.
+
+### Fixed
+
+- **The launcher header's "scheduled" count no longer overstates what is automated.** It counted every detected recipe, which made it read "17 scheduled" when those recipes were merely available and switched off. It now counts only shortcuts whose schedule is actually enabled — the same signal the scheduler and the status bar use — so a board with nothing on a schedule shows no count at all.
+
+---
+
+## [1.5.10]
+
+Watch toast im [log](https://github.com/saropa/saropa_workspace/blob/v1.5.10/CHANGELOG.md)
+
+### Changed
+
+- **Watch toasts now say whether files are new or changed, not "new or changed".** A folder or file watch that detects edits now reports them precisely: a batch of pure edits reads as "{count} changed in {label}", a batch of arrivals reads as "{count} new", and a mixed batch states both counts ("{added} new, {changed} changed"). Previously any batch containing an edit was labeled the ambiguous "new or changed", so a single modified file could not be told apart from a new one.
+
+---
+
 ## [1.5.9]
 
- [log](https://github.com/saropa/saropa_workspace/blob/v1.5.9/CHANGELOG.md)
+Tidy work on the Saropa Launcher tab. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.9/CHANGELOG.md)
 
 ### Added
 - **The Saropa Launcher header counts are now one-tap filters.** Each count in the header — shortcuts, scheduled, watches, project files — is a chip you can click to narrow the board to just that section; click it again to clear. The filter combines with the search box, and the active chip stays highlighted.

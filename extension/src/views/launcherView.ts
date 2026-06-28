@@ -336,14 +336,20 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     // what is actually present rather than a row of zeros.
     const count = (pane: LauncherItem["pane"]): number =>
       items.reduce((n, it) => (it.pane === pane ? n + 1 : n), 0);
-    // Recipes are recommendations; only the ones the user actually put on a schedule are
-    // "live", so the recipes stat counts scheduled recipes (schedule !== undefined, the same
-    // signal the tree uses) rather than the full detected set — a "3 scheduled" headline is
-    // truthful where "69 recipes" overstated what is automated. The recipes pane still lists
-    // every detected recipe; clicking the stat filters the board to that pane.
-    const scheduledRecipes = this.store
-      .getRecipeShortcuts()
-      .filter((r) => r.schedule !== undefined).length;
+    // "Scheduled" means a live ritual: a stored shortcut whose schedule is switched ON
+    // (schedule.enabled === true) — the same signal the scheduler and the status bar arm off.
+    // The previous count used getRecipeShortcuts().filter(schedule !== undefined), which was
+    // wrong twice over: every detected recipe SEEDS a disabled schedule (so it was never
+    // undefined — "17 recipes available" wrongly read as "17 scheduled"), and a recipe that
+    // is promoted+enabled into a real ritual leaves the recipe set entirely, so the recipe
+    // list can never report what is genuinely scheduled. Count project + global shortcuts with
+    // an enabled schedule, mirroring scheduleStatusBar, and file the stat under the "mine"
+    // pane where those promoted rituals render. With nothing enabled the count is 0 and
+    // pushStat omits the stat, so the header no longer claims schedules that do not exist.
+    const scheduledRituals = [
+      ...this.store.getProjectShortcuts(),
+      ...this.store.getGlobalShortcuts(),
+    ].filter((s) => s.schedule?.enabled === true).length;
     const stats: LauncherStat[] = [];
     const pushStat = (
       n: number,
@@ -356,7 +362,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       }
     };
     pushStat(count("mine"), "mine", "star-full", "launcher.statShortcuts");
-    pushStat(scheduledRecipes, "recipes", "clock", "launcher.statRecipes");
+    pushStat(scheduledRituals, "mine", "clock", "launcher.statRecipes");
     pushStat(count("watches"), "watches", "eye", "launcher.statWatches");
     pushStat(count("files"), "files", "files", "launcher.statFiles");
 

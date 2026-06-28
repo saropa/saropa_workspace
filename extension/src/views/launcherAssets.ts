@@ -104,7 +104,10 @@ header {
    stretched across the whole surface, crowding out the project summary. flex 0 1 keeps it a
    compact group (icon + input + count) on the trailing edge that may shrink but not grow past
    the cap. */
-.search { display: flex; align-items: center; gap: 6px; flex: 0 1 260px; max-width: 260px; }
+/* position:relative anchors the count badge, which is absolutely positioned INSIDE the
+   input's trailing edge rather than sitting as a separate column beside it — the box owns
+   its own count so the header reads tighter. */
+.search { display: flex; align-items: center; gap: 6px; flex: 0 1 260px; max-width: 260px; position: relative; }
 .search .codicon { color: var(--vscode-input-placeholderForeground); flex: none; }
 #q {
   flex: 1;
@@ -113,20 +116,40 @@ header {
   background: var(--vscode-input-background);
   border: 1px solid var(--vscode-input-border, transparent);
   border-radius: 4px;
-  padding: 4px 8px;
+  /* Reserve trailing room so typed text never slides under the overlaid count badge. */
+  padding: 4px 38px 4px 8px;
 }
 #q:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 #q::placeholder { color: var(--vscode-input-placeholderForeground); }
-.count { color: var(--vscode-descriptionForeground); font-size: 0.85em; white-space: nowrap; }
-
-/* Two responsive panes: side by side when the Panel is wide, stacked (mine first) when
-   narrow. align-items:start so an empty/short pane does not stretch to its sibling. */
-.panes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 8px 14px;
-  align-items: start;
+/* The count badge floats over the input's right edge (count only — the unit lives in the
+   placeholder/aria-label). pointer-events:none lets a click pass through to the input it
+   overlays; :empty hides it before the first data message fills it. */
+.count {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--vscode-badge-foreground); background: var(--vscode-badge-background);
+  border-radius: 8px; padding: 0 6px;
+  font-size: 0.78em; line-height: 1.6; white-space: nowrap;
 }
+.count:empty { display: none; }
+
+/* Responsive panes via flex-wrap (not grid): side by side when the Panel is wide, wrapping
+   to stacked (mine first) when narrow. flex is used over a grid track here precisely so a
+   COLLAPSED pane can shed its width — a grid track keeps its minmax width even when its
+   content folds, but a flex item can shrink to its header. align-items:flex-start so an
+   empty/short pane does not stretch to its sibling's height. */
+.panes {
+  display: flex; flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: flex-start;
+}
+/* An expanded pane grows to share the row and holds a 340px comfortable floor. */
+.pane { flex: 1 1 340px; min-width: 0; }
+/* A collapsed pane (when not searching) shrinks to just its header, freeing the row for the
+   remaining open sections — collapsing the section collapses its width too. During a search
+   the body is force-revealed (see below), so the pane keeps its full width then. */
+.root:not(.searching) .pane.collapsed { flex: 0 1 auto; }
+.root:not(.searching) .pane.collapsed .pane-head { width: auto; }
 .pane.hidden { display: none; }
 /* The pane head doubles as the section's collapse toggle: a full-width button (chevron +
    title + count) over the pane body. A whole pane (My shortcuts / Recipes / Watches /
@@ -148,6 +171,9 @@ header {
   color: var(--vscode-descriptionForeground);
 }
 .pane.collapsed .pane-chevron { transform: rotate(-90deg); }
+/* Each section leads with its own glyph (the same token the matching header filter chip
+   uses) so the four panes are identifiable at a glance even when collapsed to the header. */
+.pane-glyph { flex: none; font-size: 14px; color: var(--vscode-foreground); }
 .pane-title {
   font-size: 0.86em; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;
@@ -447,12 +473,14 @@ function paneModel(list) {
   // Files: grouped once a second area appears, otherwise flat over the single area's cards
   // (the flat branch covers both the no-files case — empty array — and the one-area case).
   const filesPane = fileGroups.length > 1
-    ? { id: 'files', title: files.title, flat: false, groups: fileGroups }
-    : { id: 'files', title: files.title, flat: true, items: fileGroups[0] ? fileGroups[0].items : [] };
+    ? { id: 'files', icon: 'files', title: files.title, flat: false, groups: fileGroups }
+    : { id: 'files', icon: 'files', title: files.title, flat: true, items: fileGroups[0] ? fileGroups[0].items : [] };
+  // Section glyphs mirror the header filter-chip icons (see buildHeader) so a pane and its
+  // chip read as the same thing.
   return [
-    { id: 'mine', title: mine.title, flat: false, groups: groupsOf(mine) },
-    { id: 'recipes', title: recipes.title, flat: false, groups: groupsOf(recipes) },
-    { id: 'watches', title: watches.title, flat: true, items: watches.items },
+    { id: 'mine', icon: 'star-full', title: mine.title, flat: false, groups: groupsOf(mine) },
+    { id: 'recipes', icon: 'clock', title: recipes.title, flat: false, groups: groupsOf(recipes) },
+    { id: 'watches', icon: 'eye', title: watches.title, flat: true, items: watches.items },
     filesPane,
   ];
 }
@@ -665,6 +693,11 @@ function render() {
     const chev = codicon('chevron-down');
     chev.classList.add('pane-chevron');
     head.appendChild(chev);
+    if (pane.icon) {
+      const glyph = codicon(pane.icon);
+      glyph.classList.add('pane-glyph');
+      head.appendChild(glyph);
+    }
     const title = document.createElement('span');
     title.className = 'pane-title';
     title.textContent = pane.title;

@@ -328,17 +328,41 @@ export class FolderWatchEngine implements vscode.Disposable {
     isStartup: boolean
   ): Promise<void> {
     const label = this.nameOf(watch);
+    // Ordered new-then-changed so the listed filenames line up with the split
+    // counts the message states.
     const files = [...delta.added, ...delta.changed];
     const summary = this.formatFiles(files);
-    const count = files.length;
-    // Distinct keys so a startup ("written while you were away") alert reads
-    // differently from a live one, and so added-only vs added+changed are clear.
-    const message =
-      delta.changed.length > 0
-        ? l10n("folderWatch.changedFiles", { count, label, files: summary })
-        : isStartup
-          ? l10n("folderWatch.newFilesStartup", { count, label, files: summary })
-          : l10n("folderWatch.newFiles", { count, label, files: summary });
+    const hasAdded = delta.added.length > 0;
+    const hasChanged = delta.changed.length > 0;
+    // Name new vs changed precisely rather than collapsing both into one
+    // ambiguous "new or changed" verb: a batch that is purely edits must read as
+    // "changed" (not "new"), and a mixed batch states each count so the reader
+    // knows which files arrived vs which were edited. The startup variants add
+    // the "while you were away" framing for closed-window arrivals.
+    let message: string;
+    if (hasAdded && hasChanged) {
+      message = l10n(
+        isStartup ? "folderWatch.mixedFilesStartup" : "folderWatch.mixedFiles",
+        {
+          added: delta.added.length,
+          changed: delta.changed.length,
+          label,
+          files: summary,
+        }
+      );
+    } else if (hasChanged) {
+      message = l10n(
+        isStartup
+          ? "folderWatch.changedFilesStartup"
+          : "folderWatch.changedFiles",
+        { count: delta.changed.length, label, files: summary }
+      );
+    } else {
+      message = l10n(
+        isStartup ? "folderWatch.newFilesStartup" : "folderWatch.newFiles",
+        { count: delta.added.length, label, files: summary }
+      );
+    }
 
     const open = l10n("folderWatch.open");
     const choice = await vscode.window.showInformationMessage(message, open);

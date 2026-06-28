@@ -48,6 +48,12 @@ export interface LauncherItem {
   readonly icon: string;
   readonly color: string;
   readonly kind: string;
+  // A human, localized name for the action kind (Shell command / Macro / Routine / …),
+  // used as the card icon's tooltip so the kind is nameable on hover. Undefined for a file
+  // card, whose icon is file-type-driven and whose kind ("file") needs no label. Replaces
+  // the old always-visible kind pill: the kind is already shown by the icon + color + tint,
+  // so naming it on hover is enough and keeps the card uncluttered.
+  readonly kindLabel?: string;
   // Whether the card can be executed at all. A non-file action (shell/macro/routine) is
   // always runnable; a file shortcut is runnable only when it is actually a script — it has
   // an explicit run command or its extension maps to a known interpreter (see fileExecutable).
@@ -144,6 +150,8 @@ function toItem(
     icon: rowIcon(shortcut, kind, fileName),
     color: rowColor(shortcut, kind, fileName),
     kind,
+    // Name the kind for the icon tooltip; a file card needs none (its icon is file-typed).
+    kindLabel: isFile ? undefined : l10n(`launcher.kind.${kind}`),
     runnable,
     openable: isFile,
     // The head leads with Run for an executable card (a script or a non-file action) and with
