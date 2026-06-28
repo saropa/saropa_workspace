@@ -47,9 +47,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.11]
 
-[log](https://github.com/saropa/saropa_workspace/blob/v1.5.11/CHANGELOG.md)
+Each launcher pane now carries its own icon and shrinks to just its header when you fold it, the search box is simpler with the shortcut count tucked inside it, and cards drop the kind pill for a tooltip. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.11/CHANGELOG.md)
 
 ### Changed
 
@@ -65,7 +65,7 @@ cspell:disable
 
 ## [1.5.10]
 
-[log](https://github.com/saropa/saropa_workspace/blob/v1.5.10/CHANGELOG.md)
+Watch alerts now tell you how many files are new and how many changed, instead of a vague "new or changed". [log](https://github.com/saropa/saropa_workspace/blob/v1.5.10/CHANGELOG.md)
 
 ### Changed
 
@@ -75,7 +75,7 @@ cspell:disable
 
 ## [1.5.9]
 
-[log](https://github.com/saropa/saropa_workspace/blob/v1.5.9/CHANGELOG.md)
+The launcher's header counts are now click-to-filter chips, the header reads as one line, and each shortcut card leads with Run or Open depending on the file. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.9/CHANGELOG.md)
 
 ### Added
 - **The Saropa Launcher header counts are now one-tap filters.** Each count in the header — shortcuts, scheduled, watches, project files — is a chip you can click to narrow the board to just that section; click it again to clear. The filter combines with the search box, and the active chip stays highlighted.
