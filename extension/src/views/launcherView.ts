@@ -58,7 +58,6 @@ const MENU_COMMANDS: ReadonlySet<string> = new Set([
   "saropaWorkspace.renameFileOnDisk",
   "saropaWorkspace.copyFileTo",
   "saropaWorkspace.toggleMask",
-  "saropaWorkspace.copyPinLink",
   "saropaWorkspace.renamePin",
   "saropaWorkspace.unpin",
   "saropaWorkspace.promoteRecipe",

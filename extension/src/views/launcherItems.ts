@@ -167,7 +167,6 @@ function buildMenu(
     // exactly what the recipes pane offers.
     recipeMenu.push(entry("saropaWorkspace.promoteRecipe", "addToShortcuts", "star-full", "adopt"));
     recipeMenu.push(entry("saropaWorkspace.scheduleRecipe", "schedule", "clock", "adopt"));
-    recipeMenu.push(entry("saropaWorkspace.copyPinLink", "copyLink", "link", "copy"));
     return recipeMenu;
   }
 
@@ -209,9 +208,8 @@ function buildMenu(
     );
   }
 
-  // Copy & edit group. Remove uses `unpin` (accepts a raw Shortcut and toasts the name),
+  // Edit group. Remove uses `unpin` (accepts a raw Shortcut and toasts the name),
   // not removeProjectPin/removeGlobalPin, which resolve a file URI from a tree item.
-  menu.push(entry("saropaWorkspace.copyPinLink", "copyLink", "link", "copy"));
   menu.push(entry("saropaWorkspace.renamePin", "rename", "edit", "edit"));
   menu.push(entry("saropaWorkspace.unpin", "remove", "trash", "edit", true));
   return menu;

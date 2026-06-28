@@ -57,6 +57,7 @@ The launcher now shows your watches and project files too, has more breathing ro
 
 - **More space around launcher cards and group headings.** The card grid has a larger gap, cards carry more vertical padding, and each group heading has more room above and around it so the board no longer reads as one dense block.
 - **Wider launcher cards.** Each card is about 30% wider so longer names and paths fit on one line before clipping.
+- **Launcher card menus no longer offer Copy as Saropa Link.** The right-click menu on a launcher card drops the rarely used share-link action, leaving the focused run/open/configure actions. The action still exists on the Shortcuts sidebar, and shared links still import.
 
 ### Fixed
 
