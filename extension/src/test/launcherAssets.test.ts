@@ -52,6 +52,23 @@ test("LAUNCHER_STYLE: hides filtered cards and empty groups/panes via the .hidde
   assert.ok(/\.pane\.hidden\s*\{\s*display:\s*none/.test(LAUNCHER_STYLE));
 });
 
+test("LAUNCHER_STYLE: the kind pill is neutral gray, not tinted with --card-tint", () => {
+  // The SHELL/MACRO/COMMAND/ROUTINE pill must stay a muted gray so the board does not
+  // read as over-colored — the card already signals its kind through the tinted left
+  // stripe and icon. A regression that re-tinted .chip with --card-tint is what this
+  // guards. Match the .chip block specifically (the only rule that styles the pill).
+  const chip = LAUNCHER_STYLE.match(/\.chip\s*\{[^}]*\}/);
+  assert.ok(chip, ".chip rule must exist");
+  assert.ok(
+    chip[0].includes("var(--vscode-descriptionForeground)"),
+    ".chip must use the neutral description foreground"
+  );
+  assert.ok(
+    !chip[0].includes("--card-tint"),
+    ".chip must not borrow the card accent (--card-tint)"
+  );
+});
+
 test("LAUNCHER_SCRIPT: routes right-click menu choices as command messages", () => {
   // A right-click posts the chosen command id back to the host, which re-resolves the
   // shortcut and executes it. Both halves (the 'command' type and the contextmenu hook)

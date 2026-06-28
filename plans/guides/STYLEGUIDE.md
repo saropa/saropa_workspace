@@ -86,6 +86,13 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   `dist/`; the view loads it via `asWebviewUri` under a CSP that allows the
   webview's own origin for `style-src`/`font-src`, with `localResourceRoots` set to
   `dist/`).
+- **The kind pill is neutral gray; card color lives on the stripe and icon only.**
+  The SHELL / MACRO / COMMAND / ROUTINE pill (`.chip`) renders in
+  `--vscode-descriptionForeground`, NOT the card's `--card-tint`. The card already
+  carries its identity color twice — the left accent stripe and the glyph — so
+  tinting the pill a third time made the board read as over-colored (developer
+  feedback 2026-06-27). One color signal per card is the rule: stripe + icon carry
+  the tint; structural labels stay neutral.
 - **A primary click expands the card; it does not open or run.** The launcher
   diverges from the product's single-click-opens model on purpose: a click toggles
   an inline drawer (full name, full path, description, and Open/Run buttons) so

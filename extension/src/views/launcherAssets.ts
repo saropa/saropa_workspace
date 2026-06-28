@@ -136,12 +136,15 @@ header {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .card.expanded .card-sub { white-space: normal; overflow: visible; word-break: break-all; }
+/* Kind pill (SHELL / MACRO / COMMAND / ROUTINE): intentionally neutral gray, not
+   tinted with --card-tint. The card already signals its kind through the colored
+   left border and icon; tinting the pill too made the board read as over-colored. */
 .chip {
   flex: none;
   font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.03em;
-  color: var(--card-tint, var(--vscode-badge-foreground));
-  border: 1px solid var(--card-tint, var(--vscode-badge-background));
-  border-radius: 3px; padding: 0 5px; opacity: 0.9;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--vscode-descriptionForeground);
+  border-radius: 3px; padding: 0 5px; opacity: 0.7;
 }
 .run {
   flex: none;

@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
+## [Unreleased]
+
+The kind labels on launcher cards (SHELL, MACRO, COMMAND, ROUTINE) are now a calm gray pill instead of a colored one, so the board reads less busy. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Changed
+
+- **Launcher kind pills are now neutral gray, not colored.** The SHELL / MACRO / COMMAND / ROUTINE label on each launcher card no longer borrows the card's accent color; it renders in a muted gray. The card still signals its kind through the colored left stripe and icon, so the board stays scannable without the pills adding a second layer of color.
+
 ## [1.5.4]
 
 The bottom-panel launcher is now a color, two-pane board — your shortcuts on one side, recipes on the other — with collapsible groups, click-to-expand cards, and a right-click menu; and the side bar marks the shortcuts behind the icon count so you can see which ones you haven't used yet. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.4/CHANGELOG.md)
