@@ -70,7 +70,7 @@ test("LAUNCHER_STYLE: the kind pill is neutral gray, not tinted with --card-tint
 });
 
 test("LAUNCHER_STYLE: the head action button reveals its text label only when expanded", () => {
-  // The head's primary-action button (Open for a file shortcut, Run for a non-file action)
+  // The head's primary-action button (Run for a script or an action, Open for a document)
   // is icon-only in the compact grid and grows its text label when the card expands. The
   // label span is hidden by default and revealed under .card.expanded; no-duplicate-action is
   // now enforced by the drawer omitting whatever the head carries (see makeCard), not by
@@ -221,8 +221,8 @@ test("LAUNCHER_SCRIPT: handles the host 'data' message and announces 'ready'", (
 });
 
 test("LAUNCHER_SCRIPT: emits run/open messages the host routes to the store", () => {
-  // A file card opens, an action runs, the ▶ always runs — the host's onMessage
-  // switches on exactly these two types.
+  // A document card opens, a script or action runs — the host's onMessage switches on
+  // exactly these two types.
   assert.ok(LAUNCHER_SCRIPT.includes("'open'"));
   assert.ok(LAUNCHER_SCRIPT.includes("'run'"));
 });

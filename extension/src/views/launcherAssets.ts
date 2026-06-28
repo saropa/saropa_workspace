@@ -432,10 +432,15 @@ function makeCard(it) {
   name.className = 'card-name';
   name.textContent = it.label;
   body.appendChild(name);
-  const sub = document.createElement('span');
-  sub.className = 'card-sub';
-  sub.textContent = it.sub;
-  body.appendChild(sub);
+  // Suppress the secondary line when it would only echo the name — a root-level file
+  // shortcut carries its bare filename as both label and path (e.g. CHANGELOG.md), so the
+  // path adds no information. Showing it produced a duplicated subtitle under the title.
+  if (it.sub && it.sub !== it.label) {
+    const sub = document.createElement('span');
+    sub.className = 'card-sub';
+    sub.textContent = it.sub;
+    body.appendChild(sub);
+  }
   row.appendChild(body);
 
   if (it.kind && it.kind !== 'file') {
@@ -445,13 +450,13 @@ function makeCard(it) {
     row.appendChild(chip);
   }
 
-  // The head's primary-action button. A file shortcut leads with Open (a document's main
-  // intent — running it is secondary and lives in the drawer); a non-file action leads with
-  // Run. Icon-only while collapsed, the label appears on expand (the .run-label span). Gated
-  // on runnable so the browse-only watch/file panes keep no head button (their deliberate
-  // expand-then-act model — see watchLauncherItem / the styleguide 1.1a mirrored-pane rule).
-  if (it.runnable) {
-    const headOpens = it.openable;
+  // The head's primary-action button, chosen by the data layer's headAction. A script (a file
+  // with an interpreter) and a non-file action lead with Run; a plain document/data file
+  // shortcut leads with Open. Icon-only while collapsed, the label appears on expand (the
+  // .run-label span). Absent headAction means no head button — the browse-only watch/file
+  // panes keep their deliberate expand-then-act model (see watchLauncherItem / the styleguide).
+  if (it.headAction) {
+    const headOpens = it.headAction === 'open';
     const headLabel = headOpens ? (strings.open || 'Open') : (strings.run || 'Run');
     const head = document.createElement('button');
     head.className = 'run';
@@ -484,19 +489,13 @@ function makeCard(it) {
   }
   const actions = document.createElement('div');
   actions.className = 'drawer-actions';
-  // Open in the drawer only for the browse-only panes (watches, project files), which carry
-  // no head button — a file shortcut's Open lives on the head, so repeating it here would
-  // double the affordance.
-  if (it.openable && !it.runnable) {
+  // Open in the drawer for any file whose head does not already carry Open: a script (head
+  // Run) gets Open as its secondary action here, and the browse-only panes (watches, project
+  // files — no head button) get their Open here. A document file already leads with Open on
+  // the head, so repeating it would double the affordance.
+  if (it.openable && it.headAction !== 'open') {
     actions.appendChild(actionButton(strings.open || 'Open', 'go-to-file', true, function () {
       postOpen(it);
-    }));
-  }
-  // Run in the drawer only for a file shortcut, where the head leads with Open and Run is the
-  // secondary action. A non-file action already carries Run on the head, so it is omitted here.
-  if (it.runnable && it.openable) {
-    actions.appendChild(actionButton(strings.run || 'Run', 'play', false, function () {
-      vscode.postMessage({ type: 'run', id: it.id });
     }));
   }
   // A file-backed card (a file shortcut/recipe or a project file) exposes Copy path so the

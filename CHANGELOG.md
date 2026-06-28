@@ -37,8 +37,13 @@ The Project Files view now reaches into platform subfolders and groups what it f
 
 - **Project Files grouping only appears when it earns its place.** Files group under area headers only when more than one area has matches; a plain repo with just a README and a manifest still reads as one flat list, with no header to expand.
 - **The Project Files setting is now a category map.** `saropaWorkspace.projectFiles.files` (a flat list) is replaced by `saropaWorkspace.projectFiles.groups`, a map of category name to file paths, so you can curate which files show under which area — or add your own category. Paths may be nested (for example `android/app/build.gradle`); only the file name shows in the row. A custom category you add gets a generic folder icon.
-- **A file shortcut in the Saropa Launcher now leads with Open, not Run.** A document card's blue head button opens the file (its main intent); running it moves to the drawer as the secondary action. A non-file action card still leads with Run. The head button is icon-only in the compact grid and shows its **Open** / **Run** label once you expand the card.
+- **Saropa Launcher cards now lead with the action that fits the file.** A card's blue head button leads with **Run** when the file is a script — a `.py`, `.sh`, `.ps1`, `.js` (any type with a known interpreter) or a file you gave a run command — and with **Open** when it is a plain document or data file like `.json` or `.md`, whose only sensible action is to open it. A non-file action still leads with Run. The other action, when it applies, sits in the drawer (a script offers **Open** there); the head button is icon-only in the compact grid and shows its label once you expand the card.
 - **The Saropa Launcher search box moved to the right of the header.** The search group now sits on the trailing edge of the header bar to make room for the new project summary on the left; it stays a compact, width-capped cluster rather than stretching across the wide Panel.
+
+### Fixed
+
+- **A data file no longer shows a meaningless Run button, and a script no longer hides its Run.** A `.json` config or other non-executable file in the Saropa Launcher previously offered a Run action even though running it does nothing, while a runnable script like `publish.py` led with Open instead of Run. A card now decides Run vs Open from whether the file is actually executable, so a script leads with Run and a data file is open-only.
+- **A root file no longer shows its name twice in the Saropa Launcher.** A shortcut to a file at the project root (for example `CHANGELOG.md`) carries the bare filename as both its title and its path, so the card was repeating the same text on the subtitle line. The subtitle is now hidden whenever it would only echo the title, and still shows for nested paths, freshness, or a version.
 
 ---
 

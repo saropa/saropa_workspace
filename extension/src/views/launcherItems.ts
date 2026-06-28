@@ -9,6 +9,7 @@ import type { FolderWatchMode } from "../model/folderWatch";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 import { fileTypeIcon, kindIcon, kindColor } from "./fileTypeTokens";
+import { candidatesForExt } from "../exec/interpreters";
 
 // The pure data layer for the Saropa Launcher webview: turn the store's shortcuts and
 // detected recipes into the flat, group-tagged rows the two-pane grid renders. Kept free
@@ -47,8 +48,19 @@ export interface LauncherItem {
   readonly icon: string;
   readonly color: string;
   readonly kind: string;
+  // Whether the card can be executed at all. A non-file action (shell/macro/routine) is
+  // always runnable; a file shortcut is runnable only when it is actually a script — it has
+  // an explicit run command or its extension maps to a known interpreter (see fileExecutable).
+  // A plain document/data file (.json, .md, .txt) is NOT runnable: running it is meaningless,
+  // so no Run affordance is shown. The browse-only watches/files panes are never runnable.
   readonly runnable: boolean;
   readonly openable: boolean;
+  // The card's primary (head) button: "run" for an executable card (a script file or a
+  // non-file action), "open" for a plain document/data file shortcut whose intent is to be
+  // opened, and undefined for the browse-only watch/project-file panes that carry no head
+  // button (their deliberate expand-then-act model). Computed in the data layer so the
+  // run-vs-open decision is unit-testable and the webview only renders it.
+  readonly headAction?: "run" | "open";
   // Whether the drawer shows a "Copy path" button. True for cards backed by a real file on
   // disk — a file shortcut/recipe, or a surfaced project file — and false for non-file
   // actions (shell/macro/routine) and watches. The host resolves the actual on-disk path by
@@ -115,6 +127,10 @@ function toItem(
   const kind = shortcutKind(shortcut);
   const fileName = shortcut.path.split("/").pop() ?? shortcut.path;
   const isFile = kind === "file";
+  // A non-file action always runs; a file runs only when it is a script (interpreter or an
+  // explicit run command). This makes a script lead with Run and a document/data file lead
+  // with Open, instead of every file card looking identical.
+  const runnable = isFile ? fileExecutable(shortcut, fileName) : true;
   return {
     id: shortcut.id,
     label: shortcut.label ?? fileName,
@@ -128,13 +144,37 @@ function toItem(
     icon: rowIcon(shortcut, kind, fileName),
     color: rowColor(shortcut, kind, fileName),
     kind,
-    runnable: true,
+    runnable,
     openable: isFile,
+    // The head leads with Run for an executable card (a script or a non-file action) and with
+    // Open for a plain document/data file shortcut. A shortcut card always carries a head
+    // button, so this is never undefined here (that is reserved for the browse-only panes).
+    headAction: runnable ? "run" : "open",
     // Only a file shortcut/recipe has a real on-disk path to copy; a shell/macro/routine
     // shortcut's "path" is a command, not a file location.
     copyable: isFile,
     menu: buildMenu(shortcut, pane, isFile),
   };
+}
+
+// Whether a file shortcut is executable as a script — the signal that decides Run-vs-Open on
+// the card head. True when the user gave it an explicit run command, when it is a run target
+// that names its work in args (an npm script / Make target, includeFilePath:false), or when
+// its extension maps to a known interpreter in the exec catalog (.py/.sh/.ps1/.js/...). A
+// plain document or data file (.json, .md, .txt) matches none of these, so running it has no
+// meaning and the card is open-only. Mirrors how the runner resolves what to execute, so the
+// affordance the card shows matches what Run would actually do.
+function fileExecutable(shortcut: Shortcut, fileName: string): boolean {
+  const exec = shortcut.exec;
+  if (exec?.command !== undefined && exec.command.trim().length > 0) {
+    return true;
+  }
+  if (exec?.includeFilePath === false && (exec.args?.length ?? 0) > 0) {
+    return true;
+  }
+  const dot = fileName.lastIndexOf(".");
+  const ext = dot >= 0 ? fileName.slice(dot).toLowerCase() : "";
+  return candidatesForExt(ext).length > 0;
 }
 
 // Build the row's right-click menu, mirroring the sidebar's actions for this item type.

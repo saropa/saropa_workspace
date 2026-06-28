@@ -110,21 +110,36 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   acts without expanding. (Reconciled with the developer 2026-06-27: the launcher is
   a browse-and-choose surface, where an accidental open/run on a click is the worse
   failure; the tree keeps single-click-opens.)
-- **The head button carries the card's primary action; the drawer carries the
-  rest.** The head's blue button leads with the action that matches the card: **Open**
-  for a file shortcut (a document's main intent — running it is secondary), **Run**
-  for a non-file action. It is icon-only in the compact grid and grows its text label
-  (`.run-label`) only when the card expands, so the head stays narrow among its
-  row-mates but names its action once opened — and it stays visible in both states
-  (it is no longer hidden on expand). The drawer omits whatever action the head
-  already carries, so a card never shows a duplicate Open or Run: a file shortcut
-  reads **Open** on the head and **Run** in the drawer; a non-file action reads
-  **Run** on the head and nothing redundant below (developer feedback 2026-06-28,
-  superseding the earlier "head ▶ hidden once expanded" rule — a document leading
-  with a Run button read wrong). The drawer's actions are right-aligned
+- **The head button carries the card's primary action, chosen by whether the card
+  is executable — not merely by whether it is a file.** The head's blue button leads
+  with **Run** for an *executable* card — a script file (one whose extension maps to
+  an interpreter in the exec catalog, or that carries an explicit run command) or a
+  non-file action — and with **Open** for a plain document/data file shortcut
+  (`.json`, `.md`, a file with no interpreter), whose only meaningful action is to be
+  opened. The decision is computed in the data layer as `headAction` (`run` | `open`
+  | absent) by `fileExecutable`, so the run-vs-open choice is unit-tested and the
+  webview only renders it. The button is icon-only in the compact grid and grows its
+  text label (`.run-label`) only when the card expands, so the head stays narrow among
+  its row-mates but names its action once opened — and it stays visible in both states.
+  The drawer omits whatever action the head already carries, so a card never shows a
+  duplicate: a script reads **Run** on the head and **Open** in the drawer; a document
+  reads **Open** on the head and carries **no Run at all** (running a `.json` is
+  meaningless); a non-file action reads **Run** on the head and nothing redundant
+  below. (Developer feedback 2026-06-28: a `.py` script must not lead with Open, and a
+  `.json` config must not offer Run — superseding the earlier "every file leads with
+  Open, Run is its secondary" rule, which treated file-vs-action as the only axis.) An
+  absent `headAction` means no head button — the browse-only Watches and Project-files
+  panes keep their deliberate expand-then-act model. The drawer's actions are right-aligned
   (`.drawer-actions { justify-content: flex-end }`) at the card's trailing edge, away
   from the leading name/path column, with a little extra vertical space around the
   drawer so the actions are easier to hit.
+- **The card's secondary line is suppressed when it only echoes the name.** A
+  root-level file shortcut carries its bare filename as both the label and the path
+  (e.g. `CHANGELOG.md`), so rendering the path under the title produced a duplicated
+  subtitle that read as a glitch (developer feedback 2026-06-28). `makeCard` skips the
+  `.card-sub` element entirely when `it.sub === it.label`; a sub line appears only when
+  it adds information the title does not already carry (a nested path, a freshness
+  line, a version).
 - **A webview surface mirrors the sidebar context menu as a flat, grouped custom
   menu — it cannot host native submenus.** Right-click opens an HTML menu built
   from a host-supplied, localized spec (`LauncherMenuEntry[]` from `launcherItems`),

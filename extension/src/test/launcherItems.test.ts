@@ -165,24 +165,63 @@ test("a recipe files under 'Recipes / Category' using its recipe group label", (
   assert.equal(items[0].section, "Recipes / GitHub");
 });
 
-test("a file shortcut is openable; an action shortcut is run-only with a kind", () => {
+test("a document file leads with Open; a script file and an action lead with Run", () => {
   const items = buildLauncherItems(
     asStore({
       ...empty,
       project: [
-        sc({ id: "file", scope: "project" }),
+        // No extension and no run command: a plain document/data file, not executable.
+        sc({ id: "doc", scope: "project", path: "NOTES" }),
+        // A .py file maps to an interpreter in the exec catalog, so it is a runnable script.
+        sc({ id: "script", scope: "project", path: "deploy.py" }),
         sc({ id: "act", scope: "project", action: { kind: "shell", shellCommand: "ls", useIntegratedTerminal: true } as Shortcut["action"] }),
       ],
     })
   );
-  const file = items.find((i) => i.id === "file");
+  const doc = items.find((i) => i.id === "doc");
+  const script = items.find((i) => i.id === "script");
   const act = items.find((i) => i.id === "act");
-  assert.equal(file?.kind, "file");
-  assert.equal(file?.openable, true);
-  assert.equal(file?.runnable, true);
+  // A document is openable but not runnable, so its head leads with Open.
+  assert.equal(doc?.kind, "file");
+  assert.equal(doc?.openable, true);
+  assert.equal(doc?.runnable, false);
+  assert.equal(doc?.headAction, "open");
+  // A script file is both openable and runnable, and its head leads with Run.
+  assert.equal(script?.openable, true);
+  assert.equal(script?.runnable, true);
+  assert.equal(script?.headAction, "run");
+  // A non-file action runs but cannot be opened, and its head leads with Run.
   assert.equal(act?.kind, "shell");
   assert.equal(act?.openable, false);
   assert.equal(act?.runnable, true);
+  assert.equal(act?.headAction, "run");
+});
+
+test("a file shortcut with an explicit run command is runnable even without a script extension", () => {
+  const items = buildLauncherItems(
+    asStore({
+      ...empty,
+      // A .json with no interpreter is normally open-only, but an explicit exec command opts
+      // it into Run — the user deliberately configured how to run it.
+      project: [sc({ id: "j", scope: "project", path: "task.json", exec: { command: "node" } })],
+    })
+  );
+  const item = items.find((i) => i.id === "j");
+  assert.equal(item?.runnable, true);
+  assert.equal(item?.headAction, "run");
+});
+
+test("a data file with no interpreter is open-only (no Run affordance)", () => {
+  const items = buildLauncherItems(
+    asStore({
+      ...empty,
+      project: [sc({ id: "cfg", scope: "project", path: ".vscode/saropa-workspace.json" })],
+    })
+  );
+  const item = items.find((i) => i.id === "cfg");
+  assert.equal(item?.openable, true);
+  assert.equal(item?.runnable, false);
+  assert.equal(item?.headAction, "open");
 });
 
 test("the label defaults to the path basename when no label override is set", () => {
