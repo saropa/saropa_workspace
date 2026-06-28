@@ -139,9 +139,29 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   the grid's default stretch made every card in a row match the tallest, so
   expanding one card's drawer stretched all its row-mates (developer feedback
   2026-06-27). An expanded card must grow downward alone.
-- **The search bar is a compact group on the leading edge, not full-width.** The
-  Panel is very wide; `.search` is capped (`max-width: 420px`) so the icon + input +
-  count stay a tidy cluster rather than stretching across the surface.
+- **The header is a two-part bar: a project block leads, the search group trails.**
+  The Panel is very wide, so a search box alone left dead space beside it. `.head-bar`
+  is a `space-between` flex row: the **project block** (`.project`) on the leading edge
+  and the compact **search group** (`.search`) on the trailing edge, wrapping (search
+  below) when the Panel is narrow. The search stays capped (`flex: 0 1 420px;
+  max-width: 420px`) so it never grows to fill the bar — the project block takes the
+  freed width instead. (Superseded the earlier "search on the leading edge" rule;
+  developer feedback 2026-06-28.)
+- **The project block names the current project and summarizes the board, computed
+  asynchronously.** `.project` shows the open folder's name (`.project-name`) over a
+  meta line (`.project-meta`) of the declared **version** plus per-pane **counts**
+  (shortcuts / recipes / watches / files, each an icon + value, zero buckets omitted).
+  The name paints synchronously from the host's initial HTML so the header is never
+  blank; the version and counts ride the first `data` message — the version read from
+  the same single project-files disk scan that builds the file cards (no second scan),
+  the counts tallied from the built items — and `renderHeader` writes them in when they
+  arrive. The version is the headline fact, so it reads in the regular foreground while
+  the counts stay in the dimmed description color. The host derives the version from the
+  scanned manifests in a fixed precedence (`package.json`, `pubspec.yaml`, `Cargo.toml`,
+  `pyproject.toml`, then `CHANGELOG.md`), scoped to the primary folder, and omits the
+  chip entirely when nothing declares one. The folder name is HTML-escaped before it is
+  baked into the initial markup (the one host-interpolated value); every later update
+  goes through `textContent`.
 - **The card grid is indented under its group heading.** `.group-body` carries a
   left padding (20px) so cards sit past the header's chevron + glyph, making the
   group-to-cards containment visible rather than flush with the pane edge.

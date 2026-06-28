@@ -4,6 +4,13 @@
 // codicon font, loaded host-side via asWebviewUri). All colors/spacing bind to --vscode-*
 // theme variables so the surface matches the editor in light/dark/high-contrast.
 //
+// Header: a two-part bar (.head-bar) — the project block (folder name, then a meta line of
+// the declared version + per-pane counts) on the leading edge, and the compact search group
+// on the trailing edge. The Panel is wide, so the project summary fills the space the search
+// box does not need; the bar wraps when the Panel is narrow. The name paints synchronously
+// from the host's initial HTML; the version + counts arrive in the first data message
+// (they need the disk scan) and are written by renderHeader.
+//
 // Layout (the design the launcher earns over a TreeView): the Panel is wide and short, so
 // the surface splits into two responsive panes — "My shortcuts" (the user's own entries)
 // on the left, "Recipes" (auto-detected, un-adopted) on the right — that sit side by side
@@ -38,10 +45,37 @@ header {
   background: var(--vscode-editor-background);
   padding-bottom: 8px;
 }
-/* Cap the search group's width: the Panel is very wide, and a full-width input
-   left the search bar stretched across the whole surface. Keep it a compact
-   group (icon + input + count) on the leading edge. */
-.search { display: flex; align-items: center; gap: 6px; width: 100%; max-width: 420px; }
+/* The header is a two-part bar: the project block (name + version + counts) on the
+   leading edge, and the compact search group on the trailing edge. The Panel is wide,
+   so space-between puts them at opposite ends and the space the developer noted beside
+   the search is filled with the project summary. It wraps when the Panel is narrow, the
+   search dropping below the project line, so neither block is crushed. */
+.head-bar {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 8px 16px; flex-wrap: wrap;
+}
+/* The project block grows to take the freed width; the meta line under the name wraps
+   within it. min-width:0 lets a long folder name ellipsize instead of forcing overflow. */
+.project { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.project-name {
+  font-weight: 600; font-size: 1.05em;
+  color: var(--vscode-foreground);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* The version + counts row: small, muted, wrapping. Each item is an icon + value. */
+.project-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  color: var(--vscode-descriptionForeground); font-size: 0.85em;
+}
+.meta-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.meta-item .codicon { font-size: 13px; }
+/* The version is the headline fact (which release is this), so it reads in the regular
+   foreground rather than the dimmed description color the counts use. */
+.meta-item.version { color: var(--vscode-foreground); }
+/* Cap the search group's width: the Panel is very wide, and a full-width input left the
+   search bar stretched across the whole surface. flex 0 1 keeps it a compact group
+   (icon + input + count) on the trailing edge that may shrink but not grow past the cap. */
+.search { display: flex; align-items: center; gap: 6px; flex: 0 1 420px; max-width: 420px; }
 .search .codicon { color: var(--vscode-input-placeholderForeground); flex: none; }
 #q {
   flex: 1;
@@ -289,6 +323,8 @@ const q = document.getElementById('q');
 const count = document.getElementById('count');
 const root = document.getElementById('root');
 const empty = document.getElementById('empty');
+const projName = document.getElementById('projName');
+const projMeta = document.getElementById('projMeta');
 
 // Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. Falls back
 // to the editor foreground so an unmapped/empty id still renders a visible glyph.
@@ -301,6 +337,30 @@ function codicon(id) {
   const i = document.createElement('span');
   i.className = 'codicon codicon-' + id;
   return i;
+}
+
+// Fill the header's leading block from the host-built header object. The project name was
+// already painted in the initial HTML; re-applying it here keeps it correct when the open
+// folder changes. The version + counts are the asynchronous facets (they need the disk
+// scan), so they arrive only now and replace any prior meta line. Every label is
+// host-localized text set via textContent — the script holds no display strings.
+function renderHeader(h) {
+  if (!h) { return; }
+  if (typeof h.project === 'string' && h.project) { projName.textContent = h.project; }
+  projMeta.textContent = '';
+  if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true)); }
+  const stats = Array.isArray(h.stats) ? h.stats : [];
+  for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false)); }
+}
+
+function metaItem(icon, text, isVersion) {
+  const span = document.createElement('span');
+  span.className = isVersion ? 'meta-item version' : 'meta-item';
+  span.appendChild(codicon(icon));
+  const t = document.createElement('span');
+  t.textContent = text;
+  span.appendChild(t);
+  return span;
 }
 
 // Group the flat item list into the four panes in fixed order: mine, recipes, watches, files.
@@ -680,6 +740,7 @@ window.addEventListener('message', function (event) {
     strings = msg.strings || {};
     items = Array.isArray(msg.items) ? msg.items : [];
     if (typeof msg.placeholder === 'string') { q.placeholder = msg.placeholder; }
+    renderHeader(msg.header);
     render();
   }
 });

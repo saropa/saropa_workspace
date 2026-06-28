@@ -14,7 +14,7 @@ import {
   LauncherItem,
 } from "./launcherItems";
 import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
-import { glyphForCategory } from "../model/projectFiles";
+import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
 import { LAUNCHER_STYLE, LAUNCHER_SCRIPT } from "./launcherAssets";
 
 // The "Saropa Launcher" Panel webview: a second, always-reachable window onto the same
@@ -220,15 +220,21 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
 
   // Push the current item set + UI strings to the webview. No-op until the view is
   // resolved. Async because the project-files scan does a handful of file stats (the same
-  // scan the tree does); the watch + shortcut data is in-memory.
+  // scan the tree does); the watch + shortcut data is in-memory. The scan runs ONCE here
+  // and feeds both the file cards and the header's version/stats, so the header's
+  // asynchronous facets (version, counts) ride the same data message — the project NAME
+  // already painted synchronously from the initial HTML, so the header fills in without
+  // blocking the first render.
   private async post(): Promise<void> {
     if (!this.view) {
       return;
     }
-    const items = await this.buildAllItems();
+    const files = await this.projectFiles.listSurfacedFiles();
+    const items = this.buildAllItems(files);
     void this.view.webview.postMessage({
       type: "data",
       items,
+      header: this.buildHeader(files, items),
       placeholder: l10n("launcher.searchPlaceholder"),
       strings: {
         run: l10n("launcher.run"),
@@ -252,8 +258,9 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   // then the watch cards and the project-file cards (the two flat panes). Each watch/file
   // card is formatted by the vscode-free builders in launcherItems; the host supplies the
   // bits those builders cannot compute (the watch's unseen tally, a file's shortcut state
-  // and freshness clock).
-  private async buildAllItems(): Promise<LauncherItem[]> {
+  // and freshness clock). `files` is the already-scanned surfaced-file set passed in by
+  // post() so the disk scan runs once per paint (shared with the header's version/stats).
+  private buildAllItems(files: readonly ProjectFileInfo[]): LauncherItem[] {
     const items = buildLauncherItems(this.store);
 
     for (const w of this.watchStore.list()) {
@@ -276,7 +283,6 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     // to match the tree. The relative time is stamped from one clock read so every card
     // in this paint shares the same "now".
     const now = Date.now();
-    const files = await this.projectFiles.listSurfacedFiles();
     const categoryOrder: string[] = [];
     for (const f of files) {
       if (!categoryOrder.includes(f.category)) {
@@ -311,10 +317,57 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     return items;
   }
 
+  // The launcher header's leading block: the current project (the first workspace folder),
+  // its declared version, and a compact count of what the board holds. The name is also
+  // painted synchronously from the initial HTML (projectName below); posting it again here
+  // keeps it correct when the open folder changes. Version + stats are the asynchronous
+  // facets — version is read from the same already-scanned manifest set, stats from the
+  // built items — so the developer's "version and stats computed asynchronously" lands
+  // without a second disk scan.
+  private buildHeader(
+    files: readonly ProjectFileInfo[],
+    items: readonly LauncherItem[]
+  ): LauncherHeader {
+    const primary = (vscode.workspace.workspaceFolders ?? [])[0];
+    const project =
+      primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject");
+    const version = deriveProjectVersion(files, primary?.name);
+
+    // Count by pane, omitting an empty bucket so the meta line stays a tight summary of
+    // what is actually present rather than a row of zeros.
+    const count = (pane: LauncherItem["pane"]): number =>
+      items.reduce((n, it) => (it.pane === pane ? n + 1 : n), 0);
+    const stats: LauncherStat[] = [];
+    const pushStat = (n: number, icon: string, key: string): void => {
+      if (n > 0) {
+        stats.push({ icon, text: l10n(key, { count: n }) });
+      }
+    };
+    pushStat(count("mine"), "star-full", "launcher.statShortcuts");
+    pushStat(count("recipes"), "book", "launcher.statRecipes");
+    pushStat(count("watches"), "eye", "launcher.statWatches");
+    pushStat(count("files"), "files", "launcher.statFiles");
+
+    return {
+      project,
+      version: version ? l10n("launcher.version", { version }) : undefined,
+      stats,
+    };
+  }
+
   private renderHtml(webview: vscode.Webview): string {
     const nonce = crypto.randomBytes(16).toString("base64");
     const codiconUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "dist", "codicon.css")
+    );
+    // Paint the project name synchronously in the initial markup so the header is never
+    // blank on first render; the version + stats arrive in the first data message (they
+    // need the disk scan). A folder basename is user-controlled, so it is HTML-escaped
+    // before it is interpolated into the markup (the webview's later update uses
+    // textContent and is safe by construction).
+    const primary = (vscode.workspace.workspaceFolders ?? [])[0];
+    const projectName = escapeHtml(
+      primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject")
     );
     const csp = [
       "default-src 'none'",
@@ -337,10 +390,16 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
 <header>
-  <div class="search">
-    <span class="codicon codicon-search"></span>
-    <input id="q" type="text" spellcheck="false" aria-label="${l10n("launcher.searchPlaceholder")}" />
-    <span id="count" class="count"></span>
+  <div class="head-bar">
+    <div class="project">
+      <div id="projName" class="project-name">${projectName}</div>
+      <div id="projMeta" class="project-meta"></div>
+    </div>
+    <div class="search">
+      <span class="codicon codicon-search"></span>
+      <input id="q" type="text" spellcheck="false" aria-label="${l10n("launcher.searchPlaceholder")}" />
+      <span id="count" class="count"></span>
+    </div>
   </div>
 </header>
 <div id="empty" class="empty hidden">${l10n("launcher.empty")}</div>
@@ -349,4 +408,65 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
   }
+}
+
+// One count shown in the header's meta line: a codicon id and its pre-localized label
+// (e.g. "6 shortcuts"). Built host-side so the webview holds no display strings.
+interface LauncherStat {
+  readonly icon: string;
+  readonly text: string;
+}
+
+// The header's leading block, posted with every data message. `project` is the current
+// folder name; `version` is the pre-localized "v{x}" label (undefined when no manifest
+// declares one); `stats` is the non-empty count summary.
+interface LauncherHeader {
+  readonly project: string;
+  readonly version: string | undefined;
+  readonly stats: readonly LauncherStat[];
+}
+
+// The project's declared version, read from the already-scanned manifest set. Manifests are
+// tried in a fixed precedence so a polyglot repo reports one stable version: the package
+// manifests first (the authored project version), then CHANGELOG as a last resort (its
+// newest released heading). Scoped to the primary folder so a sibling folder's manifest in a
+// multi-root workspace never leaks into the header. Returns undefined when nothing declares
+// one, which the caller renders as no version chip rather than an empty "v".
+function deriveProjectVersion(
+  files: readonly ProjectFileInfo[],
+  primaryFolder: string | undefined
+): string | undefined {
+  const precedence = [
+    "package.json",
+    "pubspec.yaml",
+    "Cargo.toml",
+    "pyproject.toml",
+    "CHANGELOG.md",
+  ];
+  const scoped = primaryFolder
+    ? files.filter((f) => f.folderName === primaryFolder)
+    : files;
+  const baseName = (name: string): string => name.split("/").pop() ?? name;
+  for (const manifest of precedence) {
+    const hit = scoped.find(
+      (f) => baseName(f.name) === manifest && f.version
+    );
+    if (hit?.version) {
+      return hit.version;
+    }
+  }
+  return undefined;
+}
+
+// Escape the five HTML-significant characters before interpolating an untrusted value (a
+// folder basename) into the initial markup string. Every other rendered value reaches the
+// webview through textContent, which escapes by construction; this guards the one value
+// baked into the HTML host-side.
+function escapeHtml(value: string): string {
+  return value
+    .split("&").join("&amp;")
+    .split("<").join("&lt;")
+    .split(">").join("&gt;")
+    .split('"').join("&quot;")
+    .split("'").join("&#39;");
 }

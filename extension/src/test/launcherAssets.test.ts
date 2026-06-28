@@ -145,13 +145,47 @@ test("LAUNCHER_STYLE: the card grid is indented under its group heading", () => 
 
 test("LAUNCHER_STYLE: the search group is width-capped, not full-width", () => {
   // The Panel is very wide; an uncapped search input stretched across the whole surface.
-  // .search must carry a max-width so it stays a compact cluster on the leading edge.
+  // .search must carry a max-width so it stays a compact cluster on the trailing edge.
   const search = LAUNCHER_STYLE.match(/\.search\s*\{[^}]*\}/);
   assert.ok(search, ".search rule must exist");
   assert.ok(
     search[0].includes("max-width:"),
     ".search must cap its width so it does not span the wide Panel"
   );
+});
+
+test("LAUNCHER_STYLE: the header is a space-between bar so search trails and project leads", () => {
+  // .head-bar splits the project block (leading) from the search group (trailing). A
+  // regression that dropped space-between would re-stack them and lose the moved layout.
+  const bar = LAUNCHER_STYLE.match(/\.head-bar\s*\{[^}]*\}/);
+  assert.ok(bar, ".head-bar rule must exist");
+  assert.ok(
+    bar[0].includes("justify-content: space-between"),
+    ".head-bar must push the project block and search to opposite edges"
+  );
+  assert.ok(bar[0].includes("flex-wrap: wrap"), ".head-bar must wrap on a narrow Panel");
+});
+
+test("LAUNCHER_STYLE: the project name ellipsizes and the version reads in the foreground", () => {
+  // The project name is a single line that must clip rather than overflow; the version is
+  // the headline fact, so it uses the regular foreground while the counts stay dimmed.
+  assert.ok(/\.project-name\s*\{[^}]*text-overflow:\s*ellipsis/.test(LAUNCHER_STYLE));
+  const version = LAUNCHER_STYLE.match(/\.meta-item\.version\s*\{[^}]*\}/);
+  assert.ok(version, ".meta-item.version rule must exist");
+  assert.ok(
+    version[0].includes("var(--vscode-foreground)"),
+    "the version must read in the regular foreground, not the dimmed description color"
+  );
+});
+
+test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", () => {
+  // The host posts { project, version, stats }; renderHeader writes the name, version chip,
+  // and per-pane counts. Both the call from the data handler and the function must persist.
+  assert.ok(LAUNCHER_SCRIPT.includes("renderHeader(msg.header)"));
+  assert.ok(LAUNCHER_SCRIPT.includes("function renderHeader"));
+  // The header text is set via textContent, never innerHTML — the no-innerHTML test already
+  // guards the file, but the project name/version are untrusted host values too.
+  assert.ok(LAUNCHER_SCRIPT.includes("projName.textContent"));
 });
 
 test("LAUNCHER_SCRIPT: recipe cards expose Pin and Schedule drawer buttons", () => {
