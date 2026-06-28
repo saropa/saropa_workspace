@@ -71,12 +71,22 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   wide, stacked (mine first) when narrow. The user's own shortcuts must never be
   visually mixed with the detected recipes — they are different kinds of thing
   (one you curated, one the extension guessed), so they get different columns.
-- **Groups are collapsible, and the fold state persists.** Each group inside a
-  pane is a disclosure header (chevron + the group's own glyph/tint + a count) over
-  its card grid. The collapse posture is stored in the webview's `getState`/
-  `setState` so a folded group stays folded across reloads. While a search query is
-  active, a collapsed group still reveals its matching cards (a result is never
-  hidden behind a fold).
+- **Both panes and groups are collapsible, and the fold state persists.** Two
+  independent levels of disclosure: a whole pane (My shortcuts / Recipes / Watches /
+  Project files) folds via its clickable `.pane-head` (a `<button>` carrying a
+  `.pane-chevron` + title + count), and each group inside a grouped pane folds via
+  its own header (chevron + the group's own glyph/tint + a count) over its card
+  grid. Both postures are stored in the webview's `getState`/`setState` so a folded
+  section or group stays folded across reloads — pane keys are namespaced
+  `pane:<id>` so a pane id can never collide with an inner group id in the shared
+  `collapsed` map. While a search query is active, a collapsed pane AND a collapsed
+  group both reveal their matching cards (`.root.searching` re-displays `.pane-body`
+  and `.group-body`, declared after the collapsed rules to win at equal
+  specificity), so a result is never hidden behind a fold (developer feedback
+  2026-06-28). The pane body is wrapped in `.pane-body` so one `.pane.collapsed`
+  class folds the whole section while the head stays visible; the reflowing
+  `repeat(auto-fit, minmax)` panes track is unchanged, so a collapsed pane simply
+  shrinks to its head and the surface stays responsive.
 - **Every card carries a colored icon, reusing the tree's token map.** A launcher
   card shows the SAME glyph + tint the sidebar row would (`fileTypeIcon` / `kindIcon`
   / `kindColor` in the vscode-free `fileTypeTokens` module, plus the user's custom
@@ -552,6 +562,31 @@ when curious. Two rules:
   change the user just requested — e.g. the Recommended shelf's one-tap enable emits
   *"Dawn lint sweep enabled — runs daily at 05:00."* It names the item and carries
   the concrete value (§4.2); it never fires unprompted.
+
+### 4.7 Window-independent state alerts per project, never every window
+
+State stored in window-independent `globalState` (a folder/file watch, anything
+synced across windows) is visible in *every* open window at once. A surface driven
+by such state that raises **alerts** — a toast, a badge that demands attention —
+must not fire in every window just because the state is shared. Alerting is
+**opt-in per project**:
+
+- **Default opt-in is the project the thing belongs to.** A watch created in (or
+  about) a project alerts only in that project's window. The folder-watch engine
+  gates scanning/arming on `watchAlertsIn(watch, currentFolderPaths)`; a watch with
+  no explicit scope falls back to "alert only in the project that contains the
+  target" so existing items self-correct without a migration write. This is the fix
+  for the "you blasted every project I am running" report (2026-06-28): a per-project
+  `bugs` watch was popping its alerts in unrelated windows.
+- **Other projects are opted in explicitly, and the per-project state is legible on
+  the row.** Each Watches row shows whether it alerts in the current project (a
+  struck bell + "not alerting here" when it does not) and carries **Alert in this
+  project** / **Stop alerting in this project** actions. The row `contextValue`
+  encodes both the enabled state and the here/elsewhere scope
+  (`watch<Enabled|Disabled>.<here|elsewhere>`) so the right opt-in/out action shows.
+- **An explicit opt-out persists.** Distinguish "never scoped" (legacy default) from
+  "scoped to no projects" (an opt-out that removed the last project): the latter must
+  stay muted, not fall back to the containing-project default.
 
 ---
 

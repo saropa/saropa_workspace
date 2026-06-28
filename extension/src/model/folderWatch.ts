@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as path from "path";
 
 // Folder/file watches (PLAN_FILE_AND_FOLDER_WATCH): the user asks to be told when
 // new files appear in a folder (e.g. "tell me when a new bug report lands in
@@ -37,6 +38,20 @@ export interface FolderWatch {
   // A disabled watch is kept (so its config and baseline survive) but neither
   // scanned on startup nor armed with a live watcher.
   enabled: boolean;
+  // Which projects this watch is allowed to ALERT in, as workspace-folder fsPaths.
+  // The watch list lives in window-independent globalState, so without this gate a
+  // single watch toasted in EVERY open window — the "you blasted every project I am
+  // running" report (2026-06-28): a per-project bugs watch set up in one project
+  // popped its alerts in unrelated projects. Alerting is therefore opt-in per
+  // project. Semantics, kept distinct on purpose:
+  //   - undefined  -> legacy/never-scoped: alert only in the project that CONTAINS
+  //                   the target (so an existing per-project watch self-corrects to
+  //                   its own project without a migration write).
+  //   - []         -> explicitly muted everywhere (an opt-out that removed the last
+  //                   project must persist, not fall back to the containing default).
+  //   - [paths]    -> alert only in windows holding one of these folders.
+  // New watches are created with an explicit array; opt-in/out edits this list.
+  alertScopes?: string[];
 }
 
 // One scan result: each watched file's folder-relative path mapped to its
@@ -85,6 +100,42 @@ export function diffSnapshots(
 // any future consumer agree on "is this delta empty".
 export function isEmptyDelta(delta: FolderWatchDelta): boolean {
   return delta.added.length === 0 && delta.changed.length === 0;
+}
+
+// True when `target` is `folder` itself or nested under it. path.relative yields a
+// "../"-prefixed or absolute result when target escapes folder; neither is inside.
+// Centralized so the alert-scope rule and its materialization agree on containment.
+export function isPathInside(folder: string, target: string): boolean {
+  const rel = path.relative(folder, target);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+// Whether a watch should raise alerts in a window holding `folderPaths` (the
+// current workspace folders). The single source of truth for "does this watch fire
+// here", shared by the engine (which gates scanning/arming) and the Watches tree
+// (which shows the per-project state). See FolderWatch.alertScopes for why alerting
+// is opt-in per project rather than firing in every open window.
+export function watchAlertsIn(
+  watch: FolderWatch,
+  folderPaths: string[]
+): boolean {
+  if (watch.alertScopes === undefined) {
+    // Never scoped: alert only in the project that contains the target.
+    return folderPaths.some((p) => isPathInside(p, watch.target));
+  }
+  return folderPaths.some((p) => watch.alertScopes!.includes(p));
+}
+
+// Materialize the implicit legacy scope (the containing project among the current
+// folders) so an opt-in/out edit on a never-scoped watch starts from its real
+// project set instead of an empty list. A documented limitation: materializing from
+// a window that does NOT hold the original containing project cannot recover that
+// project's implicit scope — it must be re-opted-in from its own window.
+export function defaultAlertScopes(
+  watch: FolderWatch,
+  folderPaths: string[]
+): string[] {
+  return folderPaths.filter((p) => isPathInside(p, watch.target));
 }
 
 const WATCHES_KEY = "saropaWorkspace.folderWatches";

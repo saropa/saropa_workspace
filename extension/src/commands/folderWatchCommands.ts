@@ -5,6 +5,8 @@ import {
   FolderWatch,
   FolderWatchMode,
   FolderWatchStore,
+  watchAlertsIn,
+  defaultAlertScopes,
 } from "../model/folderWatch";
 import { WatchTreeItem } from "../views/watchesTreeProvider";
 import { l10n } from "../i18n/l10n";
@@ -19,6 +21,22 @@ import { l10n } from "../i18n/l10n";
 // stay sortable-by-creation and collision-free without a dependency.
 function newId(): string {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+// The current window's workspace folders as fsPaths. A new watch is scoped to alert
+// in these projects (so it never fires in unrelated windows), and the opt-in/out
+// actions add/remove the current window's folders from a watch's alert scope.
+function currentFolderPaths(): string[] {
+  return (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+}
+
+// The alert scope a freshly-created watch should carry: the project(s) open in this
+// window. Undefined when no folder is open, which leaves the legacy "alert in the
+// containing project" default rather than storing [] (muted everywhere) — a watch
+// added in an empty window should still alert once its project is opened.
+function creationScopes(): string[] | undefined {
+  const folders = currentFolderPaths();
+  return folders.length > 0 ? folders : undefined;
 }
 
 // How long a one-time watch confirmation stays on screen before clearing itself.
@@ -71,8 +89,59 @@ export function registerFolderWatchCommands(
     vscode.commands.registerCommand(
       "saropaWorkspace.removeWatch",
       (item?: WatchTreeItem) => removeWatchRow(store, item)
+    ),
+    // Opt the current project into / out of a watch's alerts. A watch only alerts in
+    // projects it is opted into; these row actions are how a global watch is turned
+    // on for an individual project (and off again) without removing the watch.
+    vscode.commands.registerCommand(
+      "saropaWorkspace.alertHereWatch",
+      (item?: WatchTreeItem) => setAlertHereRow(store, item, true)
+    ),
+    vscode.commands.registerCommand(
+      "saropaWorkspace.muteHereWatch",
+      (item?: WatchTreeItem) => setAlertHereRow(store, item, false)
     )
   );
+}
+
+// Add or remove the current window's project folders from a watch's alert scope.
+// Materializes the implicit legacy scope first (defaultAlertScopes) so opting one
+// project in never silently drops the watch's original containing project, and so
+// an opt-out leaves an explicit [] (muted everywhere) instead of falling back to the
+// containing default. Names the watch in the confirmation so the change is concrete.
+async function applyAlertHere(
+  store: FolderWatchStore,
+  watch: FolderWatch,
+  on: boolean
+): Promise<void> {
+  const folders = currentFolderPaths();
+  if (folders.length === 0) {
+    notifyWatchChange(l10n("folderWatch.noProjectOpen"));
+    return;
+  }
+  const base = watch.alertScopes ?? defaultAlertScopes(watch, folders);
+  const next = on
+    ? [...new Set([...base, ...folders])].sort()
+    : base.filter((p) => !folders.includes(p));
+  await store.update(watch.id, { alertScopes: next });
+  const name = watch.label ?? path.basename(watch.target);
+  notifyWatchChange(
+    on
+      ? l10n("folderWatch.alertHereOn", { name })
+      : l10n("folderWatch.alertHereOff", { name })
+  );
+}
+
+// Row inline-menu entry point for opt-in/out.
+async function setAlertHereRow(
+  store: FolderWatchStore,
+  item: WatchTreeItem | undefined,
+  on: boolean
+): Promise<void> {
+  if (!item) {
+    return;
+  }
+  await applyAlertHere(store, item.watch, on);
 }
 
 // Clicking a watch row: open what changed and clear the counter. Reading the unseen
@@ -189,6 +258,9 @@ export async function maybeSuggestBugsWatch(
       isFile: false,
       mode: "new",
       enabled: true,
+      // Scope alerts to THIS project only: the offer is per-project, so its watch
+      // must not toast in other windows (the "blasted every project" report).
+      alertScopes: [folder.uri.fsPath],
     };
     await store.add(watch);
     notifyWatchChange(
@@ -225,6 +297,10 @@ async function addFolderWatch(
     mode,
     glob: glob.length > 0 ? glob : undefined,
     enabled: true,
+    // Alert in the project(s) open here, not every window. Opt other projects in
+    // later from the Watches view; undefined (no folder open) keeps the legacy
+    // "alert in the containing project" default.
+    alertScopes: creationScopes(),
   };
   const stored = await store.add(watch);
   const name = path.basename(stored.target);
@@ -251,6 +327,8 @@ async function addFileWatch(
     isFile: true,
     mode: "changed",
     enabled: true,
+    // Alert in the project(s) open here, not every window (see addFolderWatch).
+    alertScopes: creationScopes(),
   };
   const stored = await store.add(watch);
   notifyWatchChange(
@@ -389,8 +467,14 @@ async function actOnWatch(
   const toggle = watch.enabled
     ? l10n("folderWatch.disable")
     : l10n("folderWatch.enable");
+  // Whether the project(s) open in this window currently receive this watch's
+  // alerts, so the action sheet offers the opposite (opt in vs opt out).
+  const alertsHere = watchAlertsIn(watch, currentFolderPaths());
+  const alertHere = alertsHere
+    ? l10n("folderWatch.muteHere")
+    : l10n("folderWatch.alertHere");
   const remove = l10n("folderWatch.remove");
-  const choice = await vscode.window.showQuickPick([toggle, remove], {
+  const choice = await vscode.window.showQuickPick([toggle, alertHere, remove], {
     title: watch.label ?? path.basename(watch.target),
     placeHolder: l10n("folderWatch.actionPlaceholder"),
   });
@@ -399,6 +483,10 @@ async function actOnWatch(
   }
   if (choice === toggle) {
     await store.update(watch.id, { enabled: !watch.enabled });
+    return "continue";
+  }
+  if (choice === alertHere) {
+    await applyAlertHere(store, watch, !alertsHere);
     return "continue";
   }
   await store.remove(watch.id);

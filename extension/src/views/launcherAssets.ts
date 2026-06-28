@@ -16,9 +16,11 @@
 // sidebar's actions, routed to the same host commands by shortcut id.
 //
 // Search is client-side: the host posts the full item set once per change and the script
-// filters live on every keystroke; while a query is active, collapsed groups reveal their
-// matches so a result is never hidden behind a folded folder. Collapse posture persists
-// across reloads via the webview's getState/setState.
+// filters live on every keystroke; while a query is active, collapsed panes and groups
+// reveal their matches so a result is never hidden behind a folded section or folder. Both
+// levels collapse independently — a whole pane (My shortcuts / Recipes / Watches / Project
+// files) or a single inner group — and the posture persists across reloads via the webview's
+// getState/setState.
 
 export const LAUNCHER_STYLE = `
 :root { color-scheme: light dark; }
@@ -63,18 +65,38 @@ header {
   align-items: start;
 }
 .pane.hidden { display: none; }
+/* The pane head doubles as the section's collapse toggle: a full-width button (chevron +
+   title + count) over the pane body. A whole pane (My shortcuts / Recipes / Watches /
+   Project files) can be folded away when a user wants only one section on screen, so the
+   board scales down to just the sections in use. */
 .pane-head {
-  display: flex; align-items: baseline; gap: 7px;
+  display: flex; align-items: center; gap: 7px;
+  width: 100%;
+  background: none; border: none; text-align: left;
+  font-family: inherit;
   padding: 6px 2px 4px;
   border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
   margin-bottom: 4px;
+  cursor: pointer;
 }
+.pane-head:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.pane-chevron {
+  flex: none; transition: transform 0.12s ease; font-size: 14px;
+  color: var(--vscode-descriptionForeground);
+}
+.pane.collapsed .pane-chevron { transform: rotate(-90deg); }
 .pane-title {
   font-size: 0.86em; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--vscode-foreground);
 }
+.pane-head:hover .pane-chevron { color: var(--vscode-foreground); }
 .pane-count { color: var(--vscode-descriptionForeground); font-size: 0.8em; }
+.pane.collapsed .pane-body { display: none; }
+/* During a search, reveal a collapsed pane's body so matching cards are never hidden behind
+   a folded section; the chevron keeps its collapsed pose so the persisted posture stays
+   legible. Declared AFTER the collapsed rule so it wins at equal specificity. */
+.root.searching .pane .pane-body { display: block; }
 
 /* A collapsible group: a clickable header (chevron + tinted glyph + label + count) over a
    responsive card grid. The generous margin-top + header padding give each group's title
@@ -481,8 +503,17 @@ function render() {
     const isEmpty = pane.flat ? flatItems.length === 0 : pane.groups.length === 0;
     if (isEmpty) { paneEl.classList.add('hidden'); }
 
-    const head = document.createElement('div');
+    // Pane-level collapse persists under its own 'pane:' key namespace so a pane id can never
+    // collide with an inner group id in the same collapsed map.
+    const paneKey = 'pane:' + pane.id;
+    if (isCollapsed(paneKey)) { paneEl.classList.add('collapsed'); }
+
+    const head = document.createElement('button');
     head.className = 'pane-head';
+    head.type = 'button';
+    const chev = codicon('chevron-down');
+    chev.classList.add('pane-chevron');
+    head.appendChild(chev);
     const title = document.createElement('span');
     title.className = 'pane-title';
     title.textContent = pane.title;
@@ -497,18 +528,27 @@ function render() {
     }
     pc.textContent = String(n);
     head.appendChild(pc);
+    head.addEventListener('click', function () {
+      const collapsed = paneEl.classList.toggle('collapsed');
+      setCollapsed(paneKey, collapsed);
+    });
     paneEl.appendChild(head);
 
-    // Flat panes (Watches / Project files) render their cards directly under the pane head;
-    // grouped panes (My shortcuts / Recipes) render their collapsible groups.
+    // The pane body wraps everything below the head so a single .collapsed class on the pane
+    // folds the whole section. Flat panes (Watches / Project files) render their cards
+    // directly in the body; grouped panes (My shortcuts / Recipes) render their inner
+    // collapsible groups.
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'pane-body';
     if (pane.flat) {
       const grid = document.createElement('div');
       grid.className = 'grid pane-flat';
       for (const it of flatItems) { grid.appendChild(makeCard(it)); }
-      paneEl.appendChild(grid);
+      bodyEl.appendChild(grid);
     } else {
-      for (const group of pane.groups) { paneEl.appendChild(makeGroup(group)); }
+      for (const group of pane.groups) { bodyEl.appendChild(makeGroup(group)); }
     }
+    paneEl.appendChild(bodyEl);
     panesEl.appendChild(paneEl);
   }
   root.appendChild(panesEl);

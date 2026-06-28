@@ -8,6 +8,7 @@ import {
   FolderWatchStore,
   diffSnapshots,
   isEmptyDelta,
+  watchAlertsIn,
 } from "../model/folderWatch";
 import { globToRegExp } from "./globMatch";
 import { l10n } from "../i18n/l10n";
@@ -71,6 +72,7 @@ export class FolderWatchEngine implements vscode.Disposable {
   // Live watchers keyed by watch id, so a store change re-arms only what changed.
   private readonly armed = new Map<string, ArmedWatch>();
   private readonly storeSub: vscode.Disposable;
+  private readonly folderSub: vscode.Disposable;
   private startupTimer?: NodeJS.Timeout;
   private disposed = false;
 
@@ -80,6 +82,21 @@ export class FolderWatchEngine implements vscode.Disposable {
   ) {
     // Re-arm live watchers whenever the watch list changes (add/remove/toggle).
     this.storeSub = store.onDidChange(() => this.reconcileWatchers());
+    // The set of projects open in this window decides which watches alert here
+    // (watchAlertsIn). When a folder is added/removed, a watch can move in or out
+    // of scope, so rescan: this re-arms live watchers AND surfaces files that landed
+    // in a newly-in-scope watch while it was not being watched here.
+    this.folderSub = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      if (!this.disposed) {
+        void this.scanAllEnabled();
+      }
+    });
+  }
+
+  // The current window's workspace folders as fsPaths — the input to the per-project
+  // alert gate. Empty in a window with no folder open.
+  private folderPaths(): string[] {
+    return (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   }
 
   // Arm a deferred startup scan: seeds a baseline silently the first time a watch is
@@ -97,8 +114,11 @@ export class FolderWatchEngine implements vscode.Disposable {
   }
 
   private async scanAllEnabled(): Promise<void> {
+    const folders = this.folderPaths();
     for (const watch of this.store.list()) {
-      if (!watch.enabled || this.disposed) {
+      // Skip watches not opted into this project — they alert in their own
+      // window(s), never here (the "blasted every project" fix).
+      if (!watch.enabled || this.disposed || !watchAlertsIn(watch, folders)) {
         continue;
       }
       await this.scanAndReport(watch, true);
@@ -113,8 +133,14 @@ export class FolderWatchEngine implements vscode.Disposable {
     if (this.disposed) {
       return;
     }
+    // Only arm live watchers for watches enabled AND opted into this project; an
+    // out-of-scope watch must do nothing in this window (no scan, no toast).
+    const folders = this.folderPaths();
     const enabled = new Map(
-      this.store.list().filter((w) => w.enabled).map((w) => [w.id, w])
+      this.store
+        .list()
+        .filter((w) => w.enabled && watchAlertsIn(w, folders))
+        .map((w) => [w.id, w])
     );
     // Drop watchers no longer wanted.
     for (const [id, armed] of this.armed) {
@@ -176,7 +202,12 @@ export class FolderWatchEngine implements vscode.Disposable {
     armed.debounce = setTimeout(() => {
       armed.debounce = undefined;
       const watch = this.store.find(id);
-      if (watch && watch.enabled && !this.disposed) {
+      if (
+        watch &&
+        watch.enabled &&
+        !this.disposed &&
+        watchAlertsIn(watch, this.folderPaths())
+      ) {
         void this.scanAndReport(watch, false);
       }
     }, DEBOUNCE_MS);
@@ -358,6 +389,7 @@ export class FolderWatchEngine implements vscode.Disposable {
       clearTimeout(this.startupTimer);
     }
     this.storeSub.dispose();
+    this.folderSub.dispose();
     for (const [id, armed] of [...this.armed]) {
       this.disarm(id, armed);
     }

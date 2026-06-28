@@ -213,6 +213,18 @@
         "icon": "$(trash)"
       },
       {
+        "command": "saropaWorkspace.alertHereWatch",
+        "title": "%command.alertHereWatch.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(bell)"
+      },
+      {
+        "command": "saropaWorkspace.muteHereWatch",
+        "title": "%command.muteHereWatch.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(bell-slash)"
+      },
+      {
         "command": "saropaWorkspace.copyPath",
         "title": "%command.copyPath.title%",
         "category": "%extension.displayName%",
@@ -1307,14 +1319,24 @@
       ],
       "view/item/context": [
         {
-          "command": "saropaWorkspace.toggleWatch",
-          "when": "view == saropaWorkspace.watches && (viewItem == watchEnabled || viewItem == watchDisabled)",
+          "command": "saropaWorkspace.alertHereWatch",
+          "when": "view == saropaWorkspace.watches && viewItem =~ /^watch(Enabled|Disabled)\\.elsewhere$/",
           "group": "inline@1"
         },
         {
-          "command": "saropaWorkspace.removeWatch",
-          "when": "view == saropaWorkspace.watches && (viewItem == watchEnabled || viewItem == watchDisabled)",
+          "command": "saropaWorkspace.muteHereWatch",
+          "when": "view == saropaWorkspace.watches && viewItem =~ /^watch(Enabled|Disabled)\\.here$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "saropaWorkspace.toggleWatch",
+          "when": "view == saropaWorkspace.watches && viewItem =~ /^watch(Enabled|Disabled)\\./",
           "group": "inline@2"
+        },
+        {
+          "command": "saropaWorkspace.removeWatch",
+          "when": "view == saropaWorkspace.watches && viewItem =~ /^watch(Enabled|Disabled)\\./",
+          "group": "inline@3"
         },
         {
           "command": "saropaWorkspace.resetRunHistory",
@@ -1580,6 +1602,14 @@
         },
         {
           "command": "saropaWorkspace.removeWatch",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.alertHereWatch",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.muteHereWatch",
           "when": "false"
         },
         {

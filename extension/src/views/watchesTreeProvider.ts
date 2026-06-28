@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { FolderWatch, FolderWatchStore } from "../model/folderWatch";
+import { FolderWatch, FolderWatchStore, watchAlertsIn } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 
 // The "Watches" view: one row per folder/file watch the user set up
@@ -58,7 +58,20 @@ export class WatchesTreeProvider
     }
     const watches = this.store.list();
     this.setCount(watches.length);
-    return watches.map((watch) => new WatchTreeItem(watch, this.store.unseenCount(watch.id)));
+    // Whether each watch alerts in THIS window depends on the projects open here, so
+    // compute it once per repaint and hand it to the row (drives the icon, the
+    // "not alerting here" note, and which opt-in/out menu item shows).
+    const folders = (vscode.workspace.workspaceFolders ?? []).map(
+      (f) => f.uri.fsPath
+    );
+    return watches.map(
+      (watch) =>
+        new WatchTreeItem(
+          watch,
+          this.store.unseenCount(watch.id),
+          watchAlertsIn(watch, folders)
+        )
+    );
   }
 }
 
@@ -69,7 +82,11 @@ export class WatchesTreeProvider
 export class WatchTreeItem extends vscode.TreeItem {
   constructor(
     readonly watch: FolderWatch,
-    readonly unseen: number
+    readonly unseen: number,
+    // Whether this watch alerts in the window currently showing the row. A watch is
+    // listed in every window (the list is global) but only fires in projects opted
+    // into it, so a row can be "set up here but not alerting here".
+    readonly alertsHere: boolean
   ) {
     super(
       watch.label ?? path.basename(watch.target),
@@ -84,13 +101,17 @@ export class WatchTreeItem extends vscode.TreeItem {
         ? l10n("folderWatch.modeChanged")
         : l10n("folderWatch.modeNew");
 
-    // A disabled watch reads muted (closed eye, "off" in the description) and never
-    // shows a counter — it is detecting nothing. An enabled watch with unseen files
-    // leads its description with the count and uses a tinted bell so the row draws
-    // the eye; an idle enabled watch shows a plain open eye.
+    // A disabled watch reads muted (closed eye, "off"). A watch not opted into this
+    // project shows a struck bell and a "not alerting here" note — it is configured
+    // but silent in this window, recoverable via the row's "Alert in this project".
+    // An enabled, in-scope watch with unseen files leads with the count and a tinted
+    // bell; an idle in-scope watch shows a plain open eye.
     if (!watch.enabled) {
       this.iconPath = new vscode.ThemeIcon("eye-closed");
       this.description = l10n("watchesView.rowOff", { kind, mode });
+    } else if (!alertsHere) {
+      this.iconPath = new vscode.ThemeIcon("bell-slash");
+      this.description = l10n("watchesView.rowElsewhere", { kind, mode });
     } else if (unseen > 0) {
       this.iconPath = new vscode.ThemeIcon(
         "bell-dot",
@@ -102,17 +123,25 @@ export class WatchTreeItem extends vscode.TreeItem {
       this.description = l10n("watchesView.rowIdle", { kind, mode });
     }
 
+    // Tooltip names the target and whether this project receives the watch's alerts,
+    // so the per-project scope is legible without opening the manage hub.
+    const scopeTip = alertsHere
+      ? l10n("watchesView.scopeHere")
+      : l10n("watchesView.scopeElsewhere");
     this.tooltip = l10n("watchesView.rowTooltip", {
       target: watch.target,
       kind,
       mode,
+      scope: scopeTip,
     });
 
-    // Distinct contextValue per enabled-state so the row's inline menu shows the
-    // right toggle (Disable on an enabled watch, Enable on a disabled one); both
-    // keep the "watch" prefix so Remove matches either. These literals are bound to
-    // package.json `when` clauses, so they must match exactly.
-    this.contextValue = watch.enabled ? "watchEnabled" : "watchDisabled";
+    // contextValue encodes both the enabled state (which enable/disable toggle to
+    // show) and whether this project alerts (which of opt-in / opt-out to show). The
+    // "watch" prefix is kept so Remove/Toggle match either; package.json `when`
+    // clauses parse these segments, so the shape must stay "watch<State>.<scope>".
+    const stateSeg = watch.enabled ? "watchEnabled" : "watchDisabled";
+    const scopeSeg = alertsHere ? "here" : "elsewhere";
+    this.contextValue = `${stateSeg}.${scopeSeg}`;
 
     // Single click opens the watch (reveals/opens what changed) and clears the
     // counter. The watch id is the only argument the command needs; it re-reads the

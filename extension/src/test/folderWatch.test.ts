@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import {
   diffSnapshots,
   isEmptyDelta,
+  watchAlertsIn,
+  defaultAlertScopes,
   FolderSnapshot,
   FolderWatch,
   FolderWatchStore,
@@ -83,6 +85,46 @@ test("diff against an empty baseline reports every file (engine must seed instea
   const current: FolderSnapshot = { "a.md": 1, "b.md": 2 };
   const delta = diffSnapshots({}, current, "new");
   assert.deepEqual(delta.added, ["a.md", "b.md"]);
+});
+
+// --- per-project alert scope (the "do not blast every project" gate) ----------
+
+// A folder watch with an optional explicit alert scope, for the gate tests.
+function scopedWatch(target: string, alertScopes?: string[]): FolderWatch {
+  return { id: "w", target, isFile: false, mode: "new", enabled: true, alertScopes };
+}
+
+test("a never-scoped watch alerts only in the project that contains its target", () => {
+  // The legacy/auto-correct default: an existing per-project bugs watch fires in
+  // its own project and nowhere else, with no migration write.
+  const w = scopedWatch("/src/contacts/bugs");
+  assert.equal(watchAlertsIn(w, ["/src/contacts"]), true);
+  // The exact "blasted every project" report: it must NOT fire in another project.
+  assert.equal(watchAlertsIn(w, ["/src/workspace"]), false);
+});
+
+test("an explicitly-scoped watch alerts only in its listed projects", () => {
+  const w = scopedWatch("/external/dropbox", ["/src/contacts"]);
+  assert.equal(watchAlertsIn(w, ["/src/contacts"]), true);
+  assert.equal(watchAlertsIn(w, ["/src/workspace"]), false);
+  // Multi-root window holding one listed folder still alerts.
+  assert.equal(watchAlertsIn(w, ["/src/workspace", "/src/contacts"]), true);
+});
+
+test("an empty alert scope is muted everywhere (an opt-out persists)", () => {
+  // [] is distinct from undefined: removing the last project must not fall back to
+  // the containing-project default and resurrect the alert.
+  const w = scopedWatch("/src/contacts/bugs", []);
+  assert.equal(watchAlertsIn(w, ["/src/contacts"]), false);
+});
+
+test("defaultAlertScopes materializes the containing project among current folders", () => {
+  const w = scopedWatch("/src/contacts/bugs");
+  assert.deepEqual(
+    defaultAlertScopes(w, ["/src/workspace", "/src/contacts"]),
+    ["/src/contacts"]
+  );
+  assert.deepEqual(defaultAlertScopes(w, ["/src/workspace"]), []);
 });
 
 // --- unseen tally (the per-row counter + activity-bar total) ------------------

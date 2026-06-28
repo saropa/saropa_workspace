@@ -98,6 +98,37 @@ test("LAUNCHER_STYLE: the card grid sizes cards to content, never stretches a ro
   );
 });
 
+test("LAUNCHER_STYLE: a collapsed pane folds its body but keeps the head visible", () => {
+  // A whole pane (My shortcuts / Recipes / Watches / Project files) collapses to just its
+  // head: .pane.collapsed hides the .pane-body and rotates the chevron. Losing the body rule
+  // would leave a "collapsed" pane fully expanded.
+  assert.ok(/\.pane\.collapsed\s+\.pane-body\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE));
+  assert.ok(/\.pane\.collapsed\s+\.pane-chevron\s*\{[^}]*transform:/.test(LAUNCHER_STYLE));
+});
+
+test("LAUNCHER_STYLE: a search reveals a collapsed pane's body", () => {
+  // While a query is active, a folded pane must still show its matching cards; the
+  // .root.searching override re-displays .pane-body. It must be declared after the collapsed
+  // rule to win at equal specificity.
+  const collapsedIdx = LAUNCHER_STYLE.indexOf(".pane.collapsed .pane-body");
+  const searchIdx = LAUNCHER_STYLE.indexOf(".root.searching .pane .pane-body");
+  assert.ok(collapsedIdx !== -1, "collapsed pane-body rule must exist");
+  assert.ok(searchIdx !== -1, "searching pane-body reveal rule must exist");
+  assert.ok(
+    searchIdx > collapsedIdx,
+    "the search-reveal rule must come after the collapsed rule so it wins"
+  );
+});
+
+test("LAUNCHER_SCRIPT: the pane head toggles a persisted pane-level collapse", () => {
+  // The pane head is a button that folds the whole section; its posture persists under a
+  // 'pane:'-prefixed key so a pane id can never collide with an inner group id. Guards a
+  // regression that dropped the toggle or the key namespace.
+  assert.ok(LAUNCHER_SCRIPT.includes("pane-chevron"));
+  assert.ok(LAUNCHER_SCRIPT.includes("'pane:' + pane.id"));
+  assert.ok(LAUNCHER_SCRIPT.includes("setCollapsed(paneKey"));
+});
+
 test("LAUNCHER_STYLE: the card grid is indented under its group heading", () => {
   // .group-body carries a left padding so cards sit under the group label (past the
   // header chevron + glyph), making the group-to-cards hierarchy legible.

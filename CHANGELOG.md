@@ -31,6 +31,7 @@ The launcher now shows your watches and project files too, has more breathing ro
 
 - **Watches and Project files now show in the Saropa Launcher.** The bottom-Panel launcher gains two new panes beside My shortcuts and Recipes: **Watches** (every folder/file watch, with the same eye / bell state and unseen-file count as the sidebar) and **Project files** (every surfaced README / changelog / manifest, with its version and how long ago it changed). They are searchable with everything else; opening a watch card opens what changed and clears its count, and opening a file card opens the file.
 - **Pin and Schedule buttons on recipe cards.** A detected recipe's expanded card (and its right-click menu) now offers **Pin** — adopt it into My shortcuts — and **Schedule** — adopt it and open the schedule editor on the new shortcut, pre-filled from the recipe's own time when it carries one (for example a "daily 09:00" recommendation), so keeping or automating a recommendation takes one step instead of hunting for the action.
+- **Collapsible launcher sections.** Each major section in the launcher — My shortcuts, Recipes, Watches, and Project files — now has a clickable heading that folds the whole section away, so you can keep only the sections you are using on screen. The fold state persists across reloads, the panes still reflow side by side or stacked as the Panel resizes, and a search reveals matches inside a folded section.
 
 ### Changed
 
@@ -38,6 +39,7 @@ The launcher now shows your watches and project files too, has more breathing ro
 
 ### Fixed
 
+- **Watches no longer alert in every open project.** A folder/file watch is stored once and shared across windows, so a watch set up in one project (for example the "watch this project's `bugs` folder" offer) used to pop its alerts in every other project you had open. A watch now alerts only in the project it belongs to: the project it was created in, plus any you explicitly opt in. Each watch row in the Watches view shows whether it alerts in the current project, with **Alert in this project** / **Stop alerting in this project** actions (also on its right-click menu and in Manage Folder Watches) to turn it on or off per project.
 - **Folder-watch confirmations now clear themselves.** The "Watching `bugs` for new and changed files" message (and the matching added / removed / no-watches confirmations) used to linger on screen until dismissed by hand. These one-time acknowledgments now disappear on their own a few seconds after they appear. The "files changed — Open" alert is unchanged: it carries an action and stays until you act on it.
 - **No redundant `cd` when a terminal run stays in the same folder.** A terminal shortcut used to send a `cd` to its working directory before every run. The shared terminal now opens already rooted in that folder, and consecutive runs that share a working directory skip the `cd` entirely — so running several scripts from the same project root no longer clutters the terminal with repeated directory changes.
 

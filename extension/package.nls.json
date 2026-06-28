@@ -96,6 +96,8 @@
   "command.openWatch.title": "Open Watch",
   "command.toggleWatch.title": "Enable / Disable Watch",
   "command.removeWatch.title": "Remove Watch",
+  "command.alertHereWatch.title": "Alert in This Project",
+  "command.muteHereWatch.title": "Stop Alerting in This Project",
   "command.pinUntil.title": "Keep Shortcut Until...",
   "command.pinUntilBranchChange.title": "Keep Shortcut Until Branch Changes",
   "command.clearPinExpiry.title": "Clear Expiry",
