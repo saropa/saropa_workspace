@@ -23,7 +23,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.7]
 
 The launcher now shows your watches and project files too, has more breathing room, and lets you pin or schedule a recommended recipe straight from its card. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.7/CHANGELOG.md)
 
@@ -39,6 +39,7 @@ The launcher now shows your watches and project files too, has more breathing ro
 ### Fixed
 
 - **Folder-watch confirmations now clear themselves.** The "Watching `bugs` for new and changed files" message (and the matching added / removed / no-watches confirmations) used to linger on screen until dismissed by hand. These one-time acknowledgments now disappear on their own a few seconds after they appear. The "files changed — Open" alert is unchanged: it carries an action and stays until you act on it.
+- **No redundant `cd` when a terminal run stays in the same folder.** A terminal shortcut used to send a `cd` to its working directory before every run. The shared terminal now opens already rooted in that folder, and consecutive runs that share a working directory skip the `cd` entirely — so running several scripts from the same project root no longer clutters the terminal with repeated directory changes.
 
 ---
 
