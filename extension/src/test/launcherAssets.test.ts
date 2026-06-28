@@ -69,6 +69,23 @@ test("LAUNCHER_STYLE: the kind pill is neutral gray, not tinted with --card-tint
   );
 });
 
+test("LAUNCHER_STYLE: an expanded card hides the head run button (no duplicate Run)", () => {
+  // The drawer carries a full labeled Run button, so the head's compact play button must be
+  // hidden once expanded — otherwise the same card shows two Run affordances. This guards a
+  // regression that left the head .run visible in the expanded state.
+  assert.ok(/\.card\.expanded\s+\.run\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE));
+});
+
+test("LAUNCHER_STYLE: drawer actions are right-aligned", () => {
+  // Open/Run sit at the card's trailing edge, away from the leading name/path column.
+  const actions = LAUNCHER_STYLE.match(/\.drawer-actions\s*\{[^}]*\}/);
+  assert.ok(actions, ".drawer-actions rule must exist");
+  assert.ok(
+    actions[0].includes("justify-content: flex-end"),
+    ".drawer-actions must right-align with justify-content: flex-end"
+  );
+});
+
 test("LAUNCHER_SCRIPT: routes right-click menu choices as command messages", () => {
   // A right-click posts the chosen command id back to the host, which re-resolves the
   // shortcut and executes it. Both halves (the 'command' type and the contextmenu hook)

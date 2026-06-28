@@ -96,10 +96,17 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
 - **A primary click expands the card; it does not open or run.** The launcher
   diverges from the product's single-click-opens model on purpose: a click toggles
   an inline drawer (full name, full path, description, and Open/Run buttons) so
-  browsing is non-destructive. One-click execution still exists — the always-visible
-  ▶ button runs. (Reconciled with the developer 2026-06-27: the launcher is a
-  browse-and-choose surface, where an accidental open/run on a click is the worse
-  failure; the tree keeps single-click-opens.)
+  browsing is non-destructive. One-click execution still exists — the compact ▶ in
+  the card head runs without expanding. (Reconciled with the developer 2026-06-27:
+  the launcher is a browse-and-choose surface, where an accidental open/run on a
+  click is the worse failure; the tree keeps single-click-opens.)
+- **One Run affordance per state: head ▶ when collapsed, labeled Run when
+  expanded — never both at once.** The drawer carries a full labeled Run button, so
+  the head's compact ▶ (`.card.expanded .run`) is hidden once expanded; showing both
+  put two Run buttons on the same card (developer feedback 2026-06-27). The drawer's
+  Open/Run actions are right-aligned (`.drawer-actions { justify-content: flex-end }`)
+  at the card's trailing edge, away from the leading name/path column, with a little
+  extra vertical space around the drawer so the actions are easier to hit.
 - **A webview surface mirrors the sidebar context menu as a flat, grouped custom
   menu — it cannot host native submenus.** Right-click opens an HTML menu built
   from a host-supplied, localized spec (`LauncherMenuEntry[]` from `launcherItems`),

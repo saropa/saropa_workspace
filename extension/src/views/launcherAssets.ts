@@ -155,15 +155,21 @@ header {
 }
 .run:hover { background: var(--vscode-button-hoverBackground); }
 .run .codicon { font-size: 13px; }
+/* When the card is expanded the drawer carries the full Run button, so the head's
+   compact ▶ would be a redundant second Run on the same card — hide it and let the
+   labeled drawer button be the single run affordance. */
+.card.expanded .run { display: none; }
 
 /* The expand drawer: revealed under the card head on a primary click. */
-.drawer { display: none; margin-top: 6px; }
+.drawer { display: none; margin-top: 9px; padding-top: 2px; }
 .card.expanded .drawer { display: block; }
 .drawer-desc {
   color: var(--vscode-foreground);
-  font-size: 0.9em; margin: 2px 0 7px; line-height: 1.35;
+  font-size: 0.9em; margin: 2px 0 10px; line-height: 1.4;
 }
-.drawer-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Right-align the drawer actions so Open/Run sit at the card's trailing edge,
+   away from the leading name/path column. */
+.drawer-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .btn {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: inherit; font-size: 0.88em;

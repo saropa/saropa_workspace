@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 cspell:disable
 -->
 
+---
+
+## [Unreleased]
+
+The expanded launcher card is tidier: one Run button instead of two, its Open/Run buttons right-aligned, and a little more breathing room. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Changed
+
+- **Expanded launcher cards no longer show a duplicate Run button.** When a card is expanded, the compact play button in the card head is hidden so the only Run is the full labeled button in the drawer.
+- **Expanded-card Open/Run buttons are right-aligned** at the card's trailing edge, with slightly more vertical space around the drawer so the actions are easier to hit.
+
+---
+
 ## [1.5.5]
 
 The kind labels on launcher cards (SHELL, MACRO, COMMAND, ROUTINE) are now a calm gray pill instead of a colored one, so the board reads less busy. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.5/CHANGELOG.md)
