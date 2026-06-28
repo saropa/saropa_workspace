@@ -116,6 +116,14 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   (verify before adding — `copyPath`/`removeProjectPin` need a real tree item and
   must NOT be used; use `copyPinLink`/`unpin`), and the host gates the incoming id
   against an allowlist so the webview can never drive an arbitrary command.
+- **Cards size to their own content — never stretch a row to match.** The card
+  grid sets `align-items: start` so each card is as tall as its content. Without it
+  the grid's default stretch made every card in a row match the tallest, so
+  expanding one card's drawer stretched all its row-mates (developer feedback
+  2026-06-27). An expanded card must grow downward alone.
+- **The search bar is a compact group on the leading edge, not full-width.** The
+  Panel is very wide; `.search` is capped (`max-width: 420px`) so the icon + input +
+  count stay a tidy cluster rather than stretching across the surface.
 - **Filter client-side.** The host posts the full item set on each change; the
   webview filters on every keystroke with no host round-trip. Empty groups and
   empty panes are hidden (a group renders only when it has a visible card; a pane

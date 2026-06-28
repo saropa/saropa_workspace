@@ -36,7 +36,10 @@ header {
   background: var(--vscode-editor-background);
   padding-bottom: 8px;
 }
-.search { display: flex; align-items: center; gap: 6px; width: 100%; }
+/* Cap the search group's width: the Panel is very wide, and a full-width input
+   left the search bar stretched across the whole surface. Keep it a compact
+   group (icon + input + count) on the leading edge. */
+.search { display: flex; align-items: center; gap: 6px; width: 100%; max-width: 420px; }
 .search .codicon { color: var(--vscode-input-placeholderForeground); flex: none; }
 #q {
   flex: 1;
@@ -103,10 +106,15 @@ header {
    is still legible. */
 .root.searching .group .group-body { display: grid; }
 
+/* align-items:start so each card sizes to its own content height. Without it the
+   grid stretches every card in a row to match the tallest, so expanding one card
+   (its drawer opens) stretched all its row-mates to the same height. Now an
+   expanded card grows downward alone and its neighbors keep their natural height. */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 7px;
+  align-items: start;
 }
 
 .card {
@@ -118,7 +126,7 @@ header {
   border: 1px solid var(--vscode-widget-border, transparent);
   border-left: 3px solid var(--card-tint, var(--vscode-foreground));
   border-radius: 5px;
-  padding: 5px 7px;
+  padding: 5px 11px;
   cursor: pointer;
   min-width: 0;
 }
