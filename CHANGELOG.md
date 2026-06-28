@@ -49,12 +49,13 @@ cspell:disable
 
 ## [Unreleased]
 
-Launcher header polish.
+[log](https://github.com/saropa/saropa_workspace/blob/v1.5.11/CHANGELOG.md)
 
 ### Changed
 
 - **Each launcher section now leads with its own icon, and collapsing a section also collapses its width.** The four panes — My shortcuts, Recipes, Watches, Project files — each carry a glyph in their header matching the section's filter chip, so a pane is identifiable at a glance even when folded. Folding a section now shrinks it to just its header instead of holding a full column, freeing the row for the sections still open.
 - **The launcher search box hint now reads "Search", and the shortcut count moved inside the box as a badge.** The placeholder is the single word "Search"; the running count that sat beside the box is now a compact badge overlaid on the input's trailing edge, showing the number alone.
+- **Launcher cards no longer show a kind pill; the kind is now a tooltip on the card icon.** The action kind a card used to carry as a SHELL / COMMAND / MACRO / ROUTINE pill is already conveyed by the icon, its color, and the left-border tint, so the pill was redundant. Hovering the icon now names the kind ("Shell command", "Macro", "Routine", "Editor command", "Link") and the card reads less cluttered.
 
 ### Fixed
 
@@ -64,7 +65,7 @@ Launcher header polish.
 
 ## [1.5.10]
 
-Watch toast im [log](https://github.com/saropa/saropa_workspace/blob/v1.5.10/CHANGELOG.md)
+[log](https://github.com/saropa/saropa_workspace/blob/v1.5.10/CHANGELOG.md)
 
 ### Changed
 
@@ -74,7 +75,7 @@ Watch toast im [log](https://github.com/saropa/saropa_workspace/blob/v1.5.10/CHA
 
 ## [1.5.9]
 
-Tidy work on the Saropa Launcher tab. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.9/CHANGELOG.md)
+[log](https://github.com/saropa/saropa_workspace/blob/v1.5.9/CHANGELOG.md)
 
 ### Added
 - **The Saropa Launcher header counts are now one-tap filters.** Each count in the header — shortcuts, scheduled, watches, project files — is a chip you can click to narrow the board to just that section; click it again to clear. The filter combines with the search box, and the active chip stays highlighted.

@@ -37,10 +37,25 @@ test("LAUNCHER_STYLE: the card grid is responsive (auto-fill columns)", () => {
   assert.ok(/minmax\(/.test(LAUNCHER_STYLE));
 });
 
-test("LAUNCHER_STYLE: the two panes reflow (auto-fit columns)", () => {
-  // My-shortcuts and Recipes sit side by side when the Panel is wide and stack when
-  // narrow; an auto-fit track on .panes is what collapses two columns to one.
-  assert.ok(/\.panes\s*\{[^}]*grid-template-columns:\s*repeat\(\s*auto-fit/.test(LAUNCHER_STYLE));
+test("LAUNCHER_STYLE: the panes reflow via flex-wrap, not a fixed grid track", () => {
+  // The panes sit side by side when the Panel is wide and wrap to stacked when narrow.
+  // flex-wrap (not a grid track) is used deliberately so a COLLAPSED pane can shed its
+  // width — a grid track keeps its minmax width even when folded, a flex item can shrink.
+  const panes = LAUNCHER_STYLE.match(/\.panes\s*\{[^}]*\}/);
+  assert.ok(panes, ".panes rule must exist");
+  assert.ok(panes[0].includes("display: flex"), ".panes must lay out with flex");
+  assert.ok(panes[0].includes("flex-wrap: wrap"), ".panes must wrap on a narrow Panel");
+});
+
+test("LAUNCHER_STYLE: a collapsed pane sheds its width when not searching", () => {
+  // Collapsing a section must also collapse its width (developer feedback 2026-06-28): a
+  // folded pane shrinks to flex:0 1 auto so the row frees up for the still-open sections.
+  // It is gated to :not(.searching) because a search force-reveals a collapsed pane's body,
+  // which then needs the full width again. Guards a regression that re-widened a folded pane.
+  assert.ok(
+    /\.root:not\(\.searching\)\s+\.pane\.collapsed\s*\{[^}]*flex:\s*0 1 auto/.test(LAUNCHER_STYLE),
+    "a collapsed pane (outside search) must drop to flex: 0 1 auto"
+  );
 });
 
 test("LAUNCHER_STYLE: hides filtered cards and empty groups/panes via the .hidden class", () => {
@@ -52,20 +67,18 @@ test("LAUNCHER_STYLE: hides filtered cards and empty groups/panes via the .hidde
   assert.ok(/\.pane\.hidden\s*\{\s*display:\s*none/.test(LAUNCHER_STYLE));
 });
 
-test("LAUNCHER_STYLE: the kind pill is neutral gray, not tinted with --card-tint", () => {
-  // The SHELL/MACRO/COMMAND/ROUTINE pill must stay a muted gray so the board does not
-  // read as over-colored — the card already signals its kind through the tinted left
-  // stripe and icon. A regression that re-tinted .chip with --card-tint is what this
-  // guards. Match the .chip block specifically (the only rule that styles the pill).
-  const chip = LAUNCHER_STYLE.match(/\.chip\s*\{[^}]*\}/);
-  assert.ok(chip, ".chip rule must exist");
+test("LAUNCHER_SCRIPT: names the action kind on the card icon, not a standing pill", () => {
+  // The SHELL/MACRO/COMMAND/ROUTINE pill was removed (developer feedback 2026-06-28): the
+  // kind is already shown by the icon, its color, and the left-border tint, so it now reads
+  // as a hover tooltip on the icon instead. Guards a regression that brings the pill back or
+  // drops the tooltip wiring.
   assert.ok(
-    chip[0].includes("var(--vscode-descriptionForeground)"),
-    ".chip must use the neutral description foreground"
+    !/\.chip\s*\{/.test(LAUNCHER_STYLE),
+    "the .chip pill rule must be gone — the kind is shown on the icon tooltip"
   );
   assert.ok(
-    !chip[0].includes("--card-tint"),
-    ".chip must not borrow the card accent (--card-tint)"
+    LAUNCHER_SCRIPT.includes("ic.title = it.kindLabel"),
+    "the card icon must carry the kind label as its tooltip"
   );
 });
 

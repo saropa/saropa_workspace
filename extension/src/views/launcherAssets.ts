@@ -265,16 +265,6 @@ header {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .card.expanded .card-sub { white-space: normal; overflow: visible; word-break: break-all; }
-/* Kind pill (SHELL / MACRO / COMMAND / ROUTINE): intentionally neutral gray, not
-   tinted with --card-tint. The card already signals its kind through the colored
-   left border and icon; tinting the pill too made the board read as over-colored. */
-.chip {
-  flex: none;
-  font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.03em;
-  color: var(--vscode-descriptionForeground);
-  border: 1px solid var(--vscode-descriptionForeground);
-  border-radius: 3px; padding: 0 5px; opacity: 0.7;
-}
 /* The head's primary-action button (blue): Open for a file shortcut (a document leads
    with Open), Run for a non-file action. Icon-only in the compact grid via gap+hidden
    label; the label appears only once the card expands, so the head stays narrow among its
@@ -506,6 +496,13 @@ function makeCard(it) {
 
   const ic = codicon(it.icon);
   ic.classList.add('card-ic');
+  // Name the action kind on the icon (Shell command / Macro / Routine / …) instead of a
+  // standing pill: the icon + color + left-border tint already encode the kind, so a hover
+  // tooltip is enough and keeps the card uncluttered. File cards carry no kindLabel.
+  if (it.kindLabel) {
+    ic.title = it.kindLabel;
+    ic.setAttribute('aria-label', it.kindLabel);
+  }
   row.appendChild(ic);
 
   const body = document.createElement('div');
@@ -524,13 +521,6 @@ function makeCard(it) {
     body.appendChild(sub);
   }
   row.appendChild(body);
-
-  if (it.kind && it.kind !== 'file') {
-    const chip = document.createElement('span');
-    chip.className = 'chip';
-    chip.textContent = it.kind;
-    row.appendChild(chip);
-  }
 
   // The head's primary-action button, chosen by the data layer's headAction. A script (a file
   // with an interpreter) and a non-file action lead with Run; a plain document/data file
