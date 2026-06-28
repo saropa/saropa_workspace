@@ -23,6 +23,20 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The launcher board has more breathing room, and recommended recipes can now be pinned or scheduled straight from the card. [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- **Pin and Schedule buttons on recipe cards.** A detected recipe's expanded card (and its right-click menu) now offers **Pin** — adopt it into My shortcuts — and **Schedule** — adopt it and open the schedule editor on the new shortcut, pre-filled from the recipe's own time when it carries one (for example a "daily 09:00" recommendation), so keeping or automating a recommendation takes one step instead of hunting for the action.
+
+### Changed
+
+- **More space around launcher cards and group headings.** The card grid has a larger gap, cards carry more vertical padding, and each group heading has more room above and around it so the board no longer reads as one dense block.
+
+---
+
 ## [1.5.6]
 
 The expanded launcher card is tidier: one Run button instead of two, its Open/Run buttons right-aligned, and a little more breathing room. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.6/CHANGELOG.md)

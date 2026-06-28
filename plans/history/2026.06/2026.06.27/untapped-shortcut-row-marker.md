@@ -64,3 +64,34 @@ carried no per-item indication of tapped vs untapped state — the tree provider
   is excluded from the `node --test` path; the extension-host harness is not
   wired). The tapped/untapped decision is `!tappedShortcuts.has(id)`, already
   covered by `tappedShortcuts.test.ts`; the marker rendering is a string prefix.
+
+## Finish Report (2026-06-28)
+
+### Defect (follow-up)
+
+The first iteration prepended the untapped marker to the row `description`. VS Code
+renders a `TreeItem.description` in the dimmed `descriptionForeground` color, so the
+dot sat gray-on-gray next to the (also gray) file path and was effectively invisible
+in the sidebar. The activity-bar count badge therefore still pointed at no
+distinguishable rows — the same dead end the marker was meant to remove.
+
+### Change
+
+- `views/shortcutTreeItem.ts` — the marker now leads the row **label**
+  (`displayLabel`), which renders in the full-strength foreground, instead of the
+  description. The label is computed as `baseLabel` (the masked/aliased/basename
+  name) and prefixed with `UNTAPPED_MARKER` only when `untapped`. The description
+  prefix was removed; the description is back to the plain `·`-joined body. Annotation
+  rows still never show the dot — their early-return branch overwrites `this.label`
+  after `super()`. The change is display-only: `this.id`, reveal, rename (reads
+  `shortcut.label` from the model), and drag/drop are unaffected.
+- `plans/guides/STYLEGUIDE.md` §4.5 — the binary-count marker rule now mandates the
+  label (not the description), naming the dimmed-color failure mode as the reason.
+
+### Verification
+
+- `npx tsc -p ./ --noEmit` (from `extension/`) — clean.
+- `node esbuild.js` — bundle builds.
+- No node-runnable test constructs `ShortcutTreeItem`; the change is a label-string
+  prefix, and no existing test (`shortcutRowFormatting.test.ts`,
+  `shortcutTreeDragDrop.test.ts`) asserts the marker, so none needed updating.

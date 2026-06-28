@@ -127,6 +127,21 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
 - **The card grid is indented under its group heading.** `.group-body` carries a
   left padding (20px) so cards sit past the header's chevron + glyph, making the
   group-to-cards containment visible rather than flush with the pane edge.
+- **The board breathes — cards and group headings are not packed tight.** The card
+  grid gap (10px), card vertical padding (8px), group `margin-top` (14px) and
+  group-head padding (7px) give each card and each section title room. A dense,
+  cramped board was developer feedback (2026-06-27); spacing is a deliberate value,
+  not a default to shrink.
+- **A recipe card surfaces its adopt actions on the card, not only in the menu.**
+  The recipes pane is where a user decides to keep or automate a recommendation, so
+  a recipe's expanded drawer carries **Pin** (`promoteRecipe` — adopt into My
+  shortcuts) and **Schedule** (`scheduleRecipe` — adopt, then open the schedule
+  editor on the new stored shortcut) as visible buttons, gated on `it.pane ===
+  'recipes'`; both are also in the right-click menu. A detected recipe stores
+  nothing, so Schedule necessarily adopts first — `promoteRecipeReturningId` hands
+  back the new id so the editor opens on the stored copy, pre-filled from the
+  recipe's own schedule when it carries one (developer feedback 2026-06-28). Both
+  command ids are on the launcher's `MENU_COMMANDS` allowlist.
 - **Filter client-side.** The host posts the full item set on each change; the
   webview filters on every keystroke with no host round-trip. Empty groups and
   empty panes are hidden (a group renders only when it has a visible card; a pane
