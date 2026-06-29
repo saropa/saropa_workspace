@@ -47,7 +47,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.12]
 
 Documentation catch-up so the README reflects the launcher and Project Files work from recent releases, plus the Watches view now lists only the watches that belong to the project you have open. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.12/CHANGELOG.md)
 
