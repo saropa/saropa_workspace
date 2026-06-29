@@ -6,9 +6,10 @@
 //
 // Header: a two-part bar (.head-bar) — the project block on the leading edge, the compact
 // search group on the trailing edge. The project block reads as one line: the folder name,
-// then the declared version + per-pane counts inline beside it. Each count is a filter chip —
-// clicking it narrows the board to that pane (combining with the text search); the recipes
-// chip counts only scheduled recipes (host-side), so it headlines what is actually automated.
+// then the declared version + per-pane counts inline beside it. Each count is a filter chip
+// (combining with the text search): a pane chip narrows the board to that pane, and the
+// "scheduled" chip narrows it to the live scheduled shortcut cards wherever they sit — a
+// cross-pane filter, not a pane, so it headlines what is actually automated.
 // The name paints synchronously from the host's initial HTML; the version + counts arrive in
 // the first data message (they need the disk scan) and are written by renderHeader.
 //
@@ -289,7 +290,7 @@ header {
 .card.expanded .drawer { display: block; }
 .drawer-desc {
   color: var(--vscode-foreground);
-  font-size: 0.9em; margin: 2px 0 10px; line-height: 1.4;
+  font-size: 0.97em; margin: 2px 0 10px; line-height: 1.45;
 }
 /* Right-align the drawer actions so Open/Run sit at the card's trailing edge,
    away from the leading name/path column. */
@@ -745,14 +746,21 @@ function applyFilter() {
   // part of the "shortcuts and recipes" total). shown is the visible subset of that scope.
   let total = 0;
   let shown = 0;
+  // "scheduled" is a cross-pane filter keyed on the card's scheduled flag, not its pane; every
+  // other active filter narrows to a single pane. cardInFilter folds both into one test so the
+  // visibility match and the count scope stay in agreement.
+  function cardInFilter(card) {
+    if (activePane === 'scheduled') { return card.dataset.scheduled === 'true'; }
+    return card.dataset.pane === activePane;
+  }
   for (const card of root.querySelectorAll('.card')) {
     const matchText = needle === '' || card.dataset.hay.indexOf(needle) !== -1;
-    const matchPane = activePane === null || card.dataset.pane === activePane;
+    const matchPane = activePane === null || cardInFilter(card);
     const match = matchText && matchPane;
     card.classList.toggle('hidden', !match);
     const inScope = activePane === null
       ? (card.dataset.pane === 'mine' || card.dataset.pane === 'recipes')
-      : card.dataset.pane === activePane;
+      : cardInFilter(card);
     if (inScope) { total++; if (match) { shown++; } }
   }
   for (const group of root.querySelectorAll('.group')) {

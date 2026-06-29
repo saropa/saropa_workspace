@@ -56,6 +56,11 @@ Documentation catch-up so the README reflects the launcher and Project Files wor
 - **README now describes the launcher as it actually is.** The overview was rewritten for the current four-pane board (My shortcuts, Recipes, Watches, Project files) with its header — project name, version, and click-to-filter counts — per-pane icons, the search box with the count tucked inside, and cards that lead with Run or Open per file. It also drops the stale "Copy as Saropa Link" launcher-menu item that no longer appears on launcher cards.
 - **README documents Project Files area grouping and the renamed setting.** The Project Files entry now notes the Project / Android / iOS / Web grouping, and the settings table replaces the removed `saropaWorkspace.projectFiles.files` with `saropaWorkspace.projectFiles.groups`.
 - **The schedule editor tab is now titled "Saropa Workspace Scheduler".** The per-schedule editor, previously "Saropa Schedule: {name}", reads "Saropa Workspace Scheduler: {name}" so its tab and heading name the product in full.
+- **Launcher card detail text is slightly larger.** The description shown in an expanded launcher card's drawer grew from `0.9em` to `0.97em` (with a touch more line spacing) so the detail reads more comfortably.
+
+### Fixed
+
+- **The launcher header's "scheduled" chip now filters to only scheduled items.** Clicking it had revealed every shortcut, because the chip was filed under the same "My shortcuts" pane as the shortcuts count, so it narrowed to the whole pane instead of the scheduled subset. The chip is now a cross-pane filter keyed on each card's schedule state, so clicking it shows only the shortcuts whose schedule is switched on.
 
 ---
 
