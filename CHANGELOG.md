@@ -49,10 +49,11 @@ cspell:disable
 
 ## [Unreleased]
 
-Documentation catch-up so the README reflects the launcher and Project Files work from recent releases. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.12/CHANGELOG.md)
+Documentation catch-up so the README reflects the launcher and Project Files work from recent releases, plus the Watches view now lists only the watches that belong to the project you have open. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.12/CHANGELOG.md)
 
 ### Changed
 
+- **The Watches view shows only this project's watches now.** A watch belongs to the project that contains the folder or file it watches, and that project always sees it. Other projects' watches no longer appear here at all — the confusing "not alerting here" rows are gone. A watch you deliberately want everywhere can be marked **global** (Manage Folder Watches → "Make global"); a global watch shows in every project with a globe icon and a "global" note so it is never mistaken for a local one.
 - **README Screenshots section now shows a screenshot.** The "Screenshots are coming" placeholder is replaced with an actual screenshot of the sidebar and launcher, served from an absolute raw GitHub URL so it renders on the VS Code Marketplace.
 - **README now describes the launcher as it actually is.** The overview was rewritten for the current four-pane board (My shortcuts, Recipes, Watches, Project files) with its header — project name, version, and click-to-filter counts — per-pane icons, the search box with the count tucked inside, and cards that lead with Run or Open per file. It also drops the stale "Copy as Saropa Link" launcher-menu item that no longer appears on launcher cards.
 - **README documents Project Files area grouping and the renamed setting.** The Project Files entry now notes the Project / Android / iOS / Web grouping, and the settings table replaces the removed `saropaWorkspace.projectFiles.files` with `saropaWorkspace.projectFiles.groups`.
@@ -62,6 +63,7 @@ Documentation catch-up so the README reflects the launcher and Project Files wor
 
 ### Fixed
 
+- **A watch on a project's own folder can no longer read "not alerting here".** Watches are stored globally and were listed in every window with out-of-project ones flagged as silent, which looked like broken data. The Watches view now filters to the watches that fire in the open project, and the activity-bar count is scoped the same way, so one project's pending files never show up in another's badge.
 - **The launcher header's "scheduled" chip now filters to only scheduled items.** Clicking it had revealed every shortcut, because the chip was filed under the same "My shortcuts" pane as the shortcuts count, so it narrowed to the whole pane instead of the scheduled subset. The chip is now a cross-pane filter keyed on each card's schedule state, so clicking it shows only the shortcuts whose schedule is switched on.
 
 ---

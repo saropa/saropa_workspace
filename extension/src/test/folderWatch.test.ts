@@ -11,7 +11,7 @@ import {
   diffSnapshots,
   isEmptyDelta,
   watchAlertsIn,
-  defaultAlertScopes,
+  isGlobalWatch,
   FolderSnapshot,
   FolderWatch,
   FolderWatchStore,
@@ -90,41 +90,59 @@ test("diff against an empty baseline reports every file (engine must seed instea
 // --- per-project alert scope (the "do not blast every project" gate) ----------
 
 // A folder watch with an optional explicit alert scope, for the gate tests.
-function scopedWatch(target: string, alertScopes?: string[]): FolderWatch {
-  return { id: "w", target, isFile: false, mode: "new", enabled: true, alertScopes };
+function scopedWatch(
+  target: string,
+  alertScopes?: string[],
+  global?: boolean
+): FolderWatch {
+  return {
+    id: "w",
+    target,
+    isFile: false,
+    mode: "new",
+    enabled: true,
+    alertScopes,
+    global,
+  };
 }
 
-test("a never-scoped watch alerts only in the project that contains its target", () => {
-  // The legacy/auto-correct default: an existing per-project bugs watch fires in
-  // its own project and nowhere else, with no migration write.
+test("a watch alerts in the project that contains its target (projects watch their own)", () => {
+  // The automatic default: a per-project bugs watch fires in its own project and
+  // nowhere else, with no scope set.
   const w = scopedWatch("/src/contacts/bugs");
   assert.equal(watchAlertsIn(w, ["/src/contacts"]), true);
   // The exact "blasted every project" report: it must NOT fire in another project.
   assert.equal(watchAlertsIn(w, ["/src/workspace"]), false);
 });
 
-test("an explicitly-scoped watch alerts only in its listed projects", () => {
+test("a watch on its own folder alerts there regardless of alertScopes", () => {
+  // "Projects watch their own": the containing project always alerts, so neither an
+  // empty scope nor a scope listing other projects can silence a watch in its owner.
+  assert.equal(watchAlertsIn(scopedWatch("/src/contacts/bugs", []), ["/src/contacts"]), true);
+  assert.equal(
+    watchAlertsIn(scopedWatch("/src/contacts/bugs", ["/src/other"]), ["/src/contacts"]),
+    true
+  );
+});
+
+test("alertScopes opts an outside-target watch into extra projects only", () => {
+  // A target outside any open project alerts only where explicitly opted in.
   const w = scopedWatch("/external/dropbox", ["/src/contacts"]);
   assert.equal(watchAlertsIn(w, ["/src/contacts"]), true);
   assert.equal(watchAlertsIn(w, ["/src/workspace"]), false);
   // Multi-root window holding one listed folder still alerts.
   assert.equal(watchAlertsIn(w, ["/src/workspace", "/src/contacts"]), true);
+  // No scope and an outside target: alerts nowhere until opted in.
+  assert.equal(watchAlertsIn(scopedWatch("/external/dropbox"), ["/src/workspace"]), false);
 });
 
-test("an empty alert scope is muted everywhere (an opt-out persists)", () => {
-  // [] is distinct from undefined: removing the last project must not fall back to
-  // the containing-project default and resurrect the alert.
-  const w = scopedWatch("/src/contacts/bugs", []);
-  assert.equal(watchAlertsIn(w, ["/src/contacts"]), false);
-});
-
-test("defaultAlertScopes materializes the containing project among current folders", () => {
-  const w = scopedWatch("/src/contacts/bugs");
-  assert.deepEqual(
-    defaultAlertScopes(w, ["/src/workspace", "/src/contacts"]),
-    ["/src/contacts"]
-  );
-  assert.deepEqual(defaultAlertScopes(w, ["/src/workspace"]), []);
+test("a global watch alerts in every project, including unrelated ones", () => {
+  const w = scopedWatch("/src/contacts/bugs", undefined, true);
+  assert.equal(isGlobalWatch(w), true);
+  assert.equal(watchAlertsIn(w, ["/src/contacts"]), true);
+  assert.equal(watchAlertsIn(w, ["/src/workspace"]), true);
+  // Even with no folder open, a global watch is considered alerting.
+  assert.equal(watchAlertsIn(w, []), true);
 });
 
 // --- unseen tally (the per-row counter + activity-bar total) ------------------
@@ -141,6 +159,20 @@ test("unseen files accumulate, de-duplicate, and sum across watches", async () =
   assert.equal(store.unseenCount("w1"), 3); // a, b, c
   assert.equal(store.unseenCount("w2"), 1);
   assert.equal(store.totalUnseen(), 4); // the sidebar badge total
+});
+
+test("the scoped badge total counts only watches that alert in this window", async () => {
+  // The badge form of the "do not blast every project" rule: a window's total must
+  // exclude another project's watch, even though both have unseen files globally.
+  const store = new FolderWatchStore(fakeContext());
+  await store.add(watch("local", "/p/bugs")); // owned by /p
+  await store.add(watch("away", "/external/x")); // outside any open project
+  await store.addUnseen("local", ["a.md", "b.md"]);
+  await store.addUnseen("away", ["x.md"]);
+
+  assert.equal(store.totalUnseen(), 3); // unscoped: every watch
+  assert.equal(store.totalUnseen(["/p"]), 2); // scoped to /p: only the local watch
+  assert.equal(store.totalUnseen(["/other"]), 0); // neither alerts here
 });
 
 test("opening a watch clears only its counter and updates the total", async () => {

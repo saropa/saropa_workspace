@@ -366,15 +366,19 @@ export interface WatchItemInput {
   readonly mode: FolderWatchMode;
   readonly enabled: boolean;
   readonly unseen: number;
+  // Whether the watch is global (alerts in every project). The card marks it with a
+  // globe glyph and a "global" note, mirroring the Watches sidebar row.
+  readonly isGlobal: boolean;
 }
 
 // Build the launcher card for one folder/file watch. The glyph, tint, and secondary line
 // mirror the Watches sidebar row (watchesTreeProvider) exactly so the two surfaces never
-// disagree: a disabled watch reads muted (closed eye, "off"), an enabled watch with unseen
-// files leads with the count on a blue bell, an idle one shows a plain eye. The card is
-// openable but not runnable — a primary click expands the drawer (whose Open clears the
-// unseen counter), never opens on the bare click, so an accidental click cannot mark a
-// watch seen (the launcher's deliberate browse-then-act model; styleguide 1.1a / 4.5).
+// disagree: a disabled watch reads muted (closed eye, "off"); a global watch carries a
+// globe glyph and a "global" note; an enabled watch with unseen files leads with the count
+// on a blue glyph; an idle local one shows a plain eye. The card is openable but not
+// runnable — a primary click expands the drawer (whose Open clears the unseen counter),
+// never opens on the bare click, so an accidental click cannot mark a watch seen (the
+// launcher's deliberate browse-then-act model; styleguide 1.1a / 4.5).
 export function watchLauncherItem(w: WatchItemInput): LauncherItem {
   const kind = l10n(w.isFile ? "folderWatch.kindFile" : "folderWatch.kindFolder");
   const mode = l10n(
@@ -388,6 +392,14 @@ export function watchLauncherItem(w: WatchItemInput): LauncherItem {
     icon = "eye-closed";
     color = "descriptionForeground";
     sub = l10n("watchesView.rowOff", { kind, mode });
+  } else if (w.isGlobal && w.unseen > 0) {
+    icon = "globe";
+    color = "charts.blue";
+    sub = l10n("watchesView.rowGlobalUnseen", { count: w.unseen, kind, mode });
+  } else if (w.isGlobal) {
+    icon = "globe";
+    color = "foreground";
+    sub = l10n("watchesView.rowGlobal", { kind, mode });
   } else if (w.unseen > 0) {
     icon = "bell-dot";
     color = "charts.blue";

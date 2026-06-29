@@ -446,12 +446,17 @@ export function wireFolderWatches(
   context.subscriptions.push(watches.onDidChangeCount((c) => syncWatchesCount(c)));
   syncWatchesCount(watches.count);
 
-  // Activity-bar badge: the total unseen new/changed files across all watches — the
-  // "sidebar counter." Recomputed when a watch's tally changes (new files detected,
-  // or a watch opened/cleared) and when the watch list changes. Zero shows no badge
-  // (VS Code hides an undefined badge), matching the untapped-shortcuts badge.
+  // Activity-bar badge: unseen new/changed files for watches that alert in THIS
+  // window only (owned-here, opted-in-here, or global) — scoping the total to the
+  // open folders so the badge never reflects another project's pending files (the
+  // badge form of the "do not blast every project" rule). Recomputed when a tally or
+  // the watch list changes, and when the open folders change (a watch moves in/out of
+  // scope). Zero shows no badge (VS Code hides an undefined badge).
   const syncWatchesBadge = (): void => {
-    const total = watchStore.totalUnseen();
+    const folders = (vscode.workspace.workspaceFolders ?? []).map(
+      (f) => f.uri.fsPath
+    );
+    const total = watchStore.totalUnseen(folders);
     watchesView.badge =
       total > 0
         ? { value: total, tooltip: l10n("watchesView.badgeTooltip", { count: total }) }
@@ -459,7 +464,8 @@ export function wireFolderWatches(
   };
   context.subscriptions.push(
     watchStore.onDidChangeCounts(() => syncWatchesBadge()),
-    watchStore.onDidChange(() => syncWatchesBadge())
+    watchStore.onDidChange(() => syncWatchesBadge()),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => syncWatchesBadge())
   );
   syncWatchesBadge();
 

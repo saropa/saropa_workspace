@@ -654,25 +654,30 @@ when curious. Two rules:
 State stored in window-independent `globalState` (a folder/file watch, anything
 synced across windows) is visible in *every* open window at once. A surface driven
 by such state that raises **alerts** — a toast, a badge that demands attention —
-must not fire in every window just because the state is shared. Alerting is
-**opt-in per project**:
+must not fire in every window just because the state is shared, and a view that
+*lists* such state must not show another project's items in this window. The rule is
+**the project owns its own state; a window only sees what fires in it**:
 
-- **Default opt-in is the project the thing belongs to.** A watch created in (or
-  about) a project alerts only in that project's window. The folder-watch engine
-  gates scanning/arming on `watchAlertsIn(watch, currentFolderPaths)`; a watch with
-  no explicit scope falls back to "alert only in the project that contains the
-  target" so existing items self-correct without a migration write. This is the fix
-  for the "you blasted every project I am running" report (2026-06-28): a per-project
-  `bugs` watch was popping its alerts in unrelated windows.
-- **Other projects are opted in explicitly, and the per-project state is legible on
-  the row.** Each Watches row shows whether it alerts in the current project (a
-  struck bell + "not alerting here" when it does not) and carries **Alert in this
-  project** / **Stop alerting in this project** actions. The row `contextValue`
-  encodes both the enabled state and the here/elsewhere scope
-  (`watch<Enabled|Disabled>.<here|elsewhere>`) so the right opt-in/out action shows.
-- **An explicit opt-out persists.** Distinguish "never scoped" (legacy default) from
-  "scoped to no projects" (an opt-out that removed the last project): the latter must
-  stay muted, not fall back to the containing-project default.
+- **A thing belongs to the project that contains its target, and that project always
+  sees it.** A watch alerts (and is listed) in the project that contains the folder
+  or file it watches — automatic, no opt-in needed. The folder-watch engine gates
+  scanning/arming, and the Watches view gates *listing*, on
+  `watchAlertsIn(watch, currentFolderPaths)`. This is the fix for the "you blasted
+  every project I am running" report (2026-06-28): a per-project `bugs` watch was
+  popping its alerts in unrelated windows.
+- **Never show another project's state here — filter it out, do not flag it.** A
+  view lists only the items that fire in the open project; items belonging to other
+  projects are simply absent. Do NOT list them with a "not alerting here" note — a
+  row a window cannot act on reads as broken data (the user report this rule comes
+  from). The activity-bar badge is scoped the same way (`totalUnseen(folderPaths)`),
+  so one project's pending count never shows in another's window.
+- **A deliberately cross-project item is marked "global".** The ONLY thing shown
+  outside its owning project is one the user explicitly made global. Mark it
+  distinctly so it is never mistaken for local: the Watches row uses a **globe**
+  glyph (not the local eye/bell) and a **"global"** note, and the tooltip says it
+  alerts in every project. The make-global / make-local toggle and per-project opt-in
+  for outside-the-project targets live in **Manage Folder Watches**, not on the row;
+  the row `contextValue` carries only the enabled state (`watch<Enabled|Disabled>`).
 
 ---
 

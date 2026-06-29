@@ -3,7 +3,11 @@ import * as crypto from "crypto";
 import * as path from "path";
 import { ShortcutStore } from "../model/shortcutStore";
 import { shortcutKind } from "../model/shortcut";
-import { FolderWatchStore } from "../model/folderWatch";
+import {
+  FolderWatchStore,
+  isGlobalWatch,
+  watchAlertsIn,
+} from "../model/folderWatch";
 import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutInteraction";
 import { l10n } from "../i18n/l10n";
@@ -262,7 +266,16 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   private buildAllItems(files: readonly ProjectFileInfo[]): LauncherItem[] {
     const items = buildLauncherItems(this.store);
 
+    // Only this window's watches, matching the Watches sidebar: a watch owned by the
+    // open project, opted into it, or global. Other projects' watches are not shown
+    // here (the "do not tell me about other projects" rule; styleguide 4.7).
+    const folders = (vscode.workspace.workspaceFolders ?? []).map(
+      (f) => f.uri.fsPath
+    );
     for (const w of this.watchStore.list()) {
+      if (!watchAlertsIn(w, folders)) {
+        continue;
+      }
       items.push(
         watchLauncherItem({
           id: w.id,
@@ -272,6 +285,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
           mode: w.mode,
           enabled: w.enabled,
           unseen: this.watchStore.unseenCount(w.id),
+          isGlobal: isGlobalWatch(w),
         })
       );
     }

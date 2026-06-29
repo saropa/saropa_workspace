@@ -2,6 +2,10 @@
 
 <!-- Banner uses an absolute raw URL, not a repo-relative path, so it also renders
      on the VS Code Marketplace (which does not resolve relative image links). -->
+<!-- # Saropa Workspace -->
+
+<!-- Banner uses an absolute raw URL, not a repo-relative path, so it also renders
+     on the VS Code Marketplace (which does not resolve relative image links). -->
 <div align="center">
 
 [![Saropa Workspace](https://raw.githubusercontent.com/saropa/saropa_workspace/main/images/banner.png)](https://marketplace.visualstudio.com/items?itemName=saropa.saropa-workspace)
@@ -11,11 +15,12 @@
 # Saropa Workspace
 
 **Add any file as a shortcut — single-click to open it, double-click to run it.**
-<br>
+
 Developed by [Saropa](https://saropa.com) to make Flutter & Dart development faster.
 
 <!-- ref: https://shields.io/badges and https://simpleicons.org/?q=visualstudiocode -->
-<br>
+
+
 <div align="center">
 
 <!-- Note that the badges are all grouped together so they flow horizontally. -->
@@ -25,15 +30,16 @@ Developed by [Saropa](https://saropa.com) to make Flutter & Dart development fas
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.74%2B-007ACC.svg?style=flat-square&logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/) [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 </div>
-<br>
-
-> 💬 **Have feedback on Saropa Workspace?** Please share it by [opening an issue](https://github.com/saropa/saropa_workspace/issues/new) on GitHub!
 
 ---
 
-Saropa Workspace turns a VS Code activity-bar sidebar into a place for the files and scripts you reach for constantly. Add a shortcut for a `pubspec.yaml`, a build script, a database seeder, or a deploy command, and keep them one click away. Files open on a single click; scripts run on a double-click. Shortcuts can live with your repo (so the whole team gets them) or with your VS Code profile (so they follow you across projects), and scripts can run on a schedule while VS Code is open.
+### The Paragraph
 
-The marker for this extension is a referee's whistle — call the play, run the script.
+When you open a repo, the extension reads your package manifests, config files, and `.git/config` to automatically generate a list of executable commands—called Recipes—for tasks like lints, formatting, and opening PR links, meaning you don't have to manually configure shortcuts for standard operations. For actual automation, you can hook these commands or any custom shell script to execute in the background when specific file globs change (like running a build script on save), chain multiple scripts together so they run in sequence, or run tasks on a cron schedule. The configuration saves to a standard `.json` file in your `.vscode` directory, so you can commit it to Git and the entire team gets the same automated scripts without manual setup.
+
+### In a Sentence
+
+`Saropa Workspace` automatically builds a menu of standard project commands by parsing your repository's existing files and lets you automate them using file-watch triggers, script chaining, or cron schedules.
 
 ---
 
@@ -285,8 +291,13 @@ Install the [Saropa Suite](https://marketplace.visualstudio.com/items?itemName=s
 ## Contact & License
 
 **Email:** [dev@saropa.com](mailto:dev@saropa.com)
-<br>
+
+
 **License:** [MIT](https://github.com/saropa/saropa_workspace/blob/main/LICENSE) — use it however you like.
+
+---
+
+> 💬 **Have feedback on Saropa Workspace?** Please share it by [opening an issue](https://github.com/saropa/saropa_workspace/issues/new) on GitHub!
 
 ---
 

@@ -360,6 +360,7 @@ test("an enabled watch with unseen files shows a blue bell and leads with the co
     mode: "new",
     enabled: true,
     unseen: 3,
+    isGlobal: false,
   });
   assert.equal(item.pane, "watches");
   assert.equal(item.icon, "bell-dot");
@@ -382,10 +383,42 @@ test("an idle enabled watch shows a plain eye with no count", () => {
     mode: "changed",
     enabled: true,
     unseen: 0,
+    isGlobal: false,
   });
   assert.equal(item.icon, "eye");
   assert.equal(item.color, "foreground");
   assert.equal(item.sub, "file - New and changed files");
+});
+
+test("a global watch shows a globe and a 'global' note", () => {
+  const item = watchLauncherItem({
+    id: "w1",
+    label: "bugs",
+    target: "d:/src/app/bugs",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+    unseen: 0,
+    isGlobal: true,
+  });
+  assert.equal(item.icon, "globe");
+  assert.equal(item.sub, "global - folder - Only new files");
+});
+
+test("a global watch with unseen files leads with the count and stays a globe", () => {
+  const item = watchLauncherItem({
+    id: "w1",
+    label: "bugs",
+    target: "d:/src/app/bugs",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+    unseen: 2,
+    isGlobal: true,
+  });
+  assert.equal(item.icon, "globe");
+  assert.equal(item.color, "charts.blue");
+  assert.equal(item.sub, "2 new - global - folder - Only new files");
 });
 
 test("a disabled watch reads muted (closed eye, off) and shows no count", () => {
@@ -397,6 +430,7 @@ test("a disabled watch reads muted (closed eye, off) and shows no count", () => 
     mode: "new",
     enabled: false,
     unseen: 5,
+    isGlobal: false,
   });
   assert.equal(item.icon, "eye-closed");
   assert.equal(item.color, "descriptionForeground");

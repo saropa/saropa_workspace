@@ -5,8 +5,8 @@ import {
   FolderWatch,
   FolderWatchMode,
   FolderWatchStore,
+  isGlobalWatch,
   watchAlertsIn,
-  defaultAlertScopes,
 } from "../model/folderWatch";
 import { WatchTreeItem } from "../views/watchesTreeProvider";
 import { l10n } from "../i18n/l10n";
@@ -89,26 +89,15 @@ export function registerFolderWatchCommands(
     vscode.commands.registerCommand(
       "saropaWorkspace.removeWatch",
       (item?: WatchTreeItem) => removeWatchRow(store, item)
-    ),
-    // Opt the current project into / out of a watch's alerts. A watch only alerts in
-    // projects it is opted into; these row actions are how a global watch is turned
-    // on for an individual project (and off again) without removing the watch.
-    vscode.commands.registerCommand(
-      "saropaWorkspace.alertHereWatch",
-      (item?: WatchTreeItem) => setAlertHereRow(store, item, true)
-    ),
-    vscode.commands.registerCommand(
-      "saropaWorkspace.muteHereWatch",
-      (item?: WatchTreeItem) => setAlertHereRow(store, item, false)
     )
   );
 }
 
-// Add or remove the current window's project folders from a watch's alert scope.
-// Materializes the implicit legacy scope first (defaultAlertScopes) so opting one
-// project in never silently drops the watch's original containing project, and so
-// an opt-out leaves an explicit [] (muted everywhere) instead of falling back to the
-// containing default. Names the watch in the confirmation so the change is concrete.
+// Add or remove the current window's project folders from a watch's EXTRA alert
+// scope. alertScopes lists only projects beyond the one owning the target (the owner
+// always alerts via watchAlertsIn), so this manages opt-in for a target that lives
+// outside the open project. Names the watch in the confirmation so the change is
+// concrete.
 async function applyAlertHere(
   store: FolderWatchStore,
   watch: FolderWatch,
@@ -119,7 +108,7 @@ async function applyAlertHere(
     notifyWatchChange(l10n("folderWatch.noProjectOpen"));
     return;
   }
-  const base = watch.alertScopes ?? defaultAlertScopes(watch, folders);
+  const base = watch.alertScopes ?? [];
   const next = on
     ? [...new Set([...base, ...folders])].sort()
     : base.filter((p) => !folders.includes(p));
@@ -132,16 +121,20 @@ async function applyAlertHere(
   );
 }
 
-// Row inline-menu entry point for opt-in/out.
-async function setAlertHereRow(
+// Mark a watch global (alert in every project) or local (alert only where it is
+// owned/opted-in). Names the watch in the confirmation so the reach change is concrete.
+async function applyMakeGlobal(
   store: FolderWatchStore,
-  item: WatchTreeItem | undefined,
-  on: boolean
+  watch: FolderWatch,
+  global: boolean
 ): Promise<void> {
-  if (!item) {
-    return;
-  }
-  await applyAlertHere(store, item.watch, on);
+  await store.update(watch.id, { global });
+  const name = watch.label ?? path.basename(watch.target);
+  notifyWatchChange(
+    global
+      ? l10n("folderWatch.madeGlobal", { name })
+      : l10n("folderWatch.madeLocal", { name })
+  );
 }
 
 // Clicking a watch row: open what changed and clear the counter. Reading the unseen
@@ -258,9 +251,9 @@ export async function maybeSuggestBugsWatch(
       isFile: false,
       mode: "new",
       enabled: true,
-      // Scope alerts to THIS project only: the offer is per-project, so its watch
-      // must not toast in other windows (the "blasted every project" report).
-      alertScopes: [folder.uri.fsPath],
+      // No alertScopes: the bugs folder is inside this project, so it alerts here
+      // automatically ("projects watch their own") and stays silent in other windows
+      // (the "blasted every project" report). alertScopes is only for extra projects.
     };
     await store.add(watch);
     notifyWatchChange(
@@ -427,7 +420,11 @@ async function manageWatches(store: FolderWatchStore): Promise<void> {
       label: w.label ?? path.basename(w.target),
       description: describeWatch(w),
       detail: w.target,
-      iconPath: new vscode.ThemeIcon(w.enabled ? "eye" : "eye-closed"),
+      // Globe marks a global watch; otherwise eye (enabled) / eye-closed (paused),
+      // matching the Watches view glyphs so reach reads the same in both places.
+      iconPath: new vscode.ThemeIcon(
+        !w.enabled ? "eye-closed" : isGlobalWatch(w) ? "globe" : "eye"
+      ),
     }));
     const pick = await vscode.window.showQuickPick(items, {
       title: l10n("folderWatch.manageTitle"),
@@ -443,7 +440,8 @@ async function manageWatches(store: FolderWatchStore): Promise<void> {
   }
 }
 
-// One-line state summary for a watch row: kind, mode, and enabled/paused.
+// One-line state summary for a manage-hub row: kind, mode, enabled/paused, and the
+// global marker when the watch alerts in every project (so reach is legible here too).
 function describeWatch(watch: FolderWatch): string {
   const kind = watch.isFile
     ? l10n("folderWatch.kindFile")
@@ -455,7 +453,10 @@ function describeWatch(watch: FolderWatch): string {
   const state = watch.enabled
     ? l10n("folderWatch.stateOn")
     : l10n("folderWatch.stateOff");
-  return l10n("folderWatch.rowDescription", { kind, mode, state });
+  const base = l10n("folderWatch.rowDescription", { kind, mode, state });
+  return isGlobalWatch(watch)
+    ? l10n("folderWatch.rowDescriptionGlobal", { base })
+    : base;
 }
 
 // Action sheet for a single watch. Returns "removed-last" so the hub closes when
@@ -467,14 +468,24 @@ async function actOnWatch(
   const toggle = watch.enabled
     ? l10n("folderWatch.disable")
     : l10n("folderWatch.enable");
+  // Global watches alert everywhere; local watches alert only where owned/opted-in.
+  // The sheet offers the opposite of the watch's current reach.
+  const global = isGlobalWatch(watch);
+  const makeGlobal = global
+    ? l10n("folderWatch.makeLocal")
+    : l10n("folderWatch.makeGlobal");
   // Whether the project(s) open in this window currently receive this watch's
-  // alerts, so the action sheet offers the opposite (opt in vs opt out).
+  // alerts, so the action sheet offers the opposite (opt in vs opt out). A global
+  // watch already alerts here, so opt-in/out is irrelevant and omitted for it.
   const alertsHere = watchAlertsIn(watch, currentFolderPaths());
   const alertHere = alertsHere
     ? l10n("folderWatch.muteHere")
     : l10n("folderWatch.alertHere");
   const remove = l10n("folderWatch.remove");
-  const choice = await vscode.window.showQuickPick([toggle, alertHere, remove], {
+  const actions = global
+    ? [toggle, makeGlobal, remove]
+    : [toggle, makeGlobal, alertHere, remove];
+  const choice = await vscode.window.showQuickPick(actions, {
     title: watch.label ?? path.basename(watch.target),
     placeHolder: l10n("folderWatch.actionPlaceholder"),
   });
@@ -483,6 +494,10 @@ async function actOnWatch(
   }
   if (choice === toggle) {
     await store.update(watch.id, { enabled: !watch.enabled });
+    return "continue";
+  }
+  if (choice === makeGlobal) {
+    await applyMakeGlobal(store, watch, !global);
     return "continue";
   }
   if (choice === alertHere) {

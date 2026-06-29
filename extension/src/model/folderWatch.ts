@@ -38,20 +38,23 @@ export interface FolderWatch {
   // A disabled watch is kept (so its config and baseline survive) but neither
   // scanned on startup nor armed with a live watcher.
   enabled: boolean;
-  // Which projects this watch is allowed to ALERT in, as workspace-folder fsPaths.
-  // The watch list lives in window-independent globalState, so without this gate a
-  // single watch toasted in EVERY open window — the "you blasted every project I am
-  // running" report (2026-06-28): a per-project bugs watch set up in one project
-  // popped its alerts in unrelated projects. Alerting is therefore opt-in per
-  // project. Semantics, kept distinct on purpose:
-  //   - undefined  -> legacy/never-scoped: alert only in the project that CONTAINS
-  //                   the target (so an existing per-project watch self-corrects to
-  //                   its own project without a migration write).
-  //   - []         -> explicitly muted everywhere (an opt-out that removed the last
-  //                   project must persist, not fall back to the containing default).
-  //   - [paths]    -> alert only in windows holding one of these folders.
-  // New watches are created with an explicit array; opt-in/out edits this list.
+  // EXTRA projects this watch alerts in, beyond the project that owns its target, as
+  // workspace-folder fsPaths. A watch is ALWAYS local to the project containing its
+  // target ("projects watch their own"); alertScopes only adds further projects the
+  // user opted in by hand (e.g. a watch on a folder outside any open project, shared
+  // into a specific window). undefined and [] are equivalent (no extra projects) —
+  // the containing project still alerts either way; to silence a watch entirely,
+  // disable it. See watchAlertsIn for the full rule. The gate exists because the
+  // watch list lives in window-independent globalState, so without it a single watch
+  // toasted in EVERY open window — the "you blasted every project I am running"
+  // report (2026-06-28).
   alertScopes?: string[];
+  // A global watch alerts in EVERY project window, not just the one owning its
+  // target. The deliberate cross-project case and the ONLY reason a watch appears
+  // outside its own project; the Watches view marks it distinctly (a globe glyph and
+  // a "global" note) so it is never mistaken for a local watch. Absent/false: local
+  // to the project(s) that own or opted into it.
+  global?: boolean;
 }
 
 // One scan result: each watched file's folder-relative path mapped to its
@@ -110,32 +113,33 @@ export function isPathInside(folder: string, target: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
-// Whether a watch should raise alerts in a window holding `folderPaths` (the
-// current workspace folders). The single source of truth for "does this watch fire
-// here", shared by the engine (which gates scanning/arming) and the Watches tree
-// (which shows the per-project state). See FolderWatch.alertScopes for why alerting
-// is opt-in per project rather than firing in every open window.
+// True when the watch is marked global (alerts in every project window).
+// Centralized so the alert gate, the row marking, and the make-global toggle agree.
+export function isGlobalWatch(watch: FolderWatch): boolean {
+  return watch.global === true;
+}
+
+// Whether a watch should raise alerts in a window holding `folderPaths` (the current
+// workspace folders). The single source of truth for "does this watch fire here",
+// shared by the engine (which gates scanning/arming) and the Watches tree (which
+// decides whether to list the row at all). The rule, in order:
+//   1. A global watch alerts everywhere.
+//   2. A project always watches files inside its own folders — automatic, regardless
+//      of alertScopes. This is "projects watch their own": a watch on a project's own
+//      bugs/ folder can never read as "not alerting" in that project.
+//   3. Otherwise it alerts only in projects the user explicitly opted in
+//      (alertScopes) — a watch whose target lives outside the opened project(s).
 export function watchAlertsIn(
   watch: FolderWatch,
   folderPaths: string[]
 ): boolean {
-  if (watch.alertScopes === undefined) {
-    // Never scoped: alert only in the project that contains the target.
-    return folderPaths.some((p) => isPathInside(p, watch.target));
+  if (isGlobalWatch(watch)) {
+    return true;
   }
-  return folderPaths.some((p) => watch.alertScopes!.includes(p));
-}
-
-// Materialize the implicit legacy scope (the containing project among the current
-// folders) so an opt-in/out edit on a never-scoped watch starts from its real
-// project set instead of an empty list. A documented limitation: materializing from
-// a window that does NOT hold the original containing project cannot recover that
-// project's implicit scope — it must be re-opted-in from its own window.
-export function defaultAlertScopes(
-  watch: FolderWatch,
-  folderPaths: string[]
-): string[] {
-  return folderPaths.filter((p) => isPathInside(p, watch.target));
+  if (folderPaths.some((p) => isPathInside(p, watch.target))) {
+    return true;
+  }
+  return (watch.alertScopes ?? []).some((p) => folderPaths.includes(p));
 }
 
 const WATCHES_KEY = "saropaWorkspace.folderWatches";
@@ -269,12 +273,27 @@ export class FolderWatchStore {
     return this.getUnseen(id).length;
   }
 
-  // Sum of unseen files across ALL watches — the activity-bar badge total.
-  totalUnseen(): number {
-    return Object.values(this.allUnseen()).reduce(
-      (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
-      0
-    );
+  // Sum of unseen files for the activity-bar badge. With `folderPaths` given, counts
+  // only watches that alert in THIS window (owned-here, opted-in-here, or global), so
+  // a window's badge never reflects another project's pending files — the badge form
+  // of the "do not blast every project" rule. Without it, sums every watch (used by
+  // store-level tests that do not model a window).
+  totalUnseen(folderPaths?: string[]): number {
+    const unseen = this.allUnseen();
+    const inScope =
+      folderPaths === undefined
+        ? null
+        : new Set(
+            this.list()
+              .filter((w) => watchAlertsIn(w, folderPaths))
+              .map((w) => w.id)
+          );
+    return Object.entries(unseen).reduce((sum, [id, list]) => {
+      if (inScope && !inScope.has(id)) {
+        return sum;
+      }
+      return sum + (Array.isArray(list) ? list.length : 0);
+    }, 0);
   }
 
   // Record newly detected files for a watch, merging and de-duplicating against
