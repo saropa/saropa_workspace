@@ -53,6 +53,7 @@ Documentation catch-up so the README reflects the launcher and Project Files wor
 
 ### Changed
 
+- **README Screenshots section now shows a screenshot.** The "Screenshots are coming" placeholder is replaced with an actual screenshot of the sidebar and launcher, served from an absolute raw GitHub URL so it renders on the VS Code Marketplace.
 - **README now describes the launcher as it actually is.** The overview was rewritten for the current four-pane board (My shortcuts, Recipes, Watches, Project files) with its header — project name, version, and click-to-filter counts — per-pane icons, the search box with the count tucked inside, and cards that lead with Run or Open per file. It also drops the stale "Copy as Saropa Link" launcher-menu item that no longer appears on launcher cards.
 - **README documents Project Files area grouping and the renamed setting.** The Project Files entry now notes the Project / Android / iOS / Web grouping, and the settings table replaces the removed `saropaWorkspace.projectFiles.files` with `saropaWorkspace.projectFiles.groups`.
 - **The schedule editor tab is now titled "Saropa Workspace Scheduler".** The per-schedule editor, previously "Saropa Schedule: {name}", reads "Saropa Workspace Scheduler: {name}" so its tab and heading name the product in full.

@@ -101,7 +101,13 @@ The full detail for every feature lives in the **[feature catalog](docs/FEATURES
 
 ## Screenshots
 
-> Screenshots are coming. In the meantime, the [Getting Started](#getting-started) steps below walk through the full workflow.
+<!-- Absolute raw URL, not a repo-relative path, so the screenshot also renders
+     on the VS Code Marketplace (which does not resolve relative image links). -->
+<div align="center">
+
+![Saropa Workspace sidebar and launcher](https://raw.githubusercontent.com/saropa/saropa_workspace/main/images/screenshot.png)
+
+</div>
 
 ---
 
