@@ -681,7 +681,7 @@
   "metric.overToast": "{name} is now {size} — over your {limit} limit.",
   "schedule.title": "Configure Schedule: {name}",
   "schedule.hubPlaceholder": "Pick a setting to edit, or Save to apply.",
-  "scheduleEditor.title": "Saropa Schedule: {name}",
+  "scheduleEditor.title": "Saropa Workspace Scheduler: {name}",
   "scheduleEditor.subtitle": "Set when {name} runs on its own.",
   "scheduleEditor.gone": "That shortcut no longer exists, so its schedule was not saved.",
   "scheduleEditor.section.daily": "Daily time",

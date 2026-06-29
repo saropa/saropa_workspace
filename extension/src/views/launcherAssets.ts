@@ -488,6 +488,9 @@ function makeCard(it) {
   const card = document.createElement('div');
   card.className = 'card';
   card.dataset.pane = it.pane;
+  // Tag scheduled cards so the header's cross-pane "scheduled" filter can narrow to them
+  // (they live in the "mine" pane but are a distinct, smaller set).
+  if (it.scheduled) { card.dataset.scheduled = 'true'; }
   card.style.setProperty('--card-tint', cssVar(it.color));
   card.dataset.hay = (it.label + ' ' + it.sub + ' ' + (it.desc || '') + ' ' + it.section).toLowerCase();
 

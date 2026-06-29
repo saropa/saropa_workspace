@@ -353,7 +353,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     const stats: LauncherStat[] = [];
     const pushStat = (
       n: number,
-      pane: LauncherItem["pane"],
+      pane: LauncherFilter,
       icon: string,
       key: string
     ): void => {
@@ -362,7 +362,12 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       }
     };
     pushStat(count("mine"), "mine", "star-full", "launcher.statShortcuts");
-    pushStat(scheduledRituals, "mine", "clock", "launcher.statRecipes");
+    // "scheduled" is a cross-pane filter, not a pane: it narrows the board to the shortcut
+    // cards whose schedule is enabled, which live inside the "mine" pane. Filing it under
+    // "mine" (as it once was) made the chip a duplicate of the shortcuts chip — clicking it
+    // revealed every shortcut instead of only the scheduled ones. The distinct "scheduled"
+    // key is matched against each card's scheduled flag in the webview filter.
+    pushStat(scheduledRituals, "scheduled", "clock", "launcher.statRecipes");
     pushStat(count("watches"), "watches", "eye", "launcher.statWatches");
     pushStat(count("files"), "files", "files", "launcher.statFiles");
 
@@ -428,11 +433,15 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
-// One count shown in the header's meta line: the pane it summarizes (so a click can filter
-// the board to that pane), a codicon id, and its pre-localized label (e.g. "6 shortcuts").
-// Built host-side so the webview holds no display strings.
+// What a header chip filters the board to: one of the real panes, or the cross-pane
+// "scheduled" key that narrows to scheduled shortcut cards wherever they sit (inside "mine").
+type LauncherFilter = LauncherItem["pane"] | "scheduled";
+
+// One count shown in the header's meta line: the filter it applies (so a click can narrow
+// the board to that pane or to scheduled cards), a codicon id, and its pre-localized label
+// (e.g. "6 shortcuts"). Built host-side so the webview holds no display strings.
 interface LauncherStat {
-  readonly pane: LauncherItem["pane"];
+  readonly pane: LauncherFilter;
   readonly icon: string;
   readonly text: string;
 }

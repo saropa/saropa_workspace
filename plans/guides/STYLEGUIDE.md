@@ -38,11 +38,11 @@ Current screens, for reference:
 | --- | --- |
 | `monitor.panel.title` | **Saropa Dashboard** |
 | `planner.title` | **Saropa Schedule & Workflow Planner** |
-| `scheduleEditor.title` | **Saropa Schedule: {name}** |
+| `scheduleEditor.title` | **Saropa Workspace Scheduler: {name}** |
 | `views.launcher.container.title` / `launcher.title` | **Saropa Launcher** |
 
 A per-item screen title may carry an interpolated `{name}` after the Saropa
-prefix (e.g. **Saropa Schedule: `regen-types`**) so the tab names the item it
+prefix (e.g. **Saropa Workspace Scheduler: `regen-types`**) so the tab names the item it
 edits — the Saropa-first rule still holds.
 
 When you add a new webview panel or view, its title key starts with `Saropa `.

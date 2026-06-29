@@ -48,6 +48,13 @@ export interface LauncherItem {
   readonly icon: string;
   readonly color: string;
   readonly kind: string;
+  // Whether this card is a live scheduled ritual — a stored shortcut whose schedule is
+  // switched on (schedule.enabled === true), the same signal the header's "scheduled" count
+  // and the status bar arm off. Drives the header's "scheduled" filter chip: the webview
+  // narrows the board to cards carrying this flag. Only "mine" shortcuts can be scheduled;
+  // recipes seed a disabled schedule, and watch/file cards have no schedule, so it is false
+  // for them.
+  readonly scheduled?: boolean;
   // A human, localized name for the action kind (Shell command / Macro / Routine / …),
   // used as the card icon's tooltip so the kind is nameable on hover. Undefined for a file
   // card, whose icon is file-type-driven and whose kind ("file") needs no label. Replaces
@@ -150,6 +157,9 @@ function toItem(
     icon: rowIcon(shortcut, kind, fileName),
     color: rowColor(shortcut, kind, fileName),
     kind,
+    // A live scheduled ritual: a shortcut whose schedule is switched on. Mirrors the header's
+    // scheduledRituals count so the "scheduled" chip and the cards it reveals agree.
+    scheduled: shortcut.schedule?.enabled === true,
     // Name the kind for the icon tooltip; a file card needs none (its icon is file-typed).
     kindLabel: isFile ? undefined : l10n(`launcher.kind.${kind}`),
     runnable,
