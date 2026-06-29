@@ -320,6 +320,28 @@ test("a recipe's menu offers Pin and Schedule (adopt-then-schedule)", () => {
   assert.ok(commands.includes("saropaWorkspace.scheduleRecipe"), "recipe menu must offer Schedule");
 });
 
+test("a shortcut with an enabled schedule is flagged scheduled; a disabled or absent one is not", () => {
+  // The header's "scheduled" chip is a cross-pane filter keyed on this flag, so the data
+  // layer must mark a card scheduled only when its schedule is actually switched on — the
+  // same enabled === true signal the scheduler and status bar arm off. A disabled schedule
+  // (a seeded-but-off recipe promotion) and a scheduleless shortcut must both read false, or
+  // the chip would reveal cards that are not automated.
+  const items = buildLauncherItems(
+    asStore({
+      ...empty,
+      project: [
+        sc({ id: "on", scope: "project", schedule: { enabled: true } as Shortcut["schedule"] }),
+        sc({ id: "off", scope: "project", schedule: { enabled: false } as Shortcut["schedule"] }),
+        sc({ id: "none", scope: "project" }),
+      ],
+    })
+  );
+  const byId = new Map(items.map((it) => [it.id, it.scheduled]));
+  assert.equal(byId.get("on"), true, "an enabled schedule flags the card scheduled");
+  assert.equal(byId.get("off"), false, "a disabled schedule does not flag the card");
+  assert.equal(byId.get("none"), false, "a scheduleless shortcut is not flagged");
+});
+
 test("an empty store yields no items", () => {
   assert.deepEqual(buildLauncherItems(asStore(empty)), []);
 });

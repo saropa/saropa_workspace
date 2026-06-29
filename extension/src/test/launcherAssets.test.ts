@@ -249,6 +249,25 @@ test("LAUNCHER_SCRIPT: recipe cards expose Pin and Schedule drawer buttons", () 
   assert.ok(LAUNCHER_SCRIPT.includes("saropaWorkspace.scheduleRecipe"));
 });
 
+test("LAUNCHER_SCRIPT: drawer action buttons use the primary (blue) style", () => {
+  // The drawer's Open/Copy path/Pin/Schedule actions must render as .btn.primary, not the
+  // secondary gray .btn, which read as flat labels rather than tappable buttons (developer
+  // feedback 2026-06-28). actionButton's third argument is the `primary` flag; every drawer
+  // call passes true, so no secondary-style drawer button slips back in.
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("actionButton(strings.pin || 'Pin', 'star-full', true"),
+    "Pin must be a primary button"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("actionButton(strings.schedule || 'Schedule', 'clock', true"),
+    "Schedule must be a primary button"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("actionButton(strings.copyPath || 'Copy path', 'copy', true"),
+    "Copy path must be a primary button"
+  );
+});
+
 test("LAUNCHER_SCRIPT: suppresses the card subtitle when it only echoes the name", () => {
   // A root-level file shortcut carries its bare filename as both label and path (e.g.
   // CHANGELOG.md), so rendering the path under the title duplicated the text. makeCard must

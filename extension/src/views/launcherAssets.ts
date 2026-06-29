@@ -578,7 +578,7 @@ function makeCard(it) {
   // user can grab the file's location without opening it. The host resolves the real on-disk
   // path from the id (a shortcut via the store, a project file by its validated fsPath).
   if (it.copyable) {
-    actions.appendChild(actionButton(strings.copyPath || 'Copy path', 'copy', false, function () {
+    actions.appendChild(actionButton(strings.copyPath || 'Copy path', 'copy', true, function () {
       vscode.postMessage({ type: 'copyPath', id: it.id });
     }));
   }
@@ -587,10 +587,10 @@ function makeCard(it) {
   // burying them in the right-click menu — the recipes pane is where a user decides to keep
   // or automate a recommendation, so those actions must be discoverable on the card itself.
   if (it.pane === 'recipes') {
-    actions.appendChild(actionButton(strings.pin || 'Pin', 'star-full', false, function () {
+    actions.appendChild(actionButton(strings.pin || 'Pin', 'star-full', true, function () {
       vscode.postMessage({ type: 'command', command: 'saropaWorkspace.promoteRecipe', id: it.id });
     }));
-    actions.appendChild(actionButton(strings.schedule || 'Schedule', 'clock', false, function () {
+    actions.appendChild(actionButton(strings.schedule || 'Schedule', 'clock', true, function () {
       vscode.postMessage({ type: 'command', command: 'saropaWorkspace.scheduleRecipe', id: it.id });
     }));
   }

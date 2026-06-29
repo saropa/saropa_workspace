@@ -58,6 +58,7 @@ Documentation catch-up so the README reflects the launcher and Project Files wor
 - **README documents Project Files area grouping and the renamed setting.** The Project Files entry now notes the Project / Android / iOS / Web grouping, and the settings table replaces the removed `saropaWorkspace.projectFiles.files` with `saropaWorkspace.projectFiles.groups`.
 - **The schedule editor tab is now titled "Saropa Workspace Scheduler".** The per-schedule editor, previously "Saropa Schedule: {name}", reads "Saropa Workspace Scheduler: {name}" so its tab and heading name the product in full.
 - **Launcher card detail text is slightly larger.** The description shown in an expanded launcher card's drawer grew from `0.9em` to `0.97em` (with a touch more line spacing) so the detail reads more comfortably.
+- **Expanded launcher card buttons are all blue now.** The drawer's Open, Copy path, Pin, and Schedule actions used the secondary gray style and read as flat labels rather than buttons. They now use the primary blue style, matching the head's Run/Open button, so every action looks tappable.
 
 ### Fixed
 

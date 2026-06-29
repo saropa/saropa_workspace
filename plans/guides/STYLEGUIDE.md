@@ -105,7 +105,7 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   the tint; structural labels stay neutral.
 - **A primary click expands the card; it does not open or run.** The launcher
   diverges from the product's single-click-opens model on purpose: a click toggles
-  an inline drawer (full name, full path, description, and secondary action buttons)
+  an inline drawer (full name, full path, description, and action buttons)
   so browsing is non-destructive. One-click execution still exists — the head button
   acts without expanding. (Reconciled with the developer 2026-06-27: the launcher is
   a browse-and-choose surface, where an accidental open/run on a click is the worse
@@ -132,7 +132,11 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   panes keep their deliberate expand-then-act model. The drawer's actions are right-aligned
   (`.drawer-actions { justify-content: flex-end }`) at the card's trailing edge, away
   from the leading name/path column, with a little extra vertical space around the
-  drawer so the actions are easier to hit.
+  drawer so the actions are easier to hit. Every drawer action button renders as
+  the primary blue style (`.btn.primary`), matching the head's Run/Open button — a
+  secondary gray `.btn` read as a flat label rather than a button, so the drawer's
+  actions (Open, Copy path, Pin, Schedule) all carry the blue affordance. (Developer
+  feedback 2026-06-28: the gray drawer buttons looked like labels, not buttons.)
 - **The card's secondary line is suppressed when it only echoes the name.** A
   root-level file shortcut carries its bare filename as both the label and the path
   (e.g. `CHANGELOG.md`), so rendering the path under the title produced a duplicated
