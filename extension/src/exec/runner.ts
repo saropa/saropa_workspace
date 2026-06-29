@@ -40,6 +40,7 @@ export {
   setRoutineHooks,
   RoutineHooks,
   expandRecipeTokens,
+  reportRelativePath,
 } from "./actionRunner";
 
 // `source` distinguishes a user-triggered run ("manual", the default) from an

@@ -18,6 +18,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
+import { reportRelativePath } from "../exec/actionRunner";
 import type { RecipeResult } from "../recipes/detectors";
 import type { WorkspaceFolder as VscodeFolder } from "vscode";
 
@@ -141,7 +142,12 @@ test("the git rituals capture output to a dated report under reports/", async ()
   const out = await detectScheduledRecipes(asFolder(folder));
   const standup = out.find((r) => r.recipeId === "ritual.standup");
   assert.ok(standup);
-  // A ritual writes to a dated reports/ file rather than streaming to the channel.
-  assert.equal(standup!.action?.reportFile, "reports/$stamp_standup.md");
+  // A ritual writes to a per-day reports/ file rather than streaming to the channel;
+  // the path comes from the shared reportRelativePath helper (one source of truth).
+  assert.equal(standup!.action?.reportFile, reportRelativePath("standup"));
+  assert.equal(
+    standup!.action?.reportFile,
+    "reports/$datedir_workspace/$datedir_workspace_$time_standup.md"
+  );
   assert.equal(standup!.action?.autoOpen, true);
 });

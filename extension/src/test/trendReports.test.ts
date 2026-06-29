@@ -42,6 +42,16 @@ function writeReport(name: string, body = ""): string {
   return full;
 }
 
+// Write a file inside a per-day subfolder of reports/ (the current layout) and return
+// its absolute path.
+function writeDayReport(day: string, name: string, body = ""): string {
+  const dir = nodePath.join(tmpDir, "reports", day);
+  nodeFs.mkdirSync(dir, { recursive: true });
+  const full = nodePath.join(dir, name);
+  nodeFs.writeFileSync(full, body);
+  return full;
+}
+
 test("listTrendReports: no folder or no reports/ folder yields the empty state", async () => {
   // No reports/ directory exists yet -> readdir rejects -> [] (the tab's empty state).
   assert.deepEqual(await listTrendReports(), []);
@@ -64,6 +74,28 @@ test("listTrendReports: groups dated reports by ritual suffix", async () => {
   assert.deepEqual([...bySuffix.keys()].sort(), ["audit", "debt"]);
   assert.equal(bySuffix.get("debt")!.files.length, 2, "both debt reports grouped");
   assert.equal(bySuffix.get("audit")!.files.length, 1);
+});
+
+test("listTrendReports: discovers per-day-folder reports with the workspace infix", async () => {
+  // Current layout: reports/<date>_workspace/<date>_workspace_<time>_<suffix>.md.
+  writeDayReport("2026.06.29_workspace", "2026.06.29_workspace_090000_debt.md");
+  // Mixed with an older flat report of the same ritual: both must group together.
+  writeReport("2026.06.28_120000_debt.md");
+  const categories = await listTrendReports();
+  const debt = categories.find((c) => c.suffix === "debt");
+  assert.ok(debt, "the per-day debt report is discovered");
+  assert.equal(debt!.files.length, 2, "flat + per-day reports group under one suffix");
+});
+
+test("listTrendReports: does not descend past one subfolder level", async () => {
+  // A report two levels deep must not surface — discovery is bounded to one level.
+  const deep = nodePath.join(tmpDir, "reports", "2026.06.29_workspace", "nested");
+  nodeFs.mkdirSync(deep, { recursive: true });
+  nodeFs.writeFileSync(
+    nodePath.join(deep, "2026.06.29_workspace_090000_debt.md"),
+    ""
+  );
+  assert.deepEqual(await listTrendReports(), [], "a two-level-deep report is ignored");
 });
 
 test("listTrendReports: files are newest-first within a category", async () => {
@@ -114,6 +146,17 @@ test("readDebtTrend: counts non-empty marker lines per snapshot, oldest-to-newes
   ]);
 });
 
+test("readDebtTrend: labels a per-day workspace report by its date+time, not the infix", async () => {
+  // The "_workspace_" infix must not leak into the chart label — the label is the
+  // YYYY.MM.DD_HHmmss the file was stamped with, parsed out of either layout.
+  writeReport("2026.06.25_090000_debt.md", "a\n");
+  writeDayReport("2026.06.26_workspace", "2026.06.26_workspace_090000_debt.md", "a\nb\n");
+  const trend = await readDebtTrend(10);
+  assert.ok(trend);
+  assert.deepEqual(trend!.labels, ["2026.06.25_090000", "2026.06.26_090000"]);
+  assert.deepEqual(trend!.counts, [1, 2]);
+});
+
 test("readDebtTrend: keeps only the most recent `count` debt reports", async () => {
   for (const stamp of ["2026.06.21", "2026.06.22", "2026.06.23", "2026.06.24"]) {
     writeReport(`${stamp}_090000_debt.md`, "x\n");
@@ -127,6 +170,22 @@ test("readDebtTrend: keeps only the most recent `count` debt reports", async () 
 test("validateReportPath: accepts a real dated report directly under reports/", () => {
   const full = writeReport("2026.06.25_090000_debt.md");
   assert.equal(validateReportPath(full), nodePath.resolve(full));
+});
+
+test("validateReportPath: accepts a report one subfolder deep (the per-day folder)", () => {
+  const full = writeDayReport(
+    "2026.06.29_workspace",
+    "2026.06.29_workspace_090000_debt.md"
+  );
+  assert.equal(validateReportPath(full), nodePath.resolve(full));
+});
+
+test("validateReportPath: refuses a report nested more than one subfolder deep", () => {
+  const dir = nodePath.join(tmpDir, "reports", "2026.06.29_workspace", "nested");
+  nodeFs.mkdirSync(dir, { recursive: true });
+  const full = nodePath.join(dir, "2026.06.29_workspace_090000_debt.md");
+  nodeFs.writeFileSync(full, "");
+  assert.equal(validateReportPath(full), undefined, "two levels deep is refused");
 });
 
 test("validateReportPath: refuses a non-string, an empty string, or no folder", () => {

@@ -79,6 +79,29 @@ test("$stamp expands to a filesystem-safe YYYY.MM.DD_HHmmss stamp", () => {
   );
 });
 
+test("$datedir expands to a dotted YYYY.MM.DD folder name (not the dashed $date)", () => {
+  const out = expandRecipeTokens("reports/$datedir/x.md");
+  assert.ok(
+    /^reports\/\d{4}\.\d{2}\.\d{2}\/x\.md$/.test(out),
+    `expected a dotted date folder, got "${out}"`
+  );
+});
+
+test("$datedir is replaced before $date, so the $date inside it is not consumed", () => {
+  // "$date" is a prefix of "$datedir"; a wrong replacement order would leave a stray
+  // "dir" or split the token. Both must resolve to dates of their own format.
+  const out = expandRecipeTokens("$datedir|$date");
+  assert.ok(
+    /^\d{4}\.\d{2}\.\d{2}\|\d{4}-\d{2}-\d{2}$/.test(out),
+    `expected "dotted|dashed", got "${out}"`
+  );
+});
+
+test("$time expands to an HHmmss clock stamp", () => {
+  const out = expandRecipeTokens("at-$time");
+  assert.ok(/^at-\d{6}$/.test(out), `expected a 6-digit time, got "${out}"`);
+});
+
 test("a string with no tokens is returned unchanged", () => {
   assert.equal(expandRecipeTokens("npm run build"), "npm run build");
 });

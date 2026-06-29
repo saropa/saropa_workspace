@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { ShortcutSchedule } from "../model/shortcut";
 import { RecipeResult } from "./detectors";
 import { getGitRemote } from "./gitMeta";
+import { reportRelativePath } from "../exec/actionRunner";
 
 // Scheduled-ritual recipes (recipe book category E, 26-35). Each is a recipe shortcut
 // carrying a shell action that captures its output to a dated file under
@@ -88,7 +89,7 @@ const GIT_REPORT_RITUALS: ReportRitual[] = [
     icon: "comment-discussion",
     atTime: "08:30",
     command: 'git log --since="24 hours ago" --oneline --stat',
-    reportFile: "reports/$stamp_standup.md",
+    reportFile: reportRelativePath("standup"),
     autoOpen: true,
   },
   {
@@ -99,7 +100,7 @@ const GIT_REPORT_RITUALS: ReportRitual[] = [
     color: "charts.orange",
     atTime: "18:00",
     command: "git status --branch --porcelain=v1",
-    reportFile: "reports/$stamp_uncommitted.md",
+    reportFile: reportRelativePath("uncommitted"),
     autoOpen: true,
   },
   {
@@ -109,7 +110,7 @@ const GIT_REPORT_RITUALS: ReportRitual[] = [
     icon: "flame",
     atTime: "16:00",
     command: 'git grep -n -E "TODO|FIXME|HACK|XXX"',
-    reportFile: "reports/$stamp_debt.md",
+    reportFile: reportRelativePath("debt"),
     autoOpen: true,
   },
   {
@@ -119,7 +120,7 @@ const GIT_REPORT_RITUALS: ReportRitual[] = [
     icon: "git-branch",
     atTime: "09:00",
     command: "git branch --merged && git branch -vv",
-    reportFile: "reports/$stamp_branches.md",
+    reportFile: reportRelativePath("branches"),
     autoOpen: false,
   },
   {
@@ -129,7 +130,7 @@ const GIT_REPORT_RITUALS: ReportRitual[] = [
     icon: "book",
     atTime: "17:30",
     command: 'git log --since="00:00" --oneline --stat',
-    reportFile: "reports/$stamp_journal.md",
+    reportFile: reportRelativePath("journal"),
     autoOpen: false,
   },
 ];
@@ -150,7 +151,7 @@ export async function detectScheduledRecipes(
       icon: "checklist",
       color: "charts.yellow",
       schedule: daily("05:00"),
-      action: report(folder, linter, "reports/$stamp_lint.txt", false),
+      action: report(folder, linter, reportRelativePath("lint", "txt"), false),
     });
   }
 
@@ -196,7 +197,7 @@ export async function detectScheduledRecipes(
       description: "Scheduled (daily, default 07:00): writes a dated report of what is behind latest plus the audit/advisory summary for the ecosystem — the staleness and security picture in one file. Seeds disabled. Detected from the lockfile / manifest.",
       icon: "cloud-download",
       schedule: daily("07:00"),
-      action: report(folder, deps, "reports/$stamp_deps.md", false),
+      action: report(folder, deps, reportRelativePath("deps"), false),
     });
   }
 
@@ -209,7 +210,7 @@ export async function detectScheduledRecipes(
       description: "Scheduled (daily, default 05:30): runs the test suite unattended into a channel and writes a dated report under reports/. Seeds disabled. Detected from the project's test runner.",
       icon: "beaker",
       schedule: daily("05:30"),
-      action: report(folder, test, "reports/$stamp_tests.txt", false),
+      action: report(folder, test, reportRelativePath("tests", "txt"), false),
     });
   }
 
@@ -225,7 +226,7 @@ export async function detectScheduledRecipes(
       action: report(
         folder,
         'gh pr list --search "review-requested:@me" --state open',
-        "reports/$stamp_prs.md",
+        reportRelativePath("prs"),
         true
       ),
     });

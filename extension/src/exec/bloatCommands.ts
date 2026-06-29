@@ -10,7 +10,7 @@ import {
   renderBloatReport,
   scanBloat,
 } from "./bloatScan";
-import { expandRecipeTokens } from "./runner";
+import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { l10n } from "../i18n/l10n";
 
 // Commands for the workspace bloat scan (recipe book #63). The scan measures the
@@ -98,7 +98,7 @@ async function writeReport(report: BloatReport): Promise<vscode.Uri | undefined>
   if (!base) {
     return undefined;
   }
-  const relative = expandRecipeTokens("reports/$stamp_workspace_hygiene.md");
+  const relative = expandRecipeTokens(reportRelativePath("workspace_hygiene"));
   const file = path.join(base, ...relative.split("/"));
   try {
     const fs = await import("fs/promises");

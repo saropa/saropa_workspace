@@ -16,10 +16,13 @@ import { l10n } from "../i18n/l10n";
 
 const REPORTS_DIR = "reports";
 
-// Filename convention from the scheduled recipes: "<stamp>_<suffix>.<ext>", where
-// stamp is expandRecipeTokens' filesystem-safe YYYY.MM.DD_HHmmss. The suffix is the
-// ritual key; the extension is md or txt depending on the report.
-const REPORT_NAME = /^(\d{4}\.\d{2}\.\d{2}_\d{6})_([a-z]+)\.(md|txt)$/;
+// Filename convention from the scheduled recipes:
+//   <date>_workspace_<time>_<suffix>.<ext>   (current per-day layout)
+//   <date>_<time>_<suffix>.<ext>             (older flat layout, still discoverable)
+// date is YYYY.MM.DD, time is HHmmss, suffix is the ritual key, ext is md or txt. The
+// "workspace_" infix is optional so both layouts match; capture groups are
+// 1=date, 2=time, 3=suffix.
+const REPORT_NAME = /^(\d{4}\.\d{2}\.\d{2})_(?:workspace_)?(\d{6})_([a-z]+)\.(md|txt)$/;
 
 // One dated report file in a category.
 export interface TrendReportFile {
@@ -58,6 +61,68 @@ function reportsDir(folder: vscode.WorkspaceFolder): string {
   return path.join(folder.uri.fsPath, REPORTS_DIR);
 }
 
+// A dated report file found by the walk below, with its name parsed into the parts
+// the consumers need.
+interface ParsedReport {
+  // Basename, shown in the tab.
+  name: string;
+  // Absolute path, used only to open the file via the host (never shown raw).
+  full: string;
+  // "YYYY.MM.DD_HHmmss" — chronological as a lexical sort, and the debt-trend label.
+  sortKey: string;
+  // Ritual key (the REPORT_NAME suffix group).
+  suffix: string;
+}
+
+// Walk reports/ and its immediate date subfolders for files matching the dated-report
+// naming. One level deep only — reports/<file> (older flat layout) and
+// reports/<day>/<file> (current per-day layout), never deeper — so discovery stays
+// bounded and both layouts surface together.
+async function collectReportFiles(
+  dir: string,
+  fs: typeof import("fs/promises")
+): Promise<ParsedReport[]> {
+  let entries: import("fs").Dirent[];
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: ParsedReport[] = [];
+  const consider = (parent: string, name: string): void => {
+    const match = REPORT_NAME.exec(name);
+    if (!match) {
+      return;
+    }
+    out.push({
+      name,
+      full: path.join(parent, name),
+      sortKey: `${match[1]}_${match[2]}`,
+      suffix: match[3],
+    });
+  };
+  for (const entry of entries) {
+    if (entry.isFile()) {
+      consider(dir, entry.name);
+      continue;
+    }
+    if (entry.isDirectory()) {
+      // Descend exactly one level into a per-day folder; ignore anything nested below.
+      const sub = path.join(dir, entry.name);
+      try {
+        for (const s of await fs.readdir(sub, { withFileTypes: true })) {
+          if (s.isFile()) {
+            consider(sub, s.name);
+          }
+        }
+      } catch {
+        // An unreadable subfolder is simply skipped.
+      }
+    }
+  }
+  return out;
+}
+
 // List every dated ritual report under reports/, grouped by ritual and newest-first
 // within each group. Returns [] when there is no folder or no reports yet, so the
 // tab shows its empty state rather than failing.
@@ -66,35 +131,20 @@ export async function listTrendReports(): Promise<TrendReportCategory[]> {
   if (!folder) {
     return [];
   }
-  const dir = reportsDir(folder);
   const fs = await import("fs/promises");
-  let entries: import("fs").Dirent[];
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
+  const reports = await collectReportFiles(reportsDir(folder), fs);
   const bySuffix = new Map<string, TrendReportFile[]>();
-  for (const entry of entries) {
-    if (!entry.isFile()) {
-      continue;
-    }
-    const match = REPORT_NAME.exec(entry.name);
-    if (!match) {
-      continue;
-    }
-    const suffix = match[2];
-    const full = path.join(dir, entry.name);
+  for (const r of reports) {
     let at = 0;
     try {
-      at = (await fs.stat(full)).mtimeMs;
+      at = (await fs.stat(r.full)).mtimeMs;
     } catch {
       // A file that vanished between readdir and stat is simply skipped.
       continue;
     }
-    const list = bySuffix.get(suffix) ?? [];
-    list.push({ name: entry.name, path: full, at });
-    bySuffix.set(suffix, list);
+    const list = bySuffix.get(r.suffix) ?? [];
+    list.push({ name: r.name, path: r.full, at });
+    bySuffix.set(r.suffix, list);
   }
   // Sort files newest-first inside each category, and categories by label so the
   // order is stable across loads.
@@ -120,36 +170,30 @@ export async function readDebtTrend(count: number): Promise<DebtTrend | null> {
   if (!folder) {
     return null;
   }
-  const dir = reportsDir(folder);
   const fs = await import("fs/promises");
-  let entries: string[];
-  try {
-    entries = await fs.readdir(dir);
-  } catch {
-    return null;
-  }
-  // Debt reports carry the stamp as a sortable prefix, so a lexical sort is
-  // chronological. Take the newest `count`, then read oldest-to-newest for the chart.
-  const debtFiles = entries
-    .filter((name) => /^\d{4}\.\d{2}\.\d{2}_\d{6}_debt\.md$/.test(name))
-    .sort()
+  // sortKey ("YYYY.MM.DD_HHmmss") sorts chronologically as a string, regardless of
+  // which day-folder each report lives in. Take the newest `count`, then read
+  // oldest-to-newest for the chart.
+  const debtFiles = (await collectReportFiles(reportsDir(folder), fs))
+    .filter((r) => r.suffix === "debt")
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
     .slice(-count);
   if (debtFiles.length < 2) {
     return null;
   }
   const labels: string[] = [];
   const counts: number[] = [];
-  for (const name of debtFiles) {
+  for (const r of debtFiles) {
     let markers = 0;
     try {
-      const text = await fs.readFile(path.join(dir, name), "utf8");
+      const text = await fs.readFile(r.full, "utf8");
       markers = text.split("\n").filter((line) => line.trim().length > 0).length;
     } catch {
       // Unreadable snapshot: skip it rather than break the series.
       continue;
     }
-    // Label with the date+time portion of the stamp (YYYY.MM.DD_HHmmss).
-    labels.push(name.slice(0, 17));
+    // Label with the date+time of the snapshot (YYYY.MM.DD_HHmmss).
+    labels.push(r.sortKey);
     counts.push(markers);
   }
   return labels.length >= 2 ? { labels, counts } : null;
@@ -168,9 +212,14 @@ export function validateReportPath(candidate: unknown): string | undefined {
   }
   const dir = reportsDir(folder);
   const resolved = path.resolve(candidate);
-  // Must sit directly under reports/ and match the dated-report naming, so only the
-  // files we listed are ever openable.
-  if (path.dirname(resolved) !== dir) {
+  // Must resolve inside reports/, at most one subfolder deep (the per-day folder), and
+  // carry a dated-report name — so only files discovery could list are openable, and a
+  // ../ escape or a deeper crafted path is refused.
+  const rel = path.relative(dir, resolved);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    return undefined;
+  }
+  if (rel.split(/[\\/]/).length > 2) {
     return undefined;
   }
   return REPORT_NAME.test(path.basename(resolved)) ? resolved : undefined;

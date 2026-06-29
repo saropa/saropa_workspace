@@ -3,7 +3,7 @@ import * as path from "path";
 import { pollProcesses, buildProcessReportMarkdown } from "./processPoll";
 import { DashboardPanel } from "../views/dashboardPanel";
 import { ShortcutStore } from "../model/shortcutStore";
-import { expandRecipeTokens } from "./runner";
+import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { l10n } from "../i18n/l10n";
 
 // Commands that open the Saropa Dashboard and drive the developer process monitor
@@ -51,9 +51,8 @@ async function snapshotProcesses(): Promise<void> {
     async () => {
       const result = await pollProcesses();
       const report = buildProcessReportMarkdown(result);
-      // The same $stamp the shell-to-report path uses, so the file name convention
-      // matches the other dated reports under reports/.
-      const relative = expandRecipeTokens("reports/$stamp_processes.md");
+      // Same per-day report layout as the other dated reports under reports/.
+      const relative = expandRecipeTokens(reportRelativePath("processes"));
       const file = path.join(folder.uri.fsPath, ...relative.split("/"));
       try {
         const fs = await import("fs/promises");

@@ -47,6 +47,20 @@ cspell:disable
 
 ---
 
+## [1.5.13]
+
+The Sunrise project stats recipe no longer hangs, and every dated report is now filed in a per-day folder named with the date. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.13/CHANGELOG.md)
+
+### Changed
+
+- **Dated reports are now grouped into a per-day folder.** Instead of every report landing loose in `reports/`, each one is written to `reports/<date>_workspace/` — for example `reports/2026.06.29_workspace/2026.06.29_workspace_100046_project_stats.md`. The `workspace` tag sits right after the date in both the folder and the file name, so a day's standup, branches, stats, PR queue, and morning-routine reports sit together and are identifiable when several tools share one `reports/` folder. The Trends tab still finds them: report discovery now scans the per-day folders as well as any older loose reports, so existing history is not lost.
+
+### Fixed
+
+- **The "Sunrise project stats" recipe could hang forever on "Collecting project stats".** Its contributor summary ran `git shortlog` without a commit range; with no range, git reads commit data from standard input and, run from the extension, sat waiting on a pipe that never closed — the notification stuck and the git process idled at 0% CPU. The command now passes an explicit `HEAD` range so it walks history instead, and every git call in the recipe carries a 30-second timeout so no sub-command can stall the report again.
+
+---
+
 ## [1.5.12]
 
 Documentation catch-up so the README reflects the launcher and Project Files work from recent releases, plus the Watches view now lists only the watches that belong to the project you have open. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.12/CHANGELOG.md)

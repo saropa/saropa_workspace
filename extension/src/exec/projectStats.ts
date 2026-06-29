@@ -3,7 +3,7 @@ import * as path from "path";
 import * as fs from "fs/promises";
 import { promisify } from "util";
 import { execFile as execFileCb } from "child_process";
-import { expandRecipeTokens } from "./runner";
+import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { l10n } from "../i18n/l10n";
 
 const execFile = promisify(execFileCb);
@@ -24,6 +24,10 @@ const MAX_FILES = 20000;
 const MAX_LINE_READ_BYTES = 2 * 1024 * 1024;
 // git ls-files / log output can be large; lift execFile's 1 MB default.
 const MAX_GIT_BUFFER = 64 * 1024 * 1024;
+// Hard cap on any single git sub-command so a stdin-blocking call (see git()) can
+// never hang the whole report. Generous: even a slow `log`/`ls-files` on a large
+// repo finishes well under this.
+const GIT_TIMEOUT_MS = 30_000;
 
 interface LangStat {
   language: string;
@@ -123,9 +127,17 @@ function countLines(buffer: Buffer): number {
 // the whole report.
 async function git(root: string, args: string[]): Promise<string> {
   try {
+    // timeout guards against a git subcommand that blocks on stdin: when a command
+    // has no other input source it falls back to reading stdin, and the inherited
+    // pipe never closes, so it waits forever (the run hung on the "Collecting
+    // project stats" notification with the git process at 0% CPU). The timeout sends
+    // SIGTERM so the catch below turns a hang into a graceful empty result. The
+    // shortlog call below also passes an explicit HEAD range so it never reaches
+    // this fallback in the first place.
     const { stdout } = await execFile("git", args, {
       cwd: root,
       maxBuffer: MAX_GIT_BUFFER,
+      timeout: GIT_TIMEOUT_MS,
     });
     return stdout.trim();
   } catch {
@@ -144,7 +156,10 @@ export async function collectProjectStats(root: string): Promise<ProjectStats> {
     truncated: false,
     branch: (await git(root, ["rev-parse", "--abbrev-ref", "HEAD"])) || undefined,
     recentCommits: await git(root, ["log", "--oneline", "-30"]),
-    contributors: await git(root, ["shortlog", "-sn", "--since=30 days ago"]),
+    // Explicit HEAD range is required: `git shortlog` with no revision range reads
+    // commit data from stdin, and under execFile (stdin is an open pipe, not a tty)
+    // it blocks forever. Passing HEAD makes it walk history instead.
+    contributors: await git(root, ["shortlog", "-sn", "--since=30 days ago", "HEAD"]),
   };
 
   // NUL-delimited so paths with spaces/newlines are handled correctly.
@@ -278,7 +293,7 @@ async function runProjectStats(folderPath?: unknown): Promise<void> {
     () => collectProjectStats(root)
   );
 
-  const relative = expandRecipeTokens("reports/$stamp_project_stats.md");
+  const relative = expandRecipeTokens(reportRelativePath("project_stats"));
   const file = path.join(root, ...relative.split("/"));
   try {
     await fs.mkdir(path.dirname(file), { recursive: true });

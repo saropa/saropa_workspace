@@ -74,8 +74,9 @@ export interface ShortcutAction {
   cwd?: string;
   useIntegratedTerminal?: boolean;
   // shell report capture (scheduled rituals): capture combined output to this
-  // dated file (relative to cwd; supports $stamp / $date / $workspaceRoot) and
-  // open it when autoOpen is set, instead of streaming to the channel.
+  // dated file (relative to cwd; supports $stamp / $date / $datedir / $time /
+  // $workspaceRoot) and open it when autoOpen is set, instead of streaming to the
+  // channel.
   reportFile?: string;
   autoOpen?: boolean;
   // url

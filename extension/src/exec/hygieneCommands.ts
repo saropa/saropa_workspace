@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { ScanMode, ScanOptions, ScanReport, scanOutliers } from "./hygieneScan";
-import { expandRecipeTokens } from "./runner";
+import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { ShortcutStore } from "../model/shortcutStore";
 import { SharedShortcut } from "../import/shareLink";
 import { l10n } from "../i18n/l10n";
@@ -273,16 +273,16 @@ async function executeAndReport(options: ScanOptions): Promise<void> {
   announce(report, reportUri);
 }
 
-// Write the report to reports/<date>/<date_time>_filereport.json under the first
-// workspace folder (the dated convention #63 specifies). When no folder is open (a
-// global saved scan over an external path), fall back to the scan root.
+// Write the report to the per-day report folder as a filereport.json, under the
+// first workspace folder (the dated convention #63 specifies). When no folder is
+// open (a global saved scan over an external path), fall back to the scan root.
 async function writeReport(report: ScanReport): Promise<vscode.Uri | undefined> {
   const base =
     vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? report.scope[0];
   if (!base) {
     return undefined;
   }
-  const relative = expandRecipeTokens("reports/$date/$stamp_filereport.json");
+  const relative = expandRecipeTokens(reportRelativePath("filereport", "json"));
   const file = path.join(base, ...relative.split("/"));
   try {
     const fs = await import("fs/promises");

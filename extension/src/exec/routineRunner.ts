@@ -8,7 +8,7 @@ import { ShortcutBadge, shortcutBadges } from "./shortcutBadges";
 import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel } from "./terminalRunner";
-import { expandRecipeTokens, firstWorkspacePath } from "./actionRunner";
+import { expandRecipeTokens, firstWorkspacePath, reportRelativePath } from "./actionRunner";
 
 // The routine engine: run a "recipe of recipes" — its member shortcuts strictly in
 // sequence, continue-on-failure — then write a one-row-per-member summary report and
@@ -271,7 +271,7 @@ async function writeRoutineSummary(
   const channel = getOutputChannel();
   // Filesystem-safe slug for the file name; the heading keeps the human name.
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "routine";
-  const relative = expandRecipeTokens(`reports/$stamp_${slug}.md`);
+  const relative = expandRecipeTokens(reportRelativePath(slug));
   const reportPath = path.join(base, ...relative.split("/"));
 
   const rows = outcomes
