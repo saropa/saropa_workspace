@@ -253,12 +253,27 @@ export abstract class ShortcutStoreMutation extends ShortcutStoreMutationCore {
     await this.refresh();
   }
 
-  // Record the epoch-ms of a scheduled fire. Used for reopen de-duplication and
-  // interval advancement (see nextOccurrence). No-op if the shortcut has no schedule.
-  async updateShortcutScheduleLastRun(shortcut: Shortcut, lastRun: number): Promise<void> {
+  // Record a scheduled fire: its epoch-ms time (for reopen de-duplication and
+  // interval advancement, see nextOccurrence) and, when the fire produced a tracked
+  // result, its outcome and the report it wrote (durable across reloads, unlike the
+  // session-only runStatusRegistry — the Schedule screen reads these). `result` is
+  // omitted for a bare time-stamp update (e.g. a skipped/missing fire that only
+  // advances the schedule); when present, both fields are written even if undefined
+  // so a fresh success clears a stale prior report path. No-op if the shortcut has
+  // no schedule.
+  async updateShortcutScheduleLastRun(
+    shortcut: Shortcut,
+    lastRun: number,
+    result?: { outcome?: "success" | "failure"; reportRelPath?: string }
+  ): Promise<void> {
     await this.mutateShortcut(shortcut, (target) => {
-      if (target.schedule) {
-        target.schedule.lastRun = lastRun;
+      if (!target.schedule) {
+        return;
+      }
+      target.schedule.lastRun = lastRun;
+      if (result) {
+        target.schedule.lastOutcome = result.outcome;
+        target.schedule.lastReportPath = result.reportRelPath;
       }
     });
   }

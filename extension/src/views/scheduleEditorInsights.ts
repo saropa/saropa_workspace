@@ -27,6 +27,7 @@ export interface WireWork {
   everyMs?: number;
   cron?: string;
   runOnStartup?: boolean;
+  catchUp?: boolean;
   enabled: boolean;
 }
 

@@ -145,6 +145,32 @@ test("addShellPin stores a runnable shell action with no file path", async () =>
   assert.equal(shortcut!.action?.shellCommand, "npm test");
 });
 
+test("addUrlShortcut stores an openable url action with a label and no file path", async () => {
+  // A website shortcut carries the address in action.url and an empty path; shortcutKind
+  // must route it as "url", and it is added (not opened). The label is kept as given.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  assert.equal(
+    await store.addUrlShortcut("https://github.com/saropa", "project", "Saropa on GitHub"),
+    true
+  );
+  const shortcut = store.getProjectShortcuts().find((p) => p.label === "Saropa on GitHub");
+  assert.ok(shortcut);
+  assert.equal(shortcut!.path, "");
+  assert.equal(shortcutKind(shortcut!), "url");
+  assert.equal(shortcut!.action?.url, "https://github.com/saropa");
+});
+
+test("addUrlShortcut with a blank label stores no label override (shows the address)", async () => {
+  // An empty label must not be stored as "" — the shortcut then falls back to rendering the
+  // url itself, mirroring how a blank rename clears to the default.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addUrlShortcut("https://example.com", "project", "   ");
+  const shortcut = store.getProjectShortcuts().find((p) => p.action?.url === "https://example.com")!;
+  assert.equal(shortcut.label, undefined, "a blank label is dropped, not stored empty");
+});
+
 test("addAnnotationPin inserts a comment immediately after its anchor pin", async () => {
   // A comment anchored to a shortcut must land directly below it (placeAfter), so the
   // annotation sits exactly where the user clicked — its order is the anchor's + 1.

@@ -78,8 +78,25 @@ export interface ShortcutSchedule {
   // Gated by `enabled` like every other slot. A schedule may carry runOnStartup
   // alone (no atTime / everyMs / cron) to mean "only on workspace open".
   runOnStartup?: boolean;
+  // When true, a slot that elapsed while VS Code was closed is caught up on the
+  // next workspace open — the scheduler auto-runs it silently (still subject to the
+  // interactive-skip and single-instance guards). Absent/false = a missed slot is
+  // only OFFERED on startup (a toast + the Schedule screen's "overdue" marker) and
+  // never auto-fired. The default is deliberately off so a heavy job cannot surprise
+  // the user by firing the moment they reopen the laptop. A miss is detected from
+  // `lastRun` vs the most-recent due slot (see mostRecentDue in exec/schedule.ts).
+  catchUp?: boolean;
   enabled: boolean;
   // Epoch ms of the last fire, used to avoid duplicate same-minute fires when
   // VS Code reopens.
   lastRun?: number;
+  // Outcome of the last fire, persisted (unlike the session-only runStatusRegistry)
+  // so the Schedule screen shows success/failure across reloads. Absent until the
+  // first tracked fire, or when the last run produced no tracked outcome (a fire-and-
+  // forget terminal/url run reads as neither).
+  lastOutcome?: "success" | "failure";
+  // Workspace-root-relative path of the report the last fire wrote, so the Schedule
+  // screen can open it in one click. Absent when the last run produced no report
+  // (a plain file / shell / url shortcut), which the screen renders as "no report".
+  lastReportPath?: string;
 }

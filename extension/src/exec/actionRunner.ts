@@ -12,6 +12,7 @@ import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel, runInTerminal } from "./terminalRunner";
 import { runInBackground } from "./backgroundRunner";
+import { recordLastReport } from "./lastReport";
 
 // The non-file shortcut kinds (recipes): url / command / shell, plus the multi-step
 // orchestrators (macro and routine). The file kind is handled by runShortcut in
@@ -213,6 +214,9 @@ async function runShellToReport(
         await fs.mkdir(nodePath.dirname(reportPath), { recursive: true });
         await fs.writeFile(reportPath, header + body, "utf8");
         channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
+        // Hand the written report path to the scheduler so a scheduled fire can
+        // persist a durable "Open report" link for this shortcut (see lastReport.ts).
+        recordLastReport(pinId, reportPath);
         runStatusRegistry.record(pinId, {
           outcome: code === 0 ? "success" : "failure",
           exitCode: code,

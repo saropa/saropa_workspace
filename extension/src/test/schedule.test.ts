@@ -9,7 +9,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseCron, nextCron, nextOccurrence } from "../exec/schedule";
+import { parseCron, nextCron, nextOccurrence, mostRecentDue, isMissed } from "../exec/schedule";
 
 // Local-time instant for a given Y/M/D H:M (month is 1-based here for readability).
 function at(y: number, mo: number, d: number, h: number, mi: number): number {
@@ -124,4 +124,82 @@ test("nextOccurrence returns undefined when no timing field is set", () => {
   // A startup-only schedule has no time-based slot — it fires via runStartupShortcuts,
   // not nextOccurrence.
   assert.equal(nextOccurrence({ enabled: true, runOnStartup: true }, THU_AUG), undefined);
+});
+
+// --- mostRecentDue / isMissed (backward search for missed runs) --------------
+
+test("mostRecentDue: daily slot earlier today is the most recent due", () => {
+  // At 08:00 Thu, a 07:00 daily slot elapsed at 07:00 today.
+  assert.equal(
+    mostRecentDue({ enabled: true, atTime: "07:00" }, THU_AUG),
+    at(2026, 6, 25, 7, 0)
+  );
+});
+
+test("mostRecentDue: daily slot still ahead today rolls to yesterday", () => {
+  // At 08:00 Thu, a 09:00 daily slot has not happened today; the most recent past
+  // slot is yesterday 09:00.
+  assert.equal(
+    mostRecentDue({ enabled: true, atTime: "09:00" }, THU_AUG),
+    at(2026, 6, 24, 9, 0)
+  );
+});
+
+test("mostRecentDue: weekday list resolves to the last allowed day", () => {
+  // Mon-Fri 09:00 from Sunday Jun 28 10:00 -> the most recent slot is Friday Jun 26.
+  assert.equal(
+    mostRecentDue({ enabled: true, atTime: "09:00", days: [1, 2, 3, 4, 5] }, at(2026, 6, 28, 10, 0)),
+    at(2026, 6, 26, 9, 0)
+  );
+});
+
+test("mostRecentDue: interval boundary aligns to lastRun", () => {
+  // lastRun 06:00, every 30m, now 08:10 -> last boundary at 08:00 (4 periods).
+  const lastRun = at(2026, 6, 25, 6, 0);
+  assert.equal(
+    mostRecentDue({ enabled: true, everyMs: 30 * 60_000, lastRun }, at(2026, 6, 25, 8, 10)),
+    at(2026, 6, 25, 8, 0)
+  );
+});
+
+test("mostRecentDue: interval with no prior fire has no missed boundary", () => {
+  // An unfired interval has no anchor, so nothing is due in the past.
+  assert.equal(mostRecentDue({ enabled: true, everyMs: 30 * 60_000 }, THU_AUG), undefined);
+});
+
+test("mostRecentDue: cron matches the current minute as a live candidate", () => {
+  // 09:00:30 with a 09:00 cron -> the just-elapsed 09:00 minute is the most recent.
+  assert.equal(
+    mostRecentDue({ enabled: true, cron: "0 9 * * *" }, at(2026, 6, 25, 9, 0) + 30_000),
+    at(2026, 6, 25, 9, 0)
+  );
+});
+
+test("mostRecentDue: disabled schedule and no-timing schedule return undefined", () => {
+  assert.equal(mostRecentDue({ enabled: false, atTime: "07:00" }, THU_AUG), undefined);
+  assert.equal(mostRecentDue({ enabled: true, runOnStartup: true }, THU_AUG), undefined);
+});
+
+test("isMissed: a past slot after a stale lastRun is missed", () => {
+  // 07:00 daily, lastRun was yesterday -> today's 07:00 slot was missed.
+  const schedule = { enabled: true, atTime: "07:00", lastRun: at(2026, 6, 24, 7, 0) };
+  assert.equal(isMissed(schedule, THU_AUG), true);
+});
+
+test("isMissed: a fire recorded after the last slot is not missed", () => {
+  // 07:00 daily, lastRun 07:00 today -> the most recent slot already fired.
+  const schedule = { enabled: true, atTime: "07:00", lastRun: at(2026, 6, 25, 7, 0) };
+  assert.equal(isMissed(schedule, THU_AUG), false);
+});
+
+test("isMissed: same-minute reopen dedup is not counted as missed", () => {
+  // Fired at 09:00:05; reopened at 09:00:30. The 09:00 slot is not later than lastRun.
+  const minute = at(2026, 6, 25, 9, 0);
+  const schedule = { enabled: true, cron: "0 9 * * *", lastRun: minute + 5_000 };
+  assert.equal(isMissed(schedule, minute + 30_000), false);
+});
+
+test("isMissed: a never-fired past-due schedule reads as missed", () => {
+  // No lastRun, 07:00 slot already elapsed today -> catch-up candidate.
+  assert.equal(isMissed({ enabled: true, atTime: "07:00" }, THU_AUG), true);
 });

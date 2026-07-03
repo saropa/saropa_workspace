@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import {
   Shortcut,
+  ShortcutAction,
   ShortcutExecConfig,
   ShortcutGroup,
   ShortcutMetric,
@@ -251,11 +252,44 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreRefresh {
     after?: Shortcut,
     targetFolder?: vscode.WorkspaceFolder
   ): Promise<boolean> {
-    // An anchor decides scope + group (so an inserted entry lands beside it); a
-    // title-bar invocation has no anchor and falls back to the requested scope.
+    return this.addActionShortcut({ kind }, scope, label, after, targetFolder);
+  }
+
+  // Add a website/URL shortcut the user authored by hand — a first-class target
+  // (open the project's GitHub page, a staging dashboard, a docs site) rather than
+  // one only a recipe/import could produce. Stored as a `url` action shortcut with an
+  // empty path, exactly like the annotations, so it round-trips through persist/promote
+  // with no new top-level Shortcut field. Same anchor/placement semantics as
+  // addAnnotationShortcut: an anchor decides scope + group; a title-bar invocation
+  // appends to the requested scope. Returns false only when a project entry is
+  // requested with no workspace folder open.
+  async addUrlShortcut(
+    url: string,
+    scope: ShortcutScope,
+    label: string | undefined,
+    after?: Shortcut,
+    targetFolder?: vscode.WorkspaceFolder
+  ): Promise<boolean> {
+    return this.addActionShortcut({ kind: "url", url }, scope, label, after, targetFolder);
+  }
+
+  // Shared body for adding a non-file action shortcut (an annotation or a url). An
+  // anchor decides scope + group (so an inserted entry lands beside it); a title-bar
+  // invocation has no anchor and falls back to the requested scope. When `after` is
+  // given the entry is inserted immediately below it in the same scope and group;
+  // otherwise it appends to the top level of `targetFolder` (the importer passes the
+  // file's owning folder) or the first folder when none is given. Returns false only
+  // when a project entry is requested with no workspace folder open.
+  private async addActionShortcut(
+    action: ShortcutAction,
+    scope: ShortcutScope,
+    label: string | undefined,
+    after?: Shortcut,
+    targetFolder?: vscode.WorkspaceFolder
+  ): Promise<boolean> {
     const targetScope = after?.scope ?? scope;
     const groupId = after?.groupId;
-    // Only carry a non-empty label so a separator (or a blank comment) stores none.
+    // Only carry a non-empty label so a separator (or a blank label) stores none.
     const labelField =
       label && label.trim().length > 0 ? { label: label.trim() } : {};
 
@@ -266,7 +300,7 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreRefresh {
         path: "",
         scope: "global",
         order: shortcuts.length,
-        action: { kind },
+        action,
         ...(groupId ? { groupId } : {}),
         ...labelField,
       };
@@ -291,7 +325,7 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreRefresh {
       path: "",
       scope: "project",
       order: file.pins.length,
-      action: { kind },
+      action,
       ...(groupId ? { groupId } : {}),
       ...labelField,
     };

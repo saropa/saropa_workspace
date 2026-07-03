@@ -38,8 +38,16 @@ Current screens, for reference:
 | --- | --- |
 | `monitor.panel.title` | **Saropa Dashboard** |
 | `planner.title` | **Saropa Schedule & Workflow Planner** |
+| `schedulePanel.title` | **Saropa Scheduled Runs** |
 | `scheduleEditor.title` | **Saropa Workspace Scheduler: {name}** |
 | `views.launcher.container.title` / `launcher.title` | **Saropa Launcher** |
+
+The three schedule-related screens are deliberately distinct: the **Scheduler**
+(`scheduleEditor.title`) *sets* one shortcut's timing; **Scheduled Runs**
+(`schedulePanel.title`) *watches* every scheduled shortcut — next run, last
+outcome, overdue state, and a link to its latest report; the **Planner**
+(`planner.title`) visualizes schedules and workflows on a timeline. Name a new
+schedule surface so it does not read as a synonym of these.
 
 A per-item screen title may carry an interpolated `{name}` after the Saropa
 prefix (e.g. **Saropa Workspace Scheduler: `regen-types`**) so the tab names the item it
@@ -334,6 +342,24 @@ The compiler is the safety net for the field names: because the TypeScript
 interfaces still declare `pins` / `pinId` / `removedAutoPins`, any accidental
 rename of a `.pins` access becomes a type error rather than a silent wire-format
 break.
+
+### 1.5 A URL shortcut opens on single click, like a file
+
+A **url** shortcut (a website the user pinned — the project's GitHub page, a
+staging dashboard, a docs site) opens directly on a single click, exactly like a
+file shortcut, rather than taking the info-modal-then-run path every other non-file
+action kind uses. The single-click-opens gesture is the product's headline, and a
+website is safe and instant to open — unlike the heavy, side-effecting shell /
+command / macro / routine recipes, where a single click deliberately shows what the
+action does and offers to run it. So the interaction rule keys on cost, not on
+file-vs-action: url and file open on a single click; every side-effecting action
+kind shows info first and runs only on the play button / double-click.
+
+A url shortcut is authored by hand via **Add Website (URL)…** (project or global
+scope), reusing the same "Add" verb and the "Added {name}" confirmation as every
+other create gesture (§1.4). It is stored as a `url` action shortcut with an empty
+path — the same shape a recipe or import produces — so it round-trips through
+persist / promote unchanged.
 
 ---
 

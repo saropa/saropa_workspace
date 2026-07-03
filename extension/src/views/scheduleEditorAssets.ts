@@ -242,6 +242,7 @@ function gather(){
     everyMs: everyMs,
     cron: cron || undefined,
     runOnStartup: $('runOnStartup').checked,
+    catchUp: $('catchUp').checked,
     enabled: $('enabled').checked,
   };
 }
@@ -271,6 +272,7 @@ function wire(){
   $('customUnit').addEventListener('change', requestPreview);
   $('cron').addEventListener('input', requestPreview);
   $('runOnStartup').addEventListener('change', requestPreview);
+  $('catchUp').addEventListener('change', requestPreview);
   $('enabled').addEventListener('change', function(){ enabledTouched = true; requestPreview(); });
 
   document.querySelectorAll('.chip[data-day]').forEach(function(c){
@@ -319,6 +321,7 @@ function applyInit(work){
   }
   $('cron').value = work.cron || '';
   $('runOnStartup').checked = !!work.runOnStartup;
+  $('catchUp').checked = !!work.catchUp;
   $('enabled').checked = work.enabled !== false;
   syncLocalState();
 }

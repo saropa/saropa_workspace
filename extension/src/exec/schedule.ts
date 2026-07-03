@@ -381,6 +381,148 @@ export function nextCron(
   return undefined;
 }
 
+// ---------------------------------------------------------------------------
+// Backward search: the most-recent DUE slot at or before `now`, for missed-run
+// detection (a slot that elapsed while VS Code was closed). Mirrors the forward
+// nextOccurrence math, inverted. A run is MISSED when the most-recent due slot is
+// later than the last recorded fire — see isMissed below.
+// ---------------------------------------------------------------------------
+
+// Most-recent due slot at or before `now`, across every set timing field (the
+// LATEST of the per-field past slots), or undefined when nothing is due yet.
+// Disabled/malformed/no-timing schedules return undefined, matching nextOccurrence.
+export function mostRecentDue(
+  schedule: ShortcutSchedule,
+  now: number
+): number | undefined {
+  if (!schedule.enabled) {
+    return undefined;
+  }
+
+  const candidates: number[] = [];
+
+  if (schedule.atTime) {
+    const daily = prevDailyTime(schedule.atTime, now, schedule.days);
+    if (daily !== undefined) {
+      candidates.push(daily);
+    }
+  }
+  if (schedule.everyMs !== undefined && schedule.everyMs > 0) {
+    const interval = prevInterval(schedule.everyMs, now, schedule.lastRun);
+    if (interval !== undefined) {
+      candidates.push(interval);
+    }
+  }
+  if (schedule.cron) {
+    const cron = prevCron(schedule.cron, now);
+    if (cron !== undefined) {
+      candidates.push(cron);
+    }
+  }
+
+  if (candidates.length === 0) {
+    return undefined;
+  }
+  return Math.max(...candidates);
+}
+
+// A schedule has a MISSED run when its most-recent due slot is later than its last
+// recorded fire. `lastRun` defaulting to 0 makes a never-fired but past-due
+// schedule read as missed (its slot elapsed before the app was ever open on it),
+// which is the intended catch-up case. The `> lastRun` comparison also absorbs the
+// same-minute reopen dedup: a slot already fired this minute is not later than
+// lastRun, so it is not re-counted as missed.
+export function isMissed(schedule: ShortcutSchedule, now: number): boolean {
+  const due = mostRecentDue(schedule, now);
+  return due !== undefined && due > (schedule.lastRun ?? 0);
+}
+
+// Most-recent daily slot at or before `now` honoring the weekday list. Walks
+// today..-8 days (a full week plus margin so a single-weekday list always
+// resolves) and returns the first allowed slot that is not in the future.
+function prevDailyTime(
+  atTime: string,
+  now: number,
+  days: number[] | undefined
+): number | undefined {
+  const parsed = parseHourMinute(atTime);
+  if (!parsed) {
+    return undefined;
+  }
+  const allowed = days && days.length > 0 ? days : undefined;
+  for (let offset = 0; offset >= -8; offset--) {
+    const slot = atLocalTimeWithOffset(now, parsed.hour, parsed.minute, offset);
+    if (allowed && !allowed.includes(new Date(slot).getDay())) {
+      continue;
+    }
+    if (slot <= now) {
+      return slot;
+    }
+  }
+  return undefined;
+}
+
+// Most-recent interval boundary at or before `now`, aligned to `lastRun`. Without a
+// prior fire an interval has no anchor, so nothing is "missed" (it fires forward
+// from its first arming); returns undefined. When fewer than one full period has
+// elapsed there is likewise no missed boundary.
+function prevInterval(
+  everyMs: number,
+  now: number,
+  lastRun: number | undefined
+): number | undefined {
+  if (lastRun === undefined || now - lastRun < everyMs) {
+    return undefined;
+  }
+  const periods = Math.floor((now - lastRun) / everyMs);
+  return lastRun + periods * everyMs;
+}
+
+// Most-recent cron match at or before `now`, or undefined when the expression is
+// malformed or matches nothing within the search horizon looking back. The current
+// (partially-elapsed) minute stays a live candidate — flooring seconds to 0 makes
+// `now`'s minute match if the expression permits it — mirroring nextCron's forward
+// treatment. Field-aware backward jumps keep the walk bounded (never minute-by-
+// minute across empty months).
+function prevCron(expr: string, now: number): number | undefined {
+  const parsed = parseCron(expr);
+  if (!parsed) {
+    return undefined;
+  }
+  const cursor = new Date(now);
+  cursor.setSeconds(0, 0);
+  const limit = now - CRON_SEARCH_LIMIT_MS;
+
+  while (cursor.getTime() >= limit) {
+    // Wrong month: jump back to the last minute of the previous month.
+    if (!parsed.month.values.has(cursor.getMonth() + 1)) {
+      cursor.setDate(1);
+      cursor.setHours(0, 0, 0, 0);
+      cursor.setMinutes(cursor.getMinutes() - 1);
+      continue;
+    }
+    // Wrong day: jump back to 23:59 of the previous day.
+    if (!matchesCronDay(parsed, cursor)) {
+      cursor.setHours(0, 0, 0, 0);
+      cursor.setMinutes(cursor.getMinutes() - 1);
+      continue;
+    }
+    // Wrong hour: jump back to :59 of the previous hour.
+    if (!parsed.hour.values.has(cursor.getHours())) {
+      cursor.setMinutes(0, 0, 0);
+      cursor.setMinutes(cursor.getMinutes() - 1);
+      continue;
+    }
+    // Wrong minute: step back one minute.
+    if (!parsed.minute.values.has(cursor.getMinutes())) {
+      cursor.setMinutes(cursor.getMinutes() - 1, 0, 0);
+      continue;
+    }
+    return cursor.getTime();
+  }
+  return undefined;
+}
+
 // The day-of-month / day-of-week match, with Vixie cron's OR rule: when BOTH
 // fields are restricted (neither is `*`), the day matches if EITHER matches; when
 // only one is restricted, only that one constrains; when both are `*`, every day

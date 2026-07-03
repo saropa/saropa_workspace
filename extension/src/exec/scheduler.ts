@@ -10,8 +10,13 @@ import {
   blockReasonLabel,
 } from "./runner";
 import { hasInteractiveTokens } from "./promptTokens";
-import { nextOccurrence } from "./schedule";
+import { nextOccurrence, isMissed } from "./schedule";
+import { runStatusRegistry } from "./runStatus";
+import { takeLastReport } from "./lastReport";
+import { firstWorkspacePath } from "./actionRunner";
+import { surfaceRunResult, offerMissedRuns } from "../views/scheduleFeedback";
 import { l10n } from "../i18n/l10n";
+import * as path from "path";
 
 // setTimeout's delay is a signed 32-bit ms value; a larger delay silently
 // overflows and fires almost immediately. Far-future fires are chained in
@@ -66,8 +71,55 @@ export class Scheduler implements vscode.Disposable {
     }
     this.startupTimer = setTimeout(() => {
       this.startupTimer = undefined;
-      void this.fireStartupShortcuts();
+      // Run the run-on-startup shortcuts first, then the missed-slot catch-up, both
+      // off the same deferred timer so neither competes with activation.
+      void this.fireStartupShortcuts().then(() => this.fireMissedShortcuts());
     }, STARTUP_RUN_DELAY_MS);
+  }
+
+  // Catch up scheduled slots that elapsed while VS Code was closed. A schedule whose
+  // most-recent due slot is later than its last fire (isMissed) either auto-runs
+  // silently when it opted into catchUp, or is collected and OFFERED via one toast
+  // with a "Run now" action. Runs once per activation, off the startup timer, so it
+  // does not compete with activation and does not re-nag within a session. The
+  // STARTUP_DEDUP_MS guard suppresses a reload storm from re-offering/re-running a
+  // slot that was just handled.
+  private async fireMissedShortcuts(): Promise<void> {
+    if (this.disposed) {
+      return;
+    }
+    const now = Date.now();
+    const shortcuts = [
+      ...this.store.getProjectShortcuts(),
+      ...this.store.getGlobalShortcuts(),
+    ];
+    const offered: Shortcut[] = [];
+    for (const shortcut of shortcuts) {
+      const schedule = shortcut.schedule;
+      if (shortcut.paused || !schedule?.enabled || !isMissed(schedule, now)) {
+        continue;
+      }
+      // Skip a slot handled within the reload window so a rapid reload does not
+      // re-run or re-offer it.
+      if (schedule.lastRun !== undefined && now - schedule.lastRun < STARTUP_DEDUP_MS) {
+        continue;
+      }
+      if (schedule.catchUp) {
+        // Opted into silent catch-up: fire it through the normal slot path (which
+        // records the outcome and advances lastRun so it re-arms cleanly).
+        await this.fire(shortcut.id);
+      } else {
+        offered.push(shortcut);
+      }
+    }
+    if (offered.length > 0) {
+      const single = offered.length === 1 ? scheduleName(offered[0]) : undefined;
+      await offerMissedRuns(offered.length, single, () => {
+        for (const shortcut of offered) {
+          void this.fire(shortcut.id);
+        }
+      });
+    }
   }
 
   private async fireStartupShortcuts(): Promise<void> {
@@ -153,7 +205,7 @@ export class Scheduler implements vscode.Disposable {
     if (!shortcut || shortcut.paused || !shortcut.schedule?.enabled) {
       return;
     }
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = scheduleName(shortcut);
     const channel = getOutputChannel();
     const stamp = new Date().toLocaleString();
 
@@ -176,8 +228,7 @@ export class Scheduler implements vscode.Disposable {
     // file uri to resolve. Then advance the schedule as for a file run.
     if (shortcutKind(shortcut) !== "file") {
       channel.appendLine(l10n("schedule.fired", { time: stamp, name, command: actionLabel(shortcut) }));
-      await runAction(shortcut, "scheduled");
-      await this.store.updateShortcutScheduleLastRun(shortcut, Date.now());
+      await this.runAndRecord(shortcut, name, () => runAction(shortcut, "scheduled"));
       return;
     }
 
@@ -207,12 +258,74 @@ export class Scheduler implements vscode.Disposable {
     channel.appendLine(
       l10n("schedule.fired", { time: stamp, name, command: plan.commandLine })
     );
-    await runShortcut(shortcut, uri, "scheduled");
+    // runAndRecord runs the fire, then persists lastRun + the tracked outcome/report
+    // in one store update. Persisting lastRun triggers refresh -> onDidChange ->
+    // rescheduleAll, which re-arms this shortcut (the daily dedup advances it to
+    // tomorrow; the interval advances by one period).
+    await this.runAndRecord(shortcut, name, () => runShortcut(shortcut, uri, "scheduled"));
+  }
 
-    // Persisting lastRun triggers refresh -> onDidChange -> rescheduleAll, which
-    // re-arms this shortcut (the daily dedup advances it to tomorrow; the interval
-    // advances by one period).
-    await this.store.updateShortcutScheduleLastRun(shortcut, Date.now());
+  // Run a scheduled fire and record its result. Wraps the run in try/catch so a
+  // thrown run (the non-routine paths do not catch internally) cannot become an
+  // unhandled rejection: on error it logs, persists a failure outcome, still advances
+  // lastRun so the schedule re-arms rather than tight-looping, and surfaces a failure
+  // toast. On success it hands off to recordFireResult.
+  private async runAndRecord(
+    shortcut: Shortcut,
+    name: string,
+    run: () => Promise<void>
+  ): Promise<void> {
+    const startedAt = Date.now();
+    try {
+      await run();
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      getOutputChannel().appendLine(
+        l10n("schedule.runFailed", { time: new Date().toLocaleString(), name, error })
+      );
+      await this.store.updateShortcutScheduleLastRun(shortcut, Date.now(), {
+        outcome: "failure",
+        reportRelPath: undefined,
+      });
+      void surfaceRunResult(name, "failure");
+      return;
+    }
+    await this.recordFireResult(shortcut, name, startedAt);
+  }
+
+  // Persist a completed scheduled fire's outcome + report, then surface it. Reads the
+  // fresh tracked result (guarded on endedAt >= startedAt so a stale prior result is
+  // not mistaken for this run's — the freshness check the routine engine uses) and the
+  // report the run wrote (takeLastReport). Report-producing paths (routines, report
+  // recipes) complete synchronously before their run() resolves, so the result is
+  // available here; a background file run completes asynchronously and surfaces its own
+  // completion toast, so here it only advances lastRun (its session outcome still shows
+  // in the Schedule screen). The toast is shown ONLY when a report exists — its purpose
+  // is the Open report action, and a report-less run already surfaced itself.
+  private async recordFireResult(
+    shortcut: Shortcut,
+    name: string,
+    startedAt: number
+  ): Promise<void> {
+    const result = runStatusRegistry.get(shortcut.id);
+    const fresh = result && result.endedAt >= startedAt ? result : undefined;
+    // takeLastReport clears the entry so a later report-less run cannot re-link it.
+    // Pairing it with `fresh` is safe because every path that produces a synchronous
+    // fresh outcome (runShellToReport, writeRoutineSummary) co-writes its own report
+    // in the same block, overwriting any stale entry before this read; and the single-
+    // instance guard (runBlockReason) prevents an overlapping run of this shortcut from
+    // interleaving a different report. So a fresh outcome is always paired with its own
+    // report, never a stale one.
+    const reportAbs = takeLastReport(shortcut.id);
+    const reportRel = reportAbs ? toWorkspaceRelative(reportAbs) : undefined;
+    await this.store.updateShortcutScheduleLastRun(
+      shortcut,
+      Date.now(),
+      fresh ? { outcome: fresh.outcome, reportRelPath: reportRel } : undefined
+    );
+    if (fresh && reportAbs) {
+      void surfaceRunResult(name, fresh.outcome, reportAbs);
+    }
   }
 
   private clearAll(): void {
@@ -231,6 +344,25 @@ export class Scheduler implements vscode.Disposable {
     }
     this.clearAll();
   }
+}
+
+// Display name for a scheduled shortcut, matching the scheduler's log lines and the
+// status bar. Single source so the fire log, the missed-run offer, and the result
+// toast all name the item the same way.
+function scheduleName(shortcut: Shortcut): string {
+  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+}
+
+// Workspace-root-relative form (forward slashes) of an absolute report path, for
+// durable storage on the schedule (survives clone/move like a project shortcut path).
+// Falls back to the absolute path when no workspace root resolves — validateReportPath
+// then simply refuses to open anything outside reports/.
+function toWorkspaceRelative(absPath: string): string {
+  const root = firstWorkspacePath();
+  if (!root) {
+    return absPath;
+  }
+  return path.relative(root, absPath).split(path.sep).join("/");
 }
 
 // Short description of a non-file shortcut's action for the scheduled-run log line.

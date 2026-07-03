@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { pollProcesses, buildProcessReportMarkdown } from "./processPoll";
 import { DashboardPanel } from "../views/dashboardPanel";
+import { SchedulePanel } from "../views/schedulePanel";
 import { ShortcutStore } from "../model/shortcutStore";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { l10n } from "../i18n/l10n";
@@ -32,6 +33,11 @@ export function registerProcessMonitorCommands(
     ),
     vscode.commands.registerCommand("saropaWorkspace.recipe.snapshotProcesses", () =>
       snapshotProcesses()
+    ),
+    // Opens the Saropa Schedule screen — every scheduled item with its next run,
+    // last outcome, and a link to its latest report.
+    vscode.commands.registerCommand("saropaWorkspace.openSchedule", () =>
+      SchedulePanel.show(context, store)
     )
   );
 }

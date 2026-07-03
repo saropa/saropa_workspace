@@ -77,8 +77,9 @@ export class ScheduleStatusBar {
 }
 
 // Time-of-day when the run is today, otherwise a short date plus time. Locale
-// formatting is delegated to the OS so the clock matches regional settings.
-function formatWhen(ts: number): string {
+// formatting is delegated to the OS so the clock matches regional settings. Exported
+// so the Schedule screen formats "next run" identically to the status bar.
+export function formatWhen(ts: number): string {
   const next = new Date(ts);
   const now = new Date();
   const sameDay =

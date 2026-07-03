@@ -205,9 +205,13 @@ export class ScheduleEditorPanel {
       everyMs: wire.everyMs,
       cron: wire.cron,
       runOnStartup: wire.runOnStartup,
+      catchUp: wire.catchUp,
       enabled: wire.enabled,
-      // Preserve the prior fire stamp so reopen de-dup survives an edit.
+      // Preserve the prior fire stamp so reopen de-dup survives an edit, and the
+      // durable last-result record so the Schedule screen is not blanked by a re-save.
       lastRun: prior?.lastRun,
+      lastOutcome: prior?.lastOutcome,
+      lastReportPath: prior?.lastReportPath,
     };
     applyAutoEnable(work, enabledTouched);
 

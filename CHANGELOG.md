@@ -47,6 +47,18 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **A Schedule screen that shows every scheduled shortcut at a glance.** A new **Open Saropa Schedule** command (and a calendar button in the Shortcuts view's title bar) opens one screen listing every shortcut with an enabled schedule, each with its next run, whether its last run succeeded, failed, is overdue, or has not run yet, and a one-click **Open report** link to the report that run wrote. A **Run now** button runs any item on the spot. The screen updates itself live as runs complete.
+- **Scheduled runs now tell you how they went.** When a scheduled shortcut or a routine (a recipe of recipes, like a morning routine) finishes, it shows a toast naming the shortcut and its outcome, with an **Open report** action when it wrote one — successes are no longer silent. Failures still open their report automatically.
+- **Catch up runs missed while VS Code was closed.** Each schedule now has a **Catch up missed runs** option in the Schedule editor. When on, a run that was due while the folder was closed runs once the next time you open it. When off (the default), missed runs are not run silently — they are marked **Overdue** on the Schedule screen and offered in a startup prompt with a **Run now** action, so nothing heavy fires unexpectedly.
+
+- **Website (URL) shortcuts you can add by hand.** A new **Add Website (URL)...** command (in the Shortcuts view's add menu, in both project and global scope) lets you pin any website — the project's GitHub page, a staging dashboard, a docs site — alongside your file and script shortcuts. Enter the address (a bare `github.com/saropa` is treated as `https://`) and an optional display name. A **single click opens the site directly** in your browser, the same one-click gesture a file shortcut uses; a website is safe and instant, so it does not take the show-info-first path the heavier script and command shortcuts use. The shortcut carries a blue link icon and can be grouped, tagged, renamed, and reordered like any other.
+
+---
+
 ## [1.5.13]
 
 The Sunrise project stats recipe no longer hangs, and every dated report is now filed in a per-day folder named with the date. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.13/CHANGELOG.md)

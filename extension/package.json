@@ -712,6 +712,18 @@
         "icon": "$(dash)"
       },
       {
+        "command": "saropaWorkspace.addUrl",
+        "title": "%command.addUrl.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "saropaWorkspace.addUrlGlobal",
+        "title": "%command.addUrlGlobal.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(link-external)"
+      },
+      {
         "command": "saropaWorkspace.revealNextScheduled",
         "title": "%command.revealNextScheduled.title%",
         "category": "%extension.displayName%"
@@ -795,6 +807,12 @@
         "title": "%command.openProcessMonitor.title%",
         "category": "%extension.displayName%",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "saropaWorkspace.openSchedule",
+        "title": "%command.openSchedule.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(calendar)"
       },
       {
         "command": "saropaWorkspace.recipe.snapshotProcesses",
@@ -1089,6 +1107,14 @@
           "group": "1_add@2"
         },
         {
+          "command": "saropaWorkspace.addUrl",
+          "group": "1_add@3"
+        },
+        {
+          "command": "saropaWorkspace.addUrlGlobal",
+          "group": "1_add@4"
+        },
+        {
           "command": "saropaWorkspace.addComment",
           "group": "2_annotate@1"
         },
@@ -1248,6 +1274,11 @@
           "command": "saropaWorkspace.runAnyPin",
           "when": "view == saropaWorkspace.pins",
           "group": "navigation@2"
+        },
+        {
+          "command": "saropaWorkspace.openSchedule",
+          "when": "view == saropaWorkspace.pins",
+          "group": "navigation@3"
         },
         {
           "command": "saropaWorkspace.refresh",

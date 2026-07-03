@@ -10,6 +10,7 @@ import {
   shortcutToLine,
   removeShortcutForUri,
   addAnnotation,
+  addUrl,
 } from "./shortcutSelection";
 import { shortcutCommandRegistrar } from "./registerHelpers";
 import { registerFavoritesImportCommands } from "./favoritesImportCommands";
@@ -75,6 +76,15 @@ function registerGroupCreateCommands(
   );
   reg("saropaWorkspace.addSeparator", (arg: unknown) =>
     void addAnnotation(store, "separator", arg)
+  );
+
+  // Add a website/URL shortcut by hand. Two scope entry points mirror the file
+  // add commands (addProjectPin / addGlobalPin): the project variant appends to the
+  // workspace scope, the global variant to the user scope. From a row's context menu
+  // the anchor's own scope wins (see addUrl), so an inserted url lands beside the row.
+  reg("saropaWorkspace.addUrl", (arg: unknown) => void addUrl(store, "project", arg));
+  reg("saropaWorkspace.addUrlGlobal", (arg: unknown) =>
+    void addUrl(store, "global", arg)
   );
 }
 

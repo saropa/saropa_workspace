@@ -104,11 +104,20 @@ export async function openShortcut(store: ShortcutStore, shortcut: Shortcut): Pr
   // Opening counts as "tapping" the shortcut: it clears the shortcut from the untapped
   // count that drives the activity-bar badge (a discovery cue for unused shortcuts).
   void tappedShortcuts.mark(shortcut.id);
-  // A non-file shortcut (recipe: url/shell/command/macro) must NOT run on a single
-  // click — a shell or scheduled recipe is a heavy, side-effecting task. Instead,
-  // a single click shows what it does and offers to run or promote it. The play
-  // button / double-click is the deliberate "run" path.
-  if (shortcutKind(shortcut) !== "file") {
+  // A url/website shortcut opens the site directly on a single click — a website is
+  // safe and instant, so it follows the product's single-click-opens gesture exactly
+  // like a file, rather than the info-then-run path the heavier recipes take. Routed
+  // through the normal run path (which calls openExternal + a toast naming the site).
+  const kind = shortcutKind(shortcut);
+  if (kind === "url") {
+    await runShortcutCommand(store, shortcut);
+    return;
+  }
+  // Every other non-file shortcut (shell/command/macro/routine) must NOT run on a
+  // single click — a shell or scheduled recipe is a heavy, side-effecting task.
+  // Instead, a single click shows what it does and offers to run or promote it. The
+  // play button / double-click is the deliberate "run" path.
+  if (kind !== "file") {
     await showActionInfo(store, shortcut);
     return;
   }

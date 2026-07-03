@@ -122,3 +122,38 @@ test("normalizeWork stores runOnStartup only when on, and preserves lastRun", ()
   });
   assert.equal(withStamp?.lastRun, 1_700_000_000_000);
 });
+
+test("normalizeWork stores catchUp only when on", () => {
+  const on = normalizeWork({ enabled: true, atTime: "05:00", catchUp: true });
+  assert.equal(on?.catchUp, true);
+
+  // Off must not persist an inert false, matching the runOnStartup minimal-shape rule.
+  const off = normalizeWork({ enabled: true, atTime: "05:00", catchUp: false });
+  assert.equal(off?.catchUp, undefined);
+});
+
+test("catchUp alone is not a timing source, so it collapses to undefined", () => {
+  // A schedule with only catch-up arms nothing (it modifies missed timed slots), so
+  // it must not produce a stored object.
+  assert.equal(hasTiming({ enabled: true, catchUp: true }), false);
+  assert.equal(normalizeWork({ enabled: true, catchUp: true }), undefined);
+});
+
+test("the durable last-result record round-trips through work and normalize", () => {
+  const stored = {
+    atTime: "05:00",
+    enabled: true,
+    lastRun: 1_700_000_000_000,
+    lastOutcome: "failure" as const,
+    lastReportPath: "reports/2026.07.03_workspace/2026.07.03_workspace_090000_standup.md",
+  };
+  // Seeding a working copy carries the result fields untouched...
+  const work = workFromSchedule(stored);
+  assert.equal(work.lastOutcome, "failure");
+  assert.equal(work.lastReportPath, stored.lastReportPath);
+  // ...and re-normalizing preserves them, so re-saving the timing never blanks the
+  // Schedule screen's last-result column.
+  const schedule = normalizeWork(work);
+  assert.equal(schedule?.lastOutcome, "failure");
+  assert.equal(schedule?.lastReportPath, stored.lastReportPath);
+});

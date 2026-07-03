@@ -9,6 +9,7 @@ import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel } from "./terminalRunner";
 import { expandRecipeTokens, firstWorkspacePath, reportRelativePath } from "./actionRunner";
+import { recordLastReport } from "./lastReport";
 
 // The routine engine: run a "recipe of recipes" — its member shortcuts strictly in
 // sequence, continue-on-failure — then write a one-row-per-member summary report and
@@ -227,7 +228,7 @@ export async function runRoutine(
   }
   shortcutEvents.fireComplete(shortcut.id, anyFailed ? "failure" : "success");
 
-  await writeRoutineSummary(name, outcomes, anyFailed);
+  await writeRoutineSummary(shortcut.id, name, outcomes, anyFailed);
 }
 
 // Sum a member's badge counts into the routine aggregate. Undefined member badge
@@ -260,6 +261,7 @@ function hasBadgeCounts(badge: ShortcutBadge): boolean {
 // only: the no-noise rule the scheduled rituals follow). Members write their own
 // reports under reports/; this is the one-screen index over them.
 async function writeRoutineSummary(
+  pinId: string,
   name: string,
   outcomes: MemberOutcome[],
   anyFailed: boolean
@@ -294,6 +296,9 @@ async function writeRoutineSummary(
     await fsp.mkdir(path.dirname(reportPath), { recursive: true });
     await fsp.writeFile(reportPath, body, "utf8");
     channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
+    // Hand the summary path to the scheduler so a scheduled routine fire can persist
+    // a durable "Open report" link for the routine (see lastReport.ts).
+    recordLastReport(pinId, reportPath);
     // Open the summary only when something needs the user — a clean run is silent.
     if (anyFailed) {
       const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(reportPath));

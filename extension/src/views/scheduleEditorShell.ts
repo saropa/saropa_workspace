@@ -177,6 +177,14 @@ function optionsCard(): string {
   </div>
   <div class="opt">
     <div class="meta">
+      <div class="lab">${esc(l10n("scheduleEditor.catchUp"))}</div>
+      <div class="d">${esc(l10n("scheduleEditor.catchUp.desc"))}</div>
+    </div>
+    <div class="spacer"></div>
+    <label class="switch"><input type="checkbox" id="catchUp" /><span class="track"></span><span class="knob"></span></label>
+  </div>
+  <div class="opt">
+    <div class="meta">
       <div class="lab">${esc(l10n("scheduleEditor.enabled"))}</div>
       <div class="d">${esc(l10n("scheduleEditor.enabled.desc"))}</div>
     </div>

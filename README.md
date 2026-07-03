@@ -43,6 +43,7 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 
 ### 📌 Add & Open
 * **Single-Click Access:** Pin any file via the editor title menu or Explorer right-click menu to open it instantly without hunting through directories.
+* **Website Shortcuts:** Add any URL — the project's GitHub page, a staging dashboard, a docs site — with **Add Website (URL)...**; a single click opens it in your browser, right beside your file and script shortcuts.
 * **Scoped Shortcuts:** Organize configurations into **Project Shortcuts** (shared repo-level) or **Global Shortcuts** (tied to your user profile).
 * **Activity Badge:** Unused or newly added shortcuts carry a leading dot (●) and trigger a temporary badge count on the sidebar icon.
 * **Launcher Board:** Access your tools via a dedicated bottom panel tab with searchable text filters, collapsible sections, and responsive column layouts.

@@ -13,8 +13,14 @@ export interface WorkSchedule {
   everyMs?: number;
   cron?: string;
   runOnStartup?: boolean;
+  // Editable: catch up a slot missed while VS Code was closed on the next open.
+  catchUp?: boolean;
   enabled: boolean;
   lastRun?: number;
+  // Carried through the edit untouched (like lastRun) so the durable last-result
+  // record the Schedule screen shows is not wiped when a user re-saves the timing.
+  lastOutcome?: "success" | "failure";
+  lastReportPath?: string;
 }
 
 // Seed a working copy from a shortcut's stored schedule (or a blank, enabled default
@@ -26,8 +32,11 @@ export function workFromSchedule(schedule: ShortcutSchedule | undefined): WorkSc
     everyMs: schedule?.everyMs,
     cron: schedule?.cron,
     runOnStartup: schedule?.runOnStartup,
+    catchUp: schedule?.catchUp,
     enabled: schedule?.enabled ?? true,
     lastRun: schedule?.lastRun,
+    lastOutcome: schedule?.lastOutcome,
+    lastReportPath: schedule?.lastReportPath,
   };
 }
 
@@ -78,7 +87,12 @@ export function normalizeWork(work: WorkSchedule): ShortcutSchedule | undefined 
     // Store the flag only when on, so a shortcut that was never a startup shortcut carries
     // no inert false.
     runOnStartup: work.runOnStartup ? true : undefined,
+    // Same minimal-shape rule for catch-up: keep it only when opted in.
+    catchUp: work.catchUp ? true : undefined,
     enabled: work.enabled,
     lastRun: work.lastRun,
+    // Preserve the durable last-result record across an edit (it is not user-set here).
+    lastOutcome: work.lastOutcome,
+    lastReportPath: work.lastReportPath,
   };
 }
