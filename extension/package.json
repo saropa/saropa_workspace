@@ -724,6 +724,12 @@
         "icon": "$(link-external)"
       },
       {
+        "command": "saropaWorkspace.scanProjectUrls",
+        "title": "%command.scanProjectUrls.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(search)"
+      },
+      {
         "command": "saropaWorkspace.revealNextScheduled",
         "title": "%command.revealNextScheduled.title%",
         "category": "%extension.displayName%"
@@ -1113,6 +1119,10 @@
         {
           "command": "saropaWorkspace.addUrlGlobal",
           "group": "1_add@4"
+        },
+        {
+          "command": "saropaWorkspace.scanProjectUrls",
+          "group": "1_add@5"
         },
         {
           "command": "saropaWorkspace.addComment",

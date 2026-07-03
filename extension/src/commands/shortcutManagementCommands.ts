@@ -12,6 +12,7 @@ import {
   addAnnotation,
   addUrl,
 } from "./shortcutSelection";
+import { scanProjectUrls } from "./scanUrls";
 import { shortcutCommandRegistrar } from "./registerHelpers";
 import { registerFavoritesImportCommands } from "./favoritesImportCommands";
 import { configureGroupAppearance } from "./configureAppearance";
@@ -86,6 +87,11 @@ function registerGroupCreateCommands(
   reg("saropaWorkspace.addUrlGlobal", (arg: unknown) =>
     void addUrl(store, "global", arg)
   );
+
+  // Scan the open project(s) for URLs they already declare (git remote web views,
+  // manifest / docs-site URLs) and offer them as website shortcuts in one multi-select
+  // step. Discovered URLs belong to the repo, so they land in project scope.
+  reg("saropaWorkspace.scanProjectUrls", () => void scanProjectUrls(store));
 }
 
 // Editing an existing user group: rename, icon/color appearance, and delete.

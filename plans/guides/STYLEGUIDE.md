@@ -361,6 +361,39 @@ other create gesture (§1.4). It is stored as a `url` action shortcut with an em
 path — the same shape a recipe or import produces — so it round-trips through
 persist / promote unchanged.
 
+### 1.5a Discovering, not scraping: offer what the project already declares
+
+A "find things for the user" command reads the project's **structured, well-known
+files** — the git remote in `.git/config`, `package.json` / `pubspec.yaml` /
+`pyproject.toml`, `mkdocs.yml` — never a recursive text scrape of the source tree.
+**Add Website Shortcuts from Project…** follows this: it reuses the URL-opener
+recipe derivation (the same source of truth the Recipes engine uses) so the
+candidate list is exactly what the project proves is real — no XML schemas, no
+`localhost`, no test-fixture URLs. A structured-source read is short and relevant;
+a regex over file contents is noise. When a future command discovers anything from
+the project, derive it from the files the recipe detectors already parse rather than
+inventing a scraper.
+
+Conventions this bulk-discovery gesture sets, for any command of the same shape:
+
+- **The name says discovery + scope.** A single hand-authored add is
+  **Add Website (URL)…**; the bulk discover-and-pick is **Add Website Shortcuts from
+  Project…** — the "from Project" phrasing tells the user the source is their own
+  repo, distinct from typing one address.
+- **Multi-select QuickPick, pre-checked.** A curated candidate set (high-value by
+  construction) opens with every row checked, so the user confirms with Enter or
+  unchecks the few they do not want — the fast path adds them all. Use
+  `canPickMany: true`; each row names the item (the label), shows the URL as its
+  description, and the detection provenance as its detail.
+- **Never re-offer what exists.** Filter out candidates already saved (matched by
+  href), so re-running the command surfaces only what is new. Distinguish "nothing
+  found" from "all already added" in the feedback so an empty picker never reads as
+  a failure.
+- **Discovered project data lands in project scope.** Addresses derived from the
+  repo belong to the repo (committed, shared with the team); the user can move one
+  to global afterward. The completion toast names the count added and the scope
+  ("Added {count} website shortcut(s) to Project Shortcuts.").
+
 ---
 
 ## 2. Internationalization (translation-ready at write time)

@@ -129,6 +129,7 @@
   "command.addSeparator.title": "Add Separator",
   "command.addUrl.title": "Add Website (URL)...",
   "command.addUrlGlobal.title": "Add Website (URL) to Global Shortcuts...",
+  "command.scanProjectUrls.title": "Add Website Shortcuts from Project...",
   "command.revealNextScheduled.title": "Reveal Next Scheduled Shortcut",
   "command.runPinById.title": "Run Shortcut by Reference (for keybindings)",
   "command.runTopPin1.title": "Run Top Shortcut 1",
