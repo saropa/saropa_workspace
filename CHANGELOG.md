@@ -47,7 +47,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.14]
+
+**Overview** — A brand new Schedule dashboard keeps track of your automated runs (and catches up on missed ones), plus you can now pin one-click shortcuts to your essential project websites. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.14/CHANGELOG.md)
 
 ### Added
 
