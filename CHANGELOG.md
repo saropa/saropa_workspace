@@ -47,7 +47,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.15]
 
 **Overview** — Python shortcuts configured with the Unix `python3` name now run on Windows instead of failing with "Python was not found." [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
 
