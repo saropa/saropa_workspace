@@ -35,7 +35,7 @@ export function resolveInterpreter(opts: {
 
   // A non-blank explicit command always wins.
   if (opts.explicitCommand !== undefined && !blankExplicit) {
-    return opts.explicitCommand;
+    return normalizeForPlatform(opts.explicitCommand, opts.platform);
   }
 
   // Unix honors a blank "run directly" via the shebang + exec bit; Windows cannot,
@@ -46,9 +46,26 @@ export function resolveInterpreter(opts: {
 
   const byExtension = opts.defaults[opts.ext];
   if (byExtension !== undefined) {
-    return byExtension;
+    return normalizeForPlatform(byExtension, opts.platform);
   }
-  return opts.shebang ?? "";
+  return normalizeForPlatform(opts.shebang ?? "", opts.platform);
+}
+
+// Windows has no `python3` executable: the name is a Microsoft Store app-execution
+// alias stub that prints "Python was not found" instead of running, so a pin, a
+// file-type default, or a `#!/usr/bin/env python3` shebang carrying the Unix name
+// never reaches a real interpreter on win32. Rewrite a leading bare `python3` token
+// to `python` (the real launcher on Windows), preserving any trailing args
+// (`python3 -u` -> `python -u`). Only the exact `python3` token is touched: a
+// versioned `python3.12` or an absolute path (`/usr/bin/python3`,
+// `D:/Tools/Python/Python314/python.exe`) is left verbatim, since those name a
+// specific runtime the caller chose deliberately. No-op off win32, where `python3`
+// is the canonical name.
+function normalizeForPlatform(prefix: string, platform: NodeJS.Platform): string {
+  if (platform !== "win32") {
+    return prefix;
+  }
+  return prefix.replace(/^python3(?=$|\s)/, "python");
 }
 
 // Whether a shortcut can be executed at all (there is some interpreter path). True for

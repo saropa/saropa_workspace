@@ -61,7 +61,8 @@ test("resolveInterpreter: a blank command resolves to a real interpreter on Wind
 
 test("resolveInterpreter: a blank command on Windows falls to the shebang when no default", () => {
   // No configured default for the extension, but the file declares an interpreter:
-  // use it rather than running the bare path.
+  // use it rather than running the bare path. The shebang's `python3` is normalized
+  // to `python` on win32, where the `python3` name is only the Store alias stub.
   assert.equal(
     resolveInterpreter({
       explicitCommand: "",
@@ -70,7 +71,76 @@ test("resolveInterpreter: a blank command on Windows falls to the shebang when n
       shebang: "python3",
       platform: "win32",
     }),
+    "python"
+  );
+});
+
+test("resolveInterpreter: an explicit python3 command is normalized to python on Windows", () => {
+  // win32 has no `python3` executable — it is the Microsoft Store app-execution alias
+  // that prints "Python was not found". A pin configured with the Unix name would
+  // otherwise never run, so the explicit command is rewritten to the real `python`.
+  assert.equal(
+    resolveInterpreter({
+      explicitCommand: "python3",
+      ext: ".py",
+      defaults: DEFAULTS,
+      shebang: undefined,
+      platform: "win32",
+    }),
+    "python"
+  );
+});
+
+test("resolveInterpreter: python3 is left untouched off win32", () => {
+  // On Unix `python3` is the canonical name; normalization must not touch it.
+  assert.equal(
+    resolveInterpreter({
+      explicitCommand: "python3",
+      ext: ".py",
+      defaults: DEFAULTS,
+      shebang: undefined,
+      platform: "linux",
+    }),
     "python3"
+  );
+});
+
+test("resolveInterpreter: python3 normalization preserves trailing args on Windows", () => {
+  // Only the leading `python3` token is rewritten; `-u` (and any other flags) survive.
+  assert.equal(
+    resolveInterpreter({
+      explicitCommand: "python3 -u",
+      ext: ".py",
+      defaults: DEFAULTS,
+      shebang: undefined,
+      platform: "win32",
+    }),
+    "python -u"
+  );
+});
+
+test("resolveInterpreter: a versioned or absolute python3 is left verbatim on Windows", () => {
+  // `python3.12` and an absolute interpreter path name a specific runtime the caller
+  // chose deliberately — only the bare `python3` token is the unrunnable Store stub.
+  assert.equal(
+    resolveInterpreter({
+      explicitCommand: "python3.12",
+      ext: ".py",
+      defaults: DEFAULTS,
+      shebang: undefined,
+      platform: "win32",
+    }),
+    "python3.12"
+  );
+  assert.equal(
+    resolveInterpreter({
+      explicitCommand: "D:/Tools/Python/Python314/python.exe",
+      ext: ".py",
+      defaults: DEFAULTS,
+      shebang: undefined,
+      platform: "win32",
+    }),
+    "D:/Tools/Python/Python314/python.exe"
   );
 });
 

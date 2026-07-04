@@ -47,6 +47,16 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+**Overview** — Python shortcuts configured with the Unix `python3` name now run on Windows instead of failing with "Python was not found." [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+
+### Fixed
+
+- **A `python3` shortcut now runs on Windows.** On Windows the bare name `python3` is only a Microsoft Store alias stub that prints "Python was not found" instead of running, so a shortcut configured with the Unix interpreter name (in its Run command or a `#!/usr/bin/env python3` shebang) never reached a real interpreter. A leading `python3` is now rewritten to `python` on Windows, preserving any trailing flags (`python3 -u` becomes `python -u`). A versioned name (`python3.12`) or an absolute interpreter path is left exactly as you wrote it.
+
+---
+
 ## [1.5.14]
 
 **Overview** — A brand new Schedule dashboard keeps track of your automated runs (and catches up on missed ones), plus you can now pin one-click shortcuts to your essential project websites. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.14/CHANGELOG.md)

@@ -94,7 +94,11 @@ test("planRun quotes a file path that contains spaces", () => {
 test("planRun resolves the interpreter from the extension defaults when no command is set", () => {
   __setConfig("saropaWorkspace", "interpreterDefaults", { ".py": "python3" });
   const plan = planRun(shortcut(), fileUri("script.py"));
-  assert.ok(plan.commandLine.startsWith("python3 "), "the .py default prefix is applied");
+  // The `.py` default flows into the command line. On win32 a bare `python3` is the
+  // unrunnable Microsoft Store alias stub, so it is normalized to `python` (see
+  // commandPlan.normalizeForPlatform); on other platforms it stays python3.
+  const expected = process.platform === "win32" ? "python " : "python3 ";
+  assert.ok(plan.commandLine.startsWith(expected), "the .py default prefix is applied");
 });
 
 test("planRun expands tokens and reports unknown $names", () => {
@@ -183,11 +187,13 @@ test("isRunnable honors a #! shebang on an extensionless script", () => {
 
 test("planRun runs an extensionless shebang script through its declared interpreter", () => {
   // #!/usr/bin/env python3 -> the env wrapper is stripped, leaving python3 as the
-  // resolved prefix.
+  // resolved prefix. On win32 that bare `python3` is further normalized to `python`
+  // (the Store-alias stub is unrunnable), so the expected prefix is platform-specific.
   const scriptPath = `${tmpDir}/deploy`;
   nodeFs.writeFileSync(scriptPath, "#!/usr/bin/env python3\nprint('hi')\n");
   const plan = planRun(shortcut({ path: "deploy" }), asUri(Uri.file(scriptPath)));
-  assert.ok(plan.commandLine.startsWith("python3 "), "the shebang interpreter leads the command");
+  const expected = process.platform === "win32" ? "python " : "python3 ";
+  assert.ok(plan.commandLine.startsWith(expected), "the shebang interpreter leads the command");
 });
 
 // --- runBlockReason -----------------------------------------------------
