@@ -103,10 +103,16 @@ export function wireTreeViewState(
   // badge) — the "don't show a zero" requirement. Recomputed on every store change
   // (a new shortcut bumps it) and on every tap (using a shortcut clears it).
   const refreshUntappedBadge = (): void => {
+    // Annotation shortcuts (comment / separator) are excluded: they have no open/run
+    // action, so openShortcut returns before tappedShortcuts.mark and their inert rows
+    // carry no command. Counting them made the badge un-clearable — a single separator
+    // pinned it at >=1 forever, and its row shows no dot, so the count pointed at nothing
+    // the user could act on. The gesture tip below already excludes them for the same
+    // reason. Only tappable rows count, so tapping every counted row clears the badge.
     const shortcuts = [
       ...store.getProjectShortcuts().filter((p) => !p.isRecipe),
       ...store.getGlobalShortcuts(),
-    ];
+    ].filter((p) => !isAnnotationShortcut(p));
     const untapped = shortcuts.filter((p) => !tappedShortcuts.has(p.id)).length;
     treeView.badge =
       untapped > 0

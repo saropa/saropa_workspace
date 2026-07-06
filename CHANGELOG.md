@@ -47,6 +47,21 @@ cspell:disable
 
 ---
 
+## [UNreleased]
+
+**Overview** — The sidebar count badge for unused shortcuts now clears to zero once you have opened or run every shortcut. Comment and separator rows are no longer counted, so a divider in your list can no longer leave the badge stuck on a number you could never clear. [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+
+### Fixed
+
+- The activity-bar untapped-shortcut badge counted comment and separator rows,
+  which have no open/run action and so could never be marked used — leaving the
+  count stuck above zero permanently and pointing at rows that show no marker.
+  Annotation rows are now excluded from the count, matching the leading-dot
+  marker (which already skips them), so the badge clears exactly when every
+  actionable shortcut has been used.
+
+---
+
 ## [1.5.15]
 
 **Overview** — Python shortcuts configured with the Unix `python3` name now run on Windows instead of failing with "Python was not found." [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)

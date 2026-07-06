@@ -95,3 +95,42 @@ distinguishable rows — the same dead end the marker was meant to remove.
 - No node-runnable test constructs `ShortcutTreeItem`; the change is a label-string
   prefix, and no existing test (`shortcutRowFormatting.test.ts`,
   `shortcutTreeDragDrop.test.ts`) asserts the marker, so none needed updating.
+
+## Finish Report (2026-07-06)
+
+### Defect (the badge never reached zero)
+
+Two prior iterations addressed the *marker* (making the count's referent visible). Neither
+addressed why the count itself never cleared. Root cause: the badge counted annotation
+shortcuts (comment / separator rows), which have no open/run action.
+
+- `commands/shortcutInteraction.ts` — `openShortcut` returns at the `isAnnotationShortcut`
+  guard (line ~101) *before* `tappedShortcuts.mark` (line ~106), and annotation tree rows
+  carry no command. So an annotation can never be marked tapped.
+- `activation/viewState.ts` — `refreshUntappedBadge` counted every non-recipe project
+  shortcut plus every global shortcut, with **no** annotation filter. Any comment or
+  separator in either scope was counted as permanently untapped, pinning the badge at
+  `>=1` forever.
+
+This also explains the original "nowhere to see what makes up those numbers" report: an
+annotation row deliberately renders no dot (its early-return branch overwrites `this.label`),
+so a badge composed of annotations pointed at rows that show no marker AND could not be
+cleared — one root cause behind both the invisible-referent and never-clears symptoms.
+
+### Change
+
+- `activation/viewState.ts` — `refreshUntappedBadge` now appends
+  `.filter((p) => !isAnnotationShortcut(p))` to the combined project+global list, so only
+  tappable rows count. `isAnnotationShortcut` was already imported (the gesture tip below
+  uses it for the same "not actionable" reason). Tapping every counted row now drives the
+  count to zero and the badge disappears.
+- `CHANGELOG.md` (root) — `[Unreleased]` Fixed entry.
+
+### Verification
+
+- `npx tsc -p ./ --noEmit` (from `extension/`) — clean.
+- `node esbuild.js` — bundle builds.
+- The counted set now equals the set that has a tap path (open/run marks each), so the
+  count is clearable by construction. No node-runnable test covers the badge count (it
+  lives inline in a `vscode`-importing file); the annotation exclusion is a one-line
+  predicate mirroring the already-tested gesture-tip filter.
