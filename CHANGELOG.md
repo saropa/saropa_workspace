@@ -49,7 +49,20 @@ cspell:disable
 
 ## [UNreleased]
 
-**Overview** — The sidebar count badge for unused shortcuts now clears to zero once you have opened or run every shortcut. Comment and separator rows are no longer counted, so a divider in your list can no longer leave the badge stuck on a number you could never clear. [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+**Overview** — Right-click a script shortcut and choose "Duplicate with Argument" to make a second copy that runs the same file with a different argument — the new item is named after the original with the argument added (for example "setup_arb_translate.py -o"), and you can rename it. The sidebar count badge for unused shortcuts now clears to zero once you have opened or run every shortcut. Comment and separator rows are no longer counted, so a divider in your list can no longer leave the badge stuck on a number you could never clear. [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- "Duplicate with Argument" on a file shortcut's right-click menu (under the
+  configure/run submenu): prompts for an argument line — pre-filled with the
+  shortcut's current arguments — and a name that defaults to the original name
+  with those arguments suffixed. The duplicate points at the same file and keeps
+  the source's run configuration (interpreter, working directory, environment,
+  run location), changing only the arguments and the name. A duplicate of a
+  screen-share-protected shortcut stays protected. It deliberately does not
+  inherit the source's schedule or triggers, so a run variant never
+  double-schedules the script. The new item is inserted directly below the
+  original.
 
 ### Fixed
 

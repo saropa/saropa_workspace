@@ -73,6 +73,7 @@
   "command.runWith.title": "Run With...",
   "command.configureRun.title": "Configure Run...",
   "command.configureRunQuick.title": "Configure Run (Quick)...",
+  "command.duplicateWithArgs.title": "Duplicate with Argument...",
   "command.simulateRun.title": "Simulate Run...",
   "command.diffLastRuns.title": "Diff Last Two Runs",
   "command.useAsTemplate.title": "Use as Template...",

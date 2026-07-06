@@ -242,6 +242,85 @@ test("renamePin clears the label override when given a blank name", async () => 
   assert.equal(shortcut.label, undefined, "a blank rename clears the alias to the basename default");
 });
 
+test("duplicateShortcut inserts a variant after the source with merged exec and new args", async () => {
+  // The core behavior: the copy points at the SAME file, keeps the source's run config
+  // (interpreter/cwd) while replacing only the args, takes the given name, and lands
+  // directly below the source (placeAfter -> order = source.order + 1).
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "build.py")), "project");
+  let source = store.getProjectShortcuts().find((p) => p.path === "build.py")!;
+  await store.updateShortcutExec(source, { command: "python", cwd: "scripts", args: ["--lang", "fr"] });
+  source = store.getProjectShortcuts().find((p) => p.path === "build.py")!;
+
+  assert.equal(await store.duplicateShortcut(source, "build.py -o", ["-o"]), true);
+  const copy = store.getProjectShortcuts().find((p) => p.label === "build.py -o")!;
+  assert.ok(copy, "the duplicate is created with the given name");
+  assert.equal(copy.path, "build.py", "the duplicate points at the same file");
+  assert.deepEqual(copy.exec?.args, ["-o"], "only the args are replaced");
+  assert.equal(copy.exec?.command, "python", "the interpreter is carried over");
+  assert.equal(copy.exec?.cwd, "scripts", "the working directory is carried over");
+  assert.notEqual(copy.id, source.id, "the duplicate is a distinct entry");
+  assert.equal(copy.order, source.order + 1, "the duplicate lands directly after the source");
+});
+
+test("duplicateShortcut does not inherit the source's schedule (no double-scheduling)", async () => {
+  // Automation is per-instance: a run variant must start with no schedule so the same
+  // script is never silently scheduled twice.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "nightly.py")), "project");
+  let source = store.getProjectShortcuts().find((p) => p.path === "nightly.py")!;
+  await store.updateShortcutSchedule(source, { atTime: "02:00", enabled: true });
+  source = store.getProjectShortcuts().find((p) => p.path === "nightly.py")!;
+  assert.ok(source.schedule, "the source carries a schedule");
+
+  await store.duplicateShortcut(source, "nightly.py --dry-run", ["--dry-run"]);
+  const copy = store.getProjectShortcuts().find((p) => p.label === "nightly.py --dry-run")!;
+  assert.equal(copy.schedule, undefined, "the duplicate carries no inherited schedule");
+});
+
+test("duplicateShortcut carries the masked flag so a secret's duplicate stays hidden", async () => {
+  // The screen-share guard is behavior, not decoration: duplicating a masked shortcut
+  // must not expose the target file name in the tree.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "secret.env")), "project");
+  let source = store.getProjectShortcuts().find((p) => p.path === "secret.env")!;
+  await store.setMasked(source, true);
+  source = store.getProjectShortcuts().find((p) => p.path === "secret.env")!;
+
+  await store.duplicateShortcut(source, "secret.env --check", ["--check"]);
+  const copy = store.getProjectShortcuts().find((p) => p.label === "secret.env --check")!;
+  assert.equal(copy.masked, true, "the duplicate keeps the screen-share guard");
+});
+
+test("duplicateShortcut clears exec when the source has none and args are empty", async () => {
+  // A plain file shortcut duplicated with no arguments must not store an inert empty
+  // exec object — round-trip parity with the other add paths.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  await store.addShortcut(asUri(Uri.joinPath(folder.uri, "plain.sh")), "project");
+  const source = store.getProjectShortcuts().find((p) => p.path === "plain.sh")!;
+  await store.duplicateShortcut(source, "plain copy", []);
+  const copy = store.getProjectShortcuts().find((p) => p.label === "plain copy")!;
+  assert.equal(copy.exec, undefined, "no inert exec object is stored");
+});
+
+test("duplicateShortcut returns false for a source not in its store", async () => {
+  // An auto/recipe shortcut is recomputed, not stored, so there is nothing to duplicate;
+  // the method reports false so the command can surface a visible outcome.
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+  const phantom = {
+    id: "not-a-real-id",
+    path: "ghost.py",
+    scope: "project" as const,
+    order: 0,
+  };
+  assert.equal(await store.duplicateShortcut(phantom, "ghost copy", ["-x"]), false);
+});
+
 test("mutatePin is a no-op on an auto-pin (recomputed, not stored)", async () => {
   // Auto-pins have no stored target, so a field toggle routed through mutateShortcut must
   // not throw and must not persist anything — the masked toggle is one such caller.

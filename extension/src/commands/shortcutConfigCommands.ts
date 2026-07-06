@@ -21,6 +21,7 @@ import { setMetric } from "./setMetric";
 import { simulateRun } from "./simulateRun";
 import { diffLastRuns } from "./diffRuns";
 import { useAsTemplate } from "./templateShortcut";
+import { duplicateWithArgs } from "./duplicateWithArgs";
 import {
   newFileHere,
   duplicateFile,
@@ -88,6 +89,13 @@ function registerRunConfigCommands(
   // how a pinned script runs. The Configure Run panel offers the same choices as chips;
   // this is the fast right-click / palette path.
   regShortcut("saropaWorkspace.runWith", (shortcut) => runWith(store, shortcut));
+
+  // "Duplicate with Argument": copy a file shortcut into a new run variant with a
+  // different argument line and its own name, without touching the file on disk. The
+  // no-typing way to keep both "run with -o" and the plain run side by side.
+  regShortcut("saropaWorkspace.duplicateWithArgs", (shortcut) =>
+    duplicateWithArgs(store, shortcut)
+  );
 
   // Dry-run audit: show the exact command/cwd/env/location a run would use, in a
   // read-only Markdown preview, without executing anything. Available on every shortcut

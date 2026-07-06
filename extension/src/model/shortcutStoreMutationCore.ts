@@ -433,6 +433,89 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreRefresh {
     return true;
   }
 
+  // Duplicate a stored file shortcut into a new sibling entry that points at the SAME
+  // file but runs with a different argument line — the "make a run variant" gesture
+  // (run this script again, but with -o). The copy carries the source's run config
+  // (interpreter, cwd, env, run location) with only the args replaced, plus its group,
+  // icon, and color for visual continuity. Two flags are carried deliberately because
+  // dropping them would change behavior, not just presentation: `masked` (WOW #26 screen-
+  // share guard) MUST survive or a duplicate of a masked secret (.env.production) would
+  // expose the filename in the tree; `line` MUST survive so a line-shortcut's duplicate
+  // opens at the same line. It deliberately does NOT inherit the source's schedule,
+  // triggers, metric, expiry, tags, or branch link: schedule/triggers/metric/expiry are
+  // per-instance automation (copying a schedule would silently double-schedule the same
+  // script), and a fresh run variant starts un-tagged and branch-unscoped rather than
+  // inheriting an organization the user set for the original. The new entry is inserted
+  // immediately below the source in the same scope and group (placeAfter). Returns false
+  // only when the source is not stored in its own store (an auto/recipe shortcut is
+  // recomputed, not stored, so there is nothing to duplicate).
+  async duplicateShortcut(
+    shortcut: Shortcut,
+    label: string,
+    args: string[]
+  ): Promise<boolean> {
+    const trimmedLabel = label.trim();
+    // Merge the new args over any existing exec so the interpreter/cwd/env/run-location
+    // survive; an empty args line clears the field so the variant carries no inert array.
+    const execCandidate: ShortcutExecConfig = {
+      ...(shortcut.exec ?? {}),
+      args: args.length > 0 ? args : undefined,
+    };
+    const hasExec = Object.values(execCandidate).some((v) => v !== undefined);
+    const carry: Partial<Shortcut> = {
+      action: shortcut.action,
+      icon: shortcut.icon,
+      color: shortcut.color,
+      ...(hasExec ? { exec: execCandidate } : {}),
+      ...(shortcut.groupId ? { groupId: shortcut.groupId } : {}),
+      // Carry the screen-share guard and the open-at-line target (see the method doc):
+      // both are behavior, not decoration, so they must not be silently dropped.
+      ...(shortcut.masked ? { masked: true } : {}),
+      ...(shortcut.line !== undefined ? { line: shortcut.line } : {}),
+      ...(trimmedLabel ? { label: trimmedLabel } : {}),
+    };
+
+    if (shortcut.scope === "global") {
+      const shortcuts = this.readGlobalShortcuts();
+      if (!shortcuts.some((p) => p.id === shortcut.id)) {
+        return false;
+      }
+      const created: Shortcut = {
+        id: this.newId(),
+        path: shortcut.path,
+        scope: "global",
+        order: shortcuts.length,
+        ...carry,
+      };
+      shortcuts.push(created);
+      this.placeAfter(shortcuts, created, shortcut.id);
+      await this.writeGlobalShortcuts(shortcuts);
+      await this.refresh();
+      return true;
+    }
+
+    const folder = this.projectShortcutFolder.get(shortcut.id);
+    if (!folder) {
+      return false;
+    }
+    const file = await this.readProjectFile(folder);
+    if (!file.pins.some((p) => p.id === shortcut.id)) {
+      return false;
+    }
+    const created: Shortcut = {
+      id: this.newId(),
+      path: shortcut.path,
+      scope: "project",
+      order: file.pins.length,
+      ...carry,
+    };
+    file.pins.push(created);
+    this.placeAfter(file.pins, created, shortcut.id);
+    await this.writeProjectFile(folder, file);
+    await this.refresh();
+    return true;
+  }
+
   async removeShortcut(shortcut: Shortcut): Promise<void> {
     if (shortcut.scope === "global") {
       const shortcuts = this.readGlobalShortcuts().filter((p) => p.id !== shortcut.id);

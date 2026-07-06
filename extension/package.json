@@ -406,6 +406,12 @@
         "icon": "$(gear)"
       },
       {
+        "command": "saropaWorkspace.duplicateWithArgs",
+        "title": "%command.duplicateWithArgs.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(files)"
+      },
+      {
         "command": "saropaWorkspace.simulateRun",
         "title": "%command.simulateRun.title%",
         "category": "%extension.displayName%",
@@ -1002,6 +1008,11 @@
           "command": "saropaWorkspace.configureRunQuick",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
           "group": "1_run@2"
+        },
+        {
+          "command": "saropaWorkspace.duplicateWithArgs",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "1_run@3"
         },
         {
           "command": "saropaWorkspace.configureScheduleQuick",
@@ -1701,6 +1712,10 @@
         },
         {
           "command": "saropaWorkspace.configureRunQuick",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.duplicateWithArgs",
           "when": "false"
         },
         {
