@@ -101,8 +101,8 @@ export async function openShortcut(store: ShortcutStore, shortcut: Shortcut): Pr
   if (isAnnotationShortcut(shortcut)) {
     return;
   }
-  // Opening counts as "tapping" the shortcut: it clears the shortcut from the untapped
-  // count that drives the activity-bar badge (a discovery cue for unused shortcuts).
+  // Opening counts as "tapping" the shortcut: it clears the shortcut's untapped dot
+  // (a discovery cue for unused shortcuts).
   void tappedShortcuts.mark(shortcut.id);
   // A url/website shortcut opens the site directly on a single click — a website is
   // safe and instant, so it follows the product's single-click-opens gesture exactly
@@ -162,7 +162,7 @@ export async function openShortcut(store: ShortcutStore, shortcut: Shortcut): Pr
   // Record the open in the Recent list so a just-opened file shortcut is one click from
   // re-opening — the Recent group is no longer run-only. Distinct from a run: this
   // does NOT bump the lifetime run count (an open is not a run). The tappedShortcuts.mark
-  // above already cleared this shortcut from the untapped badge; this adds the recency
+  // above already cleared this shortcut's untapped dot; this adds the recency
   // entry. Only file shortcuts reach here (the non-file branch returned above), which is
   // exactly the "opened a file" semantics the Recent-on-open behavior targets.
   void telemetry.recordOpen(shortcut.id);
@@ -370,7 +370,7 @@ export async function peekShortcut(store: ShortcutStore, shortcut: Shortcut): Pr
   if (isAnnotationShortcut(shortcut)) {
     return;
   }
-  // Peeking is a use of the shortcut, like opening: clear it from the untapped badge.
+  // Peeking is a use of the shortcut, like opening: clear its untapped dot.
   void tappedShortcuts.mark(shortcut.id);
   if (shortcutKind(shortcut) !== "file") {
     await showActionInfo(store, shortcut);

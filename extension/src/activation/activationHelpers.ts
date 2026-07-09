@@ -257,10 +257,10 @@ export function registerFavoritesImportWatchers(
   );
 }
 
-// Keep the Recent list and the untapped badge in step with the editor, not only
+// Keep the Recent list and the untapped dot in step with the editor, not only
 // with shortcut clicks: a file with a shortcut the user focuses by ANY means —
 // Ctrl+P, the Explorer, a tab switch — or closes counts as "used", so it lands in
-// Recent and clears from the activity-bar badge of shortcuts not yet opened. This is
+// Recent and clears its per-row untapped dot. This is
 // the companion to the shortcut-click open path (which records the same thing);
 // recordOpen's front-dup guard and the idempotent mark make the overlap a no-op, and a
 // per-uri guard here keeps a plain tab re-focus from re-firing for the file already at

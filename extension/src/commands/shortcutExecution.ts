@@ -56,8 +56,8 @@ export async function runShortcutCommand(
       return;
     }
   }
-  // Running counts as "tapping" the shortcut (clears it from the untapped badge
-  // count), the same as opening — every run path funnels through here.
+  // Running counts as "tapping" the shortcut (clears its untapped dot), the same as
+  // opening — every run path funnels through here.
   void tappedShortcuts.mark(shortcut.id);
   // Block the run when a configured prerequisite has not succeeded this session,
   // offering to run it first (WOW #13).

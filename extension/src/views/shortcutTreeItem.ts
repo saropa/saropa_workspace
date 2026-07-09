@@ -36,13 +36,11 @@ export {
 const SEPARATOR_LABEL = "─".repeat(40);
 
 // Leading marker on the NAME of a shortcut the user has not yet opened or run
-// ("untapped"). It makes the activity-bar count badge actionable: the badge says how
-// many are untapped, and this dot says exactly WHICH rows that number points at. It
-// leads the label (rendered in the full-strength foreground), NOT the description — a
-// dot in the dimmed descriptionForeground color, next to an already-gray path, was too
-// faint to spot, which defeats the point of pointing at the badge count. The row
-// repaints the instant the shortcut is tapped (the provider listens to tappedShortcuts),
-// so the dot disappears and the badge recounts together.
+// ("untapped"): a per-row discovery cue for shortcuts added but never used. It leads
+// the label (rendered in the full-strength foreground), NOT the description — a dot in
+// the dimmed descriptionForeground color, next to an already-gray path, was too faint to
+// spot. The row repaints the instant the shortcut is tapped (the provider listens to
+// tappedShortcuts), so the dot disappears on first open/run.
 const UNTAPPED_MARKER = "●";
 
 // Tree node for a single shortcut. Selecting it fires the activate dispatcher, which
@@ -90,10 +88,9 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // threaded through an options refactor, matching how sweepBadge above was added.
     metricBadge?: MetricBadge,
     // True when the user has not yet opened or run this shortcut. Drives the leading
-    // untapped dot + a hover line, so the activity-bar count badge (which counts exactly
-    // these) points at visible rows. Recent entries are tapped by definition, so they
-    // pass false. Annotation rows return before this is read (a comment/separator is
-    // never "untapped").
+    // untapped dot + a hover line marking it as not-yet-used. Recent entries are tapped
+    // by definition, so they pass false. Annotation rows return before this is read (a
+    // comment/separator is never "untapped").
     untapped = false
   ) {
     const kind = shortcutKind(shortcut);

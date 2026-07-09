@@ -47,6 +47,20 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+**Overview** — The number badge on the sidebar icon (the count of shortcuts you had not opened yet) is gone. Opening the sidebar does not "use" a shortcut, so the number would not clear when you clicked the icon, and on its own it never said what it was counting. The small dot next to a shortcut you have not opened or run yet stays — it marks the exact rows without needing an aggregate number. [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+
+### Removed
+
+- The activity-bar count badge on the Shortcuts view. It counted shortcuts not yet
+  opened or run, but clicking the sidebar icon never cleared it (opening the view is
+  not opening a shortcut) and the bare number did not convey what it referred to.
+  Repeated fixes to the counting logic left that mismatch, so the badge is removed
+  entirely. The per-row "untapped" dot remains as the discovery cue.
+
+---
+
 ## [1.5.16]
 
 **Overview** — Right-click a script shortcut and choose "Duplicate with Argument" to make a second copy that runs the same file with a different argument — the new item is named after the original with the argument added (for example "setup_arb_translate.py -o"), and you can rename it. The sidebar count badge for unused shortcuts now clears to zero once you have opened or run every shortcut. Comment and separator rows are no longer counted, so a divider in your list can no longer leave the badge stuck on a number you could never clear. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.16/CHANGELOG.md)

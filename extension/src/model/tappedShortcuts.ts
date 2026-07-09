@@ -3,12 +3,11 @@ import * as vscode from "vscode";
 const KEY = "saropaWorkspace.tappedPins";
 
 // Tracks which shortcuts the user has interacted with — "tapped" means opened (single
-// click) or run (double click / play). Drives the activity-bar badge, which shows
-// the count of shortcuts NOT yet tapped as a discovery cue for shortcuts added but
-// never used (see badge wiring in extension.ts).
+// click) or run (double click / play). Drives the per-row "untapped" dot, a discovery
+// cue marking shortcuts added but never used (see shortcutTreeItem.ts).
 //
 // Persisted in globalState (rides VS Code Settings Sync like the global shortcuts), so
-// a shortcut tapped in one session stays tapped in the next and the badge does not
+// a shortcut tapped in one session stays tapped in the next and the dot does not
 // re-appear on every launch.
 //
 // Deliberately separate from `telemetry`: telemetry records RUNS only and is
