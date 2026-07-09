@@ -31,9 +31,8 @@ export function buildShortcutItem(
     lockedBy(store, shortcut),
     shortcutBadges.get(shortcut.id),
     metricBadges.get(shortcut.id),
-    // Untapped: never opened or run. Drives the leading dot that makes the activity-bar
-    // count badge actionable (the badge counts exactly these). Recent entries below
-    // never pass it — being in Recent means it has been tapped.
+    // Untapped: never opened or run. Drives the leading discovery dot on the row.
+    // Recent entries below never pass it — being in Recent means it has been tapped.
     !tappedShortcuts.has(shortcut.id)
   );
 }

@@ -125,18 +125,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   registerFilterCommands(context, filterState, store);
 
-  // Wire all the live tree-view state (filter message + chip keys, untapped badge,
-  // one-time gesture tip, branch-scope affordances + toggle commands, and group
-  // collapse persistence). Returns the badge refresher so it can be repainted once
-  // more after the shortcut set finishes loading below.
-  const { refreshUntappedBadge } = wireTreeViewState(
-    context,
-    store,
-    tree,
-    treeView,
-    filterState,
-    branchTracker
-  );
+  // Wire all the live tree-view state (filter message + chip keys, one-time gesture
+  // tip, branch-scope affordances + toggle commands, and group collapse persistence).
+  wireTreeViewState(context, store, tree, treeView, filterState, branchTracker);
 
   // Folder/file watches: register the add/manage commands and build the engine + store.
   // Constructed before setupSecondaryViews so the Saropa Launcher can be handed the watch
@@ -159,14 +150,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   wireWatchers(context, store, branchSetBinder);
 
   // Track editor focus/close so a pinned file opened or closed by any means (not
-  // just a shortcut click) lands in Recent and clears from the untapped badge.
+  // just a shortcut click) lands in Recent and clears its per-row "untapped" dot.
   wireRecentEditorTracking(context, store);
   await store.init();
   // Set the initial pinned-path context keys explicitly in case the init-time
   // onDidChange fired before the subscription above was attached.
   syncShortcutPathContext(store);
-  // Paint the initial untapped badge from the loaded shortcut set, for the same reason.
-  refreshUntappedBadge();
 
   // Read each folder's current branch now that the shortcut set is loaded; on
   // completion it fires onDidChangeBranch, which repaints the tree with branch

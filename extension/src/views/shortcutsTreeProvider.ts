@@ -77,9 +77,8 @@ export class ShortcutsTreeProvider
     // A recorded run (or a reset) changes the Recent group's contents.
     telemetry.onDidChange(() => this._onDidChangeTreeData.fire());
     // Tapping a shortcut (open/run/peek) clears its untapped dot; repaint so the dot
-    // disappears in step with the activity-bar count badge, which recounts off the same
-    // event. Without this the badge would drop but the dot would linger until the next
-    // unrelated repaint.
+    // disappears immediately. Without this the dot would linger until the next unrelated
+    // repaint.
     tappedShortcuts.onDidChange(() => this._onDidChangeTreeData.fire());
     // The text/chip filter (WOW #28) changes which rows and groups are visible.
     this.filter.onDidChange(() => this._onDidChangeTreeData.fire());

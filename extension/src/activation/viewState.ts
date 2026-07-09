@@ -11,7 +11,6 @@ import {
 } from "../views/shortcutFilter";
 import { ShortcutFolderItem, RecentRootItem } from "../views/shortcutTreeItem";
 import { runStatusRegistry } from "../exec/runStatus";
-import { tappedShortcuts } from "../model/tappedShortcuts";
 import { telemetry } from "../exec/telemetry";
 import { BranchTracker } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
@@ -30,12 +29,11 @@ export const SHOW_ALL_BRANCHES_KEY = "saropaWorkspace.showAllBranches";
 const GESTURE_TIP_SHOWN_KEY = "saropaWorkspace.gestureTipShown";
 
 // Wire all the live tree-view state that reacts to filter, store, branch, and
-// expansion changes: the filter message + chip context keys, the activity-bar
-// untapped badge, the one-time gesture tip, the branch-scope affordances and their
-// two toggle commands, and group/recent collapse persistence. Extracted from
+// expansion changes: the filter message + chip context keys, the one-time gesture
+// tip, the branch-scope affordances and their two toggle commands, and group/recent
+// collapse persistence. Extracted from
 // activate() so activation reads as a sequence of wiring calls rather than a wall of
-// closures. Returns refreshUntappedBadge so activate can repaint the badge once more
-// after the shortcut set finishes loading.
+// closures.
 export function wireTreeViewState(
   context: vscode.ExtensionContext,
   store: ShortcutStore,
@@ -43,7 +41,7 @@ export function wireTreeViewState(
   treeView: vscode.TreeView<vscode.TreeItem>,
   filterState: ShortcutFilterState,
   branchTracker: BranchTracker
-): { refreshUntappedBadge: () => void } {
+): void {
   // Keep the filter affordances in sync: the chip context keys (which drive the
   // title-bar button visibility/icon) and the always-visible "filter active — N
   // hidden — clear" message. Re-run on any filter change AND on any store change,
@@ -96,33 +94,12 @@ export function wireTreeViewState(
   // open, before any change event fires).
   syncFilterView();
 
-  // Activity-bar badge: the number of Shortcuts-view shortcuts the user has not yet
-  // opened or run ("untapped"), as a discovery cue for shortcuts added but never used.
-  // Recipe shortcuts live in their own Recipes view and are excluded so detected
-  // shortcuts never inflate the count. Zero shows no badge (VS Code hides an undefined
-  // badge) — the "don't show a zero" requirement. Recomputed on every store change
-  // (a new shortcut bumps it) and on every tap (using a shortcut clears it).
-  const refreshUntappedBadge = (): void => {
-    // Annotation shortcuts (comment / separator) are excluded: they have no open/run
-    // action, so openShortcut returns before tappedShortcuts.mark and their inert rows
-    // carry no command. Counting them made the badge un-clearable — a single separator
-    // pinned it at >=1 forever, and its row shows no dot, so the count pointed at nothing
-    // the user could act on. The gesture tip below already excludes them for the same
-    // reason. Only tappable rows count, so tapping every counted row clears the badge.
-    const shortcuts = [
-      ...store.getProjectShortcuts().filter((p) => !p.isRecipe),
-      ...store.getGlobalShortcuts(),
-    ].filter((p) => !isAnnotationShortcut(p));
-    const untapped = shortcuts.filter((p) => !tappedShortcuts.has(p.id)).length;
-    treeView.badge =
-      untapped > 0
-        ? { value: untapped, tooltip: l10n("badge.untapped", { count: untapped }) }
-        : undefined;
-  };
-  context.subscriptions.push(
-    store.onDidChange(() => refreshUntappedBadge()),
-    tappedShortcuts.onDidChange(() => refreshUntappedBadge())
-  );
+  // No activity-bar count badge. An "untapped" counter was tried repeatedly and removed:
+  // clicking the activity-bar icon opens the view but does not "tap" any shortcut, so the
+  // number never cleared on the gesture users expected ("I clicked it, it should go") and
+  // the bare count did not say what it referred to. Each patch to the counting logic left
+  // the same mismatch, so the counter is gone entirely rather than re-fixed. The per-row
+  // "untapped" dot still marks shortcuts never opened or run; it needs no aggregate count.
 
   // One-time gesture tip (UI plan, Phase 3): the first time the user has a real,
   // actionable shortcut, name the single/double-click model once. The empty-view
@@ -207,6 +184,4 @@ export function wireTreeViewState(
       }
     })
   );
-
-  return { refreshUntappedBadge };
 }
