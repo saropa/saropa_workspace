@@ -60,3 +60,18 @@ collapsed Open icon is safe.
 card click-to-expand handler) describing Open/Run as "destructive" actions. That
 wording is pre-existing and now slightly looser for project files (Open is
 non-destructive). It sits in a file this change did not edit and was left untouched.
+
+## Finish Report — drawer button height (2026-07-09)
+
+### Defect
+
+The launcher webview's drawer action buttons (`.btn` — Open, Copy path, Pin, Schedule) paired a 16px codicon with sub-em label text under symmetric vertical padding (`3px 9px`). The label's cap-height rides above the icon's optical center, so the text read as sitting high — not vertically centered against the icon.
+
+### Change
+
+`extension/src/views/launcherAssets.ts` — the `.btn` padding changed from `3px 9px` to `4px 9px 3px`. The extra pixel is on top only: it grows the button by exactly 1px and lowers the flex content box ~0.5px, dropping the label into optical center. `.btn.primary` declares no padding of its own, so primary and secondary buttons keep identical box metrics. The head `.run` button (icon-only until expand) is unchanged — it is not an always-labeled button.
+
+### Verification
+
+- `node esbuild.js` — bundle builds.
+- `node --test out/test/launcherAssets.test.js` — 30 tests pass, 0 fail. No test asserts on `.btn` padding, so none regressed.

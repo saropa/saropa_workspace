@@ -53,10 +53,8 @@ cspell:disable
 
 ### Changed
 
-- Project Files launcher cards lead with an **Open** head button, so the go-to-file
-  icon is visible in the collapsed grid instead of only after expanding the card
-  (matches a document shortcut in My shortcuts). The Watches pane keeps its
-  expand-then-act model, because opening a watch also clears its unseen counter.
+- Project Files launcher cards lead with an **Open** head button, so the go-to-file icon is visible in the collapsed grid instead of only after expanding the card (matches a document shortcut in My shortcuts). The Watches pane keeps its expand-then-act model, because opening a watch also clears its unseen counter.
+- The launcher's drawer action buttons (Open, Copy path, Pin, Schedule) are 1px taller so their label text sits centered against the button's icon.
 
 ### Internal
 

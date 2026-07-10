@@ -302,7 +302,11 @@ header {
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
   border: 1px solid var(--vscode-widget-border, transparent);
-  border-radius: 4px; padding: 3px 9px; cursor: pointer;
+  /* 1px extra on top only (4/3 instead of 3/3): the drawer's text buttons pair a 16px
+     codicon with smaller-than-em label text, whose cap-height rides above the icon's
+     optical center, so a symmetric box read as text-sits-high. The extra top pad lowers
+     the content 0.5px into optical center while adding exactly the 1px of height asked. */
+  border-radius: 4px; padding: 4px 9px 3px; cursor: pointer;
 }
 .btn:hover { background: var(--vscode-list-hoverBackground); }
 .btn.primary {
