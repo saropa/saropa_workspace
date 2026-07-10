@@ -94,6 +94,42 @@ test("a debounced re-focus never offers even at the threshold", () => {
   assert.equal(r.changed, false);
 });
 
+test("elapsed exactly equal to the debounce window counts (boundary is <, not <=)", () => {
+  const state: SuggestState = {
+    counts: { "a.md": 1 },
+    lastCountedAt: { "a.md": 1000 },
+    handled: [],
+  };
+  const r = evaluateOpen(state, "a.md", false, cfg({ debounceMs: 30 * MINUTE }), 1000 + 30 * MINUTE);
+  assert.equal(r.changed, true);
+  assert.equal(r.state.counts["a.md"], 2);
+});
+
+test("a zero debounce counts every activation", () => {
+  const state: SuggestState = {
+    counts: { "a.md": 1 },
+    lastCountedAt: { "a.md": 1000 },
+    handled: [],
+  };
+  // Same instant, no cooldown: back-to-back activations both count.
+  const r = evaluateOpen(state, "a.md", false, cfg({ debounceMs: 0 }), 1000);
+  assert.equal(r.changed, true);
+  assert.equal(r.state.counts["a.md"], 2);
+});
+
+test("a file with no extension is unaffected by the ignore list and still counts", () => {
+  // The ext.length guard must not let a bare filename match an ignored extension.
+  const r = evaluateOpen(
+    emptyState(),
+    "Makefile",
+    false,
+    cfg({ ignoreExtensions: new Set([".md"]) }),
+    1000
+  );
+  assert.equal(r.changed, true);
+  assert.equal(r.state.counts["Makefile"], 1);
+});
+
 test("an ignored extension is never counted or offered", () => {
   const r = evaluateOpen(
     emptyState(),

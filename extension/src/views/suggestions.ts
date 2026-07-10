@@ -256,14 +256,23 @@ export class SuggestionTracker {
     }
 
     if (choice === ignoreAction && ext.length > 0) {
-      await this.addIgnoredExtension(ext);
-      vscode.window.showInformationMessage(l10n("suggest.ignored", { ext }));
+      // Surface a failed settings write rather than leaving the extension neither
+      // ignored nor reported — this runs behind a `void this.onActivate(...)`, so a
+      // swallowed rejection would be invisible to the user (VS Code API rule).
+      try {
+        await this.addIgnoredExtension(ext);
+        vscode.window.showInformationMessage(l10n("suggest.ignored", { ext }));
+      } catch {
+        vscode.window.showErrorMessage(l10n("suggest.ignoreFailed", { ext }));
+      }
     }
   }
 
   // Add an extension to the shared ignore list so files of that type are never
   // counted or offered again. Written to the global (user) target because a noisy
-  // extension (.dart, .g.dart) is language-wide, not tied to one workspace.
+  // extension (e.g. .dart during a build/debug loop) is language-wide, not tied to
+  // one workspace. path.extname yields only the final segment, so the stored value
+  // is always single-segment (.dart, .log), never compound (.g.dart).
   private async addIgnoredExtension(ext: string): Promise<void> {
     const config = vscode.workspace.getConfiguration("saropaWorkspace");
     const current = config.get<string[]>("suggestions.ignoreExtensions", []);
