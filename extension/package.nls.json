@@ -159,7 +159,7 @@
   "config.previewMode.enabled.description": "When on, single-clicking a shortcut file opens it in a transient Preview tab (italic title). Clicking another shortcut file reuses that tab, so clicking through several reference files does not flood the editor with tabs. Editing the file, or double-clicking a non-runnable shortcut, promotes the tab to permanent. Off by default: shortcuts open as permanent tabs.",
   "config.showScheduleStatusBar.description": "Show a status-bar item naming the next scheduled run and when it fires. Click it to open the last report, change the time, run it now, or turn the schedule off. Turning this off hides the indicator only; scheduled runs continue.",
   "config.defaultUseIntegratedTerminal.description": "Run shortcut scripts in the integrated terminal by default (so output is visible). When off, runs in the background and streams to an output channel.",
-  "config.terminalName.description": "Name of the reused integrated terminal for shortcut scripts.",
+  "config.terminalName.description": "Base name for the integrated terminal opened for a shortcut's run.",
   "config.interpreterDefaults.description": "Default command prefix per file extension, used when a shortcut has no explicit command set. An explicit per-shortcut command always wins.",
   "config.suggestions.enabled.description": "Offer to add a file you open often as a shortcut. Counts are kept on this machine only and never transmitted. Each file is offered at most once.",
   "config.suggestions.openThreshold.description": "How many times a file must be opened before Saropa Workspace offers to add it as a shortcut.",

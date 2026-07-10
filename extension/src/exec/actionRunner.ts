@@ -10,7 +10,7 @@ import { processRegistry } from "./processRegistry";
 import * as runLock from "./runLock";
 import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
-import { getOutputChannel, runInTerminal } from "./terminalRunner";
+import { getOutputChannel, runInTerminal, createNamedTerminal } from "./terminalRunner";
 import { runInBackground } from "./backgroundRunner";
 import { recordLastReport } from "./lastReport";
 import { openReport } from "./reportOpen";
@@ -64,7 +64,7 @@ export async function runAction(
       await runShellAction(action, name, shortcut.id, lockName);
       return;
     case "macro":
-      await runMacro(action.steps ?? [], name, shortcut.id);
+      await runMacro(action.steps ?? [], name);
       shortcutEvents.fireComplete(shortcut.id, "dispatched");
       return;
     case "routine":
@@ -154,7 +154,7 @@ async function runShellAction(
   // follows the global cue settings; the background path below plays the finish cue.
   playCue("start");
   if (useTerminal) {
-    runInTerminal(commandLine, cwd, undefined, pinId, name);
+    runInTerminal(commandLine, cwd, undefined, name);
     // Terminal shell run: no tracked exit, so chain off the dispatch (background
     // fires its real outcome from settle()).
     shortcutEvents.fireComplete(pinId, "dispatched");
@@ -295,12 +295,17 @@ async function runShellToReport(
 }
 
 // Sequentially run macro steps (open / shell / url / command). A failing step is
-// logged and the macro continues, so one bad step does not abort the rest.
-async function runMacro(steps: MacroStep[], name: string, pinId: string): Promise<void> {
+// logged and the macro continues, so one bad step does not abort the rest. Shell
+// steps share ONE terminal for this macro's own run (created lazily on the first
+// shell step, threaded through the loop) — they execute strictly in order within
+// a single dispatch, so there is no cross-run collision risk; splitting them
+// across separate terminals would just scatter one macro's output over N tabs.
+async function runMacro(steps: MacroStep[], name: string): Promise<void> {
   const channel = getOutputChannel();
+  let macroTerminal: vscode.Terminal | undefined;
   for (const [index, step] of steps.entries()) {
     try {
-      await runMacroStep(step, pinId, name);
+      macroTerminal = await runMacroStep(step, name, macroTerminal);
     } catch (err) {
       channel.appendLine(
         l10n("macro.stepFailed", {
@@ -316,22 +321,26 @@ async function runMacro(steps: MacroStep[], name: string, pinId: string): Promis
   );
 }
 
-async function runMacroStep(step: MacroStep, pinId: string, name: string): Promise<void> {
+async function runMacroStep(
+  step: MacroStep,
+  name: string,
+  terminal: vscode.Terminal | undefined
+): Promise<vscode.Terminal | undefined> {
   switch (step.kind) {
     case "open": {
       if (!step.path) {
-        return;
+        return terminal;
       }
       const uri = vscode.Uri.file(expandRecipeTokens(step.path));
       const doc = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(doc, { preview: false });
-      return;
+      return terminal;
     }
     case "url":
       if (step.url) {
         await vscode.env.openExternal(vscode.Uri.parse(step.url));
       }
-      return;
+      return terminal;
     case "command":
       if (step.commandId) {
         await vscode.commands.executeCommand(
@@ -339,16 +348,16 @@ async function runMacroStep(step: MacroStep, pinId: string, name: string): Promi
           ...(step.commandArgs ?? [])
         );
       }
-      return;
+      return terminal;
     case "shell": {
       if (!step.shellCommand) {
-        return;
+        return terminal;
       }
       const cwd = expandRecipeTokens(step.cwd ?? firstWorkspacePath() ?? process.cwd());
-      // Macro steps run sequentially, so they share one terminal per macro
-      // (keyed by the owning shortcut's id) rather than each step spawning its own.
-      runInTerminal(expandRecipeTokens(step.shellCommand), cwd, undefined, pinId, name);
-      return;
+      const shellTerminal = terminal ?? createNamedTerminal(cwd, undefined, name);
+      shellTerminal.show(true);
+      shellTerminal.sendText(expandRecipeTokens(step.shellCommand));
+      return shellTerminal;
     }
   }
 }

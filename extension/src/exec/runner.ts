@@ -18,9 +18,9 @@ import { runInBackground } from "./backgroundRunner";
 // Builds and launches the command for a file shortcut, routing to the resolved location
 // (integrated terminal / background channel / external OS window). The per-location
 // launchers, the run planning + single-instance guard, the non-file action handlers,
-// and the shared terminal/output singletons each live in their own sibling module:
+// and the shared output channel each live in their own sibling module:
 //   - runPlanning      planRun / isRunnable / runBlockReason (pure assembly + guard)
-//   - terminalRunner   getOutputChannel / runInTerminal (shared singletons)
+//   - terminalRunner   getOutputChannel (shared singleton) / runInTerminal (fresh terminal per run)
 //   - externalLauncher runInExternal (per-platform new OS window)
 //   - backgroundRunner runInBackground (child + settle + completion handling)
 //   - actionRunner     runAction (url/command/shell/macro/routine) + expandRecipeTokens
@@ -34,7 +34,7 @@ export {
   blockReasonLabel,
   RunBlockReason,
 } from "./runPlanning";
-export { getOutputChannel, registerTerminalCleanup } from "./terminalRunner";
+export { getOutputChannel } from "./terminalRunner";
 export {
   runAction,
   setRoutineHooks,
@@ -100,9 +100,9 @@ export async function runShortcut(
   // itself the visible feedback).
   switch (plan.location) {
     case "terminal":
-      // Keyed by shortcut id so a second shortcut launched while this one is
-      // still busy gets its own terminal instead of pasting into it.
-      runInTerminal(plan.commandLine, plan.cwd, plan.env, shortcut.id, plan.name);
+      // A fresh terminal every run, so a shortcut launched while an earlier one
+      // is still busy never has its command land in that busy terminal.
+      runInTerminal(plan.commandLine, plan.cwd, plan.env, plan.name);
       // Terminal runs have no tracked exit, so chaining keys off dispatch: the
       // dependent fires as soon as the command is sent. Background fires its real
       // outcome from settle() instead (so it is excluded here).

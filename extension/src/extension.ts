@@ -12,7 +12,7 @@ import { registerRunAnalytics } from "./commands/runAnalytics";
 import { bootSequence, maybeRunBootSequenceOnOpen } from "./commands/bootSequence";
 import { initFocusMode } from "./commands/focusMode";
 import { registerRunOutputDiff } from "./commands/diffRuns";
-import { registerTerminalCleanup, setRoutineHooks } from "./exec/runner";
+import { setRoutineHooks } from "./exec/runner";
 import { Scheduler } from "./exec/scheduler";
 import { ChainRunner } from "./exec/chainRunner";
 import { GitEventWatcher } from "./exec/systemEvents";
