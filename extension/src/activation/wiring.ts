@@ -39,6 +39,7 @@ import { registerProcessMonitorCommands } from "../exec/processMonitorCommands";
 import { registerHygieneCommands } from "../exec/hygieneCommands";
 import { registerBloatCommands } from "../exec/bloatCommands";
 import { registerProjectStatsCommand } from "../exec/projectStats";
+import { registerPubspecOutdatedCommand } from "../exec/pubspecOutdated";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
 import { l10n } from "../i18n/l10n";
 import {
@@ -224,6 +225,11 @@ export function registerCommandModules(
   // Sunrise project stats (#27): the per-language file/line aggregation + git
   // activity summary command, driven by the scheduled "Sunrise project stats" recipe.
   registerProjectStatsCommand(context);
+
+  // Pubspec dependency freshness (#30, pubspec projects): parses `dart pub outdated
+  // --json` and writes a report of ONLY the packages behind latest, driven by the
+  // scheduled "Dependency freshness" recipe.
+  registerPubspecOutdatedCommand(context);
 
   // Schedule & Workflow Planner webview: the visual day/week timelines and the
   // chained-trigger graph. Opens (or reveals the single instance of) the panel.

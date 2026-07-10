@@ -46,6 +46,31 @@ test("members are pre-populated in the fixed run order, hygiene first", () => {
   assert.deepEqual(memberIds, ["hygiene.bloat", "ritual.lint", "ritual.prs"]);
 });
 
+test("the code-health and dependency members sit in morning order", () => {
+  // The TODO/tech-debt harvest and pubspec freshness are morning members (report bug
+  // items 4 and 5): debt runs right after the lint sweep, deps after project stats,
+  // and all resolve into the fixed cadence regardless of detection order.
+  const out = detectRoutineRecipes([
+    recipe("ritual.deps"),
+    recipe("ritual.prs"),
+    recipe("ritual.debt"),
+    recipe("hygiene.bloat"),
+    recipe("ritual.stats"),
+    recipe("ritual.lint"),
+    recipe("ritual.standup"),
+  ]);
+  const memberIds = out[0].action?.members?.map((m) => m.recipeId);
+  assert.deepEqual(memberIds, [
+    "hygiene.bloat",
+    "ritual.lint",
+    "ritual.debt",
+    "ritual.stats",
+    "ritual.deps",
+    "ritual.standup",
+    "ritual.prs",
+  ]);
+});
+
 test("only the present members are included; absent ones are skipped", () => {
   // ritual.standup is not in the detected set, so it must not appear as a member,
   // even though it sits between two members in the canonical order.

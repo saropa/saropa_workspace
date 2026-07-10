@@ -23,3 +23,20 @@ export function takeLastReport(pinId: string): string | undefined {
   lastReport.delete(pinId);
   return value;
 }
+
+// Read WITHOUT clearing. The routine summary reads each member's just-written
+// report path to link it, but must not consume the entry: the scheduler still
+// take()s the report path for a member that is ALSO independently scheduled, and a
+// non-destructive peek here leaves that untouched. The routine path pairs this with
+// clearLastReport BEFORE each member runs, so a peek after the run can only return a
+// report THIS run wrote — never a stale path a prior run of the same member left.
+export function peekLastReport(pinId: string): string | undefined {
+  return lastReport.get(pinId);
+}
+
+// Drop `pinId`'s recorded report path. The routine engine clears each member's entry
+// before running it, so a member that writes NO report this run (a failed / no-op
+// run) does not leave the previous run's path for the summary to relink.
+export function clearLastReport(pinId: string): void {
+  lastReport.delete(pinId);
+}

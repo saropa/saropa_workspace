@@ -49,7 +49,35 @@ cspell:disable
 
 ## [Unreleased]
 
-**Overview** — The number badge on the sidebar icon (the count of shortcuts you had not opened yet) is gone. Opening the sidebar does not "use" a shortcut, so the number would not clear when you clicked the icon, and on its own it never said what it was counting. The small dot next to a shortcut you have not opened or run yet stays — it marks the exact rows without needing an aggregate number. [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+**Overview** — The number badge on the sidebar icon (the count of shortcuts you had not opened yet) is gone. Opening the sidebar does not "use" a shortcut, so the number would not clear when you clicked the icon, and on its own it never said what it was counting. The small dot next to a shortcut you have not opened or run yet stays — it marks the exact rows without needing an aggregate number. Daily reports also read far better now: command output is shown in proper code blocks instead of running together, the morning routine's summary links straight to each report it ran, and a pubspec project gets a dependency-freshness report that lists only the packages that are actually out of date. [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- Pubspec dependency-freshness report that lists only the packages behind their
+  latest version — up-to-date dependencies are omitted, so the report is just the
+  items you can act on. Built by parsing `dart pub outdated --json`, it opens only
+  when something is stale and flags discontinued packages inline.
+- The morning routine now includes the tech-debt/TODO harvest and the dependency-
+  freshness check as members, so the daily report covers lint issues, TODO markers,
+  and out-of-date packages — not only the git and PR digest.
+
+### Changed
+
+- Running a shortcut in an external window (the "new OS window" location) now opens
+  a PowerShell window instead of a plain `cmd.exe` one, and the command is seeded
+  into that window's history — so after it runs you can press up-arrow to rerun it
+  in the same window without retyping. `cmd.exe` could not do this: a command it
+  runs at launch never enters the up-arrow history. The window still cd's to the
+  shortcut's folder first and stays open after the command finishes. Note: because
+  the shell is now PowerShell, a command that relied on `cmd`-only syntax
+  (`%VAR%`, `dir`, `&` chaining) may behave differently.
+- Scheduled reports (standup, end-of-day, tech-debt, branches, journal, PR queue)
+  now render the captured command output inside a fenced code block, with a cleaner
+  Markdown header. A `git log --stat` or `git status` dump no longer renders as
+  mangled prose; an empty result reads as an explicit "No output." line.
+- The morning-routine summary now carries a Report column that links each member's
+  own report relative to the summary file, so the summary is the one clickable index
+  over the day's sub-reports.
 
 ### Removed
 
