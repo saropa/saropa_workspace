@@ -45,6 +45,57 @@ export interface ShortcutRowDescriptionResult {
   readonly metricText: string | undefined;
 }
 
+// Leading inline badge, by priority: a running shortcut's live state wins; then a
+// locked-dependency notice; then a paused notice; then a scheduled shortcut's queued
+// next-run time (2.2); then the last completed run's outcome and duration (7.2). Only
+// one badge shows — the most actionable.
+function computeRowStateBadge(input: ShortcutRowDescriptionInput): string | undefined {
+  const { shortcut, isRunning, isStopping, lastRun, lockedBy } = input;
+  const next = shortcut.schedule
+    ? nextOccurrence(shortcut.schedule, Date.now())
+    : undefined;
+  const nextLabel = next !== undefined ? formatNextRun(next) : undefined;
+  const lastRunBadge = lastRun ? formatRunBadge(lastRun) : undefined;
+  // A locked shortcut's "waiting on <prerequisite>" badge wins over a schedule /
+  // last-run badge while resting, since not-yet-runnable is the most actionable
+  // resting fact.
+  const lockBadge =
+    lockedBy && !isRunning && !isStopping
+      ? l10n("depends.treeBadge", { dep: lockedBy })
+      : undefined;
+  // A paused shortcut shows a "paused" badge instead of its next-run time: the
+  // schedule is kept but no timer is armed, so surfacing a next-run instant it will
+  // not honor would mislead. Running / stopping / a lock still win — those are live,
+  // more actionable states, and a paused shortcut can still be run manually.
+  return isStopping
+    ? l10n("run.stoppingBadge")
+    : isRunning
+      ? l10n("run.treeBadge")
+      : lockBadge
+        ? lockBadge
+        : shortcut.paused
+          ? l10n("pause.treeBadge")
+          : nextLabel
+            ? l10n("schedule.treeBadge", { time: nextLabel })
+            : lastRunBadge;
+}
+
+// The live metric value (#24), shared by the row and the hover. Size / line text is
+// precomputed by the engine; "modified" is formatted relative here so it stays
+// current between repaints (the engine cannot re-fire just because wall-clock
+// advanced). A masked shortcut shows no metric: a size/line-count value is a hint
+// about the target, and the point of masking is to leak nothing while resting.
+function computeRowMetricText(
+  metricBadge: MetricBadge | undefined,
+  masked: boolean
+): string | undefined {
+  return metricBadge && !masked
+    ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
+      ? formatRelativeTime(metricBadge.mtime, Date.now())
+      : metricBadge.text
+    : undefined;
+}
+
 // Assemble a shortcut tree row's trailing description: the leading state badge
 // (running / scheduled / paused / last-run), the identity detail (path or action
 // summary), and the live metric — or, for a Recent-group entry, when it last ran
@@ -65,37 +116,7 @@ export function buildShortcutRowDescription(
     recentInfo,
   } = input;
 
-  // Leading inline badge, by priority: a running shortcut's live state wins; then a
-  // scheduled shortcut's queued next-run time (2.2); then the last completed run's
-  // outcome and duration (7.2). Only one badge shows — the most actionable.
-  const next = shortcut.schedule
-    ? nextOccurrence(shortcut.schedule, Date.now())
-    : undefined;
-  const nextLabel = next !== undefined ? formatNextRun(next) : undefined;
-
-  const lastRunBadge = lastRun ? formatRunBadge(lastRun) : undefined;
-  // A locked shortcut's "waiting on <prerequisite>" badge wins over a schedule /
-  // last-run badge while resting, since not-yet-runnable is the most actionable
-  // resting fact.
-  const lockBadge =
-    lockedBy && !isRunning && !isStopping
-      ? l10n("depends.treeBadge", { dep: lockedBy })
-      : undefined;
-  // A paused shortcut shows a "paused" badge instead of its next-run time: the
-  // schedule is kept but no timer is armed, so surfacing a next-run instant it will
-  // not honor would mislead. Running / stopping / a lock still win — those are live,
-  // more actionable states, and a paused shortcut can still be run manually.
-  const badge = isStopping
-    ? l10n("run.stoppingBadge")
-    : isRunning
-      ? l10n("run.treeBadge")
-      : lockBadge
-        ? lockBadge
-        : shortcut.paused
-          ? l10n("pause.treeBadge")
-          : nextLabel
-            ? l10n("schedule.treeBadge", { time: nextLabel })
-            : lastRunBadge;
+  const badge = computeRowStateBadge(input);
   // For a file shortcut the trailing detail is its path; for a non-file shortcut it
   // is a summary of what the action does (the URL, the command line, etc.). A masked
   // shortcut contributes none — the path is exactly what must stay hidden — so the
@@ -105,9 +126,6 @@ export function buildShortcutRowDescription(
     : isFile
       ? shortcut.path
       : actionSummary(shortcut);
-  // A Recent entry leads with when it last ran (and a hint if it was a scheduled
-  // fire), since "how recently" is the reason it is in this group; otherwise the
-  // leading slot is the most-actionable badge (running / next-run / last-run).
   // A resting shortcut's last-sweep counts lead the row (the most informative resting
   // fact for a lint / test shortcut), then the state badge, then the path/action
   // detail. Suppressed while running/stopping, where the live state is what matters.
@@ -115,20 +133,12 @@ export function buildShortcutRowDescription(
     sweepBadge && !isRunning && !isStopping
       ? formatBadgeLead(sweepBadge)
       : undefined;
-  // The live metric value (#24), shared by the row and the hover. Size / line text
-  // is precomputed by the engine; "modified" is formatted relative here so it stays
-  // current between repaints (the engine cannot re-fire just because wall-clock
-  // advanced). Hoisted above the recent/normal split so the tooltip can reuse it.
-  // A masked shortcut shows no metric: a size/line-count value is a hint about the
-  // target, and the point of masking is to leak nothing while resting.
-  const metricText =
-    metricBadge && !masked
-      ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
-        ? formatRelativeTime(metricBadge.mtime, Date.now())
-        : metricBadge.text
-      : undefined;
+  const metricText = computeRowMetricText(metricBadge, masked);
 
   let description: string;
+  // A Recent entry leads with when it last ran (and a hint if it was a scheduled
+  // fire), since "how recently" is the reason it is in this group; otherwise the
+  // leading slot is the most-actionable badge (running / next-run / last-run).
   if (recentInfo) {
     const when = formatRelativeTime(recentInfo.at, Date.now());
     // Tag a Recent entry as opened vs a scheduled fire (a plain manual run gets no

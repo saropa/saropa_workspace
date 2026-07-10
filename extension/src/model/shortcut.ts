@@ -16,6 +16,16 @@ import {
   ShortcutMetric,
 } from "./shortcutSchedule";
 
+// The central shortcut record: a pin to a file or a non-file action (url/shell/
+// command/macro), plus every optional behavior it can carry — exec/schedule
+// config, chaining triggers/emits, appearance (icon/color/order), grouping,
+// tagging, branch-scoping, pause, masking, single-instance/lock control, and the
+// WOW-feature fields (line jump, tail-follow, live metric badge, time-bomb
+// expiry). Read/written verbatim by ShortcutStore (persistence), rendered by the
+// tree provider, and acted on by the runner/dispatcher. Auto and recipe
+// shortcuts are recomputed on each refresh rather than stored, so several fields
+// below are explicitly scoped to "stored (explicit) shortcuts only" — see the
+// per-field comments for which.
 export interface Shortcut {
   // Stable id, unique within its scope. Used by the click dispatcher and menus.
   id: string;

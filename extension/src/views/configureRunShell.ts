@@ -23,6 +23,10 @@ export function shortcutName(shortcut: Shortcut): string {
   return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
+// Build the full webview HTML document for one shortcut's Configure Run form: the CSP
+// shell, the hero header, and the six form cards assembled in order, plus the env-row
+// <template> the client clones for each new environment variable. Rebuilt from scratch on
+// every open/repoint since a panel only ever shows one shortcut's config at a time.
 export function renderConfigureRunHtml(store: ShortcutStore, shortcut: Shortcut): string {
   const nonce = crypto.randomBytes(16).toString("base64");
   const csp = [

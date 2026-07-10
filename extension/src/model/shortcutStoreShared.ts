@@ -33,6 +33,8 @@ export interface MoveTarget {
 // its id in removedAutoPins so it is not re-seeded.
 
 export const GLOBAL_STATE_KEY = "saropaWorkspace.globalPins";
+// globalState key for global-scope shortcut groups; mirrors GLOBAL_STATE_KEY above
+// but for the group list rather than the shortcuts themselves.
 export const GLOBAL_GROUPS_KEY = "saropaWorkspace.globalGroups";
 
 // True when an auto-shortcut pattern uses glob syntax that needs the workspace search

@@ -30,6 +30,11 @@ function baseNameFor(shortcut: Shortcut): string {
   return display;
 }
 
+// "Duplicate with Argument" command entry point. Only meaningful for a file shortcut
+// (a url/shell/command action has no argument line), so warns and exits otherwise.
+// Prompts for the new argument line (pre-filled with the source's current args) then a
+// default name (base name + the entered args, so the variant is self-describing), and
+// hands both to store.duplicateShortcut.
 export async function duplicateWithArgs(
   store: ShortcutStore,
   shortcut: Shortcut

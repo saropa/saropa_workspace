@@ -96,26 +96,33 @@ async function directoryExists(fsPath: string): Promise<boolean> {
   }
 }
 
+interface EnvItem extends vscode.QuickPickItem {
+  id: string; // "add" or "var:<key>"
+}
+
+// Sub-hub list: an "Add" action plus one row per existing KEY = value pair.
+function buildEnvItems(env: Record<string, string>): EnvItem[] {
+  const items: EnvItem[] = [{ id: "add", label: l10n("configure.env.add") }];
+  for (const key of Object.keys(env)) {
+    items.push({
+      id: `var:${key}`,
+      label: `$(symbol-variable) ${key}`,
+      description: env[key],
+    });
+  }
+  return items;
+}
+
+// Environment-variable sub-hub: loops a QuickPick of an "Add" row plus one row per
+// existing KEY = value pair so the user can manage several variables before returning
+// to the run-parameters hub. Esc returns with whatever edits were already made intact.
 export async function editEnv(work: ShortcutExecConfig, title: string): Promise<void> {
   // Sub-hub: list each KEY = value, an Add action, and per-entry edit/remove.
   // Looping here lets the user manage several variables before returning.
   for (;;) {
     const env = work.env ?? {};
     const keys = Object.keys(env);
-
-    interface EnvItem extends vscode.QuickPickItem {
-      id: string; // "add" or "var:<key>"
-    }
-    const items: EnvItem[] = [
-      { id: "add", label: l10n("configure.env.add") },
-    ];
-    for (const key of keys) {
-      items.push({
-        id: `var:${key}`,
-        label: `$(symbol-variable) ${key}`,
-        description: env[key],
-      });
-    }
+    const items = buildEnvItems(env);
 
     const pick = await vscode.window.showQuickPick(items, {
       title,
@@ -128,61 +135,82 @@ export async function editEnv(work: ShortcutExecConfig, title: string): Promise<
     }
 
     if (pick.id === "add") {
-      const key = await vscode.window.showInputBox({
-        title,
-        prompt: l10n("configure.env.keyPrompt"),
-        ignoreFocusOut: true,
-        validateInput: (input) => validateEnvKey(input, keys),
-      });
-      if (key === undefined) {
-        continue;
-      }
-      const value = await vscode.window.showInputBox({
-        title,
-        prompt: l10n("configure.env.valuePrompt", { key: key.trim() }),
-        ignoreFocusOut: true,
-      });
-      if (value === undefined) {
-        continue;
-      }
-      work.env = { ...env, [key.trim()]: value };
+      await handleAddEnvVar(work, title, keys);
       continue;
     }
 
     // Existing entry: edit its value or remove it.
     const key = pick.id.slice("var:".length);
-    interface EnvActionItem extends vscode.QuickPickItem {
-      id: "edit" | "delete";
+    await handleEditExistingEnvVar(work, title, key);
+  }
+}
+
+// "Add" branch: prompt for a new key (validated for empty / "=" / duplicate),
+// then its value. Leaves `work` untouched if either prompt is dismissed.
+async function handleAddEnvVar(
+  work: ShortcutExecConfig,
+  title: string,
+  keys: string[]
+): Promise<void> {
+  const env = work.env ?? {};
+  const key = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("configure.env.keyPrompt"),
+    ignoreFocusOut: true,
+    validateInput: (input) => validateEnvKey(input, keys),
+  });
+  if (key === undefined) {
+    return;
+  }
+  const value = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("configure.env.valuePrompt", { key: key.trim() }),
+    ignoreFocusOut: true,
+  });
+  if (value === undefined) {
+    return;
+  }
+  work.env = { ...env, [key.trim()]: value };
+}
+
+// Existing-entry branch: a nested edit/delete pick, then that action's prompt.
+async function handleEditExistingEnvVar(
+  work: ShortcutExecConfig,
+  title: string,
+  key: string
+): Promise<void> {
+  const env = work.env ?? {};
+  interface EnvActionItem extends vscode.QuickPickItem {
+    id: "edit" | "delete";
+  }
+  const action = await vscode.window.showQuickPick<EnvActionItem>(
+    [
+      { id: "edit", label: l10n("configure.env.edit") },
+      { id: "delete", label: l10n("configure.env.delete") },
+    ],
+    {
+      title,
+      placeHolder: l10n("configure.env.actionPlaceholder", { key }),
+      ignoreFocusOut: true,
     }
-    const action = await vscode.window.showQuickPick<EnvActionItem>(
-      [
-        { id: "edit", label: l10n("configure.env.edit") },
-        { id: "delete", label: l10n("configure.env.delete") },
-      ],
-      {
-        title,
-        placeHolder: l10n("configure.env.actionPlaceholder", { key }),
-        ignoreFocusOut: true,
-      }
-    );
-    if (!action) {
-      continue;
+  );
+  if (!action) {
+    return;
+  }
+  if (action.id === "edit") {
+    const value = await vscode.window.showInputBox({
+      title,
+      prompt: l10n("configure.env.valuePrompt", { key }),
+      value: env[key],
+      ignoreFocusOut: true,
+    });
+    if (value === undefined) {
+      return;
     }
-    if (action.id === "edit") {
-      const value = await vscode.window.showInputBox({
-        title,
-        prompt: l10n("configure.env.valuePrompt", { key }),
-        value: env[key],
-        ignoreFocusOut: true,
-      });
-      if (value === undefined) {
-        continue;
-      }
-      work.env = { ...env, [key]: value };
-    } else {
-      const { [key]: _removed, ...rest } = env;
-      work.env = rest;
-    }
+    work.env = { ...env, [key]: value };
+  } else {
+    const { [key]: _removed, ...rest } = env;
+    work.env = rest;
   }
 }
 

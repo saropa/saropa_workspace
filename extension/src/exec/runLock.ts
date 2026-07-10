@@ -96,6 +96,9 @@ export function holderOf(name: string): LockRecord | undefined {
   return isLockStale(record, os.hostname(), isPidAlive) ? undefined : record;
 }
 
+// Whether the named lock currently has a live holder, on this host or another.
+// The single check the concurrency guard calls before starting a run — see
+// holderOf for how staleness is decided.
 export function isHeld(name: string): boolean {
   return holderOf(name) !== undefined;
 }

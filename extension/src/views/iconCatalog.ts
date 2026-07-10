@@ -17,6 +17,9 @@ export interface IconCategory {
   ids: readonly string[];
 }
 
+// The grouped icon catalog itself: 28 categories in display order, each holding its icon
+// ids in the icon font's own order (which the Customize icon grid preserves). Generated
+// data — regenerate via the codicon catalog generator rather than hand-editing.
 export const ICON_CATEGORIES: readonly IconCategory[] = [
   { id: "file", ids: ["archive", "file", "file-code", "files", "folder", "folder-opened", "new-file", "new-folder", "file-binary", "file-media", "file-pdf", "file-symlink-directory", "file-symlink-file", "file-text", "file-zip", "folder-active", "folder-library", "notebook-template", "root-folder", "root-folder-opened", "unarchive"] },
   { id: "development", ids: ["code", "json", "markdown", "notebook", "output", "package", "build", "edit-code", "mcp", "references", "surround-with", "type-hierarchy", "type-hierarchy-sub", "type-hierarchy-super"] },

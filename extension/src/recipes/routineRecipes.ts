@@ -35,6 +35,10 @@ const MORNING_MEMBER_ORDER: ReadonlyArray<{ recipeId: string; label: string }> =
 // propose an empty or single-member routine.
 const MIN_MEMBERS = 2;
 
+// Builds the Morning routine from whichever morning rituals the other detectors
+// already produced (passed in as `detected`), pre-populating its member list from
+// what actually exists in run order. Returns no recipe at all when fewer than
+// MIN_MEMBERS were detected, so a sparse project never gets a near-empty routine.
 export function detectRoutineRecipes(detected: RecipeResult[]): RecipeResult[] {
   const present = new Set(detected.map((r) => r.recipeId));
   const members: RoutineMember[] = MORNING_MEMBER_ORDER.filter((m) =>

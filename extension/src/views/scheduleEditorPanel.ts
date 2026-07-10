@@ -36,6 +36,10 @@ interface ScheduleDefaults {
 }
 const DEFAULTS_KEY = "saropaWorkspace.schedule.defaults";
 
+// Owns the single Schedule editor webview panel: creation/reuse/repoint, the
+// message protocol with the client (ready/change/save/cancel), and persisting the
+// result back through the store. A singleton (`current`) so a second "Configure
+// Schedule..." invocation retargets the existing panel instead of opening a duplicate.
 export class ScheduleEditorPanel {
   private static current: ScheduleEditorPanel | undefined;
   private static readonly viewType = "saropaWorkspace.scheduleEditor";

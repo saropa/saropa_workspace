@@ -49,6 +49,9 @@ export function registerTerminalCleanup(context: vscode.ExtensionContext): void 
   );
 }
 
+// Send a run to the shared "Saropa Workspace" terminal: create it (rooted at cwd)
+// on first use, reuse it otherwise, cd only when the target directory differs
+// from where the terminal already sits, then send the command line.
 export function runInTerminal(
   commandLine: string,
   cwd: string,

@@ -29,6 +29,12 @@ interface WorkTriggers {
   emits: SystemEventName[];
 }
 
+// "Configure Triggers" command entry point (recipe chaining + special events). Warns
+// and exits for an auto-shortcut (nowhere to persist triggers); otherwise builds a
+// working copy of the triggers/emits lists, loops the hub tracking the last-acted row
+// so an add/remove/toggle does not bounce focus to the top, and persists both lists on
+// Save. Also the QuickPick counterpart to the Planner & Workflow webview, which edits
+// the same store method for the visual graph.
 export async function configureTriggers(
   store: ShortcutStore,
   shortcut: Shortcut

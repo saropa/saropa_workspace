@@ -22,6 +22,10 @@ const CSV_HEADER = "timestamp,tool,cpuPercent,rssBytes,pidCount";
 // Config keys, read fresh each tick so an edit takes effect without a reload.
 const CONFIG = "saropaWorkspace.processMonitor";
 
+// Owns the sampling timer: on each tick it polls the toolchain set, appends a CSV row
+// per tool, and toasts (once per breach, via the latch below) when a tool crosses its
+// RAM or helper-process ceiling. Re-arms itself whenever the process-monitor config
+// changes, so an interval/enabled edit takes effect without a reload.
 export class Heartbeat implements vscode.Disposable {
   private timer: NodeJS.Timeout | undefined;
   private readonly configListener: vscode.Disposable;
@@ -208,6 +212,9 @@ export interface TrendSeries {
   tools: { tool: string; points: number[] }[];
 }
 
+// Load the trend CSV for the current workspace and hand its text to parseTrendSeries
+// for the actual grouping. This half owns only the file IO — an absent/unreadable
+// file yields the empty TrendSeries above rather than throwing.
 export async function readTrendSeries(count: number): Promise<TrendSeries> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {

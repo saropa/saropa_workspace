@@ -21,6 +21,9 @@ const SIBLING_SOURCES: ReadonlyArray<{ relPath: string; format: SiblingFormat }>
   { relPath: ".vscode/saropa-workspace.json", format: "saropa" },
 ];
 
+// One favorites file found in a sibling project during detectSiblingFavorites, naming
+// which sibling folder it came from and which format to resolve it as, so
+// importSiblingFavorites can turn it into absolute file URIs without re-scanning.
 export interface SiblingFavorites {
   siblingDir: vscode.Uri;
   siblingName: string;

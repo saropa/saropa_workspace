@@ -13,6 +13,9 @@ import * as vscode from "vscode";
 
 export type RunOutcome = "success" | "failure";
 
+// One completed background run's tracked outcome: success/failure, exit code, and
+// timing — the payload the tree's status badge and the run-analytics summary
+// both render from.
 export interface RunResult {
   outcome: RunOutcome;
   // Process exit code; null when the process was terminated by a signal or never

@@ -19,6 +19,9 @@ const LOOKUP_TIMEOUT_MS = 4000;
 // cleanly before forcing it.
 const KILL_GRACE_MS = 1500;
 
+// The process found listening on a blocked port: its PID (always known once a
+// holder is resolved) and, best-effort, the image/command name shown in the
+// confirm prompt.
 export interface PortHolder {
   pid: number;
   // The process image/command name (e.g. "node.exe", "node"). Undefined when the

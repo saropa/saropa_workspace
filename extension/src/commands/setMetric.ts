@@ -30,6 +30,9 @@ const KIND_CHOICES: readonly KindChoice[] = [
   { kind: "off", labelKey: "metric.kind.off", detailKey: "metric.kind.offDetail" },
 ];
 
+// Drive the metric-editor flow: reject auto-shortcuts and non-file shortcuts (nothing
+// to persist a metric onto or measure), let the user pick a kind, prompt for an
+// optional size threshold, then save (or clear, for "Off") and confirm.
 export async function setMetric(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
   // Auto-shortcuts are recomputed each refresh and never stored in pins[], so there is
   // nowhere to persist a metric; surface that rather than silently failing.
@@ -47,6 +50,44 @@ export async function setMetric(store: ShortcutStore, shortcut: Shortcut): Promi
   const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
   const title = l10n("metric.title", { name });
 
+  const kind = await pickMetricKind(shortcut, title);
+  if (!kind) {
+    return; // Esc: leave the metric unchanged.
+  }
+
+  if (kind === "off") {
+    await store.setShortcutMetric(shortcut, undefined);
+    vscode.window.showInformationMessage(l10n("metric.cleared", { name }));
+    return;
+  }
+
+  // A threshold only makes sense for the size metric (line count / modified have no
+  // byte ceiling). For size, offer one; pre-fill the shortcut's current threshold.
+  let thresholdBytes: number | undefined;
+  if (kind === "size") {
+    const result = await promptSizeThreshold(shortcut, title);
+    if (result === "esc") {
+      return; // Esc on the threshold step aborts without writing.
+    }
+    thresholdBytes = result;
+  }
+
+  const metric: ShortcutMetric =
+    kind === "size" && thresholdBytes !== undefined
+      ? { kind: "size", thresholdBytes }
+      : { kind };
+  await store.setShortcutMetric(shortcut, metric);
+
+  notifyMetricSaved(name, kind, thresholdBytes);
+}
+
+// Show the QuickPick of metric kinds (size / lines / modified / off), pre-selecting
+// the shortcut's current kind. Returns undefined on Esc (caller leaves the metric
+// unchanged).
+async function pickMetricKind(
+  shortcut: Shortcut,
+  title: string
+): Promise<KindChoice["kind"] | undefined> {
   interface KindItem extends vscode.QuickPickItem {
     value: KindChoice["kind"];
   }
@@ -61,56 +102,52 @@ export async function setMetric(store: ShortcutStore, shortcut: Shortcut): Promi
     title,
     placeHolder: l10n("metric.kindPlaceholder"),
   });
-  if (!pick) {
-    return; // Esc: leave the metric unchanged.
+  return pick?.value;
+}
+
+// Prompt for an optional byte threshold once the size metric is chosen, pre-filling
+// the shortcut's current threshold. Returns "esc" when the user dismisses the prompt
+// (caller aborts without writing); otherwise the parsed threshold, where undefined
+// means no threshold was set (badge only, no warning ceiling).
+async function promptSizeThreshold(
+  shortcut: Shortcut,
+  title: string
+): Promise<number | undefined | "esc"> {
+  const seed =
+    shortcut.metric?.kind === "size" && shortcut.metric.thresholdBytes !== undefined
+      ? formatBytes(shortcut.metric.thresholdBytes)
+      : "";
+  const entered = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("metric.thresholdPrompt"),
+    placeHolder: l10n("metric.thresholdPlaceholder"),
+    value: seed,
+    validateInput: (input) => {
+      const trimmed = input.trim();
+      if (trimmed === "") {
+        return undefined; // empty = no threshold (badge only)
+      }
+      return parseSize(trimmed) === undefined
+        ? l10n("metric.thresholdInvalid")
+        : undefined;
+    },
+  });
+  if (entered === undefined) {
+    return "esc";
   }
+  return entered.trim() === "" ? undefined : parseSize(entered.trim());
+}
 
-  if (pick.value === "off") {
-    await store.setShortcutMetric(shortcut, undefined);
-    vscode.window.showInformationMessage(l10n("metric.cleared", { name }));
-    return;
-  }
-
-  // A threshold only makes sense for the size metric (line count / modified have no
-  // byte ceiling). For size, offer one; pre-fill the shortcut's current threshold.
-  let thresholdBytes: number | undefined;
-  if (pick.value === "size") {
-    const seed =
-      shortcut.metric?.kind === "size" && shortcut.metric.thresholdBytes !== undefined
-        ? formatBytes(shortcut.metric.thresholdBytes)
-        : "";
-    const entered = await vscode.window.showInputBox({
-      title,
-      prompt: l10n("metric.thresholdPrompt"),
-      placeHolder: l10n("metric.thresholdPlaceholder"),
-      value: seed,
-      validateInput: (input) => {
-        const trimmed = input.trim();
-        if (trimmed === "") {
-          return undefined; // empty = no threshold (badge only)
-        }
-        return parseSize(trimmed) === undefined
-          ? l10n("metric.thresholdInvalid")
-          : undefined;
-      },
-    });
-    if (entered === undefined) {
-      return; // Esc on the threshold step aborts without writing.
-    }
-    thresholdBytes = entered.trim() === "" ? undefined : parseSize(entered.trim());
-  }
-
-  const metric: ShortcutMetric =
-    pick.value === "size" && thresholdBytes !== undefined
-      ? { kind: "size", thresholdBytes }
-      : { kind: pick.value };
-  await store.setShortcutMetric(shortcut, metric);
-
-  // Name the metric (and the threshold when set) so the confirmation ties to the
-  // concrete choice rather than a generic "saved".
-  // Use the plain kind name (no codicon) for the toast — showInformationMessage
-  // renders $(icon) syntax literally, so the picker labels would leak "$(dashboard)".
-  const kindName = l10n(`metric.name.${pick.value}`);
+// Compose and show the save confirmation, naming the metric kind (and the threshold
+// when set) so the toast ties to the concrete choice rather than a generic "saved".
+// Uses the plain kind name (no codicon) — showInformationMessage renders $(icon)
+// syntax literally, so the picker labels would leak "$(dashboard)".
+function notifyMetricSaved(
+  name: string,
+  kind: ShortcutMetric["kind"],
+  thresholdBytes: number | undefined
+): void {
+  const kindName = l10n(`metric.name.${kind}`);
   vscode.window.showInformationMessage(
     thresholdBytes !== undefined
       ? l10n("metric.savedThreshold", {

@@ -61,6 +61,10 @@ function extractAnyRemoteUrl(config: string): string | undefined {
   return url ? url[1].trim() : undefined;
 }
 
+// Turn a raw `git remote -v` style URL — scp-style (git@host:owner/repo.git),
+// https://, or ssh:// — into a normalized https web base plus a host kind (used to
+// pick GitHub/GitLab/Bitbucket-specific paths) and the owner/repo pair. Returns
+// undefined for a URL shape none of the three forms match.
 export function normalizeRemote(raw: string): GitRemote | undefined {
   let url = raw.trim();
   // scp-style: git@github.com:owner/repo(.git)

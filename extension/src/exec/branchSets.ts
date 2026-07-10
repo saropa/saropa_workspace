@@ -33,6 +33,9 @@ export interface BranchSetBinding {
   runPinId?: string;
 }
 
+// Watches the primary folder's git branch and, when enabled, aligns the active
+// shortcut set (and optionally runs one shortcut) to whatever the current branch is
+// bound to. Disposable so its BranchTracker subscription is released on deactivation.
 export class BranchSetBinder implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
 

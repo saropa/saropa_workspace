@@ -9,6 +9,10 @@ import { runStatusRegistry } from "../exec/runStatus";
 import { isRunnable } from "../exec/runner";
 import { l10n } from "../i18n/l10n";
 
+// A single node in the planner's chain graph — either a shortcut ("pin", carrying its
+// schedule/emits/runnable state for the inspector and timeline) or a synthesized
+// system-event source node. The kind-specific fields stay optional on one flat shape
+// rather than a discriminated union because the client script reads them positionally.
 export interface PlannerNode {
   id: string;
   kind: "pin" | "event";
@@ -27,12 +31,18 @@ export interface PlannerNode {
   event?: SystemEventName;
 }
 
+// A directed edge in the chain graph: `from` triggers `to`, either because a shortcut
+// lists another shortcut as a trigger (kind "pin") or because it fires on a system event
+// (kind "event", with `from` set to the matching synthesized `event:<name>` node id).
 export interface PlannerEdge {
   from: string;
   to: string;
   kind: "pin" | "event";
 }
 
+// The full graph payload posted to the planner webview: every non-auto shortcut as a
+// node plus the synthesized event nodes, and only the edges that survived the
+// dangling-reference filter in buildData (a removed shortcut leaves no orphan arrow).
 export interface PlannerData {
   nodes: PlannerNode[];
   edges: PlannerEdge[];

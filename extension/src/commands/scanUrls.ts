@@ -19,6 +19,10 @@ function urlOf(shortcut: Shortcut): string | undefined {
   return action?.kind === "url" && typeof action.url === "string" ? action.url : undefined;
 }
 
+// Run the URL scan, drop candidates already pinned in either scope, and let the user
+// multi-select which of what remains to add as project-scoped url shortcuts. Distinguishes
+// "nothing discoverable" from "already added everything" so an empty result never
+// reads as a scan failure.
 export async function scanProjectUrls(store: ShortcutStore): Promise<void> {
   const found = await detectUrlCandidates();
 

@@ -358,6 +358,8 @@ import { runRoutine } from "./routineRunner";
 export { setRoutineHooks, RoutineHooks } from "./routineRunner";
 
 
+// The primary workspace folder's absolute path, or undefined with no folder open. The
+// cwd fallback for a shell/macro action that carries no explicit cwd of its own.
 export function firstWorkspacePath(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }

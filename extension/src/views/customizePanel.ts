@@ -46,6 +46,10 @@ interface SaveMessage {
   tags?: string[];
 }
 
+// Host-side controller for the Customize webview panel: owns the panel lifecycle
+// (singleton instance, repoint-on-reopen for a different shortcut), the postMessage
+// protocol with the client script, and persists all four facets (name, icon, color, tags)
+// together on save so the tree reflects one atomic edit rather than four separate ones.
 export class CustomizePanel {
   private static current: CustomizePanel | undefined;
   private static readonly viewType = "saropaWorkspace.customize";

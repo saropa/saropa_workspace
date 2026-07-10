@@ -13,6 +13,8 @@ import { LAUNCHER_SCRIPT_CARDS } from './launcher/launcherScriptCards';
 import { LAUNCHER_SCRIPT_RENDER } from './launcher/launcherScriptRender';
 import { LAUNCHER_SCRIPT_MENU } from './launcher/launcherScriptMenu';
 
+// The reassembled launcher webview script, in fragment load order (see the file header
+// for why the fragments are split and how the concatenation is injected).
 export const LAUNCHER_SCRIPT =
   '\n' +
   LAUNCHER_SCRIPT_CORE +

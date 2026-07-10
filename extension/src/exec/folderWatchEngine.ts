@@ -68,6 +68,10 @@ interface ArmedWatch {
   debounce?: NodeJS.Timeout;
 }
 
+// Runs both halves of the folder/file watch feature: the deferred startup scan that
+// surfaces changes made while the window was closed, and the live FileSystemWatcher
+// per enabled watch while it stays open. Disposable so every watcher and pending
+// timer is torn down on deactivation.
 export class FolderWatchEngine implements vscode.Disposable {
   // Live watchers keyed by watch id, so a store change re-arms only what changed.
   private readonly armed = new Map<string, ArmedWatch>();

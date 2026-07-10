@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import type { ChildProcessWithoutNullStreams } from "child_process";
 import { SoundOverride } from "../model/shortcut";
 import { processRegistry } from "./processRegistry";
 import * as runLock from "./runLock";
@@ -57,18 +58,9 @@ export async function runInBackground(
     runLock.acquire(lockName, child.pid, name);
   }
   // Accumulate the combined output so the last two runs can be diffed (WOW #20),
-  // in addition to streaming it live to the channel.
-  let captured = "";
-  child.stdout?.on("data", (d) => {
-    const text = d.toString();
-    captured += text;
-    channel.append(text);
-  });
-  child.stderr?.on("data", (d) => {
-    const text = d.toString();
-    captured += text;
-    channel.append(text);
-  });
+  // in addition to streaming it live to the channel. No coupling to the settle()
+  // closure below, so this phase is fully extracted.
+  const capture = attachOutputCapture(child, channel);
 
   // Node may emit BOTH "error" (spawn failed) and "close" for the same failed
   // run; settle once so the result is recorded and the toast shown a single time.
@@ -99,29 +91,17 @@ export async function runInBackground(
     // (with onlyOnSuccess) runs only when this background run actually succeeded.
     shortcutEvents.fireComplete(pinId, outcome);
     // Keep this run's output for the "Diff Last Two Runs" command.
-    runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
-    // Badge the shortcut with any lint severity counts or test tally found in the output
-    // (#26, #32) — so the lint sweep / test-trend ritual shows its result on the shortcut
-    // itself, not only in the report. No-op when the output is neither.
-    const badge = parseRunBadge(captured);
-    if (badge) {
-      shortcutBadges.record(pinId, badge);
-    }
-    // Pull a configured value (a deploy URL, a generated id) out of the output and
-    // copy it to the clipboard. Runs on any completion — a URL printed before a
-    // non-zero exit is still worth grabbing.
-    if (extractResult) {
-      extractAndCopy(extractResult, captured, name);
-    }
-    // A success is a quiet confirmation; a failure may carry an actionable cause —
-    // a held port (WOW #1) or a tool-suggested fix command (WOW #12) — so the
-    // failure path resolves those (async, for the port-holder lookup) before its
-    // toast. Routed off settle so the run record above is written synchronously.
-    if (outcome === "failure") {
-      void notifyFailure(name, code, durationMs, captured, cwd, retry);
-    } else {
-      notifyCompletion(name, outcome, code, durationMs, undefined);
-    }
+    runOutputs.record(pinId, { output: capture.getCaptured(), endedAt, exitCode: code });
+    // Badge, extract, and notify: none of this needs the dedupe guard or the
+    // registries above, so it is delegated to keep this closure focused on the
+    // mutable state (settled, the registries) the header comment defends keeping
+    // together.
+    handleRunSettled(
+      { pinId, name, cwd, captured: capture.getCaptured(), extractResult, retry },
+      outcome,
+      code,
+      durationMs
+    );
   };
 
   // On exit, record the result so the tree shows a success/failure badge (7.2)
@@ -143,6 +123,74 @@ export async function runInBackground(
     channel.appendLine(`\n[${name}] failed to start: ${err.message}`);
     settle("failure", null);
   });
+}
+
+// Wire the child's stdout/stderr to the shared channel, accumulating the combined
+// text so callers can read it back once the run settles. No dependency on settle()'s
+// mutable state (the dedupe guard, the registries), so — unlike the rest of
+// runInBackground — this phase is safe to fully extract.
+function attachOutputCapture(
+  child: ChildProcessWithoutNullStreams,
+  channel: vscode.OutputChannel
+): { getCaptured(): string } {
+  let captured = "";
+  child.stdout?.on("data", (d) => {
+    const text = d.toString();
+    captured += text;
+    channel.append(text);
+  });
+  child.stderr?.on("data", (d) => {
+    const text = d.toString();
+    captured += text;
+    channel.append(text);
+  });
+  return { getCaptured: () => captured };
+}
+
+// The fields the settled tail (badge, extract, notify) reads from a finished run.
+// Carried as one object rather than five parameters so handleRunSettled reads like
+// the settle() closure it was split from, not an arbitrary function signature.
+interface RunSettledContext {
+  readonly pinId: string;
+  readonly name: string;
+  readonly cwd: string;
+  readonly captured: string;
+  readonly extractResult?: string;
+  readonly retry?: () => void;
+}
+
+// The safely-separable tail of settle(): badge parsing, extract-and-copy, and the
+// success/failure notify dispatch. Split out from settle() because none of it reads
+// or writes the closure's mutable state (settled, the registries) — that state stays
+// in settle() itself per the header comment above.
+function handleRunSettled(
+  ctx: RunSettledContext,
+  outcome: "success" | "failure",
+  code: number | null,
+  durationMs: number
+): void {
+  // Badge the shortcut with any lint severity counts or test tally found in the output
+  // (#26, #32) — so the lint sweep / test-trend ritual shows its result on the shortcut
+  // itself, not only in the report. No-op when the output is neither.
+  const badge = parseRunBadge(ctx.captured);
+  if (badge) {
+    shortcutBadges.record(ctx.pinId, badge);
+  }
+  // Pull a configured value (a deploy URL, a generated id) out of the output and
+  // copy it to the clipboard. Runs on any completion — a URL printed before a
+  // non-zero exit is still worth grabbing.
+  if (ctx.extractResult) {
+    extractAndCopy(ctx.extractResult, ctx.captured, ctx.name);
+  }
+  // A success is a quiet confirmation; a failure may carry an actionable cause —
+  // a held port (WOW #1) or a tool-suggested fix command (WOW #12) — so the
+  // failure path resolves those (async, for the port-holder lookup) before its
+  // toast. Routed off settle so the run record above is written synchronously.
+  if (outcome === "failure") {
+    void notifyFailure(ctx.name, code, durationMs, ctx.captured, ctx.cwd, ctx.retry);
+  } else {
+    notifyCompletion(ctx.name, outcome, code, durationMs, undefined);
+  }
 }
 
 // Match a shortcut's extract pattern against its background output and copy the result

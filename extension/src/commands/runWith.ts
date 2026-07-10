@@ -24,6 +24,9 @@ type RunWithChoice =
 
 type RunWithItem = vscode.QuickPickItem & { readonly choice: RunWithChoice };
 
+// Drive the "Run with…" flow end to end: guard non-file/annotation shortcuts and a
+// missing target, detect interpreters, show the QuickPick (or the browse dialog),
+// persist the chosen interpreter to the shortcut, and run it via the canonical path.
 export async function runWith(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
   // Only a plain file shortcut runs through an interpreter; a recipe action names its
   // own command and an annotation has nothing to run.

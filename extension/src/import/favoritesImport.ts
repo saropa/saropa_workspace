@@ -73,6 +73,9 @@ export interface KdcroFavoriteEntry {
   parent_id?: string;
 }
 
+// One favorites file found on disk during a workspace scan (detectFavoritesFiles),
+// naming which folder it belongs to and which format to parse it as, so
+// importFavoritesFile can dispatch without re-detecting the format itself.
 export interface DetectedFavorites {
   folder: vscode.WorkspaceFolder;
   fileUri: vscode.Uri;

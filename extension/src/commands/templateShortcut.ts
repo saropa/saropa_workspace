@@ -78,6 +78,11 @@ function replaceAllCases(
   return out;
 }
 
+// Command handler for "Use as Template". Resolves the shortcut's target file, asks for
+// a new identifier, and refuses early (warning toast, no changes) when the shortcut is
+// not a file shortcut, its target no longer resolves, the input is blank, or a file
+// already exists at the computed destination — a template run must never guess past an
+// ambiguous state or silently overwrite something.
 export async function useAsTemplate(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
   if (shortcutKind(shortcut) !== "file") {
     vscode.window.showWarningMessage(l10n("template.notFile"));

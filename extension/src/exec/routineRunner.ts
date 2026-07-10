@@ -37,6 +37,9 @@ export interface RoutineHooks {
 
 let routineHooks: RoutineHooks | undefined;
 
+// Wire the resolve/run hooks in from activation, once. Called after pinCommands
+// registers so runRoutine can run a member through the canonical single-shortcut
+// path without routineRunner importing the store/command layer, which would cycle.
 export function setRoutineHooks(hooks: RoutineHooks): void {
   routineHooks = hooks;
 }

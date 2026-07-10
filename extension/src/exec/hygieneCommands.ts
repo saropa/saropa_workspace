@@ -18,6 +18,9 @@ import { l10n } from "../i18n/l10n";
 // the settings scan: a structured dated JSON report plus a sticky toast.
 const CONFIG = "saropaWorkspace.hygiene";
 
+// Wire the three hygiene-scan entry points (run the settings-driven scan, launch the
+// new-saved-scan wizard, re-run a saved scan's stored config) into the extension's
+// disposables so they are unregistered on deactivation like every other command.
 export function registerHygieneCommands(
   context: vscode.ExtensionContext,
   store: ShortcutStore

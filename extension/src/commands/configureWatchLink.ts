@@ -19,6 +19,10 @@ interface HubItem extends vscode.QuickPickItem {
   id: string;
 }
 
+// "Run This Shortcut When a File Changes" command entry point (#25). Warns and exits
+// for an auto-shortcut (nowhere to persist watch globs); otherwise loops a hub over a
+// working copy of the glob list — add by file picker or typed glob, remove an entry —
+// and persists it via setShortcutWatchGlobs on Save (or clears it when emptied).
 export async function configureWatchLink(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
   // Auto/recipe shortcuts are recomputed each refresh and never stored, so there is
   // nowhere to persist watch globs; surface that rather than silently failing,

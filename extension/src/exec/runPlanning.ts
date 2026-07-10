@@ -195,6 +195,9 @@ export function planRun(
 // guard those, and only against runs that also honor the lock.
 export type RunBlockReason = "running" | "locked";
 
+// Evaluate the guard above for one shortcut: check the cheap in-process registry
+// first, then fall through to the cross-process file lock only when the
+// in-process check clears and a lockName is actually configured.
 export function runBlockReason(shortcut: Shortcut): RunBlockReason | undefined {
   // The in-process guard: a tracked run of this exact shortcut is still in flight.
   if (isConcurrencyBlocked(shortcut.allowConcurrent, processRegistry.isRunning(shortcut.id))) {

@@ -47,9 +47,10 @@ import { wireBackgroundEngines } from "./activation/wiringEngines";
 import { wireWatchers, wireFolderWatches } from "./activation/wiringWatchers";
 import { wireTreeViewState, SHOW_ALL_BRANCHES_KEY } from "./activation/viewState";
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  const store = new ShortcutStore(context);
-
+// Bind the on-device stores (telemetry, tapped-shortcut tracker, prompt memory,
+// boot sequence) to this context before anything reads them. Split out of activate()
+// so the store list can grow without pushing the caller past the line-count cap.
+function initCoreStores(context: vscode.ExtensionContext): void {
   // Bind the local run-telemetry store to this context so the runner can record
   // every run (manual + scheduled) and the Recent group + "Run Shortcut..." palette
   // can read them. On-device only — nothing is transmitted (see the principle).
@@ -67,10 +68,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Bind the workspace boot-sequence store (the ordered shortcut set offered on open).
   // workspaceState too — a boot sequence is about this workspace's files/tasks.
   bootSequence.init(context);
+}
 
-  // Click dispatcher: single click opens, double click runs. It carries only the
-  // shortcut id, so callbacks look the shortcut back up from the store's current cache.
-  const dispatcher = new DoubleClickDispatcher(
+// Click dispatcher: single click opens, double click runs. It carries only the
+// shortcut id, so callbacks look the shortcut back up from the store's current cache.
+function createShortcutDispatcher(store: ShortcutStore): DoubleClickDispatcher {
+  return new DoubleClickDispatcher(
     (id) => {
       const shortcut = store.findShortcut(id);
       if (shortcut) {
@@ -84,12 +87,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
   );
-  context.subscriptions.push({ dispose: () => dispatcher.dispose() });
+}
 
-  // createTreeView (not registerTreeDataProvider) so the provider can serve as
-  // the drag-and-drop controller too — shortcuts are reordered and moved between
-  // groups by dragging. canSelectMany lets a multi-select drag move several shortcuts
-  // at once.
+interface TreeViewParts {
+  readonly tree: ShortcutsTreeProvider;
+  readonly treeView: vscode.TreeView<vscode.TreeItem>;
+  readonly branchTracker: BranchTracker;
+}
+
+// createTreeView (not registerTreeDataProvider) so the provider can serve as
+// the drag-and-drop controller too — shortcuts are reordered and moved between
+// groups by dragging. canSelectMany lets a multi-select drag move several shortcuts
+// at once.
+function createTreeView(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): TreeViewParts {
   // The Shortcuts-view text/chip filter (WOW #28). Persisted per-workspace; the
   // provider reads it to decide which rows and groups are visible, and the find
   // bar (registered below) mutates it.
@@ -126,29 +139,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // tip, branch-scope affordances + toggle commands, and group collapse persistence).
   wireTreeViewState(context, store, tree, treeView, filterState, branchTracker);
 
-  // Folder/file watches: register the add/manage commands and build the engine + store.
-  // Constructed before setupSecondaryViews so the Saropa Launcher can be handed the watch
-  // store and show a Watches pane from the same source the Watches tree reads. The engine's
-  // startup scan is fired below, deferred past activation, so files written while the window
-  // was closed are surfaced on open without doing file IO in activate().
-  const { engine: folderWatchEngine, watchStore } = wireFolderWatches(context);
+  return { tree, treeView, branchTracker };
+}
 
-  setupSecondaryViews(context, store, watchStore);
-
-  // Register the command-module subsystems; the returned binder is re-applied by
-  // the config watcher when branch-awareness is toggled.
-  const branchSetBinder = registerCommandModules(context, store, dispatcher, branchTracker);
-
-  setupStatusBars(context, store, tree, treeView);
-
-  // Background engines; the scheduler is started below once the shortcut set is loaded.
-  const scheduler = wireBackgroundEngines(context, store);
-
-  wireWatchers(context, store, branchSetBinder);
-
-  // Track editor focus/close so a pinned file opened or closed by any means (not
-  // just a shortcut click) lands in Recent and clears its per-row "untapped" dot.
-  wireRecentEditorTracking(context, store);
+// The post-load tail: everything that needs the shortcut set actually loaded
+// (store.init()) before it can run, plus the deferred one-time offers that follow
+// it. Kept together, and after the synchronous wiring in activate(), because each
+// step here either depends on store data or is explicitly fire-and-forget so it
+// never blocks activation.
+async function runPostLoadTasks(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore,
+  branchTracker: BranchTracker,
+  scheduler: Scheduler,
+  folderWatchEngine: ReturnType<typeof wireFolderWatches>["engine"]
+): Promise<void> {
   await store.init();
   // Set the initial pinned-path context keys explicitly in case the init-time
   // onDidChange fired before the subscription above was attached.
@@ -200,6 +205,50 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   void initFocusMode(context);
 }
 
+// Entry point: constructs the shortcut store, the on-device stores, the tree view,
+// folder/file watches, all command modules, status bars, and the background engines
+// (scheduler, chain runner, git/idle/expiry watchers), then runs the post-load tail
+// once the shortcut set has finished loading.
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  const store = new ShortcutStore(context);
+
+  initCoreStores(context);
+
+  const dispatcher = createShortcutDispatcher(store);
+  context.subscriptions.push({ dispose: () => dispatcher.dispose() });
+
+  const { tree, treeView, branchTracker } = createTreeView(context, store);
+
+  // Folder/file watches: register the add/manage commands and build the engine + store.
+  // Constructed before setupSecondaryViews so the Saropa Launcher can be handed the watch
+  // store and show a Watches pane from the same source the Watches tree reads. The engine's
+  // startup scan is fired below, deferred past activation, so files written while the window
+  // was closed are surfaced on open without doing file IO in activate().
+  const { engine: folderWatchEngine, watchStore } = wireFolderWatches(context);
+
+  setupSecondaryViews(context, store, watchStore);
+
+  // Register the command-module subsystems; the returned binder is re-applied by
+  // the config watcher when branch-awareness is toggled.
+  const branchSetBinder = registerCommandModules(context, store, dispatcher, branchTracker);
+
+  setupStatusBars(context, store, tree, treeView);
+
+  // Background engines; the scheduler is started below once the shortcut set is loaded.
+  const scheduler = wireBackgroundEngines(context, store);
+
+  wireWatchers(context, store, branchSetBinder);
+
+  // Track editor focus/close so a pinned file opened or closed by any means (not
+  // just a shortcut click) lands in Recent and clears its per-row "untapped" dot.
+  wireRecentEditorTracking(context, store);
+
+  await runPostLoadTasks(context, store, branchTracker, scheduler, folderWatchEngine);
+}
+
+// No-op: every disposable this extension creates is pushed onto
+// context.subscriptions, so VS Code tears them all down on its own; nothing here
+// needs an explicit teardown step in Phase 1.
 export function deactivate(): void {
   // Subscriptions (tree, commands, terminal cleanup, dispatcher) are disposed by
   // VS Code via context.subscriptions; nothing extra to tear down in Phase 1.

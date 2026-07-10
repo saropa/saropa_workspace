@@ -24,6 +24,9 @@ export type RecipeCategory =
   | "monitor"
   | "ai";
 
+// One detected recipe suggestion, as returned by every detector function. The
+// store seeds each as an auto-detected shortcut (sticky removal, restorable),
+// never as a standing button the user has to click into existence.
 export interface RecipeResult {
   // Stable per-recipe id (combined with the folder for the shortcut id), so sticky
   // removal and de-duplication survive reloads.

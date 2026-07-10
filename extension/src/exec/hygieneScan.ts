@@ -17,6 +17,8 @@ import * as path from "path";
 
 export type ScanMode = "empty" | "oversized" | "both";
 
+// Input to one hygiene crawl: which roots, which finding mode, the size ceilings/floor,
+// and how the walk is filtered (built-in ignores, optional .gitignore, user excludes).
 export interface ScanOptions {
   // Absolute directories to crawl (one per chosen scope folder, or all workspace
   // folders for a whole-project scan).
@@ -36,6 +38,8 @@ export interface ScanOptions {
   excludeGlobs: string[];
 }
 
+// The five outlier shapes this scan reports: zero-byte files, childless folders, files
+// or folders past their size ceiling, and files under the optional size floor.
 export type FindingKind =
   | "emptyFile"
   | "emptyFolder"
@@ -43,6 +47,8 @@ export type FindingKind =
   | "largeFolder"
   | "smallFile";
 
+// One flagged file or folder, carrying enough of its own measurement (size, child
+// count, the breached threshold) that a report row needs no further lookup.
 export interface Finding {
   // Absolute path of the outlier.
   path: string;
@@ -57,6 +63,9 @@ export interface Finding {
   threshold?: number;
 }
 
+// The full result of one hygiene crawl: every finding plus enough scan metadata
+// (thresholds used, scope, counts, whether the finding cap truncated it) for the
+// written JSON report and the summary toast to stand on their own.
 export interface ScanReport {
   mode: ScanMode;
   thresholds: {

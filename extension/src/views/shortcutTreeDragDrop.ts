@@ -46,6 +46,9 @@ export function buildShortcutDragData(
   );
 }
 
+// Counterpart to buildShortcutDragData(): decode the SHORTCUT_MIME payload back
+// into a list of ids. Tolerates malformed/foreign JSON (a drag from outside the
+// view, or a missing transfer entry) by returning an empty list rather than throwing.
 export function parseShortcutIds(raw: string | undefined): string[] {
   if (!raw) {
     return [];

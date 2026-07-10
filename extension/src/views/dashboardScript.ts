@@ -14,6 +14,8 @@ import { DASHBOARD_ANALYTICS } from './dashboard/dashboardScriptAnalytics';
 import { DASHBOARD_TRENDS } from './dashboard/dashboardScriptTrends';
 import { DASHBOARD_BOOTSTRAP } from './dashboard/dashboardScriptBootstrap';
 
+// The reassembled dashboard webview script, in fragment load order (see the file header
+// for why the fragments are split and how the concatenation is injected).
 export const PANEL_SCRIPT =
   '\n' +
   DASHBOARD_CORE +

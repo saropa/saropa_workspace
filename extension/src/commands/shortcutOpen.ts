@@ -95,6 +95,11 @@ async function relocateShortcut(store: ShortcutStore, shortcut: Shortcut): Promi
   }
 }
 
+// The single-click entry point for a shortcut: a url opens directly (safe and instant,
+// so it follows the file gesture), any other non-file recipe shows its info panel instead
+// of running (a click must never fire a side-effecting shell/command/macro), and a file
+// resolves its uri, recovers from a missing target, gates a masked reveal, opens it, marks
+// it tapped/recent, then applies tail-follow or a line jump.
 export async function openShortcut(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
   // A comment / separator annotation has nothing to open — it only labels or
   // divides the list. Inert by design (its tree row also carries no command, so

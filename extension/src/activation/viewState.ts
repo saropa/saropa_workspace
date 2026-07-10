@@ -42,12 +42,24 @@ export function wireTreeViewState(
   filterState: ShortcutFilterState,
   branchTracker: BranchTracker
 ): void {
-  // Keep the filter affordances in sync: the chip context keys (which drive the
-  // title-bar button visibility/icon) and the always-visible "filter active — N
-  // hidden — clear" message. Re-run on any filter change AND on any store change,
-  // since adding/removing a shortcut changes the hidden count while a filter is on.
-  // This is the never-silently-empty guarantee: while filtering, the message is
-  // always present, so a tree that collapsed to nothing never reads as data loss.
+  wireFilterViewSync(context, store, filterState, treeView);
+  wireGestureTip(context, store);
+  wireBranchScopeAffordances(context, store, tree, branchTracker);
+  wireGroupCollapsePersistence(context, store, treeView);
+}
+
+// Keep the filter affordances in sync: the chip context keys (which drive the
+// title-bar button visibility/icon) and the always-visible "filter active — N
+// hidden — clear" message. Re-run on any filter change AND on any store change,
+// since adding/removing a shortcut changes the hidden count while a filter is on.
+// This is the never-silently-empty guarantee: while filtering, the message is
+// always present, so a tree that collapsed to nothing never reads as data loss.
+function wireFilterViewSync(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore,
+  filterState: ShortcutFilterState,
+  treeView: vscode.TreeView<vscode.TreeItem>
+): void {
   const syncFilterView = (): void => {
     const filter = filterState.get();
     const active = filterState.isActive();
@@ -93,21 +105,26 @@ export function wireTreeViewState(
   // Paint the initial state now (a persisted filter must show its message on
   // open, before any change event fires).
   syncFilterView();
+}
 
-  // No activity-bar count badge. An "untapped" counter was tried repeatedly and removed:
-  // clicking the activity-bar icon opens the view but does not "tap" any shortcut, so the
-  // number never cleared on the gesture users expected ("I clicked it, it should go") and
-  // the bare count did not say what it referred to. Each patch to the counting logic left
-  // the same mismatch, so the counter is gone entirely rather than re-fixed. The per-row
-  // "untapped" dot still marks shortcuts never opened or run; it needs no aggregate count.
+// No activity-bar count badge. An "untapped" counter was tried repeatedly and removed:
+// clicking the activity-bar icon opens the view but does not "tap" any shortcut, so the
+// number never cleared on the gesture users expected ("I clicked it, it should go") and
+// the bare count did not say what it referred to. Each patch to the counting logic left
+// the same mismatch, so the counter is gone entirely rather than re-fixed. The per-row
+// "untapped" dot still marks shortcuts never opened or run; it needs no aggregate count.
 
-  // One-time gesture tip (UI plan, Phase 3): the first time the user has a real,
-  // actionable shortcut, name the single/double-click model once. The empty-view
-  // welcome already states it, but a user who adds a shortcut from the editor/Explorer
-  // menu lands straight on a populated tree and never sees that copy. Gated on a global
-  // flag so it shows at most once ever; annotation shortcuts (comment/separator) are
-  // inert and do not count, so the tip waits for a shortcut a gesture actually applies
-  // to.
+// One-time gesture tip (UI plan, Phase 3): the first time the user has a real,
+// actionable shortcut, name the single/double-click model once. The empty-view
+// welcome already states it, but a user who adds a shortcut from the editor/Explorer
+// menu lands straight on a populated tree and never sees that copy. Gated on a global
+// flag so it shows at most once ever; annotation shortcuts (comment/separator) are
+// inert and do not count, so the tip waits for a shortcut a gesture actually applies
+// to.
+function wireGestureTip(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
   const maybeShowGestureTip = (): void => {
     if (context.globalState.get<boolean>(GESTURE_TIP_SHOWN_KEY, false)) {
       return;
@@ -124,12 +141,19 @@ export function wireTreeViewState(
   };
   context.subscriptions.push(store.onDidChange(() => maybeShowGestureTip()));
   maybeShowGestureTip();
+}
 
-  // Branch-linked shortcuts (WOW #3): keep the title-bar affordances in sync. The
-  // "branchShowAll" key flips between the two toggle buttons (show-all vs filter-by-
-  // branch); "branchHasHidden" reveals the "Show shortcuts from all branches" button
-  // only when branch filtering is actually hiding something, so it never appears as a
-  // dead control. Re-run on a store change (shortcuts added/linked) and on a checkout.
+// Branch-linked shortcuts (WOW #3): keep the title-bar affordances in sync. The
+// "branchShowAll" key flips between the two toggle buttons (show-all vs filter-by-
+// branch); "branchHasHidden" reveals the "Show shortcuts from all branches" button
+// only when branch filtering is actually hiding something, so it never appears as a
+// dead control. Re-run on a store change (shortcuts added/linked) and on a checkout.
+function wireBranchScopeAffordances(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore,
+  tree: ShortcutsTreeProvider,
+  branchTracker: BranchTracker
+): void {
   const syncBranchView = (): void => {
     void vscode.commands.executeCommand(
       "setContext",
@@ -165,9 +189,15 @@ export function wireTreeViewState(
       setBranchScope(false)
     )
   );
+}
 
-  // Persist a group's open/closed posture so a folder stays the way the user
-  // left it across sessions.
+// Persist a group's open/closed posture so a folder stays the way the user
+// left it across sessions.
+function wireGroupCollapsePersistence(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore,
+  treeView: vscode.TreeView<vscode.TreeItem>
+): void {
   context.subscriptions.push(
     treeView.onDidCollapseElement((e) => {
       if (e.element instanceof ShortcutFolderItem) {

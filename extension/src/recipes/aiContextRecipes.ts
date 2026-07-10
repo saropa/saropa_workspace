@@ -69,6 +69,10 @@ interface Candidate {
   mtime: number;
 }
 
+// Entry point for recipe book section I (64-65). Scans the configured chat folders
+// for the freshest transcripts, turns each into a recipe (skipping files with no
+// recognizable chat content), and prepends a standing "start a new chat" shortcut
+// when the workspace actually uses a configured folder.
 export async function detectAiContextRecipes(
   folder: vscode.WorkspaceFolder
 ): Promise<RecipeResult[]> {

@@ -36,6 +36,10 @@ export function shortcutName(shortcut: Shortcut): string {
   return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
+// Assembles the full webview document for a shortcut: the CSP head, the hero
+// title/subtitle, the five form cards in fixed order, and the footer's next-run
+// preview and Save/Cancel buttons. Called once on open and again on repoint() when
+// the panel is retargeted at a different shortcut.
 export function renderScheduleEditorHtml(shortcut: Shortcut): string {
   const nonce = crypto.randomBytes(16).toString("base64");
   const csp = [

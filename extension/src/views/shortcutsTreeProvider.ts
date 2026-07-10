@@ -125,46 +125,7 @@ export class ShortcutsTreeProvider
   getChildren(element?: vscode.TreeItem): vscode.TreeItem[] {
     const active = this.filter.isActive();
     if (!element) {
-      // Roots: an optional Recent group (last-called shortcuts, local telemetry) above
-      // the two scope roots. With no filter, both scopes are always shown so the
-      // user can see where a new shortcut will land even when one is empty; Recent
-      // appears only when there is history. While a filter IS active, a scope with
-      // no matching shortcut is hidden (showing an empty Project header during a search
-      // is noise) — the always-visible filter message names what was hidden, so a
-      // collapsed-away scope never reads as lost data.
-      const roots: vscode.TreeItem[] = [];
-      const recent = recentEntries(this.store).filter((e) =>
-        this.matches(e.shortcut)
-      );
-      if (recent.length > 0) {
-        roots.push(new RecentRootItem(recent.length, telemetry.recentExpanded()));
-      }
-      for (const scope of ["project", "global"] as const) {
-        const label =
-          scope === "project"
-            ? l10n("pin.group.project")
-            : l10n("pin.group.global");
-        const all = this.scopeShortcuts(scope);
-        const visible = all.filter((s) => this.matches(s));
-        // While filtering, hide a scope with no matching shortcut (an empty header
-        // during a search is noise; the filter banner names what was hidden).
-        // Unfiltered, Project always shows — it is the primary surface and the landing
-        // spot for a first shortcut — but Global shows only when it actually holds
-        // shortcuts: an always-on "Global Shortcuts 0" is pure clutter, since a global
-        // shortcut is created by command ("Add Shortcut (Global)") rather than by
-        // needing a visible empty header to aim at.
-        const show = active
-          ? visible.length > 0
-          : scope === "project" || all.length > 0;
-        if (!show) {
-          continue;
-        }
-        // Count reflects what the header's subtree actually shows: the matching
-        // count while filtering, the full (recipe-excluded) count otherwise.
-        const count = active ? visible.length : all.length;
-        roots.push(new ShortcutGroupItem(label, scope, count));
-      }
-      return roots;
+      return this.buildRootChildren(active);
     }
 
     if (element instanceof RecentRootItem) {
@@ -174,45 +135,7 @@ export class ShortcutsTreeProvider
     }
 
     if (element instanceof ShortcutGroupItem) {
-      const scope = element.group;
-      // Groups first (sorted by the store), then the scope's top-level shortcuts
-      // (those with no groupId). Auto-added shortcuts are never grouped, so they fall
-      // here. While filtering, a group with no matching child is hidden (hide-empty-
-      // groups) and each header's count is the matching count.
-      const groups = this.store
-        .getGroups(scope)
-        .map((group) => {
-          const members = this.scopeShortcuts(scope).filter(
-            (s) => s.groupId === group.id
-          );
-          const visible = members.filter((s) => this.matches(s));
-          return { group, members, visible };
-        })
-        .filter((g) => !active || g.visible.length > 0)
-        .map(
-          (g) =>
-            new ShortcutFolderItem(
-              g.group,
-              scope,
-              active ? g.visible.length : g.members.length
-            )
-        );
-      // Top-level shortcuts are those with no group OR whose group no longer exists in
-      // the store — e.g. a shortcut filed into a built-in default group after the user
-      // turned default groups off. It keeps its stored groupId (so it returns to its
-      // folder when the groups come back), but while that group is not rendered it must
-      // float to the top level rather than vanish. A group hidden only by the active
-      // text filter still EXISTS in getGroups, so its members are not pulled up here.
-      const existingGroupIds = new Set(
-        this.store.getGroups(scope).map((g) => g.id)
-      );
-      const topLevel = this.scopeShortcuts(scope)
-        .filter(
-          (s) =>
-            (!s.groupId || !existingGroupIds.has(s.groupId)) && this.matches(s)
-        )
-        .map((shortcut) => buildShortcutItem(this.store, shortcut));
-      return [...groups, ...topLevel];
+      return this.buildScopeGroupChildren(element.group, active);
     }
 
     if (element instanceof ShortcutFolderItem) {
@@ -222,6 +145,93 @@ export class ShortcutsTreeProvider
     }
 
     return [];
+  }
+
+  // Roots: an optional Recent group (last-called shortcuts, local telemetry) above
+  // the two scope roots. With no filter, both scopes are always shown so the
+  // user can see where a new shortcut will land even when one is empty; Recent
+  // appears only when there is history. While a filter IS active, a scope with
+  // no matching shortcut is hidden (showing an empty Project header during a search
+  // is noise) — the always-visible filter message names what was hidden, so a
+  // collapsed-away scope never reads as lost data.
+  private buildRootChildren(active: boolean): vscode.TreeItem[] {
+    const roots: vscode.TreeItem[] = [];
+    const recent = recentEntries(this.store).filter((e) =>
+      this.matches(e.shortcut)
+    );
+    if (recent.length > 0) {
+      roots.push(new RecentRootItem(recent.length, telemetry.recentExpanded()));
+    }
+    for (const scope of ["project", "global"] as const) {
+      const label =
+        scope === "project"
+          ? l10n("pin.group.project")
+          : l10n("pin.group.global");
+      const all = this.scopeShortcuts(scope);
+      const visible = all.filter((s) => this.matches(s));
+      // While filtering, hide a scope with no matching shortcut (an empty header
+      // during a search is noise; the filter banner names what was hidden).
+      // Unfiltered, Project always shows — it is the primary surface and the landing
+      // spot for a first shortcut — but Global shows only when it actually holds
+      // shortcuts: an always-on "Global Shortcuts 0" is pure clutter, since a global
+      // shortcut is created by command ("Add Shortcut (Global)") rather than by
+      // needing a visible empty header to aim at.
+      const show = active
+        ? visible.length > 0
+        : scope === "project" || all.length > 0;
+      if (!show) {
+        continue;
+      }
+      // Count reflects what the header's subtree actually shows: the matching
+      // count while filtering, the full (recipe-excluded) count otherwise.
+      const count = active ? visible.length : all.length;
+      roots.push(new ShortcutGroupItem(label, scope, count));
+    }
+    return roots;
+  }
+
+  // Groups first (sorted by the store), then the scope's top-level shortcuts
+  // (those with no groupId). Auto-added shortcuts are never grouped, so they fall
+  // here. While filtering, a group with no matching child is hidden (hide-empty-
+  // groups) and each header's count is the matching count.
+  private buildScopeGroupChildren(
+    scope: ShortcutScope,
+    active: boolean
+  ): vscode.TreeItem[] {
+    const groups = this.store
+      .getGroups(scope)
+      .map((group) => {
+        const members = this.scopeShortcuts(scope).filter(
+          (s) => s.groupId === group.id
+        );
+        const visible = members.filter((s) => this.matches(s));
+        return { group, members, visible };
+      })
+      .filter((g) => !active || g.visible.length > 0)
+      .map(
+        (g) =>
+          new ShortcutFolderItem(
+            g.group,
+            scope,
+            active ? g.visible.length : g.members.length
+          )
+      );
+    // Top-level shortcuts are those with no group OR whose group no longer exists in
+    // the store — e.g. a shortcut filed into a built-in default group after the user
+    // turned default groups off. It keeps its stored groupId (so it returns to its
+    // folder when the groups come back), but while that group is not rendered it must
+    // float to the top level rather than vanish. A group hidden only by the active
+    // text filter still EXISTS in getGroups, so its members are not pulled up here.
+    const existingGroupIds = new Set(
+      this.store.getGroups(scope).map((g) => g.id)
+    );
+    const topLevel = this.scopeShortcuts(scope)
+      .filter(
+        (s) =>
+          (!s.groupId || !existingGroupIds.has(s.groupId)) && this.matches(s)
+      )
+      .map((shortcut) => buildShortcutItem(this.store, shortcut));
+    return [...groups, ...topLevel];
   }
 
   // Required for TreeView.reveal: walk a node up to its scope root. Parents are

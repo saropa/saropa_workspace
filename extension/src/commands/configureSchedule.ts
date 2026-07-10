@@ -30,6 +30,12 @@ interface HubItem extends vscode.QuickPickItem {
   id: "atTime" | "days" | "interval" | "cron" | "runOnStartup" | "enabled" | "save";
 }
 
+// "Configure Schedule (Quick)" command entry point — the keyboard-only QuickPick
+// alternative to the richer webview form, sharing the same WorkSchedule model so both
+// normalize and auto-enable identically. Warns and exits for an auto-shortcut (nowhere
+// to persist a schedule); otherwise loops the hub, tracking the last-acted row so a
+// field edit or toggle does not bounce focus back to the top, until Save persists the
+// normalized schedule.
 export async function configureSchedule(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
   // Auto-shortcuts are recomputed each refresh and never stored, so a schedule cannot
   // persist on them.
