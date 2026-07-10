@@ -135,9 +135,14 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   meaningless); a non-file action reads **Run** on the head and nothing redundant
   below. (Developer feedback 2026-06-28: a `.py` script must not lead with Open, and a
   `.json` config must not offer Run — superseding the earlier "every file leads with
-  Open, Run is its secondary" rule, which treated file-vs-action as the only axis.) An
-  absent `headAction` means no head button — the browse-only Watches and Project-files
-  panes keep their deliberate expand-then-act model. The drawer's actions are right-aligned
+  Open, Run is its secondary" rule, which treated file-vs-action as the only axis.) A
+  surfaced project file also leads with an **Open** head button, so its go-to-file icon
+  shows while the card is collapsed — the same affordance a document shortcut in My
+  shortcuts carries (developer feedback 2026-07-09: the collapsed file card must show the
+  Open icon that My-shortcuts files show). An absent `headAction` means no head button —
+  only the Watches pane keeps that deliberate expand-then-act model, because a watch's
+  Open also clears its unseen counter, so a bare-click Open there would silently lose
+  state; opening a project file is non-destructive and needs no such guard. The drawer's actions are right-aligned
   (`.drawer-actions { justify-content: flex-end }`) at the card's trailing edge, away
   from the leading name/path column, with a little extra vertical space around the
   drawer so the actions are easier to hit. Every drawer action button renders as

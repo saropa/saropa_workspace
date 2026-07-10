@@ -47,6 +47,27 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+**Overview** — In the Saropa Launcher, a project file card now shows its Open icon even while the card is collapsed, so you can open the file in one click without expanding it first — the same one-click Open the files in My shortcuts already had.
+
+### Changed
+
+- Project Files launcher cards lead with an **Open** head button, so the go-to-file
+  icon is visible in the collapsed grid instead of only after expanding the card
+  (matches a document shortcut in My shortcuts). The Watches pane keeps its
+  expand-then-act model, because opening a watch also clears its unseen counter.
+
+### Internal
+
+- Reorganized the extension's largest source files (the launcher, dashboard, and
+  planner webviews; the shortcut store; the run-configuration and folder-watch
+  commands; activation wiring) into smaller, single-purpose modules, broke up
+  the longest functions into named helpers, and added explanatory comments to
+  every previously undocumented exported symbol. No behavior change.
+
+---
+
 ## [1.5.17]
 
 **Overview** — The number badge on the sidebar icon (the count of shortcuts you had not opened yet) is gone. Opening the sidebar does not "use" a shortcut, so the number would not clear when you clicked the icon, and on its own it never said what it was counting. The small dot next to a shortcut you have not opened or run yet stays — it marks the exact rows without needing an aggregate number. Daily reports also read far better now: command output is shown in proper code blocks instead of running together, the morning routine's summary links straight to each report it ran, and a pubspec project gets a dependency-freshness report that lists only the packages that are actually out of date. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.17/CHANGELOG.md)

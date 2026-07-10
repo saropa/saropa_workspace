@@ -27,8 +27,9 @@ export interface FileItemInput {
 // the category drives the files pane's group header so the launcher groups by area exactly as
 // the sidebar tree does. The secondary line mirrors the Project Files sidebar row: version
 // (when known) leads, then freshness, then a "· shortcut" tag when the file is already a
-// project shortcut. Openable, not runnable — a primary click expands the drawer; its Open
-// opens the file in the editor.
+// project shortcut. Openable, not runnable — the card leads with an Open head button (the
+// same go-to-file affordance a document shortcut in My shortcuts carries), so the Open icon
+// is visible while the card is collapsed instead of only after expanding.
 export function fileLauncherItem(f: FileItemInput): LauncherItem {
   const token = fileTypeIcon(f.fileName) ?? {
     icon: "file",
@@ -59,6 +60,11 @@ export function fileLauncherItem(f: FileItemInput): LauncherItem {
     kind: "file",
     runnable: false,
     openable: true,
+    // Lead with an Open head button so the go-to-file icon shows while the card is collapsed,
+    // matching a document shortcut in My shortcuts. Opening a project file is non-destructive
+    // (unlike a watch, whose Open clears its unseen counter), so the browse-then-act guard the
+    // Watches pane keeps is not needed here — a head Open never loses state.
+    headAction: "open",
     // A surfaced project file has a concrete on-disk path; expose the drawer's Copy path
     // button so the user can grab the location without opening the file. The host resolves
     // the path from the card id (which is the absolute fsPath for a project file).
