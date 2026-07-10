@@ -47,7 +47,22 @@ cspell:disable
 
 ---
 
-## [1.4.18s]
+## [1.5.19]
+
+**Overview** — Running a second script while an earlier one was still busy used to type its command straight into that first script's terminal instead of opening its own. Every shortcut now gets its own terminal tab, so scripts running at the same time stay out of each other's way. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.19/CHANGELOG.md)
+
+### Fixed
+
+- Running a shortcut in the integrated terminal now opens a terminal tab dedicated
+  to that shortcut instead of reusing one shared terminal for every run. Launching
+  a second script while the first was still busy (a long process, a prompt waiting
+  on input) used to send the second script's command line into the first script's
+  terminal instead of a new one. Repeat runs of the same shortcut still reuse its
+  own tab.
+
+---
+
+## [1.4.18]
 
 **Overview** — In the Saropa Launcher, a project file card now shows its Open icon even while the card is collapsed, so you can open the file in one click without expanding it first — the same one-click Open the files in My shortcuts already had. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.18/CHANGELOG.md)
 
