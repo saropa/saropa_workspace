@@ -230,8 +230,26 @@ const fsApi = {
 // vscode.workspace stand-in: configuration reads, workspaceFolders /
 // getWorkspaceFolder, the real-filesystem-backed fs, and findFiles — the slice of
 // the real namespace the store and detectors actually touch.
+// The fsPaths handed to showTextDocument since the last reset. The report writers all
+// route their auto-open through exec/reportOpen, so this log is how a test asserts
+// that a routine raised exactly ONE window (its summary) rather than one per member.
+const openedDocuments: string[] = [];
+// The documents showTextDocument was called with since the last reset, in order.
+export function __openedDocuments(): readonly string[] {
+  return openedDocuments;
+}
+// Test-control hook: clears the opened-document log between tests.
+export function __resetOpenedDocuments(): void {
+  openedDocuments.length = 0;
+}
+
 export const workspace = {
   getConfiguration,
+  // Modeled as an identity: the report writers pass the URI straight to
+  // showTextDocument, which is where the test observes the open.
+  async openTextDocument(uri: Uri): Promise<{ uri: Uri }> {
+    return { uri };
+  },
   get workspaceFolders(): WorkspaceFolder[] | undefined {
     return folders;
   },
@@ -356,6 +374,11 @@ export const window = {
     ..._items: string[]
   ): Promise<string | undefined> {
     return Promise.resolve(undefined);
+  },
+  // Records which document was raised, so the report-open suppression tests can
+  // assert on the number and identity of windows a run produced.
+  async showTextDocument(doc: { uri: Uri }): Promise<void> {
+    openedDocuments.push(doc.uri.fsPath);
   },
   createOutputChannel,
   onDidChangeWindowState: windowStateEmitter.event,

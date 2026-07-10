@@ -4,6 +4,7 @@ import * as fs from "fs/promises";
 import { promisify } from "util";
 import { execFile as execFileCb } from "child_process";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
+import { openReport } from "./reportOpen";
 import { l10n } from "../i18n/l10n";
 
 const execFile = promisify(execFileCb);
@@ -195,8 +196,8 @@ async function runPubspecOutdated(
   // Open and toast only when there is something to act on; a clean run is silent
   // save for the returned path the summary links.
   if (stale.length > 0) {
-    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
-    await vscode.window.showTextDocument(doc, { preview: false });
+    // Silent under a routine: the routine's summary is the single window it opens.
+    await openReport(file);
     vscode.window.showInformationMessage(
       l10n("deps.done", { count: stale.length })
     );
