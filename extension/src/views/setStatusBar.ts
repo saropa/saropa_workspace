@@ -22,6 +22,10 @@ export class SetStatusBar {
       vscode.StatusBarAlignment.Left,
       0
     );
+    // Names the entry in VS Code's own right-click "Hide" menu; without it both of
+    // this extension's status-bar entries read as the extension's display name and a
+    // user cannot tell which one they are hiding.
+    this.item.name = l10n("pinSet.statusBarName");
     this.item.command = "saropaWorkspace.switchPinSet";
 
     this.disposables.push(this.store.onDidChange(() => this.recompute()));

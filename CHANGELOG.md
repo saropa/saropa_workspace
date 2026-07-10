@@ -47,6 +47,34 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+**Overview** — A morning routine used to fling open a tab for every check it ran and keep the one summary that ties them together closed. Now it opens exactly one document: the summary, with a link to each check's report. The "next scheduled run" item in the status bar also stops being a dead end — click it to open that report, change the time, run it now, turn the schedule off, or hide the item for good. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.20/CHANGELOG.md)
+
+### Added
+
+- Clicking the next-scheduled-run status-bar item opens an action menu: open the
+  last report, open the Saropa Schedule screen, run it now, reveal it in the
+  Shortcuts view, change when it runs, turn its schedule off, or hide the item.
+  It previously only revealed the shortcut in the tree, which answered none of
+  the questions the item raises.
+- A new `saropaWorkspace.showScheduleStatusBar` setting hides the next-run
+  indicator. Hiding it stops the indicator only; scheduled runs continue.
+
+### Fixed
+
+- A routine now opens exactly one document — its summary, which links every
+  member's report — instead of one editor tab per member. Members run with their
+  own report auto-open suppressed.
+- A routine opens its summary on every run, not only when a member failed. A
+  clean run used to finish silently, leaving no way to reach the reports it had
+  just written.
+- Both status-bar items now name themselves, so VS Code's own right-click "Hide"
+  menu says which one it will hide. They both read as the extension's display
+  name before.
+
+---
+
 ## [1.5.19]
 
 **Overview** — Running a second script while an earlier one was still busy used to type its command straight into that first script's terminal instead of opening its own. Every shortcut now gets its own terminal tab, so scripts running at the same time stay out of each other's way. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.19/CHANGELOG.md)

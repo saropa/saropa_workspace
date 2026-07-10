@@ -10,6 +10,7 @@ import { l10n } from "../i18n/l10n";
 import { getOutputChannel } from "./terminalRunner";
 import { expandRecipeTokens, firstWorkspacePath, reportRelativePath } from "./actionRunner";
 import { recordLastReport, peekLastReport, clearLastReport } from "./lastReport";
+import { openReport, withReportOpenSuppressed } from "./reportOpen";
 
 // The routine engine: run a "recipe of recipes" — its member shortcuts strictly in
 // sequence, continue-on-failure — then write a one-row-per-member summary report and
@@ -211,27 +212,33 @@ export async function runRoutine(
   const aggregate: ShortcutBadge = { at: Date.now() };
   let anyFailed = false;
 
-  for (const [index, member] of members.entries()) {
-    const { outcome, failed, badgeShortcutId } = await runRoutineMember(
-      routineHooks,
-      member,
-      index,
-      members.length,
-      name,
-      unattended,
-      channel
-    );
-    outcomes.push(outcome);
-    if (failed) {
-      anyFailed = true;
+  // Members run with their own report auto-open suppressed: a routine opens exactly
+  // one window, the consolidated summary below. Without this, each report member
+  // raised its own editor and the summary — the index over them — stayed closed.
+  const hooks = routineHooks;
+  await withReportOpenSuppressed(async () => {
+    for (const [index, member] of members.entries()) {
+      const { outcome, failed, badgeShortcutId } = await runRoutineMember(
+        hooks,
+        member,
+        index,
+        members.length,
+        name,
+        unattended,
+        channel
+      );
+      outcomes.push(outcome);
+      if (failed) {
+        anyFailed = true;
+      }
+      // Fold the member's diagnostic / test badge into the routine's aggregate, so the
+      // routine row shows the morning's total findings (#26 / #32 badge reuse). Only a
+      // member that actually ran carries a badge shortcut id.
+      if (badgeShortcutId) {
+        mergeBadge(aggregate, shortcutBadges.get(badgeShortcutId));
+      }
     }
-    // Fold the member's diagnostic / test badge into the routine's aggregate, so the
-    // routine row shows the morning's total findings (#26 / #32 badge reuse). Only a
-    // member that actually ran carries a badge shortcut id.
-    if (badgeShortcutId) {
-      mergeBadge(aggregate, shortcutBadges.get(badgeShortcutId));
-    }
-  }
+  });
 
   // Badge the routine shortcut: a tracked worst-outcome result (red when any member
   // failed) plus the aggregated finding counts, both through the per-shortcut machinery
@@ -275,10 +282,12 @@ function hasBadgeCounts(badge: ShortcutBadge): boolean {
   );
 }
 
-// Write the routine summary — one row per member (outcome + duration) — to a dated
-// reports/ file, and open it when any member failed (otherwise stay quiet, badge
-// only: the no-noise rule the scheduled rituals follow). Members write their own
-// reports under reports/; this is the one-screen index over them.
+// Write the routine summary — one row per member (outcome + duration + a link to the
+// report that member wrote) — to a dated reports/ file, and open it. This is the ONE
+// window a routine raises: its members ran with auto-open suppressed, so the summary
+// is both the outcome and the index over the day's sub-reports. Opening it
+// unconditionally is the point — a user who cannot find the reports has no way to
+// reach them from a silent, badge-only run.
 async function writeRoutineSummary(
   pinId: string,
   name: string,
@@ -323,11 +332,7 @@ async function writeRoutineSummary(
     // Hand the summary path to the scheduler so a scheduled routine fire can persist
     // a durable "Open report" link for the routine (see lastReport.ts).
     recordLastReport(pinId, reportPath);
-    // Open the summary only when something needs the user — a clean run is silent.
-    if (anyFailed) {
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(reportPath));
-      await vscode.window.showTextDocument(doc, { preview: false });
-    }
+    await openReport(reportPath);
   } catch (err) {
     channel.appendLine(
       l10n("report.failed", { name, error: err instanceof Error ? err.message : String(err) })

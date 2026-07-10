@@ -741,6 +741,11 @@
         "category": "%extension.displayName%"
       },
       {
+        "command": "saropaWorkspace.scheduleStatusBarActions",
+        "title": "%command.scheduleStatusBarActions.title%",
+        "category": "%extension.displayName%"
+      },
+      {
         "command": "saropaWorkspace.runPinById",
         "title": "%command.runPinById.title%",
         "category": "%extension.displayName%"
@@ -1863,6 +1868,10 @@
           "when": "false"
         },
         {
+          "command": "saropaWorkspace.scheduleStatusBarActions",
+          "when": "false"
+        },
+        {
           "command": "saropaWorkspace.runPinById",
           "when": "false"
         },
@@ -1910,6 +1919,11 @@
             "type": "boolean",
             "default": false,
             "description": "%config.previewMode.enabled.description%"
+          },
+          "saropaWorkspace.showScheduleStatusBar": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.showScheduleStatusBar.description%"
           },
           "saropaWorkspace.defaultUseIntegratedTerminal": {
             "type": "boolean",

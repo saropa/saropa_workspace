@@ -771,6 +771,36 @@ not raw-dump conventions:
   report lists only the packages behind latest, not every dependency; the up-to-date
   ones are omitted so the report is the work, not a table to scan.
 
+### 4.9 A multi-step run opens one document, and always opens it
+
+A run that produces several reports raises exactly one editor: the summary that links
+the rest. Members open nothing (`withReportOpenSuppressed` in `exec/reportOpen.ts`
+gates every auto-open; a member calls `openReport`, never `showTextDocument`).
+
+- **One window per run, not one per step.** A five-member morning routine that opened
+  each member's report buried the user in tabs and hid the summary (user report
+  2026-07-10). Any new report writer routes its open through `openReport` so a routine
+  can suppress it.
+- **The summary opens on every run, including a clean one.** Opening only on failure
+  makes a successful run silent, and a silent run leaves the reports it just wrote
+  unfindable. The badge says whether it went well; the document says what it did.
+
+### 4.10 A status-bar indicator's click is an action menu, and one action hides it
+
+An always-visible status-bar item raises four questions — what is it, where is what it
+produced, how do I change it, how do I get rid of it — and its click must answer all
+four (user report 2026-07-10). Revealing a tree row answers none.
+
+- **Click opens a QuickPick of actions**, led by the artifact the item exists for (the
+  last report), then the screen that lists them durably, then run / reveal / edit /
+  turn off.
+- **Hiding the indicator is one of the actions**, backed by a `saropaWorkspace.*`
+  boolean setting so the choice survives a reload. The toast says where to turn it
+  back on, and says that hiding the indicator does not stop the scheduled run.
+- **Every status-bar item sets `StatusBarItem.name`.** Without it, VS Code's own
+  right-click "Hide" menu labels the entry with the extension's display name, so two
+  entries from one extension are indistinguishable.
+
 ---
 
 ## 5. Voice and tone

@@ -4,6 +4,7 @@ import * as fs from "fs/promises";
 import { promisify } from "util";
 import { execFile as execFileCb } from "child_process";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
+import { openReport } from "./reportOpen";
 import { l10n } from "../i18n/l10n";
 
 const execFile = promisify(execFileCb);
@@ -314,8 +315,8 @@ async function runProjectStats(folderPath?: unknown): Promise<string | undefined
     );
     return undefined;
   }
-  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
-  await vscode.window.showTextDocument(doc, { preview: false });
+  // Silent under a routine: the routine's summary is the single window it opens.
+  await openReport(file);
   vscode.window.showInformationMessage(
     l10n("stats.done", {
       languages: stats.languages.length,

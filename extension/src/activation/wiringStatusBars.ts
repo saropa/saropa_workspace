@@ -4,6 +4,7 @@ import { ShortcutsTreeProvider } from "../views/shortcutsTreeProvider";
 import { ShortcutTreeItem } from "../views/shortcutTreeItem";
 import { ScheduleStatusBar } from "../views/scheduleStatusBar";
 import { SetStatusBar } from "../views/setStatusBar";
+import { showScheduleStatusBarActions } from "../views/scheduleStatusBarActions";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -29,6 +30,23 @@ export function setupStatusBars(
   // Disposable so its status-bar item and store subscription are released on
   // deactivation.
   context.subscriptions.push(new SetStatusBar(store));
+
+  // Clicking the next-run indicator opens its action menu — open the last report,
+  // open the Schedule screen, run now, reveal, edit the time, turn the schedule off,
+  // or hide the indicator. Reveal alone (the old click) answered none of the
+  // questions the indicator raises, chiefly "where is the report it wrote".
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.scheduleStatusBarActions", async () => {
+      const id = scheduleStatusBar.getCurrentShortcutId();
+      const nextRunAt = scheduleStatusBar.getCurrentNextRunAt();
+      const shortcut = id ? store.findShortcut(id) : undefined;
+      if (!shortcut || nextRunAt === undefined) {
+        return;
+      }
+      await showScheduleStatusBarActions(store, shortcut, nextRunAt);
+    })
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.revealNextScheduled", async () => {
       const id = scheduleStatusBar.getCurrentShortcutId();

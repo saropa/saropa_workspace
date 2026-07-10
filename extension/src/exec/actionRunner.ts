@@ -13,6 +13,7 @@ import { l10n } from "../i18n/l10n";
 import { getOutputChannel, runInTerminal } from "./terminalRunner";
 import { runInBackground } from "./backgroundRunner";
 import { recordLastReport } from "./lastReport";
+import { openReport } from "./reportOpen";
 
 // The non-file shortcut kinds (recipes): url / command / shell, plus the multi-step
 // orchestrators (macro and routine). The file kind is handled by runShortcut in
@@ -277,10 +278,9 @@ async function runShellToReport(
           shortcutBadges.record(pinId, badge);
         }
         if (autoOpen) {
-          const doc = await vscode.workspace.openTextDocument(
-            vscode.Uri.file(reportPath)
-          );
-          await vscode.window.showTextDocument(doc, { preview: false });
+          // No-op while this run is a member of a routine — the routine opens its
+          // consolidated summary instead of every member's own report.
+          await openReport(reportPath);
         }
       } catch (err) {
         channel.appendLine(

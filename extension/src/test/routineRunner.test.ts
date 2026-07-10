@@ -20,9 +20,12 @@ import {
   Uri,
   __setWorkspaceFolders,
   __resetConfig,
+  __openedDocuments,
+  __resetOpenedDocuments,
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { runRoutine, setRoutineHooks, type RoutineHooks } from "../exec/routineRunner";
+import { openReport } from "../exec/reportOpen";
 import { runStatusRegistry } from "../exec/runStatus";
 import { recordLastReport } from "../exec/lastReport";
 import { shortcutEvents, type ShortcutCompletion } from "../exec/shortcutEvents";
@@ -37,6 +40,7 @@ const usedShortcutIds = new Set<string>();
 
 beforeEach(() => {
   __resetConfig();
+  __resetOpenedDocuments();
   // A real workspace folder so writeRoutineSummary's firstWorkspacePath resolves and
   // the report is written under a temp dir we clean up.
   tmpDir = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "sw-routine-")).replace(/\\/g, "/");
@@ -259,6 +263,63 @@ function newestFile(dir: string, match: (name: string) => boolean): string | und
   }
   return newest;
 }
+
+test("a routine opens only its summary, never its members' own reports", async () => {
+  // Members run with report auto-open suppressed, so a five-member morning routine
+  // raises ONE window (the summary that links them) instead of one tab per member.
+  // The fake member calls openReport exactly as the real report writers do.
+  const memberShortcut = shortcut({ id: "m-open", label: "Standup digest" });
+  const memberReport = nodePath.join(tmpDir, "reports", "sub", "standup.md");
+  nodeFs.mkdirSync(nodePath.dirname(memberReport), { recursive: true });
+  nodeFs.writeFileSync(memberReport, "# Standup\n");
+
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      recordLastReport(p.id, memberReport);
+      await openReport(memberReport);
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-open");
+
+  await runRoutine(
+    shortcut({ id: "routine-open", label: "Morning" }),
+    [member({ pinId: "m-open" })],
+    "manual"
+  );
+
+  const opened = __openedDocuments();
+  assert.equal(opened.length, 1, `exactly one window should open, got ${opened.join(", ")}`);
+  assert.match(opened[0]!, /_morning\.md$/, "the one opened window is the routine summary");
+});
+
+test("a clean routine still opens its summary (a silent run leaves the reports unfindable)", async () => {
+  const memberShortcut = shortcut({ id: "m-clean", label: "Lint" });
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 10,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-clean");
+
+  await runRoutine(
+    shortcut({ id: "routine-clean", label: "Morning" }),
+    [member({ pinId: "m-clean" })],
+    "manual"
+  );
+
+  assert.equal(__openedDocuments().length, 1, "a clean routine opens its summary");
+});
 
 test("a failing member makes the whole routine fail (continue-on-failure, worst outcome)", async () => {
   const okShortcut = shortcut({ id: "m1", label: "Lint" });
