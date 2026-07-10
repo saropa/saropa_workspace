@@ -47,6 +47,28 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+**Overview** — The "you've opened this file a lot, want a shortcut?" prompt used to fire while you were just flipping between files during normal work. Now it counts a file at most once every half hour, needs more opens before it asks, and lets you shut off a whole file type ("Ignore .dart") straight from the prompt. [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+
+### Added
+
+- The open-often shortcut suggestion now offers "Ignore .ext" alongside Add
+  shortcut and Don't ask again. Choosing it adds that extension to the new
+  `saropaWorkspace.suggestions.ignoreExtensions` setting, so files of that type
+  are never suggested again.
+- New `saropaWorkspace.suggestions.debounceMinutes` setting (default 30): a file
+  re-focused within this window counts once, so the count tracks distinct working
+  sessions rather than tab flipping.
+
+### Changed
+
+- Re-focusing the same file (search, go to definition, tab flipping) no longer
+  inflates its open count — a per-file cooldown collapses a burst of re-focus into
+  a single count. This stops the suggestion firing during ordinary development.
+- Raised the default open-count threshold before a suggestion appears from 6 to
+  10 (`saropaWorkspace.suggestions.openThreshold`).
+
 ## [1.5.20]
 
 **Overview** — A morning routine used to fling open a tab for every check it ran and keep the one summary that ties them together closed. Now it opens exactly one document: the summary, with a link to each check's report. The "next scheduled run" item in the status bar also stops being a dead end — click it to open that report, change the time, run it now, turn the schedule off, or hide the item for good. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.20/CHANGELOG.md)

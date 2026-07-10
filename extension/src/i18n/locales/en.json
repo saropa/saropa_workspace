@@ -483,6 +483,8 @@
   "override.envPlaceholder": "NODE_ENV=production PORT=8080",
   "suggest.prompt": "You have opened {name} {count} times. Add it as a shortcut for quick access?",
   "suggest.pin": "Add shortcut",
+  "suggest.ignoreType": "Ignore {ext}",
+  "suggest.ignored": "No longer suggesting {ext} files. Change this under saropaWorkspace.suggestions.ignoreExtensions.",
   "suggest.never": "Don't ask again",
   "tabSuggest.prompt": "You've kept {name} pinned as a tab for over {hours}h. Add it to your Saropa shortcuts?",
   "tabSuggest.pinWorkspace": "Add to workspace",

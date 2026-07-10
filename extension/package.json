@@ -1942,10 +1942,25 @@
           },
           "saropaWorkspace.suggestions.openThreshold": {
             "type": "number",
-            "default": 6,
+            "default": 10,
             "minimum": 3,
             "maximum": 50,
             "description": "%config.suggestions.openThreshold.description%"
+          },
+          "saropaWorkspace.suggestions.debounceMinutes": {
+            "type": "number",
+            "default": 30,
+            "minimum": 0,
+            "maximum": 1440,
+            "description": "%config.suggestions.debounceMinutes.description%"
+          },
+          "saropaWorkspace.suggestions.ignoreExtensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%config.suggestions.ignoreExtensions.description%"
           },
           "saropaWorkspace.suggestPinnedTab.enabled": {
             "type": "boolean",
