@@ -3,7 +3,7 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { BranchTracker } from "../exec/gitBranch";
 import { BranchSetBinder } from "../exec/branchSets";
-import { setRoutineHooks, registerTerminalCleanup } from "../exec/runner";
+import { setRoutineHooks } from "../exec/runner";
 import { PlannerPanel } from "../views/plannerPanel";
 import { registerSimulationPreview } from "../commands/simulateRun";
 import { registerRunAnalytics } from "../commands/runAnalytics";
@@ -31,7 +31,6 @@ export function registerCommandModules(
   dispatcher: DoubleClickDispatcher,
   branchTracker: BranchTracker
 ): BranchSetBinder {
-  registerTerminalCleanup(context);
   registerSimulationPreview(context);
   registerRunAnalytics(context);
   registerRunOutputDiff(context);
