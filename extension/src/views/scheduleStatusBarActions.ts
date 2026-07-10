@@ -92,13 +92,20 @@ function buildActions(
 
   // Turning the schedule off is distinct from hiding the indicator: one stops the
   // run, the other stops the reminder. Both are offered, and each says which it is.
-  const schedule = shortcut.schedule;
-  if (schedule) {
+  if (shortcut.schedule) {
     actions.push({
       label: l10n("statusBar.actions.disable", { name }),
       detail: l10n("statusBar.actions.disableDetail"),
       run: async () => {
-        await store.updateShortcutSchedule(shortcut, { ...schedule, enabled: false });
+        // Re-read the shortcut when the action fires, not when the menu was built:
+        // updateShortcutSchedule replaces the WHOLE schedule object, so writing a
+        // snapshot taken before the picker opened would discard a cron or time the
+        // user changed in between.
+        const live = store.findShortcut(shortcut.id);
+        if (!live?.schedule) {
+          return;
+        }
+        await store.updateShortcutSchedule(live, { ...live.schedule, enabled: false });
         vscode.window.showInformationMessage(l10n("statusBar.actions.disabled", { name }));
       },
     });

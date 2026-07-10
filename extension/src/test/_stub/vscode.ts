@@ -119,15 +119,35 @@ export function __resetConfig(): void {
   installedExtensions.clear();
 }
 
+// vscode.ConfigurationTarget: the status-bar action menu writes its "hide me" flag at
+// Global (user) scope. Only the members the tested code passes are modeled.
+export const ConfigurationTarget = {
+  Global: 1,
+  Workspace: 2,
+  WorkspaceFolder: 3,
+} as const;
+
 function getConfiguration(section?: string): {
   get<T>(key: string, defaultValue: T): T;
+  update(key: string, value: unknown, target?: number): Promise<void>;
 } {
   return {
     get<T>(key: string, defaultValue: T): T {
       const full = section ? `${section}.${key}` : key;
       return (configValues.has(full) ? configValues.get(full) : defaultValue) as T;
     },
+    // Writes into the same map get() reads, so a test asserts the effect of a
+    // settings-writing action by reading the value back through __getConfig.
+    async update(key: string, value: unknown): Promise<void> {
+      configValues.set(section ? `${section}.${key}` : key, value);
+    },
   };
+}
+
+// Test-control hook: reads back a "section.key" value a tested action wrote through
+// getConfiguration().update.
+export function __getConfig(section: string, key: string): unknown {
+  return configValues.get(section ? `${section}.${key}` : key);
 }
 
 // Convert a VS Code glob to a RegExp anchored to a folder-relative POSIX path.
