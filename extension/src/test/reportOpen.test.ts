@@ -45,8 +45,29 @@ test("suppression lifts even when the suppressed body throws", async () => {
   assert.deepEqual(__openedDocuments(), ["/reports/summary.md"]);
 });
 
-// Nested scopes are depth-counted: an inner scope unwinding must not re-enable
-// opening while an outer scope still owns the screen.
+// Suppression is scoped to the suppressing run's async context, not to the process.
+// A manual report recipe clicked during an await gap of a scheduled routine must
+// still open its report — a module-level flag would have swallowed it.
+test("a concurrent run outside the suppressed context still opens its report", async () => {
+  __resetOpenedDocuments();
+  let releaseRoutine: () => void = () => {};
+  const routineIsMidRun = new Promise<void>((resolve) => (releaseRoutine = resolve));
+
+  const routine = withReportOpenSuppressed(async () => {
+    await openReport("/reports/member.md");
+    await routineIsMidRun;
+  });
+
+  // Runs while the routine is parked mid-suppression, from its own async context.
+  await openReport("/reports/manual.md");
+  releaseRoutine();
+  await routine;
+
+  assert.deepEqual(__openedDocuments(), ["/reports/manual.md"]);
+});
+
+// Nested scopes: an inner scope unwinding must not re-enable opening while an outer
+// scope still owns the screen.
 test("a nested suppression scope does not re-enable opening when it unwinds", async () => {
   __resetOpenedDocuments();
   await withReportOpenSuppressed(async () => {

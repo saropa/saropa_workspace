@@ -65,7 +65,12 @@ cspell:disable
 
 - A routine now opens exactly one document — its summary, which links every
   member's report — instead of one editor tab per member. Members run with their
-  own report auto-open suppressed.
+  own report auto-open suppressed. The suppression covers that routine's own run
+  only, so a report you open by hand while a scheduled routine is working still
+  opens.
+- Turning a schedule off from the status-bar menu keeps the time or cron it was
+  set to, rather than writing back whatever the schedule held when the menu
+  opened.
 - A routine opens its summary on every run, not only when a member failed. A
   clean run used to finish silently, leaving no way to reach the reports it had
   just written.
@@ -77,16 +82,15 @@ cspell:disable
 
 ## [1.5.19]
 
-**Overview** — Running a second script while an earlier one was still busy used to type its command straight into that first script's terminal instead of opening its own. Every shortcut now gets its own terminal tab, so scripts running at the same time stay out of each other's way. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.19/CHANGELOG.md)
+**Overview** — Running a second script while an earlier one was still busy used to type its command straight into that first script's terminal instead of opening its own. Every run now opens its own fresh terminal tab, so scripts running at the same time — or the same script run twice in a row — never collide. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.19/CHANGELOG.md)
 
 ### Fixed
 
-- Running a shortcut in the integrated terminal now opens a terminal tab dedicated
-  to that shortcut instead of reusing one shared terminal for every run. Launching
-  a second script while the first was still busy (a long process, a prompt waiting
-  on input) used to send the second script's command line into the first script's
-  terminal instead of a new one. Repeat runs of the same shortcut still reuse its
-  own tab.
+- Running a shortcut in the integrated terminal now opens a brand-new terminal
+  tab every time instead of reusing one shared terminal for every run. Launching
+  a second script while the first was still busy (a long process, a prompt
+  waiting on input) used to send the second script's command line into the
+  first script's terminal instead of a new one.
 
 ---
 
