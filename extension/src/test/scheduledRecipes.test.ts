@@ -122,6 +122,19 @@ test("the dependency-freshness ritual derives its command from the manifest", as
   );
 });
 
+test("a pubspec project routes dependency freshness to the filtered command", async () => {
+  // A Dart/Flutter project must use the in-process pubspec-outdated command (which
+  // filters to only the packages behind latest), not a raw `dart pub outdated` shell
+  // capture that would dump every dependency including the up-to-date ones.
+  write("pubspec.yaml", "name: app\n");
+  const out = await detectScheduledRecipes(asFolder(folder));
+  const deps = out.find((r) => r.recipeId === "ritual.deps");
+  assert.ok(deps, "a pubspec project should seed dependency freshness");
+  assert.equal(deps!.action?.kind, "command");
+  assert.equal(deps!.action?.commandId, "saropaWorkspace.recipe.pubspecOutdated");
+  assert.equal(deps!.action?.shellCommand, undefined, "must not be a raw shell capture");
+});
+
 test("the PR review queue seeds only for a GitHub remote", async () => {
   // A GitHub origin in .git/config gates the gh-CLI-backed PR queue.
   makeGitRepo();

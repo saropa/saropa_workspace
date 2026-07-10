@@ -45,10 +45,17 @@ export async function runAction(
       // a shortcut can still be triggered "after" an open-the-dashboard or run-a-macro shortcut.
       shortcutEvents.fireComplete(shortcut.id, "dispatched");
       return;
-    case "command":
-      await runVsCommand(action.commandId, action.commandArgs, name);
+    case "command": {
+      // A recipe command that writes a report (project stats, pubspec-outdated)
+      // returns the file path it wrote; capture it under this shortcut so a routine
+      // summary can link the sub-report the same way the shell-report path does.
+      const result = await runVsCommand(action.commandId, action.commandArgs, name);
+      if (typeof result === "string" && result.length > 0) {
+        recordLastReport(shortcut.id, result);
+      }
       shortcutEvents.fireComplete(shortcut.id, "dispatched");
       return;
+    }
     case "shell":
       // runShellAction fires its own completion: a real outcome from the background /
       // report path, or a dispatch from the terminal path. Not fired here, to avoid
@@ -83,9 +90,9 @@ async function runVsCommand(
   commandId: string | undefined,
   args: unknown[] | undefined,
   name: string
-): Promise<void> {
+): Promise<unknown> {
   if (!commandId) {
-    return;
+    return undefined;
   }
   // A command shortcut may target another extension's command (e.g. a Saropa Suite
   // recipe driving Saropa Lints / Drift Advisor / Log Capture). If that extension
@@ -93,12 +100,16 @@ async function runVsCommand(
   // not found". Degrade gracefully with a visible toast instead of an unhandled
   // rejection, satisfying the suite-integration "absent tool degrades" principle.
   try {
-    await vscode.commands.executeCommand(commandId, ...(args ?? []));
+    // The result is forwarded to the caller so a report-writing recipe command can
+    // hand back the path it wrote (see the command case in runAction).
+    return await vscode.commands.executeCommand(commandId, ...(args ?? []));
   } catch (err) {
     getOutputChannel().appendLine(
       `[command] ${name} (${commandId}) failed: ${err instanceof Error ? err.message : String(err)}`
     );
     vscode.window.showWarningMessage(l10n("action.commandFailed", { name }));
+    // A failed command has no report path to hand back.
+    return undefined;
   }
 }
 
@@ -163,6 +174,36 @@ async function runShellAction(
   }
 }
 
+// Wrap raw command output in a Markdown fenced code block so a Markdown preview
+// renders it as monospace preformatted text instead of mangling it as prose — a
+// `git log --stat` / `git status` dump read as Markdown is the "unreadable slop"
+// the report bug called out. The fence length is one backtick longer than the
+// longest backtick run in the body, so output that itself contains a ``` fence
+// (rare, but e.g. a grep over Markdown) can never break out of the block.
+function fenceBlock(body: string): string {
+  const runs = body.match(/`+/g);
+  const longest = runs ? Math.max(...runs.map((r) => r.length)) : 0;
+  const fence = "`".repeat(Math.max(3, longest + 1));
+  return `${fence}text\n${body.replace(/\n+$/, "")}\n${fence}`;
+}
+
+// Build a captured-command report as clean Markdown: an H1 heading, a metadata
+// block (generation time + the exact command, code-formatted so it is copy-paste
+// safe), and the command's combined output fenced as a code block. An empty result
+// is stated plainly rather than left as a blank fence, so "no output" reads as a
+// deliberate outcome. Single source for every scheduled shell ritual's report shape.
+// Exported for the unit test (report-bug items 1 and 2: no more unfenced slop).
+export function buildCommandReport(name: string, commandLine: string, body: string): string {
+  const trimmed = body.trim();
+  const output = trimmed.length > 0 ? fenceBlock(body) : "_No output._";
+  return (
+    `# ${name}\n\n` +
+    `**Generated** ${new Date().toLocaleString()}\n\n` +
+    `**Command** \`${commandLine}\`\n\n` +
+    `${output}\n`
+  );
+}
+
 // Run a command, capture its combined output to a dated report file (created with
 // its parent directory), and optionally open it. Used by scheduled report recipes.
 async function runShellToReport(
@@ -183,7 +224,6 @@ async function runShellToReport(
 
   channel.appendLine(`$ (${name}) ${commandLine}`);
   const startedAt = Date.now();
-  const header = `# ${name}\n\nGenerated ${new Date().toLocaleString()}\nCommand: ${commandLine}\n\n`;
   let body = "";
 
   const child = cp.spawn(commandLine, {
@@ -212,7 +252,7 @@ async function runShellToReport(
       try {
         const fs = await import("fs/promises");
         await fs.mkdir(nodePath.dirname(reportPath), { recursive: true });
-        await fs.writeFile(reportPath, header + body, "utf8");
+        await fs.writeFile(reportPath, buildCommandReport(name, commandLine, body), "utf8");
         channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
         // Hand the written report path to the scheduler so a scheduled fire can
         // persist a durable "Open report" link for this shortcut (see lastReport.ts).

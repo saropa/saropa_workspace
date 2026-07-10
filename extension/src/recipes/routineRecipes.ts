@@ -13,11 +13,20 @@ import { RoutineMember } from "../model/shortcut";
 
 // The morning members, in run order. Hygiene runs FIRST so a frozen-tree project is
 // caught before the heavier members; the rest follow the recipe book's morning
-// cadence. Each entry is the recipeId the morning ritual is detected under.
+// cadence. Each entry is the recipeId the morning ritual is detected under; a member
+// is only included when that ritual was actually detected for the project, so a
+// non-Dart / non-linted project simply gets a shorter routine.
+//
+// The code-health cluster (lint sweep + tech-debt/TODO harvest) and dependency
+// freshness are part of the morning block so the daily report includes lint issues,
+// TODO markers, and out-of-date packages (report bug items 4 and 5), not just the
+// git/PR digest.
 const MORNING_MEMBER_ORDER: ReadonlyArray<{ recipeId: string; label: string }> = [
   { recipeId: "hygiene.bloat", label: "Workspace bloat scan" },
   { recipeId: "ritual.lint", label: "Dawn lint sweep" },
+  { recipeId: "ritual.debt", label: "Tech-debt harvest" },
   { recipeId: "ritual.stats", label: "Sunrise project stats" },
+  { recipeId: "ritual.deps", label: "Dependency freshness" },
   { recipeId: "ritual.standup", label: "Standup digest" },
   { recipeId: "ritual.prs", label: "PR review queue" },
 ];

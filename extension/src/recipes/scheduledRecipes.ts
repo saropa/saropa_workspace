@@ -188,17 +188,36 @@ export async function detectScheduledRecipes(
     }
   }
 
-  // 30: dependency freshness (per ecosystem).
-  const deps = await detectOutdated(folder);
-  if (deps) {
+  // 30: dependency freshness (per ecosystem). A pubspec project routes to the
+  // in-process pubspec-outdated command, which parses `dart pub outdated --json` and
+  // writes a report of ONLY the packages behind latest (report bug item 4) — a
+  // filter the raw shell capture cannot do. Every other ecosystem keeps the raw
+  // outdated/audit capture (now fenced by the report writer).
+  if (await exists(folder, "pubspec.yaml")) {
     out.push({
       recipeId: "ritual.deps",
       label: "Dependency freshness",
-      description: "Scheduled (daily, default 07:00): writes a dated report of what is behind latest plus the audit/advisory summary for the ecosystem — the staleness and security picture in one file. Seeds disabled. Detected from the lockfile / manifest.",
+      description: "Scheduled (daily, default 07:00): writes a dated report of only the pubspec packages behind their latest version (up-to-date packages are omitted) and opens it when anything is stale. Seeds disabled. Detected from pubspec.yaml.",
       icon: "cloud-download",
       schedule: daily("07:00"),
-      action: report(folder, deps, reportRelativePath("deps"), false),
+      action: {
+        kind: "command",
+        commandId: "saropaWorkspace.recipe.pubspecOutdated",
+        commandArgs: [folder.uri.fsPath],
+      },
     });
+  } else {
+    const deps = await detectOutdated(folder);
+    if (deps) {
+      out.push({
+        recipeId: "ritual.deps",
+        label: "Dependency freshness",
+        description: "Scheduled (daily, default 07:00): writes a dated report of what is behind latest plus the audit/advisory summary for the ecosystem — the staleness and security picture in one file. Seeds disabled. Detected from the lockfile / manifest.",
+        icon: "cloud-download",
+        schedule: daily("07:00"),
+        action: report(folder, deps, reportRelativePath("deps"), false),
+      });
+    }
   }
 
   // 32: test trend tracker.

@@ -9,7 +9,7 @@ import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel } from "./terminalRunner";
 import { expandRecipeTokens, firstWorkspacePath, reportRelativePath } from "./actionRunner";
-import { recordLastReport } from "./lastReport";
+import { recordLastReport, peekLastReport, clearLastReport } from "./lastReport";
 
 // The routine engine: run a "recipe of recipes" — its member shortcuts strictly in
 // sequence, continue-on-failure — then write a one-row-per-member summary report and
@@ -47,6 +47,10 @@ interface MemberOutcome {
   status: "ok" | "failed" | "skipped" | "missing" | "dispatched";
   durationMs?: number;
   detail?: string;
+  // Absolute path of the report this member wrote, when it wrote one (the report
+  // rituals and project-stats do; a terminal / url member does not). The summary
+  // turns it into a relative link so it is the one index over the day's sub-reports.
+  reportPath?: string;
 }
 
 // Run one routine member to completion and report its outcome. Pulled out of the
@@ -113,6 +117,12 @@ async function runRoutineMember(
     };
   }
 
+  // Drop any report path a PRIOR run of this member left, so the post-run peek below
+  // links only a report THIS run actually wrote. Without this, a member that writes
+  // no report this run (a deps check that failed, a no-op) would relink its previous
+  // run's stale, wrong-dated report into the summary.
+  clearLastReport(resolved.id);
+
   const startedAt = Date.now();
   try {
     await hooks.runMember(resolved);
@@ -130,6 +140,10 @@ async function runRoutineMember(
     };
   }
 
+  // The path of the report this member just wrote (peek, not take: see lastReport).
+  // Undefined for a member that writes no file — its summary row then carries no link.
+  const reportPath = peekLastReport(resolved.id);
+
   // Read the member's tracked outcome — background / report runs record one. A
   // terminal / url / command member has no tracked exit, so the absence of a fresh
   // result reads as "dispatched", never a failure. Guard on endedAt >= startedAt so
@@ -142,6 +156,7 @@ async function runRoutineMember(
         label: memberLabel,
         status: fresh.outcome === "success" ? "ok" : "failed",
         durationMs: fresh.durationMs,
+        reportPath,
       },
       failed: fresh.outcome === "failure",
       badgeShortcutId: resolved.id,
@@ -152,6 +167,7 @@ async function runRoutineMember(
       label: memberLabel,
       status: "dispatched",
       durationMs: Date.now() - startedAt,
+      reportPath,
     },
     failed: false,
     badgeShortcutId: resolved.id,
@@ -276,19 +292,24 @@ async function writeRoutineSummary(
   const relative = expandRecipeTokens(reportRelativePath(slug));
   const reportPath = path.join(base, ...relative.split("/"));
 
+  // The directory the summary itself lives in, so each member's absolute report path
+  // becomes a link relative to the summary — the links resolve wherever the reports/
+  // tree is opened, not just on this machine.
+  const summaryDir = path.dirname(reportPath);
   const rows = outcomes
     .map((o) => {
       const duration = o.durationMs !== undefined ? formatDuration(o.durationMs) : "—";
       const detail = o.detail ? escapeCell(o.detail) : "";
-      return `| ${escapeCell(o.label)} | ${o.status} | ${duration} | ${detail} |`;
+      const report = reportLink(summaryDir, o.reportPath);
+      return `| ${escapeCell(o.label)} | ${o.status} | ${duration} | ${report} | ${detail} |`;
     })
     .join("\n");
   const body =
     `# ${name}\n\n` +
-    `Generated ${new Date().toLocaleString()}\n\n` +
+    `**Generated** ${new Date().toLocaleString()}\n\n` +
     `${outcomes.length} member(s); ${anyFailed ? "one or more need attention." : "all clear."}\n\n` +
-    `| Member | Outcome | Duration | Notes |\n` +
-    `|---|---|---|---|\n` +
+    `| Member | Outcome | Duration | Report | Notes |\n` +
+    `|---|---|---|---|---|\n` +
     `${rows}\n`;
 
   try {
@@ -315,4 +336,18 @@ async function writeRoutineSummary(
 // break the table layout.
 function escapeCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+}
+
+// Render a member's report path as a Markdown link relative to the summary file, so
+// the summary is the one clickable index over the day's sub-reports (the report
+// bug's "consolidate into a main summary doc with links for sub-docs"). A member
+// that wrote no report shows an em dash. Forward slashes in the relative path so the
+// link is portable across platforms (a Windows backslash is not a valid URL sep).
+function reportLink(summaryDir: string, reportPath: string | undefined): string {
+  if (!reportPath) {
+    return "—";
+  }
+  const rel = path.relative(summaryDir, reportPath).split(path.sep).join("/");
+  const name = path.basename(reportPath);
+  return `[${escapeCell(name)}](${rel})`;
 }

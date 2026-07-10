@@ -738,6 +738,34 @@ must not fire in every window just because the state is shared, and a view that
   for outside-the-project targets live in **Manage Folder Watches**, not on the row;
   the row `contextValue` carries only the enabled state (`watch<Enabled|Disabled>`).
 
+### 4.8 Generated report documents are readable Markdown, and a summary links its parts
+
+A scheduled recipe or routine writes a Markdown file under `reports/`. That file is
+a user-facing surface — it is opened and read — so it follows document conventions,
+not raw-dump conventions:
+
+- **Captured command output goes in a fenced code block.** Raw stdout/stderr (a
+  `git log --stat`, a `git status`, a grep) rendered as Markdown prose is mangled
+  ("unreadable slop", user report 2026-07-09). Wrap it in a fence so a preview shows
+  it as monospace preformatted text. The fence length is one backtick longer than the
+  longest backtick run in the body, so output that itself contains a fence can never
+  break out. The single writer is `buildCommandReport` in `exec/actionRunner.ts`.
+- **State an empty result, do not leave a blank fence.** No captured output reads as
+  an explicit *"No output."* line — a deliberate outcome, not an empty file.
+- **The report header is Markdown, not plain lines.** An H1 title, then a metadata
+  block with the generation time and the exact command code-formatted (copy-paste
+  safe): `**Command** \`git log …\``.
+- **A summary/routine report is the one index over its sub-reports, and it links
+  them.** When a run produces several files (the morning routine's members each write
+  their own), the summary carries a **Report** column that links each sub-report
+  *relative to the summary file*, so the links resolve wherever the `reports/` tree is
+  opened, not only on the machine that wrote them. Forward slashes in the relative
+  path (a Windows backslash is not a valid link separator). Consolidate onto one
+  summary with links rather than leaving the reader to find N separate files.
+- **A freshness/diagnostic report shows only the actionable items.** A dependency
+  report lists only the packages behind latest, not every dependency; the up-to-date
+  ones are omitted so the report is the work, not a table to scan.
+
 ---
 
 ## 5. Voice and tone

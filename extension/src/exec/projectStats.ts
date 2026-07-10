@@ -274,19 +274,21 @@ export function registerProjectStatsCommand(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "saropaWorkspace.recipe.projectStats",
+      // Returns the written report path so a routine summary can link it (the
+      // command dispatcher records the returned path for the shortcut).
       (folderPath?: unknown) => runProjectStats(folderPath)
     )
   );
 }
 
-async function runProjectStats(folderPath?: unknown): Promise<void> {
+async function runProjectStats(folderPath?: unknown): Promise<string | undefined> {
   const root =
     typeof folderPath === "string" && folderPath.length > 0
       ? folderPath
       : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!root) {
     vscode.window.showWarningMessage(l10n("stats.noFolder"));
-    return;
+    return undefined;
   }
   const stats = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: l10n("stats.collecting") },
@@ -302,7 +304,7 @@ async function runProjectStats(folderPath?: unknown): Promise<void> {
     vscode.window.showErrorMessage(
       l10n("stats.failed", { error: err instanceof Error ? err.message : String(err) })
     );
-    return;
+    return undefined;
   }
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
   await vscode.window.showTextDocument(doc, { preview: false });
@@ -313,4 +315,5 @@ async function runProjectStats(folderPath?: unknown): Promise<void> {
       lines: stats.totalLines,
     })
   );
+  return file;
 }
