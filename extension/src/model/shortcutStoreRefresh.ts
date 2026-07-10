@@ -1,56 +1,14 @@
 import * as vscode from "vscode";
-import {
-  Shortcut,
-  ShortcutExecConfig,
-  ShortcutGroup,
-  ShortcutMetric,
-  ShortcutSchedule,
-  ShortcutScope,
-  ShortcutSet,
-  ShortcutTrigger,
-  SystemEventName,
-  ProjectShortcutsFile,
-  PROJECT_SHORTCUTS_VERSION,
-  PROJECT_FILE_RELATIVE,
-  DEFAULT_SET_NAME,
-  emptyProjectShortcutsFile,
-  shortcutKind,
-} from "./shortcut";
-import { parseGlobalPath, globalStoredPath } from "./shortcutPaths";
-import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
-import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
-import { detectSuiteRecipes } from "../recipes/suiteRecipes";
-import { detectProcessRecipes } from "../recipes/processRecipes";
-import { detectHygieneRecipes } from "../recipes/hygieneRecipes";
-import { detectRoutineRecipes } from "../recipes/routineRecipes";
-import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
-import { getOutputChannel } from "../exec/runner";
-import { SharedShortcut } from "../import/shareLink";
-import { l10n } from "../i18n/l10n";
-import {
-  MoveTarget,
-  GLOBAL_STATE_KEY,
-  GLOBAL_GROUPS_KEY,
-  RECIPE_GROUPS,
-  RECIPE_SUBGROUPS,
-  RECIPE_GROUP_EXPANDED_PREFIX,
-  RECOMMENDED_GROUP_DEF,
-  RECOMMENDED_GROUP_ID,
-  DEFAULT_GROUPS,
-  recipeGroupId,
-  recipeSubGroupId,
-  isSyntheticRecipeGroupId,
-  recipeGroupColor,
-  isGlobPattern,
-  setsEqual,
-  sameSetName,
-} from "./shortcutStoreShared";
-import { ShortcutStoreRecipes } from "./shortcutStoreRecipes";
+import { Shortcut, ShortcutGroup, DEFAULT_SET_NAME, shortcutKind } from "./shortcut";
+import { DEFAULT_GROUPS, setsEqual } from "./shortcutStoreShared";
+import { ShortcutStoreRecipeSeed } from "./shortcutStoreRecipeSeed";
 
 // Recompute layer: refresh()/rescan() rebuild the cached shortcut/group state from
-// the project files + global state, then the async missing-file stat pass and recipe
-// seeding run off the first paint.
-export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
+// the project files + global state, then the async missing-file stat pass runs off
+// the first paint. The recipe-seeding sweep this used to also own now lives in
+// ShortcutStoreRecipeSeed (split out to keep this file under the project's
+// line-count cap) — refresh() still kicks it off, it just no longer defines it.
+export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipeSeed {
   async init(): Promise<void> {
     await this.refresh();
   }
@@ -79,61 +37,15 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
     const setNames = new Set<string>();
 
     for (const folder of folders) {
-      // Create the config file up front for any folder that lacks one, so every
-      // opened project gets a committed, shareable .vscode/saropa-workspace.json
-      // immediately — not only after the first pin is added.
-      await this.ensureProjectFile(folder);
-      const file = await this.readProjectFile(folder);
-
-      // The active set's name from this folder, plus every set name it knows, feed
-      // the switcher's cached state (read synchronously by the status-bar item).
+      const data = await this.collectProjectFolderData(folder, patterns);
       if (firstActiveSet === undefined) {
-        firstActiveSet = file.activeSet;
+        firstActiveSet = data.activeSet;
       }
-      setNames.add(file.activeSet);
-      for (const s of file.sets) {
-        setNames.add(s.name);
+      for (const name of data.setNames) {
+        setNames.add(name);
       }
-
-      // User groups for this folder.
-      for (const group of file.groups) {
-        this.projectGroupFolder.set(group.id, folder);
-        projectGroups.push(group);
-      }
-
-      // Stored explicit shortcuts.
-      for (const shortcut of file.pins) {
-        shortcut.scope = "project";
-        this.projectShortcutFolder.set(shortcut.id, folder);
-        project.push(shortcut);
-      }
-
-      // Seeded auto-shortcuts, minus the ones the user removed, each re-attached to
-      // any folder the user dragged it into (persisted in file.autoGroups).
-      const autoShortcuts = await this.seedAutoShortcuts(
-        folder,
-        patterns,
-        file.removedAutoPins,
-        file.autoGroups
-      );
-      for (const shortcut of autoShortcuts) {
-        this.projectShortcutFolder.set(shortcut.id, folder);
-        project.push(shortcut);
-      }
-
-      // Always surface a "Workspace config" example shortcut linking to the folder's
-      // own config file, so every project shows at least one usable shortcut (the
-      // user's entry point for editing shortcuts) — not an empty Project scope.
-      // Synthesized like an auto-shortcut (recomputed, not stored), so removal sticks
-      // via removedAutoPins and a hand-emptied file still gets it back. Skipped
-      // when an explicit/auto shortcut already targets the config file, so a project
-      // that stores its own config shortcut (e.g. this repo's committed sample) is not
-      // duplicated.
-      const configShortcut = this.configExampleShortcut(folder, file, autoShortcuts);
-      if (configShortcut) {
-        this.projectShortcutFolder.set(configShortcut.id, folder);
-        project.push(configShortcut);
-      }
+      projectGroups.push(...data.groups);
+      project.push(...data.shortcuts);
     }
 
     // Publish the cached set state. With no folder open there are no project sets,
@@ -144,44 +56,18 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
     );
 
     project.sort((a, b) => a.order - b.order);
+    // Pass this refresh's own folder snapshot rather than re-reading
+    // vscode.workspace.workspaceFolders inside injectDefaultGroups: a folder add/remove
+    // firing mid-refresh (each collectProjectFolderData call above awaits file IO) must
+    // not let this check see a different folder set than the one refresh() actually
+    // iterated over.
+    this.injectDefaultGroups(projectGroups, folders.length > 0);
+
     // Cache the non-recipe ("base") set and render it immediately. Recipe
     // detection is filesystem-heavy across (potentially many) folders, so it must
     // NOT block this first paint or the activation that awaits refresh(); it
     // streams in via seedRecipesAsync below. (Bug fix: detection ran inline here
     // and could stall the view in a multi-root workspace — "recipes never load".)
-    // Inject the built-in default groups (Build / Run / Deploy / Test / Docs / Data /
-    // Code) so the Project scope always offers a usable structure. These are synthetic
-    // (not in any project file), so they show even when EMPTY without writing seven
-    // folders into the committed config; a stored shortcut joins one by carrying its id
-    // in groupId (auto-assigned on add, or chosen by a promoted recipe). Pushed once
-    // (not per folder) and only when enabled AND a folder is open — their shortcuts must
-    // live in a workspace folder. Collapse posture comes from globalState (no file entry
-    // to hold it); they are deliberately NOT registered in projectGroupFolder, so a drop
-    // resolves the owning folder from the dropped shortcut instead (see moveProjectShortcuts).
-    if (this.defaultGroupsEnabled() && folders.length > 0) {
-      // A default group whose label collides with a hand-made project group is NOT
-      // injected — the user's own group wins, so the scope never shows two folders with
-      // the same name (e.g. a user "Build" group and the built-in "Build"). Auto-assign
-      // and recipe promotion file into that existing user group instead (see
-      // effectiveDefaultGroupId), so the membership lands in the folder that renders.
-      const userGroupLabels = new Set(
-        projectGroups.map((g) => g.label.trim().toLowerCase())
-      );
-      for (const def of DEFAULT_GROUPS) {
-        if (userGroupLabels.has(def.label.toLowerCase())) {
-          continue;
-        }
-        projectGroups.push({
-          id: def.id,
-          label: def.label,
-          order: def.order,
-          collapsed: !this.defaultGroupExpanded(def.id),
-          icon: def.icon,
-          color: def.color,
-        });
-      }
-    }
-
     this.baseProjectShortcuts = project;
     this.projectShortcuts = project;
     this.projectGroups = [...projectGroups].sort((a, b) => a.order - b.order);
@@ -195,6 +81,121 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
 
     // Stat file pins off the blocking path; a later fire flags any that vanished.
     void this.recomputeMissing(++this.missingGen);
+  }
+
+  // The per-folder body of refresh(): ensure+read the project file, then gather its
+  // set names, user groups, and every shortcut it contributes (explicit, seeded
+  // auto-shortcuts, and the synthetic config-example). Folder-ownership maps
+  // (projectGroupFolder / projectShortcutFolder) are populated here since every
+  // entry is keyed off `folder` anyway; the rest is returned for refresh() to
+  // accumulate across all folders.
+  protected async collectProjectFolderData(
+    folder: vscode.WorkspaceFolder,
+    patterns: string[]
+  ): Promise<{
+    activeSet: string;
+    setNames: string[];
+    groups: ShortcutGroup[];
+    shortcuts: Shortcut[];
+  }> {
+    // Create the config file up front for any folder that lacks one, so every
+    // opened project gets a committed, shareable .vscode/saropa-workspace.json
+    // immediately — not only after the first pin is added.
+    await this.ensureProjectFile(folder);
+    const file = await this.readProjectFile(folder);
+
+    // The active set's name from this folder, plus every set name it knows, feed
+    // the switcher's cached state (read synchronously by the status-bar item).
+    const setNames = new Set<string>();
+    setNames.add(file.activeSet);
+    for (const s of file.sets) {
+      setNames.add(s.name);
+    }
+
+    const groups: ShortcutGroup[] = [];
+    // User groups for this folder.
+    for (const group of file.groups) {
+      this.projectGroupFolder.set(group.id, folder);
+      groups.push(group);
+    }
+
+    const shortcuts: Shortcut[] = [];
+    // Stored explicit shortcuts.
+    for (const shortcut of file.pins) {
+      shortcut.scope = "project";
+      this.projectShortcutFolder.set(shortcut.id, folder);
+      shortcuts.push(shortcut);
+    }
+
+    // Seeded auto-shortcuts, minus the ones the user removed, each re-attached to
+    // any folder the user dragged it into (persisted in file.autoGroups).
+    const autoShortcuts = await this.seedAutoShortcuts(
+      folder,
+      patterns,
+      file.removedAutoPins,
+      file.autoGroups
+    );
+    for (const shortcut of autoShortcuts) {
+      this.projectShortcutFolder.set(shortcut.id, folder);
+      shortcuts.push(shortcut);
+    }
+
+    // Always surface a "Workspace config" example shortcut linking to the folder's
+    // own config file, so every project shows at least one usable shortcut (the
+    // user's entry point for editing shortcuts) — not an empty Project scope.
+    // Synthesized like an auto-shortcut (recomputed, not stored), so removal sticks
+    // via removedAutoPins and a hand-emptied file still gets it back. Skipped
+    // when an explicit/auto shortcut already targets the config file, so a project
+    // that stores its own config shortcut (e.g. this repo's committed sample) is not
+    // duplicated.
+    const configShortcut = this.configExampleShortcut(folder, file, autoShortcuts);
+    if (configShortcut) {
+      this.projectShortcutFolder.set(configShortcut.id, folder);
+      shortcuts.push(configShortcut);
+    }
+
+    return {
+      activeSet: file.activeSet,
+      setNames: Array.from(setNames),
+      groups,
+      shortcuts,
+    };
+  }
+
+  // Inject the built-in default groups (Build / Run / Deploy / Test / Docs / Data /
+  // Code) so the Project scope always offers a usable structure. These are synthetic
+  // (not in any project file), so they show even when EMPTY without writing seven
+  // folders into the committed config; a stored shortcut joins one by carrying its id
+  // in groupId (auto-assigned on add, or chosen by a promoted recipe). Pushed once
+  // (not per folder) and only when enabled AND a folder is open — their shortcuts must
+  // live in a workspace folder. Collapse posture comes from globalState (no file entry
+  // to hold it); they are deliberately NOT registered in projectGroupFolder, so a drop
+  // resolves the owning folder from the dropped shortcut instead (see moveProjectShortcuts).
+  protected injectDefaultGroups(projectGroups: ShortcutGroup[], hasOpenFolder: boolean): void {
+    if (!this.defaultGroupsEnabled() || !hasOpenFolder) {
+      return;
+    }
+    // A default group whose label collides with a hand-made project group is NOT
+    // injected — the user's own group wins, so the scope never shows two folders with
+    // the same name (e.g. a user "Build" group and the built-in "Build"). Auto-assign
+    // and recipe promotion file into that existing user group instead (see
+    // effectiveDefaultGroupId), so the membership lands in the folder that renders.
+    const userGroupLabels = new Set(
+      projectGroups.map((g) => g.label.trim().toLowerCase())
+    );
+    for (const def of DEFAULT_GROUPS) {
+      if (userGroupLabels.has(def.label.toLowerCase())) {
+        continue;
+      }
+      projectGroups.push({
+        id: def.id,
+        label: def.label,
+        order: def.order,
+        collapsed: !this.defaultGroupExpanded(def.id),
+        icon: def.icon,
+        color: def.color,
+      });
+    }
   }
 
   // Stat every resolved file shortcut and record the ones whose target is gone, so
@@ -233,122 +234,4 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipes {
       this._onDidChange.fire();
     }
   }
-
-  // Detect recipes for all folders in parallel, fault-isolated per folder, and
-  // publish them into the separate recipe-groups list + the project shortcut list
-  // (the tree renders recipe shortcuts under their own "Recipes" section, not the
-  // Project scope). Guarded by a generation token so a stale run (a newer refresh
-  // started) is discarded rather than overwriting fresh state. Detection itself is
-  // cached per folder (see detectRecipes), so a refresh that is not the first does no
-  // file IO for recipes — only the cheap removed-filter + shortcut rebuild.
-  protected async seedRecipesAsync(gen: number): Promise<void> {
-    if (!this.recipesEnabled()) {
-      // Disabled: clear any previously shown recipe groups and leave only base shortcuts.
-      this.recipeGroups = [];
-      this.projectShortcuts = this.baseProjectShortcuts;
-      this._onDidChange.fire();
-      return;
-    }
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    const perFolder = await Promise.all(
-      folders.map(async (folder) => {
-        try {
-          const file = await this.readProjectFile(folder);
-          const results = await this.detectRecipes(folder);
-          const shortcuts = [
-            ...this.buildRecipeShortcuts(folder, results, file.removedRecipes),
-            // The Recommended shelf: pointer copies of the top recipes, in their own
-            // synthetic group. Built from the same detection results, so it costs no
-            // extra IO.
-            ...this.buildRecommendedShortcuts(folder, results, file.removedRecipes),
-          ];
-          return { folder, shortcuts };
-        } catch (err) {
-          // A detector throwing must never hang or break the view; surface it in
-          // the output channel and yield no recipes for that folder.
-          getOutputChannel().appendLine(
-            `[recipes] detection failed for ${folder.name}: ${err instanceof Error ? err.message : String(err)}`
-          );
-          return { folder, shortcuts: [] as Shortcut[] };
-        }
-      })
-    );
-
-    // Drop stale results: a newer refresh() has superseded this run.
-    if (gen !== this.recipeGen) {
-      return;
-    }
-
-    const recipeShortcuts: Shortcut[] = [];
-    for (const { folder, shortcuts } of perFolder) {
-      for (const shortcut of shortcuts) {
-        this.projectShortcutFolder.set(shortcut.id, folder);
-        recipeShortcuts.push(shortcut);
-      }
-    }
-
-    // Build the synthetic recipe groups (GitHub / Run / Workspace / Scheduled /
-    // Saropa Suite), each only when it actually has a pin, so an empty logical
-    // group never shows as an empty folder. These are kept separate from the
-    // project groups so the tree can render them under their own top-level section.
-    const groups: ShortcutGroup[] = [];
-    // The Recommended shelf sits above the category groups (lowest order) and shows
-    // only when it actually has a featured row, so it never appears as an empty folder.
-    if (recipeShortcuts.some((p) => p.groupId === RECOMMENDED_GROUP_ID)) {
-      groups.push({
-        id: RECOMMENDED_GROUP_DEF.id,
-        label: RECOMMENDED_GROUP_DEF.label,
-        order: RECOMMENDED_GROUP_DEF.order,
-        collapsed: !this.recipeGroupExpanded(RECOMMENDED_GROUP_DEF.id),
-        icon: RECOMMENDED_GROUP_DEF.icon,
-        color: RECOMMENDED_GROUP_DEF.color,
-      });
-    }
-    for (const def of RECIPE_GROUPS) {
-      const subDefs = RECIPE_SUBGROUPS.filter((s) => s.parentId === def.id);
-      const hasDirectShortcut = recipeShortcuts.some((p) => p.groupId === def.id);
-      // A parent shows when it directly owns a shortcut OR a subgroup under it does —
-      // the single-tool suite case has no boot macro (needs 2+ tools) and all its
-      // shortcuts sit in one subgroup, so a directness-only check would orphan that
-      // subgroup.
-      const hasChildShortcut = subDefs.some((sd) =>
-        recipeShortcuts.some((p) => p.groupId === sd.id)
-      );
-      if (hasDirectShortcut || hasChildShortcut) {
-        groups.push({
-          id: def.id,
-          label: def.label,
-          order: def.order,
-          collapsed: !this.recipeGroupExpanded(def.id),
-          icon: def.icon,
-          color: def.color,
-        });
-      }
-      // Each subgroup is injected only when it owns a shortcut, so a subfolder appears
-      // exactly when its tool is detected. parentId nests it under the group above.
-      for (const sd of subDefs) {
-        if (recipeShortcuts.some((p) => p.groupId === sd.id)) {
-          groups.push({
-            id: sd.id,
-            label: sd.label,
-            order: sd.order,
-            parentId: sd.parentId,
-            collapsed: !this.recipeGroupExpanded(sd.id),
-            icon: sd.icon,
-            color: sd.color,
-          });
-        }
-      }
-    }
-    // Do not flatten-sort across levels: top-level orders (9989..10000) and subgroup
-    // orders (1..3) live in different number spaces, so a global sort would interleave
-    // them. The tree filters by parentId and sorts each level, so the stored order is
-    // left as built (parents and their subgroups already emitted together above).
-    this.recipeGroups = groups;
-    this.projectShortcuts = [...this.baseProjectShortcuts, ...recipeShortcuts].sort(
-      (a, b) => a.order - b.order
-    );
-    this._onDidChange.fire();
-  }
-
 }

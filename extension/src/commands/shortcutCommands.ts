@@ -12,9 +12,7 @@ import { suggestFromHistory } from "./ghostShortcuts";
 import { switchEnvProfile } from "./envProfiles";
 import { enterFocusMode, exitFocusMode } from "./focusMode";
 import { l10n } from "../i18n/l10n";
-// The shortcut helpers and the two sub-registrars split out of this file. The body below
-// registers the workspace/run/open commands and delegates per-shortcut config and the
-// group/adding/recipes/favorites commands to the sub-registrars.
+// The shortcut helpers and the two imported sub-registrars split out of this file.
 import { openShortcut } from "./shortcutOpen";
 import { peekShortcut } from "./shortcutPeek";
 import { toggleTail, registerTailFollow } from "./shortcutTailFollow";
@@ -33,17 +31,41 @@ import {
 } from "./shortcutRunPalette";
 import { registerPinConfigCommands } from "./shortcutConfigCommands";
 import { registerPinManagementCommands } from "./shortcutManagementCommands";
-import { shortcutCommandRegistrar } from "./registerHelpers";
+import { shortcutCommandRegistrar, ShortcutCommandRegistrar } from "./registerHelpers";
 
 // Re-exported so extension.ts keeps importing the routine hooks factory from here.
 export { createRoutineHooks } from "./shortcutExecution";
 
+// A thin orchestrator: registers the workspace-level and per-shortcut action commands
+// via the two functions below, and delegates per-shortcut config and the
+// group/adding/recipes/favorites commands to the imported sub-registrars.
 export function registerShortcutCommands(
   context: vscode.ExtensionContext,
   store: ShortcutStore,
   dispatcher: DoubleClickDispatcher
 ): void {
-  const { reg, regShortcut } = shortcutCommandRegistrar(context);
+  // Thin orchestrator: the registrations are grouped by concern into the helpers below so
+  // no single function breaches the length cap. Order is irrelevant — each command is
+  // independent — but kept workspace-level → per-shortcut actions → config → management
+  // for readability. Built once here (not per helper) so both share one registrar.
+  const registrar = shortcutCommandRegistrar(context);
+  registerWorkspaceLevelCommands(context, store, registrar);
+  registerShortcutActionCommands(context, store, dispatcher, registrar);
+  registerPinConfigCommands(context, store);
+  registerPinManagementCommands(context, store);
+}
+
+// Workspace-level commands that take no shortcut argument: refresh, run-any-shortcut,
+// routine-from-selection, run-with-overrides, reset history, run analytics, boot
+// sequence, export/import, edit config, focus mode, scratchpad, layout, suggest from
+// history, env profile, run-by-ref, and the top-shortcut-slot loop. Split out of
+// registerShortcutCommands so that function stays under the size cap.
+function registerWorkspaceLevelCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore,
+  registrar: ShortcutCommandRegistrar
+): void {
+  const { reg } = registrar;
 
   // The manual Refresh is the user's explicit "re-scan now" — clear the cached
   // glob/detection so newly-added files matching auto-shortcut patterns or new recipes
@@ -142,6 +164,19 @@ export function registerShortcutCommands(
   for (let slot = 1; slot <= TOP_SHORTCUT_SLOTS; slot++) {
     reg(`saropaWorkspace.runTopPin${slot}`, () => runTopShortcut(store, slot));
   }
+}
+
+// Per-shortcut click/action commands: the click dispatcher entry point, open/peek,
+// tail-follow (plus its document-listener wiring), mask toggle, and the run variants
+// (run, run now, run with last params). Split out of registerShortcutCommands so that
+// function stays under the size cap.
+function registerShortcutActionCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore,
+  dispatcher: DoubleClickDispatcher,
+  registrar: ShortcutCommandRegistrar
+): void {
+  const { regShortcut } = registrar;
 
   // Click dispatcher entry point: defer to single/double-click logic by shortcut id.
   regShortcut("saropaWorkspace.activatePin", (shortcut) => dispatcher.activate(shortcut.id));
@@ -167,7 +202,4 @@ export function registerShortcutCommands(
   regShortcut("saropaWorkspace.runPinNow", (shortcut) => void runShortcutCommand(store, shortcut));
 
   regShortcut("saropaWorkspace.runPinLastParams", (shortcut) => void runWithLastParams(store, shortcut));
-
-  registerPinConfigCommands(context, store);
-  registerPinManagementCommands(context, store);
 }

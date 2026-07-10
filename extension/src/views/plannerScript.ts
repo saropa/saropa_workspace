@@ -13,6 +13,9 @@ import { PLANNER_WORKFLOW } from './planner/plannerScriptWorkflow';
 import { PLANNER_INSPECTOR } from './planner/plannerScriptInspector';
 import { PLANNER_BOOTSTRAP } from './planner/plannerScriptBootstrap';
 
+// The reassembled webview script: each fragment above owns one concern (core
+// helpers, timeline view, workflow graph, inspector, bootstrap), concatenated back
+// into the single script string the planner panel injects into its HTML.
 export const PLANNER_SCRIPT =
   '\n' +
   PLANNER_CORE +

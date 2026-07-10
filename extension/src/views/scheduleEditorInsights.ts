@@ -52,6 +52,9 @@ export interface Insights {
   gapTo: number | null;
 }
 
+// Entry point for the "Around your schedule" card: gathers every other enabled,
+// daily-scheduled shortcut as a neighbor on the 24-hour strip, then derives the
+// conflict warning and free-gap note this shortcut's daily time competes with.
 export function buildInsights(
   store: ShortcutStore,
   shortcutId: string,

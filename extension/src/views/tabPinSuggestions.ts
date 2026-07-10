@@ -40,6 +40,9 @@ const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 // acceptable — the user can dismiss again, and the Restore command exists).
 const MAX_DISMISSED = 500;
 
+// The persisted globalState record for this suggester: the pinned-since stamps
+// (constraint 1 above) and the permanent dismiss list (constraint described in the
+// file header).
 export interface TabPinState {
   // fsPath -> epoch-ms when the tab was first seen pinned (and still is).
   firstPinnedAt: Record<string, number>;
@@ -47,6 +50,9 @@ export interface TabPinState {
   dismissed: string[];
 }
 
+// The output of reconcileTabPins(): the next state to persist, whether it differs
+// from the input (so callers can skip a redundant write), and the files that just
+// crossed the threshold and are ready to prompt.
 export interface TabPinReconcileResult {
   // The next persisted state after stamping new sightings and dropping stale ones.
   state: TabPinState;
@@ -121,6 +127,9 @@ const NOISE = [
   `.favorites.json`,
 ];
 
+// Wires the tab-change listener and the coarse poll timer, and owns the
+// per-session offer gate on top of the pure reconcileTabPins() core. One instance
+// lives for the extension's lifetime; dispose() clears the timer and listeners on deactivate.
 export class TabPinSuggester {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly timer: ReturnType<typeof setInterval>;

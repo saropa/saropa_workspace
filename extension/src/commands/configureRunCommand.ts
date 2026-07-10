@@ -23,6 +23,9 @@ export async function editCommand(work: ShortcutExecConfig, title: string): Prom
   work.command = value.trim() === "" ? undefined : value;
 }
 
+// Argument-line sub-editor: pre-fills the input with the current args formatted as a
+// command line, then re-parses whatever the user enters on confirm. Esc leaves the
+// field unchanged; an empty result clears it to undefined (round-trip parity).
 export async function editArgs(work: ShortcutExecConfig, title: string): Promise<void> {
   const value = await vscode.window.showInputBox({
     title,

@@ -43,6 +43,8 @@ const BLOAT_PRONE_NAMES = new Set<string>([
   "obj",
 ]);
 
+// Input to one bloat scan: which project roots to measure and the two ceilings that
+// decide whether an immediate child directory counts as oversized.
 export interface BloatOptions {
   // Absolute project roots to scan (each immediate child of a root is measured).
   roots: string[];
@@ -52,8 +54,14 @@ export interface BloatOptions {
   fileCountCeiling: number;
 }
 
+// The two things this scan flags: a crawlable directory over a size/file-count
+// ceiling, or a project that depends on a VS Code test downloader but has not
+// watcher-excluded its (unbounded-growth) cache.
 export type BloatKind = "oversizedDir" | "unguardedTestCache";
 
+// One flagged directory or cache, carrying enough detail (measured size, the exact
+// watcherExclude glob, a human remediation line) for the Markdown report row to stand
+// on its own without the reader re-deriving anything.
 export interface BloatFinding {
   // The project root this finding belongs to (for the cross-project report grouping).
   root: string;
@@ -73,6 +81,8 @@ export interface BloatFinding {
   remediation: string;
 }
 
+// Per-project scan tally, independent of whether that project produced any findings —
+// feeds the report's "Scanned projects" table so a clean project is still accounted for.
 export interface BloatRootSummary {
   root: string;
   // Immediate child dirs measured (excludes node_modules / .git).
@@ -83,6 +93,9 @@ export interface BloatRootSummary {
   testCacheGuarded: boolean;
 }
 
+// The full result of a bloat scan across one or more project roots: every finding,
+// a per-root summary, and the one boolean the command layer needs to decide whether
+// to badge/auto-open the report or stay silent.
 export interface BloatReport {
   roots: string[];
   generatedAt: string;
@@ -96,6 +109,9 @@ export interface BloatReport {
 
 // Default ceilings (the plan's open decision #4): 1 GB or 50,000 files per dir.
 export const DEFAULT_FOLDER_CEILING_BYTES = 1024 * 1024 * 1024;
+// Companion ceiling to DEFAULT_FOLDER_CEILING_BYTES: a directory with more files than
+// this is flagged even when its total byte size is small — a huge count of tiny files
+// crawls just as slowly as one big one (the @vscode/test-electron cache case).
 export const DEFAULT_FILE_COUNT_CEILING = 50_000;
 
 // Measure one directory's recursive byte total and file count, stopping early once

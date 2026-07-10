@@ -188,6 +188,11 @@ function runWatchLinksOnSave(
   }
 }
 
+// One-time "import existing favorites" prompt, gated per workspace by IMPORT_PROMPT_KEY.
+// Detects any known favorites source, marks the gate BEFORE awaiting the user's answer
+// (so a dismissal or reload mid-prompt does not re-trigger it), then imports all
+// detected sources on confirm. Called once at activation and again by
+// registerFavoritesImportWatchers whenever a favorites source appears or changes later.
 export async function maybeOfferFavoritesImport(
   context: vscode.ExtensionContext,
   store: ShortcutStore

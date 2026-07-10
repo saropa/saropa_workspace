@@ -22,6 +22,8 @@ export async function readText(
   }
 }
 
+// True when the path stats successfully under the folder root; false for any stat
+// failure (missing file is the common case, so this never throws).
 export async function exists(
   folder: vscode.WorkspaceFolder,
   ...segments: string[]
@@ -34,6 +36,9 @@ export async function exists(
   }
 }
 
+// Reads and JSON-parses a file at the folder root; undefined when the file is
+// missing or its content is not valid JSON (a manifest detector's normal miss,
+// not an error worth surfacing).
 export async function readJson<T = Record<string, unknown>>(
   folder: vscode.WorkspaceFolder,
   name: string
@@ -59,6 +64,10 @@ export function shell(folder: vscode.WorkspaceFolder, commandLine: string): Shor
   };
 }
 
+// Every "open this link" recipe (repo home, PR queue, deployed site, registry
+// listing, docs) needs the exact same one-field action shape; centralized here so
+// a future field added to a url action (e.g. a target-window hint) is one edit,
+// not one per detector.
 export function url(target: string): ShortcutAction {
   return { kind: "url", url: target };
 }
@@ -83,6 +92,8 @@ export function branchUrl(r: GitRemote, branch: string): string {
     ? `${r.webBase}/-/tree/${branch}`
     : `${r.webBase}/tree/${branch}`;
 }
+// PR/merge-request creation URL for the branch: GitHub's compare?expand=1 view,
+// GitLab's merge_requests/new form, or Bitbucket's pull-requests/new form.
 export function compareUrl(r: GitRemote, branch: string): string {
   switch (r.host) {
     case "gitlab":
@@ -93,6 +104,8 @@ export function compareUrl(r: GitRemote, branch: string): string {
       return `${r.webBase}/compare/${branch}?expand=1`;
   }
 }
+// Commit history URL for the branch. Bitbucket has no per-branch commits view, so
+// it falls back to the repo's all-branches commits page.
 export function commitsUrl(r: GitRemote, branch: string): string {
   switch (r.host) {
     case "gitlab":
@@ -103,9 +116,13 @@ export function commitsUrl(r: GitRemote, branch: string): string {
       return `${r.webBase}/commits/${branch}`;
   }
 }
+// Issue tracker URL for the repo — GitLab nests it under /-/, every other host
+// (including Bitbucket, which shares the plain /issues path) does not.
 export function issuesUrl(r: GitRemote): string {
   return r.host === "gitlab" ? `${r.webBase}/-/issues` : `${r.webBase}/issues`;
 }
+// CI/pipelines URL for the repo: GitHub Actions, GitLab's pipelines view, or
+// Bitbucket's pipelines add-on page, per host.
 export function ciUrl(r: GitRemote): string {
   switch (r.host) {
     case "gitlab":
@@ -117,6 +134,9 @@ export function ciUrl(r: GitRemote): string {
   }
 }
 
+// The first name in the list that exists at the folder root, or undefined if none
+// do — used to pick among several equivalent config filenames (e.g. eslint's many
+// config file spellings) without checking them all every time.
 export async function firstExisting(
   folder: vscode.WorkspaceFolder,
   names: string[]
@@ -129,6 +149,8 @@ export async function firstExisting(
   return undefined;
 }
 
+// Human-readable display name for the remote's host kind, for use in recipe
+// labels/descriptions ("Opens the repo on GitHub" rather than the raw enum).
 export function hostName(r: GitRemote): string {
   switch (r.host) {
     case "github":
@@ -150,6 +172,8 @@ export function nameFromYaml(text: string | undefined): string | undefined {
   const m = /^name:\s*(\S+)/m.exec(text);
   return m ? m[1].replace(/['"]/g, "") : undefined;
 }
+// Extracts a bare `name = "x"` value, matching either a [project] (PEP 621) or a
+// [tool.poetry] table — TOML's `key = "value"` syntax, unlike YAML's `key: value`.
 export function nameFromToml(text: string | undefined): string | undefined {
   if (!text) {
     return undefined;

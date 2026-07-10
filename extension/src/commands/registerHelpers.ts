@@ -20,6 +20,8 @@ export interface ShortcutCommandRegistrar {
   regShortcut(id: string, run: (shortcut: Shortcut) => unknown): void;
 }
 
+// Build the `reg` / `regShortcut` pair described above, closed over this context so
+// every registered command's Disposable is pushed automatically.
 export function shortcutCommandRegistrar(
   context: vscode.ExtensionContext
 ): ShortcutCommandRegistrar {

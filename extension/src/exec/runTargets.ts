@@ -29,6 +29,10 @@ export interface RunTarget {
 // not a package.json / Makefile, and reading it to scan would waste memory.
 const MAX_PARSE_BYTES = 256 * 1024;
 
+// Entry point: read the file once (capped at MAX_PARSE_BYTES) and dispatch to the
+// matching parser by name/extension — package.json scripts, Makefile/.mk targets,
+// or a shebang scan as the fallback. Yields an empty list for an oversized file or
+// one with no detectable target.
 export async function detectRunTargets(uri: vscode.Uri): Promise<RunTarget[]> {
   const base = path.basename(uri.fsPath);
   const lower = base.toLowerCase();

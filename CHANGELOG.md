@@ -49,7 +49,7 @@ cspell:disable
 
 ## [Unreleased]
 
-**Overview** — In the Saropa Launcher, a project file card now shows its Open icon even while the card is collapsed, so you can open the file in one click without expanding it first — the same one-click Open the files in My shortcuts already had.
+**Overview** — In the Saropa Launcher, a project file card now shows its Open icon even while the card is collapsed, so you can open the file in one click without expanding it first — the same one-click Open the files in My shortcuts already had. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.18/CHANGELOG.md)
 
 ### Changed
 

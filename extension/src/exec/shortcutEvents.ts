@@ -14,6 +14,8 @@ import * as vscode from "vscode";
 // success/failure. This is documented where triggers are configured.
 export type ShortcutRunOutcome = "success" | "failure" | "dispatched";
 
+// The payload fired on the completion bus: which shortcut finished and its
+// terminal outcome (see ShortcutRunOutcome above for what "dispatched" means).
 export interface ShortcutCompletion {
   pinId: string;
   outcome: ShortcutRunOutcome;

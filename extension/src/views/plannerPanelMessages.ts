@@ -8,6 +8,9 @@ import { l10n } from "../i18n/l10n";
 // on every repaint so the layout survives across pushes and window reloads.
 export const LAYOUT_KEY = "saropaWorkspace.planner.layout";
 
+// Shared lookup for every message handler below: the webview posts back a bare
+// shortcut id (or `undefined` for a stray/late message), so this centralizes the
+// "no id, no shortcut" short-circuit instead of repeating the guard at each call site.
 export function findStored(store: ShortcutStore, id: string | undefined): Shortcut | undefined {
   if (!id) {
     return undefined;
@@ -15,6 +18,9 @@ export function findStored(store: ShortcutStore, id: string | undefined): Shortc
   return store.findShortcut(id);
 }
 
+// Planner's "Run" gesture (double-click / context-menu on a node) — delegates to
+// the same `saropaWorkspace.runPin` command the tree view uses, so run behavior
+// (terminal vs background channel, working directory) stays identical across surfaces.
 export async function runById(store: ShortcutStore, id?: string): Promise<void> {
   const shortcut = findStored(store, id);
   if (shortcut) {
@@ -22,6 +28,9 @@ export async function runById(store: ShortcutStore, id?: string): Promise<void> 
   }
 }
 
+// Planner's "Open" gesture — mirrors runById() but for the single-click/open
+// path, delegating to `saropaWorkspace.openPin` so the file opens the same way
+// it would from the tree view.
 export async function openById(store: ShortcutStore, id?: string): Promise<void> {
   const shortcut = findStored(store, id);
   if (shortcut) {
@@ -29,6 +38,10 @@ export async function openById(store: ShortcutStore, id?: string): Promise<void>
   }
 }
 
+// Generic dispatch for planner context-menu actions (edit, duplicate, delete, etc.)
+// that need to run an arbitrary command against a shortcut and then force a
+// repaint. Used instead of one-off handlers per command so adding a new context-menu
+// action doesn't need a new message type.
 export async function runCommandForShortcut(
   store: ShortcutStore,
   command: string,
@@ -138,6 +151,9 @@ export async function addTrigger(
   );
 }
 
+// Counterpart to addTrigger() — deletes a single edge (a pin link or an event
+// link) from the target shortcut's trigger list. Silently no-ops on a missing
+// target or an unset `from`, since a stale drag-disconnect message shouldn't surface an error.
 export async function removeTrigger(store: ShortcutStore, to?: string, from?: string): Promise<void> {
   const target = findStored(store, to);
   if (!target?.triggers || from === undefined) {
@@ -159,6 +175,9 @@ export async function removeTrigger(store: ShortcutStore, to?: string, from?: st
   await store.updateShortcutTriggers(target, remaining, target.emits);
 }
 
+// Persist the Workflow graph's hand-arranged node positions after a user drag —
+// see LAYOUT_KEY above for why this is workspace state rather than in the shortcut
+// model itself. A missing `positions` payload (e.g. a drag that didn't move anything) is a no-op.
 export async function savePositions(
   context: vscode.ExtensionContext,
   positions?: Record<string, { x: number; y: number }>

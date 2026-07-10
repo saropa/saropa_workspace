@@ -59,6 +59,10 @@ export interface RecipeSubGroupDef {
   icon: string;
   color: string;
 }
+// The nested per-tool subgroups actually offered today. A subgroup is injected into
+// the tree only when it has at least one recipe, so listing one here does not by
+// itself create a folder — it just makes the id/label/appearance available when
+// buildRecipeShortcuts detects that tool.
 export const RECIPE_SUBGROUPS: readonly RecipeSubGroupDef[] = [
   // Flutter projects get their own "Flutter" subfolder under Build & Run so the
   // flutter-prefixed commands (run/analyze/build/clean/upgrade) and the composite
@@ -78,6 +82,9 @@ export const RECIPE_SUBGROUPS: readonly RecipeSubGroupDef[] = [
 // that also live in their home category; promoting one suppresses the underlying recipe
 // (sticky by recipeId) exactly as promoting from the category would.
 export const RECOMMENDED_GROUP_ID = "recipes-recommended";
+// Shape of the single "Recommended" shelf definition (RECOMMENDED_GROUP_DEF below).
+// A separate type from RecipeGroupDef because this group is not keyed off a
+// RecipeCategory — it has no `category` field to match against.
 export interface RecommendedGroupDef {
   id: string;
   label: string;
@@ -85,6 +92,8 @@ export interface RecommendedGroupDef {
   icon: string;
   color: string;
 }
+// The one "Recommended" shelf's id/label/appearance, ordered just above the
+// category groups (9988 < 9989) so it renders first among the Recipes subfolders.
 export const RECOMMENDED_GROUP_DEF: RecommendedGroupDef = {
   id: RECOMMENDED_GROUP_ID,
   label: "Recommended",
@@ -211,6 +220,9 @@ export interface RecipeSectionAppearance {
   icon: string;
   color: string;
 }
+// Resolve a synthetic group/subgroup id to its display appearance, subgroup first
+// so a Flutter/Saropa-Suite tool subfolder is not shadowed by its parent category.
+// Returns undefined for any id that names neither, e.g. a user-made group.
 export function recipeSectionAppearance(
   groupId: string | undefined
 ): RecipeSectionAppearance | undefined {

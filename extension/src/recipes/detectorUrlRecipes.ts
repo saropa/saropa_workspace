@@ -27,72 +27,104 @@ export async function pushUrlRecipes(
   remote: GitRemote | undefined,
   out: RecipeResult[]
 ): Promise<void> {
-  // 1-5, 23: git-remote-derived URL recipes.
-  if (remote) {
-    out.push({
-      recipeId: "github.home",
-      label: `Open ${remote.repo} on ${hostName(remote)}`,
-      description: `Opens the repository home page on ${hostName(remote)}. Derived from the origin remote in .git/config, so it is correct per clone without hand-typing a URL.`,
-      icon: "github",
-      color: "charts.purple",
-      action: url(remote.webBase),
-    });
-    const branch = await getCurrentBranch(folder);
-    if (branch) {
-      out.push({
-        recipeId: "github.branch",
-        label: `Open branch ${branch}`,
-        description: `Opens the current branch (${branch}) on the remote's web view. Derived from the origin remote and the checked-out HEAD.`,
-        icon: "git-branch",
-        action: url(branchUrl(remote, branch)),
-      });
-      out.push({
-        recipeId: "github.pr",
-        label: `Open a pull request for ${branch}`,
-        description: `Opens the "new pull request / merge request" page pre-filled with the current branch (${branch}). Derived from the origin remote and HEAD.`,
-        icon: "git-pull-request",
-        action: url(compareUrl(remote, branch)),
-      });
-      out.push({
-        recipeId: "github.commits",
-        label: `Open commit history for ${branch}`,
-        description: `Opens the commit history for the current branch (${branch}) on the remote's web view. Host-aware, derived from the origin remote and HEAD.`,
-        icon: "git-commit",
-        action: url(commitsUrl(remote, branch)),
-      });
-    }
-    out.push({
-      recipeId: "github.issues",
-      label: "Open Issues",
-      description: "Opens the project's issue tracker on the remote. Derived from the origin remote in .git/config.",
-      icon: "issues",
-      action: url(issuesUrl(remote)),
-    });
-    out.push({
-      recipeId: "ci",
-      label: remote.host === "gitlab" ? "Open Pipelines" : "Open CI / Actions",
-      description: remote.host === "gitlab"
-        ? "Opens the GitLab pipelines page for this project. Host-aware, derived from the origin remote."
-        : "Opens the CI / Actions page for this project. Host-aware (GitHub Actions / GitLab pipelines), derived from the origin remote.",
-      icon: "pulse",
-      action: url(ciUrl(remote)),
-    });
-    if (remote.host === "github" || remote.host === "gitlab") {
-      out.push({
-        recipeId: "releases",
-        label: "Open Releases",
-        description: "Opens the releases page on the remote. Derived from the origin remote in .git/config.",
-        icon: "tag",
-        action: url(
-          remote.host === "gitlab"
-            ? `${remote.webBase}/-/releases`
-            : `${remote.webBase}/releases`
-        ),
-      });
-    }
-  }
+  await pushGitRemoteUrlRecipes(folder, remote, out);
+  pushDeployedSiteRecipe(pkg, out);
+  pushRegistryListingRecipe(pkg, out);
+  await pushLanguageRegistryRecipes(folder, out);
+  await pushDocsSiteRecipe(folder, out);
+}
 
-  // 6: deployed site (package.json homepage that is an external URL).
+// 1-5, 23: git-remote-derived URL recipes (repo home, branch, PR, commits,
+// issues, CI / pipelines, releases). Host-aware (GitHub vs GitLab wording and
+// paths) since both are derived from the same origin remote in .git/config.
+async function pushGitRemoteUrlRecipes(
+  folder: vscode.WorkspaceFolder,
+  remote: GitRemote | undefined,
+  out: RecipeResult[]
+): Promise<void> {
+  if (!remote) {
+    return;
+  }
+  out.push({
+    recipeId: "github.home",
+    label: `Open ${remote.repo} on ${hostName(remote)}`,
+    description: `Opens the repository home page on ${hostName(remote)}. Derived from the origin remote in .git/config, so it is correct per clone without hand-typing a URL.`,
+    icon: "github",
+    color: "charts.purple",
+    action: url(remote.webBase),
+  });
+  await pushBranchDependentUrlRecipes(folder, remote, out);
+  out.push({
+    recipeId: "github.issues",
+    label: "Open Issues",
+    description: "Opens the project's issue tracker on the remote. Derived from the origin remote in .git/config.",
+    icon: "issues",
+    action: url(issuesUrl(remote)),
+  });
+  out.push({
+    recipeId: "ci",
+    label: remote.host === "gitlab" ? "Open Pipelines" : "Open CI / Actions",
+    description: remote.host === "gitlab"
+      ? "Opens the GitLab pipelines page for this project. Host-aware, derived from the origin remote."
+      : "Opens the CI / Actions page for this project. Host-aware (GitHub Actions / GitLab pipelines), derived from the origin remote.",
+    icon: "pulse",
+    action: url(ciUrl(remote)),
+  });
+  if (remote.host === "github" || remote.host === "gitlab") {
+    out.push({
+      recipeId: "releases",
+      label: "Open Releases",
+      description: "Opens the releases page on the remote. Derived from the origin remote in .git/config.",
+      icon: "tag",
+      action: url(
+        remote.host === "gitlab"
+          ? `${remote.webBase}/-/releases`
+          : `${remote.webBase}/releases`
+      ),
+    });
+  }
+}
+
+// Branch/PR/commits trio: only pushed when a current branch is checked out
+// (getCurrentBranch resolves HEAD). Split out of pushGitRemoteUrlRecipes so
+// that function stays under the project's 50-line cap.
+async function pushBranchDependentUrlRecipes(
+  folder: vscode.WorkspaceFolder,
+  remote: GitRemote,
+  out: RecipeResult[]
+): Promise<void> {
+  const branch = await getCurrentBranch(folder);
+  if (!branch) {
+    return;
+  }
+  out.push({
+    recipeId: "github.branch",
+    label: `Open branch ${branch}`,
+    description: `Opens the current branch (${branch}) on the remote's web view. Derived from the origin remote and the checked-out HEAD.`,
+    icon: "git-branch",
+    action: url(branchUrl(remote, branch)),
+  });
+  out.push({
+    recipeId: "github.pr",
+    label: `Open a pull request for ${branch}`,
+    description: `Opens the "new pull request / merge request" page pre-filled with the current branch (${branch}). Derived from the origin remote and HEAD.`,
+    icon: "git-pull-request",
+    action: url(compareUrl(remote, branch)),
+  });
+  out.push({
+    recipeId: "github.commits",
+    label: `Open commit history for ${branch}`,
+    description: `Opens the commit history for the current branch (${branch}) on the remote's web view. Host-aware, derived from the origin remote and HEAD.`,
+    icon: "git-commit",
+    action: url(commitsUrl(remote, branch)),
+  });
+}
+
+// 6: deployed site (package.json homepage that is an external URL).
+function pushDeployedSiteRecipe(
+  pkg: Record<string, unknown> | undefined,
+  out: RecipeResult[]
+): void {
   const homepage = pkg && typeof pkg.homepage === "string" ? pkg.homepage : undefined;
   if (homepage && /^https?:\/\//i.test(homepage)) {
     out.push({
@@ -104,8 +136,13 @@ export async function pushUrlRecipes(
       action: url(homepage),
     });
   }
+}
 
-  // 7 / 25: registry vs marketplace listing.
+// 7 / 25: registry vs marketplace listing.
+function pushRegistryListingRecipe(
+  pkg: Record<string, unknown> | undefined,
+  out: RecipeResult[]
+): void {
   if (pkg && typeof pkg.name === "string") {
     const name = pkg.name;
     const publisher = typeof pkg.publisher === "string" ? pkg.publisher : undefined;
@@ -129,7 +166,13 @@ export async function pushUrlRecipes(
       });
     }
   }
-  // pub.dev / PyPI registry listings.
+}
+
+// pub.dev / PyPI registry listings.
+async function pushLanguageRegistryRecipes(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   const pubName = nameFromYaml(await readText(folder, "pubspec.yaml"));
   if (pubName) {
     out.push({
@@ -150,8 +193,13 @@ export async function pushUrlRecipes(
       action: url(`https://pypi.org/project/${pyName}`),
     });
   }
+}
 
-  // 8: docs site (mkdocs site_url).
+// 8: docs site (mkdocs site_url).
+async function pushDocsSiteRecipe(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   const mkdocs = await readText(folder, "mkdocs.yml");
   const siteUrl = mkdocs ? /site_url:\s*(\S+)/.exec(mkdocs)?.[1] : undefined;
   if (siteUrl) {

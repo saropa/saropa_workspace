@@ -34,6 +34,9 @@ const NOISE = [
   `.favorites.json`,
 ];
 
+// Wires the active-editor-change listener and owns the per-file open counts and
+// handled list described above. One instance lives for the extension's lifetime;
+// dispose() tears down the listener on deactivate.
 export class SuggestionTracker {
   private readonly disposables: vscode.Disposable[] = [];
 

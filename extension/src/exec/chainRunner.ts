@@ -28,6 +28,10 @@ import { l10n } from "../i18n/l10n";
 // released on deactivation.
 const COOLDOWN_MS = 3000;
 
+// Listens on the shortcut-completion and system-event buses and auto-runs whatever
+// dependent shortcuts their triggers name (chained runs, emit -> event, idle
+// thresholds), guarding against a storm/cycle with the per-shortcut cooldown above.
+// Disposable so both bus subscriptions are released on deactivation.
 export class ChainRunner implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   // pinId -> epoch ms of its last auto-run, for the re-entrancy cooldown.

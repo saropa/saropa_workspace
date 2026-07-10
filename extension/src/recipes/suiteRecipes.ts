@@ -78,6 +78,9 @@ function shell(folder: vscode.WorkspaceFolder, commandLine: string): ShortcutAct
   };
 }
 
+// Entry point for recipe book section F (36-59): probes each sibling Saropa tool
+// in turn (Lints, Drift Advisor, Log Capture) and, once at least two contributed a
+// boot step, appends the cross-tool "boot the suite" macro.
 export async function detectSuiteRecipes(
   folder: vscode.WorkspaceFolder
 ): Promise<RecipeResult[]> {

@@ -57,6 +57,8 @@ export interface ToolGroup {
   procs: ProcSample[];
 }
 
+// The complete two-sample poll snapshot the panel renders: host totals (cores,
+// RAM) plus the toolchain groups, sorted worst-first, that make up the table.
 export interface PollResult {
   cores: number;
   totalRamBytes: number;

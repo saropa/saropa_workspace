@@ -22,6 +22,9 @@ export async function pollProcessesTab(webview: vscode.Webview): Promise<PollRes
   return result;
 }
 
+// Copy the last poll result to the clipboard as a Markdown report. Reuses the cached
+// PollResult from pollProcessesTab rather than re-sampling, so Copy report answers a click
+// instantly instead of triggering a second ~1 s two-sample poll.
 export async function copyProcessReport(lastResult: PollResult | undefined): Promise<void> {
   if (!lastResult) {
     return;

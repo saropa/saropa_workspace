@@ -17,6 +17,9 @@ import * as path from "path";
 //               covers the single-file "tell me when this file changes" case).
 export type FolderWatchMode = "new" | "changed";
 
+// One user-configured folder/file watch: what to watch, in which mode, and which
+// projects it alerts in. Persisted verbatim in FolderWatchStore (globalState), read
+// by the scan/diff engine and the Watches tree, and mutated via add/update/remove.
 export interface FolderWatch {
   // Stable id, used as the live-watcher key and the baseline-cache key.
   id: string;

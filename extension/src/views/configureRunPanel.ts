@@ -46,6 +46,11 @@ interface WireExec {
   lockName?: string;
 }
 
+// Host-side controller for the Configure Run webview panel: owns the VS Code panel
+// lifecycle (singleton instance, repoint-on-reopen for a different shortcut), the
+// postMessage protocol with the client script, and the working-copy round-trip
+// (toWork/normalize) so a save always matches the live preview it was shown. The markup
+// itself is built by renderConfigureRunHtml in configureRunShell.ts.
 export class ConfigureRunPanel {
   private static current: ConfigureRunPanel | undefined;
   private static readonly viewType = "saropaWorkspace.configureRun";

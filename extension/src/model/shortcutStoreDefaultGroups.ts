@@ -31,6 +31,9 @@ export interface DefaultGroupDef {
 // below it. Consecutive so the seven cluster in the listed order.
 const DEFAULT_GROUP_ORDER_BASE = 5000;
 
+// The seven built-in Project-scope folders, in display order. Each pairs a distinct
+// codicon + theme color so the scaffolding reads at a glance; DEFAULT_GROUP_RULES
+// below decides which of these an added file lands in.
 export const DEFAULT_GROUPS: readonly DefaultGroupDef[] = [
   { id: "default:build", label: "Build", order: DEFAULT_GROUP_ORDER_BASE + 0, icon: "tools", color: "charts.green" },
   { id: "default:run", label: "Run", order: DEFAULT_GROUP_ORDER_BASE + 1, icon: "play", color: "charts.blue" },

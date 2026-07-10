@@ -64,6 +64,9 @@ export function notifyWatchChange(message: string): void {
   );
 }
 
+// Wire the watch-setup entry points (watch a folder, watch a file, the manage hub)
+// and the Watches-view row actions (open/clear, toggle, remove), delegating each to
+// its sibling command file so this stays a thin registration list.
 export function registerFolderWatchCommands(
   context: vscode.ExtensionContext,
   store: FolderWatchStore

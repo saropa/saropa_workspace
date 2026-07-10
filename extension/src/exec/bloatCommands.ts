@@ -20,6 +20,9 @@ import { l10n } from "../i18n/l10n";
 // scheduled rituals follow. Remediation (Guard / Prune) is registered alongside.
 const CONFIG = "saropaWorkspace.hygiene";
 
+// Wire the three bloat-scan commands (run the scan, guard a project's watcher
+// excludes, prune the .vscode-test cache) into the extension's disposables so they are
+// unregistered on deactivation like every other command.
 export function registerBloatCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.recipe.runBloatScan", () =>

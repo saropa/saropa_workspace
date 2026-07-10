@@ -35,6 +35,10 @@ export async function shortcutToLine(store: ShortcutStore): Promise<void> {
   vscode.window.showInformationMessage(l10n("linePin.added", { name: base, line }));
 }
 
+// Pin a file uri into the given scope and confirm, naming the default group it was
+// auto-sorted into when one applies so the user sees where it landed. A file already
+// pinned in that scope is a no-op with its own toast rather than a silent skip. On a
+// fresh add, also offers any detected run target (npm script, Make target, shebang).
 export async function shortcutUri(store: ShortcutStore, uri: vscode.Uri, scope: ShortcutScope): Promise<void> {
   const name = uri.path.split("/").pop() ?? uri.fsPath;
   const added = await store.addShortcut(uri, scope);

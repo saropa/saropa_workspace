@@ -135,13 +135,33 @@ const GIT_REPORT_RITUALS: ReportRitual[] = [
   },
 ];
 
+// Entry point for recipe book category E (26-35): runs each ritual pusher (lint
+// sweep, the shared git-report table, dependency freshness, test trend, PR review
+// queue) in turn and tags every result with the "scheduled" group.
 export async function detectScheduledRecipes(
   folder: vscode.WorkspaceFolder
 ): Promise<RecipeResult[]> {
   const out: RecipeResult[] = [];
-  const isGit = await exists(folder, ".git");
 
-  // 26: dawn lint sweep (artifact only).
+  await pushLintSweepRitual(folder, out);
+  await pushGitRituals(folder, out);
+  await pushDependencyFreshnessRitual(folder, out);
+  await pushTestTrendRitual(folder, out);
+  await pushPrReviewRitual(folder, out);
+
+  // Every scheduled ritual lands in the "Recipes: Scheduled" group.
+  for (const r of out) {
+    r.group = "scheduled";
+  }
+
+  return out;
+}
+
+// 26: dawn lint sweep (artifact only).
+async function pushLintSweepRitual(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   const linter = await detectLinter(folder);
   if (linter) {
     out.push({
@@ -154,45 +174,61 @@ export async function detectScheduledRecipes(
       action: report(folder, linter, reportRelativePath("lint", "txt"), false),
     });
   }
+}
 
-  if (isGit) {
-    // 27: sunrise project stats. A per-language file/line breakdown of the tracked
-    // codebase (share of total) plus the recent git activity, written to a dated
-    // report and opened. Runs a command (computed in-process from `git ls-files`)
-    // rather than a raw shell line, so the aggregation is cross-platform.
-    out.push({
-      recipeId: "ritual.stats",
-      label: "Sunrise project stats",
-      description: "Scheduled (daily, default 06:00): writes and opens a dated report breaking the tracked codebase down by language (files, lines, and each language's share) alongside recent commits and the contributor shortlog — a dashboard waiting each morning. Seeds disabled. Detected from a git repository.",
-      icon: "dashboard",
-      color: "charts.blue",
-      schedule: daily("06:00"),
-      action: {
-        kind: "command",
-        commandId: "saropaWorkspace.recipe.projectStats",
-        commandArgs: [folder.uri.fsPath],
-      },
-    });
-
-    // 28, 29, 31, 33, 35: the report rituals, seeded from the shared table.
-    for (const r of GIT_REPORT_RITUALS) {
-      out.push({
-        recipeId: r.recipeId,
-        label: r.label,
-        description: r.description,
-        icon: r.icon,
-        color: r.color,
-        schedule: daily(r.atTime),
-        action: report(folder, r.command, r.reportFile, r.autoOpen),
-      });
-    }
+// The git-repo-only rituals: sunrise project stats (27) plus the shared report-
+// ritual table (28, 29, 31, 33, 35). Both require a .git directory, so they share
+// one guard rather than each recipe re-checking isGit.
+async function pushGitRituals(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
+  const isGit = await exists(folder, ".git");
+  if (!isGit) {
+    return;
   }
 
-  // 30: dependency freshness (per ecosystem). A pubspec project routes to the
-  // in-process pubspec-outdated command, which parses `dart pub outdated --json` and
-  // writes a report of ONLY the packages behind latest (report bug item 4) — a
-  // filter the raw shell capture cannot do. Every other ecosystem keeps the raw
-  // outdated/audit capture (now fenced by the report writer).
+  // 27: sunrise project stats. A per-language file/line breakdown of the tracked
+  // codebase (share of total) plus the recent git activity, written to a dated
+  // report and opened. Runs a command (computed in-process from `git ls-files`)
+  // rather than a raw shell line, so the aggregation is cross-platform.
+  out.push({
+    recipeId: "ritual.stats",
+    label: "Sunrise project stats",
+    description: "Scheduled (daily, default 06:00): writes and opens a dated report breaking the tracked codebase down by language (files, lines, and each language's share) alongside recent commits and the contributor shortlog — a dashboard waiting each morning. Seeds disabled. Detected from a git repository.",
+    icon: "dashboard",
+    color: "charts.blue",
+    schedule: daily("06:00"),
+    action: {
+      kind: "command",
+      commandId: "saropaWorkspace.recipe.projectStats",
+      commandArgs: [folder.uri.fsPath],
+    },
+  });
+
+  // 28, 29, 31, 33, 35: the report rituals, seeded from the shared table.
+  for (const r of GIT_REPORT_RITUALS) {
+    out.push({
+      recipeId: r.recipeId,
+      label: r.label,
+      description: r.description,
+      icon: r.icon,
+      color: r.color,
+      schedule: daily(r.atTime),
+      action: report(folder, r.command, r.reportFile, r.autoOpen),
+    });
+  }
+}
+
+// 30: dependency freshness (per ecosystem). A pubspec project routes to the
+// in-process pubspec-outdated command, which parses `dart pub outdated --json` and
+// writes a report of ONLY the packages behind latest (report bug item 4) — a
+// filter the raw shell capture cannot do. Every other ecosystem keeps the raw
+// outdated/audit capture (now fenced by the report writer).
+async function pushDependencyFreshnessRitual(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   if (await exists(folder, "pubspec.yaml")) {
     out.push({
       recipeId: "ritual.deps",
@@ -219,8 +255,13 @@ export async function detectScheduledRecipes(
       });
     }
   }
+}
 
-  // 32: test trend tracker.
+// 32: test trend tracker.
+async function pushTestTrendRitual(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   const test = await detectTest(folder);
   if (test) {
     out.push({
@@ -232,8 +273,13 @@ export async function detectScheduledRecipes(
       action: report(folder, test, reportRelativePath("tests", "txt"), false),
     });
   }
+}
 
-  // 34: PR review queue (GitHub only; relies on the gh CLI being installed).
+// 34: PR review queue (GitHub only; relies on the gh CLI being installed).
+async function pushPrReviewRitual(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
   const remote = await getGitRemote(folder);
   if (remote?.host === "github") {
     out.push({
@@ -250,13 +296,6 @@ export async function detectScheduledRecipes(
       ),
     });
   }
-
-  // Every scheduled ritual lands in the "Recipes: Scheduled" group.
-  for (const r of out) {
-    r.group = "scheduled";
-  }
-
-  return out;
 }
 
 // --- linter / test / outdated detection (per ecosystem) ----------------

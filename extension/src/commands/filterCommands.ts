@@ -21,6 +21,10 @@ interface ChipButton extends vscode.QuickInputButton {
   readonly id: "scripts" | "files" | "failed" | "clear";
 }
 
+// Wire the find-bar toggle command (plus its active-state twin for the icon swap),
+// the Clear command, the three facet-toggle commands (also usable standalone from
+// the palette), and the tag "mode" picker/clear pair — all operating on the one
+// shared ShortcutFilterState so the view title and the find bar stay in sync.
 export function registerFilterCommands(
   context: vscode.ExtensionContext,
   filterState: ShortcutFilterState,

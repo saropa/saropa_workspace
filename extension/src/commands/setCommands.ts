@@ -23,6 +23,9 @@ function hasWorkspaceFolder(): boolean {
   return (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
 }
 
+// Wire the switcher hub command plus the new/rename/delete/duplicate commands so
+// each is also reachable directly (view title + command palette), not only through
+// the hub's QuickPick.
 export function registerSetCommands(
   context: vscode.ExtensionContext,
   store: ShortcutStore

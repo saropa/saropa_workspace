@@ -118,6 +118,9 @@ export const COLOR_CHOICES: Array<{ id: string; key: string }> = [
   { id: "saropaWorkspace.tint.gray", key: "appearance.color.gray" },
 ];
 
+// "Configure Icon & Color" command entry point. Warns and exits for an auto-shortcut
+// (recomputed each refresh, so there is nowhere to persist an override), otherwise runs
+// the shared icon-then-color picker and persists the pair via updateShortcutAppearance.
 export async function configureAppearance(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
   // Auto-shortcuts are recomputed each refresh and not stored in pins[], so there is
   // nowhere to persist an icon/color; surface that rather than silently failing.

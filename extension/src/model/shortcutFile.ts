@@ -86,6 +86,10 @@ export interface ProjectShortcutsFile {
   autoGroups: Record<string, string>;
 }
 
+// A brand-new project shortcuts file: version-stamped, on the Default set, with
+// every collection empty. The seed handed to a folder that has never written
+// .vscode/saropa-workspace.json, so readProjectFile always has a complete shape to
+// merge into rather than special-casing "file missing" at every call site.
 export function emptyProjectShortcutsFile(): ProjectShortcutsFile {
   return {
     version: PROJECT_SHORTCUTS_VERSION,

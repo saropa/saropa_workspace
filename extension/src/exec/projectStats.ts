@@ -36,6 +36,9 @@ interface LangStat {
   bytes: number;
 }
 
+// The full stats-report payload: per-language file/line/byte breakdown plus the
+// recent git activity summary, assembled once by collectProjectStats and
+// rendered by buildStatsMarkdown.
 export interface ProjectStats {
   root: string;
   generatedAt: string;
@@ -145,6 +148,11 @@ async function git(root: string, args: string[]): Promise<string> {
   }
 }
 
+// Walk the tracked files (via `git ls-files`, so .gitignore is honored for free
+// and no recursive crawl is needed), bucket them by language, and count
+// lines/bytes per bucket, alongside a recent git activity summary. Bounded by
+// MAX_FILES / MAX_LINE_READ_BYTES so a large repo cannot freeze the run; a
+// truncated listing is flagged on the result rather than silently under-reported.
 export async function collectProjectStats(root: string): Promise<ProjectStats> {
   const stats: ProjectStats = {
     root,

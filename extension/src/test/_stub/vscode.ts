@@ -85,6 +85,8 @@ export class RelativePattern {
 // Settable workspace folders. undefined models "no folder open" (the store guards
 // that path); a test installs folders pointing at its temp directory.
 let folders: WorkspaceFolder[] | undefined;
+// Test-control hook: installs the array `workspace.workspaceFolders` returns
+// (undefined models "no folder open").
 export function __setWorkspaceFolders(next: WorkspaceFolder[] | undefined): void {
   folders = next;
 }
@@ -105,9 +107,13 @@ function ownerFolder(uri: Uri): WorkspaceFolder | undefined {
 // before store IO existed). A test sets recipes.enabled=false to skip the recipe
 // detection graph, or autoShortcuts.patterns to drive seeding.
 const configValues = new Map<string, unknown>();
+// Test-control hook: seeds a single "section.key" value, read back by
+// getConfiguration().get() in place of the caller's supplied default.
 export function __setConfig(section: string, key: string, value: unknown): void {
   configValues.set(section ? `${section}.${key}` : key, value);
 }
+// Test-control hook: clears configuration and installed-extension state so it
+// does not leak from one test into the next.
 export function __resetConfig(): void {
   configValues.clear();
   installedExtensions.clear();
@@ -221,6 +227,9 @@ const fsApi = {
   },
 };
 
+// vscode.workspace stand-in: configuration reads, workspaceFolders /
+// getWorkspaceFolder, the real-filesystem-backed fs, and findFiles — the slice of
+// the real namespace the store and detectors actually touch.
 export const workspace = {
   getConfiguration,
   get workspaceFolders(): WorkspaceFolder[] | undefined {
@@ -239,9 +248,13 @@ export const workspace = {
 // graceful-absence path). getExtension returns a stand-in only carrying `.id`, the
 // single field the detector reads (it checks presence, not the activation surface).
 let installedExtensions = new Set<string>();
+// Test-control hook: sets which extension ids extensions.getExtension() reports
+// as installed for the rest of the test.
 export function __setInstalledExtensions(ids: string[]): void {
   installedExtensions = new Set(ids);
 }
+// vscode.extensions stand-in: reports installed/not-installed by id, driven by
+// __setInstalledExtensions (defaults to "nothing installed").
 export const extensions = {
   getExtension(id: string): { id: string } | undefined {
     return installedExtensions.has(id) ? { id } : undefined;
@@ -268,6 +281,8 @@ let pickHandler: PickHandler = async () => undefined;
 // notifies a snapshot of the current listeners so a listener that disposes mid-fire
 // does not corrupt iteration. Models only what the idle monitor (and similar) use.
 type Listener<T> = (e: T) => void;
+// vscode.EventEmitter stand-in — see the comment above for the `.event`/`.fire`
+// contract this fakes.
 export class EventEmitter<T> {
   private readonly listeners = new Set<Listener<T>>();
   readonly event = (listener: Listener<T>): { dispose(): void } => {
@@ -315,6 +330,9 @@ function createOutputChannel(name: string): {
   };
 }
 
+// vscode.window stand-in: the settable input/pick dialogs, inert message toasts,
+// the no-op output channel, and the activity-event emitters the idle monitor
+// subscribes to.
 export const window = {
   showInputBox(opts?: { prompt?: string; value?: string }): Promise<InputResult> {
     return inputHandler(opts);
@@ -349,9 +367,13 @@ export const window = {
 export function __fireWindowState(focused: boolean): void {
   windowStateEmitter.fire({ focused });
 }
+// Fires a text-editor-selection change with an empty payload — enough to count as
+// "activity" for the idle monitor, which only cares that the event fired.
 export function __fireSelection(): void {
   selectionEmitter.fire({});
 }
+// Fires an active-editor-change event with an undefined payload, the same
+// "any fire counts as activity" shortcut as __fireSelection.
 export function __fireActiveEditor(): void {
   activeEditorEmitter.fire(undefined);
 }
@@ -362,6 +384,8 @@ export function __fireActiveEditor(): void {
 // ran (the branch-set binder's on-switch shortcut runner) can assert it; the recording
 // is cleared by __resetRecordedCommands.
 const recordedCommands: Array<{ command: string; args: unknown[] }> = [];
+// vscode.commands stand-in: executeCommand is an inert no-op that records the
+// call, so a test that cares which command ran can assert against it afterward.
 export const commands = {
   executeCommand(command: string, ...rest: unknown[]): Promise<undefined> {
     recordedCommands.push({ command, args: rest });
@@ -377,16 +401,21 @@ export function __recordedCommands(): ReadonlyArray<{
 }> {
   return recordedCommands;
 }
+// Test-control hook: clears the recorded executeCommand call log between tests.
 export function __resetRecordedCommands(): void {
   recordedCommands.length = 0;
 }
 
+// Test-control hook: installs the handler that answers window.showInputBox calls.
 export function __setInputHandler(handler: InputHandler): void {
   inputHandler = handler;
 }
+// Test-control hook: installs the handler that answers window.showQuickPick calls.
 export function __setPickHandler(handler: PickHandler): void {
   pickHandler = handler;
 }
+// Test-control hook: restores the input/pick handlers to their "cancel
+// everything" defaults between tests.
 export function __resetHandlers(): void {
   inputHandler = async () => undefined;
   pickHandler = async () => undefined;
