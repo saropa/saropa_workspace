@@ -13,11 +13,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Shortcut, ShortcutGroup, ShortcutScope } from "../model/shortcut";
 import type { ShortcutStore } from "../model/shortcutStore";
-import {
-  buildLauncherItems,
-  watchLauncherItem,
-  fileLauncherItem,
-} from "../views/launcherItems";
+import { buildLauncherItems } from "../views/launcherItems";
+import { watchLauncherItem } from "../views/launcherWatchItem";
+import { fileLauncherItem } from "../views/launcherFileItem";
 
 // A crafted Shortcut with sensible defaults; each test overrides only the fields it
 // asserts on, so the intent of a row reads at its call site.

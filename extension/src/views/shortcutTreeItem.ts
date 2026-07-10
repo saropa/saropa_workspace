@@ -1,24 +1,13 @@
 import * as vscode from "vscode";
 import { Shortcut, shortcutKind, isAnnotationShortcut } from "../model/shortcut";
-import { nextOccurrence } from "../exec/schedule";
 import { RunResult } from "../exec/runStatus";
-import { ShortcutBadge, formatBadgeLead } from "../exec/shortcutBadges";
+import { ShortcutBadge } from "../exec/shortcutBadges";
 import { MetricBadge } from "../exec/metricBadges";
 import { RunSource } from "../exec/telemetry";
-import { formatRelativeTime } from "./projectFilesProvider";
 import { resolveShortcutRowIcon } from "./shortcutRowTokens";
-import { RECOMMENDED_GROUP_ID } from "../model/shortcutStoreShared";
-import {
-  formatNextRun,
-  formatRunBadge,
-  expirySummary,
-  actionSummary,
-  formatExpiryInstant,
-  formatRunTooltip,
-  formatDiagTooltip,
-  formatTestTooltip,
-  recentTag,
-} from "./shortcutRowFormatting";
+import { buildShortcutRowDescription } from "./shortcutRowDescription";
+import { buildShortcutContextValue } from "./shortcutRowContext";
+import { buildShortcutTooltipLines } from "./shortcutRowTooltip";
 import { l10n } from "../i18n/l10n";
 
 // The structural tree rows (Recent root, scope roots, group folders) live in
@@ -161,266 +150,45 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       return;
     }
 
-    // Leading inline badge, by priority: a running shortcut's live state wins; then a
-    // scheduled shortcut's queued next-run time (2.2); then the last completed run's
-    // outcome and duration (7.2). Only one badge shows — the most actionable.
-    const next = shortcut.schedule
-      ? nextOccurrence(shortcut.schedule, Date.now())
-      : undefined;
-    const nextLabel = next !== undefined ? formatNextRun(next) : undefined;
+    // Badge + description assembly (leading state badge, identity detail, live
+    // metric) — extracted so this constructor stays a short sequence of builder
+    // calls; see shortcutRowDescription.ts for the phase's own reasoning.
+    const { description, metricText } = buildShortcutRowDescription({
+      shortcut,
+      masked,
+      isFile,
+      isRunning,
+      isStopping,
+      lastRun,
+      lockedBy,
+      sweepBadge,
+      metricBadge,
+      recentInfo,
+    });
+    this.description = description;
 
-    const lastRunBadge = lastRun ? formatRunBadge(lastRun) : undefined;
-    // A locked shortcut's "waiting on <prerequisite>" badge wins over a schedule /
-    // last-run badge while resting, since not-yet-runnable is the most actionable
-    // resting fact.
-    const lockBadge =
-      lockedBy && !isRunning && !isStopping
-        ? l10n("depends.treeBadge", { dep: lockedBy })
-        : undefined;
-    // A paused shortcut shows a "paused" badge instead of its next-run time: the
-    // schedule is kept but no timer is armed, so surfacing a next-run instant it will
-    // not honor would mislead. Running / stopping / a lock still win — those are live,
-    // more actionable states, and a paused shortcut can still be run manually.
-    const badge = isStopping
-      ? l10n("run.stoppingBadge")
-      : isRunning
-        ? l10n("run.treeBadge")
-        : lockBadge
-          ? lockBadge
-          : shortcut.paused
-            ? l10n("pause.treeBadge")
-            : nextLabel
-              ? l10n("schedule.treeBadge", { time: nextLabel })
-              : lastRunBadge;
-    // For a file shortcut the trailing detail is its path; for a non-file shortcut it
-    // is a summary of what the action does (the URL, the command line, etc.). A masked
-    // shortcut contributes none — the path is exactly what must stay hidden — so the
-    // join below drops it (the falsy filter) and the row carries only state badges.
-    const detail = masked
-      ? undefined
-      : isFile
-        ? shortcut.path
-        : actionSummary(shortcut);
-    // A Recent entry leads with when it last ran (and a hint if it was a scheduled
-    // fire), since "how recently" is the reason it is in this group; otherwise the
-    // leading slot is the most-actionable badge (running / next-run / last-run).
-    // A resting shortcut's last-sweep counts lead the row (the most informative resting
-    // fact for a lint / test shortcut), then the state badge, then the path/action
-    // detail. Suppressed while running/stopping, where the live state is what matters.
-    const badgeLead =
-      sweepBadge && !isRunning && !isStopping
-        ? formatBadgeLead(sweepBadge)
-        : undefined;
-    // The live metric value (#24), shared by the row and the hover. Size / line text
-    // is precomputed by the engine; "modified" is formatted relative here so it stays
-    // current between repaints (the engine cannot re-fire just because wall-clock
-    // advanced). Hoisted above the recent/normal split so the tooltip can reuse it.
-    // A masked shortcut shows no metric: a size/line-count value is a hint about the
-    // target, and the point of masking is to leak nothing while resting.
-    const metricText =
-      metricBadge && !masked
-        ? metricBadge.kind === "modified" && metricBadge.mtime !== undefined
-          ? formatRelativeTime(metricBadge.mtime, Date.now())
-          : metricBadge.text
-        : undefined;
-    if (recentInfo) {
-      const when = formatRelativeTime(recentInfo.at, Date.now());
-      // Tag a Recent entry as opened vs a scheduled fire (a plain manual run gets no
-      // tag), via the shared formatter so the sidebar, dashboard, and report agree.
-      const tagToken = recentTag(recentInfo);
-      const tag = tagToken ? ` ${tagToken}` : "";
-      // A masked shortcut's detail is hidden, so a Recent entry shows only when it ran,
-      // never the path — `detail` is undefined under mask.
-      this.description = detail ? `${when}${tag} · ${detail}` : `${when}${tag}`;
-    } else {
-      // A time-bombed shortcut (WOW #9) shows a compact countdown / branch chip so the
-      // row carries its pending self-removal at a glance; the full condition is in
-      // the hover. Suppressed while running/stopping, where live state matters more.
-      const expiryChip =
-        !isRunning && !isStopping ? expirySummary(shortcut) : undefined;
-      // Row budget (UI plan, Phase 1): leading sweep counts, the one most-actionable
-      // state badge, a single expiry chip, the identity detail, and the live metric
-      // the user opted into per shortcut. The branch link and mode tags are
-      // deliberately NOT joined onto the row — both already have a dedicated hover line
-      // below, and crowding a narrow sidebar row with up to seven `·`-joined segments
-      // was the main "hard to glance" offender. Holding the row to these few parts lets
-      // the eye lock onto state and identity without parsing a long string.
-      this.description = [badgeLead, badge, expiryChip, detail, metricText]
-        .filter((part) => part)
-        .join(" · ");
-    }
+    // contextValue gates the menus; see shortcutRowContext.ts for the exact suffix
+    // rules each menu clause depends on.
+    this.contextValue = buildShortcutContextValue(shortcut, isRunning, isStopping);
 
-    // contextValue gates the menus. A running shortcut uses "shortcutRunning" so the
-    // Stop action shows; recipe shortcuts use "shortcutRecipe" (Promote / sticky Remove,
-    // but no Configure Run/Schedule which only apply to stored shortcuts); auto-added
-    // shortcuts are distinguished from explicit shortcuts. All start with "shortcut" so
-    // the /^shortcut/ run/open/remove clauses match. A resting shortcut that carries a
-    // schedule gets a "Scheduled" suffix (shortcutScheduled / shortcutRecipeScheduled)
-    // so its context menu shows "Run now" instead of "Run" — firing a scheduled job
-    // ahead of its timer reads as intentional. The suffix preserves the /^shortcut/
-    // prefix, so the generic run/open/remove/peek clauses still match; only the
-    // exact-match clauses (Configure Run/Schedule/Appearance, Promote) are widened to
-    // accept it.
-    // A paused stored shortcut appends a "Paused" suffix (shortcutPaused /
-    // shortcutScheduledPaused) so the context menu can swap "Pause" for "Unpause"; the
-    // suffix preserves the /^shortcut/ prefix and the config clauses match it via
-    // /^shortcut(Scheduled)?(Paused)?$/, so a paused shortcut keeps every edit/run
-    // action. Only explicit shortcuts are pausable (auto/recipe shortcuts are
-    // recomputed, not stored), so the suffix is applied to the stored-shortcut branch
-    // alone.
-    const scheduled = shortcut.schedule !== undefined;
-    const pausedSuffix = shortcut.paused ? "Paused" : "";
-    // A recommended scheduled-ritual row (a pointer on the Recommended shelf, identified
-    // by its synthetic group) gets a distinct "shortcutRecommendScheduled" value so the
-    // shelf can offer the one-tap "enable" inline action that category recipe rows do
-    // not. It still starts with "shortcut" and ends with "Scheduled", so the generic
-    // run/open/remove clauses and the /Scheduled$/ "Run now" clause keep matching.
-    const onRecommendShelf = shortcut.groupId === RECOMMENDED_GROUP_ID;
-    this.contextValue = isStopping
-      ? "shortcutStopping"
-      : isRunning
-        ? "shortcutRunning"
-        : shortcut.isRecipe
-          ? scheduled
-            ? onRecommendShelf
-              ? "shortcutRecommendScheduled"
-              : "shortcutRecipeScheduled"
-            : "shortcutRecipe"
-          : shortcut.isAuto
-            ? "shortcutAuto"
-            : scheduled
-              ? `shortcutScheduled${pausedSuffix}`
-              : `shortcut${pausedSuffix}`;
-
-    // Tooltip shows the full target (the complete URL for a url shortcut), even though
-    // the row only shows the host — the hover is where the detail belongs. A masked
-    // shortcut replaces the target line with a generic notice: the hover is a passive
-    // surface that can sit on a shared screen, so it must never carry the real path.
-    // The real name is named only at the deliberate reveal confirm (see openShortcut).
-    const targetLine = masked
-      ? l10n("mask.tooltip")
-      : isFile
-        ? resolvedUri
-          ? resolvedUri.fsPath
-          : shortcut.path
-        : shortcut.action?.kind === "url"
-          ? shortcut.action.url ?? ""
-          : actionSummary(shortcut);
-    // A recipe's description (what it does + what it was detected from) leads the
-    // hover so the catalog prose is one mouse-over away, with the concrete target
-    // on the next line. Stored/file shortcuts have no description and start at target.
-    // A masked shortcut shows only the generic notice (its description, if any, could
-    // leak).
-    const tooltipLines =
-      shortcut.description && !masked
-        ? [shortcut.description, targetLine]
-        : [targetLine];
-    if (isStopping) {
-      tooltipLines.push(l10n("run.stoppingTooltip"));
-    } else if (isRunning) {
-      tooltipLines.push(l10n("run.runningTooltip"));
-    } else if (shortcut.paused) {
-      tooltipLines.push(l10n("pause.tooltip"));
-    } else if (nextLabel) {
-      tooltipLines.push(l10n("schedule.nextRun", { time: nextLabel }));
-    }
-    // A deleted/moved target is the most actionable fact about the row; surface it
-    // in the hover even when a schedule or last-run line would otherwise show.
-    if (isFile && missing && !isRunning && !isStopping) {
-      tooltipLines.push(l10n("pin.missingTooltip"));
-    }
-    // Recipe shortcuts do not run on a single click (they would fire a heavy task);
-    // tell the user a single click shows details and the play button runs it.
-    if (shortcut.isRecipe && !isRunning && !isStopping) {
-      tooltipLines.push(l10n("recipe.clickHint"));
-    }
-    // A locked shortcut names the prerequisite it is waiting on, so the hover explains
-    // why running it is blocked and what to run first.
-    if (lockedBy && !isRunning && !isStopping) {
-      tooltipLines.push(l10n("depends.lockedTooltip", { dep: lockedBy }));
-    }
-    // A time-bombed shortcut (WOW #9) explains its pending self-removal in the hover:
-    // the exact instant for a wall-clock bomb, the branch for a branch bomb. Both
-    // lines show when both conditions are set (either one removes the shortcut).
-    if (shortcut.expires && !isRunning && !isStopping) {
-      if (shortcut.expires.at !== undefined) {
-        tooltipLines.push(
-          l10n("expiry.tooltip.at", {
-            when: formatExpiryInstant(shortcut.expires.at),
-          })
-        );
-      }
-      if (shortcut.expires.onBranchAway !== undefined) {
-        tooltipLines.push(
-          l10n("expiry.tooltip.branch", {
-            branch: shortcut.expires.onBranchAway,
-          })
-        );
-      }
-    }
-    // Always surface the last run in the tooltip, even when a schedule badge is
-    // showing, so the most recent outcome is one hover away. A failure points at
-    // the output channel (Show Output in the shortcut's context menu).
-    if (lastRun) {
-      tooltipLines.push(formatRunTooltip(lastRun));
-    }
-    // The last sweep's full breakdown in words (the row shows only compact glyphs),
-    // so the hover answers "what did the lint sweep / test run actually find".
-    if (sweepBadge && !isRunning && !isStopping) {
-      const diagLine = formatDiagTooltip(sweepBadge);
-      if (diagLine) {
-        tooltipLines.push(diagLine);
-      }
-      const testLine = formatTestTooltip(sweepBadge);
-      if (testLine) {
-        tooltipLines.push(testLine);
-      }
-    }
-    // Lifetime run total, so the hover answers "how much does this shortcut earn its
-    // place?" beyond the single most-recent outcome above. Shown only once it has
-    // run at least once (a zero count is noise, and is also what a disabled-
-    // telemetry shortcut reports).
-    if (runCount > 0) {
-      tooltipLines.push(l10n("run.countTooltip", { count: runCount }));
-    }
-    // Name the shortcut's mode tags in the hover (WOW #17), so the full set is one
-    // mouse-over away even when the row truncates the chips.
-    if (shortcut.tags && shortcut.tags.length > 0) {
-      tooltipLines.push(
-        l10n("tag.tooltip", {
-          tags: shortcut.tags.map((t) => `#${t}`).join(" "),
-        })
-      );
-    }
-    // Name the branch this shortcut is linked to (WOW #3), so the hover explains why it
-    // shows on some branches and not others.
-    if (shortcut.branch !== undefined) {
-      tooltipLines.push(l10n("branch.tooltip", { branch: shortcut.branch }));
-    }
-    // Name the live metric in the hover: the current value, and — when it is over a
-    // size threshold — that fact in words, so the warning tint is explained.
-    if (metricText) {
-      tooltipLines.push(
-        metricBadge?.over
-          ? l10n("metric.overTooltip", { value: metricText })
-          : l10n("metric.tooltip", { value: metricText })
-      );
-    }
-    // Explain the untapped dot in words, so the hover answers "why is this row marked
-    // and what clears it". Suppressed while running/stopping, where live state is what
-    // the hover should lead with (and a running shortcut is already marked tapped).
-    if (untapped && !isRunning && !isStopping) {
-      tooltipLines.push(l10n("untapped.rowTooltip"));
-    }
-    // The single/double-click gesture model, stated as a hover footer so the
-    // extension's core interaction is always one mouse-over away (UI plan, Phase 3).
-    // Recipe shortcuts have their own click hint above (single click = details, play =
-    // run), so the generic line would contradict them; a running/stopping shortcut is
-    // mid-action and a gesture reminder there is noise.
-    if (!shortcut.isRecipe && !isRunning && !isStopping) {
-      tooltipLines.push(l10n("pin.gestureHint"));
-    }
-    this.tooltip = tooltipLines.join("\n");
+    // Hover lines (target, live state, notices, last run, sweep/metric summaries,
+    // gesture footer); see shortcutRowTooltip.ts for the phase's own reasoning.
+    this.tooltip = buildShortcutTooltipLines({
+      shortcut,
+      masked,
+      isFile,
+      resolvedUri,
+      isRunning,
+      isStopping,
+      missing,
+      lockedBy,
+      lastRun,
+      sweepBadge,
+      runCount,
+      metricBadge,
+      metricText,
+      untapped,
+    }).join("\n");
 
     // Row glyph + tint: the priority chain and every codicon/color token live in
     // the shared token map (UI plan, Phase 4), so the visual language is consistent

@@ -5,11 +5,11 @@ import {
   shortcutKind,
   isAnnotationShortcut,
 } from "../model/shortcut";
-import type { FolderWatchMode } from "../model/folderWatch";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 import { fileTypeIcon, kindIcon, kindColor } from "./fileTypeTokens";
 import { candidatesForExt } from "../exec/interpreters";
+import { buildMenu } from "./launcherItemMenu";
 
 // The pure data layer for the Saropa Launcher webview: turn the store's shortcuts and
 // detected recipes into the flat, group-tagged rows the two-pane grid renders. Kept free
@@ -195,84 +195,6 @@ function fileExecutable(shortcut: Shortcut, fileName: string): boolean {
   return candidatesForExt(ext).length > 0;
 }
 
-// Build the row's right-click menu, mirroring the sidebar's actions for this item type.
-// Two menus by pane: a stored shortcut (the "mine" pane) gets the full configure/appearance/
-// file/edit set; a detected recipe (the "recipes" pane) — which is recomputed each refresh
-// and persists nothing — gets only the actions that make sense before adoption (run, open,
-// add-to-shortcuts, copy link). Every command listed accepts a raw Shortcut via asShortcut,
-// so the host can route it by id without a tree item.
-function buildMenu(
-  shortcut: Shortcut,
-  pane: "mine" | "recipes",
-  isFile: boolean
-): LauncherMenuEntry[] {
-  const entry = (
-    command: string,
-    key: string,
-    icon: string,
-    group: string,
-    danger?: boolean
-  ): LauncherMenuEntry => ({ command, label: l10n(`launcher.menu.${key}`), icon, group, danger });
-
-  if (pane === "recipes") {
-    const recipeMenu: LauncherMenuEntry[] = [];
-    if (isFile) {
-      recipeMenu.push(entry("saropaWorkspace.openPin", "open", "go-to-file", "run"));
-    }
-    recipeMenu.push(entry("saropaWorkspace.runPin", "run", "play", "run"));
-    // Adopt group: Pin (store the recipe as-is) and Schedule (store it, then open the
-    // schedule editor on the stored copy). Both make sense only before adoption, which is
-    // exactly what the recipes pane offers.
-    recipeMenu.push(entry("saropaWorkspace.promoteRecipe", "addToShortcuts", "star-full", "adopt"));
-    recipeMenu.push(entry("saropaWorkspace.scheduleRecipe", "schedule", "clock", "adopt"));
-    return recipeMenu;
-  }
-
-  const menu: LauncherMenuEntry[] = [];
-  // Run group: a file opens or runs; an action only runs.
-  if (isFile) {
-    menu.push(entry("saropaWorkspace.openPin", "open", "go-to-file", "run"));
-  }
-  menu.push(entry("saropaWorkspace.runPin", "run", "play", "run"));
-
-  // Configure & schedule group.
-  menu.push(entry("saropaWorkspace.runWith", "runWith", "wrench", "configure"));
-  menu.push(entry("saropaWorkspace.configureRun", "configureRun", "gear", "configure"));
-  menu.push(entry("saropaWorkspace.configureSchedule", "configureSchedule", "clock", "configure"));
-  menu.push(entry("saropaWorkspace.configureTriggers", "configureTriggers", "broadcast", "configure"));
-  // Pause vs resume by current state — same two commands the sidebar gates by contextValue.
-  menu.push(
-    shortcut.paused
-      ? entry("saropaWorkspace.unpausePin", "resume", "debug-start", "configure")
-      : entry("saropaWorkspace.pausePin", "pause", "debug-pause", "configure")
-  );
-
-  // Appearance group. Set Live Metric is a file-only badge, so it is gated like the sidebar.
-  menu.push(entry("saropaWorkspace.customizeShortcut", "customize", "paintcan", "appearance"));
-  if (isFile) {
-    menu.push(entry("saropaWorkspace.setMetric", "setMetric", "dashboard", "appearance"));
-  }
-
-  // File-action group (file shortcuts only).
-  if (isFile) {
-    menu.push(entry("saropaWorkspace.duplicateFile", "duplicateFile", "files", "file"));
-    menu.push(entry("saropaWorkspace.renameFileOnDisk", "renameFileOnDisk", "replace", "file"));
-    menu.push(entry("saropaWorkspace.copyFileTo", "copyFileTo", "file-add", "file"));
-    // Screen-share guard (mask/unmask) — a file-only WOW that the sidebar also exposes.
-    menu.push(
-      shortcut.masked
-        ? entry("saropaWorkspace.toggleMask", "unmask", "eye", "file")
-        : entry("saropaWorkspace.toggleMask", "mask", "eye-closed", "file")
-    );
-  }
-
-  // Edit group. Remove uses `unpin` (accepts a raw Shortcut and toasts the name),
-  // not removeProjectPin/removeGlobalPin, which resolve a file URI from a tree item.
-  menu.push(entry("saropaWorkspace.renamePin", "rename", "edit", "edit"));
-  menu.push(entry("saropaWorkspace.unpin", "remove", "trash", "edit", true));
-  return menu;
-}
-
 // The row's resting glyph: a user-chosen icon wins, then the file-type or action-kind
 // default. Reuses the SAME maps the tree row tokens use (fileTypeIcon / kindIcon) so the
 // launcher and the sidebar never disagree on what a .yaml or a shell shortcut looks like.
@@ -352,147 +274,5 @@ function recipeGroup(store: ShortcutStore, recipe: Shortcut): GroupInfo {
     label: `${recipesLabel} / ${group.label}`,
     icon: group.icon ?? "book",
     color: group.color ?? "charts.purple",
-  };
-}
-
-// The plain inputs the host distills a FolderWatch + its unseen count into, so the row
-// builder below stays vscode-free and unit-testable. The host (launcherView) owns the
-// FolderWatchStore reads (label fallback, unseen tally); this only formats the card.
-export interface WatchItemInput {
-  readonly id: string;
-  readonly label: string;
-  readonly target: string;
-  readonly isFile: boolean;
-  readonly mode: FolderWatchMode;
-  readonly enabled: boolean;
-  readonly unseen: number;
-  // Whether the watch is global (alerts in every project). The card marks it with a
-  // globe glyph and a "global" note, mirroring the Watches sidebar row.
-  readonly isGlobal: boolean;
-}
-
-// Build the launcher card for one folder/file watch. The glyph, tint, and secondary line
-// mirror the Watches sidebar row (watchesTreeProvider) exactly so the two surfaces never
-// disagree: a disabled watch reads muted (closed eye, "off"); a global watch carries a
-// globe glyph and a "global" note; an enabled watch with unseen files leads with the count
-// on a blue glyph; an idle local one shows a plain eye. The card is openable but not
-// runnable — a primary click expands the drawer (whose Open clears the unseen counter),
-// never opens on the bare click, so an accidental click cannot mark a watch seen (the
-// launcher's deliberate browse-then-act model; styleguide 1.1a / 4.5).
-export function watchLauncherItem(w: WatchItemInput): LauncherItem {
-  const kind = l10n(w.isFile ? "folderWatch.kindFile" : "folderWatch.kindFolder");
-  const mode = l10n(
-    w.mode === "changed" ? "folderWatch.modeChanged" : "folderWatch.modeNew"
-  );
-
-  let icon: string;
-  let color: string;
-  let sub: string;
-  if (!w.enabled) {
-    icon = "eye-closed";
-    color = "descriptionForeground";
-    sub = l10n("watchesView.rowOff", { kind, mode });
-  } else if (w.isGlobal && w.unseen > 0) {
-    icon = "globe";
-    color = "charts.blue";
-    sub = l10n("watchesView.rowGlobalUnseen", { count: w.unseen, kind, mode });
-  } else if (w.isGlobal) {
-    icon = "globe";
-    color = "foreground";
-    sub = l10n("watchesView.rowGlobal", { kind, mode });
-  } else if (w.unseen > 0) {
-    icon = "bell-dot";
-    color = "charts.blue";
-    sub = l10n("watchesView.rowUnseen", { count: w.unseen, kind, mode });
-  } else {
-    icon = "eye";
-    color = "foreground";
-    sub = l10n("watchesView.rowIdle", { kind, mode });
-  }
-
-  return {
-    id: w.id,
-    label: w.label,
-    sub,
-    // The drawer surfaces the watched path so the user can confirm which target this is
-    // before opening it (the card head shows only the label + state line).
-    desc: w.target,
-    pane: "watches",
-    section: l10n("launcher.watchesSection"),
-    groupId: "watches",
-    groupIcon: "eye",
-    groupColor: "charts.blue",
-    icon,
-    color,
-    // "file" so no kind chip renders — a watch is not a runnable shell/macro/routine.
-    kind: "file",
-    runnable: false,
-    openable: true,
-    menu: [],
-  };
-}
-
-// The plain inputs the host distills a ProjectFileInfo into. `relative` is preformatted
-// host-side (formatRelativeTime needs the wall clock, kept out of this pure module);
-// `isShortcut` comes from the store lookup the host already does for the tree row.
-export interface FileItemInput {
-  // Absolute fsPath: the card id, the drawer detail line, and the open target the host
-  // validates the open message against.
-  readonly path: string;
-  readonly fileName: string;
-  readonly version?: string;
-  readonly relative: string;
-  readonly isShortcut: boolean;
-  // The category that surfaced this file (Project / Android / iOS / Web …) and its
-  // codicon, both supplied by the host. They drive the files pane's collapsible
-  // group header so the launcher groups by area exactly as the sidebar tree does.
-  // Passed in (not derived here) so this module stays free of the vscode-importing
-  // model that owns the glyph map.
-  readonly category: string;
-  readonly categoryGlyph: string;
-}
-
-// Build the launcher card for one surfaced project file (README / CHANGELOG / manifest /
-// platform config). The glyph + tint come from the SAME fileTypeIcon map the tree row uses;
-// the category drives the files pane's group header so the launcher groups by area exactly as
-// the sidebar tree does. The secondary line mirrors the Project Files sidebar row: version
-// (when known) leads, then freshness, then a "· shortcut" tag when the file is already a
-// project shortcut. Openable, not runnable — a primary click expands the drawer; its Open
-// opens the file in the editor.
-export function fileLauncherItem(f: FileItemInput): LauncherItem {
-  const token = fileTypeIcon(f.fileName) ?? {
-    icon: "file",
-    color: "charts.foreground",
-  };
-  const base = f.version
-    ? l10n("projectFiles.descVersioned", { version: f.version, when: f.relative })
-    : f.relative;
-  const sub = f.isShortcut ? l10n("projectFiles.descPinned", { base }) : base;
-
-  return {
-    id: f.path,
-    label: f.fileName,
-    sub,
-    desc: f.path,
-    pane: "files",
-    // The group header IS the category name (the pane title already says "Project
-    // files", so the header need not repeat it). The id is namespaced by category so
-    // its collapse state is stable and never collides with another pane's group id.
-    // The webview renders these flat when only one category is present (no lone
-    // header over the pane title) and grouped once a second category appears.
-    section: f.category,
-    groupId: "files:" + f.category,
-    groupIcon: f.categoryGlyph,
-    groupColor: "charts.green",
-    icon: token.icon,
-    color: token.color,
-    kind: "file",
-    runnable: false,
-    openable: true,
-    // A surfaced project file has a concrete on-disk path; expose the drawer's Copy path
-    // button so the user can grab the location without opening the file. The host resolves
-    // the path from the card id (which is the absolute fsPath for a project file).
-    copyable: true,
-    menu: [],
   };
 }

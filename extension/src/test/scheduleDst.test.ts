@@ -11,7 +11,8 @@ process.env.TZ = "America/New_York";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextOccurrence, nextCron } from "../exec/schedule";
+import { nextOccurrence } from "../exec/schedule";
+import { nextCron } from "../exec/scheduleCron";
 
 // Local-time instant (TZ is America/New_York for this file). Month is 1-based.
 function at(y: number, mo: number, d: number, h: number, mi: number): number {

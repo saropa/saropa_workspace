@@ -15,13 +15,10 @@ import { l10n } from "../i18n/l10n";
 // The shortcut helpers and the two sub-registrars split out of this file. The body below
 // registers the workspace/run/open commands and delegates per-shortcut config and the
 // group/adding/recipes/favorites commands to the sub-registrars.
-import {
-  openShortcut,
-  peekShortcut,
-  toggleTail,
-  toggleMask,
-  registerTailFollow,
-} from "./shortcutInteraction";
+import { openShortcut } from "./shortcutOpen";
+import { peekShortcut } from "./shortcutPeek";
+import { toggleTail, registerTailFollow } from "./shortcutTailFollow";
+import { toggleMask } from "./shortcutToggles";
 import {
   runShortcutCommand,
   runWithLastParams,
@@ -33,7 +30,7 @@ import {
   runShortcutWithOverrides,
   runTopShortcut,
   TOP_SHORTCUT_SLOTS,
-} from "./shortcutSelection";
+} from "./shortcutRunPalette";
 import { registerPinConfigCommands } from "./shortcutConfigCommands";
 import { registerPinManagementCommands } from "./shortcutManagementCommands";
 import { shortcutCommandRegistrar } from "./registerHelpers";

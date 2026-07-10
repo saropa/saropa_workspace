@@ -2,16 +2,9 @@ import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { ShortcutFolderItem } from "../views/shortcutTreeItem";
 import { l10n } from "../i18n/l10n";
-import {
-  scopeFromAddGroupArg,
-  editorTargetUri,
-  targetUri,
-  shortcutUri,
-  shortcutToLine,
-  removeShortcutForUri,
-  addAnnotation,
-  addUrl,
-} from "./shortcutSelection";
+import { scopeFromAddGroupArg, editorTargetUri, targetUri } from "./shortcutArgResolution";
+import { shortcutUri, shortcutToLine, removeShortcutForUri } from "./shortcutAddRemove";
+import { addAnnotation, addUrl } from "./shortcutAnnotations";
 import { scanProjectUrls } from "./scanUrls";
 import { shortcutCommandRegistrar } from "./registerHelpers";
 import { registerFavoritesImportCommands } from "./favoritesImportCommands";

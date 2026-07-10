@@ -9,7 +9,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseCron, nextCron, nextOccurrence, mostRecentDue, isMissed } from "../exec/schedule";
+import { nextOccurrence, mostRecentDue, isMissed } from "../exec/schedule";
+import { parseCron, nextCron } from "../exec/scheduleCron";
 
 // Local-time instant for a given Y/M/D H:M (month is 1-based here for readability).
 function at(y: number, mo: number, d: number, h: number, mi: number): number {

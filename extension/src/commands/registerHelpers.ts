@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
-import { asShortcut } from "./shortcutSelection";
+import { asShortcut } from "./shortcutArgResolution";
 
 // Shared command-registration helpers for the three shortcut command registrars
 // (pinCommands, pinConfigCommands, pinManagementCommands). Before this, each file
