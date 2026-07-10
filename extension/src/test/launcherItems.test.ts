@@ -459,6 +459,9 @@ test("a project file card carries version + freshness and its file-type glyph", 
   assert.equal(item.desc, "d:/src/app/pubspec.yaml");
   assert.equal(item.openable, true);
   assert.equal(item.runnable, false);
+  // The card leads with an Open head button so the go-to-file icon shows while collapsed,
+  // matching a document shortcut in My shortcuts.
+  assert.equal(item.headAction, "open");
   // The category drives the files-pane group header: the section is the bare category
   // name, the groupId is namespaced so it cannot collide with another pane's group, and
   // the header glyph is the category's, not the file's.
