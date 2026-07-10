@@ -4,7 +4,8 @@
 // malformed. Split out of configureSchedule.ts to keep that file under the line cap; the
 // dependency is one-way (configureSchedule imports editCron, never the reverse).
 import * as vscode from "vscode";
-import { parseHourMinute, parseCron } from "../exec/schedule";
+import { parseHourMinute } from "../exec/schedule";
+import { parseCron } from "../exec/scheduleCron";
 import { WorkSchedule } from "./scheduleModel";
 import { l10n } from "../i18n/l10n";
 

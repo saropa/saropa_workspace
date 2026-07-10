@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
-import { nextOccurrence, parseCron } from "../exec/schedule";
+import { nextOccurrence } from "../exec/schedule";
+import { parseCron } from "../exec/scheduleCron";
 import {
   WorkSchedule,
   workFromSchedule,

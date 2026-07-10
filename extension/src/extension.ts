@@ -40,14 +40,11 @@ import {
   syncShortcutPathContext,
   wireRecentEditorTracking,
 } from "./activation/activationHelpers";
-import {
-  setupSecondaryViews,
-  registerCommandModules,
-  setupStatusBars,
-  wireBackgroundEngines,
-  wireWatchers,
-  wireFolderWatches,
-} from "./activation/wiring";
+import { setupSecondaryViews } from "./activation/wiringViews";
+import { registerCommandModules } from "./activation/wiringCommands";
+import { setupStatusBars } from "./activation/wiringStatusBars";
+import { wireBackgroundEngines } from "./activation/wiringEngines";
+import { wireWatchers, wireFolderWatches } from "./activation/wiringWatchers";
 import { wireTreeViewState, SHOW_ALL_BRANCHES_KEY } from "./activation/viewState";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {

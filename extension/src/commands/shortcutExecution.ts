@@ -21,8 +21,9 @@ import {
 } from "../exec/promptTokens";
 import { SharedShortcut } from "../import/shareLink";
 import { l10n } from "../i18n/l10n";
-import { fileExists, handleMissingFile } from "./shortcutInteraction";
-import { orderedShortcuts, asShortcut } from "./shortcutSelection";
+import { fileExists, handleMissingFile } from "./shortcutOpen";
+import { orderedShortcuts } from "./shortcutRunPalette";
+import { asShortcut } from "./shortcutArgResolution";
 
 // The run-execution hub: the single path every "run this shortcut" gesture funnels
 // through (single-instance guard, dependency gate, file-vs-action dispatch), plus

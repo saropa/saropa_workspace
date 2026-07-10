@@ -9,7 +9,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LAUNCHER_STYLE, LAUNCHER_SCRIPT } from "../views/launcherAssets";
+import { LAUNCHER_STYLE } from "../views/launcherAssets";
+import { LAUNCHER_SCRIPT } from "../views/launcherScript";
 
 // --- LAUNCHER_STYLE -----------------------------------------------------
 

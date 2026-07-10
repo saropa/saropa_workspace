@@ -31,9 +31,10 @@ import {
   toggleFileLock,
 } from "./fileOps";
 import { l10n } from "../i18n/l10n";
-import { toggleBranchLink } from "./shortcutInteraction";
+import { toggleBranchLink } from "./shortcutToggles";
 import { runShortcutOnDroppedFile } from "./shortcutExecution";
-import { asShortcut, pathToCopy, shortcutUri } from "./shortcutSelection";
+import { asShortcut, pathToCopy } from "./shortcutArgResolution";
+import { shortcutUri } from "./shortcutAddRemove";
 import { shortcutCommandRegistrar } from "./registerHelpers";
 
 // Per-shortcut configuration and lifecycle command registrations (rename, run config,

@@ -1,38 +1,11 @@
 import * as vscode from "vscode";
-import * as crypto from "crypto";
-import {
-  PollResult,
-  ProcSample,
-  ToolGroup,
-  pollProcesses,
-  isGroupKillable,
-  buildProcessReportMarkdown,
-} from "../exec/processPoll";
-import { readTrendTotals, readTrendSeries } from "../exec/heartbeat";
-import {
-  listTrendReports,
-  readDebtTrend,
-  validateReportPath,
-} from "../exec/trendReports";
+import { PollResult, ProcSample, ToolGroup } from "../exec/processPoll";
 import { ShortcutStore } from "../model/shortcutStore";
-import { Shortcut } from "../model/shortcut";
-import { telemetry } from "../exec/telemetry";
-import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
+import { pollProcessesTab, copyProcessReport, killProcessTab } from "./dashboardProcessesTab";
+import { loadAnalyticsTab } from "./dashboardAnalyticsTab";
+import { loadTrendsTab, openTrendReport } from "./dashboardTrendsTab";
+import { renderShell, DashboardTab } from "./dashboardShell";
 import { l10n } from "../i18n/l10n";
-import { recentTag } from "./shortcutRowFormatting";
-import { PANEL_STYLE, PANEL_SCRIPT } from "./dashboardAssets";
-
-// The tabs the dashboard exposes. Webview-local selection; the host loads the data
-// for the active tab on demand (it never pushes all three at once), so the live
-// process poll only runs while the Processes tab is showing.
-type DashboardTab = "processes" | "analytics" | "trends";
-
-// How many most-run shortcuts / report files / trend samples to surface, so a heavy
-// user's dashboard stays scannable rather than unbounded.
-const TOP_SHORTCUTS = 10;
-const TREND_SAMPLES = 60;
-const DEBT_SAMPLES = 20;
-const RECENT_REPORTS = 8;
 
 // The "Saropa Dashboard" webview — one shared panel with three tabs (recipe book
 // #60, roadmap 3.4): Processes (the live toolchain process monitor), Analytics (the
@@ -49,6 +22,11 @@ const RECENT_REPORTS = 8;
 //
 // Single instance: a second invocation reveals the existing panel (optionally on a
 // requested tab) rather than stacking duplicates. All disposables tear down together.
+//
+// The per-tab logic itself lives in sibling modules (dashboardProcessesTab.ts,
+// dashboardAnalyticsTab.ts, dashboardTrendsTab.ts, dashboardShell.ts); this class is
+// the lifecycle/host side — construction, message dispatch, and disposal — with thin
+// methods that call into those modules with the data they need.
 export class DashboardPanel {
   private static current: DashboardPanel | undefined;
   private static readonly viewType = "saropaWorkspace.dashboard";
@@ -92,7 +70,7 @@ export class DashboardPanel {
     this.panel = panel;
     this.store = store;
     this.activeTab = initialTab;
-    this.panel.webview.html = this.renderShell(initialTab);
+    this.panel.webview.html = renderShell(initialTab);
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
@@ -165,313 +143,43 @@ export class DashboardPanel {
     }
   }
 
-  // --- Processes tab ------------------------------------------------------
+  // --- Processes tab (thin dispatch into dashboardProcessesTab.ts) --------
 
-  // Two-sample poll, then push the data (plus the recent-load sparkline series) to
-  // the webview. The "sampling" flag lets the panel show progress during the ~1 s the
-  // two samples take.
   private async poll(): Promise<void> {
     if (this.polling) {
       return;
     }
     this.polling = true;
-    void this.panel.webview.postMessage({ type: "sampling" });
     try {
-      const result = await pollProcesses();
-      this.lastResult = result;
-      const trend = await readTrendTotals(30);
-      void this.panel.webview.postMessage({
-        type: "data",
-        result,
-        trend,
-        // Tell the webview which groups expose End task, so it never renders a kill
-        // button for an OS/container row.
-        killable: Object.fromEntries(result.groups.map((g) => [g.tool, isGroupKillable(g.tool)])),
-      });
+      this.lastResult = await pollProcessesTab(this.panel.webview);
     } finally {
       this.polling = false;
     }
   }
 
   private async copyReport(): Promise<void> {
-    if (!this.lastResult) {
-      return;
-    }
-    await vscode.env.clipboard.writeText(buildProcessReportMarkdown(this.lastResult));
-    vscode.window.showInformationMessage(l10n("monitor.copied"));
+    await copyProcessReport(this.lastResult);
   }
 
-  // End a single named process, only after an explicit confirm that names the exact
-  // process and PID, and only for a killable (non-OS/container) tool group. The
-  // monitor never auto-kills and never ends a whole group — ending a process is
-  // always a deliberate, named human act.
   private async killProcess(pid?: number, name?: string, tool?: string): Promise<void> {
-    if (typeof pid !== "number" || !name || !tool) {
-      return;
-    }
-    if (!isGroupKillable(tool)) {
-      vscode.window.showWarningMessage(l10n("monitor.kill.protected", { tool }));
-      return;
-    }
-    const confirm = l10n("monitor.kill.confirmAction");
-    const choice = await vscode.window.showWarningMessage(
-      l10n("monitor.kill.confirm", { name, pid }),
-      { modal: true },
-      confirm
-    );
-    if (choice !== confirm) {
-      return;
-    }
-    try {
-      process.kill(pid);
-      vscode.window.showInformationMessage(l10n("monitor.kill.done", { name, pid }));
-    } catch (err) {
-      vscode.window.showErrorMessage(
-        l10n("monitor.kill.failed", { name, pid, error: err instanceof Error ? err.message : String(err) })
-      );
-    }
-    // Reflect the change (the row should be gone or its tree reshaped).
-    await this.poll();
+    // Re-poll after a kill so the row is gone or its tree reshaped.
+    await killProcessTab(pid, name, tool, () => this.poll());
   }
 
-  // --- Analytics tab ------------------------------------------------------
+  // --- Analytics tab (thin dispatch into dashboardAnalyticsTab.ts) --------
 
-  // Build the run-analytics summary from the on-device telemetry store and the
-  // in-memory session run-status registry — display-ready strings only (l10n is
-  // host-side), so the webview script renders text without re-localizing. Mirrors the
-  // Markdown-preview command's content; that command stays as the degraded fallback.
   private async loadAnalytics(): Promise<void> {
-    if (!telemetry.enabled()) {
-      void this.panel.webview.postMessage({
-        type: "analytics",
-        enabled: false,
-        message: l10n("analytics.disabled"),
-      });
-      return;
-    }
-    const counts = telemetry.counts();
-    const recent = telemetry.recent();
-    const shortcutsRun = Object.keys(counts).length;
-    const totalRuns = Object.values(counts).reduce((sum, n) => sum + n, 0);
-
-    if (totalRuns === 0 && recent.length === 0) {
-      void this.panel.webview.postMessage({
-        type: "analytics",
-        enabled: true,
-        empty: l10n("analytics.empty"),
-      });
-      return;
-    }
-
-    const mostRun = Object.entries(counts)
-      .filter(([, n]) => n > 0)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, TOP_SHORTCUTS)
-      .map(([shortcutId, n]) => ({
-        name: this.nameFor(shortcutId),
-        sub: l10n("analytics.runsLabel", { count: n }),
-      }));
-
-    const session = runStatusRegistry
-      .entries()
-      .sort(([, a], [, b]) => b.endedAt - a.endedAt)
-      .map(([shortcutId, result]) => ({
-        name: this.nameFor(shortcutId),
-        detail: this.sessionLabel(result),
-        ok: result.outcome === "success",
-      }));
-
-    const now = Date.now();
-    const recentList = recent.map((record) => ({
-      name: this.nameFor(record.pinId), // pinId: serialized telemetry-record field — wire token, keep literal
-
-      ago: this.relativeTime(now, record.at),
-      tag: recentTag(record),
-    }));
-
-    void this.panel.webview.postMessage({
-      type: "analytics",
-      enabled: true,
-      totals: {
-        shortcuts: l10n("analytics.pinsRun", { count: shortcutsRun }),
-        runs: l10n("analytics.totalRuns", { count: totalRuns }),
-      },
-      mostRun,
-      session,
-      recent: recentList,
-    });
+    await loadAnalyticsTab(this.panel.webview, this.store);
   }
 
-  // Resolve a recorded shortcut id to a human display name; a run can outlive the
-  // shortcut that produced it, so fall back to a clear marker rather than leaking the
-  // opaque id.
-  private nameFor(shortcutId: string): string {
-    const shortcut: Shortcut | undefined = this.store.findShortcut(shortcutId);
-    if (!shortcut) {
-      return l10n("analytics.unknownPin");
-    }
-    return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
-  }
+  // --- Trends tab (thin dispatch into dashboardTrendsTab.ts) --------------
 
-  private sessionLabel(result: RunResult): string {
-    const code = result.exitCode ?? "—";
-    if (result.outcome === "success") {
-      return l10n("analytics.sessionOk", { duration: formatDuration(result.durationMs), code });
-    }
-    return l10n("analytics.sessionFailed", { code, duration: formatDuration(result.durationMs) });
-  }
-
-  // Compact "time ago", reusing the Project Files view's wording so relative times
-  // read the same across the extension.
-  private relativeTime(now: number, then: number): string {
-    const minutes = Math.floor(Math.max(0, now - then) / 60000);
-    if (minutes < 1) {
-      return l10n("projectFiles.justNow");
-    }
-    if (minutes < 60) {
-      return l10n("projectFiles.minutesAgo", { count: minutes });
-    }
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) {
-      return l10n("projectFiles.hoursAgo", { count: hours });
-    }
-    return l10n("projectFiles.daysAgo", { count: Math.floor(hours / 24) });
-  }
-
-  // --- Trends tab ---------------------------------------------------------
-
-  // Build the Trends payload: the per-tool heartbeat CPU series, the derived tech-
-  // debt-marker trend, and the categorized dated reports (each a clickable fallback
-  // file). The report "time ago" is resolved host-side so the webview renders no time
-  // logic and the wording stays translatable.
   private async loadTrends(): Promise<void> {
-    const cpu = await readTrendSeries(TREND_SAMPLES);
-    const debt = await readDebtTrend(DEBT_SAMPLES);
-    const categories = await listTrendReports();
-    const now = Date.now();
-    const reports = categories.map((c) => ({
-      label: c.label,
-      count: l10n("trends.reportCount", { count: c.files.length }),
-      // Bound the rows per category so a long-lived project does not list hundreds.
-      files: c.files.slice(0, RECENT_REPORTS).map((f) => ({
-        name: f.name,
-        path: f.path,
-        ago: this.relativeTime(now, f.at),
-      })),
-    }));
-    void this.panel.webview.postMessage({
-      type: "trends",
-      cpu,
-      debt,
-      reports,
-    });
+    await loadTrendsTab(this.panel.webview);
   }
 
-  // Open a dated report file in an editor, re-validating the path against the
-  // workspace reports/ folder so a crafted message cannot open an arbitrary file.
   private async openReport(candidate?: string): Promise<void> {
-    const safe = validateReportPath(candidate);
-    if (!safe) {
-      return;
-    }
-    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(safe));
-    await vscode.window.showTextDocument(doc, { preview: true });
-  }
-
-  // --- shell --------------------------------------------------------------
-
-  // The static HTML shell: a strict CSP locked to this nonce for scripts and to the
-  // webview's own inline styles, no remote anything. The tab strip and all three tab
-  // panels are framed here; data arrives by postMessage and the inlined script renders
-  // it. Display strings the script needs are injected as a localized STRINGS object so
-  // no English is hardcoded in the client.
-  private renderShell(initialTab: DashboardTab): string {
-    const nonce = crypto.randomBytes(16).toString("base64");
-    const csp = [
-      "default-src 'none'",
-      "img-src 'none'",
-      `style-src 'unsafe-inline'`,
-      `script-src 'nonce-${nonce}'`,
-    ].join("; ");
-    const strings = JSON.stringify(this.uiStrings());
-    const isActive = (tab: DashboardTab): string => (tab === initialTab ? " active" : "");
-    const isShown = (tab: DashboardTab): string => (tab === initialTab ? "" : " hidden");
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="${csp}" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${l10n("monitor.panel.title")}</title>
-<style>${PANEL_STYLE}</style>
-</head>
-<body>
-<header>
-  <div class="tabs">
-    <button class="tab${isActive("processes")}" data-tab="processes">${l10n("tab.processes")}</button>
-    <button class="tab${isActive("analytics")}" data-tab="analytics">${l10n("tab.analytics")}</button>
-    <button class="tab${isActive("trends")}" data-tab="trends">${l10n("tab.trends")}</button>
-    <span class="spacer"></span>
-    <button id="refresh">${l10n("dashboard.refresh")}</button>
-  </div>
-</header>
-
-<section id="tab-processes" class="tab-panel${isShown("processes")}">
-  <div id="host" class="host"></div>
-  <div class="actions">
-    <button id="sortCpu" class="seg active">${l10n("dashboard.sortCpu")}</button>
-    <button id="sortRam" class="seg">${l10n("dashboard.sortRam")}</button>
-    <button id="sortPid" class="seg">${l10n("dashboard.sortProc")}</button>
-    <span class="spacer"></span>
-    <button id="copy">${l10n("dashboard.copyReport")}</button>
-  </div>
-  <div id="spark" class="spark"></div>
-  <div id="status" class="status"></div>
-  <div id="groups"></div>
-</section>
-
-<section id="tab-analytics" class="tab-panel${isShown("analytics")}">
-  <div id="analytics"></div>
-</section>
-
-<section id="tab-trends" class="tab-panel${isShown("trends")}">
-  <div id="trends"></div>
-</section>
-
-<script nonce="${nonce}">const INITIAL_TAB = ${JSON.stringify(initialTab)};
-const STRINGS = ${strings};
-${PANEL_SCRIPT}</script>
-</body>
-</html>`;
-  }
-
-  // The localized strings the client script renders, kept out of the inlined JS so the
-  // dashboard stays translation-ready (the catalog is the single source).
-  private uiStrings(): Record<string, string> {
-    return {
-      processEmpty: l10n("dashboard.processEmpty"),
-      sampling: l10n("dashboard.sampling"),
-      colPid: l10n("dashboard.colPid"),
-      colName: l10n("dashboard.colName"),
-      colCpu: l10n("dashboard.colCpu"),
-      colRam: l10n("dashboard.colRam"),
-      hot: l10n("dashboard.hot"),
-      endTask: l10n("dashboard.endTask"),
-      proc: l10n("dashboard.proc"),
-      analyticsHeading: l10n("analytics.totalsHeading"),
-      mostRunHeading: l10n("analytics.mostRunHeading"),
-      sessionHeading: l10n("analytics.sessionHeading"),
-      sessionNote: l10n("analytics.sessionNote"),
-      recentHeading: l10n("analytics.recentHeading"),
-      openMarkdown: l10n("analytics.openMarkdown"),
-      trendsCpuHeading: l10n("trends.cpuHeading"),
-      trendsDebtHeading: l10n("trends.debtHeading"),
-      trendsReportsHeading: l10n("trends.reportsHeading"),
-      trendsNoCpu: l10n("trends.noCpu"),
-      trendsNoDebt: l10n("trends.noDebt"),
-      trendsNoReports: l10n("trends.noReports"),
-      debtLatest: l10n("trends.debtLatest"),
-    };
+    await openTrendReport(candidate);
   }
 
   private dispose(): void {
