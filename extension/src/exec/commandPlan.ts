@@ -123,6 +123,52 @@ export function quoteArg(value: string): string {
   return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 
+// Single-quote a string as a PowerShell string literal, doubling embedded single
+// quotes (PowerShell's own escape inside '...'). Used to embed a path or a whole
+// command line into a generated PowerShell script as one literal value.
+export function psQuote(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+// Assemble the PowerShell startup script for an external run window (externalLauncher's
+// Windows path). It: (1) picks a per-window history file named by the new shell's own
+// PID (so concurrent windows never clash and the user's shared global history is
+// untouched); (2) writes the cd and run command into it, oldest-first, as UTF-8
+// without a BOM (WriteAllLines + UTF8Encoding($false) — Set-Content on Windows
+// PowerShell 5.1 prepends a BOM that would corrupt the first recalled entry);
+// (3) points PSReadLine at that file BEFORE the first interactive prompt so the
+// engine loads it as this window's history; (4) cd's and runs.
+//
+// The command runs through the call operator (`& …`) so that a command line whose
+// first token is a double-quoted string (a quoted interpreter path, when the user's
+// explicit command/default carries quotes) is invoked rather than echoed as a string
+// literal. Seeding the same `& …` form means up-arrow re-runs it identically.
+//
+// Pure (no VS Code, no IO) so the quoting and script shape are unit-testable without
+// the extension host; externalLauncher only base64-encodes and spawns the result.
+export function buildWindowsStartup(commandLine: string, cwd: string): string {
+  const cdLine = `Set-Location -LiteralPath ${psQuote(cwd)}`;
+  const runLine = `& ${commandLine}`;
+  // History is oldest-first, so [cd, run] puts the run command at the top of the
+  // up-arrow stack (one press to re-run) and the cd one press below it.
+  const seedArray = [cdLine, runLine].map(psQuote).join(", ");
+  return [
+    `$h = Join-Path $env:TEMP ('saropa_ext_hist_' + $PID + '.txt')`,
+    `[System.IO.File]::WriteAllLines($h, @(${seedArray}), (New-Object System.Text.UTF8Encoding($false)))`,
+    `Set-PSReadLineOption -HistorySavePath $h`,
+    cdLine,
+    runLine,
+  ].join("; ");
+}
+
+// PowerShell's -EncodedCommand takes base64 of the UTF-16LE bytes of the script.
+// Encoding this way sidesteps the nested-quoting stack (Node argv -> outer
+// PowerShell -Command -> Start-Process -ArgumentList -> inner PowerShell) that a raw
+// script string could not survive intact.
+export function encodeForPowerShell(script: string): string {
+  return Buffer.from(script, "utf16le").toString("base64");
+}
+
 // Assemble `<prefix> "<file>" <args...>`. A blank prefix runs the file directly;
 // includeFile === false omits the file entirely (an npm-script / Make-target run
 // config names its work in args and runs against cwd, not a file path). Empty

@@ -9,6 +9,8 @@ import {
   isRunnablePlan,
   quoteArg,
   assembleCommandLine,
+  buildWindowsStartup,
+  encodeForPowerShell,
 } from "../exec/commandPlan";
 
 const DEFAULTS = { ".py": "python", ".js": "node" };
@@ -245,4 +247,30 @@ test("assembleCommandLine: includeFile=false omits the file (npm/make targets)",
     }),
     "npm run build"
   );
+});
+
+test("buildWindowsStartup: cd's, seeds history oldest-first, then runs via call operator", () => {
+  const script = buildWindowsStartup('python.exe "D:\\p\\run.py" --x', "D:\\proj");
+  const statements = script.split("; ");
+  // Order matters: the history file is created and pointed at BEFORE the interactive
+  // prompt, then cd + run execute. Last two statements are what the window actually does.
+  assert.match(statements[0], /\$h = Join-Path \$env:TEMP \('saropa_ext_hist_' \+ \$PID \+ '\.txt'\)/);
+  assert.match(statements[1], /WriteAllLines\(\$h, @\('Set-Location -LiteralPath ''D:\\proj''', '& python\.exe "D:\\p\\run\.py" --x'\)/);
+  assert.match(statements[1], /UTF8Encoding\(\$false\)/); // no BOM on the first recalled entry
+  assert.equal(statements[2], "Set-PSReadLineOption -HistorySavePath $h");
+  assert.equal(statements[3], "Set-Location -LiteralPath 'D:\\proj'");
+  assert.equal(statements[4], '& python.exe "D:\\p\\run.py" --x');
+});
+
+test("buildWindowsStartup: a single quote in the cwd is doubled for the PowerShell literal", () => {
+  const script = buildWindowsStartup("run.exe", "D:\\o'brien");
+  assert.match(script, /Set-Location -LiteralPath 'D:\\o''brien'/);
+});
+
+test("encodeForPowerShell: round-trips as UTF-16LE base64 (what -EncodedCommand expects)", () => {
+  const script = buildWindowsStartup("run.exe", "D:\\proj");
+  const decoded = Buffer.from(encodeForPowerShell(script), "base64").toString("utf16le");
+  assert.equal(decoded, script);
+  // Base64 payload is the safe alphabet, so single-quoting it in -ArgumentList needs no escaping.
+  assert.match(encodeForPowerShell(script), /^[A-Za-z0-9+/]+=*$/);
 });

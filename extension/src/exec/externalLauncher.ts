@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { quoteArg } from "./commandPlan";
+import { quoteArg, buildWindowsStartup, encodeForPowerShell } from "./commandPlan";
 import { getOutputChannel } from "./terminalRunner";
 import { l10n } from "../i18n/l10n";
 
@@ -54,16 +54,24 @@ export async function runInExternal(
   );
 }
 
-// Single-quote a string for a PowerShell command (doubling embedded quotes), so a
-// path or command line is passed to Start-Process as one literal argument.
-function psQuote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-// Windows: open a new console window via PowerShell's Start-Process. cmd.exe /k
-// keeps the window open after the command finishes; cd /d sets the directory
-// (also honored when elevated, where Start-Process -WorkingDirectory is
-// unreliable). `-Verb RunAs` triggers the UAC elevation prompt.
+// Windows: open a new PowerShell console window via Start-Process, running a
+// startup script that cd's to the target, seeds the run command into an isolated
+// per-window history file, then runs it. `-NoExit` keeps the window open after the
+// command finishes so the user can read the output AND press up-arrow to re-run it.
+//
+// Why PowerShell and not cmd.exe: cmd cannot give the launched window any history.
+// A command handed to `cmd /k "cd … & script"` executes but never enters doskey
+// history (verified: `doskey /history` is empty right after), and cmd has no
+// command to inject history — so up-arrow in a fresh cmd window recalls nothing.
+// PSReadLine loads its history from HistorySavePath at the first interactive
+// prompt, so setting that path (below) to a file we pre-populate makes the run
+// command recallable with up-arrow. This is the rerun-in-the-same-window behavior
+// the user asked for; cmd structurally cannot provide it.
+//
+// The startup script is passed as a UTF-16LE base64 blob via -EncodedCommand to
+// avoid a stack of nested quoting (Node argv -> outer PowerShell -Command ->
+// Start-Process -ArgumentList -> inner PowerShell), which a raw string could not
+// survive intact. `-Verb RunAs` triggers the UAC elevation prompt.
 function launchExternalWindows(
   cp: typeof import("child_process"),
   commandLine: string,
@@ -71,12 +79,14 @@ function launchExternalWindows(
   env: Record<string, string> | undefined,
   elevated: boolean
 ): void {
-  const inner = `/k cd /d ${quoteArg(cwd)} & ${commandLine}`;
+  const encoded = encodeForPowerShell(buildWindowsStartup(commandLine, cwd));
   const startArgs = [
     "-FilePath",
-    "'cmd.exe'",
+    "'powershell.exe'",
     "-ArgumentList",
-    psQuote(inner),
+    // Each element is a literal token; the base64 payload is [A-Za-z0-9+/=] only,
+    // so single-quoting the array needs no escaping.
+    `'-NoExit','-NoProfile','-EncodedCommand','${encoded}'`,
   ];
   if (elevated) {
     startArgs.push("-Verb", "RunAs");
