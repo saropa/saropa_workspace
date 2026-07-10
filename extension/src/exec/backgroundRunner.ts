@@ -187,9 +187,9 @@ function handleRunSettled(
   // failure path resolves those (async, for the port-holder lookup) before its
   // toast. Routed off settle so the run record above is written synchronously.
   if (outcome === "failure") {
-    void notifyFailure(ctx.name, code, durationMs, ctx.captured, ctx.cwd, ctx.retry);
+    void notifyFailure(ctx.pinId, ctx.name, code, durationMs, ctx.captured, ctx.cwd, ctx.retry);
   } else {
-    notifyCompletion(ctx.name, outcome, code, durationMs, undefined);
+    notifyCompletion(ctx.pinId, ctx.name, outcome, code, durationMs, undefined);
   }
 }
 
@@ -226,6 +226,7 @@ function extractAndCopy(pattern: string, output: string, name: string): void {
 // is the fallback. The port-holder lookup is the only async step, which is why this
 // path is async while the success path is not.
 async function notifyFailure(
+  pinId: string,
   name: string,
   code: number | null,
   durationMs: number,
@@ -236,11 +237,11 @@ async function notifyFailure(
   const port = detectBlockedPort(captured);
   if (port !== undefined) {
     const holder = await findPortHolder(port);
-    notifyPortBlocked(name, port, holder, cwd, retry);
+    notifyPortBlocked(pinId, name, port, holder, cwd, retry);
     return;
   }
   const fix = detectFixCommand(captured);
-  notifyCompletion(name, "failure", code, durationMs, fix ? { command: fix, cwd } : undefined);
+  notifyCompletion(pinId, name, "failure", code, durationMs, fix ? { command: fix, cwd } : undefined);
 }
 
 // Toast for a run blocked by a held port. When the holder is known, offer the
@@ -249,6 +250,7 @@ async function notifyFailure(
 // with the inspect command so the user can free it manually. Show Output is always
 // available as the diagnostic fallback.
 function notifyPortBlocked(
+  pinId: string,
   name: string,
   port: number,
   holder: PortHolder | undefined,
@@ -266,7 +268,7 @@ function notifyPortBlocked(
       )
       .then((choice) => {
         if (choice === inspect) {
-          runInTerminal(inspectPortCommand(port), cwd, undefined);
+          runInTerminal(inspectPortCommand(port), cwd, undefined, pinId, name);
         } else if (choice === showOutput) {
           getOutputChannel().show(true);
         }
@@ -335,6 +337,7 @@ function inspectPortCommand(port: number): string {
 // silent — completion is feedback the user is waiting on. When the failed output
 // suggested a fix command, the toast also offers to run it (WOW #12).
 function notifyCompletion(
+  pinId: string,
   name: string,
   outcome: "success" | "failure",
   code: number | null,
@@ -361,9 +364,9 @@ function notifyCompletion(
       if (choice === showOutput) {
         getOutputChannel().show(true);
       } else if (fix && choice === runFix) {
-        // Run the suggested fix in the shared integrated terminal so its output is
+        // Run the suggested fix in this shortcut's own terminal so its output is
         // visible and interactive (a fix like `npm install` may prompt).
-        runInTerminal(fix.command, fix.cwd, undefined);
+        runInTerminal(fix.command, fix.cwd, undefined, pinId, name);
       }
     });
 }

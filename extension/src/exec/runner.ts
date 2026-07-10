@@ -100,7 +100,9 @@ export async function runShortcut(
   // itself the visible feedback).
   switch (plan.location) {
     case "terminal":
-      runInTerminal(plan.commandLine, plan.cwd, plan.env);
+      // Keyed by shortcut id so a second shortcut launched while this one is
+      // still busy gets its own terminal instead of pasting into it.
+      runInTerminal(plan.commandLine, plan.cwd, plan.env, shortcut.id, plan.name);
       // Terminal runs have no tracked exit, so chaining keys off dispatch: the
       // dependent fires as soon as the command is sent. Background fires its real
       // outcome from settle() instead (so it is excluded here).

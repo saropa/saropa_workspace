@@ -63,7 +63,7 @@ export async function runAction(
       await runShellAction(action, name, shortcut.id, lockName);
       return;
     case "macro":
-      await runMacro(action.steps ?? [], name);
+      await runMacro(action.steps ?? [], name, shortcut.id);
       shortcutEvents.fireComplete(shortcut.id, "dispatched");
       return;
     case "routine":
@@ -153,7 +153,7 @@ async function runShellAction(
   // follows the global cue settings; the background path below plays the finish cue.
   playCue("start");
   if (useTerminal) {
-    runInTerminal(commandLine, cwd, undefined);
+    runInTerminal(commandLine, cwd, undefined, pinId, name);
     // Terminal shell run: no tracked exit, so chain off the dispatch (background
     // fires its real outcome from settle()).
     shortcutEvents.fireComplete(pinId, "dispatched");
@@ -296,11 +296,11 @@ async function runShellToReport(
 
 // Sequentially run macro steps (open / shell / url / command). A failing step is
 // logged and the macro continues, so one bad step does not abort the rest.
-async function runMacro(steps: MacroStep[], name: string): Promise<void> {
+async function runMacro(steps: MacroStep[], name: string, pinId: string): Promise<void> {
   const channel = getOutputChannel();
   for (const [index, step] of steps.entries()) {
     try {
-      await runMacroStep(step);
+      await runMacroStep(step, pinId, name);
     } catch (err) {
       channel.appendLine(
         l10n("macro.stepFailed", {
@@ -316,7 +316,7 @@ async function runMacro(steps: MacroStep[], name: string): Promise<void> {
   );
 }
 
-async function runMacroStep(step: MacroStep): Promise<void> {
+async function runMacroStep(step: MacroStep, pinId: string, name: string): Promise<void> {
   switch (step.kind) {
     case "open": {
       if (!step.path) {
@@ -345,7 +345,9 @@ async function runMacroStep(step: MacroStep): Promise<void> {
         return;
       }
       const cwd = expandRecipeTokens(step.cwd ?? firstWorkspacePath() ?? process.cwd());
-      runInTerminal(expandRecipeTokens(step.shellCommand), cwd, undefined);
+      // Macro steps run sequentially, so they share one terminal per macro
+      // (keyed by the owning shortcut's id) rather than each step spawning its own.
+      runInTerminal(expandRecipeTokens(step.shellCommand), cwd, undefined, pinId, name);
       return;
     }
   }
