@@ -136,6 +136,15 @@ One manifest lists every shipped script and its **default** tags and config:
 - **`config`** — the script's **default** `ShortcutExecConfig`. `cwd:
   "$workspaceRoot"` is the "run in the project's source folder" default; the whole
   block is user-overridable.
+- **`requires`** (optional) — external command-line tools the script needs, each
+  `{ "type": "command", "name": "adb", "reason": "…", "optional": true|false }`.
+  This is the single source of truth for the tool preflight: the Scripts view will
+  check it before offering Run (a missing required tool → a "needs adb" state
+  instead of a runtime failure), and a script may read its own entry at startup to
+  self-check when run directly. A missing **required** tool blocks/aborts; a missing
+  **optional** tool is a warning only. Shipped today: `device-connect` declares
+  `adb` (required) plus `flutter` and `scrcpy` (optional); `organize-output` needs
+  none (`[]`).
 
 ### 3. The Script model entity
 
@@ -378,3 +387,46 @@ No public CHANGELOG/README entry was added, since the scripts are not yet
 user-reachable. A third example script (`clean-workspace`) named in the plan was
 not created. The `.vscodeignore` note and the `publish.py` manifest-validation step
 (plan step 5) are not done.
+
+## Finish Report addendum — hardening + tool-requirements preflight (2026-07-16)
+
+Follow-up pass hardening the handoff-reflection risks and adding the manifest
+`requires` preflight (handoff item 4).
+
+### Hardening
+
+- **Unsupported-interpreter guard.** Both launchers now check `sys.version_info` and
+  exit with a clear named message on Python older than 3.8, instead of failing with
+  a downstream error. (Python 2 cannot parse the files at all; the `python3` shebang
+  and the manifest interpreter are the mitigation there.)
+- **Blank folder argument.** organize-output now treats a blank / whitespace-only
+  folder argument as the current directory (the project root), so an empty
+  `${prompt}` answer organizes the project root rather than erroring on a folder
+  literally named " ". Verified.
+- **OEM-specific power list.** The Motorola force-stop list in `power.py` was renamed
+  `_OEM_BLOAT` and documented: on a non-Motorola device those packages are absent
+  and `am force-stop` of a missing package is a silent no-op, so the list is harmless
+  elsewhere. The confirmation line no longer claims "Moto bloat stopped" on every
+  device. A scan of the other vendored modules (`core`, `discovery`, `health`) found
+  no further hardcoded machine paths — only the standard adb port `5555` and an
+  example IP in a prompt string.
+
+### Tool-requirements preflight (handoff item 4)
+
+`library.json` entries gained an optional `requires` array of external-tool
+declarations (`{ type: "command", name, reason, optional? }`) — the single source
+of truth for tool checks. `device-connect` declares `adb` (required) plus `flutter`
+and `scrcpy` (optional); `organize-output` declares none.
+
+The `device-connect` launcher reads its own manifest entry at startup (stdlib only,
+so it runs before the Python-package check) and checks each declared tool against
+PATH: a missing **required** tool aborts with a clear named message and its reason
+before any menu opens or any install is offered; a missing **optional** tool prints
+a warning and continues. If the manifest is absent/unreadable (a direct run outside
+the extension), the preflight is skipped rather than blocking. Verified: with no
+tools on PATH the run aborts naming `adb`; with the tools present it passes to the
+menu; the optional-tool warnings fire independently.
+
+The view-side half of item 4 — the Scripts view reading `requires` to disable Run
+and show a "needs adb" badge — lands with the view (plan steps 1–3); the manifest
+schema is the forward-compatible contract it will consume.
