@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "scripts": [
+    {
+      "id": "organize-output",
+      "labelKey": "scripts.organizeOutput.label",
+      "descriptionKey": "scripts.organizeOutput.description",
+      "icon": "file-directory",
+      "tags": ["cleanup", "reports"],
+      "entry": "organize-output/__main__.py",
+      "config": {
+        "command": "python",
+        "cwd": "$workspaceRoot",
+        "args": ["${prompt:Folder to organize (blank = project root):}"],
+        "runLocation": "terminal"
+      }
+    },
+    {
+      "id": "device-connect",
+      "labelKey": "scripts.deviceConnect.label",
+      "descriptionKey": "scripts.deviceConnect.description",
+      "icon": "device-mobile",
+      "tags": ["android", "flutter", "debug"],
+      "entry": "device-connect/__main__.py",
+      "config": {
+        "command": "python",
+        "cwd": "$workspaceRoot",
+        "runLocation": "terminal"
+      }
+    }
+  ]
+}

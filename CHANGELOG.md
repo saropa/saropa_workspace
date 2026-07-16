@@ -47,6 +47,20 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+**Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere.
+
+### Added
+
+- New **View Suite Daily Report** command: a read-only Markdown summary with an
+  executive summary, a Trouble section (failures and high-impact items only),
+  today's Workspace shortcut activity, and a per-tool section for each installed
+  Saropa Suite extension that exposes the versioned `getDailySummary` exports API
+  (today and yesterday). Tools that are absent or predate the API are simply
+  omitted — a solo install renders a workspace-only report. Also reachable from
+  the Diagnostics submenu.
+
 ## [1.5.21]
 
 **Overview** — The "you've opened this file a lot, want a shortcut?" prompt used to fire while you were just flipping between files during normal work. Now it counts a file at most once every half hour, needs more opens before it asks, and lets you shut off a whole file type ("Ignore .dart") straight from the prompt. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.21/CHANGELOG.md)
