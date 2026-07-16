@@ -53,6 +53,16 @@ cspell:disable
 
 ### Added
 
+- New bundled **script library**: the extension now ships a set of self-contained,
+  ready-to-run developer scripts, each its own folder with an editable run config,
+  tags, and a declared list of the command-line tools it needs. Two to start:
+  **Organize output folder** (sorts a folder's loose files into dated
+  `YYYY.MM/YYYY.MM.DD` subfolders and prunes the empty folders left behind) and
+  **Connect a device for debugging** (connects a physical Android device to Flutter
+  over Wi-Fi or USB, mirrors the screen with scrcpy, and reports battery/charging
+  health — asking before installing its Python dependencies, and telling you up
+  front if a required tool like `adb` is missing). A dedicated Scripts view to
+  browse and run them from the sidebar is coming next.
 - New **View Suite Daily Report** command: a read-only Markdown summary with an
   executive summary, a Trouble section (failures and high-impact items only),
   today's Workspace shortcut activity, and a per-tool section for each installed
