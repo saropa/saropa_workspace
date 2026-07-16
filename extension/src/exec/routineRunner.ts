@@ -8,7 +8,12 @@ import { ShortcutBadge, shortcutBadges } from "./shortcutBadges";
 import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel } from "./terminalRunner";
-import { expandRecipeTokens, firstWorkspacePath, reportRelativePath } from "./actionRunner";
+import {
+  expandRecipeTokens,
+  fenceBlock,
+  firstWorkspacePath,
+  reportRelativePath,
+} from "./actionRunner";
 import { recordLastReport, peekLastReport, clearLastReport } from "./lastReport";
 import { openReport, withReportOpenSuppressed } from "./reportOpen";
 
@@ -332,35 +337,54 @@ async function writeRoutineSummary(
   // Problems first, and ONLY problems: a failed or missing member is the one piece
   // of execution state the reader must see. OK / dispatched members are invisible
   // as mechanics — their value is their content below (or nothing, for a terminal
-  // member that produces no report; announcing "a terminal ran" is noise).
+  // member that produces no report; announcing "a terminal ran" is noise). Details
+  // are sanitized: a multi-line spawn error pasted raw into a blockquote would
+  // break out of the quote and swallow the document.
   const problems = outcomes.filter((o) => o.status === "failed" || o.status === "missing");
   for (const o of problems) {
-    const note = o.detail ?? defaultNote(o.status);
+    const note = sanitizeDetail(o.detail ?? defaultNote(o.status));
     parts.push(`> **${statusLabel(o.status)}** — ${o.label}${note ? `: ${note}` : ""}`);
   }
   if (problems.length > 0) {
     parts.push("");
   }
 
-  // Merge each member report's body in as a section. Read failures degrade to a
-  // plain link — a torn-down temp file must not lose the rest of the document.
+  // Merge each member report's body in as a collapsible section, so a multi-member
+  // morning report opens as scannable one-line headers that expand on click. A
+  // FAILED member's section renders pre-expanded (`open`) — the reader must not
+  // have to hunt for the one section that matters. Read failures degrade to the
+  // source link — a torn-down temp file must not lose the rest of the document.
   let merged = 0;
   for (const o of outcomes) {
     if (!o.reportPath) {
       continue;
     }
-    parts.push(`## ${o.label}`, "");
+    // <summary> content is raw HTML (Markdown inline syntax is not parsed inside
+    // it), so the member label uses <strong>, and the clickable source link lives
+    // in the Markdown body below instead.
+    parts.push(
+      `<details${o.status === "failed" ? " open" : ""}>`,
+      `<summary><strong>${escapeHtml(o.label)}</strong></summary>`,
+      ""
+    );
     const rel = path.relative(summaryDir, o.reportPath).split(path.sep).join("/");
-    // Source link under the heading keeps the summary the index over its parts
-    // (style guide: a summary links its sub-reports) even though the content is inline.
+    // Source link at the top of the section keeps the summary the index over its
+    // parts (style guide: a summary links its sub-reports) even though the content
+    // is inline.
     parts.push(`_[${path.basename(o.reportPath)}](${rel})_`, "");
     try {
       const content = await fsp.readFile(o.reportPath, "utf8");
-      parts.push(embedMemberReport(content), "");
+      // Only Markdown merges as Markdown. Any other extension (a .log, .txt, .csv
+      // a member happened to record) is fenced as preformatted text — raw log
+      // content read as Markdown is the "unreadable slop" failure the report
+      // conventions exist to prevent.
+      const isMarkdown = /\.(md|markdown)$/i.test(o.reportPath);
+      parts.push(isMarkdown ? embedMemberReport(content) : fenceBlock(content), "");
       merged++;
     } catch {
       parts.push(`_${l10n("routine.summary.readFailed")}_`, "");
     }
+    parts.push("</details>", "");
   }
 
   // Nothing merged and nothing wrong: say what happened in one line, so a routine of
@@ -409,6 +433,26 @@ function defaultNote(status: MemberOutcome["status"]): string {
   return "";
 }
 
+// How much of a member's error detail the attention line carries. A spawn error
+// can be a full stack trace; the attention line is a one-line pointer, not the
+// error's home (the output channel keeps the full text).
+const DETAIL_MAX_CHARS = 200;
+
+// Flatten a detail to one line and bound its length so a raw multi-line error
+// message cannot break out of the attention blockquote or dominate the document.
+function sanitizeDetail(detail: string): string {
+  const oneLine = detail.replace(/\s*\n\s*/g, " ").trim();
+  return oneLine.length > DETAIL_MAX_CHARS
+    ? `${oneLine.slice(0, DETAIL_MAX_CHARS)}…`
+    : oneLine;
+}
+
+// Escape a member label for raw-HTML contexts (<summary>), where Markdown escaping
+// does not apply and an angle bracket in a label would be parsed as a tag.
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // Prepare one member report's body for inline embedding under its `## <member>`
 // section heading: drop the report's own H1 (the section heading already names it —
 // keeping both renders a duplicate title), then demote every remaining heading two
@@ -439,7 +483,10 @@ export function embedMemberReport(markdown: string): string {
   // then mangle the rest of the document as if it were outside the fence.
   let openFence: { char: string; length: number } | undefined;
   const out = lines.map((line) => {
-    const run = /^\s*(`{3,}|~{3,})/.exec(line);
+    // A fence opener/closer may be indented at most 3 spaces (CommonMark): 4+
+    // spaces is an indented code block, and a backtick run inside one (e.g. inside
+    // a list item's code) is content, not a fence toggle.
+    const run = /^ {0,3}(`{3,}|~{3,})/.exec(line);
     if (run) {
       const char = (run[1] ?? "")[0] ?? "`";
       const length = (run[1] ?? "").length;

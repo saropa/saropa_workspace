@@ -762,13 +762,17 @@ not raw-dump conventions:
   safe): `**Command** \`git log …\``.
 - **A summary/routine report IS the content, not an index of execution mechanics.**
   When a run produces several member reports, the summary merges each report's body
-  in as a `##` section (H1 dropped, inner headings demoted, fenced blocks left
-  untouched) so the one document the routine opens is the standup / stats / PR
-  content the user wants to read — not a table of statuses, durations, and links
-  ("no user wants that document", user report 2026-07-16). Each section still
-  carries a link to its source file *relative to the summary file* (forward
-  slashes — a Windows backslash is not a valid link separator), so the parts stay
-  reachable wherever the `reports/` tree is opened.
+  in as a collapsible `<details>` section (H1 dropped, inner headings demoted,
+  fenced blocks left untouched) so the one document the routine opens is the
+  standup / stats / PR content the user wants to read — not a table of statuses,
+  durations, and links ("no user wants that document", user report 2026-07-16).
+  Sections open collapsed so a multi-member report scans as one-line headers; a
+  FAILED member's section is pre-expanded (`<details open>`) so the section that
+  matters needs no hunting. Non-Markdown member content (a `.log`, `.txt`) is
+  fenced as preformatted text, never merged as prose. Each section still carries a
+  link to its source file *relative to the summary file* (forward slashes — a
+  Windows backslash is not a valid link separator), so the parts stay reachable
+  wherever the `reports/` tree is opened.
 - **A freshness/diagnostic report shows only the actionable items.** A dependency
   report lists only the packages behind latest, not every dependency; the up-to-date
   ones are omitted so the report is the work, not a table to scan.

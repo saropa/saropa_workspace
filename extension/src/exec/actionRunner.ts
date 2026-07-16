@@ -181,7 +181,9 @@ async function runShellAction(
 // the report bug called out. The fence length is one backtick longer than the
 // longest backtick run in the body, so output that itself contains a ``` fence
 // (rare, but e.g. a grep over Markdown) can never break out of the block.
-function fenceBlock(body: string): string {
+// Exported: routineRunner reuses this to fence a non-Markdown member report when
+// merging it into the routine summary (single source for the widened-fence rule).
+export function fenceBlock(body: string): string {
   const runs = body.match(/`+/g);
   const longest = runs ? Math.max(...runs.map((r) => r.length)) : 0;
   const fence = "`".repeat(Math.max(3, longest + 1));
