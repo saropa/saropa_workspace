@@ -64,6 +64,20 @@ test("a non-git project seeds no git-gated rituals", async () => {
   }
 });
 
+test("the Suite daily report ritual seeds in every workspace, git or not", async () => {
+  // ritual.suite has no detection guard: with no siblings installed it degrades to
+  // a workspace-only summary, so it must be offered even outside a git repo, as a
+  // command action targeting the suite-report command.
+  const out = await detectScheduledRecipes(asFolder(folder));
+  const suite = out.find((r) => r.recipeId === "ritual.suite");
+  assert.ok(suite, "ritual.suite seeds without any project markers");
+  assert.equal(suite!.action?.kind, "command");
+  assert.equal(
+    (suite!.action as { commandId?: string }).commandId,
+    "saropaWorkspace.recipe.suiteDailyReport"
+  );
+});
+
 test("a git repo seeds the six git-gated rituals", async () => {
   makeGitRepo();
   const out = ids(await detectScheduledRecipes(asFolder(folder)));

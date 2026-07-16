@@ -40,3 +40,22 @@ own, not card action buttons; they were intentionally left unchanged.
 
 - `npx tsc -p ./ --noEmit` from `extension/`: clean.
 - `npm run test:unit`: 956 pass, 0 fail (includes the new regression test).
+
+## Hardening follow-up (2026-07-16)
+
+The handoff review flagged two structural risks: a future button style (or a
+duplicate `.run`/`.btn` rule) could hardcode a diverging size, and the
+regression test's regex bound only the first block matching each selector.
+Both closed:
+
+- The size now lives in a `--launcher-btn-font: 0.88em` custom property on
+  `:root`; `.run` and `.btn` read `var(--launcher-btn-font)`, so a retune is a
+  single edit and the styles cannot drift.
+- The test now asserts: the variable is defined on `:root`; EVERY line-anchored
+  bare `.run` / `.btn` block (matchAll, not first-match) declares
+  `font-family: inherit` and reads the variable; and the `0.88em` literal
+  appears exactly once in the stylesheet (the variable definition), so a
+  hardcoded copy anywhere fails the suite.
+- The style guide rule names the variable, requires new card action buttons to
+  read it, and records that pane/group heads, filter chips, and the context
+  menu are deliberately excluded.
