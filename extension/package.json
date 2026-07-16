@@ -622,6 +622,12 @@
         "icon": "$(graph)"
       },
       {
+        "command": "saropaWorkspace.dailyReport",
+        "title": "%command.dailyReport.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(calendar)"
+      },
+      {
         "command": "saropaWorkspace.configureBootSequence",
         "title": "%command.configureBootSequence.title%",
         "category": "%extension.displayName%",
@@ -1239,8 +1245,12 @@
           "group": "1_diag@2"
         },
         {
-          "command": "saropaWorkspace.resetRunHistory",
+          "command": "saropaWorkspace.dailyReport",
           "group": "1_diag@3"
+        },
+        {
+          "command": "saropaWorkspace.resetRunHistory",
+          "group": "1_diag@4"
         },
         {
           "command": "saropaWorkspace.recipe.newHygieneScan",

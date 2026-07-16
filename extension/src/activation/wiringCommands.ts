@@ -7,6 +7,7 @@ import { setRoutineHooks } from "../exec/runner";
 import { PlannerPanel } from "../views/plannerPanel";
 import { registerSimulationPreview } from "../commands/simulateRun";
 import { registerRunAnalytics } from "../commands/runAnalytics";
+import { registerDailyReport } from "../commands/dailyReport";
 import { registerRunOutputDiff } from "../commands/diffRuns";
 import { registerShortcutCommands, createRoutineHooks } from "../commands/shortcutCommands";
 import { registerSetCommands } from "../commands/setCommands";
@@ -33,6 +34,7 @@ export function registerCommandModules(
 ): BranchSetBinder {
   registerSimulationPreview(context);
   registerRunAnalytics(context);
+  registerDailyReport(context);
   registerRunOutputDiff(context);
   registerShortcutCommands(context, store, dispatcher);
 

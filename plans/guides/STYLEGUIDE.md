@@ -801,6 +801,24 @@ four (user report 2026-07-10). Revealing a tree row answers none.
   right-click "Hide" menu labels the entry with the extension's display name, so two
   entries from one extension are indistinguishable.
 
+### 4.11 Suite data crosses the extension boundary through a versioned API, and absence degrades silently
+
+A surface that shows another Saropa extension's data (the Suite Daily Report is the
+model — `commands/dailyReport.ts`) consumes it ONLY through the sibling's
+`activate()` exports API, never by reading its files or storage:
+
+- **The exports API is the contract.** Call
+  `vscode.extensions.getExtension(id)?.exports` (activating on demand — an idle
+  sibling has no exports yet), gate on `apiVersion`, and declare a local structural
+  copy of the payload type rather than importing from the sibling's repo.
+- **Validate the payload at runtime.** Data that crossed an extension boundary is
+  treated like parsed JSON: shape-checked before use, so a sibling version drift
+  renders as an omitted section, not a broken document.
+- **Absence is a normal state, not an error.** A tool that is not installed, fails
+  to activate, or predates the API contributes nothing — the surface renders
+  without it and, when NO sibling contributed, says so in one line. Never a toast,
+  never an error surface, for a missing optional sibling.
+
 ---
 
 ## 5. Voice and tone

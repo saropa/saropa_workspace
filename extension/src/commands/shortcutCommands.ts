@@ -3,6 +3,7 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { telemetry } from "../exec/telemetry";
 import { showRunAnalytics } from "./runAnalytics";
+import { showDailyReport } from "./dailyReport";
 import { configureBootSequence, runBootSequence } from "./bootSequence";
 import { exportShortcutSet, importShortcutSet } from "./shortcutSetExport";
 import { editShortcutsConfig } from "./editConfig";
@@ -102,6 +103,12 @@ function registerWorkspaceLevelCommands(
   // session's success/failure split, last-run times) as a read-only Markdown
   // preview. Reads only on-device state; transmits nothing.
   reg("saropaWorkspace.showRunAnalytics", () => showRunAnalytics(store));
+
+  // The Suite conductor's consolidated day view: Workspace run activity plus the
+  // daily summaries the sibling Saropa extensions expose through their public
+  // exports API. Local reads only; absent siblings degrade to a workspace-only
+  // report rather than an error.
+  reg("saropaWorkspace.dailyReport", () => showDailyReport(store));
 
   // Define/reorder/enable the ordered shortcut set that runs on workspace open, and
   // run it on demand. The open-time confirm is wired in activate(); these are the

@@ -30,6 +30,7 @@
   "command.runPinWithOverrides.title": "Run Shortcut with Overrides...",
   "command.resetRunHistory.title": "Reset Run History",
   "command.showRunAnalytics.title": "View Run Analytics",
+  "command.dailyReport.title": "View Suite Daily Report",
   "command.configureBootSequence.title": "Configure Workspace Boot Sequence...",
   "command.runBootSequence.title": "Run Workspace Boot Sequence",
   "command.newScratchpad.title": "New Scratchpad...",
