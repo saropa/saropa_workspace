@@ -89,6 +89,11 @@ cspell:disable
 - The Suite Daily Report guards against a hung sibling extension: any single
   sibling activation or summary call past five seconds is dropped and that tool's
   section is omitted, instead of the whole report hanging.
+- The Suite Daily Report names a version-skewed tool instead of hiding it: an
+  installed Suite extension reporting a newer data format than this version
+  understands gets a one-line note under the executive summary ("update Saropa
+  Workspace to include its section") rather than silently vanishing. Collecting
+  the summaries also shows a status-bar progress note while siblings are polled.
 - New **Saropa Suite daily report** recipe (scheduled ritual, default 06:30, seeds
   disabled): writes the Suite day summary as a dated report file, and joins the
   Morning routine as its closing member — so yesterday's debug sessions, lint

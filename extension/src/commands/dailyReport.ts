@@ -116,7 +116,9 @@ export function registerDailyReport(
 // The recipe/routine form of the daily report: identical content to the preview,
 // written to a dated reports/ file (and opened — suppressed under a routine, whose
 // merged summary is the one window). The folder is the command arg (a scheduled
-// recipe stores its folder path) or the first workspace folder.
+// recipe stores its folder path) or the first workspace folder. Multi-root: recipes
+// are detected PER workspace folder, so each root gets its own recipe carrying its
+// own path — the first-folder fallback only applies to a bare command invocation.
 async function writeSuiteDailyReportFile(
   store: ShortcutStore,
   folderPath?: unknown
@@ -133,8 +135,8 @@ async function writeSuiteDailyReportFile(
   const now = new Date();
   const today = isoDay(now);
   const yesterday = isoDay(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-  const sections = await collectToolSections(today, yesterday);
-  const body = buildDailyReport(store, today, sections);
+  const polled = await collectWithProgress(today, yesterday);
+  const body = buildDailyReport(store, today, polled.sections, polled.mismatched);
 
   const relative = expandRecipeTokens(reportRelativePath("suite_daily"));
   const file = path.join(root, ...relative.split("/"));
@@ -160,8 +162,22 @@ export async function showDailyReport(store: ShortcutStore): Promise<void> {
   const now = new Date();
   const today = isoDay(now);
   const yesterday = isoDay(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-  const sections = await collectToolSections(today, yesterday);
-  await preview.show(buildDailyReport(store, today, sections));
+  const polled = await collectWithProgress(today, yesterday);
+  await preview.show(buildDailyReport(store, today, polled.sections, polled.mismatched));
+}
+
+// Sibling polling behind a status-bar progress note: with two hung siblings the
+// collection can take up to two timeout ceilings, and a command that shows nothing
+// for that long reads as broken.
+async function collectWithProgress(
+  today: string,
+  yesterday: string
+): Promise<PolledTools> {
+  // withProgress returns a Thenable, not a Promise — await normalizes it.
+  return await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Window, title: l10n("dailyReport.collecting") },
+    () => collectToolSections(today, yesterday)
+  );
 }
 
 // Local calendar date as YYYY-MM-DD. Built from local components (not
@@ -173,21 +189,35 @@ function isoDay(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+// The result of polling every sibling: the sections that returned data, plus the
+// display names of installed tools whose exported apiVersion does not match —
+// those must be NAMED in the report, not silently dropped (a silent drop reads as
+// "tool has no data" when the truth is "update one side of the Suite").
+interface PolledTools {
+  sections: ToolSection[];
+  mismatched: string[];
+}
+
 // Ask every installed Suite tool for both days. Tools are polled concurrently —
 // each call is independent and a slow sibling must not serialize the report.
 async function collectToolSections(
   today: string,
   yesterday: string
-): Promise<ToolSection[]> {
+): Promise<PolledTools> {
+  const mismatched: string[] = [];
   const results = await Promise.all(
     SUITE_TOOLS.map(async (tool): Promise<ToolSection | undefined> => {
-      const api = await resolveSuiteApi(tool.id);
-      if (!api?.getDailySummary) {
+      const resolved = await resolveSuiteApi(tool.id);
+      if (resolved.kind === "mismatch") {
+        mismatched.push(tool.name);
+        return undefined;
+      }
+      if (resolved.kind !== "ok" || !resolved.api.getDailySummary) {
         return undefined;
       }
       const [todaySummary, yesterdaySummary] = await Promise.all([
-        safeSummary(api, today),
-        safeSummary(api, yesterday),
+        safeSummary(resolved.api, today),
+        safeSummary(resolved.api, yesterday),
       ]);
       if (!todaySummary && !yesterdaySummary) {
         return undefined;
@@ -199,7 +229,10 @@ async function collectToolSections(
       };
     })
   );
-  return results.filter((s): s is ToolSection => s !== undefined);
+  return {
+    sections: results.filter((s): s is ToolSection => s !== undefined),
+    mismatched,
+  };
 }
 
 // Ceiling on any single sibling operation (activation or a summary call). A
@@ -226,25 +259,43 @@ function withSiblingTimeout<T>(work: Promise<T>): Promise<T | undefined> {
   });
 }
 
+// The three ways resolving a sibling's API can land. "mismatch" is distinct from
+// "absent" on purpose: an installed tool exporting a DIFFERENT apiVersion means
+// one side of the Suite is out of date, and the report must say so — silently
+// omitting the section would read as "no data today" (the most likely long-term
+// failure mode of the version gate).
+type SuiteApiResolution =
+  | { kind: "ok"; api: SuiteApi }
+  | { kind: "mismatch" }
+  | { kind: "absent" };
+
 // Resolve a sibling's exports, activating it on demand. Activation is required:
 // an installed-but-idle extension has no exports yet, and a daily report that
 // silently skipped idle tools would under-report the Suite. Failures (not
-// installed, activation error, activation hang past the ceiling) yield undefined —
-// the section is omitted, never an error surface.
-async function resolveSuiteApi(id: string): Promise<SuiteApi | undefined> {
+// installed, activation error, activation hang past the ceiling) resolve as
+// absent — the section is omitted, never an error surface.
+async function resolveSuiteApi(id: string): Promise<SuiteApiResolution> {
   const ext = vscode.extensions.getExtension<SuiteApi>(id);
   if (!ext) {
-    return undefined;
+    return { kind: "absent" };
   }
   try {
     const api = ext.isActive
       ? ext.exports
       : await withSiblingTimeout(Promise.resolve(ext.activate()));
-    // apiVersion gates the contract: a sibling predating the summary API (or a
-    // future incompatible major) contributes nothing rather than a wrong shape.
-    return api?.apiVersion === 1 ? api : undefined;
+    // apiVersion gates the contract: only the version this consumer understands
+    // merges as data. An export carrying getDailySummary under a DIFFERENT
+    // version is a mismatch to surface; an export with no summary API at all
+    // (pre-API sibling) is simply absent.
+    if (api?.apiVersion === 1) {
+      return { kind: "ok", api };
+    }
+    if (api?.getDailySummary !== undefined) {
+      return { kind: "mismatch" };
+    }
+    return { kind: "absent" };
   } catch {
-    return undefined;
+    return { kind: "absent" };
   }
 }
 
@@ -288,7 +339,8 @@ function isDailySummary(value: unknown): value is SuiteDailySummary {
 export function buildDailyReport(
   store: ShortcutStore,
   today: string,
-  tools: ToolSection[]
+  tools: ToolSection[],
+  mismatched: string[] = []
 ): string {
   const lines: string[] = [
     `# ${l10n("dailyReport.title", { date: today })}`,
@@ -298,6 +350,14 @@ export function buildDailyReport(
   ];
 
   lines.push(...executiveSection(tools));
+
+  // An installed tool whose exported apiVersion this consumer does not understand
+  // is NAMED, right under the executive summary — the alternative (an omitted
+  // section) reads as "no data today" when the truth is a version skew between
+  // Suite extensions.
+  for (const tool of mismatched) {
+    lines.push(`_${l10n("dailyReport.versionMismatch", { tool })}_`, "");
+  }
   lines.push(...troubleSection(store, tools));
   lines.push(...workspaceSection(store));
   for (const tool of tools) {

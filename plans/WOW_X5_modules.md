@@ -111,6 +111,22 @@ fn determine_valid_utf8_boundary(input_buffer: &[u8]) -> usize {
 }
 ```
 
+### Review notes
+
+- **Byte 0 is never checked (correctness).** The scan loop is
+  `while index > 0 && checking_back_steps < 4`, so index 0 is never examined. A
+  buffer whose multi-byte leader sits at position 0 with only continuation bytes
+  after it — e.g. `[0xE0, 0x80]` (3-byte leader + 1 continuation, truncated) —
+  falls through to `length`, so the truncated tail reaches `from_utf8_lossy` and
+  renders as the replacement-character artifact this function exists to prevent.
+  Handle index 0 explicitly.
+- **`tokio::select!` wraps a single branch (dead abstraction).** With one arm it
+  just awaits that arm; the comment about "deadlocking file descriptors" is not a
+  real effect. Drop the `select!`, or add the real second branch (a shutdown
+  signal) it was presumably meant to carry.
+- **`carryover_byte_vector.clone()` every read (minor perf).** Avoidable — splice
+  the carryover in place instead of cloning per iteration.
+
 ---
 
 ## Module 2: authenticated loopback receiver gateway (timing-attack shield)
@@ -194,6 +210,24 @@ fn constant_time_signature_match(signature_a: &str, signature_b: &str) -> bool {
 }
 ```
 
+### Review notes
+
+- **The path parameter is unauthenticated (security).** The HMAC covers
+  `raw_payload_body` only; `shortcut_id` comes from the URL path and is what
+  selects the macro to run. A single captured `(body, signature)` pair validates
+  against `/v2/webhook/trigger/<any-other-id>`, so anyone holding one valid
+  signature can trigger every shortcut. Sign the `shortcut_id` together with the
+  body (or the full request line).
+- **No replay protection (security).** No timestamp or nonce means any local
+  process can replay a captured request. Loopback binding is the only mitigation —
+  state that as the assumed trust boundary, and consider a short-lived nonce.
+- **`.expect()` / `.unwrap()` crash the daemon (robustness).** `TcpListener::bind`
+  panics if port 8484 is occupied and `axum::serve(...).unwrap()` panics on any
+  serve error, taking the whole daemon down. Degrade gracefully and surface the
+  failure instead.
+- **Reimplementing constant-time compare is unnecessary.** The `hmac` crate's
+  `verify_slice` is constant-time and harder to get wrong than a hand-rolled loop.
+
 ---
 
 ## Module 3: pre-flight diagnostics pipeline
@@ -275,6 +309,29 @@ fn inspect_git_tracking_vectors(root_dir: &str) -> bool {
 }
 ```
 
+### Review notes
+
+- **Port check is inverted — reports every port as blocked (correctness).**
+  `timeout(dur, TcpStream::connect(addr)).await` returns
+  `Result<Result<TcpStream, io::Error>, Elapsed>`, and `.is_ok()` is true whenever
+  the connect *future completed* before the deadline — including the
+  `ConnectionRefused` that a free port returns immediately. So a free port reports
+  `target_port_unlocked = false`, and an occupied port also reports false; the only
+  "unlocked" result is a dropped SYN that times out. The check is backwards. Use
+  `matches!(timeout(dur, connect).await, Ok(Ok(_)))` for "occupied".
+- **Missing `use std::path::Path` — won't compile.** `inspect_git_tracking_vectors`
+  calls `Path::new(...)` but the imports are only `Command`, `Duration`,
+  `TcpStream`.
+- **Blocking IO in an async command.** `Command::new(...).output()` is blocking
+  `std::process` inside `#[tauri::command] async fn` and stalls the tokio worker.
+  Use `tokio::process::Command`.
+- **Git-sync heuristic misreports packed refs.** Reading `.git/refs/heads/main` as
+  a loose file fails when refs are packed (common); the existence guard then
+  returns `true` and reports "synchronized" for a repo it never checked. The
+  `FETCH_HEAD` `contains(...)` test is also fragile (tab-delimited format, detached
+  HEAD). Use `git rev-parse` / `git status -uno` output instead of parsing `.git`
+  internals.
+
 ---
 
 ## Module 4: low-level OS context observer hooks
@@ -349,6 +406,17 @@ pub fn start_foreground_context_observer(app_runtime: tauri::AppHandle, kill_swi
 }
 ```
 
+### Review notes
+
+- **Blocking spawns on the async runtime.** The macOS/Linux paths shell out via
+  blocking `std::process::Command` every 600 ms on a tokio task; `osascript`
+  especially runs ~100 ms+ per call and will occupy a worker. Use
+  `tokio::process::Command`.
+- **Linux is X11-only.** `xdotool` yields "unknown" under Wayland silently — note
+  the limitation, or detect the session type and skip.
+- The Windows path correctly closes the process handle in all branches — this is
+  the cleanest of the five modules.
+
 ---
 
 ## Module 5: hardware audio stream activation intercept
@@ -417,3 +485,20 @@ fn run_local_inference_evaluation(_audio_frames: &[f32]) -> String {
     String::from("saropa launch morning routine")
 }
 ```
+
+### Review notes
+
+- **Sample-format assumption (correctness).** The stream is built from
+  `default_input_config()` but the callback hardcodes `&[f32]` and never checks
+  `stream_configuration.sample_format()`. If the device default is I16/U16 (common),
+  the f32 callback gets garbage or the build fails at runtime. Branch on
+  `sample_format()`.
+- **Locking in the realtime audio callback.** `session_buffer.lock().unwrap()`
+  inside the capture callback risks a glitch / priority inversion and panics on a
+  poisoned mutex. Prefer a lock-free ring buffer feeding a separate worker.
+- **The window is not actually 1.5 seconds.** `>= 32000` is labeled 1.5 s, but the
+  sample rate is the device default and samples are interleaved across channels, so
+  the real window is unknown. Compute the threshold from
+  `config.sample_rate() * channels * seconds`.
+- The stub note above is correct — keep the whisper.cpp wiring as separately-tracked
+  work before shipping, and don't emit the hardcoded shortcut id from the stub.
