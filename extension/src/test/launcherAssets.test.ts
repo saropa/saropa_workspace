@@ -98,6 +98,22 @@ test("LAUNCHER_STYLE: the head action button reveals its text label only when ex
   );
 });
 
+test("LAUNCHER_STYLE: all card buttons share one label size", () => {
+  // The head Run/Open button (.run) and the drawer's action buttons (.btn) must both
+  // declare font-family: inherit + font-size 0.88em. Without the explicit declaration a
+  // native <button> keeps the UA's own font at 1em, so the head label rendered larger
+  // than the drawer labels on the same card (developer feedback 2026-07-16). Guards a
+  // regression that drops the declaration from either rule or lets the sizes diverge.
+  const run = LAUNCHER_STYLE.match(/\.run\s*\{[^}]*\}/);
+  const btn = LAUNCHER_STYLE.match(/\.btn\s*\{[^}]*\}/);
+  assert.ok(run, ".run rule must exist");
+  assert.ok(btn, ".btn rule must exist");
+  for (const rule of [run[0], btn[0]]) {
+    assert.ok(rule.includes("font-family: inherit"), "card buttons must inherit the body font");
+    assert.ok(rule.includes("font-size: 0.88em"), "card buttons must share the 0.88em label size");
+  }
+});
+
 test("LAUNCHER_STYLE: drawer actions are right-aligned", () => {
   // Open/Run sit at the card's trailing edge, away from the leading name/path column.
   const actions = LAUNCHER_STYLE.match(/\.drawer-actions\s*\{[^}]*\}/);
