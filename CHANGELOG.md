@@ -49,7 +49,7 @@ cspell:disable
 
 ## [Unreleased]
 
-**Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere.
+**Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.22/CHANGELOG.md)
 
 ### Added
 
