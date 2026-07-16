@@ -80,6 +80,15 @@ cspell:disable
   Execution state appears only when something went wrong: a failed or missing
   member gets one attention line at the top saying what happened and what to do.
   A clean run reads as pure content.
+- Routine summary sections are collapsible: each member's content sits in a
+  click-to-expand block, so a multi-member morning report opens as scannable
+  one-line headers — and a failed member's section arrives pre-expanded. Failure
+  details are flattened to one bounded line (the full error stays in the output
+  channel), and a member report that is not Markdown (a .log or .txt) is shown as
+  preformatted text instead of being mangled as prose.
+- The Suite Daily Report guards against a hung sibling extension: any single
+  sibling activation or summary call past five seconds is dropped and that tool's
+  section is omitted, instead of the whole report hanging.
 
 ## [1.5.21]
 

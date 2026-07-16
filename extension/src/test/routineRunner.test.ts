@@ -159,10 +159,15 @@ test("the summary merges each member report's content and links its source", asy
   const summaryPath = findFile(reportsRoot, (f) => f.endsWith("_morning.md"));
   assert.ok(summaryPath, "the routine should write a morning summary");
   const text = nodeFs.readFileSync(summaryPath!, "utf8");
-  // The member gets a section heading; its report body is inline with the H1
-  // dropped (the section heading already names it) and inner headings demoted two
-  // levels; and there is no execution table.
-  assert.match(text, /^## Standup digest$/m, "member section heading");
+  // The member gets a collapsible section (collapsed for an OK member); its report
+  // body is inline with the H1 dropped (the summary line already names it) and
+  // inner headings demoted two levels; and there is no execution table.
+  assert.match(
+    text,
+    /<details>\n<summary><strong>Standup digest<\/strong><\/summary>/,
+    "member section is a collapsed details block"
+  );
+  assert.ok(text.includes("</details>"), "details block is closed");
   assert.doesNotMatch(text, /^# Standup$/m, "member report H1 is dropped");
   assert.match(text, /^#### Yesterday$/m, "inner headings demote two levels");
   assert.ok(text.includes("Shipped the tree."), "member report body is merged inline");
@@ -174,6 +179,174 @@ test("the summary merges each member report's content and links its source", asy
   assert.ok(
     text.includes(`[standup.md](${rel})`),
     `summary should link the member report as [standup.md](${rel})`
+  );
+});
+
+test("a failed member's section renders pre-expanded and its attention line is one bounded line", async () => {
+  // The reader must not hunt for the section that matters: a failed member's
+  // details block carries `open`. Its attention line flattens a multi-line error
+  // to one bounded line so the blockquote cannot be broken by a raw stack trace.
+  const memberShortcut = shortcut({ id: "m-bad", label: "Deploy" });
+  const memberReport = nodePath.join(tmpDir, "reports", "sub", "deploy.md");
+  nodeFs.mkdirSync(nodePath.dirname(memberReport), { recursive: true });
+  nodeFs.writeFileSync(memberReport, "# Deploy\n\nIt broke.\n");
+
+  const longError = `line one\nline two\n${"x".repeat(300)}`;
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      recordLastReport(p.id, memberReport);
+      throw new Error(longError);
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-bad");
+
+  await runRoutine(
+    shortcut({ id: "routine-bad", label: "Ship" }),
+    [member({ pinId: "m-bad" })],
+    "manual"
+  );
+
+  const summaryPath = findFile(nodePath.join(tmpDir, "reports"), (f) => f.endsWith("_ship.md"));
+  assert.ok(summaryPath, "the routine should write a summary");
+  const text = nodeFs.readFileSync(summaryPath!, "utf8");
+  // Thrown member: the report path was recorded before the throw, but the engine
+  // clears it per-run only pre-run; the thrown branch carries no reportPath, so the
+  // section may be absent — the assertions here are about the attention line.
+  const attention = text.split("\n").find((l) => l.startsWith("> "));
+  assert.ok(attention, "a failed member produces an attention line");
+  assert.ok(attention!.includes("Deploy"), "the attention line names the member");
+  assert.ok(!attention!.includes("\n"), "the attention line is one line");
+  assert.ok(
+    attention!.length < 300,
+    `the detail is truncated (got ${attention!.length} chars)`
+  );
+  assert.match(attention!, /…/, "truncation is marked with an ellipsis");
+});
+
+test("a tracked-failure member with a report gets a pre-expanded section and an exit-code line", async () => {
+  // A member whose background run failed (tracked outcome) but still wrote a report
+  // gets `<details open>` — the one section that matters must not need a click —
+  // and its attention line carries the exit code.
+  const memberShortcut = shortcut({ id: "m-exit", label: "Nightly build" });
+  const memberReport = nodePath.join(tmpDir, "reports", "sub", "build.md");
+  nodeFs.mkdirSync(nodePath.dirname(memberReport), { recursive: true });
+  nodeFs.writeFileSync(memberReport, "# Build\n\nLink step failed.\n");
+
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      recordLastReport(p.id, memberReport);
+      runStatusRegistry.record(p.id, {
+        outcome: "failure",
+        exitCode: 2,
+        durationMs: 90,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-exit");
+
+  await runRoutine(
+    shortcut({ id: "routine-exit", label: "Nightly" }),
+    [member({ pinId: "m-exit" })],
+    "manual"
+  );
+
+  const summaryPath = findFile(nodePath.join(tmpDir, "reports"), (f) =>
+    f.endsWith("_nightly.md")
+  );
+  assert.ok(summaryPath, "the routine should write a summary");
+  const text = nodeFs.readFileSync(summaryPath!, "utf8");
+  assert.match(
+    text,
+    /<details open>\n<summary><strong>Nightly build<\/strong><\/summary>/,
+    "a failed member's section is pre-expanded"
+  );
+  assert.match(text, /exit code 2/, "the attention line carries the exit code");
+});
+
+test("a non-Markdown member report is fenced, not merged as Markdown", async () => {
+  // A .log recorded as a member's report would render as mangled prose if merged
+  // raw; it must arrive inside a fenced block instead.
+  const memberShortcut = shortcut({ id: "m-log", label: "Device log" });
+  const memberReport = nodePath.join(tmpDir, "reports", "sub", "device.log");
+  nodeFs.mkdirSync(nodePath.dirname(memberReport), { recursive: true });
+  nodeFs.writeFileSync(memberReport, "# raw log line\n* not a list\n");
+
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      recordLastReport(p.id, memberReport);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 5,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-log");
+
+  await runRoutine(
+    shortcut({ id: "routine-log", label: "Capture" }),
+    [member({ pinId: "m-log" })],
+    "manual"
+  );
+
+  const summaryPath = findFile(nodePath.join(tmpDir, "reports"), (f) =>
+    f.endsWith("_capture.md")
+  );
+  assert.ok(summaryPath, "the routine should write a summary");
+  const text = nodeFs.readFileSync(summaryPath!, "utf8");
+  assert.match(text, /```text\n# raw log line/, "log content is fenced as text");
+});
+
+test("a member report that vanished before the merge degrades to its link", async () => {
+  // The readFailed branch: the member recorded a report path, but the file is gone
+  // by summary time (torn-down temp file). The section must say so and the rest of
+  // the document must survive.
+  const memberShortcut = shortcut({ id: "m-gone", label: "Ghost report" });
+  const vanished = nodePath.join(tmpDir, "reports", "sub", "gone.md");
+
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      // Record a path that was never written — the read in writeRoutineSummary fails.
+      recordLastReport(p.id, vanished);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 5,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-gone");
+
+  await runRoutine(
+    shortcut({ id: "routine-gone", label: "Spooky" }),
+    [member({ pinId: "m-gone" })],
+    "manual"
+  );
+
+  const summaryPath = findFile(nodePath.join(tmpDir, "reports"), (f) =>
+    f.endsWith("_spooky.md")
+  );
+  assert.ok(summaryPath, "the routine should write a summary");
+  const text = nodeFs.readFileSync(summaryPath!, "utf8");
+  assert.ok(text.includes("[gone.md]("), "the source link survives");
+  assert.ok(
+    text.includes("could not be read"),
+    "the readFailed note replaces the missing body"
   );
 });
 
@@ -206,6 +379,29 @@ test("embedMemberReport demotes headings, drops the H1, and leaves fences alone"
     embedded,
     /^# not a heading, captured output$/m,
     "content inside the widened fence is untouched"
+  );
+});
+
+test("embedMemberReport ignores backtick runs indented as code (4+ spaces)", () => {
+  // CommonMark: a fence marker may be indented at most 3 spaces; 4+ is an indented
+  // code block, so a ``` inside one (e.g. inside a list item's code sample) is
+  // content and must not flip fence state — otherwise every heading after it would
+  // be misread as inside a fence and skipped.
+  const report = [
+    "# Title",
+    "",
+    "- a list item with an indented code sample:",
+    "",
+    "    ```", // 4-space indent: content, not a fence
+    "",
+    "## Real heading after",
+  ].join("\n");
+
+  const embedded = embedMemberReport(report);
+  assert.match(
+    embedded,
+    /^#### Real heading after$/m,
+    "headings after an indented backtick run still demote"
   );
 });
 

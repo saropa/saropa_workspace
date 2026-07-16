@@ -146,18 +146,44 @@ async function collectToolSections(
   return results.filter((s): s is ToolSection => s !== undefined);
 }
 
+// Ceiling on any single sibling operation (activation or a summary call). A
+// sibling that hangs — a stuck activation, an API that never resolves — must not
+// hang the whole report command; past the ceiling the tool's section is simply
+// omitted, the same degradation as an absent tool.
+const SIBLING_TIMEOUT_MS = 5000;
+
+// Race a sibling promise against the ceiling. Resolves undefined on timeout —
+// never rejects, so callers keep their absent-tool fallback path.
+function withSiblingTimeout<T>(work: Promise<T>): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), SIBLING_TIMEOUT_MS);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(undefined);
+      }
+    );
+  });
+}
+
 // Resolve a sibling's exports, activating it on demand. Activation is required:
 // an installed-but-idle extension has no exports yet, and a daily report that
 // silently skipped idle tools would under-report the Suite. Failures (not
-// installed, activation error) yield undefined — the section is omitted, never an
-// error surface.
+// installed, activation error, activation hang past the ceiling) yield undefined —
+// the section is omitted, never an error surface.
 async function resolveSuiteApi(id: string): Promise<SuiteApi | undefined> {
   const ext = vscode.extensions.getExtension<SuiteApi>(id);
   if (!ext) {
     return undefined;
   }
   try {
-    const api = ext.isActive ? ext.exports : await ext.activate();
+    const api = ext.isActive
+      ? ext.exports
+      : await withSiblingTimeout(Promise.resolve(ext.activate()));
     // apiVersion gates the contract: a sibling predating the summary API (or a
     // future incompatible major) contributes nothing rather than a wrong shape.
     return api?.apiVersion === 1 ? api : undefined;
@@ -166,14 +192,17 @@ async function resolveSuiteApi(id: string): Promise<SuiteApi | undefined> {
   }
 }
 
-// One guarded API call. The payload crosses an extension boundary, so both the
-// call (may reject) and the shape (may drift across versions) are distrusted.
+// One guarded API call. The payload crosses an extension boundary, so the call
+// (may reject or hang), and the shape (may drift across versions) are all
+// distrusted.
 async function safeSummary(
   api: SuiteApi,
   date: string
 ): Promise<SuiteDailySummary | undefined> {
   try {
-    const summary = await api.getDailySummary?.(date);
+    const summary = await withSiblingTimeout(
+      Promise.resolve(api.getDailySummary?.(date))
+    );
     return isDailySummary(summary) ? summary : undefined;
   } catch {
     return undefined;
