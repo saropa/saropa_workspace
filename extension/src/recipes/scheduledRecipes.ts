@@ -148,6 +148,7 @@ export async function detectScheduledRecipes(
   await pushDependencyFreshnessRitual(folder, out);
   await pushTestTrendRitual(folder, out);
   await pushPrReviewRitual(folder, out);
+  pushSuiteDailyReportRitual(folder, out);
 
   // Every scheduled ritual lands in the "Recipes: Scheduled" group.
   for (const r of out) {
@@ -155,6 +156,31 @@ export async function detectScheduledRecipes(
   }
 
   return out;
+}
+
+// Saropa Suite daily report: the cross-tool day summary (Workspace run activity
+// plus what the installed Saropa Suite extensions report through their exports
+// API) written as a dated report file. No detection guard: it depends on nothing —
+// with no siblings installed it degrades to a workspace-only summary, so it is
+// offered in every workspace.
+function pushSuiteDailyReportRitual(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): void {
+  out.push({
+    recipeId: "ritual.suite",
+    label: "Saropa Suite daily report",
+    description:
+      "Scheduled (daily, default 06:30): writes a dated report combining today's and yesterday's summaries from the installed Saropa Suite extensions (Log Capture sessions and signals, lint health, database anomalies) with Workspace shortcut activity. Tools that are not installed are simply omitted. Seeds disabled. As a morning-routine member, its content merges into the one morning document.",
+    icon: "calendar",
+    color: "charts.purple",
+    schedule: daily("06:30"),
+    action: {
+      kind: "command",
+      commandId: "saropaWorkspace.recipe.suiteDailyReport",
+      commandArgs: [folder.uri.fsPath],
+    },
+  });
 }
 
 // 26: dawn lint sweep (artifact only).

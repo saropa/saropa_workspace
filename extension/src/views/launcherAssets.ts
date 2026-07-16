@@ -274,6 +274,10 @@ header {
 .run {
   flex: none;
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  /* Same type as the drawer's .btn buttons: without these, a native <button> keeps the
+     UA's own font at 1em, so the head Run/Open label rendered larger than the drawer's
+     Open/Copy-path labels on the same card. All launcher buttons share 0.88em. */
+  font-family: inherit; font-size: 0.88em;
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
   border: none; border-radius: 4px; padding: 2px 7px; cursor: pointer;
