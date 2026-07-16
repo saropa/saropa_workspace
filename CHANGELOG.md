@@ -99,7 +99,8 @@ cspell:disable
 
 - Launcher card buttons now share one label size: the Run/Open button on a card's
   header rendered its text larger than the Open/Copy path buttons in the expanded
-  drawer; all launcher buttons now use the drawer's smaller size.
+  drawer; all launcher buttons now use the drawer's smaller size, defined in one
+  place so the two cannot drift apart again.
 
 ## [1.5.21]
 

@@ -71,6 +71,18 @@ test("the code-health and dependency members sit in morning order", () => {
   ]);
 });
 
+test("the Suite daily report is the closing morning member", () => {
+  // The cross-tool recap reads as the summary after the per-source sections, so
+  // ritual.suite must sort last regardless of detection order.
+  const out = detectRoutineRecipes([
+    recipe("ritual.suite"),
+    recipe("ritual.lint"),
+    recipe("ritual.prs"),
+  ]);
+  const memberIds = out[0].action?.members?.map((m) => m.recipeId);
+  assert.deepEqual(memberIds, ["ritual.lint", "ritual.prs", "ritual.suite"]);
+});
+
 test("only the present members are included; absent ones are skipped", () => {
   // ritual.standup is not in the detected set, so it must not appear as a member,
   // even though it sits between two members in the canonical order.

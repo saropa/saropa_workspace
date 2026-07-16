@@ -150,13 +150,19 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   secondary gray `.btn` read as a flat label rather than a button, so the drawer's
   actions (Open, Copy path, Pin, Schedule) all carry the blue affordance. (Developer
   feedback 2026-06-28: the gray drawer buttons looked like labels, not buttons.)
-- **All launcher card buttons share one label size: `0.88em`.** The head Run/Open
+- **All launcher card buttons share one label size, defined once as
+  `--launcher-btn-font` on `:root` (currently `0.88em`).** The head Run/Open
   button (`.run`) and the drawer's action buttons (`.btn`) set
-  `font-family: inherit; font-size: 0.88em` — without the explicit declaration a
-  native `<button>` keeps the UA's own font at 1em, so the head label rendered
-  larger than the drawer labels on the same card. (Developer feedback 2026-07-16:
-  every button font in the launcher matches the reduced size the expanded/drawer
-  buttons use.)
+  `font-family: inherit; font-size: var(--launcher-btn-font)` — without the
+  explicit declaration a native `<button>` keeps the UA's own font at 1em, so the
+  head label rendered larger than the drawer labels on the same card. The literal
+  size lives ONLY in the variable (a unit test pins this), so a retune is one edit
+  and the styles cannot drift; any NEW card action button must read the variable,
+  never hardcode a size. Pane heads, group heads, header filter chips, and the
+  context menu are navigation/header surfaces with deliberate sizes of their own —
+  they are not card action buttons and do not use the variable. (Developer
+  feedback 2026-07-16: every button font in the launcher matches the reduced size
+  the expanded/drawer buttons use.)
 - **The card's secondary line is suppressed when it only echoes the name.** A
   root-level file shortcut carries its bare filename as both the label and the path
   (e.g. `CHANGELOG.md`), so rendering the path under the title produced a duplicated

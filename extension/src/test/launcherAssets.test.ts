@@ -98,20 +98,43 @@ test("LAUNCHER_STYLE: the head action button reveals its text label only when ex
   );
 });
 
-test("LAUNCHER_STYLE: all card buttons share one label size", () => {
+test("LAUNCHER_STYLE: all card buttons share one label size from one variable", () => {
   // The head Run/Open button (.run) and the drawer's action buttons (.btn) must both
-  // declare font-family: inherit + font-size 0.88em. Without the explicit declaration a
-  // native <button> keeps the UA's own font at 1em, so the head label rendered larger
-  // than the drawer labels on the same card (developer feedback 2026-07-16). Guards a
-  // regression that drops the declaration from either rule or lets the sizes diverge.
-  const run = LAUNCHER_STYLE.match(/\.run\s*\{[^}]*\}/);
-  const btn = LAUNCHER_STYLE.match(/\.btn\s*\{[^}]*\}/);
-  assert.ok(run, ".run rule must exist");
-  assert.ok(btn, ".btn rule must exist");
-  for (const rule of [run[0], btn[0]]) {
-    assert.ok(rule.includes("font-family: inherit"), "card buttons must inherit the body font");
-    assert.ok(rule.includes("font-size: 0.88em"), "card buttons must share the 0.88em label size");
+  // declare font-family: inherit + font-size: var(--launcher-btn-font). Without the
+  // explicit declaration a native <button> keeps the UA's own font at 1em, so the head
+  // label rendered larger than the drawer labels on the same card (developer feedback
+  // 2026-07-16). The size itself lives ONLY in the :root custom property, so the two
+  // styles cannot drift apart and a retune is a single edit.
+  assert.ok(
+    /:root\s*\{[^}]*--launcher-btn-font:/.test(LAUNCHER_STYLE),
+    "--launcher-btn-font must be defined on :root"
+  );
+  // Match EVERY block whose selector is exactly the bare class at a line start (not
+  // .run:hover, .run .codicon, or .card.expanded .run-label) so a future duplicate rule
+  // with the same selector is checked too, instead of the first match silently
+  // shadowing it. Line-anchored because a rule may follow a comment end, not a brace.
+  for (const cls of ["run", "btn"]) {
+    const blocks = [...LAUNCHER_STYLE.matchAll(new RegExp(`^\\.${cls}\\s*\\{[^}]*\\}`, "gm"))];
+    assert.ok(blocks.length > 0, `a bare .${cls} rule must exist`);
+    for (const block of blocks) {
+      assert.ok(
+        block[0].includes("font-family: inherit"),
+        `.${cls} must inherit the body font (a native <button> does not)`
+      );
+      assert.ok(
+        block[0].includes("font-size: var(--launcher-btn-font)"),
+        `.${cls} must read the shared --launcher-btn-font size`
+      );
+    }
   }
+  // Single source of truth: the literal size appears only in the :root definition.
+  // A second literal means a rule hardcoded the size instead of reading the variable.
+  const literals = LAUNCHER_STYLE.match(/0\.88em/g) ?? [];
+  assert.strictEqual(
+    literals.length,
+    1,
+    "the button label size literal must appear exactly once (the :root variable)"
+  );
 });
 
 test("LAUNCHER_STYLE: drawer actions are right-aligned", () => {

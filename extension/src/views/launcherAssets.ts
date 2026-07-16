@@ -33,7 +33,11 @@
 // getState/setState.
 
 export const LAUNCHER_STYLE = `
-:root { color-scheme: light dark; }
+/* The one place the card-button label size lives. Every card action button (.run, .btn)
+   reads this variable, so a size retune is a single edit and the two styles cannot
+   drift apart. Native <button>s do not inherit the body font, so each rule also sets
+   font-family: inherit alongside the size. */
+:root { color-scheme: light dark; --launcher-btn-font: 0.88em; }
 * { box-sizing: border-box; }
 body {
   font-family: var(--vscode-font-family);
@@ -276,8 +280,8 @@ header {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
   /* Same type as the drawer's .btn buttons: without these, a native <button> keeps the
      UA's own font at 1em, so the head Run/Open label rendered larger than the drawer's
-     Open/Copy-path labels on the same card. All launcher buttons share 0.88em. */
-  font-family: inherit; font-size: 0.88em;
+     Open/Copy-path labels on the same card. The size lives in --launcher-btn-font. */
+  font-family: inherit; font-size: var(--launcher-btn-font);
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
   border: none; border-radius: 4px; padding: 2px 7px; cursor: pointer;
@@ -302,7 +306,7 @@ header {
 .drawer-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .btn {
   display: inline-flex; align-items: center; gap: 5px;
-  font-family: inherit; font-size: 0.88em;
+  font-family: inherit; font-size: var(--launcher-btn-font);
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
   border: 1px solid var(--vscode-widget-border, transparent);

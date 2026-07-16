@@ -1,12 +1,31 @@
 # Saropa Suite integration — Workspace as the conductor
 
-> **Status (2026-07-16):** Pillar B's Workspace consumer is implemented —
-> `saropaWorkspace.dailyReport` in `extension/src/commands/dailyReport.ts`
-> (command palette + Diagnostics submenu). Log Capture shipped its
-> `getDailySummary` API in v9.2.3 (see the status note in its plan file), so that
-> section renders live; Lints and Drift Advisor sections light up when their
-> plan files are implemented. Pillar A (Control Center + Suite Modes) and
-> Pillar C are not started.
+> **Status (2026-07-16):** Pillar B is implemented end to end —
+> `saropaWorkspace.dailyReport` (on-demand preview) and the
+> `saropaWorkspace.recipe.suiteDailyReport` recipe/routine form in
+> `extension/src/commands/dailyReport.ts`. Log Capture shipped its
+> `getDailySummary` API in v9.2.3, so that section renders live; Lints and
+> Drift Advisor sections light up when their plan files are implemented.
+> Pillar C's "daily report as a morning pin" is done (`ritual.suite`, the
+> Morning routine's closing member). Open: Pillar A (Control Center + Suite
+> Modes) and Pillar C's run→log bridge and boot-sequence modes.
+
+## Finish Report (2026-07-16)
+
+The Suite daily report gained its scheduled/routine form. A new
+`ritual.suite` scheduled recipe ("Saropa Suite daily report", default 06:30,
+seeds disabled, offered in every workspace with no detection guard) invokes
+`saropaWorkspace.recipe.suiteDailyReport`, which writes the same content as the
+on-demand preview — today's and yesterday's `getDailySummary` payloads from the
+installed Suite extensions plus Workspace run activity — to a dated `reports/`
+file and returns the path so a routine summary merges and links it. The recipe
+joins `MORNING_MEMBER_ORDER` as the closing member, so the cross-tool recap
+lands as the last collapsible section of the one morning document. Sibling
+failure handling is unchanged: absent tool, wrong `apiVersion`, invalid shape,
+thrown call, or a call past the 5-second ceiling all degrade to an omitted
+section. Tests pin the new surface: `ritual.suite` seeds without project
+markers as a command action, and sorts last in the morning member order
+(20/20 in the scoped recipe suites; tsc and esbuild clean).
 
 **Vision.** Saropa Workspace is the front door a developer opens first. Make it the
 **conductor of the Saropa Suite**: the one surface that (a) shows what every Suite
