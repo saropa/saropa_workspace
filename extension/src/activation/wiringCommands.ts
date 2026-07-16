@@ -34,7 +34,7 @@ export function registerCommandModules(
 ): BranchSetBinder {
   registerSimulationPreview(context);
   registerRunAnalytics(context);
-  registerDailyReport(context);
+  registerDailyReport(context, store);
   registerRunOutputDiff(context);
   registerShortcutCommands(context, store, dispatcher);
 

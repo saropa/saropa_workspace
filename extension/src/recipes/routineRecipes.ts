@@ -29,6 +29,10 @@ const MORNING_MEMBER_ORDER: ReadonlyArray<{ recipeId: string; label: string }> =
   { recipeId: "ritual.deps", label: "Dependency freshness" },
   { recipeId: "ritual.standup", label: "Standup digest" },
   { recipeId: "ritual.prs", label: "PR review queue" },
+  // Last on purpose: the Suite daily report is the cross-tool recap (yesterday's
+  // debug sessions, lint health, DB anomalies), so it reads as the closing summary
+  // after the per-source sections above.
+  { recipeId: "ritual.suite", label: "Saropa Suite daily report" },
 ];
 
 // The minimum detected morning members before a Morning routine is offered — never

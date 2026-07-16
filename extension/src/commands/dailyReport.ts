@@ -1,8 +1,11 @@
 import * as vscode from "vscode";
+import * as path from "path";
 import { Shortcut } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
+import { expandRecipeTokens, reportRelativePath } from "../exec/actionRunner";
+import { openReport } from "../exec/reportOpen";
 import { l10n } from "../i18n/l10n";
 
 // Saropa Suite Daily Report — the conductor's consolidated view of the day.
@@ -86,16 +89,69 @@ class DailyReportPreviewProvider implements vscode.TextDocumentContentProvider {
 
 const preview = new DailyReportPreviewProvider();
 
-// Register the virtual-document provider that backs the report preview. Pushed to
-// subscriptions so the provider and its emitter are disposed on deactivation.
-export function registerDailyReport(context: vscode.ExtensionContext): void {
+// Register the virtual-document provider that backs the on-demand preview, plus
+// the recipe command that writes the same report to a dated reports/ file — the
+// form a routine member needs so the morning routine can merge the Suite summary
+// into its one content document. Pushed to subscriptions so the provider and its
+// emitter are disposed on deactivation.
+export function registerDailyReport(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(
       DailyReportPreviewProvider.scheme,
       preview
     ),
-    preview
+    preview,
+    vscode.commands.registerCommand(
+      "saropaWorkspace.recipe.suiteDailyReport",
+      // Returns the written report path so the routine summary can merge and link
+      // it (the command dispatcher records the returned path for the shortcut).
+      (folderPath?: unknown) => writeSuiteDailyReportFile(store, folderPath)
+    )
   );
+}
+
+// The recipe/routine form of the daily report: identical content to the preview,
+// written to a dated reports/ file (and opened — suppressed under a routine, whose
+// merged summary is the one window). The folder is the command arg (a scheduled
+// recipe stores its folder path) or the first workspace folder.
+async function writeSuiteDailyReportFile(
+  store: ShortcutStore,
+  folderPath?: unknown
+): Promise<string | undefined> {
+  const root =
+    typeof folderPath === "string" && folderPath.length > 0
+      ? folderPath
+      : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!root) {
+    vscode.window.showWarningMessage(l10n("dailyReport.noFolder"));
+    return undefined;
+  }
+
+  const now = new Date();
+  const today = isoDay(now);
+  const yesterday = isoDay(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  const sections = await collectToolSections(today, yesterday);
+  const body = buildDailyReport(store, today, sections);
+
+  const relative = expandRecipeTokens(reportRelativePath("suite_daily"));
+  const file = path.join(root, ...relative.split("/"));
+  try {
+    const fsp = await import("fs/promises");
+    await fsp.mkdir(path.dirname(file), { recursive: true });
+    await fsp.writeFile(file, body, "utf8");
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      l10n("dailyReport.writeFailed", {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+    return undefined;
+  }
+  await openReport(file);
+  return file;
 }
 
 // Entry point for the "Daily Report" command: poll the installed siblings for
