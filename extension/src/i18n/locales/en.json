@@ -1212,6 +1212,7 @@
   "routine.status.missing": "Missing",
   "routine.status.dispatched": "Started",
   "routine.note.missing": "Shortcut not found — it was removed or renamed since this routine was configured. Edit the routine to re-link or remove this member.",
+  "routine.note.failedExit": "exit code {code} — see this member's section below or the output channel for details.",
   "routine.summary.generated": "Generated",
   "routine.summary.readFailed": "This member's report could not be read — open the link above.",
   "routine.summary.noReports": "The routine ran; no member produced a report to show.",

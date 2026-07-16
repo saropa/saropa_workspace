@@ -24,7 +24,12 @@ import {
   __resetOpenedDocuments,
   type WorkspaceFolder,
 } from "./_stub/vscode";
-import { runRoutine, setRoutineHooks, type RoutineHooks } from "../exec/routineRunner";
+import {
+  runRoutine,
+  setRoutineHooks,
+  embedMemberReport,
+  type RoutineHooks,
+} from "../exec/routineRunner";
 import { openReport } from "../exec/reportOpen";
 import { runStatusRegistry } from "../exec/runStatus";
 import { recordLastReport } from "../exec/lastReport";
@@ -116,14 +121,14 @@ test("a routine of one passing member badges success and reports its outcome", a
   }
 });
 
-test("the summary links each member's sub-report relative to the summary file", async () => {
-  // A member that writes a report (recorded via recordLastReport) must appear in the
-  // summary's Report column as a relative Markdown link — the summary is the one
-  // clickable index over the day's sub-reports (report bug item 3).
+test("the summary merges each member report's content and links its source", async () => {
+  // The summary IS the content: a member that wrote a report gets a `## <member>`
+  // section carrying the report's body inline (H1 dropped, inner headings demoted)
+  // plus a relative link to the source file — not a table row about execution.
   const memberShortcut = shortcut({ id: "m-report", label: "Standup digest" });
   const memberReport = nodePath.join(tmpDir, "reports", "sub", "standup.md");
   nodeFs.mkdirSync(nodePath.dirname(memberReport), { recursive: true });
-  nodeFs.writeFileSync(memberReport, "# Standup\n");
+  nodeFs.writeFileSync(memberReport, "# Standup\n\n## Yesterday\n\nShipped the tree.\n");
 
   const hooks: RoutineHooks = {
     resolveMember: () => memberShortcut,
@@ -154,7 +159,14 @@ test("the summary links each member's sub-report relative to the summary file", 
   const summaryPath = findFile(reportsRoot, (f) => f.endsWith("_morning.md"));
   assert.ok(summaryPath, "the routine should write a morning summary");
   const text = nodeFs.readFileSync(summaryPath!, "utf8");
-  assert.match(text, /\| Member \| Outcome \| Duration \| Report \| Notes \|/);
+  // The member gets a section heading; its report body is inline with the H1
+  // dropped (the section heading already names it) and inner headings demoted two
+  // levels; and there is no execution table.
+  assert.match(text, /^## Standup digest$/m, "member section heading");
+  assert.doesNotMatch(text, /^# Standup$/m, "member report H1 is dropped");
+  assert.match(text, /^#### Yesterday$/m, "inner headings demote two levels");
+  assert.ok(text.includes("Shipped the tree."), "member report body is merged inline");
+  assert.doesNotMatch(text, /\| Member \| Outcome \|/, "no execution table");
   const rel = nodePath
     .relative(nodePath.dirname(summaryPath!), memberReport)
     .split(nodePath.sep)
@@ -162,6 +174,38 @@ test("the summary links each member's sub-report relative to the summary file", 
   assert.ok(
     text.includes(`[standup.md](${rel})`),
     `summary should link the member report as [standup.md](${rel})`
+  );
+});
+
+test("embedMemberReport demotes headings, drops the H1, and leaves fences alone", () => {
+  // Direct unit coverage for the pure transform, including the fence-length case:
+  // buildCommandReport widens its fence to (longest inner run + 1) so captured
+  // output containing ``` stays inside — the embedder must NOT flip fence state on
+  // that inner, shorter run and then demote "headings" that are really output.
+  const report = [
+    "# Deps report",
+    "",
+    "## Outdated",
+    "",
+    "````", // widened outer fence (4 backticks)
+    "```", // inner, shorter run — content, not a fence close
+    "# not a heading, captured output",
+    "```",
+    "````", // real close (matches length)
+    "",
+    "### Next steps",
+    "##### Deep note", // H5: clamps to H6, not literal #######
+  ].join("\n");
+
+  const embedded = embedMemberReport(report);
+  assert.doesNotMatch(embedded, /^# Deps report$/m, "leading H1 dropped");
+  assert.match(embedded, /^#### Outdated$/m, "H2 demotes to H4");
+  assert.match(embedded, /^##### Next steps$/m, "H3 demotes to H5");
+  assert.match(embedded, /^###### Deep note$/m, "H5 clamps at H6");
+  assert.match(
+    embedded,
+    /^# not a heading, captured output$/m,
+    "content inside the widened fence is untouched"
   );
 });
 

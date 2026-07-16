@@ -155,14 +155,22 @@ async function runRoutineMember(
   const result = runStatusRegistry.get(resolved.id);
   const fresh = result && result.endedAt >= startedAt ? result : undefined;
   if (fresh) {
+    const failed = fresh.outcome !== "success";
     return {
       outcome: {
         label: memberLabel,
-        status: fresh.outcome === "success" ? "ok" : "failed",
+        status: failed ? "failed" : "ok",
         durationMs: fresh.durationMs,
+        // A tracked failure with no detail would render a bare "Failed — <member>"
+        // attention line in the summary; the exit code is the one fact the tracker
+        // holds, so carry it (the member's own report, when it wrote one, is merged
+        // below with the full story).
+        detail: failed
+          ? l10n("routine.note.failedExit", { code: fresh.exitCode ?? "—" })
+          : undefined,
         reportPath,
       },
-      failed: fresh.outcome === "failure",
+      failed,
       badgeShortcutId: resolved.id,
     };
   }
@@ -408,7 +416,12 @@ function defaultNote(status: MemberOutcome["status"]): string {
 // competing with the summary's own hierarchy. Heading syntax inside fenced code
 // blocks (captured command output is fenced per the report conventions) is left
 // untouched — a `# comment` in captured shell output is content, not structure.
-function embedMemberReport(markdown: string): string {
+// ATX headings only (`# Title`); Setext headings (`Title` over `===`) are not
+// recognized — no report writer in this codebase emits them, and a future one must
+// not without extending this.
+// Exported for unit tests: the fence tracking and demotion edge cases are pure
+// string transforms, assertable without running a routine.
+export function embedMemberReport(markdown: string): string {
   const lines = markdown.split("\n");
 
   // Drop the leading H1 (first non-empty line only — an H1 later in the body is a
@@ -418,19 +431,40 @@ function embedMemberReport(markdown: string): string {
     lines.splice(firstContent, 1);
   }
 
-  let inFence = false;
+  // Fence tracking pairs the CHARACTER and LENGTH of the opening fence, matching
+  // CommonMark: a fence closes only on the same character with at least the opening
+  // run's length. This matters because buildCommandReport deliberately widens its
+  // fence to (longest inner run + 1) so captured output containing ``` stays inside
+  // the block — a naive any-3+-run toggle would flip state on that inner run and
+  // then mangle the rest of the document as if it were outside the fence.
+  let openFence: { char: string; length: number } | undefined;
   const out = lines.map((line) => {
-    // Any 3+ backtick/tilde run toggles fence state. Fence lengths are not paired
-    // here — the report writers emit one uniform fence per block, so a simple
-    // toggle tracks state correctly for the documents this embeds.
-    if (/^\s*(`{3,}|~{3,})/.test(line)) {
-      inFence = !inFence;
+    const run = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (run) {
+      const char = (run[1] ?? "")[0] ?? "`";
+      const length = (run[1] ?? "").length;
+      if (!openFence) {
+        openFence = { char, length };
+      } else if (char === openFence.char && length >= openFence.length) {
+        openFence = undefined;
+      }
+      // A shorter or different-character run inside an open fence is content —
+      // fall through as a plain line (no state change, and headings can't match a
+      // fence line anyway).
       return line;
     }
-    // Demote headings outside fences, capped at H6 (Markdown's deepest level —
-    // pushing an H5/H6 further would render literal # characters as text).
-    const heading = !inFence && /^(#{1,4}) /.exec(line);
-    return heading ? `##${line}` : line;
+    if (openFence) {
+      return line;
+    }
+    // Demote headings outside fences, clamped at H6 (Markdown's deepest level —
+    // more # characters would render as literal text). An H5/H6 therefore lands on
+    // H6 alongside a demoted H4; a flattened tail beats un-renderable syntax.
+    const heading = /^(#{1,6}) /.exec(line);
+    if (!heading) {
+      return line;
+    }
+    const depth = Math.min(6, (heading[1] ?? "").length + 2);
+    return `${"#".repeat(depth)} ${line.slice((heading[1] ?? "").length + 1)}`;
   });
   return out.join("\n").trim();
 }
