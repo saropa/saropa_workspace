@@ -18,10 +18,19 @@ import argparse
 import sys
 from pathlib import Path
 
+# Fail with a clear message on an unsupported interpreter rather than a confusing
+# downstream error. The shebang requests python3, but a direct `python <script>`
+# launch (or a manifest `command` pointing at an old system python) can bypass it.
+# Python 2 cannot parse this file at all — the shebang and the manifest interpreter
+# are the mitigation there; this guard covers an old-but-parsing Python 3.
+if sys.version_info < (3, 8):
+    sys.stderr.write("organize-output requires Python 3.8 or newer.\n")
+    raise SystemExit(1)
+
 # Python puts the running file's own directory on sys.path[0], so the bundled
 # ``modules`` package imports regardless of the working directory — which is the
 # project being organized, not this script's folder.
-from modules.organizer import organize_and_prune
+from modules.organizer import organize_and_prune  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,7 +56,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    target = Path(args.folder).expanduser().resolve()
+    # A blank / whitespace-only argument (e.g. an empty ${prompt} answer from the
+    # extension launcher) means "the current directory" — the project root, since
+    # the run's cwd is set to $workspaceRoot. Strip first so a stray space is not
+    # treated as a folder literally named " ".
+    folder = args.folder.strip() or "."
+    target = Path(folder).expanduser().resolve()
     if not target.is_dir():
         print(f"Not a folder: {target}")
         return 2

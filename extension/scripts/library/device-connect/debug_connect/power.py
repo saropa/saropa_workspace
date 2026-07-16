@@ -50,10 +50,13 @@ _POWER_RADIOS = [
     ("global", "mobile_data", "svc data disable", "svc data enable"),
 ]
 
-# Motorola display/audio services that keep sensors awake. Force-stopped on
-# apply; NOT restored — Android restarts them on demand, so there is nothing to
-# put back.
-_MOTO_BLOAT = [
+# OEM background services that keep sensors awake (Motorola's, where the tool was
+# validated). Force-stopped on apply; NOT restored — Android restarts them on
+# demand, so there is nothing to put back. On a non-Motorola device these packages
+# are absent and `am force-stop` of a missing package is a silent no-op (exit 0,
+# no output), so the list is harmless elsewhere — it simply does nothing. Extend it
+# per-OEM if other vendors' wake-locking services need the same treatment.
+_OEM_BLOAT = [
     "com.motorola.motodisplay",
     "com.motorola.audiomonitor",
     "com.motorola.help",
@@ -127,7 +130,7 @@ def apply_power_saving(target):
     # session. Panel-off + stay-awake come from scrcpy's -S -w instead.
     commands = [f"settings put {namespace} {key} {value}" for namespace, key, value in _POWER_SETTINGS]
     commands += [disable_cmd for _, _, disable_cmd, _ in _POWER_RADIOS]
-    commands += [f"am force-stop {package}" for package in _MOTO_BLOAT]
+    commands += [f"am force-stop {package}" for package in _OEM_BLOAT]
     _adb_shell_many(target, commands)
 
     try:
@@ -141,7 +144,7 @@ def apply_power_saving(target):
 
     write_log("POWER", f"Applied power saving on {target}")
     console.print("✔ [bold green]Power saving applied.[/bold green] Run menu option 5 to restore.")
-    console.print("[dim]   Disabled: Bluetooth, mobile data; animations off; Moto bloat stopped. Wi-Fi + location left ON.[/dim]")
+    console.print("[dim]   Disabled: Bluetooth, mobile data; animations off; OEM background services stopped where present. Wi-Fi + location left ON.[/dim]")
     console.print("[dim]   Phone screen off + device kept awake/unlocked is handled by scrcpy's -S -w (no fingerprint, no suspend).[/dim]")
 
 

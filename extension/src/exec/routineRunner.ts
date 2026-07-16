@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { Shortcut, RoutineMember } from "../model/shortcut";
 import { RunSource } from "./telemetry";
-import { runStatusRegistry, formatDuration } from "./runStatus";
+import { runStatusRegistry } from "./runStatus";
 import { shortcutEvents } from "./shortcutEvents";
 import { ShortcutBadge, shortcutBadges } from "./shortcutBadges";
 import { hasInteractiveTokens } from "./promptTokens";
@@ -282,12 +282,15 @@ function hasBadgeCounts(badge: ShortcutBadge): boolean {
   );
 }
 
-// Write the routine summary — one row per member (outcome + duration + a link to the
-// report that member wrote) — to a dated reports/ file, and open it. This is the ONE
-// window a routine raises: its members ran with auto-open suppressed, so the summary
-// is both the outcome and the index over the day's sub-reports. Opening it
-// unconditionally is the point — a user who cannot find the reports has no way to
-// reach them from a silent, badge-only run.
+// Write the routine summary — the day's CONTENT, not execution mechanics: each
+// member report's full body merged in as a section, so the one document the routine
+// opens is the standup / stats / PR content the user actually wants to read.
+// Execution plumbing appears only when something went wrong (a failed or missing
+// member gets one attention line at the top); a clean run shows pure content. This
+// replaces the old outcome table ("dispatched", durations, per-row status), which
+// reported on the runner instead of the results and added no value (user report
+// 2026-07-16). This is still the ONE window a routine raises: members ran with
+// auto-open suppressed, so the merged summary is both the outcome and the content.
 async function writeRoutineSummary(
   pinId: string,
   name: string,
@@ -304,28 +307,63 @@ async function writeRoutineSummary(
   const relative = expandRecipeTokens(reportRelativePath(slug));
   const reportPath = path.join(base, ...relative.split("/"));
 
-  // The directory the summary itself lives in, so each member's absolute report path
-  // becomes a link relative to the summary — the links resolve wherever the reports/
-  // tree is opened, not just on this machine.
+  // The directory the summary itself lives in, so each member's report path becomes
+  // a link relative to the summary — the links resolve wherever the reports/ tree is
+  // opened, not just on this machine. Member reports are written to this same dated
+  // folder, so their own internal relative links stay valid after the merge.
   const summaryDir = path.dirname(reportPath);
-  const rows = outcomes
-    .map((o) => {
-      const duration = o.durationMs !== undefined ? formatDuration(o.durationMs) : "—";
-      const detail = o.detail ? escapeCell(o.detail) : "";
-      const report = reportLink(summaryDir, o.reportPath);
-      return `| ${escapeCell(o.label)} | ${o.status} | ${duration} | ${report} | ${detail} |`;
-    })
-    .join("\n");
-  const body =
-    `# ${name}\n\n` +
-    `**Generated** ${new Date().toLocaleString()}\n\n` +
-    `${outcomes.length} member(s); ${anyFailed ? "one or more need attention." : "all clear."}\n\n` +
-    `| Member | Outcome | Duration | Report | Notes |\n` +
-    `|---|---|---|---|---|\n` +
-    `${rows}\n`;
+  const fsp = await import("fs/promises");
+
+  const parts: string[] = [
+    `# ${name}`,
+    "",
+    `**${l10n("routine.summary.generated")}** ${new Date().toLocaleString()}`,
+    "",
+  ];
+
+  // Problems first, and ONLY problems: a failed or missing member is the one piece
+  // of execution state the reader must see. OK / dispatched members are invisible
+  // as mechanics — their value is their content below (or nothing, for a terminal
+  // member that produces no report; announcing "a terminal ran" is noise).
+  const problems = outcomes.filter((o) => o.status === "failed" || o.status === "missing");
+  for (const o of problems) {
+    const note = o.detail ?? defaultNote(o.status);
+    parts.push(`> **${statusLabel(o.status)}** — ${o.label}${note ? `: ${note}` : ""}`);
+  }
+  if (problems.length > 0) {
+    parts.push("");
+  }
+
+  // Merge each member report's body in as a section. Read failures degrade to a
+  // plain link — a torn-down temp file must not lose the rest of the document.
+  let merged = 0;
+  for (const o of outcomes) {
+    if (!o.reportPath) {
+      continue;
+    }
+    parts.push(`## ${o.label}`, "");
+    const rel = path.relative(summaryDir, o.reportPath).split(path.sep).join("/");
+    // Source link under the heading keeps the summary the index over its parts
+    // (style guide: a summary links its sub-reports) even though the content is inline.
+    parts.push(`_[${path.basename(o.reportPath)}](${rel})_`, "");
+    try {
+      const content = await fsp.readFile(o.reportPath, "utf8");
+      parts.push(embedMemberReport(content), "");
+      merged++;
+    } catch {
+      parts.push(`_${l10n("routine.summary.readFailed")}_`, "");
+    }
+  }
+
+  // Nothing merged and nothing wrong: say what happened in one line, so a routine of
+  // pure terminal members still opens a document that explains itself.
+  if (merged === 0 && problems.length === 0) {
+    parts.push(`_${l10n("routine.summary.noReports")}_`, "");
+  }
+
+  const body = parts.join("\n");
 
   try {
-    const fsp = await import("fs/promises");
     await fsp.mkdir(path.dirname(reportPath), { recursive: true });
     await fsp.writeFile(reportPath, body, "utf8");
     channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
@@ -340,22 +378,59 @@ async function writeRoutineSummary(
   }
 }
 
-// Escape a Markdown table cell so a member label / error containing a pipe does not
-// break the table layout.
-function escapeCell(value: string): string {
-  return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+// Human-readable status word for an attention line, from the catalog. The raw enum
+// values ("missing", "failed") are code identifiers, not user copy.
+const STATUS_KEYS: Record<MemberOutcome["status"], string> = {
+  ok: "routine.status.ok",
+  failed: "routine.status.failed",
+  skipped: "routine.status.skipped",
+  missing: "routine.status.missing",
+  dispatched: "routine.status.dispatched",
+};
+
+function statusLabel(status: MemberOutcome["status"]): string {
+  return l10n(STATUS_KEYS[status]);
 }
 
-// Render a member's report path as a Markdown link relative to the summary file, so
-// the summary is the one clickable index over the day's sub-reports (the report
-// bug's "consolidate into a main summary doc with links for sub-docs"). A member
-// that wrote no report shows an em dash. Forward slashes in the relative path so the
-// link is portable across platforms (a Windows backslash is not a valid URL sep).
-function reportLink(summaryDir: string, reportPath: string | undefined): string {
-  if (!reportPath) {
-    return "—";
+// Explanation for statuses whose meaning is not self-evident: what happened and
+// what the user can do. Failed members carry their own error detail instead.
+function defaultNote(status: MemberOutcome["status"]): string {
+  if (status === "missing") {
+    return l10n("routine.note.missing");
   }
-  const rel = path.relative(summaryDir, reportPath).split(path.sep).join("/");
-  const name = path.basename(reportPath);
-  return `[${escapeCell(name)}](${rel})`;
+  return "";
+}
+
+// Prepare one member report's body for inline embedding under its `## <member>`
+// section heading: drop the report's own H1 (the section heading already names it —
+// keeping both renders a duplicate title), then demote every remaining heading two
+// levels so the member's internal structure nests under the section instead of
+// competing with the summary's own hierarchy. Heading syntax inside fenced code
+// blocks (captured command output is fenced per the report conventions) is left
+// untouched — a `# comment` in captured shell output is content, not structure.
+function embedMemberReport(markdown: string): string {
+  const lines = markdown.split("\n");
+
+  // Drop the leading H1 (first non-empty line only — an H1 later in the body is a
+  // real section and gets demoted like the rest).
+  const firstContent = lines.findIndex((line) => line.trim() !== "");
+  if (firstContent >= 0 && /^# /.test(lines[firstContent] ?? "")) {
+    lines.splice(firstContent, 1);
+  }
+
+  let inFence = false;
+  const out = lines.map((line) => {
+    // Any 3+ backtick/tilde run toggles fence state. Fence lengths are not paired
+    // here — the report writers emit one uniform fence per block, so a simple
+    // toggle tracks state correctly for the documents this embeds.
+    if (/^\s*(`{3,}|~{3,})/.test(line)) {
+      inFence = !inFence;
+      return line;
+    }
+    // Demote headings outside fences, capped at H6 (Markdown's deepest level —
+    // pushing an H5/H6 further would render literal # characters as text).
+    const heading = !inFence && /^(#{1,4}) /.exec(line);
+    return heading ? `##${line}` : line;
+  });
+  return out.join("\n").trim();
 }

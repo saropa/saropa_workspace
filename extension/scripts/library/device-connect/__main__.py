@@ -15,11 +15,65 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
+import shutil
 import subprocess
 import sys
+from pathlib import Path
+
+# Fail with a clear message on an unsupported interpreter rather than a confusing
+# downstream error. The shebang requests python3, but a direct `python <script>`
+# launch (or a manifest `command` pointing at an old system python) can bypass it.
+# Python 2 cannot parse this file at all — the shebang and the manifest interpreter
+# are the mitigation there; this guard covers an old-but-parsing Python 3.
+if sys.version_info < (3, 8):
+    sys.stderr.write("device-connect requires Python 3.8 or newer.\n")
+    raise SystemExit(1)
 
 # import-name -> pip install-name for the packages the debug_connect package needs.
 _REQUIRED = {"rich": "rich", "plyer": "plyer", "zeroconf": "zeroconf"}
+
+
+def preflight_external_tools() -> None:
+    """Check the external command-line tools this script's manifest entry requires.
+
+    Reads the shared ``library.json`` (the single source of truth the Scripts view
+    will also consult) rather than duplicating the tool list here, and checks each
+    declared `command` requirement against PATH. A missing REQUIRED tool aborts
+    with a clear, named message BEFORE any menu opens or any package is installed —
+    so a user without adb sees "needs adb" up front instead of a deep runtime
+    failure. Missing OPTIONAL tools are reported as a warning and do not block.
+
+    Uses only the standard library (json / shutil / pathlib), so it runs before the
+    third-party dependency check. If the manifest is absent or unreadable — e.g. the
+    script is run directly, outside the extension — the preflight is skipped rather
+    than blocking a legitimate direct run.
+    """
+    script_dir = Path(__file__).resolve().parent
+    manifest_path = script_dir.parent / "library.json"
+    script_id = script_dir.name
+    try:
+        scripts = json.loads(manifest_path.read_text(encoding="utf-8"))["scripts"]
+        entry = next(s for s in scripts if s.get("id") == script_id)
+    except (OSError, ValueError, KeyError, StopIteration):
+        return
+
+    missing_required = []
+    for req in entry.get("requires", []):
+        if req.get("type") != "command" or shutil.which(req["name"]) is not None:
+            continue
+        if req.get("optional"):
+            print(f"[optional] '{req['name']}' not on PATH — {req.get('reason', 'some features unavailable')}.")
+        else:
+            missing_required.append(req)
+
+    if missing_required:
+        names = ", ".join(r["name"] for r in missing_required)
+        print(f"Required tool(s) not found on PATH: {names}")
+        for r in missing_required:
+            print(f"  - {r['name']}: {r.get('reason', 'required')}")
+        print("Install the tool(s) above and re-run.")
+        sys.exit(1)
 
 
 def ensure_dependencies() -> None:
@@ -61,6 +115,10 @@ def ensure_dependencies() -> None:
             print(f"Install it manually: {sys.executable} -m pip install {pip_name}")
             sys.exit(1)
 
+
+# External-tool preflight FIRST (adb etc.): a missing required tool aborts before we
+# bother asking to install Python packages the run would never reach a use for.
+preflight_external_tools()
 
 # Consent-gated dependency check BEFORE importing the package (its modules import
 # the third-party packages at load time).

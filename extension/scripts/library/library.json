@@ -8,6 +8,7 @@
       "icon": "file-directory",
       "tags": ["cleanup", "reports"],
       "entry": "organize-output/__main__.py",
+      "requires": [],
       "config": {
         "command": "python",
         "cwd": "$workspaceRoot",
@@ -22,6 +23,11 @@
       "icon": "device-mobile",
       "tags": ["android", "flutter", "debug"],
       "entry": "device-connect/__main__.py",
+      "requires": [
+        { "type": "command", "name": "adb", "reason": "connect to and control the Android device" },
+        { "type": "command", "name": "flutter", "reason": "check on-device debug sync", "optional": true },
+        { "type": "command", "name": "scrcpy", "reason": "mirror the device screen", "optional": true }
+      ],
       "config": {
         "command": "python",
         "cwd": "$workspaceRoot",

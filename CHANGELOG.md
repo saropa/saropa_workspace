@@ -61,6 +61,16 @@ cspell:disable
   omitted — a solo install renders a workspace-only report. Also reachable from
   the Diagnostics submenu.
 
+### Changed
+
+- The routine summary is now the day's actual content, not an execution table. The
+  one document a routine opens merges each member report's full body in as a
+  section (the standup digest, project stats, PR queue — readable in place, with a
+  link to each source file), instead of a table of statuses, durations, and links.
+  Execution state appears only when something went wrong: a failed or missing
+  member gets one attention line at the top saying what happened and what to do.
+  A clean run reads as pure content.
+
 ## [1.5.21]
 
 **Overview** — The "you've opened this file a lot, want a shortcut?" prompt used to fire while you were just flipping between files during normal work. Now it counts a file at most once every half hour, needs more opens before it asks, and lets you shut off a whole file type ("Ignore .dart") straight from the prompt. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.21/CHANGELOG.md)

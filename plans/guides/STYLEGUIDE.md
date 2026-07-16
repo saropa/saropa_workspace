@@ -760,16 +760,25 @@ not raw-dump conventions:
 - **The report header is Markdown, not plain lines.** An H1 title, then a metadata
   block with the generation time and the exact command code-formatted (copy-paste
   safe): `**Command** \`git log …\``.
-- **A summary/routine report is the one index over its sub-reports, and it links
-  them.** When a run produces several files (the morning routine's members each write
-  their own), the summary carries a **Report** column that links each sub-report
-  *relative to the summary file*, so the links resolve wherever the `reports/` tree is
-  opened, not only on the machine that wrote them. Forward slashes in the relative
-  path (a Windows backslash is not a valid link separator). Consolidate onto one
-  summary with links rather than leaving the reader to find N separate files.
+- **A summary/routine report IS the content, not an index of execution mechanics.**
+  When a run produces several member reports, the summary merges each report's body
+  in as a `##` section (H1 dropped, inner headings demoted, fenced blocks left
+  untouched) so the one document the routine opens is the standup / stats / PR
+  content the user wants to read — not a table of statuses, durations, and links
+  ("no user wants that document", user report 2026-07-16). Each section still
+  carries a link to its source file *relative to the summary file* (forward
+  slashes — a Windows backslash is not a valid link separator), so the parts stay
+  reachable wherever the `reports/` tree is opened.
 - **A freshness/diagnostic report shows only the actionable items.** A dependency
   report lists only the packages behind latest, not every dependency; the up-to-date
   ones are omitted so the report is the work, not a table to scan.
+- **Execution state appears only when something went wrong, and it explains
+  itself.** A clean run shows pure content — no per-member statuses, durations, or
+  "dispatched" jargon. A failed or missing member gets one attention line at the
+  top naming the member and what to do (e.g. missing → "removed or renamed —
+  edit the routine to re-link or remove this member"). Never claim "all clear"
+  wording anywhere unless every member confirmed ok, and never show a raw status
+  word without its explanation (both from user reports 2026-07-16).
 
 ### 4.9 A multi-step run opens one document, and always opens it
 
