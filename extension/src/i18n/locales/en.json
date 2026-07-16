@@ -1207,6 +1207,8 @@
   "dailyReport.yesterday": "Yesterday",
   "dailyReport.noSiblings": "No other Saropa Suite extensions reported data. Install Saropa Log Capture, Saropa Lints, or Saropa Drift Advisor to see their daily summaries here.",
   "dailyReport.noFolder": "Open a folder to write the Saropa Suite daily report — the report file lives under the workspace's reports directory.",
+  "dailyReport.collecting": "Collecting Saropa Suite summaries…",
+  "dailyReport.versionMismatch": "{tool} is installed but reports its data in a newer format than this version of Saropa Workspace understands — update Saropa Workspace to include its section.",
   "dailyReport.writeFailed": "The Saropa Suite daily report could not be written: {error}",
   "routine.status.ok": "OK",
   "routine.status.failed": "Failed",
