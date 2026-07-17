@@ -43,6 +43,9 @@ export const LAUNCHER_STYLE = `
   color-scheme: light dark;
   --launcher-btn-font: 0.88em;
   --launcher-btn-pad: 4px 9px 3px;
+  /* The drawer buttons' codicon size (the codicon font's own default, pinned here so the
+     expanded head button can read the same value instead of relying on that default). */
+  --launcher-btn-icon: 16px;
 }
 * { box-sizing: border-box; }
 body {
@@ -294,9 +297,15 @@ header {
 }
 .run:hover { background: var(--vscode-button-hoverBackground); }
 /* Once the card expands and the head button shows its text label, it sits directly above
-   the drawer's .btn row — so it adopts the same --launcher-btn-pad box instead of the
-   compact icon-only padding, keeping the two button styles visually identical. */
-.card.expanded .run { padding: var(--launcher-btn-pad); }
+   the drawer's .btn row — so it adopts the drawer's FULL box, not just the padding: the
+   transparent 1px border matches .btn's border thickness (without it the head rendered 2px
+   shorter than a drawer button despite identical padding), and the icon grows to the
+   drawer's codicon size so the two button styles are pixel-identical. */
+.card.expanded .run { padding: var(--launcher-btn-pad); border: 1px solid transparent; }
+.card.expanded .run .codicon { font-size: var(--launcher-btn-icon); }
+/* Compact icon size for the collapsed icon-only grid (the expanded override above wins
+   once the card opens); single-use, so deliberately a literal, like .run's own 2px 7px
+   collapsed padding. */
 .run .codicon { font-size: 13px; }
 /* Label hidden while collapsed (icon-only), revealed when the card expands. The head button
    stays visible in both states; the drawer omits whichever action the head already carries
@@ -325,6 +334,9 @@ header {
   border-radius: 4px; padding: var(--launcher-btn-pad); cursor: pointer;
 }
 .btn:hover { background: var(--vscode-list-hoverBackground); }
+/* Pin the drawer icons to the shared variable instead of the codicon font's default, so
+   the expanded head button and the drawer provably render the same icon size. */
+.btn .codicon { font-size: var(--launcher-btn-icon); }
 .btn.primary {
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background); border-color: transparent;

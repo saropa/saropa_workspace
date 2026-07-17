@@ -59,7 +59,7 @@ cspell:disable
 
 ### Fixed
 
-- An expanded launcher card's head Open/Run button now uses the same internal padding as the drawer buttons below it, so the two button styles match; collapsed cards keep the compact icon-only button. The padding is defined in one place alongside the shared label size.
+- An expanded launcher card's head Open/Run button now renders identically to the drawer buttons below it: same internal padding, same total height (a matching border thickness), and same icon size. Collapsed cards keep the compact icon-only button. Each shared value is defined in one place alongside the shared label size, so the two button styles cannot drift apart.
 
 ## [1.5.22]
 
