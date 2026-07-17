@@ -1,6 +1,38 @@
 # Changelog Archive
 
-This archive is for versions 1.5.0 and prior. For current changes see [CHANGELOG.md](./CHANGELOG.md).
+This archive is for versions 1.5.1 and prior. For current changes see [CHANGELOG.md](./CHANGELOG.md).
+
+---
+
+## [1.5.1]
+
+Say goodbye to "pins" and hello to "shortcuts" alongside a massive, beautifully visual upgrade to how you schedule and plan your workflows. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.1/CHANGELOG.md)
+
+### Added
+
+- **Set a shortcut's schedule in one form instead of a one-field-at-a-time menu.** **Configure Schedule...** now opens a single screen — daily time, days of the week, repeat interval, an advanced cron field with one-click presets, run-on-open, and enabled — all visible at once with inline descriptions and a live **Next run** preview that updates as you change fields. Setting a time turns the schedule on automatically, and the time and interval you used are remembered as the starting point for the next shortcut you schedule. The previous keyboard-only menu stays available as **Configure Schedule (Quick)...**.
+- **See how a shortcut's schedule fits your day.** The schedule form has an **Around your schedule** section: a 24-hour timeline that plots this shortcut's daily time against every other scheduled shortcut, so clustering and quiet stretches are visible at a glance. It warns when another shortcut runs in the **same minute**, naming which ones, and calls out the **largest free stretch** of the day. The marker slides live as you change the time.
+
+### Changed
+
+- **Pins are now called Shortcuts.** Everything that was a "pin" is now a **shortcut**: the view is **Shortcuts**, the groups are **Project Shortcuts** and **Global Shortcuts**, a collection is a **Shortcut Set**, and the commands read **Add Active File as Shortcut**, **Remove**, **Run Shortcut...**, **Promote to Shortcut**, and so on. Only the wording changed — your existing shortcuts, shortcut sets, keybindings, and shared links all keep working exactly as before. (VS Code's own "pinned tab" feature still uses its own name; the suggestion to add a long-pinned tab now offers to add it to your Saropa **shortcuts**.)
+- **The Recent list now includes files you open, not just shortcuts you run.** A saved file you open — by clicking its shortcut, or by any other means (Ctrl+P, the Explorer, switching tabs) — or close now appears in the **Recent** group in the Shortcuts view, tagged *(opened)*. Opening a file is not counted as a run, so it never changes a shortcut's run count or the most-run analytics. Focusing or closing a saved file also clears it from the activity-bar badge that counts unopen shortcuts.
+- **The planner screen now carries the Saropa name.** The Schedule & Workflow Planner panel's tab and heading now read **Saropa Schedule & Workflow Planner**, matching the Saropa Dashboard, so every full-screen surface is branded consistently.
+- **Click a scheduled item in the planner to see its details.** Clicking a block in the Week view (or a marker in the Day view) now highlights it and opens its details — schedule, triggers, and the Run / Open / Schedule / Triggers actions — in the right-side inspector panel. The selected item is outlined so you can tell which one the inspector describes.
+- **Choose compact or comfortable row height in the planner.** A new **Compact / Comfortable** toggle in the planner toolbar switches the Day and Week time grids between the dense overview and a roomier layout with double the per-hour height. Your choice is remembered for the panel.
+- **The planner's Workflow tab no longer scrolls forever.** Shortcuts that aren't part of a chain or event link now live in a compact, collapsible **Unlinked shortcuts** shelf below the canvas, so the canvas shows only the shortcuts that are actually wired together. Drag a shortcut from the shelf onto a step to run it after that step. Includes an **Auto-arrange** button to lay the chains into tidy columns, an **Add link** button for a searchable shortcut-to-shortcut link builder, and a text filter box for shelves with more than a dozen unlinked shortcuts.
+- **A selected item's details now open in their own panel on the right.** Clicking an item in the planner opens its details in a dockable inspector column on the right side — like the Workflow toolbox — instead of a strip below the grid that scrolled out of sight. The panel stays in view as you scroll the Day/Week grid.
+- **The planner's side columns are now resizable.** Drag the edge of the right-side detail inspector, or the right edge of the Workflow toolbox, to set its width — each remembers its size for the panel.
+- **The planner inspector now explains what a recipe does.** Selecting a scheduled recipe — like **Workspace bloat scan** — shows an info note describing what it does and what it was detected from, so a seeded or paused item explains itself in place.
+- **Pause or resume a schedule straight from the planner inspector.** When the inspector shows a scheduled shortcut as *(paused)*, it has a **Resume** button (and a **Pause** button when active) beside Run / Open / Schedule / Triggers. The action names the shortcut in a confirmation toast.
+- **The Shortcuts title `···` menu is now flyout submenus instead of one long list.** The overflow menu that used to drop a single scroll of ~30 items now opens six cohesive flyouts — **Add to Shortcuts**, **Editor Layout & Focus**, **Import & Suggest**, **Shortcut Sets**, **Run & Diagnostics**, and **Workspace & Schedule** — so each action is one hover away in a labeled group.
+- **Search for shortcuts by icon synonym.** Each icon now carries a keyword list (shown beside its name and matched on as you type), so an alternate word finds it even when you don't know the exact name — "settings" or "cog" surfaces the gear, "octocat" surfaces GitHub, "deploy" or "launch" surfaces the rocket.
+
+### Fixed
+
+- **The Schedule, Triggers, and Boot Sequence menus no longer jump back to the top after every change.** Each menu now keeps your place on the row you just changed and stays open when focus shifts, so building up a schedule is a steady sequence ending at **Save changes** rather than a list that resets under you.
+- **Setting a time on a schedule now turns it on automatically.** Giving a shortcut a daily time, an interval, a cron, or run-on-workspace-open now flips **Enabled** on for you. Switching **Enabled** off yourself still sticks: a deliberate "keep this schedule but pause it" is respected.
+- **The Shortcuts toolbar's Run Shortcut button no longer looks like "run all".** The **Run Shortcut...** action in the Shortcuts view title bar now uses the single play triangle instead of the double-arrow icon, matching the per-shortcut inline run button since it runs one shortcut you pick.
 
 ---
 
