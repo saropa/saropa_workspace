@@ -33,8 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
     The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-    **Overview** — Each release (and [Unreleased]) opens with one plain-language line for humans—user-facing only, casual wording—then end it with: [log](https://github.com/saropa/saropa-workspace/blob/vX.Y.Z/CHANGELOG.md)
-    substituting X.Y.Z.
+    **Overview** — Each release (and [Unreleased]) opens with one plain-language line for humans—user-facing only, casual wording—then end it with: [log](https://github.com/saropa/saropa-workspace/blob/vX.Y.Z/CHANGELOG.md) substituting X.Y.Z.
 
     **Tagged changelog** — Published versions use git tag **`vx.y.z`**; compare to [current `main`](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md).
 
@@ -47,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.23]
 
- [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
+Browse and run your bundled scripts directly from the new sidebar or Launcher panel, complete with smart warnings if you're missing a required tool and polished button styles. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
 
 ### Added
 
