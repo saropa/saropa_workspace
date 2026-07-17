@@ -53,8 +53,14 @@ export async function runLibraryScript(
   };
 
   const uri = vscode.Uri.file(entryPath);
-  void vscode.window.showInformationMessage(
-    l10n("scripts.run.starting", { name: script.label })
-  );
-  await runShortcut(shortcut, uri, "manual");
+  try {
+    await runShortcut(shortcut, uri, "manual");
+  } catch (err: unknown) {
+    // runShortcut surfaces most failures internally, but a truly unexpected
+    // throw (malformed plan, missing interpreter) should not vanish silently.
+    const detail = err instanceof Error ? err.message : String(err);
+    void vscode.window.showErrorMessage(
+      l10n("scripts.run.failed", { name: script.label, detail })
+    );
+  }
 }

@@ -33,11 +33,17 @@
 // getState/setState.
 
 export const LAUNCHER_STYLE = `
-/* The one place the card-button label size lives. Every card action button (.run, .btn)
-   reads this variable, so a size retune is a single edit and the two styles cannot
-   drift apart. Native <button>s do not inherit the body font, so each rule also sets
-   font-family: inherit alongside the size. */
-:root { color-scheme: light dark; --launcher-btn-font: 0.88em; }
+/* The one place the card-button label size and box padding live. Every card action
+   button (.run, .btn) reads these variables, so a retune is a single edit and the two
+   styles cannot drift apart. Native <button>s do not inherit the body font, so each rule
+   also sets font-family: inherit alongside the size. The padding is asymmetric (1px more
+   on top): the buttons pair a codicon with smaller-than-em label text whose cap-height
+   rides above the icon's optical center, so a symmetric box read as text-sits-high. */
+:root {
+  color-scheme: light dark;
+  --launcher-btn-font: 0.88em;
+  --launcher-btn-pad: 4px 9px 3px;
+}
 * { box-sizing: border-box; }
 body {
   font-family: var(--vscode-font-family);
@@ -287,6 +293,10 @@ header {
   border: none; border-radius: 4px; padding: 2px 7px; cursor: pointer;
 }
 .run:hover { background: var(--vscode-button-hoverBackground); }
+/* Once the card expands and the head button shows its text label, it sits directly above
+   the drawer's .btn row — so it adopts the same --launcher-btn-pad box instead of the
+   compact icon-only padding, keeping the two button styles visually identical. */
+.card.expanded .run { padding: var(--launcher-btn-pad); }
 .run .codicon { font-size: 13px; }
 /* Label hidden while collapsed (icon-only), revealed when the card expands. The head button
    stays visible in both states; the drawer omits whichever action the head already carries
@@ -310,11 +320,9 @@ header {
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
   border: 1px solid var(--vscode-widget-border, transparent);
-  /* 1px extra on top only (4/3 instead of 3/3): the drawer's text buttons pair a 16px
-     codicon with smaller-than-em label text, whose cap-height rides above the icon's
-     optical center, so a symmetric box read as text-sits-high. The extra top pad lowers
-     the content 0.5px into optical center while adding exactly the 1px of height asked. */
-  border-radius: 4px; padding: 4px 9px 3px; cursor: pointer;
+  /* Box shared with the expanded head button via --launcher-btn-pad; the optical
+     rationale for its 1px top bias lives on the :root definition. */
+  border-radius: 4px; padding: var(--launcher-btn-pad); cursor: pointer;
 }
 .btn:hover { background: var(--vscode-list-hoverBackground); }
 .btn.primary {

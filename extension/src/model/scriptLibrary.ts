@@ -78,16 +78,27 @@ export function loadScriptLibrary(extensionPath: string): LibraryScript[] {
     return [];
   }
 
-  return manifest.scripts.map((entry) => ({
-    id: entry.id,
-    label: l10n(entry.labelKey),
-    description: l10n(entry.descriptionKey),
-    icon: entry.icon,
-    tags: entry.tags ?? [],
-    entry: entry.entry,
-    requires: entry.requires ?? [],
-    config: entry.config,
-  }));
+  // Drop entries missing required fields so a corrupt single entry never
+  // crashes the whole loader (the array-level and JSON-level guards above
+  // already cover gross corruption; this catches per-entry omissions).
+  return manifest.scripts
+    .filter(
+      (e) =>
+        typeof e.id === "string" &&
+        typeof e.entry === "string" &&
+        typeof e.labelKey === "string" &&
+        e.config !== undefined
+    )
+    .map((entry) => ({
+      id: entry.id,
+      label: l10n(entry.labelKey),
+      description: l10n(entry.descriptionKey ?? ""),
+      icon: entry.icon ?? "file",
+      tags: entry.tags ?? [],
+      entry: entry.entry,
+      requires: entry.requires ?? [],
+      config: entry.config,
+    }));
 }
 
 // Resolve the absolute filesystem path to a script's entry point, given the
