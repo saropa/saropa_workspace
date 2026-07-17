@@ -53,59 +53,20 @@ cspell:disable
 
 ### Added
 
-- New bundled **script library**: the extension now ships a set of self-contained,
-  ready-to-run developer scripts, each its own folder with an editable run config,
-  tags, and a declared list of the command-line tools it needs. Two to start:
-  **Organize output folder** (sorts a folder's loose files into dated
-  `YYYY.MM/YYYY.MM.DD` subfolders and prunes the empty folders left behind) and
-  **Connect a device for debugging** (connects a physical Android device to Flutter
-  over Wi-Fi or USB, mirrors the screen with scrcpy, and reports battery/charging
-  health — asking before installing its Python dependencies, and telling you up
-  front if a required tool like `adb` is missing). A dedicated Scripts view to
-  browse and run them from the sidebar is coming next.
-- New **View Suite Daily Report** command: a read-only Markdown summary with an
-  executive summary, a Trouble section (failures and high-impact items only),
-  today's Workspace shortcut activity, and a per-tool section for each installed
-  Saropa Suite extension that exposes the versioned `getDailySummary` exports API
-  (today and yesterday). Tools that are absent or predate the API are simply
-  omitted — a solo install renders a workspace-only report. Also reachable from
-  the Diagnostics submenu.
+- New bundled **script library**: the extension now ships a set of self-contained, ready-to-run developer scripts, each its own folder with an editable run config, tags, and a declared list of the command-line tools it needs. Two to start: **Organize output folder** (sorts a folder's loose files into dated `YYYY.MM/YYYY.MM.DD` subfolders and prunes the empty folders left behind) and **Connect a device for debugging** (connects a physical Android device to Flutter over Wi-Fi or USB, mirrors the screen with scrcpy, and reports battery/charging health — asking before installing its Python dependencies, and telling you up front if a required tool like `adb` is missing). A dedicated Scripts view to browse and run them from the sidebar is coming next.
+- New **View Suite Daily Report** command: a read-only Markdown summary with an executive summary, a Trouble section (failures and high-impact items only), today's Workspace shortcut activity, and a per-tool section for each installed Saropa Suite extension that exposes the versioned `getDailySummary` exports API (today and yesterday). Tools that are absent or predate the API are simply omitted — a solo install renders a workspace-only report. Also reachable from the Diagnostics submenu.
 
 ### Changed
 
-- The routine summary is now the day's actual content, not an execution table. The
-  one document a routine opens merges each member report's full body in as a
-  section (the standup digest, project stats, PR queue — readable in place, with a
-  link to each source file), instead of a table of statuses, durations, and links.
-  Execution state appears only when something went wrong: a failed or missing
-  member gets one attention line at the top saying what happened and what to do.
-  A clean run reads as pure content.
-- Routine summary sections are collapsible: each member's content sits in a
-  click-to-expand block, so a multi-member morning report opens as scannable
-  one-line headers — and a failed member's section arrives pre-expanded. Failure
-  details are flattened to one bounded line (the full error stays in the output
-  channel), and a member report that is not Markdown (a .log or .txt) is shown as
-  preformatted text instead of being mangled as prose.
-- The Suite Daily Report guards against a hung sibling extension: any single
-  sibling activation or summary call past five seconds is dropped and that tool's
-  section is omitted, instead of the whole report hanging.
-- The Suite Daily Report names a version-skewed tool instead of hiding it: an
-  installed Suite extension reporting a newer data format than this version
-  understands gets a one-line note under the executive summary ("update Saropa
-  Workspace to include its section") rather than silently vanishing. Collecting
-  the summaries also shows a status-bar progress note while siblings are polled.
-- New **Saropa Suite daily report** recipe (scheduled ritual, default 06:30, seeds
-  disabled): writes the Suite day summary as a dated report file, and joins the
-  Morning routine as its closing member — so yesterday's debug sessions, lint
-  health, and database anomalies merge into the same one morning document as the
-  standup and stats.
+- The routine summary is now the day's actual content, not an execution table. The one document a routine opens merges each member report's full body in as a section (the standup digest, project stats, PR queue — readable in place, with a link to each source file), instead of a table of statuses, durations, and links. Execution state appears only when something went wrong: a failed or missing member gets one attention line at the top saying what happened and what to do. A clean run reads as pure content.
+- Routine summary sections are collapsible: each member's content sits in a click-to-expand block, so a multi-member morning report opens as scannable one-line headers — and a failed member's section arrives pre-expanded. Failure details are flattened to one bounded line (the full error stays in the output channel), and a member report that is not Markdown (a .log or .txt) is shown as preformatted text instead of being mangled as prose.
+- The Suite Daily Report guards against a hung sibling extension: any single sibling activation or summary call past five seconds is dropped and that tool's section is omitted, instead of the whole report hanging.
+- The Suite Daily Report names a version-skewed tool instead of hiding it: an installed Suite extension reporting a newer data format than this version understands gets a one-line note under the executive summary ("update Saropa Workspace to include its section") rather than silently vanishing. Collecting the summaries also shows a status-bar progress note while siblings are polled.
+- New **Saropa Suite daily report** recipe (scheduled ritual, default 06:30, seeds disabled): writes the Suite day summary as a dated report file, and joins the Morning routine as its closing member — so yesterday's debug sessions, lint health, and database anomalies merge into the same one morning document as the standup and stats.
 
 ### Fixed
 
-- Launcher card buttons now share one label size: the Run/Open button on a card's
-  header rendered its text larger than the Open/Copy path buttons in the expanded
-  drawer; all launcher buttons now use the drawer's smaller size, defined in one
-  place so the two cannot drift apart again.
+- Launcher card buttons now share one label size: the Run/Open button on a card's header rendered its text larger than the Open/Copy path buttons in the expanded drawer; all launcher buttons now use the drawer's smaller size, defined in one place so the two cannot drift apart again.
 
 ## [1.5.21]
 
@@ -113,21 +74,13 @@ cspell:disable
 
 ### Added
 
-- The open-often shortcut suggestion now offers "Ignore .ext" alongside Add
-  shortcut and Don't ask again. Choosing it adds that extension to the new
-  `saropaWorkspace.suggestions.ignoreExtensions` setting, so files of that type
-  are never suggested again.
-- New `saropaWorkspace.suggestions.debounceMinutes` setting (default 30): a file
-  re-focused within this window counts once, so the count tracks distinct working
-  sessions rather than tab flipping.
+- The open-often shortcut suggestion now offers "Ignore .ext" alongside Add shortcut and Don't ask again. Choosing it adds that extension to the new `saropaWorkspace.suggestions.ignoreExtensions` setting, so files of that type are never suggested again.
+- New `saropaWorkspace.suggestions.debounceMinutes` setting (default 30): a file re-focused within this window counts once, so the count tracks distinct working sessions rather than tab flipping.
 
 ### Changed
 
-- Re-focusing the same file (search, go to definition, tab flipping) no longer
-  inflates its open count — a per-file cooldown collapses a burst of re-focus into
-  a single count. This stops the suggestion firing during ordinary development.
-- Raised the default open-count threshold before a suggestion appears from 6 to
-  10 (`saropaWorkspace.suggestions.openThreshold`).
+- Re-focusing the same file (search, go to definition, tab flipping) no longer inflates its open count — a per-file cooldown collapses a burst of re-focus into a single count. This stops the suggestion firing during ordinary development.
+- Raised the default open-count threshold before a suggestion appears from 6 to 10 (`saropaWorkspace.suggestions.openThreshold`).
 
 ## [1.5.20]
 
@@ -135,30 +88,15 @@ cspell:disable
 
 ### Added
 
-- Clicking the next-scheduled-run status-bar item opens an action menu: open the
-  last report, open the Saropa Schedule screen, run it now, reveal it in the
-  Shortcuts view, change when it runs, turn its schedule off, or hide the item.
-  It previously only revealed the shortcut in the tree, which answered none of
-  the questions the item raises.
-- A new `saropaWorkspace.showScheduleStatusBar` setting hides the next-run
-  indicator. Hiding it stops the indicator only; scheduled runs continue.
+- Clicking the next-scheduled-run status-bar item opens an action menu: open the last report, open the Saropa Schedule screen, run it now, reveal it in the Shortcuts view, change when it runs, turn its schedule off, or hide the item. It previously only revealed the shortcut in the tree, which answered none of the questions the item raises.
+- A new `saropaWorkspace.showScheduleStatusBar` setting hides the next-run indicator. Hiding it stops the indicator only; scheduled runs continue.
 
 ### Fixed
 
-- A routine now opens exactly one document — its summary, which links every
-  member's report — instead of one editor tab per member. Members run with their
-  own report auto-open suppressed. The suppression covers that routine's own run
-  only, so a report you open by hand while a scheduled routine is working still
-  opens.
-- Turning a schedule off from the status-bar menu keeps the time or cron it was
-  set to, rather than writing back whatever the schedule held when the menu
-  opened.
-- A routine opens its summary on every run, not only when a member failed. A
-  clean run used to finish silently, leaving no way to reach the reports it had
-  just written.
-- Both status-bar items now name themselves, so VS Code's own right-click "Hide"
-  menu says which one it will hide. They both read as the extension's display
-  name before.
+- A routine now opens exactly one document — its summary, which links every member's report — instead of one editor tab per member. Members run with their own report auto-open suppressed. The suppression covers that routine's own run only, so a report you open by hand while a scheduled routine is working still opens.
+- Turning a schedule off from the status-bar menu keeps the time or cron it was set to, rather than writing back whatever the schedule held when the menu opened.
+- A routine opens its summary on every run, not only when a member failed. A clean run used to finish silently, leaving no way to reach the reports it had just written.
+- Both status-bar items now name themselves, so VS Code's own right-click "Hide" menu says which one it will hide. They both read as the extension's display name before.
 
 ---
 
@@ -168,11 +106,7 @@ cspell:disable
 
 ### Fixed
 
-- Running a shortcut in the integrated terminal now opens a brand-new terminal
-  tab every time instead of reusing one shared terminal for every run. Launching
-  a second script while the first was still busy (a long process, a prompt
-  waiting on input) used to send the second script's command line into the
-  first script's terminal instead of a new one.
+- Running a shortcut in the integrated terminal now opens a brand-new terminal tab every time instead of reusing one shared terminal for every run. Launching a second script while the first was still busy (a long process, a prompt waiting on input) used to send the second script's command line into the first script's terminal instead of a new one.
 
 ---
 
@@ -187,11 +121,7 @@ cspell:disable
 
 ### Internal
 
-- Reorganized the extension's largest source files (the launcher, dashboard, and
-  planner webviews; the shortcut store; the run-configuration and folder-watch
-  commands; activation wiring) into smaller, single-purpose modules, broke up
-  the longest functions into named helpers, and added explanatory comments to
-  every previously undocumented exported symbol. No behavior change.
+- Reorganized the extension's largest source files (the launcher, dashboard, and planner webviews; the shortcut store; the run-configuration and folder-watch commands; activation wiring) into smaller, single-purpose modules, broke up the longest functions into named helpers, and added explanatory comments to every previously undocumented exported symbol. No behavior change.
 
 ---
 
@@ -201,39 +131,18 @@ cspell:disable
 
 ### Added
 
-- Pubspec dependency-freshness report that lists only the packages behind their
-  latest version — up-to-date dependencies are omitted, so the report is just the
-  items you can act on. Built by parsing `dart pub outdated --json`, it opens only
-  when something is stale and flags discontinued packages inline.
-- The morning routine now includes the tech-debt/TODO harvest and the dependency-
-  freshness check as members, so the daily report covers lint issues, TODO markers,
-  and out-of-date packages — not only the git and PR digest.
+- Pubspec dependency-freshness report that lists only the packages behind their latest version — up-to-date dependencies are omitted, so the report is just the items you can act on. Built by parsing `dart pub outdated --json`, it opens only when something is stale and flags discontinued packages inline.
+- The morning routine now includes the tech-debt/TODO harvest and the dependency-freshness check as members, so the daily report covers lint issues, TODO markers, and out-of-date packages — not only the git and PR digest.
 
 ### Changed
 
-- Running a shortcut in an external window (the "new OS window" location) now opens
-  a PowerShell window instead of a plain `cmd.exe` one, and the command is seeded
-  into that window's history — so after it runs you can press up-arrow to rerun it
-  in the same window without retyping. `cmd.exe` could not do this: a command it
-  runs at launch never enters the up-arrow history. The window still cd's to the
-  shortcut's folder first and stays open after the command finishes. Note: because
-  the shell is now PowerShell, a command that relied on `cmd`-only syntax
-  (`%VAR%`, `dir`, `&` chaining) may behave differently.
-- Scheduled reports (standup, end-of-day, tech-debt, branches, journal, PR queue)
-  now render the captured command output inside a fenced code block, with a cleaner
-  Markdown header. A `git log --stat` or `git status` dump no longer renders as
-  mangled prose; an empty result reads as an explicit "No output." line.
-- The morning-routine summary now carries a Report column that links each member's
-  own report relative to the summary file, so the summary is the one clickable index
-  over the day's sub-reports.
+- Running a shortcut in an external window (the "new OS window" location) now opens a PowerShell window instead of a plain `cmd.exe` one, and the command is seeded into that window's history — so after it runs you can press up-arrow to rerun it in the same window without retyping. `cmd.exe` could not do this: a command it runs at launch never enters the up-arrow history. The window still cd's to the shortcut's folder first and stays open after the command finishes. Note: because the shell is now PowerShell, a command that relied on `cmd`-only syntax (`%VAR%`, `dir`, `&` chaining) may behave differently.
+- Scheduled reports (standup, end-of-day, tech-debt, branches, journal, PR queue) now render the captured command output inside a fenced code block, with a cleaner Markdown header. A `git log --stat` or `git status` dump no longer renders as mangled prose; an empty result reads as an explicit "No output." line.
+- The morning-routine summary now carries a Report column that links each member's own report relative to the summary file, so the summary is the one clickable index over the day's sub-reports.
 
 ### Removed
 
-- The activity-bar count badge on the Shortcuts view. It counted shortcuts not yet
-  opened or run, but clicking the sidebar icon never cleared it (opening the view is
-  not opening a shortcut) and the bare number did not convey what it referred to.
-  Repeated fixes to the counting logic left that mismatch, so the badge is removed
-  entirely. The per-row "untapped" dot remains as the discovery cue.
+- The activity-bar count badge on the Shortcuts view. It counted shortcuts not yet opened or run, but clicking the sidebar icon never cleared it (opening the view is not opening a shortcut) and the bare number did not convey what it referred to. Repeated fixes to the counting logic left that mismatch, so the badge is removed entirely. The per-row "untapped" dot remains as the discovery cue.
 
 ---
 
@@ -243,25 +152,11 @@ cspell:disable
 
 ### Added
 
-- "Duplicate with Argument" on a file shortcut's right-click menu (under the
-  configure/run submenu): prompts for an argument line — pre-filled with the
-  shortcut's current arguments — and a name that defaults to the original name
-  with those arguments suffixed. The duplicate points at the same file and keeps
-  the source's run configuration (interpreter, working directory, environment,
-  run location), changing only the arguments and the name. A duplicate of a
-  screen-share-protected shortcut stays protected. It deliberately does not
-  inherit the source's schedule or triggers, so a run variant never
-  double-schedules the script. The new item is inserted directly below the
-  original.
+- "Duplicate with Argument" on a file shortcut's right-click menu (under the configure/run submenu): prompts for an argument line — pre-filled with the shortcut's current arguments — and a name that defaults to the original name with those arguments suffixed. The duplicate points at the same file and keeps the source's run configuration (interpreter, working directory, environment, run location), changing only the arguments and the name. A duplicate of a screen-share-protected shortcut stays protected. It deliberately does not inherit the source's schedule or triggers, so a run variant never double-schedules the script. The new item is inserted directly below the original.
 
 ### Fixed
 
-- The activity-bar untapped-shortcut badge counted comment and separator rows,
-  which have no open/run action and so could never be marked used — leaving the
-  count stuck above zero permanently and pointing at rows that show no marker.
-  Annotation rows are now excluded from the count, matching the leading-dot
-  marker (which already skips them), so the badge clears exactly when every
-  actionable shortcut has been used.
+- The activity-bar untapped-shortcut badge counted comment and separator rows, which have no open/run action and so could never be marked used — leaving the count stuck above zero permanently and pointing at rows that show no marker. Annotation rows are now excluded from the count, matching the leading-dot marker (which already skips them), so the badge clears exactly when every actionable shortcut has been used.
 
 ---
 
@@ -496,36 +391,6 @@ Tell Saropa to keep an eye on a folder or a file and get a heads-up the moment s
 
 - **The trophy icon now shows in the icon picker.** It previously rendered as a blank entry because the underlying glyph name wasn't a real product icon; the achievement glyph it was meant to be now appears, and typing "trophy", "award", or "achievement" finds it.
 
-## [1.5.1]
-
-Say goodbye to "pins" and hello to "shortcuts" alongside a massive, beautifully visual upgrade to how you schedule and plan your workflows. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.1/CHANGELOG.md)
-
-### Added
-
-- **Set a shortcut's schedule in one form instead of a one-field-at-a-time menu.** **Configure Schedule...** now opens a single screen — daily time, days of the week, repeat interval, an advanced cron field with one-click presets, run-on-open, and enabled — all visible at once with inline descriptions and a live **Next run** preview that updates as you change fields. Setting a time turns the schedule on automatically, and the time and interval you used are remembered as the starting point for the next shortcut you schedule. The previous keyboard-only menu stays available as **Configure Schedule (Quick)...**.
-- **See how a shortcut's schedule fits your day.** The schedule form has an **Around your schedule** section: a 24-hour timeline that plots this shortcut's daily time against every other scheduled shortcut, so clustering and quiet stretches are visible at a glance. It warns when another shortcut runs in the **same minute**, naming which ones, and calls out the **largest free stretch** of the day. The marker slides live as you change the time.
-
-### Changed
-
-- **Pins are now called Shortcuts.** Everything that was a "pin" is now a **shortcut**: the view is **Shortcuts**, the groups are **Project Shortcuts** and **Global Shortcuts**, a collection is a **Shortcut Set**, and the commands read **Add Active File as Shortcut**, **Remove**, **Run Shortcut...**, **Promote to Shortcut**, and so on. Only the wording changed — your existing shortcuts, shortcut sets, keybindings, and shared links all keep working exactly as before. (VS Code's own "pinned tab" feature still uses its own name; the suggestion to add a long-pinned tab now offers to add it to your Saropa **shortcuts**.)
-- **The Recent list now includes files you open, not just shortcuts you run.** A saved file you open — by clicking its shortcut, or by any other means (Ctrl+P, the Explorer, switching tabs) — or close now appears in the **Recent** group in the Shortcuts view, tagged *(opened)*. Opening a file is not counted as a run, so it never changes a shortcut's run count or the most-run analytics. Focusing or closing a saved file also clears it from the activity-bar badge that counts unopen shortcuts.
-- **The planner screen now carries the Saropa name.** The Schedule & Workflow Planner panel's tab and heading now read **Saropa Schedule & Workflow Planner**, matching the Saropa Dashboard, so every full-screen surface is branded consistently.
-- **Click a scheduled item in the planner to see its details.** Clicking a block in the Week view (or a marker in the Day view) now highlights it and opens its details — schedule, triggers, and the Run / Open / Schedule / Triggers actions — in the right-side inspector panel. The selected item is outlined so you can tell which one the inspector describes.
-- **Choose compact or comfortable row height in the planner.** A new **Compact / Comfortable** toggle in the planner toolbar switches the Day and Week time grids between the dense overview and a roomier layout with double the per-hour height. Your choice is remembered for the panel.
-- **The planner's Workflow tab no longer scrolls forever.** Shortcuts that aren't part of a chain or event link now live in a compact, collapsible **Unlinked shortcuts** shelf below the canvas, so the canvas shows only the shortcuts that are actually wired together. Drag a shortcut from the shelf onto a step to run it after that step. Includes an **Auto-arrange** button to lay the chains into tidy columns, an **Add link** button for a searchable shortcut-to-shortcut link builder, and a text filter box for shelves with more than a dozen unlinked shortcuts.
-- **A selected item's details now open in their own panel on the right.** Clicking an item in the planner opens its details in a dockable inspector column on the right side — like the Workflow toolbox — instead of a strip below the grid that scrolled out of sight. The panel stays in view as you scroll the Day/Week grid.
-- **The planner's side columns are now resizable.** Drag the edge of the right-side detail inspector, or the right edge of the Workflow toolbox, to set its width — each remembers its size for the panel.
-- **The planner inspector now explains what a recipe does.** Selecting a scheduled recipe — like **Workspace bloat scan** — shows an info note describing what it does and what it was detected from, so a seeded or paused item explains itself in place.
-- **Pause or resume a schedule straight from the planner inspector.** When the inspector shows a scheduled shortcut as *(paused)*, it has a **Resume** button (and a **Pause** button when active) beside Run / Open / Schedule / Triggers. The action names the shortcut in a confirmation toast.
-- **The Shortcuts title `···` menu is now flyout submenus instead of one long list.** The overflow menu that used to drop a single scroll of ~30 items now opens six cohesive flyouts — **Add to Shortcuts**, **Editor Layout & Focus**, **Import & Suggest**, **Shortcut Sets**, **Run & Diagnostics**, and **Workspace & Schedule** — so each action is one hover away in a labeled group.
-- **Search for shortcuts by icon synonym.** Each icon now carries a keyword list (shown beside its name and matched on as you type), so an alternate word finds it even when you don't know the exact name — "settings" or "cog" surfaces the gear, "octocat" surfaces GitHub, "deploy" or "launch" surfaces the rocket.
-
-### Fixed
-
-- **The Schedule, Triggers, and Boot Sequence menus no longer jump back to the top after every change.** Each menu now keeps your place on the row you just changed and stays open when focus shifts, so building up a schedule is a steady sequence ending at **Save changes** rather than a list that resets under you.
-- **Setting a time on a schedule now turns it on automatically.** Giving a shortcut a daily time, an interval, a cron, or run-on-workspace-open now flips **Enabled** on for you. Switching **Enabled** off yourself still sticks: a deliberate "keep this schedule but pause it" is respected.
-- **The Shortcuts toolbar's Run Shortcut button no longer looks like "run all".** The **Run Shortcut...** action in the Shortcuts view title bar now uses the single play triangle instead of the double-arrow icon, matching the per-shortcut inline run button since it runs one shortcut you pick.
-
 ---
 
-For older versions (1.5.0 and older), see [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md).
+For older versions (1.5.1 and older), see [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md).
