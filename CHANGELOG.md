@@ -49,10 +49,16 @@ cspell:disable
 
 ## [Unreleased]
 
+ [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
+
 ### Added
 
 - New **Scripts** sidebar view: browse the bundled script library grouped by tag, with an inline Run button per script. The Run command synthesizes a shortcut from the manifest entry and routes through the existing run pipeline (interpreter resolution, token expansion, terminal/background routing all work unchanged). A Refresh command reloads the manifest.
 - New **Scripts** section in the Saropa Launcher Panel: bundled scripts appear as tinted cards alongside shortcuts, recipes, watches, and project files, with a Run head button and a header filter chip showing the script count.
+
+### Fixed
+
+- An expanded launcher card's head Open/Run button now uses the same internal padding as the drawer buttons below it, so the two button styles match; collapsed cards keep the compact icon-only button. The padding is defined in one place alongside the shared label size.
 
 ## [1.5.22]
 

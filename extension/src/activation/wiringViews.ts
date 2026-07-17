@@ -121,7 +121,11 @@ export function setupSecondaryViews(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "saropaWorkspace.runScript",
-      (item: ScriptTreeItem) => {
+      (item?: ScriptTreeItem) => {
+        // Guard: a keybinding or API call with no argument would pass undefined.
+        if (!item?.script) {
+          return;
+        }
         const script = scripts.findScript(item.script.id);
         if (!script) {
           return;

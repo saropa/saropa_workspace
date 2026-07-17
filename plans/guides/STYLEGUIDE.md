@@ -163,6 +163,16 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   they are not card action buttons and do not use the variable. (Developer
   feedback 2026-07-16: every button font in the launcher matches the reduced size
   the expanded/drawer buttons use.)
+- **The expanded head button shares the drawer buttons' padding, defined once as
+  `--launcher-btn-pad` on `:root` (currently `4px 9px 3px`).** Collapsed, the head
+  Run/Open button is icon-only and keeps its compact box; once the card expands and
+  the text label appears, the head sits directly above the drawer's `.btn` row, so
+  `.card.expanded .run` adopts `padding: var(--launcher-btn-pad)` to match. The
+  padding is asymmetric — 1px more on top — because the buttons pair a codicon with
+  smaller-than-em label text whose cap-height rides above the icon's optical center.
+  The literal lives ONLY in the variable (a unit test pins this); any new card
+  action button reads the variable. (Developer feedback 2026-07-17: standardize the
+  expanded head button's internal padding to match the drawer buttons.)
 - **The card's secondary line is suppressed when it only echoes the name.** A
   root-level file shortcut carries its bare filename as both the label and the path
   (e.g. `CHANGELOG.md`), so rendering the path under the title produced a duplicated

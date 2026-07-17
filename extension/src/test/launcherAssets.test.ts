@@ -137,6 +137,38 @@ test("LAUNCHER_STYLE: all card buttons share one label size from one variable", 
   );
 });
 
+test("LAUNCHER_STYLE: the expanded head button shares the drawer buttons' padding", () => {
+  // Collapsed, the head Run/Open button is icon-only and keeps a compact box; expanded,
+  // its text label appears directly above the drawer's .btn row, so it must adopt the
+  // same --launcher-btn-pad box or the two read as mismatched buttons (developer
+  // feedback 2026-07-17). The padding literal lives ONLY in the :root custom property.
+  assert.ok(
+    /:root\s*\{[^}]*--launcher-btn-pad:/.test(LAUNCHER_STYLE),
+    "--launcher-btn-pad must be defined on :root"
+  );
+  // Every bare .btn block reads the shared padding (line-anchored matchAll, same
+  // rationale as the font test above).
+  const btnBlocks = [...LAUNCHER_STYLE.matchAll(/^\.btn\s*\{[^}]*\}/gm)];
+  assert.ok(btnBlocks.length > 0, "a bare .btn rule must exist");
+  for (const block of btnBlocks) {
+    assert.ok(
+      block[0].includes("padding: var(--launcher-btn-pad)"),
+      ".btn must read the shared --launcher-btn-pad box"
+    );
+  }
+  assert.ok(
+    /\.card\.expanded\s+\.run\s*\{[^}]*padding:\s*var\(--launcher-btn-pad\)/.test(LAUNCHER_STYLE),
+    "the expanded head button must read the shared --launcher-btn-pad box"
+  );
+  // Single source of truth: the padding literal appears only in the :root definition.
+  const padLiterals = LAUNCHER_STYLE.match(/4px 9px 3px/g) ?? [];
+  assert.strictEqual(
+    padLiterals.length,
+    1,
+    "the button padding literal must appear exactly once (the :root variable)"
+  );
+});
+
 test("LAUNCHER_STYLE: drawer actions are right-aligned", () => {
   // Open/Run sit at the card's trailing edge, away from the leading name/path column.
   const actions = LAUNCHER_STYLE.match(/\.drawer-actions\s*\{[^}]*\}/);
