@@ -1349,6 +1349,7 @@
   "scripts.run.missingEntry": "Script {name} not found — its entry file is missing from the extension.",
   "scripts.run.noWorkspace": "Open a workspace folder to run {name} — the script needs a project folder to act on.",
   "scripts.run.notFound": "Script not found in the library.",
+  "scripts.run.missingRequirement": "{name} needs {list} on PATH — install it and try again.",
   "scripts.run.failed": "Script {name} failed: {detail}",
   "launcher.scriptsSection": "Scripts",
   "launcher.statScripts": "{count} scripts",

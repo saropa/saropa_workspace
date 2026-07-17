@@ -2,11 +2,24 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import {
   LibraryScript,
+  ScriptRequirement,
   resolveScriptEntry,
 } from "../model/scriptLibrary";
 import { Shortcut } from "../model/shortcut";
 import { runShortcut } from "./runner";
+import { findOnPath } from "./interpreterDetect";
 import { l10n } from "../i18n/l10n";
+
+// The manifest-declared `requires` entries not found on PATH, excluding ones marked
+// `optional` (a script that degrades gracefully without a tool, like device-connect's
+// scrcpy mirror, should not block the run over it — only the tools it cannot proceed
+// without do). Checked at run time rather than cached, since installing a tool between
+// runs should immediately unblock the next one.
+export function missingRequirements(script: LibraryScript): ScriptRequirement[] {
+  return script.requires.filter(
+    (req) => req.type === "command" && !req.optional && !findOnPath(req.name)
+  );
+}
 
 // Run a bundled library script by synthesizing a Shortcut from its manifest
 // entry and routing it through the existing run pipeline. The script's config
@@ -30,6 +43,18 @@ export async function runLibraryScript(
   if (!folders || folders.length === 0) {
     void vscode.window.showWarningMessage(
       l10n("scripts.run.noWorkspace", { name: script.label })
+    );
+    return;
+  }
+
+  // Pre-flight the manifest's declared tool requirements before opening a terminal, so
+  // a missing dependency (adb, scrcpy, ...) surfaces as a named diagnostic toast instead
+  // of a cryptic mid-script failure the user has to scroll the terminal to find.
+  const missing = missingRequirements(script);
+  if (missing.length > 0) {
+    const list = missing.map((req) => `${req.name} (${req.reason})`).join("; ");
+    void vscode.window.showErrorMessage(
+      l10n("scripts.run.missingRequirement", { name: script.label, list })
     );
     return;
   }

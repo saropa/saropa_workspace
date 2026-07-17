@@ -55,6 +55,7 @@ cspell:disable
 
 - New **Scripts** sidebar view: browse the bundled script library grouped by tag, with an inline Run button per script. The Run command synthesizes a shortcut from the manifest entry and routes through the existing run pipeline (interpreter resolution, token expansion, terminal/background routing all work unchanged). A Refresh command reloads the manifest.
 - New **Scripts** section in the Saropa Launcher Panel: bundled scripts appear as tinted cards alongside shortcuts, recipes, watches, and project files, with a Run head button and a header filter chip showing the script count.
+- Scripts declaring tool requirements in the library manifest (e.g. device-connect's `adb`) now get a pre-flight PATH check before running: a missing required tool shows a named diagnostic toast instead of a mid-script terminal failure. A tool marked optional never blocks the run.
 
 ### Fixed
 

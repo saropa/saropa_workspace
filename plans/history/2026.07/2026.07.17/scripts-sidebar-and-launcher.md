@@ -69,3 +69,60 @@ All 969 tests pass (0 failures).
 - `npx tsc -p ./ --noEmit` clean (no type errors).
 - `node esbuild.js` bundles without error.
 - IDE diagnostics clean on all edited files.
+
+## Finish Report (2026-07-17, hardening pass)
+
+Addressed two items raised in the prior handoff reflection and the one
+brainstormed feature named there.
+
+### Requirements pre-flight (the brainstormed feature)
+
+`runLibraryScript` (`scriptRunner.ts`) now checks a script's manifest-declared
+`requires` array against PATH before opening a terminal. `missingRequirements`
+filters to non-optional `type: "command"` entries whose binary is not found via
+`findOnPath` (exported from `interpreterDetect.ts`, reused rather than
+reimplemented). A blocking miss shows a named error toast
+(`scripts.run.missingRequirement`) listing each missing tool with its declared
+reason and aborts before the run pipeline is reached; an `optional: true`
+requirement never blocks. `device-connect`'s existing `requires` entries (adb,
+flutter, scrcpy) now gate its Run button instead of only being read at script
+run time.
+
+### Test coverage gaps closed
+
+- `scriptRunner.test.ts` (new): `missingRequirements` behavior (blocks on a
+  missing required tool, passes when the tool resolves on PATH, never blocks on
+  an optional miss) and an integration test that `runLibraryScript` shows the
+  named diagnostic and returns before running.
+- `launcherAssets.test.ts`: added a test asserting the client script's
+  `paneModel()` wires a flat `scripts` pane (both the bucket and the returned
+  pane array), closing the gap where no test asserted the Scripts pane actually
+  renders.
+- The `vscode` test stub (`_stub/vscode.ts`) gained `window.showErrorMessage`
+  tracking (`__errorMessages` / `__resetErrorMessages`), since no prior test
+  exercised it and `runLibraryScript`'s error paths needed to be observable.
+
+### Investigated, not fixed
+
+- A test covering the webview message handler's `library:`-prefix
+  interception (`launcherViewMessages.ts`) was attempted and reverted: the
+  module's import chain pulls in `shortcutOpen`/`shortcutExecution`, which
+  touch `vscode.ThemeColor` and other APIs the test stub does not model,
+  crashing at module load before any assertion runs. Closing this gap requires
+  either extending the stub's surface or restructuring the interception logic
+  into a stub-friendly module — both out of scope for this pass.
+- The `Shortcut` object literal synthesized in `scriptRunner.ts` (6 of ~20
+  fields set) was reviewed against `runShortcut`/`planRun`: every field the
+  synthesized shortcut omits is optional and accessed only via `?.` in the run
+  pipeline, so the concern raised in the prior reflection does not describe a
+  live defect.
+
+### Tests
+
+`npm test` — 974 tests pass (up from 969; 5 new: 4 in `scriptRunner.test.ts`,
+1 in `launcherAssets.test.ts`).
+
+### Verification
+
+- `npx tsc -p ./ --noEmit` clean.
+- `node esbuild.js` bundles without error.

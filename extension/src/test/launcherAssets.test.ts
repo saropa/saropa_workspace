@@ -358,6 +358,20 @@ test("LAUNCHER_SCRIPT: routes right-click menu choices as command messages", () 
   assert.ok(LAUNCHER_SCRIPT.includes("contextmenu"));
 });
 
+test("LAUNCHER_SCRIPT: wires a flat 'scripts' pane into the pane model", () => {
+  // paneModel() groups items by pane id; a card with pane:'scripts' only surfaces if
+  // both the flat-pane bucket AND the returned pane array carry a matching 'scripts'
+  // entry. Missing either half silently drops every script card from the board.
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("id: 'scripts', title: strings.scripts"),
+    "the flat pane bucket must exist"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("id: 'scripts', icon: 'library'"),
+    "the returned pane array must include the scripts pane"
+  );
+});
+
 // --- LAUNCHER_SCRIPT ----------------------------------------------------
 
 test("LAUNCHER_SCRIPT: is a non-empty client script", () => {
