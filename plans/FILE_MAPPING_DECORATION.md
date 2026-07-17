@@ -4,6 +4,10 @@ Maps well-known filenames and extensions to a codicon glyph and a `charts.*` the
 
 Colors follow the role-based palette in `fileTypeTokens.ts`: documentation and meta-project files are **foreground** (neutral/gray), source code is **blue** (JS yellow, Rust/JVM orange, Ruby red), config is **purple/orange**, data is **purple-green**, shells are **green**, media is **purple**.
 
+> **Known divergence:** the current code (`fileTypeTokens.ts`) uses `charts.yellow` for LICENSE files. This plan recommends `foreground` to group all project-documentation files under one neutral tint. The implementation should pick one and align both the code and the plan.
+
+> **Validation:** run `scripts/validate_file_mappings.py` to check every icon name against the installed VS Code codicon set and every regex for syntax errors.
+
 ## Project documentation
 
 | Document | Regex | Color | Icon |
@@ -233,9 +237,6 @@ Colors follow the role-based palette in `fileTypeTokens.ts`: documentation and m
 
 | File | Regex | Color | Icon |
 |---|---|---:|---|
-| pubspec.yaml | `^pubspec\.ya?ml$` | blue | package |
-| pubspec.lock | `^pubspec\.lock$` | foreground | lock |
-| analysis_options.yaml | `^analysis_options\.ya?ml$` | blue | settings-gear |
 | .metadata | `^\.metadata$` | foreground | info |
 | .flutter-plugins | `^\.flutter-plugins(-dependencies)?$` | foreground | info |
 | .packages | `^\.packages$` | foreground | info |
