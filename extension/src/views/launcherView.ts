@@ -4,6 +4,7 @@ import { FolderWatchStore } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 import { LauncherItem } from "./launcherItems";
 import { ProjectFilesTreeProvider } from "./projectFilesProvider";
+import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { handleLauncherMessage } from "./launcherViewMessages";
 import { buildAllItems, buildHeader } from "./launcherViewData";
 import { renderHtml } from "./launcherViewShell";
@@ -40,6 +41,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     private readonly store: ShortcutStore,
     private readonly watchStore: FolderWatchStore,
     private readonly projectFiles: ProjectFilesTreeProvider,
+    private readonly scriptsProvider: ScriptsTreeProvider,
     private readonly extensionUri: vscode.Uri
   ) {
     // Repaint whenever any of the surfaces the launcher mirrors changes, so it never lags
@@ -97,6 +99,8 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       store: this.store,
       watchStore: this.watchStore,
       projectFiles: this.projectFiles,
+      scriptsProvider: this.scriptsProvider,
+      extensionPath: this.extensionUri.fsPath,
       post: () => this.post(),
     });
   }
@@ -113,7 +117,9 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const files = await this.projectFiles.listSurfacedFiles();
-    const items: LauncherItem[] = buildAllItems(this.store, this.watchStore, files);
+    const items: LauncherItem[] = buildAllItems(
+      this.store, this.watchStore, files, this.scriptsProvider
+    );
     void this.view.webview.postMessage({
       type: "data",
       items,
@@ -129,6 +135,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         recipes: l10n("launcher.recipesSection"),
         watches: l10n("launcher.watchesSection"),
         files: l10n("launcher.filesSection"),
+        scripts: l10n("launcher.scriptsSection"),
         // {n} / {shown} / {total} stay literal here: the webview substitutes the live
         // counts, so these are fetched without l10n params.
         count: l10n("launcher.count"),

@@ -6,7 +6,9 @@ import { l10n } from "../i18n/l10n";
 import { buildLauncherItems, LauncherItem } from "./launcherItems";
 import { watchLauncherItem } from "./launcherWatchItem";
 import { fileLauncherItem } from "./launcherFileItem";
+import { scriptLauncherItem } from "./launcherScriptItem";
 import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
+import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
 
 // The pure data-assembly layer for the Saropa Launcher webview host (launcherView.ts): turns
@@ -46,7 +48,8 @@ export interface LauncherHeader {
 export function buildAllItems(
   store: ShortcutStore,
   watchStore: FolderWatchStore,
-  files: readonly ProjectFileInfo[]
+  files: readonly ProjectFileInfo[],
+  scriptsProvider: ScriptsTreeProvider
 ): LauncherItem[] {
   const items = buildLauncherItems(store);
 
@@ -108,6 +111,21 @@ export function buildAllItems(
   );
   items.push(...fileItems);
 
+  // Bundled library scripts: one card per manifest entry, grouped under a single
+  // "Scripts" header. The provider already resolved l10n labels, so the card
+  // builder receives display-ready text.
+  for (const script of scriptsProvider.scripts) {
+    items.push(
+      scriptLauncherItem({
+        id: script.id,
+        label: script.label,
+        description: script.description,
+        icon: script.icon,
+        tags: script.tags,
+      })
+    );
+  }
+
   return items;
 }
 
@@ -166,6 +184,7 @@ export function buildHeader(
   pushStat(scheduledRituals, "scheduled", "clock", "launcher.statRecipes");
   pushStat(count("watches"), "watches", "eye", "launcher.statWatches");
   pushStat(count("files"), "files", "files", "launcher.statFiles");
+  pushStat(count("scripts"), "scripts", "library", "launcher.statScripts");
 
   return {
     project,

@@ -105,8 +105,9 @@ function paneModel(list) {
   const recipes = { id: 'recipes', title: strings.recipes || 'Recipes', order: [], byId: {} };
   const files = { id: 'files', title: strings.files || 'Project files', order: [], byId: {} };
   const watches = { id: 'watches', title: strings.watches || 'Watches', items: [] };
+  const scripts = { id: 'scripts', title: strings.scripts || 'Scripts', items: [] };
   const grouped = { mine: mine, recipes: recipes, files: files };
-  const flat = { watches: watches };
+  const flat = { watches: watches, scripts: scripts };
   for (const it of list) {
     if (flat[it.pane]) { flat[it.pane].items.push(it); continue; }
     const pane = grouped[it.pane] || mine;
@@ -132,6 +133,7 @@ function paneModel(list) {
     { id: 'recipes', icon: 'clock', title: recipes.title, flat: false, groups: groupsOf(recipes) },
     { id: 'watches', icon: 'eye', title: watches.title, flat: true, items: watches.items },
     filesPane,
+    { id: 'scripts', icon: 'library', title: scripts.title, flat: true, items: scripts.items },
   ];
 }
 

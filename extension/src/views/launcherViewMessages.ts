@@ -6,6 +6,8 @@ import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutOpen";
 import { l10n } from "../i18n/l10n";
 import { ProjectFilesTreeProvider } from "./projectFilesProvider";
+import { ScriptsTreeProvider } from "./scriptsTreeProvider";
+import { runLibraryScript } from "../exec/scriptRunner";
 
 // The right-click menu only lists commands verified to accept a raw Shortcut via asShortcut
 // (see buildMenu in launcherItemMenu). Re-resolving the id here and forwarding the shortcut
@@ -40,6 +42,8 @@ export interface LauncherMessageContext {
   readonly store: ShortcutStore;
   readonly watchStore: FolderWatchStore;
   readonly projectFiles: ProjectFilesTreeProvider;
+  readonly scriptsProvider: ScriptsTreeProvider;
+  readonly extensionPath: string;
   readonly post: () => Promise<void>;
 }
 
@@ -122,6 +126,21 @@ export async function handleLauncherMessage(
   if (typeof msg.id !== "string") {
     return;
   }
+
+  // Library script cards carry a `library:<id>` composite id that never exists
+  // in the shortcut store. Intercept run messages for them and route through the
+  // script runner, which synthesizes a Shortcut from the manifest entry.
+  if (msg.type === "run" && msg.id.startsWith("library:")) {
+    const scriptId = msg.id.slice("library:".length);
+    const script = ctx.scriptsProvider.findScript(scriptId);
+    if (script) {
+      await runLibraryScript(script, ctx.extensionPath);
+    } else {
+      void vscode.window.showErrorMessage(l10n("scripts.run.notFound"));
+    }
+    return;
+  }
+
   const shortcut = ctx.store.findShortcut(msg.id);
   if (!shortcut) {
     return;

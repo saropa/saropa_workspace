@@ -3,8 +3,10 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { FolderWatchStore } from "../model/folderWatch";
 import { RecipesTreeProvider } from "../views/recipesTreeProvider";
 import { ProjectFilesTreeProvider } from "../views/projectFilesProvider";
+import { ScriptsTreeProvider, ScriptTreeItem } from "../views/scriptsTreeProvider";
 import { LauncherViewProvider } from "../views/launcherView";
 import { syncShortcutPathContext } from "./activationHelpers";
+import { runLibraryScript } from "../exec/scriptRunner";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -92,6 +94,43 @@ export function setupSecondaryViews(
     })
   );
 
+  // Bundled scripts from the extension's library.json manifest — ready-to-run developer
+  // tools shipped with the extension. Read-only, grouped by tag, with an inline Run
+  // button per script. The Run command synthesizes a Shortcut and routes through the
+  // existing run pipeline so interpreter resolution, token expansion, and terminal
+  // routing all work unchanged.
+  const scripts = new ScriptsTreeProvider(context.extensionPath);
+  const scriptsView = vscode.window.createTreeView("saropaWorkspace.scripts", {
+    treeDataProvider: scripts,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(scriptsView);
+  const syncScriptsCount = (count: number): void => {
+    scriptsView.description = count > 0 ? String(count) : undefined;
+  };
+  context.subscriptions.push(
+    scripts.onDidChangeCount((count) => syncScriptsCount(count))
+  );
+  syncScriptsCount(scripts.count);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.refreshScripts", () =>
+      scripts.refresh()
+    )
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "saropaWorkspace.runScript",
+      (item: ScriptTreeItem) => {
+        const script = scripts.findScript(item.script.id);
+        if (!script) {
+          return;
+        }
+        return runLibraryScript(script, context.extensionPath);
+      }
+    )
+  );
+
   // The "Saropa Launcher" Panel webview: the sidebar's surfaces in the bottom Panel, so
   // they can be searched without opening the activity-bar icon — the shortcut + recipe
   // panes (from the store), plus flat Watches and Project files panes (from the watch
@@ -102,6 +141,7 @@ export function setupSecondaryViews(
     store,
     watchStore,
     projectFiles,
+    scripts,
     context.extensionUri
   );
   context.subscriptions.push(
