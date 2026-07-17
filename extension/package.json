@@ -64,6 +64,11 @@
           "id": "saropaWorkspace.projectFiles",
           "name": "%views.projectFiles.name%",
           "visibility": "collapsed"
+        },
+        {
+          "id": "saropaWorkspace.scripts",
+          "name": "%views.scripts.name%",
+          "visibility": "collapsed"
         }
       ],
       "saropaWorkspaceLauncher": [
@@ -90,6 +95,10 @@
       {
         "view": "saropaWorkspace.projectFiles",
         "contents": "%viewsWelcome.projectFiles.contents%"
+      },
+      {
+        "view": "saropaWorkspace.scripts",
+        "contents": "%viewsWelcome.scripts.contents%"
       }
     ],
     "commands": [
@@ -174,6 +183,18 @@
       {
         "command": "saropaWorkspace.refreshProjectFiles",
         "title": "%command.refreshProjectFiles.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "saropaWorkspace.runScript",
+        "title": "%command.runScript.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(play)"
+      },
+      {
+        "command": "saropaWorkspace.refreshScripts",
+        "title": "%command.refreshScripts.title%",
         "category": "%extension.displayName%",
         "icon": "$(refresh)"
       },
@@ -1370,9 +1391,19 @@
           "command": "saropaWorkspace.manageWatches",
           "when": "view == saropaWorkspace.watches",
           "group": "navigation@2"
+        },
+        {
+          "command": "saropaWorkspace.refreshScripts",
+          "when": "view == saropaWorkspace.scripts",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
+        {
+          "command": "saropaWorkspace.runScript",
+          "when": "view == saropaWorkspace.scripts && viewItem == libraryScript",
+          "group": "inline"
+        },
         {
           "command": "saropaWorkspace.toggleWatch",
           "when": "view == saropaWorkspace.watches && viewItem =~ /^watch(Enabled|Disabled)$/",
@@ -1633,6 +1664,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "saropaWorkspace.runScript",
+          "when": "false"
+        },
         {
           "command": "saropaWorkspace.activatePin",
           "when": "false"

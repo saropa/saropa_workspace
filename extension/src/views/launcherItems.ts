@@ -40,7 +40,7 @@ export interface LauncherItem {
   // the folder/file watches, or the surfaced project files. Watches is always a flat
   // list; files groups by area (Project / Android / iOS / Web) when more than one area
   // is present and renders flat otherwise — see watchLauncherItem / fileLauncherItem.
-  readonly pane: "mine" | "recipes" | "watches" | "files";
+  readonly pane: "mine" | "recipes" | "watches" | "files" | "scripts";
   readonly section: string;
   readonly groupId: string;
   readonly groupIcon: string;
