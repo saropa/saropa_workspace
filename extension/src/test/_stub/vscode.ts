@@ -263,6 +263,16 @@ export function __resetOpenedDocuments(): void {
   openedDocuments.length = 0;
 }
 
+// The messages window.showErrorMessage was called with since the last reset, in order.
+const errorMessages: string[] = [];
+export function __errorMessages(): readonly string[] {
+  return errorMessages;
+}
+// Test-control hook: clears the error-message log between tests.
+export function __resetErrorMessages(): void {
+  errorMessages.length = 0;
+}
+
 export const workspace = {
   getConfiguration,
   // Modeled as an identity: the report writers pass the URI straight to
@@ -393,6 +403,12 @@ export const window = {
     _message: string,
     ..._items: string[]
   ): Promise<string | undefined> {
+    return Promise.resolve(undefined);
+  },
+  // Records the message so a test can assert which diagnostic surfaced (e.g. a
+  // script's missing-requirement toast), then resolves inert like the other toasts.
+  showErrorMessage(message: string, ..._items: string[]): Promise<string | undefined> {
+    errorMessages.push(message);
     return Promise.resolve(undefined);
   },
   // Records which document was raised, so the report-open suppression tests can

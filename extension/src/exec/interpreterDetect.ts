@@ -80,7 +80,9 @@ export function clearInterpreterCache(): void {
 // Locate an executable on PATH the way the shell would. On Windows each PATH directory
 // is tried with every PATHEXT suffix (so "py" resolves "py.exe"); elsewhere the bare
 // name is tested. Returns the first hit's absolute path, or undefined when not found.
-function findOnPath(binary: string): string | undefined {
+// Exported so callers outside this module (e.g. a script's `requires` pre-flight) can
+// reuse the same PATH + PATHEXT resolution instead of reimplementing it.
+export function findOnPath(binary: string): string | undefined {
   if (!binary) {
     return undefined;
   }
