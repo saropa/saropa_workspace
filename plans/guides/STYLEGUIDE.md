@@ -173,6 +173,15 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   The literal lives ONLY in the variable (a unit test pins this); any new card
   action button reads the variable. (Developer feedback 2026-07-17: standardize the
   expanded head button's internal padding to match the drawer buttons.)
+- **The expanded head button matches the drawer buttons' full box, not just the
+  padding.** `.card.expanded .run` also carries a transparent 1px border (`.btn`
+  has a real 1px border, so without it the head rendered 2px shorter despite
+  identical padding), and both the drawer icons and the expanded head icon read
+  one `--launcher-btn-icon` size (currently `16px`, the codicon font's default,
+  pinned explicitly so the pairing cannot drift). The collapsed head keeps its
+  compact 13px icon and `2px 7px` box — those are single-use literals for the
+  dense grid, deliberately not variables. (Developer feedback 2026-07-17:
+  collapse the remaining visual delta between the two button styles.)
 - **The card's secondary line is suppressed when it only echoes the name.** A
   root-level file shortcut carries its bare filename as both the label and the path
   (e.g. `CHANGELOG.md`), so rendering the path under the title produced a duplicated

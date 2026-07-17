@@ -22,3 +22,12 @@ The head button's border stays `none` while `.btn` carries a 1px border, so an e
 
 - `npx tsc -p ./ --noEmit` from `extension/`: clean.
 - `npm run test:unit`: 963 pass, 0 fail (includes the new regression test).
+
+## Follow-up: full box parity (2026-07-17)
+
+The scope note above's deliberate leftovers were closed on request ("collapse the remaining visual delta"):
+
+- `.card.expanded .run` now also carries `border: 1px solid transparent`, matching `.btn`'s 1px border thickness so the expanded head and a drawer button measure the same total height. The transparent color leaves the blue primary look unchanged (the background paints under the border).
+- The expanded head icon grows from the collapsed 13px to the drawer's 16px codicon size. Both read a new `--launcher-btn-icon: 16px` variable on `:root` (`.btn .codicon` previously relied on the codicon font's own 16px default; it is now pinned explicitly so the pairing cannot drift).
+- The collapsed head's 13px icon and `2px 7px` box remain single-use literals with comments naming them as deliberate — the dense grid state is untouched.
+- New regression test pins the `:root` icon variable, the transparent border on the expanded head, and both `.codicon` rules reading the variable. Style guide and changelog updated in the same change.

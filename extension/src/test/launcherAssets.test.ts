@@ -169,6 +169,32 @@ test("LAUNCHER_STYLE: the expanded head button shares the drawer buttons' paddin
   );
 });
 
+test("LAUNCHER_STYLE: the expanded head button matches the drawer buttons' height and icon", () => {
+  // Identical padding alone left the expanded head 2px shorter than a drawer button
+  // (.btn carries a 1px border, .run had none) and its icon smaller (13px collapsed size
+  // vs the drawer's 16px codicons). The expanded head must carry a transparent 1px border
+  // for height parity, and both icon sizes must read one --launcher-btn-icon variable so
+  // they cannot drift (developer feedback 2026-07-17: collapse the remaining visual delta).
+  assert.ok(
+    /:root\s*\{[^}]*--launcher-btn-icon:/.test(LAUNCHER_STYLE),
+    "--launcher-btn-icon must be defined on :root"
+  );
+  assert.ok(
+    /\.card\.expanded\s+\.run\s*\{[^}]*border:\s*1px solid transparent/.test(LAUNCHER_STYLE),
+    "the expanded head button must carry a transparent 1px border to match .btn's height"
+  );
+  assert.ok(
+    /\.btn\s+\.codicon\s*\{[^}]*font-size:\s*var\(--launcher-btn-icon\)/.test(LAUNCHER_STYLE),
+    "drawer icons must read the shared --launcher-btn-icon size"
+  );
+  assert.ok(
+    /\.card\.expanded\s+\.run\s+\.codicon\s*\{[^}]*font-size:\s*var\(--launcher-btn-icon\)/.test(
+      LAUNCHER_STYLE
+    ),
+    "the expanded head icon must read the shared --launcher-btn-icon size"
+  );
+});
+
 test("LAUNCHER_STYLE: drawer actions are right-aligned", () => {
   // Open/Run sit at the card's trailing edge, away from the leading name/path column.
   const actions = LAUNCHER_STYLE.match(/\.drawer-actions\s*\{[^}]*\}/);
