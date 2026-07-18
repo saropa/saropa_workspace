@@ -46,7 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.24]
+
+Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.24/CHANGELOG.md)
 
 ### Fixed
 
