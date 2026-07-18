@@ -69,6 +69,41 @@ def _iter_files(target: Path) -> list[Path]:
     return [p.resolve() for p in target.rglob("*") if p.is_file()]
 
 
+# This script's own install directory (parent of modules/). Checked so a bare,
+# argument-less invocation from inside this folder — e.g. a developer running
+# `python __main__.py` by hand from the extension's installed copy — organizes
+# its own source files instead of erroring. Happened in practice: cwd defaulted
+# to the script's folder and it moved __main__.py/modules/*.py into a dated
+# subfolder, breaking that installed copy until the files were moved back.
+_SCRIPT_DIR = Path(__file__).resolve().parent.parent
+
+
+class UnsafeTargetError(ValueError):
+    """Raised by organize_and_prune() when the target fails unsafe_target_reason()."""
+
+
+def unsafe_target_reason(target: Path) -> str | None:
+    """Why ``target`` must be refused, or ``None`` when it is safe to organize.
+
+    Enforced regardless of caller (see organize_and_prune), so a bad manifest
+    config or a bare manual invocation is caught the same way. A log/report
+    folder this tool is meant for is a SUBFOLDER of a project, not the project
+    root itself — ``.git`` lives only at the root, so the second check does not
+    fire on a legitimate nested ``reports/`` or ``logs/`` target. Does not detect
+    a git worktree or submodule root, where ``.git`` is a file, not a directory.
+    """
+    target = target.resolve()
+    script_dir = _SCRIPT_DIR.resolve()
+    # Path.is_relative_to() needs 3.9+; this script supports 3.8+, so walk
+    # parents by hand to catch target == script_dir, target as an ancestor of
+    # script_dir, or target as a descendant of it (e.g. its own modules/ folder).
+    if target == script_dir or target in script_dir.parents or script_dir in target.parents:
+        return f"target is this script's own install directory ({script_dir})"
+    if (target / ".git").is_dir():
+        return f"target is a repository root ({target}) — point at a log/report subfolder instead"
+    return None
+
+
 def _should_skip(file_path: Path, target: Path) -> bool:
     """Skip anything under a dot-folder / dot-file (hidden, tool-owned, VCS)."""
     relative = file_path.relative_to(target)
@@ -275,7 +310,15 @@ def organize_and_prune(
     dry_run: bool = False,
     print_moves: bool = True,
 ) -> tuple[int, int, int]:
-    """Organize files then optionally prune empty folders. Returns moved, skipped, removed."""
+    """Organize files then optionally prune empty folders. Returns moved, skipped, removed.
+
+    Raises ``UnsafeTargetError`` instead of touching disk when ``target`` fails
+    ``unsafe_target_reason`` — enforced here (not only in the CLI) so any caller,
+    including a future script that imports this module directly, gets the guard.
+    """
+    reason = unsafe_target_reason(target)
+    if reason is not None:
+        raise UnsafeTargetError(reason)
     moved, skipped = organize(target, dry_run=dry_run, print_moves=print_moves)
     # A dry run reports intended moves but performs none, so nothing has emptied —
     # pruning would delete folders the real run would have kept populated. Skip it.

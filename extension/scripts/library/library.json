@@ -12,7 +12,7 @@
       "config": {
         "command": "python",
         "cwd": "$workspaceRoot",
-        "args": ["${prompt:Folder to organize (blank = project root):}"],
+        "args": ["${prompt:Folder to organize (e.g. logs or reports — required):}"],
         "runLocation": "terminal"
       }
     },

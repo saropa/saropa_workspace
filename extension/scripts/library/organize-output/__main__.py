@@ -2,10 +2,12 @@
 """Organize a folder's loose files into dated ``YYYY.MM/YYYY.MM.DD`` subfolders.
 
 Bundled Saropa Workspace script (self-contained: this entry point plus the
-``modules/`` package beside it). Runs against the folder given as the first
-argument, or the current working directory when none is given — the extension
-defaults the working directory to the open project root, so a bare run organizes
-the project's own output folder.
+``modules/`` package beside it). Runs against the folder given as the required
+first argument — a project's logs/ or reports/ folder, not the project root
+itself. There is no default and no "blank means current directory" fallback: a
+bare invocation with no target is a hard error, and organizer.unsafe_target_reason
+additionally refuses a repository root or this script's own install directory,
+so a bad config or a stray manual invocation cannot organize the wrong folder.
 
 Each file is grouped by a date parsed from its name, falling back to the file's
 creation time. Empty folders left behind are pruned. Files being actively written,
@@ -30,7 +32,7 @@ if sys.version_info < (3, 8):
 # Python puts the running file's own directory on sys.path[0], so the bundled
 # ``modules`` package imports regardless of the working directory — which is the
 # project being organized, not this script's folder.
-from modules.organizer import organize_and_prune  # noqa: E402
+from modules.organizer import UnsafeTargetError, organize_and_prune  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,9 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "folder",
-        nargs="?",
-        default=".",
-        help="Folder to organize (default: the current directory).",
+        help="Folder to organize — required, e.g. a project's logs/ or reports/ folder.",
     )
     parser.add_argument(
         "--no-prune",
@@ -56,21 +56,29 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # A blank / whitespace-only argument (e.g. an empty ${prompt} answer from the
-    # extension launcher) means "the current directory" — the project root, since
-    # the run's cwd is set to $workspaceRoot. Strip first so a stray space is not
-    # treated as a folder literally named " ".
-    folder = args.folder.strip() or "."
+    # No default and no "blank means cwd/project root" fallback: a silent default
+    # is exactly what let a bare invocation (no argument, cwd = wherever the
+    # terminal happened to be) organize this script's own install folder in
+    # practice. Requiring an explicit, non-blank folder makes that a hard error
+    # instead of a silent action against the wrong directory.
+    folder = args.folder.strip()
+    if not folder:
+        print("A folder argument is required (blank is not treated as the current directory).")
+        return 2
     target = Path(folder).expanduser().resolve()
     if not target.is_dir():
         print(f"Not a folder: {target}")
         return 2
 
-    moved, skipped, removed = organize_and_prune(
-        target,
-        prune_empty=not args.no_prune,
-        dry_run=args.dry_run,
-    )
+    try:
+        moved, skipped, removed = organize_and_prune(
+            target,
+            prune_empty=not args.no_prune,
+            dry_run=args.dry_run,
+        )
+    except UnsafeTargetError as error:
+        print(f"Refusing to organize: {error}")
+        return 2
 
     verb = "Would move" if args.dry_run else "Moved"
     print(
