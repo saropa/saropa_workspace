@@ -46,6 +46,12 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Organize output folder** no longer defaults to the current directory or accepts a blank folder answer — a target folder is now required, and the script refuses to run against its own install directory or a repository root (a `.git` folder directly inside the target), even when launched by hand outside the extension. Closes a real incident where a bare, argument-less run reorganized the script's own bundled source files.
+
 ## [1.5.23]
 
 Browse and run your bundled scripts directly from the new sidebar or Launcher panel, complete with smart warnings if you're missing a required tool and polished button styles. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
