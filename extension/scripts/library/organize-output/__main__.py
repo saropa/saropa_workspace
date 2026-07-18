@@ -8,6 +8,8 @@ itself. There is no default and no "blank means current directory" fallback: a
 bare invocation with no target is a hard error, and organizer.unsafe_target_reason
 additionally refuses a repository root or this script's own install directory,
 so a bad config or a stray manual invocation cannot organize the wrong folder.
+``--force`` overrides that refusal for the rare legitimate case, printing a
+named WARNING before proceeding rather than silently bypassing it.
 
 Each file is grouped by a date parsed from its name, falling back to the file's
 creation time. Empty folders left behind are pruned. Files being actively written,
@@ -32,7 +34,7 @@ if sys.version_info < (3, 8):
 # Python puts the running file's own directory on sys.path[0], so the bundled
 # ``modules`` package imports regardless of the working directory — which is the
 # project being organized, not this script's folder.
-from modules.organizer import UnsafeTargetError, organize_and_prune  # noqa: E402
+from modules.organizer import organize_and_prune, unsafe_target_reason  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,6 +56,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Report what would move without changing anything on disk.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Override the safety guard and organize the target anyway, even "
+            "if it is this script's own install directory or a repository "
+            "root. Use only when you are certain the target is correct."
+        ),
+    )
     args = parser.parse_args(argv)
 
     # No default and no "blank means cwd/project root" fallback: a silent default
@@ -70,15 +81,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Not a folder: {target}")
         return 2
 
-    try:
-        moved, skipped, removed = organize_and_prune(
-            target,
-            prune_empty=not args.no_prune,
-            dry_run=args.dry_run,
-        )
-    except UnsafeTargetError as error:
-        print(f"Refusing to organize: {error}")
-        return 2
+    # Checked here (not only inside organize_and_prune) so --force can print a
+    # loud, specific warning naming the exact reason before anything runs —
+    # organize_and_prune has no terminal to warn on, only to raise or proceed.
+    reason = unsafe_target_reason(target)
+    if reason is not None:
+        if not args.force:
+            print(f"Refusing to organize: {reason}")
+            print("Pass --force to override this safety guard.")
+            return 2
+        print(f"WARNING: --force overriding safety guard — {reason}")
+
+    moved, skipped, removed = organize_and_prune(
+        target,
+        prune_empty=not args.no_prune,
+        dry_run=args.dry_run,
+        force=True,
+    )
 
     verb = "Would move" if args.dry_run else "Moved"
     print(

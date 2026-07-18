@@ -88,9 +88,10 @@ def unsafe_target_reason(target: Path) -> str | None:
     Enforced regardless of caller (see organize_and_prune), so a bad manifest
     config or a bare manual invocation is caught the same way. A log/report
     folder this tool is meant for is a SUBFOLDER of a project, not the project
-    root itself — ``.git`` lives only at the root, so the second check does not
-    fire on a legitimate nested ``reports/`` or ``logs/`` target. Does not detect
-    a git worktree or submodule root, where ``.git`` is a file, not a directory.
+    root itself — ``.git`` lives only at the root of the checkout it belongs to,
+    so the second check does not fire on a legitimate nested ``reports/`` or
+    ``logs/`` target no matter how deep it sits under that root; only ``target``
+    itself carrying ``.git`` trips it.
     """
     target = target.resolve()
     script_dir = _SCRIPT_DIR.resolve()
@@ -99,7 +100,10 @@ def unsafe_target_reason(target: Path) -> str | None:
     # script_dir, or target as a descendant of it (e.g. its own modules/ folder).
     if target == script_dir or target in script_dir.parents or script_dir in target.parents:
         return f"target is this script's own install directory ({script_dir})"
-    if (target / ".git").is_dir():
+    # A normal clone has .git as a directory; a git worktree or submodule has it
+    # as a FILE holding a `gitdir: <path>` pointer instead. exists() catches both
+    # forms, whereas the original is_dir()-only check missed worktrees/submodules.
+    if (target / ".git").exists():
         return f"target is a repository root ({target}) — point at a log/report subfolder instead"
     return None
 
@@ -309,16 +313,22 @@ def organize_and_prune(
     prune_empty: bool = True,
     dry_run: bool = False,
     print_moves: bool = True,
+    force: bool = False,
 ) -> tuple[int, int, int]:
     """Organize files then optionally prune empty folders. Returns moved, skipped, removed.
 
     Raises ``UnsafeTargetError`` instead of touching disk when ``target`` fails
     ``unsafe_target_reason`` — enforced here (not only in the CLI) so any caller,
     including a future script that imports this module directly, gets the guard.
+    ``force=True`` skips the check entirely; the caller is responsible for
+    having already surfaced the reason to the operator (see __main__.py's
+    ``--force``, which prints a WARNING naming it before calling this with
+    ``force=True``) — this function has no terminal to warn on by itself.
     """
-    reason = unsafe_target_reason(target)
-    if reason is not None:
-        raise UnsafeTargetError(reason)
+    if not force:
+        reason = unsafe_target_reason(target)
+        if reason is not None:
+            raise UnsafeTargetError(reason)
     moved, skipped = organize(target, dry_run=dry_run, print_moves=print_moves)
     # A dry run reports intended moves but performs none, so nothing has emptied —
     # pruning would delete folders the real run would have kept populated. Skip it.

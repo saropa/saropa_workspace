@@ -90,3 +90,101 @@ new sibling-folder test added during the review pass).
   own prompt-token flow already substitutes an empty string rather than
   omitting the argument on a blank answer, which now surfaces as the new
   clean required-argument error instead of a silent default.
+
+## Finish Report (2026-07-17, hardening pass)
+
+Addressed two items raised in the prior handoff reflection and added the
+brainstormed `--force` escape hatch.
+
+### What changed
+
+**`extension/scripts/library/organize-output/modules/organizer.py`**:
+- `unsafe_target_reason`'s repository-root check changed from
+  `(target / ".git").is_dir()` to `(target / ".git").exists()`. A normal
+  clone has `.git` as a directory; a git worktree or submodule has it as a
+  FILE holding a `gitdir: <path>` pointer — the prior `is_dir()`-only check
+  missed that case entirely, so a worktree or submodule root passed the guard
+  undetected. `exists()` catches both forms. (Known residual gap: a dangling
+  symlink named `.git` would still pass, since `exists()` follows the link
+  and finds nothing — judged not worth guarding, noted here rather than
+  fixed.)
+- `organize_and_prune` gained a `force: bool = False` parameter. When `True`,
+  the `unsafe_target_reason` check is skipped entirely and the move/prune
+  proceeds; the function's docstring states the caller is responsible for
+  having already surfaced the reason to the operator, since this function has
+  no terminal to warn on itself.
+
+**`extension/scripts/library/organize-output/__main__.py`**: added a
+`--force` flag. `main()` now calls `unsafe_target_reason` directly (not only
+relying on `organize_and_prune`'s internal check) so it can print a WARNING
+naming the specific reason before proceeding when `--force` is passed. Without
+`--force`, an unsafe target prints "Refusing to organize: <reason>" plus
+"Pass --force to override this safety guard." and exits 2, same as before.
+The CLI always calls `organize_and_prune(..., force=True)`, since the CLI has
+already performed its own check — `organize_and_prune`'s internal guard is
+therefore only reachable for a future caller that imports the module
+directly (e.g. another script), not for the CLI path. This is intentional
+and documented in both places; it does mean the CLI's check and the library's
+check are two call sites that must be kept in sync if either changes.
+
+**`tests/test_safety.py`**: added `test_worktree_or_submodule_root_is_unsafe`
+(constructs a `.git` file with a `gitdir:` pointer), `test_force_bypasses_the_guard`
+(module-level, `dry_run=True`), `test_own_install_directory_with_force_and_dry_run_proceeds`
+and `test_repository_root_with_force_and_dry_run_proceeds` (CLI-level,
+`--force --dry-run`, asserting the WARNING text and a clean exit). Also
+hardened `test_no_arguments_is_an_argparse_error` to assert two independent
+substrings ("required", "folder") instead of one exact phrase, since
+argparse's precise error wording is not guaranteed stable across Python
+releases — addresses the "least confident about" item from the prior
+reflection concerning that same test.
+
+**`CHANGELOG.md`**: extended the existing `Unreleased` → `Fixed` bullet to
+mention worktree/submodule detection and the `--force` flag.
+
+### Review findings addressed
+
+A second delegated review (general-purpose agent, read-only, scoped to this
+pass's diff) found the core logic correct. One finding acted on:
+- **[NIT]** `test_force_bypasses_the_guard` asserted `isinstance(x, int)` on
+  all three return values of `organize_and_prune` — tautological, since the
+  function's own return type annotation already guarantees `tuple[int, int,
+  int]`. Simplified to rely on the real assertion (no `UnsafeTargetError`
+  raised, i.e. the call returning at all), with a comment stating that
+  intent explicitly.
+
+Findings noted but not acted on:
+- **[GAP]** A dangling symlink named `.git` still passes the guard (documented
+  above and in the code comment; judged too narrow an edge case to add
+  symlink-resolution handling for).
+- Design note (not a defect): the CLI always passes `force=True` to
+  `organize_and_prune`, making that function's internal guard unreachable
+  from the CLI path specifically. This was already the intended design (the
+  CLI performs its own check first so it can print a targeted warning) and is
+  documented in both files' docstrings.
+
+### Tests
+
+`python extension/scripts/library/organize-output/tests/test_safety.py` — 15
+tests pass, 0 failures (up from 11: 1 worktree-detection test, 1
+force-bypass test, 2 CLI `--force --dry-run` tests).
+
+### Verification
+
+- `--force --dry-run` runs against both the script's own install directory
+  and a synthetic repository root confirmed to print the WARNING and exit 0
+  without moving any file (dry-run output shows only "Would move" lines).
+- `library.json` and `en.json` re-confirmed to parse as valid JSON.
+
+### Handoff reflection response
+
+The prior reflection named four items; this pass addresses them as follows:
+1. *Least confident about (CLI error-text version stability)*: hardened —
+   the CLI test suite no longer depends on argparse's exact phrasing.
+2. *If this breaks in 3 months (worktree/submodule `.git`-as-file gap)*:
+   fixed — `.exists()` now detects both forms.
+3. *Unstated assumption (nested logs/ at arbitrary depth under a repo root)*:
+   confirmed by design and documentation to already behave correctly — no
+   code change was needed, since the check only ever inspects the target's
+   own immediate `.git` entry, not any ancestor.
+4. *One unrequested feature (`--force` escape hatch)*: built, per explicit
+   request this pass.
