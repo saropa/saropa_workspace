@@ -53,6 +53,7 @@ cspell:disable
 ### Fixed
 
 - A routine whose member shortcut has been removed or renamed now **fails** rather than reporting success. The member was already listed as "Missing" in the summary, but because it did not count against the run, the routine scored a clean success, painted a green badge, and never opened the summary — so the "Shortcut not found — edit the routine to re-link or remove this member" note sat unread in a file there was no reason to open. The routine now badges red, opens its summary, and surfaces a failure notification naming it. The member still reads as "Missing", not "Failed", so the report distinguishes a broken link from a step that ran and failed.
+- **Organize output folder** now opens a folder-browse dialog for the target folder instead of a bare text box, defaulting to the workspace root. The prior free-text prompt gave no clue what shape of path was expected, which was itself part of why the folder was easy to misconfigure. Backed by a new general-purpose interactive run token, `${pickFolder:Label}`, alongside the existing `${prompt:...}` and `${pick:...}`.
 
 ## [1.5.24]
 

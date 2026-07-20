@@ -546,6 +546,15 @@ in [`principles.md`](./principles.md).)
   is posted to the client AFTER init — the client holds no display strings, so the
   chip pseudo-labels (default / browse) and the hint text are host-localized and
   passed in the message, exactly like the env-row template.
+- **An interactive run token that asks for a folder uses `${pickFolder:Label}`
+  (a native `showOpenDialog` folder browse, defaulting to the workspace root),
+  never a bare `${prompt:Label}` free-text box.** A hand-typed path gives no clue
+  what the expected value looks like (absolute? relative to what?) and is exactly
+  how a bundled script (`organize-output`) once got misconfigured to a wrong
+  target. `${prompt:...}` stays for a genuine free-text value (a branch name, a
+  version string); `${pick:a,b,c}` for a fixed option set; `${pickFolder:...}` is
+  the third interactive token kind, resolved and remembered the same way as the
+  other two (see `promptTokens.ts`).
 - **Every webview is local-only:** a strict Content-Security-Policy with a
   per-load nonce, no external script or CDN, no network of any kind.
 - **Theme the webview with `--vscode-*` CSS variables** so it tracks the active

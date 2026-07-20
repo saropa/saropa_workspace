@@ -6,25 +6,29 @@ import { l10n } from "../i18n/l10n";
 // Interactive run-parameter tokens (roadmap 7.1). Unlike the static $name tokens
 // (tokens.ts), these are resolved at run time from the user, so they need async
 // VS Code UI and cannot live in the pure substitution path:
-//   ${prompt:Label}     opens an input box, the label is the prompt text
-//   ${pick:dev,stage}   opens a QuickPick over the comma-separated options
+//   ${prompt:Label}       opens an input box, the label is the prompt text
+//   ${pick:dev,stage}     opens a QuickPick over the comma-separated options
+//   ${pickFolder:Label}   opens a folder-browse dialog, defaulting to the
+//                         workspace root, so the answer is chosen rather than
+//                         hand-typed — a free-text ${prompt:...} gives no clue
+//                         what path shape is expected or where "here" even is.
 // One parameterized shortcut then covers many variants (a branch, an environment, a
 // target) instead of a near-duplicate shortcut per value.
 //
 // Unattended callers (the scheduler) must NOT reach the prompt — they check
 // hasInteractiveTokens and skip, since there is no user to answer a dialog.
 
-// Matches a single interactive token. Only "prompt" and "pick" are recognized;
-// any other ${...} (e.g. a shell ${HOME}) is left untouched for the shell.
-const INTERACTIVE_RE = /\$\{(prompt|pick):([^}]*)\}/g;
+// Matches a single interactive token. Only "prompt", "pick", and "pickFolder" are
+// recognized; any other ${...} (e.g. a shell ${HOME}) is left untouched for the shell.
+const INTERACTIVE_RE = /\$\{(prompt|pick|pickFolder):([^}]*)\}/g;
 
 interface InteractiveToken {
   // The full "${prompt:Label}" text; used verbatim as the dedup key and the
   // substitution target so the same token reused across command/args/cwd is
   // asked for exactly once.
   raw: string;
-  kind: "prompt" | "pick";
-  // Label text (prompt) or the comma-separated option list (pick).
+  kind: "prompt" | "pick" | "pickFolder";
+  // Label text (prompt/pickFolder) or the comma-separated option list (pick).
   arg: string;
 }
 
@@ -91,6 +95,24 @@ async function promptForToken(
       // Keep the box open if focus shifts; a run prompt is easy to lose.
       ignoreFocusOut: true,
     });
+  }
+  if (token.kind === "pickFolder") {
+    // Reopen the dialog on the last-picked folder so re-running with a different
+    // target starts nearby instead of back at the workspace root every time.
+    // Falls back to the workspace root — the natural starting point for a folder
+    // the config wants to be scoped under the open project.
+    const defaultUri = lastValue
+      ? vscode.Uri.file(lastValue)
+      : vscode.workspace.workspaceFolders?.[0]?.uri;
+    const picked = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      canSelectFiles: false,
+      canSelectFolders: true,
+      defaultUri,
+      openLabel: l10n("prompt.pickFolderOpenLabel"),
+      title: token.arg || l10n("prompt.pickFolderFallback"),
+    });
+    return picked && picked.length > 0 ? picked[0].fsPath : undefined;
   }
   let options = token.arg
     .split(",")

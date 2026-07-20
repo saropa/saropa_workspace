@@ -1095,6 +1095,8 @@
   "portUnwedge.killFailed": "Couldn't kill {process} (PID {pid}) — it may need elevated permissions. Port {port} is still in use.",
   "prompt.inputFallback": "Enter a value",
   "prompt.pickPlaceholder": "Select a value",
+  "prompt.pickFolderFallback": "Select a folder",
+  "prompt.pickFolderOpenLabel": "Select Folder",
   "import.none": "No favorites from other extensions were found.",
   "import.done": "Imported {count} shortcut(s) from {file}.",
   "import.doneWithSkips": "Imported {count} shortcut(s) from {file}. Skipped {skipped} entry(ies) — open the output channel for details.",
@@ -1354,7 +1356,7 @@
   "launcher.scriptsSection": "Scripts",
   "launcher.statScripts": "{count} scripts",
   "scripts.organizeOutput.label": "Organize output folder",
-  "scripts.organizeOutput.description": "Sort a folder's loose files into dated YYYY.MM/YYYY.MM.DD subfolders and remove the empty folders left behind. Asks for the folder to organize (e.g. logs or reports) and refuses a project/repository root; files still being written, hidden files, and already-sorted files are left alone.",
+  "scripts.organizeOutput.description": "Sort a folder's loose files into dated YYYY.MM/YYYY.MM.DD subfolders and remove the empty folders left behind. Opens a folder-browse dialog for the folder to organize (e.g. logs or reports) and refuses a project/repository root; files still being written, hidden files, and already-sorted files are left alone.",
   "scripts.deviceConnect.label": "Connect a device for debugging",
   "scripts.deviceConnect.description": "Connect a physical Android device to Flutter for on-device debugging over Wi-Fi or USB, mirror the screen with scrcpy, and report battery, charging, and connectivity health. Runs an interactive menu in the terminal from the open project folder. Needs the rich, plyer, and zeroconf Python packages; the script asks before installing any that are missing."
 }

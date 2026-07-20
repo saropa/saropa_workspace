@@ -320,9 +320,24 @@ type InputHandler = (opts?: { prompt?: string; value?: string }) => Promise<Inpu
 // So the handler sees the item list as `unknown[]` and may return any shape (a chosen
 // item, an array of items, or undefined for cancel); the tested editors narrow it.
 type PickHandler = (items: readonly unknown[]) => Promise<unknown>;
+// window.showOpenDialog: the ${pickFolder:...} token test drives this through a
+// settable handler, same shape as input/pick — sees the options passed (so a test
+// can assert the defaultUri/title) and returns a chosen Uri array or undefined.
+type OpenDialogHandler = (
+  opts?: OpenDialogOptions
+) => Promise<Uri[] | undefined>;
+interface OpenDialogOptions {
+  canSelectMany?: boolean;
+  canSelectFiles?: boolean;
+  canSelectFolders?: boolean;
+  defaultUri?: Uri;
+  openLabel?: string;
+  title?: string;
+}
 
 let inputHandler: InputHandler = async () => undefined;
 let pickHandler: PickHandler = async () => undefined;
+let openDialogHandler: OpenDialogHandler = async () => undefined;
 
 // A faithful-enough EventEmitter for code that exposes a `vscode.EventEmitter`'s
 // `.event` and fires it. Listeners registered via `.event` get a disposable; `.fire`
@@ -389,6 +404,9 @@ export const window = {
   // tested code paths, so the stub ignores it.
   showQuickPick(items: readonly unknown[]): Promise<unknown> {
     return pickHandler(items);
+  },
+  showOpenDialog(opts?: OpenDialogOptions): Promise<Uri[] | undefined> {
+    return openDialogHandler(opts);
   },
   // The branch-set binder and several command handlers emit toasts via these. No
   // test asserts on their text, so they are inert no-ops that resolve to undefined
@@ -473,9 +491,14 @@ export function __setInputHandler(handler: InputHandler): void {
 export function __setPickHandler(handler: PickHandler): void {
   pickHandler = handler;
 }
-// Test-control hook: restores the input/pick handlers to their "cancel
+// Test-control hook: installs the handler that answers window.showOpenDialog calls.
+export function __setOpenDialogHandler(handler: OpenDialogHandler): void {
+  openDialogHandler = handler;
+}
+// Test-control hook: restores the input/pick/openDialog handlers to their "cancel
 // everything" defaults between tests.
 export function __resetHandlers(): void {
   inputHandler = async () => undefined;
   pickHandler = async () => undefined;
+  openDialogHandler = async () => undefined;
 }
