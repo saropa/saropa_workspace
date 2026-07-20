@@ -21,6 +21,7 @@ function delta(over: Partial<OvernightDelta> = {}): OvernightDelta {
     commitsByOthers: 0,
     debtBefore: 1200,
     debtAfter: 1203,
+    unavailable: false,
     ...over,
   };
 }
@@ -51,24 +52,24 @@ test("parseShortstat tolerates a missing clause", () => {
 
 test("deltaHeadline states the window's movement with thousands separators", () => {
   assert.equal(
-    deltaHeadline(delta()),
+    deltaHeadline(delta()).text,
     "12 commits · 117 files changed · +462,756 / -411,718 · +3 TODO/FIXME"
   );
 });
 
 test("deltaHeadline reports work by other people, the answer to 'what moved while I was away'", () => {
-  assert.match(deltaHeadline(delta({ commitsByOthers: 4 })), /4 by others/);
-  assert.doesNotMatch(deltaHeadline(delta({ commitsByOthers: 0 })), /by others/);
+  assert.match(deltaHeadline(delta({ commitsByOthers: 4 })).text, /4 by others/);
+  assert.doesNotMatch(deltaHeadline(delta({ commitsByOthers: 0 })).text, /by others/);
 });
 
 test("deltaHeadline omits unchanged debt rather than printing +0", () => {
-  assert.doesNotMatch(deltaHeadline(delta({ debtBefore: 100, debtAfter: 100 })), /TODO/);
-  assert.match(deltaHeadline(delta({ debtBefore: 100, debtAfter: 90 })), /-10 TODO\/FIXME/);
+  assert.doesNotMatch(deltaHeadline(delta({ debtBefore: 100, debtAfter: 100 })).text, /TODO/);
+  assert.match(deltaHeadline(delta({ debtBefore: 100, debtAfter: 90 })).text, /-10 TODO\/FIXME/);
 });
 
 test("a quiet day says so instead of reporting a row of zeros", () => {
   assert.equal(
-    deltaHeadline(delta({ commits: 0, filesChanged: 0, insertions: 0, deletions: 0 })),
+    deltaHeadline(delta({ commits: 0, filesChanged: 0, insertions: 0, deletions: 0 })).text,
     "Nothing changed in the last day."
   );
 });
@@ -76,10 +77,24 @@ test("a quiet day says so instead of reporting a row of zeros", () => {
 test("a repo with no commit older than the window explains itself", () => {
   // A young repository is not an error and must not read as "nothing changed".
   const young = delta({ baseline: undefined });
-  assert.equal(deltaHeadline(young), "No history yet for the last day.");
+  assert.equal(deltaHeadline(young).text, "No history yet for the last day.");
   const md = buildDeltaMarkdown(young);
   assert.ok(md.includes("no commit older than the last day"));
   assert.ok(!md.includes("| Measure |"), "no table of meaningless zeros");
+});
+
+test("git being unable to answer is an attention finding, never a quiet day", () => {
+  // "I could not look" and "nothing is older than a day" are different answers, and
+  // both previously rendered as the same informational line — the exact failure the
+  // build-status check was built to avoid.
+  const broken = delta({ baseline: undefined, unavailable: true });
+  const headline = deltaHeadline(broken);
+  assert.equal(headline.attention, true);
+  assert.match(headline.text, /unavailable/i);
+  const md = buildDeltaMarkdown(broken);
+  assert.ok(md.includes("**Attention:**"), "it uses the attention convention");
+  assert.ok(md.includes("git repository"), "and says how to diagnose it");
+  assert.ok(!md.includes("| Measure |"), "no table implying a measured quiet day");
 });
 
 test("the report names the baseline revision it compared against", () => {

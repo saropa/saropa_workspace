@@ -20,7 +20,7 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { ShortcutStore } from "../model/shortcutStore";
-import { pruneRoutineMembers } from "../model/routineMembers";
+import { pruneRoutineMembers, pruneSuppressedRoutineMembers } from "../model/routineMembers";
 import { shortcutKind, type Shortcut } from "../model/shortcut";
 import type { RoutineMember } from "../model/shortcutAction";
 import type { Uri as VscodeUri } from "vscode";
@@ -375,6 +375,39 @@ test("pruneRoutineMembers unlinks a hand-composed member by pin id", () => {
   const pins = [routinePin("morning", [{ pinId: "abc" }, { pinId: "def" }])];
   assert.equal(pruneRoutineMembers(pins, { id: "abc", recipeId: undefined }), 1);
   assert.deepEqual(members(pins[0]), [{ pinId: "def" }]);
+});
+
+test("pruneSuppressedRoutineMembers drops members naming any suppressed recipe", () => {
+  // The self-heal path: a member whose recipe is on the removed list can never
+  // resolve again, because buildRecipeShortcuts skips suppressed recipes.
+  const pins = [
+    routinePin("morning", [
+      { recipeId: "ritual.lint" },
+      { recipeId: "ritual.prs" },
+      { recipeId: "ritual.ci" },
+    ]),
+  ];
+  assert.equal(pruneSuppressedRoutineMembers(pins, ["ritual.lint", "ritual.ci"]), 2);
+  assert.deepEqual(members(pins[0]), [{ recipeId: "ritual.prs" }]);
+});
+
+test("pruneSuppressedRoutineMembers is a no-op with nothing suppressed", () => {
+  // The common case on every load after the first: it must not report a change, or
+  // the caller rewrites the project file on every refresh.
+  const pins = [routinePin("morning", [{ recipeId: "ritual.prs" }, { pinId: "abc" }])];
+  assert.equal(pruneSuppressedRoutineMembers(pins, []), 0);
+  assert.equal(members(pins[0]).length, 2);
+  // A suppressed recipe nothing references is also no change.
+  assert.equal(pruneSuppressedRoutineMembers(pins, ["ritual.lint"]), 0);
+  assert.equal(members(pins[0]).length, 2);
+});
+
+test("pruneSuppressedRoutineMembers never matches a hand-composed member by pin id", () => {
+  // A suppressed recipe id must not sweep out a member stored under pinId that
+  // happens to carry the same string.
+  const pins = [routinePin("morning", [{ pinId: "ritual.lint" }])];
+  assert.equal(pruneSuppressedRoutineMembers(pins, ["ritual.lint"]), 0);
+  assert.equal(members(pins[0]).length, 1);
 });
 
 test("pruneRoutineMembers leaves unrelated members and non-routine pins alone", () => {

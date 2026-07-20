@@ -15,6 +15,16 @@ import { pruneSuppressedRoutineMembers } from "./routineMembers";
 // (which now holds only the synchronous refresh/rescan path) purely to keep that
 // file under the project's line-count cap.
 export abstract class ShortcutStoreRecipeSeed extends ShortcutStoreRecipes {
+  // Folders whose routine membership has already been repaired this session. The
+  // repair is idempotent and only ever needed once — once the suppressed members are
+  // gone, the file has nothing left to fix — so it MUST NOT run on every refresh.
+  // Writing the project file from inside the detection sweep re-triggers the config
+  // watcher, which calls refresh(), which sweeps again: a write loop. Worse, the
+  // sweep runs per folder under Promise.all and its results are only generation-
+  // checked at publish time, so a superseded sweep could still land a write on top
+  // of a newer mutation and resurrect what that mutation removed. Repairing once,
+  // and only from a sweep that is still current, closes both.
+  private readonly repairedFolders = new Set<string>();
   // Detect recipes for all folders in parallel, fault-isolated per folder, and
   // publish them into the separate recipe-groups list + the project shortcut list
   // (the tree renders recipe shortcuts under their own "Recipes" section, not the
@@ -32,6 +42,13 @@ export abstract class ShortcutStoreRecipeSeed extends ShortcutStoreRecipes {
     }
     const folders = vscode.workspace.workspaceFolders ?? [];
     const perFolder = await this.detectAllFolderRecipes(folders);
+
+    // Repair AFTER the generation check below would have discarded a stale sweep, so
+    // a superseded run never writes. Done here rather than inside the parallel
+    // per-folder detection so the writes are sequential and cannot interleave.
+    if (gen === this.recipeGen) {
+      await this.repairRoutineMembers(folders);
+    }
 
     // Drop stale results: a newer refresh() has superseded this run.
     if (gen !== this.recipeGen) {
@@ -53,6 +70,36 @@ export abstract class ShortcutStoreRecipeSeed extends ShortcutStoreRecipes {
     this._onDidChange.fire();
   }
 
+  // Self-heal routines that reference a recipe the user removed before the remove
+  // path learned to unlink members. Such a member can never resolve again — a removed
+  // recipe stays suppressed by id — so it is dropped rather than failing every run
+  // forever. Sequential and once per folder per session; see repairedFolders.
+  private async repairRoutineMembers(
+    folders: readonly vscode.WorkspaceFolder[]
+  ): Promise<void> {
+    for (const folder of folders) {
+      const key = folder.uri.toString();
+      if (this.repairedFolders.has(key)) {
+        continue;
+      }
+      // Marked before the await, not after: a second sweep starting while this one is
+      // still reading must not queue a duplicate repair of the same folder.
+      this.repairedFolders.add(key);
+      try {
+        const file = await this.readProjectFile(folder);
+        if (pruneSuppressedRoutineMembers(file.pins, file.removedRecipes) > 0) {
+          await this.writeProjectFile(folder, file);
+        }
+      } catch (err) {
+        // A repair that cannot be written is not worth breaking the tree over; the
+        // routine keeps failing loudly, which is the pre-repair behavior.
+        getOutputChannel().appendLine(
+          `[recipes] routine repair failed for ${folder.name}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+  }
+
   // Run recipe detection for every folder in parallel, fault-isolated per folder —
   // a detector throwing in one folder must never hang or break the others. Extracted
   // from seedRecipesAsync so the generation-check/publish flow there reads as a
@@ -64,12 +111,6 @@ export abstract class ShortcutStoreRecipeSeed extends ShortcutStoreRecipes {
       folders.map(async (folder) => {
         try {
           const file = await this.readProjectFile(folder);
-          // Self-heal routines that reference a recipe the user removed before the
-          // remove path learned to unlink members. Such a member can never resolve
-          // again, so it is dropped here rather than failing every run forever.
-          if (pruneSuppressedRoutineMembers(file.pins, file.removedRecipes) > 0) {
-            await this.writeProjectFile(folder, file);
-          }
           const results = await this.detectRecipes(folder);
           const shortcuts = [
             ...this.buildRecipeShortcuts(folder, results, file.removedRecipes),
