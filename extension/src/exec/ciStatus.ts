@@ -20,6 +20,10 @@ const RUN_LIMIT = 10;
 // carry the cause, and the rest are consequences of it.
 const MAX_ANNOTATIONS = 5;
 
+// Failing check runs queried for annotations. Each is a sequential API round trip,
+// so the count is bounded independently of how many annotations come back.
+const MAX_CHECK_RUNS = 5;
+
 // One CI run, as `gh run list` reports it.
 export interface CiRun {
   status: string;
@@ -88,7 +92,11 @@ async function collectAnnotations(root: string): Promise<CiAnnotation[]> {
     return [];
   }
   const out: CiAnnotation[] = [];
-  for (const id of ids.split("\n").filter((i) => i.trim().length > 0)) {
+  // Cap the IDS, not just the annotations: each id is a sequential network round
+  // trip, and many failing checks that each return no annotations would otherwise
+  // walk the whole list before the morning report could be written.
+  const idList = ids.split("\n").filter((i) => i.trim().length > 0).slice(0, MAX_CHECK_RUNS);
+  for (const id of idList) {
     const raw = await gh(root, [
       "api",
       `repos/{owner}/{repo}/check-runs/${id.trim()}/annotations`,

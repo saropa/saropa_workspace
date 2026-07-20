@@ -32,6 +32,11 @@ export interface OvernightDelta {
   // The revision that was HEAD at the start of the window, and undefined when the
   // repository has no commit that old (a young repo — not an error).
   baseline?: string;
+  // True when git itself could not answer (not installed, not a repository). Kept
+  // separate from an absent baseline because "I could not look" and "nothing is
+  // older than a day" are different answers, and reporting the first as the second
+  // makes a broken check read as a quiet morning (STYLEGUIDE 4.8a).
+  unavailable: boolean;
   filesChanged: number;
   insertions: number;
   deletions: number;
@@ -67,7 +72,17 @@ export async function collectOvernightDelta(root: string): Promise<OvernightDelt
     commitsByOthers: 0,
     debtBefore: 0,
     debtAfter: 0,
+    unavailable: false,
   };
+
+  // Probe first: rev-list returns "" both when git cannot run AND when no commit is
+  // old enough, so without this the two collapse into one answer. rev-parse HEAD
+  // succeeds for any repository with a commit, so its failure isolates the
+  // can't-look case.
+  if ((await git(root, ["rev-parse", "HEAD"])) === "") {
+    delta.unavailable = true;
+    return delta;
+  }
 
   // rev-list, not `HEAD@{1 day ago}`: the reflog form resolves against LOCAL history,
   // so it is empty on a fresh clone and wrong on a machine that was switched off.
@@ -131,12 +146,18 @@ export function parseShortstat(line: string): {
 
 // The window's movement in one line. Exported for tests and reused as the report's
 // headline. States the debt change only when it actually moved — "+0 TODOs" is noise.
-export function deltaHeadline(delta: OvernightDelta): string {
+export function deltaHeadline(delta: OvernightDelta): { text: string; attention: boolean } {
+  if (delta.unavailable) {
+    return {
+      text: "Yesterday's changes unavailable — git did not answer for this folder.",
+      attention: true,
+    };
+  }
   if (!delta.baseline) {
-    return "No history yet for the last day.";
+    return { text: "No history yet for the last day.", attention: false };
   }
   if (delta.commits === 0) {
-    return "Nothing changed in the last day.";
+    return { text: "Nothing changed in the last day.", attention: false };
   }
   const parts = [
     `${delta.commits} commit${delta.commits === 1 ? "" : "s"}`,
@@ -150,21 +171,29 @@ export function deltaHeadline(delta: OvernightDelta): string {
   if (debt !== 0) {
     parts.push(`${debt > 0 ? "+" : ""}${debt.toLocaleString()} TODO/FIXME`);
   }
-  return parts.join(" · ");
+  // Informational: history is a record of what happened, not a task. Nothing here can
+  // be lost or is broken, so it never claims the reader's attention ahead of a red
+  // build or uncommitted work (STYLEGUIDE 4.8a).
+  return { text: parts.join(" · "), attention: false };
 }
 
 export function buildDeltaMarkdown(delta: OvernightDelta): string {
+  const headline = deltaHeadline(delta);
   const lines: string[] = [
     "# Since yesterday",
     "",
     `**Generated** ${new Date().toLocaleString()}`,
     "",
-    // Informational by convention: history is a record of what happened, not a task.
-    // Nothing here can be lost or is broken, so it never claims the reader's attention
-    // ahead of a red build or uncommitted work (see STYLEGUIDE 4.8a).
-    `**Headline:** ${deltaHeadline(delta)}`,
+    `**${headline.attention ? "Attention" : "Headline"}:** ${headline.text}`,
     "",
   ];
+  if (delta.unavailable) {
+    lines.push(
+      "_`git` did not answer for this folder. Confirm it is installed and that this folder is a git repository._",
+      ""
+    );
+    return lines.join("\n");
+  }
   if (!delta.baseline) {
     lines.push("_This repository has no commit older than the last day to compare against._", "");
     return lines.join("\n");
