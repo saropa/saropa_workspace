@@ -240,8 +240,11 @@ export function summarizeReportBody(body: string): ReportHeadline | undefined {
     const failed = runs.filter((l) => /^completed\t(failure|timed_out|cancell?ed)\t/.test(l));
     if (failed.length > 0) {
       // Name the workflow of the newest failure: "2 runs failing" sends the reader
-      // hunting, "2 runs failing (build)" tells them where to look.
-      const workflow = failed[0]?.split("\t")[4]?.trim();
+      // hunting, "2 runs failing (Flutter CI)" tells them where to look. Column 3 is
+      // the workflow; gh's column order is
+      // status, conclusion, title, workflow, branch, event, id, duration, timestamp
+      // (verified against gh 2.76.2 — an earlier guess of column 4 named the BRANCH).
+      const workflow = failed[0]?.split("\t")[3]?.trim();
       return {
         text: `${failed.length} of the last ${runs.length} CI runs failing${workflow ? ` (${workflow})` : ""}`,
         attention: true,

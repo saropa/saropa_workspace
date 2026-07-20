@@ -146,21 +146,25 @@ test("summarizeReportBody states an empty result rather than staying silent", ()
   assert.deepEqual(summarizeReportBody(""), { text: "Nothing to report.", attention: false });
 });
 
-test("summarizeReportBody flags failing CI runs and names the workflow", () => {
-  const body = [
-    "completed\tfailure\tfix the thing\tmain\tbuild\t123\t2m\t2026-07-20",
-    "completed\tsuccess\tearlier\tmain\tbuild\t122\t2m\t2026-07-19",
-  ].join("\n");
-  assert.deepEqual(summarizeReportBody(body), {
-    text: "1 of the last 2 CI runs failing (build)",
+// Real `gh run list` rows (gh 2.76.2). Column order is
+// status, conclusion, title, workflow, branch, event, id, duration, timestamp —
+// the workflow sits BEFORE the branch, which an earlier version of the summarizer
+// had backwards and so named "main" as the workflow.
+const CI_FAIL =
+  "completed\tfailure\tfix the thing\tFlutter CI\tmain\tpush\t29670063060\t4m33s\t2026-07-19T02:21:20Z";
+const CI_PASS =
+  "completed\tsuccess\tearlier\tFlutter CI\tmain\tpush\t29669356501\t4m21s\t2026-07-19T01:55:35Z";
+
+test("summarizeReportBody flags failing CI runs and names the workflow, not the branch", () => {
+  assert.deepEqual(summarizeReportBody([CI_FAIL, CI_PASS].join("\n")), {
+    text: "1 of the last 2 CI runs failing (Flutter CI)",
     attention: true,
   });
 });
 
 test("summarizeReportBody reports green CI without asking for attention", () => {
-  const green = "completed\tsuccess\tok\tmain\tbuild\t1\t1m\t2026-07-20";
-  assert.deepEqual(summarizeReportBody(green), { text: "CI green", attention: false });
-  const running = `${green}\nin_progress\t\twip\tmain\tbuild\t2\t\t2026-07-20`;
+  assert.deepEqual(summarizeReportBody(CI_PASS), { text: "CI green", attention: false });
+  const running = `${CI_PASS}\nin_progress\t\twip\tFlutter CI\tmain\tpush\t2\t\t2026-07-20T01:00:00Z`;
   assert.deepEqual(summarizeReportBody(running), {
     text: "CI green, 1 still running",
     attention: false,
