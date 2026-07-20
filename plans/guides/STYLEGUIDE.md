@@ -571,7 +571,28 @@ in [`principles.md`](./principles.md).)
   gets a named "nothing to set" toast instead of an empty form (see
   `SetParamsPanel.show`), which is cheaper and less fragile than threading a
   new contextValue suffix through the existing run/paused/scheduled state
-  machine (`shortcutRowContext.ts`).
+  machine (`shortcutRowContext.ts`). Each answered field also carries a
+  "Reset to unanswered" action (`promptMemory.forgetToken`, a per-token
+  variant of the existing per-shortcut `forget`) that clears just that one
+  token's memory and redraws the form from it — distinct from Cancel, which
+  discards the whole in-progress edit, and from Save, which fixes a NEW
+  value; Reset is for "the next run should ask me again," with no value to
+  supply. Save is blocked only while a `pickFolder` field is blank (an empty
+  path is meaningless to the script it feeds); a blank `prompt` field is a
+  legitimate, savable answer (e.g. deliberately clearing an optional flag),
+  and `pick` always carries a selection by construction — so validation is
+  per-kind, not a blanket "no field may be empty" rule.
+- **Field data for a webview form is never embedded in the initial HTML
+  string — post it after a `ready` handshake instead.** A label or a
+  remembered value (a folder path, free text) is attacker- or
+  environment-influenced text; concatenating it into an inline `<script>`
+  risks both a malformed JSON payload (HTML-escaping a JSON string before
+  `JSON.parse` corrupts its own quote characters) and a literal `</script>`
+  breaking out of the tag. `SetParamsPanel`/`ConfigureRunPanel` both follow
+  the same protocol: the shell renders with no per-item data, the client
+  posts `{type:"ready"}` on load, and the host responds with a `postMessage`
+  carrying the real values — so no per-item string is ever concatenated into
+  executable JS.
 - **A bundled library script resolves its interactive tokens from memory by
   default, not fresh each run.** `runLibraryScript` (`scriptRunner.ts`) is set
   up once — the first run prompts and remembers, every run after that reuses

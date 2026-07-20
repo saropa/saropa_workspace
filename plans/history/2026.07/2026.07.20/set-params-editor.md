@@ -210,3 +210,115 @@ launcher scripts, not just prepackaged").
    (clearing just that token's promptMemory entry, distinct from Save/Cancel)
    for the case where a user wants the NEXT run to prompt fresh again rather
    than just editing to a new fixed value. Not built — brainstorm only.
+
+## Finish Report (2026-07-20, hardening pass)
+
+Addressed the items named in the prior handoff reflection and built the
+brainstormed "Reset to unanswered" action.
+
+### What changed
+
+**`extension/src/exec/promptMemory.ts`**: added `forgetToken(pinId,
+tokenRaw)`, a per-token variant of the existing per-shortcut `forget` — drops
+one token's remembered value, leaving the shortcut's other tokens (and the
+memory entry itself, if any remain) intact. Deletes the shortcut's whole
+memory entry only when the last token is removed, keeping `has()` accurate.
+
+**`extension/src/views/setParamsPanel.ts`**:
+- Save's disabled-state rule narrowed from "any field blank" to "a
+  `pickFolder` field is blank" — a blank folder path is meaningless to the
+  script it feeds, but a blank `prompt` answer is a legitimate, deliberate
+  save (e.g. clearing an optional flag), and a `pick` field always carries a
+  selection by construction so it was never actually at risk. The client's
+  `input.dataset.kind` now carries the field kind so this check does not need
+  to re-consult the fields array.
+- `postInit` now folds the currently remembered value into a `pick` field's
+  option list when the manifest's declared options no longer include it (a
+  stale-but-still-remembered choice), instead of letting it silently vanish
+  behind whatever the `<select>` would otherwise default to.
+- Added the "Reset to unanswered" action: each field carrying a remembered
+  value (`answered: true`) gets an icon button (reusing `CONFIGURE_RUN_STYLE`'s
+  existing `.iconbtn` class, same as the env-row delete button) that posts a
+  new `reset` message; the host calls `promptMemory.forgetToken` and
+  re-`postInit`s so the field visibly reverts to blank/default — the redraw
+  itself is the feedback, so no separate toast fires for what is meant to be
+  a quick, low-friction action (distinct from Save's toast, which persists a
+  meaningfully new answer).
+
+**`extension/src/test/_stub/vscode.ts`**: added `createWebviewPanel` /
+`FakeWebviewPanel` / `FakeWebview` — a webview panel stand-in modeling the
+`html` setter (via `.webview`), `postMessage` (recorded), `onDidReceiveMessage`
+(test-driven via `__receiveFromClient`), `onDidDispose`, `reveal`, and
+`dispose`. Also added `ViewColumn` and `window.activeTextEditor` (always
+`undefined`, sufficient since `SetParamsPanel` only reads
+`?.viewColumn`). This is the piece that turns "no host-level smoke test" from
+a total gap into a partially-closed one: the panel's MESSAGE PROTOCOL is now
+directly testable, even though the client script's actual DOM rendering still
+is not (Node has no `document`).
+
+**`extension/src/test/setParamsPanel.test.ts`** (new): 8 tests covering
+`show()`'s init payload (values/kinds/options seeded from promptMemory), the
+stale-pick-option preservation, save writing to promptMemory and disposing,
+reset clearing one token without disposing or touching the other token,
+browse round-tripping the picked folder to the right field, cancel disposing
+without writing, the no-tokens early-return opening no panel, and repoint-not-
+duplicate on a second `show()` while a panel is already open.
+
+**`extension/src/test/promptMemory.test.ts`**: 3 new tests for
+`forgetToken` — drops only the named token, clears `has()` once the last
+token is gone, and is a no-op for an unremembered token or pin.
+
+**`plans/guides/STYLEGUIDE.md`**: extended the Set Params entry with the
+Reset action and the per-kind Save validation rule, and added a new bullet
+documenting the `ready`/`init` postMessage protocol as the required pattern
+for any webview form carrying per-item data — naming the exact bug this
+pass's predecessor caught in review (HTML-escaping JSON before `JSON.parse`
+corrupts it; an unescaped value could break out of an inline `<script>` via
+`</script>`).
+
+**`CHANGELOG.md`**: extended the existing Set Params bullet with the Reset
+action.
+
+### Handoff reflection response
+
+The prior reflection named four items; this pass addresses them as follows:
+1. *Least confident about, part (a) — blanket blank-field validation*: fixed
+   — narrowed to `pickFolder` only, per-kind rather than blanket.
+   Part (b) — `CONFIGURE_RUN_STYLE` reuse at a smaller scale — not
+   fixable without a host to render in; still unverified, noted again below.
+   Part (c) — no host-level smoke test — partially closed: the panel's
+   message protocol (init/save/reset/browse/cancel/repoint) is now unit
+   tested directly via a new webview-panel stub; the client script's actual
+   DOM rendering remains untested (no `document` under Node).
+2. *If this breaks in 3 months (new token kind, no matching client case)*:
+   not changed — the client's `else` branch remains a deliberate, safe
+   fallback (a plain text field) for an unrecognized kind, which is graceful
+   degradation rather than a defect; documented as intentional rather than
+   "fixed", since there is nothing wrong to fix.
+3. *Unstated assumption (stale `pick` option list)*: fixed — a remembered
+   value not in the current declared options now stays visible and
+   selectable instead of silently disappearing.
+4. *One unrequested feature (Reset to unanswered)*: built, per explicit
+   request this pass.
+
+### Tests
+
+`npm test` (extension) — 1014 tests pass, 0 failures (up from 999: 8 new in
+`setParamsPanel.test.ts`, 3 new `forgetToken` tests, 4 pre-existing failures
+in unrelated in-progress work — `summarizeReportBody`/`extractHeadline`,
+neither touched by this session — resolved themselves between runs, confirmed
+not caused by anything in this change).
+
+### Verification
+
+- `npx tsc -p ./ --noEmit` — clean.
+- `node esbuild.js` — bundle builds.
+- No manual/host-level smoke test — still not possible in this environment;
+  narrowed by the new message-protocol test coverage above, not eliminated.
+
+### Not yet verified (unchanged from the prior pass)
+
+- Live rendering of the client script's DOM output, the Reset/Browse buttons'
+  actual on-screen appearance, and the `CONFIGURE_RUN_STYLE` reuse at this
+  panel's smaller scale — still require an Extension Development Host session
+  this environment cannot run.

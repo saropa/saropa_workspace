@@ -53,6 +53,33 @@ test("forget drops a pin's remembered values", async () => {
   assert.equal(promptMemory.getValue("p1", "${prompt:A}"), undefined);
 });
 
+test("forgetToken drops only the named token, leaving the pin's other tokens intact", async () => {
+  await promptMemory.remember(
+    "p1",
+    new Map([
+      ["${prompt:A}", "1"],
+      ["${prompt:B}", "2"],
+    ])
+  );
+  await promptMemory.forgetToken("p1", "${prompt:A}");
+  assert.equal(promptMemory.getValue("p1", "${prompt:A}"), undefined);
+  assert.equal(promptMemory.getValue("p1", "${prompt:B}"), "2");
+  assert.equal(promptMemory.has("p1"), true);
+});
+
+test("forgetToken clears has() once the last token is removed", async () => {
+  await promptMemory.remember("p1", new Map([["${prompt:A}", "1"]]));
+  await promptMemory.forgetToken("p1", "${prompt:A}");
+  assert.equal(promptMemory.has("p1"), false);
+});
+
+test("forgetToken is a no-op for an unremembered token or pin", async () => {
+  await promptMemory.forgetToken("nope", "${prompt:A}");
+  await promptMemory.remember("p1", new Map([["${prompt:A}", "1"]]));
+  await promptMemory.forgetToken("p1", "${prompt:NeverAsked}");
+  assert.equal(promptMemory.getValue("p1", "${prompt:A}"), "1");
+});
+
 test("resolveInteractiveTokens remembers the answer and pre-fills it next run", async () => {
   // First run: the user types a value; it must be remembered.
   __setInputHandler(async () => "server1");
