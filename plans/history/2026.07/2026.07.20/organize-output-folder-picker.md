@@ -42,11 +42,53 @@ token uses a native browse dialog, never a bare free-text prompt.
 
 **`CHANGELOG.md`**: added a `### Fixed` bullet under `Unreleased`.
 
+## Finish Report (2026-07-20, low-friction rerun follow-up)
+
+The first pass above replaced the free-text prompt with a folder-browse
+dialog but still asked on every run. The actual requirement was that the
+script is set up with a folder once and reruns reuse it with low friction —
+matching how a bundled script (unlike a parameterized user shortcut meant to
+vary per run) is normally used.
+
+### What changed
+
+**`extension/src/exec/scriptRunner.ts`**: `runLibraryScript` no longer hands
+its synthesized shortcut straight to `runShortcut` (which always prompts fresh
+via `resolveInteractiveTokens`). It now resolves interactive tokens itself
+with `resolveRememberedTokens` first — the same bypass a user shortcut gets
+through the explicit "Run with Last Parameters" command — then runs the
+already-resolved clone. Only a token never answered before still prompts; once
+answered, it is silent on every later run. Canceling the one still-needed
+prompt aborts with a toast and nothing executed, same as before.
+
+**`extension/src/test/scriptRunner.test.ts`**: added a test that runs a script
+with a `${pickFolder:...}` arg twice — asserts the folder-browse dialog opens
+on the first run and is NOT reopened on the second, reusing the remembered
+value. Initializes `promptMemory` with a fresh `fakeContext()` per test (the
+same pattern `promptMemory.test.ts` uses) so memory does not leak across
+tests.
+
+**`CHANGELOG.md`**: extended the existing bullet to describe the low-friction
+rerun behavior.
+
 ### Tests
 
-`npm test` (extension) — 978 tests pass, 0 failures (3 new: the
-`${pickFolder:}` detection test and two `resolveInteractiveTokens` tests for
-the folder-browse dialog).
+`npm test` (extension) — 986 tests pass, 0 failures (8 new across both
+passes: 3 `${pickFolder:}` token tests in `promptTokens.test.ts`, 1
+low-friction-rerun test in `scriptRunner.test.ts`; the remaining 4 were
+already-existing tests this session's earlier work added before compaction).
+
+### Not built (surfaced, not implemented)
+
+Once a bundled script's folder is remembered, there is currently no UI to
+change it — only clearing extension workspace state resets it. Pins solve
+the equivalent problem by offering both a default (fresh-prompt) Run and a
+separate "Run with Last Parameters" command; scripts only have one Run
+gesture, and this change makes that gesture the low-friction one, so there is
+no remaining "ask again" affordance. Not built without being asked — flagged
+here as a likely next request (a "Change folder…" context-menu action on a
+script with interactive tokens, calling `promptMemory.forget` then
+re-running).
 
 ### Verification
 

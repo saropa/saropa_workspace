@@ -12,10 +12,14 @@ import * as fs from "fs";
 import * as os from "os";
 import {
   __setWorkspaceFolders,
+  __setOpenDialogHandler,
+  __resetHandlers,
   __errorMessages,
   __resetErrorMessages,
   Uri,
 } from "./_stub/vscode";
+import { fakeContext } from "./_stub/context";
+import { promptMemory } from "../exec/promptMemory";
 import { runLibraryScript, missingRequirements } from "../exec/scriptRunner";
 import { LibraryScript } from "../model/scriptLibrary";
 
@@ -30,12 +34,17 @@ beforeEach(() => {
   process.env.PATH = `${path.dirname(process.execPath)}${path.delimiter}${originalPath ?? ""}`;
   __resetErrorMessages();
   __setWorkspaceFolders(undefined);
+  __resetHandlers();
+  // Fresh context each test => empty remembered-token memory, so the low-friction
+  // rerun behavior below is not polluted by an earlier test's remembered value.
+  promptMemory.init(fakeContext());
 });
 
 afterEach(() => {
   process.env.PATH = originalPath;
   __resetErrorMessages();
   __setWorkspaceFolders(undefined);
+  __resetHandlers();
 });
 
 function scriptWithRequirements(
@@ -95,6 +104,43 @@ test("runLibraryScript shows a named diagnostic and does not run when a required
     assert.equal(messages.length, 1);
     assert.match(messages[0], new RegExp(FAKE_COMMAND));
     assert.match(messages[0], /Test script/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("runLibraryScript prompts once for an interactive token, then reuses the remembered value on rerun without re-prompting", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sr-"));
+  try {
+    const entryDir = path.join(tmp, "scripts", "library", "test-script");
+    fs.mkdirSync(entryDir, { recursive: true });
+    fs.writeFileSync(path.join(entryDir, "__main__.py"), "", "utf-8");
+    __setWorkspaceFolders([{ uri: Uri.file(tmp), name: "test", index: 0 }]);
+
+    let dialogCalls = 0;
+    __setOpenDialogHandler(async () => {
+      dialogCalls++;
+      return [Uri.file(path.join(tmp, "logs"))];
+    });
+
+    const script: LibraryScript = {
+      id: "test-script",
+      label: "Test script",
+      description: "",
+      icon: "file",
+      tags: [],
+      entry: "test-script/__main__.py",
+      requires: [],
+      config: { command: REAL_COMMAND, args: ["${pickFolder:Folder}"] },
+    };
+
+    // First run: no memory yet, so the folder-browse dialog opens once.
+    await runLibraryScript(script, tmp);
+    assert.equal(dialogCalls, 1);
+
+    // Second run: the folder was already "set up" — reused silently, no dialog.
+    await runLibraryScript(script, tmp);
+    assert.equal(dialogCalls, 1);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
