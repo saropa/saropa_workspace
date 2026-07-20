@@ -48,9 +48,18 @@ cspell:disable
 
 ## [Unreleased]
 
-**Overview** — A routine that can no longer find one of its steps now tells you, instead of quietly reporting a clean morning.
+**Overview** — The morning report is readable again: no more 50-row tables of image files or thousand-line diff dumps. And a routine that can no longer find one of its steps now tells you, instead of quietly reporting a clean morning.
+
+### Changed
+
+- The **Standup digest** no longer prints a full diffstat for every commit. A single day with a large generated change (a translation sweep, a lockfile refresh) produced hundreds of file rows per commit and buried the day's actual work. It now lists each commit's subject with one summary line of files changed and insertions/deletions.
+- **Sunrise project stats** reports only what a line-count table can say. Zero-line files (images, fonts, archives, binaries) no longer take a row each — they collapse into one line giving their file count and total size. The table shows the ten largest source languages, ranked by lines, and states how many further languages were folded into the total rather than dropping them silently.
+- **Sunrise project stats** no longer repeats the last 30 commit subjects. The Standup digest reports the same history, and in the Morning routine the two sections sat directly on top of each other.
+- The stats **contributor shortlog** appears only when more than one author committed in the window, and empty git sections are omitted rather than rendered as an empty code block with a "(none)" placeholder.
 
 ### Fixed
+
+- Removing a shortcut now unlinks it from every routine that ran it. A removed recipe stays suppressed by its recipe id, so a routine still listing it could never resolve that member again — it reported "Shortcut not found" on every run, with no way back to a working state except editing the project JSON by hand.
 
 - A routine whose member shortcut has been removed or renamed now **fails** rather than reporting success. The member was already listed as "Missing" in the summary, but because it did not count against the run, the routine scored a clean success, painted a green badge, and never opened the summary — so the "Shortcut not found — edit the routine to re-link or remove this member" note sat unread in a file there was no reason to open. The routine now badges red, opens its summary, and surfaces a failure notification naming it. The member still reads as "Missing", not "Failed", so the report distinguishes a broken link from a step that ran and failed.
 - **Organize output folder** now opens a folder-browse dialog for the target folder instead of a bare text box, defaulting to the workspace root. The prior free-text prompt gave no clue what shape of path was expected, which was itself part of why the folder was easy to misconfigure. Backed by a new general-purpose interactive run token, `${pickFolder:Label}`, alongside the existing `${prompt:...}` and `${pick:...}`.
