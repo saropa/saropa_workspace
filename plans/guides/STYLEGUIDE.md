@@ -913,6 +913,26 @@ report writer follows them.
   needs no state carried between runs, and survives a fresh clone or a new machine —
   unlike a stored snapshot, which is only as good as the last time the job happened
   to run (developer question 2026-07-20).
+- **Captured output is untrusted as report structure.** A report's own conventions
+  (`**Attention:**`, `**Headline:**`) are read only from the header — the part before
+  its first fenced block — never from the whole file. A commit subject, lint message,
+  or log line that happens to begin with `**Attention:**` would otherwise be lifted
+  into the routine's verdict and misattributed to the member that merely quoted it.
+  Bounding the scan also turns "the headline is written above the output" from a
+  convention every generator happens to follow into one the reader enforces.
+- **Parse a tool's machine interface, never its presentation output.** Where a CLI
+  offers structured output (`gh --json`, `--format json`, `--porcelain`), request it.
+  Table and column layouts are presentation, free to change between versions, and a
+  positional read of them is silently wrong rather than loudly broken: a version of
+  the build-status check that parsed `gh run list`'s table read the branch column as
+  the workflow and attributed every failure to "main" (2026-07-20). Parse JSON
+  defensively — a missing or wrong-typed field becomes an empty string, and
+  unparseable output becomes no data, never a healthy-looking default.
+- **Say when it broke, not only that it is broken.** Where the history to locate a
+  regression has already been fetched, name the commit the failure started at and the
+  last known-good one. Distinguish "broken since `<sha>`" from "nothing in the fetched
+  history ever passed" — the second points at the pipeline rather than at a change,
+  and reads as far worse news than a long streak.
 - **Answer the urgent question first.** Members are ordered by what outranks what, not
   by what is cheapest to compute — build status before measurements, because a report
   that discusses line counts while the default branch is red has its priorities

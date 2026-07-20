@@ -786,6 +786,30 @@ test("extractHeadline reads the convention line, and ignores a report without on
   assert.equal(extractHeadline("**Headline:** "), undefined);
 });
 
+test("extractHeadline ignores a headline-shaped line inside captured output", () => {
+  // Captured output is untrusted as report structure. A commit subject or lint
+  // message beginning with **Attention:** must not be lifted into the routine's
+  // verdict and misattributed to the member that merely quoted it.
+  const report = [
+    "# Standup",
+    "",
+    "**Headline:** 2 commits",
+    "",
+    "```text",
+    "**Attention:** everything is on fire",
+    "```",
+  ].join("\n");
+  assert.deepEqual(extractHeadline(report), { text: "2 commits", attention: false });
+
+  // And a report with NO headline of its own gets none, rather than adopting one
+  // out of its own fenced body.
+  const quoted = ["# Log", "", "```", "**Attention:** not mine to claim", "```"].join("\n");
+  assert.equal(extractHeadline(quoted), undefined);
+  // Tilde fences count too.
+  const tilde = ["# Log", "", "~~~", "**Headline:** borrowed", "~~~"].join("\n");
+  assert.equal(extractHeadline(tilde), undefined);
+});
+
 test("extractHeadline reads an Attention line, and it outranks a Headline", () => {
   assert.deepEqual(extractHeadline("**Attention:** main is red"), {
     text: "main is red",

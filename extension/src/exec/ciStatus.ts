@@ -12,9 +12,19 @@ const execFile = promisify(execFileCb);
 const GH_TIMEOUT_MS = 30_000;
 const MAX_GH_BUFFER = 16 * 1024 * 1024;
 
-// Recent runs to judge "is it broken, or did it just break". Ten covers a normal
-// day's pushes without turning the report into a log.
-const RUN_LIMIT = 10;
+// Runs fetched. Deliberately larger than the handful shown: finding where CI went
+// red means walking back to the newest passing run, and a repo that has been broken
+// for a while needs depth to answer that. Only RUN_SHOWN are tabulated.
+const RUN_LIMIT = 100;
+
+// Runs listed in the report's table. The rest are fetched for the bisect only.
+const RUN_SHOWN = 10;
+
+// Fields requested from `gh run list --json`. This is the CLI's stable machine
+// interface; the default table output is presentation, subject to column changes,
+// and a version of this file that parsed it read the branch as the workflow.
+const RUN_FIELDS =
+  "status,conclusion,workflowName,headBranch,displayTitle,headSha,createdAt";
 
 // Annotations shown per failing check. A failing job can emit hundreds; the first few
 // carry the cause, and the rest are consequences of it.
@@ -24,13 +34,28 @@ const MAX_ANNOTATIONS = 5;
 // so the count is bounded independently of how many annotations come back.
 const MAX_CHECK_RUNS = 5;
 
-// One CI run, as `gh run list` reports it.
+// One CI run, as `gh run list --json` reports it. Field names mirror the CLI's so
+// the mapping stays checkable against `gh run list --json` output by eye.
 export interface CiRun {
   status: string;
   conclusion: string;
-  title: string;
-  workflow: string;
-  branch: string;
+  displayTitle: string;
+  workflowName: string;
+  headBranch: string;
+  headSha: string;
+  createdAt: string;
+}
+
+// Where CI went from passing to failing: the oldest failing run in the unbroken
+// streak of failures at the head of the list, plus the newest passing run before it.
+// `noPassingRun` distinguishes "broken since commit X" from "nothing has ever
+// passed in the fetched history" — materially different news, and the second is
+// easy to misread as the first.
+export interface CiBreak {
+  firstFailure: CiRun;
+  lastSuccess?: CiRun;
+  failingSince: number;
+  noPassingRun: boolean;
 }
 
 // A failure annotation GitHub attached to a check run — the line that says WHY the
@@ -46,6 +71,9 @@ export interface CiStatus {
   runs: CiRun[];
   failing: CiRun[];
   annotations: CiAnnotation[];
+  // Present only while the newest run is a failure — the question "when did this
+  // break" is meaningless for a green build.
+  broke?: CiBreak;
   // True when gh is absent or unauthenticated, so the report explains itself rather
   // than rendering as an empty "no runs" result that reads like a green build.
   unavailable: boolean;
@@ -68,14 +96,48 @@ async function gh(root: string, args: string[]): Promise<string | undefined> {
 }
 
 export async function collectCiStatus(root: string): Promise<CiStatus> {
-  const list = await gh(root, ["run", "list", "--limit", String(RUN_LIMIT)]);
+  const list = await gh(root, [
+    "run",
+    "list",
+    "--limit",
+    String(RUN_LIMIT),
+    "--json",
+    RUN_FIELDS,
+  ]);
   if (list === undefined) {
     return { runs: [], failing: [], annotations: [], unavailable: true };
   }
   const runs = parseRunList(list);
   const failing = runs.filter((r) => isFailure(r));
   const annotations = failing.length > 0 ? await collectAnnotations(root) : [];
-  return { runs, failing, annotations, unavailable: false };
+  return { runs, failing, annotations, unavailable: false, broke: findBreak(runs) };
+}
+
+// Walk the head of the list (newest first) while runs are failing, then report the
+// oldest failure in that streak and the run that passed before it. Returns undefined
+// when the newest completed run passed — nothing is broken, so there is no break to
+// locate. Runs still in progress are skipped rather than ending the streak: a build
+// queued on top of a red branch does not mean CI recovered. Exported for tests.
+export function findBreak(runs: readonly CiRun[]): CiBreak | undefined {
+  const completed = runs.filter((r) => r.status === "completed");
+  if (completed.length === 0 || !isFailure(completed[0])) {
+    return undefined;
+  }
+  let i = 0;
+  while (i < completed.length && isFailure(completed[i])) {
+    i++;
+  }
+  return {
+    // The streak runs newest-first, so its LAST element is the oldest failure —
+    // the run where the branch went red.
+    firstFailure: completed[i - 1],
+    lastSuccess: completed[i],
+    failingSince: i,
+    // No passing run anywhere in the fetched window. Reported as its own state
+    // rather than as a very long streak, because "nothing has ever passed" points
+    // at the pipeline itself rather than at a commit that broke it.
+    noPassingRun: i === completed.length,
+  };
 }
 
 // Annotations for the checks on the current commit. Two calls: the check-run ids,
@@ -113,27 +175,45 @@ async function collectAnnotations(root: string): Promise<CiAnnotation[]> {
   return out.slice(0, MAX_ANNOTATIONS);
 }
 
-// Parse `gh run list`'s tab-separated rows. Column order (verified against gh 2.76.2):
-// status, conclusion, title, workflow, branch, event, id, duration, timestamp.
-// A row that is still running has an EMPTY conclusion, which is why status and
-// conclusion are read separately rather than collapsed into one "result" field.
+// Parse `gh run list --json`. Every field is read defensively: this is JSON from an
+// external tool, so a missing or non-string field must yield an empty string rather
+// than an undefined that reaches the report. A run still in progress has an EMPTY
+// conclusion, which is why status and conclusion stay separate rather than collapsing
+// into one "result" — merged, a queued run reads as one that finished with no result.
 // Exported for tests.
 export function parseRunList(text: string): CiRun[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Malformed JSON yields no runs, which ciHeadline reports as "no runs recorded"
+    // rather than as a green build.
+    return [];
+  }
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
   const runs: CiRun[] = [];
-  for (const line of text.split("\n")) {
-    const cols = line.split("\t");
-    if (cols.length < 5) {
+  for (const row of parsed) {
+    if (typeof row !== "object" || row === null) {
       continue;
     }
+    const r = row as Record<string, unknown>;
     runs.push({
-      status: cols[0].trim(),
-      conclusion: cols[1].trim(),
-      title: cols[2].trim(),
-      workflow: cols[3].trim(),
-      branch: cols[4].trim(),
+      status: str(r.status),
+      conclusion: str(r.conclusion),
+      displayTitle: str(r.displayTitle),
+      workflowName: str(r.workflowName),
+      headBranch: str(r.headBranch),
+      headSha: str(r.headSha),
+      createdAt: str(r.createdAt),
     });
   }
   return runs;
+}
+
+function str(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 export function parseAnnotations(text: string): CiAnnotation[] {
@@ -171,12 +251,27 @@ export function ciHeadline(status: CiStatus): { text: string; attention: boolean
     return { text: "No CI runs recorded.", attention: false };
   }
   if (status.failing.length > 0) {
-    const workflow = status.failing[0]?.workflow;
+    const workflow = status.failing[0]?.workflowName;
+    const suffix = workflow ? ` (${workflow})` : "";
+    const broke = status.broke;
+    if (broke?.noPassingRun) {
+      // The strongest statement available, and a different problem from a commit
+      // that broke a working pipeline: nothing here has ever gone green.
+      return {
+        text: `no passing CI run in the last ${status.runs.length}${suffix}`,
+        attention: true,
+      };
+    }
+    if (broke) {
+      const since = broke.firstFailure.headSha.slice(0, 9);
+      const runs = `${broke.failingSince} run${broke.failingSince === 1 ? "" : "s"}`;
+      return { text: `CI red since \`${since}\` (${runs})${suffix}`, attention: true };
+    }
     const scope =
       status.failing.length === status.runs.length
         ? `all of the last ${status.runs.length} CI runs failing`
         : `${status.failing.length} of the last ${status.runs.length} CI runs failing`;
-    return { text: `${scope}${workflow ? ` (${workflow})` : ""}`, attention: true };
+    return { text: `${scope}${suffix}`, attention: true };
   }
   const running = status.runs.filter((r) => r.status !== "completed").length;
   return {
@@ -203,6 +298,32 @@ export function buildCiMarkdown(status: CiStatus): string {
     return lines.join("\n");
   }
 
+  // Where it broke, before why: the commit that turned the branch red is the single
+  // most useful pointer a red-CI report can give, and it costs no extra call — the
+  // run list was already fetched deep enough to find it.
+  if (status.broke) {
+    lines.push("## When it broke", "");
+    if (status.broke.noPassingRun) {
+      lines.push(
+        `No run in the last ${status.runs.length} passed. This reads as a pipeline that has not worked in the fetched history, rather than a change that broke a working one.`,
+        ""
+      );
+    } else {
+      const f = status.broke.firstFailure;
+      lines.push(
+        `Red for **${status.broke.failingSince} run${status.broke.failingSince === 1 ? "" : "s"}**, starting at \`${f.headSha.slice(0, 9)}\` — ${f.displayTitle} (${formatWhen(f.createdAt)}).`,
+        ""
+      );
+      const s = status.broke.lastSuccess;
+      if (s) {
+        lines.push(
+          `Last passing run: \`${s.headSha.slice(0, 9)}\` — ${s.displayTitle} (${formatWhen(s.createdAt)}).`,
+          ""
+        );
+      }
+    }
+  }
+
   // The annotations are the point of this report: a run list says the build is red,
   // an annotation says which file and which line made it red.
   if (status.annotations.length > 0) {
@@ -215,14 +336,34 @@ export function buildCiMarkdown(status: CiStatus): string {
   }
 
   if (status.runs.length > 0) {
+    // Only the newest few are tabulated. The rest were fetched to locate the break
+    // above, and listing 100 rows would rebuild the wall of output this report
+    // exists to replace.
+    const shown = status.runs.slice(0, RUN_SHOWN);
     lines.push("## Recent runs", "", "| Result | Workflow | Branch | Commit |", "|---|---|---|---|");
-    for (const r of status.runs) {
+    for (const r of shown) {
       const result = r.status === "completed" ? r.conclusion : r.status;
-      lines.push(`| ${result} | ${r.workflow} | ${r.branch} | ${r.title} |`);
+      lines.push(`| ${result} | ${r.workflowName} | ${r.headBranch} | ${escapeCell(r.displayTitle)} |`);
     }
     lines.push("");
+    if (status.runs.length > shown.length) {
+      lines.push(`_${status.runs.length - shown.length} older runs were read to locate the break, and are not listed._`, "");
+    }
   }
   return lines.join("\n");
+}
+
+// A commit subject containing a pipe would split the row into extra columns and
+// break the table for every row after it.
+function escapeCell(text: string): string {
+  return text.replace(/\|/g, "\\|");
+}
+
+// An ISO timestamp read as a date, degrading to the raw value when it is not
+// parseable — an unrecognized timestamp must not render as "Invalid Date".
+function formatWhen(iso: string): string {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? iso : at.toLocaleString();
 }
 
 export function registerCiStatusCommand(context: vscode.ExtensionContext): void {
