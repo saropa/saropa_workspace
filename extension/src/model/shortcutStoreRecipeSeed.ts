@@ -87,9 +87,24 @@ export abstract class ShortcutStoreRecipeSeed extends ShortcutStoreRecipes {
       this.repairedFolders.add(key);
       try {
         const file = await this.readProjectFile(folder);
-        if (pruneSuppressedRoutineMembers(file.pins, file.removedRecipes) > 0) {
-          await this.writeProjectFile(folder, file);
+        // Serialized BEFORE the prune, which mutates in place — this is the snapshot
+        // the repair was computed from.
+        const before = JSON.stringify(file);
+        if (pruneSuppressedRoutineMembers(file.pins, file.removedRecipes) === 0) {
+          continue;
         }
+        // Optimistic concurrency: re-read immediately before writing and abandon the
+        // repair if the file moved underneath us. This repair is the only automatic
+        // writer, but a second window on the same folder runs its own on an
+        // independent schedule with no lock between them, so a repair computed from
+        // a stale snapshot could otherwise overwrite a change made in the interim.
+        // Abandoning is safe: the repair is idempotent, and the next window to open
+        // recomputes it from whatever the file then says.
+        const beforeWrite = JSON.stringify(await this.readProjectFile(folder));
+        if (beforeWrite !== before) {
+          continue;
+        }
+        await this.writeProjectFile(folder, file);
       } catch (err) {
         // A repair that cannot be written is not worth breaking the tree over; the
         // routine keeps failing loudly, which is the pre-repair behavior.

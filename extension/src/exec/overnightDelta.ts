@@ -46,6 +46,9 @@ export interface OvernightDelta {
   commitsByOthers: number;
   debtBefore: number;
   debtAfter: number;
+  // Commit date of HEAD, so a window with no commits can say how long it has been
+  // quiet instead of only that it was quiet. Empty when git did not report one.
+  latestCommitIso?: string;
 }
 
 async function git(root: string, args: string[]): Promise<string> {
@@ -76,10 +79,10 @@ export async function collectOvernightDelta(root: string): Promise<OvernightDelt
   };
 
   // Probe first: rev-list returns "" both when git cannot run AND when no commit is
-  // old enough, so without this the two collapse into one answer. rev-parse HEAD
-  // succeeds for any repository with a commit, so its failure isolates the
-  // can't-look case.
-  if ((await git(root, ["rev-parse", "HEAD"])) === "") {
+  // old enough, so without this the two collapse into one answer. --git-dir rather
+  // than HEAD: HEAD also fails on a repository with no commits yet, which would
+  // report a brand-new repo as a broken tool.
+  if ((await git(root, ["rev-parse", "--git-dir"])) === "") {
     delta.unavailable = true;
     return delta;
   }
@@ -92,15 +95,31 @@ export async function collectOvernightDelta(root: string): Promise<OvernightDelt
     return delta;
   }
   delta.baseline = baseline;
+  // How long since anything landed. A fixed 24-hour window reports a normal Monday
+  // morning, or any break, as "nothing changed" — true but easy to read as a failed
+  // check. Stating the age of the newest commit turns silence into an explanation.
+  delta.latestCommitIso = await git(root, ["log", "-1", "--pretty=%cI", "HEAD"]);
 
   Object.assign(delta, parseShortstat(await git(root, ["diff", "--shortstat", baseline, "HEAD"])));
 
-  const mine = (await git(root, ["config", "user.email"])).toLowerCase();
-  // %ae is the author email; one line per commit in the window.
-  const authors = await git(root, ["log", `${baseline}..HEAD`, "--pretty=%ae"]);
+  // Identity is matched on BOTH the configured email and name. One identity is not
+  // enough: a GitHub noreply address, a work/personal split, or a commit made on
+  // another machine all produce an email that does not match while the name does,
+  // and every such commit would otherwise be counted as someone else's work — the
+  // one number here whose whole purpose is to be trustworthy.
+  const mine = new Set(
+    [await git(root, ["config", "user.email"]), await git(root, ["config", "user.name"])]
+      .map((v) => v.trim().toLowerCase())
+      .filter((v) => v.length > 0)
+  );
+  // Author email and name per commit, tab separated.
+  const authors = await git(root, ["log", `${baseline}..HEAD`, "--pretty=%ae%x09%an"]);
   const authorLines = authors ? authors.split("\n").filter((l) => l.trim().length > 0) : [];
   delta.commits = authorLines.length;
-  delta.commitsByOthers = authorLines.filter((a) => a.trim().toLowerCase() !== mine).length;
+  delta.commitsByOthers = authorLines.filter((line) => {
+    const [email, name] = line.split("\t");
+    return !mine.has((email ?? "").trim().toLowerCase()) && !mine.has((name ?? "").trim().toLowerCase());
+  }).length;
 
   // Counted with `git grep` at each revision rather than by scanning the diff: the
   // diff between two days of a large repo can exceed the pipe buffer entirely (a
@@ -157,7 +176,8 @@ export function deltaHeadline(delta: OvernightDelta): { text: string; attention:
     return { text: "No history yet for the last day.", attention: false };
   }
   if (delta.commits === 0) {
-    return { text: "Nothing changed in the last day.", attention: false };
+    const quiet = describeQuiet(delta.latestCommitIso);
+    return { text: `Nothing changed in the last day${quiet}.`, attention: false };
   }
   const parts = [
     `${delta.commits} commit${delta.commits === 1 ? "" : "s"}`,
@@ -175,6 +195,25 @@ export function deltaHeadline(delta: OvernightDelta): { text: string; attention:
   // be lost or is broken, so it never claims the reader's attention ahead of a red
   // build or uncommitted work (STYLEGUIDE 4.8a).
   return { text: parts.join(" · "), attention: false };
+}
+
+// " — latest commit 3 days ago" for a quiet window, or "" when the commit date is
+// missing or unparseable. A Monday morning reporting a silent weekend should say the
+// last commit was Friday, not leave the reader wondering whether the check ran.
+// Exported for tests.
+export function describeQuiet(iso: string | undefined, now: number = Date.now()): string {
+  if (!iso) {
+    return "";
+  }
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) {
+    return "";
+  }
+  const days = Math.floor((now - at) / 86_400_000);
+  if (days < 1) {
+    return "";
+  }
+  return ` — latest commit ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 export function buildDeltaMarkdown(delta: OvernightDelta): string {

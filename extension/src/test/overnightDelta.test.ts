@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   parseShortstat,
   deltaHeadline,
+  describeQuiet,
   buildDeltaMarkdown,
   type OvernightDelta,
 } from "../exec/overnightDelta";
@@ -81,6 +82,19 @@ test("a repo with no commit older than the window explains itself", () => {
   const md = buildDeltaMarkdown(young);
   assert.ok(md.includes("no commit older than the last day"));
   assert.ok(!md.includes("| Measure |"), "no table of meaningless zeros");
+});
+
+test("a quiet window says how long it has been quiet", () => {
+  // A fixed 24-hour window reports a normal Monday, or any break, as "nothing
+  // changed" — true, but easily read as a check that failed to run.
+  const now = Date.parse("2026-07-20T09:00:00Z");
+  assert.equal(describeQuiet("2026-07-17T09:00:00Z", now), " — latest commit 3 days ago");
+  assert.equal(describeQuiet("2026-07-19T08:00:00Z", now), " — latest commit 1 day ago");
+  // Inside the window there is nothing useful to add.
+  assert.equal(describeQuiet("2026-07-20T08:00:00Z", now), "");
+  // A missing or unparseable date degrades to silence, never "Invalid Date".
+  assert.equal(describeQuiet(undefined, now), "");
+  assert.equal(describeQuiet("not a date", now), "");
 });
 
 test("git being unable to answer is an attention finding, never a quiet day", () => {

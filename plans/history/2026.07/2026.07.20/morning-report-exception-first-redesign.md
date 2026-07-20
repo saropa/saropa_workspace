@@ -53,6 +53,19 @@ Commands and output shapes were exercised against a real repository and `gh` 2.7
 
 `npx tsc -p ./ --noEmit` clean; `node esbuild.js` builds; `npm test` reports 1036 of 1036 passing.
 
+## Addendum (2026-07-20, follow-up pass)
+
+Items previously flagged as unverified or fragile were closed:
+
+- `extractHeadline` is now fence-aware. It reads only the report header — the content before the first fenced block — so captured output containing a line shaped like a finding cannot be lifted into the routine's verdict. The ordering contract is now enforced by the reader rather than assumed of every writer.
+- `ciStatus.ts` requests `gh run list --json` instead of parsing the default table. The table is presentation output whose column order already caused one silent misattribution; JSON is the CLI's documented machine interface. Parsing is defensive: a missing or wrong-typed field becomes an empty string, and unparseable output becomes no runs, which reports as "no runs recorded" rather than as a green build.
+- The report locates the regression. `findBreak` walks the failing streak at the head of the run list to name the commit CI went red at and the last passing run, skipping in-progress runs so a build queued on a red branch does not read as a recovery. A window with no passing run at all is reported as its own state. The run list is fetched 100 deep to support this and tabulated 10 deep, with the difference stated.
+- The overnight probe uses `rev-parse --git-dir` rather than `rev-parse HEAD`, so a repository with no commits is reported as new rather than as an unavailable tool.
+- Author identity matches the configured email or name, so a noreply address or a second machine no longer counts a commit as another person's.
+- A quiet window states the age of the newest commit, so a weekend or a break reads as explained silence rather than as a check that did not run.
+- The self-heal re-reads the project file immediately before writing and abandons the repair if it changed, bounding the lost-update window between two windows open on the same folder. The repair is idempotent, so abandoning costs nothing.
+- Debt counting was measured at approximately 1.6 seconds over 6,347 tracked files, well inside the 30-second cap.
+
 ## Flagged, not addressed
 
 - `projectStats.ts`, `overnightDelta.ts`, and `ciStatus.ts` each carry a private `execFile` wrapper of the same shape (buffer cap, timeout, swallow failure). Three copies is a single-source-of-truth violation and warrants one shared helper.

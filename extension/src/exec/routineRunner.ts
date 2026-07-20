@@ -300,14 +300,27 @@ export function extractHeadline(
   if (!content) {
     return undefined;
   }
+  const header = reportHeader(content);
   // The capture must START on a non-space: a lazy `.+?` would otherwise match the
   // padding of a blank "**Headline:** " line and lift a single space as the headline.
-  const attention = /^\*\*Attention:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(content)?.[1];
+  const attention = /^\*\*Attention:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(header)?.[1];
   if (attention) {
     return { text: attention, attention: true };
   }
-  const headline = /^\*\*Headline:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(content)?.[1];
+  const headline = /^\*\*Headline:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(header)?.[1];
   return headline ? { text: headline, attention: false } : undefined;
+}
+
+// The part of a report that may declare a headline: everything before its first
+// fenced block. Captured output is UNTRUSTED as report structure — a commit subject,
+// a lint message, or a log line beginning with `**Attention:**` would otherwise be
+// lifted into the routine's verdict and silently misattributed to the member that
+// merely quoted it. Every generator writes its headline above its output, so bounding
+// the scan to the header costs nothing and makes that ordering enforced rather than
+// merely conventional.
+function reportHeader(content: string): string {
+  const fence = /^\s*(```|~~~)/m.exec(content);
+  return fence ? content.slice(0, fence.index) : content;
 }
 
 // Sum a member's badge counts into the routine aggregate. Undefined member badge
