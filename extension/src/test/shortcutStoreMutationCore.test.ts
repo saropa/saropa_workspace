@@ -20,7 +20,9 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { ShortcutStore } from "../model/shortcutStore";
-import { shortcutKind } from "../model/shortcut";
+import { pruneRoutineMembers } from "../model/shortcutStoreMutationCore";
+import { shortcutKind, type Shortcut } from "../model/shortcut";
+import type { RoutineMember } from "../model/shortcutAction";
 import type { Uri as VscodeUri } from "vscode";
 
 const asUri = (u: Uri): VscodeUri => u as unknown as VscodeUri;
@@ -339,4 +341,46 @@ test("mutatePin is a no-op on an auto-pin (recomputed, not stored)", async () =>
     false,
     "masking an auto-pin writes nothing to the stored pins"
   );
+});
+
+// Minimal routine shortcut for the prune tests — the helper reads only action.members.
+function routinePin(id: string, members: RoutineMember[]): Shortcut {
+  return {
+    id,
+    path: "",
+    scope: "project",
+    order: 0,
+    action: { kind: "routine", members },
+  };
+}
+
+function members(pin: Shortcut): RoutineMember[] {
+  return (pin.action?.kind === "routine" ? pin.action.members : undefined) ?? [];
+}
+
+test("pruneRoutineMembers unlinks a removed recipe from every routine that ran it", () => {
+  // The failure this closes: a removed recipe is suppressed by recipeId forever, so a
+  // routine still listing it could never resolve that member again on any run.
+  const pins = [
+    routinePin("morning", [{ recipeId: "ritual.lint" }, { recipeId: "ritual.prs" }]),
+    routinePin("evening", [{ recipeId: "ritual.lint" }]),
+    { id: "plain", path: "a.py", scope: "project" as const, order: 0 },
+  ];
+  assert.equal(pruneRoutineMembers(pins, { id: "recipe:x:ritual.lint", recipeId: "ritual.lint" }), 2);
+  assert.deepEqual(members(pins[0]), [{ recipeId: "ritual.prs" }]);
+  assert.deepEqual(members(pins[1]), []);
+});
+
+test("pruneRoutineMembers unlinks a hand-composed member by pin id", () => {
+  const pins = [routinePin("morning", [{ pinId: "abc" }, { pinId: "def" }])];
+  assert.equal(pruneRoutineMembers(pins, { id: "abc", recipeId: undefined }), 1);
+  assert.deepEqual(members(pins[0]), [{ pinId: "def" }]);
+});
+
+test("pruneRoutineMembers leaves unrelated members and non-routine pins alone", () => {
+  // A recipe-referencing member must not be swept up by a pinId match against the
+  // synthetic `recipe:<folder>:<id>` shortcut id it happens to resolve through.
+  const pins = [routinePin("morning", [{ recipeId: "ritual.prs" }, { pinId: "keep" }])];
+  assert.equal(pruneRoutineMembers(pins, { id: "recipe:x:ritual.lint", recipeId: "ritual.lint" }), 0);
+  assert.equal(members(pins[0]).length, 2);
 });

@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildStatsMarkdown, type ProjectStats } from "../exec/projectStats";
+import { buildStatsMarkdown, summarizeLanguages, type ProjectStats } from "../exec/projectStats";
 
 // A representative stats value; cases override only the fields they assert on.
 function statsFixture(over: Partial<ProjectStats> = {}): ProjectStats {
@@ -46,13 +46,59 @@ test("buildStatsMarkdown sums a totals row at 100% with the file and line totals
   assert.ok(md.includes("| **Total** | **3** | **100** | **100%** |"));
 });
 
-test("buildStatsMarkdown includes the branch and the git activity sections", () => {
+test("buildStatsMarkdown drops the recent-commit block the standup digest already covers", () => {
+  // Expectation inverted deliberately: the block used to render here, and restated the
+  // same 30 subjects the standup member of the same routine prints directly below.
   const md = buildStatsMarkdown(statsFixture());
   assert.ok(md.includes("Branch: `main`"));
-  assert.ok(md.includes("## Recent commits (last 30)"));
-  assert.ok(md.includes("abc123 first"), "the recent-commit summary is embedded");
-  assert.ok(md.includes("## Contributors (last 30 days)"));
-  assert.ok(md.includes("Alice"), "the contributor summary is embedded");
+  assert.ok(!md.includes("Recent commits"), "no duplicated commit block");
+  assert.ok(!md.includes("abc123 first"));
+});
+
+test("buildStatsMarkdown shows contributors only when more than one author appears", () => {
+  const solo = buildStatsMarkdown(statsFixture({ contributors: "  10\tAlice" }));
+  assert.ok(!solo.includes("Contributors"), "a one-author shortlog says nothing");
+  const team = buildStatsMarkdown(statsFixture({ contributors: "  10\tAlice\n   4\tBo" }));
+  assert.ok(team.includes("## Contributors (last 30 days)"));
+  assert.ok(team.includes("Bo"));
+});
+
+test("summarizeLanguages folds zero-line assets out of the table", () => {
+  // .png / .ttf carry no lines, so they are counted as assets rather than occupying
+  // rows in a table whose subject is lines of code.
+  const { rows, assets } = summarizeLanguages([
+    { language: "Dart", files: 2, lines: 75, bytes: 3000 },
+    { language: ".png", files: 116, lines: 0, bytes: 4_000_000 },
+    { language: ".ttf", files: 7, lines: 0, bytes: 1_700_000 },
+  ]);
+  assert.deepEqual(rows.map((r) => r.language), ["Dart"]);
+  assert.deepEqual(assets, { files: 123, bytes: 5_700_000, languages: 2 });
+});
+
+test("summarizeLanguages ranks by lines and folds the tail past the row cap", () => {
+  const languages = Array.from({ length: 14 }, (_, i) => ({
+    language: `L${i}`,
+    files: 1,
+    lines: i + 1,
+    bytes: 10,
+  }));
+  const { rows, folded } = summarizeLanguages(languages);
+  assert.equal(rows.length, 10);
+  assert.equal(rows[0].language, "L13", "highest line count leads");
+  assert.equal(folded, 4, "the tail is counted, not silently dropped");
+});
+
+test("buildStatsMarkdown states the folded remainder and the asset total", () => {
+  const md = buildStatsMarkdown(
+    statsFixture({
+      languages: [
+        { language: "Dart", files: 2, lines: 100, bytes: 3000 },
+        { language: ".png", files: 5, lines: 0, bytes: 2048 },
+      ],
+    })
+  );
+  assert.ok(md.includes("Binary and other zero-line assets: 5 files"));
+  assert.ok(!md.includes("| .png |"), "assets never take a table row");
 });
 
 test("buildStatsMarkdown omits the branch line when there is no branch", () => {
@@ -69,23 +115,26 @@ test("buildStatsMarkdown shows the cap note only when truncated", () => {
   assert.ok(!full.includes("Capped at the first"), "no note when the full set was covered");
 });
 
-test("buildStatsMarkdown shows a dash share when there are no lines", () => {
-  // A repo of only empty / binary files has zero total lines; the share column must
-  // read "-" rather than divide by zero.
+test("buildStatsMarkdown renders an all-binary repo as assets with an empty table", () => {
+  // Expectation replaced deliberately: this case used to assert the zero-line row's
+  // "-" share, but zero-line languages no longer take table rows at all, so a repo of
+  // only binaries renders a totals row plus the asset line.
   const md = buildStatsMarkdown(
     statsFixture({
       totalLines: 0,
       languages: [{ language: ".bin", files: 1, lines: 0, bytes: 10 }],
     })
   );
-  assert.ok(md.includes("| .bin | 1 | 0 | - |"), "zero-line share renders as a dash");
+  assert.ok(!md.includes("| .bin |"), "a binary extension is not a language row");
+  assert.ok(md.includes("Binary and other zero-line assets: 1 files"));
 });
 
-test("buildStatsMarkdown substitutes '(none)' for empty git output", () => {
+test("buildStatsMarkdown omits the git blocks entirely when git returned nothing", () => {
+  // Expectation replaced deliberately: the old report printed a "(none)" placeholder
+  // inside an empty code fence. An empty block is noise — the section is now absent.
   const md = buildStatsMarkdown(statsFixture({ recentCommits: "", contributors: "" }));
-  // An empty commit / contributor summary renders a "(none)" placeholder inside the
-  // code fence rather than a blank block.
-  assert.ok(md.includes("(none)"), "empty git sections show a placeholder");
+  assert.ok(!md.includes("(none)"), "no placeholder block");
+  assert.ok(!md.includes("Contributors"), "no empty contributors section");
 });
 
 test("buildStatsMarkdown formats large byte counts with a unit", () => {

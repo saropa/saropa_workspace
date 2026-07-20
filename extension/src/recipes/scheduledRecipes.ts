@@ -88,7 +88,11 @@ const GIT_REPORT_RITUALS: ReportRitual[] = [
     description: "Scheduled (daily, default 08:30): writes and opens a dated report of your commits and touched files from the last 24 hours — your standup, pre-written. Seeds disabled. Detected from a git repository.",
     icon: "comment-discussion",
     atTime: "08:30",
-    command: 'git log --since="24 hours ago" --oneline --stat',
+    // Subjects only, with a per-commit file COUNT rather than --stat's full diffstat.
+    // --stat printed one line per changed file: a single machine-translation commit
+    // emitted hundreds of rows and buried the day's real work, making the digest
+    // unreadable (user report 2026-07-20). --shortstat is one summary line instead.
+    command: 'git log --since="24 hours ago" --pretty=format:"%h %s" --shortstat',
     reportFile: reportRelativePath("standup"),
     autoOpen: true,
   },
