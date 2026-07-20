@@ -26,6 +26,10 @@ const MORNING_MEMBER_ORDER: ReadonlyArray<{ recipeId: string; label: string }> =
   // below it. A morning brief that reports line counts while main is red has its
   // priorities inverted.
   { recipeId: "ritual.ci", label: "Build status" },
+  // Second: what moved while you were away. Answers the morning's other standing
+  // question, and does it as a delta rather than a level — a snapshot that reads the
+  // same every day carries no information.
+  { recipeId: "ritual.delta", label: "Since yesterday" },
   { recipeId: "hygiene.bloat", label: "Workspace bloat scan" },
   { recipeId: "ritual.lint", label: "Dawn lint sweep" },
   { recipeId: "ritual.debt", label: "Tech-debt harvest" },

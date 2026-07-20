@@ -16,6 +16,8 @@ import { registerProcessMonitorCommands } from "../exec/processMonitorCommands";
 import { registerHygieneCommands } from "../exec/hygieneCommands";
 import { registerBloatCommands } from "../exec/bloatCommands";
 import { registerProjectStatsCommand } from "../exec/projectStats";
+import { registerCiStatusCommand } from "../exec/ciStatus";
+import { registerOvernightDeltaCommand } from "../exec/overnightDelta";
 import { registerPubspecOutdatedCommand } from "../exec/pubspecOutdated";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
 import { handleShortcutImportUri } from "./activationHelpers";
@@ -92,6 +94,14 @@ export function registerCommandModules(
   // Sunrise project stats (#27): the per-language file/line aggregation + git
   // activity summary command, driven by the scheduled "Sunrise project stats" recipe.
   registerProjectStatsCommand(context);
+
+  // Build status: recent CI runs plus the failure annotations that say WHY a run is
+  // red, driven by the scheduled "Build status" recipe that leads the morning block.
+  registerCiStatusCommand(context);
+
+  // Since yesterday: the day's movement computed by diffing against the commit that
+  // was current a day ago, driven by the scheduled "Since yesterday" recipe.
+  registerOvernightDeltaCommand(context);
 
   // Pubspec dependency freshness (#30, pubspec projects): parses `dart pub outdated
   // --json` and writes a report of ONLY the packages behind latest, driven by the
