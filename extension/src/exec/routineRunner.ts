@@ -99,7 +99,13 @@ async function runRoutineMember(
 
   if (!resolved) {
     channel.appendLine(l10n("routine.memberMissing", { member: memberLabel }));
-    return { outcome: { label: memberLabel, status: "missing" }, failed: false };
+    // A member the routine can no longer resolve counts as a FAILURE, not a note: the
+    // routine did not do what it was configured to do. Scored as a non-failure, a
+    // routine whose member had been renamed away reported clean success and never
+    // opened its summary, so the "Shortcut not found" banner sat unread in a file
+    // nobody had reason to look at (user report 2026-07-20). The status stays
+    // "missing" so the report says Missing, not Failed.
+    return { outcome: { label: memberLabel, status: "missing" }, failed: true };
   }
   // Routines do not nest: a routine member is skipped (bounds sequencing/failure
   // and prevents cycles), the one-level rule macros already enforce.

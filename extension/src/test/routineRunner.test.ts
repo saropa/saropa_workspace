@@ -595,9 +595,12 @@ test("a failing member makes the whole routine fail (continue-on-failure, worst 
   }
 });
 
-test("a missing member is skipped, not failed, and the routine still completes", async () => {
-  // resolveMember returns undefined (the member recipe is absent in this folder); the
-  // engine records it as "missing" and does NOT treat it as a failure.
+test("a missing member fails the routine, which still completes", async () => {
+  // resolveMember returns undefined (the member recipe is absent in this folder). The
+  // engine records it as "missing" AND scores the routine a failure: expectation
+  // deliberately inverted from the original "missing is not a failure" — a routine
+  // that silently succeeded while a member was unresolvable never surfaced its own
+  // "Shortcut not found" banner (user report 2026-07-20).
   const hooks: RoutineHooks = {
     resolveMember: () => undefined,
     runMember: async () => {
@@ -614,8 +617,8 @@ test("a missing member is skipped, not failed, and the routine still completes",
       [member({ pinId: "gone" })],
       "manual"
     );
-    // No member ran and none failed, so the routine succeeds.
-    assert.deepEqual(cap.seen, [{ pinId: "routine-missing", outcome: "success" }]);
+    // No member ran, and the unresolvable one is a failure the user must see.
+    assert.deepEqual(cap.seen, [{ pinId: "routine-missing", outcome: "failure" }]);
   } finally {
     cap.dispose();
   }
