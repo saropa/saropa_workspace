@@ -8,6 +8,11 @@ import {
 import { Shortcut } from "../model/shortcut";
 import { runShortcut } from "./runner";
 import { findOnPath } from "./interpreterDetect";
+import {
+  hasInteractiveTokens,
+  resolveRememberedTokens,
+  cloneWithResolvedTokens,
+} from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 
 // The manifest-declared `requires` entries not found on PATH, excluding ones marked
@@ -77,9 +82,28 @@ export async function runLibraryScript(
     },
   };
 
+  // A bundled script is meant to be set up once and rerun the same way every
+  // time (e.g. organize-output's target folder), not re-asked on every run —
+  // unlike a user shortcut, which defaults to a fresh prompt (see runShortcut)
+  // with an explicit "Run with Last Parameters" opt-in. So resolve interactive
+  // tokens from memory here, before handing off: the first run still prompts
+  // (and remembers), every run after that is silent. Only a token never
+  // answered before still prompts, mirroring runWithLastParams for pins.
+  let effectiveShortcut = shortcut;
+  if (hasInteractiveTokens(shortcut)) {
+    const values = await resolveRememberedTokens(shortcut);
+    if (values === undefined) {
+      void vscode.window.showInformationMessage(
+        l10n("run.canceledPromptToast", { name: script.label })
+      );
+      return;
+    }
+    effectiveShortcut = cloneWithResolvedTokens(shortcut, values);
+  }
+
   const uri = vscode.Uri.file(entryPath);
   try {
-    await runShortcut(shortcut, uri, "manual");
+    await runShortcut(effectiveShortcut, uri, "manual");
   } catch (err: unknown) {
     // runShortcut surfaces most failures internally, but a truly unexpected
     // throw (malformed plan, missing interpreter) should not vanish silently.
