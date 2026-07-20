@@ -2,7 +2,7 @@
   "name": "saropa-workspace",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "1.5.24",
+  "version": "1.5.25",
   "publisher": "saropa",
   "license": "MIT",
   "repository": {

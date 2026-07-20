@@ -46,7 +46,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.25]
 
 **Overview** — Your morning report now tells you whether it needs you. It opens with a verdict — all clear, or the things that need attention — followed by one line per check, and the raw output moves out of the way instead of filling the page. A new Build status check leads it off, so a build that broke overnight is the first thing you see. Each check states its finding in one line at the top — commits, changed files, uncommitted work — and the raw output moves out of the way instead of filling the page. And a routine that can no longer find one of its steps now says so, instead of quietly reporting a clean morning.  [log](https://github.com/saropa/saropa-workspace/blob/v1.5.25/CHANGELOG.md)
 
