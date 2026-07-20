@@ -898,6 +898,21 @@ report writer follows them.
   informs. A quiet morning produces a short document; a bad one grows to fit the
   problem. **The report must not render identically whether or not something is
   wrong**: that is precisely what taught the reader to stop opening it.
+- **A check that could not run must never read as a passing check.** "No failures
+  found" and "I was unable to look" are different answers, and collapsing them is the
+  worst failure a health check can have — it reports a broken build as a green one. A
+  report whose tool was missing, unauthenticated, or timed out says so *as an
+  attention finding* (`Build status unavailable — the gh CLI did not answer.`) and
+  names the command that would diagnose it. In code this means an unavailable tool
+  returns a distinct value (`undefined`, a flag) from an empty result, never `""`.
+- **Report the change, not the level, for anything measured repeatedly.** A number
+  that reads the same every morning carries no information and trains the reader to
+  skip the line. Derive the comparison rather than storing it where possible: for
+  anything computed from repository contents, diff against the revision that was
+  current at the start of the window (`git rev-list -1 --before=…`), which is exact,
+  needs no state carried between runs, and survives a fresh clone or a new machine —
+  unlike a stored snapshot, which is only as good as the last time the job happened
+  to run (developer question 2026-07-20).
 - **Answer the urgent question first.** Members are ordered by what outranks what, not
   by what is cheapest to compute — build status before measurements, because a report
   that discusses line counts while the default branch is red has its priorities

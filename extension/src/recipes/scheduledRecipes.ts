@@ -218,6 +218,23 @@ async function pushGitRituals(
     return;
   }
 
+  // What moved while you were away, derived entirely by comparing two revisions —
+  // no stored snapshot from a previous run, so the baseline is exact and survives a
+  // fresh clone (developer question 2026-07-20).
+  out.push({
+    recipeId: "ritual.delta",
+    label: "Since yesterday",
+    description: "Scheduled (daily, default 08:15): writes a dated report of what changed in the last day — commits (and how many were someone else's), files changed, lines added and removed, and the change in TODO/FIXME markers. Computed by comparing against the commit that was current a day ago, so nothing has to be remembered between runs. Seeds disabled. Detected from a git repository.",
+    icon: "arrow-both",
+    color: "charts.blue",
+    schedule: daily("08:15"),
+    action: {
+      kind: "command",
+      commandId: "saropaWorkspace.recipe.overnightDelta",
+      commandArgs: [folder.uri.fsPath],
+    },
+  });
+
   // 27: sunrise project stats. A per-language file/line breakdown of the tracked
   // codebase (share of total) plus the recent git activity, written to a dated
   // report and opened. Runs a command (computed in-process from `git ls-files`)
@@ -336,16 +353,16 @@ async function pushPrReviewRitual(
       icon: "pulse",
       color: "charts.red",
       schedule: daily("08:45"),
-      action: report(
-        folder,
-        // No --branch filter: resolving the default branch inline would need a
-        // POSIX command substitution, and these run through cmd.exe on Windows.
-        // The unfiltered list is newest-first across branches, which still answers
-        // "did anything break", and the report body names the branch per run.
-        "gh run list --limit 10",
-        reportRelativePath("ci"),
-        true
-      ),
+      // A command, not a captured shell line: the report needs the run list AND the
+      // failure annotations from a second API call, and it must tell "gh could not
+      // answer" apart from "gh answered, nothing is failing" — a distinction a
+      // captured stdout dump cannot make, and one where the wrong guess reports a
+      // broken build as a green one.
+      action: {
+        kind: "command",
+        commandId: "saropaWorkspace.recipe.ciStatus",
+        commandArgs: [folder.uri.fsPath],
+      },
     });
   }
 }
