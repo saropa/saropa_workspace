@@ -69,6 +69,16 @@ cspell:disable
 - A **routine summary now leads with every member's headline**, as a list above the collapsed member sections. The one document a routine opens states all of its answers on the first screen; the full output stays one click away in the section below.
 - New **Set Params…** editor for any shortcut or bundled script that asks a run question (`${prompt:}`/`${pick:}`/`${pickFolder:}`). Since these values are now set up once and reused silently on rerun, the only way to change one was to run it again and answer differently, or clear extension storage by hand. Set Params opens a small form listing every question with its current answer, editable and saved without running anything — reachable from a shortcut's context menu, a Scripts-view row, or a Launcher card. A row with nothing to configure gets a named "nothing to set" message instead of an empty form. Each answered field also has a **Reset to unanswered** action, so the next run asks fresh instead of reusing a value you want to reconsider — distinct from editing it to a new fixed answer.
 
+### Fixed
+
+- **Bundled script hardening** — five reliability fixes across the newly bundled scripts:
+  - `run-test` no longer passes an empty string arg when the user leaves the prompt blank — it strips empty tokens and falls back to the whole `test/` directory as intended.
+  - `flutter-sdk-repair` temp directory now derives from the workspace drive, not the extension install drive — prevents creating temp files on the wrong volume when the extension is installed on a different drive than the project.
+  - `daily-report` catches a missing PyYAML with a clear error message and exits cleanly instead of crashing with an ImportError.
+  - All scripts that import `saropa_branding` now degrade gracefully when the shared module is absent (no-op fallbacks for logo, ANSI helpers, and color printers).
+  - `__pycache__` and `.pyc` files excluded from the VSIX package.
+- **Script sync drift detection** — each library script now declares a `syncFrom` path pointing to its canonical upstream source. The Refresh Scripts command compares bundled copies against those sources and shows a warning toast naming every script that has diverged, so upstream changes are not silently lost.
+
 ### Changed
 
 - The **Standup digest** no longer prints a full diffstat for every commit. A single day with a large generated change (a translation sweep, a lockfile refresh) produced hundreds of file rows per commit and buried the day's actual work. It now lists each commit's subject with one summary line of files changed and insertions/deletions.

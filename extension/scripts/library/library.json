@@ -8,6 +8,7 @@
       "icon": "file-directory",
       "tags": ["cleanup", "reports"],
       "entry": "organize-output/__main__.py",
+      "syncFrom": "D:\\src\\contacts\\reports\\organize_reports.py",
       "requires": [],
       "config": {
         "command": "python",
@@ -23,6 +24,7 @@
       "icon": "device-mobile",
       "tags": ["android", "flutter", "debug"],
       "entry": "device-connect/__main__.py",
+      "syncFrom": "D:\\src\\contacts\\scripts\\build\\debug_connect.py",
       "requires": [
         { "type": "command", "name": "adb", "reason": "connect to and control the Android device" },
         { "type": "command", "name": "flutter", "reason": "check on-device debug sync", "optional": true },
@@ -41,9 +43,11 @@
       "icon": "trash",
       "tags": ["cleanup", "dart", "flutter"],
       "entry": "dart-process-clean/__main__.py",
+      "syncFrom": "D:\\src\\contacts\\scripts\\clean\\dart_process_clean.py",
       "requires": [],
       "config": {
         "command": "python",
+        "cwd": "$workspaceRoot",
         "args": ["--yes"],
         "runLocation": "terminal"
       }
@@ -55,6 +59,7 @@
       "icon": "beaker",
       "tags": ["test", "flutter"],
       "entry": "run-test/__main__.py",
+      "syncFrom": "D:\\src\\contacts\\scripts\\test\\run_test.py",
       "requires": [
         { "type": "command", "name": "flutter", "reason": "run Flutter tests" }
       ],
@@ -72,6 +77,7 @@
       "icon": "graph",
       "tags": ["report", "git"],
       "entry": "daily-report/__main__.py",
+      "syncFrom": "D:\\src\\contacts\\scripts\\report\\daily_report.py",
       "requires": [
         { "type": "command", "name": "git", "reason": "read the commit history" }
       ],
@@ -88,6 +94,7 @@
       "icon": "tools",
       "tags": ["cleanup", "flutter", "repair"],
       "entry": "flutter-sdk-repair/__main__.py",
+      "syncFrom": "D:\\src\\contacts\\scripts\\clean\\flutter_sdk_repair.py",
       "requires": [
         { "type": "command", "name": "flutter", "reason": "rebuild the SDK cache" }
       ],
@@ -104,6 +111,7 @@
       "icon": "package",
       "tags": ["report", "flutter", "dependencies"],
       "entry": "dependency-report/__main__.py",
+      "syncFrom": "D:\\src\\contacts\\scripts\\report\\dependency_report.py",
       "requires": [
         { "type": "command", "name": "flutter", "reason": "query package versions" }
       ],

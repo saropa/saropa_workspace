@@ -30,6 +30,10 @@ export interface LibraryScript {
   readonly entry: string;
   readonly requires: readonly ScriptRequirement[];
   readonly config: ScriptConfig;
+  // Absolute path to the canonical source script this entry was copied from.
+  // A dev-time sync check compares the bundled copy against this path to
+  // detect upstream drift. Absent for scripts authored directly in the library.
+  readonly syncFrom?: string;
 }
 
 interface ManifestEntry {
@@ -41,6 +45,7 @@ interface ManifestEntry {
   entry: string;
   requires?: ScriptRequirement[];
   config: ScriptConfig;
+  syncFrom?: string;
 }
 
 interface Manifest {
@@ -98,6 +103,7 @@ export function loadScriptLibrary(extensionPath: string): LibraryScript[] {
       entry: entry.entry,
       requires: entry.requires ?? [],
       config: entry.config,
+      syncFrom: entry.syncFrom,
     }));
 }
 
@@ -108,4 +114,56 @@ export function resolveScriptEntry(
   entry: string
 ): string {
   return path.join(extensionPath, "scripts", "library", entry);
+}
+
+// One script whose bundled copy diverges from its canonical source.
+export interface SyncDrift {
+  readonly script: LibraryScript;
+  readonly reason: "source-missing" | "content-changed";
+  readonly bundledPath: string;
+  readonly sourcePath: string;
+}
+
+// Compare each library script that declares a syncFrom path against its
+// canonical source. Returns only the entries that have diverged. Skipped
+// entries (no syncFrom, or source not reachable) are omitted — silence means
+// in-sync or not trackable. This is a dev-time diagnostic, not a runtime gate.
+export function checkScriptSync(
+  extensionPath: string,
+  scripts: readonly LibraryScript[]
+): SyncDrift[] {
+  const drifted: SyncDrift[] = [];
+  for (const script of scripts) {
+    if (!script.syncFrom) {
+      continue;
+    }
+    const bundledPath = resolveScriptEntry(extensionPath, script.entry);
+    let bundled: string;
+    try {
+      bundled = fs.readFileSync(bundledPath, "utf-8");
+    } catch {
+      continue;
+    }
+    let source: string;
+    try {
+      source = fs.readFileSync(script.syncFrom, "utf-8");
+    } catch {
+      drifted.push({
+        script,
+        reason: "source-missing",
+        bundledPath,
+        sourcePath: script.syncFrom,
+      });
+      continue;
+    }
+    if (bundled !== source) {
+      drifted.push({
+        script,
+        reason: "content-changed",
+        bundledPath,
+        sourcePath: script.syncFrom,
+      });
+    }
+  }
+  return drifted;
 }
