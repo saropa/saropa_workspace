@@ -7,6 +7,7 @@ import { buildLauncherItems, LauncherItem } from "./launcherItems";
 import { watchLauncherItem } from "./launcherWatchItem";
 import { fileLauncherItem } from "./launcherFileItem";
 import { scriptLauncherItem } from "./launcherScriptItem";
+import { hasInteractiveTokens } from "../exec/promptTokens";
 import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
@@ -122,6 +123,13 @@ export function buildAllItems(
         description: script.description,
         icon: script.icon,
         tags: script.tags,
+        hasParams: hasInteractiveTokens({
+          id: `library:${script.id}`,
+          path: script.entry,
+          scope: "project",
+          order: 0,
+          exec: script.config,
+        }),
       })
     );
   }

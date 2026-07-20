@@ -6,7 +6,8 @@ import { ProjectFilesTreeProvider } from "../views/projectFilesProvider";
 import { ScriptsTreeProvider, ScriptTreeItem } from "../views/scriptsTreeProvider";
 import { LauncherViewProvider } from "../views/launcherView";
 import { syncShortcutPathContext } from "./activationHelpers";
-import { runLibraryScript } from "../exec/scriptRunner";
+import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
+import { SetParamsPanel } from "../views/setParamsPanel";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -131,6 +132,21 @@ export function setupSecondaryViews(
           return;
         }
         return runLibraryScript(script, context.extensionPath);
+      }
+    )
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "saropaWorkspace.setScriptParams",
+      (item?: ScriptTreeItem) => {
+        if (!item?.script) {
+          return;
+        }
+        const script = scripts.findScript(item.script.id);
+        if (!script) {
+          return;
+        }
+        SetParamsPanel.show(buildScriptShortcut(script, context.extensionPath));
       }
     )
   );

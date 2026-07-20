@@ -427,6 +427,18 @@
         "icon": "$(gear)"
       },
       {
+        "command": "saropaWorkspace.setPinParams",
+        "title": "%command.setPinParams.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "saropaWorkspace.setScriptParams",
+        "title": "%command.setScriptParams.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(list-flat)"
+      },
+      {
         "command": "saropaWorkspace.duplicateWithArgs",
         "title": "%command.duplicateWithArgs.title%",
         "category": "%extension.displayName%",
@@ -1042,9 +1054,14 @@
           "group": "1_run@2"
         },
         {
-          "command": "saropaWorkspace.duplicateWithArgs",
+          "command": "saropaWorkspace.setPinParams",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
           "group": "1_run@3"
+        },
+        {
+          "command": "saropaWorkspace.duplicateWithArgs",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
+          "group": "1_run@4"
         },
         {
           "command": "saropaWorkspace.configureScheduleQuick",
@@ -1405,6 +1422,11 @@
           "group": "inline"
         },
         {
+          "command": "saropaWorkspace.setScriptParams",
+          "when": "view == saropaWorkspace.scripts && viewItem == libraryScript",
+          "group": "1_run@1"
+        },
+        {
           "command": "saropaWorkspace.toggleWatch",
           "when": "view == saropaWorkspace.watches && viewItem =~ /^watch(Enabled|Disabled)$/",
           "group": "inline@2"
@@ -1669,6 +1691,10 @@
           "when": "false"
         },
         {
+          "command": "saropaWorkspace.setScriptParams",
+          "when": "false"
+        },
+        {
           "command": "saropaWorkspace.activatePin",
           "when": "false"
         },
@@ -1762,6 +1788,10 @@
         },
         {
           "command": "saropaWorkspace.configureRunQuick",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.setPinParams",
           "when": "false"
         },
         {

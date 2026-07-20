@@ -45,6 +45,7 @@ export function buildMenu(
   // Configure & schedule group.
   menu.push(entry("saropaWorkspace.runWith", "runWith", "wrench", "configure"));
   menu.push(entry("saropaWorkspace.configureRun", "configureRun", "gear", "configure"));
+  menu.push(entry("saropaWorkspace.setPinParams", "setParams", "list-flat", "configure"));
   menu.push(entry("saropaWorkspace.configureSchedule", "configureSchedule", "clock", "configure"));
   menu.push(entry("saropaWorkspace.configureTriggers", "configureTriggers", "broadcast", "configure"));
   // Pause vs resume by current state — same two commands the sidebar gates by contextValue.

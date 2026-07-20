@@ -9,6 +9,7 @@ import { encodeShortcutLink } from "../import/shareLink";
 import { configureRun } from "./configureRun";
 import { runWith } from "./runWith";
 import { ConfigureRunPanel } from "../views/configureRunPanel";
+import { SetParamsPanel } from "../views/setParamsPanel";
 import { configureSchedule } from "./configureSchedule";
 import { ScheduleEditorPanel } from "../views/scheduleEditorPanel";
 import { configureTriggers } from "./configureTriggers";
@@ -84,6 +85,13 @@ function registerRunConfigCommands(
     ConfigureRunPanel.show(context, store, shortcut)
   );
   regShortcut("saropaWorkspace.configureRunQuick", (shortcut) => configureRun(store, shortcut));
+
+  // "Set Params…": edit a parameterized shortcut's remembered ${prompt:}/${pick:}/
+  // ${pickFolder:} values directly, without running it. A shortcut with no
+  // interactive tokens gets a named "nothing to set" toast instead of an empty form
+  // (see SetParamsPanel.show), so this stays offered on every shortcut rather than
+  // needing its own contextValue gate.
+  regShortcut("saropaWorkspace.setPinParams", (shortcut) => SetParamsPanel.show(shortcut));
 
   // "Run with…": pick an interpreter detected on this machine (or browse for one),
   // persist it as the shortcut's runtime, and run — the no-JSON, no-typing way to set

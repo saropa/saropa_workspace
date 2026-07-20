@@ -22,7 +22,7 @@ import { l10n } from "../i18n/l10n";
 // recognized; any other ${...} (e.g. a shell ${HOME}) is left untouched for the shell.
 const INTERACTIVE_RE = /\$\{(prompt|pick|pickFolder):([^}]*)\}/g;
 
-interface InteractiveToken {
+export interface InteractiveToken {
   // The full "${prompt:Label}" text; used verbatim as the dedup key and the
   // substitution target so the same token reused across command/args/cwd is
   // asked for exactly once.
@@ -58,8 +58,10 @@ export function hasInteractiveTokens(shortcut: Shortcut): boolean {
   });
 }
 
-// Unique interactive tokens across all run strings, in first-seen order.
-function collectInteractiveTokens(shortcut: Shortcut): InteractiveToken[] {
+// Unique interactive tokens across all run strings, in first-seen order. Exported
+// for the "Set Params" editor (setParamsPanel.ts), which lists every token a
+// shortcut carries so its remembered value can be edited without a run.
+export function getInteractiveTokens(shortcut: Shortcut): InteractiveToken[] {
   const seen = new Map<string, InteractiveToken>();
   for (const s of runStrings(shortcut)) {
     INTERACTIVE_RE.lastIndex = 0;
@@ -69,7 +71,7 @@ function collectInteractiveTokens(shortcut: Shortcut): InteractiveToken[] {
       if (!seen.has(raw)) {
         seen.set(raw, {
           raw,
-          kind: match[1] as "prompt" | "pick",
+          kind: match[1] as "prompt" | "pick" | "pickFolder",
           arg: match[2],
         });
       }
@@ -136,7 +138,7 @@ async function promptForToken(
 export async function resolveInteractiveTokens(
   shortcut: Shortcut
 ): Promise<Map<string, string> | undefined> {
-  const tokens = collectInteractiveTokens(shortcut);
+  const tokens = getInteractiveTokens(shortcut);
   const values = new Map<string, string>();
   for (const token of tokens) {
     const value = await promptForToken(
@@ -161,7 +163,7 @@ export async function resolveInteractiveTokens(
 export async function resolveRememberedTokens(
   shortcut: Shortcut
 ): Promise<Map<string, string> | undefined> {
-  const tokens = collectInteractiveTokens(shortcut);
+  const tokens = getInteractiveTokens(shortcut);
   const values = new Map<string, string>();
   const newlyEntered = new Map<string, string>();
   for (const token of tokens) {
