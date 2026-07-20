@@ -33,6 +33,85 @@
         "cwd": "$workspaceRoot",
         "runLocation": "terminal"
       }
+    },
+    {
+      "id": "dart-process-clean",
+      "labelKey": "scripts.dartProcessClean.label",
+      "descriptionKey": "scripts.dartProcessClean.description",
+      "icon": "trash",
+      "tags": ["cleanup", "dart", "flutter"],
+      "entry": "dart-process-clean/__main__.py",
+      "requires": [],
+      "config": {
+        "command": "python",
+        "args": ["--yes"],
+        "runLocation": "terminal"
+      }
+    },
+    {
+      "id": "run-test",
+      "labelKey": "scripts.runTest.label",
+      "descriptionKey": "scripts.runTest.description",
+      "icon": "beaker",
+      "tags": ["test", "flutter"],
+      "entry": "run-test/__main__.py",
+      "requires": [
+        { "type": "command", "name": "flutter", "reason": "run Flutter tests" }
+      ],
+      "config": {
+        "command": "python",
+        "cwd": "$workspaceRoot",
+        "args": ["${prompt:Test paths (e.g. test/foo_test.dart) — leave blank for all tests}"],
+        "runLocation": "terminal"
+      }
+    },
+    {
+      "id": "daily-report",
+      "labelKey": "scripts.dailyReport.label",
+      "descriptionKey": "scripts.dailyReport.description",
+      "icon": "graph",
+      "tags": ["report", "git"],
+      "entry": "daily-report/__main__.py",
+      "requires": [
+        { "type": "command", "name": "git", "reason": "read the commit history" }
+      ],
+      "config": {
+        "command": "python",
+        "cwd": "$workspaceRoot",
+        "runLocation": "terminal"
+      }
+    },
+    {
+      "id": "flutter-sdk-repair",
+      "labelKey": "scripts.flutterSdkRepair.label",
+      "descriptionKey": "scripts.flutterSdkRepair.description",
+      "icon": "tools",
+      "tags": ["cleanup", "flutter", "repair"],
+      "entry": "flutter-sdk-repair/__main__.py",
+      "requires": [
+        { "type": "command", "name": "flutter", "reason": "rebuild the SDK cache" }
+      ],
+      "config": {
+        "command": "python",
+        "cwd": "$workspaceRoot",
+        "runLocation": "terminal"
+      }
+    },
+    {
+      "id": "dependency-report",
+      "labelKey": "scripts.dependencyReport.label",
+      "descriptionKey": "scripts.dependencyReport.description",
+      "icon": "package",
+      "tags": ["report", "flutter", "dependencies"],
+      "entry": "dependency-report/__main__.py",
+      "requires": [
+        { "type": "command", "name": "flutter", "reason": "query package versions" }
+      ],
+      "config": {
+        "command": "python",
+        "cwd": "$workspaceRoot",
+        "runLocation": "terminal"
+      }
     }
   ]
 }
