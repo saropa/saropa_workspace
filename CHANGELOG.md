@@ -52,6 +52,12 @@ cspell:disable
 
 ### Added
 
+- Five new **bundled scripts** in the Scripts sidebar — each with a detailed description visible on hover and in the Launcher card drawer, so users can see exactly what a script does before running it:
+  - **Clean leaked Dart processes** — enumerates every dart-family process on Windows, classifies each as a live service (language-server, tooling-daemon, devtools) or a leaked host (orphaned flutter_tools, dartvm, flutter_tester), reports the split, and terminates only the leaked set. Runs with --yes by default; use Set Params for --dry-run or --include-dds.
+  - **Run Flutter tests (safe)** — kills orphaned flutter_tester.exe processes that keep native-asset DLLs locked (the recurring "flutter test always times out on Windows" problem), then runs flutter test --no-pub. Defaults to the whole test/ directory when no paths are specified, so it is schedulable.
+  - **Daily Git change report** — generates a structured JSON report of recent changes to Dart, JSON, YAML, asset, and localization files, including per-file diffs, widget info, dependency changes, code-analysis hints, and related test files. Requires PyYAML.
+  - **Repair Flutter SDK** — comprehensive repair: terminates locked processes, deletes the SDK cache, clears analyzer plugin and VS Code extension caches, cleans the pub cache, rebuilds via flutter doctor, and restores dependencies.
+  - **Flutter dependency report** — read-only dependency health report showing project info, the full dependency tree, outdated packages, and overrides. Optional --interactive or --upgrade flags via Set Params. Requires PyYAML.
 - New **Build status** morning check: the most recent CI runs, so a build that broke overnight is the first thing the report tells you. It leads the Morning routine — whether the code currently builds outranks every measurement below it. Requires the `gh` CLI and a GitHub remote. It answers three questions rather than one:
   - **When it broke** — it names the commit CI went red at and the last one that passed ("CI red since `f78f7d8a0` (4 runs)"), found by walking back through the run history it already fetched. A project where nothing in that history ever passed is reported as its own state, since that points at the pipeline rather than at a change that broke it.
   - **Why it failed** — GitHub's failure annotations, so the report gives the file and line rather than only the verdict.
