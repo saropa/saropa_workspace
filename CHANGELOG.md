@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+**Overview** — A routine that can no longer find one of its steps now tells you, instead of quietly reporting a clean morning.
+
+### Fixed
+
+- A routine whose member shortcut has been removed or renamed now **fails** rather than reporting success. The member was already listed as "Missing" in the summary, but because it did not count against the run, the routine scored a clean success, painted a green badge, and never opened the summary — so the "Shortcut not found — edit the routine to re-link or remove this member" note sat unread in a file there was no reason to open. The routine now badges red, opens its summary, and surfaces a failure notification naming it. The member still reads as "Missing", not "Failed", so the report distinguishes a broken link from a step that ran and failed.
+
 ## [1.5.24]
 
 Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.24/CHANGELOG.md)
