@@ -7,6 +7,8 @@ import { ScriptsTreeProvider, ScriptTreeItem } from "../views/scriptsTreeProvide
 import { LauncherViewProvider } from "../views/launcherView";
 import { syncShortcutPathContext } from "./activationHelpers";
 import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
+import { checkScriptSync } from "../model/scriptLibrary";
+import { l10n } from "../i18n/l10n";
 import { SetParamsPanel } from "../views/setParamsPanel";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
@@ -115,9 +117,19 @@ export function setupSecondaryViews(
   syncScriptsCount(scripts.count);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("saropaWorkspace.refreshScripts", () =>
-      scripts.refresh()
-    )
+    vscode.commands.registerCommand("saropaWorkspace.refreshScripts", () => {
+      scripts.refresh();
+      const drifted = checkScriptSync(
+        context.extensionPath,
+        scripts.scripts
+      );
+      if (drifted.length > 0) {
+        const names = drifted.map((d) => d.script.label).join(", ");
+        void vscode.window.showWarningMessage(
+          l10n("scripts.syncDrift", { names, count: String(drifted.length) })
+        );
+      }
+    })
   );
   context.subscriptions.push(
     vscode.commands.registerCommand(

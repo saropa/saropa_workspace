@@ -48,17 +48,21 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Import shared branding from .shared directory
+# Branding; degrade to no-op if the shared module is absent.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_shared"))
-from saropa_branding import show_logo
+try:
+    from saropa_branding import show_logo  # noqa: E402
+except ImportError:
+    show_logo = lambda: None  # noqa: E731
 
 # --- SCRIPT CONFIGURATION ---
 SCRIPT_VERSION = "1.0.0"
 SCRIPT_DATE = "2026-01-17"
 
-# Use a temp directory on the same drive as the script
-_script_drive = Path(__file__).resolve().anchor  # e.g., "C:\\" on Windows
-FLUTTER_TEMP_DIR = Path(_script_drive) / "saropa-build-temp"
+# Use a temp directory on the same drive as the workspace (cwd), not the
+# extension install path — the extension may be on a different drive.
+_workspace_drive = Path.cwd().resolve().anchor  # e.g., "D:\\" on Windows
+FLUTTER_TEMP_DIR = Path(_workspace_drive) / "saropa-build-temp"
 
 # Processes to terminate (without .exe extension)
 PROCESSES_TO_KILL = [

@@ -52,9 +52,12 @@ def _fallback_tqdm(iterable, *args, **kwargs):
 
 tqdm_iter = _tqdm_iter if _tqdm_available else _fallback_tqdm
 
-# Import shared branding
+# Branding; degrade to no-op if the shared module is absent.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_shared"))
-from saropa_branding import show_logo  # noqa: E402
+try:
+    from saropa_branding import show_logo  # noqa: E402
+except ImportError:
+    show_logo = lambda: None  # noqa: E731
 
 # ---------------------------------------------------------------------------
 # ANSI color helpers

@@ -8,4 +8,6 @@ tsconfig.json
 icon_source.svg
 **/*.map
 **/*.ts
+**/__pycache__/**
+**/*.pyc
 .gitignore

@@ -52,22 +52,32 @@ import sys
 import time
 from pathlib import Path
 
-# Reuse the house branding + ANSI helpers (also enables Windows ANSI / UTF-8).
+# Branding + ANSI helpers; degrade to plain text if the shared module is absent.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_shared"))
-from saropa_branding import (  # noqa: E402
-    show_logo,
-    enable_windows_ansi,
-    green,
-    yellow,
-    cyan,
-    red,
-    blue,
-    bold,
-    print_red,
-    print_green,
-    print_yellow,
-    print_cyan,
-)
+try:
+    from saropa_branding import (  # noqa: E402
+        show_logo,
+        enable_windows_ansi,
+        green,
+        yellow,
+        cyan,
+        red,
+        blue,
+        bold,
+        print_red,
+        print_green,
+        print_yellow,
+        print_cyan,
+    )
+except ImportError:
+    def _identity(msg: str) -> str: return msg
+    show_logo = lambda: None  # noqa: E731
+    enable_windows_ansi = lambda: None  # noqa: E731
+    green = yellow = cyan = red = blue = bold = _identity
+    def print_red(msg: str) -> None: print(msg)
+    def print_green(msg: str) -> None: print(msg)
+    def print_yellow(msg: str) -> None: print(msg)
+    def print_cyan(msg: str) -> None: print(msg)
 
 # Command-line substrings that mark a dart.exe as a SERVICE we must never kill —
 # terminating any of these breaks the live VS Code session.

@@ -123,12 +123,19 @@ import re          # For regular expression matching (file context, keywords, co
 import json        # For parsing/generating JSON reports and ARB files
 import webbrowser  # For opening the report file automatically
 import sys         # For checking module imports (colorama)
-import yaml        # For parsing pubspec.yaml / pubspec.lock files
+try:
+    import yaml    # For parsing pubspec.yaml / pubspec.lock files
+except ImportError:
+    print("Error: PyYAML is required. Install with: pip install PyYAML")
+    sys.exit(1)
 from pathlib import Path
 
-# Import shared branding from .shared directory
+# Branding; degrade to no-op if the shared module is absent.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_shared"))
-from saropa_branding import show_logo
+try:
+    from saropa_branding import show_logo  # noqa: E402
+except ImportError:
+    show_logo = lambda: None  # noqa: E731
 
 from typing import Protocol, Type, Dict, Optional, Union, Any # 
 

@@ -69,10 +69,10 @@ def _release_native_asset_lock() -> None:
 
 
 def main() -> int:
-    test_paths = sys.argv[1:]
+    # Strip empty strings: the library prompt token resolves to "" when the
+    # user presses Enter without typing, so sys.argv can contain [""].
+    test_paths = [p for p in sys.argv[1:] if p.strip()]
     if not test_paths:
-        # Default to the whole test/ directory so the script is runnable
-        # (and schedulable) without explicit arguments.
         test_paths = ["test/"]
 
     _release_native_asset_lock()
