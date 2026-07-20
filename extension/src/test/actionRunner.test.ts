@@ -119,20 +119,52 @@ test("summarizeReportBody totals a git log's changes into one headline", () => {
     "e757d64 chore(l10n): translation updates",
     " 22 files changed, 4062 insertions(+), 2717 deletions(-)",
   ].join("\n");
-  assert.equal(summarizeReportBody(body), "2 commits · 25 files changed · +4,179 / -2,761");
+  // History informs; it does not ask the reader to do anything.
+  assert.deepEqual(summarizeReportBody(body), {
+    text: "2 commits · 25 files changed · +4,179 / -2,761",
+    attention: false,
+  });
 });
 
 test("summarizeReportBody counts subjects when no shortstat is present", () => {
-  assert.equal(summarizeReportBody("abc1234 one\ndef5678 two"), "2 commits");
+  assert.deepEqual(summarizeReportBody("abc1234 one\ndef5678 two"), {
+    text: "2 commits",
+    attention: false,
+  });
 });
 
-test("summarizeReportBody headlines porcelain status output as uncommitted files", () => {
-  assert.equal(summarizeReportBody(" M lib/a.dart\n?? lib/b.dart"), "2 uncommitted files");
+test("summarizeReportBody flags uncommitted files as needing attention", () => {
+  // Work outside a commit is the finding here that can actually be lost.
+  assert.deepEqual(summarizeReportBody(" M lib/a.dart\n?? lib/b.dart"), {
+    text: "2 uncommitted files",
+    attention: true,
+  });
 });
 
 test("summarizeReportBody states an empty result rather than staying silent", () => {
   // The PR review queue on a quiet morning: nothing found is itself the answer.
-  assert.equal(summarizeReportBody(""), "Nothing to report.");
+  assert.deepEqual(summarizeReportBody(""), { text: "Nothing to report.", attention: false });
+});
+
+test("summarizeReportBody flags failing CI runs and names the workflow", () => {
+  const body = [
+    "completed\tfailure\tfix the thing\tmain\tbuild\t123\t2m\t2026-07-20",
+    "completed\tsuccess\tearlier\tmain\tbuild\t122\t2m\t2026-07-19",
+  ].join("\n");
+  assert.deepEqual(summarizeReportBody(body), {
+    text: "1 of the last 2 CI runs failing (build)",
+    attention: true,
+  });
+});
+
+test("summarizeReportBody reports green CI without asking for attention", () => {
+  const green = "completed\tsuccess\tok\tmain\tbuild\t1\t1m\t2026-07-20";
+  assert.deepEqual(summarizeReportBody(green), { text: "CI green", attention: false });
+  const running = `${green}\nin_progress\t\twip\tmain\tbuild\t2\t\t2026-07-20`;
+  assert.deepEqual(summarizeReportBody(running), {
+    text: "CI green, 1 still running",
+    attention: false,
+  });
 });
 
 test("summarizeReportBody omits a headline it cannot make meaningful", () => {

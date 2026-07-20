@@ -22,6 +22,10 @@ import { RoutineMember } from "../model/shortcut";
 // TODO markers, and out-of-date packages (report bug items 4 and 5), not just the
 // git/PR digest.
 const MORNING_MEMBER_ORDER: ReadonlyArray<{ recipeId: string; label: string }> = [
+  // First, always: whether the build is currently broken outranks every measurement
+  // below it. A morning brief that reports line counts while main is red has its
+  // priorities inverted.
+  { recipeId: "ritual.ci", label: "Build status" },
   { recipeId: "hygiene.bloat", label: "Workspace bloat scan" },
   { recipeId: "ritual.lint", label: "Dawn lint sweep" },
   { recipeId: "ritual.debt", label: "Tech-debt harvest" },

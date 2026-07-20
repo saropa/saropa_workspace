@@ -325,6 +325,28 @@ async function pushPrReviewRitual(
         true
       ),
     });
+    // Is the default branch green right now? The first question of the morning and
+    // the one the routine could not answer at all — every other member reported on
+    // the code, none on whether it currently builds. Runs before the PR queue in the
+    // morning block because a red default branch outranks a review request.
+    out.push({
+      recipeId: "ritual.ci",
+      label: "Build status",
+      description: "Scheduled (daily, default 08:45): writes a dated report of the most recent CI runs on the default branch, so a build that broke overnight is the first thing you see. Requires the gh CLI. Seeds disabled. Detected from a GitHub remote.",
+      icon: "pulse",
+      color: "charts.red",
+      schedule: daily("08:45"),
+      action: report(
+        folder,
+        // No --branch filter: resolving the default branch inline would need a
+        // POSIX command substitution, and these run through cmd.exe on Windows.
+        // The unfiltered list is newest-first across branches, which still answers
+        // "did anything break", and the report body names the branch per run.
+        "gh run list --limit 10",
+        reportRelativePath("ci"),
+        true
+      ),
+    });
   }
 }
 

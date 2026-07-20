@@ -289,16 +289,25 @@ async function readOrUndefined(
   }
 }
 
-// Pull a member report's `**Headline:** …` line. The convention is one line, written
-// by whichever generator produced the report, so the summary needs no per-member
-// knowledge of what its members do. Exported for tests.
-export function extractHeadline(content: string | undefined): string | undefined {
+// Pull a member report's one-line finding: `**Attention:** …` when it needs action,
+// `**Headline:** …` when it only informs. The convention is written by whichever
+// generator produced the report, so the summary needs no per-member knowledge of what
+// its members do. Attention is checked first — a report carrying both is asking for
+// something, and the weaker line must not mask that. Exported for tests.
+export function extractHeadline(
+  content: string | undefined
+): { text: string; attention: boolean } | undefined {
   if (!content) {
     return undefined;
   }
   // The capture must START on a non-space: a lazy `.+?` would otherwise match the
   // padding of a blank "**Headline:** " line and lift a single space as the headline.
-  return /^\*\*Headline:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(content)?.[1];
+  const attention = /^\*\*Attention:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(content)?.[1];
+  if (attention) {
+    return { text: attention, attention: true };
+  }
+  const headline = /^\*\*Headline:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(content)?.[1];
+  return headline ? { text: headline, attention: false } : undefined;
 }
 
 // Sum a member's badge counts into the routine aggregate. Undefined member badge
@@ -365,13 +374,43 @@ async function writeRoutineSummary(
     "",
   ];
 
-  // Problems first, and ONLY problems: a failed or missing member is the one piece
-  // of execution state the reader must see. OK / dispatched members are invisible
-  // as mechanics — their value is their content below (or nothing, for a terminal
-  // member that produces no report; announcing "a terminal ran" is noise). Details
-  // are sanitized: a multi-line spawn error pasted raw into a blockquote would
-  // break out of the quote and swallow the document.
+  // Read every member report up front so the verdict can lead the document. The
+  // sections below reuse these contents rather than reading each file twice.
+  const contents = new Map<string, string | undefined>();
+  for (const o of outcomes) {
+    if (o.reportPath) {
+      contents.set(o.reportPath, await readOrUndefined(fsp, o.reportPath));
+    }
+  }
+
   const problems = outcomes.filter((o) => o.status === "failed" || o.status === "missing");
+  const headlines = outcomes
+    .map((o) => ({
+      label: o.label,
+      finding: o.reportPath ? extractHeadline(contents.get(o.reportPath)) : undefined,
+    }))
+    .filter(
+      (h): h is { label: string; finding: { text: string; attention: boolean } } =>
+        h.finding !== undefined
+    );
+
+  // The verdict. A report that renders identically whether or not anything is wrong
+  // teaches the reader to stop opening it, which is what happened to this one (user
+  // report 2026-07-20). So the document opens by stating whether it needs the reader
+  // at all, and everything that does is listed before everything that does not. On a
+  // quiet morning this is the whole document worth reading.
+  const needsAttention = headlines.filter((h) => h.finding.attention);
+  const attentionCount = needsAttention.length + problems.length;
+  parts.push(
+    attentionCount > 0
+      ? `## ${l10n("routine.summary.needsAttention", { count: String(attentionCount) })}`
+      : `## ${l10n("routine.summary.allClear")}`,
+    ""
+  );
+
+  // A failed or missing member is execution state, not a finding, so it keeps its own
+  // blockquote form. Details are sanitized: a multi-line spawn error pasted raw into
+  // a blockquote would break out of the quote and swallow the document.
   for (const o of problems) {
     const note = sanitizeDetail(o.detail ?? defaultNote(o.status));
     parts.push(`> **${statusLabel(o.status)}** — ${o.label}${note ? `: ${note}` : ""}`);
@@ -380,28 +419,22 @@ async function writeRoutineSummary(
     parts.push("");
   }
 
-  // Read every member report up front so the headline block can lead the document.
-  // The sections below reuse these contents rather than reading each file twice.
-  const contents = new Map<string, string | undefined>();
-  for (const o of outcomes) {
-    if (o.reportPath) {
-      contents.set(o.reportPath, await readOrUndefined(fsp, o.reportPath));
-    }
+  for (const h of needsAttention) {
+    parts.push(`- **${h.label}** — ${h.finding.text}`);
+  }
+  if (needsAttention.length > 0) {
+    parts.push("");
   }
 
-  // Headlines first. This is the block that decides whether the report gets read at
-  // all: each member's own one-line finding, above the collapsed detail. A report
-  // that opens with sections to expand is skimmed and ignored (user report
-  // 2026-07-20). Members that state no headline are simply absent from the block.
-  const headlines = outcomes
-    .map((o) => ({
-      label: o.label,
-      text: o.reportPath ? extractHeadline(contents.get(o.reportPath)) : undefined,
-    }))
-    .filter((h): h is { label: string; text: string } => h.text !== undefined);
-  if (headlines.length > 0) {
-    for (const h of headlines) {
-      parts.push(`- **${h.label}** — ${h.text}`);
+  // Everything that merely informs, after the verdict and below anything that asks
+  // for action. Members stating no finding at all are simply absent.
+  const informational = headlines.filter((h) => !h.finding.attention);
+  if (informational.length > 0) {
+    if (attentionCount > 0) {
+      parts.push(`### ${l10n("routine.summary.alsoRan")}`, "");
+    }
+    for (const h of informational) {
+      parts.push(`- **${h.label}** — ${h.finding.text}`);
     }
     parts.push("");
   }

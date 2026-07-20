@@ -721,13 +721,77 @@ test("the summary leads with each member's headline, above the collapsed section
     text.indexOf("- **Standup digest**") < text.indexOf("<details>"),
     "headlines lead the document"
   );
+  // Nothing asked for action, so the document opens by saying so.
+  assert.ok(text.includes("## All clear"), "a quiet routine states the verdict");
+  assert.ok(!text.includes("Also ran"), "with no attention items there is nothing to separate");
+});
+
+test("an Attention finding flips the verdict and sorts above the informational ones", async () => {
+  // The property that makes the report worth opening: it does not render the same
+  // whether or not something is wrong, and what needs action is never below what
+  // does not.
+  const dirty = shortcut({ id: "m-dirty", label: "Uncommitted work" });
+  const stats = shortcut({ id: "m-stats", label: "Project stats" });
+  const dir = nodePath.join(tmpDir, "reports", "sub");
+  nodeFs.mkdirSync(dir, { recursive: true });
+  const dirtyReport = nodePath.join(dir, "dirty.md");
+  const statsReport = nodePath.join(dir, "stats.md");
+  nodeFs.writeFileSync(dirtyReport, "# D\n\n**Attention:** 7 uncommitted files\n");
+  nodeFs.writeFileSync(statsReport, "# S\n\n**Headline:** 1,000 lines\n");
+
+  const byId: Record<string, { pin: Shortcut; report: string }> = {
+    "m-dirty": { pin: dirty, report: dirtyReport },
+    "m-stats": { pin: stats, report: statsReport },
+  };
+  const hooks: RoutineHooks = {
+    resolveMember: (m) => byId[m.pinId!]?.pin,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      recordLastReport(p.id, byId[p.id]!.report);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 5,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-mixed");
+
+  // Informational member listed FIRST, so passing order cannot explain the result.
+  await runRoutine(
+    shortcut({ id: "routine-mixed", label: "Brief" }),
+    [member({ pinId: "m-stats" }), member({ pinId: "m-dirty" })],
+    "manual"
+  );
+
+  const summaryPath = findFile(nodePath.join(tmpDir, "reports"), (f) => f.endsWith("_brief.md"));
+  assert.ok(summaryPath, "the routine should write a summary");
+  const text = nodeFs.readFileSync(summaryPath!, "utf8");
+  assert.ok(text.includes("## Needs attention (1)"), "the verdict counts what needs action");
+  assert.ok(
+    text.indexOf("Uncommitted work") < text.indexOf("Project stats"),
+    "what needs action sorts above what merely informs"
+  );
+  assert.ok(text.includes("### Also ran"), "the informational block is separated");
 });
 
 test("extractHeadline reads the convention line, and ignores a report without one", () => {
   const withHeadline = ["# R", "", "**Headline:** 3 things", "", "body"].join("\n");
-  assert.equal(extractHeadline(withHeadline), "3 things");
+  assert.deepEqual(extractHeadline(withHeadline), { text: "3 things", attention: false });
   assert.equal(extractHeadline(["# R", "", "no headline here"].join("\n")), undefined);
   assert.equal(extractHeadline(undefined), undefined);
   // A blank headline is not a headline.
   assert.equal(extractHeadline("**Headline:** "), undefined);
+});
+
+test("extractHeadline reads an Attention line, and it outranks a Headline", () => {
+  assert.deepEqual(extractHeadline("**Attention:** main is red"), {
+    text: "main is red",
+    attention: true,
+  });
+  // A report carrying both is asking for something; the weaker line must not mask it.
+  const both = ["**Headline:** 4 runs", "**Attention:** 1 failing"].join("\n");
+  assert.deepEqual(extractHeadline(both), { text: "1 failing", attention: true });
 });
