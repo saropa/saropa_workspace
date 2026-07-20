@@ -34,11 +34,22 @@ interface FieldWire {
   kind: InteractiveToken["kind"];
   label: string;
   value: string;
-  // "pick" only: the fixed option list to render as a <select>.
+  // "pick" only: the option list to render as a <select>. Always includes the
+  // remembered value even if it no longer appears in the token's current
+  // declared list (the manifest's option set can change after a value was
+  // saved) — so a stale choice stays visible and selectable rather than the
+  // dropdown silently jumping to a different default.
   options?: string[];
   // "pickFolder" only: the Browse button's host-localized label (the client
   // carries no display strings of its own).
   browseLabel?: string;
+  // Whether promptMemory currently holds a value for this token — gates the
+  // per-field "Reset to unanswered" action (nothing to reset on a field that
+  // was never answered).
+  answered: boolean;
+  // The Reset button's host-localized label/tooltip, carried on every field so
+  // the client never hardcodes display text (only rendered when `answered`).
+  resetLabel: string;
 }
 
 export class SetParamsPanel {
@@ -114,6 +125,11 @@ export class SetParamsPanel {
           await this.onBrowse(msg.raw);
         }
         return;
+      case "reset":
+        if (typeof msg.raw === "string") {
+          await this.resetField(msg.raw);
+        }
+        return;
       case "save":
         if (msg.values) {
           await this.save(msg.values);
@@ -127,25 +143,47 @@ export class SetParamsPanel {
 
   // Post the current shortcut's fields once the client signals it is ready to
   // receive them — mirrors ConfigureRunPanel's postInit, so no per-shortcut data
-  // is ever embedded directly into the HTML string.
+  // is ever embedded directly into the HTML string. Also re-posted after a reset,
+  // so the client never has to guess how a cleared field should redraw itself.
   private async postInit(): Promise<void> {
     const tokens = getInteractiveTokens(this.shortcut);
-    const fields: FieldWire[] = tokens.map((token) => ({
-      raw: token.raw,
-      kind: token.kind,
-      label: token.arg || l10n("prompt.inputFallback"),
-      value: promptMemory.getValue(this.shortcut.id, token.raw) ?? "",
-      options:
+    const fields: FieldWire[] = tokens.map((token) => {
+      const value = promptMemory.getValue(this.shortcut.id, token.raw);
+      const declaredOptions =
         token.kind === "pick"
           ? token.arg
               .split(",")
               .map((o) => o.trim())
               .filter((o) => o.length > 0)
-          : undefined,
-      browseLabel:
-        token.kind === "pickFolder" ? l10n("prompt.pickFolderOpenLabel") : undefined,
-    }));
+          : undefined;
+      return {
+        raw: token.raw,
+        kind: token.kind,
+        label: token.arg || l10n("prompt.inputFallback"),
+        value: value ?? "",
+        // A remembered value the manifest no longer declares (its pick option
+        // list changed since) stays visible and selectable rather than
+        // silently vanishing behind whatever the select defaults to.
+        options:
+          declaredOptions && value && !declaredOptions.includes(value)
+            ? [value, ...declaredOptions]
+            : declaredOptions,
+        browseLabel:
+          token.kind === "pickFolder" ? l10n("prompt.pickFolderOpenLabel") : undefined,
+        answered: value !== undefined,
+        resetLabel: l10n("setParams.reset"),
+      };
+    });
     await this.panel.webview.postMessage({ type: "init", fields });
+  }
+
+  // Clear one token's remembered value (leaving the shortcut's other tokens
+  // untouched) and redraw from the now-updated memory, so the field visibly
+  // reverts to blank/default — the reset itself is the visible feedback, so no
+  // separate toast is needed for what is meant to be a quick, low-friction action.
+  private async resetField(raw: string): Promise<void> {
+    await promptMemory.forgetToken(this.shortcut.id, raw);
+    await this.postInit();
   }
 
   // Browse for a pickFolder field's value from the panel (mirrors the run-time
@@ -280,6 +318,7 @@ const SET_PARAMS_SCRIPT = `
       }
     }
     input.dataset.raw = field.raw;
+    input.dataset.kind = field.kind;
     input.addEventListener("input", updateSaveState);
     row.appendChild(input);
 
@@ -294,12 +333,32 @@ const SET_PARAMS_SCRIPT = `
       row.appendChild(browse);
     }
 
+    if (field.answered) {
+      const reset = document.createElement("button");
+      reset.type = "button";
+      reset.className = "iconbtn";
+      reset.title = field.resetLabel;
+      reset.setAttribute("aria-label", field.resetLabel);
+      reset.textContent = "↺";
+      reset.addEventListener("click", function () {
+        vscode.postMessage({ type: "reset", raw: field.raw });
+      });
+      row.appendChild(reset);
+    }
+
     wrap.appendChild(row);
     return { wrap: wrap, input: input };
   }
 
+  // Only a blank pickFolder field blocks Save — a genuinely empty folder
+  // path is meaningless to run against. A blank prompt answer is a
+  // deliberate, savable choice (e.g. clearing an optional flag), and a
+  // pick field always carries a selected option by construction, so
+  // neither should be forced non-blank.
   function updateSaveState() {
-    saveBtn.disabled = inputs.some(function (i) { return i.value.trim() === ""; });
+    saveBtn.disabled = inputs.some(function (i) {
+      return i.dataset.kind === "pickFolder" && i.value.trim() === "";
+    });
   }
 
   window.addEventListener("message", function (event) {

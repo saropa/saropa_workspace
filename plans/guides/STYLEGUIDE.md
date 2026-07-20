@@ -850,6 +850,38 @@ not raw-dump conventions:
   wording anywhere unless every member confirmed ok, and never show a raw status
   word without its explanation (both from user reports 2026-07-16).
 
+### 4.8a A report states its finding before its evidence, and says whether it needs you
+
+A report whose first screen is a command line and a fenced dump gets skimmed once and
+ignored afterwards, however good the data underneath is (user report 2026-07-20: "this
+report is unreadable noise. it will be ignored"). Two conventions fix that, and every
+report writer follows them.
+
+- **One line, at the top, stating what the report found.** `**Headline:** …` when the
+  finding only informs; `**Attention:** …` when it asks the reader to do something.
+  A report writes at most one of the two, above the command block. The distinction is
+  made by whoever understands the output — the summarizer — never inferred later from
+  wording. `summarizeReportBody` in `exec/actionRunner.ts` derives it from the shape of
+  the captured OUTPUT, never from the command string, so the same digest reached
+  through a hand-written shortcut is summarized identically and no flag-order change
+  can silently stop it working.
+- **No filler headline.** Output that cannot be summarized meaningfully gets no
+  headline at all. "412 lines of output" is not a finding, and a fake headline is
+  worse than none because it trains the reader to skip the line that matters.
+- **An empty result is a finding.** Nothing found reads as *"Nothing to report."*, never
+  as a missing line the reader has to infer from a blank block.
+- **A routine summary opens with a verdict, and sorts by urgency.** The first heading
+  is `Needs attention (N)` or `All clear`, counting failed/missing members plus every
+  member reporting `**Attention:**`. Then, in order: the failed/missing blockquotes,
+  the attention findings, and — under an `Also ran` heading — everything that merely
+  informs. A quiet morning produces a short document; a bad one grows to fit the
+  problem. **The report must not render identically whether or not something is
+  wrong**: that is precisely what taught the reader to stop opening it.
+- **Answer the urgent question first.** Members are ordered by what outranks what, not
+  by what is cheapest to compute — build status before measurements, because a report
+  that discusses line counts while the default branch is red has its priorities
+  inverted.
+
 ### 4.9 A multi-step run opens one document, and always opens it
 
 A run that produces several reports raises exactly one editor: the summary that links

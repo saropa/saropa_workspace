@@ -69,6 +69,29 @@ class PromptMemory {
     await this.write(data);
   }
 
+  // Drop a single token's remembered value, leaving the shortcut's other tokens
+  // untouched. Backs the Set Params editor's "Reset to unanswered" action — so
+  // the NEXT run prompts fresh for just that token instead of silently reusing a
+  // fixed value the user wants to reconsider. No-op when the token has no memory.
+  async forgetToken(pinId: string, tokenRaw: string): Promise<void> {
+    if (!this.context) {
+      return;
+    }
+    const data = this.read();
+    const forShortcut = data[pinId];
+    if (forShortcut === undefined || !(tokenRaw in forShortcut)) {
+      return;
+    }
+    const next = { ...forShortcut };
+    delete next[tokenRaw];
+    if (Object.keys(next).length === 0) {
+      delete data[pinId];
+    } else {
+      data[pinId] = next;
+    }
+    await this.write(data);
+  }
+
   private read(): MemoryData {
     const data = this.context?.workspaceState.get<MemoryData>(KEY);
     return data && typeof data === "object" ? data : {};

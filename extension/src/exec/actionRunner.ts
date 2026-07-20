@@ -200,17 +200,24 @@ export function buildCommandReport(name: string, commandLine: string, body: stri
   const trimmed = body.trim();
   const output = trimmed.length > 0 ? fenceBlock(body) : "_No output._";
   const headline = summarizeReportBody(trimmed);
+  // Two conventions, not one: **Attention:** marks a finding that needs the reader to
+  // DO something, **Headline:** one that merely informs. The routine summary sorts on
+  // this to decide its verdict, so the distinction has to be made by whoever
+  // understands the output — the summarizer — not guessed at later from wording.
+  const label = headline?.attention ? "Attention" : "Headline";
   return (
     `# ${name}\n\n` +
     `**Generated** ${new Date().toLocaleString()}\n\n` +
-    // The headline is what a reader actually reads: a report that opens with a
-    // command line and a fenced dump gets skimmed and abandoned. The routine summary
-    // also lifts this line, so the one document a routine opens leads with every
-    // member's answer instead of every member's raw output (user report 2026-07-20).
-    (headline ? `**Headline:** ${headline}\n\n` : "") +
+    (headline ? `**${label}:** ${headline.text}\n\n` : "") +
     `**Command** \`${commandLine}\`\n\n` +
     `${output}\n`
   );
+}
+
+// A report's one-line finding, and whether it is something to act on.
+export interface ReportHeadline {
+  text: string;
+  attention: boolean;
 }
 
 // One line stating what the captured output amounts to, or undefined when the output
@@ -218,11 +225,35 @@ export function buildCommandReport(name: string, commandLine: string, body: stri
 // Keyed off the OUTPUT, never the command line: the same digest is reachable through a
 // hand-written shortcut, and a command-string match would silently stop working the
 // first time a flag order changed.
-export function summarizeReportBody(body: string): string | undefined {
+export function summarizeReportBody(body: string): ReportHeadline | undefined {
   if (body.length === 0) {
-    return "Nothing to report.";
+    return { text: "Nothing to report.", attention: false };
   }
   const lines = body.split("\n");
+
+  // `gh run list` — tab-separated, leading with the run's status and conclusion.
+  // Checked before the commit shape because a run row also carries a commit sha.
+  const runs = lines.filter((l) => /^(completed|in_progress|queued|requested)\t/.test(l));
+  if (runs.length > 0) {
+    // `cancell?ed` matches either spelling: the GitHub API's conclusion value carries
+    // the double-l form, which this repo's American-English rule forbids writing out.
+    const failed = runs.filter((l) => /^completed\t(failure|timed_out|cancell?ed)\t/.test(l));
+    if (failed.length > 0) {
+      // Name the workflow of the newest failure: "2 runs failing" sends the reader
+      // hunting, "2 runs failing (build)" tells them where to look.
+      const workflow = failed[0]?.split("\t")[4]?.trim();
+      return {
+        text: `${failed.length} of the last ${runs.length} CI runs failing${workflow ? ` (${workflow})` : ""}`,
+        attention: true,
+      };
+    }
+    const running = runs.filter((l) => !l.startsWith("completed\t")).length;
+    return {
+      text: running > 0 ? `CI green, ${running} still running` : "CI green",
+      attention: false,
+    };
+  }
+
   // `<sha> <subject>` — the shape of --oneline / --pretty=format:"%h %s".
   const commits = lines.filter((l) => /^[0-9a-f]{7,40} \S/.test(l)).length;
   if (commits > 0) {
@@ -234,12 +265,19 @@ export function summarizeReportBody(body: string): string | undefined {
         `+${totals.insertions.toLocaleString()} / -${totals.deletions.toLocaleString()}`
       );
     }
-    return parts.join(" · ");
+    // History is a record, not a task: it informs, it does not ask for anything.
+    return { text: parts.join(" · "), attention: false };
   }
+
   // `XY path` — git status --porcelain, the shape the uncommitted-work guard captures.
   const dirty = lines.filter((l) => /^[ MADRCU?!]{2} \S/.test(l)).length;
   if (dirty > 0) {
-    return `${dirty} uncommitted file${dirty === 1 ? "" : "s"}`;
+    // Work left outside a commit is the one finding here that can be lost, so it
+    // asks for action rather than merely reporting a count.
+    return {
+      text: `${dirty} uncommitted file${dirty === 1 ? "" : "s"}`,
+      attention: true,
+    };
   }
   return undefined;
 }

@@ -393,10 +393,108 @@ function createOutputChannel(name: string): {
   };
 }
 
+// vscode.ViewColumn: only the members a webview panel test needs to pass through
+// (never asserted on — a panel test cares about the html/postMessage/dispose
+// surface, not which editor column it opened in).
+export const ViewColumn = {
+  One: 1,
+  Two: 2,
+  Three: 3,
+} as const;
+
+// vscode.Webview stand-in (the panel's `.webview` sub-object): html setter,
+// postMessage (recorded so a test can assert what the host sent the client),
+// and onDidReceiveMessage (the test drives this directly via __receiveFromClient
+// to simulate the client script posting a message back).
+export interface FakeWebview {
+  html: string;
+  readonly postedMessages: unknown[];
+  postMessage(message: unknown): Promise<boolean>;
+  onDidReceiveMessage(handler: (message: unknown) => void): { dispose(): void };
+  __receiveFromClient(message: unknown): void;
+}
+
+// vscode.WebviewPanel stand-in for the Set Params / Configure Run panel tests.
+// reveal is a no-op; dispose fires the registered onDidDispose listener,
+// matching the real panel's host->message->dispose lifecycle.
+export interface FakeWebviewPanel {
+  readonly viewType: string;
+  title: string;
+  readonly webview: FakeWebview;
+  onDidDispose(handler: () => void): { dispose(): void };
+  reveal(column?: number): void;
+  dispose(): void;
+  readonly disposed: boolean;
+}
+
+function fakeWebviewPanel(viewType: string, title: string): FakeWebviewPanel {
+  let receiveHandler: ((message: unknown) => void) | undefined;
+  let disposeHandler: (() => void) | undefined;
+  let disposed = false;
+  const postedMessages: unknown[] = [];
+  const webview: FakeWebview = {
+    html: "",
+    postedMessages,
+    async postMessage(message: unknown): Promise<boolean> {
+      postedMessages.push(message);
+      return true;
+    },
+    onDidReceiveMessage(handler: (message: unknown) => void): { dispose(): void } {
+      receiveHandler = handler;
+      return { dispose: (): void => {} };
+    },
+    __receiveFromClient(message: unknown): void {
+      receiveHandler?.(message);
+    },
+  };
+  return {
+    viewType,
+    title,
+    webview,
+    onDidDispose(handler: () => void): { dispose(): void } {
+      disposeHandler = handler;
+      return { dispose: (): void => {} };
+    },
+    reveal(): void {},
+    dispose(): void {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      disposeHandler?.();
+    },
+    get disposed(): boolean {
+      return disposed;
+    },
+  };
+}
+
+// The panels created since the last reset, in creation order — a test reads the
+// most recent one back (createWebviewPanel's real return type carries no such
+// list; this is a test-only convenience) via __lastWebviewPanel().
+const createdPanels: FakeWebviewPanel[] = [];
+export function __lastWebviewPanel(): FakeWebviewPanel | undefined {
+  return createdPanels[createdPanels.length - 1];
+}
+export function __resetWebviewPanels(): void {
+  createdPanels.length = 0;
+}
+
 // vscode.window stand-in: the settable input/pick dialogs, inert message toasts,
-// the no-op output channel, and the activity-event emitters the idle monitor
-// subscribes to.
+// the no-op output channel, the activity-event emitters the idle monitor
+// subscribes to, and webview panel creation.
 export const window = {
+  activeTextEditor: undefined as { viewColumn?: number } | undefined,
+  createWebviewPanel(
+    viewType: string,
+    title: string,
+    _column: number,
+    _options?: unknown
+  ): FakeWebviewPanel {
+    const panel = fakeWebviewPanel(viewType, title);
+    createdPanels.push(panel);
+    return panel;
+  },
   showInputBox(opts?: { prompt?: string; value?: string }): Promise<InputResult> {
     return inputHandler(opts);
   },
