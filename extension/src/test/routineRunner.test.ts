@@ -28,6 +28,7 @@ import {
   runRoutine,
   setRoutineHooks,
   embedMemberReport,
+  extractHeadline,
   type RoutineHooks,
 } from "../exec/routineRunner";
 import { openReport } from "../exec/reportOpen";
@@ -674,4 +675,59 @@ test("a thrown member run is caught and counts as a failure", async () => {
   } finally {
     cap.dispose();
   }
+});
+
+test("the summary leads with each member's headline, above the collapsed sections", async () => {
+  // The block that decides whether the report is read at all: a member report stating
+  // a **Headline:** line has it lifted to the top of the summary, before the
+  // <details> sections, so the answers are visible without expanding anything.
+  const memberShortcut = shortcut({ id: "m-head", label: "Standup digest" });
+  const memberReport = nodePath.join(tmpDir, "reports", "sub", "standup.md");
+  nodeFs.mkdirSync(nodePath.dirname(memberReport), { recursive: true });
+  nodeFs.writeFileSync(
+    memberReport,
+    ["# Standup", "", "**Headline:** 12 commits", "", "**Command** `git log`", ""].join("\n")
+  );
+
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      recordLastReport(p.id, memberReport);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 5,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-head");
+
+  await runRoutine(
+    shortcut({ id: "routine-head", label: "Dawn" }),
+    [member({ pinId: "m-head" })],
+    "manual"
+  );
+
+  const summaryPath = findFile(nodePath.join(tmpDir, "reports"), (f) =>
+    f.endsWith("_dawn.md")
+  );
+  assert.ok(summaryPath, "the routine should write a summary");
+  const text = nodeFs.readFileSync(summaryPath!, "utf8");
+  assert.ok(text.includes("- **Standup digest** — 12 commits"), "headline is lifted");
+  assert.ok(
+    text.indexOf("- **Standup digest**") < text.indexOf("<details>"),
+    "headlines lead the document"
+  );
+});
+
+test("extractHeadline reads the convention line, and ignores a report without one", () => {
+  const withHeadline = ["# R", "", "**Headline:** 3 things", "", "body"].join("\n");
+  assert.equal(extractHeadline(withHeadline), "3 things");
+  assert.equal(extractHeadline(["# R", "", "no headline here"].join("\n")), undefined);
+  assert.equal(extractHeadline(undefined), undefined);
+  // A blank headline is not a headline.
+  assert.equal(extractHeadline("**Headline:** "), undefined);
 });

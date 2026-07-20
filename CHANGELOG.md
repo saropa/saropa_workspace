@@ -48,7 +48,12 @@ cspell:disable
 
 ## [Unreleased]
 
-**Overview** — The morning report is readable again: no more 50-row tables of image files or thousand-line diff dumps. And a routine that can no longer find one of its steps now tells you, instead of quietly reporting a clean morning.
+**Overview** — Your morning report now opens with the answers. Each check states its finding in one line at the top — commits, changed files, uncommitted work — and the raw output moves out of the way instead of filling the page. And a routine that can no longer find one of its steps now says so, instead of quietly reporting a clean morning.
+
+### Added
+
+- Reports now open with a **headline** — one line stating what the report found, above the detail. A git digest reads "12 commits · 47 files changed · +5,102 / -2,761"; uncommitted work reads "7 uncommitted files"; an empty result says "Nothing to report" rather than leaving you to infer it from a blank block. The headline is derived from the captured output, so a hand-written shortcut that captures the same kind of output gets one too, and no per-report configuration can drift out of date.
+- A **routine summary now leads with every member's headline**, as a list above the collapsed member sections. The one document a routine opens states all of its answers on the first screen; the full output stays one click away in the section below.
 
 ### Changed
 
@@ -59,7 +64,7 @@ cspell:disable
 
 ### Fixed
 
-- Removing a shortcut now unlinks it from every routine that ran it. A removed recipe stays suppressed by its recipe id, so a routine still listing it could never resolve that member again — it reported "Shortcut not found" on every run, with no way back to a working state except editing the project JSON by hand.
+- Removing a shortcut now unlinks it from every routine that ran it. A removed recipe stays suppressed by its recipe id, so a routine still listing it could never resolve that member again — it reported "Shortcut not found" on every run, with no way back to a working state except editing the project JSON by hand. Routines already broken this way repair themselves on the next load: a member naming a recipe that is currently suppressed is unresolvable by definition, so it is dropped rather than failing forever.
 
 - A routine whose member shortcut has been removed or renamed now **fails** rather than reporting success. The member was already listed as "Missing" in the summary, but because it did not count against the run, the routine scored a clean success, painted a green badge, and never opened the summary — so the "Shortcut not found — edit the routine to re-link or remove this member" note sat unread in a file there was no reason to open. The routine now badges red, opens its summary, and surfaces a failure notification naming it. The member still reads as "Missing", not "Failed", so the report distinguishes a broken link from a step that ran and failed.
 - **Organize output folder** now opens a folder-browse dialog for the target folder instead of a bare text box, defaulting to the workspace root — the prior free-text prompt gave no clue what shape of path was expected, which was itself part of why the folder was easy to misconfigure. The folder is now also set up once: the dialog opens on the first run, and every run after that silently reuses the same folder instead of asking again, matching how a bundled script is meant to be used. Backed by a new general-purpose interactive run token, `${pickFolder:Label}`, alongside the existing `${prompt:...}` and `${pick:...}`, and by resolving bundled-script tokens from memory by default (a user shortcut still gets a fresh prompt each run unless "Run with Last Parameters" is used).

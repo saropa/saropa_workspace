@@ -16,7 +16,12 @@ import {
   __setWorkspaceFolders,
   type WorkspaceFolder,
 } from "./_stub/vscode";
-import { expandRecipeTokens, firstWorkspacePath } from "../exec/actionRunner";
+import {
+  expandRecipeTokens,
+  firstWorkspacePath,
+  buildCommandReport,
+  summarizeReportBody,
+} from "../exec/actionRunner";
 
 const ROOT = "/tmp/proj-root";
 let folder: WorkspaceFolder;
@@ -104,4 +109,38 @@ test("$time expands to an HHmmss clock stamp", () => {
 
 test("a string with no tokens is returned unchanged", () => {
   assert.equal(expandRecipeTokens("npm run build"), "npm run build");
+});
+
+test("summarizeReportBody totals a git log's changes into one headline", () => {
+  // The standup digest's shape: subject lines interleaved with --shortstat summaries.
+  const body = [
+    "3f89a5b fix(reactions): missing Material ancestor",
+    " 3 files changed, 117 insertions(+), 44 deletions(-)",
+    "e757d64 chore(l10n): translation updates",
+    " 22 files changed, 4062 insertions(+), 2717 deletions(-)",
+  ].join("\n");
+  assert.equal(summarizeReportBody(body), "2 commits · 25 files changed · +4,179 / -2,761");
+});
+
+test("summarizeReportBody counts subjects when no shortstat is present", () => {
+  assert.equal(summarizeReportBody("abc1234 one\ndef5678 two"), "2 commits");
+});
+
+test("summarizeReportBody headlines porcelain status output as uncommitted files", () => {
+  assert.equal(summarizeReportBody(" M lib/a.dart\n?? lib/b.dart"), "2 uncommitted files");
+});
+
+test("summarizeReportBody states an empty result rather than staying silent", () => {
+  // The PR review queue on a quiet morning: nothing found is itself the answer.
+  assert.equal(summarizeReportBody(""), "Nothing to report.");
+});
+
+test("summarizeReportBody omits a headline it cannot make meaningful", () => {
+  // A headline of "N lines" would be noise; no headline beats a fake one.
+  assert.equal(summarizeReportBody("some arbitrary tool output\nsecond line"), undefined);
+});
+
+test("buildCommandReport puts the headline above the command line", () => {
+  const md = buildCommandReport("Standup", "git log", "abc1234 one");
+  assert.ok(md.indexOf("**Headline:** 1 commit") < md.indexOf("**Command**"));
 });
