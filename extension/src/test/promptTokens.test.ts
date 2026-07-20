@@ -14,7 +14,10 @@ import assert from "node:assert/strict";
 import {
   __setInputHandler,
   __setPickHandler,
+  __setOpenDialogHandler,
+  __setWorkspaceFolders,
   __resetHandlers,
+  Uri,
 } from "./_stub/vscode";
 import {
   hasInteractiveTokens,
@@ -36,6 +39,13 @@ test("hasInteractiveTokens detects ${prompt:} / ${pick:} in command, args, or cw
   assert.equal(hasInteractiveTokens(shortcutWith({ command: "deploy ${prompt:Target}" })), true);
   assert.equal(hasInteractiveTokens(shortcutWith({ args: ["--env", "${pick:dev,prod}"] })), true);
   assert.equal(hasInteractiveTokens(shortcutWith({ command: "x", cwd: "${prompt:Dir}" })), true);
+});
+
+test("hasInteractiveTokens detects ${pickFolder:} in args", () => {
+  assert.equal(
+    hasInteractiveTokens(shortcutWith({ args: ["${pickFolder:Folder to organize}"] })),
+    true
+  );
 });
 
 test("hasInteractiveTokens ignores a plain shell ${VAR}", () => {
@@ -98,5 +108,32 @@ test("resolveInteractiveTokens returns undefined when any prompt is canceled", a
   // so the caller leaves no partial run.
   __setInputHandler(async () => undefined);
   const result = await resolveInteractiveTokens(shortcutWith({ command: "deploy ${prompt:Target}" }));
+  assert.equal(result, undefined);
+});
+
+test("resolveInteractiveTokens resolves a pickFolder token via the folder-browse dialog, defaulting to the workspace root", async () => {
+  const root = Uri.file("/work/project");
+  __setWorkspaceFolders([{ uri: root, name: "project", index: 0 }]);
+  let seenDefaultUri: unknown;
+  __setOpenDialogHandler(async (opts) => {
+    seenDefaultUri = opts?.defaultUri;
+    return [Uri.file("/work/project/logs")];
+  });
+  const result = await resolveInteractiveTokens(
+    shortcutWith({ args: ["${pickFolder:Folder to organize}"] })
+  );
+  assert.equal(
+    (result as Map<string, string>).get("${pickFolder:Folder to organize}"),
+    "/work/project/logs"
+  );
+  assert.equal((seenDefaultUri as { fsPath: string } | undefined)?.fsPath, "/work/project");
+  __setWorkspaceFolders(undefined);
+});
+
+test("resolveInteractiveTokens returns undefined when the folder-browse dialog is canceled", async () => {
+  __setOpenDialogHandler(async () => undefined);
+  const result = await resolveInteractiveTokens(
+    shortcutWith({ args: ["${pickFolder:Folder to organize}"] })
+  );
   assert.equal(result, undefined);
 });
