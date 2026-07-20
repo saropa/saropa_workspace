@@ -199,12 +199,71 @@ export function fenceBlock(body: string): string {
 export function buildCommandReport(name: string, commandLine: string, body: string): string {
   const trimmed = body.trim();
   const output = trimmed.length > 0 ? fenceBlock(body) : "_No output._";
+  const headline = summarizeReportBody(trimmed);
   return (
     `# ${name}\n\n` +
     `**Generated** ${new Date().toLocaleString()}\n\n` +
+    // The headline is what a reader actually reads: a report that opens with a
+    // command line and a fenced dump gets skimmed and abandoned. The routine summary
+    // also lifts this line, so the one document a routine opens leads with every
+    // member's answer instead of every member's raw output (user report 2026-07-20).
+    (headline ? `**Headline:** ${headline}\n\n` : "") +
     `**Command** \`${commandLine}\`\n\n` +
     `${output}\n`
   );
+}
+
+// One line stating what the captured output amounts to, or undefined when the output
+// has no shape worth summarizing (a headline of "412 lines" is noise, not a headline).
+// Keyed off the OUTPUT, never the command line: the same digest is reachable through a
+// hand-written shortcut, and a command-string match would silently stop working the
+// first time a flag order changed.
+export function summarizeReportBody(body: string): string | undefined {
+  if (body.length === 0) {
+    return "Nothing to report.";
+  }
+  const lines = body.split("\n");
+  // `<sha> <subject>` — the shape of --oneline / --pretty=format:"%h %s".
+  const commits = lines.filter((l) => /^[0-9a-f]{7,40} \S/.test(l)).length;
+  if (commits > 0) {
+    const totals = sumShortstat(lines);
+    const parts = [`${commits} commit${commits === 1 ? "" : "s"}`];
+    if (totals) {
+      parts.push(
+        `${totals.files} file${totals.files === 1 ? "" : "s"} changed`,
+        `+${totals.insertions.toLocaleString()} / -${totals.deletions.toLocaleString()}`
+      );
+    }
+    return parts.join(" · ");
+  }
+  // `XY path` — git status --porcelain, the shape the uncommitted-work guard captures.
+  const dirty = lines.filter((l) => /^[ MADRCU?!]{2} \S/.test(l)).length;
+  if (dirty > 0) {
+    return `${dirty} uncommitted file${dirty === 1 ? "" : "s"}`;
+  }
+  return undefined;
+}
+
+// Total the `N files changed, N insertions(+), N deletions(-)` lines --shortstat emits
+// after each commit. Any of the three clauses may be absent (a commit that only added
+// files has no deletions clause), so each is matched independently.
+function sumShortstat(lines: readonly string[]):
+  | { files: number; insertions: number; deletions: number }
+  | undefined {
+  let files = 0;
+  let insertions = 0;
+  let deletions = 0;
+  let seen = false;
+  for (const line of lines) {
+    if (!/^\s*\d+ files? changed/.test(line)) {
+      continue;
+    }
+    seen = true;
+    files += Number(/(\d+) files? changed/.exec(line)?.[1] ?? 0);
+    insertions += Number(/(\d+) insertions?\(\+\)/.exec(line)?.[1] ?? 0);
+    deletions += Number(/(\d+) deletions?\(-\)/.exec(line)?.[1] ?? 0);
+  }
+  return seen ? { files, insertions, deletions } : undefined;
 }
 
 // Run a command, capture its combined output to a dated report file (created with

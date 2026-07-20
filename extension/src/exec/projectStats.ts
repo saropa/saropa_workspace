@@ -256,6 +256,23 @@ export function summarizeLanguages(languages: readonly LangStat[]): {
   };
 }
 
+// The size of the codebase and what dominates it, in one line — the two facts the
+// table exists to convey. Stated in the report and lifted into the routine summary.
+export function statsHeadline(stats: ProjectStats): string {
+  const { rows } = summarizeLanguages(stats.languages);
+  const parts = [
+    `${stats.totalLines.toLocaleString()} lines across ${stats.totalFiles.toLocaleString()} files`,
+  ];
+  const top = rows[0];
+  if (top && stats.totalLines > 0) {
+    parts.push(
+      `${top.language} leads at ${((top.lines / stats.totalLines) * 100).toFixed(1)}%`
+    );
+  }
+  parts.push(fmtBytes(stats.totalBytes));
+  return parts.join(" · ");
+}
+
 // Render the stats as a Markdown report: a per-language table (with each language's
 // share of total lines), the totals, and the recent git activity.
 export function buildStatsMarkdown(stats: ProjectStats): string {
@@ -266,6 +283,10 @@ export function buildStatsMarkdown(stats: ProjectStats): string {
   if (stats.branch) {
     lines.push(`Branch: \`${stats.branch}\``);
   }
+  lines.push("");
+  // The table's answer in one line, so the report states its finding before it shows
+  // its working. The routine summary lifts this same line into its headline block.
+  lines.push(`**Headline:** ${statsHeadline(stats)}`);
   lines.push("");
 
   lines.push("## By language");

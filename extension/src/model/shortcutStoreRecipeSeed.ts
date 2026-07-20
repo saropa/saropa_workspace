@@ -8,6 +8,7 @@ import {
   RECOMMENDED_GROUP_ID,
 } from "./shortcutStoreShared";
 import { ShortcutStoreRecipes } from "./shortcutStoreRecipes";
+import { pruneSuppressedRoutineMembers } from "./routineMembers";
 
 // Recipe-seeding layer: the async recipe detection sweep and the synthetic
 // recipe-group builder it publishes into. Split out of shortcutStoreRefresh.ts
@@ -63,6 +64,12 @@ export abstract class ShortcutStoreRecipeSeed extends ShortcutStoreRecipes {
       folders.map(async (folder) => {
         try {
           const file = await this.readProjectFile(folder);
+          // Self-heal routines that reference a recipe the user removed before the
+          // remove path learned to unlink members. Such a member can never resolve
+          // again, so it is dropped here rather than failing every run forever.
+          if (pruneSuppressedRoutineMembers(file.pins, file.removedRecipes) > 0) {
+            await this.writeProjectFile(folder, file);
+          }
           const results = await this.detectRecipes(folder);
           const shortcuts = [
             ...this.buildRecipeShortcuts(folder, results, file.removedRecipes),

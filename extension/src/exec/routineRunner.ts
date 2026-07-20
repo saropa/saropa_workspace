@@ -276,6 +276,31 @@ export async function runRoutine(
   await writeRoutineSummary(shortcut.id, name, outcomes, anyFailed);
 }
 
+// Read a member report, or undefined when it cannot be read. A torn-down temp file
+// must degrade to the source link, never lose the rest of the document.
+async function readOrUndefined(
+  fsp: typeof import("fs/promises"),
+  file: string
+): Promise<string | undefined> {
+  try {
+    return await fsp.readFile(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+// Pull a member report's `**Headline:** …` line. The convention is one line, written
+// by whichever generator produced the report, so the summary needs no per-member
+// knowledge of what its members do. Exported for tests.
+export function extractHeadline(content: string | undefined): string | undefined {
+  if (!content) {
+    return undefined;
+  }
+  // The capture must START on a non-space: a lazy `.+?` would otherwise match the
+  // padding of a blank "**Headline:** " line and lift a single space as the headline.
+  return /^\*\*Headline:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(content)?.[1];
+}
+
 // Sum a member's badge counts into the routine aggregate. Undefined member badge
 // (a non-lint / non-test member) contributes nothing.
 function mergeBadge(into: ShortcutBadge, from: ShortcutBadge | undefined): void {
@@ -355,6 +380,32 @@ async function writeRoutineSummary(
     parts.push("");
   }
 
+  // Read every member report up front so the headline block can lead the document.
+  // The sections below reuse these contents rather than reading each file twice.
+  const contents = new Map<string, string | undefined>();
+  for (const o of outcomes) {
+    if (o.reportPath) {
+      contents.set(o.reportPath, await readOrUndefined(fsp, o.reportPath));
+    }
+  }
+
+  // Headlines first. This is the block that decides whether the report gets read at
+  // all: each member's own one-line finding, above the collapsed detail. A report
+  // that opens with sections to expand is skimmed and ignored (user report
+  // 2026-07-20). Members that state no headline are simply absent from the block.
+  const headlines = outcomes
+    .map((o) => ({
+      label: o.label,
+      text: o.reportPath ? extractHeadline(contents.get(o.reportPath)) : undefined,
+    }))
+    .filter((h): h is { label: string; text: string } => h.text !== undefined);
+  if (headlines.length > 0) {
+    for (const h of headlines) {
+      parts.push(`- **${h.label}** — ${h.text}`);
+    }
+    parts.push("");
+  }
+
   // Merge each member report's body in as a collapsible section, so a multi-member
   // morning report opens as scannable one-line headers that expand on click. A
   // FAILED member's section renders pre-expanded (`open`) — the reader must not
@@ -378,8 +429,8 @@ async function writeRoutineSummary(
     // parts (style guide: a summary links its sub-reports) even though the content
     // is inline.
     parts.push(`_[${path.basename(o.reportPath)}](${rel})_`, "");
-    try {
-      const content = await fsp.readFile(o.reportPath, "utf8");
+    const content = contents.get(o.reportPath);
+    if (content !== undefined) {
       // Only Markdown merges as Markdown. Any other extension (a .log, .txt, .csv
       // a member happened to record) is fenced as preformatted text — raw log
       // content read as Markdown is the "unreadable slop" failure the report
@@ -387,7 +438,7 @@ async function writeRoutineSummary(
       const isMarkdown = /\.(md|markdown)$/i.test(o.reportPath);
       parts.push(isMarkdown ? embedMemberReport(content) : fenceBlock(content), "");
       merged++;
-    } catch {
+    } else {
       parts.push(`_${l10n("routine.summary.readFailed")}_`, "");
     }
     parts.push("</details>", "");

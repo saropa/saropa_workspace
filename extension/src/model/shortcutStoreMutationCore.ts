@@ -3,45 +3,13 @@ import { Shortcut, ShortcutExecConfig, ShortcutScope } from "./shortcut";
 import { globalStoredPath } from "./shortcutPaths";
 import { SharedShortcut } from "../import/shareLink";
 import { ShortcutStoreAdd } from "./shortcutStoreAdd";
+import { pruneRoutineMembers } from "./routineMembers";
 
 // Core mutation layer: import / duplicate / remove / rename / re-point shortcuts,
 // plus the shared mutateShortcut (find-apply-persist-refresh) helper the update/set
 // toggles in ShortcutStoreMutation build on. The add-family (addShortcut and its
 // siblings) lives in ShortcutStoreAdd — split out purely to keep this file under the
 // project's line-count cap.
-// Unlink a removed shortcut from every routine in the same file, so no routine is
-// left holding a member it can never resolve. Matches on whichever reference the
-// member was stored under: recipeId for a detected recipe (the sticky-removal case)
-// or pinId for a hand-composed member over a stored shortcut. Exported for tests.
-// Returns the number of members dropped.
-export function pruneRoutineMembers(
-  pins: readonly Shortcut[],
-  removed: Pick<Shortcut, "id" | "recipeId">
-): number {
-  let dropped = 0;
-  for (const pin of pins) {
-    const action = pin.action;
-    // Narrowed off a local so the assignment below keeps the same non-undefined
-    // `action` the members were read from.
-    if (action?.kind !== "routine" || !action.members) {
-      continue;
-    }
-    const members = action.members;
-    // A member with neither reference cannot name the removed shortcut, so it is
-    // left alone rather than swept up by a loose match.
-    const kept = members.filter(
-      (m) =>
-        !(
-          (removed.recipeId !== undefined && m.recipeId === removed.recipeId) ||
-          (m.recipeId === undefined && m.pinId === removed.id)
-        )
-    );
-    dropped += members.length - kept.length;
-    action.members = kept;
-  }
-  return dropped;
-}
-
 export abstract class ShortcutStoreMutationCore extends ShortcutStoreAdd {
   // Add a shortcut from a shared link's portable configuration (WOW #4 import). The id
   // and order are freshly assigned; everything else (label, path, action, exec,

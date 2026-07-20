@@ -20,7 +20,7 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { ShortcutStore } from "../model/shortcutStore";
-import { pruneRoutineMembers } from "../model/shortcutStoreMutationCore";
+import { pruneRoutineMembers } from "../model/routineMembers";
 import { shortcutKind, type Shortcut } from "../model/shortcut";
 import type { RoutineMember } from "../model/shortcutAction";
 import type { Uri as VscodeUri } from "vscode";
