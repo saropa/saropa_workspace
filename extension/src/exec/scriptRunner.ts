@@ -26,6 +26,35 @@ export function missingRequirements(script: LibraryScript): ScriptRequirement[] 
   );
 }
 
+// Synthesize a Shortcut from a manifest entry so the run pipeline (and, separately,
+// the Set Params editor) handles interpreter resolution, token expansion
+// ($workspaceRoot), interactive tokens (${prompt:...}), and terminal/background
+// routing exactly as it would for a user-authored shortcut. The id uses the
+// `library:` prefix so it never collides with a user shortcut's UUID, and so
+// promptMemory keys a script's remembered params separately from any pin's.
+// Exported so runLibraryScript and the "Set Params" command build the identical
+// shortcut shape — the promptMemory key must match exactly, or a value set from
+// one would not be read by the other.
+export function buildScriptShortcut(
+  script: LibraryScript,
+  extensionPath: string
+): Shortcut {
+  const entryPath = resolveScriptEntry(extensionPath, script.entry);
+  return {
+    id: `library:${script.id}`,
+    path: entryPath,
+    label: script.label,
+    scope: "project",
+    order: 0,
+    exec: {
+      command: script.config.command,
+      args: script.config.args,
+      cwd: script.config.cwd,
+      runLocation: script.config.runLocation,
+    },
+  };
+}
+
 // Run a bundled library script by synthesizing a Shortcut from its manifest
 // entry and routing it through the existing run pipeline. The script's config
 // (command, args, cwd, runLocation) maps 1:1 to ShortcutExecConfig, so the
@@ -35,7 +64,8 @@ export async function runLibraryScript(
   script: LibraryScript,
   extensionPath: string
 ): Promise<void> {
-  const entryPath = resolveScriptEntry(extensionPath, script.entry);
+  const shortcut = buildScriptShortcut(script, extensionPath);
+  const entryPath = shortcut.path;
 
   if (!fs.existsSync(entryPath)) {
     void vscode.window.showErrorMessage(
@@ -63,24 +93,6 @@ export async function runLibraryScript(
     );
     return;
   }
-
-  // Synthesize a Shortcut so the run pipeline handles interpreter resolution,
-  // token expansion ($workspaceRoot), interactive tokens (${prompt:...}), and
-  // terminal/background routing. The id uses the `library:` prefix so it never
-  // collides with a user shortcut's UUID.
-  const shortcut: Shortcut = {
-    id: `library:${script.id}`,
-    path: entryPath,
-    label: script.label,
-    scope: "project",
-    order: 0,
-    exec: {
-      command: script.config.command,
-      args: script.config.args,
-      cwd: script.config.cwd,
-      runLocation: script.config.runLocation,
-    },
-  };
 
   // A bundled script is meant to be set up once and rerun the same way every
   // time (e.g. organize-output's target folder), not re-asked on every run —

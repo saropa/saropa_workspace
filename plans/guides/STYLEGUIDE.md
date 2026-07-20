@@ -555,6 +555,31 @@ in [`principles.md`](./principles.md).)
   version string); `${pick:a,b,c}` for a fixed option set; `${pickFolder:...}` is
   the third interactive token kind, resolved and remembered the same way as the
   other two (see `promptTokens.ts`).
+- **A parameterized shortcut or bundled script gets a "Set Params…" editor
+  independent of Run.** Once a run gesture resolves an interactive token from
+  memory instead of prompting fresh (see the bundled-script rerun rule below),
+  the only way to change an already-answered value was to run the shortcut
+  again and answer differently, or clear extension storage by hand — so
+  `setParamsPanel.ts` opens a small webview (reusing `CONFIGURE_RUN_STYLE`
+  for visual consistency with Configure Run) listing every detected token as
+  an editable field — a text box for `prompt`, a dropdown for `pick`, a text
+  box + Browse button for `pickFolder` — and writes straight to
+  `promptMemory` on Save, without running anything. Offered on every
+  parameterized-capable row (a pin's context menu, a Scripts-tree row, a
+  Launcher card) rather than gated behind a contextValue/menu flag that would
+  need to track "has interactive tokens" — a row with nothing to configure
+  gets a named "nothing to set" toast instead of an empty form (see
+  `SetParamsPanel.show`), which is cheaper and less fragile than threading a
+  new contextValue suffix through the existing run/paused/scheduled state
+  machine (`shortcutRowContext.ts`).
+- **A bundled library script resolves its interactive tokens from memory by
+  default, not fresh each run.** `runLibraryScript` (`scriptRunner.ts`) is set
+  up once — the first run prompts and remembers, every run after that reuses
+  the answer silently — unlike a user shortcut, whose default Run always
+  prompts fresh and offers a separate "Run with Last Parameters" command as
+  the opt-in bypass. The asymmetry is deliberate: a bundled script's
+  parameters (organize-output's target folder) are configuration, not a
+  per-run choice the way a pin's environment/branch argument often is.
 - **Every webview is local-only:** a strict Content-Security-Policy with a
   per-load nonce, no external script or CDN, no network of any kind.
 - **Theme the webview with `--vscode-*` CSS variables** so it tracks the active

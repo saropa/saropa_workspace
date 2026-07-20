@@ -111,6 +111,7 @@ test("scriptLauncherItem builds a card with pane scripts and headAction run", ()
     description: "Sorts files into dated subfolders.",
     icon: "folder-library",
     tags: ["cleanup", "reports"],
+    hasParams: false,
   });
   assert.equal(card.id, "library:organize-output");
   assert.equal(card.pane, "scripts");
@@ -124,4 +125,27 @@ test("scriptLauncherItem builds a card with pane scripts and headAction run", ()
   assert.equal(card.kind, "script");
   assert.equal(card.groupId, "scripts");
   assert.deepEqual(card.menu, []);
+});
+
+test("scriptLauncherItem offers Set Params only when hasParams is true", () => {
+  const withoutParams = scriptLauncherItem({
+    id: "device-connect",
+    label: "Device connect",
+    description: "",
+    icon: "device-mobile",
+    tags: [],
+    hasParams: false,
+  });
+  assert.deepEqual(withoutParams.menu, []);
+
+  const withParams = scriptLauncherItem({
+    id: "organize-output",
+    label: "Organize output folder",
+    description: "",
+    icon: "folder-library",
+    tags: [],
+    hasParams: true,
+  });
+  assert.equal(withParams.menu.length, 1);
+  assert.equal(withParams.menu[0].command, "saropaWorkspace.setScriptParams");
 });

@@ -20,7 +20,7 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { promptMemory } from "../exec/promptMemory";
-import { runLibraryScript, missingRequirements } from "../exec/scriptRunner";
+import { runLibraryScript, missingRequirements, buildScriptShortcut } from "../exec/scriptRunner";
 import { LibraryScript } from "../model/scriptLibrary";
 
 // A command guaranteed to resolve: this test process's own node executable,
@@ -144,4 +144,33 @@ test("runLibraryScript prompts once for an interactive token, then reuses the re
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test("buildScriptShortcut synthesizes the same id/exec shape runLibraryScript runs, so promptMemory keys match", () => {
+  const script: LibraryScript = {
+    id: "organize-output",
+    label: "Organize output folder",
+    description: "",
+    icon: "file-directory",
+    tags: [],
+    entry: "organize-output/__main__.py",
+    requires: [],
+    config: {
+      command: "python",
+      cwd: "$workspaceRoot",
+      args: ["${pickFolder:Folder to organize}"],
+      runLocation: "terminal",
+    },
+  };
+  const shortcut = buildScriptShortcut(script, "/ext");
+  assert.equal(shortcut.id, "library:organize-output");
+  assert.equal(shortcut.label, "Organize output folder");
+  assert.equal(shortcut.scope, "project");
+  assert.deepEqual(shortcut.exec, {
+    command: "python",
+    args: ["${pickFolder:Folder to organize}"],
+    cwd: "$workspaceRoot",
+    runLocation: "terminal",
+  });
+  assert.match(shortcut.path, /organize-output[\\/]__main__\.py$/);
 });

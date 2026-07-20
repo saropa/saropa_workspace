@@ -7,7 +7,8 @@ import { openShortcut } from "../commands/shortcutOpen";
 import { l10n } from "../i18n/l10n";
 import { ProjectFilesTreeProvider } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
-import { runLibraryScript } from "../exec/scriptRunner";
+import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
+import { SetParamsPanel } from "./setParamsPanel";
 
 // The right-click menu only lists commands verified to accept a raw Shortcut via asShortcut
 // (see buildMenu in launcherItemMenu). Re-resolving the id here and forwarding the shortcut
@@ -19,6 +20,7 @@ const MENU_COMMANDS: ReadonlySet<string> = new Set([
   "saropaWorkspace.runPin",
   "saropaWorkspace.runWith",
   "saropaWorkspace.configureRun",
+  "saropaWorkspace.setPinParams",
   "saropaWorkspace.configureSchedule",
   "saropaWorkspace.configureTriggers",
   "saropaWorkspace.pausePin",
@@ -130,13 +132,19 @@ export async function handleLauncherMessage(
   // Library script cards carry a `library:<id>` composite id that never exists
   // in the shortcut store. Intercept run messages for them and route through the
   // script runner, which synthesizes a Shortcut from the manifest entry.
-  if (msg.type === "run" && msg.id.startsWith("library:")) {
+  if (msg.id.startsWith("library:")) {
     const scriptId = msg.id.slice("library:".length);
     const script = ctx.scriptsProvider.findScript(scriptId);
-    if (script) {
+    if (!script) {
+      if (msg.type === "run") {
+        void vscode.window.showErrorMessage(l10n("scripts.run.notFound"));
+      }
+      return;
+    }
+    if (msg.type === "run") {
       await runLibraryScript(script, ctx.extensionPath);
-    } else {
-      void vscode.window.showErrorMessage(l10n("scripts.run.notFound"));
+    } else if (msg.type === "command" && msg.command === "saropaWorkspace.setScriptParams") {
+      SetParamsPanel.show(buildScriptShortcut(script, ctx.extensionPath));
     }
     return;
   }

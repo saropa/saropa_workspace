@@ -21,6 +21,7 @@ import {
 } from "./_stub/vscode";
 import {
   hasInteractiveTokens,
+  getInteractiveTokens,
   resolveInteractiveTokens,
   cloneWithResolvedTokens,
 } from "../exec/promptTokens";
@@ -46,6 +47,35 @@ test("hasInteractiveTokens detects ${pickFolder:} in args", () => {
     hasInteractiveTokens(shortcutWith({ args: ["${pickFolder:Folder to organize}"] })),
     true
   );
+});
+
+test("getInteractiveTokens returns every unique token with its kind and label/options, in first-seen order", () => {
+  const tokens = getInteractiveTokens(
+    shortcutWith({
+      command: "deploy ${prompt:Target}",
+      args: ["--env", "${pick:dev,prod}", "${pickFolder:Log folder}"],
+    })
+  );
+  assert.deepEqual(tokens, [
+    { raw: "${prompt:Target}", kind: "prompt", arg: "Target" },
+    { raw: "${pick:dev,prod}", kind: "pick", arg: "dev,prod" },
+    { raw: "${pickFolder:Log folder}", kind: "pickFolder", arg: "Log folder" },
+  ]);
+});
+
+test("getInteractiveTokens dedups the same token reused across command/args/cwd", () => {
+  const tokens = getInteractiveTokens(
+    shortcutWith({
+      command: "run ${pick:dev,prod}",
+      args: ["--env", "${pick:dev,prod}"],
+      cwd: "/work/${pick:dev,prod}",
+    })
+  );
+  assert.equal(tokens.length, 1);
+});
+
+test("getInteractiveTokens returns an empty array for a shortcut with no interactive tokens", () => {
+  assert.deepEqual(getInteractiveTokens(shortcutWith({ command: "echo hi" })), []);
 });
 
 test("hasInteractiveTokens ignores a plain shell ${VAR}", () => {
