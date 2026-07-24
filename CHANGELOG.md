@@ -46,7 +46,7 @@ cspell:disable
 
 ---
 
-## [Unrelease]
+## [1.5.26]
 
 **Overview** — The number badge on the sidebar icon is gone for good. It could show a count of shortcuts you had not opened yet, or of new files across your watches, but on the icon it was just a bare number with nothing saying what it counted — and clicking the icon never cleared it, because opening the sidebar does not open a shortcut or read a changed file. Counts now live on the row that names them ("Deploy 1"), where they mean something, and a shortcut you have not used yet still carries a dot until you open or run it. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.26/CHANGELOG.md)
 
