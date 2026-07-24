@@ -1018,7 +1018,6 @@
   "watchesView.scopeHere": "Alerts in this project.",
   "watchesView.scopeGlobal": "Global - alerts in every project.",
   "watchesView.openTitle": "Open watch and clear its count",
-  "watchesView.badgeTooltip": "{count} new or changed files across your watches",
   "chain.failed": "[Chain] {name} failed to start: {error}",
   "chain.cause.afterPin": "after {name}",
   "chain.cause.event": "on {event}",

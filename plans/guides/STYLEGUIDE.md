@@ -755,31 +755,31 @@ toast-with-action or a one-tap dialog — and gate it on a per-feature
 "done / offered / dismissed" flag so it never reappears unsolicited. The gate is
 the rule; never nag.
 
-### 4.5 Standing counters clear when the user acts on them
+### 4.5 Standing counters live on the row, never on the activity-bar icon
 
-A persistent count surface — a per-row counter in a tree item's `description` and
-the matching activity-bar `TreeView.badge` total — represents "things you have not
-looked at yet" (e.g. the Watches view's unseen new-files count). Two rules keep it
-honest:
+A persistent count surface represents "things you have not looked at yet" (e.g. the
+Watches view's unseen new-files count). It belongs in the tree, on the row it describes.
 
-- **The badge total is derived from the per-item counters, from one source.** Never
-  track the total separately from the per-item counts; sum them, so the row
-  counters and the activity-bar badge can never disagree.
-- **Acting on the item clears its counter, which updates the total.** Clicking a
-  row (or otherwise consuming what it counted) resets that item's count to zero and
-  the badge recalculates. Zero shows no badge (an undefined badge is hidden) — the
-  same "never show a zero" rule the untapped-shortcuts badge follows.
-- **The badge must point at a visible per-row marker — never a number with no rows
-  to find.** A count surface where the rows it counts look identical to every other
-  row is a dead end: the user sees "3", opens the view, and cannot tell which three.
-  When the counted state is binary (unseen vs seen) rather than a numeric per-row
-  tally, carry a marker on each counted row — the untapped-shortcuts dot (`●`)
-  prepended to the row **label** (not the description), with a hover line naming what
-  clears it — so the badge is actionable. Lead the label, not the description: a glyph
-  in the dimmed `descriptionForeground` color, beside an already-gray detail, is too
-  faint to spot, which defeats the marker. The provider repaints on the same event that
-  recomputes the badge, so the marker and the total clear together the instant the user
-  acts.
+- **Never set `TreeView.badge`. No activity-bar container badge, ever.** VS Code
+  aggregates the badge of *every* view in a container onto the single container icon, so
+  the number arrives stripped of its view, its label, and any way to tell what it counts
+  — the user sees a bare "1" on the icon and nothing names it. Worse, clicking that icon
+  only opens the container; it does not consume whatever the number counted, so the count
+  survives the one gesture that most looks like it should clear it. Both badges this
+  product shipped (untapped shortcuts, unseen watched files) failed exactly this way and
+  were removed. Repeated fixes to *counting* logic cannot repair it — the defect is the
+  surface, not the arithmetic.
+- **Put the count in the row's `description`, where the row names it.** "Deploy 1"
+  is self-explanatory; a "1" on an icon is not. Suppress a zero (`undefined`, not `"0"`)
+  so an idle row carries no count at all.
+- **Acting on the item clears its counter.** Clicking a row (or otherwise consuming what
+  it counted) resets that item's count, and the provider repaints on the same event, so
+  the count clears the instant the user acts.
+- **For binary state (unseen vs seen), mark the row rather than counting it.** Carry a
+  marker on each affected row — the untapped-shortcuts dot (`●`) prepended to the row
+  **label** (not the description), with a hover line naming what clears it. Lead the
+  label: a glyph in the dimmed `descriptionForeground` color, beside an already-gray
+  detail, is too faint to spot, which defeats the marker.
 
 ### 4.6 Discovery is passive — never a popup; confirm an explicit action with one toast
 
