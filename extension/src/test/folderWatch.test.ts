@@ -158,7 +158,7 @@ test("unseen files accumulate, de-duplicate, and sum across watches", async () =
 
   assert.equal(store.unseenCount("w1"), 3); // a, b, c
   assert.equal(store.unseenCount("w2"), 1);
-  assert.equal(store.totalUnseen(), 4); // the sidebar badge total
+  assert.equal(store.totalUnseen(), 4); // sum across watches
 });
 
 test("the scoped badge total counts only watches that alert in this window", async () => {

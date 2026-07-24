@@ -7,7 +7,6 @@ import { getOutputChannel } from "../exec/terminalRunner";
 import { WatchesTreeProvider } from "../views/watchesTreeProvider";
 import { registerFolderWatchCommands } from "../commands/folderWatchCommands";
 import { maybeSuggestBugsWatch } from "../commands/folderWatchSuggest";
-import { l10n } from "../i18n/l10n";
 import { runShortcutsOnSave, makeDebounced } from "./activationHelpers";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
@@ -107,28 +106,12 @@ export function wireFolderWatches(
   context.subscriptions.push(watches.onDidChangeCount((c) => syncWatchesCount(c)));
   syncWatchesCount(watches.count);
 
-  // Activity-bar badge: unseen new/changed files for watches that alert in THIS
-  // window only (owned-here, opted-in-here, or global) — scoping the total to the
-  // open folders so the badge never reflects another project's pending files (the
-  // badge form of the "do not blast every project" rule). Recomputed when a tally or
-  // the watch list changes, and when the open folders change (a watch moves in/out of
-  // scope). Zero shows no badge (VS Code hides an undefined badge).
-  const syncWatchesBadge = (): void => {
-    const folders = (vscode.workspace.workspaceFolders ?? []).map(
-      (f) => f.uri.fsPath
-    );
-    const total = watchStore.totalUnseen(folders);
-    watchesView.badge =
-      total > 0
-        ? { value: total, tooltip: l10n("watchesView.badgeTooltip", { count: total }) }
-        : undefined;
-  };
-  context.subscriptions.push(
-    watchStore.onDidChangeCounts(() => syncWatchesBadge()),
-    watchStore.onDidChange(() => syncWatchesBadge()),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => syncWatchesBadge())
-  );
-  syncWatchesBadge();
+  // No activity-bar badge for unseen watched files. VS Code aggregates the badge of
+  // EVERY view in a container onto the single container icon, so a count set here shows
+  // as a bare number on the activity-bar icon with nothing naming what it counts, and
+  // clicking that icon only opens the container — it does not mark any file seen, so the
+  // number does not clear on the one gesture that looks like it should. Unseen files are
+  // surfaced per-row in the Watches view instead, where the row names the watch.
 
   // Offer to watch the project's bugs/ folder for new files, once per folder.
   // Deferred (not awaited) so it never blocks activation.

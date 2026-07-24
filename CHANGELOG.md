@@ -46,6 +46,16 @@ cspell:disable
 
 ---
 
+## [Unrelease]
+
+**Overview** — The number badge on the sidebar icon is gone for good. It could show a count of shortcuts you had not opened yet, or of new files across your watches, but on the icon it was just a bare number with nothing saying what it counted — and clicking the icon never cleared it, because opening the sidebar does not open a shortcut or read a changed file. Counts now live on the row that names them ("Deploy 1"), where they mean something, and a shortcut you have not used yet still carries a dot until you open or run it. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.26/CHANGELOG.md)
+
+### Removed
+
+- Both activity-bar count badges on the Saropa Workspace icon: the untapped-shortcuts count and the unseen-watched-files total. VS Code merges every view's badge onto the one container icon, so the number lost the view that gave it meaning, and clicking the icon only opens the sidebar — it never consumed what was counted, so the badge outlived the gesture that looked like it should clear it. Counts remain per-row in the Watches view and the tree groups, and unused shortcuts keep their leading dot.
+
+---
+
 ## [1.5.25]
 
 **Overview** — Your morning report now tells you whether it needs you. It opens with a verdict — all clear, or the things that need attention — followed by one line per check, and the raw output moves out of the way instead of filling the page. A new Build status check leads it off, so a build that broke overnight is the first thing you see. Each check states its finding in one line at the top — commits, changed files, uncommitted work — and the raw output moves out of the way instead of filling the page. And a routine that can no longer find one of its steps now says so, instead of quietly reporting a clean morning.  [log](https://github.com/saropa/saropa-workspace/blob/v1.5.25/CHANGELOG.md)

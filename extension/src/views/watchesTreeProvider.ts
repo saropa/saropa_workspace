@@ -10,10 +10,10 @@ import { l10n } from "../i18n/l10n";
 
 // The "Watches" view: one row per folder/file watch the user set up
 // (PLAN_FILE_AND_FOLDER_WATCH). Each row carries a counter of unseen new/changed
-// files detected since the user last opened it — the per-item "button counter" —
-// and the view's activity-bar badge shows the total across all watches (wired in
-// activation). Clicking a row opens what changed and clears that watch's counter,
-// which recalculates the total. Read-only and not arrangeable, so it is a plain
+// files detected since the user last opened it — the per-item "button counter". The
+// count lives on the row, which names the watch it belongs to; there is deliberately no
+// activity-bar badge (see wiringWatchers). Clicking a row opens what changed and clears
+// that watch's counter. Read-only and not arrangeable, so it is a plain
 // TreeDataProvider (no drag-and-drop controller), like the Recipes / Project Files
 // views.
 export class WatchesTreeProvider
