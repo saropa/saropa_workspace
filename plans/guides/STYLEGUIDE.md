@@ -820,8 +820,9 @@ must not fire in every window just because the state is shared, and a view that
   view lists only the items that fire in the open project; items belonging to other
   projects are simply absent. Do NOT list them with a "not alerting here" note — a
   row a window cannot act on reads as broken data (the user report this rule comes
-  from). The activity-bar badge is scoped the same way (`totalUnseen(folderPaths)`),
-  so one project's pending count never shows in another's window.
+  from). Any per-project count is scoped the same way (e.g. `totalUnseen(folderPaths)`)
+  and shown on the owning view's rows (§4.5), never on the activity-bar icon, so one
+  project's pending count never surfaces in another's window.
 - **A deliberately cross-project item is marked "global".** The ONLY thing shown
   outside its owning project is one the user explicitly made global. Mark it
   distinctly so it is never mistaken for local: the Watches row uses a **globe**

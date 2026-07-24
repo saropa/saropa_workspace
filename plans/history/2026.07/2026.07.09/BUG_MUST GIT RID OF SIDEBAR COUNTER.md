@@ -68,6 +68,9 @@ The defect is the surface, not the arithmetic.
 - `plans/guides/STYLEGUIDE.md` §4.5 — rewritten from "standing counters clear when acted
   on" to **"standing counters live on the row, never on the activity-bar icon"**, with an
   explicit *never set `TreeView.badge`* prohibition, so a third view cannot reintroduce it.
+- `plans/guides/STYLEGUIDE.md` §4.7 — the "activity-bar badge is scoped the same way"
+  sentence contradicted the new §4.5 ban; reworded to scope a per-project count to the
+  owning view's rows, not the icon.
 
 `FolderWatchStore.totalUnseen()` is retained (a tested store query with no production
 caller now); the per-row unseen counts are unchanged.
