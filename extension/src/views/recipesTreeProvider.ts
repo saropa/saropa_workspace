@@ -99,13 +99,13 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
   }
 
   private toShortcutItem(shortcut: Shortcut): ShortcutTreeItem {
-    return new ShortcutTreeItem(
+    return new ShortcutTreeItem({
       shortcut,
-      this.store.resolveUri(shortcut),
-      processRegistry.isRunning(shortcut.id),
-      runStatusRegistry.get(shortcut.id),
-      processRegistry.isStopping(shortcut.id)
-    );
+      resolvedUri: this.store.resolveUri(shortcut),
+      isRunning: processRegistry.isRunning(shortcut.id),
+      lastRun: runStatusRegistry.get(shortcut.id),
+      isStopping: processRegistry.isStopping(shortcut.id),
+    });
   }
 
   // A recipe category folder. Its shortcuts live in the project shortcut list (scope

@@ -37,24 +37,21 @@ export function buildShortcutItem(
   store: ShortcutStore,
   shortcut: Shortcut
 ): ShortcutTreeItem {
-  return new ShortcutTreeItem(
+  return new ShortcutTreeItem({
     shortcut,
-    store.resolveUri(shortcut),
-    processRegistry.isRunning(shortcut.id),
-    runStatusRegistry.get(shortcut.id),
-    processRegistry.isStopping(shortcut.id),
-    undefined,
-    store.isMissing(shortcut.id),
-    runCount(shortcut.id),
-    lockedBy(store, shortcut),
-    shortcutBadges.get(shortcut.id),
-    shortcutBadges.previous(shortcut.id),
-    metricBadges.get(shortcut.id),
-    // Untapped: never opened or run. Drives the leading discovery dot on the row.
-    // Recent entries below never pass it — being in Recent means it has been tapped.
-    !tappedShortcuts.has(shortcut.id),
-    owningFolderName(store, shortcut)
-  );
+    resolvedUri: store.resolveUri(shortcut),
+    isRunning: processRegistry.isRunning(shortcut.id),
+    lastRun: runStatusRegistry.get(shortcut.id),
+    isStopping: processRegistry.isStopping(shortcut.id),
+    missing: store.isMissing(shortcut.id),
+    runCount: runCount(shortcut.id),
+    lockedBy: lockedBy(store, shortcut),
+    sweepBadge: shortcutBadges.get(shortcut.id),
+    previousBadge: shortcutBadges.previous(shortcut.id),
+    metricBadge: metricBadges.get(shortcut.id),
+    untapped: !tappedShortcuts.has(shortcut.id),
+    owningFolder: owningFolderName(store, shortcut),
+  });
 }
 
 // A Recent-group entry: the same shortcut node, tagged with when/how it last ran.
@@ -63,16 +60,16 @@ export function buildRecentItem(
   shortcut: Shortcut,
   record: RunRecord
 ): ShortcutTreeItem {
-  return new ShortcutTreeItem(
+  return new ShortcutTreeItem({
     shortcut,
-    store.resolveUri(shortcut),
-    processRegistry.isRunning(shortcut.id),
-    runStatusRegistry.get(shortcut.id),
-    processRegistry.isStopping(shortcut.id),
-    { at: record.at, source: record.source, kind: record.kind },
-    store.isMissing(shortcut.id),
-    runCount(shortcut.id)
-  );
+    resolvedUri: store.resolveUri(shortcut),
+    isRunning: processRegistry.isRunning(shortcut.id),
+    lastRun: runStatusRegistry.get(shortcut.id),
+    isStopping: processRegistry.isStopping(shortcut.id),
+    recentInfo: { at: record.at, source: record.source, kind: record.kind },
+    missing: store.isMissing(shortcut.id),
+    runCount: runCount(shortcut.id),
+  });
 }
 
 // The display name of a shortcut's unmet run prerequisite (WOW #13), or undefined when

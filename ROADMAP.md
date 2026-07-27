@@ -14,7 +14,7 @@ where the plan and the code diverge, the plan records what is actually implement
 The backlog spans the phased work (import coverage, multi-root refinements, branch-aware
 sets, the dashboard webview, tests, suite integration) and the "WOW" features (port
 auto-unwedge, ephemeral shortcuts, the git conflict center, focus tags, instant search, and
-more). See the [README index](plans/README.md) for status and suggested order.
+more).
 
 ## Reference
 
@@ -23,9 +23,6 @@ Standing design context that informs every item above:
 - **[`plans/guides/principles.md`](plans/guides/principles.md)** — the design constraints
   every change must satisfy (local-first, no remote telemetry, native-first UX,
   translation-ready, forward-compatible data, safe execution).
-- **[`plans/guides/competitive-landscape.md`](plans/guides/competitive-landscape.md)** —
-  the survey of rival extensions, the feature gaps that drive the backlog, the import
-  formats, and the VS Code API constraints to design around.
 
 ## What has shipped
 
