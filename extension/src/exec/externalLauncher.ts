@@ -18,12 +18,21 @@ import { l10n } from "../i18n/l10n";
 let windowsShellCache: { name: string; path: string } | undefined;
 function windowsShell(): { name: string; path: string } {
   if (windowsShellCache === undefined) {
-    const pwsh = findOnPath("pwsh");
+    // findOnPath iterates PATHEXT and may resolve to a .cmd shim (scoop,
+    // chocolatey) rather than a real .exe. cp.spawn without shell:true cannot
+    // launch a .cmd, so only accept .exe results.
+    const pwsh = findExe("pwsh");
+    const fallback = findExe("powershell") ?? "powershell.exe";
     windowsShellCache = pwsh
       ? { name: "pwsh.exe", path: pwsh }
-      : { name: "powershell.exe", path: "powershell.exe" };
+      : { name: "powershell.exe", path: fallback };
   }
   return windowsShellCache;
+}
+
+function findExe(binary: string): string | undefined {
+  const found = findOnPath(binary);
+  return found?.toLowerCase().endsWith(".exe") ? found : undefined;
 }
 
 // Launch the command in a NEW OS terminal window, outside VS Code. The window
@@ -42,8 +51,9 @@ export async function runInExternal(
 ): Promise<void> {
   const cp = await import("child_process");
   const channel = getOutputChannel();
+  const shellLabel = process.platform === "win32" ? `, ${windowsShell().name}` : "";
   channel.appendLine(
-    `$ (${name}) [external${elevated ? ", elevated" : ""}] ${commandLine}`
+    `$ (${name}) [external${elevated ? ", elevated" : ""}${shellLabel}] ${commandLine}`
   );
 
   try {

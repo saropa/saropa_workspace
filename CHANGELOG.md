@@ -62,7 +62,7 @@ cspell:disable
 
 ### Fixed
 
-- External terminal windows now open in PowerShell 7+ (pwsh) when installed, instead of always using the legacy Windows PowerShell 5.1 blue console. The resolved shell is cached for the session and the outer spawn uses the absolute path to avoid a redundant PATH lookup
+- External terminal windows now open in PowerShell 7+ (pwsh) when installed, instead of always using the legacy Windows PowerShell 5.1 blue console. The resolved shell is cached for the session, the outer spawn uses the absolute path, and package-manager `.cmd` shims are rejected so only a directly-spawnable `.exe` is accepted. The output channel log line now shows which PowerShell edition was used (e.g. `[external, pwsh.exe]`)
 
 ---
 
