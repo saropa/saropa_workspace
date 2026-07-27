@@ -55,7 +55,7 @@ cspell:disable
 - Multi-root workspace attribution: project shortcuts now show which workspace folder owns them (in the row description and hover tooltip) when two or more folders are open, so it is clear which `.vscode/saropa-workspace.json` each shortcut lives in
 - Sweep trend direction: after a second lint or test run, the row description and hover tooltip both show a ▲/▼ delta so it is visible whether the codebase is getting cleaner or messier without hovering or opening a full history
 - `ShortcutTreeItem` constructor now takes a named options object (`ShortcutTreeItemOptions`) instead of 14 positional parameters, making call sites self-documenting and future fields safe to add
-- Color-coded sweep delta: file shortcuts whose lint or test issues improved since the last run are tinted green; those that worsened are tinted red — visible in the tree row label, the Explorer, and open editors via a `FileDecorationProvider`
+- Color-coded sweep delta: file shortcuts whose lint or test issues improved since the last run are tinted green; those that worsened are tinted red — visible in the tree row label, the Explorer, and open editors via a `FileDecorationProvider`. Decoration refreshes are debounced (200 ms trailing edge) so a routine running several scripts coalesces into one repaint
 
 ### Changed
 

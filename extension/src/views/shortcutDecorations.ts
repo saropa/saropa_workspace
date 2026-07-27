@@ -15,6 +15,10 @@ import { shortcutKind } from "../model/shortcut";
 
 type DeltaDir = "improving" | "worsening";
 
+// charts.green: a built-in VS Code chart color, stable since 1.50 (Oct 2020).
+// errorForeground: the standard error text color across all themes. Both are
+// core workbench tokens (not extension-contributed), so they resolve in every
+// theme that ships with VS Code and in well-behaved third-party themes.
 const COLOR_IMPROVING = new vscode.ThemeColor("charts.green");
 const COLOR_WORSENING = new vscode.ThemeColor("errorForeground");
 
@@ -83,11 +87,10 @@ export class ShortcutDecorationProvider
     if (!dir) {
       return undefined;
     }
-    return new vscode.FileDecoration(
-      undefined,
-      undefined,
-      dir === "improving" ? COLOR_IMPROVING : COLOR_WORSENING
-    );
+    const decoration = new vscode.FileDecoration();
+    decoration.color =
+      dir === "improving" ? COLOR_IMPROVING : COLOR_WORSENING;
+    return decoration;
   }
 
   dispose(): void {
