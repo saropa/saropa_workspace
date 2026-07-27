@@ -182,11 +182,12 @@ function buildTooltipOutcomeLines(input: ShortcutTooltipInput): string[] {
 // untapped marker, and the click-gesture reminder — organizational facts about the
 // shortcut rather than its current run state.
 function buildTooltipMetadataLines(input: ShortcutTooltipInput): string[] {
-  const { shortcut, metricText, metricBadge, untapped, isRunning, isStopping, owningFolder } = input;
+  const { shortcut, masked, metricText, metricBadge, untapped, isRunning, isStopping, owningFolder } = input;
   const lines: string[] = [];
   // In a multi-root workspace, name the workspace folder that owns this project
   // shortcut so the user knows which .vscode/saropa-workspace.json it lives in.
-  if (owningFolder) {
+  // Suppressed when masked — the folder name narrows identity, defeating the mask.
+  if (owningFolder && !masked) {
     lines.push(l10n("folder.tooltip", { folder: owningFolder }));
   }
   // Name the shortcut's mode tags in the hover (WOW #17), so the full set is one

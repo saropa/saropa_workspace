@@ -53,7 +53,8 @@ cspell:disable
 ### Added
 
 - Multi-root workspace attribution: project shortcuts now show which workspace folder owns them (in the row description and hover tooltip) when two or more folders are open, so it is clear which `.vscode/saropa-workspace.json` each shortcut lives in
-- Sweep trend direction: after a second lint or test run, the hover tooltip shows a ▲/▼ delta ("▼2 since last run") so it is visible whether the codebase is getting cleaner or messier without needing a full history
+- Sweep trend direction: after a second lint or test run, the row description and hover tooltip both show a ▲/▼ delta so it is visible whether the codebase is getting cleaner or messier without hovering or opening a full history
+- `ShortcutTreeItem` constructor now takes a named options object (`ShortcutTreeItemOptions`) instead of 14 positional parameters, making call sites self-documenting and future fields safe to add
 
 ### Changed
 
@@ -492,5 +493,3 @@ Tell Saropa to keep an eye on a folder or a file and get a heads-up the moment s
 - **The trophy icon now shows in the icon picker.** It previously rendered as a blank entry because the underlying glyph name wasn't a real product icon; the achievement glyph it was meant to be now appears, and typing "trophy", "award", or "achievement" finds it.
 
 ---
-
-For older versions (1.5.1 and older), see [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md).

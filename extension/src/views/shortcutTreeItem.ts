@@ -32,61 +32,57 @@ const SEPARATOR_LABEL = "─".repeat(40);
 // tappedShortcuts), so the dot disappears on first open/run.
 const UNTAPPED_MARKER = "●";
 
+/** Named options for constructing a {@link ShortcutTreeItem}. Only `shortcut`
+ * is required; every other field defaults to the safe resting state. */
+export interface ShortcutTreeItemOptions {
+  readonly shortcut: Shortcut;
+  readonly resolvedUri?: vscode.Uri;
+  readonly isRunning?: boolean;
+  readonly lastRun?: RunResult;
+  readonly isStopping?: boolean;
+  /** Tags this node as a Recent-group entry with when/how it last ran. */
+  readonly recentInfo?: { at: number; source: RunSource; kind?: "run" | "opened" };
+  /** True when the file shortcut's target no longer exists on disk. */
+  readonly missing?: boolean;
+  /** Lifetime run count (local telemetry). 0 when telemetry is disabled. */
+  readonly runCount?: number;
+  /** Display name of the unmet run prerequisite (WOW #13). */
+  readonly lockedBy?: string;
+  /** Lint severity / test tally from the last sweep (#26, #32). */
+  readonly sweepBadge?: ShortcutBadge;
+  /** The badge from the run before the current one, for the ▲/▼ trend delta. */
+  readonly previousBadge?: ShortcutBadge;
+  /** Live metric for a file shortcut (#24): size / line count / modified. */
+  readonly metricBadge?: MetricBadge;
+  /** True when the user has not yet opened or run this shortcut. */
+  readonly untapped?: boolean;
+  /** Owning workspace folder name (multi-root only, project-scoped only). */
+  readonly owningFolder?: string;
+}
+
 // Tree node for a single shortcut. Selecting it fires the activate dispatcher, which
 // decides open (single click) vs run (double click within the configured window).
-//
-// `recentInfo` renders the shortcut as an entry of the Recent group (local telemetry):
-// it gives the node a distinct id namespace (so the same shortcut can appear both in
-// its home scope and under Recent without an id collision) and shows when it last
-// ran or was opened (tagged by kind) instead of the schedule/last-run badge.
 export class ShortcutTreeItem extends vscode.TreeItem {
-  // True when this node is a Recent-group entry; excluded from drag/drop so a
-  // recent listing is read-only (the underlying shortcut is reordered from its home).
   readonly isRecent: boolean;
+  readonly shortcut: Shortcut;
 
-  constructor(
-    readonly shortcut: Shortcut,
-    resolvedUri: vscode.Uri | undefined,
-    isRunning: boolean,
-    lastRun?: RunResult,
-    isStopping = false,
-    recentInfo?: { at: number; source: RunSource; kind?: "run" | "opened" },
-    // True when this file shortcut's target no longer exists on disk (computed by the
-    // store's stat pass). Drives the warning glyph + "file not found" hover; the
-    // open/run handlers re-stat at click time before acting on it.
-    missing = false,
-    // Lifetime run count for this shortcut (local telemetry, roadmap 3.3). Surfaced as
-    // a tooltip line when greater than zero; the provider passes 0 when telemetry is
-    // disabled so a turned-off user sees nothing. Reuses the count the telemetry
-    // store already keeps — no separate collection path.
-    runCount = 0,
-    // When set, the display name of the prerequisite shortcut that has not yet
-    // succeeded this session, so this shortcut is locked (WOW #13). Drives a lock
-    // glyph, a "waiting on" badge, and a tooltip line. Undefined when the shortcut is
-    // cleared to run.
-    lockedBy?: string,
-    // Lint severity counts / test tally from this shortcut's last sweep (#26, #32).
-    // When present, a compact glyph lead ("3✖ 5⚠", "12✓ 1✗") prefixes the row and a
-    // fuller line joins the hover. Undefined when the shortcut has produced no
-    // parseable sweep.
-    sweepBadge?: ShortcutBadge,
-    // The badge from the run before the current one, for the ▲/▼ trend delta.
-    previousBadge?: ShortcutBadge,
-    // Live metric for a file shortcut (#24): size / line count / last-modified,
-    // measured by the metric engine. Appended to the row as an inline value ("245 KB");
-    // when `over` a size threshold, the icon is tinted as a warning. Undefined when the
-    // shortcut carries no metric. Appended last (a narrow, well-named param) rather than
-    // threaded through an options refactor, matching how sweepBadge above was added.
-    metricBadge?: MetricBadge,
-    // True when the user has not yet opened or run this shortcut. Drives the leading
-    // untapped dot + a hover line marking it as not-yet-used. Recent entries are tapped
-    // by definition, so they pass false. Annotation rows return before this is read (a
-    // comment/separator is never "untapped").
-    untapped = false,
-    // The owning workspace folder's name, passed only in multi-root workspaces
-    // for project-scoped shortcuts so the row and hover disambiguate ownership.
-    owningFolder?: string
-  ) {
+  constructor(opts: ShortcutTreeItemOptions) {
+    const {
+      shortcut,
+      resolvedUri,
+      isRunning = false,
+      lastRun,
+      isStopping = false,
+      recentInfo,
+      missing = false,
+      runCount = 0,
+      lockedBy,
+      sweepBadge,
+      previousBadge,
+      metricBadge,
+      untapped = false,
+      owningFolder,
+    } = opts;
     const kind = shortcutKind(shortcut);
     const isFile = kind === "file";
     const basename = shortcut.path.split("/").pop() ?? shortcut.path;
@@ -104,6 +100,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // it is technically untapped.
     const displayLabel = untapped ? `${UNTAPPED_MARKER} ${baseLabel}` : baseLabel;
     super(displayLabel, vscode.TreeItemCollapsibleState.None);
+    this.shortcut = shortcut;
 
     // Stable id (scope-qualified) so TreeView.reveal can match this node across
     // the tree being rebuilt — the status-bar "next scheduled run" reveals a shortcut
@@ -167,6 +164,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       lastRun,
       lockedBy,
       sweepBadge,
+      previousBadge,
       metricBadge,
       recentInfo,
       owningFolder,

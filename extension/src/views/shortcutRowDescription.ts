@@ -1,7 +1,7 @@
 import { Shortcut } from "../model/shortcut";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult } from "../exec/runStatus";
-import { ShortcutBadge, formatBadgeLead } from "../exec/shortcutBadges";
+import { ShortcutBadge, formatBadgeLead, formatBadgeDelta } from "../exec/shortcutBadges";
 import { MetricBadge } from "../exec/metricBadges";
 import { RunSource } from "../exec/telemetry";
 import { formatRelativeTime } from "./projectFilesProvider";
@@ -38,6 +38,7 @@ export interface ShortcutRowDescriptionInput {
   // The owning workspace folder's name, passed only when 2+ workspace folders
   // are open and the shortcut is project-scoped — disambiguates which
   // .vscode/saropa-workspace.json owns it.
+  readonly previousBadge?: ShortcutBadge | undefined;
   readonly owningFolder: string | undefined;
 }
 
@@ -118,6 +119,7 @@ export function buildShortcutRowDescription(
     sweepBadge,
     metricBadge,
     recentInfo,
+    previousBadge,
   } = input;
 
   const badge = computeRowStateBadge(input);
@@ -136,6 +138,13 @@ export function buildShortcutRowDescription(
   const badgeLead =
     sweepBadge && !isRunning && !isStopping
       ? formatBadgeLead(sweepBadge)
+      : undefined;
+  // Trend delta (▲/▼) from the previous sweep, shown inline so the user sees
+  // direction at a glance without hovering. Suppressed while running/stopping
+  // (same as the badge lead) and when there is no current sweep to compare against.
+  const delta =
+    sweepBadge && previousBadge && !isRunning && !isStopping
+      ? formatBadgeDelta(sweepBadge, previousBadge)
       : undefined;
   const metricText = computeRowMetricText(metricBadge, masked);
 
@@ -165,10 +174,13 @@ export function buildShortcutRowDescription(
     // below, and crowding a narrow sidebar row with up to seven `·`-joined segments
     // was the main "hard to glance" offender. Holding the row to these few parts lets
     // the eye lock onto state and identity without parsing a long string.
-    const folderTag = input.owningFolder
+    // Masked shortcuts suppress the folder tag: the folder name narrows down
+    // which config file (and therefore which project) owns the shortcut, which
+    // is exactly the kind of identity leak the mask exists to prevent.
+    const folderTag = input.owningFolder && !masked
       ? l10n("folder.rowTag", { folder: input.owningFolder })
       : undefined;
-    description = [badgeLead, badge, expiryChip, detail, metricText, folderTag]
+    description = [badgeLead, delta, badge, expiryChip, detail, metricText, folderTag]
       .filter((part) => part)
       .join(" · ");
   }

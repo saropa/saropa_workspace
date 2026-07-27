@@ -31,6 +31,10 @@ class ShortcutBadgeRegistry {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
 
+  // On each record, the outgoing badge becomes "previous". Only the immediately
+  // preceding badge is kept (N-1, not N-2): a third record overwrites the first
+  // badge as previous. This is intentional — the delta answers "did this run
+  // improve on the last one", not "did it improve on the one before that".
   record(pinId: string, badge: ShortcutBadge): void {
     const existing = this.byShortcut.get(pinId);
     if (existing) {
@@ -161,8 +165,10 @@ function parseTestResults(
 }
 
 // A total-issue score for a badge: the count of problems the user cares about
-// most (errors + warnings for diagnostics, failures for tests). Used to compute
-// a single ▲/▼ direction between two sweeps.
+// most (errors + warnings for diagnostics, failures for tests). Infos are
+// excluded: they are low-severity noise in most linters (style hints, unused
+// import suggestions) and including them would mask real error/warning deltas
+// behind a flood of info-level churn.
 function badgeScore(badge: ShortcutBadge): number {
   let score = 0;
   if (badge.errors !== undefined) {
