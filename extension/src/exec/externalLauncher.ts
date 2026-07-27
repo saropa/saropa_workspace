@@ -10,6 +10,22 @@ import { l10n } from "../i18n/l10n";
 // completion toast; the new window itself is the feedback. Split out of runner.ts
 // because the platform branching is self-contained.
 
+// Session-cached PowerShell binary: pwsh.exe (7+) when installed, else
+// powershell.exe (5.1). Cached because interpreters do not appear or disappear
+// within a window, and findOnPath touches the filesystem on every call.
+// Resolved shell: { name } for Start-Process -FilePath, { path } for cp.spawn.
+// Using the absolute path for spawn avoids a second PATH lookup by Node.
+let windowsShellCache: { name: string; path: string } | undefined;
+function windowsShell(): { name: string; path: string } {
+  if (windowsShellCache === undefined) {
+    const pwsh = findOnPath("pwsh");
+    windowsShellCache = pwsh
+      ? { name: "pwsh.exe", path: pwsh }
+      : { name: "powershell.exe", path: "powershell.exe" };
+  }
+  return windowsShellCache;
+}
+
 // Launch the command in a NEW OS terminal window, outside VS Code. The window
 // stays open after the command exits so the user can read the output (the run is
 // fire-and-forget: VS Code does not own the process, so there is no Stop action
@@ -82,13 +98,11 @@ function launchExternalWindows(
   env: Record<string, string> | undefined,
   elevated: boolean
 ): void {
-  // Prefer pwsh (PowerShell 7+) over powershell.exe (Windows PowerShell 5.1,
-  // the legacy blue console). Both support -EncodedCommand and Start-Process.
-  const shell = findOnPath("pwsh") ? "pwsh.exe" : "powershell.exe";
+  const shell = windowsShell();
   const encoded = encodeForPowerShell(buildWindowsStartup(commandLine, cwd));
   const startArgs = [
     "-FilePath",
-    `'${shell}'`,
+    `'${shell.name}'`,
     "-ArgumentList",
     // Each element is a literal token; the base64 payload is [A-Za-z0-9+/=] only,
     // so single-quoting the array needs no escaping.
@@ -99,7 +113,7 @@ function launchExternalWindows(
   }
   const psCommand = `Start-Process ${startArgs.join(" ")}`;
   const child = cp.spawn(
-    shell,
+    shell.path,
     // No -NonInteractive: it silently suppresses the UAC consent that
     // `Start-Process -Verb RunAs` triggers, so the elevated window never launches
     // (no prompt, no window, launcher still exits 0). The launcher only invokes a
