@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { quoteArg, buildWindowsStartup, encodeForPowerShell } from "./commandPlan";
 import { getOutputChannel } from "./terminalRunner";
+import { findOnPath } from "./interpreterDetect";
 import { l10n } from "../i18n/l10n";
 
 // The external-window run path: launch the command in a NEW OS terminal window
@@ -58,6 +59,8 @@ export async function runInExternal(
 // startup script that cd's to the target, seeds the run command into an isolated
 // per-window history file, then runs it. `-NoExit` keeps the window open after the
 // command finishes so the user can read the output AND press up-arrow to re-run it.
+// Prefers pwsh.exe (PowerShell 7+) when installed; falls back to powershell.exe
+// (Windows PowerShell 5.1) otherwise.
 //
 // Why PowerShell and not cmd.exe: cmd cannot give the launched window any history.
 // A command handed to `cmd /k "cd … & script"` executes but never enters doskey
@@ -79,10 +82,13 @@ function launchExternalWindows(
   env: Record<string, string> | undefined,
   elevated: boolean
 ): void {
+  // Prefer pwsh (PowerShell 7+) over powershell.exe (Windows PowerShell 5.1,
+  // the legacy blue console). Both support -EncodedCommand and Start-Process.
+  const shell = findOnPath("pwsh") ? "pwsh.exe" : "powershell.exe";
   const encoded = encodeForPowerShell(buildWindowsStartup(commandLine, cwd));
   const startArgs = [
     "-FilePath",
-    "'powershell.exe'",
+    `'${shell}'`,
     "-ArgumentList",
     // Each element is a literal token; the base64 payload is [A-Za-z0-9+/=] only,
     // so single-quoting the array needs no escaping.
@@ -93,7 +99,7 @@ function launchExternalWindows(
   }
   const psCommand = `Start-Process ${startArgs.join(" ")}`;
   const child = cp.spawn(
-    "powershell.exe",
+    shell,
     // No -NonInteractive: it silently suppresses the UAC consent that
     // `Start-Process -Verb RunAs` triggers, so the elevated window never launches
     // (no prompt, no window, launcher still exits 0). The launcher only invokes a
