@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.27]
 
-[log](https://github.com/saropa/saropa-workspace/blob/v1.5.26/CHANGELOG.md)
+**Overview** — Sweep runs now show green and red trend deltas so you can immediately see if your codebase is getting cleaner or messier, multi-root workspaces clearly label which folder owns each shortcut, right-click context menus are neatly regrouped, and external terminals now default to modern PowerShell 7+. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.27/CHANGELOG.md)
 
 ### Added
 
