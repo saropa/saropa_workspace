@@ -1335,6 +1335,8 @@
   "tag.saved": "Tagged {name}: {tags}",
   "tag.cleared": "Cleared all tags on {name}.",
   "tag.tooltip": "Tags: {tags}",
+  "folder.rowTag": "in {folder}",
+  "folder.tooltip": "Owned by workspace folder {folder}.",
   "branch.chip": "on {branch}",
   "branch.tooltip": "Shows only on branch {branch}.",
   "branch.linked": "{name} now shows only on branch {branch}.",

@@ -80,7 +80,10 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // untapped dot + a hover line marking it as not-yet-used. Recent entries are tapped
     // by definition, so they pass false. Annotation rows return before this is read (a
     // comment/separator is never "untapped").
-    untapped = false
+    untapped = false,
+    // The owning workspace folder's name, passed only in multi-root workspaces
+    // for project-scoped shortcuts so the row and hover disambiguate ownership.
+    owningFolder?: string
   ) {
     const kind = shortcutKind(shortcut);
     const isFile = kind === "file";
@@ -164,6 +167,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       sweepBadge,
       metricBadge,
       recentInfo,
+      owningFolder,
     });
     this.description = description;
 
@@ -188,6 +192,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       metricBadge,
       metricText,
       untapped,
+      owningFolder,
     }).join("\n");
 
     // Row glyph + tint: the priority chain and every codicon/color token live in

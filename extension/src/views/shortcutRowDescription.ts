@@ -35,6 +35,10 @@ export interface ShortcutRowDescriptionInput {
   readonly recentInfo:
     | { at: number; source: RunSource; kind?: "run" | "opened" }
     | undefined;
+  // The owning workspace folder's name, passed only when 2+ workspace folders
+  // are open and the shortcut is project-scoped — disambiguates which
+  // .vscode/saropa-workspace.json owns it.
+  readonly owningFolder: string | undefined;
 }
 
 // The row's description text, plus the metric value formatted for reuse: the tooltip
@@ -161,7 +165,10 @@ export function buildShortcutRowDescription(
     // below, and crowding a narrow sidebar row with up to seven `·`-joined segments
     // was the main "hard to glance" offender. Holding the row to these few parts lets
     // the eye lock onto state and identity without parsing a long string.
-    description = [badgeLead, badge, expiryChip, detail, metricText]
+    const folderTag = input.owningFolder
+      ? l10n("folder.rowTag", { folder: input.owningFolder })
+      : undefined;
+    description = [badgeLead, badge, expiryChip, detail, metricText, folderTag]
       .filter((part) => part)
       .join(" · ");
   }
