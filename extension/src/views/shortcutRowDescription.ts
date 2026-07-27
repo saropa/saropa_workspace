@@ -35,7 +35,7 @@ export interface ShortcutRowDescriptionInput {
   readonly recentInfo:
     | { at: number; source: RunSource; kind?: "run" | "opened" }
     | undefined;
-  readonly previousBadge?: ShortcutBadge | undefined;
+  readonly previousBadge: ShortcutBadge | undefined;
   // The owning workspace folder's name, passed only when 2+ workspace folders
   // are open and the shortcut is project-scoped — disambiguates which
   // .vscode/saropa-workspace.json owns it.
@@ -142,8 +142,11 @@ export function buildShortcutRowDescription(
   // Trend delta (▲/▼) from the previous sweep, shown inline so the user sees
   // direction at a glance without hovering. Suppressed while running/stopping
   // (same as the badge lead) and when there is no current sweep to compare against.
+  // Masked shortcuts suppress the delta for the same reason they suppress the
+  // badge lead: the trend direction leaks whether the target's issues are
+  // changing, which is contextual identity information.
   const delta =
-    sweepBadge && previousBadge && !isRunning && !isStopping
+    sweepBadge && previousBadge && !isRunning && !isStopping && !masked
       ? formatBadgeDelta(sweepBadge, previousBadge)
       : undefined;
   const metricText = computeRowMetricText(metricBadge, masked);
@@ -180,6 +183,9 @@ export function buildShortcutRowDescription(
     const folderTag = input.owningFolder && !masked
       ? l10n("folder.rowTag", { folder: input.owningFolder })
       : undefined;
+    // The " · " delimiter must never appear inside a segment value — each
+    // formatter returns a short, self-contained token. Tests split on it to
+    // assert individual segments.
     description = [badgeLead, delta, badge, expiryChip, detail, metricText, folderTag]
       .filter((part) => part)
       .join(" · ");
