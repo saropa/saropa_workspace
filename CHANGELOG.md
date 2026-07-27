@@ -55,6 +55,10 @@ cspell:disable
 - Multi-root workspace attribution: project shortcuts now show which workspace folder owns them (in the row description and hover tooltip) when two or more folders are open, so it is clear which `.vscode/saropa-workspace.json` each shortcut lives in
 - Sweep trend direction: after a second lint or test run, the hover tooltip shows a ▲/▼ delta ("▼2 since last run") so it is visible whether the codebase is getting cleaner or messier without needing a full history
 
+### Changed
+
+- Reorganized shortcut right-click context menu into clearer logical groups: Run, Submenus, Manage (rename + pin scope), Create (promote/routine/template), File, Copy, and Annotate — separating pin identity actions from creation actions
+
 ### Fixed
 
 - External terminal windows now open in PowerShell 7+ (pwsh) when installed, instead of always using the legacy Windows PowerShell 5.1 blue console
