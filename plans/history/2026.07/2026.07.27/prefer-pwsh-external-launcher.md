@@ -16,11 +16,33 @@ installed.
 
 ### Fix
 
-Added a `findOnPath("pwsh")` probe (reusing the existing `interpreterDetect.ts`
-utility) at the top of `launchExternalWindows`. When `pwsh.exe` is found on
-PATH, both the launcher and the inner window use `pwsh.exe`; otherwise fall back
-to `powershell.exe`. The resolved shell name is stored in a single `const shell`
-and substituted into both spawn sites — no duplication.
+A module-level `windowsShell()` function probes PATH for `pwsh.exe` via the
+existing `findOnPath` utility in `interpreterDetect.ts`, caches the result for
+the session, and returns both a `name` (for `Start-Process -FilePath`) and an
+absolute `path` (for `cp.spawn`, avoiding a redundant PATH lookup by Node).
+Falls back to `powershell.exe` when `pwsh` is not installed.
+
+### Hardening verification
+
+All six reflection items from the initial /finish were investigated:
+
+1. **`-Verb RunAs` with pwsh**: `Start-Process -Verb RunAs` uses `ShellExecute`
+   under the hood, which resolves the `-FilePath` via PATH identically for
+   `pwsh.exe` and `powershell.exe`. The `detached`-vs-non-detached gate (already
+   present) ensures the UAC consent desktop is available. No code change needed.
+2. **`findOnPath` latency**: now called once per session (cached). Negligible.
+3. **Binary name**: `findOnPath("pwsh")` iterates PATHEXT suffixes (`.EXE` first)
+   and Windows filesystem lookups are case-insensitive — matches `pwsh.exe`
+   regardless of casing on disk. MSI, Store, Scoop, and Chocolatey all install
+   as `pwsh.exe`.
+4. **`buildWindowsStartup` 5.1-specific cmdlets**: verified the startup script
+   uses `Set-PSReadLineOption -HistorySavePath`, `.NET` `WriteAllLines`, and
+   `Set-Location` — all compatible with PSReadLine v1 (5.1) and v2 (7+).
+5. **PSReadLine history seeding in pwsh 7**: PSReadLine v2 loads
+   `HistorySavePath` at the first interactive prompt, same as v1. No difference.
+6. **`shell: true` in backgroundRunner/actionRunner**: these run arbitrary user
+   commands through `cmd.exe` on Windows. Changing them to pwsh would break
+   existing command syntax. Out of scope — correct as-is.
 
 ### Scope
 
