@@ -12,6 +12,7 @@ import { l10n } from "../i18n/l10n";
 import { SetParamsPanel } from "../views/setParamsPanel";
 import { ShortcutDecorationProvider } from "../views/shortcutDecorations";
 import { shortcutBadges } from "../exec/shortcutBadges";
+import { makeDebounced } from "./activationHelpers";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -191,10 +192,14 @@ export function setupSecondaryViews(
   // Registered globally (all views that show the same URI), which is intentional:
   // a file whose issues are worsening is worth highlighting everywhere.
   const decorations = new ShortcutDecorationProvider(store);
+  // A routine sweep can fire shortcutBadges.onDidChange once per script, and
+  // store.onDidChange can fire for the same logical event, so a trailing-edge
+  // debounce coalesces the burst into a single URI-map rebuild + repaint.
+  const debouncedDecoRefresh = makeDebounced(() => decorations.refresh(), 200);
   context.subscriptions.push(
     decorations,
     vscode.window.registerFileDecorationProvider(decorations),
-    shortcutBadges.onDidChange(() => decorations.refresh()),
-    store.onDidChange(() => decorations.refresh())
+    shortcutBadges.onDidChange(debouncedDecoRefresh),
+    store.onDidChange(debouncedDecoRefresh)
   );
 }
