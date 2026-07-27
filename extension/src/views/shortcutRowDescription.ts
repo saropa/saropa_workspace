@@ -35,10 +35,10 @@ export interface ShortcutRowDescriptionInput {
   readonly recentInfo:
     | { at: number; source: RunSource; kind?: "run" | "opened" }
     | undefined;
+  readonly previousBadge?: ShortcutBadge | undefined;
   // The owning workspace folder's name, passed only when 2+ workspace folders
   // are open and the shortcut is project-scoped — disambiguates which
   // .vscode/saropa-workspace.json owns it.
-  readonly previousBadge?: ShortcutBadge | undefined;
   readonly owningFolder: string | undefined;
 }
 
