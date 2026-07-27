@@ -22,7 +22,26 @@ the session, and returns both a `name` (for `Start-Process -FilePath`) and an
 absolute `path` (for `cp.spawn`, avoiding a redundant PATH lookup by Node).
 Falls back to `powershell.exe` when `pwsh` is not installed.
 
-### Hardening verification
+### Hardening (second pass)
+
+Three additional fixes applied after the initial change:
+
+1. **`.cmd` shim rejection**: `findOnPath` iterates PATHEXT and can resolve to a
+   `.cmd` wrapper (scoop, chocolatey shim directories) rather than a real `.exe`.
+   `cp.spawn` without `shell: true` cannot launch a `.cmd` file. A `findExe()`
+   helper now filters `findOnPath` results to only accept paths ending in `.exe`.
+
+2. **`powershell.exe` absolute path**: the fallback now also runs through
+   `findExe("powershell")` to resolve the absolute `System32` path, falling back
+   to the bare `"powershell.exe"` name only if the probe fails (which would mean
+   a Windows install without PowerShell — effectively impossible).
+
+3. **Output channel shell attribution**: the log line for external launches now
+   includes the resolved shell name (e.g. `[external, pwsh.exe]` or
+   `[external, elevated, powershell.exe]`) so the user can see which PowerShell
+   edition opened without inspecting the window.
+
+### Earlier hardening verification
 
 All six reflection items from the initial /finish were investigated:
 
