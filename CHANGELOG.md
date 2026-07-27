@@ -53,6 +53,7 @@ cspell:disable
 ### Added
 
 - Multi-root workspace attribution: project shortcuts now show which workspace folder owns them (in the row description and hover tooltip) when two or more folders are open, so it is clear which `.vscode/saropa-workspace.json` each shortcut lives in
+- Sweep trend direction: after a second lint or test run, the hover tooltip shows a ▲/▼ delta ("▼2 since last run") so it is visible whether the codebase is getting cleaner or messier without needing a full history
 
 ### Fixed
 

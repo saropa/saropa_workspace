@@ -48,6 +48,7 @@ export function buildShortcutItem(
     runCount(shortcut.id),
     lockedBy(store, shortcut),
     shortcutBadges.get(shortcut.id),
+    shortcutBadges.previous(shortcut.id),
     metricBadges.get(shortcut.id),
     // Untapped: never opened or run. Drives the leading discovery dot on the row.
     // Recent entries below never pass it — being in Recent means it has been tapped.

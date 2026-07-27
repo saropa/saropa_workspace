@@ -42,8 +42,11 @@ design called for a "pass/fail trend", which the latest-counts badge does not co
 
 ## Build order
 
-1. The cheap half first: keep the previous badge per pin and add a `▲/▼ since last run`
-   line to the hover — no webview, immediate value.
+1. ✅ Done. The previous badge is kept per shortcut in
+   `ShortcutBadgeRegistry.previousByShortcut`; `formatBadgeDelta()` computes a
+   single-number ▲/▼ direction from the total issue score (errors + warnings +
+   test failures); the tooltip's outcome section shows "{delta} since last run"
+   via l10n key `sweep.deltaTooltip`. No webview, no ring buffer.
 2. The ring buffer + a sparkline in an existing webview surface, only if the hover
    delta proves insufficient.
 

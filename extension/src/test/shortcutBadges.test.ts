@@ -9,7 +9,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseRunBadge, formatBadgeLead, shortcutBadges, type ShortcutBadge } from "../exec/shortcutBadges";
+import { parseRunBadge, formatBadgeLead, formatBadgeDelta, shortcutBadges, type ShortcutBadge } from "../exec/shortcutBadges";
 
 // --- parseRunBadge: linter / analyzer recognizers -----------------------
 
@@ -163,4 +163,67 @@ test("pinBadges fires onDidChange on record and on a removing clear", () => {
     sub.dispose();
     shortcutBadges.clear(pinId);
   }
+});
+
+test("pinBadges keeps the previous badge after a second record", () => {
+  const pinId = "pb-previous";
+  try {
+    const first: ShortcutBadge = { errors: 5, warnings: 2, infos: 0, at: 100 };
+    const second: ShortcutBadge = { errors: 3, warnings: 1, infos: 0, at: 200 };
+    shortcutBadges.record(pinId, first);
+    assert.equal(shortcutBadges.previous(pinId), undefined, "no previous after first record");
+    shortcutBadges.record(pinId, second);
+    assert.deepEqual(shortcutBadges.previous(pinId), first, "previous is the first badge");
+    assert.deepEqual(shortcutBadges.get(pinId), second, "current is the second badge");
+  } finally {
+    shortcutBadges.clear(pinId);
+  }
+});
+
+test("pinBadges.clear removes the previous badge too", () => {
+  const pinId = "pb-clear-prev";
+  try {
+    shortcutBadges.record(pinId, { errors: 1, warnings: 0, infos: 0, at: 1 });
+    shortcutBadges.record(pinId, { errors: 0, warnings: 0, infos: 0, at: 2 });
+    shortcutBadges.clear(pinId);
+    assert.equal(shortcutBadges.previous(pinId), undefined, "previous cleared");
+  } finally {
+    shortcutBadges.clear(pinId);
+  }
+});
+
+// --- formatBadgeDelta: ▲/▼ trend direction -------------------------------
+
+test("formatBadgeDelta returns undefined with no previous badge", () => {
+  assert.equal(formatBadgeDelta({ errors: 3, warnings: 0, infos: 0, at: 0 }, undefined), undefined);
+});
+
+test("formatBadgeDelta returns undefined when scores are equal", () => {
+  const a: ShortcutBadge = { errors: 2, warnings: 1, infos: 0, at: 0 };
+  const b: ShortcutBadge = { errors: 2, warnings: 1, infos: 0, at: 0 };
+  assert.equal(formatBadgeDelta(a, b), undefined);
+});
+
+test("formatBadgeDelta shows ▼ when issues decreased", () => {
+  const current: ShortcutBadge = { errors: 1, warnings: 0, infos: 0, at: 0 };
+  const previous: ShortcutBadge = { errors: 3, warnings: 2, infos: 0, at: 0 };
+  assert.equal(formatBadgeDelta(current, previous), "▼4");
+});
+
+test("formatBadgeDelta shows ▲ when issues increased", () => {
+  const current: ShortcutBadge = { errors: 5, warnings: 0, infos: 0, at: 0 };
+  const previous: ShortcutBadge = { errors: 2, warnings: 0, infos: 0, at: 0 };
+  assert.equal(formatBadgeDelta(current, previous), "▲3");
+});
+
+test("formatBadgeDelta includes test failures in the score", () => {
+  const current: ShortcutBadge = { testsPassed: 10, testsFailed: 3, at: 0 };
+  const previous: ShortcutBadge = { testsPassed: 10, testsFailed: 1, at: 0 };
+  assert.equal(formatBadgeDelta(current, previous), "▲2");
+});
+
+test("formatBadgeDelta combines diagnostic and test scores", () => {
+  const current: ShortcutBadge = { errors: 1, warnings: 1, infos: 0, testsFailed: 1, at: 0 };
+  const previous: ShortcutBadge = { errors: 3, warnings: 2, infos: 0, testsFailed: 2, at: 0 };
+  assert.equal(formatBadgeDelta(current, previous), "▼4");
 });
