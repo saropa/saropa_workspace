@@ -684,6 +684,26 @@ in [`principles.md`](./principles.md).)
   rows, which are text-only by design. So set an icon on each submenu definition,
   but do not expect (or ask for) per-row icons inside the flyout; declutter the
   flyout with grouping and submenus instead.
+- **Shortcut context-menu groups follow a numbered scheme.** VS Code renders
+  `view/item/context` groups in lexicographic order of the `group` string
+  (`3_manage` sorts before `4_create`); items within a group sort by their `@n`
+  suffix. The shortcut right-click menu uses these groups — add new items to the
+  group that matches semantically, not to whatever is nearest:
+
+  | Group | Purpose | Pins | Recipes |
+  |---|---|---|---|
+  | `1_run` | Primary actions: Open, Run, Stop, Force Kill | ✓ | ✓ |
+  | `2_menu` | Submenus: Output ▸, Configure ▸, Appearance ▸ | ✓ | ✓ |
+  | `3_manage` | Pin identity: Rename, Pin Scope ▸ | ✓ | Rename only (no scope change) |
+  | `4_create` | Spawn from this pin: Promote Recipe, New Routine, Use as Template | Template only | Promote + Routine |
+  | `5_file` | Disk operations: File ▸ (new, duplicate, rename, copy) | ✓ | — |
+  | `6_copy` | Clipboard: Copy Path, Copy Pin Link | ✓ | ✓ |
+  | `7_annotate` | List organization: Add Comment, Add Separator | ✓ | — |
+
+  Recipe items intentionally show fewer groups — they are read-only previews
+  that can be promoted to full pins but do not support file operations,
+  annotations, or scope changes. The `when` clauses on each entry control
+  per-viewItem visibility; an empty group is auto-hidden by VS Code.
 
 ---
 

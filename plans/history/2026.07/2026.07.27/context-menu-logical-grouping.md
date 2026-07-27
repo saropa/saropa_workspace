@@ -33,6 +33,33 @@ values in `view/item/context` entries within `extension/package.json`.
 | 5_copy → 6_copy | Copy Path, Copy Link | Copy Path, Copy Link |
 | 6_annotate → 7_annotate | Comment, Separator | Comment, Separator |
 
+### Recipe view coverage
+
+Recipe items (`shortcutRecipe*`) see a subset of groups because `when` clauses
+restrict several entries to `view == saropaWorkspace.pins` only:
+
+- **5_file** (File submenu) — pins only. Recipes are not file-backed in the same way.
+- **7_annotate** (Comment, Separator) — pins only. Recipes cannot be annotated.
+- **3_manage@2** (Pin Scope) — pins only (excludes `shortcutRecipe` viewItems).
+- **4_create@3** (Use as Template) — pins only.
+
+An empty group is auto-hidden by VS Code, so recipes show a clean menu without
+blank separators.
+
+### Ordering guarantee
+
+VS Code sorts `view/item/context` groups in lexicographic order of the `group`
+string prefix (`3_manage` before `4_create`). Items within a group sort by the
+`@n` suffix. All `@n` values within each group are unique — verified, no
+collisions.
+
+### Documentation
+
+The group numbering scheme and per-group semantic purpose are documented in
+`plans/guides/STYLEGUIDE.md` (section 3, context-menu rules) with a table showing
+which groups appear for pins vs recipes. Future contributors add items to the
+group that matches semantically rather than appending to the nearest one.
+
 ### Risk
 
 None. Declarative JSON only — no runtime code changed. Visual-only impact.
