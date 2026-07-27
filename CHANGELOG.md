@@ -50,6 +50,10 @@ cspell:disable
 
 [log](https://github.com/saropa/saropa-workspace/blob/v1.5.26/CHANGELOG.md)
 
+### Added
+
+- Multi-root workspace attribution: project shortcuts now show which workspace folder owns them (in the row description and hover tooltip) when two or more folders are open, so it is clear which `.vscode/saropa-workspace.json` each shortcut lives in
+
 ### Fixed
 
 - External terminal windows now open in PowerShell 7+ (pwsh) when installed, instead of always using the legacy Windows PowerShell 5.1 blue console

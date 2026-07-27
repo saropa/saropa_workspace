@@ -1,3 +1,4 @@
+import * as vscode from "vscode";
 import { Shortcut, shortcutKind } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { processRegistry } from "../exec/processRegistry";
@@ -14,6 +15,23 @@ import { ShortcutTreeItem } from "./shortcutTreeItem";
 // the provider keeps the tree shape (roots / groups / children, filtering, reveal) and
 // these stateless builders — which need only the store plus the module-level run /
 // badge / telemetry singletons — live on their own.
+
+// The owning folder's name for a project shortcut when 2+ workspace folders are
+// open, so the row and hover disambiguate which config file owns the shortcut.
+// Returns undefined for global shortcuts or single-folder workspaces (no ambiguity).
+function owningFolderName(
+  store: ShortcutStore,
+  shortcut: Shortcut
+): string | undefined {
+  if (shortcut.scope !== "project") {
+    return undefined;
+  }
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || folders.length < 2) {
+    return undefined;
+  }
+  return store.folderOf(shortcut)?.name;
+}
 
 export function buildShortcutItem(
   store: ShortcutStore,
@@ -33,7 +51,8 @@ export function buildShortcutItem(
     metricBadges.get(shortcut.id),
     // Untapped: never opened or run. Drives the leading discovery dot on the row.
     // Recent entries below never pass it — being in Recent means it has been tapped.
-    !tappedShortcuts.has(shortcut.id)
+    !tappedShortcuts.has(shortcut.id),
+    owningFolderName(store, shortcut)
   );
 }
 
