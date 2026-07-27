@@ -10,6 +10,8 @@ import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
 import { checkScriptSync } from "../model/scriptLibrary";
 import { l10n } from "../i18n/l10n";
 import { SetParamsPanel } from "../views/setParamsPanel";
+import { ShortcutDecorationProvider } from "../views/shortcutDecorations";
+import { shortcutBadges } from "../exec/shortcutBadges";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -183,5 +185,16 @@ export function setupSecondaryViews(
       launcher,
       { webviewOptions: { retainContextWhenHidden: true } }
     )
+  );
+
+  // Tint file shortcut labels green/red based on the sweep badge trend delta.
+  // Registered globally (all views that show the same URI), which is intentional:
+  // a file whose issues are worsening is worth highlighting everywhere.
+  const decorations = new ShortcutDecorationProvider(store);
+  context.subscriptions.push(
+    decorations,
+    vscode.window.registerFileDecorationProvider(decorations),
+    shortcutBadges.onDidChange(() => decorations.refresh()),
+    store.onDidChange(() => decorations.refresh())
   );
 }

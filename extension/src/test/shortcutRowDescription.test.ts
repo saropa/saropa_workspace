@@ -26,6 +26,7 @@ function input(over: Partial<ShortcutRowDescriptionInput>): ShortcutRowDescripti
     sweepBadge: undefined,
     metricBadge: undefined,
     recentInfo: undefined,
+    previousBadge: undefined,
     owningFolder: undefined,
     ...over,
   };
@@ -105,6 +106,21 @@ test("description omits delta while running", () => {
   assert.ok(
     !parts.some((p) => p.startsWith("▲") || p.startsWith("▼")),
     `delta should be suppressed while running: "${result.description}"`
+  );
+});
+
+test("masked shortcut suppresses delta even with badges", () => {
+  const result = buildShortcutRowDescription(
+    input({
+      masked: true,
+      sweepBadge: { errors: 2, warnings: 0, infos: 0, at: 1 },
+      previousBadge: { errors: 5, warnings: 0, infos: 0, at: 0 },
+    })
+  );
+  const parts = result.description.split(" · ");
+  assert.ok(
+    !parts.some((p) => p.startsWith("▲") || p.startsWith("▼")),
+    `masked shortcut should not leak delta: "${result.description}"`
   );
 });
 
