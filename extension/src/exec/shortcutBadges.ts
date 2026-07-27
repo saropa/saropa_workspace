@@ -25,10 +25,17 @@ export interface ShortcutBadge {
 
 class ShortcutBadgeRegistry {
   private readonly byShortcut = new Map<string, ShortcutBadge>();
+  // The badge from the run before the current one, so the tooltip can show a
+  // ▲/▼ trend direction. Kept per-session only (matches the current badge).
+  private readonly previousByShortcut = new Map<string, ShortcutBadge>();
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
 
   record(pinId: string, badge: ShortcutBadge): void {
+    const existing = this.byShortcut.get(pinId);
+    if (existing) {
+      this.previousByShortcut.set(pinId, existing);
+    }
     this.byShortcut.set(pinId, badge);
     this._onDidChange.fire();
   }
@@ -37,8 +44,13 @@ class ShortcutBadgeRegistry {
     return this.byShortcut.get(pinId);
   }
 
+  previous(pinId: string): ShortcutBadge | undefined {
+    return this.previousByShortcut.get(pinId);
+  }
+
   clear(pinId: string): void {
     if (this.byShortcut.delete(pinId)) {
+      this.previousByShortcut.delete(pinId);
       this._onDidChange.fire();
     }
   }
@@ -146,6 +158,44 @@ function parseTestResults(
     };
   }
   return undefined;
+}
+
+// A total-issue score for a badge: the count of problems the user cares about
+// most (errors + warnings for diagnostics, failures for tests). Used to compute
+// a single ▲/▼ direction between two sweeps.
+function badgeScore(badge: ShortcutBadge): number {
+  let score = 0;
+  if (badge.errors !== undefined) {
+    score += badge.errors;
+  }
+  if (badge.warnings !== undefined) {
+    score += badge.warnings;
+  }
+  if (badge.testsFailed !== undefined) {
+    score += badge.testsFailed;
+  }
+  return score;
+}
+
+// A ▲/▼ delta between the current and previous badge. Returns undefined when
+// there is no previous badge or the scores are equal (no trend to show).
+// Positive delta (more issues) = ▲ count; negative (fewer) = ▼ count. The
+// glyph is intentionally counter-intuitive (▲ = bad = issues went UP) to match
+// the convention where ▲ means "increased".
+export function formatBadgeDelta(
+  current: ShortcutBadge,
+  previous: ShortcutBadge | undefined
+): string | undefined {
+  if (!previous) {
+    return undefined;
+  }
+  const cur = badgeScore(current);
+  const prev = badgeScore(previous);
+  const diff = cur - prev;
+  if (diff === 0) {
+    return undefined;
+  }
+  return diff > 0 ? `▲${diff}` : `▼${Math.abs(diff)}`;
 }
 
 // Compact, glyph-only lead text for the tree row (numbers + symbols, no words —

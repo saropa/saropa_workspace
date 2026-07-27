@@ -70,6 +70,8 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // fuller line joins the hover. Undefined when the shortcut has produced no
     // parseable sweep.
     sweepBadge?: ShortcutBadge,
+    // The badge from the run before the current one, for the ▲/▼ trend delta.
+    previousBadge?: ShortcutBadge,
     // Live metric for a file shortcut (#24): size / line count / last-modified,
     // measured by the metric engine. Appended to the row as an inline value ("245 KB");
     // when `over` a size threshold, the icon is tinted as a warning. Undefined when the
@@ -188,6 +190,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       lockedBy,
       lastRun,
       sweepBadge,
+      previousBadge,
       runCount,
       metricBadge,
       metricText,

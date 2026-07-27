@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
 import { nextOccurrence } from "../exec/schedule";
 import { RunResult } from "../exec/runStatus";
-import { ShortcutBadge } from "../exec/shortcutBadges";
+import { ShortcutBadge, formatBadgeDelta } from "../exec/shortcutBadges";
 import { MetricBadge } from "../exec/metricBadges";
 import {
   formatNextRun,
@@ -36,6 +36,9 @@ export interface ShortcutTooltipInput {
   readonly lockedBy: string | undefined;
   readonly lastRun: RunResult | undefined;
   readonly sweepBadge: ShortcutBadge | undefined;
+  // The badge from the run before the current one, so the hover can show a
+  // ▲/▼ trend direction ("▼2 since last run").
+  readonly previousBadge: ShortcutBadge | undefined;
   readonly runCount: number;
   readonly metricBadge: MetricBadge | undefined;
   readonly metricText: string | undefined;
@@ -139,7 +142,7 @@ function isFileMissing(missing: boolean, isRunning: boolean, isStopping: boolean
 // breakdown, and the lifetime run count — the "how did it go, and how much has this
 // shortcut earned its place" half of the hover.
 function buildTooltipOutcomeLines(input: ShortcutTooltipInput): string[] {
-  const { lastRun, sweepBadge, runCount, isRunning, isStopping } = input;
+  const { lastRun, sweepBadge, previousBadge, runCount, isRunning, isStopping } = input;
   const lines: string[] = [];
   // Always surface the last run in the tooltip, even when a schedule badge is
   // showing, so the most recent outcome is one hover away. A failure points at
@@ -157,6 +160,12 @@ function buildTooltipOutcomeLines(input: ShortcutTooltipInput): string[] {
     const testLine = formatTestTooltip(sweepBadge);
     if (testLine) {
       lines.push(testLine);
+    }
+    // ▲/▼ trend direction vs the previous sweep, so the hover answers "is it
+    // getting better or worse" without needing a full history or webview.
+    const delta = formatBadgeDelta(sweepBadge, previousBadge);
+    if (delta) {
+      lines.push(l10n("sweep.deltaTooltip", { delta }));
     }
   }
   // Lifetime run total, so the hover answers "how much does this shortcut earn its
