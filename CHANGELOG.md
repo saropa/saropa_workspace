@@ -58,7 +58,7 @@ cspell:disable
 
 ### Changed
 
-- Reorganized shortcut right-click context menu into clearer logical groups: Run, Submenus, Manage (rename + pin scope), Create (promote/routine/template), File, Copy, and Annotate — separating pin identity actions from creation actions
+- Reorganized shortcut right-click context menu into clearer logical groups: Run, Submenus, Manage (rename + pin scope), Create (promote/routine/template), File, Copy, and Annotate — separating pin identity actions from creation actions. The group numbering scheme is documented in the style guide so future items land in the right section
 
 ### Fixed
 
