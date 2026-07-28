@@ -273,4 +273,67 @@ function registerRecipeRestoreCommands(
         : l10n("pin.autoNoneRemoved")
     );
   });
+
+  // Quick-setup wizard for the Daily Routines category: a multi-select QuickPick that
+  // lets the user choose which detected routines to enable in one batch, rather than
+  // promoting and enabling each one individually.
+  reg("saropaWorkspace.setupDailyRoutines", async () => {
+    const SCHEDULED_GROUP_ID = "recipes-scheduled";
+    const routines = store
+      .getRecipeShortcuts()
+      .filter((s) => s.groupId === SCHEDULED_GROUP_ID && s.schedule);
+    if (routines.length === 0) {
+      vscode.window.showInformationMessage(l10n("dailyRoutines.noneDetected"));
+      return;
+    }
+    interface RoutinePickItem extends vscode.QuickPickItem {
+      shortcutId: string;
+    }
+    const items: RoutinePickItem[] = routines.map((r) => ({
+      label: r.label ?? r.path,
+      description: r.schedule?.atTime
+        ? l10n("dailyRoutines.at", { time: r.schedule.atTime })
+        : undefined,
+      detail: r.description,
+      shortcutId: r.id,
+      picked: false,
+    }));
+    const picker = vscode.window.createQuickPick<RoutinePickItem>();
+    picker.title = l10n("dailyRoutines.title");
+    picker.placeholder = l10n("dailyRoutines.placeholder");
+    picker.items = items;
+    picker.canSelectMany = true;
+    picker.ignoreFocusOut = true;
+    const selected = await new Promise<
+      readonly RoutinePickItem[] | undefined
+    >((resolve) => {
+      picker.onDidAccept(() => {
+        resolve(picker.selectedItems);
+        picker.dispose();
+      });
+      picker.onDidHide(() => {
+        resolve(undefined);
+        picker.dispose();
+      });
+      picker.show();
+    });
+    if (!selected || selected.length === 0) {
+      return;
+    }
+    let enabled = 0;
+    for (const item of selected) {
+      const shortcut = store.findShortcut(item.shortcutId);
+      if (shortcut) {
+        const ok = await store.enableScheduledRecipe(shortcut);
+        if (ok) {
+          enabled++;
+        }
+      }
+    }
+    if (enabled > 0) {
+      vscode.window.showInformationMessage(
+        l10n("dailyRoutines.enabled", { count: enabled })
+      );
+    }
+  });
 }

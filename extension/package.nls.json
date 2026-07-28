@@ -149,6 +149,7 @@
   "command.runTopPin5.title": "Run Top Shortcut 5",
   "command.promoteRecipe.title": "Promote to Shortcut",
   "command.enableScheduledRecipe.title": "Enable Scheduled Ritual",
+  "command.setupDailyRoutines.title": "Set Up Daily Routines",
   "command.restoreRecipes.title": "Restore Recipes",
   "command.recipe.setupEnv.title": "Set Up .env",
   "command.recipe.openConfigFiles.title": "Open Config Files",

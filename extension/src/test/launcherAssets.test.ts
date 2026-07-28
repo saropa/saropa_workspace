@@ -48,32 +48,137 @@ test("LAUNCHER_STYLE: the panes reflow via flex-wrap, not a fixed grid track", (
   assert.ok(panes[0].includes("flex-wrap: wrap"), ".panes must wrap on a narrow Panel");
 });
 
-test("LAUNCHER_STYLE: a collapsed pane sheds its width when not searching", () => {
-  // Collapsing a section must also collapse its width (developer feedback 2026-06-28): a
-  // folded pane shrinks to flex:0 1 auto so the row frees up for the still-open sections.
-  // It is gated to :not(.searching) because a search force-reveals a collapsed pane's body,
-  // which then needs the full width again. Guards a regression that re-widened a folded pane.
+test("LAUNCHER_STYLE: the folded strip is its own wrapping container with its own gap", () => {
+  // Collapsing a section must free its width for the still-open sections (developer feedback
+  // 2026-06-28), but shrinking the pane IN PLACE left the folded heads scattered along the
+  // open pane's header row (developer feedback 2026-07-27). A folded pane is now moved into
+  // the .folded strip instead. The strip must carry its own gap — the panes row's column gap
+  // is tuned for pane columns and reads as scattered debris at pill size — and must wrap, so
+  // a narrow Panel stacks the pills into their own lines rather than interleaving them with
+  // the open panes.
+  const strip = LAUNCHER_STYLE.match(/^\.folded\s*\{[^}]*\}/m);
+  assert.ok(strip, ".folded rule must exist");
+  assert.ok(strip[0].includes("display: flex"), "the strip must lay out with flex");
+  assert.ok(strip[0].includes("flex-wrap: wrap"), "the strip must wrap on a narrow Panel");
+  assert.ok(/gap:\s*6px/.test(strip[0]), "the strip must set its own tighter gap");
   assert.ok(
-    /\.root:not\(\.searching\)\s+\.pane\.collapsed\s*\{[^}]*flex:\s*0 1 auto/.test(LAUNCHER_STYLE),
-    "a collapsed pane (outside search) must drop to flex: 0 1 auto"
+    /\.folded\.hidden\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
+    "an empty strip must hide itself rather than leave a blank band"
   );
 });
 
 test("LAUNCHER_STYLE: a folded pane's head reads as a pill, not a cut-off section header", () => {
   // A collapsed head is only as wide as its label, and the open-pane styling (an auto-width
   // underline + uppercase title) then reads as a broken table header floating beside the open
-  // pane (developer feedback 2026-07-27). The folded head must drop the underline for a
-  // rounded bordered box so the row of folded sections reads as a tab strip. Gated to
-  // :not(.searching) like the width rule, since a search restores the full pane.
-  const pill = LAUNCHER_STYLE.match(
-    /\.root:not\(\.searching\)\s+\.pane\.collapsed\s+\.pane-head\s*\{[^}]*\}/
-  );
+  // pane (developer feedback 2026-07-27). Inside the strip the head must drop the underline
+  // for a rounded bordered box. The border chain must fall through --vscode-panel-border:
+  // many themes leave --vscode-widget-border unset, and a pill whose outline resolves to
+  // transparent is no pill at all.
+  const pill = LAUNCHER_STYLE.match(/\.folded\s+\.pane-head\s*\{[^}]*\}/);
   assert.ok(pill, "the folded pane-head rule must exist");
   assert.ok(pill[0].includes("border-radius: 999px"), "a folded head must be a rounded pill");
   assert.ok(
     /border:\s*1px solid/.test(pill[0]),
     "a folded head must carry a full border, replacing the section-header underline"
   );
+  assert.ok(
+    pill[0].includes("--vscode-panel-border"),
+    "the pill border must fall back past --vscode-widget-border, which many themes leave unset"
+  );
+  // The chevron goes only inside the strip: four elements crowded the pill at chip size, and
+  // an expanded section still needs its chevron.
+  assert.ok(
+    /\.folded\s+\.pane-chevron\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
+    "the chevron must be hidden inside the strip only"
+  );
+});
+
+test("LAUNCHER_STYLE: every var() fallback chain terminates in a static keyword", () => {
+  // An all-undefined var() chain is invalid at computed-value time, which DROPS the
+  // declaration rather than resolving it — so a chain that ends in another var() can leave a
+  // pill with no border or no fill in a theme that defines neither token. Each chain must
+  // bottom out in a literal (transparent, or a plain keyword/length).
+  const chains = LAUNCHER_STYLE.match(/var\(--vscode-[a-zA-Z-]+,\s*var\([^)]*\)\)/g) ?? [];
+  assert.ok(chains.length > 0, "the stylesheet must use nested var() fallbacks");
+  for (const chain of chains) {
+    assert.ok(
+      /,\s*[a-zA-Z0-9#.%-]+\)\)$/.test(chain),
+      `fallback chain must end in a static value: ${chain}`
+    );
+  }
+});
+
+test("LAUNCHER_STYLE: a folded pill shows where a dragged card can be dropped", () => {
+  // The drop affordance is two-step: .can-drop lights every pill that WOULD accept the card
+  // being dragged (set at dragstart, so eligible targets are visible before the pointer
+  // reaches one), .drop-over marks the pill actually under the pointer. Without the first, a
+  // user must hover each pill to discover which sections accept anything.
+  assert.ok(
+    /\.folded\s+\.pane\.can-drop\s+\.pane-head\s*\{[^}]*border-color/.test(LAUNCHER_STYLE),
+    "an eligible drop target must be outlined from the moment the drag starts"
+  );
+  assert.ok(
+    /\.folded\s+\.pane\.drop-over\s+\.pane-head\s*\{[^}]*background/.test(LAUNCHER_STYLE),
+    "the pill under the pointer must fill so the landing spot is unambiguous"
+  );
+  assert.ok(
+    /\.folded\s+\.pane\.dragging\s+\.pane-head\s*\{[^}]*opacity/.test(LAUNCHER_STYLE),
+    "the pill being dragged must dim so its origin is legible during a reorder"
+  );
+});
+
+test("LAUNCHER_SCRIPT: folded panes move into the strip, and back out during a search", () => {
+  // placePanes owns which container each pane lives in. It must read the .searching state:
+  // a search force-reveals a folded pane's body, which needs the full panes-row width — the
+  // pane cannot expand inside the chip strip. Guards a regression that leaves folded panes in
+  // the strip while filtering (a revealed body inside a pill row) or never moves them at all.
+  assert.ok(LAUNCHER_SCRIPT.includes("function placePanes"));
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("root.classList.contains('searching')"),
+    "placePanes must consult the searching state before folding a pane into the strip"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("foldedEl.appendChild(p)"),
+    "a folded pane must be re-parented into the strip"
+  );
+  // The toggle re-parents the button the user just pressed, which drops focus; it must be
+  // restored or keyboard traversal falls back to the document body.
+  assert.ok(LAUNCHER_SCRIPT.includes("head.focus()"));
+});
+
+test("LAUNCHER_SCRIPT: the folded strip order is persisted, not recomputed per paint", () => {
+  // Dragging one pill onto another rewrites the WHOLE strip order into webview state, so the
+  // arrangement survives a reload and a pane the user never dragged still gets a recorded
+  // position once anything is rearranged. A pane absent from the stored list sorts after the
+  // arranged ones in its authored position, so a pane added in a later release lands at the
+  // end instead of jumping to the front.
+  assert.ok(LAUNCHER_SCRIPT.includes("function foldedOrder"));
+  assert.ok(LAUNCHER_SCRIPT.includes("store.order = ids"));
+  assert.ok(LAUNCHER_SCRIPT.includes("function reorderFolded"));
+});
+
+test("LAUNCHER_SCRIPT: only sections that can receive a card accept a drop", () => {
+  // My shortcuts adopts a recipe or a surfaced project file; Watches takes any file-backed
+  // card. Recipes / Project files / Scripts are derived from detection or from disk, so
+  // nothing can be filed into them and canDropOnPane must fall through to false. The drag
+  // payload lives in a module variable because DataTransfer.getData() is unreadable during
+  // dragover, where the affordance has to be decided.
+  assert.ok(LAUNCHER_SCRIPT.includes("function canDropOnPane"));
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("drag.pane === 'recipes' || drag.pane === 'files'"),
+    "My shortcuts must accept a recipe or a project file"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("drag.file === true"),
+    "Watches must accept only a file-backed card"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("type: 'dropOnPane'"),
+    "a card drop must post the target section and card id back to the host"
+  );
+  // preventDefault in dragover is what marks a valid drop target; without it no drop event
+  // ever fires and the whole feature silently does nothing.
+  assert.ok(LAUNCHER_SCRIPT.includes("function acceptsDrop"));
 });
 
 test("LAUNCHER_STYLE: hides filtered cards and empty groups/panes via the .hidden class", () => {

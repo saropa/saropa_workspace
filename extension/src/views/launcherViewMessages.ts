@@ -64,6 +64,7 @@ export async function handleLauncherMessage(
     id?: string;
     command?: string;
     path?: string;
+    pane?: string;
   };
   if (msg.type === "ready") {
     await ctx.post();
@@ -125,6 +126,18 @@ export async function handleLauncherMessage(
     return;
   }
 
+  // A card dragged onto a folded section's pill. The webview offers the drop only where it
+  // means something, but the payload is untrusted: the target section and the dropped card
+  // are both re-resolved here and anything else falls through to nothing.
+  if (
+    msg.type === "dropOnPane" &&
+    typeof msg.pane === "string" &&
+    typeof msg.id === "string"
+  ) {
+    await applyPaneDrop(msg.pane, msg.id, ctx);
+    return;
+  }
+
   if (typeof msg.id !== "string") {
     return;
   }
@@ -165,4 +178,57 @@ export async function handleLauncherMessage(
       await vscode.commands.executeCommand(msg.command, shortcut);
     }
   }
+}
+
+// Route a card dropped on a folded section's pill to the command that files it there. Only
+// two sections can receive anything: My shortcuts adopts a detected recipe or pins a surfaced
+// project file, and Watches puts a file-backed card under a file watch. Recipes, Project
+// files and Scripts are derived from detection or from disk, so nothing can be filed into
+// them and an unrecognized target does nothing. Each delegated command emits its own toast
+// naming the item, so the drop is never a silent action.
+async function applyPaneDrop(
+  pane: string,
+  id: string,
+  ctx: LauncherMessageContext
+): Promise<void> {
+  if (pane === "mine") {
+    // A recipe is adopted, not re-pinned: promoteRecipe converts the detected entry into a
+    // stored shortcut AND suppresses the detection, which pinning its file would not do.
+    const recipe = ctx.store.findShortcut(id);
+    if (recipe?.isRecipe) {
+      await vscode.commands.executeCommand("saropaWorkspace.promoteRecipe", recipe);
+      return;
+    }
+    const uri = await droppedFileUri(id, ctx);
+    if (uri) {
+      await vscode.commands.executeCommand("saropaWorkspace.pinFile", uri);
+    }
+    return;
+  }
+  if (pane === "watches") {
+    const uri = await droppedFileUri(id, ctx);
+    if (uri) {
+      await vscode.commands.executeCommand("saropaWorkspace.watchFile", uri);
+    }
+  }
+}
+
+// The on-disk file a dropped card addresses, or undefined when it addresses none. A
+// file-backed shortcut/recipe resolves through the store (its stored path may be
+// folder-relative, so the absolute fsPath has to come from resolveUri); a surfaced project
+// file's id IS its absolute path, re-validated against the live scan so the webview can never
+// name a file the board is not actually showing. A shell/macro/routine card has no file, so
+// it can be neither pinned by path nor watched.
+async function droppedFileUri(
+  id: string,
+  ctx: LauncherMessageContext
+): Promise<vscode.Uri | undefined> {
+  const shortcut = ctx.store.findShortcut(id);
+  if (shortcut) {
+    return shortcutKind(shortcut) === "file"
+      ? ctx.store.resolveUri(shortcut)
+      : undefined;
+  }
+  const files = await ctx.projectFiles.listSurfacedFiles();
+  return files.find((f) => f.uri.fsPath === id)?.uri;
 }

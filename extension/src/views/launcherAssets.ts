@@ -30,7 +30,8 @@
 // reveal their matches so a result is never hidden behind a folded section or folder. Both
 // levels collapse independently — a whole pane (My shortcuts / Recipes / Watches / Project
 // files) or a single inner group — and the posture persists across reloads via the webview's
-// getState/setState.
+// getState/setState. A folded pane leaves the panes row entirely for the .folded strip, where
+// it renders as a pill; the strip is draggable to reorder and is a drop target for cards.
 
 export const LAUNCHER_STYLE = `
 /* The one place the card-button label size and box padding live. Every card action
@@ -107,12 +108,12 @@ header {
   cursor: pointer; border-radius: 3px; padding: 1px 5px;
 }
 .meta-item.filter:hover {
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
   color: var(--vscode-foreground);
 }
 .meta-item.filter:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .meta-item.filter.active {
-  background: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground));
+  background: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground, transparent));
   color: var(--vscode-foreground);
 }
 /* Cap the search group's width: the Panel is very wide, and a wide input left the search bar
@@ -160,32 +161,58 @@ header {
 }
 /* An expanded pane grows to share the row and holds a 340px comfortable floor. */
 .pane { flex: 1 1 340px; min-width: 0; }
-/* A collapsed pane (when not searching) shrinks to just its header, freeing the row for the
-   remaining open sections — collapsing the section collapses its width too. During a search
-   the body is force-revealed (see below), so the pane keeps its full width then. */
-.root:not(.searching) .pane.collapsed { flex: 0 1 auto; }
+/* The folded strip. A collapsed pane is MOVED out of the panes row into this container
+   (placePanes in the client script) rather than left in the row to shrink in place. The
+   container is real DOM, not a CSS trick, for three reasons: it owns its own tight 6px gap
+   (the panes row's 14px column gap is tuned for pane columns and reads as scattered debris
+   at pill size); its pills wrap as a unit, so a narrow Panel stacks the folded sections into
+   their own lines instead of interleaving them with the open panes; and it is the drop
+   surface — a card dragged onto a pill is filed into that section. Shrinking a pane in place
+   also depended on the panes row keeping align-items:flex-start with a growing first item,
+   which the strip no longer assumes. */
+.folded {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.folded.hidden { display: none; }
 /* Once a head is only as wide as its own label, the section-header styling works against it:
    an auto-width underline plus an uppercase title reads as a broken-off table header floating
-   in the dead space beside the open pane (developer feedback 2026-07-27). A folded pane
-   therefore restyles its head into a pill — bordered box, no underline, tighter padding — so
-   the row of folded sections reads as a deliberate tab strip docked on the open pane's header
-   line rather than as debris. The 5px/4px vertical padding puts the pill's text on the same
-   baseline as the open .pane-head's (1px border + 5px == that head's 6px top padding), so the
-   strip aligns with the section title beside it instead of riding high. */
-.root:not(.searching) .pane.collapsed .pane-head {
+   in the dead space beside the open pane (developer feedback 2026-07-27). Inside the strip a
+   head therefore becomes a pill — bordered box, no underline, symmetric padding — so the
+   strip reads as a deliberate row of controls. The border falls back through
+   --vscode-panel-border because many themes leave --vscode-widget-border unset, and a pill
+   whose outline resolves to transparent is no pill at all; the fill reuses the same
+   secondary-button chain the cards use (.card), so a pill and a card read as one material. */
+.folded .pane-head {
   width: auto;
   gap: 5px;
-  padding: 5px 10px 4px;
+  padding: 4px 10px;
   margin-bottom: 0;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
   border-radius: 999px;
-  background: var(--vscode-editorWidget-background, transparent);
+  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background, transparent));
 }
-/* Terminate the fallback chain in a static keyword like every other rule here: an
-   all-undefined var() chain is invalid-at-computed-value-time, which would drop the
-   declaration rather than resolve it. */
-.root:not(.searching) .pane.collapsed .pane-head:hover {
+/* Every fallback chain here terminates in a static keyword: an all-undefined var() chain is
+   invalid at computed-value time, which DROPS the declaration rather than resolving it. */
+.folded .pane-head:hover {
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
+}
+/* The chevron is dropped inside the strip. The pill's shape, its section glyph and its count
+   already read as a control, and a fourth element at chip size crowded the box; the head
+   carries a "Show <section>" tooltip + aria-expanded instead, which says more than a rotated
+   glyph did. Scoped to .folded so an expanded section keeps its chevron. */
+.folded .pane-chevron { display: none; }
+/* The pill being dragged to a new strip position. */
+.folded .pane.dragging .pane-head { opacity: 0.5; }
+/* Drop affordance, in two steps. .can-drop lights every pill that WOULD accept the card
+   currently being dragged, from the moment the drag starts, so the eligible targets are
+   visible before the pointer reaches one; .drop-over marks the pill actually under the
+   pointer. Without the first, a user has to hover each pill to discover which accept. */
+.folded .pane.can-drop .pane-head { border-color: var(--vscode-focusBorder); }
+.folded .pane.drop-over .pane-head {
+  border-color: var(--vscode-focusBorder);
+  background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground, transparent));
 }
 .pane.hidden { display: none; }
 /* The pane head doubles as the section's collapse toggle: a full-width button (chevron +
@@ -280,7 +307,7 @@ header {
   display: flex; flex-direction: column;
   text-align: left;
   color: var(--vscode-foreground);
-  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
+  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background, transparent));
   border: 1px solid var(--vscode-widget-border, transparent);
   border-left: 3px solid var(--card-tint, var(--vscode-foreground));
   border-radius: 5px;
@@ -348,8 +375,8 @@ header {
 .btn {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: inherit; font-size: var(--launcher-btn-font);
-  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, inherit));
+  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background, transparent));
   border: 1px solid var(--vscode-widget-border, transparent);
   /* Box shared with the expanded head button via --launcher-btn-pad; the optical
      rationale for its 1px top bias lives on the :root definition. */
@@ -370,8 +397,8 @@ header {
   position: fixed; z-index: 20;
   min-width: 190px; max-width: 280px;
   padding: 4px 0;
-  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
-  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background, transparent));
+  color: var(--vscode-menu-foreground, var(--vscode-foreground, inherit));
   border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, transparent));
   border-radius: 5px;
   box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent);
@@ -385,8 +412,8 @@ header {
   padding: 4px 12px; cursor: pointer;
 }
 .menu-item:hover, .menu-item:focus-visible {
-  background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
-  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground, transparent));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground, inherit));
   outline: none;
 }
 .menu-item .codicon { flex: none; font-size: 14px; }

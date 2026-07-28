@@ -827,6 +827,12 @@
         "icon": "$(check)"
       },
       {
+        "command": "saropaWorkspace.setupDailyRoutines",
+        "title": "%command.setupDailyRoutines.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "saropaWorkspace.restoreRecipes",
         "title": "%command.restoreRecipes.title%",
         "category": "%extension.displayName%",
@@ -1527,6 +1533,11 @@
           "command": "saropaWorkspace.deleteGroup",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem == userGroup",
           "group": "1_group@2"
+        },
+        {
+          "command": "saropaWorkspace.setupDailyRoutines",
+          "when": "view == saropaWorkspace.recipes && viewItem == recipeFolderDailyRoutines",
+          "group": "inline@1"
         },
         {
           "command": "saropaWorkspace.enableScheduledRecipe",
