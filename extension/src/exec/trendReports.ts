@@ -3,7 +3,7 @@ import * as path from "path";
 import { l10n } from "../i18n/l10n";
 
 // Discovery of the dated reports the scheduled rituals write under reports/ (the
-// "Recipes: Scheduled" set in scheduledRecipes.ts) plus a derived tech-debt-marker
+// "Recipes: Daily Routines" set in scheduledRecipes.ts) plus a derived tech-debt-marker
 // trend. The Trends tab renders these: the per-category timeline is the durable
 // fallback path (every report stays a plain file the user can open), and the debt
 // series is the one numeric trend cheap and robust enough to chart without parsing

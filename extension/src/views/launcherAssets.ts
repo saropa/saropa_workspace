@@ -164,7 +164,29 @@ header {
    remaining open sections — collapsing the section collapses its width too. During a search
    the body is force-revealed (see below), so the pane keeps its full width then. */
 .root:not(.searching) .pane.collapsed { flex: 0 1 auto; }
-.root:not(.searching) .pane.collapsed .pane-head { width: auto; }
+/* Once a head is only as wide as its own label, the section-header styling works against it:
+   an auto-width underline plus an uppercase title reads as a broken-off table header floating
+   in the dead space beside the open pane (developer feedback 2026-07-27). A folded pane
+   therefore restyles its head into a pill — bordered box, no underline, tighter padding — so
+   the row of folded sections reads as a deliberate tab strip docked on the open pane's header
+   line rather than as debris. The 5px/4px vertical padding puts the pill's text on the same
+   baseline as the open .pane-head's (1px border + 5px == that head's 6px top padding), so the
+   strip aligns with the section title beside it instead of riding high. */
+.root:not(.searching) .pane.collapsed .pane-head {
+  width: auto;
+  gap: 5px;
+  padding: 5px 10px 4px;
+  margin-bottom: 0;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+  border-radius: 999px;
+  background: var(--vscode-editorWidget-background, transparent);
+}
+/* Terminate the fallback chain in a static keyword like every other rule here: an
+   all-undefined var() chain is invalid-at-computed-value-time, which would drop the
+   declaration rather than resolve it. */
+.root:not(.searching) .pane.collapsed .pane-head:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
+}
 .pane.hidden { display: none; }
 /* The pane head doubles as the section's collapse toggle: a full-width button (chevron +
    title + count) over the pane body. A whole pane (My shortcuts / Recipes / Watches /

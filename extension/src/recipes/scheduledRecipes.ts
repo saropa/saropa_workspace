@@ -154,7 +154,7 @@ export async function detectScheduledRecipes(
   await pushPrReviewRitual(folder, out);
   pushSuiteDailyReportRitual(folder, out);
 
-  // Every scheduled ritual lands in the "Recipes: Scheduled" group.
+  // Every scheduled ritual lands in the "Recipes: Daily Routines" group.
   for (const r of out) {
     r.group = "scheduled";
   }

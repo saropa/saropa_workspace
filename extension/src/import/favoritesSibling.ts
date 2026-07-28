@@ -18,6 +18,7 @@ type SiblingFormat = "kdcro" | "saropa";
 
 const SIBLING_SOURCES: ReadonlyArray<{ relPath: string; format: SiblingFormat }> = [
   { relPath: ".favorites.json", format: "kdcro" },
+  { relPath: ".saropa/saropa-workspace.json", format: "saropa" },
   { relPath: ".vscode/saropa-workspace.json", format: "saropa" },
 ];
 

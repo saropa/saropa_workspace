@@ -99,7 +99,7 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipeSeed {
     shortcuts: Shortcut[];
   }> {
     // Create the config file up front for any folder that lacks one, so every
-    // opened project gets a committed, shareable .vscode/saropa-workspace.json
+    // opened project gets a committed, shareable .saropa/saropa-workspace.json
     // immediately — not only after the first pin is added.
     await this.ensureProjectFile(folder);
     const file = await this.readProjectFile(folder);

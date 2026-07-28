@@ -123,6 +123,7 @@ export function reconcileTabPins(
 const NOISE = [
   `${path.sep}node_modules${path.sep}`,
   `${path.sep}.git${path.sep}`,
+  `${path.sep}.saropa${path.sep}saropa-workspace.json`,
   `${path.sep}.vscode${path.sep}saropa-workspace.json`,
   `.favorites.json`,
 ];

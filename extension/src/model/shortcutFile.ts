@@ -88,7 +88,7 @@ export interface ProjectShortcutsFile {
 
 // A brand-new project shortcuts file: version-stamped, on the Default set, with
 // every collection empty. The seed handed to a folder that has never written
-// .vscode/saropa-workspace.json, so readProjectFile always has a complete shape to
+// .saropa/saropa-workspace.json, so readProjectFile always has a complete shape to
 // merge into rather than special-casing "file missing" at every call site.
 export function emptyProjectShortcutsFile(): ProjectShortcutsFile {
   return {
@@ -106,4 +106,8 @@ export function emptyProjectShortcutsFile(): ProjectShortcutsFile {
 // Relative path of the config file itself, reused as the seed shortcut's target so
 // the shortcut opens the very file it lives in. Single source for the literal so the
 // seed and the store's PROJECT_FILE_RELATIVE cannot drift apart silently.
-export const PROJECT_FILE_RELATIVE = ".vscode/saropa-workspace.json";
+export const PROJECT_FILE_RELATIVE = ".saropa/saropa-workspace.json";
+
+// Pre-1.6 location; the store reads from here when the new path is absent, and
+// writes always go to the new path — effectively migrating on first mutation.
+export const LEGACY_PROJECT_FILE_RELATIVE = ".vscode/saropa-workspace.json";
