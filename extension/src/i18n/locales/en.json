@@ -6,7 +6,7 @@
   "pin.notPinned": "{name} is not a shortcut in {scope}.",
   "pin.renamePrompt": "New label for {name}",
   "pin.noActiveFile": "No active file to add as a shortcut.",
-  "launcher.title": "Saropa Launcher",
+  "launcher.title": "Saropa Workspace",
   "launcher.searchPlaceholder": "Search",
   "launcher.run": "Run",
   "launcher.open": "Open",

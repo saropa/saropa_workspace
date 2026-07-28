@@ -40,7 +40,7 @@ Current screens, for reference:
 | `planner.title` | **Saropa Schedule & Workflow Planner** |
 | `schedulePanel.title` | **Saropa Scheduled Runs** |
 | `scheduleEditor.title` | **Saropa Workspace Scheduler: {name}** |
-| `views.launcher.container.title` / `launcher.title` | **Saropa Launcher** |
+| `views.launcher.container.title` / `launcher.title` | **Saropa Workspace** |
 
 The three schedule-related screens are deliberately distinct: the **Scheduler**
 (`scheduleEditor.title`) *sets* one shortcut's timing; **Scheduled Runs**
@@ -59,7 +59,7 @@ and reference the key everywhere (single source of truth).
 
 ### 1.1a Panel launcher: a second window onto the tree, not a copy
 
-The **Saropa Launcher** (a webview view in the bottom Panel) mirrors the same
+The **Saropa Workspace** panel (a webview view in the bottom Panel) mirrors the same
 shortcut + recipe data the sidebar tree shows, so a shortcut is reachable
 without opening the activity-bar icon. Conventions for any surface of this kind:
 

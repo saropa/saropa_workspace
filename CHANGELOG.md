@@ -46,6 +46,16 @@ cspell:disable
 
 ---
 
+## [1.6.1]
+
+[log](https://github.com/saropa/saropa-workspace/blob/v1.6.0/CHANGELOG.md)
+
+### Changed
+
+- The bottom-panel tab is now titled "Saropa Workspace" instead of "Saropa Launcher", matching the extension name
+
+---
+
 ## [1.6.0]
 
 **Overview** — The project config moves from `.vscode` to `.saropa` (migrated automatically), collapsed launcher sections fold into a draggable pill strip, daily routines can be enabled in one batch from a new quick-setup wizard, and the right-click menu is reorganized into submenus so it fits on screen. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.0/CHANGELOG.md)
