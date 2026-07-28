@@ -55,7 +55,8 @@ test("description omits folder tag when owningFolder is undefined", () => {
 test("folder tag appears after the file path segment", () => {
   const result = buildShortcutRowDescription(input({ owningFolder: "api" }));
   const parts = result.description.split(" · ");
-  const pathIdx = parts.findIndex((p) => p === "src/app.ts");
+  // detail shows only the parent directory ("src"), not the full path
+  const pathIdx = parts.findIndex((p) => p === "src");
   const folderIdx = parts.findIndex((p) => p === "in api");
   assert.ok(pathIdx >= 0, "path segment missing");
   assert.ok(folderIdx >= 0, "folder segment missing");

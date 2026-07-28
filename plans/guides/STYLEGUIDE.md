@@ -92,9 +92,21 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   and `.group-body`, declared after the collapsed rules to win at equal
   specificity), so a result is never hidden behind a fold (developer feedback
   2026-06-28). The pane body is wrapped in `.pane-body` so one `.pane.collapsed`
-  class folds the whole section while the head stays visible; the reflowing
-  `repeat(auto-fit, minmax)` panes track is unchanged, so a collapsed pane simply
-  shrinks to its head and the surface stays responsive.
+  class folds the whole section while the head stays visible; the panes row is a
+  wrapping flex line (not a grid track, whose `minmax` width a folded item cannot
+  shed), so a collapsed pane drops to `flex: 0 1 auto` and frees its width for the
+  sections still open.
+- **A folded section's head becomes a pill, not a narrowed section header.** Header
+  styling that reads correctly at full width — an underline plus an uppercase title
+  — reads as a broken-off table header once the box shrinks to its own label, and a
+  row of them floating beside the open pane reads as debris rather than as controls
+  (developer feedback 2026-07-27). So `.pane.collapsed .pane-head` swaps the
+  underline for a full rounded border with a hover fill, and pads to put its text on
+  the same baseline as the open pane's title, so the folded sections read as a
+  deliberate tab strip docked on the open section's header line. The rule is gated
+  to `.root:not(.searching)` alongside the width rule, since a search restores the
+  full pane. **Generally: when a control shrinks, restyle it for the size it lands
+  at — do not let full-width chrome ride along at chip size.**
 - **Every card carries a colored icon, reusing the tree's token map.** A launcher
   card shows the SAME glyph + tint the sidebar row would (`fileTypeIcon` / `kindIcon`
   / `kindColor` in the vscode-free `fileTypeTokens` module, plus the user's custom
@@ -801,6 +813,7 @@ Watches view's unseen new-files count). It belongs in the tree, on the row it de
   **label** (not the description), with a hover line naming what clears it. Lead the
   label: a glyph in the dimmed `descriptionForeground` color, beside an already-gray
   detail, is too faint to spot, which defeats the marker.
+- **A tree row's path detail shows the directory, not the full path.** The label already carries the filename, so repeating it in the dimmed `description` wastes the narrow sidebar width that inline action buttons need. Show only the parent directory (e.g. `lib/l10n` not `lib/l10n/app_en.arb`). A root-level file with no parent directory shows no path detail at all. A shortcut with a custom label (one that does not match its filename) shows the full path instead, since the label no longer reveals which file it targets. The launcher card's `.card-sub` follows the same suppress-when-redundant rule (§1.1a).
 
 ### 4.6 Discovery is passive — never a popup; confirm an explicit action with one toast
 

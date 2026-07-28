@@ -133,17 +133,21 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
     folder: vscode.WorkspaceFolder,
     patterns: string[],
     removed: string[],
-    autoGroups: Record<string, string>
+    autoGroups: Record<string, string>,
+    existingPins: readonly Shortcut[]
   ): Promise<Shortcut[]> {
     // The removed filter is applied per call (not cached), so removing an
     // auto-shortcut still takes effect on the very next refresh even though the glob
     // scan itself is reused.
     const paths = await this.scanAutoShortcutPaths(folder, patterns);
+    // Paths already covered by an explicit (manual) shortcut — seeding an auto-
+    // shortcut for the same file would show a duplicate row in the tree.
+    const manualPaths = new Set(existingPins.map((p) => p.path));
     const shortcuts: Shortcut[] = [];
     for (const relative of paths) {
       // Deterministic id so removedAutoPins / autoGroups stay stable across reloads.
       const id = `auto:${folder.name}:${relative}`;
-      if (removed.includes(id)) {
+      if (removed.includes(id) || manualPaths.has(relative)) {
         continue;
       }
       shortcuts.push({

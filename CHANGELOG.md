@@ -46,6 +46,19 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- Auto-shortcuts (e.g. `pubspec.yaml` from autoPins patterns) no longer duplicate a manually added shortcut that targets the same file — the auto-shortcut is suppressed when an explicit shortcut with the same path already exists
+
+### Changed
+
+- Collapsed sections in the Saropa Launcher panel (Recipes, Watches, Project Files, Scripts) now render as compact pills docked on the open section's header line, instead of cut-off section headers with stray underlines floating in the empty space beside it. Clicking a pill still reopens the section, and a search still reveals a folded section's matching cards
+- Tree row description for file shortcuts now shows only the parent directory (e.g. `lib/l10n`) instead of the full path including the filename, since the filename is already the row label. Shortcuts with a custom label still show the full path. Root-level files with no parent directory show no path detail
+
+---
+
 ## [1.5.28]
 
 **Overview** — The right-click menu on shortcuts was a wall of 20+ flat items that scrolled off the screen. Now it is six submenus and a handful of top-level actions, so the whole menu fits in one glance. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.28/CHANGELOG.md)
