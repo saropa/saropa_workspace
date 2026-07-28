@@ -66,6 +66,50 @@ test("folder tag appears after the file path segment", () => {
   );
 });
 
+// --- file path detail (directory-only) ------------------------------------
+
+test("nested file shows parent directory only, not the full path", () => {
+  const result = buildShortcutRowDescription(input({}));
+  const parts = result.description.split(" · ");
+  assert.ok(
+    parts.includes("src"),
+    `expected "src" directory segment in "${result.description}"`
+  );
+  assert.ok(
+    !parts.includes("src/app.ts"),
+    `full path should not appear in "${result.description}"`
+  );
+});
+
+test("root-level file with no custom label shows no path detail", () => {
+  const result = buildShortcutRowDescription(
+    input({ shortcut: shortcut({ path: "pubspec.yaml" }) })
+  );
+  assert.strictEqual(result.description, "");
+});
+
+test("custom label shows the full path, not just the directory", () => {
+  const result = buildShortcutRowDescription(
+    input({ shortcut: shortcut({ label: "My Config", path: "src/app.ts" }) })
+  );
+  const parts = result.description.split(" · ");
+  assert.ok(
+    parts.includes("src/app.ts"),
+    `expected full path with custom label in "${result.description}"`
+  );
+});
+
+test("deeply nested path shows full parent directory chain", () => {
+  const result = buildShortcutRowDescription(
+    input({ shortcut: shortcut({ path: "lib/src/views/components/widget.ts" }) })
+  );
+  const parts = result.description.split(" · ");
+  assert.ok(
+    parts.includes("lib/src/views/components"),
+    `expected full parent directory in "${result.description}"`
+  );
+});
+
 // --- badge delta on row ---------------------------------------------------
 
 test("description includes delta when sweepBadge and previousBadge differ", () => {
