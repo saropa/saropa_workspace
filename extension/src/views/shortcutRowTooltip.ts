@@ -43,6 +43,10 @@ export interface ShortcutTooltipInput {
   readonly metricBadge: MetricBadge | undefined;
   readonly metricText: string | undefined;
   readonly untapped: boolean;
+  // True when this manual pin's path matches an auto-pin pattern (the auto
+  // was suppressed). Drives a tooltip line so the user knows removing this
+  // pin will bring back the auto-shortcut.
+  readonly shadowsAuto: boolean;
   // The owning workspace folder's name when 2+ folders are open and the
   // shortcut is project-scoped — surfaces which config file owns it.
   readonly owningFolder: string | undefined;
@@ -182,7 +186,7 @@ function buildTooltipOutcomeLines(input: ShortcutTooltipInput): string[] {
 // untapped marker, and the click-gesture reminder — organizational facts about the
 // shortcut rather than its current run state.
 function buildTooltipMetadataLines(input: ShortcutTooltipInput): string[] {
-  const { shortcut, masked, metricText, metricBadge, untapped, isRunning, isStopping, owningFolder } = input;
+  const { shortcut, masked, metricText, metricBadge, untapped, shadowsAuto, isRunning, isStopping, owningFolder } = input;
   const lines: string[] = [];
   // In a multi-root workspace, name the workspace folder that owns this project
   // shortcut so the user knows which .vscode/saropa-workspace.json it lives in.
@@ -210,6 +214,12 @@ function buildTooltipMetadataLines(input: ShortcutTooltipInput): string[] {
         ? l10n("metric.overTooltip", { value: metricText })
         : l10n("metric.tooltip", { value: metricText })
     );
+  }
+  // A manual pin that shadows an auto-pin: explain in the hover so the user
+  // knows that removing this pin will bring back the auto-seeded shortcut.
+  // Suppressed when masked (leaks that the target matches a pattern).
+  if (shadowsAuto && !masked) {
+    lines.push(l10n("shadowsAuto.tooltip"));
   }
   // Explain the untapped dot in words, so the hover answers "why is this row marked
   // and what clears it". Suppressed while running/stopping, where live state is what
