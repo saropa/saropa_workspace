@@ -1187,6 +1187,7 @@
   "recent.group": "Recent",
   "recent.scheduledTag": "(scheduled)",
   "recent.openedTag": "(opened)",
+  "shadowsAuto.tooltip": "This shortcut replaces an auto-pinned shortcut for the same file. Removing it will bring back the auto-shortcut.",
   "untapped.rowTooltip": "You haven't opened or run this shortcut yet. Open or run it to clear the dot.",
   "telemetry.resetConfirm": "Clear the local run history? This removes the Recent list and run counts kept on this machine. It cannot be undone.",
   "telemetry.resetConfirmAction": "Clear History",

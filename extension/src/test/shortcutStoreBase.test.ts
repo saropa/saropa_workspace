@@ -20,7 +20,7 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { ShortcutStore } from "../model/shortcutStore";
-import { PROJECT_SHORTCUTS_VERSION, DEFAULT_SET_NAME } from "../model/shortcut";
+import { PROJECT_SHORTCUTS_VERSION, DEFAULT_SET_NAME, PROJECT_FILE_RELATIVE, LEGACY_PROJECT_FILE_RELATIVE } from "../model/shortcut";
 import type { Uri as VscodeUri } from "vscode";
 
 const asUri = (u: Uri): VscodeUri => u as unknown as VscodeUri;
@@ -29,7 +29,7 @@ let tmpDir: string;
 let folder: WorkspaceFolder;
 
 const configPath = (): string =>
-  nodePath.join(tmpDir, ".vscode", "saropa-workspace.json");
+  nodePath.join(tmpDir, ".saropa", "saropa-workspace.json");
 
 beforeEach(() => {
   __resetConfig();
@@ -110,7 +110,7 @@ test("tagsInUse returns the de-duplicated, sorted union of stored pin tags", asy
 test("readProjectFile defends a malformed file by falling back to the empty shape", async () => {
   // A hand-corrupted file (non-array pins, garbage activeSet) must not throw; it
   // reads as the current-version empty file so the view still renders.
-  nodeFs.mkdirSync(nodePath.join(tmpDir, ".vscode"), { recursive: true });
+  nodeFs.mkdirSync(nodePath.join(tmpDir, ".saropa"), { recursive: true });
   nodeFs.writeFileSync(
     configPath(),
     JSON.stringify({ version: 99, pins: "not-an-array", activeSet: 42, sets: "x" })
@@ -131,7 +131,7 @@ test("readProjectFile defends a malformed file by falling back to the empty shap
 test("a v1 file migrates on read without dropping a pin, and only a write rewrites the version", async () => {
   // v1 has no groups/activeSet/sets; the shortcut (no groupId) survives and reads at top
   // level. The read is non-destructive — the file stays v1 until a mutation writes.
-  nodeFs.mkdirSync(nodePath.join(tmpDir, ".vscode"), { recursive: true });
+  nodeFs.mkdirSync(nodePath.join(tmpDir, ".saropa"), { recursive: true });
   nodeFs.writeFileSync(
     configPath(),
     JSON.stringify({
@@ -157,7 +157,7 @@ test("a v1 file migrates on read without dropping a pin, and only a write rewrit
 test("readProjectFile sanitizes a malformed set entry rather than crashing the reader", async () => {
   // A hand-edited file with a nameless/partial set must not throw later; only well-
   // formed named sets survive, with pins/groups defaulted to [].
-  nodeFs.mkdirSync(nodePath.join(tmpDir, ".vscode"), { recursive: true });
+  nodeFs.mkdirSync(nodePath.join(tmpDir, ".saropa"), { recursive: true });
   nodeFs.writeFileSync(
     configPath(),
     JSON.stringify({
@@ -177,6 +177,53 @@ test("readProjectFile sanitizes a malformed set entry rather than crashing the r
   await store.init();
   // Only the well-formed "Good" set survives alongside the active Default.
   assert.deepEqual(store.getSetNames(), ["Default", "Good"]);
+});
+
+test("ensureProjectFile migrates a legacy .vscode/ config to .saropa/ and rewrites config-path pins", async () => {
+  // A project with only a legacy file should be migrated on init: content copied to
+  // .saropa/, pins targeting the legacy config path rewritten, legacy file deleted.
+  const legacyDir = nodePath.join(tmpDir, ".vscode");
+  nodeFs.mkdirSync(legacyDir, { recursive: true });
+  const legacyPath = nodePath.join(legacyDir, "saropa-workspace.json");
+  nodeFs.writeFileSync(
+    legacyPath,
+    JSON.stringify({
+      version: PROJECT_SHORTCUTS_VERSION,
+      pins: [
+        { id: "p1", path: "src/app.ts", scope: "project", order: 0 },
+        { id: "cfg", path: LEGACY_PROJECT_FILE_RELATIVE, scope: "project", order: 1 },
+      ],
+      groups: [],
+      activeSet: "Default",
+      sets: [],
+      removedAutoPins: [],
+      removedRecipes: [],
+      autoGroups: {},
+    })
+  );
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+
+  assert.ok(
+    nodeFs.existsSync(configPath()),
+    "the new .saropa/ config file should exist after migration"
+  );
+  const migrated = JSON.parse(nodeFs.readFileSync(configPath(), "utf8"));
+  assert.equal(
+    migrated.pins.find((p: { id: string }) => p.id === "cfg")?.path,
+    PROJECT_FILE_RELATIVE,
+    "a pin targeting the legacy config path should be rewritten to the new path"
+  );
+  assert.equal(
+    migrated.pins.find((p: { id: string }) => p.id === "p1")?.path,
+    "src/app.ts",
+    "a normal pin path should be left unchanged"
+  );
+  assert.equal(
+    nodeFs.existsSync(legacyPath),
+    false,
+    "the legacy .vscode/ config file should be deleted after migration"
+  );
 });
 
 test("isRecipeGroup recognizes a synthetic recipe-group id but not a user group id", async () => {

@@ -3,7 +3,7 @@
 // can only become a GLOBAL shortcut; this file exercises that resolve-and-add path
 // against the REAL ShortcutStore via the fs-backed vscode stub: a kdcro `.favorites.json`
 // (absolute fsPath File entries, Group/Directory entries filtered out), our own
-// `.vscode/saropa-workspace.json` (paths relative to the sibling folder), a malformed
+// `.saropa/saropa-workspace.json` (paths relative to the sibling folder), a malformed
 // file (imports nothing), and dedup on re-run (the store dedupes by absolute path).
 //
 // detectSiblingFavorites is NOT exercised here: it walks parent directories via
@@ -58,7 +58,7 @@ beforeEach(() => {
   folder = { uri: Uri.file(`${tmpDir}/open`), name: "open", index: 0 };
   nodeFs.mkdirSync(folder.uri.fsPath, { recursive: true });
   siblingDirPath = `${tmpDir}/neighbor`;
-  nodeFs.mkdirSync(`${siblingDirPath}/.vscode`, { recursive: true });
+  nodeFs.mkdirSync(`${siblingDirPath}/.saropa`, { recursive: true });
   __setWorkspaceFolders([folder]);
 });
 
@@ -121,12 +121,12 @@ test("a saropa sibling file resolves its relative paths against the sibling fold
   // Our own format stores folder-relative paths; they join back to the sibling dir
   // to become absolute global pins.
   nodeFs.writeFileSync(
-    `${siblingDirPath}/.vscode/saropa-workspace.json`,
+    `${siblingDirPath}/.saropa/saropa-workspace.json`,
     JSON.stringify({ pins: [{ path: "src/app.ts" }, { path: "lib/db.ts" }] })
   );
 
   const added = await importSiblingFavorites(
-    sibling("saropa", ".vscode/saropa-workspace.json"),
+    sibling("saropa", ".saropa/saropa-workspace.json"),
     store
   );
 

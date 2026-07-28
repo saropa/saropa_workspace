@@ -32,7 +32,7 @@ let folder: WorkspaceFolder;
 
 const readShortcut = (path: string): Record<string, unknown> | undefined => {
   const file = JSON.parse(
-    nodeFs.readFileSync(nodePath.join(tmpDir, ".vscode", "saropa-workspace.json"), "utf8")
+    nodeFs.readFileSync(nodePath.join(tmpDir, ".saropa", "saropa-workspace.json"), "utf8")
   );
   return (file.pins as Array<Record<string, unknown>>).find((p) => p.path === path);
 };
