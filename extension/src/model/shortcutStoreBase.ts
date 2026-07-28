@@ -86,6 +86,11 @@ export abstract class ShortcutStoreBase {
   // refresh has started, so a slow stat cannot clobber current state.
   protected missingGen = 0;
 
+  // Ids of manual (non-auto) shortcuts whose path matches an auto-pin pattern.
+  // The auto-pin was suppressed by the dedup in seedAutoShortcuts; this set lets
+  // the tree show a visual indicator so the suppression is not silent.
+  protected shadowsAutoIds = new Set<string>();
+
   // Maps a project shortcut id to the workspace folder that owns it, so relative
   // paths can be resolved back to absolute URIs without storing the folder on
   // the model. Rebuilt every refresh().
@@ -152,6 +157,13 @@ export abstract class ShortcutStoreBase {
   // (the authoritative check) so a file restored since the last refresh still opens.
   isMissing(id: string): boolean {
     return this.missingShortcutIds.has(id);
+  }
+
+  // True when a manual shortcut's path matches an auto-pin pattern, meaning the
+  // auto-pin was suppressed to avoid duplication. The tree shows a visual cue so
+  // the user knows removing this pin will bring back the auto-shortcut.
+  shadowsAuto(id: string): boolean {
+    return this.shadowsAutoIds.has(id);
   }
 
   // Look up a cached shortcut by id across both groups (used by the click dispatcher,
@@ -251,11 +263,17 @@ export abstract class ShortcutStoreBase {
     }
 
     const legacyUri = this.legacyProjectFileUri(folder);
+    let legacyBytes: Uint8Array | undefined;
     try {
-      const bytes = await vscode.workspace.fs.readFile(legacyUri);
+      legacyBytes = await vscode.workspace.fs.readFile(legacyUri);
+    } catch {
+      // No legacy file either — fall through to create a fresh one.
+    }
+
+    if (legacyBytes) {
       // Migrate: copy to .saropa/, rewriting any pins whose path targeted the
       // legacy config location so the seed shortcut stays accurate.
-      const parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      const parsed = JSON.parse(Buffer.from(legacyBytes).toString("utf8"));
       if (Array.isArray(parsed.pins)) {
         for (const pin of parsed.pins) {
           if (pin.path === LEGACY_PROJECT_FILE_RELATIVE) {
@@ -264,13 +282,16 @@ export abstract class ShortcutStoreBase {
         }
       }
       await this.writeProjectFile(folder, parsed);
-      await vscode.workspace.fs.delete(legacyUri);
+      try {
+        await vscode.workspace.fs.delete(legacyUri);
+      } catch {
+        // Delete failed (locked file, permissions) — the migrated copy is safe;
+        // next activation will see .saropa/ present and skip migration.
+      }
       getOutputChannel().appendLine(
         `[config] migrated ${LEGACY_PROJECT_FILE_RELATIVE} → ${PROJECT_FILE_RELATIVE} for ${folder.name}`
       );
       return;
-    } catch {
-      // No legacy file either — create a fresh one.
     }
 
     try {

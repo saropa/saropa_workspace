@@ -24,6 +24,7 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipeSeed {
   async refresh(): Promise<void> {
     this.projectShortcutFolder.clear();
     this.projectGroupFolder.clear();
+    this.shadowsAutoIds = new Set<string>();
 
     const project: Shortcut[] = [];
     const projectGroups: ShortcutGroup[] = [];
@@ -139,6 +140,18 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipeSeed {
     for (const shortcut of autoShortcuts) {
       this.projectShortcutFolder.set(shortcut.id, folder);
       shortcuts.push(shortcut);
+    }
+
+    // Identify manual pins whose paths match a scanned auto-pin pattern. The
+    // scan result is cached, so this second call is free. A manual pin that
+    // shadows an auto-pin suppressed the duplicate; tagging it here lets the
+    // tree show a visual indicator so the suppression is not silent.
+    const scannedPaths = await this.scanAutoShortcutPaths(folder, patterns);
+    const scannedSet = new Set(scannedPaths);
+    for (const pin of file.pins) {
+      if (scannedSet.has(pin.path)) {
+        this.shadowsAutoIds.add(pin.id);
+      }
     }
 
     // Always surface a "Workspace config" example shortcut linking to the folder's
