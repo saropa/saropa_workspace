@@ -46,7 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.6.0]
+
+**Overview** — The project config moves from `.vscode` to `.saropa` (migrated automatically), collapsed launcher sections fold into a draggable pill strip, daily routines can be enabled in one batch from a new quick-setup wizard, and the right-click menu is reorganized into submenus so it fits on screen. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.0/CHANGELOG.md)
 
 ### Added
 
@@ -68,15 +70,6 @@ cspell:disable
 - Daily Routines recipes no longer duplicate onto the Recommended shelf, since they are already visible in their own category group
 - Collapsed sections in the Saropa Launcher panel (Recipes, Watches, Project Files, Scripts) now gather into a strip of compact pills instead of leaving cut-off section headers with stray underlines scattered in the empty space beside the open section. Each pill keeps its section icon and count, states what it opens on hover, and reopens the section on click; on a narrow panel the pills stack onto their own lines. A search still reveals a folded section's matching cards at full width
 - Tree row description for file shortcuts now shows only the parent directory (e.g. `lib/l10n`) instead of the full path including the filename, since the filename is already the row label. Shortcuts with a custom label still show the full path. Root-level files with no parent directory show no path detail
-
----
-
-## [1.5.28]
-
-**Overview** — The right-click menu on shortcuts was a wall of 20+ flat items that scrolled off the screen. Now it is six submenus and a handful of top-level actions, so the whole menu fits in one glance. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.28/CHANGELOG.md)
-
-### Changed
-
 - Reorganized shortcut right-click context menu: most actions now live inside submenus (Output & Logs, Configure & Schedule, Appearance & Tags, File Actions, Manage & Create) instead of as a flat list, so the menu fits in the window. Only Open, Run, Stop, and Copy Path remain at the top level alongside the submenu entries. The Manage & Create submenu also appears on annotation rows (comments and separators) so Add Comment and Add Separator remain reachable from those rows
 
 ---
