@@ -61,11 +61,15 @@ export function wireWatchers(
   );
 
   // Live refresh on a hand-edited shortcuts config: watch every folder's
-  // .vscode/saropa-workspace.json and re-read it into the tree when it changes on
-  // disk (the power-user path alongside the GUI editors). The store's OWN writes
-  // also trip the watcher, so refreshes are debounced to coalesce the write-then-
-  // notify burst into a single repaint rather than refreshing twice per edit.
+  // .saropa/saropa-workspace.json (and the legacy .vscode/ location) and re-read
+  // it into the tree when it changes on disk (the power-user path alongside the
+  // GUI editors). The store's OWN writes also trip the watcher, so refreshes are
+  // debounced to coalesce the write-then-notify burst into a single repaint
+  // rather than refreshing twice per edit.
   const configWatcher = vscode.workspace.createFileSystemWatcher(
+    "**/.saropa/saropa-workspace.json"
+  );
+  const legacyConfigWatcher = vscode.workspace.createFileSystemWatcher(
     "**/.vscode/saropa-workspace.json"
   );
   const debouncedConfigRefresh = makeDebounced(() => void store.refresh(), 150);
@@ -73,7 +77,11 @@ export function wireWatchers(
     configWatcher,
     configWatcher.onDidChange(debouncedConfigRefresh),
     configWatcher.onDidCreate(debouncedConfigRefresh),
-    configWatcher.onDidDelete(debouncedConfigRefresh)
+    configWatcher.onDidDelete(debouncedConfigRefresh),
+    legacyConfigWatcher,
+    legacyConfigWatcher.onDidChange(debouncedConfigRefresh),
+    legacyConfigWatcher.onDidCreate(debouncedConfigRefresh),
+    legacyConfigWatcher.onDidDelete(debouncedConfigRefresh)
   );
 }
 

@@ -170,6 +170,18 @@ test("selectRecommendedRecipes: an adopted curated recipe is demoted, an adopted
   assert.deepEqual(picked, ["ritual.lint", "flutter.dance"]);
 });
 
+test("selectRecommendedRecipes: a Daily Routines recipe (group scheduled) is excluded — already visible in its own category", () => {
+  // Recipes in the "scheduled" group are surfaced in the Daily Routines category
+  // folder; duplicating them onto the Recommended shelf made the tree look like it
+  // had twice as many items. Only rituals WITHOUT a group (e.g. from a non-scheduled
+  // detector) still qualify.
+  const inCategory: RecipeResult = { recipeId: "ritual.lint", label: "lint", schedule: { enabled: false }, group: "scheduled" };
+  const noGroup: RecipeResult = { recipeId: "ritual.custom", label: "custom", schedule: { enabled: false } };
+  const picked = selectRecommendedRecipes([inCategory, noGroup]).map((r) => r.recipeId);
+  assert.ok(!picked.includes("ritual.lint"), "a scheduled-group recipe must not appear on the shelf");
+  assert.ok(picked.includes("ritual.custom"), "a ritual without a group is still featured");
+});
+
 test("recipeGroupColor returns the category's color family, unknown -> purple", () => {
   // Every leaf in a category shares its color family (the folder and items read as
   // one group); an undeclared category gets the default tint.

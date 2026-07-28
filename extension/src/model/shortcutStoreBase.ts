@@ -12,6 +12,7 @@ import {
   ProjectShortcutsFile,
   PROJECT_SHORTCUTS_VERSION,
   PROJECT_FILE_RELATIVE,
+  LEGACY_PROJECT_FILE_RELATIVE,
   DEFAULT_SET_NAME,
   emptyProjectShortcutsFile,
   shortcutKind,
@@ -233,19 +234,45 @@ export abstract class ShortcutStoreBase {
     return vscode.Uri.joinPath(folder.uri, PROJECT_FILE_RELATIVE);
   }
 
-  // Create an empty .vscode/saropa-workspace.json for a folder that has none.
-  // Existing files are never touched (stat-then-skip), so user shortcuts are safe and
-  // a present file is not rewritten on every refresh. A write failure (read-only
-  // folder, virtual/no-write filesystem) is swallowed and logged: the in-memory
-  // empty state still renders, matching the prior no-file behavior.
+  // Create an empty .saropa/saropa-workspace.json for a folder that has none.
+  // Also checks the legacy .vscode/ location — if a file exists there the folder
+  // already has config and nothing is created. Existing files are never touched
+  // (stat-then-skip), so user shortcuts are safe and a present file is not
+  // rewritten on every refresh. A write failure (read-only folder, virtual/no-write
+  // filesystem) is swallowed and logged: the in-memory empty state still renders,
+  // matching the prior no-file behavior.
   protected async ensureProjectFile(folder: vscode.WorkspaceFolder): Promise<void> {
     const uri = this.projectFileUri(folder);
     try {
       await vscode.workspace.fs.stat(uri);
       return; // already present — do not overwrite
     } catch {
-      // Not present — fall through and create it.
+      // New path absent — check legacy before creating.
     }
+
+    const legacyUri = this.legacyProjectFileUri(folder);
+    try {
+      const bytes = await vscode.workspace.fs.readFile(legacyUri);
+      // Migrate: copy to .saropa/, rewriting any pins whose path targeted the
+      // legacy config location so the seed shortcut stays accurate.
+      const parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      if (Array.isArray(parsed.pins)) {
+        for (const pin of parsed.pins) {
+          if (pin.path === LEGACY_PROJECT_FILE_RELATIVE) {
+            pin.path = PROJECT_FILE_RELATIVE;
+          }
+        }
+      }
+      await this.writeProjectFile(folder, parsed);
+      await vscode.workspace.fs.delete(legacyUri);
+      getOutputChannel().appendLine(
+        `[config] migrated ${LEGACY_PROJECT_FILE_RELATIVE} → ${PROJECT_FILE_RELATIVE} for ${folder.name}`
+      );
+      return;
+    } catch {
+      // No legacy file either — create a fresh one.
+    }
+
     try {
       // Write an empty file; the visible "Workspace config" example shortcut is
       // synthesized at render time (see configExampleShortcut), not stored, so it
@@ -260,11 +287,18 @@ export abstract class ShortcutStoreBase {
     }
   }
 
+  protected legacyProjectFileUri(folder: vscode.WorkspaceFolder): vscode.Uri {
+    return vscode.Uri.joinPath(folder.uri, LEGACY_PROJECT_FILE_RELATIVE);
+  }
+
   protected async readProjectFile(
     folder: vscode.WorkspaceFolder
   ): Promise<ProjectShortcutsFile> {
     try {
-      const bytes = await vscode.workspace.fs.readFile(this.projectFileUri(folder));
+      const bytes = await this.readProjectFileBytes(folder);
+      if (!bytes) {
+        return emptyProjectShortcutsFile();
+      }
       const parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
       // Defensive defaults + staged migration. v1->v2: a v1 file has no `groups`;
       // it reads as an empty group list and its shortcuts (which lack groupId) render
@@ -316,8 +350,23 @@ export abstract class ShortcutStoreBase {
             : {},
       };
     } catch {
-      // Missing/unreadable file is the normal first-run state.
       return emptyProjectShortcutsFile();
+    }
+  }
+
+  // Try .saropa/ first, fall back to .vscode/ (pre-1.6 location).
+  private async readProjectFileBytes(
+    folder: vscode.WorkspaceFolder
+  ): Promise<Uint8Array | undefined> {
+    try {
+      return await vscode.workspace.fs.readFile(this.projectFileUri(folder));
+    } catch {
+      // New path absent — try legacy.
+    }
+    try {
+      return await vscode.workspace.fs.readFile(this.legacyProjectFileUri(folder));
+    } catch {
+      return undefined;
     }
   }
 
@@ -326,8 +375,8 @@ export abstract class ShortcutStoreBase {
     file: ProjectShortcutsFile
   ): Promise<void> {
     const uri = this.projectFileUri(folder);
-    // Ensure .vscode exists before writing.
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, ".vscode"));
+    // Ensure .saropa exists before writing.
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, ".saropa"));
     const json = JSON.stringify(file, null, 2) + "\n";
     await vscode.workspace.fs.writeFile(uri, Buffer.from(json, "utf8"));
   }

@@ -59,6 +59,23 @@ test("LAUNCHER_STYLE: a collapsed pane sheds its width when not searching", () =
   );
 });
 
+test("LAUNCHER_STYLE: a folded pane's head reads as a pill, not a cut-off section header", () => {
+  // A collapsed head is only as wide as its label, and the open-pane styling (an auto-width
+  // underline + uppercase title) then reads as a broken table header floating beside the open
+  // pane (developer feedback 2026-07-27). The folded head must drop the underline for a
+  // rounded bordered box so the row of folded sections reads as a tab strip. Gated to
+  // :not(.searching) like the width rule, since a search restores the full pane.
+  const pill = LAUNCHER_STYLE.match(
+    /\.root:not\(\.searching\)\s+\.pane\.collapsed\s+\.pane-head\s*\{[^}]*\}/
+  );
+  assert.ok(pill, "the folded pane-head rule must exist");
+  assert.ok(pill[0].includes("border-radius: 999px"), "a folded head must be a rounded pill");
+  assert.ok(
+    /border:\s*1px solid/.test(pill[0]),
+    "a folded head must carry a full border, replacing the section-header underline"
+  );
+});
+
 test("LAUNCHER_STYLE: hides filtered cards and empty groups/panes via the .hidden class", () => {
   // The client toggles `.hidden { display: none }` on non-matching cards and on a group
   // or pane left with no visible card; losing these rules would show everything during

@@ -3,7 +3,7 @@ import { PROJECT_FILE_RELATIVE, emptyProjectShortcutsFile } from "../model/short
 import { l10n } from "../i18n/l10n";
 
 // "Edit Shortcuts Config (JSON)" (roadmap Later / Exploratory — raw-config
-// editability). Opens the project shortcuts file (.vscode/saropa-workspace.json)
+// editability). Opens the project shortcuts file (.saropa/saropa-workspace.json)
 // for direct editing, the power-user path alongside the GUI editors. Paired with
 // the file watcher in activate(), which refreshes the tree live when the JSON is
 // saved, so a hand edit shows up without a reload.
@@ -55,7 +55,7 @@ async function pickFolder(
 
 // Create an empty, valid config file when none exists yet, so editing the
 // "shortcuts JSON" always has a file to open. Matches the store's write shape (the
-// .vscode directory is created if missing, the file is the empty
+// .saropa directory is created if missing, the file is the empty
 // ProjectShortcutsFile).
 async function ensureExists(
   folder: vscode.WorkspaceFolder,
@@ -68,7 +68,7 @@ async function ensureExists(
     // Not present — create it below.
   }
   await vscode.workspace.fs.createDirectory(
-    vscode.Uri.joinPath(folder.uri, ".vscode")
+    vscode.Uri.joinPath(folder.uri, ".saropa")
   );
   const json = JSON.stringify(emptyProjectShortcutsFile(), null, 2) + "\n";
   await vscode.workspace.fs.writeFile(uri, Buffer.from(json, "utf8"));

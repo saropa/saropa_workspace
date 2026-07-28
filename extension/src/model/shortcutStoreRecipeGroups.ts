@@ -37,7 +37,7 @@ export const RECIPE_GROUPS: readonly RecipeGroupDef[] = [
   { category: "open", id: "recipes-open", label: "GitHub", order: 9990, icon: "github", color: "charts.purple" },
   { category: "run", id: "recipes-run", label: "Build & Run", order: 9991, icon: "tools", color: "charts.green" },
   { category: "workspace", id: "recipes-workspace", label: "Workspace", order: 9992, icon: "folder-library", color: "charts.blue" },
-  { category: "scheduled", id: "recipes-scheduled", label: "Scheduled", order: 9993, icon: "clock", color: "charts.yellow" },
+  { category: "scheduled", id: "recipes-scheduled", label: "Daily Routines", order: 9993, icon: "clock", color: "charts.yellow" },
   { category: "monitor", id: "process-monitor", label: "Process Monitor", order: 9994, icon: "pulse", color: "charts.red" },
   { category: "suite", id: "saropa-suite", label: "Saropa Suite", order: 10000, icon: "layers", color: "charts.orange" },
 ];
@@ -161,10 +161,10 @@ export function selectRecommendedRecipes(
       out.push(r);
     }
   };
-  // 1) Disabled scheduled rituals — the recipes a user most benefits from being
-  // nudged to enable, since they do nothing until promoted and switched on.
+  // 1) Disabled scheduled rituals — EXCEPT those already visible in the Daily
+  // Routines category group (group === "scheduled"), which would duplicate them.
   for (const r of results) {
-    if (r.schedule && r.schedule.enabled === false) {
+    if (r.schedule && r.schedule.enabled === false && r.group !== "scheduled") {
       addRitual(r);
     }
   }
