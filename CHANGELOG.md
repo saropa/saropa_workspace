@@ -51,6 +51,8 @@ cspell:disable
 ### Added
 
 - "Set Up Daily Routines" quick-setup wizard — an inline button on the Daily Routines folder header opens a multi-select picker listing every detected routine with its scheduled time, so multiple routines can be enabled in one batch instead of promoting and enabling each one individually
+- Drag a card onto a folded section's pill in the Saropa Launcher to file it there: drop a recipe or a project file on **My shortcuts** to adopt it, or any file-backed card on **Watches** to start watching that file. Eligible pills light up the moment the drag starts, so there is no need to hover each one to find out which accept. Sections that are detected or scanned rather than curated (Recipes, Project Files, Scripts) accept nothing
+- Drag a folded section's pill onto another to rearrange the strip; the arrangement is remembered across reloads
 - A manual shortcut whose path matches an auto-pin pattern now shows a distinct filled-pin icon (yellow tint) and a tooltip explaining that removing the manual shortcut will bring back the auto-seeded one — makes the auto-pin deduplication visible instead of silent
 
 ### Fixed
@@ -61,7 +63,7 @@ cspell:disable
 
 - Renamed the "Scheduled" recipe category to "Daily Routines" — the old name implied the user had scheduled 13 items, when they are auto-detected suggestions that seed disabled
 - Daily Routines recipes no longer duplicate onto the Recommended shelf, since they are already visible in their own category group
-- Collapsed sections in the Saropa Launcher panel (Recipes, Watches, Project Files, Scripts) now render as compact pills docked on the open section's header line, instead of cut-off section headers with stray underlines floating in the empty space beside it. Clicking a pill still reopens the section, and a search still reveals a folded section's matching cards
+- Collapsed sections in the Saropa Launcher panel (Recipes, Watches, Project Files, Scripts) now gather into a strip of compact pills instead of leaving cut-off section headers with stray underlines scattered in the empty space beside the open section. Each pill keeps its section icon and count, states what it opens on hover, and reopens the section on click; on a narrow panel the pills stack onto their own lines. A search still reveals a folded section's matching cards at full width
 - Tree row description for file shortcuts now shows only the parent directory (e.g. `lib/l10n`) instead of the full path including the filename, since the filename is already the row label. Shortcuts with a custom label still show the full path. Root-level files with no parent directory show no path detail
 
 ---

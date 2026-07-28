@@ -18,8 +18,9 @@ let activeMenu = null;
 // reload, unlike the per-section collapse posture, because a filter is a momentary focus.
 let activePane = null;
 
-// Persisted collapse posture: { collapsed: { <groupId>: true } }. Restored on load so a
-// folded group stays folded across reloads.
+// Persisted collapse posture: { collapsed: { <groupId>: true }, order: [<paneId>] }.
+// Restored on load so a folded group stays folded, and the folded strip keeps the sequence
+// the user dragged it into, across reloads.
 let store = vscode.getState() || { collapsed: {} };
 function isCollapsed(id) { return !!(store.collapsed && store.collapsed[id]); }
 function setCollapsed(id, v) {
@@ -27,6 +28,35 @@ function setCollapsed(id, v) {
   if (v) { store.collapsed[id] = true; } else { delete store.collapsed[id]; }
   vscode.setState(store);
 }
+
+// The folded strip's user-arranged pane order. A pane absent from the list (never dragged)
+// sorts after the arranged ones in its authored position, so adding a pane in a later release
+// lands it predictably at the end instead of jumping to the front of the strip.
+function foldedOrder() { return Array.isArray(store.order) ? store.order : []; }
+function setFoldedOrder(ids) { store.order = ids; vscode.setState(store); }
+
+// The in-flight drag: { kind: 'card'|'pane', id, pane, file } or null. The payload lives in
+// this module variable rather than in the DataTransfer because getData() is unreadable during
+// dragover (the spec's protected mode), and whether a pill accepts the drop must be decided
+// THERE — on drop is too late to show an affordance.
+let drag = null;
+
+// Which folded section accepts the card being dragged. Only two drops mean anything: a
+// detected recipe or a surfaced project file can be adopted into My shortcuts, and any
+// file-backed card can be put under a watch. Recipes, Project files and Scripts are derived
+// from detection or from disk — nothing can be filed INTO them — so they never accept. The
+// host re-validates all of this; this function only drives the affordance.
+function canDropOnPane(paneId) {
+  if (!drag || drag.kind !== 'card') { return false; }
+  if (paneId === 'mine') { return drag.pane === 'recipes' || drag.pane === 'files'; }
+  if (paneId === 'watches') { return drag.file === true && drag.pane !== 'watches'; }
+  return false;
+}
+
+// The two layout containers, assigned by render(): the folded strip and the open-panes row.
+// placePanes moves each pane between them, so both are read outside render.
+let foldedEl = null;
+let panesEl = null;
 
 const q = document.getElementById('q');
 const count = document.getElementById('count');

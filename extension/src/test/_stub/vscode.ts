@@ -393,6 +393,28 @@ function createOutputChannel(name: string): {
   };
 }
 
+// vscode.ThemeColor: shortcutOpen builds a peek-highlight decoration at MODULE scope, so any
+// bundle that transitively imports it constructs one at load time — before a test runs. Only
+// the id is modeled; nothing asserts on it, it must merely construct.
+export class ThemeColor {
+  constructor(public readonly id: string) {}
+}
+
+// vscode.TextEditorRevealType / OverviewRulerLane: same module-scope decoration options.
+// Modeled as the real numeric members so a bundle loads; no test asserts on them.
+export const TextEditorRevealType = {
+  Default: 0,
+  InCenter: 1,
+  InCenterIfOutsideViewport: 2,
+  AtTop: 3,
+} as const;
+export const OverviewRulerLane = {
+  Left: 1,
+  Center: 2,
+  Right: 4,
+  Full: 7,
+} as const;
+
 // vscode.ViewColumn: only the members a webview panel test needs to pass through
 // (never asserted on — a panel test cares about the html/postMessage/dispose
 // surface, not which editor column it opened in).
@@ -533,6 +555,12 @@ export const window = {
     openedDocuments.push(doc.uri.fsPath);
   },
   createOutputChannel,
+  // Paired with ThemeColor above: shortcutOpen creates its peek-highlight decoration type at
+  // module scope, so this must exist for any bundle that imports it to load at all. The
+  // returned handle is inert — no test drives a real editor decoration.
+  createTextEditorDecorationType(_options?: unknown): { dispose(): void } {
+    return { dispose: (): void => {} };
+  },
   onDidChangeWindowState: windowStateEmitter.event,
   onDidChangeTextEditorSelection: selectionEmitter.event,
   onDidChangeActiveTextEditor: activeEditorEmitter.event,

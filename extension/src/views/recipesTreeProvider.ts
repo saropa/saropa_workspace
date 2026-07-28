@@ -127,6 +127,10 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
         !isAnnotationShortcut(s) &&
         (s.groupId === group.id || childGroupIds.has(s.groupId ?? ""))
     ).length;
-    return new ShortcutFolderItem(group, "project", count);
+    const item = new ShortcutFolderItem(group, "project", count);
+    if (group.id === "recipes-scheduled") {
+      item.contextValue = "recipeFolderDailyRoutines";
+    }
+    return item;
   }
 }

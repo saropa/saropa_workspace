@@ -46,12 +46,24 @@ export const LAUNCHER_SCRIPT_RENDER = `function makeGroup(group) {
 function render() {
   closeMenu();
   root.textContent = '';
-  const panesEl = document.createElement('div');
+  // Two containers, both always present: the folded strip above, the open panes below.
+  // placePanes moves each pane into the right one; an empty strip hides itself.
+  foldedEl = document.createElement('div');
+  foldedEl.className = 'folded hidden';
+  panesEl = document.createElement('div');
   panesEl.className = 'panes';
-  for (const pane of paneModel(items)) {
+  root.appendChild(foldedEl);
+  root.appendChild(panesEl);
+  const model = paneModel(items);
+  for (let i = 0; i < model.length; i++) {
+    const pane = model[i];
     const paneEl = document.createElement('div');
     paneEl.className = 'pane';
     paneEl.dataset.pane = pane.id;
+    // The authored model position, kept on the element because placePanes reorders the
+    // strip: it is what restores this pane's designed slot when it is open, and where it
+    // sorts in the strip until the user drags it somewhere.
+    paneEl.dataset.index = String(i);
 
     // A grouped pane is empty when it has no groups; a flat pane when it has no cards.
     const flatItems = pane.flat ? pane.items : null;
@@ -63,36 +75,7 @@ function render() {
     const paneKey = 'pane:' + pane.id;
     if (isCollapsed(paneKey)) { paneEl.classList.add('collapsed'); }
 
-    const head = document.createElement('button');
-    head.className = 'pane-head';
-    head.type = 'button';
-    const chev = codicon('chevron-down');
-    chev.classList.add('pane-chevron');
-    head.appendChild(chev);
-    if (pane.icon) {
-      const glyph = codicon(pane.icon);
-      glyph.classList.add('pane-glyph');
-      head.appendChild(glyph);
-    }
-    const title = document.createElement('span');
-    title.className = 'pane-title';
-    title.textContent = pane.title;
-    head.appendChild(title);
-    const pc = document.createElement('span');
-    pc.className = 'pane-count';
-    let n = 0;
-    if (pane.flat) {
-      n = flatItems.length;
-    } else {
-      for (const g of pane.groups) { n += g.items.length; }
-    }
-    pc.textContent = String(n);
-    head.appendChild(pc);
-    head.addEventListener('click', function () {
-      const collapsed = paneEl.classList.toggle('collapsed');
-      setCollapsed(paneKey, collapsed);
-    });
-    paneEl.appendChild(head);
+    paneEl.appendChild(makePaneHead(pane, paneEl, paneKey));
 
     // The pane body wraps everything below the head so a single .collapsed class on the pane
     // folds the whole section. Flat panes (Watches / Project files) render their cards
@@ -111,8 +94,9 @@ function render() {
     paneEl.appendChild(bodyEl);
     panesEl.appendChild(paneEl);
   }
-  root.appendChild(panesEl);
   empty.classList.toggle('hidden', items.length > 0);
+  // applyFilter sets the .searching class placePanes reads, and ends by calling it, so the
+  // folded panes land in the strip before the first paint rather than one frame after.
   applyFilter();
 }
 
@@ -155,6 +139,10 @@ function applyFilter() {
     ? (strings.count || '{n}').replace('{n}', total)
     : (strings.countFiltered || '{shown}/{total}')
         .replace('{shown}', shown).replace('{total}', total);
+  // Re-place last: the .searching class was just written and a pane may have been hidden or
+  // revealed by the filter, both of which change which container a pane belongs in and
+  // whether the strip has anything left to show.
+  placePanes();
 }
 
 `;

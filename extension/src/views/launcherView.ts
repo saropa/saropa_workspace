@@ -136,6 +136,9 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         watches: l10n("launcher.watchesSection"),
         files: l10n("launcher.filesSection"),
         scripts: l10n("launcher.scriptsSection"),
+        // {name} stays literal: the webview substitutes each folded section's own title into
+        // its pill tooltip, so one fetched string covers all five sections.
+        showSection: l10n("launcher.showSection"),
         // {n} / {shown} / {total} stay literal here: the webview substitutes the live
         // counts, so these are fetched without l10n params.
         count: l10n("launcher.count"),

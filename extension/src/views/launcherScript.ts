@@ -11,6 +11,7 @@
 import { LAUNCHER_SCRIPT_CORE } from './launcher/launcherScriptCore';
 import { LAUNCHER_SCRIPT_CARDS } from './launcher/launcherScriptCards';
 import { LAUNCHER_SCRIPT_RENDER } from './launcher/launcherScriptRender';
+import { LAUNCHER_SCRIPT_FOLDED } from './launcher/launcherScriptFolded';
 import { LAUNCHER_SCRIPT_MENU } from './launcher/launcherScriptMenu';
 
 // The reassembled launcher webview script, in fragment load order (see the file header
@@ -20,4 +21,5 @@ export const LAUNCHER_SCRIPT =
   LAUNCHER_SCRIPT_CORE +
   LAUNCHER_SCRIPT_CARDS +
   LAUNCHER_SCRIPT_RENDER +
+  LAUNCHER_SCRIPT_FOLDED +
   LAUNCHER_SCRIPT_MENU;
