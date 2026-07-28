@@ -61,6 +61,9 @@ cspell:disable
 
 ### Changed
 
+- New `saropaWorkspace.configDir` setting controls which directory holds the project config file (`saropa-workspace.json`). Defaults to `.saropa`; change to `.vscode` for the pre-1.6 location or any other directory for monorepos where `.saropa` collides with a package. Existing config migrates automatically on activation
+- The "Edit Shortcuts Config (JSON)" command now checks all known legacy locations before creating a fresh config, preventing a race where an empty file could shadow un-migrated data
+- Concurrent refresh calls (e.g. from migration write+delete triggering the file watcher) are now coalesced by a re-entrancy guard instead of running in parallel
 - Renamed the "Scheduled" recipe category to "Daily Routines" — the old name implied the user had scheduled 13 items, when they are auto-detected suggestions that seed disabled
 - Daily Routines recipes no longer duplicate onto the Recommended shelf, since they are already visible in their own category group
 - Collapsed sections in the Saropa Launcher panel (Recipes, Watches, Project Files, Scripts) now gather into a strip of compact pills instead of leaving cut-off section headers with stray underlines scattered in the empty space beside the open section. Each pill keeps its section icon and count, states what it opens on hover, and reopens the section on click; on a narrow panel the pills stack onto their own lines. A search still reveals a folded section's matching cards at full width

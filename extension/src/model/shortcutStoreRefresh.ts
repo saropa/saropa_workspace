@@ -9,6 +9,14 @@ import { ShortcutStoreRecipeSeed } from "./shortcutStoreRecipeSeed";
 // ShortcutStoreRecipeSeed (split out to keep this file under the project's
 // line-count cap) — refresh() still kicks it off, it just no longer defines it.
 export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipeSeed {
+  // Guard against concurrent refresh() calls. The migration's write+delete
+  // triggers the file watcher, which fires a debounced refresh while the first
+  // is still running — both would mutate the same cached fields. When a refresh
+  // is already in flight, the new call sets refreshPending so it re-runs once
+  // the current pass completes, coalescing any intermediate watcher bursts.
+  private refreshRunning = false;
+  private refreshPending = false;
+
   async init(): Promise<void> {
     await this.refresh();
   }
@@ -22,6 +30,23 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipeSeed {
   // Recompute cached project + global shortcuts (including freshly seeded auto-
   // shortcuts) and notify listeners (the tree) to repaint.
   async refresh(): Promise<void> {
+    if (this.refreshRunning) {
+      this.refreshPending = true;
+      return;
+    }
+    this.refreshRunning = true;
+    try {
+      await this.refreshCore();
+    } finally {
+      this.refreshRunning = false;
+      if (this.refreshPending) {
+        this.refreshPending = false;
+        void this.refresh();
+      }
+    }
+  }
+
+  private async refreshCore(): Promise<void> {
     this.projectShortcutFolder.clear();
     this.projectGroupFolder.clear();
     this.shadowsAutoIds = new Set<string>();

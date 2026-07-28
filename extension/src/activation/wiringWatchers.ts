@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { BranchSetBinder } from "../exec/branchSets";
+import { KNOWN_CONFIG_DIRS, configDirName } from "../model/shortcut";
 import { FolderWatchStore } from "../model/folderWatch";
 import { FolderWatchEngine } from "../exec/folderWatchEngine";
 import { getOutputChannel } from "../exec/terminalRunner";
@@ -34,7 +35,8 @@ export function wireWatchers(
         e.affectsConfiguration("saropaWorkspace.autoPins.patterns") ||
         e.affectsConfiguration("saropaWorkspace.recipes.enabled") ||
         e.affectsConfiguration("saropaWorkspace.aiContext.enabled") ||
-        e.affectsConfiguration("saropaWorkspace.aiContext.claudeChatFolders")
+        e.affectsConfiguration("saropaWorkspace.aiContext.claudeChatFolders") ||
+        e.affectsConfiguration("saropaWorkspace.configDir")
       ) {
         void store.rescan();
       } else if (e.affectsConfiguration("saropaWorkspace.telemetry.enabled")) {
@@ -61,28 +63,24 @@ export function wireWatchers(
   );
 
   // Live refresh on a hand-edited shortcuts config: watch every folder's
-  // .saropa/saropa-workspace.json (and the legacy .vscode/ location) and re-read
-  // it into the tree when it changes on disk (the power-user path alongside the
-  // GUI editors). The store's OWN writes also trip the watcher, so refreshes are
-  // debounced to coalesce the write-then-notify burst into a single repaint
-  // rather than refreshing twice per edit.
-  const configWatcher = vscode.workspace.createFileSystemWatcher(
-    "**/.saropa/saropa-workspace.json"
-  );
-  const legacyConfigWatcher = vscode.workspace.createFileSystemWatcher(
-    "**/.vscode/saropa-workspace.json"
-  );
+  // saropa-workspace.json at the configured dir and all known legacy dirs, so
+  // migration and hand edits trigger a repaint. The store's OWN writes also trip
+  // the watcher, so refreshes are debounced + guarded by the re-entrancy check
+  // in refresh() to coalesce bursts into a single repaint.
   const debouncedConfigRefresh = makeDebounced(() => void store.refresh(), 150);
-  context.subscriptions.push(
-    configWatcher,
-    configWatcher.onDidChange(debouncedConfigRefresh),
-    configWatcher.onDidCreate(debouncedConfigRefresh),
-    configWatcher.onDidDelete(debouncedConfigRefresh),
-    legacyConfigWatcher,
-    legacyConfigWatcher.onDidChange(debouncedConfigRefresh),
-    legacyConfigWatcher.onDidCreate(debouncedConfigRefresh),
-    legacyConfigWatcher.onDidDelete(debouncedConfigRefresh)
-  );
+  const watchedDirs = new Set<string>(KNOWN_CONFIG_DIRS);
+  watchedDirs.add(configDirName());
+  for (const dir of watchedDirs) {
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      `**/${dir}/saropa-workspace.json`
+    );
+    context.subscriptions.push(
+      watcher,
+      watcher.onDidChange(debouncedConfigRefresh),
+      watcher.onDidCreate(debouncedConfigRefresh),
+      watcher.onDidDelete(debouncedConfigRefresh)
+    );
+  }
 }
 
 // Folder/file watches (PLAN_FILE_AND_FOLDER_WATCH): build the watch store + engine,

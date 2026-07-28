@@ -1,6 +1,7 @@
 // On-disk persistence shapes: user groups, named shortcut sets, and the per-folder project
 // file, plus its version/default-set constants and the empty-file factory. Split out of
 // shortcut.ts (which re-exports these) to keep that file under the line cap.
+import * as vscode from "vscode";
 import { Shortcut } from "./shortcut";
 
 // A user-defined group (folder) that holds shortcuts, nested under a scope root.
@@ -103,11 +104,33 @@ export function emptyProjectShortcutsFile(): ProjectShortcutsFile {
   };
 }
 
-// Relative path of the config file itself, reused as the seed shortcut's target so
-// the shortcut opens the very file it lives in. Single source for the literal so the
-// seed and the store's PROJECT_FILE_RELATIVE cannot drift apart silently.
+// Default relative path of the config file. Used in tests and as a fallback when
+// the configDir setting is absent (which yields ".saropa" → this same path).
 export const PROJECT_FILE_RELATIVE = ".saropa/saropa-workspace.json";
 
-// Pre-1.6 location; the store reads from here when the new path is absent, and
-// writes always go to the new path — effectively migrating on first mutation.
+// Pre-1.6 location; the store migrates from here when found.
 export const LEGACY_PROJECT_FILE_RELATIVE = ".vscode/saropa-workspace.json";
+
+// All known previous config directory names. ensureProjectFile checks each of
+// these (except the current configDir) as migration sources, newest first.
+export const KNOWN_CONFIG_DIRS = [".saropa", ".vscode"] as const;
+
+const CONFIG_FILENAME = "saropa-workspace.json";
+
+// The directory the user configured for the project config file. Reads the
+// saropaWorkspace.configDir setting; defaults to ".saropa".
+export function configDirName(): string {
+  return (
+    vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .get<string>("configDir", ".saropa")
+      ?.trim() || ".saropa"
+  );
+}
+
+// The workspace-relative path to the project config file based on the current
+// setting. Consumers that need the live path (store IO, editConfig, config
+// example shortcut) call this instead of the constant.
+export function configuredProjectFileRelative(): string {
+  return `${configDirName()}/${CONFIG_FILENAME}`;
+}

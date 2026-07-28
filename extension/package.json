@@ -2082,6 +2082,11 @@
             "default": false,
             "description": "%config.recommend.aggressive.description%"
           },
+          "saropaWorkspace.configDir": {
+            "type": "string",
+            "default": ".saropa",
+            "description": "%config.configDir.description%"
+          },
           "saropaWorkspace.defaultGroups.enabled": {
             "type": "boolean",
             "default": true,
