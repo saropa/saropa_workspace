@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.5.28]
 
-[log](https://github.com/saropa/saropa-workspace/blob/v1.5.27/CHANGELOG.md)
+**Overview** — The right-click menu on shortcuts was a wall of 20+ flat items that scrolled off the screen. Now it is six submenus and a handful of top-level actions, so the whole menu fits in one glance. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.28/CHANGELOG.md)
 
 ### Changed
 
