@@ -101,6 +101,22 @@ function computeRowMetricText(
     : undefined;
 }
 
+// The path segment shown on a file shortcut's row: the full path when the user
+// gave it a custom label (the label no longer reveals the filename), or just the
+// parent directory when the label IS the filename (avoids "foo.ts  dir/foo.ts"
+// redundancy and leaves room for inline action buttons). Root-level files with
+// no custom label return undefined — the directory is empty, so repeating it
+// adds nothing.
+function filePathDetail(shortcut: Shortcut): string | undefined {
+  if (shortcut.label) {
+    return shortcut.path || undefined;
+  }
+  const lastSlash = shortcut.path.lastIndexOf("/");
+  return lastSlash > 0
+    ? shortcut.path.substring(0, lastSlash)
+    : undefined;
+}
+
 // Assemble a shortcut tree row's trailing description: the leading state badge
 // (running / scheduled / paused / last-run), the identity detail (path or action
 // summary), and the live metric — or, for a Recent-group entry, when it last ran
@@ -123,14 +139,16 @@ export function buildShortcutRowDescription(
   } = input;
 
   const badge = computeRowStateBadge(input);
-  // For a file shortcut the trailing detail is its path; for a non-file shortcut it
-  // is a summary of what the action does (the URL, the command line, etc.). A masked
-  // shortcut contributes none — the path is exactly what must stay hidden — so the
-  // join below drops it (the falsy filter) and the row carries only state badges.
+  // For a file shortcut the trailing detail is its parent directory — the filename
+  // is already the label, so repeating it in the description wastes space that
+  // inline action buttons need. A custom label (shortcut.label set) still shows
+  // the full path, since the label no longer reveals the filename. Non-file
+  // shortcuts show a summary of what the action does. A masked shortcut
+  // contributes none — the path is exactly what must stay hidden.
   const detail = masked
     ? undefined
     : isFile
-      ? shortcut.path
+      ? filePathDetail(shortcut)
       : actionSummary(shortcut);
   // A resting shortcut's last-sweep counts lead the row (the most informative resting
   // fact for a lint / test shortcut), then the state badge, then the path/action

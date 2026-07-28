@@ -133,7 +133,8 @@ export abstract class ShortcutStoreRefresh extends ShortcutStoreRecipeSeed {
       folder,
       patterns,
       file.removedAutoPins,
-      file.autoGroups
+      file.autoGroups,
+      file.pins
     );
     for (const shortcut of autoShortcuts) {
       this.projectShortcutFolder.set(shortcut.id, folder);
