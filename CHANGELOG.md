@@ -59,7 +59,7 @@ cspell:disable
 
 ### Changed
 
-- Reorganized shortcut right-click context menu: most actions now live inside submenus (Output & Logs, Configure & Schedule, Appearance & Tags, File Actions, Manage & Create) instead of as a flat list, so the menu fits in the window. Only Open, Run, and Stop remain at the top level alongside the submenu entries
+- Reorganized shortcut right-click context menu: most actions now live inside submenus (Output & Logs, Configure & Schedule, Appearance & Tags, File Actions, Manage & Create) instead of as a flat list, so the menu fits in the window. Only Open, Run, Stop, and Copy Path remain at the top level alongside the submenu entries. The Manage & Create submenu also appears on annotation rows (comments and separators) so Add Comment and Add Separator remain reachable from those rows
 
 ### Fixed
 

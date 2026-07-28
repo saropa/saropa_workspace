@@ -1195,14 +1195,9 @@
           "group": "2_create@2"
         },
         {
-          "command": "saropaWorkspace.copyPath",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
-          "group": "3_copy@1"
-        },
-        {
           "command": "saropaWorkspace.copyPinLink",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
-          "group": "3_copy@2"
+          "group": "3_copy@1"
         },
         {
           "command": "saropaWorkspace.addComment",
@@ -1640,8 +1635,13 @@
         },
         {
           "submenu": "saropaWorkspace.organizeSubmenu",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && (viewItem =~ /^shortcut/ || viewItem =~ /^annotation/)",
           "group": "3_scope@3"
+        },
+        {
+          "command": "saropaWorkspace.copyPath",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut/",
+          "group": "4_copy@1"
         },
         {
           "command": "saropaWorkspace.addProjectPin",
