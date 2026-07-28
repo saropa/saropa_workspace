@@ -184,6 +184,46 @@ def changelog_overview_problems(changelog: Path, version: str) -> list[str]:
     return problems
 
 
+def changelog_overview_coverage(changelog: Path, version: str) -> str | None:
+    """Warn when the overview looks thin relative to the section's bullet count.
+
+    Counts the ``- `` bullets across all ``###`` subsections and the comma/and-
+    separated clauses in the overview prose.  A release with many bullets but
+    few overview clauses risks shipping a stale summary written before the
+    scope grew.  Returns a warning string, or None when coverage looks fine.
+    """
+    if not changelog.exists():
+        return None
+    content = changelog.read_text(encoding="utf-8")
+    body_match = re.search(
+        rf"^##\s*\[{re.escape(version)}\][^\n]*\n(.*?)(?=^##\s|\Z)",
+        content,
+        re.MULTILINE | re.DOTALL,
+    )
+    if body_match is None:
+        return None
+    body = body_match.group(1)
+    subsections = re.findall(r"^###\s+\w+", body, re.MULTILINE)
+    bullets = re.findall(r"^- ", body, re.MULTILINE)
+    if not subsections or not bullets:
+        return None
+    intro = body.split("\n###", 1)[0]
+    intro = re.sub(r"^\s*-{3,}\s*$", "", intro, flags=re.MULTILINE).strip()
+    prose = re.sub(r"\[log\]\([^)]*\)", "", intro).strip()
+    prose = re.sub(r"^\*\*Overview\*\*\s*—?\s*", "", prose).strip()
+    if not prose:
+        return None
+    clauses = [c.strip() for c in re.split(r",\s+(?:and\s+)?|,?\s+and\s+", prose) if c.strip()]
+    if len(clauses) < len(subsections):
+        return (
+            f"The [{version}] overview mentions {len(clauses)} "
+            f"clause(s) but the section has {len(subsections)} "
+            f"subsection(s) with {len(bullets)} bullet(s) — "
+            f"the summary may be stale."
+        )
+    return None
+
+
 def extract_changelog_section(changelog: Path, version: str) -> str | None:
     if not changelog.exists():
         return None

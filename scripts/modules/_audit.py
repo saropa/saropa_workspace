@@ -30,8 +30,10 @@ from modules._utils import (
     header,
     info,
     success,
+    warn,
 )
 from modules._version_changelog import (
+    changelog_overview_coverage,
     changelog_overview_problems,
     find_empty_changelog_sections,
     has_unreleased_section,
@@ -129,6 +131,9 @@ def run_audit(mode: str) -> int:
             failures += len(problems)
         else:
             success(f"[{top}] Overview intro and [log] link valid.")
+        coverage_warning = changelog_overview_coverage(ROOT_CHANGELOG, top)
+        if coverage_warning:
+            warn(coverage_warning)
 
     # 4) i18n manifest coverage: every %key% has a value in package.nls.json.
     missing_nls = sorted(_used_nls_keys() - _defined_nls_keys())
