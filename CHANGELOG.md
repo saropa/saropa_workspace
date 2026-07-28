@@ -71,6 +71,7 @@ cspell:disable
 - Collapsed sections in the Saropa Launcher panel (Recipes, Watches, Project Files, Scripts) now gather into a strip of compact pills instead of leaving cut-off section headers with stray underlines scattered in the empty space beside the open section. Each pill keeps its section icon and count, states what it opens on hover, and reopens the section on click; on a narrow panel the pills stack onto their own lines. A search still reveals a folded section's matching cards at full width
 - Tree row description for file shortcuts now shows only the parent directory (e.g. `lib/l10n`) instead of the full path including the filename, since the filename is already the row label. Shortcuts with a custom label still show the full path. Root-level files with no parent directory show no path detail
 - Reorganized shortcut right-click context menu: most actions now live inside submenus (Output & Logs, Configure & Schedule, Appearance & Tags, File Actions, Manage & Create) instead of as a flat list, so the menu fits in the window. Only Open, Run, Stop, and Copy Path remain at the top level alongside the submenu entries. The Manage & Create submenu also appears on annotation rows (comments and separators) so Add Comment and Add Separator remain reachable from those rows
+- The publish audit now warns when the overview line mentions fewer clauses than the section has subsections, catching a stale summary before it ships
 
 ---
 
