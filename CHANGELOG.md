@@ -46,9 +46,19 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+[log](https://github.com/saropa/saropa-workspace/blob/v1.5.27/CHANGELOG.md)
+
+### Changed
+
+- Reorganized shortcut right-click context menu: most actions now live inside submenus (Output & Logs, Configure & Schedule, Appearance & Tags, File Actions, Manage & Create) instead of as a flat list, so the menu fits in the window. Only Open, Run, Stop, and Copy Path remain at the top level alongside the submenu entries. The Manage & Create submenu also appears on annotation rows (comments and separators) so Add Comment and Add Separator remain reachable from those rows
+
+---
+
 ## [1.5.27]
 
-**Overview** — Sweep runs now show green and red trend deltas so you can immediately see if your codebase is getting cleaner or messier, multi-root workspaces clearly label which folder owns each shortcut, right-click context menus are neatly regrouped, and external terminals now default to modern PowerShell 7+. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.27/CHANGELOG.md)
+**Overview** — Sweep runs now show green and red trend deltas so you can immediately see if your codebase is getting cleaner or messier, multi-root workspaces clearly label which folder owns each shortcut, and external terminals now default to modern PowerShell 7+. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.27/CHANGELOG.md)
 
 ### Added
 
@@ -56,10 +66,6 @@ cspell:disable
 - Sweep trend direction: after a second lint or test run, the row description and hover tooltip both show a ▲/▼ delta so it is visible whether the codebase is getting cleaner or messier without hovering or opening a full history
 - `ShortcutTreeItem` constructor now takes a named options object (`ShortcutTreeItemOptions`) instead of 14 positional parameters, making call sites self-documenting and future fields safe to add
 - Color-coded sweep delta: file shortcuts whose lint or test issues improved since the last run are tinted green; those that worsened are tinted red — visible in the tree row label, the Explorer, and open editors via a `FileDecorationProvider`. Decoration refreshes are debounced (200 ms trailing edge) so a routine running several scripts coalesces into one repaint
-
-### Changed
-
-- Reorganized shortcut right-click context menu: most actions now live inside submenus (Output & Logs, Configure & Schedule, Appearance & Tags, File Actions, Manage & Create) instead of as a flat list, so the menu fits in the window. Only Open, Run, Stop, and Copy Path remain at the top level alongside the submenu entries. The Manage & Create submenu also appears on annotation rows (comments and separators) so Add Comment and Add Separator remain reachable from those rows
 
 ### Fixed
 
