@@ -65,6 +65,7 @@
   "submenu.configure.label": "Configure & Schedule",
   "submenu.appearance.label": "Appearance & Tags",
   "submenu.file.label": "File Actions",
+  "submenu.organize.label": "Manage & Create",
   "command.activatePin.title": "Activate Shortcut",
   "command.openPin.title": "Open",
   "command.peekPin.title": "Peek",
