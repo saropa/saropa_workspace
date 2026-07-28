@@ -1069,6 +1069,11 @@
           "group": "1_run@4"
         },
         {
+          "command": "saropaWorkspace.runPinLastParams",
+          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Paused)?$/",
+          "group": "1_run@5"
+        },
+        {
           "command": "saropaWorkspace.configureScheduleQuick",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
           "group": "2_schedule@1"
@@ -1087,11 +1092,6 @@
           "command": "saropaWorkspace.configureWatchLink",
           "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Scheduled)?(Paused)?$/",
           "group": "3_trigger@2"
-        },
-        {
-          "command": "saropaWorkspace.runPinLastParams",
-          "when": "(view == saropaWorkspace.pins || view == saropaWorkspace.recipes) && viewItem =~ /^shortcut(Paused)?$/",
-          "group": "1_run@5"
         },
         {
           "command": "saropaWorkspace.pausePin",
