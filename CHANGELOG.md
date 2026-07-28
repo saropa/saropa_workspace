@@ -48,6 +48,11 @@ cspell:disable
 
 ## [Unreleased]
 
+### Added
+
+- "Set Up Daily Routines" quick-setup wizard — an inline button on the Daily Routines folder header opens a multi-select picker listing every detected routine with its scheduled time, so multiple routines can be enabled in one batch instead of promoting and enabling each one individually
+- A manual shortcut whose path matches an auto-pin pattern now shows a distinct filled-pin icon (yellow tint) and a tooltip explaining that removing the manual shortcut will bring back the auto-seeded one — makes the auto-pin deduplication visible instead of silent
+
 ### Fixed
 
 - Auto-shortcuts (e.g. `pubspec.yaml` from autoPins patterns) no longer duplicate a manually added shortcut that targets the same file — the auto-shortcut is suppressed when an explicit shortcut with the same path already exists
