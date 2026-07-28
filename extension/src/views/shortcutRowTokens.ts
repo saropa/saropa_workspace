@@ -31,6 +31,7 @@ export { FileTypeIcon, fileTypeIcon, kindIcon };
 //   <glyph> + warning tint  — a live metric is over its size threshold
 //   pass / error            — the last run's outcome (green pass / red fail)
 //   watch + yellow          — a time-bombed shortcut counting down to self-removal
+//   pinned + yellow          — a manual pin that replaced an auto-shortcut
 //   star-empty              — an auto-shortcut (seeded, removable)
 //   pin                     — a plain explicit shortcut
 
@@ -54,6 +55,9 @@ export interface ShortcutRowIconInput {
   readonly customColor: string | undefined;
   readonly hasExpiry: boolean;
   readonly isAuto: boolean;
+  // A manual pin whose path matches an auto-pin pattern (the auto was suppressed
+  // by the dedup). Drives a distinct resting icon so the suppression is visible.
+  readonly shadowsAuto: boolean;
   readonly kind: ShortcutKind;
   // Basename of a file shortcut's target (e.g. "pubspec.yaml"), used to pick a
   // file-type glyph + tint at rest. Undefined for non-file shortcuts.
@@ -132,6 +136,11 @@ export function resolveShortcutRowIcon(input: ShortcutRowIconInput): vscode.Them
     if (typed) {
       return new vscode.ThemeIcon(typed.icon, new vscode.ThemeColor(typed.color));
     }
+  }
+  // A manual pin that replaced an auto-shortcut for the same file: a pinned
+  // icon (filled) with the star family's tint, so it reads as "pin + auto".
+  if (input.shadowsAuto) {
+    return new vscode.ThemeIcon("pinned", new vscode.ThemeColor("charts.yellow"));
   }
   // Auto-shortcut (seeded, removable) vs a plain explicit shortcut.
   return new vscode.ThemeIcon(input.isAuto ? "star-empty" : "pin");

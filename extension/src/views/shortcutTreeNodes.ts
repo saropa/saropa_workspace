@@ -50,6 +50,7 @@ export function buildShortcutItem(
     previousBadge: shortcutBadges.previous(shortcut.id),
     metricBadge: metricBadges.get(shortcut.id),
     untapped: !tappedShortcuts.has(shortcut.id),
+    shadowsAuto: store.shadowsAuto(shortcut.id),
     owningFolder: owningFolderName(store, shortcut),
   });
 }

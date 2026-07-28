@@ -56,6 +56,8 @@ export interface ShortcutTreeItemOptions {
   readonly metricBadge?: MetricBadge;
   /** True when the user has not yet opened or run this shortcut. */
   readonly untapped?: boolean;
+  /** True when this manual pin's path matches an auto-pin pattern (the auto was suppressed). */
+  readonly shadowsAuto?: boolean;
   /** Owning workspace folder name (multi-root only, project-scoped only). */
   readonly owningFolder?: string;
 }
@@ -81,6 +83,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       previousBadge,
       metricBadge,
       untapped = false,
+      shadowsAuto = false,
       owningFolder,
     } = opts;
     const kind = shortcutKind(shortcut);
@@ -193,6 +196,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       metricBadge,
       metricText,
       untapped,
+      shadowsAuto,
       owningFolder,
     }).join("\n");
 
@@ -215,6 +219,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       customColor: shortcut.color,
       hasExpiry: Boolean(shortcut.expires),
       isAuto: Boolean(shortcut.isAuto),
+      shadowsAuto,
       kind,
       fileName: isFile ? basename : undefined,
     });
