@@ -213,7 +213,7 @@ test("a data file with no interpreter is open-only (no Run affordance)", () => {
   const items = buildLauncherItems(
     asStore({
       ...empty,
-      project: [sc({ id: "cfg", scope: "project", path: ".vscode/saropa-workspace.json" })],
+      project: [sc({ id: "cfg", scope: "project", path: ".saropa/saropa-workspace.json" })],
     })
   );
   const item = items.find((i) => i.id === "cfg");

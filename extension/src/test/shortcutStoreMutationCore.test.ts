@@ -208,7 +208,7 @@ test("removePin drops an explicit pin but suppresses an auto-pin via removedAuto
   const auto = store.getProjectShortcuts().find((p) => p.isAuto && p.path === "config.yaml")!;
   await store.removeShortcut(auto);
   const onDisk = JSON.parse(
-    nodeFs.readFileSync(nodePath.join(tmpDir, ".vscode", "saropa-workspace.json"), "utf8")
+    nodeFs.readFileSync(nodePath.join(tmpDir, ".saropa", "saropa-workspace.json"), "utf8")
   );
   assert.ok(
     onDisk.removedAutoPins.includes(auto.id),
@@ -334,7 +334,7 @@ test("mutatePin is a no-op on an auto-pin (recomputed, not stored)", async () =>
   // setMasked routes through mutateShortcut; on an auto-shortcut it finds no target and no-ops.
   await store.setMasked(auto, true);
   const onDisk = JSON.parse(
-    nodeFs.readFileSync(nodePath.join(tmpDir, ".vscode", "saropa-workspace.json"), "utf8")
+    nodeFs.readFileSync(nodePath.join(tmpDir, ".saropa", "saropa-workspace.json"), "utf8")
   );
   assert.equal(
     onDisk.pins.some((p: { masked?: boolean }) => p.masked),

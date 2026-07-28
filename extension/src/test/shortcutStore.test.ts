@@ -39,7 +39,7 @@ let tmpDir: string;
 let folder: WorkspaceFolder;
 
 const configPath = (): string =>
-  nodePath.join(tmpDir, ".vscode", "saropa-workspace.json");
+  nodePath.join(tmpDir, ".saropa", "saropa-workspace.json");
 
 const readConfig = (): {
   version: number;
@@ -67,7 +67,7 @@ afterEach(() => {
   nodeFs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test("refresh creates a v2 .vscode/saropa-workspace.json for a folder with none", async () => {
+test("refresh creates a .saropa/saropa-workspace.json for a folder with none", async () => {
   // ensureProjectFile must seed a committed, shareable config file on open — not
   // only after the first shortcut — so a fresh project has one immediately.
   const store = new ShortcutStore(fakeContext());
@@ -209,7 +209,7 @@ test("an auto-pin is seeded from a glob pattern via findFiles", async () => {
 
 test("a v1 file is migrated to the current version on read and persisted on the next write", async () => {
   // Write a v1 file by hand (no groups / autoGroups, version 1) with one shortcut.
-  nodeFs.mkdirSync(nodePath.join(tmpDir, ".vscode"), { recursive: true });
+  nodeFs.mkdirSync(nodePath.join(tmpDir, ".saropa"), { recursive: true });
   nodeFs.writeFileSync(
     configPath(),
     JSON.stringify({
@@ -257,7 +257,7 @@ const readRaw = (): {
 
 test("a v2 file migrates to the Default set with no pin moved or dropped", async () => {
   // Write a v2 file by hand (groups present, but no activeSet/sets) with one shortcut.
-  nodeFs.mkdirSync(nodePath.join(tmpDir, ".vscode"), { recursive: true });
+  nodeFs.mkdirSync(nodePath.join(tmpDir, ".saropa"), { recursive: true });
   nodeFs.writeFileSync(
     configPath(),
     JSON.stringify({

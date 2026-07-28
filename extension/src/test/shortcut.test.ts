@@ -93,7 +93,7 @@ test("the schema version is 3 (the named-pin-sets version)", () => {
 test("the config file relative path is the single source for the seed target", () => {
   // The synthetic "Workspace config" example shortcut opens this very file, and the
   // store's PROJECT_FILE_RELATIVE must equal it so the seed and the IO path agree.
-  assert.equal(PROJECT_FILE_RELATIVE, ".vscode/saropa-workspace.json");
+  assert.equal(PROJECT_FILE_RELATIVE, ".saropa/saropa-workspace.json");
 });
 
 test("the default set name is the literal 'Default'", () => {
