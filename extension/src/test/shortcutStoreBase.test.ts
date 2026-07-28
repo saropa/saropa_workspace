@@ -20,7 +20,12 @@ import {
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { ShortcutStore } from "../model/shortcutStore";
-import { PROJECT_SHORTCUTS_VERSION, DEFAULT_SET_NAME, PROJECT_FILE_RELATIVE, LEGACY_PROJECT_FILE_RELATIVE } from "../model/shortcut";
+import {
+  PROJECT_SHORTCUTS_VERSION,
+  DEFAULT_SET_NAME,
+  PROJECT_FILE_RELATIVE,
+  LEGACY_PROJECT_FILE_RELATIVE,
+} from "../model/shortcut";
 import type { Uri as VscodeUri } from "vscode";
 
 const asUri = (u: Uri): VscodeUri => u as unknown as VscodeUri;
@@ -223,6 +228,72 @@ test("ensureProjectFile migrates a legacy .vscode/ config to .saropa/ and rewrit
     nodeFs.existsSync(legacyPath),
     false,
     "the legacy .vscode/ config file should be deleted after migration"
+  );
+});
+
+test("configDir setting controls where the project config file is written", async () => {
+  // When saropaWorkspace.configDir is set to a custom value, the store writes
+  // there instead of the default .saropa/.
+  __setConfig("saropaWorkspace", "configDir", ".config");
+  const customPath = nodePath.join(tmpDir, ".config", "saropa-workspace.json");
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+
+  assert.ok(
+    nodeFs.existsSync(customPath),
+    "the config file should be created under the custom configDir"
+  );
+  assert.equal(
+    nodeFs.existsSync(configPath()),
+    false,
+    "the default .saropa/ path should not be created when configDir is overridden"
+  );
+});
+
+test("ensureProjectFile migrates .saropa/ config to a custom configDir", async () => {
+  // Seed a config at the default .saropa/ location, then init with configDir
+  // pointing elsewhere — the store should migrate the file.
+  nodeFs.mkdirSync(nodePath.join(tmpDir, ".saropa"), { recursive: true });
+  nodeFs.writeFileSync(
+    configPath(),
+    JSON.stringify({
+      version: PROJECT_SHORTCUTS_VERSION,
+      pins: [
+        { id: "p1", path: "src/app.ts", scope: "project", order: 0 },
+        { id: "cfg", path: PROJECT_FILE_RELATIVE, scope: "project", order: 1 },
+      ],
+      groups: [],
+      activeSet: "Default",
+      sets: [],
+      removedAutoPins: [],
+      removedRecipes: [],
+      autoGroups: {},
+    })
+  );
+  __setConfig("saropaWorkspace", "configDir", ".myconfig");
+  const customPath = nodePath.join(tmpDir, ".myconfig", "saropa-workspace.json");
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+
+  assert.ok(
+    nodeFs.existsSync(customPath),
+    "the config file should be migrated to the custom configDir"
+  );
+  const migrated = JSON.parse(nodeFs.readFileSync(customPath, "utf8"));
+  assert.equal(
+    migrated.pins.find((p: { id: string }) => p.id === "cfg")?.path,
+    ".myconfig/saropa-workspace.json",
+    "a pin targeting the old config path should be rewritten to the new configDir path"
+  );
+  assert.equal(
+    migrated.pins.find((p: { id: string }) => p.id === "p1")?.path,
+    "src/app.ts",
+    "a normal pin path should be left unchanged"
+  );
+  assert.equal(
+    nodeFs.existsSync(configPath()),
+    false,
+    "the old .saropa/ config file should be deleted after migration"
   );
 });
 

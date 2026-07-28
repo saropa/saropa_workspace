@@ -12,6 +12,7 @@ import {
   ProjectShortcutsFile,
   PROJECT_SHORTCUTS_VERSION,
   PROJECT_FILE_RELATIVE,
+  configuredProjectFileRelative,
   DEFAULT_SET_NAME,
   emptyProjectShortcutsFile,
   shortcutKind,
@@ -176,19 +177,26 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
     file: ProjectShortcutsFile,
     autoShortcuts: readonly Shortcut[]
   ): Shortcut | undefined {
-    const id = `auto:${folder.name}:${PROJECT_FILE_RELATIVE}`;
-    if (file.removedAutoPins.includes(id)) {
+    const configPath = configuredProjectFileRelative();
+    const id = `auto:${folder.name}:${configPath}`;
+    // Accept the old id too so a removal persisted under the previous configDir
+    // keeps sticking after the user changes the setting.
+    const legacyId = `auto:${folder.name}:${PROJECT_FILE_RELATIVE}`;
+    if (
+      file.removedAutoPins.includes(id) ||
+      file.removedAutoPins.includes(legacyId)
+    ) {
       return undefined;
     }
     const alreadyAdded =
-      file.pins.some((p) => p.path === PROJECT_FILE_RELATIVE) ||
-      autoShortcuts.some((p) => p.path === PROJECT_FILE_RELATIVE);
+      file.pins.some((p) => p.path === configPath) ||
+      autoShortcuts.some((p) => p.path === configPath);
     if (alreadyAdded) {
       return undefined;
     }
     return {
       id,
-      path: PROJECT_FILE_RELATIVE,
+      path: configPath,
       label: l10n("pin.sampleConfig"),
       scope: "project",
       isAuto: true,

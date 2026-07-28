@@ -1,5 +1,11 @@
 import * as vscode from "vscode";
-import { PROJECT_FILE_RELATIVE, emptyProjectShortcutsFile } from "../model/shortcut";
+import {
+  LEGACY_PROJECT_FILE_RELATIVE,
+  KNOWN_CONFIG_DIRS,
+  configDirName,
+  configuredProjectFileRelative,
+  emptyProjectShortcutsFile,
+} from "../model/shortcut";
 import { l10n } from "../i18n/l10n";
 
 // "Edit Shortcuts Config (JSON)" (roadmap Later / Exploratory — raw-config
@@ -26,7 +32,7 @@ export async function editShortcutsConfig(): Promise<void> {
     return;
   }
 
-  const uri = vscode.Uri.joinPath(folder.uri, PROJECT_FILE_RELATIVE);
+  const uri = vscode.Uri.joinPath(folder.uri, configuredProjectFileRelative());
   await ensureExists(folder, uri);
   // preview: false so the config opens as a permanent tab the user can edit and
   // keep, not a transient preview that a next click would replace.
@@ -54,9 +60,9 @@ async function pickFolder(
 }
 
 // Create an empty, valid config file when none exists yet, so editing the
-// "shortcuts JSON" always has a file to open. Matches the store's write shape (the
-// .saropa directory is created if missing, the file is the empty
-// ProjectShortcutsFile).
+// "shortcuts JSON" always has a file to open. Checks every known legacy dir
+// first: if a legacy file exists, the store's init migration will move it, so
+// creating a fresh empty file here would block that migration and lose data.
 async function ensureExists(
   folder: vscode.WorkspaceFolder,
   uri: vscode.Uri
@@ -65,10 +71,25 @@ async function ensureExists(
     await vscode.workspace.fs.stat(uri);
     return;
   } catch {
-    // Not present — create it below.
+    // Configured path absent — check legacy locations before creating.
+  }
+  const currentDir = configDirName();
+  for (const dir of KNOWN_CONFIG_DIRS) {
+    if (dir === currentDir) {
+      continue;
+    }
+    try {
+      await vscode.workspace.fs.stat(
+        vscode.Uri.joinPath(folder.uri, `${dir}/saropa-workspace.json`)
+      );
+      // Legacy file exists — the store migration will handle it.
+      return;
+    } catch {
+      continue;
+    }
   }
   await vscode.workspace.fs.createDirectory(
-    vscode.Uri.joinPath(folder.uri, ".saropa")
+    vscode.Uri.joinPath(folder.uri, currentDir)
   );
   const json = JSON.stringify(emptyProjectShortcutsFile(), null, 2) + "\n";
   await vscode.workspace.fs.writeFile(uri, Buffer.from(json, "utf8"));

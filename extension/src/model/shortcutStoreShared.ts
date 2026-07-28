@@ -23,7 +23,7 @@ export interface MoveTarget {
 
 // Persistence + in-memory cache for shortcuts.
 //
-// Project shortcuts live in <folder>/.vscode/saropa-workspace.json with paths stored
+// Project shortcuts live in <folder>/<configDir>/saropa-workspace.json with paths stored
 // RELATIVE to that folder, so a shortcut survives clone/move and is shareable via the
 // repo. Global shortcuts live in extension globalState (rides VS Code Settings Sync)
 // with ABSOLUTE paths, since a global favorite is a specific machine path.

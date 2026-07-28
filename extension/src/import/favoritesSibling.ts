@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { KNOWN_CONFIG_DIRS, configuredProjectFileRelative } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import type { KdcroFavoriteEntry } from "./favoritesImport";
 
@@ -16,11 +17,25 @@ import type { KdcroFavoriteEntry } from "./favoritesImport";
 // (paths relative to the sibling folder).
 type SiblingFormat = "kdcro" | "saropa";
 
-const SIBLING_SOURCES: ReadonlyArray<{ relPath: string; format: SiblingFormat }> = [
-  { relPath: ".favorites.json", format: "kdcro" },
-  { relPath: ".saropa/saropa-workspace.json", format: "saropa" },
-  { relPath: ".vscode/saropa-workspace.json", format: "saropa" },
-];
+// Built lazily so the configured dir is read at scan time, not import time.
+function siblingSourceList(): ReadonlyArray<{ relPath: string; format: SiblingFormat }> {
+  const seen = new Set<string>();
+  const sources: Array<{ relPath: string; format: SiblingFormat }> = [
+    { relPath: ".favorites.json", format: "kdcro" },
+  ];
+  // Configured dir first, then known legacy dirs — first match wins per sibling.
+  const configuredRel = configuredProjectFileRelative();
+  seen.add(configuredRel);
+  sources.push({ relPath: configuredRel, format: "saropa" });
+  for (const dir of KNOWN_CONFIG_DIRS) {
+    const rel = `${dir}/saropa-workspace.json`;
+    if (!seen.has(rel)) {
+      seen.add(rel);
+      sources.push({ relPath: rel, format: "saropa" });
+    }
+  }
+  return sources;
+}
 
 // One favorites file found in a sibling project during detectSiblingFavorites, naming
 // which sibling folder it came from and which format to resolve it as, so
@@ -76,7 +91,7 @@ export async function detectSiblingFavorites(): Promise<SiblingFavorites[]> {
       if (openFolderPaths.has(siblingDir.fsPath)) {
         continue;
       }
-      for (const source of SIBLING_SOURCES) {
+      for (const source of siblingSourceList()) {
         const fileUri = vscode.Uri.joinPath(siblingDir, source.relPath);
         if (seenFiles.has(fileUri.fsPath)) {
           continue;
