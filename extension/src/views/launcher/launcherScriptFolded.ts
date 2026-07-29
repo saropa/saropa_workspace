@@ -17,10 +17,10 @@ function paneCount(pane) {
   return n;
 }
 
-// The pane's head: the collapse toggle, and — once folded — the strip's pill. Chevron,
-// section glyph, title and count, wired to the persisted collapse posture. The tooltip and
-// aria-expanded carry what the chevron does while folded, since the stylesheet hides the
-// chevron inside the strip (four elements crowded the pill at chip size).
+// The pane's head: the collapse toggle, and — once folded — a segment in the strip's
+// connected bar. Chevron, section glyph, title and count, wired to the persisted collapse
+// posture. Inside the strip the stylesheet clip-hides the title and chevron, leaving only
+// the glyph + count visible; the tooltip and aria-expanded provide the accessible name.
 function makePaneHead(pane, paneEl, paneKey) {
   const head = document.createElement('button');
   head.className = 'pane-head';

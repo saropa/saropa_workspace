@@ -48,45 +48,35 @@ test("LAUNCHER_STYLE: the panes reflow via flex-wrap, not a fixed grid track", (
   assert.ok(panes[0].includes("flex-wrap: wrap"), ".panes must wrap on a narrow Panel");
 });
 
-test("LAUNCHER_STYLE: the folded strip is its own wrapping container with its own gap", () => {
-  // Collapsing a section must free its width for the still-open sections (developer feedback
-  // 2026-06-28), but shrinking the pane IN PLACE left the folded heads scattered along the
-  // open pane's header row (developer feedback 2026-07-27). A folded pane is now moved into
-  // the .folded strip instead. The strip must carry its own gap — the panes row's column gap
-  // is tuned for pane columns and reads as scattered debris at pill size — and must wrap, so
-  // a narrow Panel stacks the pills into their own lines rather than interleaving them with
-  // the open panes.
+test("LAUNCHER_STYLE: the folded strip is a connected segmented bar", () => {
+  // Collapsed sections form a connected bar — the container owns the border and border-radius
+  // with overflow:hidden so first/last visible segments get rounded corners automatically.
+  // Segments sit flush (zero column gap); width:fit-content hugs segments.
   const strip = LAUNCHER_STYLE.match(/^\.folded\s*\{[^}]*\}/m);
   assert.ok(strip, ".folded rule must exist");
   assert.ok(strip[0].includes("display: flex"), "the strip must lay out with flex");
   assert.ok(strip[0].includes("flex-wrap: wrap"), "the strip must wrap on a narrow Panel");
-  assert.ok(/gap:\s*6px/.test(strip[0]), "the strip must set its own tighter gap");
+  assert.ok(/gap:\s*4px 0/.test(strip[0]), "the strip must have zero column gap and a small row gap for wrapping");
+  assert.ok(strip[0].includes("border-radius: 6px"), "the bar must have rounded outer corners");
+  assert.ok(strip[0].includes("overflow: hidden"), "overflow:hidden clips segments to the bar's rounded corners");
+  assert.ok(strip[0].includes("width: fit-content"), "the bar must hug its segments, not stretch full-width");
   assert.ok(
     /\.folded\.hidden\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
     "an empty strip must hide itself rather than leave a blank band"
   );
 });
 
-test("LAUNCHER_STYLE: a folded pane's head reads as a pill, not a cut-off section header", () => {
-  // A collapsed head is only as wide as its label, and the open-pane styling (an auto-width
-  // underline + uppercase title) then reads as a broken table header floating beside the open
-  // pane (developer feedback 2026-07-27). Inside the strip the head must drop the underline
-  // for a rounded bordered box. The border chain must fall through --vscode-panel-border:
-  // many themes leave --vscode-widget-border unset, and a pill whose outline resolves to
-  // transparent is no pill at all.
-  const pill = LAUNCHER_STYLE.match(/\.folded\s+\.pane-head\s*\{[^}]*\}/);
-  assert.ok(pill, "the folded pane-head rule must exist");
-  assert.ok(pill[0].includes("border-radius: 999px"), "a folded head must be a rounded pill");
+test("LAUNCHER_STYLE: a folded segment shows icon + count only, with the title clip-hidden", () => {
+  // Segments inside the connected bar show only the glyph and count. The title is clip-hidden
+  // (not display:none) so it remains the button's accessible name. The chevron is also hidden.
+  const seg = LAUNCHER_STYLE.match(/\.folded\s+\.pane-head\s*\{[^}]*\}/);
+  assert.ok(seg, "the folded pane-head rule must exist");
+  assert.ok(seg[0].includes("border: none"), "a segment must have no individual border — the bar container owns it");
+  assert.ok(seg[0].includes("border-radius: 0"), "a segment must have no radius — the bar's overflow:hidden handles corners");
   assert.ok(
-    /border:\s*1px solid/.test(pill[0]),
-    "a folded head must carry a full border, replacing the section-header underline"
+    /\.folded\s+\.pane-title\s*\{[^}]*clip-path/.test(LAUNCHER_STYLE),
+    "the title must be clip-hidden for accessibility, not display:none"
   );
-  assert.ok(
-    pill[0].includes("--vscode-panel-border"),
-    "the pill border must fall back past --vscode-widget-border, which many themes leave unset"
-  );
-  // The chevron goes only inside the strip: four elements crowded the pill at chip size, and
-  // an expanded section still needs its chevron.
   assert.ok(
     /\.folded\s+\.pane-chevron\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
     "the chevron must be hidden inside the strip only"
@@ -108,22 +98,21 @@ test("LAUNCHER_STYLE: every var() fallback chain terminates in a static keyword"
   }
 });
 
-test("LAUNCHER_STYLE: a folded pill shows where a dragged card can be dropped", () => {
-  // The drop affordance is two-step: .can-drop lights every pill that WOULD accept the card
-  // being dragged (set at dragstart, so eligible targets are visible before the pointer
-  // reaches one), .drop-over marks the pill actually under the pointer. Without the first, a
-  // user must hover each pill to discover which sections accept anything.
+test("LAUNCHER_STYLE: a folded segment shows where a dragged card can be dropped", () => {
+  // Drop affordances use inset box-shadow instead of border-color — segments have no
+  // individual borders. .can-drop lights every eligible segment from drag start;
+  // .drop-over marks the one under the pointer.
   assert.ok(
-    /\.folded\s+\.pane\.can-drop\s+\.pane-head\s*\{[^}]*border-color/.test(LAUNCHER_STYLE),
-    "an eligible drop target must be outlined from the moment the drag starts"
+    /\.folded\s+\.pane\.can-drop\s+\.pane-head\s*\{[^}]*box-shadow/.test(LAUNCHER_STYLE),
+    "an eligible drop target must be outlined with an inset box-shadow from drag start"
   );
   assert.ok(
     /\.folded\s+\.pane\.drop-over\s+\.pane-head\s*\{[^}]*background/.test(LAUNCHER_STYLE),
-    "the pill under the pointer must fill so the landing spot is unambiguous"
+    "the segment under the pointer must fill so the landing spot is unambiguous"
   );
   assert.ok(
     /\.folded\s+\.pane\.dragging\s+\.pane-head\s*\{[^}]*opacity/.test(LAUNCHER_STYLE),
-    "the pill being dragged must dim so its origin is legible during a reorder"
+    "the segment being dragged must dim so its origin is legible during a reorder"
   );
 });
 

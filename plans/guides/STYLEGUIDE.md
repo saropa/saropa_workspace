@@ -95,37 +95,9 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   class folds the whole section while the head stays visible; the panes row is a
   wrapping flex line (not a grid track, whose `minmax` width a folded item cannot
   shed), so a folded section frees its width for the sections still open.
-- **A folded section leaves the layout it was in and joins a strip of its peers.**
-  Shrinking a folded pane in place left its head scattered along the open pane's
-  header row, reading as debris rather than as controls (developer feedback
-  2026-07-27). A collapsed pane is now MOVED into a `.folded` strip container
-  (`placePanes` in the client script) and moved back out when it reopens — or when a
-  search starts, since a search force-reveals a folded pane's body and that body
-  needs the full panes-row width. The strip is a real container, not a CSS trick,
-  because it must own its own tighter gap (the panes row's gap is tuned for pane
-  columns and reads as scattered at pill size), because its pills must wrap as a
-  unit (a narrow Panel then stacks the folded sections onto their own lines instead
-  of interleaving them with the open panes), and because it is a drop surface.
-- **A control that shrinks is restyled for the size it lands at.** Inside the strip,
-  `.folded .pane-head` swaps the section header's underline for a full rounded
-  border with a hover fill, drops the chevron (four elements crowd a pill; the
-  tooltip and `aria-expanded` say more than a rotated glyph did), and keeps the
-  section glyph, which is what identifies it. **Generally: never let full-width
-  chrome — dividers, uppercase section titles, header padding — ride along at chip
-  size.** Terminate every `var()` fallback chain in a static keyword too: an
-  all-undefined chain is invalid at computed-value time and DROPS the declaration,
-  so a pill can end up with no border in a theme that defines neither token.
-- **A folded pill is draggable, and accepts a drop only where filing means
-  something.** Dragging one pill onto another rearranges the strip, persisted whole
-  (not as a sparse patch) in webview state, so a pane the user never dragged still
-  gets a recorded position once anything is rearranged. Dragging a CARD onto a pill
-  files it into that section: a recipe or a surfaced project file onto **My
-  shortcuts** adopts it, any file-backed card onto **Watches** watches it. Recipes,
-  Project files and Scripts are derived from detection or from disk — nothing can be
-  filed INTO them — so those pills never accept, and the host re-resolves both the
-  target section and the dropped card before running anything. Eligible targets
-  light up at `dragstart` (`.can-drop`), not on hover, so the user is never made to
-  probe each pill to discover which accept.
+- **A folded section leaves the layout it was in and joins a connected segmented bar.** A collapsed pane is MOVED into a `.folded` strip container (`placePanes` in the client script) and moved back out when it reopens — or when a search starts, since a search force-reveals a folded pane's body and that body needs the full panes-row width. The container owns the outer border and `border-radius` with `overflow: hidden` so the first and last visible segments get rounded corners automatically — a per-segment `:first-child` selector would break whenever a hidden pane sits at either end. `width: fit-content` hugs the segments so the bar does not stretch across the full panel width. Segments sit flush (zero column gap) with 1px dividers between neighbors via `.pane + .pane:not(.hidden)`.
+- **A collapsed segment shows icon + count only.** The section glyph and count are the only visible elements in the strip; the title is clip-hidden (`clip-path: inset(50%)`, not `display: none`) so it remains the button's accessible name for screen readers and the tooltip. The chevron is also hidden. **Generally: never let full-width chrome — dividers, uppercase section titles, header padding — ride along at chip size.** Terminate every `var()` fallback chain in a static keyword too: an all-undefined chain is invalid at computed-value time and DROPS the declaration, so a segment can end up with no divider in a theme that defines neither token.
+- **A folded segment is draggable, and accepts a drop only where filing means something.** Dragging one segment onto another rearranges the strip, persisted whole (not as a sparse patch) in webview state, so a pane the user never dragged still gets a recorded position once anything is rearranged. Dragging a CARD onto a segment files it into that section: a recipe or a surfaced project file onto **My shortcuts** adopts it, any file-backed card onto **Watches** watches it. Recipes, Project files and Scripts are derived from detection or from disk — nothing can be filed INTO them — so those segments never accept, and the host re-resolves both the target section and the dropped card before running anything. Eligible targets light up at `dragstart` (`.can-drop` via inset `box-shadow`), not on hover, so the user is never made to probe each segment to discover which accept.
 - **Every card carries a colored icon, reusing the tree's token map.** A launcher
   card shows the SAME glyph + tint the sidebar row would (`fileTypeIcon` / `kindIcon`
   / `kindColor` in the vscode-free `fileTypeTokens` module, plus the user's custom

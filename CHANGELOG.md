@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- Collapsed launcher sections now render as a connected segmented bar (icon + count per segment) instead of separate rounded pills, reducing visual clutter in the folded strip
+
+---
+
 ## [1.6.1]
 
 The bottom-panel tab is now called "Saropa Workspace" to match the extension, complete with a new subtitle and a command palette entry so you can still easily find it by searching for "launcher". [log](https://github.com/saropa/saropa-workspace/blob/v1.6.1/CHANGELOG.md)
