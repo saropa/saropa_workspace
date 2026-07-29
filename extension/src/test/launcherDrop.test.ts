@@ -156,13 +156,21 @@ test("a shortcut dropped on a group moves it into that group", async () => {
   await dropOnGroup("project:grp-deploy", fileShortcut.id);
   assert.equal(movedShortcuts.length, 1);
   assert.equal(movedShortcuts[0].shortcuts[0], fileShortcut);
-  assert.deepEqual(movedShortcuts[0].target, { scope: "project", groupId: "grp-deploy" });
+  assert.deepEqual(movedShortcuts[0].target, {
+    scope: "project",
+    groupId: "grp-deploy",
+    beforeShortcutId: undefined,
+  });
 });
 
 test("a shortcut dropped on a bare scope root ungroups it", async () => {
   await dropOnGroup("project", fileShortcut.id);
   assert.equal(movedShortcuts.length, 1);
-  assert.deepEqual(movedShortcuts[0].target, { scope: "project", groupId: undefined });
+  assert.deepEqual(movedShortcuts[0].target, {
+    scope: "project",
+    groupId: undefined,
+    beforeShortcutId: undefined,
+  });
 });
 
 test("a recipe dropped on a group is rejected", async () => {
@@ -182,5 +190,42 @@ test("an unknown card id in a group drop does nothing", async () => {
 
 test("an invalid scope in a group drop does nothing", async () => {
   await dropOnGroup("invalid:grp-deploy", fileShortcut.id);
+  assert.equal(movedShortcuts.length, 0);
+});
+
+// --- dropOnCard (card dropped on another card for reorder) -----------
+
+async function dropOnCard(groupId: string, targetId: string, id: string): Promise<void> {
+  await handleLauncherMessage({ type: "dropOnCard", groupId, targetId, id }, context());
+}
+
+test("a card dropped on another card moves it before the target in the target's group", async () => {
+  await dropOnCard("project:grp-deploy", shellShortcut.id, fileShortcut.id);
+  assert.equal(movedShortcuts.length, 1);
+  assert.equal(movedShortcuts[0].shortcuts[0], fileShortcut);
+  assert.deepEqual(movedShortcuts[0].target, {
+    scope: "project",
+    groupId: "grp-deploy",
+    beforeShortcutId: shellShortcut.id,
+  });
+});
+
+test("a card dropped on a top-level card ungroups it and inserts before the target", async () => {
+  await dropOnCard("project", shellShortcut.id, fileShortcut.id);
+  assert.equal(movedShortcuts.length, 1);
+  assert.deepEqual(movedShortcuts[0].target, {
+    scope: "project",
+    groupId: undefined,
+    beforeShortcutId: shellShortcut.id,
+  });
+});
+
+test("a recipe dropped on a card is rejected", async () => {
+  await dropOnCard("project:grp-deploy", fileShortcut.id, recipe.id);
+  assert.equal(movedShortcuts.length, 0);
+});
+
+test("a cross-scope card drop is rejected", async () => {
+  await dropOnCard("global:grp-deploy", shellShortcut.id, fileShortcut.id);
   assert.equal(movedShortcuts.length, 0);
 });

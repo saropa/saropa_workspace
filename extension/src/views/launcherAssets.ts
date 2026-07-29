@@ -346,6 +346,13 @@ header {
 }
 .card:hover { background: var(--vscode-list-hoverBackground); }
 .card.hidden { display: none; }
+/* Drop-to-reorder: the hovered card shows a top-border insertion indicator and the drop
+   background. Only the card under the pointer highlights — can-drop is not visualized on
+   cards (unlike groups) because highlighting every eligible card is too noisy. */
+.card.drop-over {
+  border-top: 2px solid var(--vscode-focusBorder); margin-top: -1px;
+  background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground, transparent));
+}
 .card.expanded { background: var(--vscode-list-hoverBackground); }
 .card-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .card-ic { flex: none; color: var(--card-tint, var(--vscode-foreground)); font-size: 15px; }

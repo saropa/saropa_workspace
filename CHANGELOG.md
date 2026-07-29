@@ -57,7 +57,7 @@ A brand new Notes view in the sidebar lets you manage project-scoped and global 
 - "Open Notes Folder" command to reveal the notes directory in the OS file manager (creates the directory first if it does not exist)
 - Hover preview on note tree items — lazily reads the first 5 lines of the file and shows them in a Markdown tooltip
 - Filename validation blocks Windows reserved device names (CON, NUL, PRN, AUX, COM1–9, LPT1–9) and trailing dots or spaces
-- Drag-and-drop between groups in the Launcher panel — drag a shortcut card onto a different group header within My Shortcuts to move it there, with visual drop-target highlighting during the drag
+- Drag-and-drop between groups in the Launcher panel — drag a shortcut card onto a different group header within My Shortcuts to move it there, with visual drop-target highlighting during the drag. Drop a card onto another card to reorder within or across groups (the dragged card inserts before the target)
 
 ### Changed
 

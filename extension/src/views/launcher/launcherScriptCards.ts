@@ -129,18 +129,47 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
   // project file onto My shortcuts adopts it; any file-backed card onto Watches watches it).
   // Chromium fires no click after a drag, so this does not fight the expand-on-click above.
   card.draggable = true;
+  card.dataset.shortcutId = it.id;
+  card.dataset.groupId = it.groupId;
   card.addEventListener('dragstart', function (e) {
     // \`file\` mirrors it.copyable, which is exactly "this card is backed by a real file" —
     // the same test the host uses to decide whether the card can be pinned or watched.
     drag = { kind: 'card', id: it.id, pane: it.pane, file: !!it.copyable, groupId: it.groupId };
-    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.effectAllowed = 'copyMove';
     // Chromium refuses to start a drag with an empty DataTransfer; the payload the drop
     // actually reads is the module-level \`drag\` record.
     e.dataTransfer.setData('text/plain', it.label);
     syncDropTargets();
     syncGroupDropTargets();
   });
-  card.addEventListener('dragend', function () { drag = null; syncDropTargets(); syncGroupDropTargets(); });
+  card.addEventListener('dragend', function () {
+    drag = null;
+    syncDropTargets();
+    syncGroupDropTargets();
+    syncCardDropTargets();
+  });
+  // A "mine" card is also a drop target: dropping another card on it inserts the dragged
+  // card before this one in this card's group. The host re-validates everything.
+  card.addEventListener('dragover', function (e) {
+    if (!canDropOnCard(it.id)) { return; }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    card.classList.add('drop-over');
+  });
+  card.addEventListener('dragleave', function (e) {
+    if (card.contains(e.relatedTarget)) { return; }
+    card.classList.remove('drop-over');
+  });
+  card.addEventListener('drop', function (e) {
+    e.preventDefault();
+    card.classList.remove('drop-over');
+    if (!canDropOnCard(it.id)) { return; }
+    vscode.postMessage({ type: 'dropOnCard', groupId: it.groupId, targetId: it.id, id: drag.id });
+    drag = null;
+    syncDropTargets();
+    syncGroupDropTargets();
+    syncCardDropTargets();
+  });
   // Watch/file cards carry no right-click menu (empty it.menu); only the shortcut/recipe
   // cards mirror the sidebar context menu, so the listener is attached only when there is
   // something to show.

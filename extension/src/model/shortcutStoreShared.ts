@@ -21,6 +21,29 @@ export interface MoveTarget {
   beforeShortcutId?: string;
 }
 
+// Build and parse the composite group id the launcher webview uses to key group
+// collapse state and drop targets. The format is "scope:rawGroupId" for a user
+// group, or bare "scope" for the scope's top level (ungrouped). A single source
+// of truth so the builder (launcherItems.ts) and the parser (launcherViewMessages.ts)
+// never drift.
+export function compositeGroupId(scope: ShortcutScope, groupId: string): string {
+  return `${scope}:${groupId}`;
+}
+
+export function parseCompositeGroupId(
+  composite: string
+): { scope: ShortcutScope; groupId: string | undefined } | undefined {
+  const colonIndex = composite.indexOf(":");
+  const scope = (colonIndex === -1 ? composite : composite.slice(0, colonIndex)) as string;
+  if (scope !== "project" && scope !== "global") {
+    return undefined;
+  }
+  return {
+    scope: scope as ShortcutScope,
+    groupId: colonIndex === -1 ? undefined : composite.slice(colonIndex + 1),
+  };
+}
+
 // Persistence + in-memory cache for shortcuts.
 //
 // Project shortcuts live in <folder>/<configDir>/saropa-workspace.json with paths stored
