@@ -62,7 +62,7 @@ export class ProjectFilesTreeProvider
   // The full set of surfaced files across every workspace folder, honoring the
   // enabled toggle and the configured name list. The single source of truth for
   // "what the Project Files surface shows" — used by the root getChildren below and
-  // by the Saropa Launcher, so the two never diverge on which files count.
+  // by the Saropa Workspace panel, so the two never diverge on which files count.
   async listSurfacedFiles(): Promise<ProjectFileInfo[]> {
     if (!isEnabled()) {
       return [];

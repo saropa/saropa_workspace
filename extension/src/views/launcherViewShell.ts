@@ -4,7 +4,7 @@ import { l10n } from "../i18n/l10n";
 import { LAUNCHER_STYLE } from "./launcherAssets";
 import { LAUNCHER_SCRIPT } from "./launcherScript";
 
-// The Saropa Launcher webview's initial HTML shell: the CSP, the header/search markup, and
+// The Saropa Workspace panel webview's initial HTML shell: the CSP, the header/search markup, and
 // the injected style + client script. Kept apart from launcherView.ts's lifecycle/message
 // logic since this is pure markup assembly with no store/watch dependency.
 

@@ -7,6 +7,7 @@
   "pin.renamePrompt": "New label for {name}",
   "pin.noActiveFile": "No active file to add as a shortcut.",
   "launcher.title": "Saropa Workspace",
+  "launcher.viewDescription": "Search and launch shortcuts from the Panel",
   "launcher.searchPlaceholder": "Search",
   "launcher.run": "Run",
   "launcher.open": "Open",

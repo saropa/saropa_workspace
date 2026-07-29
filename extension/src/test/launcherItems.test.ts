@@ -1,4 +1,4 @@
-// Unit tests for buildLauncherItems — the pure data layer behind the Saropa Launcher
+// Unit tests for buildLauncherItems — the pure data layer behind the Saropa Workspace
 // Panel webview. It turns the store's shortcuts and detected recipes into the flat,
 // section-tagged rows the responsive grid renders. The function depends only on five
 // store accessors plus the model + l10n catalog (no VS Code), so these drive a minimal

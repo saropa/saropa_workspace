@@ -86,7 +86,7 @@ export function wireWatchers(
 // Folder/file watches (PLAN_FILE_AND_FOLDER_WATCH): build the watch store + engine,
 // register the add/manage commands, and return both the engine (so activate() can run its
 // startup scan once, deferred past activation — the scan does file IO and must not run in
-// the activation path) and the watch store (so the Saropa Launcher can show a Watches pane
+// the activation path) and the watch store (so the Saropa Workspace panel can show a Watches pane
 // from the same source the Watches tree reads). The engine is a disposable so its live
 // FileSystemWatchers are released on deactivation.
 export function wireFolderWatches(

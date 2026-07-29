@@ -1,4 +1,4 @@
-// Unit tests for the Saropa Launcher webview assets (launcherAssets.ts): the inlined
+// Unit tests for the Saropa Workspace panel webview assets (launcherAssets.ts): the inlined
 // CSS (LAUNCHER_STYLE) and client script (LAUNCHER_SCRIPT) the Panel view injects under
 // its per-load nonce. These are plain exported string constants with no VS Code
 // dependency, so they run under Node's runner. The tests guard the invariants the host
