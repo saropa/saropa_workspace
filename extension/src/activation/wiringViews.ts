@@ -13,6 +13,9 @@ import { SetParamsPanel } from "../views/setParamsPanel";
 import { ShortcutDecorationProvider } from "../views/shortcutDecorations";
 import { shortcutBadges } from "../exec/shortcutBadges";
 import { makeDebounced } from "./activationHelpers";
+import { NoteStore } from "../model/noteStore";
+import { NotesTreeProvider } from "../views/notesProvider";
+import { registerNoteCommands } from "../commands/noteCommands";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -190,6 +193,28 @@ export function setupSecondaryViews(
       vscode.commands.executeCommand("saropaWorkspace.launcher.focus")
     )
   );
+
+  // Persistent notes: real Markdown files on disk, organized into project-scoped
+  // (.saropa/notes/) and global (globalStorageUri/notes/) collections. Read-only
+  // tree (no drag-and-drop); a FileSystemWatcher keeps it in sync with external
+  // edits. Commands registered here alongside the view so the entire Notes surface
+  // is one wiring block.
+  const noteStore = new NoteStore(context);
+  const notes = new NotesTreeProvider(noteStore);
+  const notesView = vscode.window.createTreeView("saropaWorkspace.notes", {
+    treeDataProvider: notes,
+  });
+  context.subscriptions.push(notesView);
+  const syncNotesCount = (count: number): void => {
+    notesView.description = count > 0 ? String(count) : undefined;
+  };
+  context.subscriptions.push(
+    notes.onDidChangeCount((count) => syncNotesCount(count))
+  );
+  syncNotesCount(notes.count);
+  const debouncedNotesRefresh = makeDebounced(() => noteStore.fire(), 200);
+  context.subscriptions.push(...noteStore.setupWatchers(debouncedNotesRefresh));
+  registerNoteCommands(context, noteStore);
 
   // Tint file shortcut labels green/red based on the sweep badge trend delta.
   // Registered globally (all views that show the same URI), which is intentional:
