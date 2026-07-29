@@ -1,6 +1,80 @@
 # Changelog Archive
 
-This archive is for versions 1.5.1 and prior. For current changes see [CHANGELOG.md](./CHANGELOG.md).
+This archive is for versions 1.5.5 and prior. For current changes see [CHANGELOG.md](./CHANGELOG.md).
+
+---
+
+## [1.5.5]
+
+The kind labels on launcher cards (SHELL, MACRO, COMMAND, ROUTINE) are now a calm gray pill instead of a colored one, so the board reads less busy. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.5/CHANGELOG.md)
+
+### Changed
+
+- **Launcher kind pills are now neutral gray, not colored.** The SHELL / MACRO / COMMAND / ROUTINE label on each launcher card no longer borrows the card's accent color; it renders in a muted gray. The card still signals its kind through the colored left stripe and icon, so the board stays scannable without the pills adding a second layer of color.
+
+---
+
+## [1.5.4]
+
+The bottom-panel launcher is now a color, two-pane board — your shortcuts on one side, recipes on the other — with collapsible groups, click-to-expand cards, and a right-click menu; and the side bar marks the shortcuts behind the icon count so you can see which ones you haven't used yet. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.4/CHANGELOG.md)
+
+### Added
+
+- **The Saropa Launcher is now a two-pane board with color, icons, and a right-click menu.** The bottom-panel launcher now splits into **My shortcuts** on the left and **Recipes** on the right, sitting side by side when the panel is wide and stacking when it is narrow, so your own entries are never mixed in with the detected ones. Every card now carries a colored icon matching its file type or action — the same glyphs the side bar uses — with a tinted accent stripe, so the board reads at a glance. Each group header is collapsible (its folded state is remembered), shows its own icon and a count, and searching reveals matches even inside a folded group. Click a card to expand it in place for the full name, full path, and description, with Open and Run buttons; the ▶ button still runs in one click. Right-click any card for a menu that mirrors the side bar — Run, Configure Run, Schedule, Customize, file actions, Copy as Saropa Link, Rename, Remove (and Add to Shortcuts on a recipe).
+- **See which shortcuts the activity-bar count points at.** The number on the Saropa Workspace side-bar icon counts shortcuts you've added but never opened or run. Those rows now carry a leading dot (●) in the side bar, so the count is no longer a mystery — you can see exactly which shortcuts it refers to. Open, run, or peek a shortcut and its dot clears and the count drops together. Hover a marked row for a one-line explanation of what clears it.
+
+### Fixed
+
+- **Run as administrator now actually opens the elevated window on Windows.** Running a shortcut in a new external window with administrator privileges showed the "Launched … (approve the elevation prompt)" message but no UAC prompt and no window ever appeared. The launcher was starting PowerShell detached, which stripped the desktop the Windows UAC consent needs, so the elevation was dropped silently. Elevated launches now keep that desktop and the administrator window opens as expected.
+
+---
+
+## [1.5.3]
+
+Pinned scripts now run through the right interpreter on Windows instead of opening in the editor, and your shortcuts now have a home in the bottom panel with a search box. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.3/CHANGELOG.md)
+
+### Added
+
+- **Saropa Launcher — reach your shortcuts from the bottom panel, with a search box.** A new **Saropa Launcher** tab sits in the bottom panel beside Terminal and Output, so you can find and run any shortcut without opening the Saropa icon in the side bar. It shows the same shortcuts as the sidebar plus the detected recipes, laid out as a grid that uses the panel's width — more columns when the panel is wide, fewer when it is narrow — instead of one tall column. Type in the always-visible search box to filter shortcuts and recipes live; empty groups stay hidden. Click a file shortcut to open it, an action to run it, or the ▶ button to run any of them. The sidebar Shortcuts view is unchanged — this is a second way in, not a replacement.
+- **Run With… — choose an interpreter from what is actually installed.** Right-click a script shortcut and pick **Run With…** to see the runtimes detected on this machine for that file type — the `py` launcher, versioned Python installs found even when they are not on `PATH` (e.g. `D:\Tools\Python\Python314\python.exe`), `node`, `pwsh`, and more — each showing its resolved path. Pick one (or **Browse…** for an executable) and the shortcut runs with it and remembers the choice. The same choices appear as one-click chips in **Configure Run**, where the command box now also shows what an empty prefix resolves to, so "default" is never a mystery. No settings JSON required.
+- **A new Customize screen sets a shortcut's name, icon, color, and tags in one place.** Right-click a shortcut and choose **Customize...** to open a single screen with the name field, a searchable grid of hundreds of icons shown as real glyphs, real color swatches you can actually see, and a tag editor — with a live preview of how the row will look. The old step-by-step pickers (**Set Icon & Color...**, **Rename**, tagging) are still there for quick keyboard edits.
+- **Color swatches now show their real color.** The color list used to show the same gray dot for every choice because a menu row can't paint a color; the new Customize screen shows each color as an actual swatch, tuned to the current theme, so you pick by sight.
+- **Hundreds more icons, with real search.** The Customize screen offers the full icon set grouped into categories (files, source control, run and debug, devices, people, and more), and you can type to filter by name or keyword to find the right glyph fast.
+- **Configure Run is now a single form with every option on one screen.** Right-click a shortcut and choose **Configure Run...** to set the command prefix, arguments, working directory, environment variables, where it runs, output extraction, dependency, audio cues, run-on-save, overlapping runs, and the cross-process lock — all visible and editable at once, with a live preview of the exact command that will run. The old step-by-step menu is still there as **Configure Run (Quick)...** for a fast keyboard-only edit.
+- **Run as administrator is now easy to find.** The administrator toggle used to appear only after you set the run location to a new external window, so "run this elevated" was hard to discover. In the new form the toggle is always shown — disabled, with a one-line note telling you to set **Run in** to a new external window first — so you can see the option exists and what it needs.
+
+### Fixed
+
+- **A pinned shebang script (e.g. a `#!/usr/bin/env python3` file) now runs through its interpreter on Windows instead of being opened by its file association.** Windows has no shebang honoring, so a "run directly" pin handed the bare script path to the shell, which opened the `.py` rather than executing it. The runner now resolves a real interpreter on Windows — the configured default for the file type (`python` for `.py`), falling back to the script's own shebang — while Unix keeps running such scripts directly via the shebang. To pin a specific runtime, set its extension in **Interpreter defaults** to an absolute path, e.g. `".py": "D:/Tools/Python/Python314/python.exe"`.
+
+---
+
+## [1.5.2]
+
+Tell Saropa to keep an eye on a folder or a file and get a heads-up the moment something new lands — even files written while the window was closed. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.2/CHANGELOG.md)
+
+### Added
+
+- **Watch a folder for new files, or a file for changes — and hear about it on startup, not just live.** Right-click a folder in the Explorer and choose **Watch Folder for New Files...** (or a file → **Watch File for Changes...**), or run either from the command palette. You pick whether to be told about only new files or new-and-changed files, and can narrow a folder watch to a glob (e.g. `*.md`). Saropa remembers the folder's file list between sessions, so the next time you open the window it tells you about anything written while you were away — for example, a new bug report dropped into `bugs/` by another tool or teammate. A toast names the new files and offers to open the first one. Manage, pause, or remove your watches from **Manage Folder Watches...**.
+- **A Watches view with a new-files counter on the sidebar.** Your watches now appear in a **Watches** section in the Saropa Workspace sidebar, each row showing how many new or changed files have landed since you last looked, with the running total as a badge on the activity-bar icon. Click a watch to open what changed and clear its count — the badge updates to match. Enable, disable, or remove a watch right from its row.
+- **Saropa offers to watch your `bugs/` folder.** When a project has a `bugs/` folder, Saropa offers once to watch it for new files, so a new report dropped in by a tool or teammate shows up without you setting the watch up by hand. Dismiss it and it won't ask again; add it later from the Watches view if you change your mind.
+- **Pick from 20 named icon colors instead of 7.** When you set a shortcut's or group's icon with **Set Icon & Color...**, the color list now offers a full spectrum — Red, Coral, Orange, Amber, Gold, Lime, Chartreuse, Green, Emerald, Teal, Cyan, Blue, Indigo, Violet, Purple, Magenta, Pink, Brown, Slate, and Gray, spread evenly around the color wheel so adjacent swatches stay easy to tell apart. Each color is tuned for light, dark, and high-contrast themes, so the tint you pick looks right whichever theme you use. Shortcuts you colored before this update keep their existing tint.
+- **File shortcuts now show a colored, type-aware icon at a glance.** A `.yaml`, `.json`, `.py`, `.dart`, `.ts`, `.md`, `.sql`, shell script, image, lockfile, and many more common file types each get their own glyph and tint, so a list of shortcuts reads by file type instead of every row showing the same generic pin. A type the map doesn't cover keeps the plain shortcut glyph, and any icon you set yourself always wins.
+- **Set a group's icon and color.** Right-click any group you made and choose **Set Group Icon & Color...** to give it the same icon-and-tint picker shortcuts already have, so you can tell your folders apart at a glance.
+- **A "Recommended" shelf at the top of the Recipes view.** A collapsed-by-default section highlights the handful of recipes most worth adopting for this project — led by the scheduled rituals (dawn lint sweep, dependency freshness, standup digest, and the like) that otherwise sit switched off and undiscovered. It's a quiet shelf you open when curious; nothing pops up.
+- **Turn a scheduled ritual on in one click from the Recommended shelf.** Each recommended scheduled ritual now has an inline check button: one click both adopts it and switches its schedule on, with a single toast confirming what you turned on and when — for example, "Dawn lint sweep enabled — runs daily at 05:00." No more two-step promote-then-enable.
+- **A one-time "start here" hint on the Recommended shelf.** The first time you open the Recommended group you'll see a quiet welcome row — "New here? These are worth turning on." — that points at the rituals worth enabling. It disappears for good once you've opened the shelf or adopted anything, and it's a tree row, never a popup.
+- **The Recommended shelf demotes recipes you already use.** Once you've run a featured recipe, it steps aside so the shelf keeps surfacing what you haven't tried yet. Disabled scheduled rituals stay put until you actually switch their schedule on — running one by hand doesn't count as turning it on.
+- **Show the full menu on the Recommended shelf (opt-in).** A new setting, **Recommend: Aggressive**, lifts the eight-row cap and features every disabled ritual plus every recipe you haven't adopted yet, for when you want the whole list rather than the short highlight. Off by default.
+- **The "Flutter dance" recipe, plus a Flutter section.** Flutter projects get a one-click **Flutter dance** that runs `flutter clean` then `flutter pub get`, stopping if a step fails — the standard cure for stale build output and dependency drift. It and the other flutter commands (run, analyze, build, clean, upgrade) now cluster under a **Flutter** subfolder in Build & Run.
+- **Promoting a recipe files it into a folder of the same name.** Turn a detected recipe into an editable shortcut and it lands in a group named after where it came from — a GitHub recipe in a "GitHub" group, a Flutter recipe in a "Flutter" group — created for you if it doesn't exist yet, instead of loose at the top of the list.
+- **The shortcut right-click menu is grouped into submenus instead of one long list.** A shortcut's context menu was a single flyout of around 35 items; the run actions (Open, Run, Run with Last Parameters, Stop) stay at the top, and the rest now fold into four labeled submenus — **Output & Logs** (Peek, Show Output, Toggle Log Follow, Diff, Simulate), **Configure & Schedule** (Configure Run, Schedule, Triggers, watch-on-change, Pause), **Appearance & Tags** (Set Icon & Color, Live Metric, Tag, branch link, Expiry, Mask), and **File Actions** (New File, Duplicate, Rename on Disk, Copy To, Lock, Delete). Every action is still one hover away, and the menu reads top-to-bottom at a glance.
+- **Project Shortcuts starts with ready-made groups, and new files sort themselves in.** Project Shortcuts now shows seven built-in groups — **Build**, **Run**, **Deploy**, **Test**, **Docs**, **Data**, and **Code** — each with its own colored icon, shown even while empty so you have somewhere to drop things from the start. When you add a file, Saropa files it into the matching group by its name and type: a `publish` script lands in **Deploy**, a `.test.ts` in **Test**, a `.md` in **Docs**, a `.csv` or `.json` in **Data**, a `.ts` or `.dart` in **Code**, and so on — a name like "publish" wins over the file type, and a file that fits nothing stays at the top level. The "Added" toast names the group it went to. These groups aren't written into your shared config file, so they don't clutter the repo, and you can still drag shortcuts between them. Turn the whole thing off with the **Default Groups: Enabled** setting.
+- **Promoting or scheduling a recipe drops it into the right default group.** When you promote a recipe — or turn a scheduled ritual on — it now lands in its built-in group rather than a folder named after where it came from: the test recipe in **Test**, a build task in **Build**, a deploy step in **Deploy**, the docs opener in **Docs**. Recipes without a home group still file into a folder named after their section as before.
+
+### Fixed
+
+- **The trophy icon now shows in the icon picker.** It previously rendered as a blank entry because the underlying glyph name wasn't a real product icon; the achievement glyph it was meant to be now appears, and typing "trophy", "award", or "achievement" finds it.
 
 ---
 
