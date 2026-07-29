@@ -1,10 +1,9 @@
-// Unit tests for the launcher's drag-a-card-onto-a-folded-section drop routing
-// (applyPaneDrop in launcherViewMessages.ts). The webview offers the drop only where it means
-// something, but its payload is untrusted, so the host re-resolves both the target section and
-// the dropped card and re-decides what may be filed where. These tests drive
-// handleLauncherMessage with a `dropOnPane` message against a fake store / project-files
-// provider and assert which command the host actually ran — the layer where a spoofed or
-// stale payload has to be rejected.
+// Unit tests for the launcher's drag-drop routing (applyPaneDrop and applyGroupDrop in
+// launcherViewMessages.ts). The webview offers the drop only where it means something, but
+// its payload is untrusted, so the host re-resolves the target and the dropped card and
+// re-decides what may be filed where. These tests drive handleLauncherMessage with
+// `dropOnPane` and `dropOnGroup` messages against a fake store / project-files provider and
+// assert which command or store mutation the host actually ran.
 
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -15,6 +14,7 @@ import {
 } from "./_stub/vscode";
 import { handleLauncherMessage, LauncherMessageContext } from "../views/launcherViewMessages";
 import { Shortcut } from "../model/shortcut";
+import { MoveTarget } from "../model/shortcutStore";
 
 // A stored file shortcut: `path` is folder-relative, which is why the host resolves the
 // absolute uri through the store rather than trusting the stored string.
@@ -48,6 +48,8 @@ const shellShortcut: Shortcut = {
 
 const SURFACED_FILE = "/repo/pubspec.yaml";
 
+let movedShortcuts: { shortcuts: Shortcut[]; target: MoveTarget }[] = [];
+
 function context(): LauncherMessageContext {
   const byId = new Map<string, Shortcut>([
     [fileShortcut.id, fileShortcut],
@@ -57,6 +59,9 @@ function context(): LauncherMessageContext {
   const store = {
     findShortcut: (id: string): Shortcut | undefined => byId.get(id),
     resolveUri: (s: Shortcut): unknown => Uri.file("/repo/" + s.path),
+    moveShortcuts: async (shortcuts: Shortcut[], target: MoveTarget): Promise<void> => {
+      movedShortcuts.push({ shortcuts, target });
+    },
   };
   const projectFiles = {
     listSurfacedFiles: async (): Promise<unknown[]> => [
@@ -84,6 +89,7 @@ function ran(): string[] {
 
 beforeEach(() => {
   __resetRecordedCommands();
+  movedShortcuts = [];
 });
 
 test("a recipe dropped on My shortcuts is adopted, not pinned by path", async () => {
@@ -138,4 +144,43 @@ test("an unknown card id resolves to nothing and runs no command", async () => {
   await drop("mine", "does-not-exist");
   await drop("watches", "does-not-exist");
   assert.deepEqual(ran(), []);
+});
+
+// --- dropOnGroup (card dragged between groups within a pane) ---------
+
+async function dropOnGroup(groupId: string, id: string): Promise<void> {
+  await handleLauncherMessage({ type: "dropOnGroup", groupId, id }, context());
+}
+
+test("a shortcut dropped on a group moves it into that group", async () => {
+  await dropOnGroup("project:grp-deploy", fileShortcut.id);
+  assert.equal(movedShortcuts.length, 1);
+  assert.equal(movedShortcuts[0].shortcuts[0], fileShortcut);
+  assert.deepEqual(movedShortcuts[0].target, { scope: "project", groupId: "grp-deploy" });
+});
+
+test("a shortcut dropped on a bare scope root ungroups it", async () => {
+  await dropOnGroup("project", fileShortcut.id);
+  assert.equal(movedShortcuts.length, 1);
+  assert.deepEqual(movedShortcuts[0].target, { scope: "project", groupId: undefined });
+});
+
+test("a recipe dropped on a group is rejected", async () => {
+  await dropOnGroup("project:grp-deploy", recipe.id);
+  assert.equal(movedShortcuts.length, 0);
+});
+
+test("a cross-scope group drop is rejected", async () => {
+  await dropOnGroup("global:grp-deploy", fileShortcut.id);
+  assert.equal(movedShortcuts.length, 0);
+});
+
+test("an unknown card id in a group drop does nothing", async () => {
+  await dropOnGroup("project:grp-deploy", "does-not-exist");
+  assert.equal(movedShortcuts.length, 0);
+});
+
+test("an invalid scope in a group drop does nothing", async () => {
+  await dropOnGroup("invalid:grp-deploy", fileShortcut.id);
+  assert.equal(movedShortcuts.length, 0);
 });

@@ -132,14 +132,15 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
   card.addEventListener('dragstart', function (e) {
     // \`file\` mirrors it.copyable, which is exactly "this card is backed by a real file" —
     // the same test the host uses to decide whether the card can be pinned or watched.
-    drag = { kind: 'card', id: it.id, pane: it.pane, file: !!it.copyable };
+    drag = { kind: 'card', id: it.id, pane: it.pane, file: !!it.copyable, groupId: it.groupId };
     e.dataTransfer.effectAllowed = 'copy';
     // Chromium refuses to start a drag with an empty DataTransfer; the payload the drop
     // actually reads is the module-level \`drag\` record.
     e.dataTransfer.setData('text/plain', it.label);
     syncDropTargets();
+    syncGroupDropTargets();
   });
-  card.addEventListener('dragend', function () { drag = null; syncDropTargets(); });
+  card.addEventListener('dragend', function () { drag = null; syncDropTargets(); syncGroupDropTargets(); });
   // Watch/file cards carry no right-click menu (empty it.menu); only the shortcut/recipe
   // cards mirror the sidebar context menu, so the listener is attached only when there is
   // something to show.

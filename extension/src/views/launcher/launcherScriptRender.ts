@@ -36,6 +36,26 @@ export const LAUNCHER_SCRIPT_RENDER = `function makeGroup(group) {
   });
   wrap.appendChild(head);
 
+  // Wire the group head as a drop target so a card from a different group in the same
+  // pane can be moved here. The host re-validates scope and ownership on every drop.
+  wrap.dataset.groupId = group.id;
+  head.addEventListener('dragover', function (e) {
+    if (!canDropOnGroup(group.id)) { return; }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    wrap.classList.add('drop-over');
+  });
+  head.addEventListener('dragleave', function () { wrap.classList.remove('drop-over'); });
+  head.addEventListener('drop', function (e) {
+    e.preventDefault();
+    wrap.classList.remove('drop-over');
+    if (!canDropOnGroup(group.id)) { return; }
+    vscode.postMessage({ type: 'dropOnGroup', groupId: group.id, id: drag.id });
+    drag = null;
+    syncDropTargets();
+    syncGroupDropTargets();
+  });
+
   const grid = document.createElement('div');
   grid.className = 'grid group-body';
   for (const it of group.items) { grid.appendChild(makeCard(it)); }

@@ -297,6 +297,15 @@ header {
   border-radius: 8px; padding: 0 6px; font-size: 0.9em; letter-spacing: 0;
 }
 .group.collapsed .group-body { display: none; }
+/* Drop affordances for cards dragged between groups within a pane. Mirrors the folded
+   strip's can-drop / drop-over pattern: can-drop lights every eligible group from drag
+   start; drop-over marks the one under the pointer. */
+.group.can-drop .group-head { box-shadow: inset 0 0 0 1px var(--vscode-focusBorder); border-radius: 4px; }
+.group.drop-over .group-head {
+  box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+  background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground, transparent));
+  border-radius: 4px;
+}
 /* During a search, reveal a collapsed group's body so matching cards are never hidden
    behind a folded folder; the chevron stays in its collapsed pose so the persisted posture
    is still legible. */
