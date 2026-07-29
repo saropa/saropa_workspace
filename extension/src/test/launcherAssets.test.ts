@@ -220,6 +220,18 @@ test("LAUNCHER_SCRIPT: only sections that can receive a card accept a drop", () 
   // preventDefault in dragover is what marks a valid drop target; without it no drop event
   // ever fires and the whole feature silently does nothing.
   assert.ok(LAUNCHER_SCRIPT.includes("function acceptsDrop"));
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("type: 'dropOnGroup'"),
+    "a card drop on a group header must post the target group and card id back to the host"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("function canDropOnGroup"),
+    "group-level drop affordance must gate on same-pane, different-group"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("function syncGroupDropTargets"),
+    "group drop targets must highlight during a card drag"
+  );
 });
 
 test("LAUNCHER_STYLE: hides filtered cards and empty groups/panes via the .hidden class", () => {

@@ -53,6 +53,23 @@ function canDropOnPane(paneId) {
   return false;
 }
 
+// Whether a group header accepts the card being dragged. A card from the "mine" pane can be
+// moved to a different group within the same pane; the host re-validates scope and ownership.
+function canDropOnGroup(groupId) {
+  if (!drag || drag.kind !== 'card') { return false; }
+  if (drag.pane !== 'mine') { return false; }
+  return drag.groupId !== groupId;
+}
+
+// Highlight every group header that would accept the card currently being dragged, and clear
+// all affordances on dragend (when drag is null). Called alongside syncDropTargets.
+function syncGroupDropTargets() {
+  for (const el of root.querySelectorAll('.group')) {
+    el.classList.toggle('can-drop', canDropOnGroup(el.dataset.groupId));
+    if (!drag) { el.classList.remove('drop-over'); }
+  }
+}
+
 // The two layout containers, assigned by render(): the folded strip and the open-panes row.
 // placePanes moves each pane between them, so both are read outside render.
 let foldedEl = null;

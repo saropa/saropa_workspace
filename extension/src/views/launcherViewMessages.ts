@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { ShortcutStore } from "../model/shortcutStore";
-import { shortcutKind } from "../model/shortcut";
+import { ShortcutStore, MoveTarget } from "../model/shortcutStore";
+import { shortcutKind, ShortcutScope } from "../model/shortcut";
 import { FolderWatchStore } from "../model/folderWatch";
 import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutOpen";
@@ -65,6 +65,7 @@ export async function handleLauncherMessage(
     command?: string;
     path?: string;
     pane?: string;
+    groupId?: string;
   };
   if (msg.type === "ready") {
     await ctx.post();
@@ -135,6 +136,15 @@ export async function handleLauncherMessage(
     typeof msg.id === "string"
   ) {
     await applyPaneDrop(msg.pane, msg.id, ctx);
+    return;
+  }
+
+  if (
+    msg.type === "dropOnGroup" &&
+    typeof msg.groupId === "string" &&
+    typeof msg.id === "string"
+  ) {
+    await applyGroupDrop(msg.groupId, msg.id, ctx);
     return;
   }
 
@@ -211,6 +221,37 @@ async function applyPaneDrop(
       await vscode.commands.executeCommand("saropaWorkspace.watchFile", uri);
     }
   }
+}
+
+// Move a shortcut into a different group within the same scope. The composite groupId from the
+// webview is "scope:rawGroupId" for a user group, or bare "scope" for the scope's top level.
+// The shortcut is re-resolved from the store and the scope must match — a stale or spoofed
+// payload silently no-ops. The store's moveShortcuts emits its own refresh, so the launcher
+// repaints automatically.
+async function applyGroupDrop(
+  compositeGroupId: string,
+  id: string,
+  ctx: LauncherMessageContext
+): Promise<void> {
+  const shortcut = ctx.store.findShortcut(id);
+  if (!shortcut || shortcut.isRecipe) {
+    return;
+  }
+  const colonIndex = compositeGroupId.indexOf(":");
+  const scope: ShortcutScope =
+    colonIndex === -1
+      ? (compositeGroupId as ShortcutScope)
+      : (compositeGroupId.slice(0, colonIndex) as ShortcutScope);
+  const groupId =
+    colonIndex === -1 ? undefined : compositeGroupId.slice(colonIndex + 1);
+  if (scope !== "project" && scope !== "global") {
+    return;
+  }
+  if (shortcut.scope !== scope) {
+    return;
+  }
+  const target: MoveTarget = { scope, groupId };
+  await ctx.store.moveShortcuts([shortcut], target);
 }
 
 // The on-disk file a dropped card addresses, or undefined when it addresses none. A
