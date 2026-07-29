@@ -21,6 +21,7 @@ function paneCount(pane) {
 // connected bar. Chevron, section glyph, title and count, wired to the persisted collapse
 // posture. Inside the strip the stylesheet clip-hides the title and chevron, leaving only
 // the glyph + count visible; the tooltip and aria-expanded provide the accessible name.
+// Hovering a folded segment for 300ms peeks the title inline, then hides it on mouse-out.
 function makePaneHead(pane, paneEl, paneKey) {
   const head = document.createElement('button');
   head.className = 'pane-head';
@@ -44,8 +45,6 @@ function makePaneHead(pane, paneEl, paneKey) {
   const showLabel = (strings.showSection || 'Show {name}').split('{name}').join(pane.title);
   const syncPosture = function (collapsed) {
     head.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    // Only the folded pill needs to state what a click does; an open section's chevron and
-    // its body below already say it, and a standing tooltip there would be noise.
     head.title = collapsed ? showLabel : '';
   };
   syncPosture(paneEl.classList.contains('collapsed'));
@@ -53,19 +52,27 @@ function makePaneHead(pane, paneEl, paneKey) {
     const collapsed = paneEl.classList.toggle('collapsed');
     setCollapsed(paneKey, collapsed);
     syncPosture(collapsed);
+    paneEl.classList.remove('peeking');
     placePanes();
-    // placePanes re-parents the pane, which drops focus from the button just pressed;
-    // restore it so keyboard traversal is not thrown back to the document body.
     head.focus();
+  });
+  var peekTimer = null;
+  head.addEventListener('mouseenter', function () {
+    if (!paneEl.classList.contains('collapsed')) { return; }
+    peekTimer = setTimeout(function () { paneEl.classList.add('peeking'); }, 300);
+  });
+  head.addEventListener('mouseleave', function () {
+    if (peekTimer) { clearTimeout(peekTimer); peekTimer = null; }
+    paneEl.classList.remove('peeking');
   });
   wirePaneDrag(pane, paneEl, head);
   return head;
 }
 
-// A folded pill is both a drag SOURCE (drag it to another pill's slot to rearrange the
-// strip) and a drop TARGET (a card dropped on it is filed into that section). Both are gated
-// on the pane being folded: an expanded pane's head is a full-width section header sitting
-// directly above its own card grid, where a drag would fight the cards underneath it.
+// A folded segment is both a drag SOURCE (drag it to another segment's slot to rearrange
+// the strip) and a drop TARGET (a card dropped on it is filed into that section). Both are
+// gated on the pane being folded: an expanded pane's head is a full-width section header
+// sitting directly above its own card grid, where a drag would fight the cards underneath.
 function wirePaneDrag(pane, paneEl, head) {
   head.draggable = true;
   head.addEventListener('dragstart', function (e) {
@@ -107,17 +114,17 @@ function wirePaneDrag(pane, paneEl, head) {
   });
 }
 
-// A folded pill accepts a reorder from a DIFFERENT folded pill, or a card its section can
-// take. An expanded pane accepts nothing.
+// A folded segment accepts a reorder from a DIFFERENT folded segment, or a card its section
+// can take. An expanded pane accepts nothing.
 function acceptsDrop(paneId, paneEl) {
   if (!drag || !paneEl.classList.contains('collapsed')) { return false; }
   if (drag.kind === 'pane') { return drag.id !== paneId; }
   return canDropOnPane(paneId);
 }
 
-// Move the dragged pill into the dropped-on pill's slot and persist the WHOLE resulting
-// strip order — not a sparse patch — so a pane the user never dragged still gets a recorded
-// position the moment anything is rearranged, and the strip cannot drift between reloads.
+// Move the dragged segment into the dropped-on segment's slot and persist the WHOLE
+// resulting strip order — not a sparse patch — so a pane the user never dragged still gets
+// a recorded position the moment anything is rearranged, and the strip cannot drift.
 function reorderFolded(fromId, toId) {
   const ids = [];
   for (const el of foldedEl.querySelectorAll('.pane')) { ids.push(el.dataset.pane); }
@@ -158,9 +165,9 @@ function placePanes() {
   foldedEl.classList.toggle('hidden', !foldedEl.querySelector('.pane:not(.hidden)'));
 }
 
-// Light up every pill that would accept the card currently being dragged, from the moment
-// the drag starts — so the user sees where a card CAN go instead of hovering each pill to
-// find out. Clearing runs on dragend, when \`drag\` is back to null.
+// Light up every segment that would accept the card currently being dragged, from the moment
+// the drag starts — so the user sees where a card CAN go instead of hovering each segment
+// to find out. Clearing runs on dragend, when \`drag\` is back to null.
 function syncDropTargets() {
   if (!foldedEl) { return; }
   for (const el of foldedEl.querySelectorAll('.pane')) {

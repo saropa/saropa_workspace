@@ -50,15 +50,17 @@ test("LAUNCHER_STYLE: the panes reflow via flex-wrap, not a fixed grid track", (
 
 test("LAUNCHER_STYLE: the folded strip is a connected segmented bar", () => {
   // Collapsed sections form a connected bar — the container owns the border and border-radius
-  // with overflow:hidden so first/last visible segments get rounded corners automatically.
-  // Segments sit flush (zero column gap); width:fit-content hugs segments.
+  // with overflow:clip (not hidden — clip preserves focus outlines that bleed outside the box).
+  // Segments sit flush (zero column gap); width:fit-content hugs segments, with inline-flex
+  // as a fallback for older Chromium.
   const strip = LAUNCHER_STYLE.match(/^\.folded\s*\{[^}]*\}/m);
   assert.ok(strip, ".folded rule must exist");
   assert.ok(strip[0].includes("display: flex"), "the strip must lay out with flex");
+  assert.ok(strip[0].includes("inline-flex"), "inline-flex fallback for Chromium versions without fit-content");
   assert.ok(strip[0].includes("flex-wrap: wrap"), "the strip must wrap on a narrow Panel");
   assert.ok(/gap:\s*4px 0/.test(strip[0]), "the strip must have zero column gap and a small row gap for wrapping");
   assert.ok(strip[0].includes("border-radius: 6px"), "the bar must have rounded outer corners");
-  assert.ok(strip[0].includes("overflow: hidden"), "overflow:hidden clips segments to the bar's rounded corners");
+  assert.ok(strip[0].includes("overflow: clip"), "overflow:clip clips content while preserving focus outlines");
   assert.ok(strip[0].includes("width: fit-content"), "the bar must hug its segments, not stretch full-width");
   assert.ok(
     /\.folded\.hidden\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
@@ -69,10 +71,12 @@ test("LAUNCHER_STYLE: the folded strip is a connected segmented bar", () => {
 test("LAUNCHER_STYLE: a folded segment shows icon + count only, with the title clip-hidden", () => {
   // Segments inside the connected bar show only the glyph and count. The title is clip-hidden
   // (not display:none) so it remains the button's accessible name. The chevron is also hidden.
+  // position:relative on the head anchors the absolutely-positioned clip-hidden title.
   const seg = LAUNCHER_STYLE.match(/\.folded\s+\.pane-head\s*\{[^}]*\}/);
   assert.ok(seg, "the folded pane-head rule must exist");
+  assert.ok(seg[0].includes("position: relative"), "the head must be position:relative to anchor the clip-hidden title");
   assert.ok(seg[0].includes("border: none"), "a segment must have no individual border — the bar container owns it");
-  assert.ok(seg[0].includes("border-radius: 0"), "a segment must have no radius — the bar's overflow:hidden handles corners");
+  assert.ok(seg[0].includes("border-radius: 0"), "a segment must have no radius — the bar's overflow:clip handles corners");
   assert.ok(
     /\.folded\s+\.pane-title\s*\{[^}]*clip-path/.test(LAUNCHER_STYLE),
     "the title must be clip-hidden for accessibility, not display:none"
@@ -80,6 +84,32 @@ test("LAUNCHER_STYLE: a folded segment shows icon + count only, with the title c
   assert.ok(
     /\.folded\s+\.pane-chevron\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
     "the chevron must be hidden inside the strip only"
+  );
+});
+
+test("LAUNCHER_STYLE: hover-peek un-clips the title inside a folded segment", () => {
+  // Hovering a folded segment for 300ms adds .peeking, which restores the title to normal
+  // flow so the user can read the section name inline without clicking.
+  assert.ok(
+    /\.folded\s+\.pane\.peeking\s+\.pane-title\s*\{[^}]*position:\s*static/.test(LAUNCHER_STYLE),
+    "a peeking segment must restore the title to static positioning"
+  );
+  assert.ok(
+    /\.folded\s+\.pane\.peeking\s+\.pane-title\s*\{[^}]*clip-path:\s*none/.test(LAUNCHER_STYLE),
+    "a peeking segment must remove the clip-path so the title is visible"
+  );
+});
+
+test("LAUNCHER_STYLE: dividers use general-sibling to skip hidden panes", () => {
+  // .pane ~ .pane:not(.hidden) draws dividers between visible segments even when a hidden
+  // pane sits between them. The first visible pane must not get a left divider.
+  assert.ok(
+    /\.folded\s+\.pane\s*~\s*\.pane:not\(\.hidden\)/.test(LAUNCHER_STYLE),
+    "dividers must use the general-sibling combinator (~) to skip hidden panes"
+  );
+  assert.ok(
+    /\.folded\s+\.pane:first-child:not\(\.hidden\)\s*\{[^}]*border-left:\s*none/.test(LAUNCHER_STYLE),
+    "the first visible pane must not draw a left divider"
   );
 });
 
@@ -113,6 +143,28 @@ test("LAUNCHER_STYLE: a folded segment shows where a dragged card can be dropped
   assert.ok(
     /\.folded\s+\.pane\.dragging\s+\.pane-head\s*\{[^}]*opacity/.test(LAUNCHER_STYLE),
     "the segment being dragged must dim so its origin is legible during a reorder"
+  );
+});
+
+test("LAUNCHER_SCRIPT: hovering a folded segment peeks the title after a delay", () => {
+  // mouseenter on a collapsed segment starts a 300ms timer; on fire it adds .peeking which
+  // un-clips the title. mouseleave clears the timer and removes .peeking. Click also clears
+  // .peeking so the title does not stick when the section expands.
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("peeking"),
+    "the script must reference the peeking class"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("mouseenter"),
+    "the script must listen for mouseenter to start the peek timer"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("mouseleave"),
+    "the script must listen for mouseleave to cancel the peek"
+  );
+  assert.ok(
+    /setTimeout\(.*300\)/.test(LAUNCHER_SCRIPT),
+    "the peek must use a 300ms delay before showing the title"
   );
 });
 

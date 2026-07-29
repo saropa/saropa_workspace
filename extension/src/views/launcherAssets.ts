@@ -163,27 +163,34 @@ header {
 .pane { flex: 1 1 340px; min-width: 0; }
 /* The folded strip, rendered as a connected segmented bar. A collapsed pane is MOVED into
    this container (placePanes in the client script) rather than left in the panes row. The
-   container owns the outer border and border-radius with overflow:hidden so the first and
-   last visible segments get rounded corners automatically — a per-segment :first-child
-   selector would break whenever a hidden pane sits at either end. width:fit-content hugs
-   the segments so the bar does not stretch across the full panel width. */
+   container owns the outer border and border-radius; clip (not overflow:hidden) prevents
+   clipping of focus outlines that extend outside the bar — focus-visible outlines use
+   outline-offset:-1px to draw inward, but clip is the safer default since it clips
+   overflow while allowing visual effects that bleed past the border-box by up to the
+   overflow-clip-margin. width:fit-content (with display:inline-flex fallback for older
+   Chromium) hugs the segments so the bar does not stretch across the full panel. */
 .folded {
-  display: flex; flex-wrap: wrap; align-items: stretch;
+  display: inline-flex; display: flex; flex-wrap: wrap; align-items: stretch;
   gap: 4px 0;
   margin-bottom: 10px;
   border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
   border-radius: 6px;
-  overflow: hidden;
+  overflow: clip;
   width: fit-content;
   max-width: 100%;
   background: var(--vscode-editorWidget-background, transparent);
 }
 .folded.hidden { display: none; }
-/* Segments sit flush inside the bar — no per-segment border or radius. The adjacent-sibling
-   combinator draws a 1px divider between neighbors; display:none on a hidden pane collapses
-   any divider drawn before nothing. */
-.folded .pane + .pane:not(.hidden) { border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+/* Dividers between visible segments. The general-sibling combinator (~) skips hidden panes
+   between two visible ones — the adjacent combinator (+) would leave a gap when a hidden
+   pane sits between two visible segments. The :first-child reset prevents the first visible
+   segment from drawing a left divider when preceded only by hidden panes. */
+.folded .pane ~ .pane:not(.hidden) { border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.folded .pane:first-child:not(.hidden) { border-left: none; }
+/* position:relative anchors the clip-hidden .pane-title so it positions relative to the
+   button it belongs to, not a distant positioned ancestor. */
 .folded .pane-head {
+  position: relative;
   width: auto;
   height: 100%;
   gap: 5px;
@@ -197,7 +204,8 @@ header {
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
 }
 /* The title is clip-hidden (not display:none) so it remains the button's accessible name
-   for screen readers and the tooltip. The glyph + count are the only visible elements. */
+   for screen readers and the tooltip. On hover-peek (.peeking) the title un-clips and
+   slides into view so the user can read which section this segment represents. */
 .folded .pane-title {
   position: absolute;
   width: 1px; height: 1px;
@@ -205,6 +213,14 @@ header {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+  transition: none;
+}
+.folded .pane.peeking .pane-title {
+  position: static;
+  width: auto; height: auto;
+  padding: 0; margin: 0;
+  overflow: visible;
+  clip-path: none;
 }
 /* Chevron hidden inside the strip — the glyph and count already identify the segment. */
 .folded .pane-chevron { display: none; }
