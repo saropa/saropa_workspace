@@ -46,7 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.6.3]
+
+The Launcher panel gets a usability overhaul with new section visibility toggle chips, a convenient one-click reset button to restore hidden panes, and a smoother startup experience with a new loading indicator. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.3/CHANGELOG.md)
 
 ### Added
 
