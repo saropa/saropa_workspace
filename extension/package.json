@@ -69,6 +69,11 @@
           "id": "saropaWorkspace.scripts",
           "name": "%views.scripts.name%",
           "visibility": "collapsed"
+        },
+        {
+          "id": "saropaWorkspace.notes",
+          "name": "%views.notes.name%",
+          "visibility": "collapsed"
         }
       ],
       "saropaWorkspaceLauncher": [
@@ -99,6 +104,10 @@
       {
         "view": "saropaWorkspace.scripts",
         "contents": "%viewsWelcome.scripts.contents%"
+      },
+      {
+        "view": "saropaWorkspace.notes",
+        "contents": "%viewsWelcome.notes.contents%"
       }
     ],
     "commands": [
@@ -195,6 +204,41 @@
       {
         "command": "saropaWorkspace.refreshScripts",
         "title": "%command.refreshScripts.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "saropaWorkspace.newNote",
+        "title": "%command.newNote.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "saropaWorkspace.newNoteFromClipboard",
+        "title": "%command.newNoteFromClipboard.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "saropaWorkspace.deleteNote",
+        "title": "%command.deleteNote.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "saropaWorkspace.renameNote",
+        "title": "%command.renameNote.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.openNotesFolder",
+        "title": "%command.openNotesFolder.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "saropaWorkspace.refreshNotes",
+        "title": "%command.refreshNotes.title%",
         "category": "%extension.displayName%",
         "icon": "$(refresh)"
       },
@@ -1472,6 +1516,26 @@
           "command": "saropaWorkspace.refreshScripts",
           "when": "view == saropaWorkspace.scripts",
           "group": "navigation@1"
+        },
+        {
+          "command": "saropaWorkspace.newNote",
+          "when": "view == saropaWorkspace.notes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "saropaWorkspace.refreshNotes",
+          "when": "view == saropaWorkspace.notes",
+          "group": "navigation@2"
+        },
+        {
+          "command": "saropaWorkspace.newNoteFromClipboard",
+          "when": "view == saropaWorkspace.notes",
+          "group": "1_notes@1"
+        },
+        {
+          "command": "saropaWorkspace.openNotesFolder",
+          "when": "view == saropaWorkspace.notes",
+          "group": "1_notes@2"
         }
       ],
       "view/item/context": [
@@ -1494,6 +1558,21 @@
           "command": "saropaWorkspace.removeWatch",
           "when": "view == saropaWorkspace.watches && viewItem =~ /^watch(Enabled|Disabled)$/",
           "group": "inline@3"
+        },
+        {
+          "command": "saropaWorkspace.deleteNote",
+          "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "saropaWorkspace.renameNote",
+          "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
+          "group": "1_note@1"
+        },
+        {
+          "command": "saropaWorkspace.deleteNote",
+          "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
+          "group": "1_note@2"
         },
         {
           "command": "saropaWorkspace.resetRunHistory",
@@ -1715,6 +1794,18 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "saropaWorkspace.deleteNote",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.renameNote",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.refreshNotes",
+          "when": "false"
+        },
         {
           "command": "saropaWorkspace.runScript",
           "when": "false"
