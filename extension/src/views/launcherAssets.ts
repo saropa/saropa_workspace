@@ -161,57 +161,61 @@ header {
 }
 /* An expanded pane grows to share the row and holds a 340px comfortable floor. */
 .pane { flex: 1 1 340px; min-width: 0; }
-/* The folded strip. A collapsed pane is MOVED out of the panes row into this container
-   (placePanes in the client script) rather than left in the row to shrink in place. The
-   container is real DOM, not a CSS trick, for three reasons: it owns its own tight 6px gap
-   (the panes row's 14px column gap is tuned for pane columns and reads as scattered debris
-   at pill size); its pills wrap as a unit, so a narrow Panel stacks the folded sections into
-   their own lines instead of interleaving them with the open panes; and it is the drop
-   surface — a card dragged onto a pill is filed into that section. Shrinking a pane in place
-   also depended on the panes row keeping align-items:flex-start with a growing first item,
-   which the strip no longer assumes. */
+/* The folded strip, rendered as a connected segmented bar. A collapsed pane is MOVED into
+   this container (placePanes in the client script) rather than left in the panes row. The
+   container owns the outer border and border-radius with overflow:hidden so the first and
+   last visible segments get rounded corners automatically — a per-segment :first-child
+   selector would break whenever a hidden pane sits at either end. width:fit-content hugs
+   the segments so the bar does not stretch across the full panel width. */
 .folded {
-  display: flex; flex-wrap: wrap; align-items: center;
-  gap: 6px;
+  display: flex; flex-wrap: wrap; align-items: stretch;
+  gap: 4px 0;
   margin-bottom: 10px;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-radius: 6px;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+  background: var(--vscode-editorWidget-background, transparent);
 }
 .folded.hidden { display: none; }
-/* Once a head is only as wide as its own label, the section-header styling works against it:
-   an auto-width underline plus an uppercase title reads as a broken-off table header floating
-   in the dead space beside the open pane (developer feedback 2026-07-27). Inside the strip a
-   head therefore becomes a pill — bordered box, no underline, symmetric padding — so the
-   strip reads as a deliberate row of controls. The border falls back through
-   --vscode-panel-border because many themes leave --vscode-widget-border unset, and a pill
-   whose outline resolves to transparent is no pill at all; the fill reuses the same
-   secondary-button chain the cards use (.card), so a pill and a card read as one material. */
+/* Segments sit flush inside the bar — no per-segment border or radius. The adjacent-sibling
+   combinator draws a 1px divider between neighbors; display:none on a hidden pane collapses
+   any divider drawn before nothing. */
+.folded .pane + .pane:not(.hidden) { border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
 .folded .pane-head {
   width: auto;
+  height: 100%;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 5px 10px;
   margin-bottom: 0;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
-  border-radius: 999px;
-  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background, transparent));
+  border: none;
+  border-radius: 0;
+  background: none;
 }
-/* Every fallback chain here terminates in a static keyword: an all-undefined var() chain is
-   invalid at computed-value time, which DROPS the declaration rather than resolving it. */
 .folded .pane-head:hover {
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
 }
-/* The chevron is dropped inside the strip. The pill's shape, its section glyph and its count
-   already read as a control, and a fourth element at chip size crowded the box; the head
-   carries a "Show <section>" tooltip + aria-expanded instead, which says more than a rotated
-   glyph did. Scoped to .folded so an expanded section keeps its chevron. */
+/* The title is clip-hidden (not display:none) so it remains the button's accessible name
+   for screen readers and the tooltip. The glyph + count are the only visible elements. */
+.folded .pane-title {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Chevron hidden inside the strip — the glyph and count already identify the segment. */
 .folded .pane-chevron { display: none; }
-/* The pill being dragged to a new strip position. */
+.folded .pane-count { font-size: 0.78em; font-weight: 600; }
 .folded .pane.dragging .pane-head { opacity: 0.5; }
-/* Drop affordance, in two steps. .can-drop lights every pill that WOULD accept the card
-   currently being dragged, from the moment the drag starts, so the eligible targets are
-   visible before the pointer reaches one; .drop-over marks the pill actually under the
-   pointer. Without the first, a user has to hover each pill to discover which accept. */
-.folded .pane.can-drop .pane-head { border-color: var(--vscode-focusBorder); }
+/* Drop affordances use inset box-shadow instead of border-color — segments have no
+   individual borders to recolor. .can-drop lights every eligible segment from drag start;
+   .drop-over marks the one under the pointer. */
+.folded .pane.can-drop .pane-head { box-shadow: inset 0 0 0 1px var(--vscode-focusBorder); }
 .folded .pane.drop-over .pane-head {
-  border-color: var(--vscode-focusBorder);
+  box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
   background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground, transparent));
 }
 .pane.hidden { display: none; }
