@@ -46,12 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
----
-
 ## [1.6.1]
 
-[log](https://github.com/saropa/saropa-workspace/blob/v1.6.0/CHANGELOG.md)
+The bottom-panel tab is now called "Saropa Workspace" to match the extension, complete with a new subtitle and a command palette entry so you can still easily find it by searching for "launcher". [log](https://github.com/saropa/saropa-workspace/blob/v1.6.1/CHANGELOG.md)
 
 ### Changed
 
