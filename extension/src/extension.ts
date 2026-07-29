@@ -220,7 +220,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const { tree, treeView, branchTracker } = createTreeView(context, store);
 
   // Folder/file watches: register the add/manage commands and build the engine + store.
-  // Constructed before setupSecondaryViews so the Saropa Launcher can be handed the watch
+  // Constructed before setupSecondaryViews so the Saropa Workspace panel can be handed the watch
   // store and show a Watches pane from the same source the Watches tree reads. The engine's
   // startup scan is fired below, deferred past activation, so files written while the window
   // was closed are surfaced on open without doing file IO in activate().

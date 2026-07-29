@@ -9,7 +9,7 @@ import { handleLauncherMessage } from "./launcherViewMessages";
 import { buildAllItems, buildHeader } from "./launcherViewData";
 import { renderHtml } from "./launcherViewShell";
 
-// The "Saropa Launcher" Panel webview: a second, always-reachable window onto the same
+// The "Saropa Workspace" Panel webview: a second, always-reachable window onto the same
 // shortcut data the sidebar tree shows, living in the bottom Panel (beside Terminal /
 // Output) so a shortcut can be found and run without opening the activity-bar icon. The
 // sidebar tree stays the canonical arrange/manage surface (drag-reorder, the full context
@@ -66,6 +66,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
+    view.description = l10n("launcher.viewDescription");
     view.webview.options = {
       enableScripts: true,
       // The codicon font + stylesheet live in dist/; restrict local-resource loads to it.

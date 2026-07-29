@@ -1,4 +1,4 @@
-// Inlined CSS for the "Saropa Launcher" Panel webview, kept in its own module so
+// Inlined CSS for the "Saropa Workspace" Panel webview, kept in its own module so
 // launcherView.ts stays the controller/host side. Injected under the view's per-load nonce;
 // loads no remote resource (the one local resource is the codicon font, loaded host-side via
 // asWebviewUri). All colors/spacing bind to --vscode-* theme variables so the surface matches

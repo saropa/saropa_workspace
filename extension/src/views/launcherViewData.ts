@@ -12,7 +12,7 @@ import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProv
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
 
-// The pure data-assembly layer for the Saropa Launcher webview host (launcherView.ts): turns
+// The pure data-assembly layer for the Saropa Workspace panel webview host (launcherView.ts): turns
 // the store/watch/project-files state into the flat item list and header object the webview
 // renders. Kept apart from the class so the "what goes on screen" logic reads independently
 // of the lifecycle/message-routing concerns launcherView.ts keeps.

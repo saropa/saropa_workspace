@@ -1,4 +1,4 @@
-// The client renderer for the Saropa Launcher Panel webview. Receives {type:'data'} with the
+// The client renderer for the Saropa Workspace Panel webview. Receives {type:'data'} with the
 // flat item list + header, renders the four panes (My shortcuts / Recipes / Watches / Project
 // files) as collapsible groups of tinted cards, and posts user intents back (open, run,
 // copyPath, a right-click menu command). All DOM is built defensively with textContent/

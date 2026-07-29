@@ -46,6 +46,9 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+---
+
 ## [1.6.1]
 
 [log](https://github.com/saropa/saropa-workspace/blob/v1.6.0/CHANGELOG.md)
@@ -53,6 +56,7 @@ cspell:disable
 ### Changed
 
 - The bottom-panel tab is now titled "Saropa Workspace" instead of "Saropa Launcher", matching the extension name
+- The panel view now shows a subtitle ("Search and launch shortcuts from the Panel") to distinguish it from the sidebar
 
 ---
 

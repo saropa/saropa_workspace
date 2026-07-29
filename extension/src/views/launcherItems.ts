@@ -11,7 +11,7 @@ import { fileTypeIcon, kindIcon, kindColor } from "./fileTypeTokens";
 import { candidatesForExt } from "../exec/interpreters";
 import { buildMenu } from "./launcherItemMenu";
 
-// The pure data layer for the Saropa Launcher webview: turn the store's shortcuts and
+// The pure data layer for the Saropa Workspace panel webview: turn the store's shortcuts and
 // detected recipes into the flat, group-tagged rows the two-pane grid renders. Kept free
 // of any VS Code import so it unit-tests under Node's runner (the launcherView host that
 // owns the webview is where the vscode dependency lives).

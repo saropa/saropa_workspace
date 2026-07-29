@@ -166,7 +166,7 @@ export function setupSecondaryViews(
     )
   );
 
-  // The "Saropa Launcher" Panel webview: the sidebar's surfaces in the bottom Panel, so
+  // The "Saropa Workspace" Panel webview: the sidebar's surfaces in the bottom Panel, so
   // they can be searched without opening the activity-bar icon — the shortcut + recipe
   // panes (from the store), plus flat Watches and Project files panes (from the watch
   // store and the project-files provider). A second window onto those sources, not a copy:

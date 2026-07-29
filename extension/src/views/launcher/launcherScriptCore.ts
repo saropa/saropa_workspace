@@ -1,4 +1,4 @@
-// Fragment of the Saropa Launcher webview client script. The whole script is split across
+// Fragment of the Saropa Workspace panel webview client script. The whole script is split across
 // src/views/launcher/* only to keep each file under the line cap; at runtime the fragments
 // are concatenated by launcherScript.ts into ONE <script>, so every fragment shares a single
 // global scope (all function/const declarations are hoisted or run in order). Do not reorder

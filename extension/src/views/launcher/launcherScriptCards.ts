@@ -1,4 +1,4 @@
-// Fragment of the Saropa Launcher webview client script. Split across src/views/launcher/*
+// Fragment of the Saropa Workspace panel webview client script. Split across src/views/launcher/*
 // only to keep each file under the line cap; concatenated by launcherScript.ts into ONE
 // <script>, so this shares the global scope launcherScriptCore.ts sets up (cssVar, codicon,
 // postOpen, and the `strings`/`items` state it declares).
