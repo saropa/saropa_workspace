@@ -57,7 +57,7 @@ When you add a new webview panel or view, its title key starts with `Saropa `.
 Do not hardcode the prefix at the call sites — set it once in the catalog value
 and reference the key everywhere (single source of truth).
 
-### 1.1a Panel launcher: a second window onto the tree, not a copy
+### 1.1a Panel view: a second window onto the tree, not a copy
 
 The **Saropa Workspace** panel (a webview view in the bottom Panel) mirrors the same
 shortcut + recipe data the sidebar tree shows, so a shortcut is reachable
