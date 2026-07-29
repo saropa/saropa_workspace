@@ -46,6 +46,21 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- An eye-icon reset button appears in the header when any section is toggled off — one click restores all sections to visible
+
+### Changed
+
+- Launcher panel shows a loading indicator on startup instead of a blank header until data arrives
+- Launcher header stat chips are now section visibility toggles (on/off) instead of pane filters — each chip independently shows or hides its section, with dimmed styling when off
+- The "scheduled" count is now an informational label (not a toggle), since scheduled cards live inside My shortcuts
+- Removed the folded-sections strip; pane visibility is controlled entirely from the header stat chips
+
+---
+
 ## [1.6.2]
 
 A brand new Notes view in the sidebar lets you manage project-scoped and global markdown notes, and collapsed launcher sections have been streamlined into a cleaner segmented bar that peeks titles on hover. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.2/CHANGELOG.md)

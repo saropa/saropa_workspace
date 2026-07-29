@@ -29,6 +29,8 @@
   "launcher.count": "{n}",
   "launcher.countFiltered": "{shown}/{total}",
   "launcher.noProject": "No folder open",
+  "launcher.loading": "Loading…",
+  "launcher.showAll": "Show all sections",
   "launcher.version": "v{version}",
   "launcher.statShortcuts": "{count} shortcuts",
   "launcher.statRecipes": "{count} scheduled",

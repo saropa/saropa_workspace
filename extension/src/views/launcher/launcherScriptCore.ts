@@ -13,10 +13,24 @@ export const LAUNCHER_SCRIPT_CORE = `const vscode = acquireVsCodeApi();
 let strings = {};
 let items = [];
 let activeMenu = null;
-// The pane a header stat filters the board to, or null for "show all". Toggled by clicking a
-// stat chip; combines with the text search (a card must match both). Transient — it resets on
-// reload, unlike the per-section collapse posture, because a filter is a momentary focus.
-let activePane = null;
+// Which panes the user has toggled off via the header stat chips. Persisted across reloads
+// so toggled-off sections stay hidden. Each key is a pane id; presence means hidden.
+function hiddenPanes() { return store.hidden || {}; }
+function isPaneHidden(pane) { return !!hiddenPanes()[pane]; }
+function hasHiddenPanes() {
+  const h = hiddenPanes();
+  for (var k in h) { if (h[k]) { return true; } }
+  return false;
+}
+function setPaneHidden(pane, hidden) {
+  store.hidden = store.hidden || {};
+  if (hidden) { store.hidden[pane] = true; } else { delete store.hidden[pane]; }
+  vscode.setState(store);
+}
+function resetHiddenPanes() {
+  store.hidden = {};
+  vscode.setState(store);
+}
 
 // Persisted collapse posture: { collapsed: { <groupId>: true }, order: [<paneId>] }.
 // Restored on load so a folded group stays folded, and the folded strip keeps the sequence
@@ -29,29 +43,11 @@ function setCollapsed(id, v) {
   vscode.setState(store);
 }
 
-// The folded strip's user-arranged pane order. A pane absent from the list (never dragged)
-// sorts after the arranged ones in its authored position, so adding a pane in a later release
-// lands it predictably at the end instead of jumping to the front of the strip.
-function foldedOrder() { return Array.isArray(store.order) ? store.order : []; }
-function setFoldedOrder(ids) { store.order = ids; vscode.setState(store); }
-
-// The in-flight drag: { kind: 'card'|'pane', id, pane, file } or null. The payload lives in
+// The in-flight drag: { kind: 'card', id, pane, file } or null. The payload lives in
 // this module variable rather than in the DataTransfer because getData() is unreadable during
-// dragover (the spec's protected mode), and whether a pill accepts the drop must be decided
+// dragover (the spec's protected mode), and whether a target accepts the drop must be decided
 // THERE — on drop is too late to show an affordance.
 let drag = null;
-
-// Which folded section accepts the card being dragged. Only two drops mean anything: a
-// detected recipe or a surfaced project file can be adopted into My shortcuts, and any
-// file-backed card can be put under a watch. Recipes, Project files and Scripts are derived
-// from detection or from disk — nothing can be filed INTO them — so they never accept. The
-// host re-validates all of this; this function only drives the affordance.
-function canDropOnPane(paneId) {
-  if (!drag || drag.kind !== 'card') { return false; }
-  if (paneId === 'mine') { return drag.pane === 'recipes' || drag.pane === 'files'; }
-  if (paneId === 'watches') { return drag.file === true && drag.pane !== 'watches'; }
-  return false;
-}
 
 // Whether a group header accepts the card being dragged. A card from the "mine" pane can be
 // moved to a different group within the same pane; the host re-validates scope and ownership.
@@ -70,7 +66,7 @@ function canDropOnCard(targetId) {
 }
 
 // Highlight every group header that would accept the card currently being dragged, and clear
-// all affordances on dragend (when drag is null). Called alongside syncDropTargets.
+// all affordances on dragend (when drag is null).
 function syncGroupDropTargets() {
   for (const el of root.querySelectorAll('.group')) {
     el.classList.toggle('can-drop', canDropOnGroup(el.dataset.groupId));
@@ -87,9 +83,7 @@ function syncCardDropTargets() {
   }
 }
 
-// The two layout containers, assigned by render(): the folded strip and the open-panes row.
-// placePanes moves each pane between them, so both are read outside render.
-let foldedEl = null;
+// The panes row container, assigned by render().
 let panesEl = null;
 
 const q = document.getElementById('q');
@@ -121,33 +115,50 @@ function renderHeader(h) {
   if (!h) { return; }
   if (typeof h.project === 'string' && h.project) { projName.textContent = h.project; }
   projMeta.textContent = '';
-  // If the active filter's pane vanished from the new stat set (e.g. its count dropped to
-  // zero), drop the filter so the board does not stay narrowed to nothing.
-  const stats = Array.isArray(h.stats) ? h.stats : [];
-  if (activePane && !stats.some(function (s) { return s.pane === activePane; })) {
-    activePane = null;
-  }
   if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true, null)); }
+  const stats = Array.isArray(h.stats) ? h.stats : [];
   for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false, s.pane)); }
+  syncResetBtn();
 }
 
-// A header meta entry. The version is a plain label (pane null); a stat carries a pane and so
-// renders as a filter-toggle button — clicking it narrows the board to that pane (or clears
-// the filter when it is already active). The active chip keeps an .active highlight.
+function syncResetBtn() {
+  var existing = projMeta.querySelector('.meta-reset');
+  if (hasHiddenPanes()) {
+    if (!existing) {
+      var btn = document.createElement('button');
+      btn.className = 'meta-item meta-reset';
+      btn.type = 'button';
+      btn.title = strings.showAll || 'Show all sections';
+      btn.appendChild(codicon('eye'));
+      btn.addEventListener('click', function () {
+        resetHiddenPanes();
+        for (var chip of projMeta.querySelectorAll('.meta-item.toggle')) {
+          chip.classList.remove('off');
+        }
+        applyFilter();
+        syncResetBtn();
+      });
+      projMeta.appendChild(btn);
+    }
+  } else if (existing) {
+    existing.remove();
+  }
+}
+
 function metaItem(icon, text, isVersion, pane) {
   const el = document.createElement(pane ? 'button' : 'span');
   el.className = isVersion ? 'meta-item version' : 'meta-item';
   if (pane) {
-    el.classList.add('filter');
+    el.classList.add('toggle');
     el.type = 'button';
     el.dataset.pane = pane;
-    if (pane === activePane) { el.classList.add('active'); }
+    if (isPaneHidden(pane)) { el.classList.add('off'); }
     el.addEventListener('click', function () {
-      activePane = activePane === pane ? null : pane;
-      for (const f of projMeta.querySelectorAll('.meta-item.filter')) {
-        f.classList.toggle('active', f.dataset.pane === activePane);
-      }
+      const nowHidden = !isPaneHidden(pane);
+      setPaneHidden(pane, nowHidden);
+      el.classList.toggle('off', nowHidden);
       applyFilter();
+      syncResetBtn();
     });
   }
   el.appendChild(codicon(icon));

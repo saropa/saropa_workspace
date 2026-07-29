@@ -319,11 +319,9 @@ test("a recipe's menu offers Pin and Schedule (adopt-then-schedule)", () => {
 });
 
 test("a shortcut with an enabled schedule is flagged scheduled; a disabled or absent one is not", () => {
-  // The header's "scheduled" chip is a cross-pane filter keyed on this flag, so the data
-  // layer must mark a card scheduled only when its schedule is actually switched on — the
-  // same enabled === true signal the scheduler and status bar arm off. A disabled schedule
-  // (a seeded-but-off recipe promotion) and a scheduleless shortcut must both read false, or
-  // the chip would reveal cards that are not automated.
+  // The scheduled flag drives the header's informational "scheduled" count and the card's
+  // data-scheduled attribute. It must be true only when the schedule is actually switched on
+  // — the same enabled === true signal the scheduler and status bar arm off.
   const items = buildLauncherItems(
     asStore({
       ...empty,

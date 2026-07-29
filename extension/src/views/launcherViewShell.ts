@@ -47,7 +47,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
   <div class="head-bar">
     <div class="project">
       <div id="projName" class="project-name">${projectName}</div>
-      <div id="projMeta" class="project-meta"></div>
+      <div id="projMeta" class="project-meta"><span class="meta-item loading"><span class="codicon codicon-loading codicon-modifier-spin"></span><span>${l10n("launcher.loading")}</span></span></div>
     </div>
     <div class="search">
       <span class="codicon codicon-search"></span>

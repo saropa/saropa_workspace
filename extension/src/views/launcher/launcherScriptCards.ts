@@ -12,8 +12,6 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
   const card = document.createElement('div');
   card.className = 'card';
   card.dataset.pane = it.pane;
-  // Tag scheduled cards so the header's cross-pane "scheduled" filter can narrow to them
-  // (they live in the "mine" pane but are a distinct, smaller set).
   if (it.scheduled) { card.dataset.scheduled = 'true'; }
   card.style.setProperty('--card-tint', cssVar(it.color));
   card.dataset.hay = (it.label + ' ' + it.sub + ' ' + (it.desc || '') + ' ' + it.section).toLowerCase();
@@ -139,12 +137,10 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
     // Chromium refuses to start a drag with an empty DataTransfer; the payload the drop
     // actually reads is the module-level \`drag\` record.
     e.dataTransfer.setData('text/plain', it.label);
-    syncDropTargets();
     syncGroupDropTargets();
   });
   card.addEventListener('dragend', function () {
     drag = null;
-    syncDropTargets();
     syncGroupDropTargets();
     syncCardDropTargets();
   });
@@ -166,7 +162,6 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
     if (!canDropOnCard(it.id)) { return; }
     vscode.postMessage({ type: 'dropOnCard', groupId: it.groupId, targetId: it.id, id: drag.id });
     drag = null;
-    syncDropTargets();
     syncGroupDropTargets();
     syncCardDropTargets();
   });
