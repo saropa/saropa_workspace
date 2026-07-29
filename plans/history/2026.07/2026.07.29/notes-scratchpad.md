@@ -114,26 +114,26 @@ A `FileSystemWatcher` on `.saropa/notes/**` and the global notes folder triggers
 
 ## Implementation phases
 
-### Phase 1 — Core (MVP)
+### Phase 1 — Core (MVP) ✅
 
-1. **Notes tree view** — register `saropaWorkspace.notes` as a 6th view in the sidebar container, collapsed by default
-2. **NotesProvider** — `TreeDataProvider` that reads `.saropa/notes/` (project) and `globalStorageUri/notes/` (global), returns `NoteTreeItem` rows sorted alphabetically
-3. **NoteTreeItem** — renders filename, modified-date description, codicon `note` icon; click opens the file
-4. **New Note command** — input box for name → creates `.md` file → opens it
-5. **Delete Note command** — confirmation dialog → deletes file → refreshes tree
-6. **Rename Note command** — input box → `fs.rename` → refreshes tree
-7. **FileSystemWatcher** — auto-refresh on external changes
-8. **i18n** — all strings externalized to `en.json` and `package.nls.json`
-9. **package.json contributions** — view, commands, menus, welcome content
+1. ✅ **Notes tree view** — register `saropaWorkspace.notes` as a 6th view in the sidebar container, collapsed by default
+2. ✅ **NotesProvider** — `TreeDataProvider` that reads `.saropa/notes/` (project) and `globalStorageUri/notes/` (global), returns `NoteTreeItem` rows sorted alphabetically
+3. ✅ **NoteTreeItem** — renders filename, modified-date description, codicon `note` icon; click opens the file
+4. ✅ **New Note command** — input box for name → creates `.md` file → opens it
+5. ✅ **Delete Note command** — confirmation dialog → deletes file → refreshes tree
+6. ✅ **Rename Note command** — input box → `fs.rename` → refreshes tree
+7. ✅ **FileSystemWatcher** — auto-refresh on external changes
+8. ✅ **i18n** — all strings externalized to `en.json` and `package.nls.json`
+9. ✅ **package.json contributions** — view, commands, menus, welcome content
+10. ✅ **New Note from Clipboard** — pre-fills content (moved from Phase 2)
 
 ### Phase 2 — Organization
 
-10. **Index file** — `.notes-index.json` for manual ordering and pinned status
-11. **Pin-to-top** — inline toggle, pinned notes sort above unpinned
-12. **Drag-and-drop reorder** — `TreeDragAndDropController` updates the index
-13. **Tags** — freeform string tags stored in the index; filter chips in the view title
-14. **Sort modes** — name / modified / manual, persisted in settings
-15. **New Note from Clipboard** — pre-fills content
+11. **Index file** — `.notes-index.json` for manual ordering and pinned status
+12. **Pin-to-top** — inline toggle, pinned notes sort above unpinned
+13. **Drag-and-drop reorder** — `TreeDragAndDropController` updates the index
+14. **Tags** — freeform string tags stored in the index; filter chips in the view title
+15. **Sort modes** — name / modified / manual, persisted in settings
 
 ### Phase 3 — Cross-project and polish
 
@@ -147,15 +147,13 @@ A `FileSystemWatcher` on `.saropa/notes/**` and the global notes folder triggers
 
 | File | Change |
 |------|--------|
-| `src/views/notesProvider.ts` | New — tree data provider |
-| `src/views/noteTreeItem.ts` | New — tree item rendering |
-| `src/commands/noteCommands.ts` | New — command handlers |
-| `src/model/noteStore.ts` | New — read/write notes folder, index file |
-| `src/activation/wiringViews.ts` | Register the notes view and watcher |
-| `src/activation/wiringCommands.ts` | Register note commands |
-| `extension/package.json` | View, commands, menus, when-clauses |
-| `extension/package.nls.json` | Manifest string keys |
-| `src/i18n/locales/en.json` | Runtime string keys |
+| `src/model/noteStore.ts` | New — read/write notes folders, list notes |
+| `src/views/notesProvider.ts` | New — tree data provider (follows WatchesTreeProvider pattern) |
+| `src/commands/noteCommands.ts` | New — command handlers (new, delete, rename, open folder, refresh) |
+| `src/activation/wiringViews.ts` | Register the Notes view, watcher, and commands |
+| `extension/package.json` | View, commands, menus, viewsWelcome, when-clauses |
+| `extension/package.nls.json` | Manifest string keys for Notes view and commands |
+| `src/i18n/locales/en.json` | Runtime string keys for Notes toasts and prompts |
 
 ## Decisions
 
@@ -173,3 +171,41 @@ A `FileSystemWatcher` on `.saropa/notes/**` and the global notes folder triggers
 - Note syncing across machines beyond what VS Code Settings Sync provides for global notes.
 - Collaborative / shared notes — local-first principle.
 - Note encryption — out of scope; users who need it can use encrypted filesystems.
+
+## Finish Report (2026-07-29)
+
+### What shipped
+
+Phase 1 (Core MVP) of the Notes feature: a 6th sidebar tree view for persistent, on-disk Markdown notes with project-scoped (`.saropa/notes/`) and global (`globalStorageUri/notes/`) collections.
+
+### Files added
+
+| File | Purpose |
+|------|---------|
+| `src/model/noteStore.ts` | Note storage model: list/create/delete/rename across project and global scopes, file system watchers, `ensureNoteExtension` helper |
+| `src/views/notesProvider.ts` | `NotesTreeProvider` (flat list + collapsible "Global Notes" scope root), `NoteTreeItem` with relative-time description |
+| `src/commands/noteCommands.ts` | 6 commands: new note, new from clipboard, delete, rename, open folder, refresh; scope picker with typed `ScopePickItem` |
+| `src/test/noteStore.test.ts` | Unit tests for `ensureNoteExtension` |
+
+### Files modified
+
+| File | Change |
+|------|--------|
+| `src/activation/wiringViews.ts` | Registers Notes view, debounced watcher, count sync, and note commands |
+| `package.json` | View contribution, 6 commands, view/title toolbar, view/item/context menus, viewsWelcome, commandPalette visibility |
+| `package.nls.json` | NLS keys for view name, welcome content, and 6 command titles |
+| `src/i18n/locales/en.json` | 18 runtime l10n keys for toasts, prompts, time formatting, scope picker, and error messages |
+| `CHANGELOG.md` | Documented Notes feature under `[Unreleased]` |
+
+### Review findings addressed
+
+- **createNote collision check**: Added `fileExists` guard before writing to prevent silent overwrite of existing notes.
+- **openNotesFolder error handling**: Wrapped `revealFileInOS` in try/catch with user-facing error message.
+- **Filename extension normalization**: Extracted `ensureNoteExtension` as a single-source-of-truth helper, eliminating 3-way duplication.
+- **Scope picker fragility**: Replaced translated-label string comparison with typed `ScopePickItem` carrying a stable `.scope` field.
+- **Watcher debouncing**: Applied `makeDebounced` (200ms trailing edge) to file system watcher fires, consistent with the decoration provider pattern.
+- **Rationale headers**: Added top-of-file comments to all three new files, matching the established house style.
+
+### Remaining work
+
+Phases 2–3 (organization, cross-project surfacing, launcher integration) split into [`plans/PLAN_NOTES_PHASE_2_3.md`](../PLAN_NOTES_PHASE_2_3.md).
