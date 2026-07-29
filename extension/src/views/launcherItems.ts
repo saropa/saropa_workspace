@@ -6,6 +6,7 @@ import {
   isAnnotationShortcut,
 } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { compositeGroupId } from "../model/shortcutStoreShared";
 import { l10n } from "../i18n/l10n";
 import { fileTypeIcon, kindIcon, kindColor } from "./fileTypeTokens";
 import { candidatesForExt } from "../exec/interpreters";
@@ -244,7 +245,7 @@ function scopeGroup(
     return { id: scope, label: scopeLabel, icon: scopeIcon, color: scopeColor };
   }
   return {
-    id: `${scope}:${group.id}`,
+    id: compositeGroupId(scope, group.id),
     label: `${scopeLabel} / ${group.label}`,
     icon: group.icon ?? "folder",
     color: group.color ?? scopeColor,

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ShortcutStore, MoveTarget } from "../model/shortcutStore";
-import { shortcutKind, ShortcutScope } from "../model/shortcut";
+import { shortcutKind } from "../model/shortcut";
+import { parseCompositeGroupId } from "../model/shortcutStoreShared";
 import { FolderWatchStore } from "../model/folderWatch";
 import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutOpen";
@@ -66,6 +67,7 @@ export async function handleLauncherMessage(
     path?: string;
     pane?: string;
     groupId?: string;
+    targetId?: string;
   };
   if (msg.type === "ready") {
     await ctx.post();
@@ -148,6 +150,19 @@ export async function handleLauncherMessage(
     return;
   }
 
+  // A card dropped on another card: move the dragged card into the target card's group,
+  // positioned before the target. The target card's composite groupId and shortcut id are
+  // both re-resolved host-side; the webview only posts untrusted identifiers.
+  if (
+    msg.type === "dropOnCard" &&
+    typeof msg.groupId === "string" &&
+    typeof msg.id === "string" &&
+    typeof msg.targetId === "string"
+  ) {
+    await applyGroupDrop(msg.groupId, msg.id, ctx, msg.targetId);
+    return;
+  }
+
   if (typeof msg.id !== "string") {
     return;
   }
@@ -223,34 +238,34 @@ async function applyPaneDrop(
   }
 }
 
-// Move a shortcut into a different group within the same scope. The composite groupId from the
-// webview is "scope:rawGroupId" for a user group, or bare "scope" for the scope's top level.
-// The shortcut is re-resolved from the store and the scope must match — a stale or spoofed
-// payload silently no-ops. The store's moveShortcuts emits its own refresh, so the launcher
-// repaints automatically.
+// Move a shortcut into a different group (or position) within the same scope. The composite
+// groupId from the webview is "scope:rawGroupId" for a user group, or bare "scope" for the
+// scope's top level. An optional beforeShortcutId inserts ahead of that sibling instead of
+// appending. The shortcut is re-resolved from the store and the scope must match — a stale or
+// spoofed payload silently no-ops. The store's moveShortcuts emits its own refresh, so the
+// launcher repaints automatically.
 async function applyGroupDrop(
-  compositeGroupId: string,
+  compositeId: string,
   id: string,
-  ctx: LauncherMessageContext
+  ctx: LauncherMessageContext,
+  beforeShortcutId?: string
 ): Promise<void> {
   const shortcut = ctx.store.findShortcut(id);
   if (!shortcut || shortcut.isRecipe) {
     return;
   }
-  const colonIndex = compositeGroupId.indexOf(":");
-  const scope: ShortcutScope =
-    colonIndex === -1
-      ? (compositeGroupId as ShortcutScope)
-      : (compositeGroupId.slice(0, colonIndex) as ShortcutScope);
-  const groupId =
-    colonIndex === -1 ? undefined : compositeGroupId.slice(colonIndex + 1);
-  if (scope !== "project" && scope !== "global") {
+  const parsed = parseCompositeGroupId(compositeId);
+  if (!parsed) {
     return;
   }
-  if (shortcut.scope !== scope) {
+  if (shortcut.scope !== parsed.scope) {
     return;
   }
-  const target: MoveTarget = { scope, groupId };
+  const target: MoveTarget = {
+    scope: parsed.scope,
+    groupId: parsed.groupId,
+    beforeShortcutId,
+  };
   await ctx.store.moveShortcuts([shortcut], target);
 }
 

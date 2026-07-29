@@ -45,7 +45,10 @@ export const LAUNCHER_SCRIPT_RENDER = `function makeGroup(group) {
     e.dataTransfer.dropEffect = 'move';
     wrap.classList.add('drop-over');
   });
-  head.addEventListener('dragleave', function () { wrap.classList.remove('drop-over'); });
+  head.addEventListener('dragleave', function (e) {
+    if (head.contains(e.relatedTarget)) { return; }
+    wrap.classList.remove('drop-over');
+  });
   head.addEventListener('drop', function (e) {
     e.preventDefault();
     wrap.classList.remove('drop-over');

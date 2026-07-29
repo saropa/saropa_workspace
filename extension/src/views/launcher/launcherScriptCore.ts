@@ -61,12 +61,29 @@ function canDropOnGroup(groupId) {
   return drag.groupId !== groupId;
 }
 
+// Whether a card accepts the card being dragged (drop-to-reorder: insert before the target).
+// A "mine" card accepts any other "mine" card that is not itself.
+function canDropOnCard(targetId) {
+  if (!drag || drag.kind !== 'card') { return false; }
+  if (drag.pane !== 'mine') { return false; }
+  return drag.id !== targetId;
+}
+
 // Highlight every group header that would accept the card currently being dragged, and clear
 // all affordances on dragend (when drag is null). Called alongside syncDropTargets.
 function syncGroupDropTargets() {
   for (const el of root.querySelectorAll('.group')) {
     el.classList.toggle('can-drop', canDropOnGroup(el.dataset.groupId));
     if (!drag) { el.classList.remove('drop-over'); }
+  }
+}
+
+// Clear card drop-over affordances on dragend. Cards do not show can-drop (unlike groups)
+// because highlighting every eligible card is too noisy; only the hovered card gets drop-over.
+function syncCardDropTargets() {
+  if (drag) { return; }
+  for (const el of root.querySelectorAll('.card')) {
+    el.classList.remove('drop-over');
   }
 }
 

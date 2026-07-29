@@ -32,6 +32,8 @@ import {
   isGlobPattern,
   setsEqual,
   sameSetName,
+  compositeGroupId,
+  parseCompositeGroupId,
 } from "../model/shortcutStoreShared";
 import type { RecipeResult } from "../recipes/detectors";
 
@@ -337,4 +339,25 @@ test("sameSetName: case-insensitive and trimmed for duplicate detection", () => 
   assert.equal(sameSetName("Release", "release"), true);
   assert.equal(sameSetName("  Main ", "main"), true);
   assert.equal(sameSetName("Feature", "Release"), false);
+});
+
+test("compositeGroupId builds the scope:rawGroupId format", () => {
+  assert.equal(compositeGroupId("project", "abc123"), "project:abc123");
+  assert.equal(compositeGroupId("global", "xyz"), "global:xyz");
+});
+
+test("parseCompositeGroupId round-trips with compositeGroupId", () => {
+  const parsed = parseCompositeGroupId(compositeGroupId("project", "grp-1"));
+  assert.deepEqual(parsed, { scope: "project", groupId: "grp-1" });
+});
+
+test("parseCompositeGroupId handles a bare scope (ungrouped)", () => {
+  assert.deepEqual(parseCompositeGroupId("project"), { scope: "project", groupId: undefined });
+  assert.deepEqual(parseCompositeGroupId("global"), { scope: "global", groupId: undefined });
+});
+
+test("parseCompositeGroupId rejects an invalid scope", () => {
+  assert.equal(parseCompositeGroupId("invalid:grp"), undefined);
+  assert.equal(parseCompositeGroupId(""), undefined);
+  assert.equal(parseCompositeGroupId(":grp"), undefined);
 });
