@@ -3,7 +3,7 @@
 // item acted on (no silent async). The scope picker (project vs global) is shown
 // only when a workspace folder is open; otherwise notes default to global.
 import * as vscode from "vscode";
-import { NoteStore, ensureNoteExtension } from "../model/noteStore";
+import { NoteStore, ensureDir, ensureNoteExtension } from "../model/noteStore";
 import { NoteTreeItem } from "../views/notesProvider";
 import { l10n } from "../i18n/l10n";
 
@@ -129,16 +129,11 @@ export function registerNoteCommands(
 
   reg("saropaWorkspace.openNotesFolder", async () => {
     const dir = store.projectNotesDir() ?? store.globalNotesDir();
-    try {
-      await vscode.commands.executeCommand(
-        "revealFileInOS",
-        vscode.Uri.file(dir.fsPath)
-      );
-    } catch {
-      void vscode.window.showWarningMessage(
-        l10n("notes.folderNotFound")
-      );
-    }
+    await ensureDir(dir);
+    await vscode.commands.executeCommand(
+      "revealFileInOS",
+      vscode.Uri.file(dir.fsPath)
+    );
   });
 
   reg("saropaWorkspace.refreshNotes", () => {
@@ -150,12 +145,26 @@ function asNoteItem(arg: unknown): NoteTreeItem | undefined {
   return arg instanceof NoteTreeItem ? arg : undefined;
 }
 
-function validateNoteName(value: string): string | undefined {
+// Windows reserved device names that cannot be used as filenames.
+const RESERVED_NAMES = new Set([
+  "con", "prn", "aux", "nul",
+  "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+  "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+]);
+
+export function validateNoteName(value: string): string | undefined {
   if (!value.trim()) {
     return l10n("notes.nameRequired");
   }
   if (/[/\\:*?"<>|]/.test(value)) {
     return l10n("notes.nameInvalidChars");
+  }
+  if (/[. ]$/.test(value)) {
+    return l10n("notes.nameTrailingDotSpace");
+  }
+  const stem = value.replace(/\.[^.]+$/, "").toLowerCase();
+  if (RESERVED_NAMES.has(stem)) {
+    return l10n("notes.nameReserved", { name: stem.toUpperCase() });
   }
   return undefined;
 }

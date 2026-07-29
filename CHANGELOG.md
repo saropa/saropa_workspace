@@ -46,15 +46,17 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.6.2]
 
-[log](https://github.com/saropa/saropa-workspace/blob/v1.6.2/CHANGELOG.md)
+A brand new Notes view in the sidebar lets you manage project-scoped and global markdown notes, and collapsed launcher sections have been streamlined into a cleaner segmented bar that peeks titles on hover. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.2/CHANGELOG.md)
 
 ### Added
 
 - Notes view — a 6th tree view in the sidebar for persistent, on-disk notes (Markdown by default). Notes are project-scoped (stored in `.saropa/notes/`, shareable via the repo) or global (stored in extension data, available in every workspace). Single click opens, context menu offers rename and delete. A file system watcher keeps the tree in sync with external changes
 - "New Note" and "New Note from Clipboard" commands for creating notes with an optional scope picker (project vs global)
-- "Open Notes Folder" command to reveal the notes directory in the OS file manager
+- "Open Notes Folder" command to reveal the notes directory in the OS file manager (creates the directory first if it does not exist)
+- Hover preview on note tree items — lazily reads the first 5 lines of the file and shows them in a Markdown tooltip
+- Filename validation blocks Windows reserved device names (CON, NUL, PRN, AUX, COM1–9, LPT1–9) and trailing dots or spaces
 
 ### Changed
 

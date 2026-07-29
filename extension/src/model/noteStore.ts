@@ -28,7 +28,7 @@ function globalNotesDirUri(context: vscode.ExtensionContext): vscode.Uri {
   return vscode.Uri.joinPath(context.globalStorageUri, "notes");
 }
 
-async function ensureDir(uri: vscode.Uri): Promise<void> {
+export async function ensureDir(uri: vscode.Uri): Promise<void> {
   try {
     await vscode.workspace.fs.createDirectory(uri);
   } catch {
@@ -72,6 +72,22 @@ async function listMarkdownFiles(
   }
   notes.sort((a, b) => a.filename.localeCompare(b.filename));
   return notes;
+}
+
+const PREVIEW_BYTES = 512;
+
+export async function readNotePreview(uri: vscode.Uri): Promise<string> {
+  try {
+    const raw = await vscode.workspace.fs.readFile(uri);
+    const text = Buffer.from(raw).toString("utf-8").slice(0, PREVIEW_BYTES);
+    const lines = text.split(/\r?\n/).slice(0, 5);
+    if (raw.byteLength > PREVIEW_BYTES || text.split(/\r?\n/).length > 5) {
+      lines.push("…");
+    }
+    return lines.join("\n").trimEnd();
+  } catch {
+    return "";
+  }
 }
 
 export class NoteStore {
