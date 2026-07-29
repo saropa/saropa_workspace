@@ -4,7 +4,7 @@
 // Project Files views. Global notes appear under a collapsible "Global Notes"
 // scope root, matching the project/global split pattern used by Shortcuts.
 import * as vscode from "vscode";
-import { NoteEntry, NoteStore } from "../model/noteStore";
+import { NoteEntry, NoteStore, readNotePreview } from "../model/noteStore";
 import { l10n } from "../i18n/l10n";
 
 export class NotesTreeProvider
@@ -35,6 +35,21 @@ export class NotesTreeProvider
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
     return element;
+  }
+
+  async resolveTreeItem(
+    item: vscode.TreeItem
+  ): Promise<vscode.TreeItem> {
+    if (!(item instanceof NoteTreeItem)) {
+      return item;
+    }
+    const preview = await readNotePreview(item.note.uri);
+    if (preview) {
+      const md = new vscode.MarkdownString(preview);
+      md.supportThemeIcons = true;
+      item.tooltip = md;
+    }
+    return item;
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
