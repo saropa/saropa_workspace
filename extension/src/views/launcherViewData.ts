@@ -17,15 +17,14 @@ import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
 // renders. Kept apart from the class so the "what goes on screen" logic reads independently
 // of the lifecycle/message-routing concerns launcherView.ts keeps.
 
-// What a header chip filters the board to: one of the real panes, or the cross-pane
-// "scheduled" key that narrows to scheduled shortcut cards wherever they sit (inside "mine").
-export type LauncherFilter = LauncherItem["pane"] | "scheduled";
+// A pane that a header toggle chip can show or hide.
+export type LauncherFilter = LauncherItem["pane"];
 
-// One count shown in the header's meta line: the filter it applies (so a click can narrow
-// the board to that pane or to scheduled cards), a codicon id, and its pre-localized label
-// (e.g. "6 shortcuts"). Built host-side so the webview holds no display strings.
+// One count shown in the header's meta line. When `pane` is set, the stat is a toggle chip
+// that shows/hides that pane section; when omitted, the stat is an informational label
+// (e.g. the scheduled-rituals count, which is not tied to a single pane).
 export interface LauncherStat {
-  readonly pane: LauncherFilter;
+  readonly pane?: LauncherFilter;
   readonly icon: string;
   readonly text: string;
 }
@@ -159,15 +158,9 @@ export function buildHeader(
   const count = (pane: LauncherItem["pane"]): number =>
     items.reduce((n, it) => (it.pane === pane ? n + 1 : n), 0);
   // "Scheduled" means a live ritual: a stored shortcut whose schedule is switched ON
-  // (schedule.enabled === true) — the same signal the scheduler and the status bar arm off.
-  // The previous count used getRecipeShortcuts().filter(schedule !== undefined), which was
-  // wrong twice over: every detected recipe SEEDS a disabled schedule (so it was never
-  // undefined — "17 recipes available" wrongly read as "17 scheduled"), and a recipe that
-  // is promoted+enabled into a real ritual leaves the recipe set entirely, so the recipe
-  // list can never report what is genuinely scheduled. Count project + global shortcuts with
-  // an enabled schedule, mirroring scheduleStatusBar, and file the stat under the "mine"
-  // pane where those promoted rituals render. With nothing enabled the count is 0 and
-  // pushStat omits the stat, so the header no longer claims schedules that do not exist.
+  // (schedule.enabled === true). Rendered as an informational label (no pane toggle) since
+  // scheduled cards live inside "mine". With nothing enabled the count is 0 and pushStat
+  // omits it.
   const scheduledRituals = [
     ...store.getProjectShortcuts(),
     ...store.getGlobalShortcuts(),
@@ -175,24 +168,21 @@ export function buildHeader(
   const stats: LauncherStat[] = [];
   const pushStat = (
     n: number,
-    pane: LauncherFilter,
     icon: string,
-    key: string
+    key: string,
+    pane?: LauncherFilter
   ): void => {
     if (n > 0) {
       stats.push({ pane, icon, text: l10n(key, { count: n }) });
     }
   };
-  pushStat(count("mine"), "mine", "star-full", "launcher.statShortcuts");
-  // "scheduled" is a cross-pane filter, not a pane: it narrows the board to the shortcut
-  // cards whose schedule is enabled, which live inside the "mine" pane. Filing it under
-  // "mine" (as it once was) made the chip a duplicate of the shortcuts chip — clicking it
-  // revealed every shortcut instead of only the scheduled ones. The distinct "scheduled"
-  // key is matched against each card's scheduled flag in the webview filter.
-  pushStat(scheduledRituals, "scheduled", "clock", "launcher.statRecipes");
-  pushStat(count("watches"), "watches", "eye", "launcher.statWatches");
-  pushStat(count("files"), "files", "files", "launcher.statFiles");
-  pushStat(count("scripts"), "scripts", "library", "launcher.statScripts");
+  pushStat(count("mine"), "star-full", "launcher.statShortcuts", "mine");
+  // Scheduled is informational (no pane toggle): the count of shortcuts with an enabled
+  // schedule. Scheduled cards live inside "mine", so a pane toggle would duplicate it.
+  pushStat(scheduledRituals, "clock", "launcher.statRecipes");
+  pushStat(count("watches"), "eye", "launcher.statWatches", "watches");
+  pushStat(count("files"), "files", "launcher.statFiles", "files");
+  pushStat(count("scripts"), "library", "launcher.statScripts", "scripts");
 
   return {
     project,

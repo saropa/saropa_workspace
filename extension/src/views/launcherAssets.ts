@@ -7,31 +7,27 @@
 //
 // Header: a two-part bar (.head-bar) — the project block on the leading edge, the compact
 // search group on the trailing edge. The project block reads as one line: the folder name,
-// then the declared version + per-pane counts inline beside it. Each count is a filter chip
-// (combining with the text search): a pane chip narrows the board to that pane, and the
-// "scheduled" chip narrows it to the live scheduled shortcut cards wherever they sit — a
-// cross-pane filter, not a pane, so it headlines what is actually automated.
+// then the declared version + per-pane counts inline beside it. Each count is a toggle chip:
+// clicking it shows or hides that pane section. A dimmed (`.off`) chip means the section is
+// hidden; full opacity means visible. A loading indicator is shown until the first data
+// message arrives.
 // The name paints synchronously from the host's initial HTML; the version + counts arrive in
 // the first data message (they need the disk scan) and are written by renderHeader.
 //
 // Layout (the design the launcher earns over a TreeView): the Panel is wide and short, so
-// the surface splits into two responsive panes — "My shortcuts" (the user's own entries)
-// on the left, "Recipes" (auto-detected, un-adopted) on the right — that sit side by side
-// when wide and stack (mine first) when narrow, via a repeat(auto-fit, minmax) track. Each
-// pane holds collapsible groups; each group holds a responsive card grid. Every card wears
-// a tinted codicon matching its file type / action kind (the same token map the sidebar
-// tree uses). A primary click EXPANDS a card's drawer (full name, path, description, and
-// Open/Run buttons) rather than opening — browsing is non-destructive; the ▶ button still
-// runs in one click. A right-click opens a flat, separator-grouped menu mirroring the
-// sidebar's actions, routed to the same host commands by shortcut id.
+// the surface splits into responsive panes that sit side by side when wide and stack when
+// narrow. Each pane holds collapsible groups; each group holds a responsive card grid.
+// Every card wears a tinted codicon matching its file type / action kind (the same token
+// map the sidebar tree uses). A primary click EXPANDS a card's drawer (full name, path,
+// description, and Open/Run buttons) rather than opening — browsing is non-destructive;
+// the ▶ button still runs in one click. A right-click opens a flat, separator-grouped menu
+// mirroring the sidebar's actions, routed to the same host commands by shortcut id.
 //
 // Search is client-side: the host posts the full item set once per change and the script
-// filters live on every keystroke; while a query is active, collapsed panes and groups
-// reveal their matches so a result is never hidden behind a folded section or folder. Both
-// levels collapse independently — a whole pane (My shortcuts / Recipes / Watches / Project
-// files) or a single inner group — and the posture persists across reloads via the webview's
-// getState/setState. A folded pane leaves the panes row entirely for the .folded strip, where
-// it renders as a pill; the strip is draggable to reorder and is a drop target for cards.
+// filters live on every keystroke; while a query is active, collapsed groups reveal their
+// matches so a result is never hidden behind a fold. Pane visibility is toggled via the
+// header stat chips (on/off); inner groups collapse independently, with posture persisted
+// across reloads via the webview's getState/setState.
 
 export const LAUNCHER_STYLE = `
 /* The one place the card-button label size and box padding live. Every card action
@@ -96,26 +92,33 @@ header {
 }
 .meta-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .meta-item .codicon { font-size: 13px; }
-/* The version is the headline fact (which release is this), so it reads in the regular
-   foreground rather than the dimmed description color the counts use. */
+.meta-item.loading { color: var(--vscode-descriptionForeground); }
 .meta-item.version { color: var(--vscode-foreground); }
-/* A stat that carries a pane is a filter toggle: clicking it shows only that pane's cards.
-   It is a real <button>, so reset the native chrome to match the inline meta text, and give
-   it a hover/active affordance so it reads as clickable. The active filter stays highlighted
-   until toggled off. */
-.meta-item.filter {
-  background: none; border: none; font: inherit; color: inherit;
+.meta-item.toggle {
+  background: none; border: none; font: inherit;
   cursor: pointer; border-radius: 3px; padding: 1px 5px;
+  color: var(--vscode-foreground);
+  opacity: 1;
+  transition: opacity 0.12s ease;
 }
-.meta-item.filter:hover {
+.meta-item.toggle:hover {
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
-  color: var(--vscode-foreground);
 }
-.meta-item.filter:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.meta-item.filter.active {
-  background: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground, transparent));
-  color: var(--vscode-foreground);
+.meta-item.toggle:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.meta-item.toggle.off {
+  opacity: 0.4;
 }
+.meta-item.meta-reset {
+  background: none; border: none; font: inherit;
+  cursor: pointer; border-radius: 3px; padding: 1px 5px;
+  color: var(--vscode-foreground);
+  opacity: 0.6;
+}
+.meta-item.meta-reset:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
+}
+.meta-item.meta-reset:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 /* Cap the search group's width: the Panel is very wide, and a wide input left the search bar
    stretched across the whole surface, crowding out the project summary. flex 0 1 keeps it a
    compact group (icon + input + count) on the trailing edge that may shrink but not grow past
@@ -150,90 +153,14 @@ header {
 .count:empty { display: none; }
 
 /* Responsive panes via flex-wrap (not grid): side by side when the Panel is wide, wrapping
-   to stacked (mine first) when narrow. flex is used over a grid track here precisely so a
-   COLLAPSED pane can shed its width — a grid track keeps its minmax width even when its
-   content folds, but a flex item can shrink to its header. align-items:flex-start so an
-   empty/short pane does not stretch to its sibling's height. */
+   to stacked (mine first) when narrow. align-items:flex-start so an empty/short pane does
+   not stretch to its sibling's height. */
 .panes {
   display: flex; flex-wrap: wrap;
   gap: 8px 14px;
   align-items: flex-start;
 }
-/* An expanded pane grows to share the row and holds a 340px comfortable floor. */
 .pane { flex: 1 1 340px; min-width: 0; }
-/* The folded strip, rendered as a connected segmented bar. A collapsed pane is MOVED into
-   this container (placePanes in the client script) rather than left in the panes row. The
-   container owns the outer border and border-radius; clip (not overflow:hidden) prevents
-   clipping of focus outlines that extend outside the bar — focus-visible outlines use
-   outline-offset:-1px to draw inward, but clip is the safer default since it clips
-   overflow while allowing visual effects that bleed past the border-box by up to the
-   overflow-clip-margin. width:fit-content (with display:inline-flex fallback for older
-   Chromium) hugs the segments so the bar does not stretch across the full panel. */
-.folded {
-  display: inline-flex; display: flex; flex-wrap: wrap; align-items: stretch;
-  gap: 4px 0;
-  margin-bottom: 10px;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
-  border-radius: 6px;
-  overflow: clip;
-  width: fit-content;
-  max-width: 100%;
-  background: var(--vscode-editorWidget-background, transparent);
-}
-.folded.hidden { display: none; }
-/* Dividers between visible segments. The general-sibling combinator (~) skips hidden panes
-   between two visible ones — the adjacent combinator (+) would leave a gap when a hidden
-   pane sits between two visible segments. The :first-child reset prevents the first visible
-   segment from drawing a left divider when preceded only by hidden panes. */
-.folded .pane ~ .pane:not(.hidden) { border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
-.folded .pane:first-child:not(.hidden) { border-left: none; }
-/* position:relative anchors the clip-hidden .pane-title so it positions relative to the
-   button it belongs to, not a distant positioned ancestor. */
-.folded .pane-head {
-  position: relative;
-  width: auto;
-  height: 100%;
-  gap: 5px;
-  padding: 5px 10px;
-  margin-bottom: 0;
-  border: none;
-  border-radius: 0;
-  background: none;
-}
-.folded .pane-head:hover {
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
-}
-/* The title is clip-hidden (not display:none) so it remains the button's accessible name
-   for screen readers and the tooltip. On hover-peek (.peeking) the title un-clips and
-   slides into view so the user can read which section this segment represents. */
-.folded .pane-title {
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  transition: none;
-}
-.folded .pane.peeking .pane-title {
-  position: static;
-  width: auto; height: auto;
-  padding: 0; margin: 0;
-  overflow: visible;
-  clip-path: none;
-}
-/* Chevron hidden inside the strip — the glyph and count already identify the segment. */
-.folded .pane-chevron { display: none; }
-.folded .pane-count { font-size: 0.78em; font-weight: 600; }
-.folded .pane.dragging .pane-head { opacity: 0.5; }
-/* Drop affordances use inset box-shadow instead of border-color — segments have no
-   individual borders to recolor. .can-drop lights every eligible segment from drag start;
-   .drop-over marks the one under the pointer. */
-.folded .pane.can-drop .pane-head { box-shadow: inset 0 0 0 1px var(--vscode-focusBorder); }
-.folded .pane.drop-over .pane-head {
-  box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
-  background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground, transparent));
-}
 .pane.hidden { display: none; }
 /* The pane head doubles as the section's collapse toggle: a full-width button (chevron +
    title + count) over the pane body. A whole pane (My shortcuts / Recipes / Watches /

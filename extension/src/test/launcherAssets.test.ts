@@ -48,68 +48,14 @@ test("LAUNCHER_STYLE: the panes reflow via flex-wrap, not a fixed grid track", (
   assert.ok(panes[0].includes("flex-wrap: wrap"), ".panes must wrap on a narrow Panel");
 });
 
-test("LAUNCHER_STYLE: the folded strip is a connected segmented bar", () => {
-  // Collapsed sections form a connected bar — the container owns the border and border-radius
-  // with overflow:clip (not hidden — clip preserves focus outlines that bleed outside the box).
-  // Segments sit flush (zero column gap); width:fit-content hugs segments, with inline-flex
-  // as a fallback for older Chromium.
-  const strip = LAUNCHER_STYLE.match(/^\.folded\s*\{[^}]*\}/m);
-  assert.ok(strip, ".folded rule must exist");
-  assert.ok(strip[0].includes("display: flex"), "the strip must lay out with flex");
-  assert.ok(strip[0].includes("inline-flex"), "inline-flex fallback for Chromium versions without fit-content");
-  assert.ok(strip[0].includes("flex-wrap: wrap"), "the strip must wrap on a narrow Panel");
-  assert.ok(/gap:\s*4px 0/.test(strip[0]), "the strip must have zero column gap and a small row gap for wrapping");
-  assert.ok(strip[0].includes("border-radius: 6px"), "the bar must have rounded outer corners");
-  assert.ok(strip[0].includes("overflow: clip"), "overflow:clip clips content while preserving focus outlines");
-  assert.ok(strip[0].includes("width: fit-content"), "the bar must hug its segments, not stretch full-width");
+test("LAUNCHER_STYLE: pane-toggle stat chips have clear on/off styling", () => {
   assert.ok(
-    /\.folded\.hidden\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
-    "an empty strip must hide itself rather than leave a blank band"
-  );
-});
-
-test("LAUNCHER_STYLE: a folded segment shows icon + count only, with the title clip-hidden", () => {
-  // Segments inside the connected bar show only the glyph and count. The title is clip-hidden
-  // (not display:none) so it remains the button's accessible name. The chevron is also hidden.
-  // position:relative on the head anchors the absolutely-positioned clip-hidden title.
-  const seg = LAUNCHER_STYLE.match(/\.folded\s+\.pane-head\s*\{[^}]*\}/);
-  assert.ok(seg, "the folded pane-head rule must exist");
-  assert.ok(seg[0].includes("position: relative"), "the head must be position:relative to anchor the clip-hidden title");
-  assert.ok(seg[0].includes("border: none"), "a segment must have no individual border — the bar container owns it");
-  assert.ok(seg[0].includes("border-radius: 0"), "a segment must have no radius — the bar's overflow:clip handles corners");
-  assert.ok(
-    /\.folded\s+\.pane-title\s*\{[^}]*clip-path/.test(LAUNCHER_STYLE),
-    "the title must be clip-hidden for accessibility, not display:none"
+    /\.meta-item\.toggle\.off\s*\{[^}]*opacity/.test(LAUNCHER_STYLE),
+    "a toggled-off stat chip must dim via opacity"
   );
   assert.ok(
-    /\.folded\s+\.pane-chevron\s*\{[^}]*display:\s*none/.test(LAUNCHER_STYLE),
-    "the chevron must be hidden inside the strip only"
-  );
-});
-
-test("LAUNCHER_STYLE: hover-peek un-clips the title inside a folded segment", () => {
-  // Hovering a folded segment for 300ms adds .peeking, which restores the title to normal
-  // flow so the user can read the section name inline without clicking.
-  assert.ok(
-    /\.folded\s+\.pane\.peeking\s+\.pane-title\s*\{[^}]*position:\s*static/.test(LAUNCHER_STYLE),
-    "a peeking segment must restore the title to static positioning"
-  );
-  assert.ok(
-    /\.folded\s+\.pane\.peeking\s+\.pane-title\s*\{[^}]*clip-path:\s*none/.test(LAUNCHER_STYLE),
-    "a peeking segment must remove the clip-path so the title is visible"
-  );
-});
-
-test("LAUNCHER_STYLE: dividers use general-sibling to skip hidden panes", () => {
-  // .pane ~ .pane:not(.hidden) draws dividers between visible segments even when a hidden
-  // pane sits between them. The first visible pane must not get a left divider.
-  assert.ok(
-    /\.folded\s+\.pane\s*~\s*\.pane:not\(\.hidden\)/.test(LAUNCHER_STYLE),
-    "dividers must use the general-sibling combinator (~) to skip hidden panes"
-  );
-  assert.ok(
-    /\.folded\s+\.pane:first-child:not\(\.hidden\)\s*\{[^}]*border-left:\s*none/.test(LAUNCHER_STYLE),
-    "the first visible pane must not draw a left divider"
+    /\.meta-item\.toggle\s*\{[^}]*cursor:\s*pointer/.test(LAUNCHER_STYLE),
+    "stat toggle chips must be clickable"
   );
 });
 
@@ -128,98 +74,11 @@ test("LAUNCHER_STYLE: every var() fallback chain terminates in a static keyword"
   }
 });
 
-test("LAUNCHER_STYLE: a folded segment shows where a dragged card can be dropped", () => {
-  // Drop affordances use inset box-shadow instead of border-color — segments have no
-  // individual borders. .can-drop lights every eligible segment from drag start;
-  // .drop-over marks the one under the pointer.
-  assert.ok(
-    /\.folded\s+\.pane\.can-drop\s+\.pane-head\s*\{[^}]*box-shadow/.test(LAUNCHER_STYLE),
-    "an eligible drop target must be outlined with an inset box-shadow from drag start"
-  );
-  assert.ok(
-    /\.folded\s+\.pane\.drop-over\s+\.pane-head\s*\{[^}]*background/.test(LAUNCHER_STYLE),
-    "the segment under the pointer must fill so the landing spot is unambiguous"
-  );
-  assert.ok(
-    /\.folded\s+\.pane\.dragging\s+\.pane-head\s*\{[^}]*opacity/.test(LAUNCHER_STYLE),
-    "the segment being dragged must dim so its origin is legible during a reorder"
-  );
-});
-
-test("LAUNCHER_SCRIPT: hovering a folded segment peeks the title after a delay", () => {
-  // mouseenter on a collapsed segment starts a 300ms timer; on fire it adds .peeking which
-  // un-clips the title. mouseleave clears the timer and removes .peeking. Click also clears
-  // .peeking so the title does not stick when the section expands.
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("peeking"),
-    "the script must reference the peeking class"
-  );
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("mouseenter"),
-    "the script must listen for mouseenter to start the peek timer"
-  );
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("mouseleave"),
-    "the script must listen for mouseleave to cancel the peek"
-  );
-  assert.ok(
-    /setTimeout\(.*300\)/.test(LAUNCHER_SCRIPT),
-    "the peek must use a 300ms delay before showing the title"
-  );
-});
-
-test("LAUNCHER_SCRIPT: folded panes move into the strip, and back out during a search", () => {
-  // placePanes owns which container each pane lives in. It must read the .searching state:
-  // a search force-reveals a folded pane's body, which needs the full panes-row width — the
-  // pane cannot expand inside the chip strip. Guards a regression that leaves folded panes in
-  // the strip while filtering (a revealed body inside a pill row) or never moves them at all.
-  assert.ok(LAUNCHER_SCRIPT.includes("function placePanes"));
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("root.classList.contains('searching')"),
-    "placePanes must consult the searching state before folding a pane into the strip"
-  );
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("foldedEl.appendChild(p)"),
-    "a folded pane must be re-parented into the strip"
-  );
-  // The toggle re-parents the button the user just pressed, which drops focus; it must be
-  // restored or keyboard traversal falls back to the document body.
+test("LAUNCHER_SCRIPT: pane head retains keyboard focus after collapse toggle", () => {
   assert.ok(LAUNCHER_SCRIPT.includes("head.focus()"));
 });
 
-test("LAUNCHER_SCRIPT: the folded strip order is persisted, not recomputed per paint", () => {
-  // Dragging one pill onto another rewrites the WHOLE strip order into webview state, so the
-  // arrangement survives a reload and a pane the user never dragged still gets a recorded
-  // position once anything is rearranged. A pane absent from the stored list sorts after the
-  // arranged ones in its authored position, so a pane added in a later release lands at the
-  // end instead of jumping to the front.
-  assert.ok(LAUNCHER_SCRIPT.includes("function foldedOrder"));
-  assert.ok(LAUNCHER_SCRIPT.includes("store.order = ids"));
-  assert.ok(LAUNCHER_SCRIPT.includes("function reorderFolded"));
-});
-
-test("LAUNCHER_SCRIPT: only sections that can receive a card accept a drop", () => {
-  // My shortcuts adopts a recipe or a surfaced project file; Watches takes any file-backed
-  // card. Recipes / Project files / Scripts are derived from detection or from disk, so
-  // nothing can be filed into them and canDropOnPane must fall through to false. The drag
-  // payload lives in a module variable because DataTransfer.getData() is unreadable during
-  // dragover, where the affordance has to be decided.
-  assert.ok(LAUNCHER_SCRIPT.includes("function canDropOnPane"));
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("drag.pane === 'recipes' || drag.pane === 'files'"),
-    "My shortcuts must accept a recipe or a project file"
-  );
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("drag.file === true"),
-    "Watches must accept only a file-backed card"
-  );
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("type: 'dropOnPane'"),
-    "a card drop must post the target section and card id back to the host"
-  );
-  // preventDefault in dragover is what marks a valid drop target; without it no drop event
-  // ever fires and the whole feature silently does nothing.
-  assert.ok(LAUNCHER_SCRIPT.includes("function acceptsDrop"));
+test("LAUNCHER_SCRIPT: card and group drag-drop wiring is present", () => {
   assert.ok(
     LAUNCHER_SCRIPT.includes("type: 'dropOnGroup'"),
     "a card drop on a group header must post the target group and card id back to the host"
@@ -488,17 +347,14 @@ test("LAUNCHER_STYLE: the project block lays its parts on one row", () => {
   );
 });
 
-test("LAUNCHER_STYLE: a header stat is a clickable filter chip", () => {
-  // Each count is a filter toggle (a <button class='meta-item filter'>); the .filter rule
-  // gives it the hover/active affordance and an .active highlight for the engaged filter.
-  // Losing either rule would make the stat look like plain text, not a control.
+test("LAUNCHER_STYLE: a header stat is a clickable toggle chip", () => {
   assert.ok(
-    /\.meta-item\.filter\s*\{/.test(LAUNCHER_STYLE),
-    ".meta-item.filter rule must exist so a stat reads as clickable"
+    /\.meta-item\.toggle\s*\{/.test(LAUNCHER_STYLE),
+    ".meta-item.toggle rule must exist so a stat reads as clickable"
   );
   assert.ok(
-    /\.meta-item\.filter\.active\s*\{/.test(LAUNCHER_STYLE),
-    ".meta-item.filter.active rule must exist so the engaged filter stays highlighted"
+    /\.meta-item\.toggle\.off\s*\{/.test(LAUNCHER_STYLE),
+    ".meta-item.toggle.off rule must exist so a hidden pane's chip is dimmed"
   );
 });
 
@@ -512,15 +368,14 @@ test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", (
   assert.ok(LAUNCHER_SCRIPT.includes("projName.textContent"));
 });
 
-test("LAUNCHER_SCRIPT: a header stat filters the board to its pane", () => {
-  // A stat carries a pane; clicking it sets activePane to narrow the board to that pane's
-  // cards, and the card filter must combine the pane match with the text match (a card shows
-  // only when it passes both). Guards a regression that dropped the filter wiring or let the
-  // pane filter and the search diverge.
-  assert.ok(LAUNCHER_SCRIPT.includes("activePane"), "the filter state must exist");
+test("LAUNCHER_SCRIPT: a header stat toggles its pane's visibility", () => {
   assert.ok(
-    LAUNCHER_SCRIPT.includes("matchText && matchPane"),
-    "a card must match both the text needle and the active pane filter"
+    LAUNCHER_SCRIPT.includes("isPaneHidden"),
+    "the toggle state must be checked for each pane"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("setPaneHidden"),
+    "clicking a stat chip must persist the toggle"
   );
 });
 
