@@ -58,6 +58,10 @@ cspell:disable
 - The bottom-panel tab is now titled "Saropa Workspace" instead of "Saropa Launcher", matching the extension name
 - The panel view now shows a subtitle ("Search and launch shortcuts from the Panel") to distinguish it from the sidebar
 
+### Added
+
+- "Show Launcher Panel" command in the command palette, so users who search for "launcher" still find the bottom-panel shortcut surface after the tab rename
+
 ---
 
 ## [1.6.0]

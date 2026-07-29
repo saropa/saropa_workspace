@@ -673,6 +673,12 @@
         "icon": "$(run-all)"
       },
       {
+        "command": "saropaWorkspace.showLauncher",
+        "title": "%command.showLauncher.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(window)"
+      },
+      {
         "command": "saropaWorkspace.showOutput",
         "title": "%command.showOutput.title%",
         "category": "%extension.displayName%",

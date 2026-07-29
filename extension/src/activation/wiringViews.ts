@@ -185,6 +185,9 @@ export function setupSecondaryViews(
       LauncherViewProvider.viewId,
       launcher,
       { webviewOptions: { retainContextWhenHidden: true } }
+    ),
+    vscode.commands.registerCommand("saropaWorkspace.showLauncher", () =>
+      vscode.commands.executeCommand("saropaWorkspace.launcher.focus")
     )
   );
 

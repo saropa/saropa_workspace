@@ -122,6 +122,7 @@
   "command.editPinsConfig.title": "Edit Shortcuts Config (JSON)",
   "command.focusPinnedFiles.title": "Focus on Shortcut Files",
   "command.exitFocusPinnedFiles.title": "Exit Focus on Shortcut Files",
+  "command.showLauncher.title": "Show Launcher Panel",
   "command.showOutput.title": "Show Output",
   "command.addGroup.title": "New Group...",
   "command.renameGroup.title": "Rename Group...",
