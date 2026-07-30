@@ -54,10 +54,12 @@ cspell:disable
 - Notes stat chip in the header toggles the Notes section on and off
 - Recipes stat chip in the Launcher header — shows the recipe count and toggles the Recipes section on and off, matching the other pane toggle chips
 - Pane header click cycles the sort order: Grouped → A–Z → Z–A, with a sort indicator icon and label
+- "Just ran" flash on the schedule status-bar indicator — after a scheduled run completes, the indicator shows a check mark and the completion time for 2 minutes, one click away from the report
+- New `scheduleStatusBarLeadMinutes` setting controls how far in advance the status-bar indicator appears (default 30 minutes, set to 0 for run-time only, 1440 for always-visible)
 
 ### Changed
 
-- Schedule status-bar indicator is now compact (time only, name in tooltip) and only appears within 30 minutes of the next run
+- Schedule status-bar indicator is now compact (time only, name in tooltip) and only appears within the configured lead-time window
 - Recipes pane icon changed from clock to lightbulb to distinguish it from the scheduled-run count
 
 ### Removed

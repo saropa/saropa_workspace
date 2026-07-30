@@ -859,6 +859,8 @@
   "schedule.cron.invalid": "Enter a valid 5-field cron expression (e.g. 0 9 * * 1-5), or leave empty to clear.",
   "statusBar.next": "$(clock) {time}",
   "statusBar.tooltip": "Next scheduled run: {name} at {time}. Click for its report, schedule, and hide options.",
+  "statusBar.justRan": "$(check) ran {time}",
+  "statusBar.justRanTooltip": "{name} ran at {time}. Click to open its report or schedule.",
   "statusBar.name": "Next scheduled run",
   "statusBar.actions.title": "{name} runs next at {time}",
   "statusBar.actions.placeholder": "Choose an action for this scheduled run",
