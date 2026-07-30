@@ -14,14 +14,26 @@ import { l10n } from "../i18n/l10n";
 // entry) need the exact key, and a second spelling of it would silently un-hide.
 export const SCHEDULE_STATUS_BAR_SETTING = "showScheduleStatusBar";
 
-// The indicator appears only when the next run is within this window. For schedules
-// that fire more frequently than this (e.g. every 15 min), the indicator is correctly
-// always visible — if something runs that often, the heads-up is warranted.
-export const VISIBILITY_WINDOW_MS = 30 * 60_000;
+// The setting for the lead-time window (minutes). Named once here because both
+// the status-bar item and the configuration listener need the exact key.
+export const LEAD_MINUTES_SETTING = "scheduleStatusBarLeadMinutes";
+
+// Fallback when the setting is absent or invalid.
+export const DEFAULT_LEAD_MINUTES = 30;
+
+// How long the "just ran" flash stays visible after a scheduled run completes.
+export const JUST_RAN_WINDOW_MS = 2 * 60_000;
 
 // Pure visibility decision, exported for unit testing without the VS Code host.
-export function shouldShowIndicator(nextRunAt: number, now: number): boolean {
-  return nextRunAt - now <= VISIBILITY_WINDOW_MS;
+// For schedules that fire more frequently than the window (e.g. every 15 min),
+// the indicator is correctly always visible — warranted when runs are that close.
+export function shouldShowIndicator(nextRunAt: number, now: number, windowMs: number): boolean {
+  return nextRunAt - now <= windowMs;
+}
+
+// Whether a shortcut just ran recently enough to flash the "just ran" indicator.
+export function isJustRan(lastRun: number | undefined, now: number): boolean {
+  return lastRun !== undefined && now - lastRun <= JUST_RAN_WINDOW_MS;
 }
 
 export class ScheduleStatusBar {
@@ -31,6 +43,8 @@ export class ScheduleStatusBar {
   private currentShortcutId: string | undefined;
   private currentNextRunAt: number | undefined;
   private readonly timer: NodeJS.Timeout;
+  // One-shot timer that clears the "just ran" flash after JUST_RAN_WINDOW_MS.
+  private justRanTimer: NodeJS.Timeout | undefined;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly store: ShortcutStore) {
@@ -52,7 +66,10 @@ export class ScheduleStatusBar {
     // trigger one — otherwise "Hide" would not take effect until the next minute tick.
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration(`saropaWorkspace.${SCHEDULE_STATUS_BAR_SETTING}`)) {
+        if (
+          e.affectsConfiguration(`saropaWorkspace.${SCHEDULE_STATUS_BAR_SETTING}`) ||
+          e.affectsConfiguration(`saropaWorkspace.${LEAD_MINUTES_SETTING}`)
+        ) {
           this.recompute();
         }
       })
@@ -74,17 +91,46 @@ export class ScheduleStatusBar {
 
   private recompute(): void {
     // Hidden by setting: still track nothing, so a later un-hide recomputes cleanly.
-    const visible = vscode.workspace
-      .getConfiguration("saropaWorkspace")
-      .get<boolean>(SCHEDULE_STATUS_BAR_SETTING, true);
-    if (!visible) {
+    const config = vscode.workspace.getConfiguration("saropaWorkspace");
+    if (!config.get<boolean>(SCHEDULE_STATUS_BAR_SETTING, true)) {
       this.currentShortcutId = undefined;
       this.currentNextRunAt = undefined;
       this.item.hide();
       return;
     }
 
+    const leadMinutes = config.get<number>(LEAD_MINUTES_SETTING, DEFAULT_LEAD_MINUTES);
+    const windowMs = Math.max(0, leadMinutes) * 60_000;
     const now = Date.now();
+
+    // Check for a shortcut that just ran (within the flash window). The most
+    // recently fired shortcut wins — show "ran at {time}" so the user can click
+    // through to its report without hunting for it.
+    let justRan: { shortcut: Shortcut; ranAt: number } | undefined;
+    for (const shortcut of [...this.store.getProjectShortcuts(), ...this.store.getGlobalShortcuts()]) {
+      if (!shortcut.schedule?.enabled) {
+        continue;
+      }
+      if (isJustRan(shortcut.schedule.lastRun, now)) {
+        if (!justRan || shortcut.schedule.lastRun! > justRan.ranAt) {
+          justRan = { shortcut, ranAt: shortcut.schedule.lastRun! };
+        }
+      }
+    }
+
+    if (justRan) {
+      const name = justRan.shortcut.label ?? (justRan.shortcut.path.split("/").pop() ?? justRan.shortcut.path);
+      const time = formatWhen(justRan.ranAt);
+      this.currentShortcutId = justRan.shortcut.id;
+      this.currentNextRunAt = undefined;
+      this.item.text = l10n("statusBar.justRan", { time });
+      this.item.tooltip = l10n("statusBar.justRanTooltip", { name, time });
+      this.item.show();
+      this.scheduleJustRanExpiry(justRan.ranAt);
+      return;
+    }
+
+    // No recent run — look for the soonest upcoming one within the lead window.
     let soonest: { shortcut: Shortcut; at: number } | undefined;
     for (const shortcut of [...this.store.getProjectShortcuts(), ...this.store.getGlobalShortcuts()]) {
       if (!shortcut.schedule?.enabled) {
@@ -99,7 +145,7 @@ export class ScheduleStatusBar {
       }
     }
 
-    if (!soonest || !shouldShowIndicator(soonest.at, now)) {
+    if (!soonest || !shouldShowIndicator(soonest.at, now, windowMs)) {
       this.currentShortcutId = undefined;
       this.currentNextRunAt = undefined;
       this.item.hide();
@@ -115,8 +161,27 @@ export class ScheduleStatusBar {
     this.item.show();
   }
 
+  // Schedule a one-shot recompute at the exact moment the "just ran" flash expires,
+  // so the indicator hides precisely rather than waiting for the next 60-second tick.
+  private scheduleJustRanExpiry(ranAt: number): void {
+    if (this.justRanTimer !== undefined) {
+      clearTimeout(this.justRanTimer);
+    }
+    const remaining = JUST_RAN_WINDOW_MS - (Date.now() - ranAt);
+    if (remaining <= 0) {
+      return;
+    }
+    this.justRanTimer = setTimeout(() => {
+      this.justRanTimer = undefined;
+      this.recompute();
+    }, remaining);
+  }
+
   dispose(): void {
     clearInterval(this.timer);
+    if (this.justRanTimer !== undefined) {
+      clearTimeout(this.justRanTimer);
+    }
     for (const d of this.disposables) {
       d.dispose();
     }

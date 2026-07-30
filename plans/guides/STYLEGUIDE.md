@@ -972,7 +972,8 @@ four (user report 2026-07-10). Revealing a tree row answers none.
 A status-bar item's horizontal space is shared with every other extension. Minimize its footprint and its presence:
 
 - **Show only the essential datum in the text** — for a scheduled-run indicator, the time alone (`$(clock) 07:00`). The shortcut name, explanation, and actions belong in the tooltip and the click menu (§4.10), not in the item text.
-- **Time-gate visibility.** An indicator that advertises a future event hides itself until the event is imminent (≤30 minutes). Outside that window the item is absent, not merely dimmed — absent means zero space consumed.
+- **Time-gate visibility.** An indicator that advertises a future event hides itself until the event is imminent (configurable via `scheduleStatusBarLeadMinutes`, default 30). Outside that window the item is absent, not merely dimmed — absent means zero space consumed.
+- **Flash a "just ran" state after a completed run.** When a scheduled run finishes, the indicator switches to a brief confirmation (`$(check) ran {time}`) for 2 minutes, then hides. This closes the gap between "run happened" and "where is the report" — one click from the flash reaches the report. The flash takes priority over the next-run indicator.
 - **The tooltip carries the full context** that the compact text omits (the name, the action hint).
 
 ### 4.12 Suite data crosses the extension boundary through a versioned API, and absence degrades silently

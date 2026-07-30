@@ -2120,6 +2120,13 @@
             "default": true,
             "description": "%config.showScheduleStatusBar.description%"
           },
+          "saropaWorkspace.scheduleStatusBarLeadMinutes": {
+            "type": "number",
+            "default": 30,
+            "minimum": 0,
+            "maximum": 1440,
+            "description": "%config.scheduleStatusBarLeadMinutes.description%"
+          },
           "saropaWorkspace.defaultUseIntegratedTerminal": {
             "type": "boolean",
             "default": true,

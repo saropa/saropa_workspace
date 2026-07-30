@@ -16,28 +16,22 @@ times, making it feel permanent and intrusive for a transient indicator.
 
 | File | Change |
 | --- | --- |
-| `extension/src/views/scheduleStatusBar.ts` | `recompute()` now hides the item when the next run is more than 30 minutes away. The item text passes only `{ time }` to the l10n template; the shortcut name remains in the tooltip. |
-| `extension/src/i18n/locales/en.json` | `statusBar.next` changed from `$(clock) {name} {time}` to `$(clock) {time}`. |
-| `plans/guides/STYLEGUIDE.md` | New §4.11 codifies compact text and time-gated visibility as conventions for status-bar indicators. Existing §4.11 (Suite API) renumbered to §4.12. |
-| `CHANGELOG.md` | Unreleased entry added under Changed. |
+| `extension/src/views/scheduleStatusBar.ts` | Item text is time-only; visibility is time-gated via configurable lead-time setting; "just ran" flash shows a 2-minute confirmation after a scheduled run completes; `shouldShowIndicator()` and `isJustRan()` exported as pure testable functions. |
+| `extension/src/i18n/locales/en.json` | `statusBar.next` changed to `$(clock) {time}`; new `statusBar.justRan` and `statusBar.justRanTooltip` keys. |
+| `extension/package.json` | New `scheduleStatusBarLeadMinutes` setting (number, default 30, range 0–1440). |
+| `extension/package.nls.json` | Description for the new setting. |
+| `extension/src/test/scheduleStatusBarVisibility.test.ts` | 14 tests covering `shouldShowIndicator` (default window, custom window, zero window, boundary, overdue) and `isJustRan` (recent, boundary, expired, undefined, future). |
+| `plans/guides/STYLEGUIDE.md` | §4.11 updated with "just ran" flash convention and configurable lead time. |
+| `CHANGELOG.md` | Unreleased entries added under Added and Changed. |
 
 ### Design decisions
 
-- **30-minute window**: long enough to give a meaningful heads-up before a
-  scheduled run, short enough that the indicator is absent for most of the day.
-  The recompute timer already ticks every 60 seconds, so the item appears within
-  one minute of crossing the 30-minute threshold.
-- **Name stays in tooltip and action menu**: removing the name from the item text
-  does not reduce discoverability — a click still opens the full action QuickPick
-  (§4.10), and the tooltip shows the shortcut name on hover.
-
-### Hardening (reflection pass)
-
-- Extracted `VISIBILITY_WINDOW_MS` and `shouldShowIndicator()` as module-level exports — the constant is documented with its design rationale (frequent schedules are intentionally always-visible), and the pure function is testable without the VS Code host.
-- Added `scheduleStatusBarVisibility.test.ts` covering: exactly now, 1 min away, exactly at boundary, 1 ms past boundary, hours away, and overdue (past) runs.
+- **Configurable lead time**: the `scheduleStatusBarLeadMinutes` setting (default 30) replaces the hardcoded constant. Setting it to 0 makes the indicator appear only during/after runs; 1440 restores always-visible behavior. The setting description explains both extremes.
+- **"Just ran" flash**: after a scheduled run completes, the indicator switches to `$(check) ran {time}` for 2 minutes. This closes the gap between "a run happened" and "where is its report" — the action menu (§4.10) is one click away. The flash takes priority over the upcoming-run indicator so the user sees the completion, not the next slot.
+- **Precise expiry timer**: the flash schedules a one-shot `setTimeout` for the exact expiry moment rather than waiting for the next 60-second tick. This avoids up to 59 seconds of stale "just ran" display.
+- **Name stays in tooltip and action menu**: removing the name from the item text does not reduce discoverability — a click still opens the full action QuickPick (§4.10), and the tooltip shows the shortcut name on hover.
 
 ### Not changed
 
-- The action menu (`scheduleStatusBarActions.ts`) is untouched; existing tests
-  pass without modification.
+- The action menu (`scheduleStatusBarActions.ts`) is untouched; existing tests pass without modification.
 - The `formatWhen` function is unchanged.
