@@ -79,25 +79,9 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   wide, stacked (mine first) when narrow. The user's own shortcuts must never be
   visually mixed with the detected recipes — they are different kinds of thing
   (one you curated, one the extension guessed), so they get different columns.
-- **Both panes and groups are collapsible, and the fold state persists.** Two
-  independent levels of disclosure: a whole pane (My shortcuts / Recipes / Watches /
-  Project files) folds via its clickable `.pane-head` (a `<button>` carrying a
-  `.pane-chevron` + title + count), and each group inside a grouped pane folds via
-  its own header (chevron + the group's own glyph/tint + a count) over its card
-  grid. Both postures are stored in the webview's `getState`/`setState` so a folded
-  section or group stays folded across reloads — pane keys are namespaced
-  `pane:<id>` so a pane id can never collide with an inner group id in the shared
-  `collapsed` map. While a search query is active, a collapsed pane AND a collapsed
-  group both reveal their matching cards (`.root.searching` re-displays `.pane-body`
-  and `.group-body`, declared after the collapsed rules to win at equal
-  specificity), so a result is never hidden behind a fold (developer feedback
-  2026-06-28). The pane body is wrapped in `.pane-body` so one `.pane.collapsed`
-  class folds the whole section while the head stays visible; the panes row is a
-  wrapping flex line (not a grid track, whose `minmax` width a folded item cannot
-  shed), so a folded section frees its width for the sections still open.
-- **A folded section leaves the layout it was in and joins a connected segmented bar.** A collapsed pane is MOVED into a `.folded` strip container (`placePanes` in the client script) and moved back out when it reopens — or when a search starts, since a search force-reveals a folded pane's body and that body needs the full panes-row width. The container owns the outer border and `border-radius` with `overflow: clip` (not `hidden` — `clip` preserves focus outlines that bleed outside the border-box) so the first and last visible segments get rounded corners automatically — a per-segment `:first-child` selector would break whenever a hidden pane sits at either end. `width: fit-content` hugs the segments (with `display: inline-flex` as a fallback for older Chromium) so the bar does not stretch across the full panel width. Segments sit flush (zero column gap) with 1px dividers between neighbors via `.pane ~ .pane:not(.hidden)` (general-sibling `~`, not adjacent `+`, so a hidden pane between two visible ones does not suppress the divider); a `:first-child:not(.hidden)` reset prevents the first visible segment from drawing a left divider.
-- **A collapsed segment shows icon + count only; hovering peeks the title.** The section glyph and count are the only visible elements in the strip; the title is clip-hidden (`clip-path: inset(50%)`, not `display: none`) so it remains the button's accessible name for screen readers and the tooltip. The `.pane-head` carries `position: relative` to anchor the absolutely-positioned clip-hidden title within the button. The chevron is also hidden. Hovering a segment for 300ms adds `.peeking`, which un-clips the title to `position: static` so the section name appears inline — mouse-out or click clears it. **Generally: never let full-width chrome — dividers, uppercase section titles, header padding — ride along at chip size.** Terminate every `var()` fallback chain in a static keyword too: an all-undefined chain is invalid at computed-value time and DROPS the declaration, so a segment can end up with no divider in a theme that defines neither token.
-- **A folded segment is draggable, and accepts a drop only where filing means something.** Dragging one segment onto another rearranges the strip, persisted whole (not as a sparse patch) in webview state, so a pane the user never dragged still gets a recorded position once anything is rearranged. Dragging a CARD onto a segment files it into that section: a recipe or a surfaced project file onto **My shortcuts** adopts it, any file-backed card onto **Watches** watches it. Recipes, Project files and Scripts are derived from detection or from disk — nothing can be filed INTO them — so those segments never accept, and the host re-resolves both the target section and the dropped card before running anything. Eligible targets light up at `dragstart` (`.can-drop` via inset `box-shadow`), not on hover, so the user is never made to probe each segment to discover which accept.
+- **Pane visibility is controlled from the header stat chips; groups are collapsible with chevrons.** Two independent levels of disclosure: a whole pane (My shortcuts / Recipes / Watches / Project files / Scripts / Notes) is shown or hidden via its header stat chip toggle (`.meta-item.toggle`). Each group inside a grouped pane folds via its own header (chevron + the group's own glyph/tint + a count) over its card grid. Hidden-pane state is stored in `store.hidden` (keyed by pane id); group collapse is stored in `store.collapsed` (keyed by group id). Both persist across reloads via `getState`/`setState`. An eye-icon reset button (`.meta-reset`) appears in the header whenever any pane is hidden; clicking it restores all panes. While a search query is active, a collapsed group reveals its matching cards (`.root.searching` re-displays `.group-body`, declared after the collapsed rules to win at equal specificity), so a result is never hidden behind a fold (developer feedback 2026-06-28).
+- **Clicking a pane head cycles the sort order, not collapse.** The `.pane-head` is a `<button>` with icon + title + count + a sort indicator (icon + label, right-aligned via `margin-left: auto`). Clicking it cycles `store.sort[paneId]` through `grouped` → `asc` → `desc` → `grouped` and re-renders. In `asc`/`desc` mode, a grouped pane flattens all its items and sorts alphabetically by label; in `grouped` mode, the host-supplied group structure is preserved. The sort state persists across reloads. The sort indicator shows `list-unordered` for grouped, `arrow-down` for A→Z, `arrow-up` for Z→A, with a localized text label beside it (developer feedback 2026-07-29).
+- **Notes are a launcher pane, mirroring the sidebar Notes tree.** The Notes pane shows each note as a card (filename without extension as label, relative time as sub, first 5 lines / 512 bytes as the expanded drawer description). Notes group by scope (Project Notes / Global Notes) when both scopes have entries, and render flat otherwise — the same "group only when it earns it" rule as the Files pane. Clicking a note card posts `openNote` with the fsPath; the host validates the file still exists before opening it. The notes stat chip (codicon `note`) toggles the pane.
 - **Every card carries a colored icon, reusing the tree's token map.** A launcher
   card shows the SAME glyph + tint the sidebar row would (`fileTypeIcon` / `kindIcon`
   / `kindColor` in the vscode-free `fileTypeTokens` module, plus the user's custom
@@ -233,18 +217,7 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   declares one. The folder name is HTML-escaped before it is baked into the initial markup
   (the one host-interpolated value); every later update goes through `textContent`. (One-line
   layout: developer feedback 2026-06-28, superseding the earlier name-over-meta stack.)
-- **A header count is a one-tap pane filter; the recipes count is scheduled-only.** Each
-  count chip carries its pane (`LauncherStat.pane`) and renders as a `<button class="meta-item
-  filter">`; clicking it sets `activePane` to narrow the board to that pane's cards, clicking
-  the active chip again clears it. The filter is transient (it resets on reload, unlike the
-  persisted collapse posture — a filter is a momentary focus) and combines with the text
-  search: a card shows only when it matches both. The active chip keeps an `.active`
-  highlight; the header count scopes to the focused set (the active pane, else mine + recipes).
-  The **recipes** chip counts only *scheduled* recipes (`schedule !== undefined`, the same
-  signal the tree uses), labeled "scheduled" with a clock glyph — a recipe is a recommendation,
-  so the headline should report what is actually automated, not the full detected set; the
-  Recipes pane still lists every detected recipe, and the chip filters the board to it.
-  (Developer feedback 2026-06-28.)
+- **A header stat chip is an independent pane toggle; the scheduled count is informational.** Each count chip that carries a `LauncherStat.pane` renders as a `<button class="meta-item toggle">`; clicking it toggles that pane between visible and hidden (`.off` class dims it to 40% opacity). Multiple panes can be hidden simultaneously, and the state persists across reloads in `store.hidden`. A stat without `pane` (the version chip, the scheduled count) renders as a non-interactive `<span>`. The **recipes** chip shows the full recipe count with a lightbulb icon; a separate **scheduled** chip (clock icon, no pane toggle) counts shortcuts with an enabled schedule, since scheduled cards live inside the "mine" pane and a toggle would duplicate it. The eye-icon reset button appears when any pane is hidden; clicking it restores all.
 - **The card grid is indented under its group heading.** `.group-body` carries a
   left padding (20px) so cards sit past the header's chevron + glyph, making the
   group-to-cards containment visible rather than flush with the pane edge.
@@ -994,7 +967,15 @@ four (user report 2026-07-10). Revealing a tree row answers none.
   right-click "Hide" menu labels the entry with the extension's display name, so two
   entries from one extension are indistinguishable.
 
-### 4.11 Suite data crosses the extension boundary through a versioned API, and absence degrades silently
+### 4.11 Status-bar indicators are compact and time-gated
+
+A status-bar item's horizontal space is shared with every other extension. Minimize its footprint and its presence:
+
+- **Show only the essential datum in the text** — for a scheduled-run indicator, the time alone (`$(clock) 07:00`). The shortcut name, explanation, and actions belong in the tooltip and the click menu (§4.10), not in the item text.
+- **Time-gate visibility.** An indicator that advertises a future event hides itself until the event is imminent (≤30 minutes). Outside that window the item is absent, not merely dimmed — absent means zero space consumed.
+- **The tooltip carries the full context** that the compact text omits (the name, the action hint).
+
+### 4.12 Suite data crosses the extension boundary through a versioned API, and absence degrades silently
 
 A surface that shows another Saropa extension's data (the Suite Daily Report is the
 model — `commands/dailyReport.ts`) consumes it ONLY through the sibling's

@@ -14,6 +14,16 @@ import { l10n } from "../i18n/l10n";
 // entry) need the exact key, and a second spelling of it would silently un-hide.
 export const SCHEDULE_STATUS_BAR_SETTING = "showScheduleStatusBar";
 
+// The indicator appears only when the next run is within this window. For schedules
+// that fire more frequently than this (e.g. every 15 min), the indicator is correctly
+// always visible — if something runs that often, the heads-up is warranted.
+export const VISIBILITY_WINDOW_MS = 30 * 60_000;
+
+// Pure visibility decision, exported for unit testing without the VS Code host.
+export function shouldShowIndicator(nextRunAt: number, now: number): boolean {
+  return nextRunAt - now <= VISIBILITY_WINDOW_MS;
+}
+
 export class ScheduleStatusBar {
   private readonly item: vscode.StatusBarItem;
   // The shortcut the item currently points at, plus when it next runs, so the reveal
@@ -89,7 +99,7 @@ export class ScheduleStatusBar {
       }
     }
 
-    if (!soonest) {
+    if (!soonest || !shouldShowIndicator(soonest.at, now)) {
       this.currentShortcutId = undefined;
       this.currentNextRunAt = undefined;
       this.item.hide();
@@ -100,7 +110,7 @@ export class ScheduleStatusBar {
     const time = formatWhen(soonest.at);
     this.currentShortcutId = soonest.shortcut.id;
     this.currentNextRunAt = soonest.at;
-    this.item.text = l10n("statusBar.next", { name, time });
+    this.item.text = l10n("statusBar.next", { time });
     this.item.tooltip = l10n("statusBar.tooltip", { name, time });
     this.item.show();
   }

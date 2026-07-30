@@ -46,6 +46,26 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Notes pane in the Launcher panel — shows project and global notes as cards with filename, relative time, and a content preview in the expanded drawer
+- Notes stat chip in the header toggles the Notes section on and off
+- Recipes stat chip in the Launcher header — shows the recipe count and toggles the Recipes section on and off, matching the other pane toggle chips
+- Pane header click cycles the sort order: Grouped → A–Z → Z–A, with a sort indicator icon and label
+
+### Changed
+
+- Schedule status-bar indicator is now compact (time only, name in tooltip) and only appears within 30 minutes of the next run
+- Recipes pane icon changed from clock to lightbulb to distinguish it from the scheduled-run count
+
+### Removed
+
+- Chevron collapse controls from Launcher pane headers — replaced by the sort-cycling click and the header stat chip toggles
+
+---
+
 ## [1.6.3]
 
 The Launcher panel gets a usability overhaul with new section visibility toggle chips, a convenient one-click reset button to restore hidden panes, and a smoother startup experience with a new loading indicator. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.3/CHANGELOG.md)
