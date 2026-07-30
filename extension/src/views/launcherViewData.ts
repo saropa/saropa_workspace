@@ -177,12 +177,14 @@ export function buildHeader(
     }
   };
   pushStat(count("mine"), "star-full", "launcher.statShortcuts", "mine");
+  pushStat(count("recipes"), "lightbulb", "launcher.statRecipes", "recipes");
   // Scheduled is informational (no pane toggle): the count of shortcuts with an enabled
   // schedule. Scheduled cards live inside "mine", so a pane toggle would duplicate it.
-  pushStat(scheduledRituals, "clock", "launcher.statRecipes");
+  pushStat(scheduledRituals, "clock", "launcher.statScheduled");
   pushStat(count("watches"), "eye", "launcher.statWatches", "watches");
   pushStat(count("files"), "files", "launcher.statFiles", "files");
   pushStat(count("scripts"), "library", "launcher.statScripts", "scripts");
+  pushStat(count("notes"), "note", "launcher.statNotes", "notes");
 
   return {
     project,
