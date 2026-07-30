@@ -169,15 +169,21 @@ export function setupSecondaryViews(
     )
   );
 
+  // Persistent notes: real Markdown files on disk, organized into project-scoped
+  // (.saropa/notes/) and global (globalStorageUri/notes/) collections. Created before
+  // the launcher so the launcher can show notes in its Notes pane.
+  const noteStore = new NoteStore(context);
+
   // The "Saropa Workspace" Panel webview: the sidebar's surfaces in the bottom Panel, so
   // they can be searched without opening the activity-bar icon — the shortcut + recipe
-  // panes (from the store), plus flat Watches and Project files panes (from the watch
-  // store and the project-files provider). A second window onto those sources, not a copy:
-  // it repaints from the same change events the trees do. retainContextWhenHidden keeps the
-  // search text and scroll position while the Panel tab is in the background.
+  // panes (from the store), plus flat Watches, Project files, and Notes panes. A second
+  // window onto those sources, not a copy: it repaints from the same change events the
+  // trees do. retainContextWhenHidden keeps the search text and scroll position while the
+  // Panel tab is in the background.
   const launcher = new LauncherViewProvider(
     store,
     watchStore,
+    noteStore,
     projectFiles,
     scripts,
     context.extensionUri
@@ -194,12 +200,9 @@ export function setupSecondaryViews(
     )
   );
 
-  // Persistent notes: real Markdown files on disk, organized into project-scoped
-  // (.saropa/notes/) and global (globalStorageUri/notes/) collections. Read-only
-  // tree (no drag-and-drop); a FileSystemWatcher keeps it in sync with external
-  // edits. Commands registered here alongside the view so the entire Notes surface
-  // is one wiring block.
-  const noteStore = new NoteStore(context);
+  // Notes tree view: read-only sidebar tree (no drag-and-drop); a FileSystemWatcher
+  // keeps it in sync with external edits. Commands registered here alongside the view
+  // so the entire Notes surface is one wiring block.
   const notes = new NotesTreeProvider(noteStore);
   const notesView = vscode.window.createTreeView("saropaWorkspace.notes", {
     treeDataProvider: notes,

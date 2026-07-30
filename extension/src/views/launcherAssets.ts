@@ -162,10 +162,9 @@ header {
 }
 .pane { flex: 1 1 340px; min-width: 0; }
 .pane.hidden { display: none; }
-/* The pane head doubles as the section's collapse toggle: a full-width button (chevron +
-   title + count) over the pane body. A whole pane (My shortcuts / Recipes / Watches /
-   Project files) can be folded away when a user wants only one section on screen, so the
-   board scales down to just the sections in use. */
+/* The pane head is a clickable section label (glyph + title + count). Clicking it hides
+   the pane — the same toggle the header stat chip controls — so the board scales down to
+   just the sections in use. The header stat chip or the reset eye button brings it back. */
 .pane-head {
   display: flex; align-items: center; gap: 7px;
   width: 100%;
@@ -177,26 +176,17 @@ header {
   cursor: pointer;
 }
 .pane-head:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.pane-chevron {
-  flex: none; transition: transform 0.12s ease; font-size: 14px;
-  color: var(--vscode-descriptionForeground);
-}
-.pane.collapsed .pane-chevron { transform: rotate(-90deg); }
-/* Each section leads with its own glyph (the same token the matching header filter chip
-   uses) so the four panes are identifiable at a glance even when collapsed to the header. */
 .pane-glyph { flex: none; font-size: 14px; color: var(--vscode-foreground); }
 .pane-title {
   font-size: 0.86em; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--vscode-foreground);
 }
-.pane-head:hover .pane-chevron { color: var(--vscode-foreground); }
 .pane-count { color: var(--vscode-descriptionForeground); font-size: 0.8em; }
-.pane.collapsed .pane-body { display: none; }
-/* During a search, reveal a collapsed pane's body so matching cards are never hidden behind
-   a folded section; the chevron keeps its collapsed pose so the persisted posture stays
-   legible. Declared AFTER the collapsed rule so it wins at equal specificity. */
-.root.searching .pane .pane-body { display: block; }
+.pane-sort { flex: none; font-size: 12px; margin-left: auto; color: var(--vscode-descriptionForeground); }
+.pane-sort-label { font-size: 0.75em; color: var(--vscode-descriptionForeground); }
+.pane-head:hover .pane-sort,
+.pane-head:hover .pane-sort-label { color: var(--vscode-foreground); }
 
 /* A collapsible group: a clickable header (chevron + tinted glyph + label + count) over a
    responsive card grid. The generous margin-top + header padding give each group's title

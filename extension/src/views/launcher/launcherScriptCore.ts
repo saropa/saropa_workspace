@@ -32,6 +32,21 @@ function resetHiddenPanes() {
   vscode.setState(store);
 }
 
+// Per-pane sort mode. "grouped" keeps the host-supplied group structure (default for
+// grouped panes); "asc" and "desc" flatten all items and sort alphabetically by label.
+function paneSort(paneId) { return (store.sort && store.sort[paneId]) || 'grouped'; }
+function setPaneSort(paneId, mode) {
+  store.sort = store.sort || {};
+  if (mode === 'grouped') { delete store.sort[paneId]; } else { store.sort[paneId] = mode; }
+  vscode.setState(store);
+}
+function cyclePaneSort(paneId) {
+  var cur = paneSort(paneId);
+  if (cur === 'grouped') { return 'asc'; }
+  if (cur === 'asc') { return 'desc'; }
+  return 'grouped';
+}
+
 // Persisted collapse posture: { collapsed: { <groupId>: true }, order: [<paneId>] }.
 // Restored on load so a folded group stays folded, and the folded strip keeps the sequence
 // the user dragged it into, across reloads.
@@ -168,20 +183,20 @@ function metaItem(icon, text, isVersion, pane) {
   return el;
 }
 
-// Group the flat item list into the four panes in fixed order: mine, recipes, watches, files.
-// Mine, recipes, and files are grouped panes (collapsible category/scope groups, in first-seen
-// order — which the host emits in catalog order); watches is a single flat list. The files
-// pane groups by area (Project / Android / iOS / Web), but only when more than one area has
-// matches: with a single area it renders flat, so a lone "Project" header never doubles the
-// pane title (the same "group only when it earns it" rule the sidebar tree follows). The host
-// controls ordering; an empty pane/group is hidden by render/filter.
+// Group the flat item list into panes in fixed order: mine, recipes, watches, files, scripts,
+// notes. Mine, recipes, files, and notes are grouped panes (collapsible category/scope groups,
+// in first-seen order); watches and scripts are flat lists. The files pane groups by area
+// (Project / Android / iOS / Web), but only when more than one area has matches: with a single
+// area it renders flat. The host controls ordering; an empty pane/group is hidden by
+// render/filter.
 function paneModel(list) {
   const mine = { id: 'mine', title: strings.mine || 'My shortcuts', order: [], byId: {} };
   const recipes = { id: 'recipes', title: strings.recipes || 'Recipes', order: [], byId: {} };
   const files = { id: 'files', title: strings.files || 'Project files', order: [], byId: {} };
+  const notes = { id: 'notes', title: strings.notes || 'Notes', order: [], byId: {} };
   const watches = { id: 'watches', title: strings.watches || 'Watches', items: [] };
   const scripts = { id: 'scripts', title: strings.scripts || 'Scripts', items: [] };
-  const grouped = { mine: mine, recipes: recipes, files: files };
+  const grouped = { mine: mine, recipes: recipes, files: files, notes: notes };
   const flat = { watches: watches, scripts: scripts };
   for (const it of list) {
     if (flat[it.pane]) { flat[it.pane].items.push(it); continue; }
@@ -203,13 +218,37 @@ function paneModel(list) {
     : { id: 'files', icon: 'files', title: files.title, flat: true, items: fileGroups[0] ? fileGroups[0].items : [] };
   // Section glyphs mirror the header filter-chip icons (see buildHeader) so a pane and its
   // chip read as the same thing.
-  return [
+  var noteGroups = groupsOf(notes);
+  var notesPane = noteGroups.length > 1
+    ? { id: 'notes', icon: 'note', title: notes.title, flat: false, groups: noteGroups }
+    : { id: 'notes', icon: 'note', title: notes.title, flat: true, items: noteGroups[0] ? noteGroups[0].items : [] };
+  var raw = [
     { id: 'mine', icon: 'star-full', title: mine.title, flat: false, groups: groupsOf(mine) },
-    { id: 'recipes', icon: 'clock', title: recipes.title, flat: false, groups: groupsOf(recipes) },
+    { id: 'recipes', icon: 'lightbulb', title: recipes.title, flat: false, groups: groupsOf(recipes) },
     { id: 'watches', icon: 'eye', title: watches.title, flat: true, items: watches.items },
     filesPane,
     { id: 'scripts', icon: 'library', title: scripts.title, flat: true, items: scripts.items },
+    notesPane,
   ];
+  // Apply per-pane sort: asc/desc flatten a grouped pane and sort all items by label.
+  function sortCmp(a, b) { return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }); }
+  for (var pi = 0; pi < raw.length; pi++) {
+    var p = raw[pi];
+    var mode = paneSort(p.id);
+    if (mode === 'grouped') { continue; }
+    var allItems;
+    if (p.flat) { allItems = p.items.slice(); }
+    else {
+      allItems = [];
+      for (var gi = 0; gi < p.groups.length; gi++) {
+        for (var ci = 0; ci < p.groups[gi].items.length; ci++) { allItems.push(p.groups[gi].items[ci]); }
+      }
+    }
+    allItems.sort(sortCmp);
+    if (mode === 'desc') { allItems.reverse(); }
+    raw[pi] = { id: p.id, icon: p.icon, title: p.title, flat: true, items: allItems };
+  }
+  return raw;
 }
 
 // Post the open action for a card, routed by pane: a watch opens its watch (clearing the
@@ -218,6 +257,7 @@ function paneModel(list) {
 function postOpen(it) {
   if (it.pane === 'watches') { vscode.postMessage({ type: 'openWatch', id: it.id }); }
   else if (it.pane === 'files') { vscode.postMessage({ type: 'openFile', path: it.id }); }
+  else if (it.pane === 'notes') { vscode.postMessage({ type: 'openNote', path: it.id }); }
   else { vscode.postMessage({ type: 'open', id: it.id }); }
 }
 

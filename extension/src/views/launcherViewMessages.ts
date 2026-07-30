@@ -95,6 +95,18 @@ export async function handleLauncherMessage(
     }
     return;
   }
+  if (msg.type === "openNote" && typeof msg.path === "string") {
+    const uri = vscode.Uri.file(msg.path);
+    try {
+      await vscode.workspace.fs.stat(uri);
+      await vscode.commands.executeCommand("vscode.open", uri);
+    } catch {
+      void vscode.window.showWarningMessage(
+        l10n("notes.fileMissing", { name: uri.fsPath.split(/[\\/]/).pop() ?? uri.fsPath })
+      );
+    }
+    return;
+  }
   // Copy a file-backed card's full on-disk path to the clipboard, resolved host-side by
   // the card's id so the webview never carries or is trusted with a path. A file shortcut/
   // recipe resolves through the store (its stored path may be folder-relative, so resolve
