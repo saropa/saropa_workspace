@@ -1,13 +1,15 @@
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { FolderWatchStore } from "../model/folderWatch";
+import { NoteStore, readNotePreview } from "../model/noteStore";
 import { l10n } from "../i18n/l10n";
 import { LauncherItem } from "./launcherItems";
-import { ProjectFilesTreeProvider } from "./projectFilesProvider";
+import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { handleLauncherMessage } from "./launcherViewMessages";
 import { buildAllItems, buildHeader } from "./launcherViewData";
 import { renderHtml } from "./launcherViewShell";
+import { noteLauncherItem } from "./launcherNoteItem";
 
 // The "Saropa Workspace" Panel webview: a second, always-reachable window onto the same
 // shortcut data the sidebar tree shows, living in the bottom Panel (beside Terminal /
@@ -40,20 +42,23 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly store: ShortcutStore,
     private readonly watchStore: FolderWatchStore,
+    private readonly noteStore: NoteStore,
     private readonly projectFiles: ProjectFilesTreeProvider,
     private readonly scriptsProvider: ScriptsTreeProvider,
     private readonly extensionUri: vscode.Uri
   ) {
     // Repaint whenever any of the surfaces the launcher mirrors changes, so it never lags
     // the sidebar: the shortcut/recipe set (store), the watch list and its unseen counts
-    // (watchStore — two events: the list itself, and the per-watch unseen tally), and the
-    // project files' freshness/version on a save or a folder/setting change. The view may
+    // (watchStore — two events: the list itself, and the per-watch unseen tally), the
+    // notes (noteStore), and the project files' freshness/version on a save or a
+    // folder/setting change. The view may
     // not be resolved yet (the Panel tab was never opened); post() is a no-op until it is,
     // and resolve does the first paint.
     this.disposables.push(
       this.store.onDidChange(() => void this.post()),
       this.watchStore.onDidChange(() => void this.post()),
       this.watchStore.onDidChangeCounts(() => void this.post()),
+      this.noteStore.onDidChange(() => void this.post()),
       vscode.workspace.onDidSaveTextDocument(() => void this.post()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.post()),
       vscode.workspace.onDidChangeConfiguration((e) => {
@@ -121,6 +126,26 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     const items: LauncherItem[] = buildAllItems(
       this.store, this.watchStore, files, this.scriptsProvider
     );
+
+    const now = Date.now();
+    const [projNotes, globalNotes] = await Promise.all([
+      this.noteStore.listProjectNotes(),
+      this.noteStore.listGlobalNotes(),
+    ]);
+    const allNotes = [...projNotes, ...globalNotes];
+    const previews = await Promise.all(
+      allNotes.map((n) => readNotePreview(n.uri).catch(() => ""))
+    );
+    for (let i = 0; i < allNotes.length; i++) {
+      const n = allNotes[i];
+      items.push(noteLauncherItem({
+        path: n.uri.fsPath,
+        filename: n.filename,
+        scope: n.scope,
+        relative: formatRelativeTime(n.mtime, now),
+        preview: previews[i],
+      }));
+    }
     void this.view.webview.postMessage({
       type: "data",
       items,
@@ -137,9 +162,10 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         watches: l10n("launcher.watchesSection"),
         files: l10n("launcher.filesSection"),
         scripts: l10n("launcher.scriptsSection"),
-        // {name} stays literal: the webview substitutes each folded section's own title into
-        // its pill tooltip, so one fetched string covers all five sections.
-        showSection: l10n("launcher.showSection"),
+        notes: l10n("launcher.notesSection"),
+        sortAsc: l10n("launcher.sortAsc"),
+        sortDesc: l10n("launcher.sortDesc"),
+        sortGrouped: l10n("launcher.sortGrouped"),
         showAll: l10n("launcher.showAll"),
         // {n} / {shown} / {total} stay literal here: the webview substitutes the live
         // counts, so these are fetched without l10n params.

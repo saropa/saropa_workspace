@@ -83,10 +83,7 @@ function render() {
     const isEmpty = pane.flat ? flatItems.length === 0 : pane.groups.length === 0;
     if (isEmpty || isPaneHidden(pane.id)) { paneEl.classList.add('hidden'); }
 
-    const paneKey = 'pane:' + pane.id;
-    if (isCollapsed(paneKey)) { paneEl.classList.add('collapsed'); }
-
-    paneEl.appendChild(makePaneHead(pane, paneEl, paneKey));
+    paneEl.appendChild(makePaneHead(pane, paneEl));
 
     const bodyEl = document.createElement('div');
     bodyEl.className = 'pane-body';
