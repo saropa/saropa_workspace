@@ -717,6 +717,12 @@
         "icon": "$(run-all)"
       },
       {
+        "command": "saropaWorkspace.openSettings",
+        "title": "%command.openSettings.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(settings-gear)"
+      },
+      {
         "command": "saropaWorkspace.showLauncher",
         "title": "%command.showLauncher.title%",
         "category": "%extension.displayName%",
@@ -1491,6 +1497,11 @@
           "submenu": "saropaWorkspace.workspaceSubmenu",
           "when": "view == saropaWorkspace.pins",
           "group": "1_menu@6"
+        },
+        {
+          "command": "saropaWorkspace.openSettings",
+          "when": "view == saropaWorkspace.pins",
+          "group": "1_menu@7"
         },
         {
           "command": "saropaWorkspace.restoreRecipes",
@@ -2376,6 +2387,11 @@
             },
             "default": [],
             "description": "%config.hygiene.roots.description%"
+          },
+          "saropaWorkspace.displayNames.titleCase": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.displayNames.titleCase.description%"
           },
           "saropaWorkspace.sound.enabled": {
             "type": "boolean",

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut, isAnnotationShortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { BranchSetBinder } from "../exec/branchSets";
 import { l10n } from "../i18n/l10n";
@@ -24,12 +25,6 @@ export function registerBranchSetCommands(
       unlinkBranch(binder)
     )
   );
-}
-
-// A shortcut's display name for the on-switch picker: its label, else the file basename,
-// else the raw path (shell/url shortcuts carry a label and an empty path).
-function shortcutDisplayName(shortcut: Shortcut): string {
-  return shortcut.label ?? shortcut.path.split("/").pop() ?? shortcut.path;
 }
 
 // The set-row description: tag the currently active set and the set this branch is

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // "Run This Shortcut When a File Changes" (#25 — cross-file watch links). A QuickPick hub
@@ -32,7 +33,7 @@ export async function configureWatchLink(store: ShortcutStore, shortcut: Shortcu
     return;
   }
 
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const title = l10n("watch.title", { name });
   // Working copy of the globs; de-duplicated as entries are added.
   const globs = [...(shortcut.exec?.runOnSaveGlobs ?? [])];

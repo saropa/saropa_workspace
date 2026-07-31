@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Shortcut, ShortcutTrigger, SystemEventName } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { shortcutEvents, ShortcutRunOutcome } from "./shortcutEvents";
 import { systemEvents } from "./systemEvents";
 import { IdleMonitor } from "./idleMonitor";
@@ -112,7 +113,7 @@ export class ChainRunner implements vscode.Disposable {
         trigger.pinId === pinId &&
         !(failed && trigger.onlyOnSuccess),
       l10n("chain.cause.afterPin", {
-        name: source ? nameOf(source) : pinId,
+        name: source ? shortcutDisplayName(source) : pinId,
       })
     );
   }
@@ -154,7 +155,7 @@ export class ChainRunner implements vscode.Disposable {
       const block = runBlockReason(shortcut);
       if (block) {
         channel.appendLine(
-          l10n("chain.skipped", { name: nameOf(shortcut), cause, reason: blockReasonLabel(block) })
+          l10n("chain.skipped", { name: shortcutDisplayName(shortcut), cause, reason: blockReasonLabel(block) })
         );
         continue;
       }
@@ -162,7 +163,7 @@ export class ChainRunner implements vscode.Disposable {
       // cannot be answered, so skip it and note why (same stance as the scheduler).
       if (forceBackground && hasInteractiveTokens(shortcut)) {
         channel.appendLine(
-          l10n("chain.idleInteractiveSkipped", { name: nameOf(shortcut) })
+          l10n("chain.idleInteractiveSkipped", { name: shortcutDisplayName(shortcut) })
         );
         continue;
       }
@@ -172,12 +173,12 @@ export class ChainRunner implements vscode.Disposable {
         // the same cascade. Note it once so a misconfigured cycle is visible rather
         // than silently dropped.
         channel.appendLine(
-          l10n("chain.cooldown", { name: nameOf(shortcut), cause })
+          l10n("chain.cooldown", { name: shortcutDisplayName(shortcut), cause })
         );
         continue;
       }
       this.lastAutoRun.set(shortcut.id, now);
-      channel.appendLine(l10n("chain.firing", { name: nameOf(shortcut), cause }));
+      channel.appendLine(l10n("chain.firing", { name: shortcutDisplayName(shortcut), cause }));
       // Fire-and-forget through the normal Run command so the dependent gets the
       // same treatment a manual run does (and fires its own completion to continue
       // the chain). A throw here must not break the cascade for sibling shortcuts.
@@ -187,7 +188,7 @@ export class ChainRunner implements vscode.Disposable {
         .then(undefined, (err: unknown) => {
           channel.appendLine(
             l10n("chain.failed", {
-              name: nameOf(shortcut),
+              name: shortcutDisplayName(shortcut),
               error: err instanceof Error ? err.message : String(err),
             })
           );
@@ -207,9 +208,6 @@ export class ChainRunner implements vscode.Disposable {
   }
 }
 
-function nameOf(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
-}
 
 // A shallow clone of a shortcut forced to run in the background, for the idle trigger. An
 // unattended idle run must never steal the integrated terminal or pop a separate OS

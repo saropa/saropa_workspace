@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { Shortcut, shortcutKind } from "../model/shortcut";
 import { readCurrentBranch } from "../exec/gitBranch";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Simple per-shortcut flag toggles: the masked/vault screen-share guard (WOW #26) and
@@ -16,7 +17,7 @@ import { l10n } from "../i18n/l10n";
 // document to guard, and auto/recipe shortcuts are recomputed (not stored) so a flag cannot
 // persist on them — both are rejected with a naming message.
 export async function toggleMask(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   if (shortcut.isAuto || shortcut.isRecipe) {
     vscode.window.showWarningMessage(l10n("mask.unsupported", { name }));
     return;
@@ -45,7 +46,7 @@ export async function toggleMask(store: ShortcutStore, shortcut: Shortcut): Prom
 // (not stored) and cannot carry a branch, so they are rejected up front. A read
 // failure warns instead of guessing, so a shortcut never gets a branch it can never match.
 export async function toggleBranchLink(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   if (shortcut.isAuto || shortcut.isRecipe) {
     vscode.window.showWarningMessage(l10n("branch.unsupported", { name }));
     return;

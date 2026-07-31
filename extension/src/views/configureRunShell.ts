@@ -13,15 +13,10 @@ import * as vscode from "vscode";
 import * as crypto from "crypto";
 import * as path from "path";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { CONFIGURE_RUN_STYLE, CONFIGURE_RUN_SCRIPT } from "./configureRunAssets";
 import { l10n } from "../i18n/l10n";
-
-// The display name for a shortcut, falling back to its file basename. Shared with the panel
-// (titles, toasts) so both agree.
-export function shortcutName(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
-}
 
 // Build the full webview HTML document for one shortcut's Configure Run form: the CSP
 // shell, the hero header, and the six form cards assembled in order, plus the env-row
@@ -35,7 +30,7 @@ export function renderConfigureRunHtml(store: ShortcutStore, shortcut: Shortcut)
     "style-src 'unsafe-inline'",
     `script-src 'nonce-${nonce}'`,
   ].join("; ");
-  const name = shortcutName(shortcut);
+  const name = shortcutDisplayName(shortcut);
   const title = l10n("configureRun.title", { name });
 
   return `<!DOCTYPE html>
@@ -211,7 +206,7 @@ function outputCard(store: ShortcutStore, shortcut: Shortcut): string {
         ? l10n("pin.group.global")
         : l10n("pin.group.project");
     depOptions.push(
-      `<option value="${esc(candidate.id)}">${esc(shortcutName(candidate))} (${esc(scope)})</option>`
+      `<option value="${esc(candidate.id)}">${esc(shortcutDisplayName(candidate))} (${esc(scope)})</option>`
     );
   }
   return `<div class="card">

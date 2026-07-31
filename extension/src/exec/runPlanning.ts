@@ -12,6 +12,7 @@ import {
   assembleCommandLine,
   parseShebangLine,
 } from "./commandPlan";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Pure run planning + the single-instance guard. No process launching happens here:
@@ -160,7 +161,7 @@ export function planRun(
     ? expandTokens(shortcut.exec.cwd, tokens, unknown)
     : workspaceRoot ?? path.dirname(fsPath);
 
-  const name = shortcut.label ?? path.basename(fsPath);
+  const name = shortcutDisplayName(shortcut);
 
   // Assemble <prefix> "<file>" <args...> via the pure core. includeFilePath ===
   // false omits the file entirely (npm-script / Make-target run configs name their

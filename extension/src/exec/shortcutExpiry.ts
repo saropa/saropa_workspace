@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { runStatusRegistry } from "./runStatus";
 import { readCurrentBranch } from "./gitBranch";
@@ -90,10 +91,6 @@ async function sweepExpired(store: ShortcutStore): Promise<RemovedShortcut[]> {
   return victims;
 }
 
-// The display name shown in the summary toast for a removed shortcut.
-function shortcutName(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
-}
 
 // Drives time-bomb expiry: one sweep on construction, a low-frequency timer for the
 // wall-clock case, and a .git/HEAD watcher per folder for the branch case. Disposable
@@ -144,7 +141,7 @@ export class ShortcutExpiry implements vscode.Disposable {
     if (removed.length === 0) {
       return;
     }
-    const names = removed.map((r) => shortcutName(r.shortcut)).join(", ");
+    const names = removed.map((r) => shortcutDisplayName(r.shortcut)).join(", ");
     const message =
       removed.length === 1
         ? l10n("expiry.sweptOne", { name: names })

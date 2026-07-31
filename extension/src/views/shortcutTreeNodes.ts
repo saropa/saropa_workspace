@@ -8,6 +8,7 @@ import { metricBadges, MetricTarget } from "../exec/metricBadges";
 import { dependencyState } from "../exec/dependencies";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { tappedShortcuts } from "../model/tappedShortcuts";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutTreeItem } from "./shortcutTreeItem";
 
 // The per-shortcut tree-row constructors and the data each row reads (run state,
@@ -88,7 +89,7 @@ export function lockedBy(
   }
   const dep = store.findShortcut(pendingDependencyId);
   return dep
-    ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
+    ? shortcutDisplayName(dep)
     : pendingDependencyId;
 }
 
@@ -139,7 +140,7 @@ export function syncMetrics(store: ShortcutStore): void {
     }
     targets.push({
       pinId: shortcut.id,
-      name: shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path),
+      name: shortcutDisplayName(shortcut),
       uri,
       metric: shortcut.metric,
     });

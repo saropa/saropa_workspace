@@ -5,6 +5,7 @@ import {
   shortcutKind,
   isAnnotationShortcut,
 } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { compositeGroupId } from "../model/shortcutStoreShared";
 import { l10n } from "../i18n/l10n";
@@ -147,7 +148,7 @@ function toItem(
   const runnable = isFile ? fileExecutable(shortcut, fileName) : true;
   return {
     id: shortcut.id,
-    label: shortcut.label ?? fileName,
+    label: shortcutDisplayName(shortcut),
     sub: shortcut.path,
     desc: shortcut.description,
     pane,

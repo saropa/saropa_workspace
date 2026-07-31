@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
@@ -82,7 +83,7 @@ function nameFor(store: ShortcutStore, pinId: string): string {
   if (!shortcut) {
     return l10n("analytics.unknownPin");
   }
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  return shortcutDisplayName(shortcut);
 }
 
 // Exported for unit tests: the disabled / empty / populated branches are pure

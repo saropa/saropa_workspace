@@ -49,6 +49,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
       <div id="projName" class="project-name">${projectName}</div>
       <div id="projMeta" class="project-meta"><span class="meta-item loading"><span class="codicon codicon-loading codicon-modifier-spin"></span><span>${l10n("launcher.loading")}</span></span></div>
     </div>
+    <button id="settingsBtn" class="hdr-btn" type="button" title="${l10n("settings.title")}"><span class="codicon codicon-settings-gear"></span></button>
     <div class="search">
       <span class="codicon codicon-search"></span>
       <input id="q" type="text" spellcheck="false" aria-label="${l10n("launcher.searchPlaceholder")}" />

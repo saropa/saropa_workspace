@@ -4,6 +4,7 @@ import { Shortcut, shortcutKind, isAnnotationShortcut } from "../model/shortcut"
 import { tappedShortcuts } from "../model/tappedShortcuts";
 import { telemetry } from "../exec/telemetry";
 import { runStatusRegistry } from "../exec/runStatus";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { runShortcutCommand } from "./shortcutExecution";
 import { startTailFollow } from "./shortcutTailFollow";
@@ -38,7 +39,7 @@ export async function handleMissingFile(
   shortcut: Shortcut,
   uri: vscode.Uri
 ): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const relocate = l10n("pin.missing.relocate");
   const remove = l10n("pin.missing.unpin");
   const reveal = l10n("pin.missing.reveal");
@@ -73,7 +74,7 @@ export async function handleMissingFile(
 // path is folder-relative); a file chosen elsewhere is rejected with a message
 // naming why, so the gesture never silently writes an unresolvable path.
 async function relocateShortcut(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const picked = await vscode.window.showOpenDialog({
     canSelectMany: false,
     openLabel: l10n("pin.missing.relocateOpenLabel"),
@@ -144,7 +145,7 @@ export async function openShortcut(store: ShortcutStore, shortcut: Shortcut): Pr
   // gates the OPEN; it cannot redact an already-open document (no API blurs editor
   // text), which is the documented fidelity limit of this feature.
   if (shortcut.masked) {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     const reveal = l10n("mask.revealAction");
     const choice = await vscode.window.showWarningMessage(
       l10n("mask.revealConfirm", { name }),

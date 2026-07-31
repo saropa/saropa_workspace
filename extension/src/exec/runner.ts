@@ -9,6 +9,7 @@ import {
   resolveInteractiveTokens,
   cloneWithResolvedTokens,
 } from "./promptTokens";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { planRun } from "./runPlanning";
 import { getOutputChannel, runInTerminal } from "./terminalRunner";
@@ -52,7 +53,7 @@ export async function runShortcut(
   source: RunSource = "manual",
   extraTokens?: Record<string, string>
 ): Promise<void> {
-  const name = shortcut.label ?? path.basename(uri.fsPath);
+  const name = shortcutDisplayName(shortcut);
 
   // Resolve interactive run-parameter tokens (${prompt:...} / ${pick:...}) before
   // assembly, so the run uses the values the user just entered. Canceling any

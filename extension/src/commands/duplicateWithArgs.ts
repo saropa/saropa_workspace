@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Shortcut, shortcutKind } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { parseArgs, formatArgs } from "./configureRunCommand";
 import { l10n } from "../i18n/l10n";
 
@@ -42,7 +43,7 @@ export async function duplicateWithArgs(
   // Only a file shortcut runs via an interpreter + argument line; a url/shell/command
   // action stores its target elsewhere, so an "argument" has no meaning there.
   if (shortcutKind(shortcut) !== "file") {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     vscode.window.showWarningMessage(l10n("duplicateArg.notFile", { name }));
     return;
   }
@@ -91,7 +92,7 @@ export async function duplicateWithArgs(
     // visible outcome rather than returning silently (the no-silent-async rule).
     vscode.window.showWarningMessage(
       l10n("duplicateArg.failed", {
-        name: shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path),
+        name: shortcutDisplayName(shortcut),
       })
     );
   }

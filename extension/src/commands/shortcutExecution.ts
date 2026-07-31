@@ -21,6 +21,7 @@ import {
 } from "../exec/promptTokens";
 import { SharedShortcut } from "../import/shareLink";
 import { l10n } from "../i18n/l10n";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { fileExists, handleMissingFile } from "./shortcutOpen";
 import { orderedShortcuts } from "./shortcutRunPalette";
 import { asShortcut } from "./shortcutArgResolution";
@@ -87,7 +88,7 @@ export async function runShortcutCommand(
   // instead (opening is itself the visible feedback) and say why "run" did not
   // run, naming the file so the message ties to a concrete shortcut.
   if (!isRunnable(shortcut, uri.fsPath)) {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     await vscode.window.showTextDocument(uri, { preview: false });
     vscode.window.showInformationMessage(l10n("run.openedNotRunnable", { name }));
     return;
@@ -106,7 +107,7 @@ async function handleAlreadyRunning(
   shortcut: Shortcut,
   reason: RunBlockReason
 ): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const runAnyway = l10n("run.runAnyway");
   const showOutput = l10n("run.showOutput");
 
@@ -185,9 +186,9 @@ async function ensureDependency(store: ShortcutStore, shortcut: Shortcut): Promi
   }
   const dep = store.findShortcut(pendingDependencyId);
   const depName = dep
-    ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
+    ? shortcutDisplayName(dep)
     : pendingDependencyId;
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const runDep = l10n("depends.runAction", { dep: depName });
   const choice = await vscode.window.showWarningMessage(
     l10n("depends.blocked", { name, dep: depName }),
@@ -216,7 +217,7 @@ export async function runWithLastParams(store: ShortcutStore, shortcut: Shortcut
   }
   const values = await resolveRememberedTokens(shortcut);
   if (values === undefined) {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     vscode.window.showInformationMessage(l10n("run.canceledPromptToast", { name }));
     return;
   }
@@ -243,7 +244,7 @@ export async function runShortcutOnDroppedFile(
   droppedFsPath: string
 ): Promise<void> {
   void tappedShortcuts.mark(shortcut.id);
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   if (shortcutKind(shortcut) !== "file") {
     return;
   }

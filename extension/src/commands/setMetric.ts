@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut, ShortcutMetric, shortcutKind } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { formatBytes, parseSize } from "../exec/metricFormat";
 import { l10n } from "../i18n/l10n";
@@ -47,7 +48,7 @@ export async function setMetric(store: ShortcutStore, shortcut: Shortcut): Promi
     return;
   }
 
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const title = l10n("metric.title", { name });
 
   const kind = await pickMetricKind(shortcut, title);

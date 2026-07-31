@@ -6,6 +6,7 @@ import { FolderWatchStore } from "../model/folderWatch";
 import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutOpen";
 import { l10n } from "../i18n/l10n";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ProjectFilesTreeProvider } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
@@ -73,6 +74,10 @@ export async function handleLauncherMessage(
     await ctx.post();
     return;
   }
+  if (msg.type === "openSettings") {
+    await vscode.commands.executeCommand("saropaWorkspace.openSettings");
+    return;
+  }
 
   // The Watches and Project Files panes route their opens by their OWN validated
   // targets, not through the store: a watch id is not a shortcut id, and a surfaced
@@ -123,7 +128,7 @@ export async function handleLauncherMessage(
       await vscode.env.clipboard.writeText(full);
       void vscode.window.showInformationMessage(
         l10n("launcher.copiedPath", {
-          name: shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path),
+          name: shortcutDisplayName(shortcut),
         })
       );
       return;

@@ -1,19 +1,9 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { readCurrentBranch } from "../exec/gitBranch";
 import { l10n } from "../i18n/l10n";
-
-// Time-bomb / ephemeral shortcuts (WOW #9) — the user-facing setup for Shortcut.expires.
-// Three entry points: a wall-clock "Expire until..." preset picker, "Expire until branch
-// changes" (bombs on the current git branch), and "Clear expiry" (defuse). All three
-// gate out auto-shortcuts, which are recomputed each refresh and so cannot carry stored
-// state.
-
-// The display name used in the confirmation toasts.
-function shortcutName(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
-}
 
 // Format an expiry instant for a toast: the local date + time the shortcut will vanish.
 function formatInstant(at: number): string {
@@ -126,7 +116,7 @@ export async function shortcutUntil(store: ShortcutStore, shortcut: Shortcut): P
     vscode.window.showWarningMessage(l10n("expiry.autoUnsupported"));
     return;
   }
-  const name = shortcutName(shortcut);
+  const name = shortcutDisplayName(shortcut);
   const pick = await vscode.window.showQuickPick(buildPresets(), {
     title: l10n("expiry.pick.title", { name }),
     placeHolder: l10n("expiry.pick.placeholder"),
@@ -156,7 +146,7 @@ export async function shortcutUntilBranchChange(
     vscode.window.showWarningMessage(l10n("expiry.autoUnsupported"));
     return;
   }
-  const name = shortcutName(shortcut);
+  const name = shortcutDisplayName(shortcut);
   const folder = store.folderOf(shortcut) ?? vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     vscode.window.showWarningMessage(l10n("expiry.noRepo", { name }));
@@ -176,7 +166,7 @@ export async function shortcutUntilBranchChange(
 // "Clear expiry" — defuse the bomb. A no-op-with-feedback when nothing was set, so
 // the action (which is shown on every stored shortcut) reads clearly either way.
 export async function clearShortcutExpiry(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
-  const name = shortcutName(shortcut);
+  const name = shortcutDisplayName(shortcut);
   if (!shortcut.expires) {
     vscode.window.showInformationMessage(l10n("expiry.noneSet", { name }));
     return;
