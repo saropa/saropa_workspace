@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut, shortcutKind } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import {
   planRun,
@@ -350,7 +351,7 @@ export class Scheduler implements vscode.Disposable {
 // status bar. Single source so the fire log, the missed-run offer, and the result
 // toast all name the item the same way.
 function scheduleName(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  return shortcutDisplayName(shortcut);
 }
 
 // Workspace-root-relative form (forward slashes) of an absolute report path, for

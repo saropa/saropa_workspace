@@ -261,4 +261,11 @@ function postOpen(it) {
   else { vscode.postMessage({ type: 'open', id: it.id }); }
 }
 
+var settingsBtn = document.getElementById('settingsBtn');
+if (settingsBtn) {
+  settingsBtn.addEventListener('click', function () {
+    vscode.postMessage({ type: 'openSettings' });
+  });
+}
+
 `;

@@ -10,7 +10,7 @@
 import { ShortcutStore } from "../model/shortcutStore";
 import { parseHourMinute } from "../exec/schedule";
 import { l10n } from "../i18n/l10n";
-import { shortcutName } from "./scheduleEditorShell";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 
 const MINUTES_PER_DAY = 24 * 60;
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -78,7 +78,7 @@ export function buildInsights(
       continue;
     }
     neighbors.push({
-      name: shortcutName(shortcut),
+      name: shortcutDisplayName(shortcut),
       minutes: parsed.hour * 60 + parsed.minute,
       days: schedule.days && schedule.days.length > 0 ? schedule.days : ALL_DAYS,
     });

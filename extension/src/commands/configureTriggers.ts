@@ -7,6 +7,7 @@ import {
 } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { showHubQuickPick } from "./hubQuickPick";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Configure Triggers (WOW: recipe chaining + special events). A hub-and-spoke
@@ -46,7 +47,7 @@ export async function configureTriggers(
     return;
   }
 
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const title = l10n("triggers.title", { name });
 
   const work: WorkTriggers = {
@@ -219,7 +220,7 @@ function describeTrigger(store: ShortcutStore, trigger: ShortcutTrigger): string
   }
   const source = store.findShortcut(trigger.pinId);
   const name = source
-    ? source.label ?? (source.path.split("/").pop() ?? source.path)
+    ? shortcutDisplayName(source)
     : l10n("triggers.row.missingPin");
   return l10n("triggers.row.pin", { name });
 }
@@ -249,7 +250,7 @@ async function addShortcutTrigger(
     shortcut: Shortcut;
   }
   const items: ShortcutItem[] = candidates.map((p) => ({
-    label: p.label ?? (p.path.split("/").pop() ?? p.path),
+    label: shortcutDisplayName(p),
     description:
       p.scope === "global" ? l10n("pin.group.global") : l10n("pin.group.project"),
     shortcut: p,

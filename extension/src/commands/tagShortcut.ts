@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
@@ -18,7 +19,7 @@ export async function tagShortcut(store: ShortcutStore, shortcut: Shortcut): Pro
     return;
   }
 
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const existing = store.tagsInUse();
   const current = new Set(shortcut.tags ?? []);
 

@@ -67,6 +67,14 @@ header {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px 16px; flex-wrap: wrap;
 }
+.hdr-btn {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 26px; height: 26px; border: none; border-radius: 4px;
+  background: transparent; color: var(--vscode-descriptionForeground);
+  cursor: pointer; padding: 0;
+}
+.hdr-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,.12)); color: var(--vscode-foreground); }
+.hdr-btn:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -1px; }
 /* The project block grows to take the freed width and lays its parts on ONE line — the
    folder name, then the version + counts inline beside it — so the header reads as a single
    summary row rather than a stacked name-over-meta block. min-width:0 lets a long folder

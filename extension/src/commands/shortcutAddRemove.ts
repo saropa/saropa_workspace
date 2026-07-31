@@ -4,6 +4,7 @@ import { ShortcutScope } from "../model/shortcut";
 import { defaultGroupLabel } from "../model/shortcutStoreShared";
 import { runStatusRegistry } from "../exec/runStatus";
 import { detectRunTargets, RunTarget } from "../exec/runTargets";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Add/remove commands that turn a file into a shortcut (or back): the line-shortcut
@@ -117,7 +118,7 @@ export async function removeShortcutForUri(
     );
     return;
   }
-  const name = shortcut.label ?? fileName;
+  const name = shortcutDisplayName(shortcut);
   await store.removeShortcut(shortcut);
   // Drop any last-run badge so it does not outlive the shortcut.
   runStatusRegistry.clear(shortcut.id);

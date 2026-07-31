@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { Shortcut, isAnnotationShortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { telemetry } from "../exec/telemetry";
 import { l10n } from "../i18n/l10n";
 import { runShortcutCommand } from "./shortcutExecution";
@@ -82,7 +83,7 @@ async function pickShortcut(
 
   type ShortcutItem = vscode.QuickPickItem & { shortcut?: Shortcut };
   const toItem = (shortcut: Shortcut): ShortcutItem => ({
-    label: shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path),
+    label: shortcutDisplayName(shortcut),
     description: shortcutLocation(store, shortcut),
     detail: shortcut.path,
     shortcut,
@@ -137,7 +138,7 @@ export async function runShortcutWithOverrides(store: ShortcutStore): Promise<vo
   }
 
   const argsLine = await vscode.window.showInputBox({
-    title: l10n("override.title", { name: shortcut.label ?? shortcut.path }),
+    title: l10n("override.title", { name: shortcutDisplayName(shortcut) }),
     prompt: l10n("override.argsPrompt"),
     value: shortcut.exec?.args ? formatArgs(shortcut.exec.args) : "",
   });
@@ -146,7 +147,7 @@ export async function runShortcutWithOverrides(store: ShortcutStore): Promise<vo
   }
 
   const cwd = await vscode.window.showInputBox({
-    title: l10n("override.title", { name: shortcut.label ?? shortcut.path }),
+    title: l10n("override.title", { name: shortcutDisplayName(shortcut) }),
     prompt: l10n("override.cwdPrompt"),
     value: shortcut.exec?.cwd ?? "",
   });
@@ -155,7 +156,7 @@ export async function runShortcutWithOverrides(store: ShortcutStore): Promise<vo
   }
 
   const envLine = await vscode.window.showInputBox({
-    title: l10n("override.title", { name: shortcut.label ?? shortcut.path }),
+    title: l10n("override.title", { name: shortcutDisplayName(shortcut) }),
     prompt: l10n("override.envPrompt"),
     placeHolder: l10n("override.envPlaceholder"),
     value: formatEnv(shortcut.exec?.env),

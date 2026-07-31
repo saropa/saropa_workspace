@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Shortcut, ShortcutGroup, ShortcutScope } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Roadmap 5.1 — per-shortcut icon and color customization.
@@ -129,7 +130,7 @@ export async function configureAppearance(store: ShortcutStore, shortcut: Shortc
     return;
   }
 
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const title = l10n("appearance.title", { name });
 
   const picked = await pickAppearance(shortcut.icon, shortcut.color, title);

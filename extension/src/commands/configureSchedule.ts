@@ -10,6 +10,7 @@ import {
   applyAutoEnable,
 } from "./scheduleModel";
 import { editCron, WEEKDAY_LABELS } from "./configureScheduleCron";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Roadmap 2.2 — schedule editor UI (keyboard-only QuickPick variant).
@@ -44,7 +45,7 @@ export async function configureSchedule(store: ShortcutStore, shortcut: Shortcut
     return;
   }
 
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const title = l10n("schedule.title", { name });
 
   const work: WorkSchedule = workFromSchedule(shortcut.schedule);

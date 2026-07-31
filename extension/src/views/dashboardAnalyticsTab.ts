@@ -5,6 +5,7 @@ import { telemetry } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
 import { recentTag } from "./shortcutRowFormatting";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { relativeTime } from "./dashboardTrendsTab";
 
 // How many most-run shortcuts to surface, so a heavy user's dashboard stays scannable
@@ -85,7 +86,7 @@ function nameFor(store: ShortcutStore, shortcutId: string): string {
   if (!shortcut) {
     return l10n("analytics.unknownPin");
   }
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  return shortcutDisplayName(shortcut);
 }
 
 function sessionLabel(result: RunResult): string {

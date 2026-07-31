@@ -5,6 +5,7 @@ import {
   SystemEventName,
 } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { runStatusRegistry } from "../exec/runStatus";
 import { isRunnable } from "../exec/runner";
 import { l10n } from "../i18n/l10n";
@@ -68,7 +69,7 @@ export function buildData(store: ShortcutStore): PlannerData {
     nodes.push({
       id: shortcut.id,
       kind: "pin",
-      label: shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path),
+      label: shortcutDisplayName(shortcut),
       scope: shortcut.scope,
       shortcutKind: shortcutKind(shortcut),
       description: shortcut.description,

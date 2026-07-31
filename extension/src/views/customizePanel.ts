@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as crypto from "crypto";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { COLOR_CHOICES } from "../commands/configureAppearance";
 import { ICON_CATEGORIES, ICON_KEYWORDS } from "./iconCatalog";
@@ -72,7 +73,7 @@ export class CustomizePanel {
     }
     const panel = vscode.window.createWebviewPanel(
       CustomizePanel.viewType,
-      l10n("customize.title", { name: shortcutName(shortcut) }),
+      l10n("customize.title", { name: shortcutDisplayName(shortcut) }),
       column ?? vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -103,7 +104,7 @@ export class CustomizePanel {
 
   private repoint(shortcut: Shortcut): void {
     this.shortcutId = shortcut.id;
-    this.panel.title = l10n("customize.title", { name: shortcutName(shortcut) });
+    this.panel.title = l10n("customize.title", { name: shortcutDisplayName(shortcut) });
     this.panel.webview.html = this.renderShell(shortcut);
   }
 
@@ -161,7 +162,7 @@ export class CustomizePanel {
 
     await this.store.setShortcutTags(shortcut, Array.isArray(msg.tags) ? msg.tags : []);
 
-    const finalName = rawName || shortcutName(shortcut);
+    const finalName = rawName || shortcutDisplayName(shortcut);
     vscode.window.showInformationMessage(l10n("customize.saved", { name: finalName }));
     this.panel.dispose();
   }
@@ -181,7 +182,7 @@ export class CustomizePanel {
       `font-src ${webview.cspSource}`,
       `script-src 'nonce-${nonce}'`,
     ].join("; ");
-    const name = shortcutName(shortcut);
+    const name = shortcutDisplayName(shortcut);
     const title = l10n("customize.title", { name });
     const basename = shortcut.path.split("/").pop() ?? shortcut.path;
 
@@ -340,10 +341,6 @@ ${this.tagCard()}
       d.dispose();
     }
   }
-}
-
-function shortcutName(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
 }
 
 // Strip a leading $(codicon) token (and any inline ones) from a label. The color labels

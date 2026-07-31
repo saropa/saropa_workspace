@@ -6,7 +6,8 @@ import { seedLocation, normalize, ConcurrencyEdit } from "../commands/configureR
 import { parseArgs, formatArgs } from "../commands/configureRunCommand";
 import { planRun, resolveRunPrefix } from "../exec/runPlanning";
 import { detectInterpreters } from "../exec/interpreterDetect";
-import { renderConfigureRunHtml, shortcutName } from "./configureRunShell";
+import { renderConfigureRunHtml } from "./configureRunShell";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // The Configure Run webview form — a single screen that shows EVERY run parameter of one
@@ -74,7 +75,7 @@ export class ConfigureRunPanel {
     }
     const panel = vscode.window.createWebviewPanel(
       ConfigureRunPanel.viewType,
-      l10n("configureRun.title", { name: shortcutName(shortcut) }),
+      l10n("configureRun.title", { name: shortcutDisplayName(shortcut) }),
       column ?? vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true }
     );
@@ -99,7 +100,7 @@ export class ConfigureRunPanel {
   // Reuse the open panel for a different shortcut: repoint, rebuild the form, retitle.
   private repoint(shortcut: Shortcut): void {
     this.shortcutId = shortcut.id;
-    this.panel.title = l10n("configureRun.title", { name: shortcutName(shortcut) });
+    this.panel.title = l10n("configureRun.title", { name: shortcutDisplayName(shortcut) });
     this.panel.webview.html = renderConfigureRunHtml(this.store, shortcut);
   }
 
@@ -295,7 +296,7 @@ export class ConfigureRunPanel {
     await this.store.updateShortcutExec(shortcut, normalize(exec));
     await this.store.setShortcutConcurrency(shortcut, conc.allowConcurrent, conc.lockName);
     vscode.window.showInformationMessage(
-      l10n("configure.saved", { name: shortcutName(shortcut) })
+      l10n("configure.saved", { name: shortcutDisplayName(shortcut) })
     );
     this.panel.dispose();
   }

@@ -2,31 +2,17 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import { Shortcut, shortcutKind, ShortcutScope } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { runStatusRegistry } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
-
-// Lightweight file-manager operations on a file shortcut's target, run from the Shortcuts
-// view (roadmap Later / Exploratory: "Filesystem operations from the tree"). The Shortcuts
-// view already lists the files a user actually works with; these let them create,
-// duplicate, rename, copy, and delete those files without round-tripping through the
-// Explorer. All five act on a file shortcut's resolved target; a non-file shortcut (recipe /
-// url / shell / command / macro) has no file on disk and is rejected with a naming
-// message. The plain "Duplicate File" here is distinct from "Use as Template…",
-// which copies AND rewrites the file's identifiers across case styles — this one is
-// a byte-for-byte copy.
-
-// The shortcut's display name for messages: its label, else the target's basename.
-function shortcutName(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
-}
 
 // Resolve a file shortcut to its on-disk URI, surfacing the same warnings the open/run
 // paths use when the shortcut is not a file or cannot be resolved. Returns undefined
 // (after showing the message) when there is nothing to act on.
 function resolveFileShortcut(store: ShortcutStore, shortcut: Shortcut): vscode.Uri | undefined {
   if (shortcutKind(shortcut) !== "file") {
-    vscode.window.showWarningMessage(l10n("fileOps.notFile", { name: shortcutName(shortcut) }));
+    vscode.window.showWarningMessage(l10n("fileOps.notFile", { name: shortcutDisplayName(shortcut) }));
     return undefined;
   }
   const uri = store.resolveUri(shortcut);
@@ -226,7 +212,7 @@ export async function copyFileTo(store: ShortcutStore, shortcut: Shortcut): Prom
     canSelectFiles: false,
     canSelectFolders: true,
     openLabel: l10n("fileOps.copyToOpenLabel"),
-    title: l10n("fileOps.copyToTitle", { name: shortcutName(shortcut) }),
+    title: l10n("fileOps.copyToTitle", { name: shortcutDisplayName(shortcut) }),
   });
   if (!picked || picked.length === 0) {
     return;

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { nextOccurrence } from "../exec/schedule";
 import { l10n } from "../i18n/l10n";
@@ -119,7 +120,7 @@ export class ScheduleStatusBar {
     }
 
     if (justRan) {
-      const name = justRan.shortcut.label ?? (justRan.shortcut.path.split("/").pop() ?? justRan.shortcut.path);
+      const name = shortcutDisplayName(justRan.shortcut);
       const time = formatWhen(justRan.ranAt);
       this.currentShortcutId = justRan.shortcut.id;
       this.currentNextRunAt = undefined;
@@ -152,7 +153,7 @@ export class ScheduleStatusBar {
       return;
     }
 
-    const name = soonest.shortcut.label ?? (soonest.shortcut.path.split("/").pop() ?? soonest.shortcut.path);
+    const name = shortcutDisplayName(soonest.shortcut);
     const time = formatWhen(soonest.at);
     this.currentShortcutId = soonest.shortcut.id;
     this.currentNextRunAt = soonest.at;

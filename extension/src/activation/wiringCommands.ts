@@ -5,6 +5,7 @@ import { BranchTracker } from "../exec/gitBranch";
 import { BranchSetBinder } from "../exec/branchSets";
 import { setRoutineHooks } from "../exec/runner";
 import { PlannerPanel } from "../views/plannerPanel";
+import { SettingsPanel } from "../views/settingsPanel";
 import { registerSimulationPreview } from "../commands/simulateRun";
 import { registerRunAnalytics } from "../commands/runAnalytics";
 import { registerDailyReport } from "../commands/dailyReport";
@@ -113,6 +114,14 @@ export function registerCommandModules(
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.openPlanner", () =>
       PlannerPanel.show(context, store)
+    )
+  );
+
+  // Settings webview: a single screen surfacing every saropaWorkspace.*
+  // preference with an info icon and the appropriate control.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.openSettings", () =>
+      SettingsPanel.show(context)
     )
   );
   return branchSetBinder;

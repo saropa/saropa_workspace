@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { BranchTracker } from "./gitBranch";
 import { getOutputChannel } from "./runner";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Branch-aware shortcut sets (roadmap 3.2). Binds a git branch name to a named shortcut set
@@ -150,7 +151,7 @@ export class BranchSetBinder implements vscode.Disposable {
       );
       return;
     }
-    const name = shortcut.label ?? shortcut.path.split("/").pop() ?? shortcut.path;
+    const name = shortcutDisplayName(shortcut);
     void vscode.window.showInformationMessage(
       l10n("branchSet.switchedAndRan", { set, branch, name })
     );

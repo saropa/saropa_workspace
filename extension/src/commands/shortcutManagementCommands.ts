@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutFolderItem } from "../views/shortcutTreeItem";
 import { l10n } from "../i18n/l10n";
 import { scopeFromAddGroupArg, editorTargetUri, targetUri } from "./shortcutArgResolution";
@@ -232,7 +233,7 @@ function registerRecipeRestoreCommands(
   // Convert a detected recipe into a stored, fully-editable shortcut (and suppress the
   // detected one so it does not duplicate).
   regShortcut("saropaWorkspace.promoteRecipe", async (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     const promoted = await store.promoteRecipe(shortcut);
     if (promoted) {
       vscode.window.showInformationMessage(l10n("recipe.promoted", { name }));
@@ -244,7 +245,7 @@ function registerRecipeRestoreCommands(
   // single toast naming the ritual and its time. This is the one place a recommendation
   // surface shows a toast — it confirms an action, never nudges.
   regShortcut("saropaWorkspace.enableScheduledRecipe", async (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     const enabled = await store.enableScheduledRecipe(shortcut);
     if (enabled) {
       const time = shortcut.schedule?.atTime;
@@ -290,7 +291,7 @@ function registerRecipeRestoreCommands(
       shortcutId: string;
     }
     const items: RoutinePickItem[] = routines.map((r) => ({
-      label: r.label ?? r.path,
+      label: shortcutDisplayName(r),
       description: r.schedule?.atTime
         ? l10n("dailyRoutines.at", { time: r.schedule.atTime })
         : undefined,

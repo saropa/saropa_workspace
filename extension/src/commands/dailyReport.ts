@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { Shortcut } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { telemetry, RunRecord } from "../exec/telemetry";
 import { runStatusRegistry, RunResult, formatDuration } from "../exec/runStatus";
 import { expandRecipeTokens, reportRelativePath } from "../exec/actionRunner";
@@ -500,5 +501,5 @@ function nameFor(store: ShortcutStore, pinId: string): string {
   if (!shortcut) {
     return l10n("analytics.unknownPin");
   }
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  return shortcutDisplayName(shortcut);
 }

@@ -3,6 +3,7 @@ import * as crypto from "crypto";
 import * as path from "path";
 import { ShortcutStore } from "../model/shortcutStore";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { nextOccurrence, isMissed } from "../exec/schedule";
 import { runStatusRegistry } from "../exec/runStatus";
 import { validateReportPath } from "../exec/trendReports";
@@ -126,7 +127,7 @@ export class SchedulePanel {
         : undefined;
     return {
       id: shortcut.id,
-      name: shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path),
+      name: shortcutDisplayName(shortcut),
       scope: shortcut.scope,
       next: next !== undefined ? formatWhen(next) : "",
       overdue: isMissed(schedule, now),

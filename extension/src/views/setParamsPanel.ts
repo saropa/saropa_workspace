@@ -3,7 +3,7 @@ import * as crypto from "crypto";
 import { Shortcut } from "../model/shortcut";
 import { getInteractiveTokens, InteractiveToken } from "../exec/promptTokens";
 import { promptMemory } from "../exec/promptMemory";
-import { shortcutName } from "./configureRunShell";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { CONFIGURE_RUN_STYLE } from "./configureRunAssets";
 import { l10n } from "../i18n/l10n";
 
@@ -66,7 +66,7 @@ export class SetParamsPanel {
   static show(shortcut: Shortcut): void {
     if (getInteractiveTokens(shortcut).length === 0) {
       void vscode.window.showInformationMessage(
-        l10n("setParams.none", { name: shortcutName(shortcut) })
+        l10n("setParams.none", { name: shortcutDisplayName(shortcut) })
       );
       return;
     }
@@ -78,7 +78,7 @@ export class SetParamsPanel {
     }
     const panel = vscode.window.createWebviewPanel(
       SetParamsPanel.viewType,
-      l10n("setParams.title", { name: shortcutName(shortcut) }),
+      l10n("setParams.title", { name: shortcutDisplayName(shortcut) }),
       column ?? vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true }
     );
@@ -101,7 +101,7 @@ export class SetParamsPanel {
 
   private repoint(shortcut: Shortcut): void {
     this.shortcut = shortcut;
-    this.panel.title = l10n("setParams.title", { name: shortcutName(shortcut) });
+    this.panel.title = l10n("setParams.title", { name: shortcutDisplayName(shortcut) });
     this.panel.webview.html = this.renderShell(shortcut);
   }
 
@@ -213,7 +213,7 @@ export class SetParamsPanel {
     const map = new Map(Object.entries(values));
     await promptMemory.remember(this.shortcut.id, map);
     vscode.window.showInformationMessage(
-      l10n("setParams.saved", { name: shortcutName(this.shortcut) })
+      l10n("setParams.saved", { name: shortcutDisplayName(this.shortcut) })
     );
     this.panel.dispose();
   }
@@ -238,7 +238,7 @@ export class SetParamsPanel {
       "style-src 'unsafe-inline'",
       `script-src 'nonce-${nonce}'`,
     ].join("; ");
-    const name = shortcutName(shortcut);
+    const name = shortcutDisplayName(shortcut);
     const title = l10n("setParams.title", { name });
 
     return `<!DOCTYPE html>

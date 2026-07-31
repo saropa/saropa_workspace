@@ -37,6 +37,7 @@ import { runShortcutOnDroppedFile } from "./shortcutExecution";
 import { asShortcut, pathToCopy } from "./shortcutArgResolution";
 import { shortcutUri } from "./shortcutAddRemove";
 import { shortcutCommandRegistrar } from "./registerHelpers";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 
 // Per-shortcut configuration and lifecycle command registrations (rename, run config,
 // schedule/triggers/watch links, pause, expiry, appearance, tags, branch link,
@@ -67,7 +68,7 @@ function registerRunConfigCommands(
   const { reg, regShortcut } = shortcutCommandRegistrar(context);
 
   regShortcut("saropaWorkspace.renamePin", async (shortcut) => {
-    const current = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const current = shortcutDisplayName(shortcut);
     const label = await vscode.window.showInputBox({
       prompt: l10n("pin.renamePrompt", { name: current }),
       value: shortcut.label ?? "",
@@ -156,7 +157,7 @@ function registerFileOpCommands(
   // configuration can be shared and re-imported in one click (WOW #4). The link
   // carries only the shortcut's configuration, never its id/scope — see shareLink.
   regShortcut("saropaWorkspace.copyPinLink", async (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     await vscode.env.clipboard.writeText(encodeShortcutLink(shortcut));
     vscode.window.showInformationMessage(l10n("share.copied", { name }));
   });
@@ -185,7 +186,7 @@ function registerProcessControlCommands(
   const { regShortcut } = shortcutCommandRegistrar(context);
 
   regShortcut("saropaWorkspace.stopPin", (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     // Graceful stop: the shortcut shows a "stopping…" badge until the process exits,
     // and the registry auto-escalates to a forced kill if it does not.
     const stopping = processRegistry.stop(shortcut.id);
@@ -202,7 +203,7 @@ function registerProcessControlCommands(
   // Force-kill the escape hatch: when a graceful Stop does not take, terminate the
   // process tree immediately.
   regShortcut("saropaWorkspace.forceKillPin", (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     const killed = processRegistry.forceKill(shortcut.id);
     if (killed) {
       getOutputChannel().appendLine(
@@ -274,12 +275,12 @@ function registerLifecycleCommands(
   // pin*Paused contextValue). Each names the shortcut in its toast. setPinPaused no-ops on
   // an auto/recipe shortcut (recomputed, not stored), and the menu gates those out anyway.
   regShortcut("saropaWorkspace.pausePin", async (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     await store.setShortcutPaused(shortcut, true);
     vscode.window.showInformationMessage(l10n("pause.paused", { name }));
   });
   regShortcut("saropaWorkspace.unpausePin", async (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     await store.setShortcutPaused(shortcut, false);
     vscode.window.showInformationMessage(l10n("pause.unpaused", { name }));
   });
@@ -316,7 +317,7 @@ function registerLifecycleCommands(
   regShortcut("saropaWorkspace.setMetric", (shortcut) => setMetric(store, shortcut));
 
   regShortcut("saropaWorkspace.unpin", async (shortcut) => {
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     await store.removeShortcut(shortcut);
     // Drop any last-run badge so it does not outlive the shortcut (the id is reused
     // for an identical re-add only after a fresh run records a new result).
