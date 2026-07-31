@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut, shortcutKind } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { planRun, expandRecipeTokens } from "../exec/runner";
 import {
@@ -82,7 +83,7 @@ export function registerSimulationPreview(
 // action), then renders the report. Returns without rendering when the shortcut's file
 // is unresolved/missing (named in a toast) or an interactive prompt is canceled.
 export async function simulateRun(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
 
   if (shortcutKind(shortcut) !== "file") {
     await preview.show(shortcut, l10n("simulate.title", { name }), buildActionReport(shortcut, name));

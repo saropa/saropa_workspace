@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { runOutputs, CapturedRun } from "../exec/runOutputs";
 import { l10n } from "../i18n/l10n";
 
@@ -59,7 +60,7 @@ export function registerRunOutputDiff(context: vscode.ExtensionContext): void {
 // have been captured (the shortcut was never run in the background, or only once this
 // session), there is nothing to compare, so it says so and does nothing.
 export async function diffLastRuns(shortcut: Shortcut): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const pair = runOutputs.lastTwo(shortcut.id);
   if (!pair) {
     vscode.window.showInformationMessage(l10n("diffRuns.needTwo", { name }));

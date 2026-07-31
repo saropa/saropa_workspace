@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut, shortcutKind, isAnnotationShortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { RunResult } from "../exec/runStatus";
 import { ShortcutBadge } from "../exec/shortcutBadges";
 import { MetricBadge } from "../exec/metricBadges";
@@ -96,7 +97,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     const masked = shortcut.masked === true;
     const baseLabel = masked
       ? l10n("mask.label")
-      : shortcut.label ?? basename;
+      : shortcutDisplayName(shortcut);
     // Lead the row name with the untapped dot so the marker sits in the full-strength
     // label color and is actually visible. Annotation rows overwrite this.label in their
     // early-return branch below, so a comment/separator never carries the dot even when

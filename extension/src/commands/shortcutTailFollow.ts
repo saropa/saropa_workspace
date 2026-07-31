@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { Shortcut, shortcutKind } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { openShortcut } from "./shortcutOpen";
 
@@ -67,7 +68,7 @@ export function registerTailFollow(context: vscode.ExtensionContext): void {
 // immediately rather than only on the next open. On disable, drops any live follow
 // on the shortcut's file so the current tab stops auto-scrolling at once.
 export async function toggleTail(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   if (shortcutKind(shortcut) !== "file") {
     vscode.window.showWarningMessage(l10n("tail.fileOnly", { name }));
     return;

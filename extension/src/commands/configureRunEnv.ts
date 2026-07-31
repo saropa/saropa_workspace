@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { Shortcut, ShortcutExecConfig } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 
@@ -233,7 +234,7 @@ function validateEnvKey(input: string, existing: string[]): string | undefined {
 export function resolveDepName(store: ShortcutStore, id: string): string {
   const dep = store.findShortcut(id);
   return dep
-    ? dep.label ?? (dep.path.split("/").pop() ?? dep.path)
+    ? shortcutDisplayName(dep)
     : l10n("configure.dependsOn.unknown");
 }
 
@@ -259,7 +260,7 @@ export async function editDependsOn(
     }
     items.push({
       id: candidate.id,
-      label: candidate.label ?? (candidate.path.split("/").pop() ?? candidate.path),
+      label: shortcutDisplayName(candidate),
       description:
         candidate.scope === "global"
           ? l10n("pin.group.global")

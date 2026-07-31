@@ -9,7 +9,8 @@ import {
   normalizeWork,
   applyAutoEnable,
 } from "../commands/scheduleModel";
-import { renderScheduleEditorHtml, shortcutName } from "./scheduleEditorShell";
+import { renderScheduleEditorHtml } from "./scheduleEditorShell";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { buildInsights, WireWork } from "./scheduleEditorInsights";
 import { l10n } from "../i18n/l10n";
 
@@ -63,7 +64,7 @@ export class ScheduleEditorPanel {
     }
     const panel = vscode.window.createWebviewPanel(
       ScheduleEditorPanel.viewType,
-      l10n("scheduleEditor.title", { name: shortcutName(shortcut) }),
+      l10n("scheduleEditor.title", { name: shortcutDisplayName(shortcut) }),
       column ?? vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true }
     );
@@ -89,7 +90,7 @@ export class ScheduleEditorPanel {
   // Reuse the open panel for a different shortcut: repoint, rebuild the form, retitle.
   private repoint(shortcut: Shortcut): void {
     this.shortcutId = shortcut.id;
-    this.panel.title = l10n("scheduleEditor.title", { name: shortcutName(shortcut) });
+    this.panel.title = l10n("scheduleEditor.title", { name: shortcutDisplayName(shortcut) });
     this.panel.webview.html = renderScheduleEditorHtml(shortcut);
   }
 
@@ -224,7 +225,7 @@ export class ScheduleEditorPanel {
     await this.store.updateShortcutSchedule(shortcut, schedule);
     await this.rememberDefaults(work);
 
-    const name = shortcutName(shortcut);
+    const name = shortcutDisplayName(shortcut);
     if (!schedule) {
       vscode.window.showInformationMessage(l10n("scheduleEditor.cleared", { name }));
     } else if (!schedule.enabled) {

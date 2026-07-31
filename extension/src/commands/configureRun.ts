@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Shortcut, ShortcutExecConfig, RunLocation } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { resolveDepName } from "./configureRunEnv";
 import { showHub, applyHubChoice } from "./configureRunHub";
@@ -62,7 +63,7 @@ export async function configureRun(store: ShortcutStore, shortcut: Shortcut): Pr
     return;
   }
 
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const work = buildWorkingCopy(shortcut);
   const conc = buildConcurrencyEdit(shortcut);
   const title = l10n("configure.title", { name });

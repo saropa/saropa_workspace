@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut, shortcutKind } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { isRunnable, getOutputChannel } from "../exec/runner";
 import { showHubQuickPick } from "./hubQuickPick";
@@ -77,7 +78,7 @@ function nameFor(store: ShortcutStore, pinId: string): string {
   if (!shortcut) {
     return l10n("boot.unknownPin");
   }
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  return shortcutDisplayName(shortcut);
 }
 
 // Offer to run the boot sequence on workspace open. No-op (no prompt) when the
@@ -304,7 +305,7 @@ async function addMembers(
     shortcut: Shortcut;
   }
   const items: ShortcutItem[] = candidates.map((p) => ({
-    label: p.label ?? (p.path.split("/").pop() ?? p.path),
+    label: shortcutDisplayName(p),
     description: p.scope === "global" ? l10n("pin.group.global") : l10n("pin.group.project"),
     shortcut: p,
   }));

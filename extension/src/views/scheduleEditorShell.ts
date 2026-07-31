@@ -10,6 +10,7 @@
 // esc).
 import * as crypto from "crypto";
 import { Shortcut } from "../model/shortcut";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { SCHEDULE_EDITOR_STYLE, SCHEDULE_EDITOR_SCRIPT } from "./scheduleEditorAssets";
 
@@ -30,12 +31,6 @@ const CRON_CHIPS: CronChip[] = [
   { cron: "*/30 9-17 * * 1-5", labelKey: "scheduleEditor.cron.chip.workHours" },
 ];
 
-// The display name for a shortcut, falling back to its file basename. Shared with the
-// panel (titles, toasts) and the insights math (neighbor names) so all three agree.
-export function shortcutName(shortcut: Shortcut): string {
-  return shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
-}
-
 // Assembles the full webview document for a shortcut: the CSP head, the hero
 // title/subtitle, the five form cards in fixed order, and the footer's next-run
 // preview and Save/Cancel buttons. Called once on open and again on repoint() when
@@ -48,7 +43,7 @@ export function renderScheduleEditorHtml(shortcut: Shortcut): string {
     "style-src 'unsafe-inline'",
     `script-src 'nonce-${nonce}'`,
   ].join("; ");
-  const title = l10n("scheduleEditor.title", { name: shortcutName(shortcut) });
+  const title = l10n("scheduleEditor.title", { name: shortcutDisplayName(shortcut) });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -64,7 +59,7 @@ export function renderScheduleEditorHtml(shortcut: Shortcut): string {
   <div class="glyph">&#x1F551;</div>
   <div class="htext">
     <h1>${esc(title)}</h1>
-    <div class="sub">${esc(l10n("scheduleEditor.subtitle", { name: shortcutName(shortcut) }))}</div>
+    <div class="sub">${esc(l10n("scheduleEditor.subtitle", { name: shortcutDisplayName(shortcut) }))}</div>
   </div>
 </div>
 

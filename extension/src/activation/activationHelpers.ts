@@ -17,6 +17,7 @@ import {
 import { decodeSharedShortcut, describeSharedShortcut } from "../import/shareLink";
 import { tappedShortcuts } from "../model/tappedShortcuts";
 import { telemetry } from "../exec/telemetry";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // Standalone activation helpers split out of extension.ts so activate() stays the
@@ -123,7 +124,7 @@ export function runShortcutsOnSave(store: ShortcutStore, savedUri: vscode.Uri): 
     // choice. Checked here so an unattended save never reaches the manual toast.
     const block = runBlockReason(shortcut);
     if (block) {
-      const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+      const name = shortcutDisplayName(shortcut);
       getOutputChannel().appendLine(
         l10n("save.skipped", { name, reason: blockReasonLabel(block) })
       );
@@ -162,7 +163,7 @@ function runWatchLinksOnSave(
     if (!matchesAnyGlob(relPath, globs) && !matchesAnyGlob(absPath, globs)) {
       continue;
     }
-    const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+    const name = shortcutDisplayName(shortcut);
     // Single-instance guard, same stance as run-on-save: never stack a watch run on
     // top of one already in flight; note it on the channel rather than toasting.
     const block = runBlockReason(shortcut);

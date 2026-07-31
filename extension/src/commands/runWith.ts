@@ -4,6 +4,7 @@ import { Shortcut, shortcutKind, isAnnotationShortcut } from "../model/shortcut"
 import { ShortcutStore } from "../model/shortcutStore";
 import { detectInterpreters } from "../exec/interpreterDetect";
 import { runShortcutCommand } from "./shortcutExecution";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 
 // "Run with…" — the fast path to choose how a pinned script runs. Detects the
@@ -40,7 +41,7 @@ export async function runWith(store: ShortcutStore, shortcut: Shortcut): Promise
     return;
   }
 
-  const name = shortcut.label ?? path.basename(uri.fsPath);
+  const name = shortcutDisplayName(shortcut);
   const ext = path.extname(uri.fsPath).toLowerCase();
   const detected = await detectInterpreters(ext);
 

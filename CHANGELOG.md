@@ -46,6 +46,19 @@ cspell:disable
 
 ---
 
+## [1.6.5]
+
+Manage all your extension preferences in one place with a dedicated Settings panel, and give your shortcut names a cleaner look with optional title-casing. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.5/CHANGELOG.md)
+
+
+### Added
+
+- **Settings panel** — a new "Open Settings" screen (`Saropa Settings`) surfaces every extension preference in one place, organized into sections (General, Display, Terminal, Suggestions, Recipes, Sound, Process Monitor, Hygiene, Project Files, Advanced), each setting with a live control and an info icon showing its description. A search bar at the top filters settings by name or description. Number inputs enforce the schema-defined minimum per setting. Accessible from the command palette, the Shortcuts view overflow menu, and a gear icon in the Launcher tab header.
+- **Title-case display names** — a new `displayNames.titleCase` setting (off by default) strips the file extension, replaces underscores and hyphens with spaces, and capitalizes each word wherever a shortcut name appears. For example, `setup_arb_translate.py` becomes `Setup Arb Translate`. Only affects shortcuts without a custom label.
+- **Centralized display-name resolution** — all surfaces (tree row, launcher card, panel titles, toasts) resolve shortcut names through one function (`shortcutDisplayName`) so the title-case preference applies uniformly.
+
+---
+
 ## [1.6.4]
 
 The Launcher panel now has a Notes pane, sortable pane headers, and a smarter schedule status-bar indicator with configurable lead time. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.4/CHANGELOG.md)

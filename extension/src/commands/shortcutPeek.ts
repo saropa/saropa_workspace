@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { Shortcut, shortcutKind, isAnnotationShortcut } from "../model/shortcut";
 import { tappedShortcuts } from "../model/tappedShortcuts";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { runShortcutCommand } from "./shortcutExecution";
 import { fileExists, handleMissingFile } from "./shortcutOpen";
@@ -84,7 +85,7 @@ function describeAction(shortcut: Shortcut): string {
 // Run / Promote actions. Nothing runs unless the user explicitly chooses Run, so
 // a click can never kick off a heavy task by accident.
 export async function showActionInfo(store: ShortcutStore, shortcut: Shortcut): Promise<void> {
-  const name = shortcut.label ?? (shortcut.path.split("/").pop() ?? shortcut.path);
+  const name = shortcutDisplayName(shortcut);
   const scheduled = shortcut.schedule?.atTime
     ? l10n("recipe.info.scheduled", { time: shortcut.schedule.atTime })
     : "";

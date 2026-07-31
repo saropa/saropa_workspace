@@ -41,6 +41,7 @@ Current screens, for reference:
 | `schedulePanel.title` | **Saropa Scheduled Runs** |
 | `scheduleEditor.title` | **Saropa Workspace Scheduler: {name}** |
 | `views.launcher.container.title` / `launcher.title` | **Saropa Workspace** |
+| `settings.title` | **Saropa Settings** |
 
 The three schedule-related screens are deliberately distinct: the **Scheduler**
 (`scheduleEditor.title`) *sets* one shortcut's timing; **Scheduled Runs**
@@ -406,6 +407,24 @@ Conventions this bulk-discovery gesture sets, for any command of the same shape:
   repo belong to the repo (committed, shared with the team); the user can move one
   to global afterward. The completion toast names the count added and the scope
   ("Added {count} website shortcut(s) to Project Shortcuts.").
+
+### 1.6 Display names resolve through one function
+
+Every surface that shows a shortcut's name — tree row, launcher card, panel
+title, toast — resolves through `shortcutDisplayName(shortcut)` from
+`model/shortcutDisplayName.ts`. Do not inline `shortcut.label ?? basename` at
+call sites; call the function. It respects the user's `displayNames.titleCase`
+preference (strip extension, replace underscores/hyphens with spaces, capitalize
+each word) uniformly. When `label` is set (a custom rename), it returns it
+as-is; title-case only applies to the file-basename fallback.
+
+**Excluded sites:** Action shortcuts (url/shell/command/macro) and scheduled
+routines sometimes fall back to `shortcut.id` rather than a file basename because
+their `path` may not be a meaningful filename. These sites use
+`shortcut.label ?? shortcut.id` intentionally — do not migrate them to
+`shortcutDisplayName()` without extending the function to handle the id-fallback
+case. Affected files: `actionRunner.ts`, `routineRunner.ts`,
+`plannerPanelMessages.ts`, `scheduleStatusBarActions.ts`.
 
 ---
 
