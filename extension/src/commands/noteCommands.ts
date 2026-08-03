@@ -142,7 +142,23 @@ export function registerNoteCommands(
       return;
     }
     try {
+      const stat = await vscode.workspace.fs.stat(item.note.uri);
+      if (stat.size > COPY_SIZE_LIMIT) {
+        void vscode.window.showWarningMessage(
+          l10n("notes.copyTooLarge", {
+            name: item.note.filename,
+            size: formatBytes(stat.size),
+          })
+        );
+        return;
+      }
       const raw = await vscode.workspace.fs.readFile(item.note.uri);
+      if (hasBinaryContent(raw)) {
+        void vscode.window.showWarningMessage(
+          l10n("notes.copyBinary", { name: item.note.filename })
+        );
+        return;
+      }
       const text = Buffer.from(raw).toString("utf-8");
       await vscode.env.clipboard.writeText(text);
       void vscode.window.showInformationMessage(
@@ -156,6 +172,22 @@ export function registerNoteCommands(
     }
   });
 
+  reg("saropaWorkspace.copyNoteLink", async (arg: unknown) => {
+    const item = asNoteItem(arg);
+    if (!item) {
+      return;
+    }
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const displayPath = folder
+      ? vscode.workspace.asRelativePath(item.note.uri, false)
+      : item.note.filename;
+    const link = `[${item.note.filename}](${displayPath})`;
+    await vscode.env.clipboard.writeText(link);
+    void vscode.window.showInformationMessage(
+      l10n("notes.copiedLink", { name: item.note.filename })
+    );
+  });
+
   reg("saropaWorkspace.refreshNotes", () => {
     store.fire();
   });
@@ -163,6 +195,28 @@ export function registerNoteCommands(
 
 function asNoteItem(arg: unknown): NoteTreeItem | undefined {
   return arg instanceof NoteTreeItem ? arg : undefined;
+}
+
+const COPY_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
+
+export function hasBinaryContent(raw: Uint8Array): boolean {
+  const sample = Math.min(raw.length, 8192);
+  for (let i = 0; i < sample; i++) {
+    if (raw[i] === 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // Windows reserved device names that cannot be used as filenames.

@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ensureNoteExtension } from "../model/noteStore";
-import { validateNoteName } from "../commands/noteCommands";
+import {
+  validateNoteName,
+  hasBinaryContent,
+  formatBytes,
+} from "../commands/noteCommands";
 
 test("ensureNoteExtension appends .md when no extension present", () => {
   assert.equal(ensureNoteExtension("standup-checklist"), "standup-checklist.md");
@@ -67,4 +71,32 @@ test("validateNoteName allows names containing reserved words as substrings", ()
   assert.equal(validateNoteName("nulify"), undefined);
   assert.equal(validateNoteName("com10"), undefined);
   assert.equal(validateNoteName("auxiliary"), undefined);
+});
+
+test("hasBinaryContent detects null bytes as binary", () => {
+  assert.equal(hasBinaryContent(new Uint8Array([0x48, 0x69, 0x00, 0x21])), true);
+  assert.equal(hasBinaryContent(new Uint8Array([0x00])), true);
+});
+
+test("hasBinaryContent accepts plain text", () => {
+  assert.equal(hasBinaryContent(new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f])), false);
+  assert.equal(hasBinaryContent(new Uint8Array([])), false);
+});
+
+test("hasBinaryContent only samples the first 8192 bytes", () => {
+  const buf = new Uint8Array(16384).fill(0x41);
+  buf[8192] = 0x00;
+  assert.equal(hasBinaryContent(buf), false);
+  buf[8191] = 0x00;
+  assert.equal(hasBinaryContent(buf), true);
+});
+
+test("formatBytes formats bytes, kilobytes, and megabytes", () => {
+  assert.equal(formatBytes(0), "0 B");
+  assert.equal(formatBytes(512), "512 B");
+  assert.equal(formatBytes(1023), "1023 B");
+  assert.equal(formatBytes(1024), "1.0 KB");
+  assert.equal(formatBytes(1536), "1.5 KB");
+  assert.equal(formatBytes(1048576), "1.0 MB");
+  assert.equal(formatBytes(5 * 1024 * 1024), "5.0 MB");
 });
