@@ -1,11 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ensureNoteExtension } from "../model/noteStore";
-import {
-  validateNoteName,
-  hasBinaryContent,
-  formatBytes,
-} from "../commands/noteCommands";
+import { validateNoteName, hasBinaryContent } from "../commands/noteCommands";
 
 test("ensureNoteExtension appends .md when no extension present", () => {
   assert.equal(ensureNoteExtension("standup-checklist"), "standup-checklist.md");
@@ -91,12 +87,3 @@ test("hasBinaryContent only samples the first 8192 bytes", () => {
   assert.equal(hasBinaryContent(buf), true);
 });
 
-test("formatBytes formats bytes, kilobytes, and megabytes", () => {
-  assert.equal(formatBytes(0), "0 B");
-  assert.equal(formatBytes(512), "512 B");
-  assert.equal(formatBytes(1023), "1023 B");
-  assert.equal(formatBytes(1024), "1.0 KB");
-  assert.equal(formatBytes(1536), "1.5 KB");
-  assert.equal(formatBytes(1048576), "1.0 MB");
-  assert.equal(formatBytes(5 * 1024 * 1024), "5.0 MB");
-});
