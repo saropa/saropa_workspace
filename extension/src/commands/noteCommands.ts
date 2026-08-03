@@ -6,6 +6,7 @@ import * as vscode from "vscode";
 import { NoteStore, ensureDir, ensureNoteExtension } from "../model/noteStore";
 import { NoteTreeItem } from "../views/notesProvider";
 import { l10n } from "../i18n/l10n";
+import { formatBytes } from "../exec/metricFormat";
 
 interface ScopePickItem extends vscode.QuickPickItem {
   readonly scope: "project" | "global";
@@ -177,15 +178,22 @@ export function registerNoteCommands(
     if (!item) {
       return;
     }
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    const displayPath = folder
-      ? vscode.workspace.asRelativePath(item.note.uri, false)
-      : item.note.filename;
-    const link = `[${item.note.filename}](${displayPath})`;
-    await vscode.env.clipboard.writeText(link);
-    void vscode.window.showInformationMessage(
-      l10n("notes.copiedLink", { name: item.note.filename })
-    );
+    try {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      const displayPath = folder
+        ? vscode.workspace.asRelativePath(item.note.uri, false)
+        : item.note.filename;
+      const link = `[${item.note.filename}](${displayPath})`;
+      await vscode.env.clipboard.writeText(link);
+      void vscode.window.showInformationMessage(
+        l10n("notes.copiedLink", { name: item.note.filename })
+      );
+    } catch (err) {
+      console.error("[Notes] copy link failed:", item.note.uri.fsPath, err);
+      void vscode.window.showWarningMessage(
+        l10n("notes.copyFailed", { name: item.note.filename })
+      );
+    }
   });
 
   reg("saropaWorkspace.refreshNotes", () => {
@@ -199,6 +207,8 @@ function asNoteItem(arg: unknown): NoteTreeItem | undefined {
 
 const COPY_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
 
+// Null-byte heuristic: scans the first 8 KB for 0x00. Misses binary content
+// whose nulls start past the sample window, but avoids reading the entire file.
 export function hasBinaryContent(raw: Uint8Array): boolean {
   const sample = Math.min(raw.length, 8192);
   for (let i = 0; i < sample; i++) {
@@ -207,16 +217,6 @@ export function hasBinaryContent(raw: Uint8Array): boolean {
     }
   }
   return false;
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // Windows reserved device names that cannot be used as filenames.
