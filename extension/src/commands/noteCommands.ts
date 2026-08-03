@@ -136,6 +136,26 @@ export function registerNoteCommands(
     );
   });
 
+  reg("saropaWorkspace.copyNoteContent", async (arg: unknown) => {
+    const item = asNoteItem(arg);
+    if (!item) {
+      return;
+    }
+    try {
+      const raw = await vscode.workspace.fs.readFile(item.note.uri);
+      const text = Buffer.from(raw).toString("utf-8");
+      await vscode.env.clipboard.writeText(text);
+      void vscode.window.showInformationMessage(
+        l10n("notes.copied", { name: item.note.filename })
+      );
+    } catch (err) {
+      console.error("[Notes] copy failed:", item.note.uri.fsPath, err);
+      void vscode.window.showWarningMessage(
+        l10n("notes.copyFailed", { name: item.note.filename })
+      );
+    }
+  });
+
   reg("saropaWorkspace.refreshNotes", () => {
     store.fire();
   });
