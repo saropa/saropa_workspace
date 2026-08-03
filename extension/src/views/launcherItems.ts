@@ -82,22 +82,19 @@ export interface LauncherItem {
   // the card's id (a file shortcut via the store, a project file by its validated fsPath),
   // so the webview never carries or trusts the path itself.
   readonly copyable?: boolean;
-  // The right-click menu for this row, mirroring the sidebar's actions in a flat,
-  // separator-grouped form (a webview cannot host native submenus). Every command here is
-  // verified to accept a raw Shortcut argument via asShortcut, so the host routes the
-  // choice by re-resolving the id and calling executeCommand — see launcherView.
+  // The right-click menu for this row. Entries with `children` render as
+  // hover-expandable submenus (one level deep); leaf entries are flat actions.
+  // Only commands that accept a raw Shortcut via asShortcut may be listed.
   readonly menu: readonly LauncherMenuEntry[];
 }
 
-// One right-click menu row: a command id the host executes against the resolved shortcut,
-// its localized label + codicon, the visual group it sits in (the webview draws a divider
-// between groups), and a danger flag for the destructive Remove row.
 export interface LauncherMenuEntry {
   readonly command: string;
   readonly label: string;
   readonly icon: string;
   readonly group: string;
   readonly danger?: boolean;
+  readonly children?: readonly LauncherMenuEntry[];
 }
 
 // The resolved identity of the group a row files under: a stable id (collapse key + pane

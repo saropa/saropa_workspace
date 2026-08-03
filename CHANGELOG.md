@@ -52,7 +52,7 @@ cspell:disable
 
 - "Copy Note Content" inline button and context menu action — reads the full note file and copies it to the clipboard, with a toast naming the file
 - Notes stat in the Launcher panel stat bar now shows even when the note count is zero, so the Notes pane toggle is always reachable
-- Launcher webview context menu now groups Configure & Schedule, Appearance, and File Actions into hover-expandable submenus so the menu fits on screen; Open, Run, Rename, and Remove stay at the top level for quick access
+- Launcher webview context menu now groups Configure & Schedule, Appearance, and File Actions into hover-expandable submenus so the menu fits on screen; Open, Run, Rename, and Remove stay at the top level for quick access; full keyboard navigation (Up/Down to move, Right to open submenu, Left/Escape to close it)
 
 ---
 
