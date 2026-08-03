@@ -33,3 +33,6 @@ reports/*
 # Private competitor research notes — internal planning only, not for the
 # public repo. (Unlike the rest of plans/, which is tracked.)
 plans/competitors/
+
+# Saropa Log Capture
+reports/
