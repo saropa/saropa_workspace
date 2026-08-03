@@ -52,7 +52,14 @@ cspell:disable
 
 - "Copy Note Content" inline button and context menu action — reads the full note file and copies it to the clipboard, with a toast naming the file. Files over 5 MB or with binary content are refused with a specific warning
 - "Copy as Markdown Link" context menu action on notes — copies `[filename](relative-path)` for referencing notes in other documents
+- "Copy as HTML" context menu action on notes — converts Markdown to HTML before copying, so pasting into rich-text editors (Slack, email, Google Docs) preserves formatting (headings, bold, italic, code blocks, links, lists, blockquotes, horizontal rules)
 - Notes stat in the Launcher panel stat bar now shows even when the note count is zero, so the Notes pane toggle is always reachable
+
+### Hardened
+
+- Copy Note Content eliminates a time-of-check/time-of-use race by reading the file once and checking `byteLength` on the buffer, instead of running `stat` before `readFile`
+- Binary detection now catches UTF-16 LE and BE byte-order marks before the null-byte scan, preventing garbled clipboard content from non-UTF-8 text files
+- Copy as Markdown Link falls back to the bare filename when the note is stored outside the workspace (global notes), instead of embedding an absolute path that is non-portable
 - Launcher webview context menu now groups Configure & Schedule, Appearance, and File Actions into hover-expandable submenus so the menu fits on screen; Open, Run, Rename, and Remove stay at the top level for quick access; full keyboard navigation (Up/Down to move, Right to open submenu, Left/Escape to close it)
 
 ---
