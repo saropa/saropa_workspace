@@ -378,7 +378,15 @@ header {
   outline: none;
 }
 .menu-item .codicon { flex: none; font-size: 14px; }
+.menu-item.has-sub { justify-content: flex-start; }
+.menu-item .menu-arrow {
+  margin-left: auto;
+  width: 0; height: 0;
+  border: 4px solid transparent;
+  border-left-color: currentColor;
+}
 .menu-item.danger { color: var(--vscode-errorForeground); }
+.menu-sub { position: fixed; z-index: 21; }
 .menu-sep {
   height: 1px; margin: 4px 0;
   background: var(--vscode-menu-separatorBackground, var(--vscode-widget-border, transparent));

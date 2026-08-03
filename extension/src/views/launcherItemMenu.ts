@@ -36,46 +36,67 @@ export function buildMenu(
   }
 
   const menu: LauncherMenuEntry[] = [];
-  // Run group: a file opens or runs; an action only runs.
   if (isFile) {
     menu.push(entry("saropaWorkspace.openPin", "open", "go-to-file", "run"));
   }
   menu.push(entry("saropaWorkspace.runPin", "run", "play", "run"));
 
-  // Configure & schedule group.
-  menu.push(entry("saropaWorkspace.runWith", "runWith", "wrench", "configure"));
-  menu.push(entry("saropaWorkspace.configureRun", "configureRun", "gear", "configure"));
-  menu.push(entry("saropaWorkspace.setPinParams", "setParams", "list-flat", "configure"));
-  menu.push(entry("saropaWorkspace.configureSchedule", "configureSchedule", "clock", "configure"));
-  menu.push(entry("saropaWorkspace.configureTriggers", "configureTriggers", "broadcast", "configure"));
-  // Pause vs resume by current state — same two commands the sidebar gates by contextValue.
-  menu.push(
+  // Configure & Schedule submenu.
+  const configChildren: LauncherMenuEntry[] = [
+    entry("saropaWorkspace.runWith", "runWith", "wrench", "configure"),
+    entry("saropaWorkspace.configureRun", "configureRun", "gear", "configure"),
+    entry("saropaWorkspace.setPinParams", "setParams", "list-flat", "configure"),
+    entry("saropaWorkspace.configureSchedule", "configureSchedule", "clock", "configure"),
+    entry("saropaWorkspace.configureTriggers", "configureTriggers", "broadcast", "configure"),
     shortcut.paused
       ? entry("saropaWorkspace.unpausePin", "resume", "debug-start", "configure")
-      : entry("saropaWorkspace.pausePin", "pause", "debug-pause", "configure")
-  );
+      : entry("saropaWorkspace.pausePin", "pause", "debug-pause", "configure"),
+  ];
+  menu.push({
+    command: "",
+    label: l10n("launcher.menu.sub.configure"),
+    icon: "gear",
+    group: "configure",
+    children: configChildren,
+  });
 
-  // Appearance group. Set Live Metric is a file-only badge, so it is gated like the sidebar.
-  menu.push(entry("saropaWorkspace.customizeShortcut", "customize", "paintcan", "appearance"));
+  // Appearance submenu.
+  const appearChildren: LauncherMenuEntry[] = [
+    entry("saropaWorkspace.customizeShortcut", "customize", "paintcan", "appearance"),
+  ];
   if (isFile) {
-    menu.push(entry("saropaWorkspace.setMetric", "setMetric", "dashboard", "appearance"));
+    appearChildren.push(entry("saropaWorkspace.setMetric", "setMetric", "dashboard", "appearance"));
   }
+  menu.push({
+    command: "",
+    label: l10n("launcher.menu.sub.appearance"),
+    icon: "paintcan",
+    group: "appearance",
+    children: appearChildren,
+  });
 
-  // File-action group (file shortcuts only).
+  // File Actions submenu (file shortcuts only).
   if (isFile) {
-    menu.push(entry("saropaWorkspace.duplicateFile", "duplicateFile", "files", "file"));
-    menu.push(entry("saropaWorkspace.renameFileOnDisk", "renameFileOnDisk", "replace", "file"));
-    menu.push(entry("saropaWorkspace.copyFileTo", "copyFileTo", "file-add", "file"));
-    // Screen-share guard (mask/unmask) — a file-only WOW that the sidebar also exposes.
-    menu.push(
+    const fileChildren: LauncherMenuEntry[] = [
+      entry("saropaWorkspace.duplicateFile", "duplicateFile", "files", "file"),
+      entry("saropaWorkspace.renameFileOnDisk", "renameFileOnDisk", "replace", "file"),
+      entry("saropaWorkspace.copyFileTo", "copyFileTo", "file-add", "file"),
       shortcut.masked
         ? entry("saropaWorkspace.toggleMask", "unmask", "eye", "file")
-        : entry("saropaWorkspace.toggleMask", "mask", "eye-closed", "file")
-    );
+        : entry("saropaWorkspace.toggleMask", "mask", "eye-closed", "file"),
+    ];
+    menu.push({
+      command: "",
+      label: l10n("launcher.menu.sub.file"),
+      icon: "files",
+      group: "file",
+      children: fileChildren,
+    });
   }
 
-  // Edit group. Remove uses `unpin` (accepts a raw Shortcut and toasts the name),
-  // not removeProjectPin/removeGlobalPin, which resolve a file URI from a tree item.
+  // Edit group — top-level for quick access. Remove uses `unpin` (accepts a raw
+  // Shortcut and toasts the name), not removeProjectPin/removeGlobalPin, which
+  // resolve a file URI from a tree item.
   menu.push(entry("saropaWorkspace.renamePin", "rename", "edit", "edit"));
   menu.push(entry("saropaWorkspace.unpin", "remove", "trash", "edit", true));
   return menu;
