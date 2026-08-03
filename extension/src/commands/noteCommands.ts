@@ -2,6 +2,7 @@
 // open-folder, and refresh. Each command emits visible feedback that names the
 // item acted on (no silent async). The scope picker (project vs global) is shown
 // only when a workspace folder is open; otherwise notes default to global.
+import * as path from "path";
 import * as vscode from "vscode";
 import { NoteStore, ensureDir, ensureNoteExtension } from "../model/noteStore";
 import { NoteTreeItem } from "../views/notesProvider";
@@ -143,17 +144,16 @@ export function registerNoteCommands(
       return;
     }
     try {
-      const stat = await vscode.workspace.fs.stat(item.note.uri);
-      if (stat.size > COPY_SIZE_LIMIT) {
+      const raw = await vscode.workspace.fs.readFile(item.note.uri);
+      if (raw.byteLength > COPY_SIZE_LIMIT) {
         void vscode.window.showWarningMessage(
           l10n("notes.copyTooLarge", {
             name: item.note.filename,
-            size: formatBytes(stat.size),
+            size: formatBytes(raw.byteLength),
           })
         );
         return;
       }
-      const raw = await vscode.workspace.fs.readFile(item.note.uri);
       if (hasBinaryContent(raw)) {
         void vscode.window.showWarningMessage(
           l10n("notes.copyBinary", { name: item.note.filename })
@@ -180,9 +180,13 @@ export function registerNoteCommands(
     }
     try {
       const folder = vscode.workspace.workspaceFolders?.[0];
-      const displayPath = folder
-        ? vscode.workspace.asRelativePath(item.note.uri, false)
-        : item.note.filename;
+      let displayPath = item.note.filename;
+      if (folder) {
+        const rel = vscode.workspace.asRelativePath(item.note.uri, false);
+        if (!path.isAbsolute(rel)) {
+          displayPath = rel;
+        }
+      }
       const link = `[${item.note.filename}](${displayPath})`;
       await vscode.env.clipboard.writeText(link);
       void vscode.window.showInformationMessage(
@@ -190,6 +194,42 @@ export function registerNoteCommands(
       );
     } catch (err) {
       console.error("[Notes] copy link failed:", item.note.uri.fsPath, err);
+      void vscode.window.showWarningMessage(
+        l10n("notes.copyFailed", { name: item.note.filename })
+      );
+    }
+  });
+
+  reg("saropaWorkspace.copyNoteHtml", async (arg: unknown) => {
+    const item = asNoteItem(arg);
+    if (!item) {
+      return;
+    }
+    try {
+      const raw = await vscode.workspace.fs.readFile(item.note.uri);
+      if (raw.byteLength > COPY_SIZE_LIMIT) {
+        void vscode.window.showWarningMessage(
+          l10n("notes.copyTooLarge", {
+            name: item.note.filename,
+            size: formatBytes(raw.byteLength),
+          })
+        );
+        return;
+      }
+      if (hasBinaryContent(raw)) {
+        void vscode.window.showWarningMessage(
+          l10n("notes.copyBinary", { name: item.note.filename })
+        );
+        return;
+      }
+      const text = Buffer.from(raw).toString("utf-8");
+      const html = markdownToHtml(text);
+      await vscode.env.clipboard.writeText(html);
+      void vscode.window.showInformationMessage(
+        l10n("notes.copiedHtml", { name: item.note.filename })
+      );
+    } catch (err) {
+      console.error("[Notes] copy as HTML failed:", item.note.uri.fsPath, err);
       void vscode.window.showWarningMessage(
         l10n("notes.copyFailed", { name: item.note.filename })
       );
@@ -207,9 +247,14 @@ function asNoteItem(arg: unknown): NoteTreeItem | undefined {
 
 const COPY_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
 
-// Null-byte heuristic: scans the first 8 KB for 0x00. Misses binary content
-// whose nulls start past the sample window, but avoids reading the entire file.
+// Rejects files that would produce garbled clipboard content: UTF-16 BOMs
+// (whose null-interleaved bytes decode wrongly as UTF-8) and null bytes in
+// the first 8 KB (a standard binary heuristic).
 export function hasBinaryContent(raw: Uint8Array): boolean {
+  if (raw.length >= 2) {
+    if (raw[0] === 0xff && raw[1] === 0xfe) { return true; } // UTF-16 LE BOM
+    if (raw[0] === 0xfe && raw[1] === 0xff) { return true; } // UTF-16 BE BOM
+  }
   const sample = Math.min(raw.length, 8192);
   for (let i = 0; i < sample; i++) {
     if (raw[i] === 0) {
@@ -263,4 +308,134 @@ async function pickNoteScope(): Promise<"project" | "global" | undefined> {
     placeHolder: l10n("notes.scopePrompt"),
   });
   return picked?.scope;
+}
+
+/**
+ * Converts common Markdown constructs to HTML for rich-text clipboard paste.
+ * Covers headings, bold, italic, inline code, code blocks, links, images,
+ * unordered/ordered lists, blockquotes, horizontal rules, and paragraphs.
+ * Not a full CommonMark parser — intentionally minimal with zero dependencies.
+ */
+export function markdownToHtml(md: string): string {
+  const lines = md.split(/\r?\n/);
+  const out: string[] = [];
+  let inCode = false;
+  let inList: "ul" | "ol" | null = null;
+  let inBlockquote = false;
+
+  const esc = (s: string): string =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const inlineMarkup = (line: string): string => {
+    let s = esc(line);
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
+    s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
+    s = s.replace(/_(.+?)_/g, "<em>$1</em>");
+    return s;
+  };
+
+  const closeList = (): void => {
+    if (inList) {
+      out.push(inList === "ul" ? "</ul>" : "</ol>");
+      inList = null;
+    }
+  };
+
+  const closeBlockquote = (): void => {
+    if (inBlockquote) {
+      out.push("</blockquote>");
+      inBlockquote = false;
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw;
+
+    if (/^```/.test(line)) {
+      if (inCode) {
+        out.push("</code></pre>");
+        inCode = false;
+      } else {
+        closeList();
+        closeBlockquote();
+        out.push("<pre><code>");
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) {
+      out.push(esc(line));
+      continue;
+    }
+
+    if (/^---+$|^\*\*\*+$|^___+$/.test(line.trim())) {
+      closeList();
+      closeBlockquote();
+      out.push("<hr>");
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)/);
+    if (headingMatch) {
+      closeList();
+      closeBlockquote();
+      const level = headingMatch[1].length;
+      out.push(`<h${level}>${inlineMarkup(headingMatch[2])}</h${level}>`);
+      continue;
+    }
+
+    const bqMatch = line.match(/^>\s?(.*)/);
+    if (bqMatch) {
+      closeList();
+      if (!inBlockquote) {
+        out.push("<blockquote>");
+        inBlockquote = true;
+      }
+      out.push(`<p>${inlineMarkup(bqMatch[1])}</p>`);
+      continue;
+    }
+
+    const ulMatch = line.match(/^[\s]*[-*+]\s+(.*)/);
+    if (ulMatch) {
+      closeBlockquote();
+      if (inList !== "ul") {
+        closeList();
+        out.push("<ul>");
+        inList = "ul";
+      }
+      out.push(`<li>${inlineMarkup(ulMatch[1])}</li>`);
+      continue;
+    }
+
+    const olMatch = line.match(/^[\s]*\d+\.\s+(.*)/);
+    if (olMatch) {
+      closeBlockquote();
+      if (inList !== "ol") {
+        closeList();
+        out.push("<ol>");
+        inList = "ol";
+      }
+      out.push(`<li>${inlineMarkup(olMatch[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    closeBlockquote();
+
+    if (!line.trim()) {
+      continue;
+    }
+
+    out.push(`<p>${inlineMarkup(line)}</p>`);
+  }
+
+  if (inCode) { out.push("</code></pre>"); }
+  closeList();
+  closeBlockquote();
+
+  return out.join("\n");
 }

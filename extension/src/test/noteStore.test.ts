@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ensureNoteExtension } from "../model/noteStore";
-import { validateNoteName, hasBinaryContent } from "../commands/noteCommands";
+import { validateNoteName, hasBinaryContent, markdownToHtml } from "../commands/noteCommands";
 
 test("ensureNoteExtension appends .md when no extension present", () => {
   assert.equal(ensureNoteExtension("standup-checklist"), "standup-checklist.md");
@@ -79,11 +79,64 @@ test("hasBinaryContent accepts plain text", () => {
   assert.equal(hasBinaryContent(new Uint8Array([])), false);
 });
 
+test("hasBinaryContent detects UTF-16 LE BOM", () => {
+  assert.equal(hasBinaryContent(new Uint8Array([0xff, 0xfe, 0x48, 0x00])), true);
+});
+
+test("hasBinaryContent detects UTF-16 BE BOM", () => {
+  assert.equal(hasBinaryContent(new Uint8Array([0xfe, 0xff, 0x00, 0x48])), true);
+});
+
+test("hasBinaryContent accepts UTF-8 BOM", () => {
+  assert.equal(hasBinaryContent(new Uint8Array([0xef, 0xbb, 0xbf, 0x48, 0x65])), false);
+});
+
 test("hasBinaryContent only samples the first 8192 bytes", () => {
   const buf = new Uint8Array(16384).fill(0x41);
   buf[8192] = 0x00;
   assert.equal(hasBinaryContent(buf), false);
   buf[8191] = 0x00;
   assert.equal(hasBinaryContent(buf), true);
+});
+
+test("markdownToHtml converts headings", () => {
+  assert.equal(markdownToHtml("# Title"), "<h1>Title</h1>");
+  assert.equal(markdownToHtml("## Sub"), "<h2>Sub</h2>");
+  assert.equal(markdownToHtml("### Third"), "<h3>Third</h3>");
+});
+
+test("markdownToHtml converts inline markup", () => {
+  assert.equal(markdownToHtml("**bold**"), "<p><strong>bold</strong></p>");
+  assert.equal(markdownToHtml("*italic*"), "<p><em>italic</em></p>");
+  assert.equal(markdownToHtml("`code`"), "<p><code>code</code></p>");
+  assert.equal(
+    markdownToHtml("[link](http://x.com)"),
+    '<p><a href="http://x.com">link</a></p>'
+  );
+});
+
+test("markdownToHtml converts lists", () => {
+  const ul = markdownToHtml("- one\n- two");
+  assert.equal(ul, "<ul>\n<li>one</li>\n<li>two</li>\n</ul>");
+  const ol = markdownToHtml("1. first\n2. second");
+  assert.equal(ol, "<ol>\n<li>first</li>\n<li>second</li>\n</ol>");
+});
+
+test("markdownToHtml converts code blocks", () => {
+  const result = markdownToHtml("```\nconst x = 1;\n```");
+  assert.equal(result, "<pre><code>\nconst x = 1;\n</code></pre>");
+});
+
+test("markdownToHtml escapes HTML entities", () => {
+  assert.equal(markdownToHtml("<div>&</div>"), "<p>&lt;div&gt;&amp;&lt;/div&gt;</p>");
+});
+
+test("markdownToHtml converts blockquotes", () => {
+  assert.equal(markdownToHtml("> quoted"), "<blockquote>\n<p>quoted</p>\n</blockquote>");
+});
+
+test("markdownToHtml converts horizontal rules", () => {
+  assert.equal(markdownToHtml("---"), "<hr>");
+  assert.equal(markdownToHtml("***"), "<hr>");
 });
 

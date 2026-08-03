@@ -1439,6 +1439,7 @@
   "notes.scopePrompt": "Where should this note live?",
   "notes.copied": "Copied {name} to the clipboard.",
   "notes.copiedLink": "Copied a Markdown link to {name}.",
+  "notes.copiedHtml": "Copied {name} as HTML.",
   "notes.copyFailed": "Could not read {name}.",
   "notes.copyTooLarge": "{name} is too large to copy ({size}). Open it instead.",
   "notes.copyBinary": "{name} does not appear to be a text file.",
