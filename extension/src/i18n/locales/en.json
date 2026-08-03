@@ -58,6 +58,9 @@
   "launcher.menu.unmask": "Unmask",
   "launcher.menu.rename": "Rename…",
   "launcher.menu.remove": "Remove",
+  "launcher.menu.sub.configure": "Configure & Schedule",
+  "launcher.menu.sub.appearance": "Appearance",
+  "launcher.menu.sub.file": "File Actions",
   "launcher.menu.addToShortcuts": "Add to Shortcuts",
   "launcher.menu.schedule": "Schedule…",
   "linePin.label": "{name}:{line}",
@@ -1434,6 +1437,8 @@
   "notes.scopeGlobal": "Global",
   "notes.scopeGlobalDesc": "Available in every workspace",
   "notes.scopePrompt": "Where should this note live?",
+  "notes.copied": "Copied {name} to the clipboard.",
+  "notes.copyFailed": "Could not read {name}.",
   "notes.fileMissing": "{name} no longer exists.",
 
   "settings.title": "Saropa Settings",
