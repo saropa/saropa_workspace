@@ -46,7 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.6.6]
+
+Quickly share notes in plain text, Markdown links, or rich HTML, and enjoy a cleaner, keyboard-navigable Launcher context menu with organized submenus. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.6/CHANGELOG.md)
 
 ### Added
 
