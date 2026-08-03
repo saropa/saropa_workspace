@@ -266,11 +266,20 @@ test("an action shortcut gets a kind glyph + tint when it has no custom icon", (
   assert.equal(items[0].color, "charts.green");
 });
 
+function allMenuCommands(menu: readonly { command: string; children?: readonly { command: string }[] }[]): string[] {
+  const out: string[] = [];
+  for (const m of menu) {
+    if (m.command) { out.push(m.command); }
+    if (m.children) { for (const c of m.children) { out.push(c.command); } }
+  }
+  return out;
+}
+
 test("a stored shortcut's menu mirrors the sidebar actions, including a danger Remove", () => {
   const items = buildLauncherItems(
     asStore({ ...empty, project: [sc({ id: "p1", scope: "project", path: "deploy.sh" })] })
   );
-  const commands = items[0].menu.map((m) => m.command);
+  const commands = allMenuCommands(items[0].menu);
   assert.ok(commands.includes("saropaWorkspace.runPin"));
   assert.ok(commands.includes("saropaWorkspace.customizeShortcut"));
   const remove = items[0].menu.find((m) => m.command === "saropaWorkspace.unpin");
@@ -281,7 +290,7 @@ test("a paused shortcut's menu offers Resume, not Pause", () => {
   const items = buildLauncherItems(
     asStore({ ...empty, project: [sc({ id: "p1", scope: "project", paused: true })] })
   );
-  const commands = items[0].menu.map((m) => m.command);
+  const commands = allMenuCommands(items[0].menu);
   assert.ok(commands.includes("saropaWorkspace.unpausePin"));
   assert.ok(!commands.includes("saropaWorkspace.pausePin"));
 });

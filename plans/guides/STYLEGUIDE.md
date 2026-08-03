@@ -177,15 +177,24 @@ without opening the activity-bar icon. Conventions for any surface of this kind:
   `.card-sub` element entirely when `it.sub === it.label`; a sub line appears only when
   it adds information the title does not already carry (a nested path, a freshness
   line, a version).
-- **A webview surface mirrors the sidebar context menu as a flat, grouped custom
-  menu — it cannot host native submenus.** Right-click opens an HTML menu built
-  from a host-supplied, localized spec (`LauncherMenuEntry[]` from `launcherItems`),
-  separator-grouped rather than nested. It routes a choice back to the host as a
-  `command` message; the host re-resolves the shortcut by id and `executeCommand`s
-  it. Only commands that accept a raw `Shortcut` via `asShortcut` may be listed
-  (verify before adding — `copyPath`/`removeProjectPin` need a real tree item and
-  must NOT be used; use `copyPinLink`/`unpin`), and the host gates the incoming id
-  against an allowlist so the webview can never drive an arbitrary command.
+- **The webview context menu supports one level of submenus.** A
+  `LauncherMenuEntry` with a `children` array renders as a hover-expandable flyout
+  instead of a leaf action. The flyout opens to the right (or left if it would
+  overflow the viewport) and dismisses on mouse-leave with a 200 ms grace period.
+  Top-level items without `children` remain flat leaf actions. Submenus group
+  related actions (Configure & Schedule, Appearance, File Actions) so the menu
+  fits on screen; high-frequency items (Open, Run, Rename, Remove) stay at the
+  top level. Keyboard navigation is fully wired: Up/Down moves focus within the
+  menu or flyout, Right opens a submenu trigger's flyout, Left or Escape inside
+  a flyout closes it and returns focus to the trigger, and Escape at the top
+  level closes the entire menu. Only one flyout is open at a time (a shared
+  `activeSub` reference). The menu routes a choice back to the host as a
+  `command` message;
+  the host re-resolves the shortcut by id and `executeCommand`s it. Only commands
+  that accept a raw `Shortcut` via `asShortcut` may be listed (verify before
+  adding — `copyPath`/`removeProjectPin` need a real tree item and must NOT be
+  used; use `copyPinLink`/`unpin`), and the host gates the incoming id against an
+  allowlist so the webview can never drive an arbitrary command.
 - **Cards size to their own content — never stretch a row to match.** The card
   grid sets `align-items: start` so each card is as tall as its content. Without it
   the grid's default stretch made every card in a row match the tallest, so
