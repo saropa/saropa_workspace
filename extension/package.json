@@ -237,6 +237,12 @@
         "icon": "$(folder-opened)"
       },
       {
+        "command": "saropaWorkspace.copyNoteContent",
+        "title": "%command.copyNoteContent.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(copy)"
+      },
+      {
         "command": "saropaWorkspace.refreshNotes",
         "title": "%command.refreshNotes.title%",
         "category": "%extension.displayName%",
@@ -1571,19 +1577,29 @@
           "group": "inline@3"
         },
         {
-          "command": "saropaWorkspace.deleteNote",
+          "command": "saropaWorkspace.copyNoteContent",
           "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
           "group": "inline@1"
         },
         {
-          "command": "saropaWorkspace.renameNote",
+          "command": "saropaWorkspace.deleteNote",
+          "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "saropaWorkspace.copyNoteContent",
           "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
           "group": "1_note@1"
         },
         {
-          "command": "saropaWorkspace.deleteNote",
+          "command": "saropaWorkspace.renameNote",
           "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
           "group": "1_note@2"
+        },
+        {
+          "command": "saropaWorkspace.deleteNote",
+          "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
+          "group": "1_note@3"
         },
         {
           "command": "saropaWorkspace.resetRunHistory",
@@ -1805,6 +1821,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "saropaWorkspace.copyNoteContent",
+          "when": "false"
+        },
         {
           "command": "saropaWorkspace.deleteNote",
           "when": "false"

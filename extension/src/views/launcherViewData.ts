@@ -184,7 +184,11 @@ export function buildHeader(
   pushStat(count("watches"), "eye", "launcher.statWatches", "watches");
   pushStat(count("files"), "files", "launcher.statFiles", "files");
   pushStat(count("scripts"), "library", "launcher.statScripts", "scripts");
-  pushStat(count("notes"), "note", "launcher.statNotes", "notes");
+  stats.push({
+    pane: "notes",
+    icon: "note",
+    text: l10n("launcher.statNotes", { count: count("notes") }),
+  });
 
   return {
     project,
