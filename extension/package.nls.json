@@ -38,6 +38,7 @@
   "command.openNotesFolder.title": "Open Notes Folder",
   "command.copyNoteContent.title": "Copy Note Content",
   "command.copyNoteLink.title": "Copy as Markdown Link",
+  "command.copyNoteHtml.title": "Copy as HTML",
   "command.refreshNotes.title": "Refresh Notes",
   "command.refreshScripts.title": "Refresh Scripts",
   "command.copyPath.title": "Copy Path",

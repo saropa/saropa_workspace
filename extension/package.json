@@ -249,6 +249,11 @@
         "icon": "$(link)"
       },
       {
+        "command": "saropaWorkspace.copyNoteHtml",
+        "title": "%command.copyNoteHtml.title%",
+        "category": "%extension.displayName%"
+      },
+      {
         "command": "saropaWorkspace.refreshNotes",
         "title": "%command.refreshNotes.title%",
         "category": "%extension.displayName%",
@@ -1603,14 +1608,19 @@
           "group": "1_note@2"
         },
         {
-          "command": "saropaWorkspace.renameNote",
+          "command": "saropaWorkspace.copyNoteHtml",
           "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
           "group": "1_note@3"
         },
         {
-          "command": "saropaWorkspace.deleteNote",
+          "command": "saropaWorkspace.renameNote",
           "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
           "group": "1_note@4"
+        },
+        {
+          "command": "saropaWorkspace.deleteNote",
+          "when": "view == saropaWorkspace.notes && viewItem =~ /^note(Project|Global)$/",
+          "group": "1_note@5"
         },
         {
           "command": "saropaWorkspace.resetRunHistory",
@@ -1838,6 +1848,10 @@
         },
         {
           "command": "saropaWorkspace.copyNoteLink",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.copyNoteHtml",
           "when": "false"
         },
         {
