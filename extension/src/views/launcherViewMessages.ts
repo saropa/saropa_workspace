@@ -54,6 +54,7 @@ export interface LauncherMessageContext {
 // Resolve a webview message to an action on the addressed shortcut. The payload is
 // untrusted, so the id is narrowed and re-resolved against the store rather than trusting a
 // shortcut object from the webview.
+/** Resolves a webview message to an action on the addressed shortcut. The payload is untrusted, so each id is narrowed and re-resolved against the store. */
 export async function handleLauncherMessage(
   message: unknown,
   ctx: LauncherMessageContext
@@ -78,135 +79,126 @@ export async function handleLauncherMessage(
     await vscode.commands.executeCommand("saropaWorkspace.openSettings");
     return;
   }
-
-  // The Watches and Project Files panes route their opens by their OWN validated
-  // targets, not through the store: a watch id is not a shortcut id, and a surfaced
-  // project file is often not a shortcut at all. Each id/path is re-validated against
-  // the live source here so the untrusted webview can never drive an arbitrary watch
-  // or open an arbitrary file path.
   if (msg.type === "openWatch" && typeof msg.id === "string") {
-    if (ctx.watchStore.find(msg.id)) {
-      // openWatch opens what changed and clears the watch's unseen counter; the
-      // launcher's watch card carries that same counter, so it stays in sync.
-      await vscode.commands.executeCommand("saropaWorkspace.openWatch", msg.id);
-    }
+    await handleOpenWatch(msg.id, ctx);
     return;
   }
   if (msg.type === "openFile" && typeof msg.path === "string") {
-    const files = await ctx.projectFiles.listSurfacedFiles();
-    const target = files.find((f) => f.uri.fsPath === msg.path);
-    if (target) {
-      await vscode.commands.executeCommand("vscode.open", target.uri);
-    }
+    await handleOpenFile(msg.path, ctx);
     return;
   }
   if (msg.type === "openNote" && typeof msg.path === "string") {
-    const uri = vscode.Uri.file(msg.path);
-    try {
-      await vscode.workspace.fs.stat(uri);
-      await vscode.commands.executeCommand("vscode.open", uri);
-    } catch {
-      void vscode.window.showWarningMessage(
-        l10n("notes.fileMissing", { name: uri.fsPath.split(/[\\/]/).pop() ?? uri.fsPath })
-      );
-    }
+    await handleOpenNote(msg.path);
     return;
   }
-  // Copy a file-backed card's full on-disk path to the clipboard, resolved host-side by
-  // the card's id so the webview never carries or is trusted with a path. A file shortcut/
-  // recipe resolves through the store (its stored path may be folder-relative, so resolve
-  // to the absolute fsPath); a surfaced project file's id is its absolute path, re-validated
-  // against the live surfaced-files list. Either way the toast names the file.
   if (msg.type === "copyPath" && typeof msg.id === "string") {
-    const shortcut = ctx.store.findShortcut(msg.id);
-    if (shortcut) {
-      // Only file shortcuts have a meaningful on-disk path; a shell/macro/routine does not.
-      if (shortcutKind(shortcut) !== "file") {
-        return;
-      }
-      const full = ctx.store.resolveUri(shortcut)?.fsPath ?? shortcut.path;
-      await vscode.env.clipboard.writeText(full);
-      void vscode.window.showInformationMessage(
-        l10n("launcher.copiedPath", {
-          name: shortcutDisplayName(shortcut),
-        })
-      );
-      return;
-    }
-    const files = await ctx.projectFiles.listSurfacedFiles();
-    const target = files.find((f) => f.uri.fsPath === msg.id);
-    if (target) {
-      await vscode.env.clipboard.writeText(target.uri.fsPath);
-      void vscode.window.showInformationMessage(
-        l10n("launcher.copiedPath", {
-          name: target.name.split("/").pop() ?? target.name,
-        })
-      );
-    }
+    await handleCopyPath(msg.id, ctx);
     return;
   }
-
-  if (
-    msg.type === "dropOnGroup" &&
-    typeof msg.groupId === "string" &&
-    typeof msg.id === "string"
-  ) {
+  if (msg.type === "dropOnGroup" && typeof msg.groupId === "string" && typeof msg.id === "string") {
     await applyGroupDrop(msg.groupId, msg.id, ctx);
     return;
   }
-
-  // A card dropped on another card: move the dragged card into the target card's group,
-  // positioned before the target. The target card's composite groupId and shortcut id are
-  // both re-resolved host-side; the webview only posts untrusted identifiers.
-  if (
-    msg.type === "dropOnCard" &&
-    typeof msg.groupId === "string" &&
-    typeof msg.id === "string" &&
-    typeof msg.targetId === "string"
-  ) {
+  if (msg.type === "dropOnCard" && typeof msg.groupId === "string" && typeof msg.id === "string" && typeof msg.targetId === "string") {
     await applyGroupDrop(msg.groupId, msg.id, ctx, msg.targetId);
     return;
   }
-
   if (typeof msg.id !== "string") {
     return;
   }
-
-  // Library script cards carry a `library:<id>` composite id that never exists
-  // in the shortcut store. Intercept run messages for them and route through the
-  // script runner, which synthesizes a Shortcut from the manifest entry.
   if (msg.id.startsWith("library:")) {
-    const scriptId = msg.id.slice("library:".length);
-    const script = ctx.scriptsProvider.findScript(scriptId);
-    if (!script) {
-      if (msg.type === "run") {
-        void vscode.window.showErrorMessage(l10n("scripts.run.notFound"));
-      }
+    await handleLibraryScript(msg.id, msg.type, msg.command, ctx);
+    return;
+  }
+  await handleShortcutAction(msg.id, msg.type, msg.command, ctx);
+}
+
+async function handleOpenWatch(id: string, ctx: LauncherMessageContext): Promise<void> {
+  if (ctx.watchStore.find(id)) {
+    await vscode.commands.executeCommand("saropaWorkspace.openWatch", id);
+  }
+}
+
+async function handleOpenFile(filePath: string, ctx: LauncherMessageContext): Promise<void> {
+  const files = await ctx.projectFiles.listSurfacedFiles();
+  const target = files.find((f) => f.uri.fsPath === filePath);
+  if (target) {
+    await vscode.commands.executeCommand("vscode.open", target.uri);
+  }
+}
+
+async function handleOpenNote(notePath: string): Promise<void> {
+  const uri = vscode.Uri.file(notePath);
+  try {
+    await vscode.workspace.fs.stat(uri);
+    await vscode.commands.executeCommand("vscode.open", uri);
+  } catch {
+    void vscode.window.showWarningMessage(
+      l10n("notes.fileMissing", { name: uri.fsPath.split(/[\\/]/).pop() ?? uri.fsPath })
+    );
+  }
+}
+
+async function handleCopyPath(id: string, ctx: LauncherMessageContext): Promise<void> {
+  const shortcut = ctx.store.findShortcut(id);
+  if (shortcut) {
+    if (shortcutKind(shortcut) !== "file") {
       return;
     }
-    if (msg.type === "run") {
-      await runLibraryScript(script, ctx.extensionPath);
-    } else if (msg.type === "command" && msg.command === "saropaWorkspace.setScriptParams") {
-      SetParamsPanel.show(buildScriptShortcut(script, ctx.extensionPath));
+    const full = ctx.store.resolveUri(shortcut)?.fsPath ?? shortcut.path;
+    await vscode.env.clipboard.writeText(full);
+    void vscode.window.showInformationMessage(
+      l10n("launcher.copiedPath", { name: shortcutDisplayName(shortcut) })
+    );
+    return;
+  }
+  const files = await ctx.projectFiles.listSurfacedFiles();
+  const target = files.find((f) => f.uri.fsPath === id);
+  if (target) {
+    await vscode.env.clipboard.writeText(target.uri.fsPath);
+    void vscode.window.showInformationMessage(
+      l10n("launcher.copiedPath", { name: target.name.split("/").pop() ?? target.name })
+    );
+  }
+}
+
+async function handleLibraryScript(
+  compositeId: string,
+  type: string | undefined,
+  command: string | undefined,
+  ctx: LauncherMessageContext
+): Promise<void> {
+  const scriptId = compositeId.slice("library:".length);
+  const script = ctx.scriptsProvider.findScript(scriptId);
+  if (!script) {
+    if (type === "run") {
+      void vscode.window.showErrorMessage(l10n("scripts.run.notFound"));
     }
     return;
   }
+  if (type === "run") {
+    await runLibraryScript(script, ctx.extensionPath);
+  } else if (type === "command" && command === "saropaWorkspace.setScriptParams") {
+    SetParamsPanel.show(buildScriptShortcut(script, ctx.extensionPath));
+  }
+}
 
-  const shortcut = ctx.store.findShortcut(msg.id);
+async function handleShortcutAction(
+  id: string,
+  type: string | undefined,
+  command: string | undefined,
+  ctx: LauncherMessageContext
+): Promise<void> {
+  const shortcut = ctx.store.findShortcut(id);
   if (!shortcut) {
     return;
   }
-  if (msg.type === "open") {
+  if (type === "open") {
     await openShortcut(ctx.store, shortcut);
-  } else if (msg.type === "run") {
+  } else if (type === "run") {
     await runShortcutCommand(ctx.store, shortcut);
-  } else if (msg.type === "command" && typeof msg.command === "string") {
-    // A right-click menu choice: run the same command the sidebar would, passing the
-    // re-resolved shortcut as its argument. Gated by the allowlist so only the menu's
-    // own commands can be driven from the webview.
-    if (MENU_COMMANDS.has(msg.command)) {
-      await vscode.commands.executeCommand(msg.command, shortcut);
-    }
+  } else if (type === "command" && typeof command === "string" && MENU_COMMANDS.has(command)) {
+    await vscode.commands.executeCommand(command, shortcut);
   }
 }
 

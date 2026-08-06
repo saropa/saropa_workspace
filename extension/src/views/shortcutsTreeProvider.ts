@@ -31,9 +31,7 @@ import {
   syncMetrics,
 } from "./shortcutTreeNodes";
 
-// Tree: scope roots (Project / Global) -> user groups + top-level shortcuts ->
-// shortcuts. Also the drag-and-drop controller, so a shortcut can be reordered and
-// moved between groups by dragging it (handleDrag/handleDrop below).
+/** TreeDataProvider and drag-and-drop controller for the shortcuts tree view (scope roots, groups, shortcuts, Recent). */
 export class ShortcutsTreeProvider
   implements
     vscode.TreeDataProvider<vscode.TreeItem>,

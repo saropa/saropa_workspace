@@ -61,6 +61,11 @@ cspell:disable
 
 - Running a script in an external window no longer shows two toasts ("Running…" and "Launched…in a new external window"); only the location-specific toast appears
 
+### Internal
+
+- Added JSDoc documentation to all 30 previously undocumented exports across 7 modules (ciStatus, overnightDelta, promptTokens, scheduleStatusBar, scheduleStatusBarActions, setParamsPanel, shortcutsTreeProvider)
+- Split the 5 longest functions into named helpers: `setupSecondaryViews` (211 → ~20 lines), `writeRoutineSummary` (155 → ~40 lines), `handleLauncherMessage` (155 → ~50 lines), `buildAllItems` (90 → ~10 lines), and the `ShortcutTreeItem` constructor annotation branch
+
 ---
 
 ## [1.6.6]

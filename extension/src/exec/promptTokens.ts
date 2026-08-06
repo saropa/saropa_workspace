@@ -22,6 +22,7 @@ import { l10n } from "../i18n/l10n";
 // recognized; any other ${...} (e.g. a shell ${HOME}) is left untouched for the shell.
 const INTERACTIVE_RE = /\$\{(prompt|pick|pickFolder):([^}]*)\}/g;
 
+/** Describes one `${prompt:...}` / `${pick:...}` / `${pickFolder:...}` token parsed from a shortcut's run strings. */
 export interface InteractiveToken {
   // The full "${prompt:Label}" text; used verbatim as the dedup key and the
   // substitution target so the same token reused across command/args/cwd is
@@ -48,8 +49,7 @@ function runStrings(shortcut: Shortcut): string[] {
   return out;
 }
 
-// Whether running this shortcut would require interactive input. The scheduler uses
-// this to skip unattended fires that cannot be answered.
+/** Whether running this shortcut would require interactive input. The scheduler uses this to skip unattended fires that cannot be answered. */
 export function hasInteractiveTokens(shortcut: Shortcut): boolean {
   return runStrings(shortcut).some((s) => {
     // .test on a /g regex advances lastIndex; reset so each string starts clean.
@@ -58,9 +58,7 @@ export function hasInteractiveTokens(shortcut: Shortcut): boolean {
   });
 }
 
-// Unique interactive tokens across all run strings, in first-seen order. Exported
-// for the "Set Params" editor (setParamsPanel.ts), which lists every token a
-// shortcut carries so its remembered value can be edited without a run.
+/** Returns unique interactive tokens across a shortcut's command/args/cwd in first-seen order. */
 export function getInteractiveTokens(shortcut: Shortcut): InteractiveToken[] {
   const seen = new Map<string, InteractiveToken>();
   for (const s of runStrings(shortcut)) {
@@ -131,10 +129,7 @@ async function promptForToken(
   });
 }
 
-// Prompt the user once per unique token, defaulting each to the value entered last
-// time. Returns a raw->value map, or undefined if the user canceled any prompt — the
-// caller must then abort the run with nothing executed (acceptance 7.1: a cancel
-// leaves no partial run). Successful answers are remembered for next time.
+/** Prompts the user for each token value (with memory pre-fill); returns a raw-to-value map, or `undefined` if the user canceled any prompt. Successful answers are remembered for next time. */
 export async function resolveInteractiveTokens(
   shortcut: Shortcut
 ): Promise<Map<string, string> | undefined> {
@@ -155,11 +150,7 @@ export async function resolveInteractiveTokens(
   return values;
 }
 
-// Resolve interactive tokens WITHOUT prompting where a previous choice is
-// remembered; prompt only for tokens never answered for this shortcut. Backs "Run with
-// Last Parameters", the bypass for a parameterized shortcut you run the same way
-// every time. Returns undefined if a still-needed prompt is canceled; newly entered
-// values are remembered so the next bypass skips them too.
+/** Resolves tokens from memory silently, prompting only for never-answered ones. Backs "Run with Last Parameters". Returns `undefined` if a still-needed prompt is canceled. */
 export async function resolveRememberedTokens(
   shortcut: Shortcut
 ): Promise<Map<string, string> | undefined> {
@@ -185,9 +176,7 @@ export async function resolveRememberedTokens(
   return values;
 }
 
-// Shallow-clone the shortcut with every interactive token replaced by its resolved
-// value in the command, args, and cwd. The stored shortcut is untouched — the
-// substitution applies to this run only.
+/** Returns a shallow-cloned shortcut with all interactive tokens replaced by resolved values in the command, args, and cwd. The stored shortcut is untouched. */
 export function cloneWithResolvedTokens(
   shortcut: Shortcut,
   values: Map<string, string>

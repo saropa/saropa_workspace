@@ -122,37 +122,8 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // opposite of the mask. Its lock glyph comes from resolveShortcutRowIcon instead.
     this.resourceUri = isFile && !masked ? resolvedUri : undefined;
 
-    // Comment / separator: an inert annotation row. It has no command (a click does
-    // nothing), no resourceUri, no badges — it only labels or divides the list.
-    // Returning here keeps every run/badge/icon path below from treating it as a
-    // real shortcut; combined with the absent `command`, that makes the row unreachable
-    // by the click dispatcher (the model's discriminated-union guard in practice).
     if (isAnnotationShortcut(shortcut)) {
-      this.resourceUri = undefined;
-      if (kind === "separator") {
-        // VS Code tree rows have no native divider, so a run of box-drawing
-        // characters reads as a horizontal rule between groups of shortcuts. No icon:
-        // the line itself is the whole visual, and a glyph would break it up.
-        this.label = SEPARATOR_LABEL;
-        this.tooltip = l10n("annotation.separatorTooltip");
-        this.contextValue = "annotationSeparator";
-        this.iconPath = undefined;
-      } else {
-        // Comment: the text is the label, marked by a muted comment glyph so it
-        // reads as a note rather than a runnable shortcut. Empty text falls back to a
-        // placeholder so the row stays selectable (and renamable).
-        const text = shortcut.label?.trim();
-        this.label =
-          text && text.length > 0 ? text : l10n("annotation.commentEmpty");
-        this.tooltip = this.label;
-        this.contextValue = "annotationComment";
-        this.iconPath = new vscode.ThemeIcon(
-          "comment",
-          new vscode.ThemeColor("descriptionForeground")
-        );
-      }
-      // Deliberately NO this.command: an annotation is inert, so a click neither
-      // opens nor runs. Returning leaves it a plain leaf node.
+      applyAnnotationLayout(this, shortcut, kind);
       return;
     }
 
@@ -231,5 +202,30 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       title: "Activate",
       arguments: [shortcut],
     };
+  }
+}
+
+// Inert annotation row (comment or separator). No command — a click does nothing.
+function applyAnnotationLayout(
+  item: vscode.TreeItem,
+  shortcut: Shortcut,
+  kind: ReturnType<typeof shortcutKind>
+): void {
+  item.resourceUri = undefined;
+  if (kind === "separator") {
+    item.label = SEPARATOR_LABEL;
+    item.tooltip = l10n("annotation.separatorTooltip");
+    item.contextValue = "annotationSeparator";
+    item.iconPath = undefined;
+  } else {
+    const text = shortcut.label?.trim();
+    item.label =
+      text && text.length > 0 ? text : l10n("annotation.commentEmpty");
+    item.tooltip = item.label;
+    item.contextValue = "annotationComment";
+    item.iconPath = new vscode.ThemeIcon(
+      "comment",
+      new vscode.ThemeColor("descriptionForeground")
+    );
   }
 }

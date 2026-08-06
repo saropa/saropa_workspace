@@ -52,11 +52,15 @@ export function buildAllItems(
   scriptsProvider: ScriptsTreeProvider
 ): LauncherItem[] {
   const items = buildLauncherItems(store);
+  items.push(...buildWatchItems(watchStore));
+  items.push(...buildFileItems(files, store));
+  items.push(...buildScriptItems(scriptsProvider));
+  return items;
+}
 
-  // Only this window's watches, matching the Watches sidebar: a watch owned by the
-  // open project, opted into it, or global. Other projects' watches are not shown
-  // here (the "do not tell me about other projects" rule; styleguide 4.7).
+function buildWatchItems(watchStore: FolderWatchStore): LauncherItem[] {
   const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  const items: LauncherItem[] = [];
   for (const w of watchStore.list()) {
     if (!watchAlertsIn(w, folders)) {
       continue;
@@ -74,12 +78,13 @@ export function buildAllItems(
       })
     );
   }
+  return items;
+}
 
-  // One card per surfaced project file. Ordered by category first (the scan returns
-  // files in catalog order — Project, then the platform groups — so first appearance
-  // here gives the launcher's group order), then by displayed name within a category
-  // to match the tree. The relative time is stamped from one clock read so every card
-  // in this paint shares the same "now".
+function buildFileItems(
+  files: readonly ProjectFileInfo[],
+  store: ShortcutStore
+): LauncherItem[] {
   const now = Date.now();
   const categoryOrder: string[] = [];
   for (const f of files) {
@@ -98,7 +103,7 @@ export function buildAllItems(
       sensitivity: "base",
     });
   });
-  const fileItems = ordered.map((f) =>
+  return ordered.map((f) =>
     fileLauncherItem({
       path: f.uri.fsPath,
       fileName: fileName(f.name),
@@ -109,31 +114,25 @@ export function buildAllItems(
       categoryGlyph: glyphForCategory(f.category),
     })
   );
-  items.push(...fileItems);
+}
 
-  // Bundled library scripts: one card per manifest entry, grouped under a single
-  // "Scripts" header. The provider already resolved l10n labels, so the card
-  // builder receives display-ready text.
-  for (const script of scriptsProvider.scripts) {
-    items.push(
-      scriptLauncherItem({
-        id: script.id,
-        label: script.label,
-        description: script.description,
-        icon: script.icon,
-        tags: script.tags,
-        hasParams: hasInteractiveTokens({
-          id: `library:${script.id}`,
-          path: script.entry,
-          scope: "project",
-          order: 0,
-          exec: script.config,
-        }),
-      })
-    );
-  }
-
-  return items;
+function buildScriptItems(scriptsProvider: ScriptsTreeProvider): LauncherItem[] {
+  return scriptsProvider.scripts.map((script) =>
+    scriptLauncherItem({
+      id: script.id,
+      label: script.label,
+      description: script.description,
+      icon: script.icon,
+      tags: script.tags,
+      hasParams: hasInteractiveTokens({
+        id: `library:${script.id}`,
+        path: script.entry,
+        scope: "project",
+        order: 0,
+        exec: script.config,
+      }),
+    })
+  );
 }
 
 // The launcher header's leading block: the current project (the first workspace folder),

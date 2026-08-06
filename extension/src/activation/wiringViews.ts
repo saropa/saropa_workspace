@@ -21,78 +21,72 @@ import { registerNoteCommands } from "../commands/noteCommands";
 // wiring.ts once that file itself grew past the project's line-count cap) so
 // activate() stays a short, readable sequence of named steps.
 
-// The Recipes + Project Files secondary views, their title-count syncs, and the
-// listeners that repaint them.
+/** Wires up all secondary sidebar views: Recipes, Project Files, Scripts, Notes, the Launcher panel, and shortcut file decorations. */
 export function setupSecondaryViews(
   context: vscode.ExtensionContext,
   store: ShortcutStore,
   watchStore: FolderWatchStore
 ): void {
-  // Dedicated "Recipes" view: the auto-detected shortcuts (open on GitHub, run
-  // scripts, Saropa Suite tools), grouped by category. Kept as its own section so
-  // detected recipes never bury the user's own shortcuts in the Shortcuts view. Read-
-  // only and not arrangeable, so it is a plain provider (no drag-and-drop controller).
+  setupRecipesView(context, store);
+  const { projectFiles } = setupProjectFilesView(context, store);
+  const scripts = setupScriptsView(context);
+  const noteStore = setupNotesView(context);
+  setupLauncherPanel(context, store, watchStore, noteStore, projectFiles, scripts);
+  setupShortcutDecorations(context, store);
+
+  // Repaint project-files rows whenever shortcuts change, so the shortcut
+  // indicator and the add/remove toggle reflect the current state immediately.
+  context.subscriptions.push(store.onDidChange(() => projectFiles.refresh()));
+
+  // Keep the "Workspace Shortcut" submenu showing only the valid action for the
+  // exact file right-clicked.
+  context.subscriptions.push(
+    store.onDidChange(() => syncShortcutPathContext(store))
+  );
+}
+
+function setupRecipesView(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
   const recipes = new RecipesTreeProvider(store);
   const recipesView = vscode.window.createTreeView("saropaWorkspace.recipes", {
     treeDataProvider: recipes,
     showCollapseAll: true,
   });
   context.subscriptions.push(recipesView);
-  // Show the total detected-recipe count next to the view title. A zero count
-  // clears the description (no "0" when nothing was detected), and the provider
-  // only emits on a real change so the title does not flicker on every repaint.
-  const syncRecipesCount = (count: number): void => {
+  const syncCount = (count: number): void => {
     recipesView.description = count > 0 ? String(count) : undefined;
   };
   context.subscriptions.push(
-    recipes.onDidChangeCount((count) => syncRecipesCount(count))
+    recipes.onDidChangeCount((count) => syncCount(count))
   );
-  syncRecipesCount(recipes.count);
+  syncCount(recipes.count);
+}
 
-  // Third view in the container: a read-only list of interesting project files
-  // (README, CHANGELOG, manifests) with each file's last-modified time and
-  // declared version, so the user can see whether the changelog is current and
-  // what version the project is up to without opening anything.
+function setupProjectFilesView(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): { projectFiles: ProjectFilesTreeProvider } {
   const projectFiles = new ProjectFilesTreeProvider(store);
   const projectFilesView = vscode.window.createTreeView(
     "saropaWorkspace.projectFiles",
     { treeDataProvider: projectFiles }
   );
   context.subscriptions.push(projectFilesView);
-  // Show the total surfaced-file count next to the view title. A zero count
-  // clears the description (no "0" on an empty/disabled view), and the provider
-  // only emits on a real change so the title does not flicker on every repaint.
-  const syncProjectFilesCount = (count: number): void => {
+  const syncCount = (count: number): void => {
     projectFilesView.description = count > 0 ? String(count) : undefined;
   };
   context.subscriptions.push(
-    projectFiles.onDidChangeCount((count) => syncProjectFilesCount(count))
+    projectFiles.onDidChangeCount((count) => syncCount(count))
   );
-  syncProjectFilesCount(projectFiles.count);
-  // Repaint the project-files rows whenever shortcuts change, so the shortcut
-  // indicator and the add/remove toggle reflect the current state immediately.
-  context.subscriptions.push(store.onDidChange(() => projectFiles.refresh()));
+  syncCount(projectFiles.count);
 
-  // Keep the "Workspace Shortcut" submenu showing only the valid action (Add when not
-  // a shortcut, Remove when a shortcut) for the exact file right-clicked. Each scope's
-  // shortcut files are published as a when-clause context-key object; the submenu
-  // items gate on `resourcePath in/not in` it. This is per-resource accurate in
-  // every surface (Explorer, editor body, editor tab, sidebar row) because the `in`
-  // operator tests the acted-on resource, not the active editor. Synced on every
-  // shortcut change (init fires onDidChange too, so the keys are set before first paint).
-  context.subscriptions.push(
-    store.onDidChange(() => syncShortcutPathContext(store))
-  );
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshProjectFiles", () =>
       projectFiles.refresh()
     )
   );
-
-  // Repaint the project-files view when one of those files is saved (its mtime
-  // and version change), when folders change, or when its settings are edited.
-  // A save of any file is cheap to react to — the view rescans a handful of
-  // stats — so this does not filter by filename.
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument(() => projectFiles.refresh()),
     vscode.workspace.onDidChangeWorkspaceFolders(() => projectFiles.refresh()),
@@ -103,24 +97,25 @@ export function setupSecondaryViews(
     })
   );
 
-  // Bundled scripts from the extension's library.json manifest — ready-to-run developer
-  // tools shipped with the extension. Read-only, grouped by tag, with an inline Run
-  // button per script. The Run command synthesizes a Shortcut and routes through the
-  // existing run pipeline so interpreter resolution, token expansion, and terminal
-  // routing all work unchanged.
+  return { projectFiles };
+}
+
+function setupScriptsView(
+  context: vscode.ExtensionContext
+): ScriptsTreeProvider {
   const scripts = new ScriptsTreeProvider(context.extensionPath);
   const scriptsView = vscode.window.createTreeView("saropaWorkspace.scripts", {
     treeDataProvider: scripts,
     showCollapseAll: true,
   });
   context.subscriptions.push(scriptsView);
-  const syncScriptsCount = (count: number): void => {
+  const syncCount = (count: number): void => {
     scriptsView.description = count > 0 ? String(count) : undefined;
   };
   context.subscriptions.push(
-    scripts.onDidChangeCount((count) => syncScriptsCount(count))
+    scripts.onDidChangeCount((count) => syncCount(count))
   );
-  syncScriptsCount(scripts.count);
+  syncCount(scripts.count);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshScripts", () => {
@@ -141,7 +136,6 @@ export function setupSecondaryViews(
     vscode.commands.registerCommand(
       "saropaWorkspace.runScript",
       (item?: ScriptTreeItem) => {
-        // Guard: a keybinding or API call with no argument would pass undefined.
         if (!item?.script) {
           return;
         }
@@ -169,17 +163,37 @@ export function setupSecondaryViews(
     )
   );
 
-  // Persistent notes: real Markdown files on disk, organized into project-scoped
-  // (.saropa/notes/) and global (globalStorageUri/notes/) collections. Created before
-  // the launcher so the launcher can show notes in its Notes pane.
-  const noteStore = new NoteStore(context);
+  return scripts;
+}
 
-  // The "Saropa Workspace" Panel webview: the sidebar's surfaces in the bottom Panel, so
-  // they can be searched without opening the activity-bar icon — the shortcut + recipe
-  // panes (from the store), plus flat Watches, Project files, and Notes panes. A second
-  // window onto those sources, not a copy: it repaints from the same change events the
-  // trees do. retainContextWhenHidden keeps the search text and scroll position while the
-  // Panel tab is in the background.
+function setupNotesView(context: vscode.ExtensionContext): NoteStore {
+  const noteStore = new NoteStore(context);
+  const notes = new NotesTreeProvider(noteStore);
+  const notesView = vscode.window.createTreeView("saropaWorkspace.notes", {
+    treeDataProvider: notes,
+  });
+  context.subscriptions.push(notesView);
+  const syncCount = (count: number): void => {
+    notesView.description = count > 0 ? String(count) : undefined;
+  };
+  context.subscriptions.push(
+    notes.onDidChangeCount((count) => syncCount(count))
+  );
+  syncCount(notes.count);
+  const debouncedNotesRefresh = makeDebounced(() => noteStore.fire(), 200);
+  context.subscriptions.push(...noteStore.setupWatchers(debouncedNotesRefresh));
+  registerNoteCommands(context, noteStore);
+  return noteStore;
+}
+
+function setupLauncherPanel(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore,
+  watchStore: FolderWatchStore,
+  noteStore: NoteStore,
+  projectFiles: ProjectFilesTreeProvider,
+  scripts: ScriptsTreeProvider
+): void {
   const launcher = new LauncherViewProvider(
     store,
     watchStore,
@@ -199,38 +213,18 @@ export function setupSecondaryViews(
       vscode.commands.executeCommand("saropaWorkspace.launcher.focus")
     )
   );
+}
 
-  // Notes tree view: read-only sidebar tree (no drag-and-drop); a FileSystemWatcher
-  // keeps it in sync with external edits. Commands registered here alongside the view
-  // so the entire Notes surface is one wiring block.
-  const notes = new NotesTreeProvider(noteStore);
-  const notesView = vscode.window.createTreeView("saropaWorkspace.notes", {
-    treeDataProvider: notes,
-  });
-  context.subscriptions.push(notesView);
-  const syncNotesCount = (count: number): void => {
-    notesView.description = count > 0 ? String(count) : undefined;
-  };
-  context.subscriptions.push(
-    notes.onDidChangeCount((count) => syncNotesCount(count))
-  );
-  syncNotesCount(notes.count);
-  const debouncedNotesRefresh = makeDebounced(() => noteStore.fire(), 200);
-  context.subscriptions.push(...noteStore.setupWatchers(debouncedNotesRefresh));
-  registerNoteCommands(context, noteStore);
-
-  // Tint file shortcut labels green/red based on the sweep badge trend delta.
-  // Registered globally (all views that show the same URI), which is intentional:
-  // a file whose issues are worsening is worth highlighting everywhere.
+function setupShortcutDecorations(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
   const decorations = new ShortcutDecorationProvider(store);
-  // A routine sweep can fire shortcutBadges.onDidChange once per script, and
-  // store.onDidChange can fire for the same logical event, so a trailing-edge
-  // debounce coalesces the burst into a single URI-map rebuild + repaint.
-  const debouncedDecoRefresh = makeDebounced(() => decorations.refresh(), 200);
+  const debouncedRefresh = makeDebounced(() => decorations.refresh(), 200);
   context.subscriptions.push(
     decorations,
     vscode.window.registerFileDecorationProvider(decorations),
-    shortcutBadges.onDidChange(debouncedDecoRefresh),
-    store.onDidChange(debouncedDecoRefresh)
+    shortcutBadges.onDidChange(debouncedRefresh),
+    store.onDidChange(debouncedRefresh)
   );
 }

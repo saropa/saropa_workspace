@@ -48,6 +48,7 @@ const SECTIONS: readonly SettingSection[] = [
     settings: [
       { key: "defaultUseIntegratedTerminal", labelKey: "settings.useTerminal", type: "boolean" },
       { key: "terminalName", labelKey: "settings.terminalName", type: "string" },
+      { key: "showRunToasts", labelKey: "settings.showRunToasts", type: "boolean" },
     ],
   },
   {
