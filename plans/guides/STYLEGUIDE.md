@@ -731,6 +731,15 @@ Background and scheduled runs always surface an outcome — a toast and/or the
 output channel. Terminal and external-window runs that cannot be tracked to an
 exit code report only on start, and that limitation is stated, not hidden.
 
+The **`showRunToasts`** setting (`true` by default) lets a power user suppress
+run-start toasts globally. When the setting is off, the output channel is the
+only start acknowledgment. **Only informational start toasts are suppressible**
+— error toasts (`showErrorMessage`), warning toasts (e.g. the elevated-env-drop
+warning in `externalLauncher`), and background-run completion toasts are never
+gated on this setting, because they report a state the user must see regardless
+of preference. When adding a new run-start toast, gate it on `showRunToasts`;
+when adding an error/warning/completion toast, do not.
+
 ### 4.1a Transient confirmations auto-dismiss; action alerts persist
 
 A toast that only *confirms* something already happened ("Watching `bugs` for new
@@ -887,6 +896,7 @@ not raw-dump conventions:
   link to its source file *relative to the summary file* (forward slashes — a
   Windows backslash is not a valid link separator), so the parts stay reachable
   wherever the `reports/` tree is opened.
+- **A report generator that captures bulk output places it inside `<details>` below its classified findings; the headline stays above the first fence.** The standup digest classifies commits (security, features, fix groups, churn) and renders those above the fold; the full raw log lives inside a `<details>` block with a fenced code block. This keeps `extractHeadline` working (it reads only the header above the first fence) and keeps the summary's first screen scannable. A short fence (a 3-line PR list) is content, not noise — do not collapse it.
 - **A freshness/diagnostic report shows only the actionable items.** A dependency
   report lists only the packages behind latest, not every dependency; the up-to-date
   ones are omitted so the report is the work, not a table to scan.

@@ -256,9 +256,118 @@ export function summarizeLanguages(languages: readonly LangStat[]): {
   };
 }
 
+// Durable baseline embedded at the end of each report so the next run can lead
+// with the delta. Derived from the report artifact on disk — consistent with the
+// "derived comparison over stored state" decision (2026-07-20): the artifact is
+// inspectable, survives a fresh clone or machine change with the reports/ tree.
+export interface StatsMarker {
+  totalFiles: number;
+  totalLines: number;
+  totalBytes: number;
+  topLanguage?: string;
+  topShare?: number;
+}
+
+const STATS_MARKER_RE = /<!-- saropa-stats: ({.*}) -->/;
+
+// Parse the machine-readable marker from a report's content. Exported for tests.
+export function parseStatsMarker(content: string): StatsMarker | undefined {
+  const m = STATS_MARKER_RE.exec(content);
+  if (!m?.[1]) {
+    return undefined;
+  }
+  try {
+    const obj = JSON.parse(m[1]) as Record<string, unknown>;
+    if (typeof obj.totalFiles !== "number" || typeof obj.totalLines !== "number" || typeof obj.totalBytes !== "number") {
+      return undefined;
+    }
+    return {
+      totalFiles: obj.totalFiles,
+      totalLines: obj.totalLines,
+      totalBytes: obj.totalBytes,
+      topLanguage: typeof obj.topLanguage === "string" ? obj.topLanguage : undefined,
+      topShare: typeof obj.topShare === "number" ? obj.topShare : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+// Scan previous reports for the newest stats marker strictly older than this run.
+// Bounded to the newest 14 day-folders so a year of reports is not read each morning.
+export async function findPreviousStatsMarker(
+  reportsRoot: string,
+  currentReportPath: string
+): Promise<StatsMarker | undefined> {
+  let dayFolders: string[];
+  try {
+    dayFolders = await fs.readdir(reportsRoot);
+  } catch {
+    return undefined;
+  }
+  // The dotted date sorts lexicographically — newest first.
+  dayFolders.sort((a, b) => b.localeCompare(a));
+  dayFolders = dayFolders.slice(0, 14);
+
+  for (const dayFolder of dayFolders) {
+    const dayPath = path.join(reportsRoot, dayFolder);
+    let files: string[];
+    try {
+      files = await fs.readdir(dayPath);
+    } catch {
+      continue;
+    }
+    // Newest first within the day.
+    const statsFiles = files
+      .filter((f) => f.endsWith("_project_stats.md"))
+      .sort((a, b) => b.localeCompare(a));
+
+    for (const f of statsFiles) {
+      const fullPath = path.join(dayPath, f);
+      if (fullPath === currentReportPath) {
+        continue;
+      }
+      try {
+        const content = await fs.readFile(fullPath, "utf8");
+        const marker = parseStatsMarker(content);
+        if (marker) {
+          return marker;
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+  return undefined;
+}
+
+function buildStatsMarkerComment(stats: ProjectStats): string {
+  const { rows } = summarizeLanguages(stats.languages);
+  const top = rows[0];
+  const marker: StatsMarker = {
+    totalFiles: stats.totalFiles,
+    totalLines: stats.totalLines,
+    totalBytes: stats.totalBytes,
+  };
+  if (top && stats.totalLines > 0) {
+    marker.topLanguage = top.language;
+    marker.topShare = Number(((top.lines / stats.totalLines) * 100).toFixed(1));
+  }
+  return `<!-- saropa-stats: ${JSON.stringify(marker)} -->`;
+}
+
 // The size of the codebase and what dominates it, in one line — the two facts the
 // table exists to convey. Stated in the report and lifted into the routine summary.
-export function statsHeadline(stats: ProjectStats): string {
+// When a previous marker exists, leads with the delta so the report states what
+// CHANGED rather than repeating a static census.
+export function statsHeadline(stats: ProjectStats, previous?: StatsMarker): string {
+  if (previous) {
+    return buildDeltaHeadline(stats, previous);
+  }
+  return buildCensusHeadline(stats);
+}
+
+function buildCensusHeadline(stats: ProjectStats): string {
   const { rows } = summarizeLanguages(stats.languages);
   const parts = [
     `${stats.totalLines.toLocaleString()} lines across ${stats.totalFiles.toLocaleString()} files`,
@@ -273,9 +382,40 @@ export function statsHeadline(stats: ProjectStats): string {
   return parts.join(" · ");
 }
 
+function buildDeltaHeadline(stats: ProjectStats, previous: StatsMarker): string {
+  const lineDiff = stats.totalLines - previous.totalLines;
+  const fileDiff = stats.totalFiles - previous.totalFiles;
+
+  if (lineDiff === 0 && fileDiff === 0) {
+    return `Unchanged since the last report (${stats.totalLines.toLocaleString()} lines)`;
+  }
+
+  const parts: string[] = [];
+  if (lineDiff !== 0) {
+    parts.push(`${lineDiff > 0 ? "+" : ""}${lineDiff.toLocaleString()} lines`);
+  }
+  if (fileDiff !== 0) {
+    parts.push(`${fileDiff > 0 ? "+" : ""}${fileDiff.toLocaleString()} files`);
+  }
+  parts.push(`since the last report (now ${stats.totalLines.toLocaleString()} lines)`);
+
+  // Append the dominant-language clause only when its share moved by ≥0.5 points.
+  const { rows } = summarizeLanguages(stats.languages);
+  const top = rows[0];
+  if (top && stats.totalLines > 0 && previous.topLanguage && previous.topShare !== undefined) {
+    const currentShare = Number(((top.lines / stats.totalLines) * 100).toFixed(1));
+    const shareDiff = Math.abs(currentShare - previous.topShare);
+    if (shareDiff >= 0.5) {
+      parts.push(`${top.language} ${currentShare > previous.topShare ? "up" : "down"} to ${currentShare.toFixed(1)}%`);
+    }
+  }
+
+  return parts.join(", ");
+}
+
 // Render the stats as a Markdown report: a per-language table (with each language's
 // share of total lines), the totals, and the recent git activity.
-export function buildStatsMarkdown(stats: ProjectStats): string {
+export function buildStatsMarkdown(stats: ProjectStats, previous?: StatsMarker): string {
   const lines: string[] = [];
   lines.push("# Project stats");
   lines.push("");
@@ -284,9 +424,7 @@ export function buildStatsMarkdown(stats: ProjectStats): string {
     lines.push(`Branch: \`${stats.branch}\``);
   }
   lines.push("");
-  // The table's answer in one line, so the report states its finding before it shows
-  // its working. The routine summary lifts this same line into its headline block.
-  lines.push(`**Headline:** ${statsHeadline(stats)}`);
+  lines.push(`**Headline:** ${statsHeadline(stats, previous)}`);
   lines.push("");
 
   lines.push("## By language");
@@ -341,6 +479,8 @@ export function buildStatsMarkdown(stats: ProjectStats): string {
     lines.push("```");
     lines.push("");
   }
+  lines.push(buildStatsMarkerComment(stats));
+  lines.push("");
   return lines.join("\n");
 }
 
@@ -376,9 +516,11 @@ async function runProjectStats(folderPath?: unknown): Promise<string | undefined
 
   const relative = expandRecipeTokens(reportRelativePath("project_stats"));
   const file = path.join(root, ...relative.split("/"));
+  const reportsRoot = path.join(root, "reports");
+  const previous = await findPreviousStatsMarker(reportsRoot, file);
   try {
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, buildStatsMarkdown(stats), "utf8");
+    await fs.writeFile(file, buildStatsMarkdown(stats, previous), "utf8");
   } catch (err) {
     vscode.window.showErrorMessage(
       l10n("stats.failed", { error: err instanceof Error ? err.message : String(err) })

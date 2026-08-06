@@ -83,20 +83,6 @@ interface ReportRitual {
 
 const GIT_REPORT_RITUALS: ReportRitual[] = [
   {
-    recipeId: "ritual.standup",
-    label: "Standup digest (since yesterday)",
-    description: "Scheduled (daily, default 08:30): writes and opens a dated report of your commits and touched files from the last 24 hours — your standup, pre-written. Seeds disabled. Detected from a git repository.",
-    icon: "comment-discussion",
-    atTime: "08:30",
-    // Subjects only, with a per-commit file COUNT rather than --stat's full diffstat.
-    // --stat printed one line per changed file: a single machine-translation commit
-    // emitted hundreds of rows and buried the day's real work, making the digest
-    // unreadable (user report 2026-07-20). --shortstat is one summary line instead.
-    command: 'git log --since="24 hours ago" --pretty=format:"%h %s" --shortstat',
-    reportFile: reportRelativePath("standup"),
-    autoOpen: true,
-  },
-  {
     recipeId: "ritual.eod",
     label: "End-of-day uncommitted guard",
     description: "Scheduled (daily, default 18:00): writes and opens a dated summary of every uncommitted / untracked file so nothing is lost overnight. Seeds disabled. Detected from a git repository.",
@@ -235,6 +221,23 @@ async function pushGitRituals(
     },
   });
 
+  // 28: standup digest. Classifies commits (security first, features, fix
+  // groups) and folds generated churn, computed in-process rather than a raw
+  // shell capture. An already-promoted stored ritual.standup shortcut keeps its
+  // old shell action — recipe self-heal is out of scope.
+  out.push({
+    recipeId: "ritual.standup",
+    label: "Standup digest (since yesterday)",
+    description: "Scheduled (daily, default 08:30): classifies the last day's commits — security findings first, then features, fix groups by area, and generated churn folded — and writes a dated report with the raw log inside a details block. Seeds disabled. Detected from a git repository.",
+    icon: "comment-discussion",
+    schedule: daily("08:30"),
+    action: {
+      kind: "command",
+      commandId: "saropaWorkspace.recipe.standupDigest",
+      commandArgs: [folder.uri.fsPath],
+    },
+  });
+
   // 27: sunrise project stats. A per-language file/line breakdown of the tracked
   // codebase (share of total) plus the recent git activity, written to a dated
   // report and opened. Runs a command (computed in-process from `git ls-files`)
@@ -253,7 +256,7 @@ async function pushGitRituals(
     },
   });
 
-  // 28, 29, 31, 33, 35: the report rituals, seeded from the shared table.
+  // 29, 31, 33, 35: the remaining report rituals, seeded from the shared table.
   for (const r of GIT_REPORT_RITUALS) {
     out.push({
       recipeId: r.recipeId,

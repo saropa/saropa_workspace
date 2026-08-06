@@ -12,7 +12,15 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildStatsMarkdown, summarizeLanguages, type ProjectStats } from "../exec/projectStats";
+import {
+  buildStatsMarkdown,
+  summarizeLanguages,
+  statsHeadline,
+  parseStatsMarker,
+  findPreviousStatsMarker,
+  type ProjectStats,
+  type StatsMarker,
+} from "../exec/projectStats";
 
 // A representative stats value; cases override only the fields they assert on.
 function statsFixture(over: Partial<ProjectStats> = {}): ProjectStats {
@@ -146,4 +154,143 @@ test("buildStatsMarkdown formats large byte counts with a unit", () => {
     })
   );
   assert.ok(md.includes("5.0 MB"), "a multi-megabyte size reads in MB");
+});
+
+// --- stats marker round-trip ---
+
+test("buildStatsMarkdown embeds a machine-readable stats marker", () => {
+  const md = buildStatsMarkdown(statsFixture());
+  const marker = parseStatsMarker(md);
+  assert.ok(marker, "marker must be extractable from the output");
+  assert.equal(marker.totalFiles, 3);
+  assert.equal(marker.totalLines, 100);
+  assert.equal(marker.totalBytes, 4096);
+  assert.equal(marker.topLanguage, "TypeScript");
+  assert.equal(marker.topShare, 75.0);
+});
+
+test("parseStatsMarker returns undefined for content with no marker", () => {
+  assert.equal(parseStatsMarker("# Just a heading\n\nSome text."), undefined);
+});
+
+test("parseStatsMarker returns undefined for malformed JSON", () => {
+  assert.equal(parseStatsMarker('<!-- saropa-stats: {broken -->'), undefined);
+});
+
+test("parseStatsMarker returns undefined for missing required fields", () => {
+  assert.equal(parseStatsMarker('<!-- saropa-stats: {"totalFiles":1} -->'), undefined);
+});
+
+// --- statsHeadline with previous marker (delta) ---
+
+test("statsHeadline without previous matches the census output", () => {
+  const stats = statsFixture();
+  const census = statsHeadline(stats);
+  const withUndefined = statsHeadline(stats, undefined);
+  assert.equal(census, withUndefined);
+  assert.ok(census.includes("100 lines"));
+});
+
+test("statsHeadline with previous shows positive delta", () => {
+  const stats = statsFixture({ totalLines: 500, totalFiles: 20 });
+  const prev: StatsMarker = { totalFiles: 15, totalLines: 400, totalBytes: 3000 };
+  const h = statsHeadline(stats, prev);
+  assert.ok(h.includes("+100 lines"), "positive line delta");
+  assert.ok(h.includes("+5 files"), "positive file delta");
+  assert.ok(h.includes("now 500 lines"), "current total");
+});
+
+test("statsHeadline with previous shows negative delta", () => {
+  const stats = statsFixture({ totalLines: 80, totalFiles: 2 });
+  const prev: StatsMarker = { totalFiles: 3, totalLines: 100, totalBytes: 4096 };
+  const h = statsHeadline(stats, prev);
+  assert.ok(h.includes("-20 lines"), "negative line delta");
+  assert.ok(h.includes("-1 files"), "negative file delta");
+});
+
+test("statsHeadline with previous shows unchanged", () => {
+  const stats = statsFixture({ totalLines: 100, totalFiles: 3 });
+  const prev: StatsMarker = { totalFiles: 3, totalLines: 100, totalBytes: 4096 };
+  const h = statsHeadline(stats, prev);
+  assert.ok(h.includes("Unchanged since the last report"), "zero delta says unchanged");
+});
+
+test("statsHeadline includes share clause only when it moved ≥0.5 points", () => {
+  const stats = statsFixture({ totalLines: 100, totalFiles: 5 });
+  // Share moved by 0.4 points — below threshold.
+  const prevSmall: StatsMarker = {
+    totalFiles: 4, totalLines: 95, totalBytes: 4000,
+    topLanguage: "TypeScript", topShare: 75.4,
+  };
+  const hSmall = statsHeadline(stats, prevSmall);
+  assert.ok(!hSmall.includes("up to"), "no share clause below 0.5 threshold");
+
+  // Share moved by exactly 0.5 points — at threshold.
+  const prevAt: StatsMarker = {
+    totalFiles: 4, totalLines: 95, totalBytes: 4000,
+    topLanguage: "TypeScript", topShare: 74.5,
+  };
+  const hAt = statsHeadline(stats, prevAt);
+  assert.ok(hAt.includes("to 75.0%"), "share clause at 0.5 threshold");
+});
+
+// --- findPreviousStatsMarker ---
+
+import * as nodeFs from "node:fs";
+import * as os from "node:os";
+import * as nodePath from "node:path";
+
+test("findPreviousStatsMarker picks newest older file and skips current", async () => {
+  const tmp = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "stats-marker-"));
+  try {
+    const day1 = nodePath.join(tmp, "2026.08.04_workspace");
+    const day2 = nodePath.join(tmp, "2026.08.05_workspace");
+    nodeFs.mkdirSync(day1, { recursive: true });
+    nodeFs.mkdirSync(day2, { recursive: true });
+
+    const marker1: StatsMarker = { totalFiles: 10, totalLines: 500, totalBytes: 2000 };
+    const marker2: StatsMarker = { totalFiles: 12, totalLines: 600, totalBytes: 3000 };
+    const currentPath = nodePath.join(day2, "2026.08.05_workspace_090000_project_stats.md");
+
+    nodeFs.writeFileSync(
+      nodePath.join(day1, "2026.08.04_workspace_090000_project_stats.md"),
+      `# Stats\n<!-- saropa-stats: ${JSON.stringify(marker1)} -->\n`
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(day2, "2026.08.05_workspace_080000_project_stats.md"),
+      `# Stats\n<!-- saropa-stats: ${JSON.stringify(marker2)} -->\n`
+    );
+
+    const found = await findPreviousStatsMarker(tmp, currentPath);
+    assert.ok(found, "must find a marker");
+    assert.equal(found.totalLines, 600, "picks the newest file that is not the current");
+  } finally {
+    nodeFs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("findPreviousStatsMarker returns undefined on empty directory", async () => {
+  const tmp = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "stats-empty-"));
+  try {
+    const result = await findPreviousStatsMarker(tmp, "/nonexistent");
+    assert.equal(result, undefined);
+  } finally {
+    nodeFs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("findPreviousStatsMarker returns undefined when no marker exists", async () => {
+  const tmp = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "stats-nomark-"));
+  try {
+    const day = nodePath.join(tmp, "2026.08.05_workspace");
+    nodeFs.mkdirSync(day, { recursive: true });
+    nodeFs.writeFileSync(
+      nodePath.join(day, "2026.08.05_workspace_090000_project_stats.md"),
+      "# Stats\nNo marker here.\n"
+    );
+    const result = await findPreviousStatsMarker(tmp, "/other");
+    assert.equal(result, undefined);
+  } finally {
+    nodeFs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
