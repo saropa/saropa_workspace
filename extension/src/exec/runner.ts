@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import * as path from "path";
 import { Shortcut } from "../model/shortcut";
 import { telemetry, RunSource } from "./telemetry";
 import { playCue } from "./soundCue";
@@ -88,17 +87,21 @@ export async function runShortcut(
   // cancel checks above, so an aborted interactive prompt does not count as a run).
   void telemetry.record(shortcut.id, source);
 
-  vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
+  // External runs emit their own location-specific toast from runInExternal, so
+  // the generic "Running…" toast is skipped to avoid a double notification.
+  // The showRunToasts setting lets power users suppress start toasts entirely.
+  const showToasts = vscode.workspace
+    .getConfiguration("saropaWorkspace")
+    .get<boolean>("showRunToasts", true);
+  if (showToasts && plan.location !== "external") {
+    vscode.window.showInformationMessage(l10n("run.starting", { name: plan.name }));
+  }
 
   // Audio start cue (#64), honoring the shortcut's per-shortcut override. Fires for every
   // location; terminal/external runs get no finish cue because VS Code cannot track
   // their exit, so the start cue is their only audio acknowledgment.
   playCue("start", effectiveShortcut.exec?.sound);
 
-  // Route to the resolved location. An external run launches a separate OS
-  // terminal window and returns immediately — VS Code cannot track its exit, so
-  // it is not registered for Stop and gets no completion toast (the new window is
-  // itself the visible feedback).
   switch (plan.location) {
     case "terminal":
       // A fresh terminal every run, so a shortcut launched while an earlier one

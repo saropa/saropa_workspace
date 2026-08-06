@@ -23,11 +23,7 @@ const WINDOW = "24 hours ago";
 // counts are computed by identical commands and stay comparable.
 const DEBT_PATTERN = "TODO|FIXME|HACK|XXX";
 
-// What changed in the repository across the window. Every field is derived by
-// comparing two revisions — nothing here is a stored snapshot from a previous run.
-// That matters beyond convenience: a stored baseline is only as good as the last time
-// the job happened to run, whereas a revision is exact, survives a fresh clone or a
-// new machine, and cannot drift (developer question 2026-07-20).
+/** What changed in the repository across the 24-hour window. Every field is derived by comparing two revisions — nothing here is a stored snapshot from a previous run. */
 export interface OvernightDelta {
   // The revision that was HEAD at the start of the window, and undefined when the
   // repository has no commit that old (a young repo — not an error).
@@ -66,6 +62,7 @@ async function git(root: string, args: string[]): Promise<string> {
   }
 }
 
+/** Computes the overnight delta for a repo root by comparing HEAD against the commit that was current 24 hours ago. */
 export async function collectOvernightDelta(root: string): Promise<OvernightDelta> {
   const delta: OvernightDelta = {
     filesChanged: 0,
@@ -148,9 +145,7 @@ async function countDebt(root: string, rev: string): Promise<number> {
   return total;
 }
 
-// Parse `git diff --shortstat`: " 117 files changed, 462756 insertions(+), 411718
-// deletions(-)". Any clause may be absent — a commit that only adds files has no
-// deletions clause — so each is matched independently. Exported for tests.
+/** Parses `git diff --shortstat` output into filesChanged/insertions/deletions. Any clause may be absent, so each is matched independently. */
 export function parseShortstat(line: string): {
   filesChanged: number;
   insertions: number;
@@ -163,8 +158,7 @@ export function parseShortstat(line: string): {
   };
 }
 
-// The window's movement in one line. Exported for tests and reused as the report's
-// headline. States the debt change only when it actually moved — "+0 TODOs" is noise.
+/** Returns a one-line summary string and attention flag for the overnight delta. States the debt change only when it actually moved. */
 export function deltaHeadline(delta: OvernightDelta): { text: string; attention: boolean } {
   if (delta.unavailable) {
     return {
@@ -197,10 +191,7 @@ export function deltaHeadline(delta: OvernightDelta): { text: string; attention:
   return { text: parts.join(" · "), attention: false };
 }
 
-// " — latest commit 3 days ago" for a quiet window, or "" when the commit date is
-// missing or unparseable. A Monday morning reporting a silent weekend should say the
-// last commit was Friday, not leave the reader wondering whether the check ran.
-// Exported for tests.
+/** Returns " — latest commit N days ago" suffix for a quiet window, or empty string when the commit date is missing or unparseable. */
 export function describeQuiet(iso: string | undefined, now: number = Date.now()): string {
   if (!iso) {
     return "";
@@ -216,6 +207,7 @@ export function describeQuiet(iso: string | undefined, now: number = Date.now())
   return ` — latest commit ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+/** Renders a full Markdown overnight-delta report from an {@link OvernightDelta} object. */
 export function buildDeltaMarkdown(delta: OvernightDelta): string {
   const headline = deltaHeadline(delta);
   const lines: string[] = [
@@ -257,9 +249,7 @@ function formatSigned(n: number): string {
   return n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString();
 }
 
-// Register the overnight-delta command. Mirrors the project-stats registration: the
-// folder arrives as the command arg (a scheduled recipe stores its folder path), and
-// the written report path is returned so a routine summary can link it.
+/** Registers the `saropaWorkspace.recipe.overnightDelta` VS Code command. */
 export function registerOvernightDeltaCommand(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.recipe.overnightDelta", (folderPath?: unknown) =>

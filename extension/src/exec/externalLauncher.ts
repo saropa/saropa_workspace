@@ -76,9 +76,14 @@ export async function runInExternal(
   if (elevated && env && Object.keys(env).length > 0) {
     vscode.window.showWarningMessage(l10n("run.elevatedEnvDropped", { name }));
   }
-  vscode.window.showInformationMessage(
-    l10n(elevated ? "run.externalElevatedStarted" : "run.externalStarted", { name })
-  );
+  const showToasts = vscode.workspace
+    .getConfiguration("saropaWorkspace")
+    .get<boolean>("showRunToasts", true);
+  if (showToasts) {
+    vscode.window.showInformationMessage(
+      l10n(elevated ? "run.externalElevatedStarted" : "run.externalStarted", { name })
+    );
+  }
 }
 
 // Windows: open a new PowerShell console window via Start-Process, running a

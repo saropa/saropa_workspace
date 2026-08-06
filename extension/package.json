@@ -2442,6 +2442,11 @@
             "default": false,
             "description": "%config.displayNames.titleCase.description%"
           },
+          "saropaWorkspace.showRunToasts": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.showRunToasts.description%"
+          },
           "saropaWorkspace.sound.enabled": {
             "type": "boolean",
             "default": false,

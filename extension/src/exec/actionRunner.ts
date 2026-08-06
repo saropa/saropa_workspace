@@ -149,7 +149,12 @@ async function runShellAction(
     vscode.workspace
       .getConfiguration("saropaWorkspace")
       .get<boolean>("defaultUseIntegratedTerminal", true);
-  vscode.window.showInformationMessage(l10n("run.starting", { name }));
+  const showToasts = vscode.workspace
+    .getConfiguration("saropaWorkspace")
+    .get<boolean>("showRunToasts", true);
+  if (showToasts) {
+    vscode.window.showInformationMessage(l10n("run.starting", { name }));
+  }
   // Start cue for a recipe shell run (#64). A recipe shortcut has no exec override, so it
   // follows the global cue settings; the background path below plays the finish cue.
   playCue("start");

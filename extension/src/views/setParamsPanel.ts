@@ -52,6 +52,7 @@ interface FieldWire {
   resetLabel: string;
 }
 
+/** Webview panel for editing a shortcut's remembered interactive-token values without running it. */
 export class SetParamsPanel {
   private static current: SetParamsPanel | undefined;
   private static readonly viewType = "saropaWorkspace.setParams";

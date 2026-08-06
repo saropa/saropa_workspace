@@ -21,6 +21,7 @@ interface ScheduleAction {
   run(): Promise<void>;
 }
 
+/** Shows a QuickPick action menu for the status-bar shortcut (open report, run now, edit schedule, hide, etc.). */
 export async function showScheduleStatusBarActions(
   store: ShortcutStore,
   shortcut: Shortcut,

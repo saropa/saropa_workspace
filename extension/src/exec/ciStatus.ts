@@ -34,8 +34,7 @@ const MAX_ANNOTATIONS = 5;
 // so the count is bounded independently of how many annotations come back.
 const MAX_CHECK_RUNS = 5;
 
-// One CI run, as `gh run list --json` reports it. Field names mirror the CLI's so
-// the mapping stays checkable against `gh run list --json` output by eye.
+/** One CI run, as `gh run list --json` reports it. Field names mirror the CLI's so the mapping stays checkable against `gh run list --json` output by eye. */
 export interface CiRun {
   status: string;
   conclusion: string;
@@ -46,11 +45,7 @@ export interface CiRun {
   createdAt: string;
 }
 
-// Where CI went from passing to failing: the oldest failing run in the unbroken
-// streak of failures at the head of the list, plus the newest passing run before it.
-// `noPassingRun` distinguishes "broken since commit X" from "nothing has ever
-// passed in the fetched history" — materially different news, and the second is
-// easy to misread as the first.
+/** Where CI went from passing to failing: the oldest failing run in the unbroken streak of failures at the head of the list, plus the newest passing run before it. `noPassingRun` distinguishes "broken since commit X" from "nothing has ever passed in the fetched history". */
 export interface CiBreak {
   firstFailure: CiRun;
   lastSuccess?: CiRun;
@@ -58,8 +53,7 @@ export interface CiBreak {
   noPassingRun: boolean;
 }
 
-// A failure annotation GitHub attached to a check run — the line that says WHY the
-// build broke, which the run list alone never carries.
+/** A failure annotation GitHub attached to a check run — the line that says WHY the build broke, which the run list alone never carries. */
 export interface CiAnnotation {
   level: string;
   path: string;
@@ -67,6 +61,7 @@ export interface CiAnnotation {
   message: string;
 }
 
+/** Aggregated CI status for the default branch: recent runs, current failures, failure annotations, and the commit where CI broke. */
 export interface CiStatus {
   runs: CiRun[];
   failing: CiRun[];
@@ -95,6 +90,7 @@ async function gh(root: string, args: string[]): Promise<string | undefined> {
   }
 }
 
+/** Fetches CI runs via `gh`, filters failures, collects annotations, and returns the aggregated {@link CiStatus}. */
 export async function collectCiStatus(root: string): Promise<CiStatus> {
   const list = await gh(root, [
     "run",
@@ -113,11 +109,7 @@ export async function collectCiStatus(root: string): Promise<CiStatus> {
   return { runs, failing, annotations, unavailable: false, broke: findBreak(runs) };
 }
 
-// Walk the head of the list (newest first) while runs are failing, then report the
-// oldest failure in that streak and the run that passed before it. Returns undefined
-// when the newest completed run passed — nothing is broken, so there is no break to
-// locate. Runs still in progress are skipped rather than ending the streak: a build
-// queued on top of a red branch does not mean CI recovered. Exported for tests.
+/** Walks completed runs newest-first to find the oldest failure in an unbroken failing streak. Returns `undefined` when the newest completed run passed. Runs still in progress are skipped rather than ending the streak. */
 export function findBreak(runs: readonly CiRun[]): CiBreak | undefined {
   const completed = runs.filter((r) => r.status === "completed");
   if (completed.length === 0 || !isFailure(completed[0])) {
@@ -175,12 +167,7 @@ async function collectAnnotations(root: string): Promise<CiAnnotation[]> {
   return out.slice(0, MAX_ANNOTATIONS);
 }
 
-// Parse `gh run list --json`. Every field is read defensively: this is JSON from an
-// external tool, so a missing or non-string field must yield an empty string rather
-// than an undefined that reaches the report. A run still in progress has an EMPTY
-// conclusion, which is why status and conclusion stay separate rather than collapsing
-// into one "result" — merged, a queued run reads as one that finished with no result.
-// Exported for tests.
+/** Parses JSON output of `gh run list --json` into {@link CiRun CiRun[]}. Every field is read defensively — a missing or non-string field yields an empty string rather than `undefined`. */
 export function parseRunList(text: string): CiRun[] {
   let parsed: unknown;
   try {
@@ -216,6 +203,7 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/** Parses TSV annotation output from the GitHub check-runs API into {@link CiAnnotation CiAnnotation[]}. */
 export function parseAnnotations(text: string): CiAnnotation[] {
   const out: CiAnnotation[] = [];
   for (const line of text.split("\n")) {
@@ -241,8 +229,7 @@ function isFailure(run: CiRun): boolean {
   return run.status === "completed" && /^(failure|timed_out|cancell?ed)$/.test(run.conclusion);
 }
 
-// The verdict line. Attention when anything is failing — a red default branch is the
-// first question of the morning, so it never renders as a mere headline.
+/** Returns a one-line verdict string and attention flag for the given CI status. Attention is raised when anything is failing. */
 export function ciHeadline(status: CiStatus): { text: string; attention: boolean } {
   if (status.unavailable) {
     return { text: "Build status unavailable — the gh CLI did not answer.", attention: true };
@@ -280,6 +267,7 @@ export function ciHeadline(status: CiStatus): { text: string; attention: boolean
   };
 }
 
+/** Renders a full Markdown CI status report from a {@link CiStatus} object. */
 export function buildCiMarkdown(status: CiStatus): string {
   const headline = ciHeadline(status);
   const lines: string[] = [
@@ -366,6 +354,7 @@ function formatWhen(iso: string): string {
   return Number.isNaN(at.getTime()) ? iso : at.toLocaleString();
 }
 
+/** Registers the `saropaWorkspace.recipe.ciStatus` VS Code command. */
 export function registerCiStatusCommand(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.recipe.ciStatus", (folderPath?: unknown) =>

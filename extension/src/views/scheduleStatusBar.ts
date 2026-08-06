@@ -10,33 +10,29 @@ import { l10n } from "../i18n/l10n";
 // when no shortcut has an enabled schedule, so it adds no empty noise. Reinforces
 // the "no silent execution" principle by always showing what is queued.
 
-// The setting that suppresses this indicator entirely. Named once here because both
-// the item (which reads it) and its action menu (which writes it, from the "Hide"
-// entry) need the exact key, and a second spelling of it would silently un-hide.
+/** Setting key that suppresses the schedule status-bar indicator. Named once because both the item and its action menu need the exact key. */
 export const SCHEDULE_STATUS_BAR_SETTING = "showScheduleStatusBar";
 
-// The setting for the lead-time window (minutes). Named once here because both
-// the status-bar item and the configuration listener need the exact key.
+/** Setting key for the lead-time window in minutes. Named once because both the status-bar item and the configuration listener need it. */
 export const LEAD_MINUTES_SETTING = "scheduleStatusBarLeadMinutes";
 
-// Fallback when the setting is absent or invalid.
+/** Fallback lead-time value (30 minutes) when the setting is absent or invalid. */
 export const DEFAULT_LEAD_MINUTES = 30;
 
-// How long the "just ran" flash stays visible after a scheduled run completes.
+/** Duration in ms of the "just ran" flash after a scheduled run completes (2 minutes). */
 export const JUST_RAN_WINDOW_MS = 2 * 60_000;
 
-// Pure visibility decision, exported for unit testing without the VS Code host.
-// For schedules that fire more frequently than the window (e.g. every 15 min),
-// the indicator is correctly always visible — warranted when runs are that close.
+/** Pure predicate: returns `true` when the next run is within the lead window. Exported for unit testing without the VS Code host. */
 export function shouldShowIndicator(nextRunAt: number, now: number, windowMs: number): boolean {
   return nextRunAt - now <= windowMs;
 }
 
-// Whether a shortcut just ran recently enough to flash the "just ran" indicator.
+/** Whether a shortcut just ran recently enough to flash the "just ran" indicator. */
 export function isJustRan(lastRun: number | undefined, now: number): boolean {
   return lastRun !== undefined && now - lastRun <= JUST_RAN_WINDOW_MS;
 }
 
+/** Status-bar item showing the soonest upcoming scheduled run. Click opens the action menu. */
 export class ScheduleStatusBar {
   private readonly item: vscode.StatusBarItem;
   // The shortcut the item currently points at, plus when it next runs, so the reveal
@@ -190,9 +186,7 @@ export class ScheduleStatusBar {
   }
 }
 
-// Time-of-day when the run is today, otherwise a short date plus time. Locale
-// formatting is delegated to the OS so the clock matches regional settings. Exported
-// so the Schedule screen formats "next run" identically to the status bar.
+/** Formats a timestamp as time-only (today) or short-date + time (other days). Locale formatting is delegated to the OS. */
 export function formatWhen(ts: number): string {
   const next = new Date(ts);
   const now = new Date();
