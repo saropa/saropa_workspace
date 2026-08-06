@@ -14,8 +14,9 @@ __pycache__/
 extension/README.md
 extension/CHANGELOG.md
 
-# Private working note, not for the public repo.
+# Private working notes, not for the public repo.
 bugs/FINISH_GUIDE.md
+bugs/BUG-001-code-quality-sweep.md
 
 # Saropa Log Capture: ignore generated report output, but keep the
 # organizer script (durable tooling, not generated).
