@@ -51,6 +51,7 @@ cspell:disable
 ### Added
 
 - New "Show run toasts" setting (`showRunToasts`, on by default) — turn it off to suppress the "Running…" and "Launched…" start toasts across all run locations, for power users who rely on the output channel instead. Error and completion toasts from background runs are unaffected
+- Saropa Morning Brief — a briefing screen that opens after a routine run with a verdict band ("All clear" / "Needs attention"), per-member cards with status glyphs and headlines, and one-click report access; the markdown summary remains on disk and one click away via the "Open full summary" footer button. The `Open Saropa Morning Brief` command opens the most recent brief at any time
 
 ### Changed
 

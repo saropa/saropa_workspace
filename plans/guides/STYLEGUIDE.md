@@ -42,6 +42,7 @@ Current screens, for reference:
 | `scheduleEditor.title` | **Saropa Workspace Scheduler: {name}** |
 | `views.launcher.container.title` / `launcher.title` | **Saropa Workspace** |
 | `settings.title` | **Saropa Settings** |
+| `brief.title` | **Saropa Morning Brief** |
 
 The three schedule-related screens are deliberately distinct: the **Scheduler**
 (`scheduleEditor.title`) *sets* one shortcut's timing; **Scheduled Runs**
@@ -986,6 +987,7 @@ gates every auto-open; a member calls `openReport`, never `showTextDocument`).
   2026-07-10). Any new report writer routes its open through `openReport` so a routine
   can suppress it.
 - **The summary auto-opens for every manual run and for any run needing attention; a clean scheduled run surfaces through the completion toast and the status-bar just-ran flash instead, both of which link the report.** The original rule (open on every run, 2026-07-10) fixed report findability. Findability is now provided by two surfaces that do not cost a window: `surfaceRunResult` in `views/scheduleFeedback.ts` offers "Open report" in the toast, and the status-bar just-ran flash (2-minute window, `views/scheduleStatusBar.ts`) links the report through its action menu. A daily unconditional open produced alarm fatigue (user report 2026-08-05), so the summary writes the file, records `recordLastReport`, and logs to the channel, but does NOT call `openReport` when all three conditions hold: `source === "scheduled"`, no member failed, and `attentionCount === 0`.
+- **The opening surface is the Morning Brief panel (`views/briefPanel.ts`), not a raw markdown preview.** The brief renders a verdict band, per-member cards with status glyphs and headlines, and "Open report" buttons that re-validate paths via `validateReportPath` before opening. The markdown summary remains the durable artifact and is reachable via the "Open full summary" footer button. If panel creation throws (webview-hostile environment), the routine falls back to `openReport(reportPath)` so Phase 1/2 behavior degrades gracefully. The `Open Saropa Morning Brief` command (`saropaWorkspace.openMorningBrief`) opens the most recent brief at any time.
 
 ### 4.10 A status-bar indicator's click is an action menu, and one action hides it
 

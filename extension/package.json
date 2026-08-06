@@ -938,6 +938,11 @@
         "icon": "$(dashboard)"
       },
       {
+        "command": "saropaWorkspace.openMorningBrief",
+        "title": "%command.openMorningBrief.title%",
+        "category": "%extension.displayName%"
+      },
+      {
         "command": "saropaWorkspace.openProcessMonitor",
         "title": "%command.openProcessMonitor.title%",
         "category": "%extension.displayName%",

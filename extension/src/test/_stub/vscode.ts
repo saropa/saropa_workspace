@@ -499,6 +499,9 @@ export function __lastWebviewPanel(): FakeWebviewPanel | undefined {
   return createdPanels[createdPanels.length - 1];
 }
 export function __resetWebviewPanels(): void {
+  for (const p of createdPanels) {
+    p.dispose();
+  }
   createdPanels.length = 0;
 }
 
