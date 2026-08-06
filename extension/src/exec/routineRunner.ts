@@ -15,7 +15,9 @@ import {
   reportRelativePath,
 } from "./actionRunner";
 import { recordLastReport, peekLastReport, clearLastReport } from "./lastReport";
+import { recordLastBrief } from "./lastBrief";
 import { openReport, withReportOpenSuppressed } from "./reportOpen";
+import { BriefPanel } from "../views/briefPanel";
 
 // The routine engine: run a "recipe of recipes" — its member shortcuts strictly in
 // sequence, continue-on-failure — then write a one-row-per-member summary report and
@@ -60,6 +62,27 @@ interface MemberOutcome {
   // rituals and project-stats do; a terminal / url member does not). The summary
   // turns it into a relative link so it is the one index over the day's sub-reports.
   reportPath?: string;
+}
+
+// The structured brief — a projection of data writeRoutineSummary already has,
+// shaped for the webview panel. No new computation; this packages outcomes,
+// headlines, and problems into a form the brief panel can render directly.
+export interface BriefMember {
+  readonly label: string;
+  readonly status: MemberOutcome["status"];
+  readonly headline?: string;
+  readonly attention: boolean;
+  readonly durationMs?: number;
+  readonly reportPath?: string;
+}
+
+export interface RoutineBrief {
+  readonly routineName: string;
+  readonly generatedAt: string;
+  readonly verdict: "clear" | "attention";
+  readonly attentionCount: number;
+  readonly members: readonly BriefMember[];
+  readonly summaryPath: string;
 }
 
 // Run one routine member to completion and report its outcome. Pulled out of the
@@ -402,12 +425,22 @@ async function writeRoutineSummary(
     channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
     recordLastReport(pinId, reportPath);
 
+    const brief = buildRoutineBrief(name, outcomes, contents, attentionCount, reportPath);
+    recordLastBrief(pinId, brief);
+
     // A manual run must produce a visible window (no-silent-async rule).
     // A scheduled run opens only when something needs the reader.
     const shouldOpen =
       source !== "scheduled" || anyFailed || attentionCount > 0;
     if (shouldOpen) {
-      await openReport(reportPath);
+      try {
+        BriefPanel.show(brief);
+      } catch (panelErr) {
+        channel.appendLine(
+          `[brief] panel failed, falling back to markdown: ${panelErr instanceof Error ? panelErr.message : String(panelErr)}`
+        );
+        await openReport(reportPath);
+      }
     } else {
       channel.appendLine(
         l10n("routine.summary.quietClean", { name, path: reportPath })
@@ -418,6 +451,39 @@ async function writeRoutineSummary(
       l10n("report.failed", { name, error: err instanceof Error ? err.message : String(err) })
     );
   }
+}
+
+// Project the data writeRoutineSummary already computed into a RoutineBrief for
+// the webview. Exported for unit tests. Attention members sort first.
+export function buildRoutineBrief(
+  routineName: string,
+  outcomes: readonly MemberOutcome[],
+  contents: Map<string, string | undefined>,
+  attentionCount: number,
+  summaryPath: string
+): RoutineBrief {
+  const members: BriefMember[] = outcomes.map((o) => {
+    const finding = o.reportPath ? extractHeadline(contents.get(o.reportPath)) : undefined;
+    const isAttention =
+      o.status === "failed" || o.status === "missing" || (finding?.attention ?? false);
+    return {
+      label: o.label,
+      status: o.status,
+      headline: finding?.text,
+      attention: isAttention,
+      durationMs: o.durationMs,
+      reportPath: o.reportPath,
+    };
+  });
+  members.sort((a, b) => (a.attention === b.attention ? 0 : a.attention ? -1 : 1));
+  return {
+    routineName,
+    generatedAt: new Date().toISOString(),
+    verdict: attentionCount > 0 ? "attention" : "clear",
+    attentionCount,
+    members,
+    summaryPath,
+  };
 }
 
 async function readMemberReports(

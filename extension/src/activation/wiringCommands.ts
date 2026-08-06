@@ -22,6 +22,7 @@ import { registerOvernightDeltaCommand } from "../exec/overnightDelta";
 import { registerStandupDigestCommand } from "../exec/standupDigest";
 import { registerPubspecOutdatedCommand } from "../exec/pubspecOutdated";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
+import { registerMorningBriefCommand } from "../commands/morningBrief";
 import { handleShortcutImportUri } from "./activationHelpers";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
@@ -82,6 +83,9 @@ export function registerCommandModules(
   // the Processes tab, and the grouped-snapshot command (#62). The store backs the
   // Analytics tab's shortcut-name resolution.
   registerProcessMonitorCommands(context, store);
+
+  // Morning Brief panel: shows the structured briefing after a routine run.
+  registerMorningBriefCommand(context);
 
   // Workspace hygiene scanner (recipe book section H, #63): the recursive
   // empty/oversized outlier scan that writes a dated JSON report and a sticky toast,

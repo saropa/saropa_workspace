@@ -22,6 +22,8 @@ import {
   __resetConfig,
   __openedDocuments,
   __resetOpenedDocuments,
+  __lastWebviewPanel,
+  __resetWebviewPanels,
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import {
@@ -47,6 +49,7 @@ const usedShortcutIds = new Set<string>();
 beforeEach(() => {
   __resetConfig();
   __resetOpenedDocuments();
+  __resetWebviewPanels();
   // A real workspace folder so writeRoutineSummary's firstWorkspacePath resolves and
   // the report is written under a temp dir we clean up.
   tmpDir = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "sw-routine-")).replace(/\\/g, "/");
@@ -532,8 +535,10 @@ test("a routine opens only its summary, never its members' own reports", async (
   );
 
   const opened = __openedDocuments();
-  assert.equal(opened.length, 1, `exactly one window should open, got ${opened.join(", ")}`);
-  assert.match(opened[0]!, /_morning\.md$/, "the one opened window is the routine summary");
+  assert.equal(opened.length, 0, "member reports are suppressed; the summary opens as a brief panel");
+  const panel = __lastWebviewPanel();
+  assert.ok(panel, "the routine opens a brief panel for its summary");
+  assert.equal(panel!.viewType, "saropaWorkspace.morningBrief");
 });
 
 test("a clean routine still opens its summary (a silent run leaves the reports unfindable)", async () => {
@@ -559,7 +564,9 @@ test("a clean routine still opens its summary (a silent run leaves the reports u
     "manual"
   );
 
-  assert.equal(__openedDocuments().length, 1, "a clean routine opens its summary");
+  const panel = __lastWebviewPanel();
+  assert.ok(panel, "a clean manual routine opens a brief panel");
+  assert.equal(panel!.viewType, "saropaWorkspace.morningBrief");
 });
 
 test("a failing member makes the whole routine fail (continue-on-failure, worst outcome)", async () => {
@@ -852,6 +859,7 @@ test("scheduled + all clear → no editor raised, file still written and recorde
     0,
     "a clean scheduled routine must not open the summary"
   );
+  assert.equal(__lastWebviewPanel(), undefined, "a clean scheduled routine must not open a brief panel");
   // The file is still written and recordLastReport is still called.
   const reports = nodeFs.readdirSync(tmpDir, { recursive: true }) as string[];
   assert.ok(
@@ -883,11 +891,9 @@ test("scheduled + one failed member → editor raised", async () => {
     "scheduled"
   );
 
-  assert.equal(
-    __openedDocuments().length,
-    1,
-    "a failed scheduled routine must open the summary"
-  );
+  const panel = __lastWebviewPanel();
+  assert.ok(panel, "a failed scheduled routine must open the brief panel");
+  assert.equal(panel!.viewType, "saropaWorkspace.morningBrief");
 });
 
 test("scheduled + attention headline → editor raised", async () => {
@@ -918,11 +924,9 @@ test("scheduled + attention headline → editor raised", async () => {
     "scheduled"
   );
 
-  assert.equal(
-    __openedDocuments().length,
-    1,
-    "an attention-carrying scheduled routine must open the summary"
-  );
+  const panel = __lastWebviewPanel();
+  assert.ok(panel, "an attention-carrying scheduled routine must open the brief panel");
+  assert.equal(panel!.viewType, "saropaWorkspace.morningBrief");
 });
 
 test("manual + all clear → editor raised (no-silent-async regression pin)", async () => {
@@ -950,9 +954,7 @@ test("manual + all clear → editor raised (no-silent-async regression pin)", as
     "manual"
   );
 
-  assert.equal(
-    __openedDocuments().length,
-    1,
-    "a clean manual routine must still open its summary"
-  );
+  const panel = __lastWebviewPanel();
+  assert.ok(panel, "a clean manual routine must still open the brief panel");
+  assert.equal(panel!.viewType, "saropaWorkspace.morningBrief");
 });

@@ -1499,5 +1499,11 @@
   "settings.bloatFileCeiling": "Bloat file count ceiling",
   "settings.projectFiles": "Project files view",
   "settings.aiContext": "AI context shortcuts",
-  "settings.telemetry": "Local telemetry"
+  "settings.telemetry": "Local telemetry",
+  "brief.title": "Saropa Morning Brief",
+  "brief.allClear": "All clear",
+  "brief.needsAttention": "Needs attention ({count})",
+  "brief.openReport": "Open report",
+  "brief.openSummary": "Open full summary",
+  "brief.none": "No routine has run this session."
 }

@@ -168,6 +168,7 @@
   "command.recipe.copyVersion.title": "Copy Project Name and Version",
   "command.recipe.runNearestScript.title": "Run Nearest Package Script",
   "command.openDashboard.title": "Open Saropa Dashboard",
+  "command.openMorningBrief.title": "Open Saropa Morning Brief",
   "command.openProcessMonitor.title": "Open Toolchain Monitor",
   "command.openSchedule.title": "Open Saropa Scheduled Runs",
   "command.recipe.snapshotProcesses.title": "Snapshot Toolchain Processes",
