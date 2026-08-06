@@ -223,9 +223,14 @@ export async function runRoutine(
     return;
   }
 
-  vscode.window.showInformationMessage(
-    l10n("routine.starting", { name, count: String(members.length) })
-  );
+  const showToasts = vscode.workspace
+    .getConfiguration("saropaWorkspace")
+    .get<boolean>("showRunToasts", true);
+  if (showToasts) {
+    vscode.window.showInformationMessage(
+      l10n("routine.starting", { name, count: String(members.length) })
+    );
+  }
 
   const outcomes: MemberOutcome[] = [];
   const aggregate: ShortcutBadge = { at: Date.now() };
@@ -273,7 +278,7 @@ export async function runRoutine(
   }
   shortcutEvents.fireComplete(shortcut.id, anyFailed ? "failure" : "success");
 
-  await writeRoutineSummary(shortcut.id, name, outcomes, anyFailed);
+  await writeRoutineSummary(shortcut.id, name, outcomes, anyFailed, source);
 }
 
 // Read a member report, or undefined when it cannot be read. A torn-down temp file
@@ -361,24 +366,21 @@ async function writeRoutineSummary(
   pinId: string,
   name: string,
   outcomes: MemberOutcome[],
-  anyFailed: boolean
+  anyFailed: boolean,
+  source: RunSource
 ): Promise<void> {
   const base = firstWorkspacePath();
   if (!base) {
     return;
   }
   const channel = getOutputChannel();
-  // Filesystem-safe slug for the file name; the heading keeps the human name.
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "routine";
   const relative = expandRecipeTokens(reportRelativePath(slug));
   const reportPath = path.join(base, ...relative.split("/"));
-
-  // The directory the summary itself lives in, so each member's report path becomes
-  // a link relative to the summary — the links resolve wherever the reports/ tree is
-  // opened, not just on this machine. Member reports are written to this same dated
-  // folder, so their own internal relative links stay valid after the merge.
   const summaryDir = path.dirname(reportPath);
   const fsp = await import("fs/promises");
+
+  const contents = await readMemberReports(fsp, outcomes);
 
   const parts: string[] = [
     `# ${name}`,
@@ -387,15 +389,55 @@ async function writeRoutineSummary(
     "",
   ];
 
-  // Read every member report up front so the verdict can lead the document. The
-  // sections below reuse these contents rather than reading each file twice.
+  const attentionCount = buildVerdictSection(parts, outcomes, contents);
+  const merged = buildMergedSections(parts, outcomes, contents, summaryDir);
+
+  if (merged === 0 && outcomes.every((o) => o.status !== "failed" && o.status !== "missing")) {
+    parts.push(`_${l10n("routine.summary.noReports")}_`, "");
+  }
+
+  try {
+    await fsp.mkdir(path.dirname(reportPath), { recursive: true });
+    await fsp.writeFile(reportPath, parts.join("\n"), "utf8");
+    channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
+    recordLastReport(pinId, reportPath);
+
+    // A manual run must produce a visible window (no-silent-async rule).
+    // A scheduled run opens only when something needs the reader.
+    const shouldOpen =
+      source !== "scheduled" || anyFailed || attentionCount > 0;
+    if (shouldOpen) {
+      await openReport(reportPath);
+    } else {
+      channel.appendLine(
+        l10n("routine.summary.quietClean", { name, path: reportPath })
+      );
+    }
+  } catch (err) {
+    channel.appendLine(
+      l10n("report.failed", { name, error: err instanceof Error ? err.message : String(err) })
+    );
+  }
+}
+
+async function readMemberReports(
+  fsp: typeof import("fs/promises"),
+  outcomes: MemberOutcome[]
+): Promise<Map<string, string | undefined>> {
   const contents = new Map<string, string | undefined>();
   for (const o of outcomes) {
     if (o.reportPath) {
       contents.set(o.reportPath, await readOrUndefined(fsp, o.reportPath));
     }
   }
+  return contents;
+}
 
+function buildVerdictSection(
+  parts: string[],
+  outcomes: MemberOutcome[],
+  contents: Map<string, string | undefined>
+): number {
   const problems = outcomes.filter((o) => o.status === "failed" || o.status === "missing");
   const headlines = outcomes
     .map((o) => ({
@@ -407,11 +449,6 @@ async function writeRoutineSummary(
         h.finding !== undefined
     );
 
-  // The verdict. A report that renders identically whether or not anything is wrong
-  // teaches the reader to stop opening it, which is what happened to this one (user
-  // report 2026-07-20). So the document opens by stating whether it needs the reader
-  // at all, and everything that does is listed before everything that does not. On a
-  // quiet morning this is the whole document worth reading.
   const needsAttention = headlines.filter((h) => h.finding.attention);
   const attentionCount = needsAttention.length + problems.length;
   parts.push(
@@ -421,9 +458,6 @@ async function writeRoutineSummary(
     ""
   );
 
-  // A failed or missing member is execution state, not a finding, so it keeps its own
-  // blockquote form. Details are sanitized: a multi-line spawn error pasted raw into
-  // a blockquote would break out of the quote and swallow the document.
   for (const o of problems) {
     const note = sanitizeDetail(o.detail ?? defaultNote(o.status));
     parts.push(`> **${statusLabel(o.status)}** — ${o.label}${note ? `: ${note}` : ""}`);
@@ -439,8 +473,6 @@ async function writeRoutineSummary(
     parts.push("");
   }
 
-  // Everything that merely informs, after the verdict and below anything that asks
-  // for action. Members stating no finding at all are simply absent.
   const informational = headlines.filter((h) => !h.finding.attention);
   if (informational.length > 0) {
     if (attentionCount > 0) {
@@ -451,36 +483,29 @@ async function writeRoutineSummary(
     }
     parts.push("");
   }
+  return attentionCount;
+}
 
-  // Merge each member report's body in as a collapsible section, so a multi-member
-  // morning report opens as scannable one-line headers that expand on click. A
-  // FAILED member's section renders pre-expanded (`open`) — the reader must not
-  // have to hunt for the one section that matters. Read failures degrade to the
-  // source link — a torn-down temp file must not lose the rest of the document.
+function buildMergedSections(
+  parts: string[],
+  outcomes: MemberOutcome[],
+  contents: Map<string, string | undefined>,
+  summaryDir: string
+): number {
   let merged = 0;
   for (const o of outcomes) {
     if (!o.reportPath) {
       continue;
     }
-    // <summary> content is raw HTML (Markdown inline syntax is not parsed inside
-    // it), so the member label uses <strong>, and the clickable source link lives
-    // in the Markdown body below instead.
     parts.push(
       `<details${o.status === "failed" ? " open" : ""}>`,
       `<summary><strong>${escapeHtml(o.label)}</strong></summary>`,
       ""
     );
     const rel = path.relative(summaryDir, o.reportPath).split(path.sep).join("/");
-    // Source link at the top of the section keeps the summary the index over its
-    // parts (style guide: a summary links its sub-reports) even though the content
-    // is inline.
     parts.push(`_[${path.basename(o.reportPath)}](${rel})_`, "");
     const content = contents.get(o.reportPath);
     if (content !== undefined) {
-      // Only Markdown merges as Markdown. Any other extension (a .log, .txt, .csv
-      // a member happened to record) is fenced as preformatted text — raw log
-      // content read as Markdown is the "unreadable slop" failure the report
-      // conventions exist to prevent.
       const isMarkdown = /\.(md|markdown)$/i.test(o.reportPath);
       parts.push(isMarkdown ? embedMemberReport(content) : fenceBlock(content), "");
       merged++;
@@ -489,28 +514,7 @@ async function writeRoutineSummary(
     }
     parts.push("</details>", "");
   }
-
-  // Nothing merged and nothing wrong: say what happened in one line, so a routine of
-  // pure terminal members still opens a document that explains itself.
-  if (merged === 0 && problems.length === 0) {
-    parts.push(`_${l10n("routine.summary.noReports")}_`, "");
-  }
-
-  const body = parts.join("\n");
-
-  try {
-    await fsp.mkdir(path.dirname(reportPath), { recursive: true });
-    await fsp.writeFile(reportPath, body, "utf8");
-    channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
-    // Hand the summary path to the scheduler so a scheduled routine fire can persist
-    // a durable "Open report" link for the routine (see lastReport.ts).
-    recordLastReport(pinId, reportPath);
-    await openReport(reportPath);
-  } catch (err) {
-    channel.appendLine(
-      l10n("report.failed", { name, error: err instanceof Error ? err.message : String(err) })
-    );
-  }
+  return merged;
 }
 
 // Human-readable status word for an attention line, from the catalog. The raw enum

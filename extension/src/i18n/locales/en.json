@@ -1261,6 +1261,7 @@
   "routine.summary.needsAttention": "Needs attention ({count})",
   "routine.summary.allClear": "All clear",
   "routine.summary.alsoRan": "Also ran",
+  "routine.summary.quietClean": "{name}: all clear — summary written to {path}, not opened",
   "tab.processes": "Processes",
   "tab.analytics": "Analytics",
   "tab.trends": "Trends",
