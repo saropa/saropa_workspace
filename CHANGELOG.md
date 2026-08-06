@@ -56,6 +56,7 @@ cspell:disable
 
 - Standup digest classifies commits — security findings listed first, then features, fix groups by area — and folds generated churn (machine-translation sweeps, large chore commits) into a single summary line; the raw log stays one click away inside a details block
 - Project stats leads with the day-over-day delta ("+3,412 lines, +12 files since the last report") instead of repeating the same static census every morning; the dominant-language share clause appears only when it moved by at least 0.5 percentage points
+- A clean scheduled morning routine no longer opens the summary window; the completion toast and status-bar flash link it. Manual runs and any run needing attention still open it
 
 ### Fixed
 

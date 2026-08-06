@@ -819,3 +819,140 @@ test("extractHeadline reads an Attention line, and it outranks a Headline", () =
   const both = ["**Headline:** 4 runs", "**Attention:** 1 failing"].join("\n");
   assert.deepEqual(extractHeadline(both), { text: "1 failing", attention: true });
 });
+
+// --- attention-gated auto-open (Phase 2) ---
+// A clean scheduled morning no longer opens the summary window. The toast and
+// status-bar flash link it. Manual runs and attention runs still open.
+
+test("scheduled + all clear → no editor raised, file still written and recorded", async () => {
+  const memberShortcut = shortcut({ id: "m-sched-clean", label: "Lint" });
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 10,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-sched-clean");
+
+  await runRoutine(
+    shortcut({ id: "routine-sched-clean", label: "Morning" }),
+    [member({ pinId: "m-sched-clean" })],
+    "scheduled"
+  );
+
+  assert.equal(
+    __openedDocuments().length,
+    0,
+    "a clean scheduled routine must not open the summary"
+  );
+  // The file is still written and recordLastReport is still called.
+  const reports = nodeFs.readdirSync(tmpDir, { recursive: true }) as string[];
+  assert.ok(
+    reports.some((f) => f.endsWith("_morning.md")),
+    "the summary file is written even when not opened"
+  );
+});
+
+test("scheduled + one failed member → editor raised", async () => {
+  const memberShortcut = shortcut({ id: "m-sched-fail", label: "Test" });
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      runStatusRegistry.record(p.id, {
+        outcome: "failure",
+        exitCode: 1,
+        durationMs: 50,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-sched-fail");
+
+  await runRoutine(
+    shortcut({ id: "routine-sched-fail", label: "Morning" }),
+    [member({ pinId: "m-sched-fail" })],
+    "scheduled"
+  );
+
+  assert.equal(
+    __openedDocuments().length,
+    1,
+    "a failed scheduled routine must open the summary"
+  );
+});
+
+test("scheduled + attention headline → editor raised", async () => {
+  const memberShortcut = shortcut({ id: "m-sched-attn", label: "CI" });
+  const memberReport = nodePath.join(tmpDir, "reports", "sub", "ci.md");
+  nodeFs.mkdirSync(nodePath.dirname(memberReport), { recursive: true });
+  nodeFs.writeFileSync(memberReport, "# CI\n\n**Attention:** 2 runs failing\n\n```\nlog\n```\n");
+
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      recordLastReport(p.id, memberReport);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 30,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-sched-attn");
+
+  await runRoutine(
+    shortcut({ id: "routine-sched-attn", label: "Morning" }),
+    [member({ pinId: "m-sched-attn" })],
+    "scheduled"
+  );
+
+  assert.equal(
+    __openedDocuments().length,
+    1,
+    "an attention-carrying scheduled routine must open the summary"
+  );
+});
+
+test("manual + all clear → editor raised (no-silent-async regression pin)", async () => {
+  // Regression pin: a manual run must always produce a visible window. This is the
+  // no-silent-async rule (STYLEGUIDE 4.1) applied to the routine summary.
+  const memberShortcut = shortcut({ id: "m-manual-clean", label: "Lint" });
+  const hooks: RoutineHooks = {
+    resolveMember: () => memberShortcut,
+    runMember: async (p) => {
+      usedShortcutIds.add(p.id);
+      runStatusRegistry.record(p.id, {
+        outcome: "success",
+        exitCode: 0,
+        durationMs: 10,
+        endedAt: Date.now(),
+      });
+    },
+  };
+  setRoutineHooks(hooks);
+  usedShortcutIds.add("routine-manual-clean");
+
+  await runRoutine(
+    shortcut({ id: "routine-manual-clean", label: "Morning" }),
+    [member({ pinId: "m-manual-clean" })],
+    "manual"
+  );
+
+  assert.equal(
+    __openedDocuments().length,
+    1,
+    "a clean manual routine must still open its summary"
+  );
+});
