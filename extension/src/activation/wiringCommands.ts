@@ -19,6 +19,7 @@ import { registerBloatCommands } from "../exec/bloatCommands";
 import { registerProjectStatsCommand } from "../exec/projectStats";
 import { registerCiStatusCommand } from "../exec/ciStatus";
 import { registerOvernightDeltaCommand } from "../exec/overnightDelta";
+import { registerStandupDigestCommand } from "../exec/standupDigest";
 import { registerPubspecOutdatedCommand } from "../exec/pubspecOutdated";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
 import { handleShortcutImportUri } from "./activationHelpers";
@@ -103,6 +104,10 @@ export function registerCommandModules(
   // Since yesterday: the day's movement computed by diffing against the commit that
   // was current a day ago, driven by the scheduled "Since yesterday" recipe.
   registerOvernightDeltaCommand(context);
+
+  // Standup digest (#28): classified commit summary (security, features, fix
+  // groups, churn folding) driven by the scheduled "Standup digest" recipe.
+  registerStandupDigestCommand(context);
 
   // Pubspec dependency freshness (#30, pubspec projects): parses `dart pub outdated
   // --json` and writes a report of ONLY the packages behind latest, driven by the

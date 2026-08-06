@@ -18,7 +18,7 @@ import {
   type WorkspaceFolder,
 } from "./_stub/vscode";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
-import { reportRelativePath } from "../exec/actionRunner";
+
 import type { RecipeResult } from "../recipes/detectors";
 import type { WorkspaceFolder as VscodeFolder } from "vscode";
 
@@ -164,17 +164,13 @@ test("the PR review queue does not seed for a GitLab remote", async () => {
   assert.ok(!out.some((r) => r.recipeId === "ritual.prs"), "non-GitHub remote should not seed the PR queue");
 });
 
-test("the git rituals capture output to a dated report under reports/", async () => {
+test("the standup digest is a command-kind recipe driven by standupDigest", async () => {
   makeGitRepo();
   const out = await detectScheduledRecipes(asFolder(folder));
   const standup = out.find((r) => r.recipeId === "ritual.standup");
   assert.ok(standup);
-  // A ritual writes to a per-day reports/ file rather than streaming to the channel;
-  // the path comes from the shared reportRelativePath helper (one source of truth).
-  assert.equal(standup!.action?.reportFile, reportRelativePath("standup"));
-  assert.equal(
-    standup!.action?.reportFile,
-    "reports/$datedir_workspace/$datedir_workspace_$time_standup.md"
-  );
-  assert.equal(standup!.action?.autoOpen, true);
+  // The standup digest runs an in-process command (classifies commits, folds
+  // churn) rather than a raw shell capture — same pattern as ritual.delta.
+  assert.equal(standup!.action?.kind, "command");
+  assert.equal(standup!.action?.commandId, "saropaWorkspace.recipe.standupDigest");
 });
