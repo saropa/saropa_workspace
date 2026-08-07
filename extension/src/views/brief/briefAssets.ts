@@ -84,7 +84,39 @@ button.secondary {
   background: var(--vscode-button-secondaryBackground);
 }
 button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
-.footer { margin-top: 8px; }
+.footer { margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+.share-wrap { position: relative; display: inline-block; }
+.share-menu {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  min-width: 160px;
+  background: var(--vscode-menu-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+  z-index: 10;
+  padding: 4px 0;
+}
+.share-menu.open { display: block; }
+.share-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  border: none;
+  padding: 6px 12px;
+  border-radius: 0;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.share-menu button:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+}
 .empty { color: var(--vscode-descriptionForeground); padding: 24px 0; text-align: center; }
 `;
 
@@ -137,7 +169,15 @@ export const BRIEF_SCRIPT = `
       html += '</div>';
     }
     html += '</div>';
-    html += '<div class="footer"><button id="openSummary">' + esc(S.openSummary) + '</button> <button id="copyMarkdown" class="secondary">' + esc(S.copyMarkdown) + '</button> <button id="openInBrowser" class="secondary">' + esc(S.openInBrowser) + '</button> <button id="saveHtml" class="secondary">' + esc(S.saveHtml) + '</button></div>';
+    html += '<div class="footer">';
+    html += '<button id="openSummary">' + esc(S.openSummary) + '</button>';
+    html += '<div class="share-wrap">';
+    html += '<button id="shareToggle" class="secondary">' + esc(S.share) + ' \\u25B4</button>';
+    html += '<div id="shareMenu" class="share-menu">';
+    html += '<button data-action="copyMarkdown">' + esc(S.copyMarkdown) + '</button>';
+    html += '<button data-action="openInBrowser">' + esc(S.openInBrowser) + '</button>';
+    html += '<button data-action="saveHtml">' + esc(S.saveHtml) + '</button>';
+    html += '</div></div></div>';
 
     document.getElementById('content').innerHTML = html;
 
@@ -149,14 +189,20 @@ export const BRIEF_SCRIPT = `
         vscode.postMessage({ type: 'openReport', path: btn.dataset.path });
       });
     });
-    document.getElementById('copyMarkdown').addEventListener('click', function() {
-      vscode.postMessage({ type: 'copyMarkdown' });
+
+    var menu = document.getElementById('shareMenu');
+    document.getElementById('shareToggle').addEventListener('click', function(e) {
+      e.stopPropagation();
+      menu.classList.toggle('open');
     });
-    document.getElementById('openInBrowser').addEventListener('click', function() {
-      vscode.postMessage({ type: 'openInBrowser' });
+    menu.querySelectorAll('[data-action]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        vscode.postMessage({ type: btn.dataset.action });
+        menu.classList.remove('open');
+      });
     });
-    document.getElementById('saveHtml').addEventListener('click', function() {
-      vscode.postMessage({ type: 'saveHtml' });
+    document.addEventListener('click', function() {
+      menu.classList.remove('open');
     });
   }
 

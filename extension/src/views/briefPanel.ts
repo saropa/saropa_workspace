@@ -9,6 +9,13 @@ import { renderBriefShell, briefUiStrings } from "./brief/briefShell";
 import { renderBriefExportHtml, renderBriefMarkdown } from "./brief/briefExport";
 import { l10n } from "../i18n/l10n";
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return String(err);
+}
+
 // Single-instance webview panel for the Morning Brief — the designed briefing
 // screen that replaces the raw markdown preview after a routine run. Follows
 // DashboardPanel's lifecycle exactly: static `current`, `show()` reveals or
@@ -101,7 +108,7 @@ export class BriefPanel {
       await vscode.env.openExternal(vscode.Uri.file(tmpFile));
     } catch (err) {
       void vscode.window.showErrorMessage(
-        l10n("brief.openInBrowserFailed", { error: String(err) })
+        l10n("brief.openInBrowserFailed", { error: errorMessage(err) })
       );
     }
   }
@@ -113,7 +120,7 @@ export class BriefPanel {
       void vscode.window.showInformationMessage(l10n("brief.copied"));
     } catch (err) {
       void vscode.window.showErrorMessage(
-        l10n("brief.copyFailed", { error: String(err) })
+        l10n("brief.copyFailed", { error: errorMessage(err) })
       );
     }
   }
@@ -133,13 +140,13 @@ export class BriefPanel {
     }
     try {
       const html = renderBriefExportHtml(this.lastBrief, briefUiStrings());
-      await vscode.workspace.fs.writeFile(uri, Buffer.from(html, "utf8"));
+      await fs.writeFile(uri.fsPath, html, "utf8");
       void vscode.window.showInformationMessage(
         l10n("brief.saved", { path: uri.fsPath })
       );
     } catch (err) {
       void vscode.window.showErrorMessage(
-        l10n("brief.saveFailed", { error: String(err) })
+        l10n("brief.saveFailed", { error: errorMessage(err) })
       );
     }
   }
