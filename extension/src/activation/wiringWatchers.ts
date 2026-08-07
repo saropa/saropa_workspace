@@ -8,6 +8,7 @@ import { getOutputChannel } from "../exec/terminalRunner";
 import { WatchesTreeProvider } from "../views/watchesTreeProvider";
 import { registerFolderWatchCommands } from "../commands/folderWatchCommands";
 import { maybeSuggestBugsWatch } from "../commands/folderWatchSuggest";
+import { syncViewCount } from "../views/viewCount";
 import { runShortcutsOnSave, makeDebounced } from "./activationHelpers";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
@@ -102,15 +103,7 @@ export function wireFolderWatches(
   const watchesView = vscode.window.createTreeView("saropaWorkspace.watches", {
     treeDataProvider: watches,
   });
-  context.subscriptions.push(watchesView);
-
-  // View title shows the watch count; cleared to undefined at zero so no "0"
-  // appears on an empty view.
-  const syncWatchesCount = (count: number): void => {
-    watchesView.description = count > 0 ? String(count) : undefined;
-  };
-  context.subscriptions.push(watches.onDidChangeCount((c) => syncWatchesCount(c)));
-  syncWatchesCount(watches.count);
+  context.subscriptions.push(watchesView, syncViewCount(watchesView, watches));
 
   // No activity-bar badge for unseen watched files. VS Code aggregates the badge of
   // EVERY view in a container onto the single container icon, so a count set here shows

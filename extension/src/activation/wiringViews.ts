@@ -16,27 +16,11 @@ import { makeDebounced } from "./activationHelpers";
 import { NoteStore } from "../model/noteStore";
 import { NotesTreeProvider } from "../views/notesProvider";
 import { registerNoteCommands } from "../commands/noteCommands";
+import { syncViewCount } from "../views/viewCount";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
 // activate() stays a short, readable sequence of named steps.
-
-interface CountProvider {
-  readonly onDidChangeCount: vscode.Event<number>;
-  readonly count: number;
-}
-
-/** Wires a tree view's description to a provider's item count. Sets the initial value, subscribes to changes, and returns the subscription disposable. */
-function syncViewCount(
-  view: vscode.TreeView<unknown>,
-  provider: CountProvider
-): vscode.Disposable {
-  const apply = (count: number): void => {
-    view.description = count > 0 ? String(count) : undefined;
-  };
-  apply(provider.count);
-  return provider.onDidChangeCount(apply);
-}
 
 /** Wires up all secondary sidebar views: Recipes, Project Files, Scripts, Notes, the Launcher panel, and shortcut file decorations. */
 export function setupSecondaryViews(
