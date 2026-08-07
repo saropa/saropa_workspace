@@ -1,4 +1,7 @@
 import * as vscode from "vscode";
+import * as os from "os";
+import * as path from "path";
+import * as fs from "fs/promises";
 import type { RoutineBrief } from "../exec/routineRunner";
 import { validateReportPath } from "../exec/trendReports";
 import { openReport } from "../exec/reportOpen";
@@ -78,16 +81,41 @@ export class BriefPanel {
       case "copyMarkdown":
         await this.copyBriefAsMarkdown();
         return;
+      case "openInBrowser":
+        await this.openBriefInBrowser();
+        return;
       case "saveHtml":
         await this.saveBriefAsHtml();
         return;
     }
   }
 
+  private async openBriefInBrowser(): Promise<void> {
+    try {
+      const html = renderBriefExportHtml(this.lastBrief, briefUiStrings());
+      const tmpFile = path.join(
+        os.tmpdir(),
+        `saropa-brief-${this.lastBrief.generatedAt.slice(0, 10)}.html`
+      );
+      await fs.writeFile(tmpFile, html, "utf8");
+      await vscode.env.openExternal(vscode.Uri.file(tmpFile));
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        l10n("brief.openInBrowserFailed", { error: String(err) })
+      );
+    }
+  }
+
   private async copyBriefAsMarkdown(): Promise<void> {
-    const md = renderBriefMarkdown(this.lastBrief, briefUiStrings());
-    await vscode.env.clipboard.writeText(md);
-    void vscode.window.showInformationMessage(l10n("brief.copied"));
+    try {
+      const md = renderBriefMarkdown(this.lastBrief, briefUiStrings());
+      await vscode.env.clipboard.writeText(md);
+      void vscode.window.showInformationMessage(l10n("brief.copied"));
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        l10n("brief.copyFailed", { error: String(err) })
+      );
+    }
   }
 
   private async saveBriefAsHtml(): Promise<void> {
@@ -103,11 +131,17 @@ export class BriefPanel {
     if (!uri) {
       return;
     }
-    const html = renderBriefExportHtml(this.lastBrief, briefUiStrings());
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(html, "utf8"));
-    void vscode.window.showInformationMessage(
-      l10n("brief.saved", { path: uri.fsPath })
-    );
+    try {
+      const html = renderBriefExportHtml(this.lastBrief, briefUiStrings());
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(html, "utf8"));
+      void vscode.window.showInformationMessage(
+        l10n("brief.saved", { path: uri.fsPath })
+      );
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        l10n("brief.saveFailed", { error: String(err) })
+      );
+    }
   }
 
   private dispose(): void {

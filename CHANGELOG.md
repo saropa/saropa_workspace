@@ -56,6 +56,7 @@ Upgrades the daily routine experience with the visual Saropa Morning Brief and s
 - Saropa Morning Brief — a briefing screen that opens after a routine run with a verdict band ("All clear" / "Needs attention"), per-member cards with status glyphs and headlines, and one-click report access; the markdown summary remains on disk and one click away via the "Open full summary" footer button. The `Open Saropa Morning Brief` command opens the most recent brief at any time
 - "Save as HTML" button in the Morning Brief panel — exports the current brief as a self-contained HTML file (light/dark theme via `prefers-color-scheme`) for sharing outside VS Code
 - "Copy as Markdown" button in the Morning Brief panel — copies the brief as a Markdown snippet (verdict, member table with status emoji and headlines) for pasting into Slack, GitHub issues, or other rich-text targets
+- "Open in browser" button in the Morning Brief panel — writes the brief to a temp file and opens it in the system browser for a quick preview without a save dialog
 
 ### Changed
 
