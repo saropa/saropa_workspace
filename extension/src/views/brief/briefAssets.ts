@@ -137,7 +137,7 @@ export const BRIEF_SCRIPT = `
       html += '</div>';
     }
     html += '</div>';
-    html += '<div class="footer"><button id="openSummary">' + esc(S.openSummary) + '</button> <button id="copyMarkdown" class="secondary">' + esc(S.copyMarkdown) + '</button> <button id="saveHtml" class="secondary">' + esc(S.saveHtml) + '</button></div>';
+    html += '<div class="footer"><button id="openSummary">' + esc(S.openSummary) + '</button> <button id="copyMarkdown" class="secondary">' + esc(S.copyMarkdown) + '</button> <button id="openInBrowser" class="secondary">' + esc(S.openInBrowser) + '</button> <button id="saveHtml" class="secondary">' + esc(S.saveHtml) + '</button></div>';
 
     document.getElementById('content').innerHTML = html;
 
@@ -151,6 +151,9 @@ export const BRIEF_SCRIPT = `
     });
     document.getElementById('copyMarkdown').addEventListener('click', function() {
       vscode.postMessage({ type: 'copyMarkdown' });
+    });
+    document.getElementById('openInBrowser').addEventListener('click', function() {
+      vscode.postMessage({ type: 'openInBrowser' });
     });
     document.getElementById('saveHtml').addEventListener('click', function() {
       vscode.postMessage({ type: 'saveHtml' });
