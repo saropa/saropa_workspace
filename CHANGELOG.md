@@ -67,7 +67,7 @@ cspell:disable
 
 - Added JSDoc documentation to all 30 previously undocumented exports across 7 modules (ciStatus, overnightDelta, promptTokens, scheduleStatusBar, scheduleStatusBarActions, setParamsPanel, shortcutsTreeProvider)
 - Split the 5 longest functions into named helpers: `setupSecondaryViews` (211 → ~20 lines), `writeRoutineSummary` (155 → ~40 lines), `handleLauncherMessage` (155 → ~50 lines), `buildAllItems` (90 → ~10 lines), and the `ShortcutTreeItem` constructor annotation branch
-- Replaced 4 identical `syncCount` closures in `wiringViews.ts` with a single `syncViewCount` utility that wires a tree view's description to any provider's item count
+- Extracted `syncViewCount` and `CountProvider` into `views/viewCount.ts`, replacing 5 identical closures across `wiringViews.ts` (4) and `wiringWatchers.ts` (1) with a single reusable call; the view parameter uses a narrow structural type so any `TreeView<T>` is accepted regardless of `T`
 
 ---
 
