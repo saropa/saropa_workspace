@@ -51,9 +51,6 @@ export interface LauncherMessageContext {
   readonly post: () => Promise<void>;
 }
 
-// Resolve a webview message to an action on the addressed shortcut. The payload is
-// untrusted, so the id is narrowed and re-resolved against the store rather than trusting a
-// shortcut object from the webview.
 /** Resolves a webview message to an action on the addressed shortcut. The payload is untrusted, so each id is narrowed and re-resolved against the store. */
 export async function handleLauncherMessage(
   message: unknown,

@@ -21,6 +21,23 @@ import { registerNoteCommands } from "../commands/noteCommands";
 // wiring.ts once that file itself grew past the project's line-count cap) so
 // activate() stays a short, readable sequence of named steps.
 
+interface CountProvider {
+  readonly onDidChangeCount: vscode.Event<number>;
+  readonly count: number;
+}
+
+/** Wires a tree view's description to a provider's item count. Sets the initial value, subscribes to changes, and returns the subscription disposable. */
+function syncViewCount(
+  view: vscode.TreeView<unknown>,
+  provider: CountProvider
+): vscode.Disposable {
+  const apply = (count: number): void => {
+    view.description = count > 0 ? String(count) : undefined;
+  };
+  apply(provider.count);
+  return provider.onDidChangeCount(apply);
+}
+
 /** Wires up all secondary sidebar views: Recipes, Project Files, Scripts, Notes, the Launcher panel, and shortcut file decorations. */
 export function setupSecondaryViews(
   context: vscode.ExtensionContext,
@@ -54,14 +71,7 @@ function setupRecipesView(
     treeDataProvider: recipes,
     showCollapseAll: true,
   });
-  context.subscriptions.push(recipesView);
-  const syncCount = (count: number): void => {
-    recipesView.description = count > 0 ? String(count) : undefined;
-  };
-  context.subscriptions.push(
-    recipes.onDidChangeCount((count) => syncCount(count))
-  );
-  syncCount(recipes.count);
+  context.subscriptions.push(recipesView, syncViewCount(recipesView, recipes));
 }
 
 function setupProjectFilesView(
@@ -73,14 +83,7 @@ function setupProjectFilesView(
     "saropaWorkspace.projectFiles",
     { treeDataProvider: projectFiles }
   );
-  context.subscriptions.push(projectFilesView);
-  const syncCount = (count: number): void => {
-    projectFilesView.description = count > 0 ? String(count) : undefined;
-  };
-  context.subscriptions.push(
-    projectFiles.onDidChangeCount((count) => syncCount(count))
-  );
-  syncCount(projectFiles.count);
+  context.subscriptions.push(projectFilesView, syncViewCount(projectFilesView, projectFiles));
 
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshProjectFiles", () =>
@@ -108,14 +111,7 @@ function setupScriptsView(
     treeDataProvider: scripts,
     showCollapseAll: true,
   });
-  context.subscriptions.push(scriptsView);
-  const syncCount = (count: number): void => {
-    scriptsView.description = count > 0 ? String(count) : undefined;
-  };
-  context.subscriptions.push(
-    scripts.onDidChangeCount((count) => syncCount(count))
-  );
-  syncCount(scripts.count);
+  context.subscriptions.push(scriptsView, syncViewCount(scriptsView, scripts));
 
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshScripts", () => {
@@ -172,14 +168,7 @@ function setupNotesView(context: vscode.ExtensionContext): NoteStore {
   const notesView = vscode.window.createTreeView("saropaWorkspace.notes", {
     treeDataProvider: notes,
   });
-  context.subscriptions.push(notesView);
-  const syncCount = (count: number): void => {
-    notesView.description = count > 0 ? String(count) : undefined;
-  };
-  context.subscriptions.push(
-    notes.onDidChangeCount((count) => syncCount(count))
-  );
-  syncCount(notes.count);
+  context.subscriptions.push(notesView, syncViewCount(notesView, notes));
   const debouncedNotesRefresh = makeDebounced(() => noteStore.fire(), 200);
   context.subscriptions.push(...noteStore.setupWatchers(debouncedNotesRefresh));
   registerNoteCommands(context, noteStore);
