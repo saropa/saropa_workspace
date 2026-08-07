@@ -1513,6 +1513,7 @@
   "brief.saveFailed": "Failed to save brief: {error}",
   "brief.openInBrowser": "Open in browser",
   "brief.openInBrowserFailed": "Failed to open brief in browser: {error}",
+  "brief.share": "Share",
   "brief.copyMarkdown": "Copy as Markdown",
   "brief.copied": "Brief copied to clipboard"
 }

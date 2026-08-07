@@ -993,6 +993,10 @@ gates every auto-open; a member calls `openReport`, never `showTextDocument`).
 
 An exported HTML file (e.g. "Save as HTML" from the brief panel) is rendered server-side with strings already resolved through `l10n()` and baked into the markup. The file must be self-contained: inline CSS, no external dependencies, `prefers-color-scheme` media queries for light/dark, and a footer attributing the extension. The `<title>` carries the `Saropa` prefix (from `brief.title`) plus the routine name. User-visible text in the export (verdict, labels, footer) comes from the same `briefUiStrings()` bag the webview uses, so a single l10n catalog covers both surfaces.
 
+### 4.9b A webview footer groups secondary actions behind a Share dropdown
+
+When a webview panel offers more than two footer actions, secondary actions (export, copy, open-in-browser) collapse behind a single "Share" dropdown so the footer stays scannable. The primary action ("Open full summary") remains a top-level button. The dropdown opens upward (above the trigger), closes on click-outside or on item selection, and uses `--vscode-menu-*` theme variables for background, border, and selection. Menu items post internal message types (`copyMarkdown`, `openInBrowser`, `saveHtml`) — the host handles them.
+
 ### 4.10 A status-bar indicator's click is an action menu, and one action hides it
 
 An always-visible status-bar item raises four questions — what is it, where is what it

@@ -42,6 +42,7 @@ export function briefUiStrings(): Record<string, string> {
     saveHtml: l10n("brief.saveHtml"),
     copyMarkdown: l10n("brief.copyMarkdown"),
     openInBrowser: l10n("brief.openInBrowser"),
+    share: l10n("brief.share"),
     exportFooter: l10n("brief.exportFooter"),
     none: l10n("brief.none"),
   };
