@@ -99,6 +99,8 @@ export const BRIEF_SCRIPT = `
     }
   });
 
+  vscode.postMessage({ type: 'ready' });
+
   function render(brief, S) {
     if (!brief) {
       document.getElementById('content').innerHTML =
@@ -135,7 +137,7 @@ export const BRIEF_SCRIPT = `
       html += '</div>';
     }
     html += '</div>';
-    html += '<div class="footer"><button id="openSummary">' + esc(S.openSummary) + '</button></div>';
+    html += '<div class="footer"><button id="openSummary">' + esc(S.openSummary) + '</button> <button id="copyMarkdown" class="secondary">' + esc(S.copyMarkdown) + '</button> <button id="saveHtml" class="secondary">' + esc(S.saveHtml) + '</button></div>';
 
     document.getElementById('content').innerHTML = html;
 
@@ -146,6 +148,12 @@ export const BRIEF_SCRIPT = `
       btn.addEventListener('click', function() {
         vscode.postMessage({ type: 'openReport', path: btn.dataset.path });
       });
+    });
+    document.getElementById('copyMarkdown').addEventListener('click', function() {
+      vscode.postMessage({ type: 'copyMarkdown' });
+    });
+    document.getElementById('saveHtml').addEventListener('click', function() {
+      vscode.postMessage({ type: 'saveHtml' });
     });
   }
 

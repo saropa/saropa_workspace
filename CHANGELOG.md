@@ -46,12 +46,16 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.6.7]
+
+Upgrades the daily routine experience with the visual Saropa Morning Brief and smarter standup digests that highlight actionable project growth over automated noise. Background runs are now quieter by default, and new settings allow power users to disable start-up notifications entirely. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.7/CHANGELOG.md)
 
 ### Added
 
 - New "Show run toasts" setting (`showRunToasts`, on by default) — turn it off to suppress the "Running…" and "Launched…" start toasts across all run locations, for power users who rely on the output channel instead. Error and completion toasts from background runs are unaffected
 - Saropa Morning Brief — a briefing screen that opens after a routine run with a verdict band ("All clear" / "Needs attention"), per-member cards with status glyphs and headlines, and one-click report access; the markdown summary remains on disk and one click away via the "Open full summary" footer button. The `Open Saropa Morning Brief` command opens the most recent brief at any time
+- "Save as HTML" button in the Morning Brief panel — exports the current brief as a self-contained HTML file (light/dark theme via `prefers-color-scheme`) for sharing outside VS Code
+- "Copy as Markdown" button in the Morning Brief panel — copies the brief as a Markdown snippet (verdict, member table with status emoji and headlines) for pasting into Slack, GitHub issues, or other rich-text targets
 
 ### Changed
 
@@ -67,7 +71,9 @@ cspell:disable
 
 - Added JSDoc documentation to all 30 previously undocumented exports across 7 modules (ciStatus, overnightDelta, promptTokens, scheduleStatusBar, scheduleStatusBarActions, setParamsPanel, shortcutsTreeProvider)
 - Split the 5 longest functions into named helpers: `setupSecondaryViews` (211 → ~20 lines), `writeRoutineSummary` (155 → ~40 lines), `handleLauncherMessage` (155 → ~50 lines), `buildAllItems` (90 → ~10 lines), and the `ShortcutTreeItem` constructor annotation branch
-- Extracted `syncViewCount` and `CountProvider` into `views/viewCount.ts`, replacing 5 identical closures across `wiringViews.ts` (4) and `wiringWatchers.ts` (1) with a single reusable call; the view parameter uses a narrow structural type so any `TreeView<T>` is accepted regardless of `T`
+- Extracted `syncViewCount` and `CountProvider` into a shared `views/viewCount.ts` module, replacing 5 identical closures across `wiringViews.ts` (4) and `wiringWatchers.ts` (1); the view parameter uses a narrow structural type so any `TreeView<T>` is accepted regardless of `T`
+- Morning Brief panel uses a webview-initiated ready handshake instead of a `setTimeout(50)` race; on tab restore the recreated script posts `ready` and the host responds with data, eliminating the timing race
+- Project stats marker embeds a version field (`v: 1`) so future format changes can be detected; `parseStatsMarker` rejects markers with `v` above the current version
 
 ---
 

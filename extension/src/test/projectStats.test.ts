@@ -181,6 +181,26 @@ test("parseStatsMarker returns undefined for missing required fields", () => {
   assert.equal(parseStatsMarker('<!-- saropa-stats: {"totalFiles":1} -->'), undefined);
 });
 
+test("parseStatsMarker rejects a marker with a future version", () => {
+  assert.equal(
+    parseStatsMarker('<!-- saropa-stats: {"v":99,"totalFiles":1,"totalLines":2,"totalBytes":3} -->'),
+    undefined
+  );
+});
+
+test("parseStatsMarker accepts a marker without a version field (legacy v1)", () => {
+  const marker = parseStatsMarker('<!-- saropa-stats: {"totalFiles":1,"totalLines":2,"totalBytes":3} -->');
+  assert.ok(marker);
+  assert.equal(marker.v, 1);
+});
+
+test("buildStatsMarkdown embeds a version field in the marker", () => {
+  const md = buildStatsMarkdown(statsFixture());
+  const marker = parseStatsMarker(md);
+  assert.ok(marker);
+  assert.equal(marker.v, 1);
+});
+
 // --- statsHeadline with previous marker (delta) ---
 
 test("statsHeadline without previous matches the census output", () => {

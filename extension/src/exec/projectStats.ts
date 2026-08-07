@@ -261,12 +261,16 @@ export function summarizeLanguages(languages: readonly LangStat[]): {
 // "derived comparison over stored state" decision (2026-07-20): the artifact is
 // inspectable, survives a fresh clone or machine change with the reports/ tree.
 export interface StatsMarker {
+  // Absent in markers written before versioning was added; treated as 1.
+  v?: number;
   totalFiles: number;
   totalLines: number;
   totalBytes: number;
   topLanguage?: string;
   topShare?: number;
 }
+
+const STATS_MARKER_VERSION = 1;
 
 const STATS_MARKER_RE = /<!-- saropa-stats: ({.*}) -->/;
 
@@ -278,10 +282,15 @@ export function parseStatsMarker(content: string): StatsMarker | undefined {
   }
   try {
     const obj = JSON.parse(m[1]) as Record<string, unknown>;
+    const markerVersion = typeof obj.v === "number" ? obj.v : 1;
+    if (markerVersion > STATS_MARKER_VERSION) {
+      return undefined;
+    }
     if (typeof obj.totalFiles !== "number" || typeof obj.totalLines !== "number" || typeof obj.totalBytes !== "number") {
       return undefined;
     }
     return {
+      v: markerVersion,
       totalFiles: obj.totalFiles,
       totalLines: obj.totalLines,
       totalBytes: obj.totalBytes,
@@ -345,6 +354,7 @@ function buildStatsMarkerComment(stats: ProjectStats): string {
   const { rows } = summarizeLanguages(stats.languages);
   const top = rows[0];
   const marker: StatsMarker = {
+    v: STATS_MARKER_VERSION,
     totalFiles: stats.totalFiles,
     totalLines: stats.totalLines,
     totalBytes: stats.totalBytes,
