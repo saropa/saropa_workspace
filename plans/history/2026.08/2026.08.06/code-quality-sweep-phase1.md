@@ -53,3 +53,18 @@ Code smells flagged during review (not fixed, out of scope): `handleLibraryScrip
 ### syncViewCount utility (reflection gate follow-up)
 
 The 5 identical `syncCount`/`syncWatchesCount` closures across `wiringViews.ts` (4) and `wiringWatchers.ts` (1) were replaced with a single exported `syncViewCount(view, provider)` function in `views/viewCount.ts`. A `CountProvider` interface captures the shared shape (`onDidChangeCount: Event<number>`, `count: number`). The view parameter uses a narrow structural `HasDescription` type instead of `TreeView<unknown>` — `TreeView<T>` has contravariant methods (`reveal`), so `TreeView<SpecificItem>` does not assign to `TreeView<unknown>` in strict mode, but the utility only touches `description`. Each call site collapsed from 7 lines to 1. The duplicate `//` comment alongside JSDoc in `launcherViewMessages.ts` was also removed.
+
+## Finish Report (2026-08-06, syncViewCount hardening)
+
+The reflection gate from the prior `/finish` pass flagged four items. Actions taken:
+
+1. **`TreeView<unknown>` contravariance** — the `syncViewCount` view parameter was narrowed from `TreeView<unknown>` to a structural `HasDescription` interface requiring only `description?: string | undefined`. This resolves the strict-mode assignability problem: `TreeView<T>` has contravariant methods (`reveal(element: T)`), so `TreeView<SpecificItem>` does not assign to `TreeView<unknown>`, but it does satisfy `HasDescription`.
+2. **5th closure in `wiringWatchers.ts`** — the `syncWatchesCount` closure (identical pattern) was replaced with `syncViewCount`, and the utility was promoted from a module-internal function in `wiringViews.ts` to an exported shared module at `views/viewCount.ts`.
+3. **Discoverability for future views** — the `CountProvider` interface and `syncViewCount` function are now exported from a named module (`views/viewCount.ts`), making the pattern visible via import autocomplete. A developer adding a 6th view can import `syncViewCount` rather than writing a 6th closure.
+4. **Unit tests** — 5 tests in `test/viewCount.test.ts` cover: initial count propagation, zero-clears-description, live updates on fire, drop-to-zero clears, and disposal stops updates. All 1200 tests pass.
+
+### Verification
+
+- `npx tsc -p ./ --noEmit` — clean
+- `node esbuild.js` — bundle builds
+- `npm test` — 1200/1200 pass (5 new)
