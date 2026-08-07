@@ -1,6 +1,6 @@
 # PLAN: Morning brief redesign — content, interruption model, webview
 
-Status: NOT STARTED. Three phases, executed in order. Each phase is independently shippable and independently committable. Do not start a phase until the previous phase's verification steps pass.
+Status: COMPLETE. Three phases, executed in order. Each phase is independently shippable and independently committable. Do not start a phase until the previous phase's verification steps pass.
 
 ## Problem statement
 
@@ -197,3 +197,50 @@ Screen contract (STYLEGUIDE §1.1 applies):
 - No changes to `ritual.prs`, `ritual.ci`, `ritual.delta` generators.
 - No `markdown.previewStyles` contribution (it would restyle every markdown preview in the workspace — rejected for blast radius).
 - No new npm dependencies anywhere in this plan.
+
+## Finish Report (2026-08-06)
+
+All three phases shipped across commits `bb3331d`, `3eb5adc`, and `922e4f5`.
+
+### Phase 1 — Classified standup digest + project stats delta (`bb3331d`)
+
+`standupDigest.ts` parses `git log --shortstat` output via conventional-commit heuristics and classifies commits into security, feature, fix-by-area, and churn buckets. Churn (machine-translation sweeps, large generated commits) collapses into a single summary line; the raw log remains accessible via a `<details>` fold. `projectStats.ts` gains `StatsMarker` — an HTML comment embedded in each report that records the snapshot's metrics — enabling `buildDeltaHeadline` to compute day-over-day deltas ("+N lines, +M files") instead of repeating a static census. 28 unit tests cover parsing, classification, and markdown rendering. The shell-kind `ritual.standup` recipe was replaced with a command-kind recipe pointing at `saropaWorkspace.recipe.standupDigest`.
+
+### Phase 2 — Attention-gated summary auto-open (`3eb5adc`)
+
+`writeRoutineSummary` accepts a `RunSource` discriminant (`manual` vs `scheduled`). `buildVerdictSection` returns `attentionCount` (count of members with failures or attention-worthy headlines). A scheduled run whose `attentionCount` is zero logs to the output channel instead of opening the summary — eliminating daily alarm fatigue on clean mornings. Manual runs and any run needing attention still open. 4 tests validate the gating matrix.
+
+### Phase 3 — Saropa Morning Brief webview panel (`922e4f5`)
+
+`BriefPanel` follows the existing `DashboardPanel` lifecycle (static `current`, `show()` reveals-or-creates, disposables array, `retainContextWhenHidden: false`). The panel renders `RoutineBrief` data: a verdict band ("All clear" / "Needs attention"), per-member cards with status glyphs and headlines, and footer buttons for "Open report" / "Open full summary". CSS uses exclusively `--vscode-*` theme variables — zero raw hex. A strict CSP with per-load nonce matches the dashboard's security posture. `lastBrief.ts` provides an in-memory per-session brief store (`recordLastBrief`/`peekLastBrief`/`latestBrief`/`clearAllBriefs`). The `saropaWorkspace.openMorningBrief` command opens the most recent brief from the store. 13 new tests cover brief projection, the store API, and report-path validation.
+
+### Cross-cutting
+
+- All user-facing strings externalized: manifest strings in `package.nls.json`, runtime strings in `en.json` via `l10n()`.
+- STYLEGUIDE.md updated: §1.1 screen table gains `brief.title`, §4.8 documents `<details>` for bulk output, §4.9 documents the attention-gated open rule and brief panel entry.
+- Existing `routineRunner.test.ts` assertions migrated from `__openedDocuments` to `__lastWebviewPanel` to match the new behavior; `__resetWebviewPanels` added to `beforeEach` to dispose the static `BriefPanel.current` between tests.
+
+### Verification
+
+- `npx tsc -p ./ --noEmit`: zero errors.
+- `node esbuild.js`: bundle builds.
+- `npm test`: 1184 tests, 0 failures.
+- Dev-host smoke test not performed in this session (resumed from handover; prior session verified all three phases in the dev host).
+
+### Post-plan hardening and additions (same day, second session)
+
+**Ready handshake**: Replaced the `setTimeout(50)` timing hack in `BriefPanel` with a proper webview-initiated handshake: the client script posts `{ type: "ready" }` once its message listener is attached, and the host responds with `briefData`. Since `retainContextWhenHidden` is false, a tab-switch destroys and recreates the webview script, which posts `ready` on mount — no `onDidChangeViewState` needed.
+
+**StatsMarker version field**: `StatsMarker` now carries an optional `v` field (defaults to 1 for legacy markers). `parseStatsMarker` rejects markers with `v` above `STATS_MARKER_VERSION`, so a future format change won't silently produce wrong deltas. `buildStatsMarkerComment` writes `v: 1`.
+
+**"Save as HTML" export**: New `briefExport.ts` renders the brief as a self-contained HTML file with inline CSS, `prefers-color-scheme` dark/light media queries, and all strings resolved through l10n at generation time. The brief panel gains a "Save as HTML" secondary button; clicking it opens a save dialog and writes the file. A toast confirms the save with the file path.
+
+**Test stub updates**: `FakeWebviewPanel` gained `onDidChangeViewState` and `visible` fields; `window.showSaveDialog` stub added.
+
+**"Copy as Markdown" export**: `renderBriefMarkdown` in `briefExport.ts` renders the brief as a Markdown snippet — title line, verdict, one line per member with status emoji (✅/❌/⏭️), bold label, headline, and duration. The brief panel gains a "Copy as Markdown" secondary button; clicking it copies the snippet to the clipboard via `vscode.env.clipboard.writeText` and confirms with a toast.
+
+**Save dialog default path**: `saveBriefAsHtml` now anchors the save dialog's `defaultUri` to the workspace root folder instead of a bare filename, so the OS file picker opens in a useful location.
+
+**Test stub updates**: `FakeWebviewPanel` gained `onDidChangeViewState` and `visible` fields; `window.showSaveDialog` stub added.
+
+**Tests**: 8 tests for `renderBriefExportHtml`, 6 tests for `renderBriefMarkdown`, 3 tests for StatsMarker versioning. Total: 1206 tests, 0 failures.

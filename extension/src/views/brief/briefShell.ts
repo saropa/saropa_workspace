@@ -34,10 +34,14 @@ export function renderBriefShell(): string {
 // The localized strings the client script renders, kept out of the inlined JS.
 export function briefUiStrings(): Record<string, string> {
   return {
+    title: l10n("brief.title"),
     allClear: l10n("brief.allClear"),
     needsAttention: l10n("brief.needsAttention"),
     openReport: l10n("brief.openReport"),
     openSummary: l10n("brief.openSummary"),
+    saveHtml: l10n("brief.saveHtml"),
+    copyMarkdown: l10n("brief.copyMarkdown"),
+    exportFooter: l10n("brief.exportFooter"),
     none: l10n("brief.none"),
   };
 }

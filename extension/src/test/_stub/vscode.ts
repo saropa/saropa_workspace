@@ -442,8 +442,10 @@ export interface FakeWebview {
 export interface FakeWebviewPanel {
   readonly viewType: string;
   title: string;
+  visible: boolean;
   readonly webview: FakeWebview;
   onDidDispose(handler: () => void): { dispose(): void };
+  onDidChangeViewState(handler: (e: unknown) => void): { dispose(): void };
   reveal(column?: number): void;
   dispose(): void;
   readonly disposed: boolean;
@@ -472,9 +474,13 @@ function fakeWebviewPanel(viewType: string, title: string): FakeWebviewPanel {
   return {
     viewType,
     title,
+    visible: true,
     webview,
     onDidDispose(handler: () => void): { dispose(): void } {
       disposeHandler = handler;
+      return { dispose: (): void => {} };
+    },
+    onDidChangeViewState(): { dispose(): void } {
       return { dispose: (): void => {} };
     },
     reveal(): void {},
@@ -530,6 +536,9 @@ export const window = {
   },
   showOpenDialog(opts?: OpenDialogOptions): Promise<Uri[] | undefined> {
     return openDialogHandler(opts);
+  },
+  showSaveDialog(_opts?: unknown): Promise<Uri | undefined> {
+    return Promise.resolve(undefined);
   },
   // The branch-set binder and several command handlers emit toasts via these. No
   // test asserts on their text, so they are inert no-ops that resolve to undefined
