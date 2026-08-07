@@ -63,8 +63,10 @@ The reflection gate from the prior `/finish` pass flagged four items. Actions ta
 3. **Discoverability for future views** — the `CountProvider` interface and `syncViewCount` function are now exported from a named module (`views/viewCount.ts`), making the pattern visible via import autocomplete. A developer adding a 6th view can import `syncViewCount` rather than writing a 6th closure.
 4. **Unit tests** — 5 tests in `test/viewCount.test.ts` cover: initial count propagation, zero-clears-description, live updates on fire, drop-to-zero clears, and disposal stops updates. All 1200 tests pass.
 
+5. **Compile-time API drift guard** — a conditional type assertion `_AssertTreeViewSatisfiesHasDescription` verifies at compile time that `vscode.TreeView<never>` still extends `HasDescription`. If a future VS Code release changes the `description` property shape, tsc will fail in `viewCount.ts` itself rather than silently passing until a runtime call.
+
 ### Verification
 
 - `npx tsc -p ./ --noEmit` — clean
 - `node esbuild.js` — bundle builds
-- `npm test` — 1200/1200 pass (5 new)
+- `npm test` — 1208/1208 pass (5 new in viewCount.test.ts, 8 new from other work in the same session)

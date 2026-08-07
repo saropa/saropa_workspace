@@ -13,6 +13,11 @@ interface HasDescription {
   description?: string | undefined;
 }
 
+// Compile-time guard: if a future VS Code release changes the `description`
+// property shape on TreeView, tsc will fail here rather than at each call site.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _AssertTreeViewSatisfiesHasDescription = vscode.TreeView<never> extends HasDescription ? true : never;
+
 /** Wires a tree view's description to a provider's item count. Sets the initial value, subscribes to changes, and returns the subscription disposable. */
 export function syncViewCount(
   view: HasDescription,
