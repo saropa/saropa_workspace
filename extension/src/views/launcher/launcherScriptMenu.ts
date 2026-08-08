@@ -162,6 +162,7 @@ window.addEventListener('message', function (event) {
   if (msg && msg.type === 'data') {
     strings = msg.strings || {};
     items = Array.isArray(msg.items) ? msg.items : [];
+    tintHexes = msg.tintHexes || {};
     if (typeof msg.placeholder === 'string') { q.placeholder = msg.placeholder; }
     renderHeader(msg.header);
     render();

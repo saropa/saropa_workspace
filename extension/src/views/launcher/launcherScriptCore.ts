@@ -12,6 +12,7 @@
 export const LAUNCHER_SCRIPT_CORE = `const vscode = acquireVsCodeApi();
 let strings = {};
 let items = [];
+var tintHexes = {};
 let activeMenu = null;
 // Which panes the user has toggled off via the header stat chips. Persisted across reloads
 // so toggled-off sections stay hidden. Each key is a pane id; presence means hidden.
@@ -108,11 +109,14 @@ const empty = document.getElementById('empty');
 const projName = document.getElementById('projName');
 const projMeta = document.getElementById('projMeta');
 
-// Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. Falls back
-// to the editor foreground so an unmapped/empty id still renders a visible glyph.
-function cssVar(id) {
+// Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. When a
+// hex fallback is given, it is embedded inside the var() so the color still renders if
+// the CSS variable is not exposed in this webview (extension-contributed colors may not
+// be). Falls back to the editor foreground when no id is given.
+function cssVar(id, hex) {
   if (!id) { return 'var(--vscode-foreground)'; }
-  return 'var(--vscode-' + id.split('.').join('-') + ')';
+  var name = '--vscode-' + id.split('.').join('-');
+  return hex ? 'var(' + name + ', ' + hex + ')' : 'var(' + name + ')';
 }
 
 function codicon(id) {
@@ -129,6 +133,7 @@ function codicon(id) {
 function renderHeader(h) {
   if (!h) { return; }
   if (typeof h.project === 'string' && h.project) { projName.textContent = h.project; }
+  projName.classList.toggle('no-project', !!h.noProject);
   projMeta.textContent = '';
   if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true, null)); }
   const stats = Array.isArray(h.stats) ? h.stats : [];
@@ -265,6 +270,14 @@ var settingsBtn = document.getElementById('settingsBtn');
 if (settingsBtn) {
   settingsBtn.addEventListener('click', function () {
     vscode.postMessage({ type: 'openSettings' });
+  });
+}
+
+if (projName) {
+  projName.addEventListener('click', function () {
+    if (projName.classList.contains('no-project')) {
+      vscode.postMessage({ type: 'openFolder' });
+    }
   });
 }
 

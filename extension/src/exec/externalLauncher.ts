@@ -1,3 +1,4 @@
+import type { ChildProcess } from "child_process";
 import * as vscode from "vscode";
 import { quoteArg, buildWindowsStartup, encodeForPowerShell } from "./commandPlan";
 import { getOutputChannel } from "./terminalRunner";
@@ -56,19 +57,41 @@ export async function runInExternal(
     `$ (${name}) [external${elevated ? ", elevated" : ""}${shellLabel}] ${commandLine}`
   );
 
+  let child: ChildProcess;
   try {
     if (process.platform === "win32") {
-      launchExternalWindows(cp, commandLine, cwd, env, elevated);
+      child = launchExternalWindows(cp, commandLine, cwd, env, elevated);
     } else if (process.platform === "darwin") {
-      launchExternalMac(cp, commandLine, cwd, elevated);
+      child = launchExternalMac(cp, commandLine, cwd, elevated);
     } else {
-      launchExternalLinux(cp, commandLine, cwd, elevated);
+      child = launchExternalLinux(cp, commandLine, cwd, elevated);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     channel.appendLine(`\n[${name}] failed to launch external window: ${message}`);
     vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: message }));
     return;
+  }
+
+  // Async spawn failures (ENOENT, EACCES) fire here, not as a thrown exception.
+  child.on("error", (err) => {
+    channel.appendLine(`[${name}] external launcher spawn error: ${err.message}`);
+    vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: err.message }));
+  });
+
+  // On Windows the outer launcher's stderr is piped so a Start-Process failure
+  // reports what went wrong rather than vanishing silently.
+  if (child.stderr) {
+    let stderr = "";
+    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.on("exit", (code) => {
+      if (code !== 0 && code !== null) {
+        const detail = stderr.trim() || `exit code ${code}`;
+        channel.appendLine(`[${name}] external launcher failed: ${detail}`);
+        vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: detail }));
+      }
+      child.stderr?.destroy();
+    });
   }
 
   // Elevation drops per-shortcut env vars (the elevated process gets a fresh
@@ -112,7 +135,7 @@ function launchExternalWindows(
   cwd: string,
   env: Record<string, string> | undefined,
   elevated: boolean
-): void {
+): ChildProcess {
   const shell = windowsShell();
   const encoded = encodeForPowerShell(buildWindowsStartup(commandLine, cwd));
   const startArgs = [
@@ -147,13 +170,16 @@ function launchExternalWindows(
       // PowerShell needs no detach: it exits on its own once Start-Process hands
       // off to the independent elevated window, which survives regardless.
       detached: !elevated,
-      stdio: "ignore",
+      // Pipe stderr so Start-Process failures surface to the caller instead of
+      // vanishing in a detached console-less process.
+      stdio: ["ignore", "ignore", "pipe"],
       // Non-elevated windows inherit env from this launcher; elevated windows get
       // a fresh environment from ShellExecute, so this env is unused there.
       env: { ...process.env, ...(env ?? {}) },
     }
   );
   child.unref();
+  return child;
 }
 
 // macOS: drive Terminal.app via AppleScript. Elevation wraps the command in a
@@ -164,7 +190,7 @@ function launchExternalMac(
   commandLine: string,
   cwd: string,
   elevated: boolean
-): void {
+): ChildProcess {
   const shellCmd = elevated ? `sudo ${commandLine}` : commandLine;
   const inner = `cd ${quoteArg(cwd)}; ${shellCmd}`;
   // Escape for embedding inside an AppleScript double-quoted string.
@@ -175,6 +201,7 @@ function launchExternalMac(
     stdio: "ignore",
   });
   child.unref();
+  return child;
 }
 
 // Linux: open a terminal emulator and hold it open with an interactive shell.
@@ -185,7 +212,7 @@ function launchExternalLinux(
   commandLine: string,
   cwd: string,
   elevated: boolean
-): void {
+): ChildProcess {
   const shellCmd = elevated ? `pkexec ${commandLine}` : commandLine;
   // Run the command, then drop into an interactive shell so the window stays open.
   const inner = `cd ${quoteArg(cwd)}; ${shellCmd}; exec ${process.env.SHELL ?? "bash"}`;
@@ -203,7 +230,7 @@ function launchExternalLinux(
     if (probe.status === 0) {
       const child = cp.spawn(cmd, emuArgs, { cwd, detached: true, stdio: "ignore" });
       child.unref();
-      return;
+      return child;
     }
   }
   throw new Error("No supported terminal emulator found");

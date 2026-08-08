@@ -89,6 +89,13 @@ header {
   color: var(--vscode-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.project-name.no-project {
+  cursor: pointer; text-decoration: underline;
+  color: var(--vscode-textLink-foreground);
+}
+.project-name.no-project:hover {
+  color: var(--vscode-textLink-activeForeground);
+}
 /* The version + counts, inline on the project line. nowrap + overflow keeps it a single row
    beside the name; min-width:0 lets it shrink (clipping the trailing stats) before it pushes
    the search box off the bar. Each item is an icon + value. */

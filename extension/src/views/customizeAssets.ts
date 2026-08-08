@@ -115,7 +115,7 @@ input:focus { outline: 2px solid var(--vscode-focusBorder); outline-offset: -1px
   transition: transform var(--dur), border-color var(--dur);
 }
 .swatch:hover { transform: scale(1.1); }
-.swatch.sel { border-color: var(--vscode-foreground); }
+.swatch.sel { border-color: var(--vscode-foreground); outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
 .swatch:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .swatch.def { display: grid; place-items: center; background: var(--surface-3); color: var(--muted); font-size: 14px; box-shadow: 0 0 0 1px var(--border) inset; }
 
@@ -289,19 +289,46 @@ function wire(){
 }
 
 function applyInit(work){
-  $('nameInput').value = work.name || '';
+  // Pre-populate name: use the stored label, or fall back to the guessed
+  // title-cased name so the field starts with a friendly suggestion.
+  $('nameInput').value = work.name || work.guessedName || '';
   tags.length = 0;
   (work.tags || []).forEach(function(t){ tags.push(t); });
   // Seed the selected icon/color from the stored values (selectColor needs the hex,
   // looked up from the matching swatch element the host rendered).
   selectIcon(work.icon || '');
   if (work.color) {
-    const sw = document.querySelector('.swatch[data-color="' + work.color + '"]');
+    var sw = document.querySelector('.swatch[data-color="' + work.color + '"]');
     selectColor(work.color, sw ? (sw.getAttribute('data-hex') || '') : '');
   } else {
     selectColor('', '');
   }
   renderTags();
+  // Render content-based tag suggestions (sent by the host after reading the file).
+  var cs = $('contentSuggest');
+  var suggested = work.suggestedTags || [];
+  if (suggested.length > 0 && cs) {
+    var label = cs.getAttribute('data-label') || '';
+    cs.innerHTML = '';
+    if (label) {
+      var sl = document.createElement('span');
+      sl.className = 'sl';
+      sl.textContent = label;
+      cs.appendChild(sl);
+    }
+    suggested.forEach(function(t){
+      var btn = document.createElement('button');
+      btn.className = 'sugchip';
+      btn.type = 'button';
+      btn.setAttribute('data-tag', t);
+      btn.textContent = t;
+      btn.addEventListener('click', function(){ addTag(t); });
+      cs.appendChild(btn);
+    });
+    cs.style.display = '';
+    // Re-run so chips for already-added tags start hidden.
+    renderTags();
+  }
   renderPreview();
 }
 

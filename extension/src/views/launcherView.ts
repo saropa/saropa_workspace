@@ -10,6 +10,7 @@ import { handleLauncherMessage } from "./launcherViewMessages";
 import { buildAllItems, buildHeader } from "./launcherViewData";
 import { renderHtml } from "./launcherViewShell";
 import { noteLauncherItem } from "./launcherNoteItem";
+import { resolveTintHexes } from "./tintHexResolver";
 
 // The "Saropa Workspace" Panel webview: a second, always-reachable window onto the same
 // shortcut data the sidebar tree shows, living in the bottom Panel (beside Terminal /
@@ -45,7 +46,8 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     private readonly noteStore: NoteStore,
     private readonly projectFiles: ProjectFilesTreeProvider,
     private readonly scriptsProvider: ScriptsTreeProvider,
-    private readonly extensionUri: vscode.Uri
+    private readonly extensionUri: vscode.Uri,
+    private readonly globalState: vscode.Memento
   ) {
     // Repaint whenever any of the surfaces the launcher mirrors changes, so it never lags
     // the sidebar: the shortcut/recipe set (store), the watch list and its unseen counts
@@ -65,7 +67,8 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         if (e.affectsConfiguration("saropaWorkspace.projectFiles")) {
           void this.post();
         }
-      })
+      }),
+      vscode.window.onDidChangeActiveColorTheme(() => void this.post())
     );
   }
 
@@ -107,6 +110,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       projectFiles: this.projectFiles,
       scriptsProvider: this.scriptsProvider,
       extensionPath: this.extensionUri.fsPath,
+      globalState: this.globalState,
       post: () => this.post(),
     });
   }
@@ -149,6 +153,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     void this.view.webview.postMessage({
       type: "data",
       items,
+      tintHexes: resolveTintHexes(),
       header: buildHeader(this.store, files, items),
       placeholder: l10n("launcher.searchPlaceholder"),
       strings: {

@@ -46,6 +46,22 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Improved
+
+- **Customize panel: name suggestion** — the name field pre-populates with a title-cased guess from the filename (strips extension, replaces underscores/hyphens with spaces), so the friendly name is one Save away instead of typed from scratch.
+- **Customize panel: content-based tag suggestions** — "From file" chips suggest tags derived from the file's word frequency (excluding grammar and common programming keywords), weighted toward longer, more meaningful words.
+- **Customize panel: color swatch selection** — the selected color swatch now shows a visible focus ring, making the active tint unmistakable in all themes.
+- **Launcher: "No folder open" is now a clickable link** — clicking it opens a recent-workspaces quick-pick (up to 5 entries, most recent first) with a "Browse…" fallback that opens a file picker filtered to JSON config files. Selecting an entry opens the containing folder as the workspace. On first use (no history), the file picker opens directly.
+
+### Fixed
+
+- **Custom color tinting now renders correctly** — user-selected tint colors from the Customize panel (the 20-swatch palette) now display their actual color in the launcher panel instead of falling back to gray when the webview cannot resolve extension-contributed CSS variables.
+- **External window launches now surface errors** — if the outer PowerShell process fails to open a new window (e.g. `Start-Process` errors), the failure is now captured and shown as an error toast instead of silently swallowed after a false "launched" success toast.
+
+---
+
 ## [1.6.7]
 
 Upgrades the daily routine experience with the visual Saropa Morning Brief and smarter standup digests that highlight actionable project growth over automated noise. Background runs are now quieter by default, and new settings allow power users to disable start-up notifications entirely. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.7/CHANGELOG.md)
