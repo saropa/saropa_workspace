@@ -168,6 +168,7 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       metricBadge,
       metricText,
       untapped,
+      customColor: shortcut.color,
       shadowsAuto,
       owningFolder,
     }).join("\n");

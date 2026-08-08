@@ -54,6 +54,7 @@ cspell:disable
 - **Customize panel: content-based tag suggestions** — "From file" chips suggest tags derived from the file's word frequency (excluding grammar and common programming keywords), weighted toward longer, more meaningful words.
 - **Customize panel: color swatch selection** — the selected color swatch now shows a visible focus ring, making the active tint unmistakable in all themes.
 - **Launcher: "No folder open" is now a clickable link** — clicking it opens a recent-workspaces quick-pick (up to 5 entries, most recent first) with a "Browse…" fallback that opens a file picker filtered to JSON config files. Selecting an entry opens the containing folder as the workspace. On first use (no history), the file picker opens directly.
+- **Tree tooltip: tint color name** — hovering a shortcut with a custom tint now shows the color name (e.g. "Tint: Red") in the tooltip, confirming which color was applied without opening Customize.
 
 ### Fixed
 
