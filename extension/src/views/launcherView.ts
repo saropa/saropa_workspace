@@ -39,6 +39,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
 
   private view: vscode.WebviewView | undefined;
   private readonly disposables: vscode.Disposable[] = [];
+  private viewDisposables: vscode.Disposable[] = [];
 
   constructor(
     private readonly store: ShortcutStore,
@@ -84,14 +85,18 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     // The webview posts `ready` once its message listener is mounted; replying then
     // (rather than pushing eagerly here) avoids a race where the host posts before the
     // script can receive it.
+    for (const d of this.viewDisposables) { d.dispose(); }
+    this.viewDisposables = [];
     view.webview.onDidReceiveMessage(
       (message: unknown) => void this.onMessage(message),
       null,
-      this.disposables
+      this.viewDisposables
     );
     view.onDidDispose(() => {
       this.view = undefined;
-    }, null, this.disposables);
+      for (const d of this.viewDisposables) { d.dispose(); }
+      this.viewDisposables = [];
+    }, null, this.viewDisposables);
   }
 
   dispose(): void {
@@ -107,6 +112,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     await handleLauncherMessage(message, {
       store: this.store,
       watchStore: this.watchStore,
+      noteStore: this.noteStore,
       projectFiles: this.projectFiles,
       scriptsProvider: this.scriptsProvider,
       extensionPath: this.extensionUri.fsPath,

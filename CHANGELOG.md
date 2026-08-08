@@ -55,11 +55,16 @@ cspell:disable
 - **Customize panel: color swatch selection** — the selected color swatch now shows a visible focus ring, making the active tint unmistakable in all themes.
 - **Launcher: "No folder open" is now a clickable link** — clicking it opens a recent-workspaces quick-pick (up to 5 entries, most recent first) with a "Browse…" fallback that opens a file picker filtered to JSON config files. Selecting an entry opens the containing folder as the workspace. On first use (no history), the file picker opens directly.
 - **Tree tooltip: tint color name** — hovering a shortcut with a custom tint now shows the color name (e.g. "Tint: Red") in the tooltip, confirming which color was applied without opening Customize.
+- **Customize panel: keyboard shortcuts** — `Ctrl+Enter` (`Cmd+Enter` on macOS) saves, `Escape` cancels, matching VS Code's standard dialog conventions.
 
 ### Fixed
 
 - **Custom color tinting now renders correctly** — user-selected tint colors from the Customize panel (the 20-swatch palette) now display their actual color in the launcher panel instead of falling back to gray when the webview cannot resolve extension-contributed CSS variables. Switching themes now refreshes tints immediately.
 - **External window launches now surface errors** — if the outer PowerShell process fails to open a new window (e.g. `Start-Process` errors), the failure is now captured and shown as an error toast instead of silently swallowed after a false "launched" success toast.
+- **Launcher: view-scoped disposable leak** — webview event listeners are now properly disposed when the launcher panel view is hidden and re-shown, preventing accumulated dead listeners across resolve cycles.
+- **External launcher: stderr cleanup on spawn error** — the piped stderr stream is now destroyed when the child process emits an error event without a subsequent exit, preventing a resource leak on ENOENT/EACCES failures.
+- **Customize panel: swatch selector hardened** — the CSS selector for color swatch lookup now escapes the color id, preventing a DOMException from corrupted config values.
+- **Launcher: note path validation** — opening a note from the launcher now validates the path against the note store before opening, matching the same validation pattern files and watches use.
 
 ---
 
