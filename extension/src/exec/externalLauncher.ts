@@ -77,6 +77,7 @@ export async function runInExternal(
   child.on("error", (err) => {
     channel.appendLine(`[${name}] external launcher spawn error: ${err.message}`);
     vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: err.message }));
+    child.stderr?.destroy();
   });
 
   // On Windows the outer launcher's stderr is piped so a Start-Process failure

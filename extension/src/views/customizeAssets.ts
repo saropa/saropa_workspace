@@ -286,6 +286,16 @@ function wire(){
     post('save', { name: $('nameInput').value, icon: selIcon, color: selColor, tags: tags });
   });
   $('cancel').addEventListener('click', function(){ post('cancel'); });
+
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      $('save').click();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      $('cancel').click();
+    }
+  });
 }
 
 function applyInit(work){
@@ -298,7 +308,7 @@ function applyInit(work){
   // looked up from the matching swatch element the host rendered).
   selectIcon(work.icon || '');
   if (work.color) {
-    var sw = document.querySelector('.swatch[data-color="' + work.color + '"]');
+    var sw = document.querySelector('.swatch[data-color="' + CSS.escape(work.color) + '"]');
     selectColor(work.color, sw ? (sw.getAttribute('data-hex') || '') : '');
   } else {
     selectColor('', '');

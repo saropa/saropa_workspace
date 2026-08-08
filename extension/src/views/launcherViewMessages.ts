@@ -4,6 +4,7 @@ import { ShortcutStore, MoveTarget } from "../model/shortcutStore";
 import { shortcutKind } from "../model/shortcut";
 import { parseCompositeGroupId } from "../model/shortcutStoreShared";
 import { FolderWatchStore } from "../model/folderWatch";
+import { NoteStore } from "../model/noteStore";
 import { runShortcutCommand } from "../commands/shortcutExecution";
 import { openShortcut } from "../commands/shortcutOpen";
 import { l10n } from "../i18n/l10n";
@@ -47,6 +48,7 @@ const MENU_COMMANDS: ReadonlySet<string> = new Set([
 export interface LauncherMessageContext {
   readonly store: ShortcutStore;
   readonly watchStore: FolderWatchStore;
+  readonly noteStore: NoteStore;
   readonly projectFiles: ProjectFilesTreeProvider;
   readonly scriptsProvider: ScriptsTreeProvider;
   readonly extensionPath: string;
@@ -92,7 +94,7 @@ export async function handleLauncherMessage(
     return;
   }
   if (msg.type === "openNote" && typeof msg.path === "string") {
-    await handleOpenNote(msg.path);
+    await handleOpenNote(msg.path, ctx);
     return;
   }
   if (msg.type === "copyPath" && typeof msg.id === "string") {
@@ -214,7 +216,14 @@ async function handleOpenFile(filePath: string, ctx: LauncherMessageContext): Pr
   }
 }
 
-async function handleOpenNote(notePath: string): Promise<void> {
+async function handleOpenNote(notePath: string, ctx: LauncherMessageContext): Promise<void> {
+  const [proj, global] = await Promise.all([
+    ctx.noteStore.listProjectNotes(),
+    ctx.noteStore.listGlobalNotes(),
+  ]);
+  if (![...proj, ...global].some((n) => n.uri.fsPath === notePath)) {
+    return;
+  }
   const uri = vscode.Uri.file(notePath);
   try {
     await vscode.workspace.fs.stat(uri);
