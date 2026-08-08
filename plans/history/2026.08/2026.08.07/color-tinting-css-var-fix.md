@@ -73,12 +73,28 @@ its own inline copy of the hex-resolution logic).
   constants (not raw numbers) with a `"dark"` default fallback. stderr toasts
   only fire on non-zero exit codes, not on benign stderr output.
 
+### Hardening (reflection gate, second pass)
+
+- **Stderr buffer strict cap** (`externalLauncher.ts`): Tightened the 4KB stderr
+  cap to slice after appending each chunk, so a single large chunk cannot exceed
+  the limit. Previously only checked length before append.
+- **Per-theme-kind hex cache** (`tintHexResolver.ts`): Added `ensureCache()` that
+  keys on `ColorThemeKind`, so rapid `post()` calls reuse the resolved hex map
+  instead of re-reading the manifest each time. Cache invalidates automatically
+  when the theme kind changes.
+- **Tint tooltip in tree sidebar** (`shortcutRowTooltip.ts`,
+  `shortcutTreeItem.ts`): Hovering a shortcut with a custom tint now shows
+  "Tint: Red" (etc.) in the tooltip via `tintDisplayName()`, which maps the
+  color ID to its l10n label and strips the codicon prefix. Legacy `charts.*`
+  color IDs return no tooltip line (correct: they predate the Customize panel).
+
 ### Out-of-scope code smells (flagged, not fixed)
 
-- `tintHexResolver.ts`: `resolveTintHexes()` and `resolveAllColorHexes()` share
-  near-identical lookup logic; candidate for a single helper with a filter param.
 - `launcherViewData.ts` / `launcherViewShell.ts`: `noProject` condition computed
   in both modules; candidate for extraction to a shared constant.
+- `tintHexResolver.ts` now imports `COLOR_CHOICES` from `commands/` — minor
+  dependency inversion (views → commands). Acceptable because `COLOR_CHOICES` is
+  the designated single source of truth for color ID ↔ label mappings.
 
 ### Verification
 
