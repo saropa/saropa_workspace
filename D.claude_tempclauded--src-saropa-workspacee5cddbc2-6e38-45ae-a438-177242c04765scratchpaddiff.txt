@@ -1,0 +1,629 @@
+diff --git a/.vscode/launch.json b/.vscode/launch.json
+index 1e5bcd4..f5ce95d 100644
+--- a/.vscode/launch.json
++++ b/.vscode/launch.json
+@@ -8,7 +8,10 @@
+       "name": "Run Extension",
+       "type": "extensionHost",
+       "request": "launch",
+-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/extension"],
++      "args": [
++        "--extensionDevelopmentPath=${workspaceFolder}/extension",
++        "D:\\src\\saropa_lints"
++      ],
+       "outFiles": ["${workspaceFolder}/extension/dist/**/*.js"],
+       "preLaunchTask": "npm: build"
+     }
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d9126e2..b6db73b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -46,6 +46,22 @@ cspell:disable
+ 
+ ---
+ 
++## [Unreleased]
++
++### Improved
++
++- **Customize panel: name suggestion** — the name field pre-populates with a title-cased guess from the filename (strips extension, replaces underscores/hyphens with spaces), so the friendly name is one Save away instead of typed from scratch.
++- **Customize panel: content-based tag suggestions** — "From file" chips suggest tags derived from the file's word frequency (excluding grammar and common programming keywords), weighted toward longer, more meaningful words.
++- **Customize panel: color swatch selection** — the selected color swatch now shows a visible focus ring, making the active tint unmistakable in all themes.
++- **Launcher: "No folder open" is now a clickable link** — clicking it opens a file picker filtered to JSON config files; selecting one opens the containing folder as the workspace. The last-selected file is remembered across sessions.
++
++### Fixed
++
++- **Custom color tinting now renders correctly** — user-selected tint colors from the Customize panel (the 20-swatch palette) now display their actual color in the launcher panel instead of falling back to gray when the webview cannot resolve extension-contributed CSS variables.
++- **External window launches now surface errors** — if the outer PowerShell process fails to open a new window (e.g. `Start-Process` errors), the failure is now captured and shown as an error toast instead of silently swallowed after a false "launched" success toast.
++
++---
++
+ ## [1.6.7]
+ 
+ Upgrades the daily routine experience with the visual Saropa Morning Brief and smarter standup digests that highlight actionable project growth over automated noise. Background runs are now quieter by default, and new settings allow power users to disable start-up notifications entirely. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.7/CHANGELOG.md)
+diff --git a/extension/src/activation/wiringViews.ts b/extension/src/activation/wiringViews.ts
+index 1397b3d..85dfe91 100644
+--- a/extension/src/activation/wiringViews.ts
++++ b/extension/src/activation/wiringViews.ts
+@@ -173,7 +173,8 @@ function setupLauncherPanel(
+     noteStore,
+     projectFiles,
+     scripts,
+-    context.extensionUri
++    context.extensionUri,
++    context.globalState
+   );
+   context.subscriptions.push(
+     launcher,
+diff --git a/extension/src/exec/externalLauncher.ts b/extension/src/exec/externalLauncher.ts
+index 9a93d49..566f280 100644
+--- a/extension/src/exec/externalLauncher.ts
++++ b/extension/src/exec/externalLauncher.ts
+@@ -1,3 +1,4 @@
++import type { ChildProcess } from "child_process";
+ import * as vscode from "vscode";
+ import { quoteArg, buildWindowsStartup, encodeForPowerShell } from "./commandPlan";
+ import { getOutputChannel } from "./terminalRunner";
+@@ -56,13 +57,14 @@ export async function runInExternal(
+     `$ (${name}) [external${elevated ? ", elevated" : ""}${shellLabel}] ${commandLine}`
+   );
+ 
++  let child: ChildProcess;
+   try {
+     if (process.platform === "win32") {
+-      launchExternalWindows(cp, commandLine, cwd, env, elevated);
++      child = launchExternalWindows(cp, commandLine, cwd, env, elevated);
+     } else if (process.platform === "darwin") {
+-      launchExternalMac(cp, commandLine, cwd, elevated);
++      child = launchExternalMac(cp, commandLine, cwd, elevated);
+     } else {
+-      launchExternalLinux(cp, commandLine, cwd, elevated);
++      child = launchExternalLinux(cp, commandLine, cwd, elevated);
+     }
+   } catch (err) {
+     const message = err instanceof Error ? err.message : String(err);
+@@ -71,6 +73,27 @@ export async function runInExternal(
+     return;
+   }
+ 
++  // Async spawn failures (ENOENT, EACCES) fire here, not as a thrown exception.
++  child.on("error", (err) => {
++    channel.appendLine(`[${name}] external launcher spawn error: ${err.message}`);
++    vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: err.message }));
++  });
++
++  // On Windows the outer launcher's stderr is piped so a Start-Process failure
++  // reports what went wrong rather than vanishing silently.
++  if (child.stderr) {
++    let stderr = "";
++    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
++    child.on("exit", (code) => {
++      if (code !== 0 && code !== null) {
++        const detail = stderr.trim() || `exit code ${code}`;
++        channel.appendLine(`[${name}] external launcher failed: ${detail}`);
++        vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: detail }));
++      }
++      child.stderr?.destroy();
++    });
++  }
++
+   // Elevation drops per-shortcut env vars (the elevated process gets a fresh
+   // environment); say so once so a missing var is not a silent surprise.
+   if (elevated && env && Object.keys(env).length > 0) {
+@@ -112,7 +135,7 @@ function launchExternalWindows(
+   cwd: string,
+   env: Record<string, string> | undefined,
+   elevated: boolean
+-): void {
++): ChildProcess {
+   const shell = windowsShell();
+   const encoded = encodeForPowerShell(buildWindowsStartup(commandLine, cwd));
+   const startArgs = [
+@@ -147,13 +170,16 @@ function launchExternalWindows(
+       // PowerShell needs no detach: it exits on its own once Start-Process hands
+       // off to the independent elevated window, which survives regardless.
+       detached: !elevated,
+-      stdio: "ignore",
++      // Pipe stderr so Start-Process failures surface to the caller instead of
++      // vanishing in a detached console-less process.
++      stdio: ["ignore", "ignore", "pipe"],
+       // Non-elevated windows inherit env from this launcher; elevated windows get
+       // a fresh environment from ShellExecute, so this env is unused there.
+       env: { ...process.env, ...(env ?? {}) },
+     }
+   );
+   child.unref();
++  return child;
+ }
+ 
+ // macOS: drive Terminal.app via AppleScript. Elevation wraps the command in a
+@@ -164,7 +190,7 @@ function launchExternalMac(
+   commandLine: string,
+   cwd: string,
+   elevated: boolean
+-): void {
++): ChildProcess {
+   const shellCmd = elevated ? `sudo ${commandLine}` : commandLine;
+   const inner = `cd ${quoteArg(cwd)}; ${shellCmd}`;
+   // Escape for embedding inside an AppleScript double-quoted string.
+@@ -175,6 +201,7 @@ function launchExternalMac(
+     stdio: "ignore",
+   });
+   child.unref();
++  return child;
+ }
+ 
+ // Linux: open a terminal emulator and hold it open with an interactive shell.
+@@ -185,7 +212,7 @@ function launchExternalLinux(
+   commandLine: string,
+   cwd: string,
+   elevated: boolean
+-): void {
++): ChildProcess {
+   const shellCmd = elevated ? `pkexec ${commandLine}` : commandLine;
+   // Run the command, then drop into an interactive shell so the window stays open.
+   const inner = `cd ${quoteArg(cwd)}; ${shellCmd}; exec ${process.env.SHELL ?? "bash"}`;
+@@ -203,7 +230,7 @@ function launchExternalLinux(
+     if (probe.status === 0) {
+       const child = cp.spawn(cmd, emuArgs, { cwd, detached: true, stdio: "ignore" });
+       child.unref();
+-      return;
++      return child;
+     }
+   }
+   throw new Error("No supported terminal emulator found");
+diff --git a/extension/src/i18n/locales/en.json b/extension/src/i18n/locales/en.json
+index d9bafd9..74ccda5 100644
+--- a/extension/src/i18n/locales/en.json
++++ b/extension/src/i18n/locales/en.json
+@@ -31,6 +31,8 @@
+   "launcher.count": "{n}",
+   "launcher.countFiltered": "{shown}/{total}",
+   "launcher.noProject": "No folder open",
++  "launcher.openFolder.title": "Select a workspace config file",
++  "launcher.openFolder.filterLabel": "JSON config files",
+   "launcher.loading": "Loading…",
+   "launcher.showAll": "Show all sections",
+   "launcher.version": "v{version}",
+@@ -669,6 +671,7 @@
+   "customize.tags.placeholder": "Add a tag and press Enter",
+   "customize.tags.remove": "Remove tag",
+   "customize.tags.suggestLabel": "In use:",
++  "customize.tags.contentSuggestLabel": "From file:",
+   "customize.preview": "Preview",
+   "customize.save": "Save changes",
+   "customize.cancel": "Cancel",
+diff --git a/extension/src/views/customizeAssets.ts b/extension/src/views/customizeAssets.ts
+index d1e66fb..ab2e20c 100644
+--- a/extension/src/views/customizeAssets.ts
++++ b/extension/src/views/customizeAssets.ts
+@@ -115,7 +115,7 @@ input:focus { outline: 2px solid var(--vscode-focusBorder); outline-offset: -1px
+   transition: transform var(--dur), border-color var(--dur);
+ }
+ .swatch:hover { transform: scale(1.1); }
+-.swatch.sel { border-color: var(--vscode-foreground); }
++.swatch.sel { border-color: var(--vscode-foreground); outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+ .swatch:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+ .swatch.def { display: grid; place-items: center; background: var(--surface-3); color: var(--muted); font-size: 14px; box-shadow: 0 0 0 1px var(--border) inset; }
+ 
+@@ -289,19 +289,44 @@ function wire(){
+ }
+ 
+ function applyInit(work){
+-  $('nameInput').value = work.name || '';
++  // Pre-populate name: use the stored label, or fall back to the guessed
++  // title-cased name so the field starts with a friendly suggestion.
++  $('nameInput').value = work.name || work.guessedName || '';
+   tags.length = 0;
+   (work.tags || []).forEach(function(t){ tags.push(t); });
+   // Seed the selected icon/color from the stored values (selectColor needs the hex,
+   // looked up from the matching swatch element the host rendered).
+   selectIcon(work.icon || '');
+   if (work.color) {
+-    const sw = document.querySelector('.swatch[data-color="' + work.color + '"]');
++    var sw = document.querySelector('.swatch[data-color="' + work.color + '"]');
+     selectColor(work.color, sw ? (sw.getAttribute('data-hex') || '') : '');
+   } else {
+     selectColor('', '');
+   }
+   renderTags();
++  // Render content-based tag suggestions (sent by the host after reading the file).
++  var cs = $('contentSuggest');
++  var suggested = work.suggestedTags || [];
++  if (suggested.length > 0 && cs) {
++    var label = cs.getAttribute('data-label') || '';
++    cs.innerHTML = '';
++    if (label) {
++      var sl = document.createElement('span');
++      sl.className = 'sl';
++      sl.textContent = label;
++      cs.appendChild(sl);
++    }
++    suggested.forEach(function(t){
++      var btn = document.createElement('button');
++      btn.className = 'sugchip';
++      btn.type = 'button';
++      btn.setAttribute('data-tag', t);
++      btn.textContent = t;
++      btn.addEventListener('click', function(){ addTag(t); });
++      cs.appendChild(btn);
++    });
++    cs.style.display = '';
++  }
+   renderPreview();
+ }
+ 
+diff --git a/extension/src/views/customizePanel.ts b/extension/src/views/customizePanel.ts
+index d75410d..535691f 100644
+--- a/extension/src/views/customizePanel.ts
++++ b/extension/src/views/customizePanel.ts
+@@ -1,12 +1,14 @@
+ import * as vscode from "vscode";
+ import * as crypto from "crypto";
+ import { Shortcut } from "../model/shortcut";
+-import { shortcutDisplayName } from "../model/shortcutDisplayName";
++import { shortcutDisplayName, toTitleCase } from "../model/shortcutDisplayName";
+ import { ShortcutStore } from "../model/shortcutStore";
+ import { COLOR_CHOICES } from "../commands/configureAppearance";
+ import { ICON_CATEGORIES, ICON_KEYWORDS } from "./iconCatalog";
+ import { CUSTOMIZE_STYLE, CUSTOMIZE_SCRIPT } from "./customizeAssets";
+ import { l10n } from "../i18n/l10n";
++import { guessTagsFromContent } from "./customizeTagGuesser";
++import { resolveAllColorHexes } from "./tintHexResolver";
+ 
+ // The Customize webview form — one screen to set a shortcut's NAME, ICON, COLOR, and
+ // TAGS at once, with a live preview of the tree row. It replaces hopping between the
+@@ -25,21 +27,6 @@ import { l10n } from "../i18n/l10n";
+ // CSP that allows only the webview's own resource origin for styles/fonts — no network.
+ // A second open reuses the one panel, repointed at the new shortcut.
+ 
+-// The active theme's key into a contributed color's `defaults` map, so a swatch shows the
+-// same hex the tree icon will actually take in this theme.
+-function themeDefaultsKey(): "dark" | "light" | "highContrast" | "highContrastLight" {
+-  switch (vscode.window.activeColorTheme.kind) {
+-    case vscode.ColorThemeKind.Light:
+-      return "light";
+-    case vscode.ColorThemeKind.HighContrast:
+-      return "highContrast";
+-    case vscode.ColorThemeKind.HighContrastLight:
+-      return "highContrastLight";
+-    default:
+-      return "dark";
+-  }
+-}
+-
+ interface SaveMessage {
+   name?: string;
+   icon?: string;
+@@ -131,13 +118,33 @@ export class CustomizePanel {
+     if (!shortcut) {
+       return;
+     }
++    const basename = shortcut.path.split("/").pop() ?? shortcut.path;
++    const guessedName = toTitleCase(basename);
++
++    // Read file content for tag suggestions (file shortcuts only, capped at 128 KB)
++    let suggestedTags: string[] = [];
++    if (!shortcut.action) {
++      const uri = this.store.resolveUri(shortcut);
++      if (uri) {
++        try {
++          const raw = await vscode.workspace.fs.readFile(uri);
++          const text = new TextDecoder().decode(raw.slice(0, 131072));
++          suggestedTags = guessTagsFromContent(text);
++        } catch {
++          // Missing/binary/unreadable — skip tag suggestions
++        }
++      }
++    }
++
+     await this.panel.webview.postMessage({
+       type: "init",
+       work: {
+         name: shortcut.label ?? "",
++        guessedName,
+         icon: shortcut.icon,
+         color: shortcut.color,
+         tags: shortcut.tags ?? [],
++        suggestedTags,
+       },
+     });
+   }
+@@ -294,23 +301,8 @@ ${this.tagCard()}
+ </div>`;
+   }
+ 
+-  // Map each offered tint id to its hex for the active theme, read from the extension's
+-  // OWN manifest (contributes.colors) — the single source of truth for the palette, so a
+-  // swatch can never drift from the registered ThemeColor the tree uses.
+   private resolveSwatchHexes(): Record<string, string> {
+-    const key = themeDefaultsKey();
+-    const colors = (this.context.extension.packageJSON?.contributes?.colors ?? []) as Array<{
+-      id: string;
+-      defaults?: Record<string, string>;
+-    }>;
+-    const out: Record<string, string> = {};
+-    for (const entry of colors) {
+-      const hex = entry.defaults?.[key] ?? entry.defaults?.dark;
+-      if (hex) {
+-        out[entry.id] = hex;
+-      }
+-    }
+-    return out;
++    return resolveAllColorHexes();
+   }
+ 
+   private tagCard(): string {
+@@ -331,6 +323,8 @@ ${this.tagCard()}
+   <div class="tagempty" id="tagEmpty">${esc(l10n("customize.tags.placeholder"))}</div>
+   <input type="text" id="tagInput" placeholder="${esc(l10n("customize.tags.placeholder"))}" />
+   ${suggest}
++  <div class="suggest" id="contentSuggest" style="display:none"
++    data-label="${esc(l10n("customize.tags.contentSuggestLabel"))}"></div>
+ </div>`;
+   }
+ 
+diff --git a/extension/src/views/launcher/launcherScriptCards.ts b/extension/src/views/launcher/launcherScriptCards.ts
+index caced8b..8030dfc 100644
+--- a/extension/src/views/launcher/launcherScriptCards.ts
++++ b/extension/src/views/launcher/launcherScriptCards.ts
+@@ -13,7 +13,7 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
+   card.className = 'card';
+   card.dataset.pane = it.pane;
+   if (it.scheduled) { card.dataset.scheduled = 'true'; }
+-  card.style.setProperty('--card-tint', cssVar(it.color));
++  card.style.setProperty('--card-tint', cssVar(it.color, tintHexes[it.color]));
+   card.dataset.hay = (it.label + ' ' + it.sub + ' ' + (it.desc || '') + ' ' + it.section).toLowerCase();
+ 
+   const row = document.createElement('div');
+diff --git a/extension/src/views/launcher/launcherScriptCore.ts b/extension/src/views/launcher/launcherScriptCore.ts
+index f8c2b1b..349455d 100644
+--- a/extension/src/views/launcher/launcherScriptCore.ts
++++ b/extension/src/views/launcher/launcherScriptCore.ts
+@@ -12,6 +12,7 @@
+ export const LAUNCHER_SCRIPT_CORE = `const vscode = acquireVsCodeApi();
+ let strings = {};
+ let items = [];
++var tintHexes = {};
+ let activeMenu = null;
+ // Which panes the user has toggled off via the header stat chips. Persisted across reloads
+ // so toggled-off sections stay hidden. Each key is a pane id; presence means hidden.
+@@ -108,11 +109,14 @@ const empty = document.getElementById('empty');
+ const projName = document.getElementById('projName');
+ const projMeta = document.getElementById('projMeta');
+ 
+-// Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. Falls back
+-// to the editor foreground so an unmapped/empty id still renders a visible glyph.
+-function cssVar(id) {
++// Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. When a
++// hex fallback is given, it is embedded inside the var() so the color still renders if
++// the CSS variable is not exposed in this webview (extension-contributed colors may not
++// be). Falls back to the editor foreground when no id is given.
++function cssVar(id, hex) {
+   if (!id) { return 'var(--vscode-foreground)'; }
+-  return 'var(--vscode-' + id.split('.').join('-') + ')';
++  var name = '--vscode-' + id.split('.').join('-');
++  return hex ? 'var(' + name + ', ' + hex + ')' : 'var(' + name + ')';
+ }
+ 
+ function codicon(id) {
+@@ -129,6 +133,7 @@ function codicon(id) {
+ function renderHeader(h) {
+   if (!h) { return; }
+   if (typeof h.project === 'string' && h.project) { projName.textContent = h.project; }
++  projName.classList.toggle('no-project', !!h.noProject);
+   projMeta.textContent = '';
+   if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true, null)); }
+   const stats = Array.isArray(h.stats) ? h.stats : [];
+@@ -268,4 +273,12 @@ if (settingsBtn) {
+   });
+ }
+ 
++if (projName) {
++  projName.addEventListener('click', function () {
++    if (projName.classList.contains('no-project')) {
++      vscode.postMessage({ type: 'openFolder' });
++    }
++  });
++}
++
+ `;
+diff --git a/extension/src/views/launcher/launcherScriptMenu.ts b/extension/src/views/launcher/launcherScriptMenu.ts
+index 2ebe720..8b0bff5 100644
+--- a/extension/src/views/launcher/launcherScriptMenu.ts
++++ b/extension/src/views/launcher/launcherScriptMenu.ts
+@@ -162,6 +162,7 @@ window.addEventListener('message', function (event) {
+   if (msg && msg.type === 'data') {
+     strings = msg.strings || {};
+     items = Array.isArray(msg.items) ? msg.items : [];
++    tintHexes = msg.tintHexes || {};
+     if (typeof msg.placeholder === 'string') { q.placeholder = msg.placeholder; }
+     renderHeader(msg.header);
+     render();
+diff --git a/extension/src/views/launcherAssets.ts b/extension/src/views/launcherAssets.ts
+index d900a17..b9f5d38 100644
+--- a/extension/src/views/launcherAssets.ts
++++ b/extension/src/views/launcherAssets.ts
+@@ -89,6 +89,13 @@ header {
+   color: var(--vscode-foreground);
+   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+ }
++.project-name.no-project {
++  cursor: pointer; text-decoration: underline;
++  color: var(--vscode-textLink-foreground);
++}
++.project-name.no-project:hover {
++  color: var(--vscode-textLink-activeForeground);
++}
+ /* The version + counts, inline on the project line. nowrap + overflow keeps it a single row
+    beside the name; min-width:0 lets it shrink (clipping the trailing stats) before it pushes
+    the search box off the bar. Each item is an icon + value. */
+diff --git a/extension/src/views/launcherView.ts b/extension/src/views/launcherView.ts
+index a0719f9..8608d8a 100644
+--- a/extension/src/views/launcherView.ts
++++ b/extension/src/views/launcherView.ts
+@@ -10,6 +10,7 @@ import { handleLauncherMessage } from "./launcherViewMessages";
+ import { buildAllItems, buildHeader } from "./launcherViewData";
+ import { renderHtml } from "./launcherViewShell";
+ import { noteLauncherItem } from "./launcherNoteItem";
++import { resolveTintHexes } from "./tintHexResolver";
+ 
+ // The "Saropa Workspace" Panel webview: a second, always-reachable window onto the same
+ // shortcut data the sidebar tree shows, living in the bottom Panel (beside Terminal /
+@@ -45,7 +46,8 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
+     private readonly noteStore: NoteStore,
+     private readonly projectFiles: ProjectFilesTreeProvider,
+     private readonly scriptsProvider: ScriptsTreeProvider,
+-    private readonly extensionUri: vscode.Uri
++    private readonly extensionUri: vscode.Uri,
++    private readonly globalState: vscode.Memento
+   ) {
+     // Repaint whenever any of the surfaces the launcher mirrors changes, so it never lags
+     // the sidebar: the shortcut/recipe set (store), the watch list and its unseen counts
+@@ -107,6 +109,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
+       projectFiles: this.projectFiles,
+       scriptsProvider: this.scriptsProvider,
+       extensionPath: this.extensionUri.fsPath,
++      globalState: this.globalState,
+       post: () => this.post(),
+     });
+   }
+@@ -149,6 +152,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
+     void this.view.webview.postMessage({
+       type: "data",
+       items,
++      tintHexes: resolveTintHexes(),
+       header: buildHeader(this.store, files, items),
+       placeholder: l10n("launcher.searchPlaceholder"),
+       strings: {
+diff --git a/extension/src/views/launcherViewData.ts b/extension/src/views/launcherViewData.ts
+index 2b4cb52..4783047 100644
+--- a/extension/src/views/launcherViewData.ts
++++ b/extension/src/views/launcherViewData.ts
+@@ -36,6 +36,7 @@ export interface LauncherHeader {
+   readonly project: string;
+   readonly version: string | undefined;
+   readonly stats: readonly LauncherStat[];
++  readonly noProject: boolean;
+ }
+ 
+ // Assemble every launcher row: the shortcut + recipe cards (the two existing panes), then
+@@ -193,6 +194,7 @@ export function buildHeader(
+     project,
+     version: version ? l10n("launcher.version", { version }) : undefined,
+     stats,
++    noProject: !primary && !vscode.workspace.name,
+   };
+ }
+ 
+diff --git a/extension/src/views/launcherViewMessages.ts b/extension/src/views/launcherViewMessages.ts
+index bc90819..d0ece93 100644
+--- a/extension/src/views/launcherViewMessages.ts
++++ b/extension/src/views/launcherViewMessages.ts
+@@ -1,3 +1,4 @@
++import * as path from "path";
+ import * as vscode from "vscode";
+ import { ShortcutStore, MoveTarget } from "../model/shortcutStore";
+ import { shortcutKind } from "../model/shortcut";
+@@ -7,6 +8,7 @@ import { runShortcutCommand } from "../commands/shortcutExecution";
+ import { openShortcut } from "../commands/shortcutOpen";
+ import { l10n } from "../i18n/l10n";
+ import { shortcutDisplayName } from "../model/shortcutDisplayName";
++import { KNOWN_CONFIG_DIRS } from "../model/shortcutFile";
+ import { ProjectFilesTreeProvider } from "./projectFilesProvider";
+ import { ScriptsTreeProvider } from "./scriptsTreeProvider";
+ import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
+@@ -48,6 +50,7 @@ export interface LauncherMessageContext {
+   readonly projectFiles: ProjectFilesTreeProvider;
+   readonly scriptsProvider: ScriptsTreeProvider;
+   readonly extensionPath: string;
++  readonly globalState: vscode.Memento;
+   readonly post: () => Promise<void>;
+ }
+ 
+@@ -76,6 +79,10 @@ export async function handleLauncherMessage(
+     await vscode.commands.executeCommand("saropaWorkspace.openSettings");
+     return;
+   }
++  if (msg.type === "openFolder") {
++    await handleOpenFolder(ctx);
++    return;
++  }
+   if (msg.type === "openWatch" && typeof msg.id === "string") {
+     await handleOpenWatch(msg.id, ctx);
+     return;
+@@ -110,6 +117,38 @@ export async function handleLauncherMessage(
+   await handleShortcutAction(msg.id, msg.type, msg.command, ctx);
+ }
+ 
++const LAST_CONFIG_KEY = "saropaWorkspace.lastConfigFile";
++
++function projectRootFromConfig(configFsPath: string): string {
++  let folder = path.dirname(configFsPath);
++  if ((KNOWN_CONFIG_DIRS as readonly string[]).includes(path.basename(folder))) {
++    folder = path.dirname(folder);
++  }
++  return folder;
++}
++
++async function handleOpenFolder(ctx: LauncherMessageContext): Promise<void> {
++  const lastPath = ctx.globalState.get<string>(LAST_CONFIG_KEY);
++  const defaultUri = lastPath
++    ? vscode.Uri.file(projectRootFromConfig(lastPath))
++    : undefined;
++  const picked = await vscode.window.showOpenDialog({
++    canSelectFiles: true,
++    canSelectFolders: false,
++    canSelectMany: false,
++    defaultUri,
++    filters: { [l10n("launcher.openFolder.filterLabel")]: ["json"] },
++    title: l10n("launcher.openFolder.title"),
++  });
++  if (!picked?.length) {
++    return;
++  }
++  const configFile = picked[0];
++  await ctx.globalState.update(LAST_CONFIG_KEY, configFile.fsPath);
++  const folderUri = vscode.Uri.file(projectRootFromConfig(configFile.fsPath));
++  await vscode.commands.executeCommand("vscode.openFolder", folderUri);
++}
++
+ async function handleOpenWatch(id: string, ctx: LauncherMessageContext): Promise<void> {
+   if (ctx.watchStore.find(id)) {
+     await vscode.commands.executeCommand("saropaWorkspace.openWatch", id);
+diff --git a/extension/src/views/launcherViewShell.ts b/extension/src/views/launcherViewShell.ts
+index 6bc1c2c..15ec102 100644
+--- a/extension/src/views/launcherViewShell.ts
++++ b/extension/src/views/launcherViewShell.ts
+@@ -20,6 +20,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
+   // into the markup (the webview's later update uses textContent and is safe by
+   // construction).
+   const primary = (vscode.workspace.workspaceFolders ?? [])[0];
++  const noProject = !primary && !vscode.workspace.name;
+   const projectName = escapeHtml(
+     primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject")
+   );
+@@ -46,7 +47,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
+ <header>
+   <div class="head-bar">
+     <div class="project">
+-      <div id="projName" class="project-name">${projectName}</div>
++      <div id="projName" class="project-name${noProject ? " no-project" : ""}">${projectName}</div>
+       <div id="projMeta" class="project-meta"><span class="meta-item loading"><span class="codicon codicon-loading codicon-modifier-spin"></span><span>${l10n("launcher.loading")}</span></span></div>
+     </div>
+     <button id="settingsBtn" class="hdr-btn" type="button" title="${l10n("settings.title")}"><span class="codicon codicon-settings-gear"></span></button>
+diff --git a/plans/guides/STYLEGUIDE.md b/plans/guides/STYLEGUIDE.md
+index f88dbe6..f1aeb92 100644
+--- a/plans/guides/STYLEGUIDE.md
++++ b/plans/guides/STYLEGUIDE.md
+@@ -1083,6 +1083,10 @@ it as a substitute for writing it right.
+   both render, nothing overflows at narrow and wide widths, and contrast meets
+   WCAG AA.
+ 
++### 4.13 An empty-state label that names its own fix is a link to that fix
++
++When a surface's empty state names something the user can do to leave it ("No folder open", "No shortcuts yet"), make the label a clickable link that performs or begins the action, styled with `--vscode-textLink-foreground` and an underline. The link posts a message to the host (e.g. `openFolder`), which delegates to a VS Code command — the webview never drives an arbitrary command directly. When the same label is dynamically replaced by real content (a folder name, a shortcut list), the link styling is removed via a toggled CSS class (e.g. `.no-project`), so the text is only clickable while the empty state applies. The launcher header's "No folder open" link is the model.
++
+ ---
+ 
+ ## Maintaining this guide
