@@ -86,7 +86,7 @@ export async function runInExternal(
     const STDERR_CAP = 4096;
     child.stderr.on("data", (chunk: Buffer) => {
       if (stderr.length < STDERR_CAP) {
-        stderr += chunk.toString();
+        stderr = (stderr + chunk.toString()).slice(0, STDERR_CAP);
       }
     });
     child.on("exit", (code) => {
