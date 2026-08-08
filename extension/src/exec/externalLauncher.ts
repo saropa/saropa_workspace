@@ -83,10 +83,15 @@ export async function runInExternal(
   // reports what went wrong rather than vanishing silently.
   if (child.stderr) {
     let stderr = "";
-    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    const STDERR_CAP = 4096;
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (stderr.length < STDERR_CAP) {
+        stderr += chunk.toString();
+      }
+    });
     child.on("exit", (code) => {
       if (code !== 0 && code !== null) {
-        const detail = stderr.trim() || `exit code ${code}`;
+        const detail = stderr.trim().slice(0, STDERR_CAP) || `exit code ${code}`;
         channel.appendLine(`[${name}] external launcher failed: ${detail}`);
         vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: detail }));
       }

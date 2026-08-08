@@ -13,6 +13,7 @@ import {
   formatTestTooltip,
 } from "./shortcutRowFormatting";
 import { l10n } from "../i18n/l10n";
+import { tintDisplayName } from "./tintHexResolver";
 
 // The tooltip-lines assembly phase of ShortcutTreeItem's constructor, split out so the
 // class body stays a short sequence of builder calls. Returns the ordered lines
@@ -43,6 +44,9 @@ export interface ShortcutTooltipInput {
   readonly metricBadge: MetricBadge | undefined;
   readonly metricText: string | undefined;
   readonly untapped: boolean;
+  // The custom tint color ID (e.g. "saropaWorkspace.tint.red") when a user has
+  // chosen a color for this shortcut via Customize.
+  readonly customColor: string | undefined;
   // True when this manual pin's path matches an auto-pin pattern (the auto
   // was suppressed). Drives a tooltip line so the user knows removing this
   // pin will bring back the auto-shortcut.
@@ -186,7 +190,7 @@ function buildTooltipOutcomeLines(input: ShortcutTooltipInput): string[] {
 // untapped marker, and the click-gesture reminder — organizational facts about the
 // shortcut rather than its current run state.
 function buildTooltipMetadataLines(input: ShortcutTooltipInput): string[] {
-  const { shortcut, masked, metricText, metricBadge, untapped, shadowsAuto, isRunning, isStopping, owningFolder } = input;
+  const { shortcut, masked, customColor, metricText, metricBadge, untapped, shadowsAuto, isRunning, isStopping, owningFolder } = input;
   const lines: string[] = [];
   // In a multi-root workspace, name the workspace folder that owns this project
   // shortcut so the user knows which .vscode/saropa-workspace.json it lives in.
@@ -200,6 +204,13 @@ function buildTooltipMetadataLines(input: ShortcutTooltipInput): string[] {
     lines.push(
       l10n("tag.tooltip", { tags: shortcut.tags.map((t) => `#${t}`).join(" ") })
     );
+  }
+  // Name the custom tint so the hover confirms which color the user applied.
+  if (customColor) {
+    const colorName = tintDisplayName(customColor);
+    if (colorName) {
+      lines.push(l10n("tint.tooltip", { color: colorName }));
+    }
   }
   // Name the branch this shortcut is linked to (WOW #3), so the hover explains why it
   // shows on some branches and not others.
