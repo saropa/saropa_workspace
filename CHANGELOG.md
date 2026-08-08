@@ -57,7 +57,7 @@ cspell:disable
 
 ### Fixed
 
-- **Custom color tinting now renders correctly** — user-selected tint colors from the Customize panel (the 20-swatch palette) now display their actual color in the launcher panel instead of falling back to gray when the webview cannot resolve extension-contributed CSS variables.
+- **Custom color tinting now renders correctly** — user-selected tint colors from the Customize panel (the 20-swatch palette) now display their actual color in the launcher panel instead of falling back to gray when the webview cannot resolve extension-contributed CSS variables. Switching themes now refreshes tints immediately.
 - **External window launches now surface errors** — if the outer PowerShell process fails to open a new window (e.g. `Start-Process` errors), the failure is now captured and shown as an error toast instead of silently swallowed after a false "launched" success toast.
 
 ---
