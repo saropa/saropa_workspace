@@ -11,6 +11,7 @@ import {
   Uri,
   __resetRecordedCommands,
 } from "./_stub/vscode";
+import { fakeContext } from "./_stub/context";
 import { handleLauncherMessage, LauncherMessageContext } from "../views/launcherViewMessages";
 import { Shortcut } from "../model/shortcut";
 import { MoveTarget } from "../model/shortcutStore";
@@ -73,6 +74,7 @@ function context(): LauncherMessageContext {
     watchStore: {},
     scriptsProvider: {},
     extensionPath: "/ext",
+    globalState: fakeContext().globalState,
     post: async (): Promise<void> => {},
   } as unknown as LauncherMessageContext;
 }

@@ -36,6 +36,7 @@ export interface LauncherHeader {
   readonly project: string;
   readonly version: string | undefined;
   readonly stats: readonly LauncherStat[];
+  readonly noProject: boolean;
 }
 
 // Assemble every launcher row: the shortcut + recipe cards (the two existing panes), then
@@ -193,6 +194,7 @@ export function buildHeader(
     project,
     version: version ? l10n("launcher.version", { version }) : undefined,
     stats,
+    noProject: !primary && !vscode.workspace.name,
   };
 }
 

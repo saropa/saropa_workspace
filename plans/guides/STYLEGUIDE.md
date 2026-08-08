@@ -1083,6 +1083,14 @@ it as a substitute for writing it right.
   both render, nothing overflows at narrow and wide widths, and contrast meets
   WCAG AA.
 
+### 4.13 An empty-state label that names its own fix is a link to that fix
+
+When a surface's empty state names something the user can do to leave it ("No folder open", "No shortcuts yet"), make the label a clickable link that performs or begins the action, styled with `--vscode-textLink-foreground` and an underline. The link posts a message to the host (e.g. `openFolder`), which delegates to a VS Code command — the webview never drives an arbitrary command directly. When the same label is dynamically replaced by real content (a folder name, a shortcut list), the link styling is removed via a toggled CSS class (e.g. `.no-project`), so the text is only clickable while the empty state applies. The launcher header's "No folder open" link is the model.
+
+### 4.14 A recent-items QuickPick ends with a Browse fallback
+
+When an action can reopen a previously selected resource (a config file, a workspace, a report), offer a QuickPick of the N most-recent entries (most recent first), with a terminal "Browse…" row that falls through to the native file/folder picker. If no recent history exists, skip the QuickPick and go straight to the picker. Each recent row's label is the project/folder name; its description is the full path. The recent list is stored in `globalState` and capped (currently 5). The "No folder open" link's recent-workspace picker is the model.
+
 ---
 
 ## Maintaining this guide

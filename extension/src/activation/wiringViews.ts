@@ -173,7 +173,8 @@ function setupLauncherPanel(
     noteStore,
     projectFiles,
     scripts,
-    context.extensionUri
+    context.extensionUri,
+    context.globalState
   );
   context.subscriptions.push(
     launcher,

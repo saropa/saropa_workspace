@@ -20,6 +20,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
   // into the markup (the webview's later update uses textContent and is safe by
   // construction).
   const primary = (vscode.workspace.workspaceFolders ?? [])[0];
+  const noProject = !primary && !vscode.workspace.name;
   const projectName = escapeHtml(
     primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject")
   );
@@ -46,7 +47,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
 <header>
   <div class="head-bar">
     <div class="project">
-      <div id="projName" class="project-name">${projectName}</div>
+      <div id="projName" class="project-name${noProject ? " no-project" : ""}">${projectName}</div>
       <div id="projMeta" class="project-meta"><span class="meta-item loading"><span class="codicon codicon-loading codicon-modifier-spin"></span><span>${l10n("launcher.loading")}</span></span></div>
     </div>
     <button id="settingsBtn" class="hdr-btn" type="button" title="${l10n("settings.title")}"><span class="codicon codicon-settings-gear"></span></button>

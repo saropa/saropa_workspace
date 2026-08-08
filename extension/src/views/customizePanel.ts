@@ -1,12 +1,14 @@
 import * as vscode from "vscode";
 import * as crypto from "crypto";
 import { Shortcut } from "../model/shortcut";
-import { shortcutDisplayName } from "../model/shortcutDisplayName";
+import { shortcutDisplayName, toTitleCase } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { COLOR_CHOICES } from "../commands/configureAppearance";
 import { ICON_CATEGORIES, ICON_KEYWORDS } from "./iconCatalog";
 import { CUSTOMIZE_STYLE, CUSTOMIZE_SCRIPT } from "./customizeAssets";
 import { l10n } from "../i18n/l10n";
+import { guessTagsFromContent } from "./customizeTagGuesser";
+import { resolveAllColorHexes } from "./tintHexResolver";
 
 // The Customize webview form — one screen to set a shortcut's NAME, ICON, COLOR, and
 // TAGS at once, with a live preview of the tree row. It replaces hopping between the
@@ -24,21 +26,6 @@ import { l10n } from "../i18n/l10n";
 // (esbuild copies it to dist/); the panel loads dist/codicon.css via asWebviewUri under a
 // CSP that allows only the webview's own resource origin for styles/fonts — no network.
 // A second open reuses the one panel, repointed at the new shortcut.
-
-// The active theme's key into a contributed color's `defaults` map, so a swatch shows the
-// same hex the tree icon will actually take in this theme.
-function themeDefaultsKey(): "dark" | "light" | "highContrast" | "highContrastLight" {
-  switch (vscode.window.activeColorTheme.kind) {
-    case vscode.ColorThemeKind.Light:
-      return "light";
-    case vscode.ColorThemeKind.HighContrast:
-      return "highContrast";
-    case vscode.ColorThemeKind.HighContrastLight:
-      return "highContrastLight";
-    default:
-      return "dark";
-  }
-}
 
 interface SaveMessage {
   name?: string;
@@ -131,13 +118,33 @@ export class CustomizePanel {
     if (!shortcut) {
       return;
     }
+    const basename = shortcut.path.split("/").pop() ?? shortcut.path;
+    const guessedName = toTitleCase(basename);
+
+    // Read file content for tag suggestions (file shortcuts only, capped at 128 KB)
+    let suggestedTags: string[] = [];
+    if (!shortcut.action) {
+      const uri = this.store.resolveUri(shortcut);
+      if (uri) {
+        try {
+          const raw = await vscode.workspace.fs.readFile(uri);
+          const text = new TextDecoder().decode(raw.slice(0, 131072));
+          suggestedTags = guessTagsFromContent(text);
+        } catch {
+          // Missing/binary/unreadable — skip tag suggestions
+        }
+      }
+    }
+
     await this.panel.webview.postMessage({
       type: "init",
       work: {
         name: shortcut.label ?? "",
+        guessedName,
         icon: shortcut.icon,
         color: shortcut.color,
         tags: shortcut.tags ?? [],
+        suggestedTags,
       },
     });
   }
@@ -294,23 +301,8 @@ ${this.tagCard()}
 </div>`;
   }
 
-  // Map each offered tint id to its hex for the active theme, read from the extension's
-  // OWN manifest (contributes.colors) — the single source of truth for the palette, so a
-  // swatch can never drift from the registered ThemeColor the tree uses.
   private resolveSwatchHexes(): Record<string, string> {
-    const key = themeDefaultsKey();
-    const colors = (this.context.extension.packageJSON?.contributes?.colors ?? []) as Array<{
-      id: string;
-      defaults?: Record<string, string>;
-    }>;
-    const out: Record<string, string> = {};
-    for (const entry of colors) {
-      const hex = entry.defaults?.[key] ?? entry.defaults?.dark;
-      if (hex) {
-        out[entry.id] = hex;
-      }
-    }
-    return out;
+    return resolveAllColorHexes();
   }
 
   private tagCard(): string {
@@ -331,6 +323,8 @@ ${this.tagCard()}
   <div class="tagempty" id="tagEmpty">${esc(l10n("customize.tags.placeholder"))}</div>
   <input type="text" id="tagInput" placeholder="${esc(l10n("customize.tags.placeholder"))}" />
   ${suggest}
+  <div class="suggest" id="contentSuggest" style="display:none"
+    data-label="${esc(l10n("customize.tags.contentSuggestLabel"))}"></div>
 </div>`;
   }
 
