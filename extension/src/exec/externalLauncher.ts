@@ -187,11 +187,15 @@ function launchExternalWindows(
       detached: false,
       // The wrapper is not the user-visible window (Start-Process's target is) —
       // hide the wrapper's own console so only the real window is seen. This only
-      // hides THIS process's own console; it has no effect on the UAC consent
-      // dialog or the elevated target window for -Verb RunAs, both of which are
-      // raised by the AppInfo service on the Secure Desktop, independent of the
-      // calling process's window state.
-      windowsHide: true,
+      // hides THIS process's own console; it should have no effect on the UAC
+      // consent dialog or the elevated target window for -Verb RunAs, both raised
+      // by the AppInfo service on the Secure Desktop independent of the calling
+      // process's window state — but that reasoning is unverified against a real
+      // UAC prompt. The elevated case's window/UAC behavior was already verified
+      // working (see the -NonInteractive comment above) before windowsHide existed,
+      // so scope this to the non-elevated wrapper only: no reason to add an
+      // untested variable to a path that already worked.
+      windowsHide: !elevated,
       // Pipe stderr so Start-Process failures surface to the caller instead of
       // vanishing in the wrapper's hidden console.
       stdio: ["ignore", "ignore", "pipe"],
@@ -207,6 +211,13 @@ function launchExternalWindows(
 // macOS: drive Terminal.app via AppleScript. Elevation wraps the command in a
 // `sudo` invocation (Terminal prompts for the password in the new window); there
 // is no UAC equivalent, so this is the closest "administrator" behavior.
+//
+// Unlike Windows, `detached: true` here spawns the process the user actually sees
+// (osascript driving Terminal.app), not an intermediate wrapper that hands off to
+// a separate target — so the exact "wrapper succeeds, inner launch silently fails"
+// failure mode diagnosed on Windows does not structurally apply. Left unverified
+// and unchanged: no macOS host was available to confirm whether Electron's Job
+// Object equivalent on this platform (if any) causes a different, narrower issue.
 function launchExternalMac(
   cp: typeof import("child_process"),
   commandLine: string,

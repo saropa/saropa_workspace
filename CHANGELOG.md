@@ -48,6 +48,8 @@ cspell:disable
 
 ## [Unreleased]
 
+Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window.
+
 ### Fixed
 
 - **External window launches now actually open the window** — the outer PowerShell wrapper no longer runs detached. VS Code's host process runs child processes inside a Windows Job Object that denies breakaway, so a detached wrapper's internal `Start-Process` call silently failed to create the target window (exit code 0, no error) while reporting success. The wrapper's own console is now hidden instead, so only the real external window is visible.
