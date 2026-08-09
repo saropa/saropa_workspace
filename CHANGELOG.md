@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.6.9]
 
-Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window.
+Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.9/CHANGELOG.md)
 
 ### Fixed
 
