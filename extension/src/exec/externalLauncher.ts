@@ -95,6 +95,13 @@ export async function runInExternal(
         const detail = stderr.trim().slice(0, STDERR_CAP) || `exit code ${code}`;
         channel.appendLine(`[${name}] external launcher failed: ${detail}`);
         vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: detail }));
+      } else {
+        // A clean wrapper exit only means Start-Process was asked to launch the
+        // window, not that the window actually opened (Start-Process is
+        // fire-and-forget and returns before the target finishes initializing) —
+        // exactly the gap that let the Job Object failure go unnoticed. Worded to
+        // reflect that: confirms the request succeeded, not the window's presence.
+        channel.appendLine(`[${name}] external launcher: window requested successfully`);
       }
       child.stderr?.destroy();
     });
@@ -166,18 +173,27 @@ function launchExternalWindows(
     // runs; without it, UAC fires and the window opens.
     ["-NoProfile", "-Command", psCommand],
     {
-      // detached:true (DETACHED_PROCESS on Windows) strips the inherited window
-      // station from the launching PowerShell. ShellExecute's "runas" verb
-      // (-Verb RunAs) then has no desktop on which the AppInfo service can raise
-      // the UAC consent, so elevation is dropped SILENTLY — no prompt, no window,
-      // PowerShell still exits 0. Verified: detached + RunAs shows nothing;
-      // non-detached + RunAs shows the UAC prompt and the window. So only the
-      // non-elevated launch detaches (to outlive this launcher). The elevated
-      // PowerShell needs no detach: it exits on its own once Start-Process hands
-      // off to the independent elevated window, which survives regardless.
-      detached: !elevated,
+      // NEVER detach this wrapper. VS Code's Electron host runs its child processes
+      // inside a Windows Job Object (for orphan cleanup on exit); DETACHED_PROCESS /
+      // CREATE_BREAKAWAY_FROM_JOB is denied by a job that doesn't grant
+      // JOB_OBJECT_LIMIT_BREAKAWAY_OK. The wrapper's own CreateProcess still
+      // succeeds (real PID, exit code 0, empty stderr) but the Start-Process it
+      // runs internally fails to allocate a console for the target window, so the
+      // window silently never appears — the exact "only the toast shows" report.
+      // Verified: detached:true creates zero visible process; detached:false (or
+      // omitted) reliably opens the window, in the same job-constrained host.
+      // This also fixed the earlier elevated-UAC case (see below) for the same
+      // underlying reason, not a UAC-specific one.
+      detached: false,
+      // The wrapper is not the user-visible window (Start-Process's target is) —
+      // hide the wrapper's own console so only the real window is seen. This only
+      // hides THIS process's own console; it has no effect on the UAC consent
+      // dialog or the elevated target window for -Verb RunAs, both of which are
+      // raised by the AppInfo service on the Secure Desktop, independent of the
+      // calling process's window state.
+      windowsHide: true,
       // Pipe stderr so Start-Process failures surface to the caller instead of
-      // vanishing in a detached console-less process.
+      // vanishing in the wrapper's hidden console.
       stdio: ["ignore", "ignore", "pipe"],
       // Non-elevated windows inherit env from this launcher; elevated windows get
       // a fresh environment from ShellExecute, so this env is unused there.

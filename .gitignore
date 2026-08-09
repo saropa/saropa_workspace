@@ -35,5 +35,8 @@ reports/*
 # public repo. (Unlike the rest of plans/, which is tracked.)
 plans/competitors/
 
+# Session handover notes — private working context, not for the public repo.
+docs/handover/
+
 # Saropa Log Capture
 reports/
