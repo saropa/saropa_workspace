@@ -11,3 +11,13 @@ icon_source.svg
 **/__pycache__/**
 **/*.pyc
 .gitignore
+
+# vsce packages from disk using ONLY this file (it does not consult .gitignore),
+# so anything git-ignored — like .claude/ dev-tooling config — still ships unless
+# excluded here explicitly too.
+.claude/**
+
+# Stray build-artifact directory from a past esbuild.test.js bug (a bad outDir
+# resolved to the literal string "undefined"). The bug is fixed, but excluded
+# defensively in case a future build script regresses the same way.
+undefined/**

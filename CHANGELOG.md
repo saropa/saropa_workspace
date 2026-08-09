@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **External window launches now actually open the window** — the outer PowerShell wrapper no longer runs detached. VS Code's host process runs child processes inside a Windows Job Object that denies breakaway, so a detached wrapper's internal `Start-Process` call silently failed to create the target window (exit code 0, no error) while reporting success. The wrapper's own console is now hidden instead, so only the real external window is visible.
+
+---
+
 ## [1.6.8]
 
 This release adds standard dialog keyboard shortcuts, auto-generated names, and content-based tag suggestions to the Customize panel. The Launcher now includes a recent-workspaces quick-pick when no folder is open. Bug fixes address webview disposable leaks, unclosed stderr streams during failed process spawns, and silently swallowed PowerShell errors. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.8/CHANGELOG.md)
