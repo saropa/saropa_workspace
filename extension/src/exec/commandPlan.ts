@@ -68,15 +68,58 @@ function normalizeForPlatform(prefix: string, platform: NodeJS.Platform): string
   return prefix.replace(/^python3(?=$|\s)/, "python");
 }
 
+// Windows extensions the shell (cmd.exe, via `shell:true`/terminal.sendText — see
+// runPlanning.ts) executes directly off PATHEXT, with no interpreter prefix needed:
+// a bare "foo.bat" already runs. Without this, a freshly-pinned .bat/.cmd file with
+// no configured default and no shebang reads as "not runnable" and the run command
+// opens it instead of executing it, even though the assembled blank-prefix command
+// line would have worked. Not offered as interpreter *candidates* (interpreters.ts)
+// because there is no interpreter to choose — the file IS the executable.
+// A conservative, hardcoded subset of the real PATHEXT rather than a read of
+// process.env.PATHEXT (as interpreterDetect.ts's findOnPath does): this module is
+// documented as the pure/no-IO core (see the file banner), and this list only gates
+// a UI "is it runnable" hint — the shell still honors the machine's actual PATHEXT
+// at run time regardless, so a customized PATHEXT (e.g. adding .VBS) merely means
+// that one extension under-reports as "not runnable" here, not that it fails to run.
+const WINDOWS_NATIVE_EXECUTABLE_EXTS: ReadonlySet<string> = new Set([".bat", ".cmd", ".exe", ".com"]);
+
+// Whether a blank/unconfigured prefix for this extension still runs the file directly,
+// with no interpreter involved — the single source of truth shared by isRunnablePlan
+// (the runnable gate) and the Configure Run panel (the "what does empty do?" hint), so
+// the two never disagree about a .bat/.cmd/.exe/.com file's blank-prefix behavior.
+export function isNativelyExecutable(ext: string, platform: NodeJS.Platform): boolean {
+  return platform === "win32" && WINDOWS_NATIVE_EXECUTABLE_EXTS.has(ext);
+}
+
+// What the Configure Run panel's "empty command box" hint should say, as a discriminated
+// tag rather than a display string — the panel (host code, holds no display strings)
+// maps each tag to its l10n key. Pure so the three-way choice (has a resolved prefix /
+// runs natively with none / truly has no way to run) is unit-testable without the
+// webview host.
+export type DefaultHintKind = "prefix" | "native" | "none";
+
+export function defaultHintKind(
+  resolvedPrefix: string,
+  ext: string,
+  platform: NodeJS.Platform
+): DefaultHintKind {
+  if (resolvedPrefix) {
+    return "prefix";
+  }
+  return isNativelyExecutable(ext, platform) ? "native" : "none";
+}
+
 // Whether a shortcut can be executed at all (there is some interpreter path). True for
-// an explicit command, an extension with a configured default, or a file carrying
-// a shebang. False for an ordinary document (.txt, .md, image) with no
-// interpreter, where "run" has no meaning and the caller should open it instead.
+// an explicit command, an extension with a configured default, a file carrying a
+// shebang, or (on Windows) an extension the shell runs natively without one. False
+// for an ordinary document (.txt, .md, image) with no interpreter, where "run" has
+// no meaning and the caller should open it instead.
 export function isRunnablePlan(opts: {
   explicitCommand: string | undefined;
   ext: string;
   defaults: Record<string, string>;
   hasShebang: boolean;
+  platform: NodeJS.Platform;
 }): boolean {
   if (opts.explicitCommand !== undefined) {
     return true;
@@ -84,7 +127,10 @@ export function isRunnablePlan(opts: {
   if (opts.defaults[opts.ext] !== undefined) {
     return true;
   }
-  return opts.hasShebang;
+  if (opts.hasShebang) {
+    return true;
+  }
+  return isNativelyExecutable(opts.ext, opts.platform);
 }
 
 // Parse the interpreter out of a `#!` shebang LINE (the raw first line of a file), or

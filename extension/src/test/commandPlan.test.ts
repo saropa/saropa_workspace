@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import {
   resolveInterpreter,
   isRunnablePlan,
+  isNativelyExecutable,
+  defaultHintKind,
   quoteArg,
   assembleCommandLine,
   buildWindowsStartup,
@@ -187,24 +189,66 @@ test("resolveInterpreter: no command, no default, no shebang -> run directly", (
 
 test("isRunnablePlan: true for explicit command, default, or shebang", () => {
   assert.equal(
-    isRunnablePlan({ explicitCommand: "", ext: ".txt", defaults: {}, hasShebang: false }),
+    isRunnablePlan({ explicitCommand: "", ext: ".txt", defaults: {}, hasShebang: false, platform: "linux" }),
     true
   );
   assert.equal(
-    isRunnablePlan({ explicitCommand: undefined, ext: ".py", defaults: DEFAULTS, hasShebang: false }),
+    isRunnablePlan({ explicitCommand: undefined, ext: ".py", defaults: DEFAULTS, hasShebang: false, platform: "linux" }),
     true
   );
   assert.equal(
-    isRunnablePlan({ explicitCommand: undefined, ext: ".sh", defaults: DEFAULTS, hasShebang: true }),
+    isRunnablePlan({ explicitCommand: undefined, ext: ".sh", defaults: DEFAULTS, hasShebang: true, platform: "linux" }),
     true
   );
 });
 
 test("isRunnablePlan: false for a plain document with no interpreter", () => {
   assert.equal(
-    isRunnablePlan({ explicitCommand: undefined, ext: ".md", defaults: DEFAULTS, hasShebang: false }),
+    isRunnablePlan({ explicitCommand: undefined, ext: ".md", defaults: DEFAULTS, hasShebang: false, platform: "linux" }),
     false
   );
+});
+
+test("isRunnablePlan: a Windows batch/executable file is runnable with no configured interpreter", () => {
+  for (const ext of [".bat", ".cmd", ".exe", ".com"]) {
+    assert.equal(
+      isRunnablePlan({ explicitCommand: undefined, ext, defaults: {}, hasShebang: false, platform: "win32" }),
+      true,
+      `${ext} should be runnable on win32`
+    );
+  }
+});
+
+test("isRunnablePlan: a .bat file is not runnable off Windows with no configured interpreter", () => {
+  assert.equal(
+    isRunnablePlan({ explicitCommand: undefined, ext: ".bat", defaults: {}, hasShebang: false, platform: "linux" }),
+    false
+  );
+});
+
+test("isNativelyExecutable: true for .bat/.cmd/.exe/.com on win32 only", () => {
+  for (const ext of [".bat", ".cmd", ".exe", ".com"]) {
+    assert.equal(isNativelyExecutable(ext, "win32"), true, `${ext} on win32`);
+    assert.equal(isNativelyExecutable(ext, "linux"), false, `${ext} on linux`);
+  }
+  assert.equal(isNativelyExecutable(".py", "win32"), false, ".py is not natively executable");
+});
+
+test("defaultHintKind: a resolved prefix wins regardless of extension", () => {
+  assert.equal(defaultHintKind("python", ".bat", "win32"), "prefix");
+});
+
+test("defaultHintKind: an empty prefix on a native-executable extension is 'native' on Windows", () => {
+  assert.equal(defaultHintKind("", ".bat", "win32"), "native");
+  assert.equal(defaultHintKind("", ".exe", "win32"), "native");
+});
+
+test("defaultHintKind: an empty prefix on a native-executable extension is 'none' off Windows", () => {
+  assert.equal(defaultHintKind("", ".bat", "linux"), "none");
+});
+
+test("defaultHintKind: an empty prefix on a plain document is 'none'", () => {
+  assert.equal(defaultHintKind("", ".md", "win32"), "none");
 });
 
 test("quoteArg: wraps values with whitespace, leaves simple ones bare", () => {

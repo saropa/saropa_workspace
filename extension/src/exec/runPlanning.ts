@@ -92,6 +92,7 @@ export function isRunnable(shortcut: Shortcut, fsPath: string): boolean {
     ext: path.extname(fsPath).toLowerCase(),
     defaults: interpreterDefaults(),
     hasShebang: shebangInterpreter(fsPath) !== undefined,
+    platform: process.platform,
   });
 }
 

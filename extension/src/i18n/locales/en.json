@@ -388,6 +388,7 @@
   "configureRun.interp.browse": "Browse…",
   "configureRun.interp.defaultHint": "Empty runs with {interpreter}, the default for this file type.",
   "configureRun.interp.defaultHintNone": "Empty opens the file — its type has no interpreter.",
+  "configureRun.interp.defaultHintNative": "Empty runs the file directly — {ext} needs no interpreter.",
   "action.opened": "Opened {url}",
   "action.macroSteps": "{count} steps",
   "action.routineMembers": "{count} recipes",
