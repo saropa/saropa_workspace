@@ -46,6 +46,17 @@ cspell:disable
 
 ---
 
+## [1.6.10]
+
+Pinned Windows scripts and executable files can now be run directly without extra interpreter setup. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.10/CHANGELOG.md)
+
+### Fixed
+
+- **Batch files and other Windows executables are recognized as runnable** — a freshly pinned `.bat`, `.cmd`, `.exe`, or `.com` file with no configured interpreter and no shebang is now offered as a run target instead of falling back to open-the-file, since the shell executes these directly without an interpreter prefix.
+- **Configure Run panel's empty-command hint no longer says "opens the file"** for those same batch/executable file types — it now says the file runs directly, matching what actually happens when the command box is left blank.
+
+---
+
 ## [1.6.9]
 
 Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.9/CHANGELOG.md)

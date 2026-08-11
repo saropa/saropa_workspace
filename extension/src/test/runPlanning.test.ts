@@ -185,6 +185,20 @@ test("isRunnable honors a #! shebang on an extensionless script", () => {
   assert.equal(isRunnable(shortcut({ path: "deploy" }), scriptPath), true);
 });
 
+test("isRunnable: a .bat with no configured interpreter follows the real host platform", () => {
+  // isRunnable (unlike the pure isRunnablePlan it wraps) always reads the real
+  // process.platform rather than taking one as a parameter, so this pins the
+  // win32/non-win32 wiring itself, not just the pure commandPlan.ts branch: a
+  // future refactor that forgets to thread platform through would fail this on
+  // Windows CI while the pure-layer tests in commandPlan.test.ts stayed green.
+  const batPath = `${tmpDir}/run.bat`;
+  nodeFs.writeFileSync(batPath, "@echo off\r\necho hi\r\n");
+  assert.equal(
+    isRunnable(shortcut({ path: "run.bat" }), batPath),
+    process.platform === "win32"
+  );
+});
+
 test("planRun runs an extensionless shebang script through its declared interpreter", () => {
   // #!/usr/bin/env python3 -> the env wrapper is stripped, leaving python3 as the
   // resolved prefix. On win32 that bare `python3` is further normalized to `python`

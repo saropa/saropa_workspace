@@ -5,6 +5,7 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { seedLocation, normalize, ConcurrencyEdit } from "../commands/configureRun";
 import { parseArgs, formatArgs } from "../commands/configureRunCommand";
 import { planRun, resolveRunPrefix } from "../exec/runPlanning";
+import { defaultHintKind } from "../exec/commandPlan";
 import { detectInterpreters } from "../exec/interpreterDetect";
 import { renderConfigureRunHtml } from "./configureRunShell";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
@@ -195,9 +196,21 @@ export class ConfigureRunPanel {
         useDefault: l10n("configureRun.interp.useDefault"),
         browse: l10n("configureRun.interp.browse"),
         // Shown under the command box while it is blank, so "empty" is never a mystery.
-        defaultHint: defaultPrefix
-          ? l10n("configureRun.interp.defaultHint", { interpreter: defaultPrefix })
-          : l10n("configureRun.interp.defaultHintNone"),
+        // defaultHintKind is the same source of truth the runnable gate (isRunnablePlan)
+        // is built on, so this hint and "can this pin run?" never disagree — a
+        // .bat/.cmd/.exe/.com file on Windows now says it runs directly rather than
+        // "opens the file", which it stopped doing when isRunnablePlan learned about
+        // native executables.
+        defaultHint: ((): string => {
+          switch (defaultHintKind(defaultPrefix, ext, process.platform)) {
+            case "prefix":
+              return l10n("configureRun.interp.defaultHint", { interpreter: defaultPrefix });
+            case "native":
+              return l10n("configureRun.interp.defaultHintNative", { ext });
+            case "none":
+              return l10n("configureRun.interp.defaultHintNone");
+          }
+        })(),
       },
     });
   }
