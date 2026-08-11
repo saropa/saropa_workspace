@@ -19,6 +19,7 @@ from pathlib import Path
 from modules._utils import (
     EXTENSION_DIR,
     GENERATED_DOC_PAIRS,
+    REPO_ROOT,
     fail,
     header,
     print_failure_tail,
@@ -66,7 +67,7 @@ def build() -> int:
 
 
 def newest_vsix() -> Path | None:
-    candidates = sorted(EXTENSION_DIR.glob("*.vsix"), key=lambda p: p.stat().st_mtime, reverse=True)
+    candidates = sorted(REPO_ROOT.glob("*.vsix"), key=lambda p: p.stat().st_mtime, reverse=True)
     return candidates[0] if candidates else None
 
 
@@ -74,15 +75,20 @@ def package_vsix(version: str | None) -> int:
     header("PACKAGE")
     # Remove stale .vsix files first so newest_vsix() can never resolve an old
     # build (the root cause of a prior version "never reaching the Marketplace").
-    for old in EXTENSION_DIR.glob("*.vsix"):
+    for old in REPO_ROOT.glob("*.vsix"):
         old.unlink()
     try:
         run(["npx", "vsce", "package", "--no-dependencies"], EXTENSION_DIR)
     except subprocess.CalledProcessError:
         return fail("vsce package failed.", 5)
-    vsix = newest_vsix()
-    if vsix is None:
+    # vsce packages to EXTENSION_DIR; move it to REPO_ROOT.
+    packaged = sorted(EXTENSION_DIR.glob("*.vsix"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not packaged:
         return fail("No .vsix produced.", 5)
+    vsix = packaged[0]
+    vsix_dest = REPO_ROOT / vsix.name
+    shutil.move(str(vsix), str(vsix_dest))
+    vsix = vsix_dest
     # vsce names the file <name>-<version>.vsix; confirm it matches the version
     # we intend to publish so a desynced package.json can't ship the wrong file.
     if version and f"-{version}.vsix" not in vsix.name:
