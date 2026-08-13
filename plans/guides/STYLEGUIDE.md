@@ -741,6 +741,31 @@ gated on this setting, because they report a state the user must see regardless
 of preference. When adding a new run-start toast, gate it on `showRunToasts`;
 when adding an error/warning/completion toast, do not.
 
+### 4.1z Exception — a suppressed duplicate invocation is not "an action"
+
+§4.1 requires visible acknowledgment for every action that runs file, terminal,
+network, or state work. A guard that recognizes a signal as **noise from the same
+gesture**, not a second distinct user action, and drops it before any such work
+starts, is not covered by that rule — there is no action to acknowledge.
+
+The precedent: `runShortcutCommand` (`commands/shortcutExecution.ts`) drops a
+repeat invocation of the *same* shortcut id arriving within 500ms of the first
+(`isRepeatInvocation`), with no toast and no state change. This exists as
+defense-in-depth alongside the terminal-focus fix (`terminalRunner.ts` /
+`actionRunner.ts` calling `terminal.show(false)`) for the class of bug where a
+keystroke lands on the tree view the instant a run launches — before focus has
+moved — and re-fires the same command. The user's mental model is "I did one
+thing"; a toast or dialog on the swallowed repeat would contradict that model by
+implying a second action occurred and was rejected, when none did.
+
+This exception is narrow: it applies only to a genuinely-indistinguishable-from-
+noise repeat of the identical shortcut within a short, fixed window, gated before
+any work begins. It does **not** cover a real second user action, a run blocked
+because a *prior* run is still in flight (`runBlockReason` / the already-running
+dialog — a distinct action, correctly acknowledged), or any case where the
+suppressed attempt could plausibly represent a deliberate choice the user should
+be told was ignored.
+
 ### 4.1a Transient confirmations auto-dismiss; action alerts persist
 
 A toast that only *confirms* something already happened ("Watching `bugs` for new

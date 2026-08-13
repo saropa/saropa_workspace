@@ -46,6 +46,17 @@ cspell:disable
 
 ---
 
+## [1.6.12]
+
+Closes the remaining path where a stray Enter could relaunch a script, and adds a backstop against any repeat launch of the same shortcut. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.12/CHANGELOG.md)
+
+### Fixed
+
+- Macro shell steps now also focus their terminal on launch (the same fix as 1.6.11, extended to `actionRunner.ts`'s shell-step terminal)
+- A repeat launch of the same shortcut within half a second of the first is now ignored, guarding against any other focus-stealing path producing the same symptom
+
+---
+
 ## [1.6.11]
 
 Stray Enter no longer relaunches your script. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.11/CHANGELOG.md)

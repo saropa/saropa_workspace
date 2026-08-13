@@ -33,6 +33,25 @@ import { asShortcut } from "./shortcutArgResolution";
 // thin dispatcher; the open/peek surface lives in pinInteraction, the shortcut-picking
 // and creation helpers in pinSelection.
 
+// Defense-in-depth against a stray repeat invocation of the SAME shortcut landing
+// within a short window of the first — e.g. a keystroke reaching the tree view the
+// instant a run launches, before focus has moved. The terminal-focus fix
+// (terminalRunner.ts / actionRunner.ts) addresses the specific cause found so far,
+// but this guard is independent of it: it catches any other path that produces the
+// same double-invocation symptom. A `force` re-run (Stop-and-re-run / Run anyway,
+// chosen from a dialog the user just closed) always bypasses it.
+const lastRunAtByShortcutId = new Map<string, number>();
+export const REPEAT_INVOCATION_GUARD_MS = 500;
+
+// `now` is injectable (defaults to Date.now()) purely so the timing logic is
+// assertable under node --test without a real 500ms sleep; every production
+// caller relies on the default.
+export function isRepeatInvocation(shortcutId: string, now: number = Date.now()): boolean {
+  const lastRunAt = lastRunAtByShortcutId.get(shortcutId);
+  lastRunAtByShortcutId.set(shortcutId, now);
+  return lastRunAt !== undefined && now - lastRunAt < REPEAT_INVOCATION_GUARD_MS;
+}
+
 export async function runShortcutCommand(
   store: ShortcutStore,
   shortcut: Shortcut,
@@ -45,6 +64,13 @@ export async function runShortcutCommand(
   // badge, no telemetry) — this guards the command-palette / keybinding paths,
   // since the tree row itself carries no command to reach here.
   if (isAnnotationShortcut(shortcut)) {
+    return;
+  }
+  // Silently drop a repeat invocation of the SAME shortcut within the guard window —
+  // deliberately no toast (an exception to "no silent async"): this is noise from a
+  // stray double-trigger, not a second distinct user action, so surfacing it would
+  // itself be the confusing outcome. A `force` re-run always proceeds.
+  if (!force && isRepeatInvocation(shortcut.id)) {
     return;
   }
   // Single-instance guard: a previous run of this shortcut is still in flight (a tracked
