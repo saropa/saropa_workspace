@@ -47,6 +47,8 @@ export function runInTerminal(
   label?: string
 ): void {
   const terminal = createNamedTerminal(cwd, env, label);
-  terminal.show(true);
+  // Move focus into the terminal so a stray Enter in the tree view cannot
+  // re-trigger the shortcut while the script is starting.
+  terminal.show(false);
   terminal.sendText(commandLine);
 }
