@@ -46,6 +46,16 @@ cspell:disable
 
 ---
 
+## [1.6.11]
+
+Stray Enter no longer relaunches your script. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.11/CHANGELOG.md)
+
+### Fixed
+
+- Terminal now receives focus when a script launches, preventing an accidental Enter in the tree view from re-triggering the shortcut
+
+---
+
 ## [1.6.10]
 
 Pinned Windows scripts and executable files can now be run directly without extra interpreter setup. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.10/CHANGELOG.md)
