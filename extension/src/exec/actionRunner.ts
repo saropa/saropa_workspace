@@ -462,7 +462,9 @@ async function runMacroStep(
       }
       const cwd = expandRecipeTokens(step.cwd ?? firstWorkspacePath() ?? process.cwd());
       const shellTerminal = terminal ?? createNamedTerminal(cwd, undefined, name);
-      shellTerminal.show(true);
+      // Same relaunch risk as runInTerminal (terminalRunner.ts): preserving focus
+      // on the tree left a stray Enter free to re-trigger the macro's shortcut.
+      shellTerminal.show(false);
       shellTerminal.sendText(expandRecipeTokens(step.shellCommand));
       return shellTerminal;
     }
