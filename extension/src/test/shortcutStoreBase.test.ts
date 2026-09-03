@@ -231,6 +231,32 @@ test("ensureProjectFile migrates a legacy .vscode/ config to .saropa/ and rewrit
   );
 });
 
+test("ensureProjectFile skips a corrupt legacy file without crashing activation (BUG-001)", async () => {
+  // A legacy .vscode/ config containing invalid JSON must not throw a SyntaxError
+  // that crashes activate() — the store logs the problem, skips this legacy dir,
+  // and falls through to seeding a fresh config.
+  const legacyDir = nodePath.join(tmpDir, ".vscode");
+  nodeFs.mkdirSync(legacyDir, { recursive: true });
+  nodeFs.writeFileSync(
+    nodePath.join(legacyDir, "saropa-workspace.json"),
+    "{invalid json content"
+  );
+  const store = new ShortcutStore(fakeContext());
+  // init() must not throw — that is the core assertion for BUG-001.
+  await store.init();
+
+  assert.ok(
+    nodeFs.existsSync(configPath()),
+    "a fresh config should still be seeded even when the legacy file is corrupt"
+  );
+  // No pins should have been migrated from the corrupt file.
+  assert.equal(
+    store.getProjectShortcuts().filter((p) => !p.isAuto).length,
+    0,
+    "no pins should survive from a corrupt legacy file"
+  );
+});
+
 test("configDir setting controls where the project config file is written", async () => {
   // When saropaWorkspace.configDir is set to a custom value, the store writes
   // there instead of the default .saropa/.

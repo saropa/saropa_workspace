@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- A corrupt legacy `.vscode/saropa-workspace.json` no longer crashes activation — the migration step that reads it now skips a file it cannot parse (logging why) and continues checking the other known config locations, instead of throwing.
+
+---
+
 ## [1.6.12]
 
 Closes the remaining path where a stray Enter could relaunch a script, and adds a backstop against any repeat launch of the same shortcut. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.12/CHANGELOG.md)
@@ -504,171 +512,6 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ---
 
-## [1.5.15]
-
-**Overview** — Python shortcuts configured with the Unix `python3` name now run on Windows instead of failing with "Python was not found." [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
-
-### Fixed
-
-- **A `python3` shortcut now runs on Windows.** On Windows the bare name `python3` is only a Microsoft Store alias stub that prints "Python was not found" instead of running, so a shortcut configured with the Unix interpreter name (in its Run command or a `#!/usr/bin/env python3` shebang) never reached a real interpreter. A leading `python3` is now rewritten to `python` on Windows, preserving any trailing flags (`python3 -u` becomes `python -u`). A versioned name (`python3.12`) or an absolute interpreter path is left exactly as you wrote it.
-
----
-
-## [1.5.14]
-
-**Overview** — A brand new Schedule dashboard keeps track of your automated runs (and catches up on missed ones), plus you can now pin one-click shortcuts to your essential project websites. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.14/CHANGELOG.md)
-
-### Added
-
-- **A Schedule screen that shows every scheduled shortcut at a glance.** A new **Open Saropa Schedule** command (and a calendar button in the Shortcuts view's title bar) opens one screen listing every shortcut with an enabled schedule, each with its next run, whether its last run succeeded, failed, is overdue, or has not run yet, and a one-click **Open report** link to the report that run wrote. A **Run now** button runs any item on the spot. The screen updates itself live as runs complete.
-- **Scheduled runs now tell you how they went.** When a scheduled shortcut or a routine (a recipe of recipes, like a morning routine) finishes, it shows a toast naming the shortcut and its outcome, with an **Open report** action when it wrote one — successes are no longer silent. Failures still open their report automatically.
-- **Catch up runs missed while VS Code was closed.** Each schedule now has a **Catch up missed runs** option in the Schedule editor. When on, a run that was due while the folder was closed runs once the next time you open it. When off (the default), missed runs are not run silently — they are marked **Overdue** on the Schedule screen and offered in a startup prompt with a **Run now** action, so nothing heavy fires unexpectedly.
-
-- **Website (URL) shortcuts you can add by hand.** A new **Add Website (URL)...** command (in the Shortcuts view's add menu, in both project and global scope) lets you pin any website — the project's GitHub page, a staging dashboard, a docs site — alongside your file and script shortcuts. Enter the address (a bare `github.com/saropa` is treated as `https://`) and an optional display name. A **single click opens the site directly** in your browser, the same one-click gesture a file shortcut uses; a website is safe and instant, so it does not take the show-info-first path the heavier script and command shortcuts use. The shortcut carries a blue link icon and can be grouped, tagged, renamed, and reordered like any other.
-- **Find the project's websites for you.** A new **Add Website Shortcuts from Project...** command (also in the add menu) reads the addresses your project already declares — the repository page, issues, releases and CI from the git remote, the deployed site and package/marketplace listing from `package.json` / `pubspec.yaml` / `pyproject.toml`, and the docs site from `mkdocs.yml` — and offers them in one checklist. Every address is pre-checked, so you confirm with Enter or uncheck the few you do not want; each pick becomes a project website shortcut. Addresses you already pinned are left out, so running it again only shows what is new. It reads these known files directly — it does not scan your source for links — so the list stays short and relevant.
-
----
-
-## [1.5.13]
-
-The Sunrise project stats recipe no longer hangs, and every dated report is now filed in a per-day folder named with the date. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.13/CHANGELOG.md)
-
-### Changed
-
-- **Dated reports are now grouped into a per-day folder.** Instead of every report landing loose in `reports/`, each one is written to `reports/<date>_workspace/` — for example `reports/2026.06.29_workspace/2026.06.29_workspace_100046_project_stats.md`. The `workspace` tag sits right after the date in both the folder and the file name, so a day's standup, branches, stats, PR queue, and morning-routine reports sit together and are identifiable when several tools share one `reports/` folder. The Trends tab still finds them: report discovery now scans the per-day folders as well as any older loose reports, so existing history is not lost.
-
-### Fixed
-
-- **The "Sunrise project stats" recipe could hang forever on "Collecting project stats".** Its contributor summary ran `git shortlog` without a commit range; with no range, git reads commit data from standard input and, run from the extension, sat waiting on a pipe that never closed — the notification stuck and the git process idled at 0% CPU. The command now passes an explicit `HEAD` range so it walks history instead, and every git call in the recipe carries a 30-second timeout so no sub-command can stall the report again.
-
----
-
-## [1.5.12]
-
-Documentation catch-up so the README reflects the launcher and Project Files work from recent releases, plus the Watches view now lists only the watches that belong to the project you have open. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.12/CHANGELOG.md)
-
-### Changed
-
-- **The Watches view shows only this project's watches now.** A watch belongs to the project that contains the folder or file it watches, and that project always sees it. Other projects' watches no longer appear here at all — the confusing "not alerting here" rows are gone. A watch you deliberately want everywhere can be marked **global** (Manage Folder Watches → "Make global"); a global watch shows in every project with a globe icon and a "global" note so it is never mistaken for a local one.
-- **README Screenshots section now shows a screenshot.** The "Screenshots are coming" placeholder is replaced with an actual screenshot of the sidebar and launcher, served from an absolute raw GitHub URL so it renders on the VS Code Marketplace.
-- **README now describes the launcher as it actually is.** The overview was rewritten for the current four-pane board (My shortcuts, Recipes, Watches, Project files) with its header — project name, version, and click-to-filter counts — per-pane icons, the search box with the count tucked inside, and cards that lead with Run or Open per file. It also drops the stale "Copy as Saropa Link" launcher-menu item that no longer appears on launcher cards.
-- **README documents Project Files area grouping and the renamed setting.** The Project Files entry now notes the Project / Android / iOS / Web grouping, and the settings table replaces the removed `saropaWorkspace.projectFiles.files` with `saropaWorkspace.projectFiles.groups`.
-- **The schedule editor tab is now titled "Saropa Workspace Scheduler".** The per-schedule editor, previously "Saropa Schedule: {name}", reads "Saropa Workspace Scheduler: {name}" so its tab and heading name the product in full.
-- **Launcher card detail text is slightly larger.** The description shown in an expanded launcher card's drawer grew from `0.9em` to `0.97em` (with a touch more line spacing) so the detail reads more comfortably.
-- **Expanded launcher card buttons are all blue now.** The drawer's Open, Copy path, Pin, and Schedule actions used the secondary gray style and read as flat labels rather than buttons. They now use the primary blue style, matching the head's Run/Open button, so every action looks tappable.
-
-### Fixed
-
-- **A watch on a project's own folder can no longer read "not alerting here".** Watches are stored globally and were listed in every window with out-of-project ones flagged as silent, which looked like broken data. The Watches view now filters to the watches that fire in the open project, and the activity-bar count is scoped the same way, so one project's pending files never show up in another's badge.
-- **The launcher header's "scheduled" chip now filters to only scheduled items.** Clicking it had revealed every shortcut, because the chip was filed under the same "My shortcuts" pane as the shortcuts count, so it narrowed to the whole pane instead of the scheduled subset. The chip is now a cross-pane filter keyed on each card's schedule state, so clicking it shows only the shortcuts whose schedule is switched on.
-
----
-
-## [1.5.11]
-
-Each launcher pane now carries its own icon and shrinks to just its header when you fold it, the search box is simpler with the shortcut count tucked inside it, and cards drop the kind pill for a tooltip. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.11/CHANGELOG.md)
-
-### Changed
-
-- **Each launcher section now leads with its own icon, and collapsing a section also collapses its width.** The four panes — My shortcuts, Recipes, Watches, Project files — each carry a glyph in their header matching the section's filter chip, so a pane is identifiable at a glance even when folded. Folding a section now shrinks it to just its header instead of holding a full column, freeing the row for the sections still open.
-- **The launcher search box hint now reads "Search", and the shortcut count moved inside the box as a badge.** The placeholder is the single word "Search"; the running count that sat beside the box is now a compact badge overlaid on the input's trailing edge, showing the number alone.
-- **Launcher cards no longer show a kind pill; the kind is now a tooltip on the card icon.** The action kind a card used to carry as a SHELL / COMMAND / MACRO / ROUTINE pill is already conveyed by the icon, its color, and the left-border tint, so the pill was redundant. Hovering the icon now names the kind ("Shell command", "Macro", "Routine", "Editor command", "Link") and the card reads less cluttered.
-
-### Fixed
-
-- **The launcher header's "scheduled" count no longer overstates what is automated.** It counted every detected recipe, which made it read "17 scheduled" when those recipes were merely available and switched off. It now counts only shortcuts whose schedule is actually enabled — the same signal the scheduler and the status bar use — so a board with nothing on a schedule shows no count at all.
-
----
-
-## [1.5.10]
-
-Watch alerts now tell you how many files are new and how many changed, instead of a vague "new or changed". [log](https://github.com/saropa/saropa_workspace/blob/v1.5.10/CHANGELOG.md)
-
-### Changed
-
-- **Watch toasts now say whether files are new or changed, not "new or changed".** A folder or file watch that detects edits now reports them precisely: a batch of pure edits reads as "{count} changed in {label}", a batch of arrivals reads as "{count} new", and a mixed batch states both counts ("{added} new, {changed} changed"). Previously any batch containing an edit was labeled the ambiguous "new or changed", so a single modified file could not be told apart from a new one.
-
----
-
-## [1.5.9]
-
-The launcher's header counts are now click-to-filter chips, the header reads as one line, and each shortcut card leads with Run or Open depending on the file. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.9/CHANGELOG.md)
-
-### Added
-- **The Saropa Launcher header counts are now one-tap filters.** Each count in the header — shortcuts, scheduled, watches, project files — is a chip you can click to narrow the board to just that section; click it again to clear. The filter combines with the search box, and the active chip stays highlighted.
-
-### Changed
-
-- **Saropa Launcher cards now lead with the action that fits the file.** A card's blue head button leads with **Run** when the file is a script — a `.py`, `.sh`, `.ps1`, `.js` (any type with a known interpreter) or a file you gave a run command — and with **Open** when it is a plain document or data file like `.json` or `.md`, whose only sensible action is to open it. A non-file action still leads with Run. The other action, when it applies, sits in the drawer (a script offers **Open** there); the head button is icon-only in the compact grid and shows its label once you expand the card.
-- **The Saropa Launcher header reads as one line and the search box is narrower.** The project name, version, and counts now sit together on a single line instead of stacking name over counts, and the search box was made narrower so the summary has room.
-- **The Saropa Launcher recipes count now reflects only scheduled recipes.** The header chip previously counted every detected recipe (overstating what is automated); it now shows how many recipes you actually put on a schedule, labeled "scheduled". The Recipes pane still lists every detected recipe, and clicking the chip filters the board to it.
-
----
-
-## [1.5.8]
-
-The Project Files view now reaches into platform subfolders and groups what it finds by area. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.8/CHANGELOG.md)
-
-### Added
-
-- **Project Files now surfaces platform config and groups files by area.** Beyond the root README / changelog / manifests, the view now finds the config files that live in subfolders — the Android Gradle files (`android/settings.gradle`, `android/gradle.properties`, `android/app/build.gradle`, the top-level `build.gradle`, plus their `.kts` Kotlin-DSL spellings and the `AndroidManifest.xml`), the iOS `Podfile` and `Info.plist`, and the web `index.html` / `manifest.json` — and shows them under collapsible **Project / Android / iOS / Web** group headers. Each file still appears only when it actually exists, so a project without an `android/` folder shows no Android group. `analysis_options.yaml` and `l10n.yaml` are now recognized in the Project group.
-- **The Saropa Launcher's Project files pane groups by area too.** The bottom-Panel launcher's Project files pane now mirrors the sidebar's area grouping: its cards fold under collapsible **Project / Android / iOS / Web** headers when more than one area is present, and stay one flat list otherwise. Each group folds independently and its state persists across reloads, like the My shortcuts and Recipes groups.
-- **The Saropa Launcher header now shows the current project, its version, and key counts.** The wide space beside the search box is filled with the open project's name, its declared version, and a quick tally of how many shortcuts, recipes, watches, and project files the board holds. The version and counts are figured out in the background so the name shows instantly. The version is read from the project's manifest (`package.json`, `pubspec.yaml`, `Cargo.toml`, `pyproject.toml`, or the latest changelog heading).
-
-### Changed
-
-- **Project Files grouping only appears when it earns its place.** Files group under area headers only when more than one area has matches; a plain repo with just a README and a manifest still reads as one flat list, with no header to expand.
-- **The Project Files setting is now a category map.** `saropaWorkspace.projectFiles.files` (a flat list) is replaced by `saropaWorkspace.projectFiles.groups`, a map of category name to file paths, so you can curate which files show under which area — or add your own category. Paths may be nested (for example `android/app/build.gradle`); only the file name shows in the row. A custom category you add gets a generic folder icon.
-- **A file shortcut in the Saropa Launcher now leads with Open, not Run.** A document card's blue head button opens the file (its main intent); running it moves to the drawer as the secondary action. A non-file action card still leads with Run. The head button is icon-only in the compact grid and shows its Open / Run label once you expand the card.
-- **The Saropa Launcher search box moved to the right of the header.** The search group now sits on the trailing edge of the header bar to make room for the new project summary on the left; it stays a compact, width-capped cluster rather than stretching across the wide Panel.
-
-### Fixed
-
-- **A data file no longer shows a meaningless Run button, and a script no longer hides its Run.** A `.json` config or other non-executable file in the Saropa Launcher previously offered a Run action even though running it does nothing, while a runnable script like `publish.py` led with Open instead of Run. A card now decides Run vs Open from whether the file is actually executable, so a script leads with Run and a data file is open-only.
-- **A root file no longer shows its name twice in the Saropa Launcher.** A shortcut to a file at the project root (for example `CHANGELOG.md`) carries the bare filename as both its title and its path, so the card was repeating the same text on the subtitle line. The subtitle is now hidden whenever it would only echo the title, and still shows for nested paths, freshness, or a version.
-
----
-
-## [1.5.7]
-
-The launcher now shows your watches and project files too, has more breathing room, and lets you pin or schedule a recommended recipe straight from its card. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.7/CHANGELOG.md)
-
-### Added
-
-- **Watches and Project files now show in the Saropa Launcher.** The bottom-Panel launcher gains two new panes beside My shortcuts and Recipes: **Watches** (every folder/file watch, with the same eye / bell state and unseen-file count as the sidebar) and **Project files** (every surfaced README / changelog / manifest, with its version and how long ago it changed). They are searchable with everything else; opening a watch card opens what changed and clears its count, and opening a file card opens the file.
-- **Pin and Schedule buttons on recipe cards.** A detected recipe's expanded card (and its right-click menu) now offers **Pin** — adopt it into My shortcuts — and **Schedule** — adopt it and open the schedule editor on the new shortcut, pre-filled from the recipe's own time when it carries one (for example a "daily 09:00" recommendation), so keeping or automating a recommendation takes one step instead of hunting for the action.
-- **Collapsible launcher sections.** Each major section in the launcher — My shortcuts, Recipes, Watches, and Project files — now has a clickable heading that folds the whole section away, so you can keep only the sections you are using on screen. The fold state persists across reloads, the panes still reflow side by side or stacked as the Panel resizes, and a search reveals matches inside a folded section.
-- **Copy path button on file cards.** Any file-backed card's expanded drawer — a file shortcut, a file recipe, or a Project files entry — now has a **Copy path** button that copies the file's full path to the clipboard and confirms with a message naming the file, so you can grab a file's location without opening it.
-
-### Changed
-
-- **More space around launcher cards and group headings.** The card grid has a larger gap, cards carry more vertical padding, and each group heading has more room above and around it so the board no longer reads as one dense block.
-- **Wider launcher cards.** Each card is about 30% wider so longer names and paths fit on one line before clipping.
-- **Launcher card menus no longer offer Copy as Saropa Link.** The right-click menu on a launcher card drops the rarely used share-link action, leaving the focused run/open/configure actions. The action still exists on the Shortcuts sidebar, and shared links still import.
-
-### Fixed
-
-- **Watches no longer alert in every open project.** A folder/file watch is stored once and shared across windows, so a watch set up in one project (for example the "watch this project's `bugs` folder" offer) used to pop its alerts in every other project you had open. A watch now alerts only in the project it belongs to: the project it was created in, plus any you explicitly opt in. Each watch row in the Watches view shows whether it alerts in the current project, with **Alert in this project** / **Stop alerting in this project** actions (also on its right-click menu and in Manage Folder Watches) to turn it on or off per project.
-- **Folder-watch confirmations now clear themselves.** The "Watching `bugs` for new and changed files" message (and the matching added / removed / no-watches confirmations) used to linger on screen until dismissed by hand. These one-time acknowledgments now disappear on their own a few seconds after they appear. The "files changed — Open" alert is unchanged: it carries an action and stays until you act on it.
-- **No redundant `cd` when a terminal run stays in the same folder.** A terminal shortcut used to send a `cd` to its working directory before every run. The shared terminal now opens already rooted in that folder, and consecutive runs that share a working directory skip the `cd` entirely — so running several scripts from the same project root no longer clutters the terminal with repeated directory changes.
-
----
-
-## [1.5.6]
-
-The expanded launcher card is tidier: one Run button instead of two, its Open/Run buttons right-aligned, and a little more breathing room. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.6/CHANGELOG.md)
-
-### Changed
-
-- **Expanded launcher cards no longer show a duplicate Run button.** When a card is expanded, the compact play button in the card head is hidden so the only Run is the full labeled button in the drawer.
-- **Expanded-card Open/Run buttons are right-aligned** at the card's trailing edge, with slightly more vertical space around the drawer so the actions are easier to hit.
-- **Expanding a card no longer stretches its neighbors.** Cards in a row now keep their natural height, so opening one card's drawer grows only that card instead of stretching every card beside it.
-- **Launcher cards have more horizontal padding** so the content sits less cramped against the edges.
-- **The launcher search bar no longer stretches across the whole panel** — it is capped to a compact width on the leading edge.
-- **Launcher cards are indented under their group heading** so the group-to-cards hierarchy reads at a glance.
-
----
-
 # Changelog Archive
 
-The archive for versions 1.5.4 and prior is [CHANGELOG_HISTORY.md](./CHANGELOG_HISTORY.md).
+The archive for older versions is [CHANGELOG_HISTORY.md](./CHANGELOG_HISTORY.md).
