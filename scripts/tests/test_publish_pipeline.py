@@ -236,5 +236,81 @@ class HeadlessAbortDefaultTest(unittest.TestCase):
         self.assertEqual(calls["n"], 1)
 
 
+# --------------------------------------------------------------------------- #
+# CLI-level tests (subprocess) for --json-file and --json-schema
+# --------------------------------------------------------------------------- #
+
+_PUBLISH_PY = str(Path(__file__).resolve().parent.parent / "publish.py")
+_PYTHON = sys.executable
+
+
+class JsonFileCliTest(unittest.TestCase):
+    """Verify --json-file writes the result to a file and validates the path."""
+
+    def test_json_file_written_on_audit(self) -> None:
+        import json
+        import subprocess
+        import tempfile
+        # Use a temp file so we don't litter the project tree.
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = f.name
+        try:
+            result = subprocess.run(
+                [_PYTHON, _PUBLISH_PY, "--headless", "--mode", "audit",
+                 "--quiet", "--json-file", out_path],
+                capture_output=True, text=True, timeout=60,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            data = json.loads(Path(out_path).read_text(encoding="utf-8"))
+            self.assertEqual(data["mode"], "audit")
+            self.assertTrue(data["ok"])
+        finally:
+            Path(out_path).unlink(missing_ok=True)
+
+    def test_json_file_rejects_missing_parent_dir(self) -> None:
+        import subprocess
+        # A path whose parent directory doesn't exist should fail at arg parse.
+        result = subprocess.run(
+            [_PYTHON, _PUBLISH_PY, "--json-file", "nonexistent_dir_xyz/result.json"],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not exist", result.stderr)
+
+
+class JsonSchemaCliTest(unittest.TestCase):
+    """Verify --json-schema emits valid JSON Schema and exits cleanly."""
+
+    def test_schema_is_valid_json(self) -> None:
+        import json
+        import subprocess
+        result = subprocess.run(
+            [_PYTHON, _PUBLISH_PY, "--json-schema"],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 0)
+        schema = json.loads(result.stdout)
+        # Spot-check required top-level fields.
+        self.assertEqual(schema["type"], "object")
+        self.assertIn("mode", schema["properties"])
+        self.assertIn("exit_code", schema["properties"])
+        self.assertIn("ok", schema["properties"])
+        # Timing sub-schema must be present.
+        self.assertIn("timing", schema["properties"])
+        self.assertIn("steps", schema["properties"]["timing"]["properties"])
+
+    def test_schema_mode_enum_matches_modes(self) -> None:
+        import json
+        import subprocess
+        from modules._workflow import MODES
+        result = subprocess.run(
+            [_PYTHON, _PUBLISH_PY, "--json-schema"],
+            capture_output=True, text=True, timeout=10,
+        )
+        schema = json.loads(result.stdout)
+        # The schema's mode enum must match the runtime MODES tuple exactly.
+        self.assertEqual(schema["properties"]["mode"]["enum"], list(MODES))
+
+
 if __name__ == "__main__":
     unittest.main()

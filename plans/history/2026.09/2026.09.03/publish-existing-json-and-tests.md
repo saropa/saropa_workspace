@@ -65,19 +65,34 @@ visible while an agent or CI job captures machine-readable results. Can be
 combined with `--json` for both stdout and file output. Docstring, help text, and
 changelog updated.
 
+### `--json-file` path validation
+
+`--json-file` now validates that the parent directory exists at argument-parse
+time, before the pipeline runs. Previously a bad path would only surface as an
+unhandled `FileNotFoundError` after all steps had completed.
+
+### `--json-schema` feature
+
+Added `--json-schema` to `publish.py`. Prints a JSON Schema describing the
+result object to stdout and exits with code 0, without running any publish
+pipeline. The schema's `mode` enum is generated from the runtime `MODES` tuple
+so it stays in sync automatically. Agents and CI consumers can validate their
+parsing logic against this schema without running a real publish.
+
 ### Files changed
 
-- `scripts/publish.py` — Added `--json-file` argument and file-write logic;
-  updated module docstring.
+- `scripts/publish.py` — Added `_result_schema()`, `--json-schema` argument,
+  `--json-file` path validation, and updated module docstring.
 - `scripts/modules/_workflow.py` — `_run_publish_existing()` refactored to call
   `_record_result()` and return `exit_code` explicitly on the success path.
-- `scripts/tests/test_publish_pipeline.py` — new test file (13 tests).
-- `CHANGELOG.md` — three entries under `[Unreleased]`.
+- `scripts/tests/test_publish_pipeline.py` — new test file (17 tests).
+- `CHANGELOG.md` — `[Unreleased]` section with three entries; prior work in
+  `[1.9.0]`.
 
 ### Verification
 
-All 41 tests pass (28 existing + 13 new):
-- `python scripts/tests/test_publish_pipeline.py` — 13 OK
+All 45 tests pass (28 existing + 17 new):
+- `python scripts/tests/test_publish_pipeline.py` — 17 OK
 - `python scripts/tests/test_workflow.py` — 4 OK
 - `python scripts/tests/test_git_ops.py` — 9 OK
 - `python scripts/tests/test_quality.py` — 15 OK
@@ -86,3 +101,5 @@ Smoke tests:
 - `publish.py --headless --mode audit --json` — clean JSON to stdout
 - `publish.py --headless --mode audit --json-file <path>` — colored terminal + JSON file
 - `publish.py --headless --mode audit --json --json-file <path>` — both outputs
+- `publish.py --json-schema` — valid JSON Schema emitted, exit 0
+- `publish.py --json-file nonexistent_dir/x.json` — error at parse time

@@ -46,6 +46,16 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- The publish script now validates `--json-file` paths at startup — a missing parent directory is caught before the run begins rather than failing silently at the end after all steps have completed.
+- The publish script now supports `--json-schema` to emit the JSON result schema and exit, so agents can validate their parsing logic without running a real publish.
+- Added subprocess-level tests for `--json-file` and `--json-schema`.
+
+---
+
 ## [1.9.0]
 
 Publish-script hardening and automation — the release tool now recovers from a diverged `origin/main` on its own, runs unattended for agents and CI, and can report its results as machine-readable JSON. Nothing user-visible in the extension itself changed. [log](https://github.com/saropa/saropa-workspace/blob/v1.9.0/CHANGELOG.md)
