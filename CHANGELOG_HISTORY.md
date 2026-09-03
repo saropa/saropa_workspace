@@ -4,6 +4,84 @@ This archive is for older versions. For current changes see [CHANGELOG.md](./CHA
 
 ---
 
+## [1.5.20]
+
+**Overview** — A morning routine used to fling open a tab for every check it ran and keep the one summary that ties them together closed. Now it opens exactly one document: the summary, with a link to each check's report. The "next scheduled run" item in the status bar also stops being a dead end — click it to open that report, change the time, run it now, turn the schedule off, or hide the item for good. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.20/CHANGELOG.md)
+
+### Added
+
+- Clicking the next-scheduled-run status-bar item opens an action menu: open the last report, open the Saropa Schedule screen, run it now, reveal it in the Shortcuts view, change when it runs, turn its schedule off, or hide the item. It previously only revealed the shortcut in the tree, which answered none of the questions the item raises.
+- A new `saropaWorkspace.showScheduleStatusBar` setting hides the next-run indicator. Hiding it stops the indicator only; scheduled runs continue.
+
+### Fixed
+
+- A routine now opens exactly one document — its summary, which links every member's report — instead of one editor tab per member. Members run with their own report auto-open suppressed. The suppression covers that routine's own run only, so a report you open by hand while a scheduled routine is working still opens.
+- Turning a schedule off from the status-bar menu keeps the time or cron it was set to, rather than writing back whatever the schedule held when the menu opened.
+- A routine opens its summary on every run, not only when a member failed. A clean run used to finish silently, leaving no way to reach the reports it had just written.
+- Both status-bar items now name themselves, so VS Code's own right-click "Hide" menu says which one it will hide. They both read as the extension's display name before.
+
+---
+
+## [1.5.19]
+
+**Overview** — Running a second script while an earlier one was still busy used to type its command straight into that first script's terminal instead of opening its own. Every run now opens its own fresh terminal tab, so scripts running at the same time — or the same script run twice in a row — never collide. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.19/CHANGELOG.md)
+
+### Fixed
+
+- Running a shortcut in the integrated terminal now opens a brand-new terminal tab every time instead of reusing one shared terminal for every run. Launching a second script while the first was still busy (a long process, a prompt waiting on input) used to send the second script's command line into the first script's terminal instead of a new one.
+
+---
+
+## [1.5.18]
+
+**Overview** — In the Saropa Launcher, a project file card now shows its Open icon even while the card is collapsed, so you can open the file in one click without expanding it first — the same one-click Open the files in My shortcuts already had. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.18/CHANGELOG.md)
+
+### Changed
+
+- Project Files launcher cards lead with an **Open** head button, so the go-to-file icon is visible in the collapsed grid instead of only after expanding the card (matches a document shortcut in My shortcuts). The Watches pane keeps its expand-then-act model, because opening a watch also clears its unseen counter.
+- The launcher's drawer action buttons (Open, Copy path, Pin, Schedule) are 1px taller so their label text sits centered against the button's icon.
+
+### Internal
+
+- Reorganized the extension's largest source files (the launcher, dashboard, and planner webviews; the shortcut store; the run-configuration and folder-watch commands; activation wiring) into smaller, single-purpose modules, broke up the longest functions into named helpers, and added explanatory comments to every previously undocumented exported symbol. No behavior change.
+
+---
+
+## [1.5.18]
+
+**Overview** — The number badge on the sidebar icon (the count of shortcuts you had not opened yet) is gone. Opening the sidebar does not "use" a shortcut, so the number would not clear when you clicked the icon, and on its own it never said what it was counting. The small dot next to a shortcut you have not opened or run yet stays — it marks the exact rows without needing an aggregate number. Daily reports also read far better now: command output is shown in proper code blocks instead of running together, the morning routine's summary links straight to each report it ran, and a pubspec project gets a dependency-freshness report that lists only the packages that are actually out of date. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.17/CHANGELOG.md)
+
+### Added
+
+- Pubspec dependency-freshness report that lists only the packages behind their latest version — up-to-date dependencies are omitted, so the report is just the items you can act on. Built by parsing `dart pub outdated --json`, it opens only when something is stale and flags discontinued packages inline.
+- The morning routine now includes the tech-debt/TODO harvest and the dependency-freshness check as members, so the daily report covers lint issues, TODO markers, and out-of-date packages — not only the git and PR digest.
+
+### Changed
+
+- Running a shortcut in an external window (the "new OS window" location) now opens a PowerShell window instead of a plain `cmd.exe` one, and the command is seeded into that window's history — so after it runs you can press up-arrow to rerun it in the same window without retyping. `cmd.exe` could not do this: a command it runs at launch never enters the up-arrow history. The window still cd's to the shortcut's folder first and stays open after the command finishes. Note: because the shell is now PowerShell, a command that relied on `cmd`-only syntax (`%VAR%`, `dir`, `&` chaining) may behave differently.
+- Scheduled reports (standup, end-of-day, tech-debt, branches, journal, PR queue) now render the captured command output inside a fenced code block, with a cleaner Markdown header. A `git log --stat` or `git status` dump no longer renders as mangled prose; an empty result reads as an explicit "No output." line.
+- The morning-routine summary now carries a Report column that links each member's own report relative to the summary file, so the summary is the one clickable index over the day's sub-reports.
+
+### Removed
+
+- The activity-bar count badge on the Shortcuts view. It counted shortcuts not yet opened or run, but clicking the sidebar icon never cleared it (opening the view is not opening a shortcut) and the bare number did not convey what it referred to. Repeated fixes to the counting logic left that mismatch, so the badge is removed entirely. The per-row "untapped" dot remains as the discovery cue.
+
+---
+
+## [1.5.16]
+
+**Overview** — Right-click a script shortcut and choose "Duplicate with Argument" to make a second copy that runs the same file with a different argument — the new item is named after the original with the argument added (for example "setup_arb_translate.py -o"), and you can rename it. The sidebar count badge for unused shortcuts now clears to zero once you have opened or run every shortcut. Comment and separator rows are no longer counted, so a divider in your list can no longer leave the badge stuck on a number you could never clear. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.16/CHANGELOG.md)
+
+### Added
+
+- "Duplicate with Argument" on a file shortcut's right-click menu (under the configure/run submenu): prompts for an argument line — pre-filled with the shortcut's current arguments — and a name that defaults to the original name with those arguments suffixed. The duplicate points at the same file and keeps the source's run configuration (interpreter, working directory, environment, run location), changing only the arguments and the name. A duplicate of a screen-share-protected shortcut stays protected. It deliberately does not inherit the source's schedule or triggers, so a run variant never double-schedules the script. The new item is inserted directly below the original.
+
+### Fixed
+
+- The activity-bar untapped-shortcut badge counted comment and separator rows, which have no open/run action and so could never be marked used — leaving the count stuck above zero permanently and pointing at rows that show no marker. Annotation rows are now excluded from the count, matching the leading-dot marker (which already skips them), so the badge clears exactly when every actionable shortcut has been used.
+
+---
+
 ## [1.5.15]
 
 **Overview** — Python shortcuts configured with the Unix `python3` name now run on Windows instead of failing with "Python was not found." [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)

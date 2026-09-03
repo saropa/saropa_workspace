@@ -21,6 +21,7 @@ Run from anywhere in the repo:
     python scripts/audit.py --strict   # quality hard-cap violations also fail
     python scripts/audit.py --quality  # quality report only
     python scripts/audit.py --release  # release-correctness audit only
+    python scripts/audit.py --plan     # master plan status audit only
 
 Exit codes:
     0  Clean (no blocking issues)
@@ -39,6 +40,7 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 from modules._audit import run_audit  # noqa: E402
+from modules._master_plan_audit import run_master_plan_audit  # noqa: E402
 from modules._quality import run_quality_audit  # noqa: E402
 from modules._utils import enable_ansi_support, header, set_quiet, show_logo, success, error  # noqa: E402
 
@@ -48,6 +50,7 @@ def main() -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--quality", action="store_true", help="Run only the code-quality report.")
     group.add_argument("--release", action="store_true", help="Run only the release-correctness audit.")
+    group.add_argument("--plan", action="store_true", help="Run only the master plan status audit.")
     parser.add_argument(
         "--strict",
         action="store_true",
@@ -65,11 +68,16 @@ def main() -> int:
     # The release audit's strict path mirrors a full publish (version/changelog
     # must agree). audit.py treats it as strict so a desync is reported as a
     # blocking issue rather than silently passing.
-    if not parsed.quality:
-        failures += run_audit("full")
-
-    if not parsed.release:
-        failures += run_quality_audit(strict=parsed.strict)
+    if parsed.plan:
+        # Plan-only mode: just the master plan status check
+        failures += run_master_plan_audit()
+    else:
+        if not parsed.quality:
+            failures += run_audit("full")
+        if not parsed.release:
+            failures += run_quality_audit(strict=parsed.strict)
+        # Master plan audit runs as part of the full audit too
+        failures += run_master_plan_audit()
 
     header("AUDIT SUMMARY")
     if failures:
