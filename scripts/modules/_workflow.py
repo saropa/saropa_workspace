@@ -19,7 +19,13 @@ import shutil
 from modules._audit import run_audit
 from modules._build import build, newest_vsix, package_vsix, type_check
 from modules._ci import ci_fallback, prompt_local_install
-from modules._git_ops import check_working_tree, git_commit_release, github_release, sync_with_remote
+from modules._git_ops import (
+    DEFAULT_REBASE_DEBOUNCE_SECONDS,
+    check_working_tree,
+    git_commit_release,
+    github_release,
+    sync_with_remote,
+)
 from modules._publish import publish_marketplaces, success_banner, verify_store_publication
 from modules._quality import run_quality_audit
 from modules._timing import StepTimer
@@ -31,6 +37,7 @@ from modules._utils import (
     fail,
     header,
     prompt_on_failure,
+    reset_headless_retry,
     success,
     warn,
 )
@@ -39,7 +46,9 @@ from modules._version_changelog import read_package_version, resolve_version
 MODES = ("full", "package", "publish-existing", "dry-run", "audit", "ci-fallback")
 
 
-def _attempt(label, step, *, timer: StepTimer | None = None) -> tuple[int, bool]:
+def _attempt(
+    label, step, *, timer: StepTimer | None = None, allow_ignore: bool = True
+) -> tuple[int, bool]:
     """Run *step* (a callable returning 0 on success, non-zero on failure).
 
     On any failure the operator chooses ignore / retry (default) / abort. Retry
@@ -48,10 +57,21 @@ def _attempt(label, step, *, timer: StepTimer | None = None) -> tuple[int, bool]
     whole pipeline. The retry default makes this the single failure policy for
     every step in the run.
 
+    *allow_ignore* gates the "ignore" choice (interactive or the headless
+    --on-failure=ignore policy). A step is left False when a failure means the
+    working tree is in an unsafe intermediate state to build on top of — e.g. a
+    rebase or stash-pop failure in the Git sync step, which can leave conflict
+    markers or a half-restored stash. Silently "ignoring" that and continuing
+    into the build/commit steps would risk shipping the conflict, so it is
+    forced to abort instead.
+
     Returns (code, aborted):
       - passed or ignored -> (0, False)
       - aborted           -> (the failing code, True)
     """
+    # Give this step its own headless retry budget — see reset_headless_retry()'s
+    # docstring for why a leftover flag from the previous step must not leak in.
+    reset_headless_retry()
     while True:
         if timer is not None:
             with timer.step(label):
@@ -64,6 +84,9 @@ def _attempt(label, step, *, timer: StepTimer | None = None) -> tuple[int, bool]
         if choice == "retry":
             continue
         if choice == "ignore":
+            if not allow_ignore:
+                error(f"{label}: failure cannot be ignored — the working tree may be in an unsafe state; aborting.")
+                return (code if isinstance(code, int) else 1), True
             warn(f"{label}: failure ignored by request; continuing.")
             return 0, False
         return (code if isinstance(code, int) else 1), True
@@ -120,6 +143,7 @@ def _resolve_version_interactive(timer: StepTimer) -> str | None:
     In headless mode a bad --version raises ValueError, which is surfaced as an
     error and treated as an abort — there is no interactive fix path.
     """
+    reset_headless_retry()
     while True:
         try:
             version = resolve_version(timer)
@@ -157,7 +181,7 @@ def _run_publish_existing() -> int:
         timer.print_summary()
 
 
-def run_mode(mode: str, rebase_debounce_seconds: int = 3) -> int:
+def run_mode(mode: str, rebase_debounce_seconds: int = DEFAULT_REBASE_DEBOUNCE_SECONDS) -> int:
     """Dispatch to the pipeline for *mode*. Returns the process exit code."""
     if mode == "ci-fallback":
         return ci_fallback()
@@ -182,7 +206,9 @@ def run_mode(mode: str, rebase_debounce_seconds: int = 3) -> int:
         # prompts; only the strict path routes a gate failure through the
         # ignore/retry/abort choice.
         if strict:
-            _, aborted = _attempt("Git sync", lambda: sync_with_remote(rebase_debounce_seconds))
+            _, aborted = _attempt(
+                "Git sync", lambda: sync_with_remote(rebase_debounce_seconds), allow_ignore=False
+            )
             if aborted:
                 return fail("Remote sync aborted; resolve the rebase before a full publish.", 7)
             _, aborted = _attempt("Audit", lambda: run_audit(mode))
@@ -227,6 +253,7 @@ def run_mode(mode: str, rebase_debounce_seconds: int = 3) -> int:
             "Git + release",
             lambda: git_commit_release(version) or github_release(version),
             timer=timer,
+            allow_ignore=False,
         )
         if aborted:
             return code

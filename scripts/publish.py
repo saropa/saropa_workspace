@@ -78,6 +78,7 @@ _SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
+from modules._git_ops import DEFAULT_REBASE_DEBOUNCE_SECONDS, MAX_REBASE_DEBOUNCE_SECONDS  # noqa: E402
 from modules._utils import detail, enable_ansi_support, set_headless, set_on_failure, set_quiet, show_logo  # noqa: E402
 from modules._version_changelog import read_package_version, set_version_override  # noqa: E402
 from modules._workflow import MODES, check_prerequisites, prompt_mode, run_mode  # noqa: E402
@@ -90,10 +91,11 @@ def main() -> int:
     parser.add_argument(
         "--rebase-debounce",
         type=int,
-        default=3,
+        default=DEFAULT_REBASE_DEBOUNCE_SECONDS,
         metavar="SECONDS",
         help="Seconds to wait after rebasing onto origin/main before restoring "
-        "stashed changes, letting file watchers settle. Default: 3, 0 disables, capped at 10.",
+        f"stashed changes, letting file watchers settle. Default: {DEFAULT_REBASE_DEBOUNCE_SECONDS}, "
+        f"0 disables, capped at {MAX_REBASE_DEBOUNCE_SECONDS}.",
     )
     parser.add_argument(
         "--headless", action="store_true",

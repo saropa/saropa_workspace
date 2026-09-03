@@ -120,6 +120,19 @@ def set_on_failure(policy: str) -> None:
     _ON_FAILURE = policy
 
 
+def reset_headless_retry() -> None:
+    """Clear the headless retry-used flag; call once before each new step.
+
+    _HEADLESS_RETRIED is only ever cleared inside prompt_on_failure() when a
+    non-retry policy is chosen — a step that fails once, retries, then
+    succeeds never calls prompt_on_failure() again, so the flag stays True.
+    Without this reset, the *next* step's first failure reads that stale True
+    and escalates straight to abort instead of getting its own single retry.
+    """
+    global _HEADLESS_RETRIED
+    _HEADLESS_RETRIED = False
+
+
 
 
 def enable_ansi_support() -> None:
