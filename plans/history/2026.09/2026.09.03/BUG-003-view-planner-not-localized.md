@@ -105,3 +105,66 @@ This is a sizable change touching all four script files plus the host panel and 
 - OS: any
 - Pin scope (project / global): n/a
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- **No compile-time link between `STRINGS.*` usages and `uiStrings()`.** The fix wires
+  `plannerScriptCore.ts`, `plannerScriptTimeline.ts`, `plannerScriptWorkflow.ts`,
+  `plannerScriptInspector.ts`, and `plannerAssets.ts` through the object literal
+  returned by `uiStrings()` in `plannerPanelShell.ts`, but nothing enforces that set
+  matches at build time. A future edit that adds `STRINGS.newKey` to a client script
+  without adding the matching field to `uiStrings()` (and the `planner.*` entry in
+  `en.json`) will not fail `tsc` or `esbuild` — `STRINGS` is untyped (`const STRINGS =
+  ${strings}` in the injected `<script>`), so the miss only shows up as `undefined`
+  rendered into the DOM, caught by manual smoke test at best.
+- **Silent-junk fallback in `l10n()`** (`extension/src/i18n/l10n.ts:16`): a missing
+  catalog key returns the raw key string (`catalog[key] ?? key`) instead of failing
+  loudly. Combined with the point above, a typo in one of the ~60 `planner.*` keys
+  passed to `l10n()` inside `uiStrings()` renders literal text like
+  `planner.action.foo` in the Planner UI rather than surfacing as a build error.
+- **Cross-catalog coupling for weekday labels.** `uiStrings().weekdayShort` reuses
+  `scheduleEditor.weekday.0`..`6` rather than adding planner-scoped keys (correct
+  per the single-source-of-truth rule), but this means a rename or restructure of
+  the `scheduleEditor.weekday.*` keys in `en.json` — done for the schedule editor,
+  without awareness of the Planner — will silently break the Planner's day/week
+  headers. No test or comment at the `scheduleEditor.weekday.*` declaration site
+  flags that the Planner also depends on it.
+- **`uiStrings()` is built once per `renderShell()` call.** If a user changes VS
+  Code's display language while the Planner panel is already open, the injected
+  `STRINGS` object is stale until the panel is closed and reopened — same pattern
+  as other webviews in this codebase, but worth confirming is an accepted
+  limitation rather than an oversight, since the Planner is a longer-lived panel
+  than most (timelines/workflow graphs invite leaving it open).
+- **`howtoStep1`/`howtoStep2`/`howtoStep3` carry raw `<b>` markup** in `en.json`
+  (e.g. `"<b>Drag a shortcut</b> from the shelf onto a step to chain it"`) and are
+  presumably injected via `innerHTML` in `plannerScriptWorkflow.ts`. That's fine
+  for a static, developer-authored English string, but it sets a precedent: if a
+  future translated locale file is contributed by someone unfamiliar with this
+  convention, unescaped `<`/`>` in a translated value could break the markup or
+  (if a value is ever concatenated with untrusted user data instead of a fixed
+  literal) open an injection path. Worth a one-line comment at the `howtoStep*`
+  keys noting they are intentionally HTML-bearing.
+
+### Suggestions
+
+- Add a lightweight build-time or test-time check (a small Node script under
+  `extension/src/test/`, run via the existing `node --test` harness) that parses
+  each `plannerScript*.ts` / `plannerAssets.ts` file for `STRINGS\.(\w+)` and
+  asserts every match is a key returned by `uiStrings()` in
+  `plannerPanelShell.ts`, and that every `planner.*` key in `en.json` is
+  referenced from at least one `l10n()` call — this generalizes past the Planner
+  to any current or future webview using the same injection pattern, catching the
+  exact failure mode this bug fixed and preventing regression.
+- Consider making `l10n()` collect missing-key lookups in a dev/debug build (e.g.
+  log a `console.warn` the first time a key falls through to the `?? key`
+  fallback) so a typo surfaces during a manual smoke test instead of requiring
+  the tester to notice a raw dotted key string among real UI text.
+- Document the `scheduleEditor.weekday.*` → Planner dependency inline at the
+  `uiStrings().weekdayShort` line (already partially done via the existing
+  comment) and, symmetrically, add a short comment at the
+  `scheduleEditor.weekday.*` declarations in `en.json` noting the Planner also
+  consumes them, so the reuse is visible from either direction.

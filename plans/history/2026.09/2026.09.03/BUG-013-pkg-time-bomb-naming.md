@@ -105,3 +105,19 @@ Left untouched as historical records (not corrected retroactively): `CHANGELOG_H
 - OS: any
 - Pin scope (project / global): both
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- **Historical docs still say "Time-Bomb" and could resurface in search/Marketplace indexing.** `CHANGELOG_HISTORY.md`, `plans/MASTER_PLAN.md`, and `plans/history/2026.06/2026.06.25/PLAN_03_branch_linked_pins.md` / `PLAN_09_time_bomb_pins.md` were deliberately left untouched as historical records (per the "Changes Made" note above), but `CHANGELOG_HISTORY.md` ships as a tracked file — confirm it is not bundled into the `.vsix` (check `.vscodeignore`) since it is a public surface per the "No AI on public surfaces" / naming rules, even though the term itself isn't an AI reference.
+- **Command IDs and the submenu ID were already neutral** (`saropaWorkspace.clearPinExpiry`, `saropaWorkspace.expirySubmenu` in `extension/package.json` lines 623, 994) — no renamed identifiers were needed, so there's no risk of a stale ID in `keybindings` or `menus` contributions pointing at a removed command. Verified by grep; no further action needed here.
+- **No automated regression check for the string.** Nothing in `extension/src/test/**` asserts the submenu label or `expiry.autoUnsupported` text no longer contains "time-bomb" / "bombed" — a future edit (e.g. a copy-paste from the old PLAN_09 doc when someone re-reads it for feature history) could reintroduce the term without any test catching it.
+- **Marketplace listing text (README.md, package.json `description`) was not explicitly checked in this pass** for "Time-Bomb" — the sweep covered `docs/FEATURES.md` and code comments but the "Attribution Evidence" section only names `package.json`/`package.nls.json` as the direct source; worth a final grep of `README.md` and `CHANGELOG.md` before the next publish to be certain no marketing copy still uses the term (CHANGELOG.md line 68 already correctly describes the rename, not a leftover use).
+
+### Suggestions
+
+- Add a one-line assertion in an existing i18n/locale test (or a lightweight lint step in `scripts/publish.py`'s pre-package validation) that scans `package.nls.json` and `src/i18n/locales/en.json` for banned informal terms ("time-bomb", "time-bombed") so a regression is caught at build time rather than by manual sweep.
+- When a plan doc like `PLAN_09_time_bomb_pins.md` is intentionally left with the old terminology as a historical record, add a one-line note at the top of that file (e.g. "Historical: superseded terminology, see BUG-013") so a future reader doesn't treat it as current guidance and copy the old term forward.

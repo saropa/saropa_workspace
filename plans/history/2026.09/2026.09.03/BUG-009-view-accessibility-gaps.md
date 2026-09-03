@@ -141,3 +141,22 @@ that builds the right-click menu DOM).
 - OS: any
 - Pin scope (project / global): both
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- `buildAccessibilityLabel()` (`shortcutTreeItem.ts`) is a pure function of a snapshot of state passed in at construction time; if `ShortcutTreeItem` instances are ever cached/reused across a refresh instead of rebuilt, the label goes stale while the visible badge (recomputed by `computeRowStateBadge`) updates — the two channels would disagree, which is the exact failure mode the priority-order comment is trying to prevent.
+- The priority order in `buildAccessibilityLabel` (stopping > running > locked > paused > missing > untapped) is hand-duplicated from `computeRowStateBadge` in `shortcutRowDescription.ts` rather than shared — a future state (e.g. a new lock kind or a "queued" state) added to one function and not the other will silently desync the spoken and visual channels with no compile-time signal.
+- `menu.setAttribute('role', 'menu')` in `launcherScriptMenu.ts` is applied only to the top-level right-click menu and each dynamically created submenu (`showSub`) — there is no automated check that every future menu-building code path sets it; a new menu variant added later could ship without the role and regress silently since nothing fails at build time.
+- `aria-expanded` on a submenu trigger row is flipped in `showSub`/`closeActiveSub`, but the mouse-driven open/close path (`mouseenter`/`mouseleave` with a 200 ms `activeSubTimer`) and the keyboard path (`ArrowLeft`/`Escape`) both call `closeActiveSub` — if a future edit adds another dismissal path (e.g. clicking elsewhere in the menu) without routing through `closeActiveSub`, the trigger's `aria-expanded` state can go stale relative to whether the submenu DOM node is actually present.
+- The untapped marker's accessible fact ("not yet opened") is appended only through `buildAccessibilityLabel`'s `untapped` branch; nothing enforces that every code path constructing a `ShortcutTreeItem` for an untapped shortcut actually passes `untapped: true` — a missed call site reverts silently to the bare name with no visible or automated signal.
+- Manual screen-reader verification (Narrator/VoiceOver) was never run — the checklist item is explicitly unchecked in Verification. The `tsc`/`esbuild` checks confirm the ARIA attributes and `accessibilityInformation` objects are well-typed and present, not that they read sensibly aloud (e.g. label ordering, redundant announcements, or the submenu's `aria-label` reading naturally after the parent menu's own label).
+
+### Suggestions
+
+- Extract the shared state-priority list (stopping > running > locked > paused > missing/untapped) into one ordered array or lookup consumed by both `computeRowStateBadge` and `buildAccessibilityLabel`, so a new state can only be added in one place and the visual/spoken channels can't drift apart.
+- Add a lightweight unit test (in the existing `node --test` harness) asserting `buildAccessibilityLabel` returns the state substring for at least one representative case per priority level, so a regression in the branch order or a dropped `l10n` key fails a fast test instead of waiting for a manual screen-reader pass.
+- Track the unchecked manual screen-reader verification as a follow-up item (or a dedicated bug) rather than letting it stay indefinitely deferred in this closed bug's checklist — the fix is otherwise unverified for its actual purpose.

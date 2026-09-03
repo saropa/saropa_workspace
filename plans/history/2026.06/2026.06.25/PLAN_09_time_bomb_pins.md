@@ -1,3 +1,9 @@
+> **Historical:** "Time-Bomb" is superseded terminology — the shipped feature is named
+> "Shortcut Expiry" with no "(Time-Bomb)" label or "bombed" wording anywhere user-facing.
+> This plan is kept as-is for lineage; see
+> `plans/history/2026.09/2026.09.03/BUG-013-pkg-time-bomb-naming.md` for the naming review
+> that renamed it.
+
 # Plan — #9 Time-Bomb / Ephemeral Pins
 
 ## Pain

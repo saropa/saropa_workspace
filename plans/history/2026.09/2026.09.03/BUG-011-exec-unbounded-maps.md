@@ -106,3 +106,21 @@ Alternatively, add a periodic sweep that compares map keys against the current s
 - OS: any
 - Pin scope (project / global): both
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- **Only 3 of many id-keyed maps are wired to the cleanup event.** `extension.ts` (~line 225) subscribes `runStatusRegistry.clear`, `clearWatchLastRun`, `clearLastRunAt` to `onDidRemoveShortcut`, but a repo-wide scan turns up id-keyed state in `exec/lastBrief.ts`, `exec/promptTokens.ts`, `exec/standupDigest.ts`, `exec/trendReports.ts`, `exec/runOutputs.ts`, `exec/processRegistry.ts`, `exec/shortcutBadges.ts`, `exec/metricBadges.ts`, `exec/projectStats.ts`, and `exec/gitBranch.ts`. Any of these that key a `Map` by shortcut id and lack their own eviction path will reproduce the exact bug BUG-011 fixed, just in a different module. Worth an audit pass to confirm each either subscribes to `onDidRemoveShortcut` or has no per-id state.
+- **The three cleanup calls run as one listener, not three independent ones.** In `extension.ts`, `runStatusRegistry.clear(id)`, `clearWatchLastRun(id)`, and `clearLastRunAt(id)` are sequential statements inside a single callback (lines 226-228). If the first call throws, the other two never run and that shortcut's entries in `watchLastRun`/`lastRunAtByShortcutId` leak silently — no error surfaces to the user per this repo's "no silent async" rule, but there is no user-facing action here to attach feedback to, and no log either.
+- **No error handling around the `fire()` call itself.** `shortcutStoreMutationCore.ts` calls `this._onDidRemoveShortcut.fire(shortcut.id)` (lines 150 and 185) with no try/catch. `vscode.EventEmitter.fire` invokes listeners synchronously and does not itself swallow exceptions from misbehaving listeners in all VS Code versions/paths — a throwing subscriber could unwind into `removeShortcut`'s caller and abort a remove that had already written/refreshed successfully, leaving the store correct but the caller believing the remove failed.
+- **`_onDidRemoveShortcut` (the `EventEmitter` itself) is never disposed.** It is declared in `shortcutStoreBase.ts` (line 71) but not pushed to `context.subscriptions` and the store has no `dispose()` that extension.ts calls. Harmless today because `ShortcutStore` is a singleton for the extension host's lifetime, but if the store is ever recreated (e.g., a future multi-root or reload-without-restart path) this becomes a real leak.
+- **Bulk/expiry removal paths need to be confirmed as funneling through `removeShortcut`.** The doc comment above `_onDidRemoveShortcut` (lines 63-70) lists "manual unpin, file-delete, missing-file cleanup, expiry sweep" as covered removal paths. `exec/shortcutExpiry.ts` was not inspected as part of this reflection — confirm it calls `store.removeShortcut()` per-shortcut rather than mutating the underlying file list directly, which would bypass the event entirely and reintroduce the leak for expired shortcuts specifically.
+
+### Suggestions
+
+- Add a one-line comment or `// eslint`-style marker at each map declaration site (`watchLastRun`, `lastRunAtByShortcutId`, and any of the other id-keyed maps found above) noting "cleared via `onDidRemoveShortcut`, see extension.ts" or "no cleanup needed because ___" — makes the next audit a grep instead of a re-investigation.
+- Wrap the three cleanup calls in `extension.ts` in a `try { … } catch` per call (or a small loop over `[fn, fn, fn]`) so one misbehaving clear function cannot block the others from running.
+- Consider a lightweight dev-only assertion (behind a debug flag) that periodically diffs the keys of `watchLastRun`/`lastRunAtByShortcutId` against the live shortcut id set and logs any drift — cheap insurance against a future removal path that forgets to fire the event.
