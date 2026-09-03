@@ -47,9 +47,11 @@ function buildAccessibilityLabel(params: {
   readonly untapped: boolean;
 }): string {
   const { name, isRunning, isStopping, paused, lockedBy, missing, untapped } = params;
-  // Priority mirrors computeRowStateBadge in shortcutRowDescription.ts: the same live
-  // state that wins the row's leading badge for sighted users is what a screen reader
-  // hears first, so the two channels never disagree about which fact matters most.
+  // The top four priorities (stopping > running > locked > paused) match
+  // computeRowStateBadge in shortcutRowDescription.ts so the two channels never
+  // disagree about which live state matters most. The tails diverge on purpose:
+  // the badge shows schedule/last-run (visual info), while the a11y label surfaces
+  // missing/untapped states that have no other spoken representation.
   const state = isStopping
     ? l10n("run.stoppingBadge")
     : isRunning
