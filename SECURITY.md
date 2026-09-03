@@ -8,39 +8,56 @@ Please always use the latest version to ensure you have any security patches.
 
 | Version | Supported          |
 |---------|--------------------|
-| 0.1.x   | :white_check_mark: |
-| < 0.1.0 | :x:                |
+| 1.6.x   | :white_check_mark: |
+| < 1.6.0 | :x:                |
 
 ## Scope
 
 Saropa Workspace is a Visual Studio Code extension that runs locally inside
-your editor. It manages shortcuts to files and scripts and can run
-the scripts you add.
+your editor. It manages shortcuts to files, scripts, and URLs, and can run
+or schedule the scripts you add.
 
 What it does:
 
-- Stores project shortcuts in a workspace file (`.vscode/saropa-workspace.json`)
-  and global/user shortcuts in the extension's `globalState` (synced via VS Code
-  Settings Sync when you enable that).
+- Stores project shortcuts in a workspace file (`.saropa/saropa-workspace.json`
+  by default, configurable via `saropaWorkspace.configDir`; a legacy
+  `.vscode/saropa-workspace.json` is still read for migration) and global/user
+  shortcuts in the extension's `globalState` (synced via VS Code Settings Sync
+  when you enable that).
 - Executes scripts **you choose to add**, using the command prefix, args,
   working directory, and environment variables you configure per shortcut. These
   run through the integrated terminal or a background output channel on your
   own machine, with your own permissions.
+- **Schedules** those same script runs (interval, time-of-day, or a raw cron
+  expression) to fire while the editor is open, using the run parameters you
+  configured — scheduling changes when a script runs, never what it runs or
+  with what permissions.
+- **Opens external programs and URLs** you add as shortcuts (a website, a
+  local tool, an OS-level program), using `vscode.env.openExternal` for URLs
+  and the same local process launch as script execution for programs.
+- Ships a small library of **bundled utility scripts** (Python) under
+  `extension/scripts/library/` for common developer tasks (cleanup, reports,
+  device connection). These run only when you explicitly select and run them
+  from the Scripts view — never automatically — and are version-controlled and
+  auditable in this repository.
 
 What it does **not** do:
 
 - It sends and phones home nothing — no remote telemetry, no analytics, no
-  network calls. The only data it keeps (a local run history and shortcut-suggestion
-  counts) lives in VS Code's storage on your machine and is never transmitted.
+  network calls of its own. The only data it keeps (a local run history and
+  shortcut-suggestion counts) lives in VS Code's storage on your machine and is
+  never transmitted. (A bundled or user-added script can make its own network
+  calls once you run it — that traffic is the script's, not the extension's.)
 - It does not require network access or external services for its own
   operation.
-- It does not run anything you did not explicitly add and trigger.
+- It does not run anything you did not explicitly add and trigger — including
+  scheduled runs, which only fire for a script you configured and enabled.
 
-Because the extension runs scripts on your behalf, treat a saved script the
-same way you would treat any local executable: only add files you trust, and
-review the run parameters (command prefix, args, cwd, env) before running a
-shortcut you did not create yourself — for example, one imported from a shared
-`.favorites.json`.
+Because the extension runs and schedules scripts on your behalf, treat a saved
+script the same way you would treat any local executable: only add files you
+trust, and review the run parameters (command prefix, args, cwd, env) before
+running or scheduling a shortcut you did not create yourself — for example,
+one imported from a shared `.favorites.json` or a bundled library script.
 
 ## Reporting a Vulnerability
 
