@@ -19,7 +19,7 @@ import shutil
 from modules._audit import run_audit
 from modules._build import build, newest_vsix, package_vsix, type_check
 from modules._ci import ci_fallback, prompt_local_install
-from modules._git_ops import check_working_tree, git_commit_release, github_release
+from modules._git_ops import check_working_tree, git_commit_release, github_release, sync_with_remote
 from modules._publish import publish_marketplaces, success_banner, verify_store_publication
 from modules._quality import run_quality_audit
 from modules._timing import StepTimer
@@ -27,6 +27,7 @@ from modules._utils import (
     PACKAGE_JSON,
     VERSION_RE,
     detail,
+    error,
     fail,
     header,
     prompt_on_failure,
@@ -83,6 +84,10 @@ def check_prerequisites(mode: str) -> int:
 
 
 def prompt_mode() -> str:
+    """Show the interactive mode menu and return the chosen mode.
+
+    Never called in headless mode — the --mode arg is required there.
+    """
     header("PUBLISH OPTIONS")
     detail("  1) Full publish (audit -> quality -> version -> build -> package -> publish -> git + release -> verify)")
     detail("  2) Package only (build + .vsix, no publish; optional local install)")
@@ -111,9 +116,17 @@ def _resolve_version_interactive(timer: StepTimer) -> str | None:
     stub, a duplicate heading, a post-sync top-vs-package mismatch). Retry re-runs
     it after the author fixes the file; ignore falls back to the current
     package.json version so the publish can proceed unchanged; abort stops.
+
+    In headless mode a bad --version raises ValueError, which is surfaced as an
+    error and treated as an abort — there is no interactive fix path.
     """
     while True:
-        version = resolve_version(timer)
+        try:
+            version = resolve_version(timer)
+        except ValueError as exc:
+            # Headless: invalid --version; no interactive recovery possible.
+            error(str(exc))
+            return None
         if version is not None:
             return version
         choice = prompt_on_failure("Version")
@@ -144,7 +157,7 @@ def _run_publish_existing() -> int:
         timer.print_summary()
 
 
-def run_mode(mode: str) -> int:
+def run_mode(mode: str, rebase_debounce_seconds: int = 3) -> int:
     """Dispatch to the pipeline for *mode*. Returns the process exit code."""
     if mode == "ci-fallback":
         return ci_fallback()
@@ -169,6 +182,9 @@ def run_mode(mode: str) -> int:
         # prompts; only the strict path routes a gate failure through the
         # ignore/retry/abort choice.
         if strict:
+            _, aborted = _attempt("Git sync", lambda: sync_with_remote(rebase_debounce_seconds))
+            if aborted:
+                return fail("Remote sync aborted; resolve the rebase before a full publish.", 7)
             _, aborted = _attempt("Audit", lambda: run_audit(mode))
             if aborted:
                 return fail("Audit aborted; fix the issues above before a full publish.", 3)

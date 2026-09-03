@@ -46,6 +46,17 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+Publish-script hardening — the stash/rebase/pop cycle that syncs with origin now pauses before restoring your working tree, so VS Code's file watcher settles on the rebased state instead of briefly surfacing archived files as new.
+
+### Changed
+
+- The publish script's stash/rebase/pop sequence now sleeps for a configurable number of seconds (default 3, `--rebase-debounce`) between the rebase completing and the stash pop, giving VS Code's file watcher time to settle before the working tree returns to its final state. Previously the intermediate rebase states caused false-positive churn in the file explorer (e.g. archived bug files briefly appearing as new).
+- The publish script now supports `--headless` mode for agent and CI use. All interactive prompts (mode menu, version prompt, PAT entry, failure handling, local install) are bypassed when `--headless --mode <mode>` is passed. Version defaults to the auto-computed value (override with `--version`), PATs must be pre-set as env vars, and step failures follow the `--on-failure` policy (`abort` | `ignore` | `retry`).
+
+---
+
 ## [1.8.0]
 
 Leaner UI, smarter activation, and a batch of reliability fixes — the toolbar is decluttered, the right-click menu is faster, case-insensitive filesystems finally work everywhere, and background runs no longer hoard memory. [log](https://github.com/saropa/saropa-workspace/blob/v1.8.0/CHANGELOG.md)
