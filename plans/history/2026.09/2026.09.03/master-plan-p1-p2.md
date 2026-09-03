@@ -63,17 +63,18 @@ with a truncation marker for the dropped middle. Applied incrementally on each
 5 unit tests cover under-cap passthrough, exact-boundary, past-cap truncation,
 single oversized chunk, and tail-window sliding.
 
-### 2.3 — Case-insensitive path comparison on Windows
+### 2.3 — Case-insensitive path comparison on Windows and macOS
 
 New `pathCompare.ts` module with:
-- `pathEquals()` — case-insensitive equality on win32
+- `pathEquals()` — case-insensitive equality on win32/darwin
 - `isPathWithinBase()` — case-insensitive prefix match with separator boundary
 - `relativeToBase()` — strip prefix with boundary safety
 - `relativeToBaseLoose()` — strip prefix without boundary (for URIs composed
   by joining onto base)
 
-All functions normalize casing for comparison only on `process.platform ===
-"win32"`; returned text always preserves original casing.
+All functions normalize casing for comparison only on win32 and darwin
+(both have case-insensitive filesystems by default); returned text always
+preserves original casing.
 
 Applied to:
 - `shortcutStoreBase.ts` `toFolderRelative` — uses `relativeToBaseLoose`
@@ -97,8 +98,28 @@ source, making casing mismatches less likely. Flagged for follow-up audit.
 - `extension.ts` `onDidRemoveShortcut` has three identical try/catch blocks
   differing only in function name — could collapse to a loop.
 
+## Hardening pass (2026-09-03)
+
+Post-review hardening addressed three findings:
+
+1. **Activation gap (2.1):** Restored `onStartupFinished` as a low-priority
+   fallback activation event alongside the `workspaceContains` patterns. VS Code
+   defers `onStartupFinished` extensions after `workspaceContains` matches, so
+   workspaces with shortcuts still activate first. This closes the gap for
+   global-only scheduled shortcuts and custom `configDir` setups.
+
+2. **macOS case-insensitivity (2.3):** Extended `pathCompare.ts` to normalize
+   casing on `darwin` in addition to `win32`. macOS HFS+/APFS-default is
+   case-insensitive, same as Windows NTFS — the original fix only handled
+   Windows.
+
+3. **walkUp stop check (2.3 bug class):** Fixed `detectorHelpers.ts` `walkUp()`
+   to use the new `pathEquals()` for its stop-directory comparison instead of
+   case-sensitive `===`. Without this, the monorepo package-manager detection
+   could climb past the workspace root on Windows/macOS.
+
 ## Finish Report (2026-09-03)
 
 All 5 P1/P2 items are implemented, type-checked, bundle-verified, and unit-tested
-(1235 existing + 16 new tests pass). The master plan's Phase 1 and Phase 2 are
-complete. Phases 3-6 remain and are tracked in `plans/MASTER_PLAN.md`.
+(1242 tests pass — 1235 existing + 7 new). The master plan's Phase 1 and Phase 2
+are complete. Phases 3-6 remain and are tracked in `plans/MASTER_PLAN.md`.
