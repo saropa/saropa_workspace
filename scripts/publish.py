@@ -39,6 +39,11 @@ Headless mode (--headless --mode <mode>):
     with --version). PATs must be pre-set as environment variables. Step failures
     follow the --on-failure policy (abort | ignore | retry; default abort).
 
+JSON output (--json):
+    Emits a single JSON object to stdout at exit with mode, version, exit code,
+    per-step timing, and (for full publishes) store URLs. Implies --quiet;
+    subprocess output is captured. For programmatic consumers (agents, CI).
+
 Version handling is automated. The version source of truth is the top
 "## [x.y.z]" section of the root CHANGELOG.md (which also holds the release
 notes); extension/package.json is reconciled to it at publish time, with the
@@ -79,9 +84,9 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 from modules._git_ops import DEFAULT_REBASE_DEBOUNCE_SECONDS, MAX_REBASE_DEBOUNCE_SECONDS  # noqa: E402
-from modules._utils import detail, enable_ansi_support, set_headless, set_on_failure, set_quiet, show_logo  # noqa: E402
+from modules._utils import detail, enable_ansi_support, set_headless, set_json_output, set_on_failure, set_quiet, show_logo  # noqa: E402
 from modules._version_changelog import read_package_version, set_version_override  # noqa: E402
-from modules._workflow import MODES, check_prerequisites, prompt_mode, run_mode  # noqa: E402
+from modules._workflow import MODES, check_prerequisites, get_last_run_result, prompt_mode, run_mode  # noqa: E402
 
 
 def main() -> int:
@@ -113,8 +118,18 @@ def main() -> int:
         "--on-failure", choices=("abort", "ignore", "retry"), default="abort",
         help="Failure policy in headless mode: abort (default), ignore, or retry.",
     )
+    parser.add_argument(
+        "--json", action="store_true",
+        help="Emit a single JSON object to stdout at exit with mode, version, "
+             "exit code, step timing, and store URLs. Implies --quiet.",
+    )
     parsed = parser.parse_args()
-    set_quiet(parsed.quiet)
+    # --json implies --quiet so the JSON line is the only stdout output.
+    if parsed.json:
+        set_quiet(True)
+        set_json_output(True)
+    else:
+        set_quiet(parsed.quiet)
 
     # Headless mode requires --mode so the interactive menu is never shown.
     if parsed.headless and not parsed.mode:
@@ -122,6 +137,11 @@ def main() -> int:
     set_headless(parsed.headless)
     set_on_failure(parsed.on_failure)
     if parsed.version:
+        # --version only takes effect in headless mode; warn if used without it
+        # so the operator knows the override was ignored.
+        if not parsed.headless:
+            from modules._utils import warn
+            warn("--version is ignored without --headless; the interactive prompt will appear.")
         set_version_override(parsed.version)
 
     enable_ansi_support()
@@ -133,7 +153,15 @@ def main() -> int:
         return code
 
     detail(f"  Saropa Workspace extension - version {read_package_version()}, mode '{mode}'.")
-    return run_mode(mode, parsed.rebase_debounce)
+    exit_code = run_mode(mode, parsed.rebase_debounce)
+
+    # Emit structured JSON for programmatic consumers (agents, CI dashboards).
+    if parsed.json:
+        import json
+        result = get_last_run_result() or {"mode": mode, "exit_code": exit_code, "ok": exit_code == 0}
+        print(json.dumps(result, indent=2))
+
+    return exit_code
 
 
 if __name__ == "__main__":

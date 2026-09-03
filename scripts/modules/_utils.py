@@ -81,6 +81,11 @@ _QUIET = False
 # pre-set), local install is skipped, and step failures use the _ON_FAILURE
 # policy instead of prompting. This lets an agent or CI pipeline drive the full
 # publish without stdin.
+#
+# CONTRACT: every input() call in the publish pipeline MUST be guarded by
+# `if is_headless(): <return a sensible default>`. Adding a new prompt without
+# this guard will hang unattended runs. Grep for `input(` across scripts/ to
+# audit compliance.
 _HEADLESS = False
 
 # The failure policy in headless mode: "abort" (default — stop on first failure),
@@ -92,6 +97,12 @@ _ON_FAILURE = "abort"
 # Reset by prompt_on_failure each time it returns "retry"; on the second
 # consecutive failure it escalates to "abort" so no step can loop forever.
 _HEADLESS_RETRIED = False
+
+# When True (set by --json), the run emits a single JSON object to stdout at
+# exit containing mode, version, exit code, step timing, and store URLs.
+# Intended for programmatic consumers (agents, CI dashboards). The colored
+# terminal output is suppressed (implies --quiet).
+_JSON_OUTPUT = False
 
 
 def set_quiet(value: bool) -> None:
@@ -118,6 +129,15 @@ def set_on_failure(policy: str) -> None:
     if policy not in ("abort", "ignore", "retry"):
         raise ValueError(f"Invalid --on-failure policy: {policy!r}")
     _ON_FAILURE = policy
+
+
+def set_json_output(value: bool) -> None:
+    global _JSON_OUTPUT
+    _JSON_OUTPUT = value
+
+
+def is_json_output() -> bool:
+    return _JSON_OUTPUT
 
 
 def reset_headless_retry() -> None:
@@ -255,7 +275,12 @@ def prompt_on_failure(label: str) -> str:
 
 # cspell:disable
 def show_logo() -> None:
-    """Print the Saropa 'S' logo. Pure branding; never references any tooling."""
+    """Print the Saropa 'S' logo. Pure branding; never references any tooling.
+
+    Suppressed in quiet mode so --json output stays machine-parseable.
+    """
+    if _QUIET:
+        return
     logo = """
 \033[38;5;208m                               ....\033[0m
 \033[38;5;208m                       `-+shdmNMMMMNmdhs+-\033[0m
@@ -295,6 +320,9 @@ def run(
 ) -> subprocess.CompletedProcess:
     """Run a command and return the completed process.
 
+    When --json output is active, subprocess stdout/stderr is captured even if
+    the caller did not ask for it, so the JSON line is the only stdout output.
+
     Commands are not echoed to the log: the step headers and result lines already
     say what is happening, and printing the raw argv adds noise (and would surface
     internal tooling invocations the operator does not need to read).
@@ -305,13 +333,15 @@ def run(
     Output is forced to UTF-8 with replacement so a stray byte never crashes the
     run on a Windows cp1252 console.
     """
+    # --json mode captures all subprocess output so only the JSON line hits stdout.
+    effective_capture = capture or _JSON_OUTPUT
     exe = shutil.which(args[0]) or args[0]
     return subprocess.run(
         [exe, *args[1:]],
         cwd=str(cwd),
         check=check,
         text=True,
-        capture_output=capture,
+        capture_output=effective_capture,
         encoding="utf-8",
         errors="replace",
     )

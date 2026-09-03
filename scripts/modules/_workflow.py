@@ -30,6 +30,7 @@ from modules._publish import publish_marketplaces, success_banner, verify_store_
 from modules._quality import run_quality_audit
 from modules._timing import StepTimer
 from modules._utils import (
+    GITHUB_REPO,
     PACKAGE_JSON,
     VERSION_RE,
     detail,
@@ -44,6 +45,15 @@ from modules._utils import (
 from modules._version_changelog import read_package_version, resolve_version
 
 MODES = ("full", "package", "publish-existing", "dry-run", "audit", "ci-fallback")
+
+# Populated by run_mode for JSON output consumers. Contains mode, version, exit
+# code, step timing, and (for full publishes) store URLs.
+_last_run_result: dict | None = None
+
+
+def get_last_run_result() -> dict | None:
+    """Return the structured result of the most recent run_mode call."""
+    return _last_run_result
 
 
 def _attempt(
@@ -181,23 +191,51 @@ def _run_publish_existing() -> int:
         timer.print_summary()
 
 
+def _record_result(mode: str, exit_code: int, version: str | None = None,
+                    timer: StepTimer | None = None) -> None:
+    """Store a structured run result for JSON output consumers."""
+    global _last_run_result
+    result: dict = {"mode": mode, "exit_code": exit_code, "ok": exit_code == 0}
+    if version:
+        result["version"] = version
+    if timer:
+        result["timing"] = timer.to_dict()
+    # For full publishes, include the store URLs so an agent can link them.
+    if mode == "full" and exit_code == 0 and version:
+        from modules._publish import _extension_identity
+        publisher, name = _extension_identity()
+        if publisher and name:
+            result["urls"] = {
+                "marketplace": f"https://marketplace.visualstudio.com/items?itemName={publisher}.{name}",
+                "open_vsx": f"https://open-vsx.org/extension/{publisher}/{name}",
+                "github_release": f"https://github.com/{GITHUB_REPO}/releases/tag/v{version}",
+            }
+    _last_run_result = result
+
+
 def run_mode(mode: str, rebase_debounce_seconds: int = DEFAULT_REBASE_DEBOUNCE_SECONDS) -> int:
     """Dispatch to the pipeline for *mode*. Returns the process exit code."""
     if mode == "ci-fallback":
-        return ci_fallback()
+        code = ci_fallback()
+        _record_result(mode, code)
+        return code
 
     if mode == "audit":
         # Audit-only reports both gates; the publish audit decides the exit code,
         # the quality report is informational here (non-strict).
         publish_failures = run_audit(mode)
         run_quality_audit(strict=False)
-        return 3 if publish_failures else 0
+        code = 3 if publish_failures else 0
+        _record_result(mode, code)
+        return code
 
     if mode == "publish-existing":
         return _run_publish_existing()
 
     # Build-and-maybe-publish modes (full, package, dry-run).
     timer = StepTimer()
+    exit_code = 0
+    version: str | None = read_package_version()
     try:
         strict = mode == "full"
 
@@ -210,22 +248,25 @@ def run_mode(mode: str, rebase_debounce_seconds: int = DEFAULT_REBASE_DEBOUNCE_S
                 "Git sync", lambda: sync_with_remote(rebase_debounce_seconds), allow_ignore=False
             )
             if aborted:
-                return fail("Remote sync aborted; resolve the rebase before a full publish.", 7)
+                exit_code = fail("Remote sync aborted; resolve the rebase before a full publish.", 7)
+                return exit_code
             _, aborted = _attempt("Audit", lambda: run_audit(mode))
             if aborted:
-                return fail("Audit aborted; fix the issues above before a full publish.", 3)
+                exit_code = fail("Audit aborted; fix the issues above before a full publish.", 3)
+                return exit_code
             _, aborted = _attempt("Quality gate", lambda: run_quality_audit(strict=True))
             if aborted:
-                return fail("Quality gate aborted; fix the issues above before a full publish.", 3)
+                exit_code = fail("Quality gate aborted; fix the issues above before a full publish.", 3)
+                return exit_code
         else:
             run_audit(mode)
             run_quality_audit(strict=False)
 
-        version: str | None = read_package_version()
         if strict:
             version = _resolve_version_interactive(timer)
             if version is None:
-                return 10
+                exit_code = 10
+                return exit_code
             check_working_tree()
 
         # Each build step shares one failure policy: ignore / retry (default) / abort.
@@ -236,7 +277,8 @@ def run_mode(mode: str, rebase_debounce_seconds: int = DEFAULT_REBASE_DEBOUNCE_S
         ):
             code, aborted = _attempt(label, step, timer=timer)
             if aborted:
-                return code
+                exit_code = code
+                return exit_code
 
         if mode in ("package", "dry-run"):
             header("DONE")
@@ -248,7 +290,8 @@ def run_mode(mode: str, rebase_debounce_seconds: int = DEFAULT_REBASE_DEBOUNCE_S
         # Full publish: stores -> git tag/release -> store verification.
         code, aborted = _attempt("Publish", publish_marketplaces, timer=timer)
         if aborted:
-            return code
+            exit_code = code
+            return exit_code
         code, aborted = _attempt(
             "Git + release",
             lambda: git_commit_release(version) or github_release(version),
@@ -256,9 +299,11 @@ def run_mode(mode: str, rebase_debounce_seconds: int = DEFAULT_REBASE_DEBOUNCE_S
             allow_ignore=False,
         )
         if aborted:
-            return code
+            exit_code = code
+            return exit_code
         verify_store_publication(version)
         success_banner(version)
         return 0
     finally:
         timer.print_summary()
+        _record_result(mode, exit_code, version, timer)
