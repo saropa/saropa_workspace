@@ -50,6 +50,11 @@ import {
 // Foundation layer: cached state fields, the change-event emitter, the file /
 // global-state persistence, and the synchronous query accessors. The higher
 // layers (recipes, refresh, mutation, sets, groups) extend this in a chain.
+//
+// CONVENTION: every JSON.parse on external data (config files, legacy configs,
+// import payloads) MUST be wrapped in try/catch — an unguarded parse is a
+// crash-on-corrupt-input bug. Log-and-continue for migration paths; return
+// empty for read paths. (BUG-001 was an unguarded parse here.)
 export abstract class ShortcutStoreBase {
   protected readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
@@ -283,8 +288,22 @@ export abstract class ShortcutStoreBase {
       }
 
       // Migrate: rewrite any pins whose path targeted a known legacy config
-      // location so the seed shortcut stays accurate.
-      const parsed = JSON.parse(Buffer.from(legacyBytes).toString("utf8"));
+      // location so the seed shortcut stays accurate. A corrupt legacy file
+      // must not crash activation (BUG-001) — treat it like "no legacy file
+      // here" and keep checking the remaining known locations.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches
+      // the implicit `any` every other JSON.parse site in this file uses.
+      let parsed: any;
+      try {
+        parsed = JSON.parse(Buffer.from(legacyBytes).toString("utf8"));
+      } catch (err) {
+        getOutputChannel().appendLine(
+          `[config] ${legacyRelative} is not valid JSON, skipping migration for ${
+            folder.name
+          }: ${err instanceof Error ? err.message : String(err)}`
+        );
+        continue;
+      }
       if (Array.isArray(parsed.pins)) {
         for (const pin of parsed.pins) {
           if (
