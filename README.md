@@ -26,7 +26,7 @@ Developed by [Saropa](https://saropa.com) to make Flutter & Dart development fas
 
 ---
 
-Saropa Workspace maps your recurring shell scripts and critical platform configurations into a master sidebar menu. On initialization, it parses your manifests and `.git/config` to auto-generate **Recipes**. These are zero-config, one-click macros for tasks like formatting, linting, and tracking Git branch PRs. The true utility is the background automation engine. You can map scripts to specific file globs to execute headless tasks instantly on save. You can chain multiple commands into execution graphs or fire them off cron schedules while the editor is open. The environment state saves directly to a plain `.json` file inside `.vscode/`. Commit it, and your whole team inherits a fully automated project workspace without manual onboarding.
+Saropa Workspace maps your recurring shell scripts and critical platform configurations into a master sidebar menu. On initialization, it parses your manifests and `.git/config` to auto-generate **Recipes**. These are zero-config, one-click macros for tasks like formatting, linting, and tracking Git branch PRs. The true utility is the background automation engine. You can map scripts to specific file globs to execute headless tasks instantly on save. You can wire shortcuts into chains and event-driven sequences in the Visual Planner, or fire them off cron schedules while the editor is open. The environment state saves directly to a plain `.json` file inside `.saropa/`. Commit it, and your whole team inherits a fully automated project workspace.
 ---
 
 ## Screenshot
@@ -69,8 +69,8 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 
 ## Technical Capabilities
 * **Workspace Management:** Group configurations with drag-and-drop support, customize codicons/colors, or swap between isolated tool sets.
-* **Smart Onboarding:** Infers runner profiles automatically for new `package.json` or `Makefile` entries, and suggests shortcuts for heavily pinned files.
-* **Ecosystem Diagnostics:** Tracks modification histories via the `Project Files` pane, calculates code health indexes, and exposes background execution logs.
+* **Project Files Pane:** Surfaces notable files scanned from the open project, with file-type icons/colors and modification-time tracking.
+* **Dashboard:** A process-monitor webview with analytics and trend tabs for background-run activity, alongside the script output it tracks.
 
 ---
 
@@ -78,7 +78,7 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 
 | Scope | Storage Location | Sharing Method |
 | ----- | ---------------- | -------------- |
-| **Project** | `.vscode/saropa-workspace.json` | Commit to git — the entire team shares the same build shortcuts. |
+| **Project** | `.saropa/saropa-workspace.json` | Commit to git — the entire team shares the same build shortcuts. |
 | **Global** | VS Code User Profile | Synced across your development environments via Settings Sync. |
 
 ---
@@ -91,13 +91,16 @@ VS Code trees lack native double-click handling, so the extension monitors click
 
 ## Settings Reference (`saropaWorkspace.*`)
 
+A representative sample below — open **Settings → Extensions → Saropa Workspace**
+(or search `saropaWorkspace.` in the Settings UI) for the complete, current list.
+
 | Setting | Default | Purpose |
 | ------- | ------- | ----------- |
 | `autoPins.patterns` | `["pubspec.yaml", ...]` | Sets target files to automatically pin on new workspaces. |
 | `doubleClickMs` | `400` | Window in milliseconds to capture run commands vs open events. |
 | `defaultUseIntegratedTerminal` | `true` | Routes output to the integrated terminal instead of background logs. |
 | `recipes.enabled` | `true` | Enables auto-parsing of manifests to stand up default macros. |
-| `aiContext.enabled` | `true` | Displays active markdown chat files in a dedicated sidebar group. |
+| `configDir` | `.saropa` | The folder holding the project shortcut file. |
 
 ```json
 {
@@ -114,12 +117,15 @@ VS Code trees lack native double-click handling, so the extension monitors click
 
 ## Command Reference
 
+A representative sample below — open the Command Palette and type `Saropa Workspace:`
+for the complete, current list.
+
 | Command | Action |
 | ------- | ------ |
 | **Configure Run…** | Single form for prefixes, parameters, env flags, file watches, and execution locations. |
 | **Configure Schedule…** | Interface for interval frequencies, times, and raw cron expressions. |
 | **Run Shortcut with Overrides…** | Launches an execution block with temporary, one-off runtime arguments. |
-| **Import Favorites…** | Scrapes external manager extensions and sibling folders to pull shortcuts. |
+| **Import Favorites…** | Imports from `.favorites.json` and other supported favorites-manager formats. |
 
 ---
 

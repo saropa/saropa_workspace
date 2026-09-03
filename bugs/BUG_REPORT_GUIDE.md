@@ -17,13 +17,19 @@ lowercase-with-hyphens slug.
 
 | Area | Slug | Example |
 |------|------|---------|
-| Pins / storage | `pins` | `BUG-001-pins-global-pin-not-synced.md` |
+| Shortcuts / storage | `shortcut` | `BUG-001-shortcut-global-shortcut-not-synced.md` |
 | Execution | `exec` | `BUG-002-exec-cwd-ignored-on-windows.md` |
 | Scheduling | `schedule` | `BUG-003-schedule-run-fires-twice.md` |
 | Tree view / UX | `view` | `BUG-004-view-stale-after-rename.md` |
 | Import | `import` | `BUG-005-import-favorites-json-skips-args.md` |
 | Manifest / packaging | `pkg` | `BUG-006-pkg-command-missing-from-palette.md` |
 | Documentation | `docs` | `BUG-007-docs-wrong-settings-key.md` |
+| Routines / recipes | `recipe` | `BUG-015-recipe-detection-misses-monorepo.md` |
+| Launcher | `launcher` | `BUG-016-launcher-panel-blank-on-open.md` |
+| Notes | `notes` | `BUG-017-notes-index-corrupts-on-rename.md` |
+| Scripts (bundled library) | `scripts` | `BUG-018-scripts-manifest-entry-missing.md` |
+| Saropa Suite integration | `suite` | `BUG-019-suite-daily-report-omits-section.md` |
+| Folder/file watches | `watch` | `BUG-020-watch-fires-on-ignored-path.md` |
 
 Use lowercase with hyphens for the description. Check existing files and pick
 the next free `NNN` before creating.
@@ -81,10 +87,10 @@ Copy the block below into a new file.
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
 Created: YYYY-MM-DD
-Area: Pins / Execution / Scheduling / Tree View / Import / Packaging / Docs
+Area: Shortcuts / Execution / Scheduling / Tree View / Import / Packaging / Docs / Recipes / Launcher / Notes / Scripts / Suite / Watches
 File(s): `extension/src/...` (line ~NNN)
 Severity: Crash / Wrong behavior / Data loss / UX / Performance / Cosmetic
-Extension version: 0.1.x
+Extension version: 1.6.x
 
 ---
 
@@ -122,11 +128,11 @@ important section.
 2. ...
 3. Observe: ...
 
-If a specific pin definition is needed, paste the relevant
-`.vscode/saropa-workspace.json` entry (or the imported `.favorites.json`
+If a specific shortcut definition is needed, paste the relevant
+`.saropa/saropa-workspace.json` entry (or the imported `.favorites.json`
 fragment).
 
-**Frequency:** Always / Only with specific pins / Intermittent / Platform-specific
+**Frequency:** Always / Only with specific shortcuts / Intermittent / Platform-specific
 
 ---
 
@@ -145,9 +151,9 @@ fragment).
      command → runner → terminal. Name the functions involved. -->
 
 ```
-activatePin (commands/pinCommands.ts)
-  └─ pinStore.get (model/pinStore.ts)
-      └─ runner.run (exec/runner.ts)   ← failure here
+<command handler> (commands/shortcut*.ts)
+  └─ shortcutStore.get (model/shortcutStore.ts)
+      └─ runShortcut (exec/runner.ts)   ← failure here
 ```
 
 ---
@@ -212,7 +218,7 @@ new code
 - saropa_workspace version:
 - VS Code version:
 - OS:
-- Pin scope (project / global):
+- Shortcut scope (project / global):
 - Settings Sync enabled (yes / no):
 ````
 
@@ -222,15 +228,15 @@ new code
 
 ### Title
 
-- Be specific: "global pin not synced to second machine" beats
-  "pins broken".
+- Be specific: "global shortcut not synced to second machine" beats
+  "shortcuts broken".
 - Name the area so the file slug and the title agree.
 
 ### Reproducer
 
 - Smallest possible steps — strip everything unrelated.
-- Include the exact pin definition (run params, scope) when the bug depends on
-  it.
+- Include the exact shortcut definition (run params, scope) when the bug
+  depends on it.
 - For execution bugs, paste the resolved command line the extension built, the
   working directory, and any env overrides.
 - For platform-specific bugs, name the OS and shell.
@@ -250,15 +256,15 @@ new code
 
 ## Bug Categories
 
-### Pins / Storage
+### Shortcuts / Storage
 
-Pin data is wrong, lost, not persisted, or not synced.
+Shortcut data is wrong, lost, not persisted, or not synced.
 
 **Investigation focus:**
 
-- Is the pin written to the right place — project file
-  (`.vscode/saropa-workspace.json`) for project pins, `globalState` for global
-  pins?
+- Is the shortcut written to the right place — project file
+  (`.saropa/saropa-workspace.json` by default) for project shortcuts,
+  `globalState` for global shortcuts?
 - Are workspace-relative paths resolved correctly across machines and
   platforms?
 - For sync issues: is the value stored in `globalState` with sync enabled, and
@@ -298,20 +304,100 @@ absent after an action.
 **Investigation focus:**
 
 - Is the provider refreshed after every state change?
-- Are Project Pins and Global Pins grouped and ordered correctly?
+- Are Project Shortcuts and Global Shortcuts grouped and ordered correctly?
 - Does single-click open and double-click run as configured
   (`doubleClickMs`)?
-- Is there visible feedback after a run, rename, or unpin?
+- Is there visible feedback after a run, rename, or remove?
 
 ### Import
 
-Importing `.favorites.json` drops, mangles, or mis-maps pins.
+Importing `.favorites.json` (or another supported favorites-manager format)
+drops, mangles, or mis-maps shortcuts.
 
 **Investigation focus:**
 
 - Are all fields mapped — path, label, run params (prefix, args, cwd, env)?
-- How are conflicts with existing pins handled?
+- How are conflicts with existing shortcuts handled?
 - Is malformed input rejected with a clear message rather than crashing?
+
+### Recipes
+
+An auto-detected macro (formatting, lint, git-remote/PR link, dependency
+install) is missing, mislabeled, or runs the wrong command for the project.
+
+**Investigation focus:**
+
+- Does the manifest/`.git/config` detection in `recipes/` correctly identify
+  the project's toolchain (npm vs pnpm vs yarn, Flutter vs plain Dart, etc.)?
+- Is a recipe's hidden/promoted/toggled-off state (`Promote to Shortcut`,
+  domain toggle) persisted and respected on refresh?
+- Does `saropaWorkspace.recipes.enabled` gate detection correctly?
+
+### Launcher
+
+The bottom-panel Launcher webview is blank, stale, missing an item, or an
+action inside it does not reach the right shortcut/script/note.
+
+**Investigation focus:**
+
+- Does the webview's posted message reach the extension host handler, and
+  does the response round-trip back to the webview?
+- Is the CSP/nonce set up correctly for the panel (`launcherAssets.ts` /
+  `launcherView.ts`)?
+- Are search/filter and collapsible-section state preserved across a refresh?
+
+### Notes
+
+A note is not created, not found, or its content/index (pin-to-top, tags,
+sort order) is wrong.
+
+**Investigation focus:**
+
+- Is the note file written under the correct project/global `notes/` location
+  (`model/noteStore.ts`)?
+- Does the index survive a rename, move, or external edit of the note file?
+
+### Scripts (bundled library)
+
+A bundled script in the Scripts view fails to appear, run, or resolve its
+config/tags correctly.
+
+**Investigation focus:**
+
+- Does the script's `entry` in `extension/scripts/library/library.json`
+  resolve to an existing file under `context.extensionPath`?
+- Are user overrides (tags, config) correctly keyed by `library:<id>` so they
+  survive an extension version update (never by absolute path)?
+- Does a missing interpreter or a missing `requires` tool produce a visible,
+  named error rather than a silent failure?
+
+### Saropa Suite integration
+
+The Suite daily report or another cross-tool surface is missing a section,
+shows stale data, or fails to detect a sibling extension.
+
+**Investigation focus:**
+
+- Is the sibling extension detected via `vscode.extensions.getExtension(id)`
+  correctly, including the absent-tool fallback (dimmed row / omitted
+  section, never an error)?
+- Does the sibling's exported `getDailySummary` API respond within the
+  documented timeout, and does a missing/older API degrade to an omitted
+  section?
+
+### Folder / file watches
+
+A folder watch does not fire, fires on an ignored path, or misses a change
+that occurred while the window was closed.
+
+**Investigation focus:**
+
+- Does the watch respect `.gitignore` (for a git-aware watch) or the
+  configured glob (for the mtime-based folder watch)?
+- Is the baseline correctly diffed on startup so changes made while the
+  window was closed are caught?
+- Is the watcher disposed and re-created (not leaked) when its target
+  changes?
 
 ### Manifest / Packaging
 
@@ -346,14 +432,14 @@ Use this when diagnosing a new bug.
 - [ ] **Attribution** — confirmed the command/setting/symbol lives in
       `extension/src` + `package.json` (grep pasted); confirmed it is not the
       pinned script's own behavior or stock VS Code.
-- [ ] **Reproduce it** — minimal steps, with the exact pin definition.
+- [ ] **Reproduce it** — minimal steps, with the exact shortcut definition.
 - [ ] **Read the handler** — find the command handler in
       `extension/src/commands/` and trace the flow.
-- [ ] **Check the store** — `model/pinStore.ts`: where is the pin read/written
-      (project file vs `globalState`)?
+- [ ] **Check the store** — `model/shortcutStore*.ts`: where is the shortcut
+      read/written (project file vs `globalState`)?
 - [ ] **Check execution** — `exec/runner.ts`: what command line is built, in
       what cwd, with what env, on what surface (terminal vs output channel)?
-- [ ] **Check the view** — `views/pinsTreeProvider.ts`: is refresh called
+- [ ] **Check the view** — `views/shortcutsTreeProvider.ts`: is refresh called
       after the change?
 - [ ] **Check the manifest** — `package.json` command/menu/setting matches the
       code (ids, `when`, `contextValue`).
@@ -370,15 +456,15 @@ These patterns have caused bugs before. Check for them during investigation.
 | Pitfall | Why It Breaks | Correct Pattern |
 |---------|---------------|-----------------|
 | Blaming the extension for a pinned script's own failure | The script exits non-zero on its own logic; we ran it correctly | Confirm the resolved command line is right; if so, it is not our bug |
-| Storing a global pin without sync semantics | Value lives only on one machine | Use `globalState` so Settings Sync can carry it |
-| Absolute paths in the project pin file | Breaks on another machine / OS | Store workspace-relative paths in `.vscode/saropa-workspace.json` |
+| Storing a global shortcut without sync semantics | Value lives only on one machine | Use `globalState` so Settings Sync can carry it |
+| Absolute paths in the project shortcut file | Breaks on another machine / OS | Store workspace-relative paths in `.saropa/saropa-workspace.json` |
 | Tree not refreshed after a state change | View shows stale labels/items | Fire the provider's change event after every mutation |
 | Command id / setting key drift | `package.json` and code disagree; command silently does nothing | Treat `package.json` as the source of truth; match ids exactly |
 | Hardcoded user-facing string | Ships English in every locale, shows raw key if mis-wired | `%key%` in `package.nls.json`, or `l10n()` from `locales/en.json` |
 | Naive quoting of args/paths | Spaces and special chars break the run, especially on Windows | Build args as an array / quote per platform |
 | `contextValue` / `when` mismatch | Menu item appears on wrong items or never | Align the `viewItem` regex with the `contextValue` set in code |
 | Duplicate schedule timers on reload | Same run fires twice | Dispose existing timers before re-creating them |
-| Silent action with no feedback | Run/rename/unpin looks like nothing happened | Surface a visible outcome (message, view update) |
+| Silent action with no feedback | Run/rename/remove looks like nothing happened | Surface a visible outcome (message, view update) |
 
 ---
 
@@ -445,8 +531,8 @@ Use the date the bug was closed. Create the date folder if it does not exist.
 
 | Severity | Meaning | Examples |
 |----------|---------|---------|
-| Critical | Data loss or crash that blocks normal use | Pins wiped on reload, activation throws |
-| High | Core feature broken on a common path | Pinned scripts never run, global pins not stored |
+| Critical | Data loss or crash that blocks normal use | Shortcuts wiped on reload, activation throws |
+| High | Core feature broken on a common path | Pinned scripts never run, global shortcuts not stored |
 | Medium | Feature broken in a specific case | cwd ignored on Windows, import drops env |
 | Low | Cosmetic or rare edge case | Wrong label casing, tooltip typo |
 

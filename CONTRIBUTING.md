@@ -7,7 +7,8 @@ Saropa Workspace is a Visual Studio Code extension written in TypeScript. It
 lets you add files and scripts as shortcuts: single-click opens a shortcut,
 double-click runs a script, with per-shortcut run parameters (command prefix,
 args, working directory, environment). Shortcuts are scoped per project
-(`.vscode/saropa-workspace.json`) or globally (synced via Settings Sync).
+(`.saropa/saropa-workspace.json` by default) or globally (synced via Settings
+Sync).
 
 ## Code of Conduct
 
@@ -61,12 +62,19 @@ The extension source lives in `extension/src/`, grouped by concern:
 
 | Folder | Purpose |
 |--------|---------|
-| `model/` | Shortcut data model and storage (`shortcut.ts`, `shortcutStore.ts`) — project file + `globalState`. |
-| `views/` | Activity-bar tree view (`shortcutsTreeProvider.ts`, `shortcutTreeItem.ts`). |
-| `commands/` | Command handlers (`shortcutCommands.ts`): add, open, run, rename, remove, restore. |
-| `exec/` | Script execution (`runner.ts`) and double-click detection (`doubleClick.ts`). |
-| `schedule/` | Scheduled runs for saved scripts. |
+| `model/` | Shortcut, script, note, and folder-watch data models and storage (`shortcut.ts`, `shortcutStore*.ts`) — project file + `globalState`. |
+| `views/` | Sidebar tree views and webview panels (`shortcutsTreeProvider.ts`, `shortcutTreeItem.ts`, plus the Dashboard, Launcher, Planner, Settings, and Configure Run panels). |
+| `commands/` | Command handlers (`shortcutCommands.ts`, `pinCommands.ts`, `dailyReport.ts`, etc.): add, open, run, rename, remove, restore, and the rest. |
+| `exec/` | Script execution (`runner.ts`), double-click detection (`doubleClick.ts`), and scheduling (`schedule.ts`, `scheduleCron.ts`, `scheduler.ts`). |
+| `recipes/` | Auto-detected macros parsed from manifests and `.git/config`. |
+| `import/` | Importers for `.favorites.json` and other favorites-manager formats, plus the share-link codec. |
+| `activation/` | `activate()` wiring split by concern (commands, watchers, views). |
 | `i18n/` | Runtime string lookup (`l10n.ts`) reading `i18n/locales/en.json`. |
+| `test/` | `node --test` unit suite (host-independent logic only). |
+
+Bundled utility scripts (Python) ship separately, under
+`extension/scripts/library/` — one self-contained folder per script plus the
+`library.json` manifest, surfaced by the Scripts view.
 
 Other key files:
 
@@ -88,6 +96,8 @@ npm install          # install dependencies
 npm run build        # bundle once with esbuild
 npm run watch        # rebuild on change while developing
 npm run package      # production bundle (used by vsce / vscode:prepublish)
+npm test             # runs test:unit — the node --test unit suite
+npm run test:unit    # esbuild-bundles src/test/ to out/test/, runs it under Node's built-in runner
 ```
 
 To try the extension interactively, open the repo in VS Code and press **F5**.
@@ -101,9 +111,13 @@ There is no Dart, no analyzer, and no `dart test` here. Verify a change by:
 
 1. **TypeScript compiles clean** — `tsc -p ./ --noEmit` reports no errors.
 2. **The bundle builds** — `npm run build` succeeds.
-3. **Manual smoke test** in the Extension Development Host — exercise the
+3. **Unit tests pass** — `npm test`, if your change touches host-independent
+   logic covered by the `node --test` suite (see `src/test/`).
+4. **Manual smoke test** in the Extension Development Host — exercise the
    behavior you changed (add a shortcut, run a script, rename, remove, restore
    auto-shortcuts, etc.) and confirm it works and shows the right feedback.
+   There is no `@vscode/test-electron` integration harness yet, so this manual
+   pass is the only host-level coverage.
 
 State which of these you ran in the PR description.
 
@@ -202,6 +216,7 @@ effect do not need an entry.
 
 - [ ] TypeScript compiles clean (`tsc -p ./ --noEmit`).
 - [ ] `npm run build` succeeds.
+- [ ] `npm test` passes (if the change touches logic covered by `src/test/`).
 - [ ] Manual smoke test in the Extension Development Host passed for the
       changed behavior.
 - [ ] User-facing strings externalized (`package.nls.json` / `l10n()`), not
