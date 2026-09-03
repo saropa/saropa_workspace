@@ -15,6 +15,7 @@ from __future__ import annotations
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Any
 
 from modules._utils import Color, _c, is_quiet
 
@@ -42,6 +43,17 @@ class StepTimer:
             raise
         finally:
             self._steps.append(_StepRecord(name, time.monotonic() - start, ok))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a machine-readable summary of all recorded steps."""
+        total = time.monotonic() - self._start
+        return {
+            "steps": [
+                {"name": s.name, "duration_s": round(s.duration, 2), "ok": s.ok}
+                for s in self._steps
+            ],
+            "total_duration_s": round(total, 2),
+        }
 
     def print_summary(self) -> None:
         if is_quiet() or not self._steps:
