@@ -6,128 +6,48 @@ _Generated 2026-09-02 from a full extension audit covering 250+ source files, 18
 
 Saropa Workspace is a feature-rich, well-engineered VS Code extension with strong internal discipline (comment density, dispose hygiene, no-silent-async compliance, CSP/nonce security in webviews). However, the extension has grown to 103 registered commands, 37 settings, 6 sidebar views, and a panel webview — creating discoverability and onboarding friction that undermines the power underneath. This plan prioritizes the work that most directly improves the user's first-10-minutes experience and ongoing daily workflow.
 
+Bug reports are tracked separately in `bugs/` and are not duplicated here.
+
 ## How to read this plan
 
-- **P0 (Critical)**: Bugs that can crash or block the extension. Fix immediately.
-- **P1 (High)**: Bugs and UX gaps that affect daily workflows. Fix in the next release cycle.
-- **P2 (Medium)**: Polish, consistency, and robustness items. Schedule across 2-3 releases.
+- **P1 (High)**: UX gaps that affect daily workflows. Target the next release cycle.
+- **P2 (Medium)**: Robustness, consistency, and optimization items. Schedule across 2-3 releases.
 - **P3 (Low)**: Code quality, naming, and minor improvements. Address opportunistically.
-- Each item links to its bug report in `bugs/` where applicable.
+- Each phase beyond Phase 3 covers a distinct category (docs, wow features, backlog).
 
 ---
 
-## Phase 0 — Critical fixes (P0)
+## Phase 1 — High-impact UX improvements (P1)
 
-### 0.1 Activation crash on corrupted legacy config
-
-- **Bug:** [BUG-001](history/2026.09/2026.09.03/BUG-001-pkg-activation-crash-on-corrupt-legacy-config.md) (Closed)
-- **What:** `shortcutStoreBase.ts` `ensureProjectFile` — unguarded `JSON.parse` on legacy `.vscode/saropa-workspace.json` migration can throw uncaught during activation, blocking the whole extension from loading.
-- **Fix:** Wrap in try/catch matching every other JSON parse site. On failure, log a warning and treat as empty (fresh start).
-- **Effort:** 30 minutes.
-
----
-
-## Phase 1 — High-impact UX fixes (P1)
-
-### 1.1 Package manager detection for Run Nearest Script
-
-- **Bug:** [BUG-002](history/2026.09/2026.09.03/BUG-002-exec-npm-hardcoded-in-runNearestScript.md)
-- **What:** `recipeCommands.ts` `runNearestScript` hardcodes `npm run` instead of using the existing `packageManager()` detector.
-- **Fix:** Call `packageManager(wsFolder)` and build `${pm} run ${pick.label}`.
-- **Effort:** 15 minutes.
-
-### 1.2 Localize the Planner webview
-
-- **Bug:** [BUG-003](history/2026.09/2026.09.03/BUG-003-view-planner-not-localized.md)
-- **What:** The entire Planner client script has dozens of hardcoded English strings — the only un-localized webview in the codebase.
-- **Fix:** Add a STRINGS injection mechanism matching the pattern used by Dashboard, Launcher, Schedule, and Settings panels. Extract all client-side strings to `en.json`.
-- **Effort:** 2-4 hours.
-
-### 1.3 Throttle launcher project-file rescans
-
-- **Bug:** [BUG-004](history/2026.09/2026.09.03/BUG-004-view-launcher-rescans-on-every-save.md)
-- **What:** `launcherViewData.ts` triggers a full project-file rescan (stat calls) on every `onDidSaveTextDocument` event — fires on every file save in the entire workspace.
-- **Fix:** Filter to only fire when the saved document matches a surfaced-file pattern, or debounce with a 2-second window.
-- **Effort:** 1 hour.
-
-### 1.4 Add default keybindings
-
-- **Bug:** [BUG-008](history/2026.09/2026.09.03/BUG-008-pkg-missing-keybindings.md)
-- **What:** Only 1 keybinding registered. Power-user features are keyboard-inaccessible.
-- **Fix:** Add defaults for: add active file (`Ctrl+Alt+F`), run selected (`Ctrl+Alt+R`), focus view (`Ctrl+Shift+Alt+S`), and `runTopPin1`-`runTopPin5` (`Ctrl+Alt+1`-`5`). Check for conflicts with popular extensions.
-- **Effort:** 1-2 hours (including conflict research).
-
-### 1.5 Flatten the Explorer context menu
+### 1.1 Flatten the Explorer context menu
 
 - **What:** Adding a shortcut from Explorer requires 3 clicks (right-click → Workspace Shortcut → Add). Competitors (Favorites/kdcro101) do it in 1 click.
 - **Fix:** Promote "Add to Project Shortcuts" to a top-level Explorer context-menu entry. Keep the submenu for less-common actions (Add to Global, Pin Until, etc.).
 - **Effort:** 30 minutes.
 
-### 1.6 Reduce view-title icon clutter
+### 1.2 Reduce view-title icon clutter
 
 - **What:** The pins view title bar shows up to 6 icons. VS Code guidance recommends 2-3.
 - **Fix:** Keep filter and refresh inline. Move the rest (run-any, open-schedule, show-all-branches) to the overflow "..." menu.
 - **Effort:** 30 minutes.
 
-### 1.7 Rename "Time-Bomb" to "Auto-Remove"
-
-- **Bug:** [BUG-013](history/2026.09/2026.09.03/BUG-013-pkg-time-bomb-naming.md)
-- **What:** "Shortcut Expiry (Time-Bomb)" has negative connotations (malware, destructive behavior).
-- **Fix:** Rename to "Shortcut Expiry" or "Temporary Shortcut" across the submenu label, NLS strings, and any docs.
-- **Effort:** 15 minutes.
-
 ---
 
-## Phase 2 — Robustness and consistency (P2)
+## Phase 2 — Robustness and optimization (P2)
 
-### 2.1 Virtual filesystem compliance
-
-- **Bug:** [BUG-005](history/2026.09/2026.09.03/BUG-005-exec-fs-bypasses-virtual-filesystem.md)
-- **What:** `toggleFileLock` and `writeSuiteDailyReportFile` use raw Node `fs` instead of `vscode.workspace.fs`. Breaks Remote/WSL/Containers.
-- **Fix:** Migrate to `vscode.workspace.fs` APIs, or add explicit local-workspace-only guards with user-facing messages.
-- **Effort:** 1-2 hours.
-
-### 2.2 Config directory watcher gap
-
-- **Bug:** [BUG-006](history/2026.09/2026.09.03/BUG-006-pkg-configdir-watcher-gap.md)
-- **What:** Changing `configDir` at runtime to a novel directory gets no live file watcher until reload.
-- **Fix:** Re-register the FileSystemWatcher on settings change, disposing the old one.
-- **Effort:** 1 hour.
-
-### 2.3 Settings panel revert on failure
-
-- **Bug:** [BUG-007](history/2026.09/2026.09.03/BUG-007-view-settings-panel-no-revert-on-failure.md)
-- **What:** Failed `cfg.update()` leaves the UI control in the wrong state.
-- **Fix:** Send a `revert` message to the webview on catch, restoring the prior value.
-- **Effort:** 30 minutes.
-
-### 2.4 Accessibility improvements
-
-- **Bug:** [BUG-009](history/2026.09/2026.09.03/BUG-009-view-accessibility-gaps.md)
-- **What:** No `accessibilityInformation` on tree items; separator/untapped markers unreadable by screen readers; launcher menu lacks ARIA roles.
-- **Fix:** Add `accessibilityInformation` to `ShortcutTreeItem` for state indicators. Add `role="menu"`/`role="menuitem"` to the launcher menu. Give the separator an accessibility label.
-- **Effort:** 2-3 hours.
-
-### 2.5 Lazy activation
+### 2.1 Lazy activation
 
 - **What:** Extension activates on `onStartupFinished` (every VS Code launch). Users with no shortcuts configured still pay activation cost.
 - **Fix:** Switch to `onView:saropaWorkspace.pins` + command-based activation events. Requires verifying no side-effects depend on eager activation (boot sequence, scheduler, branch tracker).
 - **Effort:** 2-4 hours (including testing).
 
-### 2.6 Default aiContext.enabled to false
-
-- **Bug:** [BUG-014](history/2026.09/2026.09.03/BUG-014-pkg-ai-context-defaults-to-enabled.md)
-- **What:** Scanning for chat transcripts by default without opt-in is a privacy concern.
-- **Fix:** Change default to `false`. Add a one-time prompt when chat folders are detected: "Saropa Workspace found chat transcripts. Would you like to add them as shortcuts?"
-- **Effort:** 1 hour.
-
-### 2.7 Cap background output accumulation
+### 2.2 Cap background output accumulation
 
 - **What:** `backgroundRunner.ts` `attachOutputCapture` accumulates full stdout+stderr in memory with no size cap. A long-running process producing megabytes of output causes unbounded memory growth.
 - **Fix:** Cap accumulated output (keep last 1MB, or first + last 512KB). Truncation marker in the middle.
 - **Effort:** 1 hour.
 
-### 2.8 Case-sensitive path comparison on Windows
+### 2.3 Case-sensitive path comparison on Windows
 
 - **What:** `shortcutStoreBase.ts` `toFolderRelative` uses `startsWith` on `fsPath`. Can fail on case-insensitive Windows filesystems if folder and file URIs have different casing.
 - **Fix:** Normalize both to lowercase before comparison on `win32`.
@@ -137,52 +57,31 @@ Saropa Workspace is a feature-rich, well-engineered VS Code extension with stron
 
 ## Phase 3 — Code quality and polish (P3)
 
-### 3.1 Consolidate duplicate utilities
-
-- **Bug:** [BUG-012](history/2026.09/2026.09.03/BUG-012-view-duplicate-utilities.md)
-- **What:** 6 duplicate `esc()` functions, 5 duplicate CSS token blocks, 4 duplicate byte formatters, 2 duplicate glob-to-regex implementations.
-- **Fix:** Extract shared utilities: `webviewEscape.ts`, `webviewTokens.ts` (CSS), `formatBytes.ts`, and document why the two glob implementations differ (or merge them).
-- **Effort:** 2-3 hours.
-
-### 3.2 Clean up unbounded maps
-
-- **Bug:** [BUG-011](history/2026.09/2026.09.03/BUG-011-exec-unbounded-maps.md)
-- **What:** `watchLastRun` and `lastRunAtByShortcutId` Maps grow unbounded over the extension host lifetime.
-- **Fix:** Prune entries on shortcut removal (mirror the pattern used by `runStatusRegistry.clear()`, `promptMemory.forget()`, `runOutputs.clear()` on unpin/remove).
-- **Effort:** 30 minutes.
-
-### 3.3 Language-agnostic defaults
-
-- **Bug:** [BUG-010](history/2026.09/2026.09.03/BUG-010-pkg-dart-biased-defaults.md)
-- **What:** Auto-pin patterns default to `["pubspec.yaml", "analysis_options.yaml"]` (Dart-specific). Project-file groups default to `android/`, `ios/`, `web/` (Flutter-specific).
-- **Fix:** Change defaults to universal files (`package.json`, `README.md`, `Makefile`, `.env`) or empty. Consider project-type detection to auto-suggest relevant patterns.
-- **Effort:** 1 hour.
-
-### 3.4 Unify "pin" vs "shortcut" terminology
+### 3.1 Unify "pin" vs "shortcut" terminology
 
 - **What:** Internal code uses "pin" (command IDs, model types) while user-facing strings say "Shortcut." Launcher webview still shows "Pin" as a button label.
 - **Fix:** Audit all user-facing surfaces for "pin" leakage. Update launcher button labels and any remaining NLS strings. Command IDs are a breaking change — defer to a major version.
 - **Effort:** 1-2 hours for string cleanup; command IDs deferred.
 
-### 3.5 Dead imports cleanup
+### 3.2 Dead imports cleanup
 
 - **What:** `shortcutStore.ts`, `shortcutStoreBase.ts`, `shortcutStoreRecipes.ts`, `shortcutStoreRefresh.ts`, `shortcutStoreSets.ts` have large unused import blocks (leftover from file splits).
 - **Fix:** Run `npx tsc -p ./ --noEmit` to confirm TS6133 warnings, then remove unused imports.
 - **Effort:** 30 minutes.
 
-### 3.6 Heartbeat CSV rotation
+### 3.3 Heartbeat CSV rotation
 
 - **What:** `process-trend.csv` grows indefinitely with no rotation. After months of use, `parseTrendSeries` full-file parse becomes slow.
 - **Fix:** Rotate or truncate to last N days/samples (e.g. 90 days). Archive older data or discard.
 - **Effort:** 1 hour.
 
-### 3.7 Report file accumulation
+### 3.4 Report file accumulation
 
 - **What:** `runShellToReport` writes dated Markdown reports with no cleanup. The `reports/` directory accumulates stale files indefinitely.
 - **Fix:** Add a pruning pass on startup (keep last N reports per shortcut, or last 30 days).
 - **Effort:** 1 hour.
 
-### 3.8 Async Python install scan
+### 3.5 Async Python install scan
 
 - **What:** `interpreterDetect.ts` `scanPythonInstalls` uses synchronous `fs.readdirSync`/`fs.statSync` on `C:\` on the extension host's main thread. Can cause a perceptible hitch.
 - **Fix:** Convert to `fs/promises` for consistency with the rest of the codebase's IO conventions.
@@ -254,7 +153,6 @@ actionable items from each folded/archived file are now tracked in
 | `TODO_better integration with saropa suite.md` | Folded into [6.10](#610-saropa-suite-conductor--pillars-a-and-c); archived to `history/2026.09/2026.09.03/` | Pillar B (daily report) verified shipped via `dailyReport.ts`; Pillars A and C remain |
 | `WOW_X5.md`, `WOW_X5_modules.md`, `WOW_X5_security.md` | Merged into one `WOW_X5_HUD_LAUNCHER.md`, moved to `plans/deferred/` | Standalone Tauri desktop HUD launcher — a separate application, not a Workspace feature; no implementation started; review notes document bugs in every module — mandatory reading before anyone picks this up |
 | `deferred/HAPTIC_EVENT_CUES.md` | Left in place | Correctly deferred; platform-blocked (no VS Code haptics API), clear re-entry conditions already documented |
-| `competitors/*.md` (10 files) | Not reviewed this pass — separate task | 5 favorites-manager analyses (`favorites-kdcro101`, `favorites-howardzuo`, `favorites-manager-oleg-shilo`, `favorites-panel-sabitovvt`, `explorer-favorites-vladstudio`) to consolidate into one comparison table; 5 others (`bookmarks`, `code-runner`, `cron-tasks`, `project-manager`, `task-runners`) cover distinct product categories and stay separate |
 
 ---
 
@@ -512,14 +410,13 @@ section 4.7 for the full per-file disposition._
 
 | Phase | Items | Total effort | Target |
 |-------|-------|-------------|--------|
-| Phase 0 | 1 critical bug | 30 min | Immediate hotfix |
-| Phase 1 | 7 high-impact items | 5-9 hours | Next release (v1.6.13) |
-| Phase 2 | 8 robustness items | 9-13 hours | v1.7.0 |
-| Phase 3 | 8 code quality items | 7-10 hours | v1.7.x |
+| Phase 1 | 2 UX improvements | 1 hour | Next release (v1.6.13) |
+| Phase 2 | 3 robustness items | 3.5-5.5 hours | v1.7.0 |
+| Phase 3 | 5 code quality items | 4-5 hours | v1.7.x |
 | Phase 4 | 7 doc updates | 4-6 hours | Alongside each code phase |
 | Phase 5 | 6 wow items | 12-21 hours | v1.8.0+ |
 | Phase 6 | 11 carried-forward feature plans | Not estimated (several unscoped) | Backlog — schedule opportunistically; 6.7 blocked on user design decisions, 6.3/6.4 need explicit go-ahead given destructive-git risk |
-| **Total** | **48 items** | **~38-60 hours + Phase 6** | |
+| **Total** | **34 items** | **~25-38 hours + Phase 6** | |
 
 ---
 
@@ -546,8 +443,8 @@ These patterns are working well and should be preserved as the codebase evolves:
 
 | Feature | Favorites (kdcro101) | Project Manager | Saropa |
 |---------|---------------------|-----------------|--------|
-| Right-click → Add | 1 click | N/A | 3 clicks (submenu) — fix in 1.5 |
-| Keyboard shortcut to add | Yes | Yes | No — fix in 1.4 |
+| Right-click → Add | 1 click | N/A | 3 clicks (submenu) — fix in 1.1 |
+| Keyboard shortcut to add | Yes | Yes | No |
 | Drag from Explorer to sidebar | Yes | N/A | No — fix in 5.1 |
 | Sort alphabetically (toggle) | Yes | Yes | Via filter only |
 | Search/filter shortcuts | No | Yes | Yes (strong) |

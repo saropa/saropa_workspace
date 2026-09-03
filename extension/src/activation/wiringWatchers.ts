@@ -59,6 +59,11 @@ export function wireWatchers(
         // hand edits to the new config dir's saropa-workspace.json trigger a
         // repaint. The wrapper disposable in context.subscriptions still
         // points at this variable, so no subscriptions accumulation.
+        // Note: rapid-fire configDir changes (e.g. programmatic setting
+        // toggles) dispose/recreate watchers each time — acceptable because
+        // FileSystemWatcher creation is cheap and VS Code batches settings
+        // writes from the UI, so the realistic maximum is one change per
+        // user gesture.
         configDirWatchers.dispose();
         configDirWatchers = createConfigDirWatchers(debouncedConfigRefresh);
         void store.rescan();

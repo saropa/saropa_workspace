@@ -65,7 +65,9 @@ export abstract class ShortcutStoreBase {
   // site — means a new removal path can never forget to clear the per-shortcut
   // tracking data (run-status badge, watch cooldown, repeat-invocation guard) that
   // would otherwise grow unboundedly keyed by a now-dead id (BUG-011). Subscribers
-  // are wired once at activation; see extension.ts.
+  // are wired once at activation; see extension.ts. The event fires synchronously
+  // inside removeShortcut() before the next store operation, so subscribers that
+  // clear Maps or timers are guaranteed to run before any re-use of the id.
   protected readonly _onDidRemoveShortcut = new vscode.EventEmitter<string>();
   readonly onDidRemoveShortcut = this._onDidRemoveShortcut.event;
 
