@@ -46,15 +46,18 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.9.0]
 
-Publish-script hardening — the stash/rebase/pop cycle that syncs with origin now pauses before restoring your working tree, so VS Code's file watcher settles on the rebased state instead of briefly surfacing archived files as new.
+Publish-script hardening and automation — the release tool now recovers from a diverged `origin/main` on its own, runs unattended for agents and CI, and can report its results as machine-readable JSON. Nothing user-visible in the extension itself changed. [log](https://github.com/saropa/saropa-workspace/blob/v1.9.0/CHANGELOG.md)
 
 ### Changed
 
 - The publish script's stash/rebase/pop sequence now sleeps for a configurable number of seconds (default 3, `--rebase-debounce`) between the rebase completing and the stash pop, giving VS Code's file watcher time to settle before the working tree returns to its final state. Previously the intermediate rebase states caused false-positive churn in the file explorer (e.g. archived bug files briefly appearing as new). A rebase or stash-pop failure now leaves the working tree untouched and prints the exact recovery command (`git rebase --continue`/`--abort`, or `git stash drop`) instead of a bare failure message, and a `git fetch` failure is surfaced as a warning rather than silently comparing against a stale `origin/main`. This step also now writes a `.saropa-sync.json` coordination marker (git-ignored) naming the current stage while a sync is in progress, for a future watcher-side integration to consume; nothing reads it yet.
 - The publish script now supports `--headless` mode for agent and CI use. All interactive prompts (mode menu, version prompt, PAT entry, failure handling, local install) are bypassed when `--headless --mode <mode>` is passed. Version defaults to the auto-computed value (override with `--version`), PATs must be pre-set as env vars, and step failures follow the `--on-failure` policy (`abort` | `ignore` | `retry`). The retry policy now gives each step its own single-retry budget (a step that retried and then succeeded no longer causes the next step to escalate straight to abort on its first failure), and `--on-failure=ignore` can no longer skip past a failed Git sync or a failed release commit/tag/push — those leave the repository in a state that is never safe to build on top of, so they always abort.
 - The publish script now supports `--json` for machine-readable output. When passed, the logo, headers, and subprocess stdout/stderr are suppressed and a single JSON object is emitted to stdout at exit containing the mode, version, exit code, step timing (name, duration, pass/fail per step), and (for full publishes) store URLs. Useful for agents and CI dashboards that need to parse results programmatically.
+- The `publish-existing` mode now records a full structured result (version, timing, exit code) for `--json` output. Previously it fell back to a minimal dict without timing data.
+- The publish script now supports `--json-file <path>` to write the JSON result to a file at exit. Unlike `--json`, this does not suppress terminal output, so an agent or CI job can watch colored logs in real time while still capturing machine-readable results. Can be combined with `--json` for both stdout and file output.
+- Added automated tests for the publish pipeline covering `StepTimer.to_dict()`, `_record_result` structure, `_run_publish_existing` result recording, and headless abort-policy behavior.
 
 ---
 

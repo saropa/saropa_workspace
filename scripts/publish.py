@@ -44,6 +44,12 @@ JSON output (--json):
     per-step timing, and (for full publishes) store URLs. Implies --quiet;
     subprocess output is captured. For programmatic consumers (agents, CI).
 
+JSON file output (--json-file PATH):
+    Writes the same JSON result object to PATH at exit. Does NOT imply --quiet,
+    so colored terminal output remains visible. Useful when an agent needs both
+    human-readable logs for debugging and machine-readable results. Can be
+    combined with --json for both stdout and file output.
+
 Version handling is automated. The version source of truth is the top
 "## [x.y.z]" section of the root CHANGELOG.md (which also holds the release
 notes); extension/package.json is reconciled to it at publish time, with the
@@ -123,6 +129,12 @@ def main() -> int:
         help="Emit a single JSON object to stdout at exit with mode, version, "
              "exit code, step timing, and store URLs. Implies --quiet.",
     )
+    parser.add_argument(
+        "--json-file", metavar="PATH",
+        help="Write the JSON result object to PATH at exit. Unlike --json this "
+             "does NOT imply --quiet, so colored terminal output remains visible. "
+             "Can be combined with --json for both stdout and file output.",
+    )
     parsed = parser.parse_args()
     # --json implies --quiet so the JSON line is the only stdout output.
     if parsed.json:
@@ -156,10 +168,15 @@ def main() -> int:
     exit_code = run_mode(mode, parsed.rebase_debounce)
 
     # Emit structured JSON for programmatic consumers (agents, CI dashboards).
-    if parsed.json:
+    if parsed.json or parsed.json_file:
         import json
         result = get_last_run_result() or {"mode": mode, "exit_code": exit_code, "ok": exit_code == 0}
-        print(json.dumps(result, indent=2))
+        payload = json.dumps(result, indent=2)
+        if parsed.json:
+            print(payload)
+        if parsed.json_file:
+            # Write to file so the agent gets JSON while the terminal keeps colored output.
+            Path(parsed.json_file).write_text(payload, encoding="utf-8")
 
     return exit_code
 
