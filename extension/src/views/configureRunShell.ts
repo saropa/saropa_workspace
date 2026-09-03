@@ -17,6 +17,10 @@ import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { CONFIGURE_RUN_STYLE, CONFIGURE_RUN_SCRIPT } from "./configureRunAssets";
 import { l10n } from "../i18n/l10n";
+// Local alias keeps every `esc(...)` call site in this file unchanged; the escaping
+// algorithm itself is centralized (BUG-012 — this exact function was hand-duplicated
+// across ~8 host-side webview shells).
+import { escapeHtml as esc } from "../utils/escapeHtml";
 
 // Build the full webview HTML document for one shortcut's Configure Run form: the CSP
 // shell, the hero header, and the six form cards assembled in order, plus the env-row
@@ -261,23 +265,4 @@ function behaviorCard(): string {
     <input type="text" class="mono" id="lock" placeholder="${esc(l10n("configure.lock.placeholder"))}" />
   </div>
 </div>`;
-}
-
-// Escape text destined for an HTML text node or a double-quoted attribute, so a shortcut
-// label, path, or env value can never inject markup into the webview.
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#39;";
-    }
-  });
 }

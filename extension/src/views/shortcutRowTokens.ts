@@ -30,7 +30,7 @@ export { FileTypeIcon, fileTypeIcon, kindIcon };
 //   <glyph> + disabled tint — paused: kept but not running on its own
 //   <glyph> + warning tint  — a live metric is over its size threshold
 //   pass / error            — the last run's outcome (green pass / red fail)
-//   watch + yellow          — a time-bombed shortcut counting down to self-removal
+//   watch + yellow          — a shortcut with expiry set counting down to self-removal
 //   pinned + yellow          — a manual pin that replaced an auto-shortcut
 //   star-empty              — an auto-shortcut (seeded, removable)
 //   pin                     — a plain explicit shortcut
@@ -123,7 +123,7 @@ export function resolveShortcutRowIcon(input: ShortcutRowIconInput): vscode.Them
       input.customColor ? new vscode.ThemeColor(input.customColor) : undefined
     );
   }
-  // Time-bombed shortcut (WOW #9) at rest: a watch glyph so the pending self-removal
+  // Shortcut with expiry set (WOW #9) at rest: a watch glyph so the pending self-removal
   // reads at a glance, filling the otherwise-idle slot for a default-glyph shortcut.
   if (input.hasExpiry) {
     return new vscode.ThemeIcon("watch", new vscode.ThemeColor("charts.yellow"));

@@ -48,9 +48,29 @@ cspell:disable
 
 ## [Unreleased]
 
+---
+
+## [1.6.13]
+
+Thirteen bug fixes in one pass — package-manager detection, accessibility, i18n, sensible defaults, and cleanup of duplicated code across the board. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.13/CHANGELOG.md)
+
 ### Fixed
 
 - A corrupt legacy `.vscode/saropa-workspace.json` no longer crashes activation — the migration step that reads it now skips a file it cannot parse (logging why) and continues checking the other known config locations, instead of throwing.
+- "Run nearest script" now detects the project's actual package manager (pnpm, yarn, bun, or npm) from its lockfile instead of always running `npm run`, so the launched command matches what the project actually uses.
+- The Launcher panel no longer rescans the project file list on every single file save in the workspace — rapid saves now coalesce into one rescan, cutting needless disk activity while you work.
+- Changing the configured shortcuts folder at runtime now re-registers the config-file watcher for the new location instead of only watching the folders known at startup, so hand edits to the new folder's `saropa-workspace.json` trigger a refresh without a reload.
+- Removing a shortcut now also clears its watch-cooldown and repeat-invocation-guard timestamps, instead of leaving them in memory for the rest of the session — long-running windows with frequent shortcut churn no longer accumulate stale entries.
+- The Suite daily report now writes through the workspace filesystem API instead of Node's raw `fs`, so it saves correctly under Remote SSH, WSL, Containers, and Live Share. Locking a file now shows an explanatory message on a remote or virtual filesystem, where the OS read-only attribute cannot be toggled from here, instead of silently failing.
+- Shortcuts tree rows now announce their live state (running, stopping, waiting on a dependency, paused, missing, not yet opened) to screen readers, the separator row announces as "Separator" instead of forty dashes, and the Launcher panel's right-click menu now identifies itself as a menu with proper item roles to assistive technology.
+- Default auto-pin patterns and project file groups no longer assume a Dart/Flutter project — auto-pins now look for `package.json`, `README.md`, `Makefile`, and `.env.example`, and the project files "Project" group drops the Dart-only entries; the Flutter-only `Android`/`iOS`/`Web` groups are removed. Non-Dart projects now get useful results out of the box.
+- The AI-context feature (scanning `.claude`, `.cline/tasks`, and similar chat-transcript folders) now defaults to off, so the extension never reads potentially sensitive session history without the user explicitly turning it on.
+- The Shortcut Expiry submenu no longer carries the "(Time-Bomb)" label — it reads "Shortcut Expiry".
+- File-size badges, the note size shown after saving, and the size-limit shown when setting a metric threshold now report a decimal for two- and three-digit KB/MB/GB values (e.g. "20.0 KB" instead of "20 KB") — four near-identical byte-formatting functions were consolidated into one, and this one rounds consistently with the process monitor and project-stats report, which already formatted this way.
+
+### Added
+
+- Default keybindings for the top 5 pinned shortcuts (`Ctrl+Alt+1`-`Ctrl+Alt+5`, `Cmd+Alt+1`-`Cmd+Alt+5` on macOS), adding the active file as a shortcut (`Ctrl+Alt+A`), focusing the Shortcuts view (`Ctrl+Alt+S`), and running any shortcut via quick pick (`Ctrl+Alt+R`) — previously only Peek (`Alt+P`) had a default binding.
 
 ---
 

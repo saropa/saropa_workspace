@@ -1,6 +1,6 @@
 # BUG-012: Multiple utility functions duplicated across the codebase
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 

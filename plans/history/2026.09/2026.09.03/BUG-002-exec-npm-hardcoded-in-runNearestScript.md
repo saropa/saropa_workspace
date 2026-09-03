@@ -1,6 +1,6 @@
 # BUG-002: runNearestScript hardcodes npm instead of detecting package manager
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
@@ -79,7 +79,7 @@ const pm = packageManager(workspaceFolder);
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+`extension/src/recipes/recipeCommands.ts` `runNearestScript`: imported `packageManager` from `./detectorHelpers` (note — the file actually lives at `extension/src/recipes/detectorHelpers.ts`, not `extension/src/detection/detectorHelpers.ts` as this report's paths stated). Replaced the hardcoded `npm run ${pick.label}` with a call to `packageManager()` against a synthetic `WorkspaceFolder` rooted at the nearest `package.json`'s directory (not the top-level workspace folder — a monorepo package can use a different manager than its root), then sent `${pm} run ${pick.label}` to the terminal.
 
 ---
 

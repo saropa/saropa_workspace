@@ -1,4 +1,4 @@
-// Time-bomb / ephemeral pins (WOW #9) — the user-facing expiry setup. Three exported
+// Expiring / ephemeral pins (WOW #9) — the user-facing expiry setup. Three exported
 // handlers are under test against a real ShortcutStore so the persisted Shortcut.expires shape
 // is observable:
 //   - shortcutUntil: a wall-clock preset picker (plus the custom date/time prompt) that

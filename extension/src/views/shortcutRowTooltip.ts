@@ -119,8 +119,8 @@ function buildTooltipStatusLines(
   if (lockedBy && !isRunning && !isStopping) {
     lines.push(l10n("depends.lockedTooltip", { dep: lockedBy }));
   }
-  // A time-bombed shortcut (WOW #9) explains its pending self-removal in the hover:
-  // the exact instant for a wall-clock bomb, the branch for a branch bomb. Both
+  // A shortcut with expiry set (WOW #9) explains its pending self-removal in the hover:
+  // the exact instant for a wall-clock expiry, the branch for a branch expiry. Both
   // lines show when both conditions are set (either one removes the shortcut).
   if (shortcut.expires && !isRunning && !isStopping) {
     if (shortcut.expires.at !== undefined) {

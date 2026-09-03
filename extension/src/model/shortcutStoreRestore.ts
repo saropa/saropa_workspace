@@ -2,15 +2,15 @@ import * as vscode from "vscode";
 import { Shortcut } from "./shortcut";
 import { ShortcutStoreFieldUpdates } from "./shortcutStoreFieldUpdates";
 
-// Restore (undo) layer: re-adding a time-bomb-expired shortcut, recording a scheduled
+// Restore (undo) layer: re-adding an expired shortcut, recording a scheduled
 // fire's outcome, and the bulk "restore all removed auto-shortcuts / recipes"
 // commands. Split out of shortcutStoreMutation.ts (which now holds only promote-
 // recipe, via ShortcutStoreMutation) purely to keep that file under the project's
 // line-count cap.
 export abstract class ShortcutStoreRestore extends ShortcutStoreFieldUpdates {
-  // Re-add a shortcut removed by the time-bomb sweep — the Undo path (WOW #9). The
+  // Re-add a shortcut removed by the expiry sweep — the Undo path (WOW #9). The
   // expiry condition is dropped on the way back in, so an already-expired snapshot
-  // is not swept away again the instant it returns (Undo defuses the bomb). The id
+  // is not swept away again the instant it returns (Undo clears the expiry). The id
   // is preserved so any reused per-shortcut state lines up. A global shortcut is
   // pushed back to globalState; a project shortcut is written to its captured owning
   // folder (passed in, since the projectShortcutFolder map no longer holds the removed

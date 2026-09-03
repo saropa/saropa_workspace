@@ -31,7 +31,7 @@ function renderWorkflow(){
     visibleNodes.forEach(n => canvas.appendChild(wfNode(n)));
   } else {
     // No chains yet: teach the gesture in place instead of showing a blank canvas.
-    canvas.appendChild(emptyState('No chained shortcuts yet','Drag a shortcut up from the shelf below onto another to run them in sequence, or drag an event from the Toolbox onto a shortcut.'));
+    canvas.appendChild(emptyState(STRINGS.workflowEmptyTitle, STRINGS.workflowEmptyDetail));
   }
   fitCanvasHeight(canvas, visibleNodes);
   cw.appendChild(canvas);
@@ -49,17 +49,17 @@ function renderWorkflow(){
 
 function renderToolbox(){
   const tb = el('div','toolbox');
-  tb.innerHTML = '<h3>Toolbox</h3>';
-  [['build','Build done'],['publish','Publish done'],['gitCommit','Git commit'],['gitPush','Git push']].forEach(([ev,lab]) => {
+  tb.innerHTML = '<h3>'+STRINGS.toolboxTitle+'</h3>';
+  [['build',STRINGS.eventBuild],['publish',STRINGS.eventPublish],['gitCommit',STRINGS.eventGitCommit],['gitPush',STRINGS.eventGitPush]].forEach(([ev,lab]) => {
     const t = el('div','tool'); t.draggable = true; t.dataset.event = ev;
-    t.innerHTML = '<span class="ti">'+EVENT_ICON[ev]+'</span><span>'+lab+'</span>';
+    t.innerHTML = '<span class="ti">'+EVENT_ICON[ev]+'</span><span>'+esc(lab)+'</span>';
     t.ondragstart = (e) => { e.dataTransfer.setData('text/event', ev); e.dataTransfer.effectAllowed='copy'; };
     tb.appendChild(t);
   });
-  tb.insertAdjacentHTML('beforeend','<div class="hint">Drag an event onto a shortcut to run that shortcut after the event fires.</div>');
+  tb.insertAdjacentHTML('beforeend','<div class="hint">'+esc(STRINGS.toolboxHint)+'</div>');
   // Right-edge resize handle. Dragging right grows the toolbox (dirX +1). Re-created with
   // the toolbox on each Workflow render, so it is wired here rather than at bootstrap.
-  const grip = el('div','tb-rsz'); grip.title = 'Drag to resize the toolbox';
+  const grip = el('div','tb-rsz'); grip.title = STRINGS.toolboxResizeTitle;
   attachResizer(grip, { get:()=>toolboxW, set:w=>{toolboxW=w;}, min:130, max:340, dirX:1 });
   tb.appendChild(grip);
   return tb;
@@ -71,20 +71,23 @@ function renderToolbox(){
 // an Auto-arrange button that re-lays the chains into tidy left-to-right columns.
 function renderHowto(){
   const band = el('div','wf-howto');
+  // Each step's localized value carries its own inline <b> emphasis (a simple, stable
+  // HTML fragment) since the bold word varies per language; only the '\\u00b7' separator
+  // and outer <span> wrapper are structural and stay in code.
   band.innerHTML =
     '<span class="steps">'+
-    '<span><b>Drag a shortcut</b> from the shelf onto a step to chain it</span>'+
-    '<span>\\u00b7 <b>drag an event</b> onto a shortcut</span>'+
-    '<span>\\u00b7 or use <b>Add link</b> to search any two shortcuts</span>'+
+    '<span>'+STRINGS.howtoStep1+'</span>'+
+    '<span>\\u00b7 '+STRINGS.howtoStep2+'</span>'+
+    '<span>\\u00b7 '+STRINGS.howtoStep3+'</span>'+
     '</span><span class="spacer"></span>';
   // Add link surfaces the otherwise-hidden link builder (also on canvas right-click):
   // open it anchored just under the button so the search box appears where the eye is.
-  const link = el('button','btn primary'); link.title = 'Search shortcuts and add a link';
-  link.innerHTML = '\\u{1F517} Add link\\u2026';
+  const link = el('button','btn primary'); link.title = STRINGS.howtoAddLinkTitle;
+  link.innerHTML = '\\u{1F517} '+STRINGS.howtoAddLink;
   link.onclick = (e) => { const r = e.currentTarget.getBoundingClientRect(); openAutocomplete(r.left, r.bottom + 4, null); };
   band.appendChild(link);
-  const tidy = el('button','btn'); tidy.title = 'Auto-arrange the chains';
-  tidy.innerHTML = '\\u2727 Auto-arrange';
+  const tidy = el('button','btn'); tidy.title = STRINGS.howtoAutoArrangeTitle;
+  tidy.innerHTML = '\\u2727 '+STRINGS.howtoAutoArrange;
   tidy.onclick = autoArrange;
   band.appendChild(tidy);
   return band;
@@ -103,7 +106,7 @@ function wireCanvasDnd(cw){
     // A toolbox event dropped on a shortcut makes that shortcut run after the event.
     if(ev){
       if(target && target.dataset.kind==='pin'){ send({ type:'addTrigger', to: target.dataset.id, kind:'event', event: ev }); }
-      else { flash('Drop the event onto a shortcut to chain it.'); }
+      else { flash(STRINGS.dropEventHint); }
       return;
     }
     // A shelf shortcut dropped on a canvas step runs AFTER that step: the dropped
@@ -114,7 +117,7 @@ function wireCanvasDnd(cw){
       if(target && target.dataset.kind==='pin' && target.dataset.id!==pinId){
         send({ type:'addTrigger', to: pinId, kind:'pin', from: target.dataset.id });
       } else {
-        flash('Drop the shortcut onto a step to run it after that step.');
+        flash(STRINGS.dropShortcutHint);
       }
     }
   };
@@ -159,16 +162,16 @@ function renderShelf(){
   const head = el('div','shelf-head');
   head.innerHTML =
     '<span class="chev">\\u25BE</span>'+
-    '<span class="sh-t">Unlinked shortcuts</span>'+
+    '<span class="sh-t">'+esc(STRINGS.shelfTitle)+'</span>'+
     '<span class="sh-c">'+shortcuts.length+'</span>'+
-    '<span class="sh-hint">drag onto a step to chain</span>';
+    '<span class="sh-hint">'+esc(STRINGS.shelfHint)+'</span>';
   head.onclick = () => { shelfOpen = !shelfOpen; saveState(); box.classList.toggle('collapsed', !shelfOpen); };
   box.appendChild(head);
 
   const grid = el('div','shelf-grid');
-  const noMatch = el('div','shelf-empty'); noMatch.textContent = 'No shortcut matches.'; noMatch.style.display = 'none';
+  const noMatch = el('div','shelf-empty'); noMatch.textContent = STRINGS.shelfNoMatch; noMatch.style.display = 'none';
   if(!shortcuts.length){
-    const e = el('div','shelf-empty'); e.textContent = 'Every shortcut is wired into the workflow.'; grid.appendChild(e);
+    const e = el('div','shelf-empty'); e.textContent = STRINGS.shelfAllWired; grid.appendChild(e);
   }
   shortcuts.forEach(n => {
     const chip = el('div','shelf-shortcut'+(selected===n.id?' sel':'')); chip.draggable = true; chip.dataset.id = n.id; chip.dataset.label = n.label.toLowerCase();
@@ -184,7 +187,7 @@ function renderShelf(){
   // a drag-in-progress is never interrupted) and shows a no-match note when nothing fits.
   if(shortcuts.length > SHELF_FILTER_AT){
     const row = el('div','shelf-filter-row');
-    const input = el('input','shelf-filter'); input.type = 'search'; input.placeholder = 'Filter ' + shortcuts.length + ' shortcuts\\u2026';
+    const input = el('input','shelf-filter'); input.type = 'search'; input.placeholder = tpl(STRINGS.shelfFilterPlaceholder,{count:shortcuts.length});
     input.oninput = () => {
       const q = input.value.trim().toLowerCase();
       let shown = 0;
@@ -231,10 +234,10 @@ function wfNode(n){
     if(n.lastOutcome==='success') meta += '<span class="badge run">\\u2714</span>';
     else if(n.lastOutcome==='failure') meta += '<span class="badge fail">\\u2716</span>';
   } else {
-    meta += '<span class="badge">event</span>';
+    meta += '<span class="badge">'+esc(STRINGS.eventBadge)+'</span>';
   }
   d.innerHTML = '<div class="nh"><span class="nicon">'+nodeIcon(n)+'</span><span class="nt">'+esc(n.label)+'</span></div>'+(meta?'<div class="nmeta">'+meta+'</div>':'');
-  if(n.kind==='pin'){ const plug = el('div','plug'); plug.title='Drag to another shortcut to chain'; d.appendChild(plug); attachPlug(plug, n); }
+  if(n.kind==='pin'){ const plug = el('div','plug'); plug.title=STRINGS.plugTitle; d.appendChild(plug); attachPlug(plug, n); }
   attachNodeDrag(d, n);
   d.oncontextmenu = (e) => { e.preventDefault(); openNodeMenu(e, n); };
   return d;

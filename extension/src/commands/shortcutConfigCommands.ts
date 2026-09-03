@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { getOutputChannel } from "../exec/runner";
 import { processRegistry } from "../exec/processRegistry";
-import { runStatusRegistry } from "../exec/runStatus";
 import { runOutputs } from "../exec/runOutputs";
 import { promptMemory } from "../exec/promptMemory";
 import { encodeShortcutLink } from "../import/shareLink";
@@ -259,7 +258,7 @@ function registerScheduleTriggerCommands(
   regShortcut("saropaWorkspace.configureWatchLink", (shortcut) => configureWatchLink(store, shortcut));
 }
 
-// Lifecycle and presentation: pause/unpause, expiry (time-bomb / branch-away), the
+// Lifecycle and presentation: pause/unpause, expiry (auto-remove / branch-away), the
 // Customize editor and granular appearance/tag/branch commands, the metric badge, remove,
 // copy-path, and reveal-output.
 function registerLifecycleCommands(
@@ -285,9 +284,9 @@ function registerLifecycleCommands(
     vscode.window.showInformationMessage(l10n("pause.unpaused", { name }));
   });
 
-  // Time-bomb / ephemeral shortcuts (WOW #9): set a self-removal condition on a stored
+  // Expiring / ephemeral shortcuts (WOW #9): set a self-removal condition on a stored
   // shortcut (a wall-clock instant or leaving the current git branch) and clear it. Only
-  // shortcuts the user explicitly bombs ever auto-remove; the expiry engine (wired in
+  // shortcuts the user explicitly sets an expiry on ever auto-remove; the expiry engine (wired in
   // activate) sweeps them and offers Undo.
   regShortcut("saropaWorkspace.pinUntil", (shortcut) => shortcutUntil(store, shortcut));
   regShortcut("saropaWorkspace.pinUntilBranchChange", (shortcut) => shortcutUntilBranchChange(store, shortcut));
@@ -318,10 +317,13 @@ function registerLifecycleCommands(
 
   regShortcut("saropaWorkspace.unpin", async (shortcut) => {
     const name = shortcutDisplayName(shortcut);
+    // The run-status badge, watch-cooldown, and repeat-invocation-guard maps are
+    // cleared centrally by the store's onDidRemoveShortcut subscriber (extension.ts),
+    // fired by removeShortcut itself — no per-call-site cleanup needed (BUG-011
+    // follow-up). promptMemory and runOutputs are NOT wired to that event (they are
+    // per-command-module stores, not exec-layer registries), so they still clean up
+    // here explicitly.
     await store.removeShortcut(shortcut);
-    // Drop any last-run badge so it does not outlive the shortcut (the id is reused
-    // for an identical re-add only after a fresh run records a new result).
-    runStatusRegistry.clear(shortcut.id);
     // Drop any remembered run-parameter values for the gone shortcut so they do not
     // accumulate in workspace state.
     void promptMemory.forget(shortcut.id);

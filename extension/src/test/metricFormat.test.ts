@@ -1,34 +1,19 @@
-// Unit tests for the pure live-metric helpers (formatBytes / countLines / parseSize).
-// These carry NO VS Code dependency by design, so they run under Node's built-in test
-// runner without the extension host — the test entry is esbuild-bundled to out/test
-// and executed with `node --test` (see the test:unit script).
+// Unit tests for the pure live-metric helpers (countLines / parseSize). formatBytes
+// used to be tested here too; it moved to test/formatBytes.test.ts alongside the
+// other consolidated call sites when the four near-identical implementations were
+// merged into utils/formatBytes.ts (BUG-012). These carry NO VS Code dependency by
+// design, so they run under Node's built-in test runner without the extension host —
+// the test entry is esbuild-bundled to out/test and executed with `node --test` (see
+// the test:unit script).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatBytes, countLines, parseSize } from "../exec/metricFormat";
+import { countLines, parseSize } from "../exec/metricFormat";
 
 // Build a byte buffer from a string for the line-count cases.
 function bytes(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
-
-test("formatBytes: under 1 KB stays in bytes", () => {
-  assert.equal(formatBytes(0), "0 B");
-  assert.equal(formatBytes(512), "512 B");
-  assert.equal(formatBytes(1023), "1023 B");
-});
-
-test("formatBytes: KB/MB/GB use binary 1024 steps", () => {
-  assert.equal(formatBytes(1024), "1.0 KB");
-  assert.equal(formatBytes(250 * 1024), "250 KB");
-  assert.equal(formatBytes(5 * 1024 * 1024), "5.0 MB");
-  assert.equal(formatBytes(1024 * 1024 * 1024), "1.0 GB");
-});
-
-test("formatBytes: one decimal below 10 of a unit, whole numbers above", () => {
-  assert.equal(formatBytes(1536), "1.5 KB"); // 1.5 KB -> one decimal
-  assert.equal(formatBytes(20 * 1024), "20 KB"); // >= 10 -> no decimal
-});
 
 test("countLines: empty file is zero", () => {
   assert.equal(countLines(bytes("")), 0);

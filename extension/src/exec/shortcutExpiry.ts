@@ -2,13 +2,12 @@ import * as vscode from "vscode";
 import { Shortcut } from "../model/shortcut";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
-import { runStatusRegistry } from "./runStatus";
 import { readCurrentBranch } from "./gitBranch";
 import { l10n } from "../i18n/l10n";
 
-// Time-bomb / ephemeral shortcuts (WOW #9). A shortcut the user explicitly time-bombed
-// (Shortcut.expires) removes itself once its condition is met: a wall-clock instant
-// (`at`) or leaving the git branch it was bombed on (`onBranchAway`). This module
+// Expiring / ephemeral shortcuts (WOW #9). A shortcut the user explicitly set an
+// expiry on (Shortcut.expires) removes itself once its condition is met: a wall-clock
+// instant (`at`) or leaving the git branch it was set on (`onBranchAway`). This module
 // owns the detection — a low-frequency sweep timer for the `at` case, a per-folder
 // .git/HEAD watcher for the branch case, and one sweep on activation — plus the
 // single summary toast (with Undo) shown after a sweep removes anything.
@@ -20,7 +19,7 @@ import { l10n } from "../i18n/l10n";
 // How often the wall-clock sweep runs. A minute is fine: an expiry is a cleanup
 // convenience, not a deadline, so the shortcut lingering up to a minute past `at`
 // before it vanishes is acceptable, and a single shared timer (not one per shortcut)
-// keeps the cost flat regardless of how many shortcuts are bombed.
+// keeps the cost flat regardless of how many shortcuts have an expiry set.
 const SWEEP_INTERVAL_MS = 60_000;
 
 // The branch reader now lives in gitBranch.ts as the single source shared with
@@ -35,7 +34,7 @@ interface RemovedShortcut {
   folder?: vscode.WorkspaceFolder;
 }
 
-// Examine every shortcut and remove the time-bombed ones whose condition is now met,
+// Examine every shortcut and remove the ones with an expiry whose condition is now met,
 // returning the removed snapshots so the caller can offer a single Undo. The
 // candidate list is captured up front, so the per-removal refresh does not disturb
 // iteration. Branch reads are cached per folder for the duration of one sweep.
@@ -68,8 +67,8 @@ async function sweepExpired(store: ShortcutStore): Promise<RemovedShortcut[]> {
       continue;
     }
     // Branch condition: removed only when the owning folder's branch is readable
-    // AND differs from the one the shortcut was bombed on. An unreadable branch (or no
-    // owning folder) keeps the shortcut — the safety invariant.
+    // AND differs from the one the shortcut's expiry was set on. An unreadable branch
+    // (or no owning folder) keeps the shortcut — the safety invariant.
     if (expires.onBranchAway !== undefined) {
       const folder = store.folderOf(shortcut) ?? vscode.workspace.workspaceFolders?.[0];
       if (!folder) {
@@ -83,16 +82,16 @@ async function sweepExpired(store: ShortcutStore): Promise<RemovedShortcut[]> {
   }
 
   for (const victim of victims) {
+    // Per-shortcut tracking data is cleared centrally by the store's
+    // onDidRemoveShortcut subscriber (extension.ts) — removeShortcut fires that
+    // event, so no per-call-site cleanup is needed here (BUG-011 follow-up).
     await store.removeShortcut(victim.shortcut);
-    // Drop any last-run badge so it does not outlive the shortcut (mirrors the remove
-    // command's cleanup).
-    runStatusRegistry.clear(victim.shortcut.id);
   }
   return victims;
 }
 
 
-// Drives time-bomb expiry: one sweep on construction, a low-frequency timer for the
+// Drives shortcut expiry: one sweep on construction, a low-frequency timer for the
 // wall-clock case, and a .git/HEAD watcher per folder for the branch case. Disposable
 // so the timer and every watcher are cleared on deactivation (a leaked timer would
 // keep firing after reload).

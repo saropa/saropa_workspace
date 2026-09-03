@@ -31,28 +31,28 @@ Saropa Workspace is a feature-rich, well-engineered VS Code extension with stron
 
 ### 1.1 Package manager detection for Run Nearest Script
 
-- **Bug:** [BUG-002](../bugs/BUG-002-exec-npm-hardcoded-in-runNearestScript.md)
+- **Bug:** [BUG-002](history/2026.09/2026.09.03/BUG-002-exec-npm-hardcoded-in-runNearestScript.md)
 - **What:** `recipeCommands.ts` `runNearestScript` hardcodes `npm run` instead of using the existing `packageManager()` detector.
 - **Fix:** Call `packageManager(wsFolder)` and build `${pm} run ${pick.label}`.
 - **Effort:** 15 minutes.
 
 ### 1.2 Localize the Planner webview
 
-- **Bug:** [BUG-003](../bugs/BUG-003-view-planner-not-localized.md)
+- **Bug:** [BUG-003](history/2026.09/2026.09.03/BUG-003-view-planner-not-localized.md)
 - **What:** The entire Planner client script has dozens of hardcoded English strings — the only un-localized webview in the codebase.
 - **Fix:** Add a STRINGS injection mechanism matching the pattern used by Dashboard, Launcher, Schedule, and Settings panels. Extract all client-side strings to `en.json`.
 - **Effort:** 2-4 hours.
 
 ### 1.3 Throttle launcher project-file rescans
 
-- **Bug:** [BUG-004](../bugs/BUG-004-view-launcher-rescans-on-every-save.md)
+- **Bug:** [BUG-004](history/2026.09/2026.09.03/BUG-004-view-launcher-rescans-on-every-save.md)
 - **What:** `launcherViewData.ts` triggers a full project-file rescan (stat calls) on every `onDidSaveTextDocument` event — fires on every file save in the entire workspace.
 - **Fix:** Filter to only fire when the saved document matches a surfaced-file pattern, or debounce with a 2-second window.
 - **Effort:** 1 hour.
 
 ### 1.4 Add default keybindings
 
-- **Bug:** [BUG-008](../bugs/BUG-008-pkg-missing-keybindings.md)
+- **Bug:** [BUG-008](history/2026.09/2026.09.03/BUG-008-pkg-missing-keybindings.md)
 - **What:** Only 1 keybinding registered. Power-user features are keyboard-inaccessible.
 - **Fix:** Add defaults for: add active file (`Ctrl+Alt+F`), run selected (`Ctrl+Alt+R`), focus view (`Ctrl+Shift+Alt+S`), and `runTopPin1`-`runTopPin5` (`Ctrl+Alt+1`-`5`). Check for conflicts with popular extensions.
 - **Effort:** 1-2 hours (including conflict research).
@@ -71,7 +71,7 @@ Saropa Workspace is a feature-rich, well-engineered VS Code extension with stron
 
 ### 1.7 Rename "Time-Bomb" to "Auto-Remove"
 
-- **Bug:** [BUG-013](../bugs/BUG-013-pkg-time-bomb-naming.md)
+- **Bug:** [BUG-013](history/2026.09/2026.09.03/BUG-013-pkg-time-bomb-naming.md)
 - **What:** "Shortcut Expiry (Time-Bomb)" has negative connotations (malware, destructive behavior).
 - **Fix:** Rename to "Shortcut Expiry" or "Temporary Shortcut" across the submenu label, NLS strings, and any docs.
 - **Effort:** 15 minutes.
@@ -82,28 +82,28 @@ Saropa Workspace is a feature-rich, well-engineered VS Code extension with stron
 
 ### 2.1 Virtual filesystem compliance
 
-- **Bug:** [BUG-005](../bugs/BUG-005-exec-fs-bypasses-virtual-filesystem.md)
+- **Bug:** [BUG-005](history/2026.09/2026.09.03/BUG-005-exec-fs-bypasses-virtual-filesystem.md)
 - **What:** `toggleFileLock` and `writeSuiteDailyReportFile` use raw Node `fs` instead of `vscode.workspace.fs`. Breaks Remote/WSL/Containers.
 - **Fix:** Migrate to `vscode.workspace.fs` APIs, or add explicit local-workspace-only guards with user-facing messages.
 - **Effort:** 1-2 hours.
 
 ### 2.2 Config directory watcher gap
 
-- **Bug:** [BUG-006](../bugs/BUG-006-pkg-configdir-watcher-gap.md)
+- **Bug:** [BUG-006](history/2026.09/2026.09.03/BUG-006-pkg-configdir-watcher-gap.md)
 - **What:** Changing `configDir` at runtime to a novel directory gets no live file watcher until reload.
 - **Fix:** Re-register the FileSystemWatcher on settings change, disposing the old one.
 - **Effort:** 1 hour.
 
 ### 2.3 Settings panel revert on failure
 
-- **Bug:** [BUG-007](../bugs/BUG-007-view-settings-panel-no-revert-on-failure.md)
+- **Bug:** [BUG-007](history/2026.09/2026.09.03/BUG-007-view-settings-panel-no-revert-on-failure.md)
 - **What:** Failed `cfg.update()` leaves the UI control in the wrong state.
 - **Fix:** Send a `revert` message to the webview on catch, restoring the prior value.
 - **Effort:** 30 minutes.
 
 ### 2.4 Accessibility improvements
 
-- **Bug:** [BUG-009](../bugs/BUG-009-view-accessibility-gaps.md)
+- **Bug:** [BUG-009](history/2026.09/2026.09.03/BUG-009-view-accessibility-gaps.md)
 - **What:** No `accessibilityInformation` on tree items; separator/untapped markers unreadable by screen readers; launcher menu lacks ARIA roles.
 - **Fix:** Add `accessibilityInformation` to `ShortcutTreeItem` for state indicators. Add `role="menu"`/`role="menuitem"` to the launcher menu. Give the separator an accessibility label.
 - **Effort:** 2-3 hours.
@@ -116,7 +116,7 @@ Saropa Workspace is a feature-rich, well-engineered VS Code extension with stron
 
 ### 2.6 Default aiContext.enabled to false
 
-- **Bug:** [BUG-014](../bugs/BUG-014-pkg-ai-context-defaults-to-enabled.md)
+- **Bug:** [BUG-014](history/2026.09/2026.09.03/BUG-014-pkg-ai-context-defaults-to-enabled.md)
 - **What:** Scanning for chat transcripts by default without opt-in is a privacy concern.
 - **Fix:** Change default to `false`. Add a one-time prompt when chat folders are detected: "Saropa Workspace found chat transcripts. Would you like to add them as shortcuts?"
 - **Effort:** 1 hour.
@@ -139,21 +139,21 @@ Saropa Workspace is a feature-rich, well-engineered VS Code extension with stron
 
 ### 3.1 Consolidate duplicate utilities
 
-- **Bug:** [BUG-012](../bugs/BUG-012-view-duplicate-utilities.md)
+- **Bug:** [BUG-012](history/2026.09/2026.09.03/BUG-012-view-duplicate-utilities.md)
 - **What:** 6 duplicate `esc()` functions, 5 duplicate CSS token blocks, 4 duplicate byte formatters, 2 duplicate glob-to-regex implementations.
 - **Fix:** Extract shared utilities: `webviewEscape.ts`, `webviewTokens.ts` (CSS), `formatBytes.ts`, and document why the two glob implementations differ (or merge them).
 - **Effort:** 2-3 hours.
 
 ### 3.2 Clean up unbounded maps
 
-- **Bug:** [BUG-011](../bugs/BUG-011-exec-unbounded-maps.md)
+- **Bug:** [BUG-011](history/2026.09/2026.09.03/BUG-011-exec-unbounded-maps.md)
 - **What:** `watchLastRun` and `lastRunAtByShortcutId` Maps grow unbounded over the extension host lifetime.
 - **Fix:** Prune entries on shortcut removal (mirror the pattern used by `runStatusRegistry.clear()`, `promptMemory.forget()`, `runOutputs.clear()` on unpin/remove).
 - **Effort:** 30 minutes.
 
 ### 3.3 Language-agnostic defaults
 
-- **Bug:** [BUG-010](../bugs/BUG-010-pkg-dart-biased-defaults.md)
+- **Bug:** [BUG-010](history/2026.09/2026.09.03/BUG-010-pkg-dart-biased-defaults.md)
 - **What:** Auto-pin patterns default to `["pubspec.yaml", "analysis_options.yaml"]` (Dart-specific). Project-file groups default to `android/`, `ios/`, `web/` (Flutter-specific).
 - **Fix:** Change defaults to universal files (`package.json`, `README.md`, `Makefile`, `.env`) or empty. Consider project-type detection to auto-suggest relevant patterns.
 - **Effort:** 1 hour.

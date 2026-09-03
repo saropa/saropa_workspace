@@ -6,6 +6,11 @@ import { promptMemory } from "../exec/promptMemory";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { CONFIGURE_RUN_STYLE } from "./configureRunAssets";
 import { l10n } from "../i18n/l10n";
+// Local alias keeps every `esc(...)` call site in this file unchanged; the escaping
+// algorithm itself is centralized (BUG-012) — this file used to carry its own copy
+// "duplicated locally to keep this panel self-contained", which is exactly the drift
+// risk a single source of truth removes.
+import { escapeHtml as esc } from "../utils/escapeHtml";
 
 // The "Set Params" webview: edits a shortcut's remembered interactive-token values
 // (${prompt:...} / ${pick:...} / ${pickFolder:...}) directly, without running it.
@@ -395,23 +400,3 @@ const SET_PARAMS_SCRIPT = `
   vscode.postMessage({ type: "ready" });
 })();
 `;
-
-// Escape text destined for an HTML text node or a double-quoted attribute — mirrors
-// configureRunShell.ts's esc(), duplicated locally to keep this panel a single
-// self-contained file (its markup is a fraction of Configure Run's size).
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#39;";
-    }
-  });
-}

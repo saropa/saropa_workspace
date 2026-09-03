@@ -20,7 +20,7 @@ import {
 // command/macro), plus every optional behavior it can carry — exec/schedule
 // config, chaining triggers/emits, appearance (icon/color/order), grouping,
 // tagging, branch-scoping, pause, masking, single-instance/lock control, and the
-// WOW-feature fields (line jump, tail-follow, live metric badge, time-bomb
+// WOW-feature fields (line jump, tail-follow, live metric badge, shortcut
 // expiry). Read/written verbatim by ShortcutStore (persistence), rendered by the
 // tree provider, and acted on by the runner/dispatcher. Auto and recipe
 // shortcuts are recomputed on each refresh rather than stored, so several fields
@@ -94,10 +94,10 @@ export interface Shortcut {
   // so no watcher is armed by default. A size metric may carry a thresholdBytes
   // (warning tint + a one-time toast when the file grows past it). See ShortcutMetric.
   metric?: ShortcutMetric;
-  // Time-bomb: a self-removal condition the user explicitly set (WOW #9). When set,
+  // Expiry: a self-removal condition the user explicitly set (WOW #9). When set,
   // the shortcut auto-removes once the condition is met — the cure for a temporary
   // shortcut (a migration script, today's scratch file) that otherwise lingers for
-  // months. Only a shortcut the user explicitly time-bombed ever carries this; a
+  // months. Only a shortcut the user explicitly set an expiry on ever carries this; a
   // normal shortcut has no `expires` and is never auto-removed. The two conditions
   // are independent and either may be present:
   //   - `at` — epoch ms; removed once Date.now() >= at (swept by a low-frequency timer).

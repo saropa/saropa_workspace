@@ -30,25 +30,25 @@ function renderDetail(){
   if(!n || n.kind!=='pin'){ box.classList.remove('show'); body.innerHTML=''; return; }
   box.classList.add('show');
   let lines = [];
-  if(n.schedule && n.schedule.atTime) lines.push('Daily at '+n.schedule.atTime+' \\u00b7 '+daysLabel(n.schedule)+(n.schedule.enabled?'':' (paused)'));
-  if(n.schedule && n.schedule.everyMs) lines.push('Repeats '+fmtEvery(n.schedule.everyMs));
-  const ins = DATA.edges.filter(e=>e.to===n.id).map(e=> e.kind==='event'? ('after '+(EVENT_ICON[shortcut(e.from)?.event]||'')+' '+(shortcut(e.from)?.label||e.from)) : ('after '+(shortcut(e.from)?.label||e.from)));
-  if(ins.length) lines.push('Runs '+ins.join(', '));
-  if(n.emits && n.emits.length) lines.push('Emits '+n.emits.join(', '));
+  if(n.schedule && n.schedule.atTime) lines.push(tpl(STRINGS.detailDailyAt,{time:n.schedule.atTime})+' \\u00b7 '+daysLabel(n.schedule)+(n.schedule.enabled?'':' '+STRINGS.detailPaused));
+  if(n.schedule && n.schedule.everyMs) lines.push(tpl(STRINGS.detailRepeats,{cadence:fmtEvery(n.schedule.everyMs)}));
+  const ins = DATA.edges.filter(e=>e.to===n.id).map(e=> e.kind==='event'? tpl(STRINGS.detailAfter,{name:(EVENT_ICON[shortcut(e.from)?.event]||'')+' '+(shortcut(e.from)?.label||e.from)}) : tpl(STRINGS.detailAfter,{name:shortcut(e.from)?.label||e.from}));
+  if(ins.length) lines.push(tpl(STRINGS.detailRuns,{list:ins.join(', ')}));
+  if(n.emits && n.emits.length) lines.push(tpl(STRINGS.detailEmits,{list:n.emits.join(', ')}));
   // The recipe's own prose, shown as an INFO tip so a seeded/paused recipe explains
   // what it does in place — without making the user open the source to find out.
   const info = n.description ? '<div class="dinfo"><span class="ii">\\u2139\\uFE0F</span><span>'+esc(n.description)+'</span></div>' : '';
   // Pause/Resume mirrors the right-click toggle: a scheduled shortcut must be resumable
   // from the same strip that shows it is "(paused)", not only from the context menu.
-  const toggleBtn = n.schedule ? '<button class="btn" data-act="toggle">'+(n.schedule.enabled?'\\u23F8 Pause':'\\u25B6 Resume')+'</button>' : '';
-  body.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span><button class="dclose" data-act="close" title="Close details" aria-label="Close details">\\u00D7</button></div>'+
-    (lines.length?'<div class="dl">'+esc(lines.join('  \\u2014  '))+'</div>':'<div class="dl">No automation yet.</div>')+
+  const toggleBtn = n.schedule ? '<button class="btn" data-act="toggle">'+(n.schedule.enabled?'\\u23F8 '+STRINGS.pause:'\\u25B6 '+STRINGS.resume)+'</button>' : '';
+  body.innerHTML = '<div class="dh"><span class="nicon">'+nodeIcon(n)+'</span><span class="dt">'+esc(n.label)+'</span><span class="badge">'+esc(n.scope||'')+'</span><button class="dclose" data-act="close" title="'+STRINGS.detailClose+'" aria-label="'+STRINGS.detailClose+'">\\u00D7</button></div>'+
+    (lines.length?'<div class="dl">'+esc(lines.join('  \\u2014  '))+'</div>':'<div class="dl">'+STRINGS.detailNone+'</div>')+
     info+
     '<div class="da">'+
-    '<button class="btn primary" data-act="run">\\u25B6 Run now</button>'+
-    (n.runnable===false?'':'<button class="btn" data-act="open">Open</button>')+
-    '<button class="btn" data-act="schedule">\\u{1F551} Schedule\\u2026</button>'+
-    '<button class="btn" data-act="triggers">\\u{1F517} Triggers\\u2026</button>'+
+    '<button class="btn primary" data-act="run">\\u25B6 '+STRINGS.runNow+'</button>'+
+    (n.runnable===false?'':'<button class="btn" data-act="open">'+STRINGS.open+'</button>')+
+    '<button class="btn" data-act="schedule">\\u{1F551} '+STRINGS.schedule+'</button>'+
+    '<button class="btn" data-act="triggers">\\u{1F517} '+STRINGS.triggers+'</button>'+
     toggleBtn+
     '</div>';
   body.querySelectorAll('button[data-act]').forEach(btn => btn.onclick = () => act(btn.dataset.act, n.id));
@@ -72,20 +72,20 @@ function openNodeMenu(e, n){
   const m = el('div','menu');
   const items = [];
   if(n.kind==='pin'){
-    items.push(['\\u25B6 Run now','run']);
-    if(n.runnable!==false) items.push(['Open','open']);
+    items.push(['\\u25B6 '+STRINGS.runNow,'run']);
+    if(n.runnable!==false) items.push([STRINGS.open,'open']);
     items.push(['sep']);
-    items.push(['\\u{1F551} Schedule\\u2026','schedule']);
-    items.push(['\\u{1F517} Triggers\\u2026','triggers']);
-    items.push(['\\u{1F4E1} Mark emits\\u2026','triggers']);
-    if(n.schedule) items.push([n.schedule.enabled?'\\u23F8 Pause schedule':'\\u25B6 Resume schedule','toggle']);
+    items.push(['\\u{1F551} '+STRINGS.schedule,'schedule']);
+    items.push(['\\u{1F517} '+STRINGS.triggers,'triggers']);
+    items.push(['\\u{1F4E1} '+STRINGS.markEmits,'triggers']);
+    if(n.schedule) items.push([n.schedule.enabled?'\\u23F8 '+STRINGS.pauseSchedule:'\\u25B6 '+STRINGS.resumeSchedule,'toggle']);
     items.push(['sep']);
-    items.push(['\\u{1F517} Add a link from here\\u2026','link']);
+    items.push(['\\u{1F517} '+STRINGS.addLinkFromHere,'link']);
   }
   // removable incoming links
   const ins = DATA.edges.filter(ed=>ed.to===n.id);
-  if(ins.length){ items.push(['head','Remove trigger']); ins.forEach(ed => {
-    const src = shortcut(ed.from); items.push(['\\u2716 '+(ed.kind==='event'?'after '+(EVENT_ICON[src?.event]||'')+' '+(src?.label||ed.from):'after '+(src?.label||ed.from)),'rm:'+ed.from]);
+  if(ins.length){ items.push(['head',STRINGS.removeTriggerHeading]); ins.forEach(ed => {
+    const src = shortcut(ed.from); items.push(['\\u2716 '+(ed.kind==='event'?tpl(STRINGS.detailAfter,{name:(EVENT_ICON[src?.event]||'')+' '+(src?.label||ed.from)}):tpl(STRINGS.detailAfter,{name:src?.label||ed.from})),'rm:'+ed.from]);
   }); }
   items.forEach(it => {
     if(it[0]==='sep'){ m.appendChild(el('div','msep')); return; }
@@ -108,7 +108,7 @@ function openNodeMenu(e, n){
 function openAutocomplete(cx, cy, sourceId){
   closeMenus();
   const box = el('div','ac');
-  const input = el('input'); input.placeholder = sourceId ? 'Link to a shortcut\\u2026' : 'Add a link: search shortcuts & events\\u2026';
+  const input = el('input'); input.placeholder = sourceId ? STRINGS.linkPlaceholderTarget : STRINGS.linkPlaceholderSearch;
   const results = el('div','results');
   box.appendChild(input); box.appendChild(results);
   document.body.appendChild(box); positionFixed(box, cx, cy);
@@ -121,7 +121,7 @@ function openAutocomplete(cx, cy, sourceId){
     const q = input.value.trim().toLowerCase();
     const list = candidates.filter(c => !q || c.n.label.toLowerCase().includes(q));
     active = Math.min(active, Math.max(0,list.length-1));
-    if(!list.length){ results.innerHTML = '<div class="none">No match.</div>'; return; }
+    if(!list.length){ results.innerHTML = '<div class="none">'+STRINGS.linkNoMatch+'</div>'; return; }
     results.innerHTML='';
     list.forEach((c,i) => {
       const o = el('div','opt'+(i===active?' active':''));

@@ -1,6 +1,6 @@
 # BUG-009: Multiple accessibility gaps in tree view and Launcher webview
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
@@ -92,15 +92,39 @@ The `TreeItem` instances in `pinTreeItem.ts` do not set the `accessibilityInform
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+The file names in the original report (`pinTreeItem.ts`, `pinsTreeProvider.ts`) predate a
+rename; the actual files are `extension/src/views/shortcutTreeItem.ts` (both the tree-item
+construction and the separator/untapped-marker annotation layout live here) and
+`extension/src/views/launcher/launcherScriptMenu.ts` (the webview client script fragment
+that builds the right-click menu DOM).
+
+1. `shortcutTreeItem.ts`: added `buildAccessibilityLabel()`, which composes a screen-reader
+   label from the same state priority `computeRowStateBadge` uses for the visible badge
+   (stopping > running > locked > paused > missing > untapped), and set it via
+   `accessibilityInformation` on every `ShortcutTreeItem`.
+2. `shortcutTreeItem.ts`: the separator annotation row now sets
+   `accessibilityInformation: { label: l10n("a11y.separator"), role: "separator" }` instead of
+   leaving the 40-dash label to be read literally. The comment annotation row also gets an
+   explicit `accessibilityInformation` for consistency.
+3. The untapped marker (`●`) keeps its visible glyph (full-strength label color, per the
+   existing design note) but the new `buildAccessibilityLabel()` appends "not yet opened"
+   (`a11y.untappedState`) to the accessible label, so the fact reaches screen-reader users
+   through the label channel instead of relying on Unicode glyph names.
+4. `launcherScriptMenu.ts`: added `role="menu"` + `aria-label` (item name + "actions") to the
+   top-level context menu and each submenu, `role="menuitem"` to every menu button, and
+   `aria-haspopup`/`aria-expanded` on rows that open a submenu (flipped true/false in
+   `showSub`/`closeActiveSub`). `launcherView.ts` now sends the two new label templates
+   (`menuAriaLabel`, `menuSubAriaLabel`) through the existing `strings` payload.
+5. New i18n keys added to `extension/src/i18n/locales/en.json`: `a11y.missingState`,
+   `a11y.untappedState`, `a11y.separator`, `launcher.menu.ariaLabel`, `launcher.menu.subAriaLabel`.
 
 ---
 
 ## Verification
 
-- [ ] `tsc -p ./ --noEmit` clean
-- [ ] `npm run build` succeeds
-- [ ] Manual smoke test with a screen reader: tree items announce state, separator is announced as "Separator", untapped items announce "New", Launcher context menu is announced as a menu
+- [x] `tsc -p ./ --noEmit` clean
+- [x] `node esbuild.js` succeeds
+- [ ] Manual smoke test with a screen reader: tree items announce state, separator is announced as "Separator", untapped items announce "not yet opened", Launcher context menu is announced as a menu (not yet run — no screen reader available in this environment)
 
 ---
 

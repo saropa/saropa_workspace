@@ -92,6 +92,16 @@ export function makeDebounced(fn: () => void, delayMs: number): () => void {
 const WATCH_COOLDOWN_MS = 3000;
 const watchLastRun = new Map<string, number>();
 
+// Drop a removed shortcut's cooldown entry. Without this, watchLastRun grows by one
+// entry per shortcut that has ever fired a watch-triggered run and never shrinks —
+// over a long-running window (VS Code windows routinely stay open for weeks) a
+// churn-heavy project (shortcuts added/removed repeatedly) leaks memory forever.
+// Called from every "shortcut removed" path (see shortcutAddRemove.ts,
+// shortcutConfigCommands.ts, shortcutOpen.ts, fileOps.ts, shortcutExpiry.ts).
+export function clearWatchLastRun(shortcutId: string): void {
+  watchLastRun.delete(shortcutId);
+}
+
 // React to a saved document: fire both kinds of save-driven run.
 //   1. run-on-save (exec.runOnSave) — a runnable file shortcut whose OWN target is the
 //      saved file, run with its configured location (unchanged behavior).

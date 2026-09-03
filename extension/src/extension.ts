@@ -39,7 +39,9 @@ import {
   registerFavoritesImportWatchers,
   syncShortcutPathContext,
   wireRecentEditorTracking,
+  clearWatchLastRun,
 } from "./activation/activationHelpers";
+import { clearLastRunAt } from "./commands/shortcutExecution";
 import { setupSecondaryViews } from "./activation/wiringViews";
 import { registerCommandModules } from "./activation/wiringCommands";
 import { setupStatusBars } from "./activation/wiringStatusBars";
@@ -179,7 +181,7 @@ async function runPostLoadTasks(
   // activation on its own timer; it arms its live watchers once the scan finishes.
   folderWatchEngine.runStartupScan();
 
-  // Time-bomb / ephemeral shortcuts (WOW #9): sweep self-removing shortcuts now (a
+  // Expiring / ephemeral shortcuts (WOW #9): sweep self-removing shortcuts now (a
   // shortcut whose deadline passed while the window was closed clears on open) and arm
   // the low-frequency timer + per-folder .git/HEAD watchers. Constructed after the
   // shortcut set is loaded so its activation sweep sees the real shortcuts. Disposable
@@ -213,6 +215,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const store = new ShortcutStore(context);
 
   initCoreStores(context);
+
+  // Centralized per-shortcut cleanup (BUG-011 follow-up): wired ONCE here rather than
+  // duplicated at every removal call site, so a future removal path cannot forget to
+  // clear these id-keyed maps. All three would otherwise grow unboundedly for the
+  // life of the session (a removed shortcut's id is never reused, so a stale entry
+  // never gets overwritten).
+  context.subscriptions.push(
+    store.onDidRemoveShortcut((id) => {
+      runStatusRegistry.clear(id);
+      clearWatchLastRun(id);
+      clearLastRunAt(id);
+    })
+  );
 
   const dispatcher = createShortcutDispatcher(store);
   context.subscriptions.push({ dispose: () => dispatcher.dispose() });

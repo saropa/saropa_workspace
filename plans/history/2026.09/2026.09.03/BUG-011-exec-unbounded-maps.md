@@ -1,6 +1,6 @@
 # BUG-011: Last-run tracking maps grow unbounded — no eviction on shortcut removal
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 

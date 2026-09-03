@@ -9,29 +9,17 @@
 // Everything binds to --vscode-* theme variables so it matches the editor in
 // light / dark / high-contrast; the only fixed colors are the Saropa brand orange.
 
+import { designTokenRoot } from "./webviewDesignTokens";
+
 export const PLANNER_STYLE = `
-:root {
-  color-scheme: light dark;
-  --surface-1: var(--vscode-editor-background);
-  --surface-2: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-  --surface-3: var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.10));
-  --inset: var(--vscode-input-background);
-  --border: var(--vscode-widget-border, var(--vscode-panel-border, rgba(127,127,127,.28)));
-  --border-strong: color-mix(in srgb, var(--vscode-focusBorder) 35%, var(--border));
-  --muted: var(--vscode-descriptionForeground);
-  --link: var(--vscode-textLink-foreground);
-  --brand: #f97316;
-  --brand-2: #ea580c;
+${designTokenRoot({
+  extra: `  --link: var(--vscode-textLink-foreground);
   --brand-glow: rgba(249,115,22,.20);
-  --hero-tint: color-mix(in srgb, var(--brand) 16%, transparent);
   --ok: var(--vscode-testing-iconPassed, var(--vscode-charts-green, #3fb950));
   --bad: var(--vscode-editorError-foreground, #f85149);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
-  --radius-sm: 4px; --radius: 8px; --radius-lg: 12px; --radius-pill: 999px;
-  --ease: cubic-bezier(.2,.6,.2,1);
-  --dur: 160ms;
-  --hour-h: 30px;
-}
+  --hour-h: 30px;`,
+})}
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -136,7 +124,10 @@ button.btn.icon { padding: 5px 8px; }
 .ruler .hour.major { height: 14px; border-left-color: var(--border-strong); }
 .ruler .hlabel { position: absolute; bottom: 16px; transform: translateX(-50%); font-size: .72em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ruler .now { position: absolute; top: -24px; bottom: 0; width: 2px; background: var(--brand); box-shadow: 0 0 6px var(--brand-glow); }
-.ruler .now::after { content: 'now'; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: .68em; color: var(--brand); font-weight: 600; }
+/* Text reads from the element's data-label attribute (set from STRINGS.now in
+   plannerScriptTimeline.ts) rather than a hardcoded content string, so the "now"
+   marker stays translation-ready. */
+.ruler .now::after { content: attr(data-label); position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: .68em; color: var(--brand); font-weight: 600; }
 .marker {
   position: absolute; bottom: 100%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; cursor: pointer;

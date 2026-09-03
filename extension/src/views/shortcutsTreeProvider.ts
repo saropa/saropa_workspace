@@ -328,7 +328,7 @@ export class ShortcutsTreeProvider
   // Whether a shortcut passes branch filtering (WOW #3). An unlinked shortcut (the
   // default) always shows. A linked shortcut shows only while its owning folder is on
   // the linked branch — a project shortcut against its own folder, a global shortcut
-  // against the first workspace folder. The safety invariant mirrors the time-bomb
+  // against the first workspace folder. The safety invariant mirrors the expiry
   // sweep: when the folder or its branch cannot be read, the shortcut is SHOWN, never
   // hidden, so an unreadable / detached / worktree repo never makes a shortcut vanish.
   // The show-all toggle short-circuits to true (the deleted-branch escape hatch).

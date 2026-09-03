@@ -141,10 +141,15 @@ async function writeSuiteDailyReportFile(
 
   const relative = expandRecipeTokens(reportRelativePath("suite_daily"));
   const file = path.join(root, ...relative.split("/"));
+  // Build the target as a Uri (not a bare fsPath) and write through
+  // vscode.workspace.fs so the report lands correctly under Remote SSH/WSL/
+  // Containers, where the workspace root is a virtual filesystem and Node's
+  // own `fs` cannot resolve it (BUG-005).
+  const fileUri = vscode.Uri.file(file);
+  const dirUri = vscode.Uri.joinPath(fileUri, "..");
   try {
-    const fsp = await import("fs/promises");
-    await fsp.mkdir(path.dirname(file), { recursive: true });
-    await fsp.writeFile(file, body, "utf8");
+    await vscode.workspace.fs.createDirectory(dirUri);
+    await vscode.workspace.fs.writeFile(fileUri, Buffer.from(body, "utf8"));
   } catch (err) {
     vscode.window.showErrorMessage(
       l10n("dailyReport.writeFailed", {

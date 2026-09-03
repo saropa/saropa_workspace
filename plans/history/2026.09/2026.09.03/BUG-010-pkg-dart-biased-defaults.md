@@ -1,6 +1,6 @@
 # BUG-010: Default auto-pin patterns and project file groups are Dart/Flutter-specific
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
@@ -81,14 +81,19 @@ Option 1 is simpler and lower-risk. Option 2 provides a better experience but ad
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+Applied option 1 (language-agnostic defaults) in `extension/package.json`:
+
+- `saropaWorkspace.autoPins.patterns` default changed from `["pubspec.yaml", "analysis_options.yaml"]` to `["package.json", "README.md", "Makefile", ".env.example"]`.
+- `saropaWorkspace.projectFiles.groups` default: removed the Dart/Flutter-only entries `pubspec.yaml`, `analysis_options.yaml`, `l10n.yaml` from the `Project` group, and removed the `Android`, `iOS`, and `Web` groups entirely (all Flutter-specific paths). The `Project` group now lists only cross-ecosystem files: `README.md`, `CHANGELOG.md`, `ROADMAP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`, `LICENSE.md`, `package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`.
+
+No `package.nls.json` change needed — these are default values, not display strings.
 
 ---
 
 ## Verification
 
-- [ ] `tsc -p ./ --noEmit` clean
-- [ ] `npm run build` succeeds
+- [x] `tsc -p ./ --noEmit` clean
+- [x] `npm run build` (`node esbuild.js`) succeeds
 - [ ] Manual smoke test: open a non-Dart project, confirm auto-pins and project file groups produce useful results with the new defaults
 
 ---

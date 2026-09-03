@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ShortcutMetric } from "../model/shortcut";
-import { countLines, formatBytes } from "./metricFormat";
+import { countLines } from "./metricFormat";
+import { formatBytes } from "../utils/formatBytes";
 import { l10n } from "../i18n/l10n";
 
 // Live metric badges for file shortcuts (#24): file size, line count, or last-modified,

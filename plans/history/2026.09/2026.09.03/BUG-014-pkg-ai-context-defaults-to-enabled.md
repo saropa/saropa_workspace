@@ -1,6 +1,6 @@
 # BUG-014: aiContext.enabled defaults to true — scans chat transcript directories without opt-in
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
@@ -73,14 +73,14 @@ Optionally, on first activation after the change, show an informational message 
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+Changed `saropaWorkspace.aiContext.enabled` default from `true` to `false` in `extension/package.json` (`contributes.configuration`). No migration/notification message was added for existing users who had the default active — out of scope for a manifest default fix; flagging as optional follow-up per the suggested fix.
 
 ---
 
 ## Verification
 
-- [ ] `tsc -p ./ --noEmit` clean
-- [ ] `npm run build` succeeds
+- [x] `tsc -p ./ --noEmit` clean
+- [x] `npm run build` (`node esbuild.js`) succeeds
 - [ ] Manual smoke test: fresh install — confirm `aiContext.enabled` is `false` by default and chat directories are not scanned until the user enables the setting
 
 ---

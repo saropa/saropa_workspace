@@ -1,6 +1,6 @@
 # BUG-007: Settings panel does not revert displayed value when cfg.update() fails
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 

@@ -146,6 +146,8 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreAdd {
       const shortcuts = this.readGlobalShortcuts().filter((p) => p.id !== shortcut.id);
       await this.writeGlobalShortcuts(shortcuts);
       await this.refresh();
+      // See the project-scope removal below for why this fires after refresh.
+      this._onDidRemoveShortcut.fire(shortcut.id);
       return;
     }
 
@@ -177,6 +179,10 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreAdd {
     pruneRoutineMembers(file.pins, shortcut);
     await this.writeProjectFile(folder, file);
     await this.refresh();
+    // Fire AFTER the write + refresh so subscribers (the centralized per-shortcut
+    // cleanup wired in extension.ts) see a store that has already forgotten the
+    // shortcut, not a stale cache mid-removal.
+    this._onDidRemoveShortcut.fire(shortcut.id);
   }
 
   async renameShortcut(shortcut: Shortcut, label: string): Promise<void> {

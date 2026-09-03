@@ -12,6 +12,9 @@ var activeSubTimer = null;
 var activeSubTrigger = null;
 function closeActiveSub() {
   clearTimeout(activeSubTimer);
+  // Flip the trigger's aria-expanded back to false so a screen reader's popup
+  // state stays truthful after the submenu closes (mirrors the true set in showSub).
+  if (activeSubTrigger) { activeSubTrigger.setAttribute('aria-expanded', 'false'); }
   if (activeSub) { activeSub.remove(); activeSub = null; activeSubTrigger = null; }
 }
 
@@ -33,24 +36,37 @@ function buildMenuRow(e, it) {
   var row = document.createElement('button');
   row.className = e.danger ? 'menu-item danger' : 'menu-item';
   row.type = 'button';
+  // BUG-009: the menu is a styled <div>/<button> tree, not a native <menu>, so a
+  // screen reader has no idea these buttons are menu items unless told via ARIA.
+  row.setAttribute('role', 'menuitem');
   row.appendChild(codicon(e.icon));
   var t = document.createElement('span');
   t.textContent = e.label;
   row.appendChild(t);
   if (e.children && e.children.length) {
     row.classList.add('has-sub');
+    // A row that opens a submenu is announced as a popup trigger, not a plain
+    // action item — aria-haspopup/aria-expanded are how a screen reader tells the
+    // two apart (the submenu itself gets role="menu" where it is built, below).
+    row.setAttribute('aria-haspopup', 'true');
+    row.setAttribute('aria-expanded', 'false');
     var arrow = document.createElement('span');
     arrow.className = 'menu-arrow';
     row.appendChild(arrow);
     function showSub(andFocus) {
       closeActiveSub();
+      row.setAttribute('aria-expanded', 'true');
       var sub = document.createElement('div');
       sub.className = 'menu menu-sub';
+      sub.setAttribute('role', 'menu');
+      // Use the localized label; the fallback is guaranteed by the host injection.
+      sub.setAttribute('aria-label', strings.menuSubAriaLabel.replace('{name}', e.label));
       for (var i = 0; i < e.children.length; i++) {
         var child = e.children[i];
         var cr = document.createElement('button');
         cr.className = child.danger ? 'menu-item danger' : 'menu-item';
         cr.type = 'button';
+        cr.setAttribute('role', 'menuitem');
         cr.appendChild(codicon(child.icon));
         var ct = document.createElement('span');
         ct.textContent = child.label;
@@ -107,6 +123,13 @@ function openMenu(it, x, y) {
   closeMenu();
   var menu = document.createElement('div');
   menu.className = 'menu';
+  // BUG-009: the right-click menu is a plain <div>, so without an explicit role a
+  // screen reader announces it as a generic group rather than a menu, and the
+  // careful arrow-key navigation below reads as meaningless focus jumps. The label
+  // names the item the menu acts on, matching the "name the item acted on" rule.
+  menu.setAttribute('role', 'menu');
+  // Use the localized label; the fallback is guaranteed by the host injection.
+  menu.setAttribute('aria-label', strings.menuAriaLabel.replace('{name}', it.label));
   var lastGroup = null;
   for (var i = 0; i < it.menu.length; i++) {
     var e = it.menu[i];

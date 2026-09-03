@@ -1,6 +1,6 @@
 # BUG-008: Most keyboard-driven commands ship without default keybindings
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
@@ -81,14 +81,21 @@ Each binding should include an appropriate `when` clause to avoid conflicts when
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+Added 8 entries to `contributes.keybindings` in `extension/package.json`, each with a `mac` binding using `Cmd+Alt+`:
+
+- `saropaWorkspace.runTopPin1`-`saropaWorkspace.runTopPin5` → `Ctrl+Alt+1`-`Ctrl+Alt+5` (exact command IDs, no `when` — they act on the top-N pins regardless of view focus).
+- `saropaWorkspace.pinActiveFile` → `Ctrl+Alt+A`, `when: "editorFocus"` (fires only with an editor focused). This is the real command behind "add active file as shortcut" — no command literally named `addActiveFileAsShortcut` exists.
+- `saropaWorkspace.pins.focus` → `Ctrl+Alt+S`. No command named `focusShortcutsView` exists in `contributes.commands`; VS Code auto-generates a `<viewId>.focus` command for every contributed view, so this binds to the Pins view's built-in focus command without adding a new command declaration.
+- `saropaWorkspace.runAnyPin` → `Ctrl+Alt+R`. No command named `runSelectedShortcut` exists. `runAnyPin` (opens a quick pick to run any shortcut) is the closest existing keyboard-driven "run a shortcut" action — there is no command that resolves the tree's current selection and runs it (the existing `peekFocusedPin` does this for Peek, but no run-equivalent exists). Implementing a genuine `runSelectedShortcut` would require new command code, out of scope for a manifest-only fix.
+
+No new commands or `package.nls.json` keys were needed since all bound commands already existed.
 
 ---
 
 ## Verification
 
-- [ ] `tsc -p ./ --noEmit` clean
-- [ ] `npm run build` succeeds
+- [x] `tsc -p ./ --noEmit` clean
+- [x] `npm run build` (`node esbuild.js`) succeeds
 - [ ] Manual smoke test: confirm new keybindings appear in Keyboard Shortcuts and trigger the correct commands
 - [ ] Verify no conflicts with common VS Code keybindings
 

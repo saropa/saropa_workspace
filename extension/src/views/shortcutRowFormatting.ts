@@ -49,8 +49,8 @@ export function formatNextRun(ts: number): string {
   return `${date} ${time}`;
 }
 
-// Compact expiry chip for a time-bombed shortcut's row (WOW #9): a wall-clock bomb shows
-// the time remaining ("2h left"), a branch bomb shows the branch it is tied to. When
+// Compact expiry chip for a shortcut's row with expiry set (WOW #9): a wall-clock expiry
+// shows the time remaining ("2h left"), a branch expiry shows the branch it is tied to. When
 // both are set the countdown wins — it is the more concrete, time-sensitive fact.
 // The relative time is static per repaint (a TreeView row cannot tick live); it
 // re-renders on the next paint, which the expiry sweep and any store change trigger.

@@ -2,23 +2,10 @@
 // split-asset layout the customize, run, and schedule panels use. Both are
 // injected under the panel's per-load nonce.
 
+import { designTokenRoot } from "./webviewDesignTokens";
+
 export const SETTINGS_STYLE = `
-:root {
-  color-scheme: light dark;
-  --surface-1: var(--vscode-editor-background);
-  --surface-2: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-  --surface-3: var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.10));
-  --inset: var(--vscode-input-background);
-  --border: var(--vscode-widget-border, var(--vscode-panel-border, rgba(127,127,127,.28)));
-  --border-strong: color-mix(in srgb, var(--vscode-focusBorder) 35%, var(--border));
-  --muted: var(--vscode-descriptionForeground);
-  --brand: #f97316;
-  --brand-2: #ea580c;
-  --hero-tint: color-mix(in srgb, var(--brand) 16%, transparent);
-  --radius-sm: 4px; --radius: 8px; --radius-lg: 12px; --radius-pill: 999px;
-  --ease: cubic-bezier(.2,.6,.2,1);
-  --dur: 140ms;
-}
+${designTokenRoot({ durationMs: 140 })}
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -305,28 +292,35 @@ function wire() {
   }
 }
 
+// Finds the control bound to a setting key and writes a value into it. Shared
+// by applyInit (bulk load) and the "revertSetting" handler (single-control
+// rollback), so the per-type value-assignment logic lives in exactly one place.
+function setControlValue(key, value) {
+  var toggle = document.querySelector('.toggle input[data-key="' + key + '"]');
+  if (toggle) { toggle.checked = !!value; return; }
+  var number = document.querySelector('input[type="number"][data-key="' + key + '"]');
+  if (number) { number.value = String(value); return; }
+  var text = document.querySelector('input[type="text"].setting-input[data-key="' + key + '"]');
+  if (text) { text.value = String(value); return; }
+  var select = document.querySelector('select[data-key="' + key + '"]');
+  if (select) { select.value = String(value); return; }
+}
+
 function applyInit(settings) {
   // Set all controls to their current values
-  document.querySelectorAll('.toggle input').forEach(function(input) {
-    var key = input.getAttribute('data-key');
-    if (key && settings[key] !== undefined) { input.checked = !!settings[key]; }
-  });
-  document.querySelectorAll('input[type="number"]').forEach(function(input) {
-    var key = input.getAttribute('data-key');
-    if (key && settings[key] !== undefined) { input.value = String(settings[key]); }
-  });
-  document.querySelectorAll('input[type="text"].setting-input').forEach(function(input) {
-    var key = input.getAttribute('data-key');
-    if (key && settings[key] !== undefined) { input.value = String(settings[key]); }
-  });
-  document.querySelectorAll('select').forEach(function(sel) {
-    var key = sel.getAttribute('data-key');
-    if (key && settings[key] !== undefined) { sel.value = String(settings[key]); }
+  Object.keys(settings).forEach(function(key) {
+    if (settings[key] !== undefined) { setControlValue(key, settings[key]); }
   });
 }
 
 window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'init') { applyInit(e.data.settings); }
+  if (!e.data) { return; }
+  if (e.data.type === 'init') { applyInit(e.data.settings); }
+  // The host's cfg.update() failed after this control already applied the
+  // change optimistically on "change". Roll the control back to the value
+  // the host confirms is actually persisted, so the UI never shows a setting
+  // that silently failed to save.
+  if (e.data.type === 'revertSetting') { setControlValue(e.data.key, e.data.value); }
 });
 
 wire();

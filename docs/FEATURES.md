@@ -162,7 +162,7 @@ Scope a shortcut to the git branch you're working on: **Link to Current Branch**
 
 - **Pause** a shortcut to suspend every automatic run — schedule, triggers, run-on-idle, run-on-save — while keeping its configuration intact; **Unpause** resumes where it left off, and a manual click still runs it.
 - **Lock / Unlock File (Read-only)** flips the file's real read-only attribute on disk from the tree, so a locked file is read-only everywhere — the guard against clobbering a file by accident.
-- **Shortcut Expiry (Time-Bomb)** sets a shortcut to auto-remove: **Keep Until…** (in 1 hour, end of today/Friday, a custom date) or **Keep Until Branch Changes**. A bombed shortcut shows its countdown; when it expires it's removed with a single **Undo** toast. Only shortcuts you explicitly time-bombed ever auto-remove.
+- **Shortcut Expiry** sets a shortcut to auto-remove: **Keep Until…** (in 1 hour, end of today/Friday, a custom date) or **Keep Until Branch Changes**. A shortcut with expiry set shows its countdown; when it expires it's removed with a single **Undo** toast. Only shortcuts you explicitly set an expiry on ever auto-remove.
 - **Mask / Unmask (Vault Shortcut)** hides a sensitive shortcut's identity for screen-sharing: the row shows a generic **Protected file** label and a lock glyph instead of the filename and icon, and omits the real path from the row detail and the hover — so a target like `.env.production` is never visible at rest. Opening a masked shortcut asks for an explicit **reveal** confirm first, so a stray click can't display it. File shortcuts only; it gates the open and hides the label, it does not redact the file's own contents.
 
 ## One run at a time

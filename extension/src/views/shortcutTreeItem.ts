@@ -33,6 +33,39 @@ const SEPARATOR_LABEL = "─".repeat(40);
 // tappedShortcuts), so the dot disappears on first open/run.
 const UNTAPPED_MARKER = "●";
 
+// The untapped marker is a bare Unicode bullet: a screen reader announces it by its
+// Unicode name ("black circle"), which conveys nothing (BUG-009). accessibilityInformation
+// carries the real meaning ("not yet opened") instead, so sighted and AT users get the
+// same fact through different channels — the glyph for one, the label for the other.
+function buildAccessibilityLabel(params: {
+  readonly name: string;
+  readonly isRunning: boolean;
+  readonly isStopping: boolean;
+  readonly paused: boolean;
+  readonly lockedBy: string | undefined;
+  readonly missing: boolean;
+  readonly untapped: boolean;
+}): string {
+  const { name, isRunning, isStopping, paused, lockedBy, missing, untapped } = params;
+  // Priority mirrors computeRowStateBadge in shortcutRowDescription.ts: the same live
+  // state that wins the row's leading badge for sighted users is what a screen reader
+  // hears first, so the two channels never disagree about which fact matters most.
+  const state = isStopping
+    ? l10n("run.stoppingBadge")
+    : isRunning
+      ? l10n("run.treeBadge")
+      : lockedBy
+        ? l10n("depends.treeBadge", { dep: lockedBy })
+        : paused
+          ? l10n("pause.treeBadge")
+          : missing
+            ? l10n("a11y.missingState")
+            : untapped
+              ? l10n("a11y.untappedState")
+              : undefined;
+  return state ? `${name}, ${state}` : name;
+}
+
 /** Named options for constructing a {@link ShortcutTreeItem}. Only `shortcut`
  * is required; every other field defaults to the safe resting state. */
 export interface ShortcutTreeItemOptions {
@@ -150,6 +183,23 @@ export class ShortcutTreeItem extends vscode.TreeItem {
     // rules each menu clause depends on.
     this.contextValue = buildShortcutContextValue(shortcut, isRunning, isStopping);
 
+    // BUG-009: without accessibilityInformation a screen reader gets only the raw
+    // label, so live state (running/stopping/locked/paused) and the untapped/missing
+    // facts that sighted users read from the icon and badge are invisible to AT
+    // users. role is left unset — VS Code's default "treeitem" role already fits;
+    // only the separator row (below) needs an explicit role override.
+    this.accessibilityInformation = {
+      label: buildAccessibilityLabel({
+        name: baseLabel,
+        isRunning,
+        isStopping,
+        paused: Boolean(shortcut.paused),
+        lockedBy,
+        missing,
+        untapped,
+      }),
+    };
+
     // Hover lines (target, live state, notices, last run, sweep/metric summaries,
     // gesture footer); see shortcutRowTooltip.ts for the phase's own reasoning.
     this.tooltip = buildShortcutTooltipLines({
@@ -218,15 +268,23 @@ function applyAnnotationLayout(
     item.tooltip = l10n("annotation.separatorTooltip");
     item.contextValue = "annotationSeparator";
     item.iconPath = undefined;
+    // BUG-009: 40 box-drawing dashes read as either silence or 40 repeated "dash"
+    // announcements to a screen reader. role: 'separator' plus a plain-word label
+    // is the ARIA-correct way to represent a divider row.
+    item.accessibilityInformation = { label: l10n("a11y.separator"), role: "separator" };
   } else {
     const text = shortcut.label?.trim();
-    item.label =
-      text && text.length > 0 ? text : l10n("annotation.commentEmpty");
-    item.tooltip = item.label;
+    const commentLabel = text && text.length > 0 ? text : l10n("annotation.commentEmpty");
+    item.label = commentLabel;
+    item.tooltip = commentLabel;
     item.contextValue = "annotationComment";
     item.iconPath = new vscode.ThemeIcon(
       "comment",
       new vscode.ThemeColor("descriptionForeground")
     );
+    // A comment row has no live state, so the visible label is already the whole
+    // story — set accessibilityInformation anyway for consistency with every other
+    // row in the tree (BUG-009 asked for coverage across all tree items).
+    item.accessibilityInformation = { label: commentLabel };
   }
 }

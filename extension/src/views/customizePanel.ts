@@ -9,6 +9,9 @@ import { CUSTOMIZE_STYLE, CUSTOMIZE_SCRIPT } from "./customizeAssets";
 import { l10n } from "../i18n/l10n";
 import { guessTagsFromContent } from "./customizeTagGuesser";
 import { resolveAllColorHexes } from "./tintHexResolver";
+// Local alias keeps every `esc(...)` call site in this file unchanged; the escaping
+// algorithm itself is centralized (BUG-012).
+import { escapeHtml as esc } from "../utils/escapeHtml";
 
 // The Customize webview form — one screen to set a shortcut's NAME, ICON, COLOR, and
 // TAGS at once, with a live preview of the tree row. It replaces hopping between the
@@ -342,23 +345,4 @@ ${this.tagCard()}
 // as a glyph; in the webview the swatch IS the color, so the bare name is wanted.
 function stripTokens(label: string): string {
   return label.replace(/\$\([^)]*\)/g, "").trim();
-}
-
-// Escape text destined for an HTML text node or a double-quoted attribute, so a shortcut
-// label, tag, icon id, or hex can never inject markup into the webview.
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#39;";
-    }
-  });
 }

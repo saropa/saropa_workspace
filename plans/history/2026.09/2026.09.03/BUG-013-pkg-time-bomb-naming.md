@@ -1,6 +1,6 @@
 # BUG-013: "Time-Bomb" terminology in shortcut expiry submenu label
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
@@ -72,14 +72,22 @@ Update in `package.nls.json` (since manifest strings use `%key%` externalization
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+Renamed the label in `extension/package.nls.json` (`submenu.expiry.label`) from "Shortcut Expiry (Time-Bomb)" to "Shortcut Expiry" (dropped the parenthetical entirely, per the first suggested option). `package.json` itself already referenced the label only via `%submenu.expiry.label%`, so no change was needed there.
+
+Also swept every other file for the informal "Time-Bomb"/"time-bomb"/"time-bombed" terminology and reworded it to neutral "expiry" language, since the term appeared throughout code comments and one other user-facing string, not just the submenu label:
+
+- `extension/src/i18n/locales/en.json`: `expiry.autoUnsupported` reworded from "cannot be time-bombed" to "cannot have an expiry set".
+- `docs/FEATURES.md`: dropped "(Time-Bomb)" from the Shortcut Expiry bullet and reworded "bombed shortcut" / "time-bombed" to "shortcut with expiry set" / "explicitly set an expiry on".
+- Code comments in `extension/src/exec/gitBranch.ts`, `extension/src/exec/shortcutExpiry.ts`, `extension/src/commands/shortcutConfigCommands.ts`, `extension/src/model/shortcutStoreRestore.ts`, `extension/src/model/shortcut.ts`, `extension/src/model/shortcutStoreFieldUpdates.ts`, `extension/src/extension.ts`, `extension/src/test/configureExpiry.test.ts`, `extension/src/test/gitBranch.test.ts`, `extension/src/test/shortcutStoreMutation.test.ts`, `extension/src/views/shortcutRowDescription.ts`, `extension/src/views/shortcutRowFormatting.ts`, `extension/src/views/shortcutRowTokens.ts`, `extension/src/views/shortcutsTreeProvider.ts`, `extension/src/views/shortcutRowTooltip.ts` — no code identifiers or logic changed, comment text only.
+
+Left untouched as historical records (not corrected retroactively): `CHANGELOG_HISTORY.md`, `plans/MASTER_PLAN.md` (tracks this bug by its original name), and `plans/history/2026.06/2026.06.25/PLAN_03_branch_linked_pins.md` / `PLAN_09_time_bomb_pins.md`.
 
 ---
 
 ## Verification
 
-- [ ] `tsc -p ./ --noEmit` clean
-- [ ] `npm run build` succeeds
+- [x] `tsc -p ./ --noEmit` clean
+- [x] `npm run build` (`node esbuild.js`) succeeds
 - [ ] Manual smoke test: right-click a shortcut, confirm the submenu label uses the updated text
 
 ---

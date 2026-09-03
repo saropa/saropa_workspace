@@ -1,6 +1,9 @@
 import * as cp from "child_process";
 import * as os from "os";
 import * as vscode from "vscode";
+// The byte formatter is centralized (BUG-012); this file used to carry its own copy,
+// byte-identical to projectStats.ts's.
+import { formatBytes } from "../utils/formatBytes";
 
 // Process-poll helper for the developer process monitor (recipe book section G,
 // #60-62). It answers the one question the OS Task Manager buries under hundreds of
@@ -378,17 +381,6 @@ export async function pollProcesses(intervalMs = 1000): Promise<PollResult> {
 export function isGroupKillable(tool: string): boolean {
   const def = TOOL_DEFS.find((d) => d.tool === tool);
   return def !== undefined && def.protectedGroup !== true;
-}
-
-// Human-readable byte size for report tables and the panel (e.g. "1.4 GB").
-export function formatBytes(bytes: number): string {
-  if (bytes <= 0) {
-    return "0 B";
-  }
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const exponent = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  const value = bytes / Math.pow(1024, exponent);
-  return `${value.toFixed(value >= 100 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
 
 // The grouped, two-sample-CPU table as Markdown — the artifact a "my machine is

@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import { NoteStore, ensureDir, ensureNoteExtension } from "../model/noteStore";
 import { NoteTreeItem } from "../views/notesProvider";
 import { l10n } from "../i18n/l10n";
-import { formatBytes } from "../exec/metricFormat";
+import { formatBytes } from "../utils/formatBytes";
 
 interface ScopePickItem extends vscode.QuickPickItem {
   readonly scope: "project" | "global";

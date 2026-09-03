@@ -3,23 +3,11 @@
 // runner without the extension host — the same separation the scheduling math uses.
 // The line-count text itself is localized at the call site (it carries a word); these
 // helpers deal only in numbers and symbol units, which need no translation.
-
-// Human-readable byte size with binary (1024) units. Units are symbols (B / KB / MB),
-// so they need no translation; one decimal below 10 of a unit, whole numbers above.
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  const num = value < 10 ? value.toFixed(1) : Math.round(value).toString();
-  return `${num} ${units[unit]}`;
-}
+//
+// formatBytes used to live here as its own (slightly different) algorithm; it is now
+// utils/formatBytes.ts's single canonical implementation (BUG-012) — re-export removed
+// on purpose so every call site imports the canonical module directly rather than
+// through this unrelated one.
 
 // Count newlines in a file's bytes. Counts '\n' (0x0A), which covers LF and CRLF; a
 // final line with no trailing newline is still counted, so a one-line file with no

@@ -15,24 +15,10 @@
 // its placeholders are host-rendered too, so even dynamically added rows stay
 // translation-ready without a host->webview string bridge.
 
+import { designTokenRoot } from "./webviewDesignTokens";
+
 export const CONFIGURE_RUN_STYLE = `
-:root {
-  color-scheme: light dark;
-  --surface-1: var(--vscode-editor-background);
-  --surface-2: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-  --surface-3: var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.10));
-  --inset: var(--vscode-input-background);
-  --border: var(--vscode-widget-border, var(--vscode-panel-border, rgba(127,127,127,.28)));
-  --border-strong: color-mix(in srgb, var(--vscode-focusBorder) 35%, var(--border));
-  --muted: var(--vscode-descriptionForeground);
-  --brand: #f97316;
-  --brand-2: #ea580c;
-  --hero-tint: color-mix(in srgb, var(--brand) 16%, transparent);
-  --bad: var(--vscode-editorError-foreground, #f85149);
-  --radius-sm: 4px; --radius: 8px; --radius-lg: 12px; --radius-pill: 999px;
-  --ease: cubic-bezier(.2,.6,.2,1);
-  --dur: 160ms;
-}
+${designTokenRoot({ extra: "  --bad: var(--vscode-editorError-foreground, #f85149);" })}
 * { box-sizing: border-box; }
 body {
   margin: 0;

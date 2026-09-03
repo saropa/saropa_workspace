@@ -43,6 +43,15 @@ import { asShortcut } from "./shortcutArgResolution";
 const lastRunAtByShortcutId = new Map<string, number>();
 export const REPEAT_INVOCATION_GUARD_MS = 500;
 
+// Drop a removed shortcut's repeat-invocation timestamp. Without this,
+// lastRunAtByShortcutId grows by one entry per shortcut ever run and never shrinks —
+// over a long-running window this is unbounded memory growth for a churn-heavy
+// project. Mirrors runStatusRegistry.clear / clearWatchLastRun, called from the same
+// "shortcut removed" call sites.
+export function clearLastRunAt(shortcutId: string): void {
+  lastRunAtByShortcutId.delete(shortcutId);
+}
+
 // `now` is injectable (defaults to Date.now()) purely so the timing logic is
 // assertable under node --test without a real 500ms sleep; every production
 // caller relies on the default.
