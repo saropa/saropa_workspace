@@ -33,6 +33,12 @@ Modes (interactive menu, or pass --mode):
     audit               Read-only pre-publish checks + quality report; change nothing
     ci-fallback         Print the manual release playbook (URLs, commands, files)
 
+Headless mode (--headless --mode <mode>):
+    Skips every interactive prompt so an agent or CI pipeline can drive the full
+    publish without stdin. Version defaults to the auto-computed value (override
+    with --version). PATs must be pre-set as environment variables. Step failures
+    follow the --on-failure policy (abort | ignore | retry; default abort).
+
 Version handling is automated. The version source of truth is the top
 "## [x.y.z]" section of the root CHANGELOG.md (which also holds the release
 notes); extension/package.json is reconciled to it at publish time, with the
@@ -72,8 +78,8 @@ _SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from modules._utils import detail, enable_ansi_support, set_quiet, show_logo  # noqa: E402
-from modules._version_changelog import read_package_version  # noqa: E402
+from modules._utils import detail, enable_ansi_support, set_headless, set_on_failure, set_quiet, show_logo  # noqa: E402
+from modules._version_changelog import read_package_version, set_version_override  # noqa: E402
 from modules._workflow import MODES, check_prerequisites, prompt_mode, run_mode  # noqa: E402
 
 
@@ -81,8 +87,40 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Publish the Saropa Workspace extension.")
     parser.add_argument("--mode", choices=MODES, help="Run non-interactively in the given mode.")
     parser.add_argument("--quiet", action="store_true", help="Only print warnings and errors.")
+    parser.add_argument(
+        "--rebase-debounce",
+        type=int,
+        default=3,
+        metavar="SECONDS",
+        help="Seconds to wait after rebasing onto origin/main before restoring "
+        "stashed changes, letting file watchers settle. Default: 3, 0 disables, capped at 10.",
+    )
+    parser.add_argument(
+        "--headless", action="store_true",
+        help="Skip all interactive prompts (for agent / CI use). Requires "
+             "--mode. Version defaults to the auto-computed value; override with "
+             "--version. PATs must be pre-set as env vars. Step failures follow "
+             "the --on-failure policy.",
+    )
+    parser.add_argument(
+        "--version",
+        help="Override the version to publish (semver: X.Y.Z or X.Y.Z-pre.N). "
+             "Only effective with --headless in a mode that resolves a version.",
+    )
+    parser.add_argument(
+        "--on-failure", choices=("abort", "ignore", "retry"), default="abort",
+        help="Failure policy in headless mode: abort (default), ignore, or retry.",
+    )
     parsed = parser.parse_args()
     set_quiet(parsed.quiet)
+
+    # Headless mode requires --mode so the interactive menu is never shown.
+    if parsed.headless and not parsed.mode:
+        parser.error("--headless requires --mode")
+    set_headless(parsed.headless)
+    set_on_failure(parsed.on_failure)
+    if parsed.version:
+        set_version_override(parsed.version)
 
     enable_ansi_support()
     show_logo()
@@ -93,7 +131,7 @@ def main() -> int:
         return code
 
     detail(f"  Saropa Workspace extension - version {read_package_version()}, mode '{mode}'.")
-    return run_mode(mode)
+    return run_mode(mode, parsed.rebase_debounce)
 
 
 if __name__ == "__main__":

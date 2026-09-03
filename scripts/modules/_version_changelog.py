@@ -33,6 +33,7 @@ from modules._utils import (
     detail,
     error,
     header,
+    is_headless,
     run,
     success,
     warn,
@@ -238,6 +239,15 @@ def extract_changelog_section(changelog: Path, version: str) -> str | None:
 # Interactive version prompt (timeout; editable on Windows, bracketed on Unix).
 # --------------------------------------------------------------------------- #
 
+# Headless version override: set by --version on the CLI, read by
+# prompt_version_until_valid to skip the interactive prompt.
+_VERSION_OVERRIDE: str | None = None
+
+
+def set_version_override(version: str | None) -> None:
+    global _VERSION_OVERRIDE
+    _VERSION_OVERRIDE = version
+
 
 def _prompt_version_windows(default: str, timeout: int) -> str:
     import msvcrt
@@ -282,7 +292,19 @@ def _prompt_version_unix(default: str, timeout: int) -> str:
 
 
 def prompt_version_until_valid(default: str, timeout: int = 60) -> str:
-    """Prompt for a version, defaulting after a timeout, until it is valid semver."""
+    """Prompt for a version, defaulting after a timeout, until it is valid semver.
+
+    In headless mode the --version override (if given) or the auto-computed
+    default is accepted without prompting. An explicit --version that fails
+    semver validation raises ValueError so the caller can abort early.
+    """
+    # Headless: accept the version override or default without prompting.
+    if is_headless():
+        version = _VERSION_OVERRIDE or default
+        if re.match(rf"^{VERSION_RE}$", version):
+            success(f"Headless: using version {version}")
+            return version
+        raise ValueError(f"Headless --version '{version}' is not valid semver (X.Y.Z or X.Y.Z-pre.N)")
     while True:
         if sys.platform == "win32":
             version = _prompt_version_windows(default, timeout)

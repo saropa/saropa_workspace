@@ -76,6 +76,23 @@ class Color(Enum):
 # helpers below read it directly; set_quiet()/is_quiet() are the public surface.
 _QUIET = False
 
+# When True (set by --headless), all interactive prompts are bypassed: version
+# defaults to the auto-computed value, PAT prompts are skipped (env vars must be
+# pre-set), local install is skipped, and step failures use the _ON_FAILURE
+# policy instead of prompting. This lets an agent or CI pipeline drive the full
+# publish without stdin.
+_HEADLESS = False
+
+# The failure policy in headless mode: "abort" (default — stop on first failure),
+# "ignore" (continue as though the step passed), or "retry" (re-run the step
+# once then abort — capped to prevent infinite loops without a human operator).
+_ON_FAILURE = "abort"
+
+# Tracks whether the headless retry has already been used for the current step.
+# Reset by prompt_on_failure each time it returns "retry"; on the second
+# consecutive failure it escalates to "abort" so no step can loop forever.
+_HEADLESS_RETRIED = False
+
 
 def set_quiet(value: bool) -> None:
     global _QUIET
@@ -84,6 +101,25 @@ def set_quiet(value: bool) -> None:
 
 def is_quiet() -> bool:
     return _QUIET
+
+
+def set_headless(value: bool) -> None:
+    global _HEADLESS
+    _HEADLESS = value
+
+
+def is_headless() -> bool:
+    return _HEADLESS
+
+
+def set_on_failure(policy: str) -> None:
+    """Set the headless failure policy: 'abort', 'ignore', or 'retry'."""
+    global _ON_FAILURE
+    if policy not in ("abort", "ignore", "retry"):
+        raise ValueError(f"Invalid --on-failure policy: {policy!r}")
+    _ON_FAILURE = policy
+
+
 
 
 def enable_ansi_support() -> None:
@@ -166,10 +202,26 @@ def prompt_on_failure(label: str) -> str:
     Ignore continues as though the step passed (only safe when the failure is
     known-benign); abort stops the run.
 
-    A non-interactive stdin (CI, piped input) can't answer, so it defaults to
-    abort: an unattended run must never hang on the prompt nor silently swallow a
-    real failure by defaulting to retry forever.
+    In headless mode the --on-failure policy is applied without prompting. A
+    non-interactive stdin (CI, piped input) falls back to abort so an unattended
+    run never hangs or silently swallows a real failure.
     """
+    # Headless mode: apply the configured policy without prompting. The retry
+    # policy is capped at one attempt per step — a second consecutive failure
+    # escalates to abort so no step can loop forever without a human operator.
+    if _HEADLESS:
+        global _HEADLESS_RETRIED
+        policy = _ON_FAILURE
+        if policy == "retry" and _HEADLESS_RETRIED:
+            policy = "abort"
+            warn(f"{label} failed again after retry; escalating to abort.")
+        else:
+            info(f"{label} failed; headless policy is '{policy}'.")
+        if policy == "retry":
+            _HEADLESS_RETRIED = True
+        else:
+            _HEADLESS_RETRIED = False
+        return policy
     if not sys.stdin or not sys.stdin.isatty():
         error(f"{label} failed; non-interactive session, aborting.")
         return "abort"

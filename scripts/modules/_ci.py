@@ -26,6 +26,7 @@ from modules._utils import (
     detail,
     header,
     info,
+    is_headless,
     print_failure_tail,
     run,
     success,
@@ -80,7 +81,13 @@ def ci_fallback() -> int:
 
 
 def prompt_local_install() -> None:
-    """Offer to install the packaged .vsix into the local VS Code."""
+    """Offer to install the packaged .vsix into the local VS Code.
+
+    Skipped entirely in headless mode — local install is interactive-only.
+    """
+    # Headless: skip the interactive install prompt.
+    if is_headless():
+        return
     vsix = newest_vsix()
     if vsix is None or shutil.which("code") is None:
         return

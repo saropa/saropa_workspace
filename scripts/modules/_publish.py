@@ -33,6 +33,7 @@ from modules._utils import (
     fail,
     header,
     info,
+    is_headless,
     run,
     success,
     warn,
@@ -54,8 +55,12 @@ def _prompt_for_pat(env_var: str, label: str, token_url: str, extra: list[str]) 
 
     Returns the token, or empty string to skip that store. Setting os.environ
     lets vsce/ovsx (which read the env var) pick it up without re-prompting.
+    In headless mode the prompt is skipped — the env var must already be set.
     """
     warn(f"{env_var} is not set.")
+    # Headless: can't prompt for a token; the env var must be pre-set.
+    if is_headless():
+        return ""
     info(f"{label} requires a Personal Access Token to publish.")
     for line in extra:
         detail(f"      {line}")
