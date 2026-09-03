@@ -100,13 +100,18 @@ improvements), 4 (Views hardening), and 5 (Tests + docs).
 - Confirmed no callers type `makeDebounced` result explicitly as `() => void`,
   so the `DebouncedFn` type change is backward-compatible.
 
+### Leak fix (applied post-review)
+
+- Wired `promptMemory.forget`, `runOutputs.clear`, `shortcutBadges.clear`, and
+  a new `clearLastBrief` into the centralized `onDidRemoveShortcut` subscriber
+  in `extension.ts`. Every removal path now cleans up all per-shortcut tracking
+  data. `promptMemory` was persisted in `workspaceState`, so its leak survived
+  reloads indefinitely — the rest were in-memory and session-bounded.
+
 ### Known gaps (documented, not fixed)
 
 - `deleteSet()` in `shortcutStoreSets.ts` bypasses `onDidRemoveShortcut`,
   leaking id-keyed cleanup map entries. Documented with LEAK comments.
-- `promptMemory`, `runOutputs`, `shortcutBadges`, `lastBrief` id-keyed maps not
-  wired to `onDidRemoveShortcut` — only cleared from the explicit "unpin"
-  command path.
 - `gatedNotice` used for a non-UI check-and-latch role in `seedFolder` via a
   closure-variable workaround. Works correctly but is a design smell — a
   `checkAndLatch<T>` variant without `show` would be cleaner.
