@@ -134,7 +134,7 @@ test("pinUntilBranchChange bombs the pin on the current git branch", async () =>
 test("pinUntilBranchChange warns and writes nothing when no branch is readable", async () => {
   const { store, shortcut } = await storeWithShortcut();
   // No .git present, so readCurrentBranch returns undefined; the handler must warn
-  // (a no-op via the stub) and leave the shortcut un-bombed rather than store a condition
+  // (a no-op via the stub) and leave the shortcut without an expiry rather than store a condition
   // that can never be evaluated.
   await shortcutUntilBranchChange(store, shortcut);
   assert.equal(reread(store, shortcut.id).expires, undefined);

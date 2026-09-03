@@ -53,7 +53,7 @@ test("the feature is gated off — disabling it returns no recipes", async () =>
 });
 
 test("no configured chat folder present yields nothing (graceful absence)", async () => {
-  // With the feature enabled (its default) but no chat folder readable, the detector
+  // With the feature explicitly enabled but no chat folder readable, the detector
   // must produce an empty list and never throw on the folders it probes — the same
   // "no AI chats here" result a non-AI project gets. (The folder listing is swallowed
   // by the detector's own try/catch, so an unreadable store reads as absent.)

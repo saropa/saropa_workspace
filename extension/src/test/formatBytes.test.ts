@@ -30,3 +30,12 @@ test("formatBytes drops the decimal at or above 100 of a unit", () => {
   // behavior pick during consolidation (see utils/formatBytes.ts's header comment).
   assert.equal(formatBytes(20 * 1024), "20.0 KB");
 });
+
+test("formatBytes falls back to 0 B for non-finite input", () => {
+  // NaN <= 0 is false, so the old guard let a bad upstream measurement (e.g. a
+  // failed stat() coerced to NaN) through to render the literal string "NaN B".
+  // Infinity/-Infinity hit the same gap from the other direction.
+  assert.equal(formatBytes(NaN), "0 B");
+  assert.equal(formatBytes(Infinity), "0 B");
+  assert.equal(formatBytes(-Infinity), "0 B");
+});
