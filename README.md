@@ -26,7 +26,7 @@ Developed by [Saropa](https://saropa.com) to make Flutter & Dart development fas
 
 ---
 
-Saropa Workspace maps your recurring shell scripts and critical platform configurations into a master sidebar menu. On initialization, it parses your manifests and `.git/config` to auto-generate **Recipes**. These are zero-config, one-click macros for tasks like formatting, linting, and tracking Git branch PRs. The true utility is the background automation engine. You can map scripts to specific file globs to execute headless tasks instantly on save. You can wire shortcuts into chains and event-driven sequences in the Visual Planner, or fire them off cron schedules while the editor is open. The environment state saves directly to a plain `.json` file inside `.saropa/`. Commit it, and your whole team inherits a fully automated project workspace.
+Saropa Workspace maps your recurring shell scripts and critical platform configurations into a master sidebar menu. On initialization, it parses your manifests and `.git/config` to auto-generate **Recipes** — zero-config, one-click macros for tasks like formatting, linting, and tracking Git branch PRs. Wire shortcuts into chains and event-driven sequences in the Visual Planner, or fire them off cron schedules while the editor is open. The environment state saves directly to a plain `.json` file inside `.saropa/`. Commit it, and your whole team inherits a fully automated project workspace.
 ---
 
 ## Screenshot
@@ -56,12 +56,12 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 
 ### ⏰ Scheduling & Workflows
 * **Automation Triggers:** Run saved scripts at designated times, repeating intervals, open events, or native cron expressions.
-* **Visual Planner:** Wire shortcuts into graph chains or calendar sequences that respond to project hooks like git commits, pushes, or file saves.
+* **Visual Planner:** Wire shortcuts into graph chains or calendar sequences that respond to project hooks like git commits and pushes.
 * **In-Process Engine:** Runs lightweight tasks locally without external system configuration; a status-bar tracker keeps queued scripts visible.
 
 ### 🧩 Discovered Recipes
 * **Auto-Detection:** Scans your codebase manifests and `.git/config` to stand up dynamic macros without manual entry.
-* **Ecosystem Shortcuts:** Generates instant controls for package installs, formatting, lint diagnostics, repository PR paths, and local docker deployment.
+* **Ecosystem Shortcuts:** Generates instant controls for package installs, formatting, lint diagnostics, and repository PR paths.
 * **Hygiene Tools:** Includes built-in sweeps like a `Workspace bloat scan` to clear directory conflicts and layout freezes.
 * **Editable Promotion:** Keep scripts hidden, toggle entire recipe domains off, or choose `Promote to Shortcut` to customize a macro permanently.
 

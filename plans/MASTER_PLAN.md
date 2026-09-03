@@ -91,27 +91,26 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 
 ## Phase 4 — Documentation overhaul
 
-### 4.1 README.md (High priority) — partially done
+### 4.1 README.md (High priority) — done
 
-- Strip aspirational language describing unshipped features (Visual Planner graph chains, Smart Onboarding, Ecosystem Diagnostics) — only describe shipped features.
-- Update config path from `.vscode/saropa-workspace.json` to `.saropa/` default.
-- Expand settings and command tables or link to the extension's settings UI.
-- Verify all Saropa Suite member extensions exist on the Marketplace.
-- **Status:** Config path and unshipped feature language already cleaned up. Settings/command tables and Suite verification remain.
+- ~~Strip aspirational language describing unshipped features (Visual Planner graph chains, Smart Onboarding, Ecosystem Diagnostics) — only describe shipped features.~~ Done — removed file-glob-on-save trigger claims, "file saves" as a system event, and "local docker deployment"; Visual Planner graph chains confirmed shipped.
+- ~~Update config path from `.vscode/saropa-workspace.json` to `.saropa/` default.~~ Done.
+- ~~Expand settings and command tables or link to the extension's settings UI.~~ Done — representative samples with "open Settings UI for complete list" guidance.
+- ~~Verify all Saropa Suite member extensions exist on the Marketplace.~~ Done — extension IDs (`saropa.saropa-lints`, `saropa.saropa-log-capture`, `saropa.drift-viewer`) confirmed in `dailyReport.ts` and `suiteRecipes.ts`.
 
-### 4.2 SECURITY.md (High priority)
+### 4.2 SECURITY.md (High priority) — done
 
-- Update version table from `0.1.x` to current `1.6.x`.
-- Expand scope to cover scheduling, external execution, bundled scripts, and URL opening.
-- Update config path.
+- ~~Update version table from `0.1.x` to current `1.6.x`.~~ Done.
+- ~~Expand scope to cover scheduling, external execution, bundled scripts, and URL opening.~~ Done.
+- ~~Update config path.~~ Done.
 
-### 4.3 CONTRIBUTING.md (High priority)
+### 4.3 CONTRIBUTING.md (High priority) — done
 
-- Refresh project layout table (`pin*` → `shortcut*`, add missing directories: `recipes/`, `launcher/`, `dashboard/`, `notes/`, `scripts/`, `schedule/`).
-- Add `npm test` / unit test runner instructions.
-- Update config path.
+- ~~Refresh project layout table (`pin*` → `shortcut*`, add missing directories: `recipes/`, `launcher/`, `dashboard/`, `notes/`, `scripts/`, `schedule/`).~~ Done.
+- ~~Add `npm test` / unit test runner instructions.~~ Done.
+- ~~Update config path.~~ Done.
 
-### 4.4 ISSUE_REPORT_GUIDE.md (Medium priority)
+### 4.4 ISSUE_REPORT_GUIDE.md (Medium priority) — done
 
 - ~~Rename all `pin` references to `shortcut`.~~ Done — converted to `ISSUE_REPORT_GUIDE.md`.
 - ~~Add area slugs for: schedule, routine, recipe, launcher, notes, scripts, suite, watch.~~ Done.
@@ -119,17 +118,16 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 - Added feature request template and categories (proposals, UX, config, infra).
 - Switched file naming from `BUG-NNN-area-description.md` to `area_description.md` (underscore, no sequence number).
 
-### 4.5 CHANGELOG.md (Medium priority) — partially done
+### 4.5 CHANGELOG.md (Medium priority) — done
 
-- Fix version typo: `1.4.18` → `1.5.18`.
-- Clarify whether 1.6.12 is released or unreleased.
-- Archive 1.5.16-1.5.19 to CHANGELOG_HISTORY.md to stay under the 500-line target.
-- **Status:** Partially done. Version typo fixed. Archival of 1.5.16–1.5.20 to CHANGELOG_HISTORY.md done. 1.6.12 clarification remains.
+- ~~Fix version typo: `1.4.18` → `1.5.18`.~~ Done.
+- ~~Clarify whether 1.6.12 is released or unreleased.~~ Done — 1.6.12 is a released version (current version is 1.8.0; all changelog entries are released).
+- ~~Archive 1.5.16-1.5.19 to CHANGELOG_HISTORY.md to stay under the 500-line target.~~ Done (1.5.16–1.5.20 archived).
 
-### 4.6 ROADMAP.md (Low priority)
+### 4.6 ROADMAP.md (Low priority) — done
 
-- Update config path.
-- Refresh backlog summary to reflect current active plans (remove references to completed work like branch-aware sets and the dashboard webview).
+- ~~Update config path.~~ Done — changed from `.vscode/saropa-workspace.json` to `.saropa/saropa-workspace.json`.
+- ~~Refresh backlog summary to reflect current active plans (remove references to completed work like branch-aware sets and the dashboard webview).~~ Done — removed branch-aware sets and dashboard webview from backlog description.
 
 ### 4.7 Plans directory cleanup
 
