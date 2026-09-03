@@ -113,3 +113,47 @@ In `extension/src/views/launcherView.ts`:
 - OS: any
 - Pin scope (project / global): n/a
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- **Redundant back-to-back `post()` calls are still possible.** `scheduleSaveRescan()`
+  only debounces the `onDidSaveTextDocument` path; `store.onDidChange`,
+  `watchStore.onDidChange`/`onDidChangeCounts`, `noteStore.onDidChange`,
+  `onDidChangeWorkspaceFolders`, `onDidChangeConfiguration`, and
+  `onDidChangeActiveColorTheme` all still call `post()` directly (`launcherView.ts:73-88`).
+  A save that also mutates the store (e.g. saving `.vscode/saropa-workspace.json`) can fire
+  an immediate `post()` from `store.onDidChange` and a second one 400ms later from the
+  debounce timer — two full `listSurfacedFiles()` scans for one user action.
+- **`scheduleSaveRescan()` fires for saves outside the workspace entirely** — an untitled
+  buffer, a file opened from outside any workspace folder, a diff-editor virtual document.
+  `listSurfacedFiles()` still runs a full rescan even though nothing it surfaces could have
+  changed. Accepted per the bug's own rationale (relevance filtering was rejected as
+  error-prone), but worth naming as a known-accepted cost rather than an oversight.
+- **No automated regression coverage for the debounce.** Per `.claude/rules/test.md`,
+  `scheduleSaveRescan()` can't be covered by the `node --test` unit suite because
+  `LauncherViewProvider` imports `vscode`. A future edit that widens
+  `SAVE_RESCAN_DEBOUNCE_MS`, removes the `dispose()` clear, or reintroduces an unconditional
+  `post()` call on the save path would not be caught until manual smoke testing (which was
+  itself skipped in this fix's `## Verification` checklist).
+- **Timer field is not itself `readonly`/typed as a disposable**, so any future refactor of
+  `LauncherViewProvider` that adds another code path calling `this.saveRescanTimer =` (e.g.
+  a second debounced trigger) could clobber this one silently — there is no guard preventing
+  a second, unrelated timer from reusing the same field.
+
+### Suggestions
+
+- **Reuse `makeDebounced()`** (`extension/src/activation/activationHelpers.ts:75`) instead
+  of the hand-rolled `setTimeout`/`clearTimeout` pair in `scheduleSaveRescan()` — it already
+  implements the identical trailing-debounce pattern for `ShortcutDecorationProvider`. It
+  currently returns only a callable, not a cancel handle, which is likely why it wasn't
+  reused here (dispose needs to clear the pending timer). Extending it to return
+  `{ run, cancel }` would let both call sites share one implementation instead of two copies
+  of the same coalescing logic (violates the "single source of truth" rule in
+  `.claude/rules/global.md` as currently written twice).
+- **Run the skipped manual smoke test** before closing the bug: open the Extension
+  Development Host, save an unrelated file and confirm no immediate rescan network message,
+  then save a surfaced file and confirm the Launcher panel updates within ~400ms.

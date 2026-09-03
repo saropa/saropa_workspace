@@ -107,3 +107,20 @@ Note: `chmod` (used by `toggleFileLock` for file lock toggling) has no direct eq
 - OS: any (specifically relevant for Remote SSH, WSL, Containers, Live Share)
 - Pin scope (project / global): n/a
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- `fileOps.ts` `toggleFileLock` still calls `fs.promises.stat`/`fs.promises.chmod` directly on `uri.fsPath` (lines 315, 329) — the `uri.scheme !== "file"` guard above it (line 307) covers Remote SSH/WSL/Containers/Live Share, but a `file://` URI on a network share (UNC path, mapped drive backed by SMB/NFS) also carries scheme `file` while chmod semantics are unreliable there; the guard passes and the operation is attempted anyway.
+- `dailyReport.ts` `writeSuiteDailyReportFile` builds `file` via `path.join(root, ...relative.split("/"))` (line 143) then wraps it with `vscode.Uri.file(file)` (line 148) — `vscode.Uri.file` assumes a local-disk path, so if `root` ever comes from a non-`file://` workspace folder (a virtual FS root under Remote/Live Share), the resulting URI is silently wrong instead of erroring; there is no scheme check mirroring the one added in `fileOps.ts`.
+- `openReport(file)` (dailyReport.ts line 161) is called with the same `file` string derived from `path.join`, not the `fileUri`/`dirUri` Uri objects used for the write — if `openReport` internally does its own path resolution (not verified here), it inherits the same local-path assumption the write path just fixed.
+- No regression test or manual verification exists yet for either fix under a genuinely remote/virtual filesystem — the bug file's Verification section still shows both remote-context checkboxes unchecked, so the fix is unverified against the actual failure mode it targets, only against `tsc`/`esbuild`.
+- Other Node `fs` usage may remain unaudited elsewhere in `extension/src/` (only these two files were named in scope) — a workspace-wide grep for `require("fs")`/`import * as fs` outside `fileOps.ts` was not part of this bug's fix and could surface additional remote-incompatible call sites.
+
+### Suggestions
+
+- Extend `resolveFileShortcut` (or add a small shared helper) with the `uri.scheme !== "file"` remote guard used in `toggleFileLock`, so any future file-level OS-attribute operation (permissions, symlink checks) gets the same protection by construction instead of each call site re-deriving it.
+- Add a lightweight `node --test` case (per `.claude/rules/test.md`) around `writeSuiteDailyReportFile`'s path-building logic that asserts the folder argument is only ever turned into a `file://` Uri, or document explicitly that `folderPath`/`workspaceFolders[0]` is assumed local — closing the gap the third hardening item above describes.

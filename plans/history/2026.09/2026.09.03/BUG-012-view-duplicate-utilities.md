@@ -128,3 +128,46 @@ These utilities were written independently in each module rather than extracted 
 - OS: any
 - Pin scope (project / global): n/a
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- **Glob-to-regex duplication (item 4), now closed.** `hygieneScan.ts` no longer defines its
+  own copy of the wildcard-translation logic: it imports the canonical `translateGlobBody()`
+  from `exec/globMatch.ts` and its local wrapper was renamed from `globToRegExp` to
+  `excludeGlobToRegex` so it can never be mistaken for globMatch's own `globToRegExp`. The
+  two wrapper functions still anchor differently on purpose — this scanner's excludes match
+  gitignore-style at any path depth, while globMatch's globs anchor the full relative
+  path — so a single shared wrapper function was never correct; only the wildcard body
+  (`*`, `**`, `?`, escaping) needed to be, and now is, single-sourced.
+- **Client/host escaper parity is manual, not enforced.** `utils/escapeHtml.ts` (host TS)
+  and `escapeHtmlJs()` in `views/webviewClientUtils.ts` (client JS-text twin) must stay
+  byte-for-byte equivalent by convention only — there is no test asserting the two escape
+  the same characters the same way. A future edit to one (e.g. adding backtick escaping
+  for a template-literal context) can silently desync from the other.
+- **`escapeHtmlJs`/`formatBytesJs` are generated JS text, untyped by `tsc`.** Because they
+  are string templates interpolated into webview HTML, a typo in the generated function
+  body (e.g. in the character map `({ '&':'&amp;', ... })[c]`) would not be caught by
+  `tsc -p ./ --noEmit` — only a runtime smoke test of an affected webview would surface it.
+- **`formatBytes()` has no explicit `NaN`/`Infinity` guard.** `bytes <= 0` returns early for
+  negative and zero values, but `NaN <= 0` is `false`, so `formatBytes(NaN)` falls through
+  to `Math.log(NaN)` and produces `"NaN B"` (or similar) rather than a defined fallback.
+  Same for `Infinity`, which resolves to `"Infinity TB"` after clamping the exponent.
+- **Migration completeness across the 15 files touched is not verified by grep alone.**
+  The grep for `formatBytes(`/`escapeHtml(` matches both the new canonical definitions and
+  their call sites in 15 files; nothing in the repo confirms every one of the original six
+  `esc()` webview duplicates and four byte-formatting duplicates was actually replaced with
+  an import rather than left as a second, now-redundant local copy.
+
+### Suggestions
+
+- Add a unit test that runs `escapeHtmlJs('esc')` and `formatBytesJs('fmt')` bodies
+  (via `eval` or `new Function`) against the same fixture inputs as `escapeHtml()` and
+  `formatBytes()` in `utils/escapeHtml.ts` / `utils/formatBytes.ts`, asserting identical
+  output — turns the "must stay in sync" comment into an enforced contract.
+- Give `formatBytes()` an explicit `Number.isFinite(bytes)` guard returning a fixed
+  fallback (e.g. `"0 B"`) for `NaN`/`Infinity`, and mirror the same guard in
+  `formatBytesJs()` so a bad metric value renders identically on both sides.

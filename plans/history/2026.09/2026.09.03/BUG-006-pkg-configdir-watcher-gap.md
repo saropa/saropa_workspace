@@ -105,3 +105,20 @@ Alternatively, use a broader glob pattern that watches all directories and filte
 - OS: any
 - Pin scope (project / global): project
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- **`wireWatchers` still holds `configDirWatchers` as a plain closure variable** (`extension/src/activation/wiringWatchers.ts:44`). The wrapper pushed to `context.subscriptions` (line 45) delegates via `() => configDirWatchers.dispose()`, which is correct today, but any future refactor that copies or captures `configDirWatchers` by value (rather than reading the outer binding) would silently dispose the wrong batch. There is no type-level guard against this — only the comment.
+- **`createConfigDirWatchers` builds one `FileSystemWatcher` per directory in `KNOWN_CONFIG_DIRS ∪ {configDirName()}`** (lines 109-121). If `KNOWN_CONFIG_DIRS` grows, or a user's `configDirName()` happens to already be in that set, no dedup problem exists (it's a `Set`), but there is no upper bound on watcher count — VS Code has a soft OS-level file-watcher limit, and this code has no fallback if `createFileSystemWatcher` throws or the OS watcher pool is exhausted mid-loop (partial `disposables` would still be returned via `Disposable.from`, but no user-visible warning is emitted).
+- **Race between `configDirWatchers.dispose()` and `createConfigDirWatchers()`** (lines 67-68): between disposing the old batch and the new watchers becoming active, any file-system event in that window is unobserved. For a rapid dispose/recreate this window is sub-millisecond and synchronous (no `await` between them), so it's low risk, but it is not literally atomic — a filesystem write that lands in that exact window (e.g. a concurrent process) would be missed until the next change.
+- **`e.affectsConfiguration("saropaWorkspace.configDir")` fires on ANY scope change** (workspace, workspace-folder, or user), including a change that doesn't actually alter the effective `configDirName()` value for open folders (e.g. a multi-root workspace where only one folder's setting changed). The code unconditionally disposes and recreates all watchers plus calls `store.rescan()` (line 69) even when the resolved directory name is unchanged — a no-op cost, not a correctness bug, but wasted work on every keystroke-adjacent settings write.
+- **No verification that the newly created watcher actually observes the new `configDirName()` value** — `configDirName()` is read once inside `createConfigDirWatchers` (line 110) at call time. If `configDirName()` itself has any caching/staleness (not verified here — only this file was reviewed), the fix's correctness silently depends on that function always returning the live value.
+
+### Suggestions
+
+- Consider debouncing the `configDir`-change branch itself (similar to `debouncedConfigRefresh`) if `affectsConfiguration` scope semantics ever prove to fire multiple times for one logical user edit (e.g. multi-root workspaces) — currently there is no evidence this happens, so this is speculative, not required.
+- Add a code comment or a small assertion noting that `createConfigDirWatchers` must be the ONLY place that constructs `saropa-workspace.json` watchers, so a future contributor adding a second watcher elsewhere doesn't reintroduce the original staleness bug in a new location.

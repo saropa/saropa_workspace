@@ -111,3 +111,21 @@ No `package.nls.json` change needed — these are default values, not display st
 - OS: any
 - Pin scope (project / global): project
 - Settings Sync enabled (yes / no): n/a
+
+---
+
+## Reflection
+
+### Hardening items
+
+- `extension/src/model/shortcutStoreDefaultGroups.ts` still carries a Dart-specific default binding: `"flutter.dance": "default:build"` (line 111). This is the same class of bias this bug fixed in `package.json` — a hardcoded Flutter recipe key in a general-purpose default group map. Not in scope for this bug (different file, different setting), but it is the same root cause and should get its own bug report if the `default:build` group is meant to be ecosystem-neutral.
+- The `default:code` file-type regex in the same file (line 84) lists `dart` alongside `ts|tsx|js|...|py|go|rs|java|...` — this one is fine (it is a superset covering many languages, not Dart-biased), but it is worth confirming during any future audit that no single-language regex list creeps back in as ecosystems are added.
+- `extension/src/recipes/detectorEcosystem.ts` already does correct multi-ecosystem detection (Flutter/`pubspec.yaml`, Django, Cargo.toml, pyproject.toml, go.mod — see lines 31-34, 86, 204-215) and should be treated as the reference pattern for "detect, don't assume" — worth pointing future auto-pin/project-file-group work at this file instead of re-deriving Option 2 (project-type detection) from scratch.
+- The fix (Option 1, static language-agnostic defaults) does not cover the case an actual Dart/Flutter project now faces post-fix: `pubspec.yaml`, `analysis_options.yaml`, and the Android/iOS/Web groups were removed from defaults entirely, so a fresh Dart/Flutter install now gets weaker out-of-the-box coverage than before (users must add these back manually). This is an accepted trade-off per the bug's own Option 1 vs Option 2 analysis, but it is a real regression for the extension's original user base and should be flagged if Dart/Flutter usage telemetry or feedback surfaces it.
+- Manual smoke test in `## Verification` is still unchecked (`open a non-Dart project, confirm auto-pins and project file groups produce useful results with the new defaults`) — the fix is verified only by type-check and build, not by an actual non-Dart-project run.
+
+### Suggestions
+
+- Run `detectorEcosystem.ts`'s existing detection at first-activation time to seed `autoPins.patterns` per-project (Option 2), rather than shipping one static language-agnostic list — this would restore full Dart/Flutter coverage without reintroducing bias for other ecosystems, and reuses code that already exists instead of adding a parallel detection path.
+- Grep the rest of `extension/src/**` for other `pubspec.yaml` / `flutter` / `android`/`ios`/`web`-literal defaults (e.g. `pubspecOutdated.ts`, `shortcutStoreDefaultGroups.ts`) as a follow-up sweep, since this bug was scoped to `package.json` only and the same bias pattern is confirmed to exist at least once more elsewhere.
+- Complete the outstanding manual smoke test (open a non-Dart project, e.g. this repo's own `extension/` folder minus `pubspec.yaml`, and confirm auto-pins/groups populate) before closing this out as fully verified.
