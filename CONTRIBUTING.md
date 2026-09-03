@@ -21,8 +21,8 @@ Be respectful and constructive. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 1. Search existing issues first.
 2. Include: VS Code version, your OS, the extension version, a minimal
    reproduction, and expected vs actual behavior.
-3. For a structured bug report inside this repo, see
-   [bugs/BUG_REPORT_GUIDE.md](bugs/BUG_REPORT_GUIDE.md).
+3. For a structured bug or feature request inside this repo, see
+   [bugs/ISSUE_REPORT_GUIDE.md](bugs/ISSUE_REPORT_GUIDE.md).
 
 ### Suggesting a Feature
 
