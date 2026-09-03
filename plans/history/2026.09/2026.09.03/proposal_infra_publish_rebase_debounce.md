@@ -90,7 +90,7 @@ Unit tests: `scripts/tests/test_git_ops.py` (mocks `run`/`time.sleep`; covers up
 
 ## Commits
 
-<!-- Filled in by the finish commit that lands this proposal -->
+- `9922c66` — feat: debounce rebase-triggered file-watcher churn in publish script
 
 ---
 
