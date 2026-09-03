@@ -3,6 +3,9 @@ import * as crypto from "crypto";
 import { l10n } from "../i18n/l10n";
 import { LAUNCHER_STYLE } from "./launcherAssets";
 import { LAUNCHER_SCRIPT } from "./launcherScript";
+// The escaping algorithm itself is centralized (BUG-012); imported directly since this
+// file already calls it `escapeHtml`.
+import { escapeHtml } from "../utils/escapeHtml";
 
 // The Saropa Workspace panel webview's initial HTML shell: the CSP, the header/search markup, and
 // the injected style + client script. Kept apart from launcherView.ts's lifecycle/message
@@ -63,17 +66,4 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
 <script nonce="${nonce}">${LAUNCHER_SCRIPT}</script>
 </body>
 </html>`;
-}
-
-// Escape the five HTML-significant characters before interpolating an untrusted value (a
-// folder basename) into the initial markup string. Every other rendered value reaches the
-// webview through textContent, which escapes by construction; this guards the one value
-// baked into the HTML host-side.
-function escapeHtml(value: string): string {
-  return value
-    .split("&").join("&amp;")
-    .split("<").join("&lt;")
-    .split(">").join("&gt;")
-    .split('"').join("&quot;")
-    .split("'").join("&#39;");
 }

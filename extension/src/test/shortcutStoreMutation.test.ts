@@ -140,7 +140,7 @@ test("setPinWatchGlobs trims and clears, leaving the rest of exec intact", async
 });
 
 test("restorePin re-adds a swept pin to its folder with the expiry defused", async () => {
-  // The Undo path re-adds a time-bombed shortcut but drops the expiry so it is not swept
+  // The Undo path re-adds a shortcut with expiry set but drops the expiry so it is not swept
   // again the instant it returns; the id is preserved for any reused per-shortcut state.
   const store = new ShortcutStore(fakeContext());
   await store.init();

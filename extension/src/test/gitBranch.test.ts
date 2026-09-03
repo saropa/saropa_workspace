@@ -1,6 +1,6 @@
 // Branch-linked pins (WOW #3). Two units run here against the fs-backed vscode stub
 // (see shortcutStore.test for the harness rationale): readCurrentBranch's HEAD parsing
-// (the single source the tree's branch filter and time-bomb expiry both read), and
+// (the single source the tree's branch filter and shortcut expiry both read), and
 // the store's setShortcutBranch persistence round-trip. Both touch only workspace.fs and
 // the project file, which the stub backs with a real temp directory, so the REAL
 // code runs — not a reimplementation.

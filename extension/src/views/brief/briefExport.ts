@@ -1,12 +1,8 @@
 import type { RoutineBrief } from "../../exec/routineRunner";
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+// Local alias keeps every `esc(...)` call site in this file unchanged; the escaping
+// algorithm itself is centralized (BUG-012). This file's old copy skipped the
+// apostrophe — the canonical version escapes it too, which is strictly safer.
+import { escapeHtml as esc } from "../../utils/escapeHtml";
 
 function statusGlyph(status: string): { cls: string; icon: string } {
   switch (status) {

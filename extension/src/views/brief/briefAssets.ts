@@ -2,6 +2,7 @@
 // bind to --vscode-* theme variables — zero raw hex. The script receives brief
 // data via postMessage and renders cards; the only outbound message is
 // "openReport" with a path the host re-validates before opening.
+import { escapeHtmlJs } from "../webviewClientUtils";
 
 export const BRIEF_STYLE = `
 :root { color-scheme: light dark; }
@@ -227,9 +228,6 @@ export const BRIEF_SCRIPT = `
     catch { return iso; }
   }
 
-  function esc(s) {
-    if (!s) return '';
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
+  ${escapeHtmlJs('esc')}
 })();
 `;

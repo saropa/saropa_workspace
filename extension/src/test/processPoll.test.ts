@@ -2,8 +2,10 @@
 // #60-62). The live two-sample poll shells out to the OS, so it is left to a manual
 // smoke test; the PURE pieces — the project-aware toolchain allowlist (activeToolDefs,
 // which reads the modeled workspace.fs against a real temp tree), the kill-guard
-// (isGroupKillable), the byte formatter (formatBytes), and the Markdown report builder
-// (buildProcessReportMarkdown) — run under Node's built-in runner.
+// (isGroupKillable), and the Markdown report builder (buildProcessReportMarkdown) —
+// run under Node's built-in runner. The byte formatter (formatBytes) used to be
+// tested here too; it moved to test/formatBytes.test.ts when this file's copy was
+// consolidated into utils/formatBytes.ts (BUG-012).
 
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +16,6 @@ import { Uri, __setWorkspaceFolders, type WorkspaceFolder } from "./_stub/vscode
 import {
   activeToolDefs,
   isGroupKillable,
-  formatBytes,
   buildProcessReportMarkdown,
   type PollResult,
 } from "../exec/processPoll";
@@ -83,24 +84,6 @@ test("isGroupKillable allows a developer group but never a protected one", () =>
 test("isGroupKillable is false for an unknown tool name", () => {
   // A tool that is not in the table cannot be killed — fail closed.
   assert.equal(isGroupKillable("Nonexistent toolchain"), false);
-});
-
-// --- formatBytes --------------------------------------------------------
-
-test("formatBytes renders zero and bytes without a decimal", () => {
-  assert.equal(formatBytes(0), "0 B");
-  assert.equal(formatBytes(512), "512 B");
-});
-
-test("formatBytes scales to KB / MB / GB with one decimal under 100", () => {
-  assert.equal(formatBytes(1024), "1.0 KB");
-  assert.equal(formatBytes(1536), "1.5 KB");
-  assert.equal(formatBytes(1024 * 1024 * 1.4), "1.4 MB");
-});
-
-test("formatBytes drops the decimal at or above 100 of a unit", () => {
-  // 150 KB reads "150 KB", not "150.0 KB" — the decimal is noise at that magnitude.
-  assert.equal(formatBytes(1024 * 150), "150 KB");
 });
 
 // --- buildProcessReportMarkdown -----------------------------------------

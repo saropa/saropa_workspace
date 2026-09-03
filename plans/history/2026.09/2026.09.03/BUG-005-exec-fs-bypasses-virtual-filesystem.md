@@ -1,6 +1,6 @@
 # BUG-005: Raw fs calls bypass vscode.workspace.fs — breaks remote environments
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
@@ -80,14 +80,15 @@ Note: `chmod` (used by `toggleFileLock` for file lock toggling) has no direct eq
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+- `dailyReport.ts` `writeSuiteDailyReportFile`: replaced the dynamic `import("fs/promises")` mkdir/writeFile pair with `vscode.workspace.fs.createDirectory` and `vscode.workspace.fs.writeFile`, operating on a `Uri` built with `vscode.Uri.file(file)` / `vscode.Uri.joinPath(fileUri, "..")` instead of a bare fsPath string.
+- `fileOps.ts` `toggleFileLock`: added an early guard — `uri.scheme !== "file"` shows an informational message (`fileOps.lockUnsupportedRemote`, new key in `src/i18n/locales/en.json`) and returns before touching `fs.promises`. `chmod` has no `vscode.workspace.fs` equivalent, so on `file://` URIs the existing `fs.promises.stat`/`chmod` pair is unchanged — it now only runs where `uri.fsPath` is guaranteed to resolve locally.
 
 ---
 
 ## Verification
 
-- [ ] `tsc -p ./ --noEmit` clean
-- [ ] `npm run build` succeeds
+- [x] `tsc -p ./ --noEmit` clean
+- [x] `node esbuild.js` succeeds
 - [ ] Manual smoke test: daily report writes correctly in a local workspace
 - [ ] If possible, test in a Remote SSH or WSL context
 

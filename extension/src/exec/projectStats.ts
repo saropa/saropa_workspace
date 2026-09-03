@@ -6,6 +6,9 @@ import { execFile as execFileCb } from "child_process";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { openReport } from "./reportOpen";
 import { l10n } from "../i18n/l10n";
+// The byte formatter is centralized (BUG-012); this file used to carry its own copy
+// (fmtBytes), byte-identical to processPoll.ts's.
+import { formatBytes } from "../utils/formatBytes";
 
 const execFile = promisify(execFileCb);
 
@@ -212,16 +215,6 @@ export async function collectProjectStats(root: string): Promise<ProjectStats> {
   return stats;
 }
 
-function fmtBytes(bytes: number): string {
-  if (bytes <= 0) {
-    return "0 B";
-  }
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const exp = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  const value = bytes / Math.pow(1024, exp);
-  return `${value.toFixed(value >= 100 || exp === 0 ? 0 : 1)} ${units[exp]}`;
-}
-
 // How many source languages the table shows before folding the tail into a count.
 // The report is read at a glance every morning; a 50-row table listing every file
 // extension in the repo is scrolled past, not read (user report 2026-07-20).
@@ -388,7 +381,7 @@ function buildCensusHeadline(stats: ProjectStats): string {
       `${top.language} leads at ${((top.lines / stats.totalLines) * 100).toFixed(1)}%`
     );
   }
-  parts.push(fmtBytes(stats.totalBytes));
+  parts.push(formatBytes(stats.totalBytes));
   return parts.join(" · ");
 }
 
@@ -454,11 +447,11 @@ export function buildStatsMarkdown(stats: ProjectStats, previous?: StatsMarker):
         ? `${((lang.lines / stats.totalLines) * 100).toFixed(1)}%`
         : "-";
     lines.push(
-      `| ${lang.language} | ${lang.files.toLocaleString()} | ${lang.lines.toLocaleString()} | ${share} | ${fmtBytes(lang.bytes)} |`
+      `| ${lang.language} | ${lang.files.toLocaleString()} | ${lang.lines.toLocaleString()} | ${share} | ${formatBytes(lang.bytes)} |`
     );
   }
   lines.push(
-    `| **Total** | **${stats.totalFiles.toLocaleString()}** | **${stats.totalLines.toLocaleString()}** | **100%** | **${fmtBytes(stats.totalBytes)}** |`
+    `| **Total** | **${stats.totalFiles.toLocaleString()}** | **${stats.totalLines.toLocaleString()}** | **100%** | **${formatBytes(stats.totalBytes)}** |`
   );
   lines.push("");
   // The folded remainder is stated, never silently dropped: a reader must be able to
@@ -469,7 +462,7 @@ export function buildStatsMarkdown(stats: ProjectStats, previous?: StatsMarker):
   }
   if (assets.files > 0) {
     lines.push(
-      `_Binary and other zero-line assets: ${assets.files.toLocaleString()} files, ${fmtBytes(assets.bytes)} (${assets.languages} extensions)._`
+      `_Binary and other zero-line assets: ${assets.files.toLocaleString()} files, ${formatBytes(assets.bytes)} (${assets.languages} extensions)._`
     );
     lines.push("");
   }

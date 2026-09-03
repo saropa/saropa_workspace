@@ -14,26 +14,14 @@
 // intents back, and writes the host-computed preview text into place. That keeps the
 // surface fully translation-ready without a host->webview string bridge.
 
+import { designTokenRoot } from "./webviewDesignTokens";
+
 export const SCHEDULE_EDITOR_STYLE = `
-:root {
-  color-scheme: light dark;
-  --surface-1: var(--vscode-editor-background);
-  --surface-2: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-  --surface-3: var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.10));
-  --inset: var(--vscode-input-background);
-  --border: var(--vscode-widget-border, var(--vscode-panel-border, rgba(127,127,127,.28)));
-  --border-strong: color-mix(in srgb, var(--vscode-focusBorder) 35%, var(--border));
-  --muted: var(--vscode-descriptionForeground);
-  --brand: #f97316;
-  --brand-2: #ea580c;
-  --brand-glow: rgba(249,115,22,.22);
-  --hero-tint: color-mix(in srgb, var(--brand) 16%, transparent);
+${designTokenRoot({
+  extra: `  --brand-glow: rgba(249,115,22,.22);
   --bad: var(--vscode-editorError-foreground, #f85149);
-  --space-2: 8px; --space-3: 12px; --space-4: 16px;
-  --radius-sm: 4px; --radius: 8px; --radius-lg: 12px; --radius-pill: 999px;
-  --ease: cubic-bezier(.2,.6,.2,1);
-  --dur: 160ms;
-}
+  --space-2: 8px; --space-3: 12px; --space-4: 16px;`,
+})}
 * { box-sizing: border-box; }
 body {
   margin: 0;

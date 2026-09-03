@@ -13,6 +13,9 @@ import { Shortcut } from "../model/shortcut";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { SCHEDULE_EDITOR_STYLE, SCHEDULE_EDITOR_SCRIPT } from "./scheduleEditorAssets";
+// Local alias keeps every `esc(...)` call site in this file unchanged; the escaping
+// algorithm itself is centralized (BUG-012).
+import { escapeHtml as esc } from "../utils/escapeHtml";
 
 const MIN_MS = 60_000;
 const HOUR_MS = 60 * MIN_MS;
@@ -218,23 +221,4 @@ function aroundCard(): string {
   <div class="insight warn" id="insConflict"></div>
   <div class="insight" id="insNote"></div>
 </div>`;
-}
-
-// Escape text destined for an HTML text node or a double-quoted attribute, so a shortcut
-// label or cron string can never inject markup into the webview.
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#39;";
-    }
-  });
 }

@@ -146,8 +146,8 @@ export abstract class ShortcutStoreFieldUpdates extends ShortcutStoreMutationCor
     });
   }
 
-  // Persist a shortcut's time-bomb expiry (WOW #9). An empty/all-undefined condition
-  // collapses to undefined so a defused shortcut carries no inert object and reads as
+  // Persist a shortcut's expiry (WOW #9). An empty/all-undefined condition
+  // collapses to undefined so a cleared shortcut carries no inert object and reads as
   // "never expires". Routed through mutateShortcut, so it no-ops on an auto-shortcut
   // (which is recomputed, not stored) — the configure command gates those out up front.
   async setShortcutExpiry(

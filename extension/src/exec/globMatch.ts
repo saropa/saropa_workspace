@@ -12,10 +12,16 @@
 // returns) and case-sensitively, matching how VS Code's own glob watchers behave on
 // the case-sensitive filesystems these patterns are authored against.
 
-// Translate one glob into an anchored RegExp. Kept separate so the (small) cost of
-// compiling is paid once per match call, not per candidate path; callers that match
-// many paths against the same globs can compile ahead with this directly.
-export function globToRegExp(glob: string): RegExp {
+// Translate one glob's wildcard syntax (*, **, ?, and metacharacter escaping) into a
+// regex source fragment — no anchors, so the caller decides how the pattern attaches
+// to the string it tests. Shared with hygieneScan.ts's exclude-glob matcher (BUG-012):
+// both need the identical *, **, ?, and escaping rules, but hygieneScan's excludes
+// match gitignore-style ("logs" matches at ANY path depth) while this module's globs
+// match the full relative path exactly — only the anchoring differs, so only the
+// anchoring is left un-shared. `collapseLeadingGlobstar` opts into this module's
+// "**/" -> zero-or-more-leading-segments collapse (so "**/x" also matches "x" at the
+// root); hygieneScan's simpler exclude globs don't use that form and pass false.
+export function translateGlobBody(glob: string, collapseLeadingGlobstar: boolean): string {
   // Regex metacharacters that must be escaped to be treated literally. "*" and "?"
   // are handled explicitly below (they are the glob wildcards); "/" needs no escape.
   const escapeNeeded = new Set([".", "+", "^", "$", "{", "}", "(", ")", "|", "[", "]", "\\"]);
@@ -28,7 +34,7 @@ export function globToRegExp(glob: string): RegExp {
         i++;
         // Consume a trailing slash so "**/" collapses to "zero or more segments",
         // letting "**/x" match "x" at the root as well as "a/b/x".
-        if (glob[i + 1] === "/") {
+        if (collapseLeadingGlobstar && glob[i + 1] === "/") {
           i++;
           pattern += "(?:.*/)?";
         } else {
@@ -45,7 +51,15 @@ export function globToRegExp(glob: string): RegExp {
       pattern += char;
     }
   }
-  return new RegExp("^" + pattern + "$");
+  return pattern;
+}
+
+// Translate one glob into an anchored RegExp (the full relative path must match, end
+// to end). Kept separate from translateGlobBody so the (small) cost of compiling is
+// paid once per match call, not per candidate path; callers that match many paths
+// against the same globs can compile ahead with this directly.
+export function globToRegExp(glob: string): RegExp {
+  return new RegExp("^" + translateGlobBody(glob, true) + "$");
 }
 
 // True when the forward-slashed path matches any one of the globs. An empty/absent

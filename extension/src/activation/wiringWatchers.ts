@@ -24,6 +24,26 @@ export function wireWatchers(
   store: ShortcutStore,
   branchSetBinder: BranchSetBinder
 ): void {
+  // Live refresh on a hand-edited shortcuts config: watch every folder's
+  // saropa-workspace.json at the configured dir and all known legacy dirs, so
+  // migration and hand edits trigger a repaint. The store's OWN writes also trip
+  // the watcher, so refreshes are debounced + guarded by the re-entrancy check
+  // in refresh() to coalesce bursts into a single repaint.
+  const debouncedConfigRefresh = makeDebounced(() => void store.refresh(), 150);
+
+  // The config-dir watchers are held in a mutable holder so the configDir-change
+  // handler below can dispose the CURRENT set before creating a fresh one.
+  // Without this, changing saropaWorkspace.configDir at runtime to a directory
+  // outside KNOWN_CONFIG_DIRS left the new dir's saropa-workspace.json unwatched
+  // until the next reload — the file-watcher glob baked in configDirName() at
+  // activation time only and was never re-evaluated.
+  //
+  // A single wrapper disposable is pushed to context.subscriptions ONCE (not per
+  // batch) so repeated configDir changes don't accumulate stale entries in the
+  // subscriptions array. The wrapper delegates to whatever the current batch is.
+  let configDirWatchers = createConfigDirWatchers(debouncedConfigRefresh);
+  context.subscriptions.push({ dispose: () => configDirWatchers.dispose() });
+
   // Re-seed auto-shortcuts and refresh when folders change or the auto-shortcut
   // patterns setting is edited.
   context.subscriptions.push(
@@ -32,12 +52,21 @@ export function wireWatchers(
     // shows/hides the Recent group, so a plain repaint refresh is enough there.
     vscode.workspace.onDidChangeWorkspaceFolders(() => void store.rescan()),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (
+      if (e.affectsConfiguration("saropaWorkspace.configDir")) {
+        // The set of directories that must be watched depends on
+        // configDirName(), which just changed. Tear down the old watchers and
+        // create a fresh set that includes the new configDirName() value, so
+        // hand edits to the new config dir's saropa-workspace.json trigger a
+        // repaint. The wrapper disposable in context.subscriptions still
+        // points at this variable, so no subscriptions accumulation.
+        configDirWatchers.dispose();
+        configDirWatchers = createConfigDirWatchers(debouncedConfigRefresh);
+        void store.rescan();
+      } else if (
         e.affectsConfiguration("saropaWorkspace.autoPins.patterns") ||
         e.affectsConfiguration("saropaWorkspace.recipes.enabled") ||
         e.affectsConfiguration("saropaWorkspace.aiContext.enabled") ||
-        e.affectsConfiguration("saropaWorkspace.aiContext.claudeChatFolders") ||
-        e.affectsConfiguration("saropaWorkspace.configDir")
+        e.affectsConfiguration("saropaWorkspace.aiContext.claudeChatFolders")
       ) {
         void store.rescan();
       } else if (e.affectsConfiguration("saropaWorkspace.telemetry.enabled")) {
@@ -62,26 +91,30 @@ export function wireWatchers(
       runShortcutsOnSave(store, doc.uri)
     )
   );
+}
 
-  // Live refresh on a hand-edited shortcuts config: watch every folder's
-  // saropa-workspace.json at the configured dir and all known legacy dirs, so
-  // migration and hand edits trigger a repaint. The store's OWN writes also trip
-  // the watcher, so refreshes are debounced + guarded by the re-entrancy check
-  // in refresh() to coalesce bursts into a single repaint.
-  const debouncedConfigRefresh = makeDebounced(() => void store.refresh(), 150);
+// Build FileSystemWatchers for every known legacy config dir plus the CURRENT
+// configDirName() (read fresh on each call). Returns a single composite
+// Disposable that tears down the entire batch, so callers can swap it on a
+// configDir change without accumulating stale entries in context.subscriptions.
+function createConfigDirWatchers(
+  debouncedConfigRefresh: () => void
+): vscode.Disposable {
+  const disposables: vscode.Disposable[] = [];
   const watchedDirs = new Set<string>(KNOWN_CONFIG_DIRS);
   watchedDirs.add(configDirName());
   for (const dir of watchedDirs) {
     const watcher = vscode.workspace.createFileSystemWatcher(
       `**/${dir}/saropa-workspace.json`
     );
-    context.subscriptions.push(
+    disposables.push(
       watcher,
       watcher.onDidChange(debouncedConfigRefresh),
       watcher.onDidCreate(debouncedConfigRefresh),
-      watcher.onDidDelete(debouncedConfigRefresh)
+      watcher.onDidDelete(debouncedConfigRefresh),
     );
   }
+  return vscode.Disposable.from(...disposables);
 }
 
 // Folder/file watches (PLAN_FILE_AND_FOLDER_WATCH): build the watch store + engine,

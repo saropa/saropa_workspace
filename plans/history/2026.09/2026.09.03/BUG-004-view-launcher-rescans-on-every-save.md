@@ -1,12 +1,12 @@
 # BUG-004: Launcher rescans project files on every file save in the workspace
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 
 Created: 2026-09-02
 Area: Tree View / UX
-File(s): `extension/src/views/launcherViewData.ts` (`post()`)
+File(s): `extension/src/views/launcherView.ts` (`post()`, `onDidSaveTextDocument` wiring — the original attribution named `launcherViewData.ts`, but `post()` and the save subscription live in `launcherView.ts`; `launcherViewData.ts` only holds the vscode-free `buildAllItems`/`buildHeader` helpers `post()` calls)
 Severity: High
 Extension version: 1.6.12
 
@@ -74,15 +74,29 @@ Option 1 alone is the cleanest; option 3 is the most robust.
 
 ## Changes Made
 
-<!-- Fill in when a fix is written. -->
+Applied option 2 (debounce) from the suggested fix, not option 1 (relevance filter) or
+option 3 (both). Filtering by relevance was rejected: the surfaced-file set depends on the
+user-configurable `saropaWorkspace.projectFiles` glob and on version parsing inside
+manifest files, so a narrower filter risks silently missing a save that should trigger a
+rescan. A flat debounce is simple, always correct (every relevant save still lands a
+rescan, just batched), and caps the worst case to one scan per debounce window.
+
+In `extension/src/views/launcherView.ts`:
+- Added a module-level `SAVE_RESCAN_DEBOUNCE_MS = 400` constant and a
+  `saveRescanTimer` field on `LauncherViewProvider`.
+- `onDidSaveTextDocument` now calls a new `scheduleSaveRescan()` method instead of calling
+  `post()` directly; `scheduleSaveRescan()` resets a 400 ms timer on each save and only
+  calls `post()` once the timer elapses without another save.
+- `dispose()` clears any pending timer so a disposed provider never fires `post()` against
+  a webview that no longer exists.
 
 ---
 
 ## Verification
 
-- [ ] `tsc -p ./ --noEmit` clean
-- [ ] `npm run build` succeeds
-- [ ] Manual smoke test: save an unrelated file, confirm no disk rescan fires; save a surfaced file, confirm the Launcher updates
+- [x] `tsc -p ./ --noEmit` clean
+- [x] `node esbuild.js` succeeds
+- [ ] Manual smoke test: save an unrelated file, confirm no disk rescan fires; save a surfaced file, confirm the Launcher updates (not run — requires an Extension Development Host)
 
 ---
 

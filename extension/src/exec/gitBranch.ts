@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-// Git branch awareness, shared by branch-linked shortcuts (WOW #3) and time-bomb
+// Git branch awareness, shared by branch-linked shortcuts (WOW #3) and the shortcut
 // "until branch changes" expiry (WOW #9). The reader and the live tracker both
 // read .git/HEAD directly — no `git` process, no dependency — mirroring the log-
 // watch approach in systemEvents.ts. Reading is best-effort: every failure path

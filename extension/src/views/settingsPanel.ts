@@ -2,6 +2,9 @@ import * as vscode from "vscode";
 import * as crypto from "crypto";
 import { SETTINGS_STYLE, SETTINGS_SCRIPT } from "./settingsAssets";
 import { l10n } from "../i18n/l10n";
+// Local alias keeps every `esc(...)` call site in this file unchanged; the escaping
+// algorithm itself is centralized (BUG-012).
+import { escapeHtml as esc } from "../utils/escapeHtml";
 
 // Settings webview panel — a single screen surfacing every saropaWorkspace.*
 // configuration property with its current value, an info icon explaining what it
@@ -192,14 +195,24 @@ export class SettingsPanel {
     if (!KNOWN_KEYS.has(key)) {
       return;
     }
+    const cfg = vscode.workspace.getConfiguration("saropaWorkspace");
     try {
-      const cfg = vscode.workspace.getConfiguration("saropaWorkspace");
       await cfg.update(key, value, vscode.ConfigurationTarget.Global);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       void vscode.window.showErrorMessage(
         l10n("settings.updateFailed", { key, error: msg })
       );
+      // The webview applied the new value optimistically (control updates on
+      // "change" before the write is confirmed). Since cfg.update() rejected,
+      // the persisted value never changed, so the control must be reverted to
+      // the still-current configuration value or it would show a value that
+      // was never actually saved.
+      await this.panel.webview.postMessage({
+        type: "revertSetting",
+        key,
+        value: cfg.get(key),
+      });
     }
   }
 
@@ -331,16 +344,4 @@ ${sectionCards}
       d.dispose();
     }
   }
-}
-
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case "&": return "&amp;";
-      case "<": return "&lt;";
-      case ">": return "&gt;";
-      case '"': return "&quot;";
-      default: return "&#39;";
-    }
-  });
 }

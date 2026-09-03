@@ -21,16 +21,18 @@ function renderDay(){
   const wrap = el('div','day-wrap');
   const daily = dailyShortcuts().slice().sort((a,b)=> (toMin(a.schedule.atTime)||0)-(toMin(b.schedule.atTime)||0));
   const intervals = DATA.nodes.filter(n=> n.kind==='pin' && n.schedule && n.schedule.everyMs && !n.schedule.atTime);
-  if(!daily.length && !intervals.length){ wrap.appendChild(emptyState('Nothing scheduled for a daily time','Drag a shortcut in the Week view, or right-click a shortcut to add a schedule.')); return wrap; }
+  if(!daily.length && !intervals.length){ wrap.appendChild(emptyState(STRINGS.dayEmptyTitle, STRINGS.dayEmptyDetail)); return wrap; }
 
-  wrap.appendChild(sectionTitle('\\u{1F551} 24-hour day'));
+  wrap.appendChild(sectionTitle('\\u{1F551} '+STRINGS.dayHeading));
   const ruler = el('div','ruler');
   for(let h=0; h<=24; h++){
     const x = (h/24)*100;
     const tick = el('div', 'hour' + (h%6===0?' major':'')); tick.style.left = x+'%'; ruler.appendChild(tick);
     if(h%3===0 && h<24){ const lab = el('div','hlabel'); lab.style.left = x+'%'; lab.textContent = pad(h)+':00'; ruler.appendChild(lab); }
   }
-  const now = el('div','now'); now.style.left = (nowMin/1440*100)+'%'; ruler.appendChild(now);
+  // The "now" label is drawn by CSS (.ruler .now::after) reading this data attribute
+  // rather than a hardcoded ::after content, so the marker text is translation-ready.
+  const now = el('div','now'); now.style.left = (nowMin/1440*100)+'%'; now.setAttribute('data-label', STRINGS.now); ruler.appendChild(now);
   // stagger overlapping markers into rows
   const placed = [];
   daily.forEach(n => {
@@ -50,7 +52,7 @@ function renderDay(){
   wrap.appendChild(ruler);
 
   if(intervals.length){
-    wrap.appendChild(sectionTitle('\\u{1F501} Repeating intervals'));
+    wrap.appendChild(sectionTitle('\\u{1F501} '+STRINGS.dayIntervalsHeading));
     const list = el('div','interval-list');
     intervals.forEach(n => {
       const chip = el('div','interval-chip');
@@ -65,10 +67,10 @@ function renderDay(){
 }
 
 function daysLabel(s){
-  if(!s.days || !s.days.length || s.days.length===7) return 'every day';
+  if(!s.days || !s.days.length || s.days.length===7) return STRINGS.daysEveryDay;
   const set = new Set(s.days);
-  if([1,2,3,4,5].every(d=>set.has(d)) && set.size===5) return 'weekdays';
-  if(set.has(0)&&set.has(6)&&set.size===2) return 'weekends';
+  if([1,2,3,4,5].every(d=>set.has(d)) && set.size===5) return STRINGS.daysWeekdays;
+  if(set.has(0)&&set.has(6)&&set.size===2) return STRINGS.daysWeekends;
   return s.days.slice().sort((a,b)=>a-b).map(d=>DAYS[d]).join(', ');
 }
 
@@ -96,7 +98,7 @@ function renderWeek(){
     daily.filter(n => activeDays(n.schedule).includes(d)).forEach(n => col.appendChild(weekBlock(n, d)));
     grid.appendChild(col);
   });
-  if(!daily.length){ const wrap=el('div'); wrap.appendChild(emptyState('No daily schedules yet','Right-click a shortcut \\u2192 Add schedule, then drag it here to retime.')); wrap.appendChild(grid); return wrap; }
+  if(!daily.length){ const wrap=el('div'); wrap.appendChild(emptyState(STRINGS.weekEmptyTitle, STRINGS.weekEmptyDetail)); wrap.appendChild(grid); return wrap; }
   return grid;
 }
 
@@ -107,7 +109,7 @@ function weekBlock(n, day){
   const b = el('div','block'+(n.schedule.enabled?'':' off')); b.dataset.id = n.id; b.dataset.day = day;
   b.style.top = (min/60*HOURH())+'px'; b.style.height = Math.max(20, HOURH()*0.8)+'px';
   b.innerHTML = '<div class="bt">'+esc(n.label)+'</div><div class="bm">'+esc(n.schedule.atTime)+'</div>';
-  b.title = n.label + ' \\u2014 drag to retime or move to another day';
+  b.title = n.label + ' \\u2014 ' + STRINGS.weekBlockHint;
   attachBlockDrag(b, n, day);
   b.oncontextmenu = (e) => { e.preventDefault(); openNodeMenu(e, n); };
   return b;

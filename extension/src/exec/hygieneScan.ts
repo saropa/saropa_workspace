@@ -1,5 +1,9 @@
 import * as fs from "fs/promises";
 import * as path from "path";
+// The *, **, ?, and escaping translation is shared with globMatch.ts (BUG-012); only
+// the anchoring stays local here, since this scanner's excludes match gitignore-style
+// (any path depth) while globMatch's globs anchor to the full relative path.
+import { translateGlobBody } from "./globMatch";
 
 // Workspace hygiene scanner (recipe book section H, #63). Unlike every other recipe
 // — which reads only marker files at a folder root — this one DELIBERATELY performs
@@ -120,27 +124,10 @@ const BUILTIN_IGNORE_DIRS = new Set<string>([
 // gitignore engine, and the built-in ignore set covers the heavy cases.
 function globToRegExp(glob: string): RegExp {
   const trimmed = glob.replace(/\/$/, "");
-  let re = "";
-  for (let i = 0; i < trimmed.length; i++) {
-    const c = trimmed[i];
-    if (c === "*") {
-      if (trimmed[i + 1] === "*") {
-        re += ".*";
-        i++;
-      } else {
-        re += "[^/]*";
-      }
-    } else if (c === "?") {
-      re += "[^/]";
-    } else if ("\\^$.|+()[]{}".includes(c)) {
-      re += "\\" + c;
-    } else {
-      re += c;
-    }
-  }
   // Match the whole relative path or any path segment tail, so "logs" matches both
-  // "logs" and "a/logs", mirroring gitignore's name-anywhere behavior.
-  return new RegExp(`(^|/)${re}(/|$)`);
+  // "logs" and "a/logs", mirroring gitignore's name-anywhere behavior. `false`: this
+  // scanner's excludes don't use globMatch's "**/" leading-segment-collapse form.
+  return new RegExp(`(^|/)${translateGlobBody(trimmed, false)}(/|$)`);
 }
 
 // Read the top-level .gitignore of a root into bare name/glob patterns. Blank lines,

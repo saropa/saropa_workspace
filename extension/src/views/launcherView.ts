@@ -34,12 +34,24 @@ import { resolveTintHexes } from "./tintHexResolver";
 // launcherItems module so it unit-tests under Node's runner. The message-routing body lives
 // in launcherViewMessages, the item/header assembly in launcherViewData, and the HTML shell
 // in launcherViewShell — this file keeps only the webview lifecycle.
+// How long a burst of onDidSaveTextDocument events is allowed to coalesce before the
+// launcher rescans. Chosen to smooth over a multi-file save (format-on-save touching
+// several files, a bulk find/replace) into one rescan without feeling laggy to a user
+// watching the panel after a single save.
+const SAVE_RESCAN_DEBOUNCE_MS = 400;
+
 export class LauncherViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewId = "saropaWorkspace.launcher";
 
   private view: vscode.WebviewView | undefined;
   private readonly disposables: vscode.Disposable[] = [];
   private viewDisposables: vscode.Disposable[] = [];
+  // Pending debounce timer for a save-triggered rescan. post() does a project-file scan
+  // (disk stat calls via listSurfacedFiles) on one of VS Code's hottest event paths — a
+  // save fires for every file in the workspace, not just ones the launcher surfaces — so
+  // rapid saves (format-on-save, a multi-file commit-hook rewrite) are coalesced into a
+  // single rescan instead of one scan per save.
+  private saveRescanTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly store: ShortcutStore,
@@ -62,7 +74,11 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       this.watchStore.onDidChange(() => void this.post()),
       this.watchStore.onDidChangeCounts(() => void this.post()),
       this.noteStore.onDidChange(() => void this.post()),
-      vscode.workspace.onDidSaveTextDocument(() => void this.post()),
+      // Debounced, not a direct post(): onDidSaveTextDocument fires for every save in the
+      // workspace, and post() re-scans project files (disk stats) — see
+      // scheduleSaveRescan's doc comment for why a filter-by-relevance approach was
+      // rejected in favor of debounce.
+      vscode.workspace.onDidSaveTextDocument(() => this.scheduleSaveRescan()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.post()),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("saropaWorkspace.projectFiles")) {
@@ -100,9 +116,33 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   }
 
   dispose(): void {
+    // Clear any in-flight debounce timer so a disposed provider never fires post() against
+    // a webview that is gone.
+    if (this.saveRescanTimer) {
+      clearTimeout(this.saveRescanTimer);
+      this.saveRescanTimer = undefined;
+    }
     for (const d of this.disposables) {
       d.dispose();
     }
+  }
+
+  // Coalesces a burst of save events into one post() call. Debounce (rather than filtering
+  // the save to only "relevant" paths) was chosen because determining relevance correctly
+  // is itself error-prone — the surfaced-file set depends on user-configurable glob
+  // patterns (saropaWorkspace.projectFiles) and version parsing inside manifest files, so a
+  // narrower filter risks silently missing a save that should trigger a rescan. A flat
+  // debounce is simple, always correct (every relevant save still lands a rescan, just
+  // batched), and caps the worst case to one scan per debounce window regardless of save
+  // frequency.
+  private scheduleSaveRescan(): void {
+    if (this.saveRescanTimer) {
+      clearTimeout(this.saveRescanTimer);
+    }
+    this.saveRescanTimer = setTimeout(() => {
+      this.saveRescanTimer = undefined;
+      void this.post();
+    }, SAVE_RESCAN_DEBOUNCE_MS);
   }
 
   // Thin delegator to the extracted message-routing body, supplying the stores/provider it
@@ -182,6 +222,11 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         // counts, so these are fetched without l10n params.
         count: l10n("launcher.count"),
         countFiltered: l10n("launcher.countFiltered"),
+        // BUG-009: the right-click menu's aria-label needs the acted-on item's name,
+        // which only the webview client knows at open time — so the template ({name})
+        // is sent once here and substituted client-side, same pattern as count/countFiltered.
+        menuAriaLabel: l10n("launcher.menu.ariaLabel"),
+        menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"),
       },
     });
   }

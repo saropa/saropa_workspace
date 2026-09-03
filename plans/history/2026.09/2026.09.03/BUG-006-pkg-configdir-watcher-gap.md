@@ -1,6 +1,6 @@
 # BUG-006: Config directory watcher not updated when saropaWorkspace.configDir changes at runtime
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 

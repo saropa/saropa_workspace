@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { ShortcutScope } from "../model/shortcut";
 import { defaultGroupLabel } from "../model/shortcutStoreShared";
-import { runStatusRegistry } from "../exec/runStatus";
 import { detectRunTargets, RunTarget } from "../exec/runTargets";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
@@ -119,8 +118,10 @@ export async function removeShortcutForUri(
     return;
   }
   const name = shortcutDisplayName(shortcut);
+  // Per-shortcut tracking data (run-status badge, watch cooldown, repeat-invocation
+  // guard) is cleared centrally by the store's onDidRemoveShortcut subscriber wired
+  // in extension.ts — removeShortcut fires that event, so no per-call-site cleanup
+  // is needed here (BUG-011 follow-up: a duplicated call here was easy to miss).
   await store.removeShortcut(shortcut);
-  // Drop any last-run badge so it does not outlive the shortcut.
-  runStatusRegistry.clear(shortcut.id);
   vscode.window.showInformationMessage(l10n("pin.removed", { name }));
 }

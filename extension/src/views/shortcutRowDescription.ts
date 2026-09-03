@@ -183,7 +183,7 @@ export function buildShortcutRowDescription(
     // never the path — `detail` is undefined under mask.
     description = detail ? `${when}${tag} · ${detail}` : `${when}${tag}`;
   } else {
-    // A time-bombed shortcut (WOW #9) shows a compact countdown / branch chip so the
+    // A shortcut with expiry set (WOW #9) shows a compact countdown / branch chip so the
     // row carries its pending self-removal at a glance; the full condition is in
     // the hover. Suppressed while running/stopping, where live state matters more.
     const expiryChip =

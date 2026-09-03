@@ -3,6 +3,7 @@
 // panel's per-load nonce; neither loads a remote resource. All colors/spacing bind to
 // --vscode-* theme variables so the screen matches the editor in light/dark/high-
 // contrast without a hardcoded palette. Mirrors the Dashboard's asset split.
+import { escapeHtmlJs } from "./webviewClientUtils";
 
 export const SCHEDULE_STYLE = `
 :root { color-scheme: light dark; }
@@ -57,10 +58,7 @@ button.secondary:hover { background: var(--vscode-button-secondaryHoverBackgroun
 export const SCHEDULE_SCRIPT = `
 const vscode = acquireVsCodeApi();
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-}
+${escapeHtmlJs('escapeHtml')}
 
 function outcomePill(row) {
   if (row.overdue) return '<span class="pill overdue">' + escapeHtml(STRINGS.overdue) + '</span>';

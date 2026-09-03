@@ -4,7 +4,6 @@ import * as fs from "fs";
 import { Shortcut, shortcutKind, ShortcutScope } from "../model/shortcut";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
-import { runStatusRegistry } from "../exec/runStatus";
 import { l10n } from "../i18n/l10n";
 
 // Resolve a file shortcut to its on-disk URI, surfacing the same warnings the open/run
@@ -272,9 +271,10 @@ export async function deleteFile(store: ShortcutStore, shortcut: Shortcut): Prom
     remove
   );
   if (after === remove) {
+    // Per-shortcut tracking data is cleared centrally by the store's
+    // onDidRemoveShortcut subscriber (extension.ts) — removeShortcut fires that
+    // event, so no per-call-site cleanup is needed here (BUG-011 follow-up).
     await store.removeShortcut(shortcut);
-    // Drop any last-run badge so it does not outlive the shortcut.
-    runStatusRegistry.clear(shortcut.id);
   }
 }
 
@@ -298,6 +298,18 @@ export async function toggleFileLock(store: ShortcutStore, shortcut: Shortcut): 
     return;
   }
   const fileName = uri.path.split("/").pop() ?? uri.fsPath;
+  // chmod has no vscode.workspace.fs equivalent (BUG-005): the read-only attribute is
+  // an OS/filesystem concept, not part of the FileStat contract. On a remote or virtual
+  // filesystem (Remote SSH/WSL/Containers, Live Share) uri.fsPath does not resolve to a
+  // path Node's fs can reach, so raw fs.promises.chmod there would silently fail or
+  // operate on the wrong (local) file. Bail out early with an explanatory message
+  // instead of attempting an operation that cannot work.
+  if (uri.scheme !== "file") {
+    vscode.window.showInformationMessage(
+      l10n("fileOps.lockUnsupportedRemote", { name: fileName })
+    );
+    return;
+  }
   let mode: number;
   try {
     mode = (await fs.promises.stat(uri.fsPath)).mode;

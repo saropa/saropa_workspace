@@ -1,6 +1,6 @@
 # BUG-003: Planner webview has dozens of hardcoded English strings with no l10n bridge
 
-**Status: Open**
+**Status: Fixed**
 
 <!-- Status values: Open → Investigating → Fix Ready → Closed -->
 

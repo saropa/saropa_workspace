@@ -2,7 +2,7 @@
   "name": "saropa-workspace",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "1.6.12",
+  "version": "1.6.13",
   "publisher": "saropa",
   "license": "MIT",
   "repository": {
@@ -1057,6 +1057,47 @@
         "key": "alt+p",
         "mac": "alt+p",
         "when": "focusedView == saropaWorkspace.pins"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin1",
+        "key": "ctrl+alt+1",
+        "mac": "cmd+alt+1"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin2",
+        "key": "ctrl+alt+2",
+        "mac": "cmd+alt+2"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin3",
+        "key": "ctrl+alt+3",
+        "mac": "cmd+alt+3"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin4",
+        "key": "ctrl+alt+4",
+        "mac": "cmd+alt+4"
+      },
+      {
+        "command": "saropaWorkspace.runTopPin5",
+        "key": "ctrl+alt+5",
+        "mac": "cmd+alt+5"
+      },
+      {
+        "command": "saropaWorkspace.pinActiveFile",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a",
+        "when": "editorFocus"
+      },
+      {
+        "command": "saropaWorkspace.pins.focus",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      },
+      {
+        "command": "saropaWorkspace.runAnyPin",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r"
       }
     ],
     "menus": {
@@ -2163,8 +2204,10 @@
               "type": "string"
             },
             "default": [
-              "pubspec.yaml",
-              "analysis_options.yaml"
+              "package.json",
+              "README.md",
+              "Makefile",
+              ".env.example"
             ],
             "description": "%config.autoPins.patterns.description%"
           },
@@ -2268,7 +2311,7 @@
           },
           "saropaWorkspace.aiContext.enabled": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%config.aiContext.enabled.description%"
           },
           "saropaWorkspace.aiContext.claudeChatFolders": {
@@ -2328,31 +2371,9 @@
                 "LICENSE",
                 "LICENSE.md",
                 "package.json",
-                "pubspec.yaml",
                 "Cargo.toml",
                 "pyproject.toml",
-                "go.mod",
-                "analysis_options.yaml",
-                "l10n.yaml"
-              ],
-              "Android": [
-                "android/build.gradle",
-                "android/build.gradle.kts",
-                "android/settings.gradle",
-                "android/settings.gradle.kts",
-                "android/gradle.properties",
-                "android/app/build.gradle",
-                "android/app/build.gradle.kts",
-                "android/local.properties",
-                "android/app/src/main/AndroidManifest.xml"
-              ],
-              "iOS": [
-                "ios/Podfile",
-                "ios/Runner/Info.plist"
-              ],
-              "Web": [
-                "web/index.html",
-                "web/manifest.json"
+                "go.mod"
               ]
             },
             "description": "%config.projectFiles.groups.description%"

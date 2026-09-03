@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { pollProcesses, formatBytes } from "./processPoll";
+import { pollProcesses } from "./processPoll";
+import { formatBytes } from "../utils/formatBytes";
 import { l10n } from "../i18n/l10n";
 
 // Toolchain heartbeat (recipe book #61). On a timer (default every 15 min while a

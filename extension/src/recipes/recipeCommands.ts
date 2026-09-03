@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { showLintsHealthScore } from "../exec/lintsHealth";
 import { l10n } from "../i18n/l10n";
+import { packageManager } from "./detectorHelpers";
 
 // Helper commands invoked by the "command" recipes (set up .env, open all config
 // files, copy name@version, run the nearest package script). Registered once at
@@ -176,8 +177,17 @@ async function runNearestScript(fallback: vscode.Uri | undefined): Promise<void>
   if (!base) {
     return;
   }
-  const wsFolder = vscode.workspace.getWorkspaceFolder(base) ?? { uri: fallback } as vscode.WorkspaceFolder;
-  const pkgUri = await findNearestPackageJson(base, wsFolder.uri);
+  // Guard: getWorkspaceFolder returns undefined for loose files outside any
+  // workspace. The fallback URI (first workspace folder) can also be undefined
+  // when no folder is open at all. Without a stop-at directory,
+  // findNearestPackageJson would crash on undefined.fsPath.
+  const wsFolder = vscode.workspace.getWorkspaceFolder(base);
+  const stopAt = wsFolder?.uri ?? fallback;
+  if (!stopAt) {
+    vscode.window.showWarningMessage(l10n("recipe.script.none"));
+    return;
+  }
+  const pkgUri = await findNearestPackageJson(base, stopAt);
   if (!pkgUri) {
     vscode.window.showWarningMessage(l10n("recipe.script.none"));
     return;
@@ -202,9 +212,13 @@ async function runNearestScript(fallback: vscode.Uri | undefined): Promise<void>
     return;
   }
   const dir = path.dirname(pkgUri.fsPath);
+  // Detect the package manager from the lockfile next to the nearest package.json
+  // (not the workspace root — a monorepo package can use a different manager than
+  // its root), so "npm run x" isn't forced on a pnpm/yarn/bun project.
+  const pm = await packageManager({ uri: vscode.Uri.file(dir) } as vscode.WorkspaceFolder);
   const terminal = vscode.window.createTerminal({ name: l10n("recipe.script.terminal"), cwd: dir });
   terminal.show(true);
-  terminal.sendText(`npm run ${pick.label}`);
+  terminal.sendText(`${pm} run ${pick.label}`);
 }
 
 async function findNearestPackageJson(

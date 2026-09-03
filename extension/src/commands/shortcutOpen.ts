@@ -3,7 +3,6 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { Shortcut, shortcutKind, isAnnotationShortcut } from "../model/shortcut";
 import { tappedShortcuts } from "../model/tappedShortcuts";
 import { telemetry } from "../exec/telemetry";
-import { runStatusRegistry } from "../exec/runStatus";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { l10n } from "../i18n/l10n";
 import { runShortcutCommand } from "./shortcutExecution";
@@ -55,9 +54,10 @@ export async function handleMissingFile(
   if (choice === relocate) {
     await relocateShortcut(store, shortcut);
   } else if (choice === remove) {
+    // Per-shortcut tracking data is cleared centrally by the store's
+    // onDidRemoveShortcut subscriber (extension.ts) — removeShortcut fires that
+    // event, so no per-call-site cleanup is needed here (BUG-011 follow-up).
     await store.removeShortcut(shortcut);
-    // Drop any last-run badge so it does not outlive the shortcut.
-    runStatusRegistry.clear(shortcut.id);
     vscode.window.showInformationMessage(l10n("pin.removed", { name }));
   } else if (choice === reveal) {
     // The file is gone, so reveal its parent folder (where it used to be) rather

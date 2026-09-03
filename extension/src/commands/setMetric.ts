@@ -2,7 +2,8 @@ import * as vscode from "vscode";
 import { Shortcut, ShortcutMetric, shortcutKind } from "../model/shortcut";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
-import { formatBytes, parseSize } from "../exec/metricFormat";
+import { parseSize } from "../exec/metricFormat";
+import { formatBytes } from "../utils/formatBytes";
 import { l10n } from "../i18n/l10n";
 
 // Roadmap #24 — Live metric badge editor.

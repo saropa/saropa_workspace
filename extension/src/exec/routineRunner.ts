@@ -8,6 +8,9 @@ import { ShortcutBadge, shortcutBadges } from "./shortcutBadges";
 import { hasInteractiveTokens } from "./promptTokens";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel } from "./terminalRunner";
+// The escaping algorithm itself is centralized (BUG-012); imported directly since this
+// file already calls it `escapeHtml`.
+import { escapeHtml } from "../utils/escapeHtml";
 import {
   expandRecipeTokens,
   fenceBlock,
@@ -618,12 +621,6 @@ function sanitizeDetail(detail: string): string {
   return oneLine.length > DETAIL_MAX_CHARS
     ? `${oneLine.slice(0, DETAIL_MAX_CHARS)}…`
     : oneLine;
-}
-
-// Escape a member label for raw-HTML contexts (<summary>), where Markdown escaping
-// does not apply and an angle bracket in a label would be parsed as a tag.
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 // Prepare one member report's body for inline embedding under its `## <member>`

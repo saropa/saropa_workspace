@@ -59,6 +59,16 @@ export abstract class ShortcutStoreBase {
   protected readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
 
+  // Fires the removed shortcut's id whenever a shortcut leaves the store (any scope,
+  // any removal path: manual unpin, file-delete, missing-file cleanup, expiry sweep).
+  // Centralizing this here — rather than duplicating per-map cleanup at every call
+  // site — means a new removal path can never forget to clear the per-shortcut
+  // tracking data (run-status badge, watch cooldown, repeat-invocation guard) that
+  // would otherwise grow unboundedly keyed by a now-dead id (BUG-011). Subscribers
+  // are wired once at activation; see extension.ts.
+  protected readonly _onDidRemoveShortcut = new vscode.EventEmitter<string>();
+  readonly onDidRemoveShortcut = this._onDidRemoveShortcut.event;
+
   // Cached, ready-to-render results recomputed by refresh().
   protected projectShortcuts: Shortcut[] = [];
   protected globalShortcuts: Shortcut[] = [];

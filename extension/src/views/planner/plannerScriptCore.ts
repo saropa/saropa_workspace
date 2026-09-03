@@ -6,8 +6,12 @@
 //
 // State, persisted view/density/column-width settings, the shared resize-handle
 // helper, and the small formatting/lookup utilities the rest of the script calls.
+import { escapeHtmlJs } from "../webviewClientUtils";
+
 export const PLANNER_CORE = `const vscode = acquireVsCodeApi();
-const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+// Weekday abbreviations come from the host-injected STRINGS (l10n bridge), not a
+// hardcoded English array, so the Day/Week views stay translation-ready.
+const DAYS = STRINGS.weekdayShort;
 const WEEK_ORDER = [1,2,3,4,5,6,0]; // Monday-first columns
 const EVENT_ICON = { build:'\\u{1F528}', publish:'\\u{1F680}', gitCommit:'\\u{1F4CD}', gitPush:'\\u{2B06}' };
 const KIND_ICON = { file:'\\u{1F4C4}', shell:'\\u{1F4BB}', url:'\\u{1F517}', command:'\\u{2699}', macro:'\\u{1F39E}' };
@@ -65,11 +69,15 @@ function attachResizer(handle, opts){
   };
 }
 
-function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+${escapeHtmlJs('esc')}
+// Single-token {name} substitution against a localized STRINGS value — the client-side
+// counterpart of the host's l10n() interpolation, kept minimal since every template
+// here carries at most one or two tokens.
+function tpl(s, params){ let out = s; Object.keys(params).forEach(k => { out = out.split('{'+k+'}').join(String(params[k])); }); return out; }
 function pad(n){ return String(n).padStart(2,'0'); }
 function toMin(t){ if(!t) return null; const m=/^(\\d{1,2}):(\\d{2})$/.exec(t); if(!m) return null; return (+m[1])*60 + (+m[2]); }
 function fmtMin(m){ m=((Math.round(m)%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
-function fmtEvery(ms){ const min=Math.round(ms/60000); if(min%1440===0) return 'every '+(min/1440)+'d'; if(min%60===0) return 'every '+(min/60)+'h'; return 'every '+min+'m'; }
+function fmtEvery(ms){ const min=Math.round(ms/60000); if(min%1440===0) return tpl(STRINGS.everyDays,{count:min/1440}); if(min%60===0) return tpl(STRINGS.everyHours,{count:min/60}); return tpl(STRINGS.everyMinutes,{count:min}); }
 function shortcut(id){ return DATA.nodes.find(n => n.id===id); }
 function nodeIcon(n){ return n.kind==='event' ? (EVENT_ICON[n.event]||'\\u{26A1}') : (KIND_ICON[n.shortcutKind]||'\\u{1F4C4}'); }
 function scheduledShortcuts(){ return DATA.nodes.filter(n => n.kind==='pin' && n.schedule && (n.schedule.atTime || n.schedule.everyMs)); }
@@ -85,7 +93,7 @@ function applyDensity(){
   hourH = density === 'comfortable' ? 60 : 30;
   document.documentElement.style.setProperty('--hour-h', hourH + 'px');
   const btn = document.getElementById('density');
-  if(btn){ btn.innerHTML = density === 'comfortable' ? '\\u2195 Comfortable' : '\\u2261 Compact'; }
+  if(btn){ btn.innerHTML = density === 'comfortable' ? ('\\u2195 '+STRINGS.densityComfortable) : ('\\u2261 '+STRINGS.densityCompact); }
 }
 function setDensity(d){ density = d; saveState(); applyDensity(); renderStage(); }
 

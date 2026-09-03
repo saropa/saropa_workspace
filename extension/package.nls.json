@@ -65,7 +65,7 @@
   "command.addGlobalPin.title": "Add to Global Shortcuts",
   "command.removeGlobalPin.title": "Remove from Global Shortcuts",
   "submenu.workspacePin.label": "Workspace Shortcut",
-  "submenu.expiry.label": "Shortcut Expiry (Time-Bomb)",
+  "submenu.expiry.label": "Shortcut Expiry",
   "submenu.add.label": "Add to Shortcuts",
   "submenu.layout.label": "Editor Layout & Focus",
   "submenu.import.label": "Import & Suggest",
