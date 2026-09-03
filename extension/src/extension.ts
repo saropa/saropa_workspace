@@ -33,6 +33,7 @@ import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
 import { runOutputs } from "./exec/runOutputs";
 import { shortcutBadges } from "./exec/shortcutBadges";
+import { clearLastBrief } from "./exec/lastBrief";
 import { tappedShortcuts } from "./model/tappedShortcuts";
 import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { l10n } from "./i18n/l10n";
@@ -242,9 +243,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Centralized per-shortcut cleanup (BUG-011 follow-up): wired ONCE here rather than
   // duplicated at every removal call site, so a future removal path cannot forget to
-  // clear these id-keyed maps. All three would otherwise grow unboundedly for the
-  // life of the session (a removed shortcut's id is never reused, so a stale entry
-  // never gets overwritten).
+  // clear these id-keyed maps. Each would otherwise grow unboundedly for the life of
+  // the session (a removed shortcut's id is never reused, so a stale entry never gets
+  // overwritten). promptMemory is persisted in workspaceState, so its leak survived
+  // reloads — the rest are in-memory-only and bounded to the session.
   context.subscriptions.push(
     store.onDidRemoveShortcut((id) => {
       // Each cleanup is independent state (a different Map, a different module) —
@@ -261,6 +263,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ["promptMemory.forget", () => void promptMemory.forget(id)],
         ["runOutputs.clear", () => runOutputs.clear(id)],
         ["shortcutBadges.clear", () => shortcutBadges.clear(id)],
+        ["clearLastBrief", () => clearLastBrief(id)],
       ];
       for (const [label, fn] of cleanups) {
         try {

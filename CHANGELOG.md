@@ -62,6 +62,7 @@ cspell:disable
 - Ecosystem-aware auto-pin seeding at first activation no longer triggers one extra full rescan on top of the rescans its own config writes already trigger.
 - The one-time "AI context default changed" notice no longer fires on fresh installs — only on upgrades where the old default actually applied.
 - The Settings panel's revert-on-failed-save now restores the exact value a control held before that save attempt (a snapshot taken up front), rather than re-reading the configuration at failure time — the two could disagree if another change to the same setting landed while the failed save was in flight. The revert message is also skipped entirely if the panel was closed before the save finished, instead of posting into a webview that no longer exists.
+- Removing a shortcut by any path (expiry sweep, file deletion, or set deletion — not just the explicit "unpin" command) now cleans up all per-shortcut tracking data: remembered prompt values, captured run output, lint/test badges, and routine briefs. Previously these maps leaked entries for the removed shortcut's id, and prompted values (persisted in workspace state) survived reloads indefinitely.
 
 ---
 

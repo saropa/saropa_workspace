@@ -13,13 +13,7 @@ export interface CapturedRun {
 }
 
 class RunOutputs {
-  // Not wired to onDidRemoveShortcut — `clear()` below is called explicitly only
-  // from the "unpin" command (shortcutConfigCommands.ts), not from the other removal
-  // paths (fileOps.ts delete-then-unpin, shortcutOpen.ts remove-missing,
-  // shortcutAddRemove.ts, ShortcutExpiry's sweep) that call store.removeShortcut()
-  // directly and rely on the centralized subscriber in extension.ts — which does not
-  // clear this map. LEAK on those paths: capped at 2 entries per removed id, but
-  // never reclaimed for the life of the window.
+  // Wired to onDidRemoveShortcut in extension.ts so every removal path cleans up.
   // shortcut id -> up to two captured runs, oldest first ([previous, latest]).
   private readonly byShortcut = new Map<string, CapturedRun[]>();
 
