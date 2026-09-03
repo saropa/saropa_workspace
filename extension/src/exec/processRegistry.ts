@@ -12,6 +12,12 @@ import * as cp from "child_process";
 const ESCALATE_AFTER_MS = 4000;
 
 class ProcessRegistry implements vscode.Disposable {
+  // Not wired to onDidRemoveShortcut, but not a leak: entries live only while a
+  // process is actually running/stopping for that id and are removed by the child's
+  // own "close"/"error" handler (see `clear` in register()), independent of whether
+  // the owning shortcut still exists. Bounded by concurrently-running processes, not
+  // by ever-removed shortcut ids. Same reasoning covers `stopping` and
+  // `escalateTimers` below — all three are cleared together.
   private readonly running = new Map<string, cp.ChildProcess>();
   // Shortcuts whose process has been asked to stop but has not exited yet, so the
   // tree can show a "stopping…" state until the close handler clears it.

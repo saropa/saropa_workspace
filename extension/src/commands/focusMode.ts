@@ -3,6 +3,7 @@ import * as path from "path";
 import { shortcutKind } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
+import { isPathWithinBase } from "../utils/pathCompare";
 
 // "Focus on Shortcut Files" (roadmap Later / Exploratory: files.exclude integration).
 // Drive VS Code's `files.exclude` from the shortcut set so the Explorer shows only
@@ -38,9 +39,12 @@ function relativeWithin(
   uri: vscode.Uri
 ): string | undefined {
   const base = folder.uri.fsPath;
-  // Require an exact match or a path-separator boundary so "/proj" does not match a
-  // sibling "/project". A bare startsWith would wrongly claim files in sibling dirs.
-  if (uri.fsPath !== base && !uri.fsPath.startsWith(base + path.sep)) {
+  // Case-insensitive-on-win32, separator-boundary-safe match (see
+  // utils/pathCompare.ts): requires an exact match or a path-separator boundary
+  // so "/proj" does not match a sibling "/project", and tolerates a workspace
+  // folder opened with different casing than the resolved Uri on Windows's
+  // case-insensitive filesystem.
+  if (!isPathWithinBase(uri.fsPath, base, path.sep)) {
     return undefined;
   }
   return uri.fsPath

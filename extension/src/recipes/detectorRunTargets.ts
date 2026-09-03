@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { RecipeResult } from "./detectors";
 import { exists, readText, packageManager, shell } from "./detectorHelpers";
-import { detectDevCommand, detectMigrate, hasEslint, hasPrettier } from "./detectorEcosystem";
+import { detectDevCommand, detectMigrate, hasEslint, hasPrettier, detectEcosystemMarkers } from "./detectorEcosystem";
 
 // The ecosystem markers every recipe block below reads from. Detected once so the
 // ~10 independent "detect command -> push recipe" blocks don't each re-run the same
@@ -14,6 +14,13 @@ interface EcosystemFlags {
   isGo: boolean;
   isRust: boolean;
   isPy: boolean;
+  // pyproject.toml's text, read once here when the file exists (isPy is true) so
+  // the lint/typecheck/format probes below — each of which greps a different
+  // [tool.x] table out of the same file — reuse one read instead of each calling
+  // readText(folder, "pyproject.toml") independently (previously up to 4 reads of
+  // the same file in a single pushRunTargets pass). Undefined when isPy is false
+  // (no pyproject.toml at all) or the read failed.
+  pyprojectText: string | undefined;
 }
 
 // The setup block: which package manager and which language ecosystems are present.
@@ -22,14 +29,19 @@ async function detectEcosystemFlags(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined
 ): Promise<EcosystemFlags> {
+  // Computed once here and threaded through every recipe block below via `flags`,
+  // so a single pushRunTargets pass calls packageManager() (its own bounded
+  // upward directory walk) exactly once rather than once per block.
   const pm = await packageManager(folder);
   const scripts = (pkg?.scripts as Record<string, string> | undefined) ?? {};
-  const isDart = await exists(folder, "pubspec.yaml");
-  const isFlutter = isDart && /(\n|^)\s*flutter:/.test((await readText(folder, "pubspec.yaml")) ?? "");
-  const isGo = await exists(folder, "go.mod");
-  const isRust = await exists(folder, "Cargo.toml");
-  const isPy = (await exists(folder, "pyproject.toml")) || (await exists(folder, "requirements.txt"));
-  return { pm, scripts, isDart, isFlutter, isGo, isRust, isPy };
+  // Reuse the shared marker detection (detectorEcosystem.ts) instead of re-deriving
+  // isDart/isFlutter/isGo/isRust here — keeps this file and the ecosystem-aware
+  // auto-pin seeding (activation/ecosystemAutoPins.ts) reading the same signal.
+  const { isDart, isFlutter, isGo, isRust } = await detectEcosystemMarkers(folder);
+  const hasPyproject = await exists(folder, "pyproject.toml");
+  const isPy = hasPyproject || (await exists(folder, "requirements.txt"));
+  const pyprojectText = hasPyproject ? await readText(folder, "pyproject.toml") : undefined;
+  return { pm, scripts, isDart, isFlutter, isGo, isRust, isPy, pyprojectText };
 }
 
 // 9-12: dev server, tests, lint, build — the everyday build/test/lint loop.
@@ -39,10 +51,12 @@ async function pushBuildTestLintRecipes(
   flags: EcosystemFlags,
   out: RecipeResult[]
 ): Promise<void> {
-  const { pm, scripts, isDart, isFlutter, isGo, isRust, isPy } = flags;
+  const { pm, scripts, isDart, isFlutter, isGo, isRust, isPy, pyprojectText } = flags;
 
-  // 9 dev server
-  const dev = await detectDevCommand(folder, pkg);
+  // 9 dev server — pm/isFlutter already known from `flags`, so this reuses them
+  // instead of detectDevCommand re-deriving pm (another lockfile walk) or
+  // re-reading pubspec.yaml for the flutter: section.
+  const dev = await detectDevCommand(folder, pkg, { pm, isFlutter });
   if (dev) {
     out.push({ recipeId: "dev", label: "Start dev server", description: `Runs the project's dev/watch command (${dev}). Detected from package.json scripts.dev/start, a Django manage.py, or a Flutter project.`, icon: "debug-start", color: "charts.green", action: shell(folder, dev) });
   }
@@ -65,7 +79,7 @@ async function pushBuildTestLintRecipes(
     : isDart ? (isFlutter ? "flutter analyze" : "dart analyze")
     : (await exists(folder, ".golangci.yml")) || (await exists(folder, ".golangci.yaml")) ? "golangci-lint run"
     : isRust ? "cargo clippy"
-    : isPy && ((await exists(folder, "ruff.toml")) || /\[tool\.ruff\]/.test((await readText(folder, "pyproject.toml")) ?? "")) ? "ruff check ."
+    : isPy && ((await exists(folder, "ruff.toml")) || /\[tool\.ruff\]/.test(pyprojectText ?? "")) ? "ruff check ."
     : undefined;
   if (lint) {
     out.push({ recipeId: "lint", label: "Lint", description: `Runs the project's linter (${lint}). Detected from the lint config for the ecosystem (eslint, dart/flutter analyze, golangci-lint, clippy, ruff).`, icon: "checklist", action: shell(folder, lint) });
@@ -91,7 +105,7 @@ async function pushDependencyRecipes(
   flags: EcosystemFlags,
   out: RecipeResult[]
 ): Promise<void> {
-  const { pm, scripts, isDart, isFlutter, isGo, isRust, isPy } = flags;
+  const { pm, scripts, isDart, isFlutter, isGo, isRust, isPy, pyprojectText } = flags;
 
   // 13 install deps
   const install =
@@ -110,7 +124,7 @@ async function pushDependencyRecipes(
   // 14 typecheck
   if (await exists(folder, "tsconfig.json")) {
     out.push({ recipeId: "typecheck", label: "Type-check", description: "Runs the TypeScript type checker (tsc --noEmit). Detected from a tsconfig.json in the folder root.", icon: "symbol-type", action: shell(folder, `${pm} exec tsc --noEmit`) });
-  } else if (isPy && ((await exists(folder, "mypy.ini")) || /\[tool\.mypy\]/.test((await readText(folder, "pyproject.toml")) ?? ""))) {
+  } else if (isPy && ((await exists(folder, "mypy.ini")) || /\[tool\.mypy\]/.test(pyprojectText ?? ""))) {
     out.push({ recipeId: "typecheck", label: "Type-check", description: "Runs the Python type checker (mypy). Detected from mypy.ini or a [tool.mypy] section in pyproject.toml.", icon: "symbol-type", action: shell(folder, "mypy .") });
   }
 
@@ -146,6 +160,7 @@ async function pushDependencyRecipes(
 async function pushInfraRecipes(
   folder: vscode.WorkspaceFolder,
   pkg: Record<string, unknown> | undefined,
+  flags: EcosystemFlags,
   out: RecipeResult[]
 ): Promise<void> {
   // 15 compose up
@@ -153,8 +168,9 @@ async function pushInfraRecipes(
     out.push({ recipeId: "compose.up", label: "Docker compose up", description: "Brings the Docker Compose stack up (docker compose up). Detected from a docker-compose.yml or compose.yaml in the folder root.", icon: "server-environment", action: shell(folder, "docker compose up") });
   }
 
-  // 16 db migrate
-  const migrate = await detectMigrate(folder, pkg);
+  // 16 db migrate — pm already known from `flags`, reused instead of detectMigrate
+  // re-deriving it.
+  const migrate = await detectMigrate(folder, pkg, flags.pm);
   if (migrate) {
     out.push({ recipeId: "db.migrate", label: "Run database migration", description: `Runs the database migration (${migrate}). Detected from Prisma, Alembic, Drizzle, or Rails markers.`, icon: "database", action: shell(folder, migrate) });
   }
@@ -169,9 +185,9 @@ async function pushFormatRecipe(
   flags: EcosystemFlags,
   out: RecipeResult[]
 ): Promise<void> {
-  const { pm, isDart, isRust, isGo, isPy } = flags;
-  const ruffConfigured = isPy && ((await exists(folder, "ruff.toml")) || /\[tool\.ruff\]/.test((await readText(folder, "pyproject.toml")) ?? ""));
-  const blackConfigured = isPy && /\[tool\.black\]/.test((await readText(folder, "pyproject.toml")) ?? "");
+  const { pm, isDart, isRust, isGo, isPy, pyprojectText } = flags;
+  const ruffConfigured = isPy && ((await exists(folder, "ruff.toml")) || /\[tool\.ruff\]/.test(pyprojectText ?? ""));
+  const blackConfigured = isPy && /\[tool\.black\]/.test(pyprojectText ?? "");
   const format =
     (await hasPrettier(folder, pkg)) ? `${pm} exec prettier --write .`
     : isDart ? "dart format ."
@@ -234,7 +250,7 @@ export async function pushRunTargets(
 
   await pushBuildTestLintRecipes(folder, pkg, flags, out);
   await pushDependencyRecipes(folder, pkg, flags, out);
-  await pushInfraRecipes(folder, pkg, out);
+  await pushInfraRecipes(folder, pkg, flags, out);
   await pushFormatRecipe(folder, pkg, flags, out);
   pushFlutterDanceRecipe(flags, folder, out);
   tagFlutterSubgroup(out, startIndex);

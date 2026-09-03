@@ -75,6 +75,10 @@ interface Entry {
 }
 
 class MetricBadgeRegistry implements vscode.Disposable {
+  // Not wired to onDidRemoveShortcut, but not a leak: track() is called on every
+  // store change and reconciles both maps against the CURRENT metric'd-shortcut set,
+  // deleting (and disposing the watcher for) any pinId no longer present — see
+  // disposeEntry(). A removed shortcut is dropped by the very next reconcile.
   private readonly byShortcut = new Map<string, Entry>();
   private readonly badges = new Map<string, MetricBadge>();
   private readonly _onDidChange = new vscode.EventEmitter<void>();

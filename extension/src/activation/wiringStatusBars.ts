@@ -69,12 +69,21 @@ export function setupStatusBars(
   // selected.
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.peekFocusedPin", () => {
+      // Type predicate on .find() so the result is already narrowed — no second
+      // instanceof check needed.
       const selected = treeView.selection.find(
-        (item) => item instanceof ShortcutTreeItem
+        (item): item is ShortcutTreeItem => item instanceof ShortcutTreeItem
       );
-      if (selected instanceof ShortcutTreeItem) {
+      if (selected) {
         void vscode.commands.executeCommand("saropaWorkspace.peekPin", selected.shortcut);
       }
     })
   );
+
+  // runSelectedShortcut (BUG-008 follow-up) moved to shortcutCommands.ts (#26): it
+  // runs a shortcut, not a status-bar concern, so it now lives with the rest of the
+  // execution commands. It still needs this function's `treeView` handle (the same
+  // reason peekFocusedPin above stays here), so registerShortcutCommands is called
+  // with `treeView` from wiringCommands.ts / extension.ts rather than being wired
+  // inline in this file.
 }

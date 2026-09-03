@@ -147,7 +147,9 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreAdd {
       await this.writeGlobalShortcuts(shortcuts);
       await this.refresh();
       // See the project-scope removal below for why this fires after refresh.
-      this._onDidRemoveShortcut.fire(shortcut.id);
+      // safeFire wraps the call so a throwing subscriber cannot abort the removal
+      // (which has already completed by this point).
+      this.safeFire(this._onDidRemoveShortcut, shortcut.id, "onDidRemoveShortcut");
       return;
     }
 
@@ -182,7 +184,9 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreAdd {
     // Fire AFTER the write + refresh so subscribers (the centralized per-shortcut
     // cleanup wired in extension.ts) see a store that has already forgotten the
     // shortcut, not a stale cache mid-removal.
-    this._onDidRemoveShortcut.fire(shortcut.id);
+    // safeFire wraps the call so a throwing subscriber cannot abort the removal
+    // (already durable on disk) or block sibling subscribers.
+    this.safeFire(this._onDidRemoveShortcut, shortcut.id, "onDidRemoveShortcut");
   }
 
   async renameShortcut(shortcut: Shortcut, label: string): Promise<void> {

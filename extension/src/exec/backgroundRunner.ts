@@ -16,6 +16,7 @@ import {
 } from "./portUnwedge";
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel, runInTerminal } from "./terminalRunner";
+import { createBoundedCapture } from "./outputCapture";
 
 // The background run path: spawn a child, stream its combined output to the shared
 // channel, settle exactly once on exit, then record the result and surface the
@@ -90,14 +91,17 @@ export async function runInBackground(
     // Real tracked outcome for the chain engine — a shortcut chained "after" this one
     // (with onlyOnSuccess) runs only when this background run actually succeeded.
     shortcutEvents.fireComplete(pinId, outcome);
+    // Snapshot once — getCaptured() rebuilds head+marker+tail on each call,
+    // so caching avoids a redundant up-to-1MB string allocation.
+    const captured = capture.getCaptured();
     // Keep this run's output for the "Diff Last Two Runs" command.
-    runOutputs.record(pinId, { output: capture.getCaptured(), endedAt, exitCode: code });
+    runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
     // Badge, extract, and notify: none of this needs the dedupe guard or the
     // registries above, so it is delegated to keep this closure focused on the
     // mutable state (settled, the registries) the header comment defends keeping
     // together.
     handleRunSettled(
-      { pinId, name, cwd, captured: capture.getCaptured(), extractResult, retry },
+      { pinId, name, cwd, captured, extractResult, retry },
       outcome,
       code,
       durationMs
@@ -129,22 +133,28 @@ export async function runInBackground(
 // text so callers can read it back once the run settles. No dependency on settle()'s
 // mutable state (the dedupe guard, the registries), so — unlike the rest of
 // runInBackground — this phase is safe to fully extract.
+//
+// The channel always gets the full, untruncated stream (VS Code's OutputChannel is
+// itself bounded and is the "see everything live" surface); only the in-memory
+// capture returned here — read back for the completion toast, badge/extract
+// parsing, and "Diff Last Two Runs" — is capped, via createBoundedCapture(), so a
+// long-running process cannot grow this process's memory without bound.
 function attachOutputCapture(
   child: ChildProcessWithoutNullStreams,
   channel: vscode.OutputChannel
 ): { getCaptured(): string } {
-  let captured = "";
+  const capture = createBoundedCapture();
   child.stdout?.on("data", (d) => {
     const text = d.toString();
-    captured += text;
+    capture.append(text);
     channel.append(text);
   });
   child.stderr?.on("data", (d) => {
     const text = d.toString();
-    captured += text;
+    capture.append(text);
     channel.append(text);
   });
-  return { getCaptured: () => captured };
+  return capture;
 }
 
 // The fields the settled tail (badge, extract, notify) reads from a finished run.

@@ -35,13 +35,17 @@ export function registerCommandModules(
   context: vscode.ExtensionContext,
   store: ShortcutStore,
   dispatcher: DoubleClickDispatcher,
-  branchTracker: BranchTracker
+  branchTracker: BranchTracker,
+  treeView: vscode.TreeView<vscode.TreeItem>
 ): BranchSetBinder {
   registerSimulationPreview(context);
   registerRunAnalytics(context);
   registerDailyReport(context, store);
   registerRunOutputDiff(context);
-  registerShortcutCommands(context, store, dispatcher);
+  // treeView is threaded through only for runSelectedShortcut (#26, moved here from
+  // wiringStatusBars.ts) — it needs the live tree selection, which no other command
+  // in this module requires.
+  registerShortcutCommands(context, store, dispatcher, treeView);
 
   // Named shortcut sets (multiple-favorite-sets roadmap): switch / create / rename /
   // delete / duplicate. The active set's project shortcuts are the tree's project

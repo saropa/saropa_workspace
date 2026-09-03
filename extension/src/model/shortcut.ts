@@ -101,7 +101,7 @@ export interface Shortcut {
   // normal shortcut has no `expires` and is never auto-removed. The two conditions
   // are independent and either may be present:
   //   - `at` — epoch ms; removed once Date.now() >= at (swept by a low-frequency timer).
-  //   - `onBranchAway` — the git branch name the shortcut was bombed on; removed once
+  //   - `onBranchAway` — the git branch name the expiry was set on; removed once
   //     the owning folder's current branch is no longer this one. Skipped (never
   //     removed) when the branch cannot be read, so an unreadable repo never loses
   //     shortcuts.

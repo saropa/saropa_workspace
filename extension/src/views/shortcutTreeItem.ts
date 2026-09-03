@@ -10,6 +10,10 @@ import { buildShortcutRowDescription } from "./shortcutRowDescription";
 import { buildShortcutContextValue } from "./shortcutRowContext";
 import { buildShortcutTooltipLines } from "./shortcutRowTooltip";
 import { l10n } from "../i18n/l10n";
+// Shared top-of-chain state priority (#53), also consumed by computeRowStateBadge
+// in shortcutRowDescription.ts — see that module's doc comment for why the two
+// channels (this a11y label, that visual badge) must never disagree.
+import { pickHighestPriorityRowState } from "./shortcutRowStatePriority";
 
 // The structural tree rows (Recent root, scope roots, group folders) live in
 // pinTreeItems; re-exported here so the tree providers keep importing every tree
@@ -47,24 +51,25 @@ function buildAccessibilityLabel(params: {
   readonly untapped: boolean;
 }): string {
   const { name, isRunning, isStopping, paused, lockedBy, missing, untapped } = params;
-  // The top four priorities (stopping > running > locked > paused) match
-  // computeRowStateBadge in shortcutRowDescription.ts so the two channels never
-  // disagree about which live state matters most. The tails diverge on purpose:
-  // the badge shows schedule/last-run (visual info), while the a11y label surfaces
+  // The top four priorities (stopping > running > locked > paused) are resolved via
+  // the shared pickHighestPriorityRowState (#53, #48) — the SAME ordered list
+  // computeRowStateBadge in shortcutRowDescription.ts consumes — so the two channels
+  // never disagree about which live state matters most. This is intentionally
+  // duplicated logic-free: only the ORDER is shared; the values each side plugs in
+  // (a badge string vs an a11y phrase) stay local. The tails diverge on purpose: the
+  // badge shows schedule/last-run (visual info), while the a11y label surfaces
   // missing/untapped states that have no other spoken representation.
-  const state = isStopping
-    ? l10n("run.stoppingBadge")
-    : isRunning
-      ? l10n("run.treeBadge")
-      : lockedBy
-        ? l10n("depends.treeBadge", { dep: lockedBy })
-        : paused
-          ? l10n("pause.treeBadge")
-          : missing
-            ? l10n("a11y.missingState")
-            : untapped
-              ? l10n("a11y.untappedState")
-              : undefined;
+  const sharedState = pickHighestPriorityRowState({
+    stopping: isStopping ? l10n("run.stoppingBadge") : undefined,
+    running: isRunning ? l10n("run.treeBadge") : undefined,
+    locked: lockedBy ? l10n("depends.treeBadge", { dep: lockedBy }) : undefined,
+    paused: paused ? l10n("pause.treeBadge") : undefined,
+  });
+  const state = sharedState ?? (missing
+    ? l10n("a11y.missingState")
+    : untapped
+      ? l10n("a11y.untappedState")
+      : undefined);
   return state ? `${name}, ${state}` : name;
 }
 

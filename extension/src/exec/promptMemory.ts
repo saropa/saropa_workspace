@@ -57,6 +57,12 @@ class PromptMemory {
 
   // Drop a shortcut's remembered values (called when a shortcut is removed, so stale
   // entries do not accumulate). No-op when the shortcut has no memory.
+  // NOT wired to onDidRemoveShortcut — the only call site is the "unpin" command
+  // (shortcutConfigCommands.ts). fileOps.ts, shortcutOpen.ts, shortcutAddRemove.ts,
+  // and ShortcutExpiry all remove via store.removeShortcut() directly and rely on the
+  // centralized subscriber in extension.ts, which does not call this. LEAK on those
+  // paths: this is persisted in workspaceState, so it also survives reloads, unlike
+  // the in-memory maps this same gap affects (see runOutputs.ts).
   async forget(pinId: string): Promise<void> {
     if (!this.context) {
       return;

@@ -21,6 +21,7 @@ import {
   shortcutKind,
 } from "./shortcut";
 import { parseGlobalPath, globalStoredPath } from "./shortcutPaths";
+import { relativeToBaseLoose } from "../utils/pathCompare";
 import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
@@ -131,6 +132,32 @@ export abstract class ShortcutStoreBase {
 
 
   constructor(protected readonly context: vscode.ExtensionContext) {}
+
+  // Fire an emitter inside a try/catch so a throwing subscriber never aborts the
+  // caller or blocks sibling subscribers. Every .fire() call in the store should go
+  // through this rather than calling emitter.fire() directly — a bare .fire() means
+  // one bad listener can skip remaining cleanup or break an unrelated mutation.
+  protected safeFire<T>(
+    emitter: vscode.EventEmitter<T>,
+    arg: T,
+    label: string
+  ): void {
+    try {
+      emitter.fire(arg);
+    } catch (err) {
+      console.error(`[saropa] ${label} subscriber threw:`, err);
+    }
+  }
+
+  // The store is constructed once in activate() and lives for the extension's whole
+  // lifetime, so nothing has needed to dispose it — but "never disposed" and "safe to
+  // skip disposal" are not the same claim, and a future refactor (a store re-created
+  // per test, or per workspace) would silently start leaking these emitters without
+  // this method to call. Callers push this onto context.subscriptions.
+  dispose(): void {
+    this._onDidChange.dispose();
+    this._onDidRemoveShortcut.dispose();
+  }
 
   getProjectShortcuts(): Shortcut[] {
     return this.projectShortcuts;
@@ -258,6 +285,22 @@ export abstract class ShortcutStoreBase {
   // the correct folder.
   folderOf(shortcut: Shortcut): vscode.WorkspaceFolder | undefined {
     return this.projectShortcutFolder.get(shortcut.id);
+  }
+
+  // True when a folder has at least one EXPLICIT (user-added) project shortcut —
+  // excludes auto-shortcuts and recipes, which are recomputed every refresh rather
+  // than deliberately added. Used by the ecosystem-aware auto-pin seeding
+  // (activation/ecosystemAutoPins.ts, BUG-010 follow-up) to tell a genuinely fresh
+  // project (safe to seed language-specific auto-pin patterns into) from one the
+  // user has already curated (where silently adding more patterns would surprise
+  // rather than help).
+  hasExplicitProjectShortcuts(folder: vscode.WorkspaceFolder): boolean {
+    return this.projectShortcuts.some(
+      (p) =>
+        !p.isAuto &&
+        !p.isRecipe &&
+        this.projectShortcutFolder.get(p.id) === folder
+    );
   }
 
   // --- project file IO ---------------------------------------------------
@@ -477,7 +520,18 @@ export abstract class ShortcutStoreBase {
     uri: vscode.Uri
   ): string {
     const base = folder.uri.fsPath;
-    let rel = uri.fsPath.startsWith(base) ? uri.fsPath.slice(base.length) : uri.fsPath;
+    // Case-insensitive-on-win32 prefix match (utils/pathCompare.ts): a
+    // workspace folder can be opened with different casing than a Uri resolved
+    // for a file inside it (case-insensitive NTFS), and an exact-case
+    // startsWith would wrongly treat that file as outside the folder. The
+    // "loose" (non-boundary-safe) variant is used deliberately here: callers
+    // either compose `uri` by joining onto `folder.uri` (recipes, mutation-core)
+    // or resolve containment via getWorkspaceFolder first (addShortcut), so a
+    // sibling-folder false match cannot occur in either path, and a boundary
+    // check would misfire when `uri.fsPath` mixes forward-slash joined
+    // segments with the OS separator in `base`. The stripped remainder keeps
+    // the ORIGINAL casing from uri.fsPath — only the comparison is normalized.
+    let rel = relativeToBaseLoose(uri.fsPath, base);
     // Normalize separators and strip a leading slash so joinPath works on all OSes.
     rel = rel.replace(/\\/g, "/").replace(/^\/+/, "");
     return rel;

@@ -1,4 +1,6 @@
 {
+  "aiContext.defaultChangeNotice": "AI context features are now off by default. Enable them in Settings if needed.",
+  "aiContext.defaultChangeNotice.openSettings": "Open Settings",
   "pin.added": "Added {name}",
   "pin.addedToGroup": "Added {name} to {group}",
   "pin.removed": "Removed {name}",
@@ -130,6 +132,7 @@
   "pin.relocateOutsideFolder": "A project shortcut must stay inside its workspace folder. Add {name} as a global shortcut to point outside it.",
   "pin.autoRestored": "Restored {count} auto-shortcut(s).",
   "pin.autoNoneRemoved": "No auto-shortcuts were removed.",
+  "pin.autoEcosystemSeeded": "Detected this project's type and added {patterns} to auto-pins for {folder}.",
   "group.addPrompt": "Name for the new group",
   "group.addPlaceholder": "e.g. Build, Lint, Deploy",
   "group.added": "Created group {name}. Drag shortcuts into it to organize them.",
@@ -1190,6 +1193,7 @@
   "run.tooltipFailed": "Last run: failed (exit {code}) in {duration} at {time}",
   "run.canceledPrompt": "[{time}] Run canceled: {name} - no value entered.",
   "run.canceledPromptToast": "Run canceled for {name}.",
+  "run.noSelection": "No shortcut selected in the Shortcuts view.",
   "portUnwedge.blocked": "Port {port} is held by {process} (PID {pid}), so {name} couldn't start.",
   "portUnwedge.blockedUnknown": "Port {port} is in use, so {name} couldn't start, but the process holding it couldn't be identified.",
   "portUnwedge.unknownProcess": "an unknown process",

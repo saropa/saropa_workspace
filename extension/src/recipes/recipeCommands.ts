@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { showLintsHealthScore } from "../exec/lintsHealth";
 import { l10n } from "../i18n/l10n";
-import { packageManager } from "./detectorHelpers";
+import { packageManager, folderFrom, walkUp } from "./detectorHelpers";
 
 // Helper commands invoked by the "command" recipes (set up .env, open all config
 // files, copy name@version, run the nearest package script). Registered once at
@@ -215,28 +215,28 @@ async function runNearestScript(fallback: vscode.Uri | undefined): Promise<void>
   // Detect the package manager from the lockfile next to the nearest package.json
   // (not the workspace root — a monorepo package can use a different manager than
   // its root), so "npm run x" isn't forced on a pnpm/yarn/bun project.
-  const pm = await packageManager({ uri: vscode.Uri.file(dir) } as vscode.WorkspaceFolder);
+  const pm = await packageManager(folderFrom(dir));
   const terminal = vscode.window.createTerminal({ name: l10n("recipe.script.terminal"), cwd: dir });
   terminal.show(true);
+  // pick.label is a key from this package.json's own "scripts" object (chosen from
+  // the QuickPick above), not free-form user input. npm/yarn/pnpm's `run <name>`
+  // treats that argument as a script name to look up, not a shell command to
+  // interpret, so passing it unquoted here cannot inject a second shell command —
+  // quoting it would only risk breaking a script name that legitimately contains a
+  // colon or other punctuation (e.g. "test:watch").
   terminal.sendText(`${pm} run ${pick.label}`);
 }
 
+// Find the package.json nearest `start`, walking up to (and including) `stopAt`.
+// Built on the shared walkUp helper (detectorHelpers.ts) — the same "climb to the
+// workspace root, then give up" shape packageManager() uses for its lockfile search,
+// differing only in the per-directory predicate and the Uri return type.
 async function findNearestPackageJson(
   start: vscode.Uri,
   stopAt: vscode.Uri
 ): Promise<vscode.Uri | undefined> {
-  let dir = path.dirname(start.fsPath);
-  const stop = stopAt.fsPath;
-  // Walk up until the workspace folder root (inclusive), looking for package.json.
-  for (let i = 0; i < 50; i++) {
+  return walkUp(path.dirname(start.fsPath), stopAt.fsPath, async (dir) => {
     const candidate = vscode.Uri.file(path.join(dir, "package.json"));
-    if (await fileExists(candidate)) {
-      return candidate;
-    }
-    if (dir === stop || path.dirname(dir) === dir) {
-      break;
-    }
-    dir = path.dirname(dir);
-  }
-  return undefined;
+    return (await fileExists(candidate)) ? candidate : undefined;
+  });
 }

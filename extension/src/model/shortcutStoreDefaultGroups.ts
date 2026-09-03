@@ -108,7 +108,14 @@ const RECIPE_DEFAULT_GROUP: Readonly<Record<string, string>> = {
   clean: "default:build",
   upgrade: "default:build",
   "compose.up": "default:build",
-  "flutter.dance": "default:build",
+  // "flutter.dance" (flutter clean && flutter pub get) was hardcoded here as
+  // "default:build" — a single-ecosystem recipe singled out in a table that is
+  // otherwise generic-action or genuinely multi-ecosystem (registry.pub / registry.pypi
+  // pair Dart's and Python's package registries symmetrically). flutter.dance had no
+  // such counterpart for other ecosystems, so it read as Dart/Flutter favoritism (see
+  // BUG-010's reflection notes). Removed; a promoted flutter.dance recipe now falls back
+  // to the section-named group per recipeDefaultGroupId's documented default, same as
+  // any other recipe absent from this table.
   // Run / serve / launch the app.
   dev: "default:run",
   boot: "default:run",

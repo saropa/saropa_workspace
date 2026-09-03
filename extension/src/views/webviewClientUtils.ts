@@ -25,7 +25,10 @@ export function escapeHtmlJs(fnName: string): string {
 // a separate JS-text copy only because the client cannot import that module.
 export function formatBytesJs(fnName: string): string {
   return `function ${fnName}(bytes) {
-  if (bytes <= 0) { return '0 B'; }
+  // Mirror the host-side NaN/Infinity guard in utils/formatBytes.ts: Number.isFinite
+  // rejects NaN, +/-Infinity, and non-number types without the coercion that global
+  // isFinite() applies (global isFinite("123") is true, Number.isFinite("123") is not).
+  if (!Number.isFinite(bytes) || bytes <= 0) { return '0 B'; }
   var units = ['B','KB','MB','GB','TB'];
   var exponent = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
   var value = bytes / Math.pow(1024, exponent);

@@ -31,18 +31,58 @@ export function wireWatchers(
   // in refresh() to coalesce bursts into a single repaint.
   const debouncedConfigRefresh = makeDebounced(() => void store.refresh(), 150);
 
-  // The config-dir watchers are held in a mutable holder so the configDir-change
-  // handler below can dispose the CURRENT set before creating a fresh one.
-  // Without this, changing saropaWorkspace.configDir at runtime to a directory
-  // outside KNOWN_CONFIG_DIRS left the new dir's saropa-workspace.json unwatched
-  // until the next reload — the file-watcher glob baked in configDirName() at
-  // activation time only and was never re-evaluated.
+  // The config-dir watchers are held in a mutable holder — a plain closure variable,
+  // not a class field (#14) — because this whole function is a closure-style module
+  // (see the file-level comment: activate() wiring split into named functions, not
+  // classes), and the variable's only job is to be visible to the two other closures
+  // in this function (the config-change handler and the subscriptions wrapper below)
+  // that read/replace it. A class field would need its own class just to hold this
+  // one mutable reference, adding a construct/dispose lifecycle for no benefit over a
+  // `let` that already lives exactly as long as wireWatchers's closures do.
+  // So the configDir-change handler below can dispose the CURRENT set before creating
+  // a fresh one. Without this, changing saropaWorkspace.configDir at runtime to a
+  // directory outside KNOWN_CONFIG_DIRS left the new dir's saropa-workspace.json
+  // unwatched until the next reload — the file-watcher glob baked in configDirName()
+  // at activation time only and was never re-evaluated.
   //
   // A single wrapper disposable is pushed to context.subscriptions ONCE (not per
   // batch) so repeated configDir changes don't accumulate stale entries in the
   // subscriptions array. The wrapper delegates to whatever the current batch is.
   let configDirWatchers = createConfigDirWatchers(debouncedConfigRefresh);
   context.subscriptions.push({ dispose: () => configDirWatchers.dispose() });
+
+  // Cache of the resolved dir name the current `configDirWatchers` batch actually
+  // watches, so the handler below (#17, #19) can tell a REAL change (the effective
+  // directory is different) from a config-change event that fired without one — e.g.
+  // VS Code re-emits onDidChangeConfiguration when a setting is written at a scope
+  // that doesn't change the resolved value (a workspace-scope write identical to the
+  // already-effective user-scope value), or a settings-sync round-trip rewrites the
+  // same value. Recreating the FileSystemWatcher batch on every such event is wasted
+  // work and briefly drops watch coverage for no reason.
+  let lastConfigDirName = configDirName();
+
+  // Debounced recreation (#17, #19): wraps the dispose/recreate pair so a burst of
+  // configDir-affecting events (programmatic setting writes, or VS Code applying a
+  // change at multiple scopes in one gesture) collapses into at most one rebuild
+  // after 150ms of quiet, and skips the rebuild entirely when the resolved dir name
+  // did not actually change.
+  const recreateConfigDirWatchers = makeDebounced(() => {
+    const currentDirName = configDirName();
+    if (currentDirName === lastConfigDirName) {
+      // Same effective directory — nothing to rewatch, so leave the existing batch
+      // (and its coverage) alone.
+      return;
+    }
+    lastConfigDirName = currentDirName;
+    // Tear down the old watchers and create a fresh set that includes the new
+    // configDirName() value, so hand edits to the new config dir's
+    // saropa-workspace.json trigger a repaint. The wrapper disposable in
+    // context.subscriptions still points at this variable, so no subscriptions
+    // accumulation.
+    configDirWatchers.dispose();
+    configDirWatchers = createConfigDirWatchers(debouncedConfigRefresh);
+    void store.rescan();
+  }, 150);
 
   // Re-seed auto-shortcuts and refresh when folders change or the auto-shortcut
   // patterns setting is edited.
@@ -53,20 +93,12 @@ export function wireWatchers(
     vscode.workspace.onDidChangeWorkspaceFolders(() => void store.rescan()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("saropaWorkspace.configDir")) {
-        // The set of directories that must be watched depends on
-        // configDirName(), which just changed. Tear down the old watchers and
-        // create a fresh set that includes the new configDirName() value, so
-        // hand edits to the new config dir's saropa-workspace.json trigger a
-        // repaint. The wrapper disposable in context.subscriptions still
-        // points at this variable, so no subscriptions accumulation.
-        // Note: rapid-fire configDir changes (e.g. programmatic setting
-        // toggles) dispose/recreate watchers each time — acceptable because
-        // FileSystemWatcher creation is cheap and VS Code batches settings
-        // writes from the UI, so the realistic maximum is one change per
-        // user gesture.
-        configDirWatchers.dispose();
-        configDirWatchers = createConfigDirWatchers(debouncedConfigRefresh);
-        void store.rescan();
+        // The set of directories that must be watched depends on configDirName(),
+        // which MAY have just changed — recreateConfigDirWatchers debounces the
+        // rebuild and skips it when the resolved name is unchanged (#17, #19), so
+        // this handler no longer needs to reason about rapid-fire event bursts
+        // itself.
+        recreateConfigDirWatchers();
       } else if (
         e.affectsConfiguration("saropaWorkspace.autoPins.patterns") ||
         e.affectsConfiguration("saropaWorkspace.recipes.enabled") ||
@@ -102,6 +134,25 @@ export function wireWatchers(
 // configDirName() (read fresh on each call). Returns a single composite
 // Disposable that tears down the entire batch, so callers can swap it on a
 // configDir change without accumulating stale entries in context.subscriptions.
+//
+// Single-owner invariant (#20): this is the ONLY place in the extension that
+// constructs the config-dir `saropa-workspace.json` FileSystemWatchers. wireWatchers
+// above holds the one live batch (in the `configDirWatchers` closure variable) and
+// always disposes the previous batch before calling this again (see
+// recreateConfigDirWatchers). A second caller constructing its own batch would
+// double-watch the same globs — every hand edit would refresh the store twice — and
+// would not be reachable through the dispose-before-recreate path above, leaking a
+// batch that this module can no longer tear down. If a future feature needs to react
+// to the config file changing, it should consume store.onDidChange /
+// store.refresh() rather than adding a second watcher here.
+//
+// createFileSystemWatcher() itself does not throw for an ordinary glob like this one
+// (VS Code validates the glob pattern, not the filesystem — the directory need not
+// exist yet, which is required here since a legacy/uncreated config dir is exactly
+// what this batch watches for). There is no try/catch or fallback around the calls
+// below: an exception here is a genuine defect (e.g. a malformed glob), not an
+// expected runtime condition, so it is left to propagate and surface via VS Code's
+// extension host error reporting rather than being silently swallowed.
 function createConfigDirWatchers(
   debouncedConfigRefresh: () => void
 ): vscode.Disposable {

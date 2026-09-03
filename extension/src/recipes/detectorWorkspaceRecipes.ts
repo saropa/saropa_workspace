@@ -150,11 +150,14 @@ async function pushBootAndLocalhostRecipes(
   pkg: Record<string, unknown> | undefined,
   out: RecipeResult[]
 ): Promise<void> {
-  // 20: boot sequence (macro): open README, start dev, open localhost.
+  // 20: boot sequence (macro): open README, start dev, open localhost. Port is
+  // derived once and reused for both the boot-macro's localhost step and the
+  // standalone "21: open localhost" recipe below, instead of detectPort re-reading
+  // .env / vite config / docker-compose a second time for the same folder.
   const readme = await firstExisting(folder, ["README.md", "readme.md", "README"]);
   const devCommand = await detectDevCommand(folder, pkg);
+  const port = await detectPort(folder, pkg);
   if (readme && devCommand) {
-    const port = await detectPort(folder, pkg);
     const steps: ShortcutAction["steps"] = [
       { kind: "open", path: vscode.Uri.joinPath(folder.uri, readme).fsPath },
       { kind: "shell", shellCommand: devCommand, cwd: folder.uri.fsPath },
@@ -172,8 +175,7 @@ async function pushBootAndLocalhostRecipes(
     });
   }
 
-  // 21: open localhost.
-  const port = await detectPort(folder, pkg);
+  // 21: open localhost (reuses `port` computed above).
   if (port) {
     out.push({
       recipeId: "localhost",

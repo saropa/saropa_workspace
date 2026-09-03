@@ -52,6 +52,14 @@ async function main() {
     external: ["vscode"],
     logLevel: "silent",
     plugins: [problemMatcherPlugin],
+    // The extension host does not reliably set process.env.NODE_ENV itself, so l10n()'s
+    // dev-mode missing-key warning (#34) would otherwise fire for every user, not just
+    // during development. esbuild inlines this at bundle time from the --production flag,
+    // so a packaged .vsix is always built with NODE_ENV="production" (silent) and an F5
+    // dev-host / watch build is always "development" (warns on a missing catalog key).
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(production ? "production" : "development"),
+    },
   });
   copyCodiconAssets();
   if (watch) {

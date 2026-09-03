@@ -2,7 +2,7 @@
   "name": "saropa-workspace",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "1.6.13",
+  "version": "1.7.0",
   "publisher": "saropa",
   "license": "MIT",
   "repository": {
@@ -24,6 +24,9 @@
     "saropa"
   ],
   "activationEvents": [
+    "onUri",
+    "workspaceContains:**/.saropa/saropa-workspace.json",
+    "workspaceContains:**/.vscode/saropa-workspace.json",
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
@@ -450,6 +453,12 @@
         "title": "%command.peekFocusedPin.title%",
         "category": "%extension.displayName%",
         "icon": "$(eye)"
+      },
+      {
+        "command": "saropaWorkspace.runSelectedShortcut",
+        "title": "%command.runSelectedShortcut.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(play)"
       },
       {
         "command": "saropaWorkspace.runPinLastParams",
@@ -1060,28 +1069,33 @@
       },
       {
         "command": "saropaWorkspace.runTopPin1",
-        "key": "ctrl+alt+1",
-        "mac": "cmd+alt+1"
+        "key": "ctrl+shift+1",
+        "mac": "cmd+shift+1",
+        "when": "!editorTextFocus && !terminalFocus"
       },
       {
         "command": "saropaWorkspace.runTopPin2",
-        "key": "ctrl+alt+2",
-        "mac": "cmd+alt+2"
+        "key": "ctrl+shift+2",
+        "mac": "cmd+shift+2",
+        "when": "!editorTextFocus && !terminalFocus"
       },
       {
         "command": "saropaWorkspace.runTopPin3",
-        "key": "ctrl+alt+3",
-        "mac": "cmd+alt+3"
+        "key": "ctrl+shift+3",
+        "mac": "cmd+shift+3",
+        "when": "!editorTextFocus && !terminalFocus"
       },
       {
         "command": "saropaWorkspace.runTopPin4",
-        "key": "ctrl+alt+4",
-        "mac": "cmd+alt+4"
+        "key": "ctrl+shift+4",
+        "mac": "cmd+shift+4",
+        "when": "!editorTextFocus && !terminalFocus"
       },
       {
         "command": "saropaWorkspace.runTopPin5",
-        "key": "ctrl+alt+5",
-        "mac": "cmd+alt+5"
+        "key": "ctrl+shift+5",
+        "mac": "cmd+shift+5",
+        "when": "!editorTextFocus && !terminalFocus"
       },
       {
         "command": "saropaWorkspace.pinActiveFile",
@@ -1092,12 +1106,20 @@
       {
         "command": "saropaWorkspace.pins.focus",
         "key": "ctrl+alt+s",
-        "mac": "cmd+alt+s"
+        "mac": "cmd+alt+s",
+        "when": "!editorTextFocus && !terminalFocus"
+      },
+      {
+        "command": "saropaWorkspace.runSelectedShortcut",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "focusedView == saropaWorkspace.pins"
       },
       {
         "command": "saropaWorkspace.runAnyPin",
-        "key": "ctrl+alt+r",
-        "mac": "cmd+alt+r"
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "!editorTextFocus && !terminalFocus"
       }
     ],
     "menus": {
@@ -1507,29 +1529,29 @@
           "group": "navigation@1"
         },
         {
-          "command": "saropaWorkspace.showAllBranches",
-          "when": "view == saropaWorkspace.pins && !saropaWorkspace.branchShowAll && saropaWorkspace.branchHasHidden",
-          "group": "navigation@1"
-        },
-        {
-          "command": "saropaWorkspace.filterByBranch",
-          "when": "view == saropaWorkspace.pins && saropaWorkspace.branchShowAll",
-          "group": "navigation@1"
-        },
-        {
-          "command": "saropaWorkspace.runAnyPin",
+          "command": "saropaWorkspace.refresh",
           "when": "view == saropaWorkspace.pins",
           "group": "navigation@2"
         },
         {
-          "command": "saropaWorkspace.openSchedule",
+          "command": "saropaWorkspace.runAnyPin",
           "when": "view == saropaWorkspace.pins",
-          "group": "navigation@3"
+          "group": "0_pinActions@1"
         },
         {
-          "command": "saropaWorkspace.refresh",
+          "command": "saropaWorkspace.openSchedule",
           "when": "view == saropaWorkspace.pins",
-          "group": "navigation@5"
+          "group": "0_pinActions@2"
+        },
+        {
+          "command": "saropaWorkspace.showAllBranches",
+          "when": "view == saropaWorkspace.pins && !saropaWorkspace.branchShowAll && saropaWorkspace.branchHasHidden",
+          "group": "0_pinActions@3"
+        },
+        {
+          "command": "saropaWorkspace.filterByBranch",
+          "when": "view == saropaWorkspace.pins && saropaWorkspace.branchShowAll",
+          "group": "0_pinActions@3"
         },
         {
           "submenu": "saropaWorkspace.addSubmenu",
@@ -1856,18 +1878,28 @@
       ],
       "explorer/context": [
         {
-          "submenu": "saropaWorkspace.pinSubmenu",
+          "command": "saropaWorkspace.addProjectPin",
+          "when": "resourcePath not in saropaWorkspace.projectPinnedPaths",
           "group": "saropa@1"
+        },
+        {
+          "command": "saropaWorkspace.removeProjectPin",
+          "when": "resourcePath in saropaWorkspace.projectPinnedPaths",
+          "group": "saropa@1"
+        },
+        {
+          "submenu": "saropaWorkspace.pinSubmenu",
+          "group": "saropa@2"
         },
         {
           "command": "saropaWorkspace.watchFolder",
           "when": "explorerResourceIsFolder",
-          "group": "saropa@2"
+          "group": "saropa@3"
         },
         {
           "command": "saropaWorkspace.watchFile",
           "when": "!explorerResourceIsFolder",
-          "group": "saropa@2"
+          "group": "saropa@3"
         }
       ],
       "editor/title/context": [
@@ -1978,6 +2010,10 @@
         },
         {
           "command": "saropaWorkspace.peekFocusedPin",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.runSelectedShortcut",
           "when": "false"
         },
         {
