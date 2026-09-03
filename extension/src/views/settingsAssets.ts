@@ -296,13 +296,22 @@ function wire() {
 // by applyInit (bulk load) and the "revertSetting" handler (single-control
 // rollback), so the per-type value-assignment logic lives in exactly one place.
 function setControlValue(key, value) {
-  var toggle = document.querySelector('.toggle input[data-key="' + key + '"]');
+  // Escape the key before splicing it into a querySelector attribute-value string
+  // (#41): every key here comes from the SECTIONS table in settingsPanel.ts today
+  // (safe, developer-authored strings), but building a selector by string
+  // concatenation is fragile against any key that happens to contain a quote or
+  // other CSS-special character (a future setting key, or this function being
+  // reused with less-trusted input) — CSS.escape is the browser-native way to make
+  // an arbitrary string safe inside a selector, and this webview runs in a real
+  // browser context so it is always available.
+  var escapedKey = CSS.escape(key);
+  var toggle = document.querySelector('.toggle input[data-key="' + escapedKey + '"]');
   if (toggle) { toggle.checked = !!value; return; }
-  var number = document.querySelector('input[type="number"][data-key="' + key + '"]');
+  var number = document.querySelector('input[type="number"][data-key="' + escapedKey + '"]');
   if (number) { number.value = String(value); return; }
-  var text = document.querySelector('input[type="text"].setting-input[data-key="' + key + '"]');
+  var text = document.querySelector('input[type="text"].setting-input[data-key="' + escapedKey + '"]');
   if (text) { text.value = String(value); return; }
-  var select = document.querySelector('select[data-key="' + key + '"]');
+  var select = document.querySelector('select[data-key="' + escapedKey + '"]');
   if (select) { select.value = String(value); return; }
 }
 

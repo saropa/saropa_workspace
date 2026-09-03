@@ -48,6 +48,44 @@ cspell:disable
 
 ## [Unreleased]
 
+### Changed
+
+- `Add to Project Shortcuts` is now a top-level entry on the Explorer right-click menu instead of being nested inside the `Workspace Shortcut` submenu, cutting the common "pin this file" action from three clicks to one. The submenu still holds it alongside the less-common actions (Add to Global Shortcuts, etc.) for parity with the editor context menu.
+- The Shortcuts view title bar shows only Filter and Refresh inline now (down from up to six icons at once), matching VS Code's guidance to keep two to three actions in the title bar. `Run Any Shortcut`, `Open Schedule`, and the branch-visibility toggle moved into the `...` overflow menu; nothing was removed, only relocated.
+- Extension activation is now prioritized by need: workspaces with a shortcuts file (`.saropa/saropa-workspace.json` or the legacy `.vscode/saropa-workspace.json`) activate first via `workspaceContains`; workspaces without one activate later via `onStartupFinished`, after higher-priority extensions have loaded. Combined with auto-generated `onView`/`onCommand` events, this gives VS Code maximum flexibility to order extension loading without breaking global scheduled shortcuts or custom config-dir setups.
+- A background run's in-memory output capture (used for the completion toast, lint/test badge parsing, extract-and-copy, and "Diff Last Two Runs") is now capped at 1MB — the first 512KB plus the last 512KB, with a marker over the dropped middle — instead of growing without bound for the life of the run. A long-lived watch task or dev server that prints megabytes of output over hours no longer grows the extension host's memory unbounded; the Output channel itself still shows the full, untruncated stream live.
+
+### Fixed
+
+- Folder-relative path derivation (used when adding a shortcut, tagging a recipe, focus mode, and monorepo package-manager detection) no longer fails when a workspace folder's URI and a resolved file's URI disagree on casing — case-insensitive filesystems on Windows (NTFS) and macOS (HFS+/APFS) allow that, and the previous exact-case comparison would treat the file as outside its folder. The comparison is normalized for casing on win32 and darwin; the path text shown or stored always keeps its original casing.
+- Changing the configured shortcuts folder now recreates its file watchers at most once per burst of settings-change events, and only when the resolved folder actually changed — a settings-sync round-trip or a same-value write no longer tears down and rebuilds the watchers (briefly dropping watch coverage) for nothing.
+- Ecosystem-aware auto-pin seeding at first activation no longer triggers one extra full rescan on top of the rescans its own config writes already trigger.
+- The one-time "AI context default changed" notice no longer fires on fresh installs — only on upgrades where the old default actually applied.
+- The Settings panel's revert-on-failed-save now restores the exact value a control held before that save attempt (a snapshot taken up front), rather than re-reading the configuration at failure time — the two could disagree if another change to the same setting landed while the failed save was in flight. The revert message is also skipped entirely if the panel was closed before the save finished, instead of posting into a webview that no longer exists.
+
+---
+
+## [1.7.0]
+
+Hardening pass on the bug-sweep fixes — stale defaults, missing guards, keybinding collisions — plus ecosystem-aware auto-pins and a proper "run selected shortcut" command. [log](https://github.com/saropa/saropa-workspace/blob/v1.7.0/CHANGELOG.md)
+
+### Fixed
+
+- Added the `Run Selected Shortcut` command (resolves the Shortcuts view's current selection and runs it directly), bound to `Ctrl+Alt+R` when the Shortcuts view is focused. `Run Shortcut…` (the QuickPick over every shortcut) is now bound to `Ctrl+Shift+R` globally, so both commands are reachable.
+- Pin-running keybindings (`Run Top Pin 1-5`, `Run Any Pinned Script`, `Focus Pins View`) no longer fire while typing in the editor or terminal — they now require neither to have focus.
+- `Run Top Pin 1-5` moved from `Ctrl+Alt+1..5` to `Ctrl+Shift+1..5` to avoid colliding with `AltGr+1..5` on European keyboard layouts.
+- The AI-context recipe check in `aiContextRecipes.ts` now falls back to disabled when the setting is unset, matching the manifest default, instead of assuming it is on.
+- Glob-pattern matching in the workspace hygiene scan now uses the shared `globToRegex` helper instead of a second, inline implementation that could drift from it.
+- Byte-size formatting no longer shows `NaN` or `Infinity` for malformed or out-of-range inputs; it now falls back to a safe default.
+- Removed the hardcoded `flutter.dance` default from the shortcut store's project-file groups — non-Flutter projects no longer see it.
+- Package-manager detection now walks up parent directories to find the nearest lockfile, so it correctly identifies the package manager for projects inside a monorepo.
+
+### Added
+
+- `runSelectedShortcut` command to run whichever shortcut is currently selected in the tree.
+- Ecosystem-aware auto-pin seeding at first activation, recognizing Flutter, Django, Cargo, and Go projects in addition to the existing defaults.
+- A one-time notice on upgrade informing users that the `aiContext.enabled` default is changing to off.
+
 ---
 
 ## [1.6.13]

@@ -196,6 +196,12 @@ export class SettingsPanel {
       return;
     }
     const cfg = vscode.workspace.getConfiguration("saropaWorkspace");
+    // Snapshot the value BEFORE attempting the write (#43). Re-reading cfg.get(key)
+    // inside the catch block would race a concurrent change to the same setting
+    // (another window, or a second "change" message queued while this update was
+    // in flight) — the revert must restore what was on screen before this specific
+    // mutation, not whatever happens to be persisted at failure time.
+    const previousValue = cfg.get(key);
     try {
       await cfg.update(key, value, vscode.ConfigurationTarget.Global);
     } catch (err) {
@@ -206,13 +212,18 @@ export class SettingsPanel {
       // The webview applied the new value optimistically (control updates on
       // "change" before the write is confirmed). Since cfg.update() rejected,
       // the persisted value never changed, so the control must be reverted to
-      // the still-current configuration value or it would show a value that
-      // was never actually saved.
-      await this.panel.webview.postMessage({
-        type: "revertSetting",
-        key,
-        value: cfg.get(key),
-      });
+      // its pre-change snapshot or it would show a value that was never
+      // actually saved.
+      // The save is async, so the user may have closed the panel while it was
+      // in flight (#46, #40) — guard against posting into a disposed webview,
+      // which VS Code otherwise rejects and would surface as an unhandled error.
+      if (SettingsPanel.current === this) {
+        await this.panel.webview.postMessage({
+          type: "revertSetting",
+          key,
+          value: previousValue,
+        });
+      }
     }
   }
 

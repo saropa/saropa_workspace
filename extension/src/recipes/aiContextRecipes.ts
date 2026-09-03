@@ -77,7 +77,10 @@ export async function detectAiContextRecipes(
   folder: vscode.WorkspaceFolder
 ): Promise<RecipeResult[]> {
   const cfg = vscode.workspace.getConfiguration("saropaWorkspace");
-  if (!cfg.get<boolean>("aiContext.enabled", true)) {
+  // Fallback must match the manifest default in package.json (opt-in, false) —
+  // a stale true fallback would enable the scan for users on a config shape
+  // that predates the setting, silently reversing the opt-in default.
+  if (!cfg.get<boolean>("aiContext.enabled", false)) {
     return [];
   }
   const folders = cfg.get<string[]>(

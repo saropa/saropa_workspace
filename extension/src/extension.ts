@@ -36,6 +36,7 @@ import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { l10n } from "./i18n/l10n";
 import {
   maybeOfferFavoritesImport,
+  maybeNotifyAiContextDefaultChange,
   registerFavoritesImportWatchers,
   syncShortcutPathContext,
   wireRecentEditorTracking,
@@ -48,6 +49,7 @@ import { setupStatusBars } from "./activation/wiringStatusBars";
 import { wireBackgroundEngines } from "./activation/wiringEngines";
 import { wireWatchers, wireFolderWatches } from "./activation/wiringWatchers";
 import { wireTreeViewState, SHOW_ALL_BRANCHES_KEY } from "./activation/viewState";
+import { seedEcosystemAutoPins } from "./activation/ecosystemAutoPins";
 
 // Bind the on-device stores (telemetry, tapped-shortcut tracker, prompt memory,
 // boot sequence) to this context before anything reads them. Split out of activate()
@@ -161,6 +163,15 @@ async function runPostLoadTasks(
   // onDidChange fired before the subscription above was attached.
   syncShortcutPathContext(store);
 
+  // Ecosystem-aware auto-pin seeding (BUG-010 follow-up): a fresh project (no
+  // explicit shortcut added yet) gets extra auto-pin patterns for its detected
+  // language/framework (Flutter/Dart, Django, Rust, Go), restoring the coverage the
+  // language-agnostic default alone cannot provide — without biasing that shared
+  // default toward any one ecosystem. Latched per folder in workspaceState so this
+  // runs at most once per folder, never on every activation. Deferred (not awaited)
+  // so a slow marker-file read never blocks activation.
+  void seedEcosystemAutoPins(context, store);
+
   // Read each folder's current branch now that the shortcut set is loaded; on
   // completion it fires onDidChangeBranch, which repaints the tree with branch
   // filtering applied and re-syncs the branch affordances. Deferred (not awaited) so it
@@ -213,8 +224,19 @@ async function runPostLoadTasks(
 // once the shortcut set has finished loading.
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const store = new ShortcutStore(context);
+  // Disposes the store's onDidChange / onDidRemoveShortcut EventEmitters. The store
+  // lives for the whole extension lifetime today, so this only matters on the
+  // deactivate() path — but leaving it off subscriptions would be relying on "never
+  // disposed" rather than declaring it, and every other Disposable in this file is
+  // pushed here (see the VS Code API rule: dispose everything).
+  context.subscriptions.push({ dispose: () => store.dispose() });
 
   initCoreStores(context);
+
+  // One-time notice for BUG-014's default flip (aiContext.enabled true -> false):
+  // synchronous and config/globalState-only (no store or workspace data needed), so
+  // it runs here rather than in the post-load tail — it must not wait on store.init().
+  maybeNotifyAiContextDefaultChange(context);
 
   // Centralized per-shortcut cleanup (BUG-011 follow-up): wired ONCE here rather than
   // duplicated at every removal call site, so a future removal path cannot forget to
@@ -223,9 +245,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // never gets overwritten).
   context.subscriptions.push(
     store.onDidRemoveShortcut((id) => {
-      runStatusRegistry.clear(id);
-      clearWatchLastRun(id);
-      clearLastRunAt(id);
+      // Each cleanup is independent state (a different Map, a different module) —
+      // one throwing must not skip the others, so each runs in its own try/catch.
+      // Adding a new cleanup is a one-line diff: append to this array.
+      const cleanups: [string, () => void][] = [
+        ["runStatusRegistry.clear", () => runStatusRegistry.clear(id)],
+        ["clearWatchLastRun", () => clearWatchLastRun(id)],
+        ["clearLastRunAt", () => clearLastRunAt(id)],
+      ];
+      for (const [label, fn] of cleanups) {
+        try {
+          fn();
+        } catch (err) {
+          console.error(`[saropa] ${label} failed for ${id}:`, err);
+        }
+      }
     })
   );
 
@@ -244,8 +278,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   setupSecondaryViews(context, store, watchStore);
 
   // Register the command-module subsystems; the returned binder is re-applied by
-  // the config watcher when branch-awareness is toggled.
-  const branchSetBinder = registerCommandModules(context, store, dispatcher, branchTracker);
+  // the config watcher when branch-awareness is toggled. treeView is passed through
+  // for runSelectedShortcut (#26), which reads the live tree selection.
+  const branchSetBinder = registerCommandModules(
+    context,
+    store,
+    dispatcher,
+    branchTracker,
+    treeView
+  );
 
   setupStatusBars(context, store, tree, treeView);
 

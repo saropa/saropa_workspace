@@ -3,6 +3,10 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { FolderWatchStore } from "../model/folderWatch";
 import { NoteStore, readNotePreview } from "../model/noteStore";
 import { l10n } from "../i18n/l10n";
+// Shared debounce coalescer (#39): reuse the one setTimeout/clearTimeout
+// implementation the config watcher and note/decoration refreshes already use,
+// instead of hand-rolling a second copy of the same pattern here.
+import { makeDebounced } from "../activation/activationHelpers";
 import { LauncherItem } from "./launcherItems";
 import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
@@ -46,12 +50,17 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
   private readonly disposables: vscode.Disposable[] = [];
   private viewDisposables: vscode.Disposable[] = [];
-  // Pending debounce timer for a save-triggered rescan. post() does a project-file scan
-  // (disk stat calls via listSurfacedFiles) on one of VS Code's hottest event paths — a
-  // save fires for every file in the workspace, not just ones the launcher surfaces — so
-  // rapid saves (format-on-save, a multi-file commit-hook rewrite) are coalesced into a
-  // single rescan instead of one scan per save.
-  private saveRescanTimer: ReturnType<typeof setTimeout> | undefined;
+  // Debounced save-triggered rescan (#39, via the shared makeDebounced helper). post()
+  // does a project-file scan (disk stat calls via listSurfacedFiles) on one of VS Code's
+  // hottest event paths — a save fires for every file in the workspace, not just ones the
+  // launcher surfaces — so rapid saves (format-on-save, a multi-file commit-hook rewrite)
+  // are coalesced into a single rescan instead of one scan per save. post() itself
+  // no-ops while `this.view` is undefined, so a debounced call landing after the view
+  // closes is already harmless — no separate cancellation on dispose is needed.
+  private readonly scheduleSaveRescan = makeDebounced(
+    () => void this.post(),
+    SAVE_RESCAN_DEBOUNCE_MS
+  );
 
   constructor(
     private readonly store: ShortcutStore,
@@ -116,33 +125,13 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   }
 
   dispose(): void {
-    // Clear any in-flight debounce timer so a disposed provider never fires post() against
-    // a webview that is gone.
-    if (this.saveRescanTimer) {
-      clearTimeout(this.saveRescanTimer);
-      this.saveRescanTimer = undefined;
-    }
+    // Cancel any pending debounced rescan so it cannot fire after teardown — the timer
+    // could otherwise land in the narrow window between dispose() and the webview's own
+    // onDidDispose (which clears this.view), posting into a half-torn-down provider.
+    this.scheduleSaveRescan.cancel();
     for (const d of this.disposables) {
       d.dispose();
     }
-  }
-
-  // Coalesces a burst of save events into one post() call. Debounce (rather than filtering
-  // the save to only "relevant" paths) was chosen because determining relevance correctly
-  // is itself error-prone — the surfaced-file set depends on user-configurable glob
-  // patterns (saropaWorkspace.projectFiles) and version parsing inside manifest files, so a
-  // narrower filter risks silently missing a save that should trigger a rescan. A flat
-  // debounce is simple, always correct (every relevant save still lands a rescan, just
-  // batched), and caps the worst case to one scan per debounce window regardless of save
-  // frequency.
-  private scheduleSaveRescan(): void {
-    if (this.saveRescanTimer) {
-      clearTimeout(this.saveRescanTimer);
-    }
-    this.saveRescanTimer = setTimeout(() => {
-      this.saveRescanTimer = undefined;
-      void this.post();
-    }, SAVE_RESCAN_DEBOUNCE_MS);
   }
 
   // Thin delegator to the extracted message-routing body, supplying the stores/provider it

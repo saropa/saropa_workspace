@@ -69,8 +69,10 @@ ${PLANNER_SCRIPT}</script>
 // (e.g. "Open", "Run now") rather than restating the literal under a new planner.* key.
 function uiStrings(): Record<string, string | string[]> {
   return {
-    // Weekday abbreviations: reused verbatim from the schedule editor catalog rather
-    // than duplicated here, so there is one source for "Mon"/"Tue"/etc.
+    // Weekday abbreviations (#30): reuses the `scheduleEditor.weekday.0`..`scheduleEditor.weekday.6`
+    // keys verbatim from the schedule editor catalog rather than duplicating them under a
+    // planner.* key, so there is one source for "Mon"/"Tue"/etc. If those keys are ever
+    // renamed, this is the other call site that must move with them.
     weekdayShort: [0, 1, 2, 3, 4, 5, 6].map((d) => l10n(`scheduleEditor.weekday.${d}`)),
     now: l10n("planner.now"),
     everyMinutes: l10n("planner.every.minutes"),
@@ -117,6 +119,12 @@ function uiStrings(): Record<string, string | string[]> {
     eventGitPush: l10n("planner.event.gitPush"),
     toolboxHint: l10n("planner.workflow.toolboxHint"),
     toolboxResizeTitle: l10n("planner.workflow.toolboxResizeTitle"),
+    // #32: planner.howto.step1/2/3 in en.json are intentionally HTML-bearing (each
+    // wraps its key phrase in <b>) rather than plain text — plannerScriptWorkflow.ts
+    // splices them straight into an innerHTML template (see the howtoStep1/2/3 usages
+    // there), NOT textContent. A future edit to those catalog values must keep them
+    // safe, trusted, developer-authored markup — never interpolate user/webview input
+    // into them, and do not "fix" them by HTML-escaping the <b> tags.
     howtoStep1: l10n("planner.howto.step1"),
     howtoStep2: l10n("planner.howto.step2"),
     howtoStep3: l10n("planner.howto.step3"),

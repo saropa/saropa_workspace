@@ -10,7 +10,10 @@
 // and its threshold (a decimal only below 100 of a unit) reads better at a glance in a
 // live badge than a decimal cutoff at 10.
 export function formatBytes(bytes: number): string {
-  if (bytes <= 0) {
+  // `bytes <= 0` alone does not catch NaN (NaN <= 0 is false) or +/-Infinity, so a
+  // bad upstream measurement (e.g. a stat() failure coerced to NaN) rendered as the
+  // literal string "NaN B" instead of a safe fallback. Guard on finiteness first.
+  if (!Number.isFinite(bytes) || bytes <= 0) {
     return "0 B";
   }
   const units = ["B", "KB", "MB", "GB", "TB"];

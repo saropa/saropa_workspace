@@ -15,10 +15,17 @@ import { exists, readText, packageManager } from "./detectorHelpers";
 // the recipe rather than inventing a command that would fail.
 export async function detectDevCommand(
   folder: vscode.WorkspaceFolder,
-  pkg: Record<string, unknown> | undefined
+  pkg: Record<string, unknown> | undefined,
+  // Optional values a caller may have already computed in the same detection pass
+  // (detectorRunTargets.ts's detectEcosystemFlags derives both). When given, they
+  // are reused instead of re-deriving pm (another packageManager() lockfile walk)
+  // or re-reading pubspec.yaml for the flutter: section — a caller with no
+  // precomputed flags (detectorWorkspaceRecipes.ts's boot-macro call) still gets
+  // the original self-contained behavior.
+  precomputed?: { pm?: string; isFlutter?: boolean }
 ): Promise<string | undefined> {
   const scripts = (pkg?.scripts as Record<string, string> | undefined) ?? {};
-  const pm = await packageManager(folder);
+  const pm = precomputed?.pm ?? (await packageManager(folder));
   if (scripts.dev) {
     return `${pm} run dev`;
   }
@@ -27,6 +34,9 @@ export async function detectDevCommand(
   }
   if (await exists(folder, "manage.py")) {
     return "python manage.py runserver";
+  }
+  if (precomputed?.isFlutter !== undefined) {
+    return precomputed.isFlutter ? "flutter run" : undefined;
   }
   if (await exists(folder, "pubspec.yaml")) {
     const text = (await readText(folder, "pubspec.yaml")) ?? "";
@@ -45,18 +55,20 @@ export async function detectDevCommand(
 // migration tool is present.
 export async function detectMigrate(
   folder: vscode.WorkspaceFolder,
-  pkg: Record<string, unknown> | undefined
+  pkg: Record<string, unknown> | undefined,
+  // Optional pm the caller already derived this detection pass (detectEcosystemFlags
+  // in detectorRunTargets.ts) — reused instead of another packageManager() lockfile
+  // walk. Falls back to deriving it here for callers with no precomputed flags.
+  pm?: string
 ): Promise<string | undefined> {
   if (await exists(folder, "prisma", "schema.prisma")) {
-    const pm = await packageManager(folder);
-    return `${pm} exec prisma migrate dev`;
+    return `${pm ?? (await packageManager(folder))} exec prisma migrate dev`;
   }
   if ((await exists(folder, "alembic.ini")) || (await exists(folder, "migrations", "env.py"))) {
     return "alembic upgrade head";
   }
   if (pkg && /drizzle/.test(JSON.stringify(pkg.devDependencies ?? {}) + JSON.stringify(pkg.dependencies ?? {}))) {
-    const pm = await packageManager(folder);
-    return `${pm} exec drizzle-kit migrate`;
+    return `${pm ?? (await packageManager(folder))} exec drizzle-kit migrate`;
   }
   if (await exists(folder, "bin", "rails")) {
     return "bin/rails db:migrate";
@@ -196,6 +208,38 @@ export async function hasPrettier(
     }
   }
   return false;
+}
+
+// The marker-file checks for the ecosystems this extension names explicitly
+// (Flutter/Dart, Django, Go, Rust). Centralized here so detectEcosystemFlags below
+// (build/test/lint recipe detection) and the ecosystem-aware auto-pin seeding in
+// activation/ecosystemAutoPins.ts (BUG-010 follow-up: restoring Dart/Flutter's
+// original out-of-the-box auto-pin coverage without reintroducing bias for other
+// ecosystems) read the SAME markers, rather than two independent exists()/readText()
+// checks that could silently drift apart.
+export interface EcosystemMarkers {
+  isDart: boolean;
+  isFlutter: boolean;
+  isDjango: boolean;
+  isGo: boolean;
+  isRust: boolean;
+}
+
+export async function detectEcosystemMarkers(
+  folder: vscode.WorkspaceFolder
+): Promise<EcosystemMarkers> {
+  const isDart = await exists(folder, "pubspec.yaml");
+  // Flutter is a Dart project whose pubspec declares the `flutter:` section — a
+  // plain Dart package (no Flutter dependency) has a pubspec.yaml without it.
+  const isFlutter =
+    isDart && /(\n|^)\s*flutter:/.test((await readText(folder, "pubspec.yaml")) ?? "");
+  return {
+    isDart,
+    isFlutter,
+    isDjango: await exists(folder, "manage.py"),
+    isGo: await exists(folder, "go.mod"),
+    isRust: await exists(folder, "Cargo.toml"),
+  };
 }
 
 // Whether a project name@version can be read, which gates the "Copy name@version"

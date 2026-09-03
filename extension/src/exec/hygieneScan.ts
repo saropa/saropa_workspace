@@ -1,8 +1,13 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-// The *, **, ?, and escaping translation is shared with globMatch.ts (BUG-012); only
-// the anchoring stays local here, since this scanner's excludes match gitignore-style
-// (any path depth) while globMatch's globs anchor to the full relative path.
+// `translateGlobBody` is the canonical *, **, ?, and metacharacter-escaping
+// translation (BUG-012 item 4) — reused here rather than re-implemented so the
+// wildcard rules for exclude globs and cross-file watch links can never drift
+// apart. Only the anchoring stays local: this scanner's excludes match
+// gitignore-style (a bare "logs" matches "logs" at ANY path depth), while
+// globMatch's own `globToRegExp` anchors the full relative path start to end —
+// that anchoring difference is why this file cannot simply import and call
+// globMatch's wrapper function, only the shared body translator.
 import { translateGlobBody } from "./globMatch";
 
 // Workspace hygiene scanner (recipe book section H, #63). Unlike every other recipe
@@ -122,7 +127,14 @@ const BUILTIN_IGNORE_DIRS = new Set<string>([
 // segment), `**` (across segments), `?`, and a trailing `/` (directory). Anything
 // fancier than this is intentionally out of scope — the scanner is not a full
 // gitignore engine, and the built-in ignore set covers the heavy cases.
-function globToRegExp(glob: string): RegExp {
+//
+// Named distinctly from globMatch.ts's `globToRegExp` (rather than reusing that
+// name locally) so the two are never mistaken for interchangeable: this one
+// anchors at any path depth (gitignore-style), while globMatch's anchors the
+// full relative path. Only the wildcard-translation body (`translateGlobBody`,
+// imported above) is actually shared — that is the whole of the canonical
+// implementation the two have in common.
+function excludeGlobToRegex(glob: string): RegExp {
   const trimmed = glob.replace(/\/$/, "");
   // Match the whole relative path or any path segment tail, so "logs" matches both
   // "logs" and "a/logs", mirroring gitignore's name-anywhere behavior. `false`: this
@@ -155,7 +167,7 @@ interface Compiled {
 // gitignore-derived names/globs plus the user excludes.
 async function compile(root: string, options: ScanOptions): Promise<Compiled> {
   const ignoreNames = new Set(BUILTIN_IGNORE_DIRS);
-  const excludes = options.excludeGlobs.map(globToRegExp);
+  const excludes = options.excludeGlobs.map(excludeGlobToRegex);
   if (options.respectGitignore) {
     for (const pattern of await readGitignore(root)) {
       // A bare name (no slash, no wildcard) is a fast name-set membership check; a
@@ -163,7 +175,7 @@ async function compile(root: string, options: ScanOptions): Promise<Compiled> {
       if (/^[^/*?]+$/.test(pattern)) {
         ignoreNames.add(pattern);
       } else {
-        excludes.push(globToRegExp(pattern));
+        excludes.push(excludeGlobToRegex(pattern));
       }
     }
   }

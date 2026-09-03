@@ -1,6 +1,9 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import { ShortcutAction } from "../model/shortcut";
 import { GitRemote } from "./gitMeta";
+// Case-insensitive path equality on Windows — used by walkUp's stop check.
+import { pathEquals } from "../utils/pathCompare";
 
 // Leaf helpers shared by the recipe detectors: folder-root file reads, the small
 // action builders, package-manager detection, host-aware git web URLs, and the
@@ -72,18 +75,76 @@ export function url(target: string): ShortcutAction {
   return { kind: "url", url: target };
 }
 
-// Package manager from the lockfile next to package.json; defaults to npm.
+// Synthetic WorkspaceFolder from a bare directory path — only .uri is ever read by
+// the helpers here (exists/readText/readJson), but name and index are filled in so
+// the value satisfies the WorkspaceFolder interface contract. Shared by
+// packageManager (walking parent directories) and recipeCommands.ts (deriving the
+// package manager for a directory that has no real WorkspaceFolder of its own).
+export function folderFrom(dir: string): vscode.WorkspaceFolder {
+  return { uri: vscode.Uri.file(dir), name: path.basename(dir), index: 0 };
+}
+
+// Walk upward from startDir (inclusive) to stopDir (inclusive), calling predicate at
+// each directory and returning the first defined result. Bounded to 50 levels as a
+// safety cap, not an expected depth — real directory trees stop long before that.
+// Shared by packageManager (lockfile search) and recipeCommands.ts's
+// findNearestPackageJson (package.json search): both walk the same
+// "climb to the workspace root, then give up" shape, differing only in what each
+// directory is tested for and what it returns.
+export async function walkUp<T>(
+  startDir: string,
+  stopDir: string,
+  predicate: (dir: string) => Promise<T | undefined>
+): Promise<T | undefined> {
+  let dir = startDir;
+  for (let i = 0; i < 50; i++) {
+    const result = await predicate(dir);
+    if (result !== undefined) {
+      return result;
+    }
+    const parent = path.dirname(dir);
+    // Case-insensitive match on Windows: the workspace folder URI casing can
+    // differ from path.dirname's resolved casing on case-preserving NTFS.
+    if (pathEquals(dir, stopDir) || parent === dir) {
+      break;
+    }
+    dir = parent;
+  }
+  return undefined;
+}
+
+// Package manager from the lockfile next to package.json, walking up parent
+// directories when the given folder has none. A monorepo nested package (e.g.
+// packages/foo/) usually has no lockfile of its own — the lockfile lives at the
+// monorepo root — so checking only `folder` would silently default every
+// pnpm/yarn/bun package to npm. Mirrors findNearestPackageJson's upward walk in
+// recipeCommands.ts (both now built on the shared walkUp above): stop at the
+// enclosing workspace folder when one is known (the common case), otherwise at the
+// filesystem root.
 export async function packageManager(folder: vscode.WorkspaceFolder): Promise<string> {
-  if (await exists(folder, "pnpm-lock.yaml")) {
-    return "pnpm";
-  }
-  if (await exists(folder, "yarn.lock")) {
-    return "yarn";
-  }
-  if (await exists(folder, "bun.lockb")) {
-    return "bun";
-  }
-  return "npm";
+  // When the given folder IS the workspace folder (the common case),
+  // getWorkspaceFolder returns it back, so stop === dir and the walk checks only
+  // this level — correct, because lockfiles live at the workspace root. When a
+  // synthetic subdirectory URI is passed (the recipeCommands.ts case), the walk
+  // climbs to the enclosing workspace folder. When no workspace folder contains
+  // the URI (untitled or external), stop at the filesystem root so the walk is
+  // always bounded.
+  const wsFolder = vscode.workspace.getWorkspaceFolder(folder.uri);
+  const stop = wsFolder?.uri.fsPath ?? path.parse(folder.uri.fsPath).root;
+  const found = await walkUp(folder.uri.fsPath, stop, async (dir) => {
+    const dirFolder = folderFrom(dir);
+    if (await exists(dirFolder, "pnpm-lock.yaml")) {
+      return "pnpm";
+    }
+    if (await exists(dirFolder, "yarn.lock")) {
+      return "yarn";
+    }
+    if (await exists(dirFolder, "bun.lockb")) {
+      return "bun";
+    }
+    return undefined;
+  });
+  return found ?? "npm";
 }
 
 // Host-aware web URLs from a normalized remote.

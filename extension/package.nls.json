@@ -81,6 +81,7 @@
   "command.openPin.title": "Open",
   "command.peekPin.title": "Peek",
   "command.peekFocusedPin.title": "Peek Selected Shortcut",
+  "command.runSelectedShortcut.title": "Run Selected Shortcut",
   "command.toggleTail.title": "Toggle Log Follow (tail -f)",
   "command.toggleMask.title": "Mask / Reveal Shortcut (Screen-Share Guard)",
   "command.runPin.title": "Run",

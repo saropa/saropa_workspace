@@ -23,6 +23,7 @@ from modules._utils import (
     PACKAGE_JSON,
     PACKAGE_NLS,
     ROOT_CHANGELOG,
+    ROOT_README,
     RUNTIME_LOCALE,
     SRC_DIR,
     detail,
@@ -32,6 +33,36 @@ from modules._utils import (
     success,
     warn,
 )
+
+# Informal terms with destructive/malware connotations (BUG-013: the shortcut
+# expiry feature was originally called "Time-Bomb") that must never resurface in
+# a user-facing surface. Checked only against the surfaces a Marketplace user
+# actually sees (manifest strings, the runtime catalog, README, and the
+# package.json description) — NOT the changelog, which legitimately documents
+# the rename itself ("no longer carries the (Time-Bomb) label") and would
+# false-positive on its own fix history.
+_BANNED_TERMS = ("time-bomb", "time bomb", "timebomb", "bombed")
+
+
+def _banned_terms_in_text(label: str, text: str) -> list[str]:
+    """Case-insensitive scan of `text` for `_BANNED_TERMS`, tagged with `label`."""
+    lowered = text.lower()
+    return [f"{label}: \"{term}\"" for term in _BANNED_TERMS if term in lowered]
+
+
+def _banned_terms_found() -> list[str]:
+    """Every banned-term hit across the public-facing string surfaces."""
+    hits: list[str] = []
+    if PACKAGE_NLS.exists():
+        hits += _banned_terms_in_text("package.nls.json", PACKAGE_NLS.read_text(encoding="utf-8"))
+    if RUNTIME_LOCALE.exists():
+        hits += _banned_terms_in_text("locales/en.json", RUNTIME_LOCALE.read_text(encoding="utf-8"))
+    if ROOT_README.exists():
+        hits += _banned_terms_in_text("README.md", ROOT_README.read_text(encoding="utf-8"))
+    if PACKAGE_JSON.exists():
+        description = json.loads(PACKAGE_JSON.read_text(encoding="utf-8")).get("description", "")
+        hits += _banned_terms_in_text("package.json description", description)
+    return hits
 from modules._version_changelog import (
     changelog_overview_coverage,
     changelog_overview_problems,
@@ -154,6 +185,18 @@ def run_audit(mode: str) -> int:
         failures += 1
     else:
         success("All l10n('key') calls are defined in locales/en.json.")
+
+    # 6) Banned informal terminology (BUG-013 hardening suggestion): a term with
+    # destructive/malware connotations must never resurface in a shipped string
+    # after being deliberately renamed away from.
+    banned = _banned_terms_found()
+    if banned:
+        error(f"Banned informal term(s) found in {len(banned)} location(s):")
+        for hit in banned:
+            detail(f"      {hit}")
+        failures += 1
+    else:
+        success("No banned informal terminology found.")
 
     print()
     if failures:

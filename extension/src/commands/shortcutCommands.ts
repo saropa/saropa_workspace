@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
+import { ShortcutTreeItem } from "../views/shortcutTreeItem";
 import { telemetry } from "../exec/telemetry";
 import { showRunAnalytics } from "./runAnalytics";
 import { showDailyReport } from "./dailyReport";
@@ -43,14 +44,15 @@ export { createRoutineHooks } from "./shortcutExecution";
 export function registerShortcutCommands(
   context: vscode.ExtensionContext,
   store: ShortcutStore,
-  dispatcher: DoubleClickDispatcher
+  dispatcher: DoubleClickDispatcher,
+  treeView: vscode.TreeView<vscode.TreeItem>
 ): void {
   // Thin orchestrator: the registrations are grouped by concern into the helpers below so
   // no single function breaches the length cap. Order is irrelevant — each command is
   // independent — but kept workspace-level → per-shortcut actions → config → management
   // for readability. Built once here (not per helper) so both share one registrar.
   const registrar = shortcutCommandRegistrar(context);
-  registerWorkspaceLevelCommands(context, store, registrar);
+  registerWorkspaceLevelCommands(context, store, registrar, treeView);
   registerShortcutActionCommands(context, store, dispatcher, registrar);
   registerPinConfigCommands(context, store);
   registerPinManagementCommands(context, store);
@@ -64,9 +66,30 @@ export function registerShortcutCommands(
 function registerWorkspaceLevelCommands(
   context: vscode.ExtensionContext,
   store: ShortcutStore,
-  registrar: ShortcutCommandRegistrar
+  registrar: ShortcutCommandRegistrar,
+  treeView: vscode.TreeView<vscode.TreeItem>
 ): void {
   const { reg } = registrar;
+
+  // Keyboard run (BUG-008 follow-up, moved here from wiringStatusBars.ts — #26: it
+  // is a shortcut-execution command, not a status-bar concern, so it belongs with
+  // the rest of the run/execution commands registered by this module): run the
+  // shortcut currently selected in the Shortcuts view. A keybinding cannot receive
+  // the focused tree item as an argument, so this reads the view's live selection
+  // instead. Nothing (or a non-shortcut row) selected surfaces an info message
+  // rather than running nothing silently.
+  reg("saropaWorkspace.runSelectedShortcut", () => {
+    // Type predicate on .find() so the result is already narrowed — no second
+    // instanceof check needed.
+    const selected = treeView.selection.find(
+      (item): item is ShortcutTreeItem => item instanceof ShortcutTreeItem
+    );
+    if (selected) {
+      void runShortcutCommand(store, selected.shortcut);
+    } else {
+      vscode.window.showInformationMessage(l10n("run.noSelection"));
+    }
+  });
 
   // The manual Refresh is the user's explicit "re-scan now" — clear the cached
   // glob/detection so newly-added files matching auto-shortcut patterns or new recipes

@@ -193,6 +193,13 @@ export abstract class ShortcutStoreSets extends ShortcutStoreMutation {
   // deleted set is active, the folder switches to `active` (the first remaining
   // name) so the tree is never left without an active set. The returned `active`
   // names the set now shown, so the caller can report it.
+  // GAP (#66): this permanently drops every shortcut in the named set (via
+  // activateSetInFile's `file.pins = incoming?.pins ?? []` reassignment, or the
+  // `file.sets` filter below) but never calls removeShortcut() or fires
+  // onDidRemoveShortcut for any of those ids — unlike every other removal path in
+  // this file. The centralized per-shortcut cleanup wired in extension.ts
+  // (runStatusRegistry, watchLastRun, lastRunAt) and the per-call-site cleanup
+  // (promptMemory, runOutputs) never run for a set-deleted shortcut's id.
   async deleteSet(
     name: string
   ): Promise<{ outcome: "deleted" | "lastOne" | "missing"; active: string }> {

@@ -48,11 +48,10 @@ full relative path all work.
 
 ## Other bindable commands
 
-These have no default binding either, but are useful to bind:
-
-| Command id | Title |
-|---|---|
-| `saropaWorkspace.runAnyPin` | Run Shortcut… (QuickPick of all shortcuts, recents first) |
+| Command id | Default binding | Title |
+|---|---|---|
+| `saropaWorkspace.runAnyPin` | `Ctrl+Shift+R` | Run Shortcut… (QuickPick of all shortcuts, recents first) |
+| `saropaWorkspace.runSelectedShortcut` | `Ctrl+Alt+R` (Shortcuts view focused) | Run Selected Shortcut (runs the item currently selected in the Shortcuts view) |
 | `saropaWorkspace.runPinWithOverrides` | Run Shortcut with Overrides… |
 | `saropaWorkspace.pinActiveFile` | Add Active File as Shortcut (Project) |
 | `saropaWorkspace.pinActiveFileGlobal` | Add Active File as Shortcut (Global) |

@@ -13,6 +13,10 @@ import {
   recentTag,
 } from "./shortcutRowFormatting";
 import { l10n } from "../i18n/l10n";
+// Shared top-of-chain state priority (#53): stopping > running > locked > paused,
+// consumed identically here and by buildAccessibilityLabel in shortcutTreeItem.ts
+// so the visual badge and the a11y label never disagree on which live state wins.
+import { pickHighestPriorityRowState } from "./shortcutRowStatePriority";
 
 // The badge + description assembly phase of ShortcutTreeItem's constructor, split out
 // so the class body stays a short sequence of builder calls. Pure function: every
@@ -72,17 +76,20 @@ function computeRowStateBadge(input: ShortcutRowDescriptionInput): string | unde
   // schedule is kept but no timer is armed, so surfacing a next-run instant it will
   // not honor would mislead. Running / stopping / a lock still win — those are live,
   // more actionable states, and a paused shortcut can still be run manually.
-  return isStopping
-    ? l10n("run.stoppingBadge")
-    : isRunning
-      ? l10n("run.treeBadge")
-      : lockBadge
-        ? lockBadge
-        : shortcut.paused
-          ? l10n("pause.treeBadge")
-          : nextLabel
-            ? l10n("schedule.treeBadge", { time: nextLabel })
-            : lastRunBadge;
+  //
+  // The shared chain (stopping/running/locked/paused) is resolved by
+  // pickHighestPriorityRowState so it stays in lockstep with
+  // buildAccessibilityLabel's identical top four; the badge's own tail
+  // (schedule / last-run) has no a11y equivalent and stays local.
+  const sharedState = pickHighestPriorityRowState({
+    stopping: isStopping ? l10n("run.stoppingBadge") : undefined,
+    running: isRunning ? l10n("run.treeBadge") : undefined,
+    locked: lockBadge,
+    paused: shortcut.paused ? l10n("pause.treeBadge") : undefined,
+  });
+  return sharedState ?? (nextLabel
+    ? l10n("schedule.treeBadge", { time: nextLabel })
+    : lastRunBadge);
 }
 
 // The live metric value (#24), shared by the row and the hover. Size / line text is
