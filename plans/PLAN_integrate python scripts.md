@@ -379,14 +379,24 @@ decline and proceeds to install on accept. No automated tests exist for these
 scripts (the repository has no Python test harness); verification was by execution
 and inspection.
 
-### Not done (intentional)
+### Not done (intentional, at the time of the 2026-07-16 finish report)
 
 The Scripts view, model, manifest loader, tag handling, and per-script config
-storage (plan steps 1–3) are not built — these scripts are inert until that lands.
-No public CHANGELOG/README entry was added, since the scripts are not yet
-user-reachable. A third example script (`clean-workspace`) named in the plan was
-not created. The `.vscodeignore` note and the `publish.py` manifest-validation step
-(plan step 5) are not done.
+storage (plan steps 1–3) were not built at the time of this report — these scripts
+were inert until that landed. No public CHANGELOG/README entry was added, since the
+scripts were not yet user-reachable. A third example script (`clean-workspace`)
+named in the plan was not created. The `.vscodeignore` note and the `publish.py`
+manifest-validation step (plan step 5) were not done.
+
+**STATUS CORRECTED 2026-09-03:** Steps 1–3 (the Scripts view, `Script` model, tag
+grouping/filtering, and per-script config via the Configure Run panel) are now
+built and shipped — verified via `extension/src/views/scriptsTreeProvider.ts`
+(registered in `package.json`) and `extension/scripts/library/library.json` (7
+entries, matching the "Batch 3" migration below). The remaining work — migrating
+the other 19 of 26 catalogued scripts and the `publish.py` validation step — is
+tracked in [MASTER_PLAN.md](MASTER_PLAN.md) section 6.11, including the full
+remaining-script inventory (folded in from the now-deleted
+`PLAN_scripts_to_surface.md`).
 
 ## Finish Report addendum — hardening + tool-requirements preflight (2026-07-16)
 
