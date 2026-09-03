@@ -24,11 +24,7 @@ export interface ShortcutBadge {
 }
 
 class ShortcutBadgeRegistry {
-  // LEAK: not wired to onDidRemoveShortcut, and `clear()` below has no production
-  // call site (only test teardown calls it) — a removed shortcut's badge (and its
-  // previousByShortcut pair) is never reclaimed for the life of the window. Two
-  // small objects per removed id; add both maps to the centralized subscriber in
-  // extension.ts alongside runStatusRegistry/clearWatchLastRun/clearLastRunAt.
+  // Wired to onDidRemoveShortcut in extension.ts so every removal path cleans up.
   private readonly byShortcut = new Map<string, ShortcutBadge>();
   // The badge from the run before the current one, so the tooltip can show a
   // ▲/▼ trend direction. Kept per-session only (matches the current badge).
