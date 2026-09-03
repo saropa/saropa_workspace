@@ -108,10 +108,13 @@ Post-review hardening addressed three findings:
    workspaces with shortcuts still activate first. This closes the gap for
    global-only scheduled shortcuts and custom `configDir` setups.
 
-2. **macOS case-insensitivity (2.3):** Extended `pathCompare.ts` to normalize
-   casing on `darwin` in addition to `win32`. macOS HFS+/APFS-default is
-   case-insensitive, same as Windows NTFS — the original fix only handled
-   Windows.
+2. **Runtime case-sensitivity probe (2.3):** Replaced the static
+   `process.platform` check with a one-time filesystem probe that flips the
+   Node executable's path casing and checks if the flipped path resolves.
+   This correctly handles case-sensitive APFS volumes on macOS (where the
+   platform default would wrongly assume insensitivity) and case-insensitive
+   ext4 on Linux (where the platform default would wrongly assume sensitivity).
+   The probe result is cached after the first call.
 
 3. **walkUp stop check (2.3 bug class):** Fixed `detectorHelpers.ts` `walkUp()`
    to use the new `pathEquals()` for its stop-directory comparison instead of
@@ -121,5 +124,5 @@ Post-review hardening addressed three findings:
 ## Finish Report (2026-09-03)
 
 All 5 P1/P2 items are implemented, type-checked, bundle-verified, and unit-tested
-(1242 tests pass — 1235 existing + 7 new). The master plan's Phase 1 and Phase 2
+(1243 tests pass — 1235 existing + 8 new). The master plan's Phase 1 and Phase 2
 are complete. Phases 3-6 remain and are tracked in `plans/MASTER_PLAN.md`.

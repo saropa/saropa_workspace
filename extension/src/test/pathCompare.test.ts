@@ -1,16 +1,21 @@
 // Unit tests for the case-sensitivity-aware path comparison helpers
-// (utils/pathCompare.ts). Added for the fix to shortcutStoreBase.ts's
-// toFolderRelative, which used a raw fsPath.startsWith and could fail to
-// recognize a file as inside its workspace folder when the two Uris disagreed
-// on casing (a case-insensitive filesystem allows that on Windows and macOS).
-// The isPathWithinBase/relativeToBase behavior is platform-dependent by design
-// (case-insensitive on win32 and darwin, case-sensitive on Linux), so the
-// casing-specific assertions are gated on process.platform, matching the pattern
-// already used in processRegistry.test.ts.
+// (utils/pathCompare.ts). The helpers probe the local filesystem on first call
+// to determine case-sensitivity (not just process.platform), so the casing-
+// specific assertions are gated on the actual probe result via
+// isCaseInsensitiveFS(). On Windows (NTFS) and default-config macOS (HFS+/APFS),
+// the probe returns true; on Linux or case-sensitive APFS, it returns false.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isPathWithinBase, pathEquals, relativeToBase, relativeToBaseLoose } from "../utils/pathCompare";
+import {
+  isCaseInsensitiveFS,
+  isPathWithinBase,
+  pathEquals,
+  relativeToBase,
+  relativeToBaseLoose,
+} from "../utils/pathCompare";
+
+// --- Platform-independent behavior tests ---
 
 test("isPathWithinBase matches the base path itself", () => {
   assert.equal(isPathWithinBase("/proj", "/proj", "/"), true);
@@ -49,15 +54,18 @@ test("relativeToBaseLoose returns the input unchanged when not a prefix", () => 
   assert.equal(relativeToBaseLoose("/other/a.ts", "/proj"), "/other/a.ts");
 });
 
-// Case-insensitive platforms: Windows (NTFS) and macOS (HFS+/APFS-default).
-// Linux (ext4/btrfs) is case-sensitive. The pathCompare helpers normalize casing
-// on win32 and darwin only, so the casing assertions must match the platform.
-const isCaseInsensitive =
-  process.platform === "win32" || process.platform === "darwin";
+test("isCaseInsensitiveFS returns a boolean", () => {
+  // Smoke check: the probe should run and return a stable boolean.
+  const result = isCaseInsensitiveFS();
+  assert.equal(typeof result, "boolean");
+  // The result must be stable (cached after first probe).
+  assert.equal(isCaseInsensitiveFS(), result);
+});
 
-if (isCaseInsensitive) {
-  // Use platform-correct separators and path shapes in test data so the same
-  // assertions work on both Windows CI and macOS CI.
+// --- Case-sensitivity-dependent tests, gated on the actual filesystem probe ---
+
+if (isCaseInsensitiveFS()) {
+  // Case-insensitive FS (Windows NTFS, macOS HFS+/APFS-default).
   const sep = process.platform === "win32" ? "\\" : "/";
   const base = process.platform === "win32" ? "D:\\Src\\Proj" : "/Src/Proj";
   const fullLower =
@@ -73,27 +81,19 @@ if (isCaseInsensitive) {
     process.platform === "win32" ? "d:\\src\\proj" : "/src/proj";
 
   test("case-insensitive: isPathWithinBase ignores casing differences", () => {
-    // A workspace folder and a resolved file can disagree on casing — both
-    // NTFS (Windows) and HFS+/APFS (macOS) allow this.
     assert.equal(isPathWithinBase(fullLower, base, sep), true);
   });
 
-  test("case-insensitive: relativeToBase strips a differently-cased base but keeps the file's own casing", () => {
-    // The comparison ignores case, but the returned remainder is sliced from
-    // fullPath — so "File.ts" is never lowercased to "file.ts" for display.
+  test("case-insensitive: relativeToBase strips differently-cased base, keeps file casing", () => {
     assert.equal(relativeToBase(fullMixed, base, sep), sep + "File.ts");
   });
 
   test("case-insensitive: relativeToBaseLoose is also case-insensitive", () => {
-    // Same casing tolerance as relativeToBase, without the separator-boundary
-    // requirement — this is the variant toFolderRelative actually uses.
     const expected = process.platform === "win32" ? "\\File.ts" : "/File.ts";
     assert.equal(relativeToBaseLoose(fullMixed, base), expected);
   });
 
-  test("case-insensitive: pathEquals matches paths that differ only in casing", () => {
-    // walkUp's stop-directory check needs this to recognize the workspace folder
-    // root even when dirname resolution and the Uri casing disagree.
+  test("case-insensitive: pathEquals matches paths differing only in casing", () => {
     assert.equal(pathEquals(base, baseLower), true);
   });
 
@@ -101,11 +101,12 @@ if (isCaseInsensitive) {
     assert.equal(pathEquals(base, other), false);
   });
 } else {
-  test("posix: isPathWithinBase is case-sensitive", () => {
+  // Case-sensitive FS (Linux ext4/btrfs, macOS case-sensitive APFS).
+  test("case-sensitive: isPathWithinBase is case-sensitive", () => {
     assert.equal(isPathWithinBase("/src/Proj/file.ts", "/src/proj", "/"), false);
   });
 
-  test("posix: pathEquals is case-sensitive", () => {
+  test("case-sensitive: pathEquals is case-sensitive", () => {
     assert.equal(pathEquals("/src/Proj", "/src/proj"), false);
   });
 }

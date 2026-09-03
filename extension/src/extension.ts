@@ -31,6 +31,8 @@ import { metricBadges } from "./exec/metricBadges";
 import { runStatusRegistry } from "./exec/runStatus";
 import { telemetry } from "./exec/telemetry";
 import { promptMemory } from "./exec/promptMemory";
+import { runOutputs } from "./exec/runOutputs";
+import { shortcutBadges } from "./exec/shortcutBadges";
 import { tappedShortcuts } from "./model/tappedShortcuts";
 import { registerRecipeCommands } from "./recipes/recipeCommands";
 import { l10n } from "./i18n/l10n";
@@ -252,6 +254,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ["runStatusRegistry.clear", () => runStatusRegistry.clear(id)],
         ["clearWatchLastRun", () => clearWatchLastRun(id)],
         ["clearLastRunAt", () => clearLastRunAt(id)],
+        // Previously only cleared from the explicit "unpin" command path — expiry
+        // sweeps, file-delete removals, and deleteSet all went through
+        // store.removeShortcut() without touching these maps (documented as LEAK
+        // in each module). Now centralized here so every removal path cleans up.
+        ["promptMemory.forget", () => void promptMemory.forget(id)],
+        ["runOutputs.clear", () => runOutputs.clear(id)],
+        ["shortcutBadges.clear", () => shortcutBadges.clear(id)],
       ];
       for (const [label, fn] of cleanups) {
         try {
