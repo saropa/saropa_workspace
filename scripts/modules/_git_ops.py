@@ -12,8 +12,10 @@ Copyright: (c) 2026 Saropa
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
+from datetime import datetime, timezone
 
 from modules._build import newest_vsix
 from modules._utils import (
@@ -26,12 +28,47 @@ from modules._utils import (
     info,
     run,
     success,
+    warn,
 )
 from modules._version_changelog import extract_changelog_section
 
 # Upper bound for --rebase-debounce; a much larger value would stall the
 # publish for no added benefit (VS Code's watcher settles well under this).
 MAX_REBASE_DEBOUNCE_SECONDS = 10
+
+# Default debounce (also the CLI flag's default in publish.py) — a heuristic,
+# not a measurement: VS Code batches native filesystem events over roughly a
+# second before its own watcher fires, so 3s gives comfortable headroom on a
+# slow disk or a large working tree without the fixed default reader in mind
+# needing to be re-tuned per machine.
+DEFAULT_REBASE_DEBOUNCE_SECONDS = 3
+
+# Coordination marker written for the duration of the stash/rebase/pop window.
+# A future VS Code-side watcher could check for this file's presence and
+# suppress/coalesce the refresh it would otherwise fire on the intermediate
+# rebase states — this script only produces the signal; nothing consumes it
+# yet. Named with the same ".saropa-" prefix as other repo-local scratch state
+# and left out of git via .gitignore.
+SYNC_MARKER_FILE = REPO_ROOT / ".saropa-sync.json"
+
+
+def _write_sync_marker(stage: str) -> None:
+    """Write/update the coordination marker naming the current sync stage.
+
+    Best-effort: a failure to write it (read-only mount, permissions) must
+    never fail the actual git operation it is only signaling about.
+    """
+    try:
+        SYNC_MARKER_FILE.write_text(
+            json.dumps({"stage": stage, "updatedAt": datetime.now(timezone.utc).isoformat()}),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
+def _clear_sync_marker() -> None:
+    SYNC_MARKER_FILE.unlink(missing_ok=True)
 
 
 def sync_with_remote(rebase_debounce_seconds: int) -> int:
@@ -46,7 +83,12 @@ def sync_with_remote(rebase_debounce_seconds: int) -> int:
     changes, so the transient churn resolves before it is visible.
     """
     header("GIT SYNC")
-    run(["git", "fetch", "origin"], REPO_ROOT, check=False)
+    fetch_result = run(["git", "fetch", "origin"], REPO_ROOT, check=False)
+    if fetch_result.returncode != 0:
+        # A stale fetch means the divergence check below is comparing against
+        # an outdated origin/main and could silently skip a rebase that is
+        # actually needed — surface it instead of proceeding on stale data.
+        warn("git fetch origin failed; divergence check may be comparing against a stale origin/main.")
 
     counts = run(
         ["git", "rev-list", "--left-right", "--count", "HEAD...origin/main"],
@@ -56,7 +98,9 @@ def sync_with_remote(rebase_debounce_seconds: int) -> int:
     )
     if counts.returncode != 0 or not counts.stdout.strip():
         # No origin/main to compare against (e.g. detached HEAD, no remote
-        # tracking branch) — nothing to sync, let the rest of the pipeline run.
+        # tracking branch, or the fetch above never created it) — nothing to
+        # sync, let the rest of the pipeline run.
+        detail("  No origin/main tracking ref to compare against; skipping sync.")
         return 0
     ahead_str, behind_str = counts.stdout.split()
     behind = int(behind_str)
@@ -69,22 +113,47 @@ def sync_with_remote(rebase_debounce_seconds: int) -> int:
 
     try:
         if stashed:
+            _write_sync_marker("stash")
             run(["git", "stash", "-u"], REPO_ROOT)
+        _write_sync_marker("rebase")
         run(["git", "rebase", "origin/main"], REPO_ROOT)
     except subprocess.CalledProcessError:
         # Leave the stash in place on rebase failure — popping onto a broken
         # rebase would compound the conflict instead of surfacing one problem.
-        return fail("git rebase origin/main failed; resolve manually (stash left in place).", 7)
+        # Clear the marker regardless: a real conflict needs to be visible to
+        # any watcher-side consumer, not signaled as "still syncing".
+        _clear_sync_marker()
+        return fail(
+            "git rebase origin/main failed; resolve the conflict, then run "
+            "'git rebase --continue' (or 'git rebase --abort' to give up and "
+            "restore with 'git stash pop').",
+            7,
+        )
 
-    if stashed:
-        debounce = max(0, min(rebase_debounce_seconds, MAX_REBASE_DEBOUNCE_SECONDS))
-        if debounce:
-            detail(f"  Waiting {debounce}s for the file watcher to settle before restoring changes...")
-            time.sleep(debounce)
-        try:
-            run(["git", "stash", "pop"], REPO_ROOT)
-        except subprocess.CalledProcessError:
-            return fail("git stash pop failed after rebase; resolve the conflict manually.", 7)
+    if not stashed:
+        # Nothing was stashed, so there is no restore window to signal — the
+        # marker written for the rebase step above is done once it lands.
+        _clear_sync_marker()
+        success(f"Rebased onto origin/main ({behind} commit(s)).")
+        return 0
+
+    debounce = max(0, min(rebase_debounce_seconds, MAX_REBASE_DEBOUNCE_SECONDS))
+    if debounce:
+        _write_sync_marker("settling")
+        detail(f"  Waiting {debounce}s for the file watcher to settle before restoring changes...")
+        time.sleep(debounce)
+    try:
+        _write_sync_marker("restore")
+        run(["git", "stash", "pop"], REPO_ROOT)
+    except subprocess.CalledProcessError:
+        return fail(
+            "git stash pop failed after rebase; resolve the conflict manually, "
+            "then run 'git stash drop' once the working tree looks right "
+            "(the stash stays queued until you do).",
+            7,
+        )
+    finally:
+        _clear_sync_marker()
 
     success(f"Rebased onto origin/main ({behind} commit(s)).")
     return 0
