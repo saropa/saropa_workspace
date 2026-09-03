@@ -50,6 +50,10 @@ JSON file output (--json-file PATH):
     human-readable logs for debugging and machine-readable results. Can be
     combined with --json for both stdout and file output.
 
+JSON schema (--json-schema):
+    Prints the JSON Schema for the result object to stdout and exits. Agents can
+    use this to validate their parsing logic without running a real publish.
+
 Version handling is automated. The version source of truth is the top
 "## [x.y.z]" section of the root CHANGELOG.md (which also holds the release
 notes); extension/package.json is reconciled to it at publish time, with the
@@ -95,6 +99,69 @@ from modules._version_changelog import read_package_version, set_version_overrid
 from modules._workflow import MODES, check_prerequisites, get_last_run_result, prompt_mode, run_mode  # noqa: E402
 
 
+def _result_schema() -> dict:
+    """JSON Schema describing the result object emitted by --json / --json-file.
+
+    Kept here (not in a separate file) so the schema stays in lockstep with the
+    code that builds the result dict in _workflow._record_result().
+    """
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Saropa Workspace publish result",
+        "type": "object",
+        "required": ["mode", "exit_code", "ok"],
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": list(MODES),
+                "description": "The publish mode that was run.",
+            },
+            "exit_code": {
+                "type": "integer",
+                "description": "Process exit code (0 = success).",
+            },
+            "ok": {
+                "type": "boolean",
+                "description": "True when exit_code is 0.",
+            },
+            "version": {
+                "type": "string",
+                "pattern": r"^\d+\.\d+\.\d+",
+                "description": "Semver version that was published or built.",
+            },
+            "timing": {
+                "type": "object",
+                "description": "Step-level timing data from StepTimer.to_dict().",
+                "required": ["steps", "total_duration_s"],
+                "properties": {
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["name", "duration_s", "ok"],
+                            "properties": {
+                                "name": {"type": "string"},
+                                "duration_s": {"type": "number"},
+                                "ok": {"type": "boolean"},
+                            },
+                        },
+                    },
+                    "total_duration_s": {"type": "number"},
+                },
+            },
+            "urls": {
+                "type": "object",
+                "description": "Store URLs (full-publish success only).",
+                "properties": {
+                    "marketplace": {"type": "string", "format": "uri"},
+                    "open_vsx": {"type": "string", "format": "uri"},
+                    "github_release": {"type": "string", "format": "uri"},
+                },
+            },
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Publish the Saropa Workspace extension.")
     parser.add_argument("--mode", choices=MODES, help="Run non-interactively in the given mode.")
@@ -135,7 +202,26 @@ def main() -> int:
              "does NOT imply --quiet, so colored terminal output remains visible. "
              "Can be combined with --json for both stdout and file output.",
     )
+    parser.add_argument(
+        "--json-schema", action="store_true",
+        help="Print the JSON result schema to stdout and exit. Useful for agents "
+             "to validate their parsing logic without running a real publish.",
+    )
     parsed = parser.parse_args()
+
+    # --json-schema prints the result schema and exits — no publish run needed.
+    if parsed.json_schema:
+        import json
+        print(json.dumps(_result_schema(), indent=2))
+        return 0
+
+    # Validate --json-file path early so a bad path doesn't surface only after
+    # the entire pipeline has finished.
+    if parsed.json_file:
+        json_file_path = Path(parsed.json_file)
+        if not json_file_path.parent.exists():
+            parser.error(f"--json-file directory does not exist: {json_file_path.parent}")
+
     # --json implies --quiet so the JSON line is the only stdout output.
     if parsed.json:
         set_quiet(True)
