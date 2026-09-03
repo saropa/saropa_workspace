@@ -111,11 +111,13 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 - Add `npm test` / unit test runner instructions.
 - Update config path.
 
-### 4.4 BUG_REPORT_GUIDE.md (Medium priority)
+### 4.4 ISSUE_REPORT_GUIDE.md (Medium priority)
 
-- Rename all `pin` references to `shortcut`.
-- Add area slugs for: schedule, routine, recipe, launcher, notes, scripts, suite, watch.
-- Update config path and version references.
+- ~~Rename all `pin` references to `shortcut`.~~ Done — converted to `ISSUE_REPORT_GUIDE.md`.
+- ~~Add area slugs for: schedule, routine, recipe, launcher, notes, scripts, suite, watch.~~ Done.
+- ~~Update config path and version references.~~ Done.
+- Added feature request template and categories (proposals, UX, config, infra).
+- Switched file naming from `BUG-NNN-area-description.md` to `area_description.md` (underscore, no sequence number).
 
 ### 4.5 CHANGELOG.md (Medium priority) — partially done
 
