@@ -174,21 +174,31 @@ def _resolve_version_interactive(timer: StepTimer) -> str | None:
 
 
 def _run_publish_existing() -> int:
+    """Publish an already-packaged .vsix without rebuilding."""
     timer = StepTimer()
+    exit_code = 0
+    version: str | None = None
     try:
         vsix = newest_vsix()
         if vsix is None:
-            return fail("No existing .vsix to publish; run package first.", 6)
+            exit_code = fail("No existing .vsix to publish; run package first.", 6)
+            return exit_code
         success(f"Selected: {vsix.name}")
         version_match = re.search(rf"-({VERSION_RE})\.vsix$", vsix.name)
+        # Extract version from the .vsix filename for JSON result metadata.
+        if version_match:
+            version = version_match.group(1)
         code, aborted = _attempt("Publish", publish_marketplaces, timer=timer)
         if aborted:
-            return code
-        if version_match:
-            verify_store_publication(version_match.group(1))
-        return 0
+            exit_code = code
+            return exit_code
+        if version:
+            verify_store_publication(version)
+        # exit_code stays 0 (initialized above) — keep it explicit for _record_result in finally.
+        return exit_code
     finally:
         timer.print_summary()
+        _record_result("publish-existing", exit_code, version, timer)
 
 
 def _record_result(mode: str, exit_code: int, version: str | None = None,
