@@ -17,19 +17,19 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 
 ---
 
-## Phase 1 — High-impact UX improvements (P1)
+## Phase 1 — High-impact UX improvements (P1) ✅
 
-### 1.1 Flatten the Explorer context menu
+### 1.1 Flatten the Explorer context menu ✅
 
 - **What:** Adding a shortcut from Explorer requires 3 clicks (right-click → Workspace Shortcut → Add). Competitors (Favorites/kdcro101) do it in 1 click.
 - **Fix:** Promote "Add to Project Shortcuts" to a top-level Explorer context-menu entry. Keep the submenu for less-common actions (Add to Global, Pin Until, etc.).
-- **Effort:** 30 minutes.
+- **Status:** Done. `addProjectPin` and `removeProjectPin` are top-level entries in `explorer/context` at `group: "saropa@1"`.
 
-### 1.2 Reduce view-title icon clutter
+### 1.2 Reduce view-title icon clutter ✅
 
 - **What:** The pins view title bar shows up to 6 icons. VS Code guidance recommends 2-3.
 - **Fix:** Keep filter and refresh inline. Move the rest (run-any, open-schedule, show-all-branches) to the overflow "..." menu.
-- **Effort:** 30 minutes.
+- **Status:** Done. 3 inline icons (filter, pick-mode, refresh); run-any, open-schedule, show-all-branches moved to overflow groups.
 
 ---
 
@@ -39,64 +39,65 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 
 - **What:** Extension activates on `onStartupFinished` (every VS Code launch). Users with no shortcuts configured still pay activation cost.
 - **Fix:** Switch to `onView:saropaWorkspace.pins` + command-based activation events. Requires verifying no side-effects depend on eager activation (boot sequence, scheduler, branch tracker).
-- **Effort:** 2-4 hours (including testing).
+- **Status:** Not started. `onStartupFinished` still present in `activationEvents`.
 
-### 2.2 Cap background output accumulation
+### 2.2 Cap background output accumulation ✅
 
 - **What:** `backgroundRunner.ts` `attachOutputCapture` accumulates full stdout+stderr in memory with no size cap. A long-running process producing megabytes of output causes unbounded memory growth.
 - **Fix:** Cap accumulated output (keep last 1MB, or first + last 512KB). Truncation marker in the middle.
-- **Effort:** 1 hour.
+- **Status:** Done. `createBoundedCapture()` in `outputCapture.ts` enforces 1 MB cap (512 KB head + 512 KB tail). Unit tests in `outputCapture.test.ts`.
 
-### 2.3 Case-sensitive path comparison on Windows
+### 2.3 Case-sensitive path comparison on Windows ✅
 
 - **What:** `shortcutStoreBase.ts` `toFolderRelative` uses `startsWith` on `fsPath`. Can fail on case-insensitive Windows filesystems if folder and file URIs have different casing.
 - **Fix:** Normalize both to lowercase before comparison on `win32`.
-- **Effort:** 30 minutes.
+- **Status:** Done. `relativeToBaseLoose()` in `pathCompare.ts` uses `normalizeForCompare()` with `.toLowerCase()` on case-insensitive filesystems (detected via runtime FS probe).
 
 ---
 
 ## Phase 3 — Code quality and polish (P3)
 
-### 3.1 Unify "pin" vs "shortcut" terminology
+### 3.1 Unify "pin" vs "shortcut" terminology — partially done
 
 - **What:** Internal code uses "pin" (command IDs, model types) while user-facing strings say "Shortcut." Launcher webview still shows "Pin" as a button label.
 - **Fix:** Audit all user-facing surfaces for "pin" leakage. Update launcher button labels and any remaining NLS strings. Command IDs are a breaking change — defer to a major version.
-- **Effort:** 1-2 hours for string cleanup; command IDs deferred.
+- **Status:** Partially done. Bulk of NLS strings migrated to "Shortcut." Remaining leaks: `launcher.pin: "Pin"` button label on recipe cards (`en.json:18`), `"auto-pins"` in ecosystem toast (`en.json:135`). Command IDs unchanged (breaking change, deferred).
 
 ### 3.2 Dead imports cleanup
 
 - **What:** `shortcutStore.ts`, `shortcutStoreBase.ts`, `shortcutStoreRecipes.ts`, `shortcutStoreRefresh.ts`, `shortcutStoreSets.ts` have large unused import blocks (leftover from file splits).
 - **Fix:** Run `npx tsc -p ./ --noEmit` to confirm TS6133 warnings, then remove unused imports.
-- **Effort:** 30 minutes.
+- **Status:** Not started. No lint pass run; overlapping import sets across the chain suggest some may be unused but requires compiler check.
 
 ### 3.3 Heartbeat CSV rotation
 
 - **What:** `process-trend.csv` grows indefinitely with no rotation. After months of use, `parseTrendSeries` full-file parse becomes slow.
 - **Fix:** Rotate or truncate to last N days/samples (e.g. 90 days). Archive older data or discard.
-- **Effort:** 1 hour.
+- **Status:** Not started. `heartbeat.ts` `appendCsv` appends indefinitely; `parseTrendSeries` reads entire file into memory.
 
 ### 3.4 Report file accumulation
 
 - **What:** `runShellToReport` writes dated Markdown reports with no cleanup. The `reports/` directory accumulates stale files indefinitely.
 - **Fix:** Add a pruning pass on startup (keep last N reports per shortcut, or last 30 days).
-- **Effort:** 1 hour.
+- **Status:** Not started. No pruning or retention logic exists.
 
 ### 3.5 Async Python install scan
 
 - **What:** `interpreterDetect.ts` `scanPythonInstalls` uses synchronous `fs.readdirSync`/`fs.statSync` on `C:\` on the extension host's main thread. Can cause a perceptible hitch.
 - **Fix:** Convert to `fs/promises` for consistency with the rest of the codebase's IO conventions.
-- **Effort:** 30 minutes.
+- **Status:** Not started. `scanPythonInstalls` uses `readdirSync`/`statSync` throughout.
 
 ---
 
 ## Phase 4 — Documentation overhaul
 
-### 4.1 README.md (High priority)
+### 4.1 README.md (High priority) — partially done
 
 - Strip aspirational language describing unshipped features (Visual Planner graph chains, Smart Onboarding, Ecosystem Diagnostics) — only describe shipped features.
 - Update config path from `.vscode/saropa-workspace.json` to `.saropa/` default.
 - Expand settings and command tables or link to the extension's settings UI.
 - Verify all Saropa Suite member extensions exist on the Marketplace.
+- **Status:** Config path and unshipped feature language already cleaned up. Settings/command tables and Suite verification remain.
 
 ### 4.2 SECURITY.md (High priority)
 
@@ -116,11 +117,12 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 - Add area slugs for: schedule, routine, recipe, launcher, notes, scripts, suite, watch.
 - Update config path and version references.
 
-### 4.5 CHANGELOG.md (Medium priority)
+### 4.5 CHANGELOG.md (Medium priority) — partially done
 
 - Fix version typo: `1.4.18` → `1.5.18`.
 - Clarify whether 1.6.12 is released or unreleased.
 - Archive 1.5.16-1.5.19 to CHANGELOG_HISTORY.md to stay under the 500-line target.
+- **Status:** Partially done. Version typo fixed. Archival of 1.5.16–1.5.20 to CHANGELOG_HISTORY.md done. 1.6.12 clarification remains.
 
 ### 4.6 ROADMAP.md (Low priority)
 
@@ -158,39 +160,34 @@ actionable items from each folded/archived file are now tracked in
 
 ## Phase 5 — Wow items and competitive advantages
 
-### 5.1 Drag-and-drop from Explorer to sidebar
+### 5.1 Drag-and-drop from Explorer to sidebar ✅
 
 - **What:** Competitors (Favorites/kdcro101) support dragging files from Explorer directly to the Shortcuts sidebar. Saropa requires a right-click menu or command.
 - **How:** Register a `TreeDragAndDropController` on the Shortcuts view that accepts `text/uri-list` from the Explorer.
-- **Effort:** 2-4 hours.
+- **Status:** Done. `TreeDragAndDropController` registered in the shortcuts view.
 
 ### 5.2 Onboarding wizard for first install
 
 - **What:** New users see 6 sidebar views, a panel, and 37 settings with no guidance. The welcome view text is too long for its rendering area.
 - **How:** A single-page walkthrough webview on first activation: "Pin your first file" → "Run a script" → "Explore recipes." Set `hasCompletedOnboarding` in globalState to suppress after first run.
-- **Effort:** 4-8 hours.
 
 ### 5.3 Quick-add command with recent files
 
 - **What:** A QuickPick showing recently opened files (from VS Code's MRU) with a one-key "pin it" action. Faster than right-click → menu for rapid shortcut setup.
-- **Effort:** 2-3 hours.
 
 ### 5.4 Status bar quick-run
 
 - **What:** A persistent status bar item showing the top-pinned shortcut name. Click to run, right-click for the run palette. Provides always-visible, zero-navigation access to the most-used shortcut.
-- **Effort:** 2-3 hours.
 
 ### 5.5 Shortcut usage analytics in the sidebar
 
 - **What:** Show run count and last-run-time in the shortcut tooltip or description. Help users identify which shortcuts they actually use vs. which are dead weight.
 - **Note:** Telemetry data already exists (`telemetry.ts`). This is a presentation-layer change.
-- **Effort:** 1-2 hours.
 
 ### 5.6 Linux terminal emulator preference
 
 - **What:** `externalLauncher.ts` hardcodes a probe order (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xterm`) with no way for the user to set a preferred emulator.
 - **How:** Add a `saropaWorkspace.externalTerminal` setting. Fall back to the probe order when unset.
-- **Effort:** 1 hour.
 
 ---
 
@@ -214,7 +211,6 @@ section 4.7 for the full per-file disposition._
 - **Test debt:** lock down with tests once the 4.1 harness exists — a pin in
   folder B resolves `cwd`/`$workspaceRoot` to B; removing/re-adding a folder
   preserves its pins and timers.
-- **Effort:** 2-3 hours (view change) + test coverage (blocked on harness).
 
 ### 6.2 Pin badge trend sparkline (Step 2)
 
@@ -226,7 +222,6 @@ section 4.7 for the full per-file disposition._
   pin and a sparkline surfaced in an existing webview (Dashboard or
   Planner's detail strip — do not add a third webview). Only worth building
   if the Step 1 hover delta proves insufficient in practice.
-- **Effort:** 3-4 hours.
 
 ### 6.3 Git conflict command center
 
@@ -241,7 +236,6 @@ section 4.7 for the full per-file disposition._
 - **Risk:** the destructive macro must be confirm-gated, operate only on
   conflicted files, and detect which git operation is in progress (refuse
   to guess when ambiguous).
-- **Effort:** not estimated in source plan; moderate-to-high complexity.
 
 ### 6.4 Run rollback ("Revert Last Run")
 
@@ -254,7 +248,6 @@ section 4.7 for the full per-file disposition._
   naming the exact file list, refuse if the repo state changed since the run
   (branch switch), and never touch a file outside the recorded footprint.
   Files outside the git working tree are out of scope.
-- **Effort:** not estimated in source plan; high risk, moderate complexity.
 
 ### 6.5 Notes feature — Phase 2 (organization) and Phase 3 (cross-project)
 
@@ -272,7 +265,6 @@ section 4.7 for the full per-file disposition._
   cap).
 - **Known limitation:** multi-root workspaces only use the first folder's
   `.saropa/notes/` for project notes.
-- **Effort:** not estimated in source plan; 10 discrete sub-items.
 
 ### 6.6 Suite daily report — week-over-week deltas
 
@@ -288,7 +280,6 @@ section 4.7 for the full per-file disposition._
 - **Constraints:** all-local, no charts/color — the delta is a text suffix.
   No new cleanup subsystem for sidecar accumulation (reuse existing
   no-retention behavior).
-- **Effort:** not estimated in source plan.
 
 ### 6.7 Third pin scope — "userProject" (private per-project pins)
 
@@ -307,8 +298,6 @@ section 4.7 for the full per-file disposition._
   2. Tree section placement — after Project (recommended) or after Global.
   3. Offer a one-time "add to .gitignore" toast on first user-project pin,
      or leave `.gitignore` management to the user entirely?
-- **Effort:** not estimated in source plan; touches ~37 call sites plus new
-  file IO, tree section, and move-between-scopes (now three-way).
 
 ### 6.8 Watch for uncommitted files/folders
 
@@ -326,7 +315,6 @@ section 4.7 for the full per-file disposition._
   before writing code — confirm exact API v1 field names and that
   `untrackedChanges` excludes ignored files (do not code against
   remembered names).
-- **Effort:** not estimated in source plan.
 
 ### 6.9 Remote script execution (Remote-SSH/WSL/containers)
 
@@ -340,7 +328,6 @@ section 4.7 for the full per-file disposition._
   cwd/`$workspaceRoot` from the pin's stored URI, not `fsPath`; (4) refuse
   (never silently run locally) when the current window isn't attached to
   the pin's target remote, naming the host.
-- **Effort:** not estimated in source plan.
 
 ### 6.10 Saropa Suite conductor — Pillars A and C
 
@@ -362,9 +349,6 @@ section 4.7 for the full per-file disposition._
 - **Constraints:** local-only/read-only data, no new webview, no new
   dependency (blast-radius gate); every toggle/mode switch names the tool
   and resulting state.
-- **Effort:** not estimated in source plan; Pillar A ships first
-  (no sibling dependency), then Pillar C's run→log bridge, then
-  boot-sequence modes.
 
 ### 6.11 Scripts library — remaining migration + validation
 
@@ -401,22 +385,19 @@ section 4.7 for the full per-file disposition._
   `D:\src\contacts\scripts\`. (Already migrated: `dart_process_clean.py`,
   `flutter_sdk_repair.py`, `run_test.py`, `daily_report.py`,
   `dependency_report.py`, `debug_connect.py`, `organize_reports.py`.)
-- **Effort:** not estimated in source plan; migration is mechanical per
-  script (~30-60 min each based on prior batches).
 
 ---
 
 ## Work schedule
 
-| Phase | Items | Total effort | Target |
-|-------|-------|-------------|--------|
-| Phase 1 | 2 UX improvements | 1 hour | Next release (v1.6.13) |
-| Phase 2 | 3 robustness items | 3.5-5.5 hours | v1.7.0 |
-| Phase 3 | 5 code quality items | 4-5 hours | v1.7.x |
-| Phase 4 | 7 doc updates | 4-6 hours | Alongside each code phase |
-| Phase 5 | 6 wow items | 12-21 hours | v1.8.0+ |
-| Phase 6 | 11 carried-forward feature plans | Not estimated (several unscoped) | Backlog — schedule opportunistically; 6.7 blocked on user design decisions, 6.3/6.4 need explicit go-ahead given destructive-git risk |
-| **Total** | **34 items** | **~25-38 hours + Phase 6** | |
+| Phase | Items | Status |
+|-------|-------|--------|
+| Phase 1 | 2 UX improvements | **Complete** (both shipped) |
+| Phase 2 | 3 robustness items | 2 of 3 done; 2.1 (lazy activation) remains |
+| Phase 3 | 5 code quality items | 3.1 partially done; 3.2–3.5 not started |
+| Phase 4 | 7 doc updates | 4.1 partially done; 4.5 partially done; rest not started |
+| Phase 5 | 6 wow items | 5.1 (drag-and-drop) done; rest not started |
+| Phase 6 | 11 carried-forward feature plans | Not started; 6.7 blocked on user design decisions, 6.3/6.4 need explicit go-ahead given destructive-git risk |
 
 ---
 
