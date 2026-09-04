@@ -4,14 +4,9 @@
 // just what FolderWatchEngine.scanRepoTarget needs to diff "what's open now"
 // against the watch's cached baseline.
 import * as vscode from "vscode";
-import { execFile as execFileCb } from "child_process";
-import { promisify } from "util";
 import { GitHubWatchItem, RepoSlug } from "./githubTypes";
 import { getOutputChannel } from "../exec/terminalRunner";
 import { l10n } from "../i18n/l10n";
-
-const execFile = promisify(execFileCb);
-const GIT_TIMEOUT_MS = 5_000;
 
 const GITHUB_API = "https://api.github.com";
 
@@ -174,31 +169,6 @@ export async function fetchOpenRepoItems(
     );
   }
   return items;
-}
-
-// Matches the SSH form (git@github.com:owner/repo.git) and the HTTPS form
-// (https://github.com/owner/repo.git or without the trailing .git) of a GitHub
-// remote URL, capturing owner/repo either way.
-const GITHUB_REMOTE_PATTERN =
-  /^(?:git@github\.com:|https:\/\/github\.com\/)([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/;
-
-// Best-effort "owner/repo" for the git remote named `origin` in `folderPath`, used
-// to prefill the add-repo-watch input box so watching the project you're already in
-// is a single confirm instead of a copy-paste from the browser. Returns undefined
-// for any of the ordinary "not applicable" cases (no folder, not a git repo, no
-// origin remote, a non-GitHub remote) — never throws, since this only ever informs
-// a suggested default, never blocks the add-flow.
-export async function detectRepoFromGit(folderPath: string): Promise<RepoSlug | undefined> {
-  try {
-    const { stdout } = await execFile("git", ["remote", "get-url", "origin"], {
-      cwd: folderPath,
-      timeout: GIT_TIMEOUT_MS,
-    });
-    const match = GITHUB_REMOTE_PATTERN.exec(stdout.trim());
-    return match ? { owner: match[1], repo: match[2] } : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 // The repo's issues-list page, used as the "open" fallback when a toast/row click

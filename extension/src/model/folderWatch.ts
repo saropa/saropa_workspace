@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import { l10n } from "../i18n/l10n";
 
 // Folder/file watches (PLAN_FILE_AND_FOLDER_WATCH): the user asks to be told when
 // new files appear in a folder (e.g. "tell me when a new bug report lands in
@@ -185,6 +186,37 @@ export function watchDisplayName(watch: FolderWatch): string {
     return watch.label;
   }
   return watchKind(watch) === "repo" ? watch.target : path.basename(watch.target);
+}
+
+// The "kind" word shown for a watch (Folder/File/GitHub repo). A repo watch has no
+// file/folder distinction, so it always reads as the repo kind rather than falling
+// through to the folder-watch wording. Centralized alongside watchDisplayName so
+// the tree row, the launcher card, and the manage-hub quick pick agree on wording
+// without each re-deriving the same kind ternary.
+export function watchKindLabel(watch: FolderWatch): string {
+  return watchKind(watch) === "repo"
+    ? l10n("github.kindRepo")
+    : watch.isFile
+      ? l10n("folderWatch.kindFile")
+      : l10n("folderWatch.kindFolder");
+}
+
+// The "mode" word shown for a watch (New/Changed/new issues & PRs). A repo watch
+// has no new-vs-changed mode — it always means "new issues/PRs" — so it never
+// reads `watch.mode`. See watchKindLabel for why this is centralized.
+export function watchModeLabel(watch: FolderWatch): string {
+  return watchKind(watch) === "repo"
+    ? l10n("github.modeNewItems")
+    : watch.mode === "changed"
+      ? l10n("folderWatch.modeChanged")
+      : l10n("folderWatch.modeNew");
+}
+
+// The idle-state base icon for a watch's kind (github glyph for a repo watch, eye
+// for a folder/file watch). Every state-specific icon (disabled/global/unseen)
+// starts from this. See watchKindLabel for why this is centralized.
+export function watchBaseIcon(watch: FolderWatch): "github" | "eye" {
+  return watchKind(watch) === "repo" ? "github" : "eye";
 }
 
 // Whether a watch should raise alerts in a window holding `folderPaths` (the current

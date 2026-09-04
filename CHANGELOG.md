@@ -67,11 +67,14 @@ You can now watch a GitHub repo the same way you watch a folder — get a toast 
 - Manage Watches: a disabled or global repo watch now shows the correct icon (eye-closed / globe) instead of always showing the github glyph regardless of state.
 - Adding a repo watch with different casing (`Facebook/react` vs `facebook/REACT`) no longer creates a duplicate — GitHub slugs are case-insensitive.
 - Pasting a slug with trailing whitespace into the "Watch GitHub Repo" input no longer triggers a false "invalid" validation error.
-- Removing a repo watch now cleans up its cached items from memory instead of leaking them for the extension host's lifetime.
+- Removing, disabling, or scoping out a repo watch now actually cleans up its cached items from memory — an earlier pass wired the cleanup into the same path folder watches use, but a repo watch never travels that path (it has no live `FileSystemWatcher` to disarm), so the cleanup silently never ran for any repo watch.
 - The `/issues` and `/pulls` GitHub API calls now run in parallel instead of sequentially, halving per-repo scan latency.
 - A repo watch's `owner/repo` target no longer runs through the folder-containment check meant for filesystem paths — it could accidentally alert (or fail to alert) in a project whose folder name happened to collide with the slug.
 - A GitHub sign-in failure that isn't a plain decline (no auth provider registered, a network error mid-handshake) is now logged to the "Saropa Workspace" output channel instead of silently falling through to an unauthenticated fetch, which made a private repo's "never shows anything" behavior undiagnosable.
 - A repo-watch poll that throws outside the per-watch scan (rather than being caught and logged there already) is now caught and logged too, so a single unexpected failure can no longer silently stop the polling timer from rescheduling itself.
+- The toast's "Open" action and a repo-watch row's click-to-open now open the actual newest issue/PR — they previously picked by array position on a lexicographically-sorted composite key ("issue:9" sorted after "issue:80" as strings), which could open an older item instead of the newest one.
+- A repo watch added with no project folder open (e.g. from the Command Palette in an empty window) no longer alerts nowhere forever — it now defaults to global so it has a home, since a repo slug (unlike a folder watch) has no "containing project" to fall back to.
+- All repo watches now poll concurrently instead of one at a time, so N watched repos cost one poll tick's latency instead of N.
 
 ---
 

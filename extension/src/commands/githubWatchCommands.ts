@@ -6,22 +6,67 @@
 // never floods the user with every issue/PR the repo already has open.
 import * as vscode from "vscode";
 import { FolderWatch, FolderWatchStore, watchKind } from "../model/folderWatch";
-import {
-  isValidRepoSlug,
-  parseRepoSlug,
-  fetchOpenRepoItems,
-  detectRepoFromGit,
-} from "../github/githubClient";
+import { isValidRepoSlug, parseRepoSlug, fetchOpenRepoItems } from "../github/githubClient";
+import { getGitRemote } from "../recipes/gitMeta";
+import { RepoSlug } from "../github/githubTypes";
 import { l10n } from "../i18n/l10n";
 import { newId, creationScopes, notifyWatchChange } from "./folderWatchCommands";
 
+// GitHub owner/repo slugs are case-insensitive — "Facebook/react" and
+// "facebook/REACT" are the same target. Shared by the add- and edit-flows so the
+// two can never define "already watching this" differently; `excludeId` lets the
+// edit-flow check every OTHER repo watch without flagging the one being edited
+// against its own (about-to-change) target.
+function findDuplicateRepoWatch(
+  store: FolderWatchStore,
+  slug: string,
+  excludeId?: string
+): FolderWatch | undefined {
+  const lower = slug.toLowerCase();
+  return store
+    .list()
+    .find(
+      (w) => w.id !== excludeId && watchKind(w) === "repo" && w.target.toLowerCase() === lower
+    );
+}
+
+// Confirms a slug resolves to a real, reachable repo before it's stored — doubles
+// as the one interactive GitHub sign-in prompt (see file header), so a typo'd or
+// private-and-inaccessible repo fails here with a clear message instead of a watch
+// that silently never reports anything. Shared by add and edit since both need the
+// exact same check before committing a target.
+async function verifyRepoReachable(parsed: RepoSlug, trimmedSlug: string): Promise<boolean> {
+  try {
+    await fetchOpenRepoItems(parsed, true);
+    return true;
+  } catch (err) {
+    void vscode.window.showWarningMessage(
+      l10n("github.addRepoFailed", {
+        repo: trimmedSlug,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+    return false;
+  }
+}
+
+// Best-effort "owner/repo" for the active workspace folder's `origin` remote, used
+// to prefill the add-repo-watch input box so watching the project you're already in
+// is a single confirm instead of a copy-paste round trip to the browser. Reuses the
+// URL-recipes' git reader (reads .git/config directly, no `git` process) rather
+// than a second hand-rolled remote parser. Returns undefined for every ordinary
+// "not applicable" case (no folder, not git, no origin, a non-GitHub remote).
+async function detectActiveRepo(): Promise<RepoSlug | undefined> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) {
+    return undefined;
+  }
+  const remote = await getGitRemote(folder);
+  return remote?.host === "github" ? { owner: remote.owner, repo: remote.repo } : undefined;
+}
+
 export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void> {
-  // Prefill from the active workspace folder's `origin` remote, if it resolves to a
-  // GitHub repo — watching the project you're already in becomes a single confirm
-  // instead of a copy-paste round trip to the browser. Silently falls through to an
-  // empty box for every other case (no folder, not git, non-GitHub remote).
-  const activeFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  const detected = activeFolder ? await detectRepoFromGit(activeFolder) : undefined;
+  const detected = await detectActiveRepo();
   const slug = await vscode.window.showInputBox({
     title: l10n("github.addRepoTitle"),
     prompt: l10n("github.addRepoPrompt"),
@@ -37,13 +82,7 @@ export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void>
   }
   const trimmed = slug.trim();
 
-  // GitHub owner/repo slugs are case-insensitive — normalize so "Facebook/react"
-  // and "facebook/REACT" are recognized as the same target.
-  const lower = trimmed.toLowerCase();
-  const existing = store
-    .list()
-    .find((w) => watchKind(w) === "repo" && w.target.toLowerCase() === lower);
-  if (existing) {
+  if (findDuplicateRepoWatch(store, trimmed)) {
     notifyWatchChange(l10n("github.alreadyWatched", { repo: trimmed }));
     return;
   }
@@ -81,21 +120,11 @@ export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void>
   }
   const filterAuthor = authorInput.trim();
 
-  // Interactive: this is the one place a repo-watch scan is allowed to prompt for
-  // GitHub sign-in. Also doubles as an existence check — a typo'd repo fails here
-  // with a clear message instead of silently never reporting anything.
-  try {
-    await fetchOpenRepoItems(parsed, true);
-  } catch (err) {
-    void vscode.window.showWarningMessage(
-      l10n("github.addRepoFailed", {
-        repo: trimmed,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    );
+  if (!(await verifyRepoReachable(parsed, trimmed))) {
     return;
   }
 
+  const scopes = creationScopes();
   const watch: FolderWatch = {
     id: newId(),
     target: trimmed,
@@ -103,7 +132,17 @@ export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void>
     isFile: false,
     mode: "new",
     enabled: true,
-    alertScopes: creationScopes(),
+    alertScopes: scopes,
+    // A folder watch always alerts in its own containing project regardless of
+    // alertScopes (watchAlertsIn's rule 2) — but a repo slug has no "containing
+    // project", so that automatic fallback does not apply to it (see
+    // watchAlertsIn). Adding one with no folder open therefore leaves it with no
+    // home at all: alertScopes is undefined AND there is no owning project to fall
+    // back to, so it would never alert anywhere until someone finds it in Manage
+    // Watches and opts a project in by hand. Defaulting to global in exactly that
+    // one case (no folder open at creation) gives it a home instead of a silent
+    // dead end; a folder is open, it still gets the normal project-scoped default.
+    global: scopes === undefined ? true : undefined,
     filterLabels: filterLabels.length > 0 ? filterLabels : undefined,
     filterAuthor: filterAuthor.length > 0 ? filterAuthor : undefined,
   };
@@ -137,13 +176,7 @@ export async function editGitHubRepoWatch(
     return;
   }
 
-  const lower = trimmed.toLowerCase();
-  const existing = store
-    .list()
-    .find(
-      (w) => w.id !== watch.id && watchKind(w) === "repo" && w.target.toLowerCase() === lower
-    );
-  if (existing) {
+  if (findDuplicateRepoWatch(store, trimmed, watch.id)) {
     notifyWatchChange(l10n("github.alreadyWatched", { repo: trimmed }));
     return;
   }
@@ -152,15 +185,7 @@ export async function editGitHubRepoWatch(
   if (!parsed) {
     return;
   }
-  try {
-    await fetchOpenRepoItems(parsed, true);
-  } catch (err) {
-    void vscode.window.showWarningMessage(
-      l10n("github.addRepoFailed", {
-        repo: trimmed,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    );
+  if (!(await verifyRepoReachable(parsed, trimmed))) {
     return;
   }
 
