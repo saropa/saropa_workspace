@@ -363,6 +363,7 @@ test("an enabled watch with unseen files shows a blue bell and leads with the co
     target: "d:/src/app/bugs",
     isFile: false,
     mode: "new",
+    watchKind: "folder",
     enabled: true,
     unseen: 3,
     isGlobal: false,
@@ -386,6 +387,7 @@ test("an idle enabled watch shows a plain eye with no count", () => {
     target: "d:/src/app/schema.graphql",
     isFile: true,
     mode: "changed",
+    watchKind: "folder",
     enabled: true,
     unseen: 0,
     isGlobal: false,
@@ -402,6 +404,7 @@ test("a global watch shows a globe and a 'global' note", () => {
     target: "d:/src/app/bugs",
     isFile: false,
     mode: "new",
+    watchKind: "folder",
     enabled: true,
     unseen: 0,
     isGlobal: true,
@@ -417,6 +420,7 @@ test("a global watch with unseen files leads with the count and stays a globe", 
     target: "d:/src/app/bugs",
     isFile: false,
     mode: "new",
+    watchKind: "folder",
     enabled: true,
     unseen: 2,
     isGlobal: true,
@@ -433,6 +437,7 @@ test("a disabled watch reads muted (closed eye, off) and shows no count", () => 
     target: "d:/src/app/bugs",
     isFile: false,
     mode: "new",
+    watchKind: "folder",
     enabled: false,
     unseen: 5,
     isGlobal: false,
@@ -440,6 +445,26 @@ test("a disabled watch reads muted (closed eye, off) and shows no count", () => 
   assert.equal(item.icon, "eye-closed");
   assert.equal(item.color, "descriptionForeground");
   assert.equal(item.sub, "off - folder - Only new files");
+});
+
+test("a repo watch uses the github glyph and repo kind/mode text", () => {
+  const item = watchLauncherItem({
+    id: "w1",
+    label: "saropa/saropa-workspace",
+    target: "saropa/saropa-workspace",
+    isFile: false,
+    mode: "new",
+    watchKind: "repo",
+    enabled: true,
+    unseen: 2,
+    isGlobal: false,
+  });
+  // Repo watches keep the github glyph tinted blue when unseen, instead of
+  // switching to bell-dot like folder watches do.
+  assert.equal(item.icon, "github");
+  assert.equal(item.color, "charts.blue");
+  assert.equal(item.sub, "2 new - repo - new issues & PRs");
+  assert.equal(item.label, "saropa/saropa-workspace");
 });
 
 // --- fileLauncherItem ----------------------------------------------------------------

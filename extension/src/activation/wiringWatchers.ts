@@ -185,7 +185,7 @@ export function wireFolderWatches(
   const watchStore = new FolderWatchStore(context);
   const engine = new FolderWatchEngine(watchStore, getOutputChannel());
   context.subscriptions.push(engine);
-  registerFolderWatchCommands(context, watchStore);
+  registerFolderWatchCommands(context, watchStore, engine);
 
   // The "Watches" view: one row per watch, each carrying its unseen-files counter.
   const watches = new WatchesTreeProvider(watchStore);

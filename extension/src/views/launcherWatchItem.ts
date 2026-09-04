@@ -1,4 +1,4 @@
-import type { FolderWatchMode } from "../model/folderWatch";
+import type { FolderWatchMode, WatchKind } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 import type { LauncherItem } from "./launcherItems";
 
@@ -11,6 +11,8 @@ export interface WatchItemInput {
   readonly target: string;
   readonly isFile: boolean;
   readonly mode: FolderWatchMode;
+  // "folder" (default) or "repo" — drives icon and kind text in the card.
+  readonly watchKind: WatchKind;
   readonly enabled: boolean;
   readonly unseen: number;
   // Whether the watch is global (alerts in every project). The card marks it with a
@@ -27,10 +29,28 @@ export interface WatchItemInput {
 // never opens on the bare click, so an accidental click cannot mark a watch seen (the
 // launcher's deliberate browse-then-act model; styleguide 1.1a / 4.5).
 export function watchLauncherItem(w: WatchItemInput): LauncherItem {
-  const kind = l10n(w.isFile ? "folderWatch.kindFile" : "folderWatch.kindFolder");
-  const mode = l10n(
-    w.mode === "changed" ? "folderWatch.modeChanged" : "folderWatch.modeNew"
+  // Repo watches have their own kind/mode keys; folder/file watches use the
+  // existing ones. Mirrors watchesTreeProvider's kind/mode wording.
+  const isRepo = w.watchKind === "repo";
+  const kind = l10n(
+    isRepo
+      ? "github.kindRepo"
+      : w.isFile
+      ? "folderWatch.kindFile"
+      : "folderWatch.kindFolder"
   );
+  const mode = l10n(
+    isRepo
+      ? "github.modeNewItems"
+      : w.mode === "changed"
+      ? "folderWatch.modeChanged"
+      : "folderWatch.modeNew"
+  );
+
+  // Base icon differs by watch kind (github glyph vs eye); disabled/global/unseen
+  // state overrides follow the same precedence as the Watches tree row so the two
+  // surfaces never disagree about the same watch's visual state.
+  const baseIcon = isRepo ? "github" : "eye";
 
   let icon: string;
   let color: string;
@@ -48,11 +68,13 @@ export function watchLauncherItem(w: WatchItemInput): LauncherItem {
     color = "foreground";
     sub = l10n("watchesView.rowGlobal", { kind, mode });
   } else if (w.unseen > 0) {
-    icon = "bell-dot";
+    // Repo watches keep their kind glyph tinted blue; folder watches switch to
+    // bell-dot (the existing folder-watch convention).
+    icon = isRepo ? baseIcon : "bell-dot";
     color = "charts.blue";
     sub = l10n("watchesView.rowUnseen", { count: w.unseen, kind, mode });
   } else {
-    icon = "eye";
+    icon = baseIcon;
     color = "foreground";
     sub = l10n("watchesView.rowIdle", { kind, mode });
   }

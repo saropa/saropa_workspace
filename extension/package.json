@@ -275,6 +275,12 @@
         "icon": "$(eye)"
       },
       {
+        "command": "saropaWorkspace.watchGitHubRepo",
+        "title": "%command.watchGitHubRepo.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(github)"
+      },
+      {
         "command": "saropaWorkspace.manageWatches",
         "title": "%command.manageWatches.title%",
         "category": "%extension.displayName%",
@@ -1604,9 +1610,14 @@
           "group": "navigation@1"
         },
         {
-          "command": "saropaWorkspace.manageWatches",
+          "command": "saropaWorkspace.watchGitHubRepo",
           "when": "view == saropaWorkspace.watches",
           "group": "navigation@2"
+        },
+        {
+          "command": "saropaWorkspace.manageWatches",
+          "when": "view == saropaWorkspace.watches",
+          "group": "navigation@3"
         },
         {
           "command": "saropaWorkspace.refreshScripts",
@@ -2413,6 +2424,13 @@
               ]
             },
             "description": "%config.projectFiles.groups.description%"
+          },
+          "saropaWorkspace.github.pollIntervalMinutes": {
+            "type": "number",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 60,
+            "description": "%config.github.pollIntervalMinutes.description%"
           },
           "saropaWorkspace.processMonitor.heartbeat.enabled": {
             "type": "boolean",

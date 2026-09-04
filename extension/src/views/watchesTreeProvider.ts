@@ -1,10 +1,11 @@
 import * as vscode from "vscode";
-import * as path from "path";
 import {
   FolderWatch,
   FolderWatchStore,
   isGlobalWatch,
   watchAlertsIn,
+  watchKind,
+  watchDisplayName,
 } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 
@@ -102,23 +103,31 @@ export class WatchTreeItem extends vscode.TreeItem {
     // a globe glyph and a "global" note to set it apart from a local watch.
     readonly isGlobal: boolean
   ) {
-    super(
-      watch.label ?? path.basename(watch.target),
-      vscode.TreeItemCollapsibleState.None
-    );
+    super(watchDisplayName(watch), vscode.TreeItemCollapsibleState.None);
 
-    const kind = watch.isFile
+    // A repo watch has no file/folder distinction or new-vs-changed mode — it
+    // always means "new issues/PRs" — so both wording pieces get repo-specific
+    // values instead of the folder-watch ones.
+    const isRepo = watchKind(watch) === "repo";
+    const kind = isRepo
+      ? l10n("github.kindRepo")
+      : watch.isFile
       ? l10n("folderWatch.kindFile")
       : l10n("folderWatch.kindFolder");
-    const mode =
-      watch.mode === "changed"
-        ? l10n("folderWatch.modeChanged")
-        : l10n("folderWatch.modeNew");
+    const mode = isRepo
+      ? l10n("github.modeNewItems")
+      : watch.mode === "changed"
+      ? l10n("folderWatch.modeChanged")
+      : l10n("folderWatch.modeNew");
+    // The idle-state base icon differs by kind (github glyph for a repo watch, eye
+    // for a folder watch); every other state (disabled/global/unseen) reuses this
+    // as its un-tinted starting point.
+    const baseIcon = isRepo ? "github" : "eye";
 
     // Icon + note by state, most-muted first. A disabled watch reads muted (closed
     // eye, "off"). A global watch carries a globe glyph and a "global" note so it is
-    // never mistaken for a local one; a local watch uses the eye. Either, with unseen
-    // files, leads with the count and tints its glyph blue to stand out from idle.
+    // never mistaken for a local one; a local watch uses the base icon. Either, with
+    // unseen items, leads with the count and tints its glyph blue to stand out from idle.
     if (!watch.enabled) {
       this.iconPath = new vscode.ThemeIcon("eye-closed");
       this.description = l10n("watchesView.rowOff", { kind, mode });
@@ -137,12 +146,12 @@ export class WatchTreeItem extends vscode.TreeItem {
       this.description = l10n("watchesView.rowGlobal", { kind, mode });
     } else if (unseen > 0) {
       this.iconPath = new vscode.ThemeIcon(
-        "bell-dot",
+        isRepo ? baseIcon : "bell-dot",
         new vscode.ThemeColor("charts.blue")
       );
       this.description = l10n("watchesView.rowUnseen", { count: unseen, kind, mode });
     } else {
-      this.iconPath = new vscode.ThemeIcon("eye");
+      this.iconPath = new vscode.ThemeIcon(baseIcon);
       this.description = l10n("watchesView.rowIdle", { kind, mode });
     }
 
