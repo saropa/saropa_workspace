@@ -1,14 +1,16 @@
 import * as vscode from "vscode";
-import * as path from "path";
 import {
   FolderWatch,
   FolderWatchStore,
   isGlobalWatch,
   watchAlertsIn,
+  watchKind,
+  watchDisplayName,
 } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 import { currentFolderPaths, notifyWatchChange } from "./folderWatchCommands";
 import { applyAlertHere, applyMakeGlobal } from "./folderWatchRowCommands";
+import { editGitHubRepoWatch } from "./githubWatchCommands";
 
 // The "Manage Watches" review hub: list every watch with its state, then act on the
 // chosen one (toggle enabled, change reach, remove).
@@ -28,13 +30,20 @@ export async function manageWatches(store: FolderWatchStore): Promise<void> {
     }
     const items: WatchItem[] = watches.map((w) => ({
       watch: w,
-      label: w.label ?? path.basename(w.target),
+      label: watchDisplayName(w),
       description: describeWatch(w),
       detail: w.target,
-      // Globe marks a global watch; otherwise eye (enabled) / eye-closed (paused),
-      // matching the Watches view glyphs so reach reads the same in both places.
+      // Disabled/global state wins over kind, matching the tree row's precedence:
+      // eye-closed first (paused), globe second (global), then kind-specific icon
+      // (github for repo, eye for folder).
       iconPath: new vscode.ThemeIcon(
-        !w.enabled ? "eye-closed" : isGlobalWatch(w) ? "globe" : "eye"
+        !w.enabled
+          ? "eye-closed"
+          : isGlobalWatch(w)
+          ? "globe"
+          : watchKind(w) === "repo"
+          ? "github"
+          : "eye"
       ),
     }));
     const pick = await vscode.window.showQuickPick(items, {
@@ -54,11 +63,16 @@ export async function manageWatches(store: FolderWatchStore): Promise<void> {
 // One-line state summary for a manage-hub row: kind, mode, enabled/paused, and the
 // global marker when the watch alerts in every project (so reach is legible here too).
 function describeWatch(watch: FolderWatch): string {
-  const kind = watch.isFile
-    ? l10n("folderWatch.kindFile")
-    : l10n("folderWatch.kindFolder");
+  const kind =
+    watchKind(watch) === "repo"
+      ? l10n("github.kindRepo")
+      : watch.isFile
+      ? l10n("folderWatch.kindFile")
+      : l10n("folderWatch.kindFolder");
   const mode =
-    watch.mode === "changed"
+    watchKind(watch) === "repo"
+      ? l10n("github.modeNewItems")
+      : watch.mode === "changed"
       ? l10n("folderWatch.modeChanged")
       : l10n("folderWatch.modeNew");
   const state = watch.enabled
@@ -92,12 +106,22 @@ async function actOnWatch(
   const alertHere = alertsHere
     ? l10n("folderWatch.muteHere")
     : l10n("folderWatch.alertHere");
+  // Only a repo watch's target is editable in place — a folder/file watch's target
+  // is a filesystem path, and changing that out from under an armed
+  // FileSystemWatcher is a remove-and-re-add in every way that matters, so the
+  // existing remove + re-add flow already covers it.
+  const isRepo = watchKind(watch) === "repo";
+  const editRepo = isRepo ? l10n("github.editRepo") : undefined;
   const remove = l10n("folderWatch.remove");
-  const actions = global
-    ? [toggle, makeGlobal, remove]
-    : [toggle, makeGlobal, alertHere, remove];
+  const actions = [
+    toggle,
+    makeGlobal,
+    ...(global ? [] : [alertHere]),
+    ...(editRepo ? [editRepo] : []),
+    remove,
+  ];
   const choice = await vscode.window.showQuickPick(actions, {
-    title: watch.label ?? path.basename(watch.target),
+    title: watchDisplayName(watch),
     placeHolder: l10n("folderWatch.actionPlaceholder"),
   });
   if (!choice) {
@@ -115,9 +139,13 @@ async function actOnWatch(
     await applyAlertHere(store, watch, !alertsHere);
     return "continue";
   }
+  if (choice === editRepo) {
+    await editGitHubRepoWatch(store, watch);
+    return "continue";
+  }
   await store.remove(watch.id);
   notifyWatchChange(
-    l10n("folderWatch.removed", { name: watch.label ?? path.basename(watch.target) })
+    l10n("folderWatch.removed", { name: watchDisplayName(watch) })
   );
   return store.list().length === 0 ? "removed-last" : "continue";
 }

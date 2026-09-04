@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
 import { FolderWatchStore } from "../model/folderWatch";
+import { FolderWatchEngine } from "../exec/folderWatchEngine";
 import { WatchTreeItem } from "../views/watchesTreeProvider";
 import { addFolderWatch, addFileWatch } from "./folderWatchAddCommands";
+import { addGitHubRepoWatch } from "./githubWatchCommands";
 import { manageWatches } from "./folderWatchManageCommands";
 import {
   openWatch,
@@ -69,7 +71,8 @@ export function notifyWatchChange(message: string): void {
 // its sibling command file so this stays a thin registration list.
 export function registerFolderWatchCommands(
   context: vscode.ExtensionContext,
-  store: FolderWatchStore
+  store: FolderWatchStore,
+  engine: FolderWatchEngine
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand(
@@ -80,6 +83,9 @@ export function registerFolderWatchCommands(
       "saropaWorkspace.watchFile",
       (uri?: vscode.Uri) => addFileWatch(store, uri)
     ),
+    vscode.commands.registerCommand("saropaWorkspace.watchGitHubRepo", () =>
+      addGitHubRepoWatch(store)
+    ),
     vscode.commands.registerCommand("saropaWorkspace.manageWatches", () =>
       manageWatches(store)
     ),
@@ -87,7 +93,7 @@ export function registerFolderWatchCommands(
     // counter; the inline menu toggles or removes the watch.
     vscode.commands.registerCommand(
       "saropaWorkspace.openWatch",
-      (id: string) => openWatch(store, id)
+      (id: string) => openWatch(store, id, engine)
     ),
     vscode.commands.registerCommand(
       "saropaWorkspace.toggleWatch",

@@ -1,7 +1,14 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { FolderWatch, FolderWatchStore } from "../model/folderWatch";
+import {
+  FolderWatch,
+  FolderWatchStore,
+  watchKind,
+  watchDisplayName,
+} from "../model/folderWatch";
 import { WatchTreeItem } from "../views/watchesTreeProvider";
+import { FolderWatchEngine } from "../exec/folderWatchEngine";
+import { parseRepoSlug, repoIssuesUrl } from "../github/githubClient";
 import { l10n } from "../i18n/l10n";
 import { currentFolderPaths, notifyWatchChange } from "./folderWatchCommands";
 
@@ -30,7 +37,7 @@ export async function applyAlertHere(
     ? [...new Set([...base, ...folders])].sort()
     : base.filter((p) => !folders.includes(p));
   await store.update(watch.id, { alertScopes: next });
-  const name = watch.label ?? path.basename(watch.target);
+  const name = watchDisplayName(watch);
   notifyWatchChange(
     on
       ? l10n("folderWatch.alertHereOn", { name })
@@ -46,7 +53,7 @@ export async function applyMakeGlobal(
   global: boolean
 ): Promise<void> {
   await store.update(watch.id, { global });
-  const name = watch.label ?? path.basename(watch.target);
+  const name = watchDisplayName(watch);
   notifyWatchChange(
     global
       ? l10n("folderWatch.madeGlobal", { name })
@@ -59,13 +66,22 @@ export async function applyMakeGlobal(
 // recalculates the activity-bar total (via the store's count event). A folder watch
 // opens the most recent unseen file when there is one (the thing the counter is
 // about), otherwise reveals the folder; a file watch opens the file.
-export async function openWatch(store: FolderWatchStore, id: string): Promise<void> {
+export async function openWatch(
+  store: FolderWatchStore,
+  id: string,
+  engine: FolderWatchEngine
+): Promise<void> {
   const watch = store.find(id);
   if (!watch) {
     return;
   }
   const unseen = store.getUnseen(id);
   await store.clearUnseen(id);
+
+  if (watchKind(watch) === "repo") {
+    await openRepoWatch(watch, unseen, engine);
+    return;
+  }
 
   const target = vscode.Uri.file(watch.target);
   if (watch.isFile) {
@@ -80,6 +96,30 @@ export async function openWatch(store: FolderWatchStore, id: string): Promise<vo
     return;
   }
   await vscode.commands.executeCommand("revealInExplorer", target);
+}
+
+// Open a repo watch: the newest unseen issue/PR when the engine's in-memory item
+// cache still has it (the common case — click right after the toast), otherwise the
+// repo's issues page (a reload cleared the cache, or the row was clicked with
+// nothing unseen).
+async function openRepoWatch(
+  watch: FolderWatch,
+  unseen: string[],
+  engine: FolderWatchEngine
+): Promise<void> {
+  const slug = parseRepoSlug(watch.target);
+  if (unseen.length > 0) {
+    const items = engine.getCachedRepoItems(watch.id);
+    const byKey = new Map(items.map((i) => [i.key, i]));
+    const newest = byKey.get(unseen[unseen.length - 1]);
+    if (newest) {
+      await vscode.env.openExternal(vscode.Uri.parse(newest.htmlUrl));
+      return;
+    }
+  }
+  if (slug) {
+    await vscode.env.openExternal(vscode.Uri.parse(repoIssuesUrl(slug)));
+  }
 }
 
 // Open a document, falling back to revealing it in the Explorer when it cannot be
@@ -111,7 +151,7 @@ export async function removeWatchRow(
   if (!item) {
     return;
   }
-  const name = item.watch.label ?? path.basename(item.watch.target);
+  const name = watchDisplayName(item.watch);
   await store.remove(item.watch.id);
   notifyWatchChange(l10n("folderWatch.removed", { name }));
 }

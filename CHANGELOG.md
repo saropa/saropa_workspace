@@ -46,6 +46,35 @@ cspell:disable
 
 ---
 
+## [1.9.1]
+
+You can now watch a GitHub repo the same way you watch a folder — get a toast when a new issue or pull request opens, right from the Watches view. [log](https://github.com/saropa/saropa-workspace/blob/v1.9.0/CHANGELOG.md)
+
+### Added
+
+- Watches can now target a GitHub repository, not just a folder or file. `Watch GitHub Repo for New Issues/PRs...` (from the Watches view toolbar or the command palette) links an `owner/repo`, signs you in to GitHub on first use if needed, and polls it on an interval (`saropaWorkspace.github.pollIntervalMinutes`, default 5) for newly-opened issues and pull requests. A repo watch shows up as a row in the same Watches view as folder watches — same unseen-count badge, same enable/disable/global/remove actions, same "click to open and clear the count" gesture, just pointed at a repo's GitHub page instead of a file. Draft PRs are included; edits/comments on an existing issue do not re-alert, only newly-opened items do.
+- Adding a repo watch now offers optional label and author filters — leave both blank to alert on every open issue/PR (unchanged), or narrow to items carrying one of a set of labels and/or opened by a specific GitHub user.
+- The "Watch GitHub Repo" prompt now prefills `owner/repo` from the active project's `origin` git remote when it points at GitHub, so watching the project you already have open is a single confirm.
+- Manage Watches now offers a "Change repository" action on repo watches, so you can retarget an existing watch's `owner/repo` without losing its label, alert scope, or filters (which a remove-and-re-add would).
+
+### Changed
+
+- `FolderWatch` gained an optional `kind` field (`"folder"` | `"repo"`); absent `kind` reads as `"folder"`, so every existing watch keeps behaving exactly as it did.
+- The Launcher ("Quick Open") watch cards now render repo watches with the correct github glyph, kind text, and full `owner/repo` label instead of folder-watch defaults.
+
+### Fixed
+
+- Manage Watches: a disabled or global repo watch now shows the correct icon (eye-closed / globe) instead of always showing the github glyph regardless of state.
+- Adding a repo watch with different casing (`Facebook/react` vs `facebook/REACT`) no longer creates a duplicate — GitHub slugs are case-insensitive.
+- Pasting a slug with trailing whitespace into the "Watch GitHub Repo" input no longer triggers a false "invalid" validation error.
+- Removing a repo watch now cleans up its cached items from memory instead of leaking them for the extension host's lifetime.
+- The `/issues` and `/pulls` GitHub API calls now run in parallel instead of sequentially, halving per-repo scan latency.
+- A repo watch's `owner/repo` target no longer runs through the folder-containment check meant for filesystem paths — it could accidentally alert (or fail to alert) in a project whose folder name happened to collide with the slug.
+- A GitHub sign-in failure that isn't a plain decline (no auth provider registered, a network error mid-handshake) is now logged to the "Saropa Workspace" output channel instead of silently falling through to an unauthenticated fetch, which made a private repo's "never shows anything" behavior undiagnosable.
+- A repo-watch poll that throws outside the per-watch scan (rather than being caught and logged there already) is now caught and logged too, so a single unexpected failure can no longer silently stop the polling timer from rescheduling itself.
+
+---
+
 ## [1.9.0]
 
 Publish-script hardening and automation — the release tool now recovers from a diverged `origin/main` on its own, runs unattended for agents and CI, and can report its results as machine-readable JSON. Nothing user-visible in the extension itself changed. [log](https://github.com/saropa/saropa-workspace/blob/v1.9.0/CHANGELOG.md)
@@ -471,45 +500,6 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 ### Fixed
 
 - An expanded launcher card's head Open/Run button now renders identically to the drawer buttons below it: same internal padding, same total height (a matching border thickness), and same icon size. Collapsed cards keep the compact icon-only button. Each shared value is defined in one place alongside the shared label size, so the two button styles cannot drift apart.
-
----
-
-## [1.5.22]
-
-**Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.22/CHANGELOG.md)
-
-### Added
-
-- New bundled **script library**: the extension now ships a set of self-contained, ready-to-run developer scripts, each its own folder with an editable run config, tags, and a declared list of the command-line tools it needs. Two to start: **Organize output folder** (sorts a folder's loose files into dated `YYYY.MM/YYYY.MM.DD` subfolders and prunes the empty folders left behind) and **Connect a device for debugging** (connects a physical Android device to Flutter over Wi-Fi or USB, mirrors the screen with scrcpy, and reports battery/charging health — asking before installing its Python dependencies, and telling you up front if a required tool like `adb` is missing). A dedicated Scripts view to browse and run them from the sidebar is coming next.
-- New **View Suite Daily Report** command: a read-only Markdown summary with an executive summary, a Trouble section (failures and high-impact items only), today's Workspace shortcut activity, and a per-tool section for each installed Saropa Suite extension that exposes the versioned `getDailySummary` exports API (today and yesterday). Tools that are absent or predate the API are simply omitted — a solo install renders a workspace-only report. Also reachable from the Diagnostics submenu.
-
-### Changed
-
-- The routine summary is now the day's actual content, not an execution table. The one document a routine opens merges each member report's full body in as a section (the standup digest, project stats, PR queue — readable in place, with a link to each source file), instead of a table of statuses, durations, and links. Execution state appears only when something went wrong: a failed or missing member gets one attention line at the top saying what happened and what to do. A clean run reads as pure content.
-- Routine summary sections are collapsible: each member's content sits in a click-to-expand block, so a multi-member morning report opens as scannable one-line headers — and a failed member's section arrives pre-expanded. Failure details are flattened to one bounded line (the full error stays in the output channel), and a member report that is not Markdown (a .log or .txt) is shown as preformatted text instead of being mangled as prose.
-- The Suite Daily Report guards against a hung sibling extension: any single sibling activation or summary call past five seconds is dropped and that tool's section is omitted, instead of the whole report hanging.
-- The Suite Daily Report names a version-skewed tool instead of hiding it: an installed Suite extension reporting a newer data format than this version understands gets a one-line note under the executive summary ("update Saropa Workspace to include its section") rather than silently vanishing. Collecting the summaries also shows a status-bar progress note while siblings are polled.
-- New **Saropa Suite daily report** recipe (scheduled ritual, default 06:30, seeds disabled): writes the Suite day summary as a dated report file, and joins the Morning routine as its closing member — so yesterday's debug sessions, lint health, and database anomalies merge into the same one morning document as the standup and stats.
-
-### Fixed
-
-- Launcher card buttons now share one label size: the Run/Open button on a card's header rendered its text larger than the Open/Copy path buttons in the expanded drawer; all launcher buttons now use the drawer's smaller size, defined in one place so the two cannot drift apart again.
-
----
-
-## [1.5.21]
-
-**Overview** — The "you've opened this file a lot, want a shortcut?" prompt used to fire while you were just flipping between files during normal work. Now it counts a file at most once every half hour, needs more opens before it asks, and lets you shut off a whole file type ("Ignore .dart") straight from the prompt. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.21/CHANGELOG.md)
-
-### Added
-
-- The open-often shortcut suggestion now offers "Ignore .ext" alongside Add shortcut and Don't ask again. Choosing it adds that extension to the new `saropaWorkspace.suggestions.ignoreExtensions` setting, so files of that type are never suggested again.
-- New `saropaWorkspace.suggestions.debounceMinutes` setting (default 30): a file re-focused within this window counts once, so the count tracks distinct working sessions rather than tab flipping.
-
-### Changed
-
-- Re-focusing the same file (search, go to definition, tab flipping) no longer inflates its open count — a per-file cooldown collapses a burst of re-focus into a single count. This stops the suggestion firing during ordinary development.
-- Raised the default open-count threshold before a suggestion appears from 6 to 10 (`saropaWorkspace.suggestions.openThreshold`).
 
 ---
 

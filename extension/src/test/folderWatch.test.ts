@@ -12,6 +12,9 @@ import {
   isEmptyDelta,
   watchAlertsIn,
   isGlobalWatch,
+  watchKind,
+  watchDisplayName,
+  matchesRepoFilter,
   FolderSnapshot,
   FolderWatch,
   FolderWatchStore,
@@ -87,6 +90,62 @@ test("diff against an empty baseline reports every file (engine must seed instea
   assert.deepEqual(delta.added, ["a.md", "b.md"]);
 });
 
+// --- repo watch kind + display name (WatchKind "repo") ------------------------
+
+test("watchKind defaults absent kind to 'folder' (old data needs no migration)", () => {
+  const w: FolderWatch = { id: "w", target: "/src/x", isFile: false, mode: "new", enabled: true };
+  assert.equal(watchKind(w), "folder");
+});
+
+test("watchKind reads an explicit 'repo' kind", () => {
+  const w: FolderWatch = {
+    id: "w",
+    target: "saropa/saropa-workspace",
+    kind: "repo",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+  };
+  assert.equal(watchKind(w), "repo");
+});
+
+test("watchDisplayName keeps a repo watch's owner/repo target intact", () => {
+  // path.basename would wrongly strip this down to just "saropa-workspace".
+  const w: FolderWatch = {
+    id: "w",
+    target: "saropa/saropa-workspace",
+    kind: "repo",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+  };
+  assert.equal(watchDisplayName(w), "saropa/saropa-workspace");
+});
+
+test("watchDisplayName basenames a folder watch's target", () => {
+  const w: FolderWatch = {
+    id: "w",
+    target: "/src/contacts/bugs",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+  };
+  assert.equal(watchDisplayName(w), "bugs");
+});
+
+test("watchDisplayName prefers an explicit label over the target for either kind", () => {
+  const w: FolderWatch = {
+    id: "w",
+    target: "saropa/saropa-workspace",
+    kind: "repo",
+    label: "Main repo",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+  };
+  assert.equal(watchDisplayName(w), "Main repo");
+});
+
 // --- per-project alert scope (the "do not blast every project" gate) ----------
 
 // A folder watch with an optional explicit alert scope, for the gate tests.
@@ -143,6 +202,79 @@ test("a global watch alerts in every project, including unrelated ones", () => {
   assert.equal(watchAlertsIn(w, ["/src/workspace"]), true);
   // Even with no folder open, a global watch is considered alerting.
   assert.equal(watchAlertsIn(w, []), true);
+});
+
+test("a repo watch's slug target never matches via path-relative containment", () => {
+  // A repo watch's target is "owner/repo", not a filesystem path — even one that
+  // happens to collide with an open folder's basename must not alert there without
+  // an explicit alertScopes opt-in, unlike a folder watch (rule 2 is folder-only).
+  const w: FolderWatch = {
+    id: "r1",
+    target: "saropa/saropa-workspace",
+    kind: "repo",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+  };
+  assert.equal(watchAlertsIn(w, ["/src/saropa-workspace"]), false);
+  // Still respects an explicit opt-in via alertScopes.
+  const scoped: FolderWatch = { ...w, alertScopes: ["/src/saropa-workspace"] };
+  assert.equal(watchAlertsIn(scoped, ["/src/saropa-workspace"]), true);
+});
+
+// --- repo watch label/author filter --------------------------------------------
+
+function repoItem(labels: string[], author: string): { author: string; labels: string[] } {
+  return { author, labels };
+}
+
+test("matchesRepoFilter matches everything when no filter is set", () => {
+  const w: FolderWatch = { id: "r1", target: "a/b", isFile: false, mode: "new", enabled: true };
+  assert.equal(matchesRepoFilter(w, repoItem([], "anyone")), true);
+  assert.equal(matchesRepoFilter(w, repoItem(["bug"], "octocat")), true);
+});
+
+test("matchesRepoFilter's label filter is case-insensitive OR across filterLabels", () => {
+  const w: FolderWatch = {
+    id: "r1",
+    target: "a/b",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+    filterLabels: ["Bug", "priority-high"],
+  };
+  assert.equal(matchesRepoFilter(w, repoItem(["bug"], "x")), true);
+  assert.equal(matchesRepoFilter(w, repoItem(["PRIORITY-HIGH"], "x")), true);
+  assert.equal(matchesRepoFilter(w, repoItem(["docs"], "x")), false);
+  assert.equal(matchesRepoFilter(w, repoItem([], "x")), false);
+});
+
+test("matchesRepoFilter's author filter is case-insensitive exact match", () => {
+  const w: FolderWatch = {
+    id: "r1",
+    target: "a/b",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+    filterAuthor: "Octocat",
+  };
+  assert.equal(matchesRepoFilter(w, repoItem([], "octocat")), true);
+  assert.equal(matchesRepoFilter(w, repoItem([], "someone-else")), false);
+});
+
+test("matchesRepoFilter ANDs label and author filters when both are set", () => {
+  const w: FolderWatch = {
+    id: "r1",
+    target: "a/b",
+    isFile: false,
+    mode: "new",
+    enabled: true,
+    filterLabels: ["bug"],
+    filterAuthor: "octocat",
+  };
+  assert.equal(matchesRepoFilter(w, repoItem(["bug"], "octocat")), true);
+  assert.equal(matchesRepoFilter(w, repoItem(["bug"], "someone-else")), false);
+  assert.equal(matchesRepoFilter(w, repoItem(["docs"], "octocat")), false);
 });
 
 // --- unseen tally (the per-row counter + activity-bar total) ------------------

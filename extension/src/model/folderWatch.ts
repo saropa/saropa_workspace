@@ -17,19 +17,33 @@ import * as path from "path";
 //               covers the single-file "tell me when this file changes" case).
 export type FolderWatchMode = "new" | "changed";
 
+// What kind of thing a watch targets. "folder" (the original, default) watches a
+// filesystem folder or file via FolderWatchEngine's fs walk + FileSystemWatcher.
+// "repo" watches a linked GitHub repository's open issues/PRs via polling instead
+// of a live filesystem event source — see FolderWatchEngine.scanRepoTarget. Both
+// kinds share the same store (unseen tally, baseline diff, enable/global/scope) and
+// the same Watches tree row, which is the point: a repo watch is "tell me when
+// something new lands" applied to a repo instead of a folder, not a separate feature.
+export type WatchKind = "folder" | "repo";
+
 // One user-configured folder/file watch: what to watch, in which mode, and which
 // projects it alerts in. Persisted verbatim in FolderWatchStore (globalState), read
 // by the scan/diff engine and the Watches tree, and mutated via add/update/remove.
 export interface FolderWatch {
   // Stable id, used as the live-watcher key and the baseline-cache key.
   id: string;
-  // Absolute fsPath of the watched folder or file. Absolute (not workspace-
-  // relative) because a watch may target a path outside any open folder, and a
-  // global watch must resolve identically across windows.
+  // Absolute fsPath of the watched folder or file for kind "folder"; an
+  // "owner/repo" slug (e.g. "saropa/saropa-workspace") for kind "repo". Absolute
+  // (not workspace-relative) because a folder watch may target a path outside any
+  // open folder, and a global watch must resolve identically across windows.
   target: string;
+  // Which kind of target this is. Absent on every watch created before this field
+  // existed, which reads as "folder" via watchKind() — old data needs no migration.
+  kind?: WatchKind;
   // Whether `target` is a single file (snapshot is just that file) or a folder
-  // (snapshot is its contained files). Resolved once at add time so the engine
-  // does not re-stat the target's type on every scan.
+  // (snapshot is its contained files). Meaningless for kind "repo" (always false).
+  // Resolved once at add time so the engine does not re-stat the target's type on
+  // every scan.
   isFile: boolean;
   // Display label; defaults to the target basename when absent.
   label?: string;
@@ -58,6 +72,37 @@ export interface FolderWatch {
   // a "global" note) so it is never mistaken for a local watch. Absent/false: local
   // to the project(s) that own or opted into it.
   global?: boolean;
+  // Repo watches only: alert only on items carrying at least one of these labels
+  // (case-insensitive, OR-matched). Absent/empty = no label filter (every open
+  // issue/PR alerts, the existing behavior). Ignored for kind "folder".
+  filterLabels?: string[];
+  // Repo watches only: alert only on items opened by this GitHub login
+  // (case-insensitive exact match). Absent/empty = no author filter. Ignored for
+  // kind "folder".
+  filterAuthor?: string;
+}
+
+// Whether a repo-watch item passes the watch's optional label/author filters. A
+// watch with no filters set (the common case) matches everything, so existing
+// repo watches keep alerting on every open issue/PR unchanged. Both filters are
+// AND'ed when both are set (label match AND author match); label matching is OR
+// across `filterLabels` (any one label on the item is enough).
+export function matchesRepoFilter(
+  watch: FolderWatch,
+  item: { readonly author: string; readonly labels: readonly string[] }
+): boolean {
+  const labels = watch.filterLabels;
+  if (labels && labels.length > 0) {
+    const wanted = new Set(labels.map((l) => l.toLowerCase()));
+    if (!item.labels.some((l) => wanted.has(l.toLowerCase()))) {
+      return false;
+    }
+  }
+  const author = watch.filterAuthor?.trim();
+  if (author && item.author.toLowerCase() !== author.toLowerCase()) {
+    return false;
+  }
+  return true;
 }
 
 // One scan result: each watched file's folder-relative path mapped to its
@@ -122,6 +167,26 @@ export function isGlobalWatch(watch: FolderWatch): boolean {
   return watch.global === true;
 }
 
+// The watch's kind, defaulting absent `kind` to "folder" so data written before
+// this field existed keeps behaving exactly as it did. Every branch on folder-vs-
+// repo behavior (the engine's scan, the tree row, the manage-hub description) reads
+// this instead of `watch.kind` directly, so the default lives in one place.
+export function watchKind(watch: FolderWatch): WatchKind {
+  return watch.kind ?? "folder";
+}
+
+// The name to show for a watch: its label when set, otherwise a target-derived
+// fallback. A repo watch's target IS its display form ("owner/repo") — running it
+// through path.basename would wrongly strip it down to just "repo" — so this is the
+// one place every row/menu/toast reads the name from, instead of repeating the
+// kind check at each call site.
+export function watchDisplayName(watch: FolderWatch): string {
+  if (watch.label) {
+    return watch.label;
+  }
+  return watchKind(watch) === "repo" ? watch.target : path.basename(watch.target);
+}
+
 // Whether a watch should raise alerts in a window holding `folderPaths` (the current
 // workspace folders). The single source of truth for "does this watch fire here",
 // shared by the engine (which gates scanning/arming) and the Watches tree (which
@@ -139,7 +204,12 @@ export function watchAlertsIn(
   if (isGlobalWatch(watch)) {
     return true;
   }
-  if (folderPaths.some((p) => isPathInside(p, watch.target))) {
+  // A repo watch's target is an "owner/repo" slug, not a filesystem path — rule 2
+  // ("a project always watches its own files") is meaningless for it, so skip the
+  // path-relative check entirely and fall straight to the explicit alertScopes
+  // opt-in below. Running isPathInside on a slug happened to fall through to the
+  // same alertScopes result, but only by accident.
+  if (watchKind(watch) !== "repo" && folderPaths.some((p) => isPathInside(p, watch.target))) {
     return true;
   }
   return (watch.alertScopes ?? []).some((p) => folderPaths.includes(p));
@@ -241,7 +311,12 @@ export class FolderWatchStore {
     });
   }
 
-  private async clearBaseline(id: string): Promise<void> {
+  // Public (unlike the rest of the baseline internals) because editing a repo
+  // watch's target needs to drop the old target's baseline too — the cached
+  // "issue:123" keys belong to the repo that was just replaced, and diffing the new
+  // repo's items against them would read every existing open item as unrelated
+  // noise instead of seeding cleanly. Mirrors what `remove` already does.
+  async clearBaseline(id: string): Promise<void> {
     const all = this.allBaselines();
     if (!(id in all)) {
       return;

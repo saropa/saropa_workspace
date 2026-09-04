@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { ShortcutStore } from "../model/shortcutStore";
-import { FolderWatchStore, isGlobalWatch, watchAlertsIn } from "../model/folderWatch";
+import { FolderWatchStore, isGlobalWatch, watchAlertsIn, watchDisplayName, watchKind } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 import { buildLauncherItems, LauncherItem } from "./launcherItems";
 import { watchLauncherItem } from "./launcherWatchItem";
@@ -69,10 +69,13 @@ function buildWatchItems(watchStore: FolderWatchStore): LauncherItem[] {
     items.push(
       watchLauncherItem({
         id: w.id,
-        label: w.label ?? path.basename(w.target),
+        // Single source of truth for watch display name — keeps owner/repo
+        // intact for repo watches instead of path.basename mangling it.
+        label: watchDisplayName(w),
         target: w.target,
         isFile: w.isFile,
         mode: w.mode,
+        watchKind: watchKind(w),
         enabled: w.enabled,
         unseen: watchStore.unseenCount(w.id),
         isGlobal: isGlobalWatch(w),
