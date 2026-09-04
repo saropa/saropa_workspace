@@ -48,7 +48,7 @@ cspell:disable
 
 ## [1.9.1]
 
-You can now watch a GitHub repo the same way you watch a folder — get a toast when a new issue or pull request opens, right from the Watches view. [log](https://github.com/saropa/saropa-workspace/blob/v1.9.0/CHANGELOG.md)
+You can now watch a GitHub repo the same way you watch a folder — get a toast when a new issue or pull request opens, right from the Watches view. [log](https://github.com/saropa/saropa-workspace/blob/v1.9.1/CHANGELOG.md)
 
 ### Added
 

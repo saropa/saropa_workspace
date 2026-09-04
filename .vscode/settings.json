@@ -9,5 +9,6 @@
   // makes three levels read as mush; this widens it and draws the vertical guide
   // lines. Window-scoped settings, applied to this workspace.
   "workbench.tree.indent": 30,
-  "workbench.tree.renderIndentGuides": "always"
+  "workbench.tree.renderIndentGuides": "always",
+  "saropaLogCapture.integrations.screenshots.enabled": false
 }
