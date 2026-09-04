@@ -1124,6 +1124,7 @@
   "github.newMixed": "{issues} new issue(s), {prs} new pull request(s) in {label}: {items}",
   "github.authError": "[GitHub] Sign-in failed: {error}",
   "github.pollError": "[GitHub] Repo watch poll failed: {error}",
+  "github.rateLimitLow": "[GitHub] Rate limit low: {remaining}/{limit} requests remaining, resets at {resetAt}.",
   "watchesView.rowIdle": "{kind} - {mode}",
   "watchesView.rowUnseen": "{count} new - {kind} - {mode}",
   "watchesView.rowOff": "off - {kind} - {mode}",

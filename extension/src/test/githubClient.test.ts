@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isValidRepoSlug, parseRepoSlug, repoIssuesUrl } from "../github/githubClient";
+import { isValidRepoSlug, parseRepoSlug, repoIssuesUrl, rateLimitWarning } from "../github/githubClient";
 
 test("isValidRepoSlug accepts a plain owner/repo", () => {
   assert.equal(isValidRepoSlug("saropa/saropa-workspace"), true);
@@ -42,4 +42,31 @@ test("repoIssuesUrl builds the repo's issues page", () => {
     repoIssuesUrl({ owner: "saropa", repo: "saropa-workspace" }),
     "https://github.com/saropa/saropa-workspace/issues"
   );
+});
+
+function rateHeaders(remaining: string, limit = "60", reset = "1700000000"): Headers {
+  return new Headers({
+    "x-ratelimit-remaining": remaining,
+    "x-ratelimit-limit": limit,
+    "x-ratelimit-reset": reset,
+  });
+}
+
+test("rateLimitWarning is undefined comfortably above the threshold", () => {
+  assert.equal(rateLimitWarning(rateHeaders("42")), undefined);
+});
+
+test("rateLimitWarning fires at and below the threshold", () => {
+  assert.notEqual(rateLimitWarning(rateHeaders("10")), undefined);
+  assert.notEqual(rateLimitWarning(rateHeaders("0")), undefined);
+});
+
+test("rateLimitWarning names the remaining and limit counts", () => {
+  const warning = rateLimitWarning(rateHeaders("3", "60"));
+  assert.match(warning ?? "", /3/);
+  assert.match(warning ?? "", /60/);
+});
+
+test("rateLimitWarning is undefined when the headers are absent (e.g. a stubbed test response)", () => {
+  assert.equal(rateLimitWarning(new Headers()), undefined);
 });

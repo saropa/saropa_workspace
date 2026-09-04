@@ -118,6 +118,41 @@ function toWatchItem(raw: RawIssue, kind: "issue" | "pr"): GitHubWatchItem | und
   };
 }
 
+// Below this many remaining requests in the current rate-limit window, a poll logs
+// a budget warning. Fixed and absolute (not a percentage of the limit) since it's
+// meant to read as "about to be cut off" regardless of whether the caller is on the
+// unauthenticated (60/hr) or authenticated (5000/hr) tier — a percentage of 5000
+// would fire needlessly early, and a percentage of 60 would fire too late to be
+// useful.
+const RATE_LIMIT_WARN_THRESHOLD = 10;
+
+// A one-line output-channel warning when a response's rate-limit headers show the
+// caller is close to being cut off, or undefined when there's nothing worth
+// logging (headers absent, or comfortably above the threshold). Pure and exported
+// for testing; fetchOpenRepoItems is the only caller.
+export function rateLimitWarning(headers: Headers): string | undefined {
+  // Number(null) is 0 (finite) — an absent header must not read as "0 remaining".
+  const remainingHeader = headers.get("x-ratelimit-remaining");
+  if (remainingHeader === null) {
+    return undefined;
+  }
+  const remaining = Number(remainingHeader);
+  const limit = Number(headers.get("x-ratelimit-limit"));
+  if (!Number.isFinite(remaining) || remaining > RATE_LIMIT_WARN_THRESHOLD) {
+    return undefined;
+  }
+  const resetHeader = headers.get("x-ratelimit-reset");
+  const resetSeconds = Number(resetHeader);
+  const resetAt = Number.isFinite(resetSeconds)
+    ? new Date(resetSeconds * 1000).toLocaleTimeString()
+    : undefined;
+  return l10n("github.rateLimitLow", {
+    remaining,
+    limit: Number.isFinite(limit) ? limit : "?",
+    resetAt: resetAt ?? "?",
+  });
+}
+
 // Fetch every open issue and PR for a repo. GitHub's /issues endpoint returns both
 // mixed together (a PR carries a `pull_request` field, a plain issue does not), so
 // one call covers issues and PR-title/author/labels; draft status needs the /pulls
@@ -142,6 +177,14 @@ export async function fetchOpenRepoItems(
     throw new Error(`${issuesResp.status} ${issuesResp.statusText}`);
   }
   const rawIssues = (await issuesResp.json()) as RawIssue[];
+
+  // Surface an approaching rate-limit cutoff before it silently starts failing
+  // fetches — several watched repos on a short poll interval can burn through the
+  // budget, especially unauthenticated (60/hr).
+  const warning = rateLimitWarning(issuesResp.headers);
+  if (warning) {
+    getOutputChannel().appendLine(warning);
+  }
 
   // Draft status is a nice-to-have; a failed /pulls call still leaves the issue
   // list usable, so this degrades rather than throwing.
