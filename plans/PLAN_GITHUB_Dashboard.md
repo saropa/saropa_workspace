@@ -1,127 +1,138 @@
-# Detailed Architectural & UI/UX Specification: HubGrid Dashboard
+# Plan: HubGrid — a watched-repos dashboard panel
 
-## 1. System Architecture & Data Pipeline
-To support a zero-latency, real-time command center for an enterprise development house, the architecture must move beyond REST polling. 
+## Why this replaces the original draft
 
-### 1.1. Data Ingestion & Streaming
-*   **Ingestion:** GitHub App Webhooks push events (`push`, `pull_request`, `workflow_run`, `issues`) to an edge-deployed Go/Rust microservice.
-*   **Queueing & Normalization:** Events are pushed into a Redis stream, normalizing disparate GitHub JSON payloads into a strict internal `DashboardEvent` schema.
-*   **Client Delivery:** A Node.js/Socket.io cluster maintains persistent WebSocket (WSS) connections with active client browsers, pushing targeted diffs using JSON Patch (RFC 6902) to minimize payload size.
-*   **State Management (Client):** React with Zustand for atomic state updates. To prevent DOM thrashing on high-frequency repos, incoming WS events are batched every 250ms via `requestAnimationFrame` before triggering React renders.
+The original draft specified a standalone web app: GitHub App webhooks into a
+Go/Rust edge service, a Redis stream, a Socket.io cluster, Next.js SSR, React +
+Zustand, and `@tanstack/react-virtual`. None of that fits this codebase — this
+is a VS Code extension, not a hosted web service, and it already has a working
+GitHub repo-watch feature (poll-based, `globalState`-backed) plus nine existing
+webview panels built on a shared, dependency-free pattern (static HTML shell +
+inlined CSS/JS + `postMessage`). This plan reuses that pattern instead of
+introducing a server, a build step, or a UI framework.
 
-### 1.2. Fallback & Resilience
-*   **WebSocket Drops:** If WSS disconnects, a pulsing amber indicator appears top-right (`var(--color-warning)`). The client implements exponential backoff with jitter for reconnections.
-*   **Stale Data Recovery:** Upon reconnection, the client issues a `GET /sync?since={timestamp}` HTTP request to reconcile missed events.
+What survives from the original draft, adapted to a webview: the dense
+single-row-per-item layout (`SmartRow`), filtering by repo/status, keyboard
+navigation, a rate-limit notice, and copy-link actions. Dropped entirely:
+webhooks/Redis/WebSockets (the extension polls REST on a timer already), the
+Next.js URL-routing/deep-link scheme (webview panels have no URL bar), and
+React/Zustand/virtualization (unnecessary at the scale of a handful of watched
+repos).
 
----
+## Feature recap: what already exists
 
-## 2. Core Data Models (TypeScript)
-The UI relies on a strictly typed normalized data structure to render the `SmartRow` uniformly across Issues, PRs, and Actions.
+- **Model**: `FolderWatch` (`kind: "repo"`, `target` = `"owner/repo"`) in
+  `extension/src/model/folderWatch.ts`; `GitHubWatchItem` /`RepoSlug` in
+  `extension/src/github/githubTypes.ts`.
+- **Client**: `fetchOpenRepoItems()` in `extension/src/github/githubClient.ts`
+  (VS Code's built-in GitHub auth provider).
+- **Engine**: `FolderWatchEngine` (`extension/src/exec/folderWatchEngine.ts`)
+  polls every `saropaWorkspace.github.pollIntervalMinutes` (default 5), diffs
+  against a stored baseline, toasts new issues/PRs, and keeps an in-memory
+  `repoItemsCache: Map<watchId, GitHubWatchItem[]>` exposed via
+  `getCachedRepoItems(watchId)`.
+- **Persistence**: `FolderWatchStore` — `globalState` keys for the watch list,
+  per-watch baselines, and per-watch unseen-item keys.
+- **Current UI**: `WatchesTreeProvider` — a flat sidebar tree, one row per
+  watch, click opens the newest unseen item externally.
 
-```typescript
-type ItemStatus = 'success' | 'failing' | 'pending' | 'action_required' | 'open';
-type ItemPriority = 'P0' | 'P1' | 'P2' | 'P3' | 'none';
+There is no dashboard/table view of watched-repo activity today — only the
+tree row plus toast notifications. HubGrid adds that view.
 
-interface DashboardItem {
-  id: string; // e.g., "repo_name:issue:256"
-  repo: string; // "saropa_lints"
-  type: 'pr' | 'issue' | 'action' | 'security_alert';
-  title: string; // "Please bump the analyzer package version to 13"
-  number: number; // 256
-  author: { login: string; avatarUrl: string };
-  status: ItemStatus;
-  priority: ItemPriority;
-  labels: string[]; // ["deferred", "needs-triage"]
-  htmlUrl: string; // "https://github.com/..."
-  timestamps: { created: number; updated: number };
-  // Context-specific payload
-  context?: {
-    branch?: string;
-    workflowName?: string; // e.g., "CodeQL"
-    ciTimeMs?: number;
-  }
-}
+## Architecture
+
+One new webview panel, following the `dashboardPanel.ts` /
+`dashboardShell.ts` / `dashboardAssets.ts` split already used by the other
+nine panels — no new dependencies, no bundler changes.
+
+```
+extension/src/views/
+  hubGridPanel.ts    lifecycle: singleton panel, message dispatch, refresh
+  hubGridShell.ts     static HTML shell, CSP + per-load nonce
+  hubGridAssets.ts    inlined CSS + client-side script (vanilla JS)
 ```
 
----
+### Data flow
 
-## 3. Component Specification: `SmartRow` (Deep Dive)
+1. Command `saropaWorkspace.showHubGrid` (title-bar button on the Watches
+   view, next to the existing watch/manage buttons) opens or reveals the
+   panel.
+2. Host reads all `kind: "repo"` watches from `FolderWatchStore`, and for
+   each: `engine.getCachedRepoItems(watch.id)` + `store.unseenKeys(watch.id)`.
+   No new network calls — this reuses the engine's existing poll cache.
+3. Host posts one `load` message: flattened item list (each item carries its
+   owning repo slug), the unseen-key set, and per-repo rate-limit state if
+   the engine recorded a 403 on last poll.
+4. Client renders one `SmartRow`-style table row per item — status icon
+   (issue vs. PR, draft), repo tag, `#number`, title (CSS `truncate`),
+   labels, relative "updated" time — styled entirely with `--vscode-*`
+   tokens, matching the editor theme automatically (no hardcoded palette).
+5. Filter bar: buttons for "All" / each watched repo, driven client-side
+   against the already-loaded item list — no re-fetch.
+6. Keyboard: `j`/`k`/arrows move a focused-row index (a CSS `outline`, not a
+   real DOM `tabindex` sweep — the item count here is realistically dozens,
+   not thousands, so no virtualization is needed); `Enter` opens the row.
+7. Row click or `Enter` -> `postMessage({ type: "open", htmlUrl, watchId,
+   itemKey })` -> host calls `vscode.env.openExternal` and clears that item's
+   unseen flag via `store.clearUnseen()` (mirrors `openRepoWatch()`'s
+   existing behavior).
+8. Copy button -> `postMessage({ type: "copy", text })` -> host calls
+   `vscode.env.clipboard.writeText` (there is no in-webview clipboard API
+   guarantee in VS Code, so this always round-trips through the host).
+9. Refresh button -> `postMessage({ type: "refresh" })` -> host triggers
+   `engine.reconcileWatchers()` for repo watches, then re-posts `load` once
+   the poll completes.
+10. Rate limiting: if the engine's last scan recorded a GitHub 403, the panel
+    shows a dismissible banner naming the affected repo and the reset time
+    (the engine already computes this for its toast/warning path — reuse it,
+    don't re-derive).
 
-The `SmartRow` is highly optimized to avoid repaint/reflow costs.
+### Data model additions
 
-### 3.1. DOM Structure & CSS Grid (Tailwind conventions)
-The row is constrained to exactly `h-10` (40px) to maximize vertical density.
+None required. `GitHubWatchItem` already has everything a row needs
+(`kind`, `number`, `title`, `htmlUrl`, `author`, `updatedAt`, `labels`,
+`draft`). The panel is a read-only projection of existing state — the only
+new persisted value is none; open/unseen state continues to live in
+`FolderWatchStore` exactly as it does for the tree view today.
 
-```html
-<!-- Row Container: relative positioning, grouped hover targets -->
-<div class="group relative flex h-10 w-full items-center gap-3 border-b border-[#21262D] px-4 py-2 hover:bg-[#161B22] focus-within:bg-[#161B22] outline-none">
-  
-  <!-- Status Icon (Fixed Width) -->
-  <div class="flex h-4 w-4 flex-shrink-0 items-center justify-center">...</div>
-  
-  <!-- Repo Tag (Fixed Width, Monospace) -->
-  <span class="w-28 flex-shrink-0 truncate text-xs font-mono text-[#8B949E]">saropa_lints</span>
-  
-  <!-- Title & ID (Fluid Width, Truncated) -->
-  <span class="truncate font-semibold text-[#58A6FF]">#256</span>
-  <span class="truncate flex-1 text-sm text-[#C9D1D9]">Please bump the analyzer...</span>
-  
-  <!-- Labels (Hidden on mobile, fluid flex) -->
-  <div class="hidden max-w-[150px] flex-shrink-0 gap-1 lg:flex">...</div>
+### i18n
 
-  <!-- Absolute Positioned Action Bar (Hidden by default) -->
-  <div class="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100">
-     <!-- Action Buttons -->
-  </div>
-</div>
-```
+All panel strings go through `l10n()` + `src/i18n/locales/en.json`, same as
+every other webview (see `dashboardShell.ts` for the pattern of injecting a
+localized `STRINGS` object into the client script).
 
-### 3.2. Truncation & Overflow Logic
-*   **Branch Names:** Standard `text-overflow: ellipsis` fails for branch names because the important part is often at the end. Branch names must implement **middle truncation** via JS (e.g., `feat/add-...-lint-rules`).
-*   **Titles:** Use CSS `truncate` (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`).
+## Explicitly out of scope
 
-### 3.3. The Hover Action Bar (Micro-Interactions)
-The Action Bar sits over the right-most content (like labels or timestamps) using an opaque gradient fade (`bg-gradient-to-l from-[#161B22]`) to ensure text underneath is obscured cleanly, preventing visual overlapping.
+- Any server component, webhook ingestion, or push delivery. Polling on the
+  existing timer is the only data path.
+- URL-based deep linking / shareable filtered views — a VS Code webview has
+  no addressable URL to share; "share" here means "copy issue/PR link,"
+  which the existing action bar already covers.
+- A UI framework or virtualized list library. Plain DOM row rendering is
+  sufficient at this scale and keeps the panel dependency-free like its
+  siblings.
+- Multi-window/multi-client state sync — `FolderWatchStore` already handles
+  this via `globalState` and the existing `onDidChange` events; the panel
+  just needs to repaint on those, same as the tree view does.
 
-*   **Buttons:** `h-7`, `px-2`, `border border-[#30363D]`, `rounded-md`, `bg-[#21262D]`, `hover:bg-[#30363D]`.
-*   **Copy Mechanics:** Relies on the `navigator.clipboard.writeText()` API. 
-*   **Visual Feedback Timeline:**
-    *   `T=0ms`: User clicks Copy. Button background flashes `#238636` (GitHub Green). Icon changes to `CheckIcon`.
-    *   `T=1500ms`: React state reverts. Background fades back to `#21262D` over `200ms ease-in-out`. Icon reverts to `ClipboardIcon`.
+## Work items
 
----
+1. `hubGridShell.ts` + `hubGridAssets.ts`: static shell, CSP+nonce, inlined
+   CSS (SmartRow layout, filter bar, banner) and client script (render,
+   filter, keyboard nav, message posting).
+2. `hubGridPanel.ts`: singleton panel class, gathers data from
+   `FolderWatchStore` + `FolderWatchEngine`, message handlers for
+   `open`/`copy`/`refresh`, repaints on `store.onDidChange` /
+   `onDidChangeCounts`.
+3. Command registration: `saropaWorkspace.showHubGrid` in
+   `folderWatchCommands.ts` (or a new `hubGridCommands.ts` if that file is
+   getting large), wired in `wiringWatchers.ts`.
+4. `package.json`: command entry + `view/title` menu contribution on
+   `saropaWorkspace.watches`, `package.nls.json` title key.
+5. `src/i18n/locales/en.json`: new keys for panel title, filter labels,
+   empty state, rate-limit banner text.
+6. Update root `CHANGELOG.md` `## [Unreleased]` once shipped.
 
-## 4. Advanced "Quick Share" Routing & Serialization
-
-To support the requirement to "QUICKLY... share them", the application state must perfectly map to the URL bar in real-time without causing page reloads.
-
-### 4.1. URL State Management
-We utilize `window.history.replaceState` coupled with URLSearchParams.
-If a tech lead applies filters for `repo:saropa_lints`, `status:failing`, and opens the right sidebar for issue `#256`, the URL instantly mutates to:
-`https://hubgrid.internal/?repos=saropa_lints&status=failing&focused=saropa_lints:issue:256`
-
-### 4.2. Deep Linking Boot Sequence
-When a user clicks a shared URL:
-1.  Next.js router parses `searchParams` on the server.
-2.  Initial HTML is hydrated with the precise filtered view (Edge Rendering).
-3.  WebSocket connects and subscribes *only* to the Redis channels matching the URL filters (e.g., `channel:repo:saropa_lints`), saving client memory and bandwidth.
-
----
-
-## 5. Keyboard Accessibility & Focus Trapping (a11y)
-
-A "Power User" tool is useless if it requires a mouse. HubGrid implements strict focus management.
-
-*   **Virtual Focus:** Standard DOM tab-indexing `tabindex="0"` on every row is too slow for 1000+ items. We implement a virtualized list (e.g., `@tanstack/react-virtual`). The `j`/`k` (Vim bindings) or `Up`/`Down` arrows control a React state `activeIndex`.
-*   **Focus Styling:** The `activeIndex` row receives a strict visual indicator: `box-shadow: inset 2px 0 0 0 #58A6FF;` (A blue line on the absolute left edge) and triggers the Action Bar visibility.
-*   **Keyboard Actions:**
-    *   When `activeIndex` is focused, pressing `c` triggers the `writeText` API for the URL.
-    *   Pressing `Shift + c` compiles the markdown: `` navigator.clipboard.writeText(`[${item.repo}#${item.number}](${item.htmlUrl})`) ``.
-
----
-
-## 6. Edge Cases & Error Handling
-
-*   **API Rate Limiting:** While WSS bypasses this for live data, initial hydrating fetches might hit GitHub API limits. If HTTP 429 (Too Many Requests) is returned, the UI displays a `retry-after` countdown overlay, dimming the data canvas.
-*   **Mass Failures (The "Red Sea" problem):** If a core dependency breaks and 50+ actions fail simultaneously, the client-side batched rendering kicks in. The UI aggregates the notification toast: *"52 actions failed across 4 repos in the last 10 seconds"* instead of firing 52 individual slide-in toasts.
-*   **Deleted Records:** If an issue is deleted on GitHub, the WSS pushes a `{ action: "delete", id: "..." }` payload. The `SmartRow` immediately collapses its height to `0px` with a `200ms ease-in` transition, and is then unmounted from the DOM, allowing remaining items to slide up smoothly.
+No changes needed to `folderWatch.ts`, `githubClient.ts`, `githubTypes.ts`,
+or the engine's polling/diff logic — this is a new read surface over data
+that already exists.
