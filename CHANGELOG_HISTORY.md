@@ -4,6 +4,45 @@ This archive is for older versions. For current changes see [CHANGELOG.md](./CHA
 
 ---
 
+## [1.5.22]
+
+**Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.22/CHANGELOG.md)
+
+### Added
+
+- New bundled **script library**: the extension now ships a set of self-contained, ready-to-run developer scripts, each its own folder with an editable run config, tags, and a declared list of the command-line tools it needs. Two to start: **Organize output folder** (sorts a folder's loose files into dated `YYYY.MM/YYYY.MM.DD` subfolders and prunes the empty folders left behind) and **Connect a device for debugging** (connects a physical Android device to Flutter over Wi-Fi or USB, mirrors the screen with scrcpy, and reports battery/charging health — asking before installing its Python dependencies, and telling you up front if a required tool like `adb` is missing). A dedicated Scripts view to browse and run them from the sidebar is coming next.
+- New **View Suite Daily Report** command: a read-only Markdown summary with an executive summary, a Trouble section (failures and high-impact items only), today's Workspace shortcut activity, and a per-tool section for each installed Saropa Suite extension that exposes the versioned `getDailySummary` exports API (today and yesterday). Tools that are absent or predate the API are simply omitted — a solo install renders a workspace-only report. Also reachable from the Diagnostics submenu.
+
+### Changed
+
+- The routine summary is now the day's actual content, not an execution table. The one document a routine opens merges each member report's full body in as a section (the standup digest, project stats, PR queue — readable in place, with a link to each source file), instead of a table of statuses, durations, and links. Execution state appears only when something went wrong: a failed or missing member gets one attention line at the top saying what happened and what to do. A clean run reads as pure content.
+- Routine summary sections are collapsible: each member's content sits in a click-to-expand block, so a multi-member morning report opens as scannable one-line headers — and a failed member's section arrives pre-expanded. Failure details are flattened to one bounded line (the full error stays in the output channel), and a member report that is not Markdown (a .log or .txt) is shown as preformatted text instead of being mangled as prose.
+- The Suite Daily Report guards against a hung sibling extension: any single sibling activation or summary call past five seconds is dropped and that tool's section is omitted, instead of the whole report hanging.
+- The Suite Daily Report names a version-skewed tool instead of hiding it: an installed Suite extension reporting a newer data format than this version understands gets a one-line note under the executive summary ("update Saropa Workspace to include its section") rather than silently vanishing. Collecting the summaries also shows a status-bar progress note while siblings are polled.
+- New **Saropa Suite daily report** recipe (scheduled ritual, default 06:30, seeds disabled): writes the Suite day summary as a dated report file, and joins the Morning routine as its closing member — so yesterday's debug sessions, lint health, and database anomalies merge into the same one morning document as the standup and stats.
+
+### Fixed
+
+- Launcher card buttons now share one label size: the Run/Open button on a card's header rendered its text larger than the Open/Copy path buttons in the expanded drawer; all launcher buttons now use the drawer's smaller size, defined in one place so the two cannot drift apart again.
+
+---
+
+## [1.5.21]
+
+**Overview** — The "you've opened this file a lot, want a shortcut?" prompt used to fire while you were just flipping between files during normal work. Now it counts a file at most once every half hour, needs more opens before it asks, and lets you shut off a whole file type ("Ignore .dart") straight from the prompt. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.21/CHANGELOG.md)
+
+### Added
+
+- The open-often shortcut suggestion now offers "Ignore .ext" alongside Add shortcut and Don't ask again. Choosing it adds that extension to the new `saropaWorkspace.suggestions.ignoreExtensions` setting, so files of that type are never suggested again.
+- New `saropaWorkspace.suggestions.debounceMinutes` setting (default 30): a file re-focused within this window counts once, so the count tracks distinct working sessions rather than tab flipping.
+
+### Changed
+
+- Re-focusing the same file (search, go to definition, tab flipping) no longer inflates its open count — a per-file cooldown collapses a burst of re-focus into a single count. This stops the suggestion firing during ordinary development.
+- Raised the default open-count threshold before a suggestion appears from 6 to 10 (`saropaWorkspace.suggestions.openThreshold`).
+
+---
+
 ## [1.5.20]
 
 **Overview** — A morning routine used to fling open a tab for every check it ran and keep the one summary that ties them together closed. Now it opens exactly one document: the summary, with a link to each check's report. The "next scheduled run" item in the status bar also stops being a dead end — click it to open that report, change the time, run it now, turn the schedule off, or hide the item for good. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.20/CHANGELOG.md)
