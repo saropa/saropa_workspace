@@ -6,6 +6,9 @@ import {
   watchAlertsIn,
   watchKind,
   watchDisplayName,
+  watchKindLabel,
+  watchModeLabel,
+  watchBaseIcon,
 } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 import { currentFolderPaths, notifyWatchChange } from "./folderWatchCommands";
@@ -37,13 +40,7 @@ export async function manageWatches(store: FolderWatchStore): Promise<void> {
       // eye-closed first (paused), globe second (global), then kind-specific icon
       // (github for repo, eye for folder).
       iconPath: new vscode.ThemeIcon(
-        !w.enabled
-          ? "eye-closed"
-          : isGlobalWatch(w)
-          ? "globe"
-          : watchKind(w) === "repo"
-          ? "github"
-          : "eye"
+        !w.enabled ? "eye-closed" : isGlobalWatch(w) ? "globe" : watchBaseIcon(w)
       ),
     }));
     const pick = await vscode.window.showQuickPick(items, {
@@ -63,18 +60,8 @@ export async function manageWatches(store: FolderWatchStore): Promise<void> {
 // One-line state summary for a manage-hub row: kind, mode, enabled/paused, and the
 // global marker when the watch alerts in every project (so reach is legible here too).
 function describeWatch(watch: FolderWatch): string {
-  const kind =
-    watchKind(watch) === "repo"
-      ? l10n("github.kindRepo")
-      : watch.isFile
-      ? l10n("folderWatch.kindFile")
-      : l10n("folderWatch.kindFolder");
-  const mode =
-    watchKind(watch) === "repo"
-      ? l10n("github.modeNewItems")
-      : watch.mode === "changed"
-      ? l10n("folderWatch.modeChanged")
-      : l10n("folderWatch.modeNew");
+  const kind = watchKindLabel(watch);
+  const mode = watchModeLabel(watch);
   const state = watch.enabled
     ? l10n("folderWatch.stateOn")
     : l10n("folderWatch.stateOff");

@@ -16,7 +16,7 @@ import {
 import { globToRegExp } from "./globMatch";
 import { l10n } from "../i18n/l10n";
 import { fetchOpenRepoItems, parseRepoSlug, repoIssuesUrl } from "../github/githubClient";
-import { GitHubWatchItem } from "../github/githubTypes";
+import { GitHubWatchItem, newestRepoItem } from "../github/githubTypes";
 
 // Engine for the folder/file watches (PLAN_FILE_AND_FOLDER_WATCH). Two jobs:
 //   1. On startup, scan each enabled watch and diff it against the cached baseline,
@@ -104,6 +104,9 @@ export class FolderWatchEngine implements vscode.Disposable {
   // issues page (see repoIssuesUrl), never a crash.
   private readonly repoItemsCache = new Map<string, GitHubWatchItem[]>();
 
+  // Repo watch ids with a seed fetch currently in flight — see seedRepoWatchIfNew.
+  private readonly seedingRepoIds = new Set<string>();
+
   constructor(
     private readonly store: FolderWatchStore,
     private readonly output: vscode.OutputChannel
@@ -155,19 +158,22 @@ export class FolderWatchEngine implements vscode.Disposable {
 
   private async pollAllRepoWatches(): Promise<void> {
     const folders = this.folderPaths();
-    for (const watch of this.store.list()) {
-      if (
-        this.disposed ||
-        watchKind(watch) !== "repo" ||
-        !watch.enabled ||
-        !watchAlertsIn(watch, folders)
-      ) {
-        continue;
-      }
-      // scanAndReport already catches and logs its own scan errors (per-watch, via
-      // this.output) so one repo's failure never aborts the rest of the poll pass.
-      await this.scanAndReport(watch, false);
-    }
+    const due = this.store
+      .list()
+      .filter(
+        (watch) =>
+          !this.disposed &&
+          watchKind(watch) === "repo" &&
+          watch.enabled &&
+          watchAlertsIn(watch, folders)
+      );
+    // Each repo watch's scan is a fully independent fetch (separate API base URL,
+    // its own id-keyed baseline/cache entries) — run them concurrently rather than
+    // one full poll-and-diff cycle at a time, so N watched repos cost one round
+    // trip's latency instead of N. scanAndReport already catches and logs its own
+    // scan errors (per-watch, via this.output), so one repo's failure never aborts
+    // the others, with or without Promise.all.
+    await Promise.all(due.map((watch) => this.scanAndReport(watch, false)));
   }
 
   // The current window's workspace folders as fsPaths — the input to the per-project
@@ -228,6 +234,18 @@ export class FolderWatchEngine implements vscode.Disposable {
         this.disarm(id, armed);
       }
     }
+    // Drop repo-watch item caches no longer wanted. A repo watch never enters
+    // `this.armed` (no FileSystemWatcher — see the seed/arm split below), so the
+    // disarm() loop above can never reach it; without this, removing, disabling, or
+    // scoping a repo watch out of this window left its cached issue/PR titles+URLs
+    // in `repoItemsCache` for the rest of the extension host's session — the exact
+    // leak this method's folder-watch half already prevents via disarm().
+    for (const id of this.repoItemsCache.keys()) {
+      const watch = enabled.get(id);
+      if (!watch || watchKind(watch) !== "repo") {
+        this.repoItemsCache.delete(id);
+      }
+    }
     // Arm watchers (or seed baselines) newly wanted.
     for (const [id, watch] of enabled) {
       if (watchKind(watch) === "repo") {
@@ -241,9 +259,20 @@ export class FolderWatchEngine implements vscode.Disposable {
   // Mirrors the tail of arm(): a repo watch added mid-session has no cached
   // baseline yet, so seed it silently on first sight rather than waiting for the
   // next poll tick to announce every currently-open issue/PR as new.
+  //
+  // `seedingRepoIds` guards against a re-entrant duplicate: reconcileWatchers()
+  // (which calls this) reruns on every store change, but the seed fetch it
+  // triggers is async and only writes the baseline (the signal this checks) once
+  // it resolves. Two store mutations landing back-to-back while a watch's first
+  // seed is still in flight — e.g. adding two repo watches at once, or a quick
+  // enable/disable toggle — would otherwise each see "no baseline yet" and fire
+  // their own concurrent fetch pair for the same repo.
   private seedRepoWatchIfNew(watch: FolderWatch): void {
-    if (this.store.getBaseline(watch.id) === undefined) {
-      void this.scanAndReport(watch, false);
+    if (this.store.getBaseline(watch.id) === undefined && !this.seedingRepoIds.has(watch.id)) {
+      this.seedingRepoIds.add(watch.id);
+      void this.scanAndReport(watch, false).finally(() =>
+        this.seedingRepoIds.delete(watch.id)
+      );
     }
   }
 
@@ -543,8 +572,10 @@ export class FolderWatchEngine implements vscode.Disposable {
     if (choice !== open) {
       return;
     }
-    const target = newItems[newItems.length - 1];
-    await vscode.env.openExternal(vscode.Uri.parse(target.htmlUrl));
+    const target = newestRepoItem(newItems);
+    if (target) {
+      await vscode.env.openExternal(vscode.Uri.parse(target.htmlUrl));
+    }
   }
 
   // List up to MAX_LISTED item titles as "#N title", then "+N more", mirroring
@@ -579,9 +610,9 @@ export class FolderWatchEngine implements vscode.Disposable {
     }
     armed.watcher.dispose();
     this.armed.delete(id);
-    // Clean up any cached repo items so a removed watch does not leak memory for
-    // the rest of the extension host's lifetime.
-    this.repoItemsCache.delete(id);
+    // repoItemsCache cleanup for a removed/disabled/out-of-scope repo watch happens
+    // in reconcileWatchers(), not here — a repo watch has no FileSystemWatcher, so
+    // it never reaches disarm() (see reconcileWatchers's arm/seed split below).
   }
 
   dispose(): void {

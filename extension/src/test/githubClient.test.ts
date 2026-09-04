@@ -4,13 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as os from "os";
-import {
-  isValidRepoSlug,
-  parseRepoSlug,
-  repoIssuesUrl,
-  detectRepoFromGit,
-} from "../github/githubClient";
+import { isValidRepoSlug, parseRepoSlug, repoIssuesUrl } from "../github/githubClient";
 
 test("isValidRepoSlug accepts a plain owner/repo", () => {
   assert.equal(isValidRepoSlug("saropa/saropa-workspace"), true);
@@ -48,17 +42,4 @@ test("repoIssuesUrl builds the repo's issues page", () => {
     repoIssuesUrl({ owner: "saropa", repo: "saropa-workspace" }),
     "https://github.com/saropa/saropa-workspace/issues"
   );
-});
-
-test("detectRepoFromGit resolves this repo's own origin remote", async () => {
-  // Runs the real `git remote get-url origin` against this checkout rather than
-  // mocking child_process — the test's own repo is a stable, always-present fixture
-  // for the SSH/HTTPS-URL parsing this function exists to do.
-  const detected = await detectRepoFromGit(process.cwd());
-  assert.deepEqual(detected, { owner: "saropa", repo: "saropa_workspace" });
-});
-
-test("detectRepoFromGit returns undefined for a folder with no git repo", async () => {
-  const detected = await detectRepoFromGit(os.tmpdir());
-  assert.equal(detected, undefined);
 });

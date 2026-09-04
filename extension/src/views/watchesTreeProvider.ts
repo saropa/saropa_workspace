@@ -6,6 +6,9 @@ import {
   watchAlertsIn,
   watchKind,
   watchDisplayName,
+  watchKindLabel,
+  watchModeLabel,
+  watchBaseIcon,
 } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 
@@ -105,24 +108,13 @@ export class WatchTreeItem extends vscode.TreeItem {
   ) {
     super(watchDisplayName(watch), vscode.TreeItemCollapsibleState.None);
 
-    // A repo watch has no file/folder distinction or new-vs-changed mode — it
-    // always means "new issues/PRs" — so both wording pieces get repo-specific
-    // values instead of the folder-watch ones.
     const isRepo = watchKind(watch) === "repo";
-    const kind = isRepo
-      ? l10n("github.kindRepo")
-      : watch.isFile
-      ? l10n("folderWatch.kindFile")
-      : l10n("folderWatch.kindFolder");
-    const mode = isRepo
-      ? l10n("github.modeNewItems")
-      : watch.mode === "changed"
-      ? l10n("folderWatch.modeChanged")
-      : l10n("folderWatch.modeNew");
+    const kind = watchKindLabel(watch);
+    const mode = watchModeLabel(watch);
     // The idle-state base icon differs by kind (github glyph for a repo watch, eye
     // for a folder watch); every other state (disabled/global/unseen) reuses this
     // as its un-tinted starting point.
-    const baseIcon = isRepo ? "github" : "eye";
+    const baseIcon = watchBaseIcon(watch);
 
     // Icon + note by state, most-muted first. A disabled watch reads muted (closed
     // eye, "off"). A global watch carries a globe glyph and a "global" note so it is

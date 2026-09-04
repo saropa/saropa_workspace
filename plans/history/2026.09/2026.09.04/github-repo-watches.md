@@ -133,8 +133,108 @@ A medium-level code review surfaced six bugs and one missed call site:
 ## What was deliberately not built
 
 Carried over from the superseded standalone-view plan, still not done and still
-plausible future work: checkout-PR-branch from a row, filter by label/author, a
-GitHub Actions status watch kind, and (if a second consumer needs individual-item
-listings, not just aggregate metrics like `saropa_lints`' `github-api.ts` already
-has) a shared `@saropa/github-client` package. None of these were requested for
-this pass and none are implied by "watch a repo for new issues/PRs."
+plausible future work: checkout-PR-branch from a row, a GitHub Actions status watch
+kind, and (if a second consumer needs individual-item listings, not just aggregate
+metrics like `saropa_lints`' `github-api.ts` already has) a shared
+`@saropa/github-client` package. None of these were requested for this pass and none
+are implied by "watch a repo for new issues/PRs." (Label/author filtering, listed
+here as future work in the original pass, was built in the hardening pass below.)
+
+## Hardening & review-fix pass (2026-09-04)
+
+Four items deferred from the original pass were implemented: auth-failure and
+poll-timer error logging to the output channel, `watchAlertsIn`'s path-containment
+check no longer running on a repo slug, optional label/author filtering on a repo
+watch, auto-detecting the active project's GitHub repo to prefill the add-watch
+prompt, and a "Change repository" action in Manage Watches to retarget a repo watch
+in place. Full detail and rationale for each is in `CHANGELOG.md` under `[1.9.1]`.
+
+An 8-angle code review of the resulting commit then surfaced defects the original
+pass's own review had not caught, several confirmed independently by more than one
+review angle:
+
+**`repoItemsCache` leak was never actually fixed.** The original pass's "Post-review
+fixes" item 4 above added `repoItemsCache.delete(id)` inside `disarm()`, believing
+this closed the leak. It did not: `disarm()` is only invoked for watch ids present
+in `this.armed`, a map populated exclusively by `arm()` — and `arm()` is only called
+for non-repo watches (`reconcileWatchers()` routes repo watches through
+`seedRepoWatchIfNew()` instead, which never touches `this.armed`). A repo watch's id
+therefore never reached `disarm()`, so the "fix" was dead code and the leak
+persisted through the entire hardening pass above, which itself repeated the same
+false claim in `CHANGELOG.md`. Corrected by moving the cleanup into
+`reconcileWatchers()` itself (which does run for repo watches on every store
+change), dropping any `repoItemsCache` entry whose watch is no longer
+enabled/in-scope/present — mirroring what the `armed`-watcher disarm loop already
+does for folder watches, just against the right collection.
+
+**"Open newest" opened the wrong item.** `toastRepo()`'s toast-click handler and
+`openRepoWatch()`'s row-click handler both assumed the last element of an array
+built from composite keys (`"issue:9"`, `"pr:45"`) was the most recent item. Those
+arrays come from `diffSnapshots`'s `added.sort()` and `FolderWatchStore.addUnseen`'s
+`[...merged].sort()` — plain lexicographic string sorts, not chronological or
+numeric ones, so `"issue:9"` sorts after `"issue:80"` and every `"issue:*"` key
+sorts before any `"pr:*"` key regardless of actual recency. A poll that picked up
+issue #5 and PR #200 in the same tick would open issue #5 — the opposite of "the
+newest." Fixed with a new `newestRepoItem()` (`github/githubTypes.ts`), which
+selects by `updatedAt` instead of array position; both call sites now use it.
+
+**A repo watch added with no project folder open never alerted, permanently.**
+`watchAlertsIn`'s rule 2 ("a project always watches its own target") does not apply
+to a repo watch (fixed in this same pass — a slug has no "containing project" to
+watch its own), so a repo watch depends entirely on `alertScopes`. `creationScopes()`
+returns `undefined` when no folder is open at add time, and nothing populates
+`alertScopes` for a repo watch afterward — so a watch added from the Command Palette
+in an empty window was silently dead in every window forever, with no warning.
+Fixed by defaulting a repo watch to `global: true` when no folder is open at
+creation (a folder watch does not need this, since rule 2 already gives it a home).
+
+**Reuse:** `detectRepoFromGit` (new in the hardening pass) spawned a `git` subprocess
+and re-implemented SSH/HTTPS remote-URL parsing that `recipes/gitMeta.ts`
+(`getGitRemote`/`normalizeRemote`) already provides — reading `.git/config` directly,
+no subprocess, and already used by the URL recipes. Replaced with a call to the
+existing reader. The near-duplicate dedup-check and existence-check blocks between
+`addGitHubRepoWatch` and `editGitHubRepoWatch` were factored into shared
+`findDuplicateRepoWatch`/`verifyRepoReachable` helpers in the same file.
+
+**Simplification:** the kind/mode label ternary and base-icon ternary, each
+independently re-implemented in three files (`folderWatchManageCommands.ts`,
+`watchesTreeProvider.ts`, `launcherWatchItem.ts`), met the project's own "3+ uses"
+abstraction threshold. Centralized as `watchKindLabel`/`watchModeLabel`/
+`watchBaseIcon` in `model/folderWatch.ts` and adopted by two of the three sites;
+`launcherWatchItem.ts` keeps its own copy deliberately — that file is documented as
+vscode-free/unit-testable by design, and `folderWatch.ts` carries a runtime
+`vscode` import, so importing from it there would trade a few duplicated lines for
+a real architectural boundary violation.
+
+**Efficiency:** repo watches polled sequentially (`for...await`) despite each
+being a fully independent fetch; switched to `Promise.all`. A duplicate-fetch race
+in `seedRepoWatchIfNew` — two store mutations landing while a watch's first seed
+fetch is still in flight (e.g. adding two repo watches back to back) could each
+observe "no baseline yet" and fire their own concurrent fetch pair for the same
+repo — was closed with an in-flight-id guard (`seedingRepoIds`).
+
+**Deferred, not fixed this pass:** a repo with more than 100 open issues+PRs has no
+pagination; an item that ages out of the unpaginated baseline and is later edited
+(bumping it back into the fetched top-100) can re-surface as a spurious "new" item
+toast, which is worse than the previously-understood "some old items are silently
+dropped" scope limit. Properly fixing this needs either full pagination or a
+persisted all-time-seen set independent of the top-100 window — deferred as a
+separate, larger piece of work rather than folded into this pass. Also deferred:
+`saropaWorkspace.github.pollIntervalMinutes` only takes effect on the next scheduled
+tick, not immediately on edit (unlike the existing `Heartbeat` timer, which
+re-arms on a config-change listener); `FolderWatch` modeling kind-varying fields
+(`isFile`/`glob` for folder watches, `filterLabels`/`filterAuthor` for repo
+watches) as one flat optional-field interface rather than a discriminated union,
+which the project's own TypeScript conventions call out as the case for a union —
+deferred as a larger, more deliberate refactor given how many call sites read
+`FolderWatch` today; and skipping the `/pulls` fetch when an `/issues` page
+contains no PRs, since doing so would revert the just-parallelized fetch back to
+sequential for repos that DO have open PRs, an unclear net trade-off rather than a
+clear win.
+
+Verified with `npx tsc -p ./ --noEmit` (clean), `node esbuild.js` (bundles), and
+`npm test` (1267/1267 passing, including new coverage for `newestRepoItem` and the
+removal of now-obsolete `detectRepoFromGit` tests). No F5 dev-host smoke test was
+run in this session either — the GitHub auth flow, the "Change repository" action,
+the label/author filter prompts, and the auto-detect prefill remain unverified
+end-to-end.

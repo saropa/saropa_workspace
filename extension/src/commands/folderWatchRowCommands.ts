@@ -9,6 +9,7 @@ import {
 import { WatchTreeItem } from "../views/watchesTreeProvider";
 import { FolderWatchEngine } from "../exec/folderWatchEngine";
 import { parseRepoSlug, repoIssuesUrl } from "../github/githubClient";
+import { newestRepoItem } from "../github/githubTypes";
 import { l10n } from "../i18n/l10n";
 import { currentFolderPaths, notifyWatchChange } from "./folderWatchCommands";
 
@@ -109,9 +110,12 @@ async function openRepoWatch(
 ): Promise<void> {
   const slug = parseRepoSlug(watch.target);
   if (unseen.length > 0) {
-    const items = engine.getCachedRepoItems(watch.id);
-    const byKey = new Map(items.map((i) => [i.key, i]));
-    const newest = byKey.get(unseen[unseen.length - 1]);
+    const unseenSet = new Set(unseen);
+    const items = engine.getCachedRepoItems(watch.id).filter((i) => unseenSet.has(i.key));
+    // newestRepoItem, not unseen's array order: unseen is sorted lexicographically
+    // by composite key ("issue:9" > "issue:80" as strings), which is not
+    // chronological — see newestRepoItem's own comment.
+    const newest = newestRepoItem(items);
     if (newest) {
       await vscode.env.openExternal(vscode.Uri.parse(newest.htmlUrl));
       return;
