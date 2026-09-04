@@ -56,6 +56,7 @@ You can now watch a GitHub repo the same way you watch a folder — get a toast 
 - Adding a repo watch now offers optional label and author filters — leave both blank to alert on every open issue/PR (unchanged), or narrow to items carrying one of a set of labels and/or opened by a specific GitHub user.
 - The "Watch GitHub Repo" prompt now prefills `owner/repo` from the active project's `origin` git remote when it points at GitHub, so watching the project you already have open is a single confirm.
 - Manage Watches now offers a "Change repository" action on repo watches, so you can retarget an existing watch's `owner/repo` without losing its label, alert scope, or filters (which a remove-and-re-add would).
+- A repo watch poll now logs a one-line warning to the "Saropa Workspace" output channel when GitHub's rate limit is close to running out (10 or fewer requests remaining), so several watched repos on a short poll interval give you a heads-up before fetches start silently failing instead of after.
 
 ### Changed
 
@@ -75,6 +76,8 @@ You can now watch a GitHub repo the same way you watch a folder — get a toast 
 - The toast's "Open" action and a repo-watch row's click-to-open now open the actual newest issue/PR — they previously picked by array position on a lexicographically-sorted composite key ("issue:9" sorted after "issue:80" as strings), which could open an older item instead of the newest one.
 - A repo watch added with no project folder open (e.g. from the Command Palette in an empty window) no longer alerts nowhere forever — it now defaults to global so it has a home, since a repo slug (unlike a folder watch) has no "containing project" to fall back to.
 - All repo watches now poll concurrently instead of one at a time, so N watched repos cost one poll tick's latency instead of N.
+- The case-insensitive duplicate-slug check for repo watches (`Facebook/react` vs `facebook/REACT`) is now also enforced at the storage layer, not just in the "Watch GitHub Repo" command — a future add path that stores a watch directly can no longer bypass it.
+- Adding two repo watches back to back (or a fast enable/disable toggle) could fire a duplicate pair of concurrent seed fetches for the same still-unseeded repo watch; now guarded.
 
 ---
 

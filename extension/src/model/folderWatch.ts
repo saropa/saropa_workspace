@@ -282,10 +282,23 @@ export class FolderWatchStore {
 
   // Add a watch. A re-add of the same target+mode is a no-op so the same folder
   // is not watched twice; returns the existing or newly stored watch either way.
+  // A repo watch's target ("owner/repo") is compared case-insensitively — GitHub
+  // slugs are case-insensitive, so "Facebook/react" and "facebook/REACT" are the
+  // same target — while a folder watch's target (a filesystem path) stays an exact
+  // match, since case sensitivity there is platform-dependent and this store must
+  // not assume a case-insensitive filesystem. This is the store-level backstop for
+  // the same rule the add/edit repo-watch command flows already enforce up front;
+  // enforcing it here too means any OTHER path that calls add() directly (a future
+  // import or sync feature, say) cannot silently reintroduce a case-duplicate.
   async add(watch: FolderWatch): Promise<FolderWatch> {
     const watches = this.list();
+    const isRepo = watchKind(watch) === "repo";
     const existing = watches.find(
-      (w) => w.target === watch.target && w.mode === watch.mode
+      (w) =>
+        w.mode === watch.mode &&
+        (isRepo && watchKind(w) === "repo"
+          ? w.target.toLowerCase() === watch.target.toLowerCase()
+          : w.target === watch.target)
     );
     if (existing) {
       return existing;

@@ -339,6 +339,27 @@ test("a duplicate target+mode add does not create a second watch", async () => {
   assert.equal(store.list().length, 1);
 });
 
+function repoWatch(id: string, target: string): FolderWatch {
+  return { id, target, kind: "repo", isFile: false, mode: "new", enabled: true };
+}
+
+test("a case-different repo watch add does not create a second watch (store-level backstop)", async () => {
+  // The add-repo-watch command flow already checks this before calling add(), but
+  // the store enforces it too, so any other caller of add() (an import/sync path)
+  // cannot silently reintroduce a case-duplicate.
+  const store = new FolderWatchStore(fakeContext());
+  await store.add(repoWatch("w1", "Facebook/react"));
+  await store.add(repoWatch("w2", "facebook/REACT"));
+  assert.equal(store.list().length, 1);
+});
+
+test("a folder watch's target dedup stays exact-case (not folded into the repo case-insensitive rule)", async () => {
+  const store = new FolderWatchStore(fakeContext());
+  await store.add(watch("w1", "/p/Bugs"));
+  await store.add(watch("w2", "/p/bugs")); // different case, folder watch
+  assert.equal(store.list().length, 2);
+});
+
 test("the counts event fires on a real unseen change, not a redundant one", async () => {
   const store = new FolderWatchStore(fakeContext());
   await store.add(watch("w1", "/p/bugs"));

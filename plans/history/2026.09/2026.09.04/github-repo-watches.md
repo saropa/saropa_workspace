@@ -238,3 +238,33 @@ removal of now-obsolete `detectRepoFromGit` tests). No F5 dev-host smoke test wa
 run in this session either — the GitHub auth flow, the "Change repository" action,
 the label/author filter prompts, and the auto-detect prefill remain unverified
 end-to-end.
+
+## Reflection follow-through (2026-09-04)
+
+Two items raised in this pass's own handoff reflection were addressed rather than
+left as brainstorm-only notes:
+
+**Store-level dedup backstop.** The case-insensitive duplicate-slug check
+(`Facebook/react` vs `facebook/REACT`) lived only in `addGitHubRepoWatch`'s
+command-layer pre-check; `FolderWatchStore.add()` itself still deduped by exact
+`target` match. Any future caller of `add()` that bypasses the command flow (an
+import or sync feature, say) could silently reintroduce a case-duplicate.
+`add()` now compares repo-watch targets case-insensitively too, while folder-watch
+targets (filesystem paths) stay an exact match — case sensitivity there is
+platform-dependent and the store must not assume a case-insensitive filesystem.
+
+**GitHub rate-limit budget indicator** (the pass's brainstormed unrequested
+feature, built as a minimal slice rather than left as a suggestion). A repo-watch
+poll now reads the `X-RateLimit-Remaining`/`-Limit`/`-Reset` headers off the
+`/issues` response and logs a one-line warning to the "Saropa Workspace" output
+channel when 10 or fewer requests remain (`rateLimitWarning()`,
+`github/githubClient.ts`) — a fixed absolute threshold, not a percentage of the
+limit, since it should read as "about to be cut off" whether the caller is on the
+unauthenticated (60/hr) or authenticated (5000/hr) tier. The initial
+implementation had a bug caught by its own new test: `Number(headers.get(...))` on
+an absent header returns `Number(null)` = `0`, which is finite and below the
+threshold, so a response with no rate-limit headers at all (e.g. a stubbed test
+response) was misread as "0 remaining" and warned incorrectly; fixed with an
+explicit null check before the numeric conversion.
+
+Verified with the same three commands as above; `npm test` now 1273/1273 passing.
