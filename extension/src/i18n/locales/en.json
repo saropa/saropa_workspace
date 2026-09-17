@@ -1715,5 +1715,21 @@
   "adb.shell.run.label": "Run a shell command",
   "adb.shell.run.description": "Runs one arbitrary shell command on the device and prints its output.",
   "adb.shell.restart-server.label": "Restart the adb server",
-  "adb.shell.restart-server.description": "Kills and restarts the local adb daemon, the usual fix for a device stuck in an offline or unauthorized state."
+  "adb.shell.restart-server.description": "Kills and restarts the local adb daemon, the usual fix for a device stuck in an offline or unauthorized state.",
+  "remoteControl.title": "Mobile Remote Control",
+  "remoteControl.subtitle": "Search the adb command catalog and run a command against a connected device.",
+  "remoteControl.search.placeholder": "Search commands, tags and groups",
+  "remoteControl.count": "{n}",
+  "remoteControl.countFiltered": "{shown}/{total}",
+  "remoteControl.run": "Run",
+  "remoteControl.empty": "No command matches this search.",
+  "remoteControl.badge.destructive": "Destructive",
+  "remoteControl.badge.destructiveTitle": "This command destroys state on the device — it will ask you to confirm before it runs.",
+  "remoteControl.badge.requiresDevice": "Needs a device",
+  "remoteControl.badge.minSdk": "API {level}+",
+  "remoteControl.project.package": "{id}",
+  "remoteControl.project.variants": "{n} variants",
+  "remoteControl.project.flutter": "Flutter",
+  "remoteControl.project.none": "No Android project detected in this workspace.",
+  "remoteControl.run.notImplemented": "Running \"{name}\" is not wired up yet — command execution lands in a later step."
 }
