@@ -291,6 +291,41 @@ subsystem.
     from scratch" button QA asks for, and it is the natural proof that the
     catalog entries compose rather than being isolated buttons.
 
+12. **Phone-shaped device console instead of a raw terminal.** The panel's
+    output surface renders as a stylized phone chassis (bezel/notch, no
+    live screen — that is scrcpy's job, see item 8) whose "screen" area is a
+    persistent, scrollable command log: every adb command run through the
+    catalog, with its exact substituted string, timestamp, exit code/
+    duration and captured output, logged as an entry instead of scrolling
+    off in an ephemeral VS Code terminal. Captured output reuses the
+    existing bounded head/tail accumulator in `src/exec/outputCapture.ts`
+    rather than a new capture mechanism, so a chatty command (a `pm
+    install` with verbose logging) can't grow the log unbounded. The log
+    itself persists the same way `ShortcutStore` persists project data —
+    project-scoped under `.vscode/`, so a session's device-debugging
+    history survives closing the panel and is diffable/shareable like any
+    other project file. Small, cheap touch that reinforces the "this is
+    the device, not a shell" framing: the chassis reflects live state from
+    the device-state-matrix toggles (item 4) — a dark swatch, a rotated
+    outline for orientation — without needing an actual frame buffer.
+
+13. **Run → watch output → react, composed from the trigger system that
+    already exists.** `src/exec/systemEvents.ts` is an in-process event bus
+    shortcuts already trigger off (`gitCommit`, `gitPush`, a shortcut's own
+    `emits`), and `src/exec/chainRunner.ts` already runs every shortcut
+    whose `triggers` name a fired event. Extend the adb catalog's command
+    model with an optional `watch: { matchPattern, onMatch }` clause:
+    while output streams through `outputCapture.ts`, matching lines fire a
+    `systemEvents.fire()` event exactly like a git push does today, so
+    existing shortcuts (and other catalog commands) can already trigger off
+    it for free — no parallel automation system needed. Concrete uses:
+    `adb wait-for-device` → device-online event → auto-run install+launch
+    (composes with item 11's clean-slate macro); poll `dumpsys battery` →
+    below-threshold event → stop a running `screenrecord` and toast; watch
+    a `pm install` for a `Failure` line → surface the parsed failure reason
+    inline instead of a bare non-zero exit code. This is what turns the
+    catalog from a button list into composable automations.
+
 ## UI restructure
 
 ### What is actually on screen today (measured from `extension/package.json`)
