@@ -65,6 +65,17 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 * **Hygiene Tools:** Includes built-in sweeps like a `Workspace bloat scan` to clear directory conflicts and layout freezes.
 * **Editable Promotion:** Keep scripts hidden, toggle entire recipe domains off, or choose `Promote to Shortcut` to customize a macro permanently.
 
+### 🎨 Customize
+* **Name, Icon, Color, Tags — One Screen:** Rename any shortcut, pick from a searchable codicon grid, tint it with a theme-aware color, and tag it, all from a single panel with a live preview.
+* **Theme-Tuned Palette:** Each color swatch is pre-tuned for light, dark, and high-contrast themes, so a chosen tint always stays legible.
+* **Tag-Driven Filtering:** Tags feed the mode filter in the Shortcuts view, so customization doubles as organization.
+
+<div align="center">
+
+![Saropa Customize panel — name, icon, color, and tags for a shortcut](https://raw.githubusercontent.com/saropa/saropa_workspace/main/images/customize.png)
+
+</div>
+
 ---
 
 ## Technical Capabilities

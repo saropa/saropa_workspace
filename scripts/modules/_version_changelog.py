@@ -148,6 +148,49 @@ def rename_unreleased_to_version(changelog: Path, version: str) -> bool:
     return True
 
 
+# Matches the various ways a "cut but not actually published yet" marker can
+# follow a version heading: "(unreleased)", "-unreleased", "- Unreleased", or a
+# bare trailing "unreleased" -- case-insensitive, since this is hand-typed.
+_UNRELEASED_TAG_RE = r"\s*[(-]?\s*unreleased\)?\s*$"
+
+
+def is_marked_unreleased(changelog: Path, version: str) -> bool:
+    """True if '[version]' section's heading carries a trailing "unreleased" marker.
+
+    A version can be fully cut in the CHANGELOG (real notes, package.json
+    already bumped) before it has actually reached the stores -- e.g. a
+    previous publish run stalled after the version sync but before the
+    marketplace publish. The marker records that gap explicitly so a later
+    run (or a person reading the file) never mistakes a cut-but-unpublished
+    section for a shipped one.
+    """
+    if not changelog.exists():
+        return False
+    pattern = rf"^##\s*\[{re.escape(version)}\]{_UNRELEASED_TAG_RE}"
+    return bool(
+        re.search(pattern, changelog.read_text(encoding="utf-8"), re.MULTILINE | re.IGNORECASE)
+    )
+
+
+def strip_unreleased_marker(changelog: Path, version: str) -> bool:
+    """Remove a trailing "unreleased" marker from '## [version]'s heading.
+
+    Called once the stores have actually been published to (see
+    git_commit_release() in _git_ops.py), so the marker never survives past
+    the point where the release is real. Returns True if a marker was found
+    and stripped, False if there was none to strip.
+    """
+    if not changelog.exists():
+        return False
+    content = changelog.read_text(encoding="utf-8")
+    pattern = rf"^(##\s*\[{re.escape(version)}\]){_UNRELEASED_TAG_RE}"
+    new_content, n = re.subn(pattern, r"\1", content, count=1, flags=re.MULTILINE | re.IGNORECASE)
+    if n == 0:
+        return False
+    changelog.write_text(new_content, encoding="utf-8")
+    return True
+
+
 def changelog_overview_problems(changelog: Path, version: str) -> list[str]:
     """Validate the '[version]' section's Overview intro and pinned [log] link.
 
@@ -367,6 +410,8 @@ def resolve_version(timer: StepTimer) -> str | None:
     detail(f"  Current package.json version: {pkg_version}")
     if has_unreleased_section(ROOT_CHANGELOG):
         detail("  CHANGELOG has an [Unreleased] section (work pending).")
+    if top and is_marked_unreleased(ROOT_CHANGELOG, top):
+        detail(f"  CHANGELOG [{top}] is marked (unreleased) -- this publish will finalize it.")
 
     version = prompt_version_until_valid(default)
 

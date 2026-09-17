@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [1.10.0]
+## [1.10.0] (unreleased)
 
-A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
+A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
 
 ### Added
 
@@ -58,6 +58,14 @@ A new Mobile Remote Control panel puts adb at your fingertips — search, run, a
 - The panel shows whether `adb` is available and how many devices are connected, with install guidance when `adb` is missing instead of a raw error at run time.
 - **"Saropa: Go"** (`ctrl+alt+g` / `cmd+alt+g`): one fuzzy-searchable command spanning shortcuts, recipes, scripts, notes, watches, and adb commands, with recently-used items on top. Type `>` followed by a category name (e.g. `>adb`) to narrow to just that section.
 - **Control Center**: a new view in the Shortcuts sidebar listing every section (Shortcuts, Recipes, Watches, Project Files, Scripts, Notes, Dashboard, Schedule, Planner, Mobile Remote Control) in one place, so a section without its own permanent tree view is still easy to find.
+- Customize panel: hovering (or keyboard-focusing) a color swatch now tints every icon in the grid above with that color as a live preview, reverting to your actual selection the moment you move away — lets you browse the icon/color variety without it looking like a color is permanently fixed to an icon, and never touches the saved selection until you actually click.
+
+### Internal
+
+- The publish script now recovers from a rebase left mid-flight by an earlier interrupted run (`resolve_stuck_rebase()`), instead of requiring the operator to run `git rebase --skip`/`--abort` by hand. This now runs unconditionally, before the first `package.json` read, because a stuck rebase leaves conflict markers in `CHANGELOG.md`/`package.json` that previously broke every mode's version read (even read-only ones like `audit`), not just the `full` mode's own git-sync step.
+- A rebase conflict is now diagnosed instead of reported generically: if it is confined to `CHANGELOG.md`/`extension/package.json` and matches the script's own `chore: release vX.Y.Z` commit shape, and that version is already superseded by what is on `origin/main`, the script explains this and offers to skip the redundant commit (auto-confirmed in `--headless` mode, prompted interactively otherwise). Anything else still surfaces the real conflicting files for the operator to resolve by hand.
+- A cut-but-unpublished version heading (`## [x.y.z] (unreleased)`, and separator/case variants like `- unreleased` or `-Unreleased`) is now recognized by the version-resolution tooling and stripped automatically once `git_commit_release()` runs — the first point after the actual marketplace publish has succeeded — so the release commit itself records that the version is genuinely out, not just cut.
+- Added the "🎨 Customize" section to the root README, with a screenshot of the panel.
 
 ---
 

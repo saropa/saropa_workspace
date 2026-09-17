@@ -93,7 +93,11 @@ _SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from modules._git_ops import DEFAULT_REBASE_DEBOUNCE_SECONDS, MAX_REBASE_DEBOUNCE_SECONDS  # noqa: E402
+from modules._git_ops import (  # noqa: E402
+    DEFAULT_REBASE_DEBOUNCE_SECONDS,
+    MAX_REBASE_DEBOUNCE_SECONDS,
+    resolve_stuck_rebase,
+)
 from modules._utils import detail, enable_ansi_support, set_headless, set_json_output, set_on_failure, set_quiet, show_logo  # noqa: E402
 from modules._version_changelog import read_package_version, set_version_override  # noqa: E402
 from modules._workflow import MODES, check_prerequisites, get_last_run_result, prompt_mode, run_mode  # noqa: E402
@@ -247,6 +251,13 @@ def main() -> int:
     mode = parsed.mode or prompt_mode()
 
     code = check_prerequisites(mode)
+    if code:
+        return code
+
+    # Must run before the first package.json read below: a rebase stuck by an
+    # earlier interrupted run leaves conflict markers in package.json, which
+    # breaks every mode's version read, not just "full"'s own git-sync step.
+    code = resolve_stuck_rebase(parsed.rebase_debounce)
     if code:
         return code
 
