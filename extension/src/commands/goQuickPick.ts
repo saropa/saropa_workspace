@@ -251,9 +251,13 @@ async function showGoQuickPick(stores: GoStores): Promise<void> {
     const prefix = parseGoPrefix(value);
     if (prefix) {
       narrowTo(prefix.category);
-      if (value !== prefix.remainder) {
-        // Strip the token once the category is resolved, so the remaining text is what the
-        // fuzzy matcher sees and the section header is what says which category is active.
+      // Only strip once the token is space-terminated. Stripping as soon as the category
+      // resolves (e.g. at ">note", one keystroke before the user's own trailing "e" lands)
+      // eats whatever the user types next as leftover search text instead of the category
+      // token — the narrowing still updates live per keystroke either way.
+      if (prefix.terminated && value !== prefix.remainder) {
+        // Strip the token once it's finished, so the remaining text is what the fuzzy
+        // matcher sees and the section header is what says which category is active.
         strippedValue = prefix.remainder;
         qp.value = prefix.remainder;
       }

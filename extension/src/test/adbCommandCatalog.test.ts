@@ -137,6 +137,7 @@ test("the obviously destructive commands are all flagged", () => {
     "powerReboot.reboot",
     "powerReboot.reboot-recovery",
     "powerReboot.reboot-bootloader",
+    "permissions.reset",
   ]) {
     const found = ADB_COMMAND_CATALOG.find((e) => e.id === id);
     assert.ok(found, `${id} missing from the catalog`);
