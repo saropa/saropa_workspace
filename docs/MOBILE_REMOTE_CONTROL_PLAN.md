@@ -254,13 +254,20 @@ subsystem.
    a Note (`src/model/noteStore.ts`, `src/views/notesProvider.ts`). Captures
    that land in the repo beat captures that land in `/sdcard`.
 
-8. **scrcpy as a tracked process.** Detect `scrcpy` through the existing
-   `requires` mechanism in `extension/scripts/library/library.json`, then
-   launch it through `src/exec/backgroundRunner.ts` and register it in
-   `src/exec/processRegistry.ts` — so the mirror window shows a running
-   indicator and a real Stop action in the tree instead of becoming an orphan
-   terminal. Same treatment for `screenrecord`, which is long-running by
-   nature.
+8. **Surface the existing scrcpy launcher as a tracked process, don't
+   rebuild it.** `device-connect/debug_connect/media.py` already has a
+   mature scrcpy integration — auto-updates from GitHub (throttled to once
+   a day), launches detached, verifies the window actually opened rather
+   than reporting success on a window-less zombie, and handles the
+   post-kill encoder-release settle time and charging-heat tradeoffs. The
+   gap is only that it runs as a one-shot terminal script with no
+   in-extension handle: wire its launch into
+   `src/exec/backgroundRunner.ts`/`processRegistry.ts` so the running
+   mirror shows a live indicator and a real Stop action in the panel
+   instead of becoming an orphan terminal, and expose its existing
+   auto-update/verification behavior as status text rather than
+   duplicating that logic in TypeScript. Same treatment for
+   `screenrecord`, which is long-running by nature.
 
 9. **Emulator / AVD management, not just physical devices.**
    `emulator -list-avds`, cold boot, wipe data, snapshot save/load, and a
