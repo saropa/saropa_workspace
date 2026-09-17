@@ -18,6 +18,7 @@ import {
   SECTION_REGISTRY,
   findSection,
   mobileRemoteControlRelevance,
+  orderedSections,
   sectionsByRelevance,
 } from "../model/sections";
 import { emptyAndroidProjectProfile } from "../model/androidProjectProfile";
@@ -142,6 +143,44 @@ test("sectionsByRelevance splits the registry by level", () => {
   const android = profile({ hasAndroidProject: true });
   assert.equal(sectionsByRelevance(android, "available").length, 0);
   assert.equal(sectionsByRelevance(android, "primary").length, SECTION_REGISTRY.length);
+});
+
+// --- Control Center row order ----------------------------------------------
+//
+// orderedSections() is the whole ordering decision the Control Center view makes;
+// the TreeDataProvider around it only turns descriptors into rows, so it is tested
+// here as pure data rather than through the extension host.
+
+test("orderedSections lists every section for an Android project, in registry order", () => {
+  const rows = orderedSections(profile({ hasAndroidProject: true }));
+  assert.deepEqual(
+    rows.map((s) => s.id),
+    SECTION_REGISTRY.map((s) => s.id)
+  );
+});
+
+test("orderedSections drops available sections below the primary ones", () => {
+  // Without an Android project Mobile Remote Control is merely `available`, so it
+  // sorts after every `primary` section instead of keeping its registry slot.
+  const rows = orderedSections(profile({ hasAndroidProject: false })).map((s) => s.id);
+  assert.equal(rows[rows.length - 1], "mobileRemoteControl");
+  assert.deepEqual(
+    rows.slice(0, -1),
+    SECTION_REGISTRY.filter((s) => s.id !== "mobileRemoteControl").map((s) => s.id)
+  );
+});
+
+test("an unresolved profile still lists every section", () => {
+  // "Not read yet" must never silently shrink the index — the whole point of the
+  // view is that a section is findable.
+  assert.equal(orderedSections(undefined).length, SECTION_REGISTRY.length);
+});
+
+test("orderedSections never repeats a section", () => {
+  for (const p of [undefined, profile({}), profile({ hasAndroidProject: true })]) {
+    const ids = orderedSections(p).map((s) => s.id);
+    assert.equal(new Set(ids).size, ids.length);
+  }
 });
 
 // --- lookup ----------------------------------------------------------------
