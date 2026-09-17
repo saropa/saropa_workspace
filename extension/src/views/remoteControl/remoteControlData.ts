@@ -38,6 +38,7 @@ import {
 } from "../../model/adbCommandCatalog";
 import { AndroidProjectProfile } from "../../model/androidProjectProfile";
 import { substituteAdbCommand } from "../../model/adbCommandSubstitution";
+import { AdbEnvironment } from "../../exec/adbEnvironment";
 import { l10n } from "../../i18n/l10n";
 
 // The synthetic group id of the "Recent" pseudo-group. Not an AdbCommandGroup — it is an
@@ -103,6 +104,76 @@ export interface RemoteControlProjectWire {
   variantCount: number;
 }
 
+// The adb availability / connection-health block (MOBILE_REMOTE_CONTROL_PLAN section 5).
+// Every word is resolved here, like everything else on the wire; the client only picks a
+// tone class and, when adb is missing, renders the guidance banner instead of a chip.
+export interface RemoteControlAdbWire {
+  // adb resolved on PATH. False is the "adb not found" state, which is a BANNER rather
+  // than a chip: it explains why nothing here will run, and how to fix it.
+  available: boolean;
+  // The header chip's text: "No device connected" / "2 devices connected", plus the
+  // unauthorized/offline qualifier when one applies.
+  status: string;
+  // The chip's hover — the resolved adb path, or why the device query produced nothing.
+  detail: string;
+  // Drives the chip/banner styling only: "ok" once a device can actually be commanded.
+  tone: "ok" | "warn" | "error";
+  // Shown only when `available` is false: the headline and the install guidance.
+  missingTitle?: string;
+  missingBody?: string;
+}
+
+// Turn a probe result into the header block. Pure — the probe itself lives in
+// exec/adbEnvironment.ts — so every state a user can land in (missing, wedged, zero, one,
+// many, unauthorized) is asserted in the unit tests rather than only reachable with a
+// phone plugged in.
+export function buildAdbWire(env: AdbEnvironment): RemoteControlAdbWire {
+  if (!env.available) {
+    return {
+      available: false,
+      status: l10n("remoteControl.adb.missing"),
+      detail: l10n("remoteControl.adb.missingTitle"),
+      tone: "error",
+      missingTitle: l10n("remoteControl.adb.missingTitle"),
+      missingBody: l10n("remoteControl.adb.missingBody"),
+    };
+  }
+  const detail = env.path
+    ? l10n("remoteControl.adb.pathTitle", { path: env.path })
+    : l10n("remoteControl.adb.missingTitle");
+  if (env.failed || !env.devices) {
+    return {
+      available: true,
+      status: l10n("remoteControl.adb.failed"),
+      detail,
+      tone: "warn",
+    };
+  }
+  const devices = env.devices;
+  const parts: string[] = [];
+  if (devices.total === 0) {
+    parts.push(l10n("remoteControl.adb.noDevice"));
+  } else if (devices.total === 1) {
+    parts.push(l10n("remoteControl.adb.oneDevice"));
+  } else {
+    parts.push(l10n("remoteControl.adb.manyDevices", { n: devices.total }));
+  }
+  if (devices.unauthorized > 0) {
+    parts.push(l10n("remoteControl.adb.unauthorized", { n: devices.unauthorized }));
+  }
+  if (devices.offline > 0) {
+    parts.push(l10n("remoteControl.adb.offline", { n: devices.offline }));
+  }
+  return {
+    available: true,
+    status: parts.join(" · "),
+    detail: devices.serial
+      ? l10n("remoteControl.adb.serialTitle", { serial: devices.serial, path: env.path ?? "" })
+      : detail,
+    tone: devices.ready > 0 ? "ok" : "warn",
+  };
+}
+
 // Every display string the client needs, resolved once per payload. The client carries
 // none of its own, so a locale switch is a host-side concern only.
 export interface RemoteControlStrings {
@@ -125,6 +196,9 @@ export interface RemoteControlStrings {
   projectFlutter: string;
   projectNone: string;
   projectVariants: string;
+  adbRefresh: string;
+  adbRefreshTitle: string;
+  adbChecking: string;
 }
 
 // The single message the panel posts to the webview: the filtered, grouped, resolved
@@ -137,6 +211,10 @@ export interface RemoteControlPayload {
   shown: number;
   total: number;
   project?: RemoteControlProjectWire;
+  // The adb availability / device-count block. Absent only before the first probe has
+  // answered, which the client renders as the neutral "checking" chip rather than
+  // claiming either state.
+  adb?: RemoteControlAdbWire;
   strings: RemoteControlStrings;
 }
 
@@ -152,6 +230,9 @@ export interface RemoteControlPayloadOptions {
   // Lifetime run counts by entry id (exec/adbRunHistory.counts()), the tie-breaker
   // within the Recent group's recency order.
   counts?: Record<string, number>;
+  // The last adb probe (exec/adbEnvironment.probeAdbEnvironment()). Passed as data, so
+  // this module stays pure and no test needs adb installed.
+  adb?: AdbEnvironment;
 }
 
 // Resolve one entry's l10n keys into the row the webview renders, and substitute its
@@ -273,6 +354,9 @@ export function remoteControlStrings(): RemoteControlStrings {
     projectFlutter: l10n("remoteControl.project.flutter"),
     projectNone: l10n("remoteControl.project.none"),
     projectVariants: l10n("remoteControl.project.variants"),
+    adbRefresh: l10n("remoteControl.adb.refresh"),
+    adbRefreshTitle: l10n("remoteControl.adb.refreshTitle"),
+    adbChecking: l10n("remoteControl.adb.checking"),
   };
 }
 
@@ -319,6 +403,7 @@ export function buildRemoteControlPayload(
     shown: matched.length,
     total: catalog.length,
     ...(project ? { project } : {}),
+    ...(options.adb ? { adb: buildAdbWire(options.adb) } : {}),
     strings: remoteControlStrings(),
   };
 }

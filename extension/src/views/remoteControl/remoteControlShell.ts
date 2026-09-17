@@ -53,6 +53,30 @@ const REMOTE_CONTROL_STYLE = `
   padding: 1px 8px; font-size: .82em; white-space: nowrap;
 }
 .chip.mono { font-family: var(--vscode-editor-font-family, monospace); }
+.chip.ok { color: var(--vscode-charts-green, #3fb950); border-color: color-mix(in srgb, var(--vscode-charts-green, #3fb950) 45%, transparent); }
+.chip.warn { color: var(--vscode-charts-yellow, #d29922); border-color: color-mix(in srgb, var(--vscode-charts-yellow, #d29922) 45%, transparent); }
+.chip.error { color: var(--vscode-charts-red, #f85149); border-color: color-mix(in srgb, var(--vscode-charts-red, #f85149) 45%, transparent); }
+.chip-btn {
+  background: none; font-family: inherit; cursor: pointer;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 1px 8px; font-size: .82em; white-space: nowrap;
+}
+.chip-btn:hover { color: var(--vscode-foreground); }
+.chip-btn:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+
+/* The adb-missing state: a banner, not a chip — it explains why nothing here will run
+   and what to install, so it needs the room a one-line chip cannot give. */
+.notice {
+  display: flex; flex-direction: column; gap: 3px;
+  margin: 10px 0 2px; padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--vscode-editorError-foreground, #f85149) 45%, transparent);
+  background: color-mix(in srgb, var(--vscode-editorError-foreground, #f85149) 10%, transparent);
+  border-radius: var(--radius-sm);
+}
+.notice.hidden { display: none; }
+.notice-title { font-weight: 600; }
+.notice-body { color: var(--muted); font-size: .9em; }
 
 .group { margin-top: 14px; }
 .group.hidden { display: none; }
@@ -129,6 +153,10 @@ const REMOTE_CONTROL_SCRIPT = `
   const countEl = document.getElementById('count');
   const emptyEl = document.getElementById('empty');
   const projectEl = document.getElementById('project');
+  const adbEl = document.getElementById('adb');
+  const noticeEl = document.getElementById('notice');
+  const noticeTitleEl = document.getElementById('notice-title');
+  const noticeBodyEl = document.getElementById('notice-body');
   let strings = {};
 
   const saved = vscode.getState() || {};
@@ -282,6 +310,32 @@ const REMOTE_CONTROL_SCRIPT = `
     }
   }
 
+  // The adb chip plus, when adb is missing, the install-guidance banner. An absent
+  // payload.adb means the probe has not answered yet, which shows as neither verdict.
+  function renderAdb(payload) {
+    adbEl.textContent = '';
+    const adb = payload.adb;
+    const chip = document.createElement('span');
+    chip.className = adb ? 'chip ' + adb.tone : 'chip';
+    chip.textContent = adb ? adb.status : strings.adbChecking || '';
+    if (adb) { chip.title = adb.detail; }
+    adbEl.appendChild(chip);
+    const refresh = document.createElement('button');
+    refresh.type = 'button';
+    refresh.className = 'chip-btn';
+    refresh.textContent = strings.adbRefresh;
+    refresh.title = strings.adbRefreshTitle;
+    refresh.addEventListener('click', function () {
+      vscode.postMessage({ type: 'refreshAdb' });
+    });
+    adbEl.appendChild(refresh);
+
+    const missing = !!adb && adb.available === false;
+    noticeEl.classList.toggle('hidden', !missing);
+    noticeTitleEl.textContent = missing ? adb.missingTitle : '';
+    noticeBodyEl.textContent = missing ? adb.missingBody : '';
+  }
+
   function render(payload) {
     strings = payload.strings || {};
     root.textContent = '';
@@ -293,6 +347,7 @@ const REMOTE_CONTROL_SCRIPT = `
       : String(strings.countFiltered || '{shown}/{total}')
           .replace('{shown}', payload.shown).replace('{total}', payload.total);
     renderProject(payload);
+    renderAdb(payload);
   }
 
   // Every keystroke asks the host for a fresh payload rather than hiding rows locally:
@@ -350,6 +405,12 @@ export function renderRemoteControlHtml(): string {
     <span class="count" id="count"></span>
   </div>
   <div class="chips" id="project"></div>
+  <div class="chips" id="adb"></div>
+</div>
+
+<div class="notice hidden" id="notice">
+  <div class="notice-title" id="notice-title"></div>
+  <div class="notice-body" id="notice-body"></div>
 </div>
 
 <div id="groups"></div>

@@ -29,7 +29,9 @@ All data lives on your machine:
   (manual and scheduled). It powers the **Recent** sidebar group and the "Run
   Shortcut…" palette's recents. On-device only, never transmitted. Turn collection
   off with `saropaWorkspace.telemetry.enabled`, or clear it with **Reset Run
-  History**.
+  History**. **Mobile Remote Control** keeps the same kind of bounded list and
+  per-command count for the `adb` commands you run from its panel, in the same
+  `globalState`, under the same `saropaWorkspace.telemetry.enabled` opt-out.
 - **Open-frequency counts** — used by smart shortcut suggestions to offer to add a
   file you open often as a shortcut. Counts are kept on this machine only, never
   transmitted, and each file is offered at most once. Turn the feature off with
@@ -50,3 +52,7 @@ anywhere.
 Running a shortcut executes the command you configured, on your machine, in the
 integrated terminal or a background output channel. The extension does not add,
 inspect, or transmit anything about what you run.
+
+The **Mobile Remote Control** panel additionally runs `adb devices` locally while
+it is open, to report whether `adb` is installed and how many devices are
+attached. The result is shown in the panel and not stored or transmitted.
