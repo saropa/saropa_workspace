@@ -49,10 +49,10 @@ def ci_fallback() -> int:
     print()
     detail(_c("  1) Build and package", Color.WHITE))
     detail(_c("      cd extension && npm ci && npm run package", Color.CYAN))
-    detail(_c("      npx vsce package --no-dependencies", Color.CYAN))
+    detail(_c("      npx @vscode/vsce package --no-dependencies", Color.CYAN))
     print()
     detail(_c("  2) Publish to the stores (needs VSCE_PAT / OVSX_PAT)", Color.WHITE))
-    detail(_c(f"      npx vsce publish --packagePath {name}-{version}.vsix", Color.CYAN))
+    detail(_c(f"      npx @vscode/vsce publish --packagePath {name}-{version}.vsix", Color.CYAN))
     # The raw ovsx CLI reads the generic OVSX_PAT; the per-extension token is
     # stored in OVSX_PAT_SAROPA_WORKSPACE, so copy it into OVSX_PAT for this run.
     detail(_c("      $env:OVSX_PAT = $env:OVSX_PAT_SAROPA_WORKSPACE", Color.CYAN))

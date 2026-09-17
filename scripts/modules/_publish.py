@@ -105,7 +105,7 @@ def publish_marketplaces() -> int:
         if not token:
             return fail("Skipping publish: no Marketplace PAT provided.", 6)
     try:
-        run(["npx", "vsce", "publish", "--packagePath", vsix.name], EXTENSION_DIR)
+        run(["npx", "@vscode/vsce", "publish", "--packagePath", vsix.name], EXTENSION_DIR)
         success("Published to the VS Code Marketplace.")
     except subprocess.CalledProcessError:
         error("vsce publish failed (PAT expired or missing 'Marketplace -> Manage' scope?).")

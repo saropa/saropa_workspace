@@ -78,7 +78,7 @@ def package_vsix(version: str | None) -> int:
     for old in REPO_ROOT.glob("*.vsix"):
         old.unlink()
     try:
-        run(["npx", "vsce", "package", "--no-dependencies"], EXTENSION_DIR)
+        run(["npx", "@vscode/vsce", "package", "--no-dependencies"], EXTENSION_DIR)
     except subprocess.CalledProcessError:
         return fail("vsce package failed.", 5)
     # vsce packages to EXTENSION_DIR; move it to REPO_ROOT.
