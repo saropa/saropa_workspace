@@ -36,6 +36,16 @@ export const HAS_ANDROID_KEY = "saropaWorkspace.hasAndroid";
 export const HAS_FLUTTER_KEY = "saropaWorkspace.hasFlutter";
 export const HAS_DEVICE_KEY = "saropaWorkspace.hasDevice";
 
+// The profile this module has read, broadcast for the section-aware surfaces that
+// need the profile itself rather than a `when` key. The Control Center view sorts
+// its rows by SectionDescriptor.relevance(profile), which a boolean context key
+// cannot express, so it subscribes here instead of starting a second
+// watchAndroidProjectProfile watcher over the same four files.
+const profileChanged = new vscode.EventEmitter<AndroidProjectProfile | undefined>();
+
+/** Fires with the current profile on the first read and on every later change. */
+export const onSectionProfileChange = profileChanged.event;
+
 // Same shape as viewState.ts's syncFilterView: fire-and-forget setContext calls, one
 // per key, values always booleans so a `when` clause never has to cope with
 // undefined.
@@ -78,6 +88,14 @@ export function publishDeviceContext(env: AdbEnvironment): void {
  * paid for nothing.
  */
 export function wireSectionContext(context: vscode.ExtensionContext): void {
+  // Publish the keys and tell the profile subscribers in one step, so the two can
+  // never disagree about what the project looks like.
+  const applyProfile = (profile: AndroidProjectProfile | undefined): void => {
+    publishProjectContext(profile);
+    profileChanged.fire(profile);
+  };
+
+  context.subscriptions.push(profileChanged);
   context.subscriptions.push(onAdbEnvironmentProbe(publishDeviceContext));
   // Paint the keys now, before any read: a `when` clause is evaluated as soon as the
   // UI is built, and an unset key reads as undefined rather than false.
@@ -92,7 +110,7 @@ export function wireSectionContext(context: vscode.ExtensionContext): void {
   // parse per window rather than one per caller. Not awaited: activation must not
   // wait on four file reads, and the keys already hold their safe defaults.
   void getAndroidProjectProfile(folder).then((profile) => {
-    publishProjectContext(profile);
+    applyProfile(profile);
     if (profile.hasAndroidProject) {
       // Fire-and-forget: the probe never throws, and its result reaches the key
       // through the subscription above.
@@ -100,6 +118,6 @@ export function wireSectionContext(context: vscode.ExtensionContext): void {
     }
   });
   context.subscriptions.push(
-    watchAndroidProjectProfile(folder, (profile) => publishProjectContext(profile))
+    watchAndroidProjectProfile(folder, (profile) => applyProfile(profile))
   );
 }

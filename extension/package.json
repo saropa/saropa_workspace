@@ -77,6 +77,11 @@
           "id": "saropaWorkspace.notes",
           "name": "%views.notes.name%",
           "visibility": "collapsed"
+        },
+        {
+          "id": "saropaWorkspace.controlCenter",
+          "name": "%views.controlCenter.name%",
+          "icon": "$(compass)"
         }
       ],
       "saropaWorkspaceLauncher": [

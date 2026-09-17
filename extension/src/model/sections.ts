@@ -182,3 +182,23 @@ export function sectionsByRelevance(
 ): SectionDescriptor[] {
   return SECTION_REGISTRY.filter((section) => section.relevance(profile) === level);
 }
+
+/**
+ * The rows a section index (the Control Center view) shows for this profile:
+ * `primary` sections first, then `available` ones, each block in registry order,
+ * and `hidden` sections left out entirely.
+ *
+ * Pure on purpose — this is the whole ordering decision, so it can be unit-tested
+ * against plain profile fixtures while the tree provider stays thin glue. The sort
+ * is stable rather than clever: registry order is the designed default presentation
+ * order, and until usage tracking exists (plan item 7) there is nothing better to
+ * rank by, so relevance only ever promotes a whole block, never reshuffles within one.
+ */
+export function orderedSections(
+  profile: AndroidProjectProfile | undefined
+): SectionDescriptor[] {
+  return [
+    ...sectionsByRelevance(profile, "primary"),
+    ...sectionsByRelevance(profile, "available"),
+  ];
+}
