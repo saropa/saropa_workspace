@@ -161,6 +161,241 @@ All strings go through NLS/`l10n()` — add
 - Update `docs/FEATURES.md` and `docs/PRIVACY.md` (confirm this stays
   local-only, no telemetry, consistent with the rest of the extension).
 
+## Additional wow feature ideas
+
+Curated additions on top of the ranking/pin/dry-run/undo/fan-out/inspector/
+dashboard/auto-reverse/health-check set already described above. Each is
+grounded in a pattern the extension already has, so none of them needs a new
+subsystem.
+
+1. **Flavor/variant switcher as a first-class mode.** Extend
+   `AndroidProjectProfile` to enumerate `productFlavors × buildTypes` (not just
+   `applicationId`), then expose the active variant the way
+   `src/commands/envProfiles.ts` exposes env profiles — one picker that
+   retargets *every* package-scoped command at once, persisted per workspace
+   like `src/model/shortcutStoreSets.ts` persists shortcut sets. Switching from
+   `dev` to `staging` should re-point install, clear-data, deep links and the
+   permission inspector in a single action.
+
+2. **Release-readiness preflight.** A composed check that runs the pre-ship
+   questions nobody remembers: signing config present and not debug,
+   `android:debuggable` off, `versionCode` greater than the last release tag
+   (via `src/recipes/gitMeta.ts`), minify/shrink enabled, no `usesCleartext`,
+   no leftover `INTERNET`-adjacent debug permissions. Render it as pass/fail
+   rows the way `src/exec/lintsHealth.ts` and `src/exec/hygieneScan.ts`
+   already render sweeps, and badge the result through
+   `src/exec/shortcutBadges.ts`.
+
+3. **APK/AAB inspector with size trend.** `aapt2 dump badging` +
+   `bundletool build-apks --connected-device` to show what actually shipped:
+   effective permissions, min/target SDK, native ABIs, and install size —
+   plus a permission **diff** between the installed APK and the manifest in
+   source (the classic "who added `READ_CONTACTS`?" question). Record install
+   size and dex/method counts over time through `src/exec/projectStats.ts` /
+   `src/exec/trendReports.ts`, so a size regression is flagged the same way
+   `src/exec/pubspecOutdated.ts` flags dependency drift.
+
+4. **Device state matrix toggles.** One compact row of *stateful* toggles —
+   dark mode (`cmd uimode night`), font scale, display density, locale,
+   force-RTL, "don't keep activities", animation scales, TalkBack. Each reads
+   its current value back (`settings get` / `getprop`) so the toggle shows
+   reality rather than a fire-and-forget button, and a single "restore device
+   defaults" action is the aggregate form of the undo pairing already planned.
+   This is the highest-value everyday feature for a Flutter developer testing
+   layouts.
+
+5. **Network condition simulation.** Airplane-mode toggle, wifi-off/data-only,
+   emulator telnet-console speed/latency presets (GPRS / EDGE / 3G / full),
+   and a proxy/DNS setter — each entry paired with an explicit "restore
+   normal" so a simulated-offline device can never be left that way. Directly
+   exercises the offline/retry paths Flutter apps get wrong.
+
+6. **Deep-link / intent lab with per-project history.** Beyond generating
+   commands from `intent-filter` entries: let the user edit path and query
+   params in the panel before firing, and keep a per-project history of fired
+   links persisted like `src/exec/promptMemory.ts` / `src/exec/recentRuns.ts`,
+   so QA can replay one exact payload. Add `pm get-app-links <pkg>` and
+   surface unverified App Link domains as an actionable warning rather than
+   raw dump text.
+
+7. **Screenshot / screen-record as a documentation workflow.**
+   `adb exec-out screencap` and `screenrecord` that write into a
+   project-relative docs/media folder with a slugged, timestamped filename,
+   open the result via `src/exec/reportOpen.ts`, and then offer two
+   follow-ups: insert a Markdown link into the active editor, or drop it into
+   a Note (`src/model/noteStore.ts`, `src/views/notesProvider.ts`). Captures
+   that land in the repo beat captures that land in `/sdcard`.
+
+8. **scrcpy as a tracked process.** Detect `scrcpy` through the existing
+   `requires` mechanism in `extension/scripts/library/library.json`, then
+   launch it through `src/exec/backgroundRunner.ts` and register it in
+   `src/exec/processRegistry.ts` — so the mirror window shows a running
+   indicator and a real Stop action in the tree instead of becoming an orphan
+   terminal. Same treatment for `screenrecord`, which is long-running by
+   nature.
+
+9. **Emulator / AVD management, not just physical devices.**
+   `emulator -list-avds`, cold boot, wipe data, snapshot save/load, and a
+   "boot an AVD that satisfies this project's `minSdkVersion`" action driven
+   by the project profile. Register the emulator in `processRegistry.ts` and
+   make "start emulator → wait for device → `adb reverse` the debug port →
+   install last build" available as a step in
+   `src/commands/bootSequence.ts`, reusing `src/exec/portUnwedge.ts` when the
+   debug port is already held.
+
+10. **"Reproduce this device" clipboard block.** One action that snapshots API
+    level, model, locale, density, font scale, dark-mode state, free RAM and
+    battery-saver state into a formatted Markdown block, copied to the
+    clipboard or appended to a Note. It turns "works on my phone" into a
+    pasteable bug-report header, and costs one `getprop`/`dumpsys` batch.
+
+11. **Clean-slate QA macro.** Clear app data → revoke all runtime permissions
+    → reset animation scales and font scale → reinstall → relaunch, composed
+    as a single chained run through `src/exec/chainRunner.ts` with the
+    dry-run preview showing every step before it executes. This is the "start
+    from scratch" button QA asks for, and it is the natural proof that the
+    catalog entries compose rather than being isolated buttons.
+
+## UI restructure
+
+### What is actually on screen today (measured from `extension/package.json`)
+
+- **151 contributed commands.** 73 are hidden from the palette with
+  `"when": false`, which still leaves **78 commands in the command palette**
+  under one extension prefix.
+- **One activity-bar container with six tree views** —
+  `saropaWorkspace.pins`, `.recipes`, `.watches`, `.projectFiles`, `.scripts`,
+  `.notes` — plus a seventh webview view in the Panel container
+  (`saropaWorkspace.launcher`). **None of the six declares a `when` clause**,
+  so all six render for every workspace regardless of what the project is.
+  Four are `visibility: collapsed`, which reduces height but not the number of
+  headers the eye has to parse.
+- **26 `view/title` entries.** Eleven of them are on the Shortcuts view alone,
+  including three separate title-bar toggles whose only job is to manage
+  visibility of other things (`filterPins`, `showAllBranches`,
+  `filterByBranch`).
+- **48 `view/item/context` entries**, 26 of which apply to `pins || recipes` —
+  a right-click menu two dozen items deep on the most-used row type.
+- **13 submenus containing 78 items**, including a 12-item
+  `configureSubmenu` and seven-item `appearance` / `organize` / `add` / `sets`
+  submenus. Most of these are reachable *only* by right-clicking the right
+  row, so discoverability and clutter are simultaneously bad.
+- **44 settings keys**, several of which exist purely as feature on/off gates
+  (`projectFiles.enabled`, `recipes.enabled`, `suggestions.enabled`,
+  `suggestPinnedTab.enabled`, `branchAware.enabled`, `aiContext.enabled`,
+  `showScheduleStatusBar`). This is the user's complaint made literal: the
+  product ships a manual switchboard for turning capability off because there
+  is no mechanism for capability to stay quiet on its own.
+- **Row inflation inside the trees.** The Shortcuts tree is four levels deep
+  (Recent / scope root → group folder → shortcut). The Recipes view is fed by
+  seven independent detector modules (`detectors.ts`, `scheduledRecipes.ts`,
+  `suiteRecipes.ts`, `processRecipes.ts`, `hygieneRecipes.ts`,
+  `routineRecipes.ts`, `aiContextRecipes.ts`) that each *add* rows nobody
+  asked for. The Scripts view groups by tag and a script appears under
+  **every** tag it carries — seven scripts in `library.json` carrying eleven
+  distinct tags render as roughly a dozen rows.
+- **10 keybindings**, five of which are positional (`runTopPin1..5`) and
+  therefore silently change meaning as the tree grows.
+
+The structural diagnosis: the extension has **no notion of a "section"** as a
+first-class object. Every capability added so far has paid its way in by
+registering (a) a permanent top-level tree view, (b) a handful of palette
+commands, and (c) a slice of somebody's context menu. There is no place that
+knows what sections exist, whether one is relevant here, or whether the user
+has ever used it. Adding Mobile Remote Control the same way would mean a 7th
+always-on view, ~9 command groups, and an estimated 30–40 further commands.
+
+### Proposed information architecture
+
+**1. A section registry (`src/model/sections.ts`) — the missing abstraction.**
+One typed descriptor per capability: `{ id, titleKey, icon, relevance:
+(profile) => "primary" | "available" | "hidden", entryCommand, tags[] }`.
+Shortcuts, Recipes, Watches, Project Files, Scripts, Notes, Dashboard,
+Schedule, Planner and Mobile Remote Control all register here. Nothing else in
+the UI hard-codes the list of sections again. This is the unit that
+progressive disclosure, relevance and usage tracking all key off.
+
+**2. Collapse the activity bar from six views to three.** Keep
+`saropaWorkspace.pins` (Shortcuts — the core metaphor), keep
+`saropaWorkspace.recipes` only until item 4 lands, and add a single
+`saropaWorkspace.sections` view: a one-row-per-section index driven by the
+registry, where a row opens that section's surface. Watches, Project Files,
+Scripts and Notes become sections reached from that index (or pinned back to
+the activity bar by the user), not permanent headers. Net effect on a fresh
+workspace: **6 always-on view headers → 2**, and the count no longer grows
+when a section is added.
+
+**3. `when`-clause driven relevance, wired to the detector work already
+planned.** `src/activation/viewState.ts` already drives UI visibility from
+`setContext` keys (`filterActive`, `branchShowAll`, `branchHasHidden`) — use
+exactly that mechanism for sections. `androidProjectProfile.ts` (Section 1 of
+this plan) publishes `saropaWorkspace.hasAndroid`,
+`saropaWorkspace.hasFlutter`, `saropaWorkspace.hasDevice`; Mobile Remote
+Control's row, commands and menu entries all carry
+`when: saropaWorkspace.hasAndroid`. The same treatment retro-fits to existing
+sections (Watches only when watches exist; Scripts only when
+`library.json` has an entry whose `requires` are satisfiable). Relevance
+replaces the `*.enabled` settings gates, which can then be deprecated.
+
+**4. One omni-entry point: `saropaWorkspace.go` (a "Saropa: Go" QuickPick),
+bound to a single chord.** Build it on `src/commands/hubQuickPick.ts`, which
+already implements the persistent-QuickPick hub pattern (restores `active`
+row, `ignoreFocusOut`, separators). It searches *across* sections in one
+flat, fuzzy-matched list — shortcuts, recipes, scripts, notes, watches and
+adb commands — with separators per section, recent items on top (reuse
+`src/exec/recentRuns.ts` / `telemetry.recent()` exactly as the Recent tree
+root does), and a `>` style drill-down into a single section. This is the
+answer to "dozens of links": the tree stops being the discovery mechanism and
+becomes the *arrangement* mechanism.
+
+**5. Mobile Remote Control ships as a webview panel only — no tree view.**
+As Section 3 of this plan already specifies, it reuses the launcher's
+card/group/filter rendering (`src/views/launcher/launcherScriptCards.ts`,
+`launcherScriptFolded.ts`, `launcherScriptRender.ts`). Its ~9 command groups
+live inside that panel's own search box and collapsible groups, and contribute
+**exactly two** palette commands: `openRemoteControl` and
+`runAdbCommand` (which takes an id argument and is otherwise
+`"when": false`). Every individual adb command is data in
+`adb_commands.json`, never a `contributes.commands` entry. This is the pattern
+every future section should follow, and it should be written down as such.
+
+**6. Command-surface diet for what already exists.** Give the 78
+palette-visible commands the same treatment: keep roughly a dozen verbs
+(`go`, `runShortcut`, `addShortcut`, `openDashboard`, `openSettings`,
+`openRemoteControl`, …) visible, and route the long tail through `go`'s
+drill-down with `"when": false` in `contributes.menus.commandPalette`. The
+12-item `configureSubmenu` collapses into one `configureShortcut` command that
+opens the existing `configureRunHub` — the hub UI already exists, the
+submenu is a duplicate surface for it.
+
+**7. Adaptive collapse and demotion, persisted per workspace.** Track
+per-section last-used time alongside the existing run telemetry
+(`src/exec/telemetry.ts`, `recentRuns.ts`). A section unused for N sessions
+renders collapsed and drops below a "Less used" separator in the sections
+index; using it once promotes it back. The same rule applies inside the
+Shortcuts tree: a group with no run in the trailing window opens collapsed.
+No hiding without a trace — the separator names the count, mirroring the
+never-silently-empty rule `wireFilterViewSync()` already enforces for the
+filter message.
+
+**8. Right-click menus by row kind, not by view.** Replace the 26-item
+`pins || recipes` block with a small kind-aware menu built from
+`contextValue` (`shortcut.file`, `shortcut.script`, `shortcut.url`,
+`recipe`, `adbCommand`): 4–6 primary actions inline, everything else behind a
+single "More…" item that opens the row's hub QuickPick. This removes the
+largest single menu in the manifest without removing any capability.
+
+**9. Positional keybindings become named ones.** `runTopPin1..5` change
+meaning whenever the tree is reordered. Replace them with `go`'s chord plus
+`runPinById` bound to user-chosen ids, which the `resolveShortcutRef` helper
+in `src/commands/shortcutRunPalette.ts` already supports.
+
+**Sequencing:** items 1, 3 and 5 are prerequisites for shipping Mobile Remote
+Control without making the problem worse, and item 5 costs nothing extra
+because the plan already calls for a webview. Items 2, 4 and 8 are the
+restructure proper and can land independently of this feature. Items 6, 7 and
+9 are cleanup that follows.
+
 ## Build order
 
 1. Project profile detector (parsing + caching + file watchers), no UI.
