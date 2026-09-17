@@ -197,6 +197,34 @@ header {
 }
 .left-panel { width: var(--launcher-left-w, ${LEFT_PANEL_LIMITS.defaultWidth}px); }
 .right-panel { width: var(--launcher-right-w, ${RIGHT_PANEL_LIMITS.defaultWidth}px); }
+/* The left panel's category list (PLAN_Launcher_Restructure.md build order step 3): a flat
+   list of buttons, one per pane plus "All", each an icon + label + right-aligned count —
+   the same row shape VS Code's own list views use, so it reads at home beside the rest of
+   the editor chrome. */
+.cat-list { display: flex; flex-direction: column; gap: 1px; }
+.cat-item {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; text-align: left;
+  background: none; border: none; font: inherit;
+  color: var(--vscode-foreground);
+  border-radius: 3px; padding: 3px 6px;
+  cursor: pointer;
+}
+.cat-item:hover {
+  background: var(--vscode-list-hoverBackground, transparent);
+}
+.cat-item:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.cat-item.selected {
+  background: var(--vscode-list-activeSelectionBackground, transparent);
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+.cat-item .codicon { font-size: 14px; flex: none; }
+.cat-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-count {
+  flex: none;
+  color: var(--vscode-badge-foreground); background: var(--vscode-badge-background);
+  border-radius: 8px; padding: 0 6px; font-size: 0.85em; line-height: 1.6;
+}
 /* The drag handle: a thin strip over the panel's shared edge with the center content,
    matching Planner's .tb-rsz/.rsz handle pattern (src/views/plannerAssets.ts) — subtle
    until hovered/dragging, when a themed accent bar appears. z-index is below the sticky

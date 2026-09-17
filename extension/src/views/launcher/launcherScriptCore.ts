@@ -12,6 +12,10 @@
 export const LAUNCHER_SCRIPT_CORE = `const vscode = acquireVsCodeApi();
 let strings = {};
 let items = [];
+// The left panel's category list, as the host built it (buildCategoryList,
+// launcherCategoryList.ts): [{id, label, count, icon}, ...], "all" first. Populated by the
+// 'data' message handler (launcherScriptMenu.ts) alongside items/strings.
+let categories = [];
 var tintHexes = {};
 let activeMenu = null;
 // Which panes the user has toggled off via the header stat chips. Persisted across reloads
@@ -31,6 +35,28 @@ function setPaneHidden(pane, hidden) {
 function resetHiddenPanes() {
   store.hidden = {};
   vscode.setState(store);
+}
+
+// The left panel's selected category: a pane id, or 'all' (the default — everything, grouped
+// by category). Persisted the same way as hiddenPanes/store.hidden above. Selecting a
+// specific category filters the center grid to just that pane's own groups (see
+// visibleItems()/render() in launcherScriptRender.ts); it does NOT flatten a grouped pane's
+// sub-groups (e.g. Mobile Remote Control's Connection/App control/... groups still show).
+function selectedCategory() { return store.category || 'all'; }
+function setSelectedCategory(id) {
+  if (id === 'all') { delete store.category; } else { store.category = id; }
+  vscode.setState(store);
+}
+
+// The items the center grid should render right now: every item when 'all' is selected,
+// otherwise only the items filed under the selected pane. paneModel() (below) already
+// tolerates a pane with zero items (it renders as empty and is hidden), so handing it this
+// pre-filtered list is enough to make every other pane disappear from the center without any
+// change to paneModel's own grouping logic.
+function visibleItems() {
+  const cat = selectedCategory();
+  if (cat === 'all') { return items; }
+  return items.filter(function (it) { return it.pane === cat; });
 }
 
 // Per-pane sort mode. "grouped" keeps the host-supplied group structure (default for
@@ -108,6 +134,9 @@ const root = document.getElementById('root');
 const empty = document.getElementById('empty');
 const projName = document.getElementById('projName');
 const projMeta = document.getElementById('projMeta');
+// The left panel's content area (see launcherViewShell.ts's #leftPanel markup, from step 1).
+// renderCategoryList()/launcherScriptRender.ts owns everything painted inside it.
+const leftPanelBody = document.querySelector('#leftPanel .side-panel-body');
 
 // Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. When a
 // hex fallback is given, it is embedded inside the var() so the color still renders if

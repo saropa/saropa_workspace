@@ -40,6 +40,7 @@
   "launcher.loading": "Loading…",
   "launcher.showAll": "Show all sections",
   "launcher.leftPanelPlaceholder": "Categories (coming soon)",
+  "launcher.allCategory": "All",
   "launcher.rightPanelPlaceholder": "Run history (coming soon)",
   "launcher.resizeLeftPanel": "Drag to resize left panel",
   "launcher.resizeRightPanel": "Drag to resize right panel",

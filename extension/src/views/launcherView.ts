@@ -12,6 +12,7 @@ import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProv
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { handleLauncherMessage } from "./launcherViewMessages";
 import { buildAllItems, buildHeader } from "./launcherViewData";
+import { buildCategoryList } from "./launcherCategoryList";
 import { renderHtml } from "./launcherViewShell";
 import { noteLauncherItem } from "./launcherNoteItem";
 import { resolveTintHexes } from "./tintHexResolver";
@@ -212,6 +213,13 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       items,
       tintHexes: resolveTintHexes(),
       header: buildHeader(this.store, files, items),
+      // Feeds the left panel's category list (PLAN_Launcher_Restructure.md build order
+      // step 3). Sent as its own small field rather than derived client-side from `items`:
+      // the header's own per-pane counts (above) omit empty panes and are not in canonical
+      // pane order, so they are not directly usable for this list without re-deriving the
+      // same counting logic in the webview script — buildCategoryList() is the one place
+      // that logic lives.
+      categories: buildCategoryList(items),
       placeholder: l10n("launcher.searchPlaceholder"),
       strings: {
         run: l10n("launcher.run"),

@@ -13,6 +13,7 @@ import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProv
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
 import type { AndroidProjectProfile } from "../model/androidProjectProfile";
+import { countItemsByPane } from "./launcherCategoryList";
 
 // The pure data-assembly layer for the Saropa Workspace panel webview host (launcherView.ts): turns
 // the store/watch/project-files state into the flat item list and header object the webview
@@ -181,9 +182,10 @@ export function buildHeader(
   const version = deriveProjectVersion(files, primary?.name);
 
   // Count by pane, omitting an empty bucket so the meta line stays a tight summary of
-  // what is actually present rather than a row of zeros.
-  const count = (pane: LauncherItem["pane"]): number =>
-    items.reduce((n, it) => (it.pane === pane ? n + 1 : n), 0);
+  // what is actually present rather than a row of zeros. The counting itself is shared with
+  // buildCategoryList() (launcherCategoryList.ts), which — unlike this header — keeps a
+  // zero-count pane, since it is a navigation aid rather than a compact summary.
+  const count = (pane: LauncherItem["pane"]): number => countItemsByPane(items, pane);
   // "Scheduled" means a live ritual: a stored shortcut whose schedule is switched ON
   // (schedule.enabled === true). Rendered as an informational label (no pane toggle) since
   // scheduled cards live inside "mine". With nothing enabled the count is 0 and pushStat

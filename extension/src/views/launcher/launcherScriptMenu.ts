@@ -188,6 +188,7 @@ window.addEventListener('message', function (event) {
     tintHexes = msg.tintHexes || {};
     if (typeof msg.placeholder === 'string') { q.placeholder = msg.placeholder; }
     renderHeader(msg.header);
+    renderCategoryList(msg.categories);
     render();
   }
 });
