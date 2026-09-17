@@ -60,6 +60,10 @@ A new Mobile Remote Control panel puts adb at your fingertips — search, run, a
 - **Control Center**: a new view in the Shortcuts sidebar listing every section (Shortcuts, Recipes, Watches, Project Files, Scripts, Notes, Dashboard, Schedule, Planner, Mobile Remote Control) in one place, so a section without its own permanent tree view is still easy to find.
 - Customize panel: hovering (or keyboard-focusing) a color swatch now tints every icon in the grid above with that color as a live preview, reverting to your actual selection the moment you move away — lets you browse the icon/color variety without it looking like a color is permanently fixed to an icon, and never touches the saved selection until you actually click.
 
+### Fixed
+
+- Fixed incomplete shell-argument and Markdown-table-cell escaping (a literal backslash could combine with the escaping added for a quote/pipe character to break out of the intended quoting) flagged by CodeQL in the external-launcher `cd` quoting, the CI status report, and the workspace bloat scan report.
+
 ### Internal
 
 - The publish script now recovers from a rebase left mid-flight by an earlier interrupted run (`resolve_stuck_rebase()`), instead of requiring the operator to run `git rebase --skip`/`--abort` by hand. This now runs unconditionally, before the first `package.json` read, because a stuck rebase leaves conflict markers in `CHANGELOG.md`/`package.json` that previously broke every mode's version read (even read-only ones like `audit`), not just the `full` mode's own git-sync step.
