@@ -13,10 +13,13 @@ import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { handleLauncherMessage } from "./launcherViewMessages";
 import { buildAllItems, buildHeader } from "./launcherViewData";
 import { buildCategoryList } from "./launcherCategoryList";
+import { buildRunHistoryEntries } from "./launcherRunHistory";
 import { renderHtml } from "./launcherViewShell";
 import { noteLauncherItem } from "./launcherNoteItem";
 import { resolveTintHexes } from "./tintHexResolver";
 import { AndroidProjectProfile, getAndroidProjectProfile } from "../model/androidProjectProfile";
+import { ADB_COMMAND_CATALOG } from "../model/adbCommandCatalog";
+import { adbRunHistory } from "../exec/adbRunHistory";
 
 // The "Saropa Workspace" Panel webview: a second, always-reachable window onto the same
 // shortcut data the sidebar tree shows, living in the bottom Panel (beside Terminal /
@@ -230,6 +233,19 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       // same counting logic in the webview script — buildCategoryList() is the one place
       // that logic lives.
       categories: buildCategoryList(items),
+      // Feeds the right panel's run-history list (PLAN_Launcher_Restructure.md build
+      // order step 6 — see launcherRunHistory.ts's own header comment for why this is a
+      // small new list rather than a reuse of an existing rendered table, which does not
+      // exist anywhere in this codebase). Re-sent on every post(), same as `categories`;
+      // no separate adbRunHistory.onDidChange subscription is added here because the only
+      // thing that ever changes this data is a real adb run, and handleAdbItem
+      // (launcherViewMessages.ts) already calls ctx.post() after every one — a second
+      // listener would just repaint the same data twice for the same event.
+      runHistory: buildRunHistoryEntries(
+        ADB_COMMAND_CATALOG,
+        adbRunHistory.recent(),
+        adbRunHistory.counts()
+      ),
       placeholder: l10n("launcher.searchPlaceholder"),
       strings: {
         run: l10n("launcher.run"),
@@ -257,6 +273,9 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         // is sent once here and substituted client-side, same pattern as count/countFiltered.
         menuAriaLabel: l10n("launcher.menu.ariaLabel"),
         menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"),
+        runHistoryEmpty: l10n("launcher.runHistory.empty"),
+        runHistoryAriaLabel: l10n("launcher.runHistory.ariaLabel"),
+        runHistoryRunAgain: l10n("launcher.runHistory.runAgain"),
       },
     });
   }

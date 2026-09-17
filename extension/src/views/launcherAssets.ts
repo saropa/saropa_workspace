@@ -239,6 +239,35 @@ header {
   color: var(--vscode-badge-foreground); background: var(--vscode-badge-background);
   border-radius: 8px; padding: 0 6px; font-size: 0.85em; line-height: 1.6;
 }
+/* The right panel's run-history list (PLAN_Launcher_Restructure.md build order step 6): a
+   flat list of rows, each a label + lifetime-count badge + a "Run again" icon button — the
+   same row shape .cat-item above uses, so the two side panels read as one component family
+   rather than two differently-styled widgets. */
+.run-history-list { display: flex; flex-direction: column; gap: 1px; }
+.run-history-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px; border-radius: 3px;
+}
+.run-history-item:hover { background: var(--vscode-list-hoverBackground, transparent); }
+.run-history-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-history-count {
+  flex: none;
+  color: var(--vscode-badge-foreground); background: var(--vscode-badge-background);
+  border-radius: 8px; padding: 0 6px; font-size: 0.85em; line-height: 1.6;
+}
+.run-history-run {
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  background: none; border: none; border-radius: 3px;
+  color: var(--vscode-foreground); cursor: pointer;
+}
+.run-history-run:hover { background: var(--vscode-toolbar-hoverBackground, transparent); }
+.run-history-run:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.run-history-empty {
+  color: var(--vscode-descriptionForeground);
+  padding: 4px 2px;
+}
 /* The drag handle: a thin strip over the panel's shared edge with the center content,
    matching Planner's .tb-rsz/.rsz handle pattern (src/views/plannerAssets.ts) — subtle
    until hovered/dragging, when a themed accent bar appears. z-index is below the sticky

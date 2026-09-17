@@ -81,6 +81,61 @@ function renderCategoryList(list) {
   leftPanelBody.appendChild(nav);
 }
 
+// Build one run-history row from a {id, label, count} entry (buildRunHistoryEntries,
+// launcherRunHistory.ts). Defensive DOM construction throughout, same rule as
+// makeCategoryRow above: the label is host-localized but still untrusted payload data, so
+// it is written via textContent only, never trusted as markup.
+function makeRunHistoryRow(entry) {
+  const row = document.createElement('div');
+  row.className = 'run-history-item';
+  const label = document.createElement('span');
+  label.className = 'run-history-label';
+  label.textContent = entry.label;
+  row.appendChild(label);
+  const cnt = document.createElement('span');
+  cnt.className = 'run-history-count';
+  cnt.textContent = String(entry.count);
+  row.appendChild(cnt);
+  const runBtn = document.createElement('button');
+  runBtn.type = 'button';
+  runBtn.className = 'run-history-run';
+  runBtn.title = strings.runHistoryRunAgain || 'Run again';
+  runBtn.setAttribute('aria-label', strings.runHistoryRunAgain || 'Run again');
+  runBtn.appendChild(codicon('play'));
+  runBtn.addEventListener('click', function () {
+    // The SAME {type:'run', id} message shape a Mobile Remote Control card's own Run
+    // button posts (see makeCard in launcherScriptCards.ts) — entry.id already carries the
+    // "adb:" prefix launcherRunHistory.ts mints, so no new message type or id convention is
+    // introduced here.
+    vscode.postMessage({ type: 'run', id: entry.id });
+  });
+  row.appendChild(runBtn);
+  return row;
+}
+
+// Paint the right panel's run-history list from the host-built entries (replaces the
+// initial "Run history (coming soon)" placeholder markup — see launcherViewShell.ts).
+// Rebuilt in full on every 'data' message, same as renderCategoryList() above, since a run
+// can add/reorder/recount any row.
+function renderRunHistory(list) {
+  if (!rightPanelBody) { return; }
+  rightPanelBody.textContent = '';
+  const entries = Array.isArray(list) ? list : [];
+  if (!entries.length) {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'run-history-empty';
+    placeholder.textContent = strings.runHistoryEmpty || 'Nothing run yet.';
+    rightPanelBody.appendChild(placeholder);
+    return;
+  }
+  const nav = document.createElement('div');
+  nav.className = 'run-history-list';
+  nav.setAttribute('role', 'list');
+  nav.setAttribute('aria-label', strings.runHistoryAriaLabel || 'Run history');
+  for (const entry of entries) { nav.appendChild(makeRunHistoryRow(entry)); }
+  rightPanelBody.appendChild(nav);
+}
+
 function makeGroup(group) {
   const wrap = document.createElement('div');
   wrap.className = 'group';

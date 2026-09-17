@@ -164,6 +164,10 @@ const projMeta = document.getElementById('projMeta');
 // The left panel's content area (see launcherViewShell.ts's #leftPanel markup, from step 1).
 // renderCategoryList()/launcherScriptRender.ts owns everything painted inside it.
 const leftPanelBody = document.querySelector('#leftPanel .side-panel-body');
+// The right panel's content area (launcherViewShell.ts's #rightPanel markup, from step 1).
+// renderRunHistory()/launcherScriptRender.ts owns everything painted inside it (build-order
+// step 6).
+const rightPanelBody = document.querySelector('#rightPanel .side-panel-body');
 
 // Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. When a
 // hex fallback is given, it is embedded inside the var() so the color still renders if
