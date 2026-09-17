@@ -32,6 +32,33 @@ export function adbLauncherItems(profile?: AndroidProjectProfile): LauncherItem[
     const sectionLabel = l10n(adbGroupLabelKey(group));
     for (const entry of entries) {
       const resolved = resolveAdbCommand(entry, profile);
+      // Surface the two flags a user needs BEFORE clicking Run, not after it fails: a row
+      // that needs an attached device, or a device API level this one might not meet, gets
+      // the same wording the standalone panel badges it with (remoteControlShell.ts /
+      // remoteControl.badge.* below it), appended onto desc rather than added as new
+      // LauncherItem fields (prompts/missingProject/autoFilled are the standalone panel's
+      // own concerns — an about-to-run preview, not a pre-run warning — so they stay off
+      // the card).
+      const badgeParts: string[] = [];
+      if (resolved.requiresDevice) {
+        badgeParts.push(l10n("remoteControl.badge.requiresDevice"));
+      }
+      if (resolved.minSdk !== undefined) {
+        badgeParts.push(l10n("remoteControl.badge.minSdk", { level: resolved.minSdk }));
+      }
+      // The catalog's own search terms (tags) do not reach any of the launcher's search
+      // haystack fields (label/sub/desc/section — see launcherScriptCards.ts) unless folded
+      // into one of them here, so a search for "wipe" or "sideload" matches nothing without
+      // this. Appended after the badges, mirroring launcherScriptItem.ts's own
+      // tags-into-a-visible-field precedent (there, sub; here, desc, since sub already
+      // carries the resolved command preview).
+      const descParts = [resolved.description];
+      if (badgeParts.length > 0) {
+        descParts.push(badgeParts.join(" · "));
+      }
+      if (entry.tags.length > 0) {
+        descParts.push(entry.tags.join(", "));
+      }
       items.push({
         // "adb:" mirrors the "library:" prefix scripts use (launcherScriptItem.ts) to
         // route an action back to the right host-side handler without a real Shortcut
@@ -42,7 +69,7 @@ export function adbLauncherItems(profile?: AndroidProjectProfile): LauncherItem[
         // against the resolved project profile — the same string the standalone panel
         // shows, surfaced here as the card's secondary line.
         sub: resolved.command,
-        desc: resolved.description,
+        desc: descParts.join(" · "),
         pane: "mobileRemote",
         section: sectionLabel,
         groupId: `mobileRemote:${group}`,
@@ -53,6 +80,10 @@ export function adbLauncherItems(profile?: AndroidProjectProfile): LauncherItem[
         icon: resolved.destructive ? "warning" : "device-mobile",
         color: resolved.destructive ? "errorForeground" : "charts.green",
         kind: "shell",
+        // Names the icon's hover tooltip, same as every other non-file adapter
+        // (launcherItems.ts) — an adb row is a shell command, so it reuses that adapter's
+        // own "shell" kind label rather than minting a near-duplicate string.
+        kindLabel: l10n("launcher.kind.shell"),
         runnable: true,
         openable: false,
         headAction: "run",

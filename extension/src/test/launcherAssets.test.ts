@@ -412,6 +412,37 @@ test("LAUNCHER_SCRIPT: wires a flat 'scripts' pane into the pane model", () => {
   );
 });
 
+test("LAUNCHER_SCRIPT: wires a grouped 'mobileRemote' pane into the pane model", () => {
+  // Same wiring requirement as the 'scripts' test above, but for the grouped bucket a
+  // card with pane:'mobileRemote' needs: the grouped-pane bucket (byId/order, so its
+  // groupId-tagged cards can bucket into collapsible groups) AND the returned pane array
+  // entry that actually renders those groups (flat: false, groups: groupsOf(...)).
+  // Missing either half silently drops every adb card from the board, or renders them
+  // as one flat ungrouped list again (the fix #1 regression this guards against).
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("mobileRemote = { id: 'mobileRemote'") &&
+      LAUNCHER_SCRIPT.includes("order: [], byId: {} }"),
+    "the grouped pane bucket for mobileRemote must exist"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes(
+      "{ id: 'mobileRemote', icon: 'device-mobile', title: mobileRemote.title, flat: false, groups: groupsOf(mobileRemote) }"
+    ),
+    "the returned pane array must render mobileRemote as groups, not a flat list"
+  );
+});
+
+test("LAUNCHER_SCRIPT: emits the 'pin' postMessage added for adb cards", () => {
+  // launcherScriptCards.ts's mobileRemote drawer button posts { type: 'pin', id }, routed
+  // host-side by launcherViewMessages.ts's handleAdbItem. A concatenation gap here (a
+  // fragment silently dropped from launcherScript.ts's join) would compile fine but leave
+  // Pin a dead button in the actual webview.
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("vscode.postMessage({ type: 'pin', id: it.id })"),
+    "the mobileRemote card's Pin button must post a 'pin' message"
+  );
+});
+
 // --- LAUNCHER_SCRIPT ----------------------------------------------------
 
 test("LAUNCHER_SCRIPT: is a non-empty client script", () => {

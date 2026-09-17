@@ -146,6 +146,23 @@ function buildScriptItems(scriptsProvider: ScriptsTreeProvider): LauncherItem[] 
   );
 }
 
+// Compile-time exhaustiveness guard: this Record requires exactly one key per member of
+// LauncherItem["pane"]. Widening the pane union without adding a matching entry here fails
+// to compile, which is ALL it forces — an edit to buildHeader() below to add the widened
+// pane's own pushStat/push call. It does not itself guarantee that call exists or that it
+// pushes a correctly-shaped stat; a `mobileRemote: true` entry added without a matching
+// pushStat("mobileRemote", ...) call would still compile. Hoisted to module scope (rather
+// than allocated fresh inside buildHeader on every paint) since its value never changes.
+const EVERY_PANE_HAS_AN_ENTRY: Record<LauncherItem["pane"], true> = {
+  mine: true,
+  recipes: true,
+  watches: true,
+  files: true,
+  scripts: true,
+  notes: true,
+  mobileRemote: true,
+};
+
 // The launcher header's leading block: the current project (the first workspace folder),
 // its declared version, and a compact count of what the board holds. The name is also
 // painted synchronously from the initial HTML (renderHtml's projectName); posting it again
@@ -200,21 +217,9 @@ export function buildHeader(
     icon: "note",
     text: l10n("launcher.statNotes", { count: count("notes") }),
   });
-  // Compile-time exhaustiveness guard: this Record requires exactly one key per member of
-  // LauncherItem["pane"]. Widening the pane union without adding a matching pushStat/push
-  // above (this function is the "host-side code that iterates all panes" the pane union's
-  // doc comment warns about) now fails to compile here, instead of silently shipping a
-  // pane with no header stat.
-  const everyPaneHasAStat: Record<LauncherItem["pane"], true> = {
-    mine: true,
-    recipes: true,
-    watches: true,
-    files: true,
-    scripts: true,
-    notes: true,
-    mobileRemote: true,
-  };
-  void everyPaneHasAStat;
+  // Compile-time exhaustiveness guard only — see EVERY_PANE_HAS_AN_ENTRY's own comment for
+  // exactly what this does and does not enforce.
+  void EVERY_PANE_HAS_AN_ENTRY;
 
   return {
     project,

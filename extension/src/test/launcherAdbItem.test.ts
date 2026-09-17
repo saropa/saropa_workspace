@@ -9,6 +9,7 @@ import { adbLauncherItems } from "../views/launcherAdbItem";
 import {
   ADB_COMMAND_CATALOG,
   ADB_COMMAND_GROUPS,
+  groupAdbCatalog,
 } from "../model/adbCommandCatalog";
 import {
   buildAndroidProjectProfile,
@@ -31,8 +32,14 @@ test("every card files under the mobileRemote pane with an 'adb:' id", () => {
 
 test("a card's id strips back to its catalog entry id", () => {
   const items = adbLauncherItems();
-  const uninstall = items.find((it) => it.id === "adb:appControl.uninstall");
-  assert.ok(uninstall, "appControl.uninstall must produce a card");
+  for (const entry of ADB_COMMAND_CATALOG) {
+    const card = items.find((it) => it.id === `adb:${entry.id}`);
+    assert.ok(card, `expected a card for catalog entry ${entry.id}`);
+    // Actually strip the "adb:" prefix (mirroring how launcherViewMessages.ts's
+    // handleAdbItem does it) and check the result equals the source entry's own id, rather
+    // than just re-deriving the same string the assertion above already used to find it.
+    assert.equal(card?.id.slice("adb:".length), entry.id);
+  }
 });
 
 test("a card's label and description are resolved English, not l10n keys", () => {
@@ -63,6 +70,32 @@ test("with no profile, a token the profile cannot answer is left as a run-parame
   assert.ok(clearData);
   assert.notEqual(clearData?.sub, "adb shell pm clear {applicationId}");
   assert.match(clearData?.sub ?? "", /\$\{(prompt|pick):/);
+});
+
+// launcherView.ts calls adbLauncherItems(undefined) directly on a non-Android workspace
+// (this.androidProfile is `undefined`, never emptyAndroidProjectProfile()) — that real
+// code path needs its own coverage, not just the emptyAndroidProjectProfile() stand-in
+// above.
+test("with literally no argument (the non-Android-workspace call site), the catalog still resolves in full", () => {
+  const items = adbLauncherItems(undefined);
+  assert.equal(items.length, ADB_COMMAND_CATALOG.length);
+  const clearData = items.find((it) => it.id === "adb:appControl.clear-data");
+  assert.ok(clearData);
+  assert.match(clearData?.sub ?? "", /\$\{(prompt|pick):/);
+});
+
+// undefined and emptyAndroidProjectProfile() both mean "nothing to substitute"; the two
+// call sites (launcherView.ts passes undefined off a non-Android workspace, some tests
+// above pass the empty profile) must produce identical commands, not merely
+// individually-plausible ones.
+test("adbLauncherItems(undefined) and adbLauncherItems(emptyAndroidProjectProfile()) produce identical commands", () => {
+  const withUndefined = adbLauncherItems(undefined);
+  const withEmptyProfile = adbLauncherItems(emptyAndroidProjectProfile());
+  assert.equal(withUndefined.length, withEmptyProfile.length);
+  for (let i = 0; i < withUndefined.length; i++) {
+    assert.equal(withUndefined[i].id, withEmptyProfile[i].id);
+    assert.equal(withUndefined[i].sub, withEmptyProfile[i].sub);
+  }
 });
 
 test("a destructive entry's card is badged distinctly from a non-destructive one", () => {
@@ -105,12 +138,55 @@ test("a card's section/groupId reflect the catalog's own group, in the catalog's
   }
 });
 
-test("an empty catalog group never yields an empty section", () => {
-  // groupAdbCatalog already drops empty groups; this asserts the adapter does not
-  // reintroduce one (e.g. by iterating ADB_COMMAND_GROUPS directly instead of the map).
+test("every card names a kindLabel for the icon tooltip", () => {
   const items = adbLauncherItems();
-  const groupsPresent = new Set(items.map((it) => it.groupId));
-  for (const group of groupsPresent) {
-    assert.ok(items.some((it) => it.groupId === group));
+  for (const it of items) {
+    assert.ok(it.kindLabel && it.kindLabel.length > 0, `expected a kindLabel on ${it.id}`);
   }
+});
+
+test("a card's desc folds in the catalog entry's own tags, so a tag-only search matches it", () => {
+  const entry = ADB_COMMAND_CATALOG.find((e) => e.tags.includes("wipe"));
+  assert.ok(entry, "expected some catalog entry tagged 'wipe'");
+  const items = adbLauncherItems();
+  const card = items.find((it) => it.id === `adb:${entry?.id}`);
+  assert.ok(card);
+  for (const tag of entry?.tags ?? []) {
+    assert.ok(card?.desc?.includes(tag), `expected desc to include tag "${tag}"`);
+  }
+});
+
+test("a card that requires a device or a minimum SDK badges that in desc", () => {
+  const items = adbLauncherItems();
+  const withDevice = ADB_COMMAND_CATALOG.find((e) => e.requiresDevice);
+  assert.ok(withDevice, "expected some catalog entry that requires a device");
+  const deviceCard = items.find((it) => it.id === `adb:${withDevice?.id}`);
+  assert.ok(deviceCard);
+  assert.ok(deviceCard?.desc?.includes(l10n("remoteControl.badge.requiresDevice")));
+
+  const withMinSdk = ADB_COMMAND_CATALOG.find((e) => e.minSdk !== undefined);
+  if (withMinSdk?.minSdk !== undefined) {
+    const sdkCard = items.find((it) => it.id === `adb:${withMinSdk.id}`);
+    assert.ok(sdkCard);
+    assert.ok(
+      sdkCard?.desc?.includes(l10n("remoteControl.badge.minSdk", { level: withMinSdk.minSdk }))
+    );
+  }
+});
+
+test("only catalog groups groupAdbCatalog actually returns appear as sections, in that exact order", () => {
+  // Derived independently from groupAdbCatalog/ADB_COMMAND_GROUPS instead of from
+  // adbLauncherItems' own output, so this can actually fail if the adapter reintroduces
+  // an empty group (e.g. by iterating ADB_COMMAND_GROUPS directly instead of the map) or
+  // drops/reorders one groupAdbCatalog does return.
+  const expectedGroups = [...groupAdbCatalog(ADB_COMMAND_CATALOG)].map(([group]) => group);
+  const items = adbLauncherItems();
+  const seenOrder: string[] = [];
+  for (const it of items) {
+    const catalogGroup = it.groupId.replace(/^mobileRemote:/, "");
+    if (!seenOrder.includes(catalogGroup)) {
+      seenOrder.push(catalogGroup);
+    }
+  }
+  assert.deepEqual(seenOrder, expectedGroups);
 });

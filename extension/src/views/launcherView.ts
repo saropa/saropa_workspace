@@ -64,10 +64,14 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
   );
   // The workspace's Android profile, resolved the same way remoteControlPanel.ts resolves
   // one (getAndroidProjectProfile on the first workspace folder — itself cached, so this
-  // costs nothing extra on repeated paints). Re-read on every post() so a folder switch or
-  // a profile-source edit is picked up; kept as a field too so onMessage's run/pin routing
-  // (launcherViewMessages.ts) substitutes against the same profile the cards were built
-  // from, without re-resolving it a second time per message.
+  // costs nothing extra on repeated paints). Re-read on every post(), so a folder switch is
+  // always picked up here. A profile-SOURCE edit (build.gradle, etc.) is a different story:
+  // this call only re-reads the cache, and the cache is invalidated by
+  // activation/sectionContext.ts's watchAndroidProjectProfile watcher, not by anything in
+  // the Launcher itself. If that watcher is ever removed, this field goes stale silently —
+  // there is nothing here that would notice. Kept as a field too so onMessage's run/pin
+  // routing (launcherViewMessages.ts) substitutes against the same profile the cards were
+  // built from, without re-resolving it a second time per message.
   private androidProfile: AndroidProjectProfile | undefined;
 
   constructor(

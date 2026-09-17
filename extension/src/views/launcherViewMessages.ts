@@ -15,7 +15,7 @@ import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
 import { SetParamsPanel } from "./setParamsPanel";
 import type { AndroidProjectProfile } from "../model/androidProjectProfile";
-import { runAdbCommand, pinAdbCommand } from "./remoteControl/remoteControlActions";
+import { findAdbEntry, runAdbCommand, pinAdbCommand } from "./remoteControl/remoteControlActions";
 
 // The right-click menu only lists commands verified to accept a raw Shortcut via asShortcut
 // (see buildMenu in launcherItemMenu). Re-resolving the id here and forwarding the shortcut
@@ -305,11 +305,22 @@ async function handleAdbItem(
 ): Promise<void> {
   const entryId = compositeId.slice("adb:".length);
   if (type === "run") {
-    await runAdbCommand(entryId, ctx.androidProfile);
-    // A connect/disconnect/reboot command changes what is attached and adbRunHistory just
-    // recorded a run — repaint so the launcher's next paint reflects both, same as the
-    // standalone panel re-posting after every run.
-    await ctx.post();
+    // A bogus id (a stale card, a hand-edited payload) never reaches runAdbCommand — mirror
+    // handleLibraryScript's "not found" toast instead of letting runAdbCommand's silent
+    // `undefined` return read as nothing happened.
+    if (!findAdbEntry(entryId)) {
+      void vscode.window.showErrorMessage(l10n("remoteControl.run.notFound"));
+      return;
+    }
+    const command = await runAdbCommand(entryId, ctx.androidProfile);
+    // runAdbCommand also returns undefined on a plain Cancel (the prompt or the dry-run
+    // confirm dialog) — that already toasts its own "canceled" message, so repainting here
+    // too would trigger a full project-file rescan for a no-op click. Only a command that
+    // actually ran changes what adbRunHistory/the attached device state look like, so only
+    // that case repaints, same as the standalone panel re-posting after every real run.
+    if (command !== undefined) {
+      await ctx.post();
+    }
   } else if (type === "pin") {
     // Unlike the standalone panel (which may be opened with no store), the launcher
     // always has one — it is the same store its "mine"/"recipes" panes already render
