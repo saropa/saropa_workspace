@@ -120,6 +120,45 @@ export function summarizeAdbDevices(devices: AdbDevice[]): AdbDeviceSummary {
   return summary;
 }
 
+/** True when at least one attached device is in the only state a command can run against. */
+export function hasReadyDevice(env: AdbEnvironment): boolean {
+  return (env.devices?.ready ?? 0) > 0;
+}
+
+// Every probe result is broadcast to these listeners. The point is that there is
+// exactly ONE place the host learns "what is attached right now" — the panel already
+// re-probes on its ready handshake, after every run and on its Refresh button, so a
+// consumer that needs the same answer (the saropaWorkspace.hasDevice context key)
+// subscribes here instead of starting a second poll loop of its own. Plain callbacks,
+// not a vscode.EventEmitter, because this module stays host-free.
+type AdbProbeListener = (env: AdbEnvironment) => void;
+const probeListeners = new Set<AdbProbeListener>();
+
+/**
+ * Be told the result of every probeAdbEnvironment() call, whoever made it. Returns a
+ * disposable-shaped handle so a VS Code caller can push it straight onto
+ * context.subscriptions.
+ */
+export function onAdbEnvironmentProbe(listener: AdbProbeListener): {
+  dispose: () => void;
+} {
+  probeListeners.add(listener);
+  return { dispose: () => void probeListeners.delete(listener) };
+}
+
+// A listener is UI bookkeeping; one throwing must never turn a successful probe into
+// a failed one for the caller that asked for it.
+function notifyProbe(env: AdbEnvironment): AdbEnvironment {
+  for (const listener of probeListeners) {
+    try {
+      listener(env);
+    } catch (err) {
+      console.error("[saropa] adb probe listener failed:", err);
+    }
+  }
+  return env;
+}
+
 /** The resolved adb executable, or undefined when it is not on PATH. */
 export function findAdb(): string | undefined {
   return findOnPath("adb");
@@ -133,19 +172,19 @@ export function findAdb(): string | undefined {
 export async function probeAdbEnvironment(): Promise<AdbEnvironment> {
   const path = findAdb();
   if (!path) {
-    return adbMissing();
+    return notifyProbe(adbMissing());
   }
   try {
     const { stdout } = await execFileAsync(path, ["devices"], {
       timeout: PROBE_TIMEOUT_MS,
     });
-    return {
+    return notifyProbe({
       available: true,
       path,
       devices: summarizeAdbDevices(parseAdbDevices(stdout)),
       failed: false,
-    };
+    });
   } catch {
-    return { available: true, path, failed: true };
+    return notifyProbe({ available: true, path, failed: true });
   }
 }
