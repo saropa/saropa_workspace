@@ -40,10 +40,12 @@ widget on the right.
 - **Center**: the existing card grid (CSS Grid, `repeat(auto-fill,
   minmax(247px,1fr))`), unchanged — it already works well and just needs
   to render whichever item set the left panel's selection resolves to.
-- **Right panel** (resizable, collapsible, off by default): the adb
-  run-history table (already built for the standalone Mobile Remote
-  Control panel) — reused here, not reimplemented. **Not** a live adb
-  output/terminal stream — see "Explicitly deferred" below for why.
+- **Right panel** (resizable, collapsible, off by default): an adb
+  run-history list (built new for this step — direct investigation found
+  no existing rendered history table anywhere in this codebase; see
+  `launcherRunHistory.ts`'s own header comment for the full correction).
+  **Not** a live adb output/terminal stream — see "Explicitly deferred"
+  below for why.
 - **Title bar**: search is **always visible** (not an icon-triggered
   popover) and typing into it **always switches the selection to All**,
   so a search is never silently scoped to whatever category happened to
@@ -118,8 +120,10 @@ a captured run can't be typed into or interrupted the way a real terminal
 can.
 
 Given that cost and behavior change, this plan ships the right panel as
-the **existing run-history table** (already built, zero new risk, zero
-behavior change to how commands actually run) and defers live output
+a small new run-history list built from data that already exists
+(`exec/adbRunHistory.ts`'s `recent()`/`counts()`, previously used only to
+bias the standalone panel's search ranking — zero new tracking/storage,
+zero behavior change to how commands actually run) and defers live output
 streaming as a clearly-separate follow-on decision, not something bundled
 into this rework.
 
@@ -142,8 +146,9 @@ into this rework.
 5. Add `view/title` icon contributions for sort/settings (bundled under
    one overflow icon if needed); wire the new host→webview nudge message
    for any action whose effect lives inside the webview.
-6. Wire the right panel to the existing adb run-history table component
-   (reuse, not reimplement).
+6. Build the right panel's adb run-history list from `adbRunHistory`'s
+   existing recency/count data (no existing rendered table turned out to
+   exist to reuse — see the "Right panel" bullet above).
 7. Remove the now-redundant custom header decoration (stat chips, gear,
    search icon+box, star icon) once its functions have moved into the
    left panel / title bar.
