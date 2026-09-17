@@ -163,10 +163,29 @@ function basename(p: string): string {
 }
 
 // Quote a path/arg for the shell. Simple double-quote wrapping covers the common
-// case (paths with spaces) without a full shell-escaping dependency; an embedded
-// double quote is backslash-escaped so the wrapping is not broken.
-export function quoteArg(value: string): string {
-  return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+// case (paths with spaces) without a full shell-escaping dependency. `platform`
+// picks the escaping rule for the shell that will actually parse the result:
+//   - POSIX shells (bash/zsh, targeted off win32) treat `\` as an escape character
+//     inside "...", so it MUST be escaped before the embedded double quote:
+//     escaping the quote alone lets a value ending in `\"` combine with the
+//     newly-added escaping backslash into `\\"`, which bash reads as an escaped
+//     backslash followed by an UNescaped quote — closing the string early and
+//     letting anything after it run as a separate shell command.
+//   - cmd.exe/PowerShell (win32) do NOT treat `\` as an escape character inside
+//     "...", so doubling it there would corrupt every Windows path (UNC paths
+//     most visibly: `\\server\share` would become the malformed `\\\\server\share`).
+//     Only the embedded quote needs escaping on that side.
+// Defaults to the host's own platform since a command line is always assembled
+// and run on the same machine; overridable so callers that know they are
+// targeting a specific shell (e.g. the bash `cd` line externalLauncher.ts builds
+// for its mac/linux external-terminal windows) don't have to fake process.platform.
+export function quoteArg(value: string, platform: NodeJS.Platform = process.platform): string {
+  if (!/[\s"]/.test(value)) {
+    return value;
+  }
+  const escaped =
+    platform === "win32" ? value.replace(/"/g, '\\"') : value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escaped}"`;
 }
 
 // Single-quote a string as a PowerShell string literal, doubling embedded single
@@ -228,7 +247,7 @@ export function assembleCommandLine(opts: {
   return [
     opts.prefix,
     ...(opts.includeFile ? [quoteArg(opts.fsPath)] : []),
-    ...opts.args.map(quoteArg),
+    ...opts.args.map((a) => quoteArg(a)),
   ]
     .filter((part) => part.length > 0)
     .join(" ");

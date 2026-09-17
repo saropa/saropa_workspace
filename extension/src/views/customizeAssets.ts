@@ -206,6 +206,12 @@ function selectColor(id, hex){
   renderPreview();
 }
 
+// Transient "try it out" tint for the icon grid, kept separate from selColor/selColorHex
+// so hovering a swatch never mutates the value save/preview-footer actually commit.
+function tintTiles(hex){
+  document.querySelectorAll('.tile').forEach(function(t){ t.style.color = hex || ''; });
+}
+
 // ---- tags ----
 function addTag(raw){
   const t = String(raw).replace(/^#+/, '').trim().toLowerCase();
@@ -252,6 +258,10 @@ function wire(){
   });
   document.querySelectorAll('.swatch').forEach(function(s){
     s.addEventListener('click', function(){ selectColor(s.getAttribute('data-color') || '', s.getAttribute('data-hex') || ''); });
+    s.addEventListener('mouseenter', function(){ tintTiles(s.getAttribute('data-hex') || ''); });
+    s.addEventListener('mouseleave', function(){ tintTiles(selColorHex || ''); });
+    s.addEventListener('focus', function(){ tintTiles(s.getAttribute('data-hex') || ''); });
+    s.addEventListener('blur', function(){ tintTiles(selColorHex || ''); });
   });
   document.querySelectorAll('.sugchip').forEach(function(s){
     s.addEventListener('click', function(){ addTag(s.getAttribute('data-tag')); });

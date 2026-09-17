@@ -260,6 +260,15 @@ test("quoteArg: escapes an embedded double quote", () => {
   assert.equal(quoteArg('say "hi"'), '"say \\"hi\\""');
 });
 
+test("quoteArg: escapes a literal backslash before a trailing quote on POSIX shells, so the quote can't be un-escaped and close the string early", () => {
+  assert.equal(quoteArg('a\\"; rm -rf ~ #', "linux"), '"a\\\\\\"; rm -rf ~ #"');
+});
+
+test("quoteArg: leaves backslashes bare on win32, where cmd/PowerShell don't treat them as an escape character", () => {
+  assert.equal(quoteArg("C:\\Program Files\\app.exe", "win32"), '"C:\\Program Files\\app.exe"');
+  assert.equal(quoteArg("\\\\server\\share\\My Folder", "win32"), '"\\\\server\\share\\My Folder"');
+});
+
 test("assembleCommandLine: prefix + quoted file + quoted args", () => {
   assert.equal(
     assembleCommandLine({

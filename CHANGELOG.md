@@ -47,8 +47,7 @@ cspell:disable
 ---
 
 ## [1.10.0]
-
-A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
+A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
 
 ### Added
 
@@ -58,6 +57,18 @@ A new Mobile Remote Control panel puts adb at your fingertips — search, run, a
 - The panel shows whether `adb` is available and how many devices are connected, with install guidance when `adb` is missing instead of a raw error at run time.
 - **"Saropa: Go"** (`ctrl+alt+g` / `cmd+alt+g`): one fuzzy-searchable command spanning shortcuts, recipes, scripts, notes, watches, and adb commands, with recently-used items on top. Type `>` followed by a category name (e.g. `>adb`) to narrow to just that section.
 - **Control Center**: a new view in the Shortcuts sidebar listing every section (Shortcuts, Recipes, Watches, Project Files, Scripts, Notes, Dashboard, Schedule, Planner, Mobile Remote Control) in one place, so a section without its own permanent tree view is still easy to find.
+- Customize panel: hovering (or keyboard-focusing) a color swatch now tints every icon in the grid above with that color as a live preview, reverting to your actual selection the moment you move away — lets you browse the icon/color variety without it looking like a color is permanently fixed to an icon, and never touches the saved selection until you actually click.
+
+### Fixed
+
+- Fixed incomplete shell-argument and Markdown-table-cell escaping (a literal backslash could combine with the escaping added for a quote/pipe character to break out of the intended quoting) flagged by CodeQL in the external-launcher `cd` quoting, the CI status report, and the workspace bloat scan report.
+
+### Internal
+
+- The publish script now recovers from a rebase left mid-flight by an earlier interrupted run (`resolve_stuck_rebase()`), instead of requiring the operator to run `git rebase --skip`/`--abort` by hand. This now runs unconditionally, before the first `package.json` read, because a stuck rebase leaves conflict markers in `CHANGELOG.md`/`package.json` that previously broke every mode's version read (even read-only ones like `audit`), not just the `full` mode's own git-sync step.
+- A rebase conflict is now diagnosed instead of reported generically: if it is confined to `CHANGELOG.md`/`extension/package.json` and matches the script's own `chore: release vX.Y.Z` commit shape, and that version is already superseded by what is on `origin/main`, the script explains this and offers to skip the redundant commit (auto-confirmed in `--headless` mode, prompted interactively otherwise). Anything else still surfaces the real conflicting files for the operator to resolve by hand.
+- A cut-but-unpublished version heading (`## [x.y.z] (unreleased)`, and separator/case variants like `- unreleased` or `-Unreleased`) is now recognized by the version-resolution tooling and stripped automatically once `git_commit_release()` runs — the first point after the actual marketplace publish has succeeded — so the release commit itself records that the version is genuinely out, not just cut.
+- Added the "🎨 Customize" section to the root README, with a screenshot of the panel.
 
 ---
 
@@ -495,32 +506,6 @@ The bottom-panel tab is now called "Saropa Workspace" to match the extension, co
 
 - A routine whose member shortcut has been removed or renamed now **fails** rather than reporting success. The member was already listed as "Missing" in the summary, but because it did not count against the run, the routine scored a clean success, painted a green badge, and never opened the summary — so the "Shortcut not found — edit the routine to re-link or remove this member" note sat unread in a file there was no reason to open. The routine now badges red, opens its summary, and surfaces a failure notification naming it. The member still reads as "Missing", not "Failed", so the report distinguishes a broken link from a step that ran and failed.
 - **Organize output folder** now opens a folder-browse dialog for the target folder instead of a bare text box, defaulting to the workspace root — the prior free-text prompt gave no clue what shape of path was expected, which was itself part of why the folder was easy to misconfigure. The folder is now also set up once: the dialog opens on the first run, and every run after that silently reuses the same folder instead of asking again, matching how a bundled script is meant to be used. Backed by a new general-purpose interactive run token, `${pickFolder:Label}`, alongside the existing `${prompt:...}` and `${pick:...}`, and by resolving bundled-script tokens from memory by default (a user shortcut still gets a fresh prompt each run unless "Run with Last Parameters" is used).
-
----
-
-## [1.5.24]
-
-Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.24/CHANGELOG.md)
-
-### Fixed
-
-- **Organize output folder** no longer defaults to the current directory or accepts a blank folder answer — a target folder is now required, and the script refuses to run against its own install directory or a repository root (a `.git` folder or git worktree/submodule file directly inside the target), even when launched by hand outside the extension. Closes a real incident where a bare, argument-less run reorganized the script's own bundled source files. A `--force` command-line flag overrides the refusal for the rare legitimate case, printing a named warning before proceeding.
-
----
-
-## [1.5.23]
-
-Browse and run your bundled scripts directly from the new sidebar or Launcher panel, complete with smart warnings if you're missing a required tool and polished button styles. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
-
-### Added
-
-- New **Scripts** sidebar view: browse the bundled script library grouped by tag, with an inline Run button per script. The Run command synthesizes a shortcut from the manifest entry and routes through the existing run pipeline (interpreter resolution, token expansion, terminal/background routing all work unchanged). A Refresh command reloads the manifest.
-- New **Scripts** section in the Saropa Launcher Panel: bundled scripts appear as tinted cards alongside shortcuts, recipes, watches, and project files, with a Run head button and a header filter chip showing the script count.
-- Scripts declaring tool requirements in the library manifest (e.g. device-connect's `adb`) now get a pre-flight PATH check before running: a missing required tool shows a named diagnostic toast instead of a mid-script terminal failure. A tool marked optional never blocks the run.
-
-### Fixed
-
-- An expanded launcher card's head Open/Run button now renders identically to the drawer buttons below it: same internal padding, same total height (a matching border thickness), and same icon size. Collapsed cards keep the compact icon-only button. Each shared value is defined in one place alongside the shared label size, so the two button styles cannot drift apart.
 
 ---
 

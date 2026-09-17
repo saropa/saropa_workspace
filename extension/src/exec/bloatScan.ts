@@ -378,6 +378,15 @@ export async function scanBloat(options: BloatOptions): Promise<BloatReport> {
   };
 }
 
+// A cell value containing a pipe would split the row into extra columns and break
+// the table for every row after it; a literal backslash must be escaped FIRST so
+// it can't recombine with the pipe-escaping backslash added below and unescape it,
+// and an embedded newline must be flattened so it can't start a new (unescaped)
+// table row of its own.
+function escapeCell(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
 // Render the report as Markdown for reports/<stamp>_workspace_hygiene.md. Each
 // finding carries its exact remediation (the watcherExclude line to add, the
 // prune/pin advice). A clean scan still writes a report (for the trend), it is just
@@ -405,12 +414,12 @@ export function renderBloatReport(report: BloatReport, generatedLabel: string): 
       const what =
         f.kind === "unguardedTestCache"
           ? "Unguarded .vscode-test (test downloader)"
-          : `Oversized dir: ${f.name}`;
+          : `Oversized dir: ${escapeCell(f.name)}`;
       const size =
         f.sizeBytes !== undefined ? `${f.approx ? "≥ " : ""}${HUMAN_GB(f.sizeBytes)}` : "—";
       const files = f.fileCount !== undefined ? `${f.approx ? "≥ " : ""}${f.fileCount}` : "—";
       lines.push(
-        `| ${project} | ${what} | ${size} | ${files} | ${f.remediation.replace(/\|/g, "\\|")} |`
+        `| ${escapeCell(project)} | ${what} | ${size} | ${files} | ${escapeCell(f.remediation)} |`
       );
     }
     lines.push("");
@@ -423,7 +432,7 @@ export function renderBloatReport(report: BloatReport, generatedLabel: string): 
   for (const r of report.perRoot) {
     const project = path.basename(r.root) || r.root;
     lines.push(
-      `| ${project} | ${r.dirsMeasured} | ${r.usesTestDownloader ? "yes" : "no"} | ${
+      `| ${escapeCell(project)} | ${r.dirsMeasured} | ${r.usesTestDownloader ? "yes" : "no"} | ${
         r.testCacheGuarded ? "yes" : r.usesTestDownloader ? "**NO**" : "n/a"
       } |`
     );

@@ -331,7 +331,9 @@ export function buildCiMarkdown(status: CiStatus): string {
     lines.push("## Recent runs", "", "| Result | Workflow | Branch | Commit |", "|---|---|---|---|");
     for (const r of shown) {
       const result = r.status === "completed" ? r.conclusion : r.status;
-      lines.push(`| ${result} | ${r.workflowName} | ${r.headBranch} | ${escapeCell(r.displayTitle)} |`);
+      lines.push(
+        `| ${result} | ${escapeCell(r.workflowName)} | ${escapeCell(r.headBranch)} | ${escapeCell(r.displayTitle)} |`
+      );
     }
     lines.push("");
     if (status.runs.length > shown.length) {
@@ -342,9 +344,12 @@ export function buildCiMarkdown(status: CiStatus): string {
 }
 
 // A commit subject containing a pipe would split the row into extra columns and
-// break the table for every row after it.
+// break the table for every row after it; a literal backslash must be escaped
+// FIRST so it can't recombine with the pipe-escaping backslash added below and
+// unescape it, and an embedded newline must be flattened so it can't start a
+// new (unescaped) table row of its own.
 function escapeCell(text: string): string {
-  return text.replace(/\|/g, "\\|");
+  return text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 // An ISO timestamp read as a date, degrading to the raw value when it is not
