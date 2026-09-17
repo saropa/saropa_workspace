@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { AndroidProjectProfile, getAndroidProjectProfile } from "../../model/androidProjectProfile";
 import { ShortcutStore } from "../../model/shortcutStore";
 import { adbRunHistory } from "../../exec/adbRunHistory";
+import { AdbEnvironment, probeAdbEnvironment } from "../../exec/adbEnvironment";
 import { buildRemoteControlPayload } from "./remoteControlData";
 import { pinAdbCommand, runAdbCommand } from "./remoteControlActions";
 import { renderRemoteControlHtml } from "./remoteControlShell";
@@ -23,11 +24,18 @@ import { l10n } from "../../i18n/l10n";
 // Shortcuts-store add); this file only routes the messages and re-posts the payload, so
 // an open panel's Recent group reflects a run the moment it happens.
 //
+// The adb environment (is adb on PATH, how many devices are attached) is probed on the
+// client's ready handshake, after every run, and on the header's Refresh — see
+// exec/adbEnvironment.ts for the probe and remoteControlData.buildAdbWire for the state
+// the header renders. A missing adb becomes an explanatory banner instead of a raw spawn
+// failure once a row is run.
+//
 // DELIBERATELY NOT IMPLEMENTED HERE (later build-order steps):
-//   - device discovery and the connection health check, so nothing here knows whether a
-//     device is attached; `requiresDevice` is still only a badge.
+//   - the fuller connection health check (wireless-debugging state, pairing status,
+//     one-click fixes); the probe here only counts what `adb devices` reports.
 //   - multi-device fan-out, the permission inspector, the live device chip and the
-//     persistent run-history table.
+//     persistent run-history table. `requiresDevice` is still only a badge: a row is
+//     never disabled by the device count, it is reported honestly alongside it.
 // The profile is accepted, resolved, reported as a header chip and used to substitute
 // every row's command, but it does NOT filter the catalog: relevance-based hiding needs
 // the connected device's API level too, so it lands with discovery rather than guessing
@@ -55,6 +63,11 @@ export class RemoteControlPanel {
   // The live search query, kept host-side so a re-post (e.g. after a profile refresh)
   // redraws the list the user is actually looking at rather than resetting it.
   private query = "";
+  // The last adb probe (is adb installed, what is attached). Undefined until the first
+  // probe answers, which the client renders as "checking" rather than as either verdict.
+  // Re-probed on the ready handshake, after every run, and on the header's Refresh —
+  // never on a keystroke, since a search must not shell out.
+  private adb: AdbEnvironment | undefined;
 
   // Open the panel, or reveal and refresh the one already open. Both arguments are
   // optional: the profile is resolved from the first workspace folder when none is passed
@@ -113,7 +126,13 @@ export class RemoteControlPanel {
     switch (msg.type) {
       case "ready":
         await this.resolveProfile();
+        // Paint first, probe second: the catalog must not wait on a shell-out, and the
+        // second post fills in the adb chip a moment later.
         await this.postCatalog();
+        await this.refreshAdb();
+        return;
+      case "refreshAdb":
+        await this.refreshAdb();
         return;
       case "search":
         this.query = typeof msg.query === "string" ? msg.query : "";
@@ -125,6 +144,9 @@ export class RemoteControlPanel {
           // Re-post so the Recent group reflects the run that just happened (or does not,
           // when the confirm was declined — runAdbCommand records only a real run).
           await this.postCatalog();
+          // A connect/disconnect/reboot command changes what is attached, so the header
+          // is re-read after every run rather than going stale behind the user.
+          await this.refreshAdb();
         }
         return;
       case "pin":
@@ -160,6 +182,14 @@ export class RemoteControlPanel {
     this.profile = await getAndroidProjectProfile(folder);
   }
 
+  // Re-read the adb environment and repaint the header. Never throws (the probe reports
+  // every failure as a state) and never blocks a paint — the catalog is already on
+  // screen by the time this is called.
+  private async refreshAdb(): Promise<void> {
+    this.adb = await probeAdbEnvironment();
+    await this.postCatalog();
+  }
+
   // Post the filtered, grouped, l10n-resolved catalog. Every string the client renders is
   // resolved here, so the webview never sees an l10n key.
   private async postCatalog(): Promise<void> {
@@ -170,6 +200,7 @@ export class RemoteControlPanel {
         ...(this.profile ? { profile: this.profile } : {}),
         recent: adbRunHistory.recent(),
         counts: adbRunHistory.counts(),
+        ...(this.adb ? { adb: this.adb } : {}),
       }),
     });
   }

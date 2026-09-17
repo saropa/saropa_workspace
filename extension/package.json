@@ -958,6 +958,12 @@
         "category": "%extension.displayName%"
       },
       {
+        "command": "saropaWorkspace.openRemoteControl",
+        "title": "%command.openRemoteControl.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(device-mobile)"
+      },
+      {
         "command": "saropaWorkspace.openProcessMonitor",
         "title": "%command.openProcessMonitor.title%",
         "category": "%extension.displayName%",

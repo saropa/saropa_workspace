@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildAdbWire,
   buildProjectWire,
   buildRemoteControlPayload,
   rankRecentAdbEntries,
@@ -24,6 +25,7 @@ import {
   ADB_COMMAND_GROUPS,
   type AdbCommandEntry,
 } from "../model/adbCommandCatalog";
+import { adbMissing } from "../exec/adbEnvironment";
 import {
   buildAndroidProjectProfile,
   emptyAndroidProjectProfile,
@@ -300,4 +302,77 @@ test("the Recent group respects the active search", () => {
   });
   assert.equal(payload.groups[0].id, RECENT_GROUP_ID);
   assert.deepEqual(payload.groups[0].commands.map((c) => c.id), ["files.push"]);
+});
+
+// --- buildAdbWire ----------------------------------------------------------
+// The panel header's honesty rule (MOBILE_REMOTE_CONTROL_PLAN section 5): every state a
+// user can land in resolves to a sentence and a tone here, host-side, so the webview
+// never decides what "no device" means.
+
+test("a missing adb becomes the error-toned banner state, with install guidance", () => {
+  const wire = buildAdbWire(adbMissing());
+  assert.equal(wire.available, false);
+  assert.equal(wire.tone, "error");
+  assert.ok(wire.missingTitle && wire.missingTitle.length > 0);
+  assert.ok(wire.missingBody && wire.missingBody.includes("PATH"));
+});
+
+test("an installed adb with nothing attached warns rather than claiming readiness", () => {
+  const wire = buildAdbWire({
+    available: true,
+    path: "/usr/bin/adb",
+    devices: { total: 0, ready: 0, unauthorized: 0, offline: 0 },
+    failed: false,
+  });
+  assert.equal(wire.tone, "warn");
+  assert.equal(wire.available, true);
+  assert.ok(wire.detail.includes("/usr/bin/adb"));
+  assert.ok(!("missingBody" in wire));
+});
+
+test("one ready device reads ok and names the serial in the hover", () => {
+  const wire = buildAdbWire({
+    available: true,
+    path: "/usr/bin/adb",
+    devices: { total: 1, ready: 1, unauthorized: 0, offline: 0, serial: "RF8N1" },
+    failed: false,
+  });
+  assert.equal(wire.tone, "ok");
+  assert.ok(wire.detail.includes("RF8N1"));
+});
+
+test("several devices are counted, and an unauthorized one is called out", () => {
+  const wire = buildAdbWire({
+    available: true,
+    path: "adb",
+    devices: { total: 3, ready: 2, unauthorized: 1, offline: 0 },
+    failed: false,
+  });
+  assert.ok(wire.status.includes("3"));
+  assert.ok(wire.status.toLowerCase().includes("unauthorized"));
+  assert.equal(wire.tone, "ok");
+});
+
+// Every attached device unusable is not "connected" in any sense the panel should imply.
+test("devices that are all unauthorized or offline never read as ok", () => {
+  const wire = buildAdbWire({
+    available: true,
+    path: "adb",
+    devices: { total: 2, ready: 0, unauthorized: 1, offline: 1 },
+    failed: false,
+  });
+  assert.equal(wire.tone, "warn");
+});
+
+test("a wedged or failed device query is reported, not silently treated as zero devices", () => {
+  const wire = buildAdbWire({ available: true, path: "adb", failed: true });
+  assert.equal(wire.tone, "warn");
+  assert.notEqual(wire.status, "");
+  assert.ok(!("missingBody" in wire));
+});
+
+test("the adb block travels only when a probe result was supplied", () => {
+  assert.equal("adb" in buildRemoteControlPayload(), false);
+  const payload = buildRemoteControlPayload({ adb: adbMissing() });
+  assert.equal(payload.adb?.available, false);
 });
