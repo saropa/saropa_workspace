@@ -3,13 +3,16 @@
 // plans/PLAN_Launcher_Restructure.md build order step 1). Kept as real, unit-tested TS
 // functions in their own module, separate from the webview client script fragments
 // (src/views/launcher/launcherScript*.ts): the webview's script is a dependency-free
-// inline string that cannot `import` this module, so launcherScriptSplit.ts reimplements
-// this same small arithmetic directly inside its template literal (mirroring how Planner's
-// attachResizer inlines its own clamp rather than importing one). This module exists so the
-// arithmetic itself gets a real, directly-callable unit test instead of only a
-// string-contains assertion on the generated script.
+// inline string that cannot `import` this module.
 //
-// Keep the two implementations in sync by hand when either changes.
+// The client's copy is NOT hand-duplicated — that was step 1's first draft and it is
+// exactly the failure mode BUG-012 already burned this repo on (see
+// webviewClientUtils.ts's header). Instead, webviewClientUtils.ts's panelWidthMathJs()
+// generates the client's clampPanelWidth/resolvePanelWidth/isPanelVisible from this
+// same algorithm as JS source text, interpolated into launcherScriptSplit.ts's template
+// literal, and src/test/launcherSplitLogic.test.ts evaluates that generated text
+// (`new Function`) and asserts it against these TS functions for shared fixtures — so a
+// drift between the two would fail a test, not just look the same on a diff.
 
 /** A panel's persisted posture: its last dragged width (px) and whether it is collapsed. */
 export interface PanelPersisted {
@@ -26,10 +29,22 @@ export interface PanelLimits {
   defaultWidth: number;
 }
 
+// Single source of truth for both panels' sizing rules — imported by the webview-JS
+// generator (webviewClientUtils.ts's panelWidthMathJs), the CSS fallback values
+// (launcherAssets.ts), and this module's own tests, so there is exactly one place to
+// change a limit instead of three copies silently drifting apart.
+export const LEFT_PANEL_LIMITS: PanelLimits = { min: 160, max: 400, defaultWidth: 220 };
+export const RIGHT_PANEL_LIMITS: PanelLimits = { min: 200, max: 480, defaultWidth: 260 };
+
 // Clamp a candidate width to the panel's configured [min, max] range. Shared by both the
 // live drag handler (every mousemove) and resolvePanelWidth (in case a persisted width
-// predates a later change to min/max).
+// predates a later change to min/max). Number.isFinite rejects NaN/+-Infinity before the
+// Math.max/min clamp would otherwise pass a NaN straight through (a persisted width can
+// carry one — vscode.setState uses structured clone, which round-trips NaN, unlike JSON).
 export function clampPanelWidth(width: number, limits: Pick<PanelLimits, "min" | "max">): number {
+  if (!Number.isFinite(width)) {
+    return limits.min;
+  }
   return Math.max(limits.min, Math.min(limits.max, width));
 }
 

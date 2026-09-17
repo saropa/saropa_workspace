@@ -61,7 +61,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
     </div>
     <!-- TEMPORARY, testing only: a later step adds the real view/title icon for this
          (see plans/PLAN_Launcher_Restructure.md build order step 5/7); remove then. -->
-    <button id="rightPanelToggleBtn" class="hdr-btn" type="button" title="${l10n("launcher.toggleRightPanelTemp")}"><span class="codicon codicon-layout-sidebar-right"></span></button>
+    <button id="rightPanelToggleBtn" class="hdr-btn" type="button" aria-pressed="false" title="${l10n("launcher.toggleRightPanelTemp")}"><span class="codicon codicon-layout-sidebar-right"></span></button>
   </div>
 </header>
 <div class="split">
@@ -73,7 +73,7 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
     <div id="empty" class="empty hidden">${l10n("launcher.empty")}</div>
     <div id="root" class="root"></div>
   </div>
-  <div id="rightPanel" class="side-panel right-panel">
+  <div id="rightPanel" class="side-panel right-panel hidden">
     <div id="rsz-right" class="split-rsz split-rsz-right" title="${l10n("launcher.resizeRightPanel")}"></div>
     <div class="side-panel-body">${l10n("launcher.rightPanelPlaceholder")}</div>
   </div>

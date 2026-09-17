@@ -15,27 +15,29 @@
 // collapse-to-hidden behavior that does not exist in Planner's version, modeled on this
 // file's own hiddenPanes/isPaneHidden/setPaneHidden idiom (see launcherScriptCore.ts).
 // Collapsing a panel never touches its stored width; re-showing it restores the last
-// dragged width, never a fixed default. The clamp/default/visibility arithmetic mirrors
-// launcherSplitLogic.ts's clampPanelWidth/resolvePanelWidth/isPanelVisible — that module is
-// the one with real unit tests, since this string cannot import it; keep the two in sync
-// by hand if either changes.
+// dragged width, never a fixed default. The clamp/default/visibility arithmetic is NOT
+// hand-duplicated here — panelWidthMathJs() generates clampPanelWidth/resolvePanelWidth/
+// isPanelVisible from the exact same algorithm as launcherSplitLogic.ts's real, unit-tested
+// TS twins, and PANEL_LIMITS below is that same module's LEFT_PANEL_LIMITS/
+// RIGHT_PANEL_LIMITS serialized in, so there is exactly one place to change a limit.
+import { panelWidthMathJs } from '../webviewClientUtils';
+import { LEFT_PANEL_LIMITS, RIGHT_PANEL_LIMITS } from './launcherSplitLogic';
+
 export const LAUNCHER_SCRIPT_SPLIT = `
 // Fixed sizing rules per panel: the drag clamp range and the width used before any drag.
-var PANEL_LIMITS = {
-  left: { min: 160, max: 400, defaultWidth: 220 },
-  right: { min: 200, max: 480, defaultWidth: 260 },
-};
+// Serialized from launcherSplitLogic.ts's LEFT_PANEL_LIMITS/RIGHT_PANEL_LIMITS — the single
+// source of truth also used by this repo's CSS fallback values and unit tests.
+var PANEL_LIMITS = ${JSON.stringify({ left: LEFT_PANEL_LIMITS, right: RIGHT_PANEL_LIMITS })};
 // Right panel starts collapsed (per the restructure plan's target layout); left starts
 // visible. Only the ABSENCE of a persisted 'hidden' flag falls back to this.
 function panelDefaultHidden(id) { return id === 'right'; }
 
-function clampPanelWidth(w, limits) { return Math.max(limits.min, Math.min(limits.max, w)); }
+${panelWidthMathJs()}
 
 function panelPersisted(id) { return (store.panels && store.panels[id]) || {}; }
 
 function isPanelHidden(id) {
-  var p = panelPersisted(id);
-  return typeof p.hidden === 'boolean' ? p.hidden : panelDefaultHidden(id);
+  return !isPanelVisible(panelPersisted(id), panelDefaultHidden(id));
 }
 
 function setPanelHidden(id, hidden) {
@@ -48,10 +50,7 @@ function setPanelHidden(id, hidden) {
 // The persisted width, clamped to the panel's current limits (re-clamped in case a saved
 // width predates a later change to min/max, or the getState() blob is stale/corrupt).
 function persistedPanelWidth(id) {
-  var limits = PANEL_LIMITS[id];
-  var p = panelPersisted(id);
-  var w = typeof p.width === 'number' ? p.width : limits.defaultWidth;
-  return clampPanelWidth(w, limits);
+  return resolvePanelWidth(panelPersisted(id), PANEL_LIMITS[id]);
 }
 
 // The width actually applied right now: a value being live-dragged wins over the
@@ -136,6 +135,9 @@ applySplit();
 // expand behavior is exercisable before that lands, and should be removed once it does.
 var rightPanelToggleBtn = document.getElementById('rightPanelToggleBtn');
 if (rightPanelToggleBtn) {
-  rightPanelToggleBtn.addEventListener('click', function () { togglePanel('right'); });
+  rightPanelToggleBtn.addEventListener('click', function () {
+    togglePanel('right');
+    rightPanelToggleBtn.setAttribute('aria-pressed', String(!isPanelHidden('right')));
+  });
 }
 `;

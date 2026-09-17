@@ -29,6 +29,8 @@
 // header stat chips (on/off); inner groups collapse independently, with posture persisted
 // across reloads via the webview's getState/setState.
 
+import { LEFT_PANEL_LIMITS, RIGHT_PANEL_LIMITS } from "./launcher/launcherSplitLogic";
+
 export const LAUNCHER_STYLE = `
 /* The one place the card-button label size and box padding live. Every card action
    button (.run, .btn) reads these variables, so a retune is a single edit and the two
@@ -179,7 +181,6 @@ header {
   flex: 0 0 auto;
   position: relative;
   min-width: 0;
-  overflow: auto;
   border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
   border-radius: 5px;
   background: var(--vscode-editorWidget-background, transparent);
@@ -189,23 +190,32 @@ header {
 .side-panel-body {
   color: var(--vscode-descriptionForeground);
   font-size: 0.85em;
+  /* Scrolls independently of the drag handle below, which is absolutely positioned over
+     the panel's own edge (see .split-rsz) — overflow here, not on .side-panel, keeps the
+     handle's full width grabbable instead of being clipped to a sliver by the scroll box. */
+  overflow: auto;
 }
-.left-panel { width: var(--launcher-left-w, 220px); }
-.right-panel { width: var(--launcher-right-w, 260px); }
+.left-panel { width: var(--launcher-left-w, ${LEFT_PANEL_LIMITS.defaultWidth}px); }
+.right-panel { width: var(--launcher-right-w, ${RIGHT_PANEL_LIMITS.defaultWidth}px); }
 /* The drag handle: a thin strip over the panel's shared edge with the center content,
    matching Planner's .tb-rsz/.rsz handle pattern (src/views/plannerAssets.ts) — subtle
-   until hovered/dragging, when a themed accent bar appears. */
+   until hovered/dragging, when a themed accent bar appears. z-index is below the sticky
+   header's (3) so the handle never draws over it near the top of the panel. */
 .split-rsz {
   position: absolute; top: 0; bottom: 0; width: 8px;
-  cursor: col-resize; z-index: 5;
+  cursor: col-resize; z-index: 2;
 }
 .split-rsz::after {
-  content: ''; position: absolute; top: 0; bottom: 0; width: 2px;
+  content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
   background: transparent; transition: background 0.12s ease;
 }
 .split-rsz:hover::after, .split-rsz.dragging::after { background: var(--vscode-focusBorder); }
 .split-rsz-left { right: -5px; }
 .split-rsz-right { left: -5px; }
+/* Set on <body> for the duration of a drag (see launcherScriptSplit.ts's attachSplitResizer)
+   so the resize cursor and disabled text-selection apply everywhere the pointer travels,
+   not just while it stays over the 8px handle strip. */
+body.resizing { cursor: col-resize; user-select: none; }
 
 /* Responsive panes via flex-wrap (not grid): side by side when the Panel is wide, wrapping
    to stacked (mine first) when narrow. align-items:flex-start so an empty/short pane does
