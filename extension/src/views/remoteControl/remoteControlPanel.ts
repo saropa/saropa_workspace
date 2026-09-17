@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
 import { AndroidProjectProfile, getAndroidProjectProfile } from "../../model/androidProjectProfile";
-import { ADB_COMMAND_CATALOG } from "../../model/adbCommandCatalog";
+import { ShortcutStore } from "../../model/shortcutStore";
+import { adbRunHistory } from "../../exec/adbRunHistory";
 import { buildRemoteControlPayload } from "./remoteControlData";
+import { pinAdbCommand, runAdbCommand } from "./remoteControlActions";
 import { renderRemoteControlHtml } from "./remoteControlShell";
 import { l10n } from "../../i18n/l10n";
 
@@ -16,17 +18,20 @@ import { l10n } from "../../i18n/l10n";
 // docks in the Panel container). The plan also calls for a section that contributes no
 // tree view at all, which is exactly what a panel gives.
 //
-// DELIBERATELY NOT IMPLEMENTED HERE (build-order step 4+, a later change):
-//   - execution. `run` is acknowledged with a "not wired up yet" toast; nothing is
-//     spawned, nothing reaches exec/runner.ts, no terminal is created.
-//   - dry-run preview and the destructive confirm step. The panel BADGES a destructive
-//     command (the visible half of that promise) but cannot run one, so there is nothing
-//     yet to confirm.
-//   - recent/frequent ranking, pin-to-Shortcuts, multi-device fan-out, the device chip
-//     and the run-history log.
-// The profile is accepted, resolved and reported to the webview as a header chip, but it
-// does NOT filter the catalog yet: relevance-based hiding needs the connected device's
-// API level too, so it lands with execution rather than guessing here.
+// The `run` and `pin` intents are handled in remoteControlActions.ts (substitution,
+// prompt resolution, the dry-run confirm modal, the run through exec/runner.ts, the
+// Shortcuts-store add); this file only routes the messages and re-posts the payload, so
+// an open panel's Recent group reflects a run the moment it happens.
+//
+// DELIBERATELY NOT IMPLEMENTED HERE (later build-order steps):
+//   - device discovery and the connection health check, so nothing here knows whether a
+//     device is attached; `requiresDevice` is still only a badge.
+//   - multi-device fan-out, the permission inspector, the live device chip and the
+//     persistent run-history table.
+// The profile is accepted, resolved, reported as a header chip and used to substitute
+// every row's command, but it does NOT filter the catalog: relevance-based hiding needs
+// the connected device's API level too, so it lands with discovery rather than guessing
+// here.
 
 // The command id the plan reserves for opening this panel. Registered (and contributed
 // in package.json) by the entry-points step; exported here so that step, and any caller
@@ -51,13 +56,14 @@ export class RemoteControlPanel {
   // redraws the list the user is actually looking at rather than resetting it.
   private query = "";
 
-  // Open the panel, or reveal and refresh the one already open. The profile is optional:
-  // pass one when the caller already has it, otherwise the panel resolves it itself from
-  // the first workspace folder (the cached read — see getAndroidProjectProfile).
-  static show(profile?: AndroidProjectProfile): void {
+  // Open the panel, or reveal and refresh the one already open. Both arguments are
+  // optional: the profile is resolved from the first workspace folder when none is passed
+  // (the cached read — see getAndroidProjectProfile), and without a store the Pin action
+  // says it cannot pin rather than failing silently.
+  static show(store?: ShortcutStore, profile?: AndroidProjectProfile): void {
     const column = vscode.window.activeTextEditor?.viewColumn;
     if (RemoteControlPanel.current) {
-      RemoteControlPanel.current.repoint(profile);
+      RemoteControlPanel.current.repoint(store, profile);
       RemoteControlPanel.current.panel.reveal(column);
       return;
     }
@@ -67,11 +73,12 @@ export class RemoteControlPanel {
       column ?? vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true }
     );
-    RemoteControlPanel.current = new RemoteControlPanel(panel, profile);
+    RemoteControlPanel.current = new RemoteControlPanel(panel, store, profile);
   }
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
+    private store: ShortcutStore | undefined,
     private profile: AndroidProjectProfile | undefined
   ) {
     this.panel.webview.html = renderRemoteControlHtml();
@@ -86,7 +93,10 @@ export class RemoteControlPanel {
   // Re-point an open panel at a (possibly newly resolved) profile and redraw. The HTML
   // shell is static, so unlike Configure Run this never rebuilds the document — only the
   // posted payload changes, which keeps the search box's text and focus intact.
-  private repoint(profile?: AndroidProjectProfile): void {
+  private repoint(store?: ShortcutStore, profile?: AndroidProjectProfile): void {
+    if (store) {
+      this.store = store;
+    }
     if (profile) {
       this.profile = profile;
     }
@@ -111,10 +121,29 @@ export class RemoteControlPanel {
         return;
       case "run":
         if (typeof msg.id === "string") {
-          this.onRun(msg.id);
+          await runAdbCommand(msg.id, this.profile);
+          // Re-post so the Recent group reflects the run that just happened (or does not,
+          // when the confirm was declined — runAdbCommand records only a real run).
+          await this.postCatalog();
+        }
+        return;
+      case "pin":
+        if (typeof msg.id === "string") {
+          await this.onPin(msg.id);
         }
         return;
     }
+  }
+
+  // Pin a catalog row into the real Shortcuts tree. Without a store (the panel was opened
+  // by a caller that had none) this says so rather than doing nothing — a button that
+  // silently no-ops reads as broken.
+  private async onPin(id: string): Promise<void> {
+    if (!this.store) {
+      vscode.window.showWarningMessage(l10n("remoteControl.pin.noStore"));
+      return;
+    }
+    await pinAdbCommand(this.store, id, this.profile);
   }
 
   // Resolve the workspace's Android profile once, on the client's ready handshake, when
@@ -139,23 +168,10 @@ export class RemoteControlPanel {
       payload: buildRemoteControlPayload({
         query: this.query,
         ...(this.profile ? { profile: this.profile } : {}),
+        recent: adbRunHistory.recent(),
+        counts: adbRunHistory.counts(),
       }),
     });
-  }
-
-  // The run STUB. Execution (through exec/runner.ts, with placeholder substitution, the
-  // dry-run preview and the destructive confirm) is the next step; until then a click is
-  // acknowledged with a named toast rather than doing nothing, because a button that
-  // silently does nothing reads as broken — and because the extension's "no silent
-  // async" rule means every action surfaces an outcome.
-  private onRun(id: string): void {
-    const entry = ADB_COMMAND_CATALOG.find((e) => e.id === id);
-    if (!entry) {
-      return;
-    }
-    vscode.window.showInformationMessage(
-      l10n("remoteControl.run.notImplemented", { name: l10n(entry.labelKey) })
-    );
   }
 
   private dispose(): void {
@@ -170,6 +186,9 @@ export class RemoteControlPanel {
 // The body the entry-points step binds to OPEN_REMOTE_CONTROL_COMMAND. Kept a plain
 // exported function (not a registration) so nothing is contributed to the palette until
 // package.json declares it.
-export function openRemoteControlPanel(profile?: AndroidProjectProfile): void {
-  RemoteControlPanel.show(profile);
+export function openRemoteControlPanel(
+  store?: ShortcutStore,
+  profile?: AndroidProjectProfile
+): void {
+  RemoteControlPanel.show(store, profile);
 }

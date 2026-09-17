@@ -37,6 +37,7 @@ export {
 export { getOutputChannel } from "./terminalRunner";
 export {
   runAction,
+  runShellAction,
   setRoutineHooks,
   RoutineHooks,
   expandRecipeTokens,
