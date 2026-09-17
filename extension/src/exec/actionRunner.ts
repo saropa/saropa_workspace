@@ -118,7 +118,15 @@ async function runVsCommand(
 // to that dated file (under cwd) and the file is opened when autoOpen is set —
 // this is the scheduled-report path. Without one, output streams to the channel
 // like an ordinary background run.
-async function runShellAction(
+//
+// Exported (and re-exported from runner.ts) so a caller that has a command line but no
+// Shortcut — the Mobile Remote Control panel, which runs catalog data rather than stored
+// shortcuts — reaches the SAME execution path (toast, cue, terminal / background,
+// completion event) instead of creating a second one. Such a caller passes its own
+// pseudo-id as `pinId`; that id keys the prompt memory and the completion event only, and
+// resolves to no shortcut, which is why the shortcut-scoped run telemetry stays in
+// runAction above rather than living here.
+export async function runShellAction(
   action: { shellCommand?: string; cwd?: string; useIntegratedTerminal?: boolean; reportFile?: string; autoOpen?: boolean },
   name: string,
   pinId: string,

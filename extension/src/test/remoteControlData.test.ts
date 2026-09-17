@@ -13,9 +13,11 @@ import assert from "node:assert/strict";
 import {
   buildProjectWire,
   buildRemoteControlPayload,
+  rankRecentAdbEntries,
   remoteControlStrings,
   resolveAdbCommand,
   searchAdbCatalog,
+  RECENT_GROUP_ID,
 } from "../views/remoteControl/remoteControlData";
 import {
   ADB_COMMAND_CATALOG,
@@ -208,4 +210,94 @@ test("every client-facing string resolves to real English, tokens intact", () =>
   assert.ok(strings.countFiltered.includes("{total}"));
   assert.ok(strings.projectPackage.includes("{id}"));
   assert.ok(strings.projectVariants.includes("{n}"));
+});
+
+// --- dry-run preview -------------------------------------------------------
+
+test("a row carries the substituted command, not only the raw template", () => {
+  const profile = buildAndroidProjectProfile({
+    hasAndroidDir: true,
+    gradleText: `android { defaultConfig { applicationId "com.example.app" } }`,
+  });
+  const wire = resolveAdbCommand(
+    ADB_COMMAND_CATALOG.find((e) => e.id === "appControl.uninstall") as AdbCommandEntry,
+    profile
+  );
+  assert.equal(wire.commandTemplate, "adb uninstall {applicationId}");
+  assert.equal(wire.command, "adb uninstall com.example.app");
+  assert.deepEqual(wire.autoFilled, ["applicationId"]);
+  assert.equal(wire.prompts, false);
+  assert.equal(wire.missingProject, false);
+});
+
+test("with no Android project a row previews the prompt it will raise, and says so", () => {
+  const wire = resolveAdbCommand(
+    ADB_COMMAND_CATALOG.find((e) => e.id === "appControl.uninstall") as AdbCommandEntry,
+    emptyAndroidProjectProfile()
+  );
+  assert.ok(wire.command.includes("${prompt:"));
+  assert.equal(wire.missingProject, true);
+  assert.equal(wire.prompts, true);
+  assert.deepEqual(wire.autoFilled, []);
+});
+
+test("every payload row previews a command with no unresolved {token}", () => {
+  for (const cmd of commands(buildRemoteControlPayload())) {
+    const wire = cmd as unknown as { command: string };
+    assert.equal(
+      wire.command.replace(/\$\{[^}]*\}/g, "").includes("{"),
+      false,
+      `${cmd.id} previews an unresolved token: ${wire.command}`
+    );
+  }
+});
+
+// --- recent / frequent ranking ---------------------------------------------
+
+test("recency orders the Recent group, most recent first", () => {
+  const ranked = rankRecentAdbEntries(ADB_COMMAND_CATALOG, [
+    "files.push",
+    "appControl.install",
+  ]);
+  assert.deepEqual(ranked.map((e) => e.id), ["files.push", "appControl.install"]);
+});
+
+test("a remembered id that is no longer in the catalog is skipped, not rendered empty", () => {
+  const ranked = rankRecentAdbEntries(ADB_COMMAND_CATALOG, ["gone.forever", "files.pull"]);
+  assert.deepEqual(ranked.map((e) => e.id), ["files.pull"]);
+});
+
+test("lifetime counts fill the Recent group below the recency window", () => {
+  const ranked = rankRecentAdbEntries(
+    ADB_COMMAND_CATALOG,
+    ["files.push"],
+    { "appControl.launch": 9, "deviceInfo.battery": 2 }
+  );
+  assert.deepEqual(ranked.map((e) => e.id), [
+    "files.push",
+    "appControl.launch",
+    "deviceInfo.battery",
+  ]);
+});
+
+test("the Recent group is the first group, and duplicates rather than relocates its rows", () => {
+  const payload = buildRemoteControlPayload({ recent: ["appControl.uninstall"] });
+  assert.equal(payload.groups[0].id, RECENT_GROUP_ID);
+  assert.deepEqual(payload.groups[0].commands.map((c) => c.id), ["appControl.uninstall"]);
+  const appControl = payload.groups.find((g) => g.id === "appControl");
+  assert.ok(appControl?.commands.some((c) => c.id === "appControl.uninstall"));
+  assert.equal(payload.shown, ADB_COMMAND_CATALOG.length, "the count still means the catalog");
+});
+
+test("no history means no Recent group at all", () => {
+  assert.equal(buildRemoteControlPayload().groups[0].id, ADB_COMMAND_GROUPS[0]);
+});
+
+test("the Recent group respects the active search", () => {
+  const payload = buildRemoteControlPayload({
+    query: "push",
+    recent: ["appControl.uninstall", "files.push"],
+  });
+  assert.equal(payload.groups[0].id, RECENT_GROUP_ID);
+  assert.deepEqual(payload.groups[0].commands.map((c) => c.id), ["files.push"]);
 });

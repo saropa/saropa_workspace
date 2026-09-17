@@ -13,10 +13,19 @@
 // plain strings only — it holds no key, no catalog and no display text of its own
 // (same rule the launcher and Configure Run clients follow).
 //
-// Not implemented here, by plan: execution, dry-run substitution, destructive
-// confirmation and recent/frequent ranking (step 4+). A command's `commandTemplate` is
-// carried through verbatim, placeholders and all, so the panel can show what WOULD run
-// without pretending to resolve it.
+// Two things this module now decides, both pure and both unit tested:
+//   - the DRY-RUN PREVIEW. Every row carries `command`, the fully substituted string
+//     (model/adbCommandSubstitution.ts) that this row would actually run, alongside the
+//     raw `commandTemplate` it came from. The panel shows the former; the confirm dialog
+//     the host raises before running repeats it verbatim.
+//   - RECENT/FREQUENT RANKING. Recency and lifetime counts arrive as plain data
+//     (exec/adbRunHistory.ts reads them from globalState; nothing here touches storage),
+//     and the top few become a "Recent" pseudo-group rendered ABOVE the real groups —
+//     the same arrangement the Shortcuts tree uses, where a Recent root sits above the
+//     scope roots and its rows duplicate entries that also appear below.
+//
+// Execution itself (the confirm step, the prompt resolution and the terminal) lives in
+// remoteControlActions.ts: it needs vscode, so it stays out of this pure module.
 
 import {
   ADB_COMMAND_CATALOG,
@@ -28,7 +37,18 @@ import {
   groupAdbCatalog,
 } from "../../model/adbCommandCatalog";
 import { AndroidProjectProfile } from "../../model/androidProjectProfile";
+import { substituteAdbCommand } from "../../model/adbCommandSubstitution";
 import { l10n } from "../../i18n/l10n";
+
+// The synthetic group id of the "Recent" pseudo-group. Not an AdbCommandGroup — it is an
+// arrangement, not a catalog bucket — so it is spelled out here and widens the wire
+// type's `id` rather than polluting ADB_COMMAND_GROUPS (a Recent entry must still appear
+// in its real group below).
+export const RECENT_GROUP_ID = "recent";
+
+// How many recently-run commands the pseudo-group shows. Small on purpose: it is a
+// shortcut back to what you just did, not a second copy of the catalog.
+const RECENT_GROUP_SIZE = 5;
 
 // One rendered command row. Flags travel as booleans rather than as pre-rendered badge
 // text so the client can style the destructive marker differently from the informational
@@ -38,9 +58,23 @@ export interface RemoteControlCommandWire {
   id: string;
   label: string;
   description: string;
-  // The raw template, placeholders included. Shown as the row's monospace sub line so a
-  // user can see exactly which adb invocation a row stands for.
+  // The raw template, `{token}` placeholders included. Kept so a row can still explain
+  // where its command came from; the client renders `command`, not this.
   commandTemplate: string;
+  // The DRY-RUN PREVIEW: the same template after profile substitution, with anything the
+  // profile could not answer rewritten as this extension's `${prompt:...}` /
+  // `${pick:...}` run-parameter tokens. Never contains a `{token}`, so what the row shows
+  // is always a runnable command line.
+  command: string;
+  // Token names the profile auto-filled — what "we already know your package id" is
+  // claiming, in a form the client can name rather than imply.
+  autoFilled: string[];
+  // True when running this row will ask the user for something first.
+  prompts: boolean;
+  // True when a token the PROJECT should have answered (an application id, a deep-link
+  // scheme) had no value — i.e. there is no Android project here. The row still runs, by
+  // asking; this is what lets the panel say why.
+  missingProject: boolean;
   requiresDevice: boolean;
   destructive: boolean;
   minSdk?: number;
@@ -50,7 +84,7 @@ export interface RemoteControlCommandWire {
 // with no surviving row is never emitted (groupAdbCatalog drops it), so the panel can
 // never render an empty, expandable header.
 export interface RemoteControlGroupWire {
-  id: AdbCommandGroup;
+  id: AdbCommandGroup | typeof RECENT_GROUP_ID;
   label: string;
   description: string;
   commands: RemoteControlCommandWire[];
@@ -73,6 +107,13 @@ export interface RemoteControlProjectWire {
 // none of its own, so a locale switch is a host-side concern only.
 export interface RemoteControlStrings {
   run: string;
+  pin: string;
+  pinTitle: string;
+  prompts: string;
+  promptsTitle: string;
+  missingProject: string;
+  missingProjectTitle: string;
+  autoFilled: string;
   destructive: string;
   destructiveTitle: string;
   requiresDevice: string;
@@ -105,19 +146,66 @@ export interface RemoteControlPayloadOptions {
   catalog?: AdbCommandEntry[];
   query?: string;
   profile?: AndroidProjectProfile;
+  // Catalog entry ids, most-recently-run first (exec/adbRunHistory.recent()). Passed as
+  // data so this module stays pure and the ranking is asserted without globalState.
+  recent?: string[];
+  // Lifetime run counts by entry id (exec/adbRunHistory.counts()), the tie-breaker
+  // within the Recent group's recency order.
+  counts?: Record<string, number>;
 }
 
-// Resolve one entry's l10n keys into the row the webview renders.
-export function resolveAdbCommand(entry: AdbCommandEntry): RemoteControlCommandWire {
+// Resolve one entry's l10n keys into the row the webview renders, and substitute its
+// template against the project profile so the row previews what it would really run.
+export function resolveAdbCommand(
+  entry: AdbCommandEntry,
+  profile?: AndroidProjectProfile
+): RemoteControlCommandWire {
+  const substitution = substituteAdbCommand(entry, profile);
   return {
     id: entry.id,
     label: l10n(entry.labelKey),
     description: l10n(entry.descriptionKey),
     commandTemplate: entry.commandTemplate,
+    command: substitution.command,
+    autoFilled: Object.keys(substitution.resolved),
+    prompts: substitution.interactive.length > 0,
+    missingProject: substitution.missingFromProfile.length > 0,
     requiresDevice: entry.requiresDevice,
     destructive: entry.destructive,
     ...(entry.minSdk === undefined ? {} : { minSdk: entry.minSdk }),
   };
+}
+
+// The Recent pseudo-group's members: entries the user has actually run, most recent
+// first, bounded to RECENT_GROUP_SIZE. Only entries still present in `catalog` qualify,
+// so a filtered search never surfaces a Recent row the search excluded (and a renamed /
+// removed catalog entry cannot resurrect itself from history).
+//
+// `counts` breaks ties only for entries history remembers with the SAME position — in
+// practice it orders nothing on its own, because `recent` is already strictly ordered; it
+// is consulted for entries absent from the recency window but with a lifetime count, so a
+// command run twenty times last month still outranks one never run at all.
+export function rankRecentAdbEntries(
+  catalog: AdbCommandEntry[],
+  recent: string[] = [],
+  counts: Record<string, number> = {},
+  limit: number = RECENT_GROUP_SIZE
+): AdbCommandEntry[] {
+  const byId = new Map(catalog.map((e) => [e.id, e]));
+  const picked: AdbCommandEntry[] = [];
+  for (const id of recent) {
+    const entry = byId.get(id);
+    if (entry && !picked.includes(entry)) {
+      picked.push(entry);
+    }
+  }
+  if (picked.length < limit) {
+    const frequent = catalog
+      .filter((e) => (counts[e.id] ?? 0) > 0 && !picked.includes(e))
+      .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
+    picked.push(...frequent);
+  }
+  return picked.slice(0, limit);
 }
 
 // Search across BOTH halves of a catalog row: the raw fields (id, group, tags) via the
@@ -167,6 +255,13 @@ export function buildProjectWire(
 export function remoteControlStrings(): RemoteControlStrings {
   return {
     run: l10n("remoteControl.run"),
+    pin: l10n("remoteControl.pin"),
+    pinTitle: l10n("remoteControl.pinTitle"),
+    prompts: l10n("remoteControl.badge.prompts"),
+    promptsTitle: l10n("remoteControl.badge.promptsTitle"),
+    missingProject: l10n("remoteControl.badge.missingProject"),
+    missingProjectTitle: l10n("remoteControl.badge.missingProjectTitle"),
+    autoFilled: l10n("remoteControl.badge.autoFilled"),
     destructive: l10n("remoteControl.badge.destructive"),
     destructiveTitle: l10n("remoteControl.badge.destructiveTitle"),
     requiresDevice: l10n("remoteControl.badge.requiresDevice"),
@@ -181,13 +276,14 @@ export function remoteControlStrings(): RemoteControlStrings {
   };
 }
 
-// Assemble the whole webview payload: search, group, resolve, count. The one function
-// the panel calls, and the one the unit tests exercise.
+// Assemble the whole webview payload: rank, search, group, resolve, substitute, count.
+// The one function the panel calls, and the one the unit tests exercise.
 //
-// The project profile is accepted and reported but NOT used to filter: hiding a group
-// because a dependency is absent is the plan's "show/hide by relevance", which needs the
-// device's API level too and belongs with the execution step. Passing it through now is
-// what lets that land without changing this signature.
+// The project profile SUBSTITUTES (every row previews its resolved command) but does not
+// FILTER: hiding a group because a dependency is absent is the plan's "show/hide by
+// relevance", which needs the connected device's API level too and belongs with the
+// discovery step. `shown`/`total` therefore still count the catalog, not the rendered
+// rows — the Recent pseudo-group duplicates rows rather than adding commands.
 export function buildRemoteControlPayload(
   options: RemoteControlPayloadOptions = {}
 ): RemoteControlPayload {
@@ -195,12 +291,25 @@ export function buildRemoteControlPayload(
   const query = options.query ?? "";
   const matched = searchAdbCatalog(catalog, query);
   const groups: RemoteControlGroupWire[] = [];
+  // The Recent pseudo-group first, when there is any history to show. It duplicates rows
+  // that also render in their real group below — deliberately, and the same way the
+  // Shortcuts tree's Recent root does: recency is a second route to a command, not a
+  // relocation of it.
+  const recentEntries = rankRecentAdbEntries(matched, options.recent, options.counts);
+  if (recentEntries.length > 0) {
+    groups.push({
+      id: RECENT_GROUP_ID,
+      label: l10n("adb.group.recent.label"),
+      description: l10n("adb.group.recent.description"),
+      commands: recentEntries.map((e) => resolveAdbCommand(e, options.profile)),
+    });
+  }
   for (const [group, entries] of groupAdbCatalog(matched)) {
     groups.push({
       id: group,
       label: l10n(adbGroupLabelKey(group)),
       description: l10n(adbGroupDescriptionKey(group)),
-      commands: entries.map(resolveAdbCommand),
+      commands: entries.map((e) => resolveAdbCommand(e, options.profile)),
     });
   }
   const project = buildProjectWire(options.profile);
