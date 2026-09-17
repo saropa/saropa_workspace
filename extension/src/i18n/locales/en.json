@@ -1513,6 +1513,17 @@
   "scripts.dependencyReport.description": "Generate a dependency health report for a Flutter project.\n\nDefault mode is read-only: shows project info (Flutter/Dart versions, platform targets), the full dependency tree, outdated packages with current vs. latest versions, and any dependency overrides. Results are written to a timestamped log file.\n\nOptional flags via Set Params: --interactive (prompt y/n before each upgrade step for Kotlin, Firebase, packages), --upgrade (auto-upgrade all packages), --verbose (show blocked packages and debug output).\n\nRequires Flutter on PATH and the PyYAML Python package (pip install PyYAML). The tqdm progress bar package is used if available but not required.",
   "scripts.syncDrift": "{count} bundled script(s) differ from their canonical source: {names}. Run the sync to update them.",
 
+  "go.title": "Go",
+  "go.placeholder": "Search everything - type {categories} to narrow to one section",
+  "go.sectionRecent": "Recent",
+  "go.sectionShortcuts": "Shortcuts",
+  "go.sectionRecipes": "Recipes",
+  "go.sectionScripts": "Scripts",
+  "go.sectionNotes": "Notes",
+  "go.sectionWatches": "Watches",
+  "go.sectionAdb": "Mobile Remote Control",
+  "go.scopeProject": "Project Notes",
+
   "notes.globalRoot": "Global Notes",
   "notes.open": "Open",
   "notes.timeJustNow": "just now",
