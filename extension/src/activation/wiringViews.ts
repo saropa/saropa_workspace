@@ -212,6 +212,13 @@ function setupLauncherPanel(
     ),
     vscode.commands.registerCommand("saropaWorkspace.showLauncher", () =>
       vscode.commands.executeCommand("saropaWorkspace.launcher.focus")
+    ),
+    // The native view/title "cycle sort" icon (PLAN_Launcher_Restructure.md build order
+    // step 5). Reaches the live provider instance the same way showLauncher above does —
+    // a closure over the `launcher` constructed just above, not a lookup — since a command
+    // registered here has no other way to reach a specific WebviewViewProvider instance.
+    vscode.commands.registerCommand("saropaWorkspace.launcher.cycleSort", () =>
+      launcher.cycleSort()
     )
   );
 }

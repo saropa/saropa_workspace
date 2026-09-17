@@ -164,6 +164,16 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  // Build-order step 5 (PLAN_Launcher_Restructure.md): the native view/title "cycle sort"
+  // icon's implementation. Sort state lives entirely inside the webview (store.sort in
+  // launcherScriptCore.ts), so the host has nothing to compute here — it only nudges the
+  // webview to act, the same "host pushes an unprompted instruction" shape post() already
+  // uses for data, just with an empty payload. No-op while the view hasn't been resolved yet
+  // (mirrors post()'s own guard) since there is nothing sensible to cycle before a first paint.
+  cycleSort(): void {
+    void this.view?.webview.postMessage({ type: "cycleSort" });
+  }
+
   // Push the current item set + UI strings to the webview. No-op until the view is
   // resolved. Async because the project-files scan does a handful of file stats (the same
   // scan the tree does); the watch + shortcut data is in-memory. The scan runs ONCE here

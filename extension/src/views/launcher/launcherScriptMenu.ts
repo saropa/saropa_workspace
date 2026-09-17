@@ -221,6 +221,23 @@ window.addEventListener('message', function (event) {
     renderHeader(msg.header);
     renderCategoryList(msg.categories);
     render();
+  } else if (msg && msg.type === 'cycleSort') {
+    // Build-order step 5 (PLAN_Launcher_Restructure.md): the native view/title "cycle sort"
+    // icon's nudge. Sort is per-pane, so a single title-bar icon needs a target pane to act
+    // on; the left-panel category selection (step 3) is that target when one specific
+    // category is selected. When "All" is selected, multiple panes are visible at once and
+    // there is no single sensible target — rather than add a second host<->webview
+    // round-trip just to surface "select a category to sort it" (a setContext-driven
+    // enable/disable would need the host to track the webview's own selection state, which
+    // step 3 deliberately kept client-side only), this silently no-ops. The icon staying
+    // always-enabled but inert for "All" was judged simpler and low-cost given how rarely
+    // "All" needs sorting at all (each category's own pane head already offers the same
+    // cycle inline once selected).
+    var cat = resolveSelectedCategory();
+    if (cat === 'all') { return; }
+    var next = cyclePaneSort(cat);
+    setPaneSort(cat, next);
+    render();
   }
 });
 

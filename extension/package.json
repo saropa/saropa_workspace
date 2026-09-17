@@ -760,6 +760,12 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "saropaWorkspace.launcher.cycleSort",
+        "title": "%command.launcherCycleSort.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(list-unordered)"
+      },
+      {
         "command": "saropaWorkspace.showLauncher",
         "title": "%command.showLauncher.title%",
         "category": "%extension.displayName%",
@@ -1666,6 +1672,16 @@
           "command": "saropaWorkspace.openNotesFolder",
           "when": "view == saropaWorkspace.notes",
           "group": "1_notes@2"
+        },
+        {
+          "command": "saropaWorkspace.launcher.cycleSort",
+          "when": "view == saropaWorkspace.launcher",
+          "group": "navigation@1"
+        },
+        {
+          "command": "saropaWorkspace.openSettings",
+          "when": "view == saropaWorkspace.launcher",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
