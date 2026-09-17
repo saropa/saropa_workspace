@@ -167,6 +167,46 @@ header {
 }
 .count:empty { display: none; }
 
+/* Split layout: a left panel (category list, later step), the existing center content
+   (#empty/#root, untouched below), and a right panel (run-history table, later step) —
+   see PLAN_Launcher_Restructure.md. Both side panels are resizable (drag handle) and
+   collapsible (toggled fully out of the flex row via .hidden), sharing one component
+   (launcherScriptSplit.ts) rather than two different widgets. flex (not grid) so a
+   collapsed panel truly takes zero width instead of retaining a grid track's minmax. */
+.split { display: flex; align-items: stretch; gap: 10px; }
+.center { flex: 1 1 auto; min-width: 0; }
+.side-panel {
+  flex: 0 0 auto;
+  position: relative;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+  border-radius: 5px;
+  background: var(--vscode-editorWidget-background, transparent);
+  padding: 8px 10px;
+}
+.side-panel.hidden { display: none; }
+.side-panel-body {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+}
+.left-panel { width: var(--launcher-left-w, 220px); }
+.right-panel { width: var(--launcher-right-w, 260px); }
+/* The drag handle: a thin strip over the panel's shared edge with the center content,
+   matching Planner's .tb-rsz/.rsz handle pattern (src/views/plannerAssets.ts) — subtle
+   until hovered/dragging, when a themed accent bar appears. */
+.split-rsz {
+  position: absolute; top: 0; bottom: 0; width: 8px;
+  cursor: col-resize; z-index: 5;
+}
+.split-rsz::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 2px;
+  background: transparent; transition: background 0.12s ease;
+}
+.split-rsz:hover::after, .split-rsz.dragging::after { background: var(--vscode-focusBorder); }
+.split-rsz-left { right: -5px; }
+.split-rsz-right { left: -5px; }
+
 /* Responsive panes via flex-wrap (not grid): side by side when the Panel is wide, wrapping
    to stacked (mine first) when narrow. align-items:flex-start so an empty/short pane does
    not stretch to its sibling's height. */

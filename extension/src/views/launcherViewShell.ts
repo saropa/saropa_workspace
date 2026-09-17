@@ -59,10 +59,25 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
       <input id="q" type="text" spellcheck="false" aria-label="${l10n("launcher.searchPlaceholder")}" />
       <span id="count" class="count"></span>
     </div>
+    <!-- TEMPORARY, testing only: a later step adds the real view/title icon for this
+         (see plans/PLAN_Launcher_Restructure.md build order step 5/7); remove then. -->
+    <button id="rightPanelToggleBtn" class="hdr-btn" type="button" title="${l10n("launcher.toggleRightPanelTemp")}"><span class="codicon codicon-layout-sidebar-right"></span></button>
   </div>
 </header>
-<div id="empty" class="empty hidden">${l10n("launcher.empty")}</div>
-<div id="root" class="root"></div>
+<div class="split">
+  <div id="leftPanel" class="side-panel left-panel">
+    <div class="side-panel-body">${l10n("launcher.leftPanelPlaceholder")}</div>
+    <div id="rsz-left" class="split-rsz split-rsz-left" title="${l10n("launcher.resizeLeftPanel")}"></div>
+  </div>
+  <div class="center">
+    <div id="empty" class="empty hidden">${l10n("launcher.empty")}</div>
+    <div id="root" class="root"></div>
+  </div>
+  <div id="rightPanel" class="side-panel right-panel">
+    <div id="rsz-right" class="split-rsz split-rsz-right" title="${l10n("launcher.resizeRightPanel")}"></div>
+    <div class="side-panel-body">${l10n("launcher.rightPanelPlaceholder")}</div>
+  </div>
+</div>
 <script nonce="${nonce}">${LAUNCHER_SCRIPT}</script>
 </body>
 </html>`;
