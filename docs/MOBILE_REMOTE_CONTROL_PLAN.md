@@ -189,6 +189,64 @@ All strings go through NLS/`l10n()` — add
 - Update `docs/FEATURES.md` and `docs/PRIVACY.md` (confirm this stays
   local-only, no telemetry, consistent with the rest of the extension).
 
+## 7. Saropa Log Capture integration
+
+Goal: let every command run through the new catalog — adb commands first,
+but the mechanism is general to any Control Center run, per the user's
+"including but not limited to adb" — be tracked against Log Capture so a
+developer can see whether a given run caused or fixed an issue, not just
+whether it exited zero.
+
+Log Capture is a sibling VS Code extension (`saropa.saropa-log-capture`,
+repo `saropa-log-capture`), already integrated with this extension's
+Suite plan (`plans/history/2026.09/2026.09.03/TODO_better integration with
+saropa suite.md`) via its public `SaropaLogCaptureApi` export
+(`vscode.extensions.getExtension('saropa.saropa-log-capture')?.exports`,
+`apiVersion: 1`, see that repo's `src/api-types.ts`). Two tiers:
+
+**Usable today, no sibling change needed:**
+
+- Before running a catalog command, check `api.getSessionInfo()?.isActive`
+  — if a capture session is running, call `api.insertMarker(...)` with the
+  exact substituted command string as the marker text, bracketing the run
+  in the live log timeline the same way `insertMarker` is already used
+  elsewhere. No-op (and no error) when no session is active, matching the
+  API's documented no-session behavior.
+- Register a `SaropaIntegrationProvider` via `api.registerIntegrationProvider`
+  so a Control Center run contributes a `meta` Contribution at session
+  start/end (command id, exit code, duration) — the same mechanism Log
+  Capture's own integration providers use, not a bespoke side channel.
+- After a run, if Log Capture is installed, add an "Open log" action to the
+  run's entry in item 12's run-history table (deep-linking via
+  `saropaLogCapture.openLogFile`) — this is Pillar C's "run a shortcut →
+  offer its log" bridge from the Suite plan, extended to adb/catalog runs.
+- `api.getDailySummary(date)` already rolls up a day's sessions/errors/
+  signals; the existing Suite daily-report work
+  (`saropaWorkspace.dailyReport`, `src/commands/dailyReport.ts`) already
+  consumes it, so Control Center runs surface there for free once run
+  metadata is contributed via the integration provider above.
+
+**Requires a sibling change — filed as a work request, not implemented
+here:** attributing *which* signal a specific run caused or resolved needs
+correlating Log Capture's own signal detector against a bracketed time
+window, which nothing in the current public API does (`getDailySummary` is
+calendar-day granularity, too coarse for one 20-second command run). Filed
+as `saropa-log-capture/bugs/119_plan-run-scoped-signal-correlation-api.md`
+(branch `feat/run-scoped-signal-correlation-api-119`, pushed, not yet a
+PR): `insertMarker()` starts returning a correlation id instead of `void`
+(non-breaking), plus a new `getSignalDelta(sinceMarkerId, untilMarkerId?)`
+that reuses the same signal-aggregation pipeline `getDailySummary` already
+calls (`buildSignalsFromMetas`, which already supports a `TimeRange` via
+`loadFilteredMetas`), scoped to the marker window instead of a day. Per
+this repo's own cross-project rule (`plans/107_plan-saropa-suite-
+orchestration.md`, "Ownership and the cross-project rule"): work landing
+in a sibling repo is filed as a self-contained report there, never a
+direct cross-repo edit — this stays a filed request until Log Capture's
+maintainers accept and implement it. Item 13 below (run → watch output →
+react) is the same "watch and correlate" idea scoped to a command's own
+stdout/stderr instead of Log Capture's cross-session signal detector — the
+two are complementary, not overlapping.
+
 ## Additional wow feature ideas
 
 Curated additions on top of the ranking/pin/dry-run/undo/fan-out/inspector/
@@ -487,4 +545,8 @@ restructure proper and can land independently of this feature. Items 6, 7 and
 7. Multi-device fan-out, permission inspector, live device dashboard.
 8. Connection health check + adb-missing state.
 9. Entry points (tree item / command palette).
-10. Tests + docs.
+10. Log Capture integration: marker bracketing + integration-provider meta
+    contribution + "Open log" deep link (no sibling dependency); revisit
+    signal-delta correlation once/if `119_plan-run-scoped-signal-
+    correlation-api.md` is accepted upstream.
+11. Tests + docs.
