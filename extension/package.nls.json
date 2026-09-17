@@ -171,6 +171,7 @@
   "command.recipe.runNearestScript.title": "Run Nearest Package Script",
   "command.openDashboard.title": "Open Saropa Dashboard",
   "command.openMorningBrief.title": "Open Saropa Morning Brief",
+  "command.openRemoteControl.title": "Open Mobile Remote Control",
   "command.openProcessMonitor.title": "Open Toolchain Monitor",
   "command.openSchedule.title": "Open Saropa Scheduled Runs",
   "command.recipe.snapshotProcesses.title": "Snapshot Toolchain Processes",

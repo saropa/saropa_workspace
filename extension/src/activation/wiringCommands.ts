@@ -23,6 +23,7 @@ import { registerStandupDigestCommand } from "../exec/standupDigest";
 import { registerPubspecOutdatedCommand } from "../exec/pubspecOutdated";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
 import { registerMorningBriefCommand } from "../commands/morningBrief";
+import { registerRemoteControlCommands } from "../commands/remoteControlCommands";
 import { handleShortcutImportUri } from "./activationHelpers";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
@@ -90,6 +91,11 @@ export function registerCommandModules(
 
   // Morning Brief panel: shows the structured briefing after a routine run.
   registerMorningBriefCommand(context);
+
+  // Mobile Remote Control (MOBILE_REMOTE_CONTROL_PLAN): the adb command catalog's
+  // webview panel. One palette command, no tree view — every adb command is catalog data
+  // reached through the panel's search, not a contributed command of its own.
+  registerRemoteControlCommands(context, store);
 
   // Workspace hygiene scanner (recipe book section H, #63): the recursive
   // empty/oversized outlier scan that writes a dated JSON report and a sticky toast,

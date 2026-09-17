@@ -24,6 +24,7 @@ short overview; this page is the detail behind each capability.
 - [Pause, lock, and expire](#pause-lock-and-expire)
 - [One run at a time](#one-run-at-a-time)
 - [Workspace power tools](#workspace-power-tools)
+- [Mobile Remote Control](#mobile-remote-control)
 - [More kinds of shortcuts and actions](#more-kinds-of-shortcuts-and-actions)
 - [Audio cues](#audio-cues)
 - [Active AI threads](#active-ai-threads)
@@ -180,6 +181,14 @@ A set of one-action helpers from the Shortcuts title `···` menu or the Comman
 - **Suggest Shortcuts from Shell History** — scans your local PowerShell / bash / zsh history (read-only, on-device) for one-liners you've typed three or more times and offers them as global shell shortcuts.
 - **Edit Shortcuts Config (JSON)** — open the raw `.vscode/saropa-workspace.json` for hand-editing; save and the tree refreshes live.
 - **Export / Import Shortcuts to File** — write your shortcuts and groups to a versioned `.json` to commit or share; import is additive and idempotent.
+
+## Mobile Remote Control
+
+**Open Mobile Remote Control** (Command Palette) opens a searchable catalog of `adb` commands — connection, app control, files, device info, input, power, permissions, and deep links — grouped and collapsible, with recently and frequently used commands surfaced first. It is a panel, not another sidebar view: no tree and no new activity-bar entry.
+
+Commands fill themselves in from the project. Saropa reads `android/app/build.gradle(.kts)`, `pubspec.yaml`, and `AndroidManifest.xml` to resolve your application id, build variants, and declared deep links, so install, uninstall, clear-data, force-stop, and deep-link commands arrive already pointed at this project; anything the project can't answer is asked for at run time instead of guessed. Each row previews the **fully substituted command line** it would run, and every run confirms that exact string first — destructive commands (uninstall, clear data, wipe) carry a badge and a warning confirm. **Pin** puts a command into your Shortcuts as an ordinary shell shortcut, keeping its prompts intact so it does not go stale.
+
+The panel header reports reality rather than assuming it: whether `adb` is on your PATH — with install guidance when it isn't, instead of a raw spawn failure — and how many devices are attached, including devices that are connected but unauthorized or offline. **Refresh** re-checks, and each run re-reads it, so connecting or disconnecting a phone is reflected straight away. Runs go through the same terminal and output channel as every other shortcut.
 
 ## More kinds of shortcuts and actions
 

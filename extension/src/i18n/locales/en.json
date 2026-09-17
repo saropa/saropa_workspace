@@ -1767,5 +1767,19 @@
   "remoteControl.pin.addedProject": "Pinned \"{name}\" to the project Shortcuts.",
   "remoteControl.pin.addedGlobal": "Pinned \"{name}\" to the global Shortcuts.",
   "remoteControl.pin.failed": "Could not pin \"{name}\" — open a folder first, or pin it globally.",
-  "remoteControl.pin.noStore": "Pinning is unavailable: this panel was opened without the Shortcuts store."
+  "remoteControl.pin.noStore": "Pinning is unavailable: this panel was opened without the Shortcuts store.",
+  "remoteControl.adb.checking": "Checking adb…",
+  "remoteControl.adb.missing": "adb not found",
+  "remoteControl.adb.missingTitle": "adb was not found on your PATH.",
+  "remoteControl.adb.missingBody": "Install the Android SDK platform-tools and add the folder holding adb to your PATH, then choose Refresh. Commands can still be searched, previewed and pinned, but running one needs adb.",
+  "remoteControl.adb.failed": "adb did not answer",
+  "remoteControl.adb.pathTitle": "adb: {path}",
+  "remoteControl.adb.serialTitle": "Device {serial} — adb: {path}",
+  "remoteControl.adb.noDevice": "No device connected",
+  "remoteControl.adb.oneDevice": "1 device connected",
+  "remoteControl.adb.manyDevices": "{n} devices connected",
+  "remoteControl.adb.unauthorized": "{n} unauthorized (accept the debugging prompt on the device)",
+  "remoteControl.adb.offline": "{n} offline",
+  "remoteControl.adb.refresh": "Refresh",
+  "remoteControl.adb.refreshTitle": "Check again for adb and connected devices."
 }
