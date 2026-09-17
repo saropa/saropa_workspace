@@ -30,6 +30,7 @@ import { processRegistry } from "./exec/processRegistry";
 import { metricBadges } from "./exec/metricBadges";
 import { runStatusRegistry } from "./exec/runStatus";
 import { telemetry } from "./exec/telemetry";
+import { adbRunHistory } from "./exec/adbRunHistory";
 import { promptMemory } from "./exec/promptMemory";
 import { runOutputs } from "./exec/runOutputs";
 import { shortcutBadges } from "./exec/shortcutBadges";
@@ -62,6 +63,11 @@ function initCoreStores(context: vscode.ExtensionContext): void {
   // every run (manual + scheduled) and the Recent group + "Run Shortcut..." palette
   // can read them. On-device only — nothing is transmitted (see the principle).
   telemetry.init(context);
+
+  // Bind the adb catalog's own run history (Mobile Remote Control's recent/frequent
+  // ranking). A separate store from telemetry because its ids are catalog entry ids,
+  // not shortcut ids — see exec/adbRunHistory.ts. On-device only, same opt-out.
+  adbRunHistory.init(context);
 
   // Bind the tapped-shortcut tracker (opened/run shortcuts) used for the activity-bar
   // badge.

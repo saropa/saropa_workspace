@@ -107,14 +107,18 @@ const REMOTE_CONTROL_STYLE = `
   border-color: color-mix(in srgb, var(--vscode-editorError-foreground, #f85149) 45%, transparent);
   background: color-mix(in srgb, var(--vscode-editorError-foreground, #f85149) 12%, transparent);
 }
-.card .btn { flex: none; align-self: center; }
+.card-actions { flex: none; align-self: center; display: flex; align-items: center; gap: 6px; }
+.card-actions .btn { flex: none; }
 
 .empty { color: var(--muted); padding: 18px 2px; }
 .empty.hidden { display: none; }
 `;
 
 // Client renderer. Waits for the host's `catalog` message, rebuilds the whole group/card
-// tree from it, and posts `search` / `run` intents back. Collapse state lives in the
+// tree from it, and posts `search` / `run` / `pin` intents back. The client neither
+// substitutes nor confirms anything: a row shows the command the HOST already substituted
+// for it, and the dry-run confirm is the host's modal, so the decision to run can never be
+// made inside the webview. Collapse state lives in the
 // webview's own state (acquireVsCodeApi().setState) so a rebuild — or a hidden panel
 // restored by retainContextWhenHidden — keeps the posture the user chose.
 const REMOTE_CONTROL_SCRIPT = `
@@ -159,15 +163,28 @@ const REMOTE_CONTROL_SCRIPT = `
     desc.className = 'card-desc';
     desc.textContent = cmd.description;
     body.appendChild(desc);
+    // The DRY-RUN PREVIEW line: the substituted command, not the raw template, so the
+    // row shows what it would really run (the raw template is kept on the payload and
+    // surfaced as the line's hover for anyone who wants to see where it came from).
     const sub = document.createElement('div');
     sub.className = 'card-sub';
-    sub.textContent = cmd.commandTemplate;
+    sub.textContent = cmd.command;
+    sub.title = cmd.commandTemplate;
     body.appendChild(sub);
 
     const badges = document.createElement('div');
     badges.className = 'badges';
     if (cmd.destructive) {
       badges.appendChild(badge(strings.destructive, true, strings.destructiveTitle));
+    }
+    if (cmd.missingProject) {
+      badges.appendChild(badge(strings.missingProject, false, strings.missingProjectTitle));
+    } else if (cmd.autoFilled && cmd.autoFilled.length) {
+      badges.appendChild(badge(
+        String(strings.autoFilled).replace('{tokens}', cmd.autoFilled.join(', ')), false));
+    }
+    if (cmd.prompts) {
+      badges.appendChild(badge(strings.prompts, false, strings.promptsTitle));
     }
     if (cmd.requiresDevice) { badges.appendChild(badge(strings.requiresDevice, false)); }
     if (cmd.minSdk) {
@@ -176,6 +193,17 @@ const REMOTE_CONTROL_SCRIPT = `
     if (badges.childNodes.length) { body.appendChild(badges); }
     card.appendChild(body);
 
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const pin = document.createElement('button');
+    pin.type = 'button';
+    pin.className = 'btn';
+    pin.textContent = strings.pin;
+    pin.title = strings.pinTitle;
+    pin.addEventListener('click', function () {
+      vscode.postMessage({ type: 'pin', id: cmd.id });
+    });
+    actions.appendChild(pin);
     const run = document.createElement('button');
     run.type = 'button';
     run.className = 'btn primary';
@@ -183,7 +211,8 @@ const REMOTE_CONTROL_SCRIPT = `
     run.addEventListener('click', function () {
       vscode.postMessage({ type: 'run', id: cmd.id });
     });
-    card.appendChild(run);
+    actions.appendChild(run);
+    card.appendChild(actions);
     return card;
   }
 
