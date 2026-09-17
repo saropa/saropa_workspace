@@ -232,8 +232,9 @@ correlating Log Capture's own signal detector against a bracketed time
 window, which nothing in the current public API does (`getDailySummary` is
 calendar-day granularity, too coarse for one 20-second command run). Filed
 as `saropa-log-capture/bugs/119_plan-run-scoped-signal-correlation-api.md`
-(branch `feat/run-scoped-signal-correlation-api-119`, pushed, not yet a
-PR): `insertMarker()` starts returning a correlation id instead of `void`
+(branch `feat/run-scoped-signal-correlation-api-119`) and raised publicly
+as [saropa-log-capture#86](https://github.com/saropa/saropa-log-capture/issues/86):
+`insertMarker()` starts returning a correlation id instead of `void`
 (non-breaking), plus a new `getSignalDelta(sinceMarkerId, untilMarkerId?)`
 that reuses the same signal-aggregation pipeline `getDailySummary` already
 calls (`buildSignalsFromMetas`, which already supports a `TimeRange` via
