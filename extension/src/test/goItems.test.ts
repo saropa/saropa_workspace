@@ -179,12 +179,22 @@ test("a full token with trailing search text resolves and hands back the remaind
   assert.deepEqual(parseGoPrefix(">adb screenshot"), {
     category: "adb",
     remainder: "screenshot",
+    terminated: true,
   });
 });
 
-test("a token still being typed resolves as soon as it is unambiguous", () => {
-  assert.deepEqual(parseGoPrefix(">a"), { category: "adb", remainder: "" });
-  assert.deepEqual(parseGoPrefix(">rec"), { category: "recipe", remainder: "" });
+test("a token still being typed resolves as soon as it is unambiguous, but is not terminated", () => {
+  assert.deepEqual(parseGoPrefix(">a"), { category: "adb", remainder: "", terminated: false });
+  assert.deepEqual(parseGoPrefix(">rec"), {
+    category: "recipe",
+    remainder: "",
+    terminated: false,
+  });
+});
+
+test("a space-terminated token with no trailing text is terminated", () => {
+  assert.equal(parseGoPrefix(">adb ")?.terminated, true);
+  assert.equal(parseGoPrefix(">adb ")?.remainder, "");
 });
 
 test("an ambiguous token narrows nothing", () => {

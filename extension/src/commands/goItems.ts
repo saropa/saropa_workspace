@@ -176,6 +176,11 @@ function itemRow(source: GoSource): GoRow {
 export interface GoPrefix {
   readonly category: GoCategory;
   readonly remainder: string;
+  /** True once the category token is terminated by a space, e.g. `>adb `. False while
+   * still being typed (`>adb`), so a caller can wait for this before consuming the token
+   * out of the search box — otherwise characters typed right after resolution (`>note`
+   * resolving before the trailing `e` lands) get eaten as leftover search text. */
+  readonly terminated: boolean;
 }
 
 // Parse a leading `>category ` token out of the search box.
@@ -213,5 +218,6 @@ export function parseGoPrefix(value: string): GoPrefix | undefined {
   return {
     category,
     remainder: spaceAt === -1 ? "" : afterMarker.slice(spaceAt + 1).trimStart(),
+    terminated: spaceAt !== -1,
   };
 }
