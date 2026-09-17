@@ -1745,6 +1745,7 @@
   "section.schedule.title": "Schedule",
   "section.planner.title": "Planner",
   "section.mobileRemoteControl.title": "Mobile Remote Control",
+  "controlCenter.rowTooltip": "Open {section}",
   "remoteControl.title": "Mobile Remote Control",
   "remoteControl.subtitle": "Search the adb command catalog and run a command against a connected device.",
   "remoteControl.search.placeholder": "Search commands, tags and groups",

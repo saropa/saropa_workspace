@@ -17,6 +17,8 @@ import { NoteStore } from "../model/noteStore";
 import { NotesTreeProvider } from "../views/notesProvider";
 import { registerNoteCommands } from "../commands/noteCommands";
 import { syncViewCount } from "../views/viewCount";
+import { ControlCenterProvider } from "../views/controlCenterProvider";
+import { onSectionProfileChange } from "./sectionContext";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -32,6 +34,7 @@ export function setupSecondaryViews(
   const { projectFiles } = setupProjectFilesView(context, store);
   const scripts = setupScriptsView(context);
   const noteStore = setupNotesView(context);
+  setupControlCenterView(context);
   setupLauncherPanel(context, store, watchStore, noteStore, projectFiles, scripts);
   setupShortcutDecorations(context, store);
 
@@ -157,6 +160,24 @@ function setupNotesView(context: vscode.ExtensionContext): NoteStore {
   context.subscriptions.push(...noteStore.setupWatchers(debouncedNotesRefresh));
   registerNoteCommands(context, noteStore);
   return noteStore;
+}
+
+// The Control Center index (MOBILE_REMOTE_CONTROL_PLAN, "UI restructure" item 2).
+// Additive: a seventh view beside the six that exist, none of which changes here.
+// Its rows are sorted by section relevance, so it re-reads the project profile from
+// the single watcher activation/sectionContext.ts already runs — this subscription is
+// registered before wireSectionContext() publishes its first read, so the initial
+// profile reaches the view without a watcher of its own.
+function setupControlCenterView(context: vscode.ExtensionContext): void {
+  const controlCenter = new ControlCenterProvider();
+  const controlCenterView = vscode.window.createTreeView(
+    "saropaWorkspace.controlCenter",
+    { treeDataProvider: controlCenter }
+  );
+  context.subscriptions.push(
+    controlCenterView,
+    onSectionProfileChange((profile) => controlCenter.setProfile(profile))
+  );
 }
 
 function setupLauncherPanel(
