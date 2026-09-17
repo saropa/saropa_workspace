@@ -291,23 +291,30 @@ subsystem.
     from scratch" button QA asks for, and it is the natural proof that the
     catalog entries compose rather than being isolated buttons.
 
-12. **Phone-shaped device console instead of a raw terminal.** The panel's
-    output surface renders as a stylized phone chassis (bezel/notch, no
-    live screen — that is scrcpy's job, see item 8) whose "screen" area is a
-    persistent, scrollable command log: every adb command run through the
-    catalog, with its exact substituted string, timestamp, exit code/
-    duration and captured output, logged as an entry instead of scrolling
-    off in an ephemeral VS Code terminal. Captured output reuses the
-    existing bounded head/tail accumulator in `src/exec/outputCapture.ts`
-    rather than a new capture mechanism, so a chatty command (a `pm
-    install` with verbose logging) can't grow the log unbounded. The log
-    itself persists the same way `ShortcutStore` persists project data —
-    project-scoped under `.vscode/`, so a session's device-debugging
-    history survives closing the panel and is diffable/shareable like any
-    other project file. Small, cheap touch that reinforces the "this is
-    the device, not a shell" framing: the chassis reflects live state from
-    the device-state-matrix toggles (item 4) — a dark swatch, a rotated
-    outline for orientation — without needing an actual frame buffer.
+12. **Persistent session log as a structured run history, not a terminal.**
+    The panel's lower half is a dense, scrollable log of every adb command run
+    through the catalog — one collapsed row per run: status glyph, timestamp,
+    the exact substituted command string in monospace, and right-aligned
+    tabular-nums exit code + duration. Expanding a row reveals its captured
+    output in a `<pre>`; a sticky filter box above the list narrows by command
+    text, group or failed-only, and per-row actions are re-run, copy command,
+    and pin to Shortcuts. Deliberately *not* a phone-chassis graphic: a bezel
+    burns the horizontal space a docked panel does not have and reads as
+    skeuomorphic kitsch next to VS Code's flat, theme-aware language. Instead
+    it uses the same visual vocabulary as `src/views/dashboard/` — a
+    `--vscode-*`-bound table, `1px` `--vscode-panel-border` separators,
+    `--vscode-charts-red/green` for outcome — and the group/collapse
+    primitives already in `launcherScriptFolded.ts`. Captured output reuses
+    the bounded head/tail accumulator in `src/exec/outputCapture.ts`, so a
+    chatty `pm install -r` cannot grow the log unbounded. The log persists the
+    way `ShortcutStore` persists project data — project-scoped under
+    `.vscode/` — so a debugging session survives closing the panel and is
+    diffable and shareable like any other project file. Device-state
+    visibility (item 4) stays, but as a **compact device chip** in the panel
+    header: one line reading serial/model, API level, battery %, and the
+    active state toggles as small text badges (`dark`, `rtl`, `0.85×`), each
+    clicking through to the matrix. That is the information the phone outline
+    was trying to convey, in a row that costs 22px instead of a frame.
 
 13. **Run → watch output → react, composed from the trigger system that
     already exists.** `src/exec/systemEvents.ts` is an in-process event bus
