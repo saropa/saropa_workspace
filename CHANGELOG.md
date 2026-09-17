@@ -46,6 +46,21 @@ cspell:disable
 
 ---
 
+## [1.10.0]
+
+A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
+
+### Added
+
+- **Mobile Remote Control**: a new searchable, grouped panel of 40 adb commands (connection, app control, files, device info, input/UI, power/reboot, permissions, deep links, shell) — open it with `Saropa Workspace: Open Remote Control` from the command palette. Commands auto-fill from the current Android/Flutter project (application id per build flavor, deep-link scheme/host, declared permissions) instead of asking every time, and anything not resolvable from the project prompts you interactively.
+- Every command shows a dry-run preview of the exact, fully-substituted command line before it runs, with a warning-severity confirmation for destructive commands (uninstall, clear data, force-stop, factory-reset-style resets, and similar) — never skippable.
+- Recently and frequently run commands surface first; any command can be pinned into your existing Shortcuts.
+- The panel shows whether `adb` is available and how many devices are connected, with install guidance when `adb` is missing instead of a raw error at run time.
+- **"Saropa: Go"** (`ctrl+alt+g` / `cmd+alt+g`): one fuzzy-searchable command spanning shortcuts, recipes, scripts, notes, watches, and adb commands, with recently-used items on top. Type `>` followed by a category name (e.g. `>adb`) to narrow to just that section.
+- **Control Center**: a new view in the Shortcuts sidebar listing every section (Shortcuts, Recipes, Watches, Project Files, Scripts, Notes, Dashboard, Schedule, Planner, Mobile Remote Control) in one place, so a section without its own permanent tree view is still easy to find.
+
+---
+
 ## [1.9.1]
 
 You can now watch a GitHub repo the same way you watch a folder — get a toast when a new issue or pull request opens, right from the Watches view. [log](https://github.com/saropa/saropa-workspace/blob/v1.9.1/CHANGELOG.md)
