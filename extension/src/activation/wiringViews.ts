@@ -19,6 +19,7 @@ import { registerNoteCommands } from "../commands/noteCommands";
 import { syncViewCount } from "../views/viewCount";
 import { ControlCenterProvider } from "../views/controlCenterProvider";
 import { onSectionProfileChange } from "./sectionContext";
+import { registerGoCommand } from "../commands/goQuickPick";
 
 // Activation wiring block split out of extension.ts (and, before that, out of
 // wiring.ts once that file itself grew past the project's line-count cap) so
@@ -35,6 +36,11 @@ export function setupSecondaryViews(
   const scripts = setupScriptsView(context);
   const noteStore = setupNotesView(context);
   setupControlCenterView(context);
+  // "Saropa: Go" (MOBILE_REMOTE_CONTROL_PLAN, UI restructure item 4): the one
+  // omni-QuickPick across every section. Registered here rather than in
+  // wiringCommands.ts because this is where the note store, the watch store and the
+  // script provider it reads are constructed — it adds no view of its own.
+  registerGoCommand(context, { store, watchStore, noteStore, scripts });
   setupLauncherPanel(context, store, watchStore, noteStore, projectFiles, scripts);
   setupShortcutDecorations(context, store);
 
