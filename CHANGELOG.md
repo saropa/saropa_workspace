@@ -46,6 +46,16 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Launcher panel is being restructured from six competing panes into one flexible, resizable panel layout, with Mobile Remote Control folded in as a category.
+
+### Changed
+
+- Work in progress — entries land here as each piece of the Launcher restructure ships.
+
+---
+
 ## [1.10.0]
 A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
 
