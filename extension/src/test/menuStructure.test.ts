@@ -20,7 +20,7 @@ interface MenuItem {
 
 interface Manifest {
   contributes?: {
-    commands?: Array<{ command: string }>;
+    commands?: Array<{ command: string; title?: string; category?: string }>;
     submenus?: Array<{ id: string; label: string }>;
     menus?: Record<string, MenuItem[]>;
   };
@@ -79,6 +79,28 @@ test("every menu command is a declared command", () => {
           `menu "${menu}" references command "${item.command}" not in contributes.commands`
         );
       }
+    }
+  }
+});
+
+test("every command title/category NLS token has a value in package.nls.json", () => {
+  // A typo in a contributes.commands[].title/.category token (e.g. "%command.foo.tite%")
+  // compiles clean and passes every other test here — the submenu-label test above only
+  // covers contributes.submenus, not contributes.commands — but renders the literal
+  // "%key%" string in the Command Palette/title bar. Pin it the same way.
+  const manifest = readManifest();
+  const nls = readNls();
+  const tokenPattern = /^%(.+)%$/;
+  for (const cmd of manifest.contributes?.commands ?? []) {
+    for (const field of ["title", "category"] as const) {
+      const value = cmd[field];
+      if (!value) { continue; }
+      const tokenMatch = tokenPattern.exec(value);
+      if (!tokenMatch) { continue; }
+      assert.ok(
+        nls[tokenMatch[1]],
+        `command "${cmd.command}" ${field} token "${tokenMatch[1]}" has no value in package.nls.json`
+      );
     }
   }
 });

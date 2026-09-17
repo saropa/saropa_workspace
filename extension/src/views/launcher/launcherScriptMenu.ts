@@ -225,18 +225,23 @@ window.addEventListener('message', function (event) {
     // Build-order step 5 (PLAN_Launcher_Restructure.md): the native view/title "cycle sort"
     // icon's nudge. Sort is per-pane, so a single title-bar icon needs a target pane to act
     // on; the left-panel category selection (step 3) is that target when one specific
-    // category is selected. When "All" is selected, multiple panes are visible at once and
-    // there is no single sensible target — rather than add a second host<->webview
-    // round-trip just to surface "select a category to sort it" (a setContext-driven
-    // enable/disable would need the host to track the webview's own selection state, which
-    // step 3 deliberately kept client-side only), this silently no-ops. The icon staying
-    // always-enabled but inert for "All" was judged simpler and low-cost given how rarely
-    // "All" needs sorting at all (each category's own pane head already offers the same
-    // cycle inline once selected).
+    // category is selected. "All" is the common case though (fresh install, after any reset,
+    // and after every search keystroke — see the search 'input' handler above), so treating
+    // it as a no-op would ship the icon inert for most users most of the time. Instead, "All"
+    // means "sort everything": cycle every pane currently visible under the present filter,
+    // the same set render() itself is about to paint, then repaint once. This also covers
+    // resolveSelectedCategory()'s self-healing side effect for this branch: whichever category
+    // it resolves to, the single render() call below re-syncs the left panel/chips to match
+    // whatever just got persisted, so there's no separate no-op branch left that could skip it.
     var cat = resolveSelectedCategory();
-    if (cat === 'all') { return; }
-    var next = cyclePaneSort(cat);
-    setPaneSort(cat, next);
+    if (cat === 'all') {
+      var model = paneModel(visibleItems());
+      for (var i = 0; i < model.length; i++) {
+        setPaneSort(model[i].id, cyclePaneSort(model[i].id));
+      }
+    } else {
+      setPaneSort(cat, cyclePaneSort(cat));
+    }
     render();
   }
 });
