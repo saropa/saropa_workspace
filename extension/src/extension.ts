@@ -53,6 +53,7 @@ import { setupStatusBars } from "./activation/wiringStatusBars";
 import { wireBackgroundEngines } from "./activation/wiringEngines";
 import { wireWatchers, wireFolderWatches } from "./activation/wiringWatchers";
 import { wireTreeViewState, SHOW_ALL_BRANCHES_KEY } from "./activation/viewState";
+import { wireSectionContext } from "./activation/sectionContext";
 import { seedEcosystemAutoPins } from "./activation/ecosystemAutoPins";
 
 // Bind the on-device stores (telemetry, tapped-shortcut tracker, prompt memory,
@@ -312,6 +313,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const scheduler = wireBackgroundEngines(context, store);
 
   wireWatchers(context, store, branchSetBinder);
+
+  // Publish the section-relevance context keys (hasAndroid / hasFlutter / hasDevice)
+  // and keep them current: the first profile read happens here, the profile's own
+  // file watchers refresh it, and every adb probe refreshes the device key. Needs no
+  // shortcut data, so it runs with the rest of the synchronous wiring; the reads it
+  // starts are deferred, never awaited.
+  wireSectionContext(context);
 
   // Track editor focus/close so a pinned file opened or closed by any means (not
   // just a shortcut click) lands in Recent and clears its per-row "untapped" dot.
