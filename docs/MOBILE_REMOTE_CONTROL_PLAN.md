@@ -37,6 +37,34 @@ esbuild-bundled). ADB already has a foothold:
 **Explicitly out of scope:** logcat / log streaming (owned by the separate
 Saropa logging package) and any chat/NLU-driven command interface.
 
+## Naming and scope: Control Center vs. Mobile Remote Control
+
+This plan has two parts: the **adb catalog** (Sections 1–5 below) and the
+**UI restructure** (below). The restructure's sections index (item 2) is a
+general-purpose hub, not a mobile-only one — folding *everything* under a
+"Mobile" label would misname most of what would land there and recreate the
+junk-drawer problem the restructure exists to fix:
+
+- Of the bundled scripts in `library.json`, only `device-connect` is
+  actually mobile/device control. `organize-output`, `dart-process-clean`,
+  `run-test`, `daily-report`, `flutter-sdk-repair` and `dependency-report`
+  are general dev-workflow tooling.
+- Of the recipe detectors, most are generic (test/lint/build/format,
+  docker, db-migrate, process monitor, hygiene scan, AI-context, scheduled
+  rituals); only a small subset (e.g. "Flutter dance") touches mobile at
+  all.
+
+So: the unified hub is named **Control Center**, not "Mobile Control
+Center." Mobile Remote Control is one section inside it, alongside
+Shortcuts, Recipes, Scripts, Watches and Notes as peers — each still gated
+by its own relevance rule (item 3 of the restructure), not relabeled as
+mobile. The one literal merge is `device-connect`: its adb logic
+(`connect.py`, `core.py` in `debug_connect/`) is subsumed directly into the
+new command catalog (Section 2) rather than continuing to exist as a
+separate library script, since it is the same capability. Everything else
+in Scripts/Recipes keeps its own identity and just gains a home in the same
+Control Center shell.
+
 ## 1. Project profile detector (build first — everything else depends on it)
 
 New module `src/model/androidProjectProfile.ts`. On workspace open, and on
@@ -315,15 +343,17 @@ Schedule, Planner and Mobile Remote Control all register here. Nothing else in
 the UI hard-codes the list of sections again. This is the unit that
 progressive disclosure, relevance and usage tracking all key off.
 
-**2. Collapse the activity bar from six views to three.** Keep
-`saropaWorkspace.pins` (Shortcuts — the core metaphor), keep
-`saropaWorkspace.recipes` only until item 4 lands, and add a single
-`saropaWorkspace.sections` view: a one-row-per-section index driven by the
-registry, where a row opens that section's surface. Watches, Project Files,
-Scripts and Notes become sections reached from that index (or pinned back to
-the activity bar by the user), not permanent headers. Net effect on a fresh
-workspace: **6 always-on view headers → 2**, and the count no longer grows
-when a section is added.
+**2. Collapse the activity bar from six views to three, behind a single
+Control Center.** Keep `saropaWorkspace.pins` (Shortcuts — the core
+metaphor), keep `saropaWorkspace.recipes` only until item 4 lands, and add
+one `saropaWorkspace.controlCenter` view: a one-row-per-section index driven
+by the registry, where a row opens that section's surface. This is a
+general-purpose hub, not a mobile-only one — Watches, Project Files,
+Scripts, Notes and Mobile Remote Control all become sections reached from
+it (or pinned back to the activity bar by the user) as peers, not permanent
+headers and not relabeled as mobile. Net effect on a fresh workspace:
+**6 always-on view headers → 2**, and the count no longer grows when a
+section is added.
 
 **3. `when`-clause driven relevance, wired to the detector work already
 planned.** `src/activation/viewState.ts` already drives UI visibility from
