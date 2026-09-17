@@ -4,6 +4,32 @@ This archive is for older versions. For current changes see [CHANGELOG.md](./CHA
 
 ---
 
+## [1.5.24]
+
+Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.24/CHANGELOG.md)
+
+### Fixed
+
+- **Organize output folder** no longer defaults to the current directory or accepts a blank folder answer — a target folder is now required, and the script refuses to run against its own install directory or a repository root (a `.git` folder or git worktree/submodule file directly inside the target), even when launched by hand outside the extension. Closes a real incident where a bare, argument-less run reorganized the script's own bundled source files. A `--force` command-line flag overrides the refusal for the rare legitimate case, printing a named warning before proceeding.
+
+---
+
+## [1.5.23]
+
+Browse and run your bundled scripts directly from the new sidebar or Launcher panel, complete with smart warnings if you're missing a required tool and polished button styles. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
+
+### Added
+
+- New **Scripts** sidebar view: browse the bundled script library grouped by tag, with an inline Run button per script. The Run command synthesizes a shortcut from the manifest entry and routes through the existing run pipeline (interpreter resolution, token expansion, terminal/background routing all work unchanged). A Refresh command reloads the manifest.
+- New **Scripts** section in the Saropa Launcher Panel: bundled scripts appear as tinted cards alongside shortcuts, recipes, watches, and project files, with a Run head button and a header filter chip showing the script count.
+- Scripts declaring tool requirements in the library manifest (e.g. device-connect's `adb`) now get a pre-flight PATH check before running: a missing required tool shows a named diagnostic toast instead of a mid-script terminal failure. A tool marked optional never blocks the run.
+
+### Fixed
+
+- An expanded launcher card's head Open/Run button now renders identically to the drawer buttons below it: same internal padding, same total height (a matching border thickness), and same icon size. Collapsed cards keep the compact icon-only button. Each shared value is defined in one place alongside the shared label size, so the two button styles cannot drift apart.
+
+---
+
 ## [1.5.22]
 
 **Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.22/CHANGELOG.md)

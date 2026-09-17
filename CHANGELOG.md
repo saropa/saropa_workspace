@@ -46,8 +46,7 @@ cspell:disable
 
 ---
 
-## [1.10.0] (unreleased)
-
+## [1.10.0]
 A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
 
 ### Added
@@ -507,32 +506,6 @@ The bottom-panel tab is now called "Saropa Workspace" to match the extension, co
 
 - A routine whose member shortcut has been removed or renamed now **fails** rather than reporting success. The member was already listed as "Missing" in the summary, but because it did not count against the run, the routine scored a clean success, painted a green badge, and never opened the summary — so the "Shortcut not found — edit the routine to re-link or remove this member" note sat unread in a file there was no reason to open. The routine now badges red, opens its summary, and surfaces a failure notification naming it. The member still reads as "Missing", not "Failed", so the report distinguishes a broken link from a step that ran and failed.
 - **Organize output folder** now opens a folder-browse dialog for the target folder instead of a bare text box, defaulting to the workspace root — the prior free-text prompt gave no clue what shape of path was expected, which was itself part of why the folder was easy to misconfigure. The folder is now also set up once: the dialog opens on the first run, and every run after that silently reuses the same folder instead of asking again, matching how a bundled script is meant to be used. Backed by a new general-purpose interactive run token, `${pickFolder:Label}`, alongside the existing `${prompt:...}` and `${pick:...}`, and by resolving bundled-script tokens from memory by default (a user shortcut still gets a fresh prompt each run unless "Run with Last Parameters" is used).
-
----
-
-## [1.5.24]
-
-Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.24/CHANGELOG.md)
-
-### Fixed
-
-- **Organize output folder** no longer defaults to the current directory or accepts a blank folder answer — a target folder is now required, and the script refuses to run against its own install directory or a repository root (a `.git` folder or git worktree/submodule file directly inside the target), even when launched by hand outside the extension. Closes a real incident where a bare, argument-less run reorganized the script's own bundled source files. A `--force` command-line flag overrides the refusal for the rare legitimate case, printing a named warning before proceeding.
-
----
-
-## [1.5.23]
-
-Browse and run your bundled scripts directly from the new sidebar or Launcher panel, complete with smart warnings if you're missing a required tool and polished button styles. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
-
-### Added
-
-- New **Scripts** sidebar view: browse the bundled script library grouped by tag, with an inline Run button per script. The Run command synthesizes a shortcut from the manifest entry and routes through the existing run pipeline (interpreter resolution, token expansion, terminal/background routing all work unchanged). A Refresh command reloads the manifest.
-- New **Scripts** section in the Saropa Launcher Panel: bundled scripts appear as tinted cards alongside shortcuts, recipes, watches, and project files, with a Run head button and a header filter chip showing the script count.
-- Scripts declaring tool requirements in the library manifest (e.g. device-connect's `adb`) now get a pre-flight PATH check before running: a missing required tool shows a named diagnostic toast instead of a mid-script terminal failure. A tool marked optional never blocks the run.
-
-### Fixed
-
-- An expanded launcher card's head Open/Run button now renders identically to the drawer buttons below it: same internal padding, same total height (a matching border thickness), and same icon size. Collapsed cards keep the compact icon-only button. Each shared value is defined in one place alongside the shared label size, so the two button styles cannot drift apart.
 
 ---
 
