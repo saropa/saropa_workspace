@@ -14,6 +14,8 @@ import { ProjectFilesTreeProvider } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { runLibraryScript, buildScriptShortcut } from "../exec/scriptRunner";
 import { SetParamsPanel } from "./setParamsPanel";
+import type { AndroidProjectProfile } from "../model/androidProjectProfile";
+import { runAdbCommand, pinAdbCommand } from "./remoteControl/remoteControlActions";
 
 // The right-click menu only lists commands verified to accept a raw Shortcut via asShortcut
 // (see buildMenu in launcherItemMenu). Re-resolving the id here and forwarding the shortcut
@@ -53,6 +55,11 @@ export interface LauncherMessageContext {
   readonly scriptsProvider: ScriptsTreeProvider;
   readonly extensionPath: string;
   readonly globalState: vscode.Memento;
+  // The workspace's Android profile, resolved by the host (launcherView.ts) exactly as
+  // remoteControlPanel.ts resolves one — undefined on a non-Android workspace. Passed
+  // through so an adb card's run/pin substitutes against the same profile its dry-run
+  // preview was built from.
+  readonly androidProfile: AndroidProjectProfile | undefined;
   readonly post: () => Promise<void>;
 }
 
@@ -114,6 +121,10 @@ export async function handleLauncherMessage(
   }
   if (msg.id.startsWith("library:")) {
     await handleLibraryScript(msg.id, msg.type, msg.command, ctx);
+    return;
+  }
+  if (msg.id.startsWith("adb:")) {
+    await handleAdbItem(msg.id, msg.type, ctx);
     return;
   }
   await handleShortcutAction(msg.id, msg.type, msg.command, ctx);
@@ -276,6 +287,34 @@ async function handleLibraryScript(
     await runLibraryScript(script, ctx.extensionPath);
   } else if (type === "command" && command === "saropaWorkspace.setScriptParams") {
     SetParamsPanel.show(buildScriptShortcut(script, ctx.extensionPath));
+  }
+}
+
+// Route a Mobile Remote Control card's action back through the SAME functions the
+// standalone Mobile Remote Control panel uses — runAdbCommand for "run" (substitute, ask,
+// dry-run confirm, then the existing shell-action runner) and pinAdbCommand for "pin"
+// (adopt the substituted command into the real Shortcuts tree). Nothing here spawns a
+// process or builds a command line itself; both is exactly the point of "no new execution
+// path" (PLAN_Launcher_Restructure.md, build-order step 2). The "adb:" prefix (minted by
+// launcherAdbItem.ts) is stripped back to the catalog's own entry id before either call,
+// mirroring how handleLibraryScript strips "library:".
+async function handleAdbItem(
+  compositeId: string,
+  type: string | undefined,
+  ctx: LauncherMessageContext
+): Promise<void> {
+  const entryId = compositeId.slice("adb:".length);
+  if (type === "run") {
+    await runAdbCommand(entryId, ctx.androidProfile);
+    // A connect/disconnect/reboot command changes what is attached and adbRunHistory just
+    // recorded a run — repaint so the launcher's next paint reflects both, same as the
+    // standalone panel re-posting after every run.
+    await ctx.post();
+  } else if (type === "pin") {
+    // Unlike the standalone panel (which may be opened with no store), the launcher
+    // always has one — it is the same store its "mine"/"recipes" panes already render
+    // from — so pinning never needs a "no store" guard here.
+    await pinAdbCommand(ctx.store, entryId, ctx.androidProfile);
   }
 }
 

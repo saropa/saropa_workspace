@@ -15,6 +15,7 @@ import { buildAllItems, buildHeader } from "./launcherViewData";
 import { renderHtml } from "./launcherViewShell";
 import { noteLauncherItem } from "./launcherNoteItem";
 import { resolveTintHexes } from "./tintHexResolver";
+import { AndroidProjectProfile, getAndroidProjectProfile } from "../model/androidProjectProfile";
 
 // The "Saropa Workspace" Panel webview: a second, always-reachable window onto the same
 // shortcut data the sidebar tree shows, living in the bottom Panel (beside Terminal /
@@ -61,6 +62,13 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     () => void this.post(),
     SAVE_RESCAN_DEBOUNCE_MS
   );
+  // The workspace's Android profile, resolved the same way remoteControlPanel.ts resolves
+  // one (getAndroidProjectProfile on the first workspace folder — itself cached, so this
+  // costs nothing extra on repeated paints). Re-read on every post() so a folder switch or
+  // a profile-source edit is picked up; kept as a field too so onMessage's run/pin routing
+  // (launcherViewMessages.ts) substitutes against the same profile the cards were built
+  // from, without re-resolving it a second time per message.
+  private androidProfile: AndroidProjectProfile | undefined;
 
   constructor(
     private readonly store: ShortcutStore,
@@ -146,6 +154,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       scriptsProvider: this.scriptsProvider,
       extensionPath: this.extensionUri.fsPath,
       globalState: this.globalState,
+      androidProfile: this.androidProfile,
       post: () => this.post(),
     });
   }
@@ -162,8 +171,17 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const files = await this.projectFiles.listSurfacedFiles();
+    // Resolved before buildAllItems, same as remoteControlPanel.ts's resolveProfile — the
+    // read is cached per folder (androidProjectProfile.ts), so this is not a fresh disk
+    // scan on every paint. No workspace folder (or a folder with nothing Android-shaped)
+    // degrades to undefined, which adbLauncherItems treats as "nothing to substitute" and
+    // still lists the whole catalog.
+    const primaryFolder = vscode.workspace.workspaceFolders?.[0];
+    this.androidProfile = primaryFolder
+      ? await getAndroidProjectProfile(primaryFolder)
+      : undefined;
     const items: LauncherItem[] = buildAllItems(
-      this.store, this.watchStore, files, this.scriptsProvider
+      this.store, this.watchStore, files, this.scriptsProvider, this.androidProfile
     );
 
     const now = Date.now();
@@ -203,6 +221,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         files: l10n("launcher.filesSection"),
         scripts: l10n("launcher.scriptsSection"),
         notes: l10n("launcher.notesSection"),
+        mobileRemote: l10n("launcher.mobileRemoteSection"),
         sortAsc: l10n("launcher.sortAsc"),
         sortDesc: l10n("launcher.sortDesc"),
         sortGrouped: l10n("launcher.sortGrouped"),

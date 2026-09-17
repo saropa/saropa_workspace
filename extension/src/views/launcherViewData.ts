@@ -7,10 +7,12 @@ import { buildLauncherItems, LauncherItem } from "./launcherItems";
 import { watchLauncherItem } from "./launcherWatchItem";
 import { fileLauncherItem } from "./launcherFileItem";
 import { scriptLauncherItem } from "./launcherScriptItem";
+import { adbLauncherItems } from "./launcherAdbItem";
 import { hasInteractiveTokens } from "../exec/promptTokens";
 import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
+import type { AndroidProjectProfile } from "../model/androidProjectProfile";
 
 // The pure data-assembly layer for the Saropa Workspace panel webview host (launcherView.ts): turns
 // the store/watch/project-files state into the flat item list and header object the webview
@@ -40,22 +42,27 @@ export interface LauncherHeader {
 }
 
 // Assemble every launcher row: the shortcut + recipe cards (the two existing panes), then
-// the watch cards and the project-file cards (the two flat panes). Each watch/file card is
-// formatted by the vscode-free builders in launcherWatchItem/launcherFileItem; the caller
-// supplies the bits those builders cannot compute (the watch's unseen tally, a file's
-// shortcut state and freshness clock). `files` is the already-scanned surfaced-file set the
-// caller passes in so the disk scan runs once per paint (shared with the header's
-// version/stats).
+// the watch cards, the project-file cards and the adb catalog cards (Mobile Remote
+// Control). Each watch/file card is formatted by the vscode-free builders in
+// launcherWatchItem/launcherFileItem; the caller supplies the bits those builders cannot
+// compute (the watch's unseen tally, a file's shortcut state and freshness clock). `files`
+// is the already-scanned surfaced-file set the caller passes in so the disk scan runs once
+// per paint (shared with the header's version/stats). `androidProfile` is resolved by the
+// caller exactly the way remoteControlPanel.ts resolves one (getAndroidProjectProfile on
+// the first workspace folder) — undefined on a non-Android workspace, in which case
+// adbLauncherItems still returns every catalog row, just with nothing profile-substituted.
 export function buildAllItems(
   store: ShortcutStore,
   watchStore: FolderWatchStore,
   files: readonly ProjectFileInfo[],
-  scriptsProvider: ScriptsTreeProvider
+  scriptsProvider: ScriptsTreeProvider,
+  androidProfile?: AndroidProjectProfile
 ): LauncherItem[] {
   const items = buildLauncherItems(store);
   items.push(...buildWatchItems(watchStore));
   items.push(...buildFileItems(files, store));
   items.push(...buildScriptItems(scriptsProvider));
+  items.push(...adbLauncherItems(androidProfile));
   return items;
 }
 
@@ -187,11 +194,27 @@ export function buildHeader(
   pushStat(count("watches"), "eye", "launcher.statWatches", "watches");
   pushStat(count("files"), "files", "launcher.statFiles", "files");
   pushStat(count("scripts"), "library", "launcher.statScripts", "scripts");
+  pushStat(count("mobileRemote"), "device-mobile", "launcher.statMobileRemote", "mobileRemote");
   stats.push({
     pane: "notes",
     icon: "note",
     text: l10n("launcher.statNotes", { count: count("notes") }),
   });
+  // Compile-time exhaustiveness guard: this Record requires exactly one key per member of
+  // LauncherItem["pane"]. Widening the pane union without adding a matching pushStat/push
+  // above (this function is the "host-side code that iterates all panes" the pane union's
+  // doc comment warns about) now fails to compile here, instead of silently shipping a
+  // pane with no header stat.
+  const everyPaneHasAStat: Record<LauncherItem["pane"], true> = {
+    mine: true,
+    recipes: true,
+    watches: true,
+    files: true,
+    scripts: true,
+    notes: true,
+    mobileRemote: true,
+  };
+  void everyPaneHasAStat;
 
   return {
     project,

@@ -39,10 +39,20 @@ export interface LauncherItem {
   // the entry carries none); the catalog prose for a recipe, surfaced on click.
   readonly desc: string | undefined;
   // Which pane the row files under: the user's own entries, auto-detected recipes,
-  // the folder/file watches, or the surfaced project files. Watches is always a flat
+  // the folder/file watches, the surfaced project files, or the adb command catalog
+  // (Mobile Remote Control, PLAN_Launcher_Restructure.md). Watches is always a flat
   // list; files groups by area (Project / Android / iOS / Web) when more than one area
   // is present and renders flat otherwise — see watchLauncherItem / fileLauncherItem.
-  readonly pane: "mine" | "recipes" | "watches" | "files" | "scripts" | "notes";
+  // mobileRemote is grouped by the adb catalog's own groups (connection, appControl,
+  // …) — see launcherAdbItem.ts.
+  readonly pane:
+    | "mine"
+    | "recipes"
+    | "watches"
+    | "files"
+    | "scripts"
+    | "notes"
+    | "mobileRemote";
   readonly section: string;
   readonly groupId: string;
   readonly groupIcon: string;

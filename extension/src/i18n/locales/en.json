@@ -51,6 +51,8 @@
   "launcher.statWatches": "{count} watches",
   "launcher.statFiles": "{count} files",
   "launcher.statNotes": "{count} notes",
+  "launcher.statMobileRemote": "{count} mobile remote",
+  "launcher.mobileRemoteSection": "Mobile Remote Control",
   "launcher.menu.open": "Open",
   "launcher.menu.run": "Run",
   "launcher.menu.runWith": "Run With…",

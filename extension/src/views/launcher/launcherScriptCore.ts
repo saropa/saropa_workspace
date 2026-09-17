@@ -189,11 +189,13 @@ function metaItem(icon, text, isVersion, pane) {
 }
 
 // Group the flat item list into panes in fixed order: mine, recipes, watches, files, scripts,
-// notes. Mine, recipes, files, and notes are grouped panes (collapsible category/scope groups,
-// in first-seen order); watches and scripts are flat lists. The files pane groups by area
-// (Project / Android / iOS / Web), but only when more than one area has matches: with a single
-// area it renders flat. The host controls ordering; an empty pane/group is hidden by
-// render/filter.
+// notes, mobileRemote. Mine, recipes, files, and notes are grouped panes (collapsible
+// category/scope groups, in first-seen order); watches, scripts, and mobileRemote are flat
+// lists — mobileRemote's own groupId ("mobileRemote:<catalogGroup>") is carried on the item
+// for host-side identity, but the pane itself renders flat like scripts, not as nested
+// collapsible groups. The files pane groups by area (Project / Android / iOS / Web), but only
+// when more than one area has matches: with a single area it renders flat. The host controls
+// ordering; an empty pane/group is hidden by render/filter.
 function paneModel(list) {
   const mine = { id: 'mine', title: strings.mine || 'My shortcuts', order: [], byId: {} };
   const recipes = { id: 'recipes', title: strings.recipes || 'Recipes', order: [], byId: {} };
@@ -201,8 +203,9 @@ function paneModel(list) {
   const notes = { id: 'notes', title: strings.notes || 'Notes', order: [], byId: {} };
   const watches = { id: 'watches', title: strings.watches || 'Watches', items: [] };
   const scripts = { id: 'scripts', title: strings.scripts || 'Scripts', items: [] };
+  const mobileRemote = { id: 'mobileRemote', title: strings.mobileRemote || 'Mobile Remote Control', items: [] };
   const grouped = { mine: mine, recipes: recipes, files: files, notes: notes };
-  const flat = { watches: watches, scripts: scripts };
+  const flat = { watches: watches, scripts: scripts, mobileRemote: mobileRemote };
   for (const it of list) {
     if (flat[it.pane]) { flat[it.pane].items.push(it); continue; }
     const pane = grouped[it.pane] || mine;
@@ -234,6 +237,7 @@ function paneModel(list) {
     filesPane,
     { id: 'scripts', icon: 'library', title: scripts.title, flat: true, items: scripts.items },
     notesPane,
+    { id: 'mobileRemote', icon: 'device-mobile', title: mobileRemote.title, flat: true, items: mobileRemote.items },
   ];
   // Apply per-pane sort: asc/desc flatten a grouped pane and sort all items by label.
   function sortCmp(a, b) { return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }); }

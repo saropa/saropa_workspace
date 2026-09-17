@@ -115,6 +115,16 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
       vscode.postMessage({ type: 'command', command: 'saropaWorkspace.scheduleRecipe', id: it.id });
     }));
   }
+  // An adb command is not a real Shortcut, so it cannot go through promoteRecipe (which
+  // resolves a raw Shortcut by id from the store). Pin posts its own 'pin' message instead;
+  // the host routes it by the "adb:" id prefix straight to the existing pinAdbCommand
+  // (launcherViewMessages.ts / remoteControl/remoteControlActions.ts) — no new execution
+  // path, only a new id-prefixed route to one that already exists.
+  if (it.pane === 'mobileRemote') {
+    actions.appendChild(actionButton(strings.pin || 'Pin', 'star-full', true, function () {
+      vscode.postMessage({ type: 'pin', id: it.id });
+    }));
+  }
   drawer.appendChild(actions);
   card.appendChild(drawer);
 
