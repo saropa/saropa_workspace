@@ -109,6 +109,8 @@ const DESTRUCTIVE_VERBS = [
   "pm clear",
   "force-stop",
   "reboot",
+  // Device-wide: drops every app's runtime permission grants, not just this app's.
+  "reset-permissions",
   " rm ",
   "wipe",
   " -w",

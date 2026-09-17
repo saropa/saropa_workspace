@@ -410,10 +410,14 @@ export const ADB_COMMAND_CATALOG: AdbCommandEntry[] = [
   entry({
     id: "permissions.reset",
     group: "permissions",
-    commandTemplate: "adb shell pm reset-permissions {applicationId}",
-    tags: ["reset", "runtime", "first run", "prompt", "qa"],
+    // `pm reset-permissions` takes no package: it resets the runtime permissions of EVERY
+    // app on the device. Passing {applicationId} was inert and made the dry-run preview
+    // imply a per-app scope it never had, so the token is gone and the entry is flagged
+    // destructive to get the warning-severity confirm.
+    commandTemplate: "adb shell pm reset-permissions",
+    tags: ["reset", "runtime", "first run", "prompt", "qa", "all apps", "device-wide"],
     requiresDevice: true,
-    destructive: false,
+    destructive: true,
     minSdk: 23,
   }),
   entry({
@@ -441,7 +445,7 @@ export const ADB_COMMAND_CATALOG: AdbCommandEntry[] = [
     id: "deepLinks.open-path",
     group: "deepLinks",
     commandTemplate:
-      "adb shell am start -a android.intent.action.VIEW -d {scheme}://{host}{path} {applicationId}",
+      "adb shell am start -a android.intent.action.VIEW -p {applicationId} -d {scheme}://{host}{path}",
     tags: ["intent", "url", "link", "route", "query", "parameters"],
     requiresDevice: true,
     destructive: false,

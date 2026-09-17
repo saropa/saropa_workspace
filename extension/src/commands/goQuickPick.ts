@@ -223,23 +223,54 @@ async function showGoQuickPick(stores: GoStores): Promise<void> {
 
   // The drill-down. `>adb screenshot` narrows the list to adb and leaves "screenshot" in
   // the box for VS Code's own fuzzy match to apply, so no filtering is re-implemented
-  // here. Rewriting qp.value re-enters this handler, which the value guard absorbs.
+  // here.
+  //
+  // The chosen category is STICKY: stripping the `>adb ` token rewrites qp.value, which
+  // re-enters this handler with text that no longer carries the token, and re-deriving the
+  // category from that text would immediately undo the narrowing. The synthetic re-entry is
+  // recognised by the exact value it was given and skipped, and plain (non-`>`) typing
+  // afterwards keeps whatever category is active. The narrowing is released only by
+  // emptying the box or by starting a new `>` token.
   let currentCategory: GoCategory | undefined;
+  let strippedValue: string | undefined;
+  const narrowTo = (category: GoCategory | undefined): void => {
+    if (category === currentCategory) {
+      return;
+    }
+    currentCategory = category;
+    qp.items = buildGoRows(sources, labels, { recent, category }).map(toQuickPickItem);
+  };
   qp.onDidChangeValue((value) => {
+    if (strippedValue !== undefined && value === strippedValue) {
+      // Our own qp.value rewrite coming back around: keep the category it resolved.
+      strippedValue = undefined;
+      return;
+    }
+    strippedValue = undefined;
+
     const prefix = parseGoPrefix(value);
-    const nextCategory = prefix?.category;
-    if (nextCategory !== currentCategory) {
-      currentCategory = nextCategory;
-      qp.items = buildGoRows(sources, labels, {
-        recent,
-        category: nextCategory,
-      }).map(toQuickPickItem);
+    if (prefix) {
+      narrowTo(prefix.category);
+      if (value !== prefix.remainder) {
+        // Strip the token once the category is resolved, so the remaining text is what the
+        // fuzzy matcher sees and the section header is what says which category is active.
+        strippedValue = prefix.remainder;
+        qp.value = prefix.remainder;
+      }
+      return;
     }
-    if (prefix && value !== prefix.remainder) {
-      // Strip the token once the category is resolved, so the remaining text is what the
-      // fuzzy matcher sees and the section header is what says which category is active.
-      qp.value = prefix.remainder;
+
+    if (value.startsWith(">")) {
+      // A token being typed that names no single category yet (`>`, `>s`): show everything
+      // until it resolves.
+      narrowTo(undefined);
+      return;
     }
+    if (value.length === 0) {
+      // Cleared the box — back to the unfiltered, all-category list.
+      narrowTo(undefined);
+    }
+    // Otherwise this is ordinary search text inside the active category: leave it narrowed.
   });
 
   // Unlike hubQuickPick.ts this resolves nothing to a caller, so accept and hide need no
