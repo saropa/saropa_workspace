@@ -105,8 +105,9 @@ test("several tokens in one template are each resolved or asked independently", 
   // scheme/host/applicationId come from the project; the path is only the user's to know.
   assert.equal(
     result.command,
-    "adb shell am start -a android.intent.action.VIEW -d https://example.com" +
-      "${prompt:Deep-link path and query, e.g. /order/42?ref=email} com.example.app"
+    "adb shell am start -a android.intent.action.VIEW -p com.example.app " +
+      "-d https://example.com" +
+      "${prompt:Deep-link path and query, e.g. /order/42?ref=email}"
   );
   assert.deepEqual(Object.keys(result.resolved).sort(), [
     "applicationId",
