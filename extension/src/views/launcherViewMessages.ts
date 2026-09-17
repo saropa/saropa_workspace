@@ -312,15 +312,14 @@ async function handleAdbItem(
       void vscode.window.showErrorMessage(l10n("remoteControl.run.notFound"));
       return;
     }
-    const command = await runAdbCommand(entryId, ctx.androidProfile);
-    // runAdbCommand also returns undefined on a plain Cancel (the prompt or the dry-run
-    // confirm dialog) — that already toasts its own "canceled" message, so repainting here
-    // too would trigger a full project-file rescan for a no-op click. Only a command that
-    // actually ran changes what adbRunHistory/the attached device state look like, so only
-    // that case repaints, same as the standalone panel re-posting after every real run.
-    if (command !== undefined) {
-      await ctx.post();
-    }
+    await runAdbCommand(entryId, ctx.androidProfile);
+    // No explicit ctx.post() here any more: runAdbCommand records a real run via
+    // adbRunHistory.record() (skipped on a plain Cancel from the prompt/dry-run dialog),
+    // which now fires adbRunHistory.onDidChange — LauncherViewProvider's constructor
+    // subscribes to that directly, so a repaint follows automatically for every real run,
+    // the same as it now does for a run from the standalone Mobile Remote Control panel or
+    // a resetRunHistory clear. Keeping a second, explicit post() here would just be a
+    // harmless double-repaint for this one path; removed instead for one code path per event.
   } else if (type === "pin") {
     // Unlike the standalone panel (which may be opened with no store), the launcher
     // always has one — it is the same store its "mine"/"recipes" panes already render

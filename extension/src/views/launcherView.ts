@@ -106,11 +106,24 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       vscode.workspace.onDidSaveTextDocument(() => this.scheduleSaveRescan()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.post()),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("saropaWorkspace.projectFiles")) {
+        if (
+          e.affectsConfiguration("saropaWorkspace.projectFiles") ||
+          e.affectsConfiguration("saropaWorkspace.telemetry")
+        ) {
           void this.post();
         }
       }),
-      vscode.window.onDidChangeActiveColorTheme(() => void this.post())
+      vscode.window.onDidChangeActiveColorTheme(() => void this.post()),
+      // The run-history list's own data source: a run from the STANDALONE Mobile Remote
+      // Control panel (remoteControlPanel.ts) or a saropaWorkspace.resetRunHistory clear
+      // (shortcutCommands.ts) also calls adbRunHistory.record()/reset(), and neither of
+      // those paths knows this webview exists to repaint it — the launcher-initiated run
+      // path (handleAdbItem, launcherViewMessages.ts) is the only one this class used to
+      // hear about via its own explicit ctx.post(). Subscribing directly to
+      // adbRunHistory.onDidChange (fired by both record() and reset()) is the single fix
+      // that covers all three paths at once, per its own doc comment ("so an open panel
+      // can repaint").
+      adbRunHistory.onDidChange(() => void this.post())
     );
   }
 
@@ -236,16 +249,22 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       // Feeds the right panel's run-history list (PLAN_Launcher_Restructure.md build
       // order step 6 — see launcherRunHistory.ts's own header comment for why this is a
       // small new list rather than a reuse of an existing rendered table, which does not
-      // exist anywhere in this codebase). Re-sent on every post(), same as `categories`;
-      // no separate adbRunHistory.onDidChange subscription is added here because the only
-      // thing that ever changes this data is a real adb run, and handleAdbItem
-      // (launcherViewMessages.ts) already calls ctx.post() after every one — a second
-      // listener would just repaint the same data twice for the same event.
+      // exist anywhere in this codebase). Re-sent on every post(), same as `categories`.
+      // Repainted whenever it goes stale via the constructor's adbRunHistory.onDidChange
+      // subscription — covering a run from either panel and an explicit history reset, not
+      // just a launcher-initiated run.
       runHistory: buildRunHistoryEntries(
         ADB_COMMAND_CATALOG,
         adbRunHistory.recent(),
         adbRunHistory.counts()
       ),
+      // Distinguishes "genuinely nothing run yet" from "collection is turned off, so this
+      // can never populate" (saropaWorkspace.telemetry.enabled) — recent()/counts() already
+      // degrade to empty in the latter case with no signal of why, which would otherwise
+      // leave the webview showing an empty-state message telling the user to do something
+      // that can never work. A plain boolean plus the two strings.* values below is enough;
+      // no new message-passing plumbing needed.
+      runHistoryEnabled: adbRunHistory.enabled(),
       placeholder: l10n("launcher.searchPlaceholder"),
       strings: {
         run: l10n("launcher.run"),
@@ -274,8 +293,12 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         menuAriaLabel: l10n("launcher.menu.ariaLabel"),
         menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"),
         runHistoryEmpty: l10n("launcher.runHistory.empty"),
+        runHistoryDisabled: l10n("launcher.runHistory.disabled"),
         runHistoryAriaLabel: l10n("launcher.runHistory.ariaLabel"),
         runHistoryRunAgain: l10n("launcher.runHistory.runAgain"),
+        // {count} stays literal here, substituted client-side per row — same pattern as
+        // count/countFiltered above.
+        runHistoryCount: l10n("launcher.runHistory.count"),
       },
     });
   }

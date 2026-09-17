@@ -88,6 +88,10 @@ function renderCategoryList(list) {
 function makeRunHistoryRow(entry) {
   const row = document.createElement('div');
   row.className = 'run-history-item';
+  // role="list" on the containing nav (renderRunHistory below) only counts listitem-roled
+  // children as members — an explicit container role overrides the element's own default
+  // semantics, so without this a screen reader announces the list as having zero items.
+  row.setAttribute('role', 'listitem');
   const label = document.createElement('span');
   label.className = 'run-history-label';
   label.textContent = entry.label;
@@ -95,6 +99,12 @@ function makeRunHistoryRow(entry) {
   const cnt = document.createElement('span');
   cnt.className = 'run-history-count';
   cnt.textContent = String(entry.count);
+  // A bare number has no meaning read out of context ("5, Run again") — name it via the
+  // same {token}-template-sent-once/substituted-client-side pattern the menu aria-labels
+  // use for {name} (launcherScriptMenu.ts).
+  const countLabel = (strings.runHistoryCount || '{count} runs').replace('{count}', entry.count);
+  cnt.title = countLabel;
+  cnt.setAttribute('aria-label', countLabel);
   row.appendChild(cnt);
   const runBtn = document.createElement('button');
   runBtn.type = 'button';
@@ -117,14 +127,20 @@ function makeRunHistoryRow(entry) {
 // initial "Run history (coming soon)" placeholder markup — see launcherViewShell.ts).
 // Rebuilt in full on every 'data' message, same as renderCategoryList() above, since a run
 // can add/reorder/recount any row.
-function renderRunHistory(list) {
+function renderRunHistory(list, enabled) {
   if (!rightPanelBody) { return; }
   rightPanelBody.textContent = '';
   const entries = Array.isArray(list) ? list : [];
   if (!entries.length) {
     const placeholder = document.createElement('div');
     placeholder.className = 'run-history-empty';
-    placeholder.textContent = strings.runHistoryEmpty || 'Nothing run yet.';
+    // Two different reasons an empty list can reach here: genuinely nothing run yet, or
+    // saropaWorkspace.telemetry.enabled is off, in which case adbRunHistory.recent() can
+    // never return anything and the generic "run something to see it here" message would
+    // be actively misleading (see launcherView.ts's runHistoryEnabled comment).
+    placeholder.textContent = enabled
+      ? (strings.runHistoryEmpty || 'Nothing run yet.')
+      : (strings.runHistoryDisabled || 'Run history is turned off.');
     rightPanelBody.appendChild(placeholder);
     return;
   }

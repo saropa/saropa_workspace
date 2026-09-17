@@ -220,7 +220,7 @@ window.addEventListener('message', function (event) {
     if (typeof msg.placeholder === 'string') { q.placeholder = msg.placeholder; }
     renderHeader(msg.header);
     renderCategoryList(msg.categories);
-    renderRunHistory(msg.runHistory);
+    renderRunHistory(msg.runHistory, msg.runHistoryEnabled !== false);
     render();
   } else if (msg && msg.type === 'cycleSort') {
     // Build-order step 5 (PLAN_Launcher_Restructure.md): the native view/title "cycle sort"

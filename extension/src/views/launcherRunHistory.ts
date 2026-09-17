@@ -65,14 +65,24 @@ export function buildRunHistoryEntries(
 ): LauncherRunHistoryEntry[] {
   const byId = new Map(catalog.map((e) => [e.id, e] as const));
   const entries: LauncherRunHistoryEntry[] = [];
+  // adbRunHistory.record() dedups on write, so a normal run can never produce a duplicate
+  // id here — but adbRunHistory.ts's own read() only validates Array.isArray(data.recent),
+  // not uniqueness, so a corrupted/hand-edited globalState blob could still yield one.
+  // Guard against it the same way remoteControlData.ts's rankRecentAdbEntries does (an
+  // "already picked" check), so a duplicate never shows the same command listed twice.
+  const seen = new Set<string>();
   for (const entryId of recent) {
     if (entries.length >= limit) {
       break;
+    }
+    if (seen.has(entryId)) {
+      continue;
     }
     const entry = byId.get(entryId);
     if (!entry) {
       continue;
     }
+    seen.add(entryId);
     entries.push({
       id: `adb:${entry.id}`,
       label: l10n(entry.labelKey),
