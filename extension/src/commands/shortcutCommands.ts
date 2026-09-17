@@ -3,6 +3,7 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { DoubleClickDispatcher } from "../exec/doubleClick";
 import { ShortcutTreeItem } from "../views/shortcutTreeItem";
 import { telemetry } from "../exec/telemetry";
+import { adbRunHistory } from "../exec/adbRunHistory";
 import { showRunAnalytics } from "./runAnalytics";
 import { showDailyReport } from "./dailyReport";
 import { configureBootSequence, runBootSequence } from "./bootSequence";
@@ -117,7 +118,11 @@ function registerWorkspaceLevelCommands(
       confirm
     );
     if (choice === confirm) {
+      // Both on-device run histories are cleared together: the shortcut telemetry and the
+      // Mobile Remote Control adb history, which docs/PRIVACY.md describes as living in the
+      // same globalState under the same opt-out and cleared by this one command.
       await telemetry.reset();
+      await adbRunHistory.reset();
       vscode.window.showInformationMessage(l10n("telemetry.resetDone"));
     }
   });

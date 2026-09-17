@@ -77,6 +77,11 @@
           "id": "saropaWorkspace.notes",
           "name": "%views.notes.name%",
           "visibility": "collapsed"
+        },
+        {
+          "id": "saropaWorkspace.controlCenter",
+          "name": "%views.controlCenter.name%",
+          "icon": "$(compass)"
         }
       ],
       "saropaWorkspaceLauncher": [
@@ -958,6 +963,18 @@
         "category": "%extension.displayName%"
       },
       {
+        "command": "saropaWorkspace.openRemoteControl",
+        "title": "%command.openRemoteControl.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(device-mobile)"
+      },
+      {
+        "command": "saropaWorkspace.go",
+        "title": "%command.go.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(search)"
+      },
+      {
         "command": "saropaWorkspace.openProcessMonitor",
         "title": "%command.openProcessMonitor.title%",
         "category": "%extension.displayName%",
@@ -1125,6 +1142,12 @@
         "command": "saropaWorkspace.runAnyPin",
         "key": "ctrl+shift+r",
         "mac": "cmd+shift+r",
+        "when": "!editorTextFocus && !terminalFocus"
+      },
+      {
+        "command": "saropaWorkspace.go",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
         "when": "!editorTextFocus && !terminalFocus"
       }
     ],

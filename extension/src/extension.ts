@@ -30,6 +30,7 @@ import { processRegistry } from "./exec/processRegistry";
 import { metricBadges } from "./exec/metricBadges";
 import { runStatusRegistry } from "./exec/runStatus";
 import { telemetry } from "./exec/telemetry";
+import { adbRunHistory } from "./exec/adbRunHistory";
 import { promptMemory } from "./exec/promptMemory";
 import { runOutputs } from "./exec/runOutputs";
 import { shortcutBadges } from "./exec/shortcutBadges";
@@ -52,6 +53,7 @@ import { setupStatusBars } from "./activation/wiringStatusBars";
 import { wireBackgroundEngines } from "./activation/wiringEngines";
 import { wireWatchers, wireFolderWatches } from "./activation/wiringWatchers";
 import { wireTreeViewState, SHOW_ALL_BRANCHES_KEY } from "./activation/viewState";
+import { wireSectionContext } from "./activation/sectionContext";
 import { seedEcosystemAutoPins } from "./activation/ecosystemAutoPins";
 
 // Bind the on-device stores (telemetry, tapped-shortcut tracker, prompt memory,
@@ -62,6 +64,11 @@ function initCoreStores(context: vscode.ExtensionContext): void {
   // every run (manual + scheduled) and the Recent group + "Run Shortcut..." palette
   // can read them. On-device only — nothing is transmitted (see the principle).
   telemetry.init(context);
+
+  // Bind the adb catalog's own run history (Mobile Remote Control's recent/frequent
+  // ranking). A separate store from telemetry because its ids are catalog entry ids,
+  // not shortcut ids — see exec/adbRunHistory.ts. On-device only, same opt-out.
+  adbRunHistory.init(context);
 
   // Bind the tapped-shortcut tracker (opened/run shortcuts) used for the activity-bar
   // badge.
@@ -306,6 +313,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const scheduler = wireBackgroundEngines(context, store);
 
   wireWatchers(context, store, branchSetBinder);
+
+  // Publish the section-relevance context keys (hasAndroid / hasFlutter / hasDevice)
+  // and keep them current: the first profile read happens here, the profile's own
+  // file watchers refresh it, and every adb probe refreshes the device key. Needs no
+  // shortcut data, so it runs with the rest of the synchronous wiring; the reads it
+  // starts are deferred, never awaited.
+  wireSectionContext(context);
 
   // Track editor focus/close so a pinned file opened or closed by any means (not
   // just a shortcut click) lands in Recent and clears its per-row "untapped" dot.
