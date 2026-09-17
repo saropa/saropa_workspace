@@ -33,6 +33,14 @@ function makeCategoryRow(entry) {
   row.addEventListener('click', function () {
     if (selectedCategory() === entry.id) { return; }
     setSelectedCategory(entry.id);
+    // Symmetric with the search box's own 'input' handler (launcherScriptMenu.ts), which ends
+    // an active category selection when the user types: selecting a category here ends an
+    // active search, rather than silently re-scoping the stale query text to the newly-picked
+    // category (which could hide every card in that category with #empty never shown — the
+    // same silently-blank-center failure step 3 fixed for the zero-count case, reachable again
+    // here through search+category-click). No UI currently promises the search text survives a
+    // category click, so clearing it is the simplest rule that closes the gap.
+    if (q.value !== '') { q.value = ''; }
     syncCategorySelection();
     syncCategoryChips();
     render();
@@ -165,6 +173,11 @@ function render() {
     // takes precedence over that chip — picking "Notes" always shows Notes, even if its
     // chip was previously toggled off from the "All" view — so the two controls never fight
     // each other over the one pane a specific selection can even show.
+    // This initial paint does not need its own !searching guard (unlike applyFilter()'s
+    // chipsActive, see finding #1's fix there): render() runs once per category/data change,
+    // not per keystroke, and applyFilter() — called unconditionally at the end of this
+    // function — immediately recomputes every pane's 'hidden' class from scratch afterward, so
+    // whatever this line sets here is never the last word.
     const chipHidden = cat === 'all' && isPaneHidden(pane.id);
     if (isEmpty || chipHidden) { paneEl.classList.add('hidden'); }
 
@@ -205,13 +218,28 @@ function applyFilter() {
   // is picked (render() only builds panes from visibleItems()), so this simply keeps that
   // pane's chip state from hiding the very cards the left panel was just asked to show.
   //
-  // Resolved in build-order step 4 (was an accepted interim limitation in step 3): the search
-  // box's own 'input' handler (launcherScriptMenu.ts) now forces the selection back to "all"
-  // (mirroring the "All" row's own click handler) before ever calling this function whenever a
-  // specific category was selected, so by the time applyFilter() runs, the cards already in the
-  // DOM are never silently scoped to a category the user isn't shown as selected — this
-  // function itself needed no change, since its cards are simply whatever render() last built.
-  const chipsActive = selectedCategory() === 'all';
+  // Partially resolved in build-order step 4 (was an accepted interim limitation in step 3):
+  // the search box's own 'input' handler (launcherScriptMenu.ts) forces the selection back to
+  // "all" (mirroring the "All" row's own click handler) before calling render()/applyFilter()
+  // whenever typing happens while a specific category was selected — so typing never lands on a
+  // stale non-'all' selectedCategory(). That does NOT, by itself, make chip-hidden panes safe
+  // during a search: applyFilter() also runs from render() while "all" IS already selected (the
+  // ordinary per-keystroke path once the reset above has already fired, and every non-search
+  // render), so a chip toggled off from a prior "All" view would otherwise still swallow
+  // matching cards mid-search — the exact bug (finding #1) this line's !searching guard
+  // closes: a search in progress is never additionally scoped by a persisted chip, regardless
+  // of which category is nominally selected.
+  //
+  // Still an OPEN, accepted limitation (NOT resolved by the above): the mirror case where a
+  // search is active while "All" is selected, and the user then clicks a specific category in
+  // the left panel. makeCategoryRow()'s click handler clears the search box before rendering
+  // that category (see its own comment) specifically so this function is never asked to answer
+  // "does this stale query match anything in the newly-narrowed pane" — but if some future
+  // caller ever re-populates q.value and calls render()/applyFilter() without going through
+  // that click handler, the search would once again be silently scoped to whatever category is
+  // selected at the time. This file does not claim that path is closed in general — only the
+  // two call sites above (typing, and category-click) are actually accounted for.
+  const chipsActive = !searching && selectedCategory() === 'all';
   let total = 0;
   let shown = 0;
   for (const card of root.querySelectorAll('.card')) {

@@ -181,11 +181,12 @@ root.addEventListener('scroll', closeMenu, true);
 // Build-order step 4 (PLAN_Launcher_Restructure.md): search is already an always-visible
 // header element (not an icon-triggered popover), so the only wiring this step still owes is
 // forcing the left-panel selection back to "all" whenever the user types, so a search is never
-// silently scoped to whatever category happened to be selected (see applyFilter()'s own
-// "known interim limitation" comment in launcherScriptRender.ts, which this closes). Mirrors
-// the exact reset sequence the "All" row's own click handler uses (makeCategoryRow(),
-// launcherScriptRender.ts) so the left-panel highlight and header chips re-sync exactly as if
-// the user had clicked "All" themselves.
+// silently scoped to whatever category happened to be selected. Mirrors the exact reset
+// sequence the "All" row's own click handler uses (makeCategoryRow(), launcherScriptRender.ts)
+// so the left-panel highlight and header chips re-sync exactly as if the user had clicked "All"
+// themselves. This closes the typing-while-a-category-is-selected case only — see
+// applyFilter()'s own comment in launcherScriptRender.ts for exactly what is and isn't resolved
+// (there is a separate, still-open mirror case: selecting a category while a search is active).
 //
 // Interpretation of "typing... always switches the selection to All" (judgment call, documented
 // per the plan): ANY 'input' event forces the reset while a specific category is still selected,
@@ -194,6 +195,11 @@ root.addEventListener('scroll', closeMenu, true);
 // triggered by search interaction, not something that un-forces itself when the field empties.
 // Once "all" is already selected (the common case, including right after a forced reset), this
 // stays the cheap applyFilter()-only path exactly as before — no extra render() per keystroke.
+//
+// This reset only fires on a real DOM 'input' event. Any future programmatic q.value=...
+// assignment (e.g. a later build-order step's host->webview "focus search" message) will NOT
+// trigger this handler unless it also dispatches an 'input' event or goes through a shared
+// helper — noted here so that gap doesn't reappear silently later.
 q.addEventListener('input', function () {
   if (selectedCategory() !== 'all') {
     setSelectedCategory('all');

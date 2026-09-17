@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LAUNCHER_STYLE } from "../views/launcherAssets";
 import { LAUNCHER_SCRIPT } from "../views/launcherScript";
+import { LAUNCHER_SCRIPT_MENU } from "../views/launcher/launcherScriptMenu";
 
 // --- LAUNCHER_STYLE -----------------------------------------------------
 
@@ -473,41 +474,87 @@ test("LAUNCHER_SCRIPT: references the host-substituted count placeholders", () =
   assert.ok(LAUNCHER_SCRIPT.includes("{total}"));
 });
 
-test("LAUNCHER_SCRIPT: typing in search forces the selection back to 'all'", () => {
-  // Build-order step 4 (PLAN_Launcher_Restructure.md): a search must never be silently
-  // scoped to whatever category the left panel happened to have selected. The search input's
-  // 'input' handler must reset to 'all' via the exact same sequence the "All" row's own click
-  // handler uses (setSelectedCategory -> syncCategorySelection -> syncCategoryChips -> render)
-  // whenever a specific category is still selected, and must NOT still be wired as the old
-  // bare `q.addEventListener('input', applyFilter);` one-liner (its removal is the actual
-  // behavior change this step makes).
-  assert.ok(
-    !/q\.addEventListener\('input',\s*applyFilter\);/.test(LAUNCHER_SCRIPT),
-    "search input must no longer call applyFilter() directly and unconditionally"
+// Extracts the full `q.addEventListener('input', function () { ... });` statement out of
+// LAUNCHER_SCRIPT_MENU by brace-counting from the opening `{` of the listener's function body,
+// rather than a plain indexOf for the next literal "});" (the previous version of this test's
+// approach) — a brace count cannot be fooled by a nested function/addEventListener appearing
+// inside the handler in the future, where a naive indexOf would truncate the extracted body
+// early and silently stop checking the rest of the real handler.
+function extractInputHandlerStatement(script: string): string {
+  const marker = "q.addEventListener('input', function () {";
+  const start = script.indexOf(marker);
+  assert.ok(start !== -1, "expected a function-bodied 'input' listener on the search box");
+  let depth = 0;
+  let i = start + marker.length - 1; // index of the body's opening '{'
+  for (; i < script.length; i++) {
+    if (script[i] === "{") { depth++; }
+    else if (script[i] === "}") {
+      depth--;
+      if (depth === 0) { break; }
+    }
+  }
+  assert.ok(depth === 0, "expected the 'input' listener's function body to close");
+  const closeParen = script.indexOf(")", i);
+  const semicolon = script.indexOf(";", closeParen);
+  assert.ok(semicolon !== -1, "expected the addEventListener(...) call to end in ';'");
+  return script.slice(start, semicolon + 1);
+}
+
+// Evaluates the extracted 'input' listener statement with every collaborator it calls
+// (selectedCategory/setSelectedCategory/syncCategorySelection/syncCategoryChips/render/
+// applyFilter) replaced by a spy that records its own name into a shared, ordered array —
+// same `new Function`-eval idiom this suite already uses for client-script fragments (see
+// webviewClientUtils.test.ts's compile() and launcherSplitLogic.test.ts's copy of it), just
+// applied to one statement instead of a whole generator's output. `q` itself is stubbed to
+// just capture the listener function so this can invoke it directly, exactly as the real
+// 'input' DOM event would.
+function runInputHandler(categoryValue: string): string[] {
+  const calls: string[] = [];
+  const statement = extractInputHandlerStatement(LAUNCHER_SCRIPT_MENU);
+  const factory = new Function(
+    "calls",
+    "categoryValue",
+    `
+    var handler;
+    var q = { addEventListener: function (type, fn) { handler = fn; } };
+    function selectedCategory() { return categoryValue; }
+    function setSelectedCategory(v) { calls.push('setSelectedCategory:' + v); }
+    function syncCategorySelection() { calls.push('syncCategorySelection'); }
+    function syncCategoryChips() { calls.push('syncCategoryChips'); }
+    function render() { calls.push('render'); }
+    function applyFilter() { calls.push('applyFilter'); }
+    ${statement}
+    return handler;
+    `
   );
-  const handlerStart = LAUNCHER_SCRIPT.indexOf("q.addEventListener('input', function () {");
-  assert.ok(handlerStart !== -1, "expected a function-bodied 'input' listener on the search box");
-  // The listener is the last statement of its own IIFE-free top-level fragment, so a plain
-  // indexOf for the closing "});" that ends the addEventListener call is unambiguous here
-  // (there is no nested addEventListener/function literal between them for this handler).
-  const handlerEnd = LAUNCHER_SCRIPT.indexOf("});", handlerStart);
-  assert.ok(handlerEnd !== -1, "expected the 'input' listener's function body to close");
-  const handlerBody = LAUNCHER_SCRIPT.slice(handlerStart, handlerEnd);
-  assert.ok(
-    handlerBody.includes("selectedCategory() !== 'all'"),
-    "must only force a reset when a specific category is actually selected"
+  const handler = factory(calls, categoryValue) as () => void;
+  handler();
+  return calls;
+}
+
+test("LAUNCHER_SCRIPT: typing in search while a category is selected resets to 'all', in order, without a direct applyFilter() call", () => {
+  // This is the case the previous version of this test could not distinguish from a broken
+  // implementation that runs the reset AFTER render() (re-introducing the scoped-search bug):
+  // asserting the exact recorded ORDER, not just that each name appears somewhere in the
+  // source, is what actually verifies the fix (finding #3 of the adversarial review).
+  const calls = runInputHandler("recipes");
+  assert.deepEqual(
+    calls,
+    ["setSelectedCategory:all", "syncCategorySelection", "syncCategoryChips", "render"],
+    "must reset to 'all', re-sync the left panel and chips, then render — in that order — and " +
+      "must NOT also call applyFilter() directly (render() is responsible for that internally)"
   );
-  assert.ok(
-    handlerBody.includes("setSelectedCategory('all')"),
-    "must reset the persisted selection to 'all', exactly like the All row's click handler"
-  );
-  assert.ok(
-    handlerBody.includes("syncCategorySelection()") && handlerBody.includes("syncCategoryChips()"),
-    "must re-sync the left-panel highlight and header chips, exactly like the All row's click handler"
-  );
-  assert.ok(
-    handlerBody.includes("render()"),
-    "must re-render from the now-unfiltered item set before applyFilter() narrows it by search text"
+});
+
+test("LAUNCHER_SCRIPT: typing in search while 'all' is already selected only re-filters, cheaply", () => {
+  // This is the other broken implementation finding #3 flags: unconditionally running the
+  // full reset+render sequence on every keystroke, even when the selection is already 'all',
+  // which is exactly the per-keystroke rebuild cost the code comment promises not to pay.
+  const calls = runInputHandler("all");
+  assert.deepEqual(
+    calls,
+    ["applyFilter"],
+    "once 'all' is already selected, typing must only call applyFilter() — no reset, no render()"
   );
 });
 
