@@ -9,8 +9,10 @@
 // search group on the trailing edge. The project block reads as one line: the folder name,
 // then the declared version + per-pane counts inline beside it. Each count is a toggle chip:
 // clicking it shows or hides that pane section. A dimmed (`.off`) chip means the section is
-// hidden; full opacity means visible. A loading indicator is shown until the first data
-// message arrives.
+// hidden; full opacity means visible. Chips are disabled and dimmed a second, distinct way
+// (`.inactive`) whenever the left panel has a specific category selected, since they'd have
+// no visible effect on the already-single-pane center grid until "All" is reselected. A
+// loading indicator is shown until the first data message arrives.
 // The name paints synchronously from the host's initial HTML; the version + counts arrive in
 // the first data message (they need the disk scan) and are written by renderHeader.
 //
@@ -124,6 +126,18 @@ header {
 .meta-item.toggle:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .meta-item.toggle.off {
   opacity: 0.4;
+}
+/* A left-panel category selection other than "All" disables these chips (they'd have no
+   visible effect on the already-single-pane center grid — see launcherScriptCore.ts's
+   syncCategoryChips()). A distinct class from .off: a chip can be hidden (.off) AND,
+   independently, inactive because a different category is selected — the two must not
+   visually collide or be conflated. */
+.meta-item.toggle.inactive {
+  cursor: default;
+  opacity: 0.35;
+}
+.meta-item.toggle.inactive:hover {
+  background: none;
 }
 .meta-item.meta-reset {
   background: none; border: none; font: inherit;

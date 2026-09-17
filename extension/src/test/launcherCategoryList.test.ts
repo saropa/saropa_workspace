@@ -12,14 +12,18 @@ import {
 } from "../views/launcherCategoryList";
 import { LauncherItem } from "../views/launcherItems";
 import { l10n } from "../i18n/l10n";
+import { LAUNCHER_SCRIPT_CORE } from "../views/launcher/launcherScriptCore";
 
-// A minimal, otherwise-unused-field LauncherItem stand-in — buildCategoryList only reads
-// `.pane`, so the rest of the shape does not matter for these tests.
+// A minimal but real LauncherItem literal — buildCategoryList only reads `.pane`, so the rest
+// of the shape is filler, but it's a real object literal (no `as unknown as` cast) so a future
+// required field addition to LauncherItem breaks this file at compile time instead of
+// silently type-checking around it, which matters for a test file whose whole point is a
+// type-driven invariant (LAUNCHER_PANE_ORDER covering every pane).
 function item(pane: LauncherItem["pane"]): LauncherItem {
   return {
     id: `id:${pane}:${Math.random()}`,
     label: "x",
-    sub: undefined,
+    sub: "",
     desc: undefined,
     pane,
     section: "s",
@@ -29,7 +33,14 @@ function item(pane: LauncherItem["pane"]): LauncherItem {
     icon: "i",
     color: "c",
     kind: "k",
-  } as unknown as LauncherItem;
+    scheduled: false,
+    kindLabel: undefined,
+    runnable: false,
+    openable: false,
+    headAction: undefined,
+    copyable: false,
+    menu: [],
+  };
 }
 
 test("buildCategoryList: 'all' is always first, with the total item count", () => {
@@ -85,11 +96,21 @@ test("buildCategoryList: each pane's count matches how many items carry that pan
   assert.equal(countOf("mobileRemote"), 0);
 });
 
-test("buildCategoryList: every entry names a non-empty icon", () => {
+test("buildCategoryList: each entry names the specific expected icon, not just any icon", () => {
+  // Tightened from a near-tautological "every icon is non-empty" check: this pins the exact
+  // codicon per category, mirroring the header's own per-pane stat icons (see PANE_ICON's
+  // comment in launcherCategoryList.ts) so a typo'd/swapped icon id actually fails this test.
   const entries = buildCategoryList([item("mine")]);
-  for (const entry of entries) {
-    assert.ok(entry.icon.length > 0, `expected an icon for "${entry.id}"`);
-  }
+  const iconOf = (id: LauncherItem["pane"] | "all"): string | undefined =>
+    entries.find((e) => e.id === id)?.icon;
+  assert.equal(iconOf("all"), "list-flat");
+  assert.equal(iconOf("mine"), "star-full");
+  assert.equal(iconOf("recipes"), "lightbulb");
+  assert.equal(iconOf("watches"), "eye");
+  assert.equal(iconOf("files"), "files");
+  assert.equal(iconOf("scripts"), "library");
+  assert.equal(iconOf("notes"), "note");
+  assert.equal(iconOf("mobileRemote"), "device-mobile");
 });
 
 test("buildCategoryList: each pane's label matches the section string this codebase already uses", () => {
@@ -112,4 +133,101 @@ test("countItemsByPane: counts only items carrying the given pane", () => {
   assert.equal(countItemsByPane(items, "mine"), 2);
   assert.equal(countItemsByPane(items, "recipes"), 1);
   assert.equal(countItemsByPane(items, "watches"), 0);
+});
+
+// The previous "pane order" test above (`assert.deepEqual(paneIds, LAUNCHER_PANE_ORDER)`)
+// looped over LAUNCHER_PANE_ORDER to build `entries` and then asserted the result against
+// that very same array — it could never fail. LAUNCHER_PANE_ORDER's only real job is to stay
+// in lockstep with paneModel()'s own hardcoded pane order inside the untyped
+// LAUNCHER_SCRIPT_CORE client-script string (launcherScriptCore.ts) — the compile-time guard
+// added alongside LAUNCHER_PANE_ORDER only catches a pane being missing from the array
+// entirely, not the two orderings disagreeing on SEQUENCE. This test is the one thing that
+// actually catches that: it parses paneModel()'s own `raw` pane-array literal out of the
+// client-script string and compares the id sequence it builds to LAUNCHER_PANE_ORDER.
+//
+// A `new Function` eval (the pattern webviewClientUtils.test.ts uses for pure formatter/
+// escaper helpers) isn't needed here — paneModel() reaches into module-level state
+// (`strings`) and DOM-adjacent helpers this test has no reason to fake, and all that's
+// actually needed is the literal id sequence, not the function's runtime behavior — so a
+// bracket-aware string extraction is simpler and sufficient (per this repo's existing
+// precedent of asserting on LAUNCHER_SCRIPT content directly, e.g. launcherAssets.test.ts's
+// `LAUNCHER_SCRIPT.includes(...)` checks).
+function extractPaneModelOrder(source: string): string[] {
+  const fnStart = source.indexOf("function paneModel(list) {");
+  assert.ok(fnStart !== -1, "expected to find paneModel() in LAUNCHER_SCRIPT_CORE");
+  const rawKeyword = source.indexOf("var raw = [", fnStart);
+  assert.ok(rawKeyword !== -1, "expected to find paneModel()'s `raw` pane array");
+  // Everything paneModel() assigns before `raw` (mine/recipes/.../filesPane/notesPane) — used
+  // below to resolve a bare identifier entry in `raw` back to the pane id its own definition
+  // carries.
+  const fnBodyBeforeRaw = source.slice(fnStart, rawKeyword);
+
+  // Walk bracket depth from `raw`'s own `[` to its matching `]`, so a nested `{ }` object
+  // literal or `(...)` call inside an entry (e.g. `groupsOf(mine)`) is never mistaken for the
+  // end of the array.
+  const arrayStart = source.indexOf("[", rawKeyword);
+  let depth = 0;
+  let arrayEnd = -1;
+  for (let i = arrayStart; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "[") {
+      depth++;
+    } else if (ch === "]") {
+      depth--;
+      if (depth === 0) {
+        arrayEnd = i;
+        break;
+      }
+    }
+  }
+  assert.ok(arrayEnd !== -1, "expected a closing bracket for paneModel()'s `raw` array");
+  const arrayBody = source.slice(arrayStart + 1, arrayEnd);
+
+  // Split into top-level entries by comma, respecting `{}`/`()` nesting so a nested call or
+  // object inside one entry never gets mistaken for an entry boundary.
+  const rawEntries: string[] = [];
+  let entryStart = 0;
+  let nesting = 0;
+  for (let i = 0; i < arrayBody.length; i++) {
+    const ch = arrayBody[i];
+    if (ch === "{" || ch === "(") {
+      nesting++;
+    } else if (ch === "}" || ch === ")") {
+      nesting--;
+    } else if (ch === "," && nesting === 0) {
+      rawEntries.push(arrayBody.slice(entryStart, i));
+      entryStart = i + 1;
+    }
+  }
+  const lastEntry = arrayBody.slice(entryStart).trim();
+  if (lastEntry) {
+    rawEntries.push(lastEntry);
+  }
+
+  return rawEntries.map((raw) => {
+    const entry = raw.trim();
+    const inlineId = entry.match(/id:\s*'(\w+)'/);
+    if (inlineId) {
+      return inlineId[1];
+    }
+    // A bare identifier entry (filesPane/notesPane, whose flat-vs-grouped shape is decided
+    // above `raw`): resolve it to the id its own earlier definition carries, rather than
+    // assuming the identifier's name matches its pane id.
+    const identMatch = entry.match(/^[A-Za-z_$][\w$]*$/);
+    assert.ok(identMatch, `unexpected paneModel() \`raw\` entry shape: ${JSON.stringify(entry)}`);
+    const ident = identMatch[0];
+    const defMatch = fnBodyBeforeRaw.match(new RegExp(`${ident}\\s*=[\\s\\S]*?id:\\s*'(\\w+)'`));
+    assert.ok(defMatch, `expected to resolve "${ident}" to a pane id`);
+    return defMatch[1];
+  });
+}
+
+test("LAUNCHER_SCRIPT_CORE's paneModel() pane order matches LAUNCHER_PANE_ORDER", () => {
+  // This is the actual drift guard the plan calls for: LAUNCHER_PANE_ORDER
+  // (launcherCategoryList.ts, host side) and paneModel()'s own hardcoded pane order
+  // (launcherScriptCore.ts, client side) currently agree, but nothing besides this test
+  // enforces it — see this test's own comment above and the compile-time guard next to
+  // LAUNCHER_PANE_ORDER's declaration for what each mechanism does and does not catch.
+  const order = extractPaneModelOrder(LAUNCHER_SCRIPT_CORE);
+  assert.deepEqual(order, LAUNCHER_PANE_ORDER);
 });

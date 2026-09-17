@@ -48,6 +48,33 @@ function setSelectedCategory(id) {
   vscode.setState(store);
 }
 
+// Validates the persisted selection against the category list the host most recently sent
+// (module-level \`categories\`, populated by renderCategoryList()) and self-heals it to 'all'
+// when it no longer resolves to something worth showing. Two cases, both funneled through the
+// same fallback so there is one mechanism instead of two: (1) \`cat\` doesn't match any current
+// entry.id at all — a stale/unknown persisted category (a pane renamed or removed, or state
+// left over from before such a change); (2) \`cat\` matches an entry, but that entry's count is
+// 0 right now — buildCategoryList() (launcherCategoryList.ts) deliberately still lists a
+// zero-count pane as a clickable navigation row, so selecting it would otherwise leave every
+// pane empty with nothing to show. Without this, the center grid would render permanently
+// blank (see render()'s own call site) with no left-panel row even marked selected. Called
+// from both renderCategoryList() (right after \`categories\` is refreshed) and render() (before
+// it computes visibleItems()/paneModel()), since either a fresh category list or a stale
+// render pass can be the first place a bad selection surfaces.
+function resolveSelectedCategory() {
+  var cat = selectedCategory();
+  if (cat === 'all') { return cat; }
+  var entry = null;
+  for (var i = 0; i < categories.length; i++) {
+    if (categories[i].id === cat) { entry = categories[i]; break; }
+  }
+  if (!entry || entry.count === 0) {
+    setSelectedCategory('all');
+    return 'all';
+  }
+  return cat;
+}
+
 // The items the center grid should render right now: every item when 'all' is selected,
 // otherwise only the items filed under the selected pane. paneModel() (below) already
 // tolerates a pane with zero items (it renders as empty and is hidden), so handing it this
@@ -168,6 +195,7 @@ function renderHeader(h) {
   const stats = Array.isArray(h.stats) ? h.stats : [];
   for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false, s.pane)); }
   syncResetBtn();
+  syncCategoryChips();
 }
 
 function syncResetBtn() {
@@ -202,6 +230,13 @@ function metaItem(icon, text, isVersion, pane) {
     el.type = 'button';
     el.dataset.pane = pane;
     if (isPaneHidden(pane)) { el.classList.add('off'); }
+    // Disabled up front when a specific category is already selected at (re)paint time — see
+    // syncCategoryChips() for why, and for how this stays in sync afterward as the selection
+    // changes without a header repaint.
+    if (selectedCategory() !== 'all') {
+      el.disabled = true;
+      el.classList.add('inactive');
+    }
     el.addEventListener('click', function () {
       const nowHidden = !isPaneHidden(pane);
       setPaneHidden(pane, nowHidden);
@@ -215,6 +250,26 @@ function metaItem(icon, text, isVersion, pane) {
   t.textContent = text;
   el.appendChild(t);
   return el;
+}
+
+// Keeps the header's hide/show chips in sync with the left-panel category selection. While a
+// specific category is selected, the center grid already shows only that one pane
+// (visibleItems()/render()), so a chip toggle has zero visible effect until "All" is
+// reselected — but the chip itself stayed fully clickable and could still flip to its dimmed
+// ".off" look, which reads as a live control with an invisible, delayed effect (review
+// finding, build-order step 3). Disabling the buttons here also blocks metaItem()'s own click
+// handler for free, so no separate guard is needed there. Uses a distinct ".inactive" class
+// rather than reusing ".off" (which already means "this pane is hidden" and must stay
+// independent — a pane can be both hidden AND, separately, inactive because a category other
+// than its own is selected). Called from render() (after resolveSelectedCategory() settles
+// the selection for this pass), from the category row click handler, and from renderHeader()
+// (a fresh header repaint needs the same sync metaItem() applies at creation time).
+function syncCategoryChips() {
+  const allSelected = selectedCategory() === 'all';
+  for (const chip of projMeta.querySelectorAll('.meta-item.toggle')) {
+    chip.disabled = !allSelected;
+    chip.classList.toggle('inactive', !allSelected);
+  }
 }
 
 // Group the flat item list into panes in fixed order: mine, recipes, watches, files, scripts,
