@@ -178,7 +178,32 @@ document.addEventListener('keydown', function (e) {
 window.addEventListener('blur', closeMenu);
 root.addEventListener('scroll', closeMenu, true);
 
-q.addEventListener('input', applyFilter);
+// Build-order step 4 (PLAN_Launcher_Restructure.md): search is already an always-visible
+// header element (not an icon-triggered popover), so the only wiring this step still owes is
+// forcing the left-panel selection back to "all" whenever the user types, so a search is never
+// silently scoped to whatever category happened to be selected (see applyFilter()'s own
+// "known interim limitation" comment in launcherScriptRender.ts, which this closes). Mirrors
+// the exact reset sequence the "All" row's own click handler uses (makeCategoryRow(),
+// launcherScriptRender.ts) so the left-panel highlight and header chips re-sync exactly as if
+// the user had clicked "All" themselves.
+//
+// Interpretation of "typing... always switches the selection to All" (judgment call, documented
+// per the plan): ANY 'input' event forces the reset while a specific category is still selected,
+// regardless of the resulting value — including the value becoming empty again via backspace.
+// There is no "remember the previous category" behavior; forcing to "All" is a one-way move
+// triggered by search interaction, not something that un-forces itself when the field empties.
+// Once "all" is already selected (the common case, including right after a forced reset), this
+// stays the cheap applyFilter()-only path exactly as before — no extra render() per keystroke.
+q.addEventListener('input', function () {
+  if (selectedCategory() !== 'all') {
+    setSelectedCategory('all');
+    syncCategorySelection();
+    syncCategoryChips();
+    render(); // render() calls applyFilter() itself at the end — do not double it here.
+    return;
+  }
+  applyFilter();
+});
 
 window.addEventListener('message', function (event) {
   const msg = event.data;

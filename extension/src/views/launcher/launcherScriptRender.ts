@@ -205,13 +205,12 @@ function applyFilter() {
   // is picked (render() only builds panes from visibleItems()), so this simply keeps that
   // pane's chip state from hiding the very cards the left panel was just asked to show.
   //
-  // Known interim limitation (build-order step 3; NOT fixed here — step 4's job): the search
-  // box below is applied only to the cards already in the DOM, which are already narrowed to
-  // the selected category by render()/visibleItems(). So searching while a specific category
-  // is selected is silently scoped to that category, with no visible indication of the scope
-  // and no way to search "everything" without first clicking "All". Step 4 (moving search to
-  // the title bar) is expected to force "All" whenever a search is active; today's scoping is
-  // an accepted interim behavior, not final design.
+  // Resolved in build-order step 4 (was an accepted interim limitation in step 3): the search
+  // box's own 'input' handler (launcherScriptMenu.ts) now forces the selection back to "all"
+  // (mirroring the "All" row's own click handler) before ever calling this function whenever a
+  // specific category was selected, so by the time applyFilter() runs, the cards already in the
+  // DOM are never silently scoped to a category the user isn't shown as selected — this
+  // function itself needed no change, since its cards are simply whatever render() last built.
   const chipsActive = selectedCategory() === 'all';
   let total = 0;
   let shown = 0;

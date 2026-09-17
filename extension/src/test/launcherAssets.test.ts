@@ -473,6 +473,44 @@ test("LAUNCHER_SCRIPT: references the host-substituted count placeholders", () =
   assert.ok(LAUNCHER_SCRIPT.includes("{total}"));
 });
 
+test("LAUNCHER_SCRIPT: typing in search forces the selection back to 'all'", () => {
+  // Build-order step 4 (PLAN_Launcher_Restructure.md): a search must never be silently
+  // scoped to whatever category the left panel happened to have selected. The search input's
+  // 'input' handler must reset to 'all' via the exact same sequence the "All" row's own click
+  // handler uses (setSelectedCategory -> syncCategorySelection -> syncCategoryChips -> render)
+  // whenever a specific category is still selected, and must NOT still be wired as the old
+  // bare `q.addEventListener('input', applyFilter);` one-liner (its removal is the actual
+  // behavior change this step makes).
+  assert.ok(
+    !/q\.addEventListener\('input',\s*applyFilter\);/.test(LAUNCHER_SCRIPT),
+    "search input must no longer call applyFilter() directly and unconditionally"
+  );
+  const handlerStart = LAUNCHER_SCRIPT.indexOf("q.addEventListener('input', function () {");
+  assert.ok(handlerStart !== -1, "expected a function-bodied 'input' listener on the search box");
+  // The listener is the last statement of its own IIFE-free top-level fragment, so a plain
+  // indexOf for the closing "});" that ends the addEventListener call is unambiguous here
+  // (there is no nested addEventListener/function literal between them for this handler).
+  const handlerEnd = LAUNCHER_SCRIPT.indexOf("});", handlerStart);
+  assert.ok(handlerEnd !== -1, "expected the 'input' listener's function body to close");
+  const handlerBody = LAUNCHER_SCRIPT.slice(handlerStart, handlerEnd);
+  assert.ok(
+    handlerBody.includes("selectedCategory() !== 'all'"),
+    "must only force a reset when a specific category is actually selected"
+  );
+  assert.ok(
+    handlerBody.includes("setSelectedCategory('all')"),
+    "must reset the persisted selection to 'all', exactly like the All row's click handler"
+  );
+  assert.ok(
+    handlerBody.includes("syncCategorySelection()") && handlerBody.includes("syncCategoryChips()"),
+    "must re-sync the left-panel highlight and header chips, exactly like the All row's click handler"
+  );
+  assert.ok(
+    handlerBody.includes("render()"),
+    "must re-render from the now-unfiltered item set before applyFilter() narrows it by search text"
+  );
+});
+
 test("LAUNCHER_SCRIPT: builds rows with textContent, never innerHTML", () => {
   // Labels and paths are untrusted text; injecting them as HTML would be an XSS vector
   // inside the webview. The renderer must use textContent only.
