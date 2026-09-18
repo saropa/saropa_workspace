@@ -91,6 +91,15 @@ function applySplit() {
 function togglePanel(id) {
   setPanelHidden(id, !isPanelHidden(id));
   applySplit();
+  // Right-panel visibility lives entirely client-side (store.panels above), so the host has
+  // no way to know it unless told — this is what drives the native view/title icon's state
+  // (saropaWorkspace.launcher.rightPanelVisible, set by handleLauncherMessage in
+  // launcherViewMessages.ts), fixing a review-flagged a11y regression where the icon never
+  // announced shown vs. hidden. Only 'right' has a title-bar icon at all, so 'left' never
+  // posts this.
+  if (id === 'right') {
+    vscode.postMessage({ type: 'rightPanelVisibility', visible: !isPanelHidden(id) });
+  }
 }
 
 // Wire a panel's drag handle. dirX is +1 when dragging right should GROW the panel (the
@@ -132,4 +141,9 @@ function attachSplitResizer(handle, id, dirX) {
 attachSplitResizer(document.getElementById('rsz-left'), 'left', 1);
 attachSplitResizer(document.getElementById('rsz-right'), 'right', -1);
 applySplit();
+// Fire the initial state once at boot (not just after a click) so the view/title icon is
+// correct from the first paint, including the right-panel-hidden-by-default posture a fresh
+// webview starts in (panelDefaultHidden above) — see togglePanel()'s own comment for why the
+// host needs to be told at all.
+vscode.postMessage({ type: 'rightPanelVisibility', visible: !isPanelHidden('right') });
 `;

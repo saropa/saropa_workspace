@@ -190,12 +190,17 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     void this.view?.webview.postMessage({ type: "cycleSort" });
   }
 
-  // Build-order step 7 (PLAN_Launcher_Restructure.md): the native view/title "toggle right
-  // panel" icon's implementation, replacing the header's own TEMPORARY button (see that
-  // button's removed comment, and step 5's own note that no native replacement had been
-  // built for it yet). Right-panel visibility lives entirely inside the webview
+  // Build-order step 7 (PLAN_Launcher_Restructure.md): the native view/title "show/hide
+  // right panel" icons' shared implementation, replacing the header's own TEMPORARY button
+  // (see that button's removed comment, and step 5's own note that no native replacement had
+  // been built for it yet). Right-panel visibility lives entirely inside the webview
   // (store.panels in launcherScriptSplit.ts), so — exactly like cycleSort() above — the host
-  // has nothing to compute here; it only nudges the webview to act.
+  // has nothing to compute here; it only nudges the webview to act. Both
+  // saropaWorkspace.launcher.showRightPanel and .hideRightPanel (wiringViews.ts) call this
+  // same method — which of the two is visible is purely a package.json `when`-clause concern
+  // (see handleLauncherMessage's "rightPanelVisibility" handler for how that context key gets
+  // set from the webview's own actual state, fixing the old single-icon version's lack of any
+  // state indication).
   toggleRightPanel(): void {
     void this.view?.webview.postMessage({ type: "toggleRightPanel" });
   }
@@ -251,10 +256,10 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       header: buildHeader(this.store, files),
       // Feeds the left panel's category list (PLAN_Launcher_Restructure.md build order
       // step 3). Sent as its own small field rather than derived client-side from `items`:
-      // the header's own per-pane counts (above) omit empty panes and are not in canonical
-      // pane order, so they are not directly usable for this list without re-deriving the
-      // same counting logic in the webview script — buildCategoryList() is the one place
-      // that logic lives.
+      // buildCategoryList() (launcherCategoryList.ts) is the one place per-pane counting
+      // logic lives now that build order step 7 removed the header's own per-pane counts
+      // entirely (buildHeader(), launcherViewData.ts, emits only the scheduled-rituals stat),
+      // so there is nothing left in the header payload this list could reuse even client-side.
       categories: buildCategoryList(items),
       // Feeds the right panel's run-history list (PLAN_Launcher_Restructure.md build
       // order step 6 — see launcherRunHistory.ts's own header comment for why this is a

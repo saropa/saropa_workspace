@@ -57,7 +57,14 @@ widget on the right.
   separate icons risk overflowing into VS Code's "…" menu in a narrow
   panel, bundle sort+settings under one overflow icon (the Shortcuts view
   already does this for its own less-common actions) and leave search as
-  its own always-visible element.
+  its own always-visible element. (Build order step 7 added a third
+  title-bar icon — now two complementary show/hide-right-panel commands
+  per that step's own review findings, so effectively still ~2-3 icon
+  slots — without bundling: VS Code's own "…" `view/title` overflow (not
+  the Command Palette's `when: "false"` hiding, a separate, unrelated
+  concern) already handles more icons than fit on a narrow panel
+  gracefully, so no bundling was needed. A conscious call, not an
+  oversight.)
 - **One generic panel component**, used identically for the left list and
   the right table — same resize handle, same collapse behavior, same
   persisted width — not two different widgets with different mechanics.

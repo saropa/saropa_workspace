@@ -19,8 +19,10 @@
 // select mechanism, so the chips were pure duplication once that landed. The gear button and
 // the temporary right-panel-toggle button that used to sit beside the search group are also
 // gone, replaced by native view/title icons (saropaWorkspace.openSettings,
-// saropaWorkspace.launcher.toggleRightPanel). Search itself was NOT part of that cleanup —
-// see launcherViewShell.ts's header markup comment for why it has no native replacement.
+// saropaWorkspace.launcher.showRightPanel/hideRightPanel — split into a complementary pair so
+// the icon itself reflects the panel's shown/hidden state, a review-flagged accessibility
+// fix). Search itself was NOT part of that cleanup — see launcherViewShell.ts's header markup
+// comment for why it has no native replacement.
 //
 // Layout (the design the launcher earns over a TreeView): the Panel is wide and short, so
 // the surface splits into responsive panes that sit side by side when wide and stack when

@@ -69,8 +69,8 @@ const PANE_ICON: Record<LauncherItem["pane"], string> = {
   mobileRemote: "device-mobile",
 };
 
-// Reuses the exact section-label keys buildHeader()/launcherView.ts's `strings` payload
-// already send to the client (launcher.mineSection etc.) rather than inventing new copy.
+// Reuses the exact section-label keys launcherView.ts's `strings` payload already sends to
+// the client (launcher.mineSection etc.) rather than inventing new copy.
 const PANE_LABEL_KEY: Record<LauncherItem["pane"], string> = {
   mine: "launcher.mineSection",
   recipes: "launcher.recipesSection",
@@ -81,9 +81,10 @@ const PANE_LABEL_KEY: Record<LauncherItem["pane"], string> = {
   mobileRemote: "launcher.mobileRemoteSection",
 };
 
-// How many items file under one pane. Extracted so buildHeader() (launcherViewData.ts) and
-// buildCategoryList() below share the one counting implementation instead of each keeping its
-// own copy of the same `items.reduce` loop.
+// How many items file under one pane. Extracted as its own function so it stays a single,
+// separately-testable unit of the same `items.reduce` shape rather than inlined into
+// buildCategoryList() below — its only production caller since build order step 7 removed
+// buildHeader()'s (launcherViewData.ts) own former per-pane counting.
 export function countItemsByPane(
   items: readonly LauncherItem[],
   pane: LauncherItem["pane"]
@@ -98,12 +99,17 @@ export function countItemsByPane(
 // information rather than something to hide.
 //
 // Judgment call (review finding, build-order step 3): these counts are the host's raw truth
-// (every item that files under a pane, full stop) — unaffected by search, unlike the header's
-// own search-result count badge (applyFilter(), launcherScriptRender.ts), which narrows to
-// whatever currently matches the search text. Build order step 7 removed the header hide/show
-// chips that used to be a second source of disagreement between the two counts (a chip toggled
-// off used to make the header undercount relative to this list); search is now the only
-// remaining reason the two can differ, and that was already true before step 7.
+// (every item that files under a pane, full stop) — unaffected by either an active search or
+// the left panel's own current selection, unlike the header's own search-result count badge
+// (applyFilter(), launcherScriptRender.ts). That badge counts only cards actually in the DOM,
+// which render() (launcherScriptRender.ts) narrows to just the selected category via
+// visibleItems() (launcherScriptCore.ts) before ever building the pane model — so selecting,
+// say, "Notes (3)" here makes the header badge read "3" while this list's own "All" row still
+// reads the full total. Two still-live reasons the two counts can differ, not one: a specific
+// left-panel category selection, and an active search. Build order step 7 only removed a
+// THIRD, now-gone reason (the header's own hide/show chips, which used to let a toggled-off
+// pane undercount relative to this list) — do not "fix" this as a bug without re-reading this
+// comment first.
 export function buildCategoryList(items: readonly LauncherItem[]): LauncherCategoryEntry[] {
   const entries: LauncherCategoryEntry[] = [
     { id: "all", label: l10n("launcher.allCategory"), count: items.length, icon: "list-flat" },

@@ -55,11 +55,12 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
     </div>
     <!-- The gear button and the right-panel toggle button that used to live here (build
          order step 1/5) are gone — build order step 7 removed them once their native
-         view/title replacements (saropaWorkspace.openSettings, saropaWorkspace.
-         launcher.toggleRightPanel) fully took over reaching settings and the right panel
+         view/title replacements (saropaWorkspace.openSettings, saropaWorkspace.launcher.
+         showRightPanel/hideRightPanel) fully took over reaching settings and the right panel
          from VS Code's own panel chrome. Search stays: unlike those two, it has no native
          view/title replacement (a webview title-bar icon cannot host a free-text <input>),
-         so it remains this header's only always-visible element. -->
+         so it remains this header's only interactive element (the project name/version
+         block above is always-visible too, but is not interactive). -->
     <div class="search">
       <span class="codicon codicon-search"></span>
       <input id="q" type="text" spellcheck="false" aria-label="${l10n("launcher.searchPlaceholder")}" />

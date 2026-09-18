@@ -12,7 +12,6 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
   const card = document.createElement('div');
   card.className = 'card';
   card.dataset.pane = it.pane;
-  if (it.scheduled) { card.dataset.scheduled = 'true'; }
   card.style.setProperty('--card-tint', cssVar(it.color, tintHexes[it.color]));
   card.dataset.hay = (it.label + ' ' + it.sub + ' ' + (it.desc || '') + ' ' + it.section).toLowerCase();
 

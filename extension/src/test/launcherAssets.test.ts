@@ -339,7 +339,8 @@ test("LAUNCHER_STYLE/LAUNCHER_SCRIPT: the header stat chips and their buttons ar
 
 test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", () => {
   // The host posts { project, version, stats }; renderHeader writes the name, version chip,
-  // and per-pane counts. Both the call from the data handler and the function must persist.
+  // and the (now purely informational, no per-pane counts) stats. Both the call from the
+  // data handler and the function must persist.
   assert.ok(LAUNCHER_SCRIPT.includes("renderHeader(msg.header)"));
   assert.ok(LAUNCHER_SCRIPT.includes("function renderHeader"));
   // The header text is set via textContent, never innerHTML — the no-innerHTML test already

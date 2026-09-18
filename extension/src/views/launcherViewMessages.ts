@@ -79,9 +79,24 @@ export async function handleLauncherMessage(
     pane?: string;
     groupId?: string;
     targetId?: string;
+    visible?: boolean;
   };
   if (msg.type === "ready") {
     await ctx.post();
+    return;
+  }
+  if (msg.type === "rightPanelVisibility" && typeof msg.visible === "boolean") {
+    // The webview posts this both right after togglePanel('right') runs and once at its own
+    // boot (launcherScriptSplit.ts) so the icon reflects the true state — including the
+    // right-panel-hidden-by-default posture — even before the user ever clicks it. This is
+    // the accessibility fix a review flagged: the old single toggleRightPanel icon never
+    // announced whether the panel was shown or hidden, since panel visibility lives entirely
+    // client-side and the host previously had no way to know it.
+    await vscode.commands.executeCommand(
+      "setContext",
+      "saropaWorkspace.launcher.rightPanelVisible",
+      msg.visible
+    );
     return;
   }
   if (msg.type === "openFolder") {

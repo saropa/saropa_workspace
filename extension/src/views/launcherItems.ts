@@ -62,8 +62,7 @@ export interface LauncherItem {
   readonly kind: string;
   // Whether this card is a live scheduled ritual — a stored shortcut whose schedule is
   // switched on (schedule.enabled === true), the same signal the header's "scheduled" count
-  // and the status bar arm off. Read by makeCard() (launcherScriptCards.ts) to mark the
-  // card's dataset for its own styling — it is informational only, not a filter; the left
+  // and the status bar arm off. It is informational only, not a filter; the left
   // panel/header carry no "narrow to scheduled" control. Only "mine" shortcuts can be
   // scheduled; recipes seed a disabled schedule, and watch/file cards have no schedule, so
   // it is false for them.

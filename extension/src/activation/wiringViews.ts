@@ -221,9 +221,16 @@ function setupLauncherPanel(
       launcher.cycleSort()
     ),
     // The native view/title "toggle right panel" icon (PLAN_Launcher_Restructure.md build
-    // order step 7), replacing the header's own removed TEMPORARY button. Same closure
-    // pattern as cycleSort above.
-    vscode.commands.registerCommand("saropaWorkspace.launcher.toggleRightPanel", () =>
+    // order step 7), replacing the header's own removed TEMPORARY button. Split into two
+    // commands (review finding: the single-icon version had no state indication) so
+    // package.json can swap the icon via complementary `when` clauses on the
+    // saropaWorkspace.launcher.rightPanelVisible context key — mirroring
+    // filterPins/filterPinsActive's pattern. Both call the same host method: the icon swap
+    // is purely a package.json/context-key concern, not a behavior difference.
+    vscode.commands.registerCommand("saropaWorkspace.launcher.showRightPanel", () =>
+      launcher.toggleRightPanel()
+    ),
+    vscode.commands.registerCommand("saropaWorkspace.launcher.hideRightPanel", () =>
       launcher.toggleRightPanel()
     )
   );

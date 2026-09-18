@@ -173,7 +173,11 @@ export function buildHeader(
   // "Scheduled" means a live ritual: a stored shortcut whose schedule is switched ON
   // (schedule.enabled === true). Scheduled cards live inside "mine", so this has no pane of
   // its own and the left panel has nowhere to show it — it stays here as a plain
-  // informational stat. With nothing enabled the count is 0 and the stat is omitted.
+  // informational stat. With nothing enabled the count is 0 and the stat is omitted —
+  // deliberately: `stats` (and so the header's whole meta line, once no version is detected
+  // either) can end up empty, and that is treated as acceptable design rather than a bug to
+  // patch with a filler stat — there is nothing else generically true of every project worth
+  // manufacturing a count for.
   const scheduledRituals = [
     ...store.getProjectShortcuts(),
     ...store.getGlobalShortcuts(),

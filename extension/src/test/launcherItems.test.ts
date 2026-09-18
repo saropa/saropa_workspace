@@ -328,9 +328,9 @@ test("a recipe's menu offers Pin and Schedule (adopt-then-schedule)", () => {
 });
 
 test("a shortcut with an enabled schedule is flagged scheduled; a disabled or absent one is not", () => {
-  // The scheduled flag drives the header's informational "scheduled" count and the card's
-  // data-scheduled attribute. It must be true only when the schedule is actually switched on
-  // — the same enabled === true signal the scheduler and status bar arm off.
+  // The scheduled flag drives the header's informational "scheduled" count. It must be true
+  // only when the schedule is actually switched on — the same enabled === true signal the
+  // scheduler and status bar arm off.
   const items = buildLauncherItems(
     asStore({
       ...empty,

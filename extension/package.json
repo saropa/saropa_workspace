@@ -766,10 +766,16 @@
         "icon": "$(list-unordered)"
       },
       {
-        "command": "saropaWorkspace.launcher.toggleRightPanel",
-        "title": "%command.launcherToggleRightPanel.title%",
+        "command": "saropaWorkspace.launcher.showRightPanel",
+        "title": "%command.launcherShowRightPanel.title%",
         "category": "%extension.displayName%",
         "icon": "$(layout-sidebar-right)"
+      },
+      {
+        "command": "saropaWorkspace.launcher.hideRightPanel",
+        "title": "%command.launcherHideRightPanel.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(layout-sidebar-right-off)"
       },
       {
         "command": "saropaWorkspace.showLauncher",
@@ -1690,8 +1696,13 @@
           "group": "navigation@2"
         },
         {
-          "command": "saropaWorkspace.launcher.toggleRightPanel",
-          "when": "view == saropaWorkspace.launcher",
+          "command": "saropaWorkspace.launcher.showRightPanel",
+          "when": "view == saropaWorkspace.launcher && !saropaWorkspace.launcher.rightPanelVisible",
+          "group": "navigation@3"
+        },
+        {
+          "command": "saropaWorkspace.launcher.hideRightPanel",
+          "when": "view == saropaWorkspace.launcher && saropaWorkspace.launcher.rightPanelVisible",
           "group": "navigation@3"
         }
       ],
@@ -2294,7 +2305,11 @@
           "when": "false"
         },
         {
-          "command": "saropaWorkspace.launcher.toggleRightPanel",
+          "command": "saropaWorkspace.launcher.showRightPanel",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.hideRightPanel",
           "when": "false"
         }
       ]
