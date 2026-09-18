@@ -337,6 +337,46 @@ test("LAUNCHER_STYLE/LAUNCHER_SCRIPT: the header stat chips and their buttons ar
   );
 });
 
+// Extracts the `else if (msg && msg.type === 'toggleRightPanel') { ... }` branch body out of
+// LAUNCHER_SCRIPT_MENU by brace-counting from the branch's own opening `{`, mirroring
+// extractInputHandlerStatement's technique below (same brace-counting rationale: a nested
+// `{}` inside the branch must not be mistaken for its close).
+function extractToggleRightPanelBranch(script: string): string {
+  const marker = "msg.type === 'toggleRightPanel') {";
+  const start = script.indexOf(marker);
+  assert.ok(start !== -1, "expected a 'toggleRightPanel' message branch");
+  let depth = 0;
+  let i = start + marker.length - 1; // index of the branch's opening '{'
+  for (; i < script.length; i++) {
+    if (script[i] === "{") { depth++; }
+    else if (script[i] === "}") {
+      depth--;
+      if (depth === 0) { break; }
+    }
+  }
+  assert.ok(depth === 0, "expected the 'toggleRightPanel' branch to close");
+  return script.slice(start + marker.length, i);
+}
+
+test("LAUNCHER_SCRIPT: the 'toggleRightPanel' message branch actually calls togglePanel('right')", () => {
+  // Strengthens the previous plain substring check above (which only verified the string
+  // 'toggleRightPanel' appears somewhere in the script, not that its handler branch reaches
+  // togglePanel) by evaluating the branch body with togglePanel replaced by a spy — same
+  // `new Function`-eval idiom this suite already uses for the search-input handler
+  // (runInputHandler above).
+  const body = extractToggleRightPanelBranch(LAUNCHER_SCRIPT_MENU);
+  const calls: string[] = [];
+  const factory = new Function(
+    "calls",
+    `
+    function togglePanel(id) { calls.push('togglePanel:' + id); }
+    ${body}
+    `
+  );
+  factory(calls);
+  assert.deepEqual(calls, ["togglePanel:right"]);
+});
+
 test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", () => {
   // The host posts { project, version, stats }; renderHeader writes the name, version chip,
   // and the (now purely informational, no per-pane counts) stats. Both the call from the

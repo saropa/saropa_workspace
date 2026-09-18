@@ -172,3 +172,37 @@ into this rework.
    adapter, the widened pane union's exhaustiveness); manual verification
    of resize/collapse/persist behavior (not unit-testable — no split-view
    test harness in this codebase).
+
+## Manual verification checklist (build order step 8)
+
+Resize/collapse/persist behavior has no split-view test harness in this
+codebase (see step 8 above), so run these by hand in a real VS Code window
+before this ships:
+
+- [ ] Drag-resize the left panel and the right panel independently; reload
+      the window and confirm each panel reopens at the width it was left
+      at.
+- [ ] Collapse the left panel via its drag-handle, then via the right
+      panel's native show/hide title-bar icon; reload and confirm
+      collapsed state persists for both panels independently.
+- [ ] Expand a collapsed panel back out via drag-handle and confirm it
+      snaps back to its last persisted width, not the default.
+- [ ] Select each left-panel category in turn (All, Shortcuts, Recipes,
+      Watches, Files, Scripts, Notes, Mobile Remote Control) and confirm
+      the center grid renders only that category's cards (or every
+      category, grouped, for All).
+- [ ] With a specific category selected, type into the always-visible
+      search box and confirm the selection resets to All and the results
+      are not scoped to the category that was selected a moment ago.
+- [ ] Run an adb command from a Mobile Remote Control card and confirm it
+      appears at the top of the right panel's run-history list; run it
+      again and confirm the run count increments instead of duplicating
+      the row.
+- [ ] Toggle the right panel's native title-bar icon (show/hide) and
+      confirm the icon itself switches between its "show" and "hide"
+      glyph to match the panel's actual visibility.
+- [ ] Use the native title-bar sort icon with a specific category
+      selected, and again with All selected, and confirm both cases
+      resort the visible cards as expected.
+- [ ] Confirm the native title-bar settings icon opens the same settings
+      the old header's gear used to.

@@ -48,11 +48,14 @@ cspell:disable
 
 ## [Unreleased]
 
-The Launcher panel is being restructured from six competing panes into one flexible, resizable panel layout, with Mobile Remote Control folded in as a category.
+The Launcher panel has been restructured from six competing panes fighting for space into one flexible, resizable layout, with Mobile Remote Control folded in as a category alongside your shortcuts, recipes, watches, files, scripts, and notes.
 
 ### Changed
 
-- Work in progress — entries land here as each piece of the Launcher restructure ships.
+- **Launcher panel restructure**: the Launcher's left side is now a single flat category list — All, plus one entry per category (Shortcuts, Recipes, Watches, Files, Scripts, Notes, and the new Mobile Remote Control) — each showing its own item count. Selecting a category filters the card grid to just that content; selecting All shows everything, grouped. Search is always visible (no longer tucked behind an icon), and typing into it always resets the selection to All, so a search is never silently scoped to whatever category happened to be selected.
+- A new resizable, collapsible right panel lists your recent adb run history (most-recent first, with per-command run counts) — off by default, toggle it from the panel's title bar. Both panels remember their width and collapsed state across reloads.
+- Sort and settings actions moved out of the Launcher's old in-content header and into native title-bar icons (the same chrome VS Code's Shortcuts view already uses), alongside a new show/hide icon for the right panel.
+- Removed the Launcher's old custom header: the per-pane stat toggle chips and settings gear are gone now that the left panel's category list and the native title-bar icons cover the same ground without the visual clutter.
 
 ---
 

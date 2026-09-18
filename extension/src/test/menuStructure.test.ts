@@ -16,11 +16,12 @@ const extensionRoot = path.join(__dirname, "..", "..");
 interface MenuItem {
   command?: string;
   submenu?: string;
+  when?: string;
 }
 
 interface Manifest {
   contributes?: {
-    commands?: Array<{ command: string; title?: string; category?: string }>;
+    commands?: Array<{ command: string; title?: string; category?: string; icon?: string }>;
     submenus?: Array<{ id: string; label: string }>;
     menus?: Record<string, MenuItem[]>;
   };
@@ -136,4 +137,71 @@ test("the four shortcut submenus exist with NLS labels and non-empty items", () 
       `submenu "${id}" has no items`
     );
   }
+});
+
+// Manifest-consistency guard for the Launcher's own native view/title icons
+// (PLAN_Launcher_Restructure.md build order step 5/7): a typo in any of the three manifest
+// locations below (contributes.commands, contributes.menus["view/title"], contributes.menus
+// ["commandPalette"]), or drift from the actual vscode.commands.registerCommand ids in
+// wiringViews.ts/wiringCommands.ts, currently ships silently — VS Code drops a bad reference
+// with no error, same failure mode the other tests in this file already guard against for
+// the shortcut context-menu submenus.
+test("the Launcher's view/title commands are declared, scoped to the Launcher view, and icon'd", () => {
+  const manifest = readManifest();
+  const commands = manifest.contributes?.commands ?? [];
+  const viewTitle = manifest.contributes?.menus?.["view/title"] ?? [];
+  const launcherCommands = [
+    "saropaWorkspace.launcher.cycleSort",
+    "saropaWorkspace.launcher.showRightPanel",
+    "saropaWorkspace.launcher.hideRightPanel",
+    "saropaWorkspace.openSettings",
+  ];
+  for (const command of launcherCommands) {
+    const declared = commands.find((c) => c.command === command);
+    assert.ok(declared, `expected command "${command}" to be declared in contributes.commands`);
+    assert.ok(declared!.icon, `expected command "${command}" to declare an icon`);
+
+    const entry = viewTitle.find(
+      (item) =>
+        item.command === command &&
+        (item.when ?? "").includes("view == saropaWorkspace.launcher")
+    );
+    assert.ok(
+      entry,
+      `expected "${command}" to appear in contributes.menus["view/title"], scoped to ` +
+        `"view == saropaWorkspace.launcher"`
+    );
+  }
+});
+
+test("the Launcher-only view/title commands are hidden from the Command Palette; openSettings is not", () => {
+  // cycleSort/showRightPanel/hideRightPanel only make sense with the Launcher webview's own
+  // client-side state in view (a selected category, current panel visibility) and would be
+  // dead or confusing if run from the palette, so each must carry a "false" when-clause there.
+  // openSettings is deliberately NOT hidden — confirmed by checking its other usages first
+  // (wiringCommands.ts registers it once; it's also wired onto saropaWorkspace.pins's own
+  // view/title, so it's a genuinely global command, not Launcher-scoped) — hiding it from the
+  // palette would also hide its non-Launcher usages.
+  const manifest = readManifest();
+  const commandPalette = manifest.contributes?.menus?.["commandPalette"] ?? [];
+  const hiddenIds = new Set(
+    commandPalette.filter((item) => item.when === "false").map((item) => item.command)
+  );
+
+  for (const command of [
+    "saropaWorkspace.launcher.cycleSort",
+    "saropaWorkspace.launcher.showRightPanel",
+    "saropaWorkspace.launcher.hideRightPanel",
+  ]) {
+    assert.ok(
+      hiddenIds.has(command),
+      `expected "${command}" to be hidden from the Command Palette via when: "false"`
+    );
+  }
+
+  assert.ok(
+    !hiddenIds.has("saropaWorkspace.openSettings"),
+    "openSettings is a genuinely global command (also used on saropaWorkspace.pins's " +
+      "view/title) and must stay visible in the Command Palette"
+  );
 });
