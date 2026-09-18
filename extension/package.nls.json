@@ -138,6 +138,7 @@
   "command.exitFocusPinnedFiles.title": "Exit Focus on Shortcut Files",
   "command.showLauncher.title": "Show Launcher Panel",
   "command.launcherCycleSort.title": "Cycle Sort (Selected Category)",
+  "command.launcherToggleRightPanel.title": "Toggle Run History Panel",
   "command.showOutput.title": "Show Output",
   "command.addGroup.title": "New Group...",
   "command.renameGroup.title": "Rename Group...",

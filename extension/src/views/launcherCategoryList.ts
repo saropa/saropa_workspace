@@ -42,8 +42,9 @@ export const LAUNCHER_PANE_ORDER = [
   "mobileRemote",
 ] as const satisfies readonly LauncherItem["pane"][];
 
-// Compile-time exhaustiveness guard for LAUNCHER_PANE_ORDER, mirroring EVERY_PANE_HAS_AN_ENTRY
-// (launcherViewData.ts) but for an array rather than a Record. `T[number]` is the union of
+// Compile-time exhaustiveness guard for LAUNCHER_PANE_ORDER, in the same spirit as the
+// Record-typed PANE_ICON/PANE_LABEL_KEY below (a Record naturally enforces this; an array
+// does not, hence this separate guard). `T[number]` is the union of
 // LAUNCHER_PANE_ORDER's own literal elements (preserved by the `as const` above); if a
 // widened LauncherItem["pane"] member is ever missing from the array, that union stops
 // equaling the full pane union, `LauncherItem["pane"] extends T[number]` becomes `false`, and
@@ -54,8 +55,10 @@ type EveryPaneCovered<T extends readonly LauncherItem["pane"][]> =
 const _paneOrderCoversEveryPane: EveryPaneCovered<typeof LAUNCHER_PANE_ORDER> = true;
 void _paneOrderCoversEveryPane;
 
-// Section glyphs mirror the header's own per-pane stat icons (buildHeader, in
-// launcherViewData.ts) so a left-panel row and its header chip read as the same category.
+// Section glyphs mirror paneModel()'s own per-pane icons (launcher/launcherScriptCore.ts) so
+// a left-panel row and its center-grid pane read as the same category. (Build order step 7
+// removed the header's own per-pane stat chips, which used to be the other thing these
+// mirrored — see launcherViewData.ts's buildHeader() for that removal.)
 const PANE_ICON: Record<LauncherItem["pane"], string> = {
   mine: "star-full",
   recipes: "lightbulb",
@@ -94,14 +97,13 @@ export function countItemsByPane(
 // noise), this list is a navigation aid, and a 0 count ("Scripts (0)") is still useful
 // information rather than something to hide.
 //
-// Judgment call (review finding, build-order step 3): these counts are the host's raw,
-// pre-chip-filtering truth (every item that files under a pane, full stop). The header's own
-// count badge (applyFilter(), launcherScriptRender.ts) counts only chip-visible cards, so
-// with a header hide/show chip toggled off the two CAN legitimately disagree (e.g. left panel
-// "All 57" vs. header "9") — that is intentional, not a bug: this list answers "how much is
-// there", the header answers "how much am I currently showing". Documented at both counting
-// sites (see applyFilter()'s matching comment) so the discrepancy reads as a deliberate
-// choice rather than an oversight.
+// Judgment call (review finding, build-order step 3): these counts are the host's raw truth
+// (every item that files under a pane, full stop) — unaffected by search, unlike the header's
+// own search-result count badge (applyFilter(), launcherScriptRender.ts), which narrows to
+// whatever currently matches the search text. Build order step 7 removed the header hide/show
+// chips that used to be a second source of disagreement between the two counts (a chip toggled
+// off used to make the header undercount relative to this list); search is now the only
+// remaining reason the two can differ, and that was already true before step 7.
 export function buildCategoryList(items: readonly LauncherItem[]): LauncherCategoryEntry[] {
   const entries: LauncherCategoryEntry[] = [
     { id: "all", label: l10n("launcher.allCategory"), count: items.length, icon: "list-flat" },

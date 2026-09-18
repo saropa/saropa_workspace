@@ -53,15 +53,18 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
       <div id="projName" class="project-name${noProject ? " no-project" : ""}">${projectName}</div>
       <div id="projMeta" class="project-meta"><span class="meta-item loading"><span class="codicon codicon-loading codicon-modifier-spin"></span><span>${l10n("launcher.loading")}</span></span></div>
     </div>
-    <button id="settingsBtn" class="hdr-btn" type="button" title="${l10n("settings.title")}"><span class="codicon codicon-settings-gear"></span></button>
+    <!-- The gear button and the right-panel toggle button that used to live here (build
+         order step 1/5) are gone — build order step 7 removed them once their native
+         view/title replacements (saropaWorkspace.openSettings, saropaWorkspace.
+         launcher.toggleRightPanel) fully took over reaching settings and the right panel
+         from VS Code's own panel chrome. Search stays: unlike those two, it has no native
+         view/title replacement (a webview title-bar icon cannot host a free-text <input>),
+         so it remains this header's only always-visible element. -->
     <div class="search">
       <span class="codicon codicon-search"></span>
       <input id="q" type="text" spellcheck="false" aria-label="${l10n("launcher.searchPlaceholder")}" />
       <span id="count" class="count"></span>
     </div>
-    <!-- TEMPORARY, testing only: a later step adds the real view/title icon for this
-         (see plans/PLAN_Launcher_Restructure.md build order step 5/7); remove then. -->
-    <button id="rightPanelToggleBtn" class="hdr-btn" type="button" aria-pressed="false" title="${l10n("launcher.toggleRightPanelTemp")}"><span class="codicon codicon-layout-sidebar-right"></span></button>
   </div>
 </header>
 <div class="split">

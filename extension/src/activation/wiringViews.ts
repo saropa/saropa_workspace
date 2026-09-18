@@ -219,6 +219,12 @@ function setupLauncherPanel(
     // registered here has no other way to reach a specific WebviewViewProvider instance.
     vscode.commands.registerCommand("saropaWorkspace.launcher.cycleSort", () =>
       launcher.cycleSort()
+    ),
+    // The native view/title "toggle right panel" icon (PLAN_Launcher_Restructure.md build
+    // order step 7), replacing the header's own removed TEMPORARY button. Same closure
+    // pattern as cycleSort above.
+    vscode.commands.registerCommand("saropaWorkspace.launcher.toggleRightPanel", () =>
+      launcher.toggleRightPanel()
     )
   );
 }

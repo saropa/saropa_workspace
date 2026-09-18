@@ -190,6 +190,16 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     void this.view?.webview.postMessage({ type: "cycleSort" });
   }
 
+  // Build-order step 7 (PLAN_Launcher_Restructure.md): the native view/title "toggle right
+  // panel" icon's implementation, replacing the header's own TEMPORARY button (see that
+  // button's removed comment, and step 5's own note that no native replacement had been
+  // built for it yet). Right-panel visibility lives entirely inside the webview
+  // (store.panels in launcherScriptSplit.ts), so — exactly like cycleSort() above — the host
+  // has nothing to compute here; it only nudges the webview to act.
+  toggleRightPanel(): void {
+    void this.view?.webview.postMessage({ type: "toggleRightPanel" });
+  }
+
   // Push the current item set + UI strings to the webview. No-op until the view is
   // resolved. Async because the project-files scan does a handful of file stats (the same
   // scan the tree does); the watch + shortcut data is in-memory. The scan runs ONCE here
@@ -238,7 +248,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       type: "data",
       items,
       tintHexes: resolveTintHexes(),
-      header: buildHeader(this.store, files, items),
+      header: buildHeader(this.store, files),
       // Feeds the left panel's category list (PLAN_Launcher_Restructure.md build order
       // step 3). Sent as its own small field rather than derived client-side from `items`:
       // the header's own per-pane counts (above) omit empty panes and are not in canonical
@@ -282,7 +292,6 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         sortAsc: l10n("launcher.sortAsc"),
         sortDesc: l10n("launcher.sortDesc"),
         sortGrouped: l10n("launcher.sortGrouped"),
-        showAll: l10n("launcher.showAll"),
         // {n} / {shown} / {total} stay literal here: the webview substitutes the live
         // counts, so these are fetched without l10n params.
         count: l10n("launcher.count"),

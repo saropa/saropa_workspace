@@ -149,9 +149,18 @@ into this rework.
 6. Build the right panel's adb run-history list from `adbRunHistory`'s
    existing recency/count data (no existing rendered table turned out to
    exist to reuse — see the "Right panel" bullet above).
-7. Remove the now-redundant custom header decoration (stat chips, gear,
-   search icon+box, star icon) once its functions have moved into the
-   left panel / title bar.
+7. Remove the now-redundant custom header decoration (stat chips, gear)
+   once its functions have moved into the left panel / title bar. Direct
+   investigation at build time found the other two items originally listed
+   here were stale: the search box has no native `view/title` replacement
+   (a webview title-bar icon cannot host a free-text `<input>` — see the
+   "Title bar" bullet above, confirmed during step 4's own build) and stays
+   exactly where it is; and the current header markup carries no decorative
+   star icon to remove — the only `star-full` glyph in the codebase is the
+   functional "mine"/Shortcuts pane icon, not header decoration (it may have
+   been removed already by unrelated prior work, e.g. the 1.10.0 "Customize
+   panel" changes — see CHANGELOG.md). See launcherAssets.ts's/
+   launcherViewShell.ts's own comments for the full correction.
 8. Tests for every new pure function (category list builder, the adb
    adapter, the widened pane union's exhaustiveness); manual verification
    of resize/collapse/persist behavior (not unit-testable — no split-view

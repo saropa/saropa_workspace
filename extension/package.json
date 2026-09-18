@@ -766,6 +766,12 @@
         "icon": "$(list-unordered)"
       },
       {
+        "command": "saropaWorkspace.launcher.toggleRightPanel",
+        "title": "%command.launcherToggleRightPanel.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(layout-sidebar-right)"
+      },
+      {
         "command": "saropaWorkspace.showLauncher",
         "title": "%command.showLauncher.title%",
         "category": "%extension.displayName%",
@@ -1682,6 +1688,11 @@
           "command": "saropaWorkspace.openSettings",
           "when": "view == saropaWorkspace.launcher",
           "group": "navigation@2"
+        },
+        {
+          "command": "saropaWorkspace.launcher.toggleRightPanel",
+          "when": "view == saropaWorkspace.launcher",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -2280,6 +2291,10 @@
         },
         {
           "command": "saropaWorkspace.launcher.cycleSort",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.toggleRightPanel",
           "when": "false"
         }
       ]

@@ -18,30 +18,13 @@ let items = [];
 let categories = [];
 var tintHexes = {};
 let activeMenu = null;
-// Which panes the user has toggled off via the header stat chips. Persisted across reloads
-// so toggled-off sections stay hidden. Each key is a pane id; presence means hidden.
-function hiddenPanes() { return store.hidden || {}; }
-function isPaneHidden(pane) { return !!hiddenPanes()[pane]; }
-function hasHiddenPanes() {
-  const h = hiddenPanes();
-  for (var k in h) { if (h[k]) { return true; } }
-  return false;
-}
-function setPaneHidden(pane, hidden) {
-  store.hidden = store.hidden || {};
-  if (hidden) { store.hidden[pane] = true; } else { delete store.hidden[pane]; }
-  vscode.setState(store);
-}
-function resetHiddenPanes() {
-  store.hidden = {};
-  vscode.setState(store);
-}
 
 // The left panel's selected category: a pane id, or 'all' (the default — everything, grouped
-// by category). Persisted the same way as hiddenPanes/store.hidden above. Selecting a
-// specific category filters the center grid to just that pane's own groups (see
-// visibleItems()/render() in launcherScriptRender.ts); it does NOT flatten a grouped pane's
-// sub-groups (e.g. Mobile Remote Control's Connection/App control/... groups still show).
+// by category). Persisted via vscode.setState()/store, same as everything else in this
+// module's persisted store object. Selecting a specific category filters the center grid to
+// just that pane's own groups (see visibleItems()/render() in launcherScriptRender.ts); it
+// does NOT flatten a grouped pane's sub-groups (e.g. Mobile Remote Control's Connection/App
+// control/... groups still show).
 function selectedCategory() { return store.category || 'all'; }
 function setSelectedCategory(id) {
   if (id === 'all') { delete store.category; } else { store.category = id; }
@@ -187,93 +170,38 @@ function codicon(id) {
 
 // Fill the header's leading block from the host-built header object. The project name was
 // already painted in the initial HTML; re-applying it here keeps it correct when the open
-// folder changes. The version + counts are the asynchronous facets (they need the disk
+// folder changes. The version + stats are the asynchronous facets (they need the disk
 // scan), so they arrive only now and replace any prior meta line. Every label is
 // host-localized text set via textContent — the script holds no display strings.
+//
+// Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stat CHIPS this
+// used to also paint (each stat was a show/hide toggle button, with its own hidden-state
+// machine and a syncResetBtn()/syncCategoryChips() sync dance) — the left panel's category
+// list (step 3) already shows the same per-category counts via a strictly better single-
+// select mechanism, so the chips were pure duplication once that landed. What buildHeader()
+// still sends is plain informational stats (e.g. scheduled rituals, which the left panel
+// does not surface), rendered as inert spans below.
 function renderHeader(h) {
   if (!h) { return; }
   if (typeof h.project === 'string' && h.project) { projName.textContent = h.project; }
   projName.classList.toggle('no-project', !!h.noProject);
   projMeta.textContent = '';
-  if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true, null)); }
+  if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true)); }
   const stats = Array.isArray(h.stats) ? h.stats : [];
-  for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false, s.pane)); }
-  syncResetBtn();
-  syncCategoryChips();
+  for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false)); }
 }
 
-function syncResetBtn() {
-  var existing = projMeta.querySelector('.meta-reset');
-  if (hasHiddenPanes()) {
-    if (!existing) {
-      var btn = document.createElement('button');
-      btn.className = 'meta-item meta-reset';
-      btn.type = 'button';
-      btn.title = strings.showAll || 'Show all sections';
-      btn.appendChild(codicon('eye'));
-      btn.addEventListener('click', function () {
-        resetHiddenPanes();
-        for (var chip of projMeta.querySelectorAll('.meta-item.toggle')) {
-          chip.classList.remove('off');
-        }
-        applyFilter();
-        syncResetBtn();
-      });
-      projMeta.appendChild(btn);
-    }
-  } else if (existing) {
-    existing.remove();
-  }
-}
-
-function metaItem(icon, text, isVersion, pane) {
-  const el = document.createElement(pane ? 'button' : 'span');
+// A plain informational entry on the project meta line (an icon + a text value). No longer
+// ever interactive — see renderHeader()'s own comment for why the toggle-chip variant this
+// used to also build was removed.
+function metaItem(icon, text, isVersion) {
+  const el = document.createElement('span');
   el.className = isVersion ? 'meta-item version' : 'meta-item';
-  if (pane) {
-    el.classList.add('toggle');
-    el.type = 'button';
-    el.dataset.pane = pane;
-    if (isPaneHidden(pane)) { el.classList.add('off'); }
-    // Disabled up front when a specific category is already selected at (re)paint time — see
-    // syncCategoryChips() for why, and for how this stays in sync afterward as the selection
-    // changes without a header repaint.
-    if (selectedCategory() !== 'all') {
-      el.disabled = true;
-      el.classList.add('inactive');
-    }
-    el.addEventListener('click', function () {
-      const nowHidden = !isPaneHidden(pane);
-      setPaneHidden(pane, nowHidden);
-      el.classList.toggle('off', nowHidden);
-      applyFilter();
-      syncResetBtn();
-    });
-  }
   el.appendChild(codicon(icon));
   const t = document.createElement('span');
   t.textContent = text;
   el.appendChild(t);
   return el;
-}
-
-// Keeps the header's hide/show chips in sync with the left-panel category selection. While a
-// specific category is selected, the center grid already shows only that one pane
-// (visibleItems()/render()), so a chip toggle has zero visible effect until "All" is
-// reselected — but the chip itself stayed fully clickable and could still flip to its dimmed
-// ".off" look, which reads as a live control with an invisible, delayed effect (review
-// finding, build-order step 3). Disabling the buttons here also blocks metaItem()'s own click
-// handler for free, so no separate guard is needed there. Uses a distinct ".inactive" class
-// rather than reusing ".off" (which already means "this pane is hidden" and must stay
-// independent — a pane can be both hidden AND, separately, inactive because a category other
-// than its own is selected). Called from render() (after resolveSelectedCategory() settles
-// the selection for this pass), from the category row click handler, and from renderHeader()
-// (a fresh header repaint needs the same sync metaItem() applies at creation time).
-function syncCategoryChips() {
-  const allSelected = selectedCategory() === 'all';
-  for (const chip of projMeta.querySelectorAll('.meta-item.toggle')) {
-    chip.disabled = !allSelected;
-    chip.classList.toggle('inactive', !allSelected);
-  }
 }
 
 // Group the flat item list into panes in fixed order: mine, recipes, watches, files, scripts,
@@ -313,8 +241,8 @@ function paneModel(list) {
   const filesPane = fileGroups.length > 1
     ? { id: 'files', icon: 'files', title: files.title, flat: false, groups: fileGroups }
     : { id: 'files', icon: 'files', title: files.title, flat: true, items: fileGroups[0] ? fileGroups[0].items : [] };
-  // Section glyphs mirror the header filter-chip icons (see buildHeader) so a pane and its
-  // chip read as the same thing.
+  // Section glyphs mirror the left panel's own category icons (PANE_ICON, launcherCategoryList.ts)
+  // so a pane and its left-panel row read as the same thing.
   var noteGroups = groupsOf(notes);
   var notesPane = noteGroups.length > 1
     ? { id: 'notes', icon: 'note', title: notes.title, flat: false, groups: noteGroups }
@@ -357,13 +285,6 @@ function postOpen(it) {
   else if (it.pane === 'files') { vscode.postMessage({ type: 'openFile', path: it.id }); }
   else if (it.pane === 'notes') { vscode.postMessage({ type: 'openNote', path: it.id }); }
   else { vscode.postMessage({ type: 'open', id: it.id }); }
-}
-
-var settingsBtn = document.getElementById('settingsBtn');
-if (settingsBtn) {
-  settingsBtn.addEventListener('click', function () {
-    vscode.postMessage({ type: 'openSettings' });
-  });
 }
 
 if (projName) {

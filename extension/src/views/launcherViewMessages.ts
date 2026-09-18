@@ -84,10 +84,6 @@ export async function handleLauncherMessage(
     await ctx.post();
     return;
   }
-  if (msg.type === "openSettings") {
-    await vscode.commands.executeCommand("saropaWorkspace.openSettings");
-    return;
-  }
   if (msg.type === "openFolder") {
     await handleOpenFolder(ctx);
     return;

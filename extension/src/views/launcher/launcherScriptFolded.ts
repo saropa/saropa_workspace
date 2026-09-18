@@ -6,8 +6,9 @@
 // not matter.
 //
 // The pane head builder: sort-cycling button for each pane section. Pane visibility is
-// controlled by the header stat chips (see launcherScriptCore); clicking the pane head
-// cycles the sort mode (Grouped → A–Z → Z–A).
+// controlled by the left panel's category selection (launcherScriptRender.ts's render(),
+// build order step 3), not by anything here; clicking the pane head cycles the sort mode
+// (Grouped → A–Z → Z–A).
 export const LAUNCHER_SCRIPT_FOLDED = `function paneCount(pane) {
   if (pane.flat) { return pane.items.length; }
   let n = 0;

@@ -49,17 +49,6 @@ test("LAUNCHER_STYLE: the panes reflow via flex-wrap, not a fixed grid track", (
   assert.ok(panes[0].includes("flex-wrap: wrap"), ".panes must wrap on a narrow Panel");
 });
 
-test("LAUNCHER_STYLE: pane-toggle stat chips have clear on/off styling", () => {
-  assert.ok(
-    /\.meta-item\.toggle\.off\s*\{[^}]*opacity/.test(LAUNCHER_STYLE),
-    "a toggled-off stat chip must dim via opacity"
-  );
-  assert.ok(
-    /\.meta-item\.toggle\s*\{[^}]*cursor:\s*pointer/.test(LAUNCHER_STYLE),
-    "stat toggle chips must be clickable"
-  );
-});
-
 test("LAUNCHER_STYLE: every var() fallback chain terminates in a static keyword", () => {
   // An all-undefined var() chain is invalid at computed-value time, which DROPS the
   // declaration rather than resolving it — so a chain that ends in another var() can leave a
@@ -320,14 +309,31 @@ test("LAUNCHER_STYLE: the project block lays its parts on one row", () => {
   );
 });
 
-test("LAUNCHER_STYLE: a header stat is a clickable toggle chip", () => {
+test("LAUNCHER_STYLE/LAUNCHER_SCRIPT: the header stat chips and their buttons are gone (build order step 7)", () => {
+  // Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stat toggle chips,
+  // the gear button, and the TEMPORARY right-panel-toggle button — the left panel's category
+  // list (step 3) and native view/title icons (steps 5/7) replaced them. Guards a regression
+  // that brings any of this dead machinery back instead of leaving it cleanly removed.
   assert.ok(
-    /\.meta-item\.toggle\s*\{/.test(LAUNCHER_STYLE),
-    ".meta-item.toggle rule must exist so a stat reads as clickable"
+    !/\.meta-item\.toggle\b/.test(LAUNCHER_STYLE),
+    "the .meta-item.toggle stat-chip rule must be gone"
   );
   assert.ok(
-    /\.meta-item\.toggle\.off\s*\{/.test(LAUNCHER_STYLE),
-    ".meta-item.toggle.off rule must exist so a hidden pane's chip is dimmed"
+    !/\.meta-item\.meta-reset\b/.test(LAUNCHER_STYLE),
+    "the .meta-item.meta-reset 'show all sections' rule must be gone"
+  );
+  assert.ok(!/\.hdr-btn\b/.test(LAUNCHER_STYLE), "the .hdr-btn rule must be gone");
+  assert.ok(
+    !LAUNCHER_SCRIPT.includes("settingsBtn"),
+    "the custom header's settings button wiring must be gone"
+  );
+  assert.ok(
+    !LAUNCHER_SCRIPT.includes("rightPanelToggleBtn"),
+    "the TEMPORARY right-panel-toggle button wiring must be gone"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("'toggleRightPanel'"),
+    "the native view/title icon's host->webview nudge must be wired instead"
   );
 });
 
@@ -339,17 +345,6 @@ test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", (
   // The header text is set via textContent, never innerHTML — the no-innerHTML test already
   // guards the file, but the project name/version are untrusted host values too.
   assert.ok(LAUNCHER_SCRIPT.includes("projName.textContent"));
-});
-
-test("LAUNCHER_SCRIPT: a header stat toggles its pane's visibility", () => {
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("isPaneHidden"),
-    "the toggle state must be checked for each pane"
-  );
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("setPaneHidden"),
-    "clicking a stat chip must persist the toggle"
-  );
 });
 
 test("LAUNCHER_SCRIPT: recipe cards expose Pin and Schedule drawer buttons", () => {
@@ -501,13 +496,12 @@ function extractInputHandlerStatement(script: string): string {
 }
 
 // Evaluates the extracted 'input' listener statement with every collaborator it calls
-// (selectedCategory/setSelectedCategory/syncCategorySelection/syncCategoryChips/render/
-// applyFilter) replaced by a spy that records its own name into a shared, ordered array —
-// same `new Function`-eval idiom this suite already uses for client-script fragments (see
-// webviewClientUtils.test.ts's compile() and launcherSplitLogic.test.ts's copy of it), just
-// applied to one statement instead of a whole generator's output. `q` itself is stubbed to
-// just capture the listener function so this can invoke it directly, exactly as the real
-// 'input' DOM event would.
+// (selectedCategory/setSelectedCategory/syncCategorySelection/render/applyFilter) replaced by
+// a spy that records its own name into a shared, ordered array — same `new Function`-eval
+// idiom this suite already uses for client-script fragments (see webviewClientUtils.test.ts's
+// compile() and launcherSplitLogic.test.ts's copy of it), just applied to one statement
+// instead of a whole generator's output. `q` itself is stubbed to just capture the listener
+// function so this can invoke it directly, exactly as the real 'input' DOM event would.
 function runInputHandler(categoryValue: string): string[] {
   const calls: string[] = [];
   const statement = extractInputHandlerStatement(LAUNCHER_SCRIPT_MENU);
@@ -520,7 +514,6 @@ function runInputHandler(categoryValue: string): string[] {
     function selectedCategory() { return categoryValue; }
     function setSelectedCategory(v) { calls.push('setSelectedCategory:' + v); }
     function syncCategorySelection() { calls.push('syncCategorySelection'); }
-    function syncCategoryChips() { calls.push('syncCategoryChips'); }
     function render() { calls.push('render'); }
     function applyFilter() { calls.push('applyFilter'); }
     ${statement}
@@ -536,13 +529,15 @@ test("LAUNCHER_SCRIPT: typing in search while a category is selected resets to '
   // This is the case the previous version of this test could not distinguish from a broken
   // implementation that runs the reset AFTER render() (re-introducing the scoped-search bug):
   // asserting the exact recorded ORDER, not just that each name appears somewhere in the
-  // source, is what actually verifies the fix (finding #3 of the adversarial review).
+  // source, is what actually verifies the fix (finding #3 of the adversarial review). The
+  // sequence dropped its 'syncCategoryChips' step in build order step 7, once the header
+  // chips it used to re-sync were removed entirely.
   const calls = runInputHandler("recipes");
   assert.deepEqual(
     calls,
-    ["setSelectedCategory:all", "syncCategorySelection", "syncCategoryChips", "render"],
-    "must reset to 'all', re-sync the left panel and chips, then render — in that order — and " +
-      "must NOT also call applyFilter() directly (render() is responsible for that internally)"
+    ["setSelectedCategory:all", "syncCategorySelection", "render"],
+    "must reset to 'all', re-sync the left panel, then render — in that order — and must NOT " +
+      "also call applyFilter() directly (render() is responsible for that internally)"
   );
 });
 

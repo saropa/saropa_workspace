@@ -12,8 +12,12 @@
 // markup and PLAN_Launcher_Restructure.md for why one component serves both). Drag-resize
 // is ported from Planner's attachResizer (src/views/planner/plannerScriptCore.ts) — same
 // get/set/min/max/dirX shape, live-apply during drag, persist on release — paired with
-// collapse-to-hidden behavior that does not exist in Planner's version, modeled on this
-// file's own hiddenPanes/isPaneHidden/setPaneHidden idiom (see launcherScriptCore.ts).
+// collapse-to-hidden behavior that does not exist in Planner's version, modeled on the
+// hidden-flag-in-persisted-state idiom launcherScriptCore.ts's own store already used
+// elsewhere (that pane-content idiom, isPaneHidden/setPaneHidden, was later removed by
+// build order step 7 once its purpose — the header toggle chips — was deprecated; this
+// panel's own isPanelHidden/setPanelHidden below are a distinct, still-live mechanism for a
+// different thing — panel visibility, not pane content visibility).
 // Collapsing a panel never touches its stored width; re-showing it restores the last
 // dragged width, never a fixed default. The clamp/default/visibility arithmetic is NOT
 // hand-duplicated here — panelWidthMathJs() generates clampPanelWidth/resolvePanelWidth/
@@ -128,16 +132,4 @@ function attachSplitResizer(handle, id, dirX) {
 attachSplitResizer(document.getElementById('rsz-left'), 'left', 1);
 attachSplitResizer(document.getElementById('rsz-right'), 'right', -1);
 applySplit();
-
-// TEMPORARY, for manual testing only: a later build-order step (see
-// PLAN_Launcher_Restructure.md step 5/7) adds the real view/title icon that toggles the
-// right panel from VS Code's native panel chrome. This button exists only so the collapse/
-// expand behavior is exercisable before that lands, and should be removed once it does.
-var rightPanelToggleBtn = document.getElementById('rightPanelToggleBtn');
-if (rightPanelToggleBtn) {
-  rightPanelToggleBtn.addEventListener('click', function () {
-    togglePanel('right');
-    rightPanelToggleBtn.setAttribute('aria-pressed', String(!isPanelHidden('right')));
-  });
-}
 `;

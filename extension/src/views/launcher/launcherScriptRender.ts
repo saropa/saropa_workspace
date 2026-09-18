@@ -42,7 +42,6 @@ function makeCategoryRow(entry) {
     // category click, so clearing it is the simplest rule that closes the gap.
     if (q.value !== '') { q.value = ''; }
     syncCategorySelection();
-    syncCategoryChips();
     render();
   });
   return row;
@@ -222,9 +221,8 @@ function render() {
   // comment. Without this, selecting such a category would leave every pane empty/hidden with
   // #empty never shown either (items.length, checked below, stays > 0), i.e. a silently blank
   // center that survives reload via the persisted store.
-  const cat = resolveSelectedCategory();
+  resolveSelectedCategory();
   syncCategorySelection();
-  syncCategoryChips();
   // Left-panel category selection narrows which items paneModel ever sees (visibleItems()),
   // so a specific category's own pane is the only one with any items — every other pane
   // renders as empty and is hidden by the isEmpty check just below, with no change to
@@ -239,18 +237,7 @@ function render() {
 
     const flatItems = pane.flat ? pane.items : null;
     const isEmpty = pane.flat ? flatItems.length === 0 : pane.groups.length === 0;
-    // The per-pane hide/show header chip (isPaneHidden) only applies while "All" is
-    // selected. Judgment call (documented per the plan): a left-panel category selection
-    // takes precedence over that chip — picking "Notes" always shows Notes, even if its
-    // chip was previously toggled off from the "All" view — so the two controls never fight
-    // each other over the one pane a specific selection can even show.
-    // This initial paint does not need its own !searching guard (unlike applyFilter()'s
-    // chipsActive, see finding #1's fix there): render() runs once per category/data change,
-    // not per keystroke, and applyFilter() — called unconditionally at the end of this
-    // function — immediately recomputes every pane's 'hidden' class from scratch afterward, so
-    // whatever this line sets here is never the last word.
-    const chipHidden = cat === 'all' && isPaneHidden(pane.id);
-    if (isEmpty || chipHidden) { paneEl.classList.add('hidden'); }
+    if (isEmpty) { paneEl.classList.add('hidden'); }
 
     paneEl.appendChild(makePaneHead(pane, paneEl));
 
@@ -283,58 +270,25 @@ function applyFilter() {
   const needle = q.value.trim().toLowerCase();
   const searching = needle !== '';
   root.classList.toggle('searching', searching);
-  const hidden = hiddenPanes();
-  // See render()'s own comment: the hide/show chip only governs visibility while "All" is
-  // selected. Only cards from the selected pane are even in the DOM once a specific category
-  // is picked (render() only builds panes from visibleItems()), so this simply keeps that
-  // pane's chip state from hiding the very cards the left panel was just asked to show.
-  //
-  // Partially resolved in build-order step 4 (was an accepted interim limitation in step 3):
-  // the search box's own 'input' handler (launcherScriptMenu.ts) forces the selection back to
-  // "all" (mirroring the "All" row's own click handler) before calling render()/applyFilter()
-  // whenever typing happens while a specific category was selected — so typing never lands on a
-  // stale non-'all' selectedCategory(). That does NOT, by itself, make chip-hidden panes safe
-  // during a search: applyFilter() also runs from render() while "all" IS already selected (the
-  // ordinary per-keystroke path once the reset above has already fired, and every non-search
-  // render), so a chip toggled off from a prior "All" view would otherwise still swallow
-  // matching cards mid-search — the exact bug (finding #1) this line's !searching guard
-  // closes: a search in progress is never additionally scoped by a persisted chip, regardless
-  // of which category is nominally selected.
-  //
-  // Still an OPEN, accepted limitation (NOT resolved by the above): the mirror case where a
-  // search is active while "All" is selected, and the user then clicks a specific category in
-  // the left panel. makeCategoryRow()'s click handler clears the search box before rendering
-  // that category (see its own comment) specifically so this function is never asked to answer
-  // "does this stale query match anything in the newly-narrowed pane" — but if some future
-  // caller ever re-populates q.value and calls render()/applyFilter() without going through
-  // that click handler, the search would once again be silently scoped to whatever category is
-  // selected at the time. This file does not claim that path is closed in general — only the
-  // two call sites above (typing, and category-click) are actually accounted for.
-  const chipsActive = !searching && selectedCategory() === 'all';
+  // Build order step 7 (PLAN_Launcher_Restructure.md) removed the header hide/show chips
+  // (hiddenPanes()/isPaneHidden()) this used to also gate on — the left panel's category
+  // selection (visibleItems()/render()) is now the only mechanism that narrows which cards
+  // are even in the DOM, so this function only ever answers "does this card match the
+  // search text", nothing else.
   let total = 0;
   let shown = 0;
   for (const card of root.querySelectorAll('.card')) {
-    const paneOff = chipsActive && !!hidden[card.dataset.pane];
-    const matchText = needle === '' || card.dataset.hay.indexOf(needle) !== -1;
-    const match = matchText && !paneOff;
+    const match = needle === '' || card.dataset.hay.indexOf(needle) !== -1;
     card.classList.toggle('hidden', !match);
-    if (!paneOff) { total++; if (match) { shown++; } }
+    total++;
+    if (match) { shown++; }
   }
   for (const group of root.querySelectorAll('.group')) {
     group.classList.toggle('hidden', !group.querySelector('.card:not(.hidden)'));
   }
   for (const pane of root.querySelectorAll('.pane')) {
-    const paneId = pane.dataset.pane;
-    const chipHidden = chipsActive && !!hidden[paneId];
-    pane.classList.toggle('hidden', chipHidden || !pane.querySelector('.card:not(.hidden)'));
+    pane.classList.toggle('hidden', !pane.querySelector('.card:not(.hidden)'));
   }
-  // Judgment call (review finding, build-order step 3): total/shown here are chip-visible
-  // counts — cards not hidden by a header hide/show chip. The left panel's own counts
-  // (buildCategoryList(), launcherCategoryList.ts) are the host's raw, pre-chip truth, so with
-  // any chip toggled off the two CAN legitimately disagree (e.g. left panel "All 57" vs.
-  // header "9"). Intentional, not a bug — this badge answers "how much am I currently
-  // showing", the left panel answers "how much is there" — documented at both counting sites
-  // so the discrepancy reads as deliberate.
   count.textContent = !searching
     ? (strings.count || '{n}').replace('{n}', total)
     : (strings.countFiltered || '{shown}/{total}')

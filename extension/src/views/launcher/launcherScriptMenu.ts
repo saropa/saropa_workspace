@@ -183,8 +183,8 @@ root.addEventListener('scroll', closeMenu, true);
 // forcing the left-panel selection back to "all" whenever the user types, so a search is never
 // silently scoped to whatever category happened to be selected. Mirrors the exact reset
 // sequence the "All" row's own click handler uses (makeCategoryRow(), launcherScriptRender.ts)
-// so the left-panel highlight and header chips re-sync exactly as if the user had clicked "All"
-// themselves. This closes the typing-while-a-category-is-selected case only — see
+// so the left-panel highlight re-syncs exactly as if the user had clicked "All" themselves.
+// This closes the typing-while-a-category-is-selected case only — see
 // applyFilter()'s own comment in launcherScriptRender.ts for exactly what is and isn't resolved
 // (there is a separate, still-open mirror case: selecting a category while a search is active).
 //
@@ -204,7 +204,6 @@ q.addEventListener('input', function () {
   if (selectedCategory() !== 'all') {
     setSelectedCategory('all');
     syncCategorySelection();
-    syncCategoryChips();
     render(); // render() calls applyFilter() itself at the end — do not double it here.
     return;
   }
@@ -232,8 +231,8 @@ window.addEventListener('message', function (event) {
     // means "sort everything": cycle every pane currently visible under the present filter,
     // the same set render() itself is about to paint, then repaint once. This also covers
     // resolveSelectedCategory()'s self-healing side effect for this branch: whichever category
-    // it resolves to, the single render() call below re-syncs the left panel/chips to match
-    // whatever just got persisted, so there's no separate no-op branch left that could skip it.
+    // it resolves to, the single render() call below re-syncs the left panel to match whatever
+    // just got persisted, so there's no separate no-op branch left that could skip it.
     var cat = resolveSelectedCategory();
     if (cat === 'all') {
       var model = paneModel(visibleItems());
@@ -244,6 +243,13 @@ window.addEventListener('message', function (event) {
       setPaneSort(cat, cyclePaneSort(cat));
     }
     render();
+  } else if (msg && msg.type === 'toggleRightPanel') {
+    // Build order step 7 (PLAN_Launcher_Restructure.md): the native view/title icon's nudge
+    // that replaces the header's own TEMPORARY toggle button (removed this same step). Right
+    // panel visibility lives entirely inside the webview (store.panels, launcherScriptSplit.ts),
+    // so the host has nothing to compute here — same "host pushes an unprompted instruction"
+    // shape as 'cycleSort' above, just for togglePanel('right') instead.
+    togglePanel('right');
   }
 });
 

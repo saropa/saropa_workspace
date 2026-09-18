@@ -13,21 +13,21 @@ import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProv
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
 import type { AndroidProjectProfile } from "../model/androidProjectProfile";
-import { countItemsByPane } from "./launcherCategoryList";
 
 // The pure data-assembly layer for the Saropa Workspace panel webview host (launcherView.ts): turns
 // the store/watch/project-files state into the flat item list and header object the webview
 // renders. Kept apart from the class so the "what goes on screen" logic reads independently
 // of the lifecycle/message-routing concerns launcherView.ts keeps.
 
-// A pane that a header toggle chip can show or hide.
-export type LauncherFilter = LauncherItem["pane"];
-
-// One count shown in the header's meta line. When `pane` is set, the stat is a toggle chip
-// that shows/hides that pane section; when omitted, the stat is an informational label
-// (e.g. the scheduled-rituals count, which is not tied to a single pane).
+// One informational count shown in the header's meta line (e.g. the scheduled-rituals
+// count). Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stats that
+// used to also live here as toggle chips (mine/recipes/watches/files/scripts/mobileRemote/
+// notes counts) — the left panel's category list (buildCategoryList(), launcherCategoryList.ts,
+// build order step 3) already shows the same per-category counts via a strictly better
+// single-select mechanism, so keeping a second, duplicate copy in the header was pure
+// redundancy once that landed. What is left here is purely informational: nothing in
+// `LauncherStat` is pane-tied any more, so there is nothing left to toggle.
 export interface LauncherStat {
-  readonly pane?: LauncherFilter;
   readonly icon: string;
   readonly text: string;
 }
@@ -147,81 +147,41 @@ function buildScriptItems(scriptsProvider: ScriptsTreeProvider): LauncherItem[] 
   );
 }
 
-// Compile-time exhaustiveness guard: this Record requires exactly one key per member of
-// LauncherItem["pane"]. Widening the pane union without adding a matching entry here fails
-// to compile, which is ALL it forces — an edit to buildHeader() below to add the widened
-// pane's own pushStat/push call. It does not itself guarantee that call exists or that it
-// pushes a correctly-shaped stat; a `mobileRemote: true` entry added without a matching
-// pushStat("mobileRemote", ...) call would still compile. Hoisted to module scope (rather
-// than allocated fresh inside buildHeader on every paint) since its value never changes.
-const EVERY_PANE_HAS_AN_ENTRY: Record<LauncherItem["pane"], true> = {
-  mine: true,
-  recipes: true,
-  watches: true,
-  files: true,
-  scripts: true,
-  notes: true,
-  mobileRemote: true,
-};
-
 // The launcher header's leading block: the current project (the first workspace folder),
-// its declared version, and a compact count of what the board holds. The name is also
-// painted synchronously from the initial HTML (renderHtml's projectName); posting it again
-// here keeps it correct when the open folder changes. Version + stats are the asynchronous
-// facets — version is read from the same already-scanned manifest set, stats from the built
-// items — so the developer's "version and stats computed asynchronously" lands without a
-// second disk scan.
+// its declared version, and a small informational stat the left panel does not already
+// surface. The name is also painted synchronously from the initial HTML (renderHtml's
+// projectName); posting it again here keeps it correct when the open folder changes.
+// Version + stats are the asynchronous facets — version is read from the same already-scanned
+// manifest set — so the developer's "version and stats computed asynchronously" lands without
+// a second disk scan.
+//
+// Build order step 7 (PLAN_Launcher_Restructure.md) removed every per-pane count this used to
+// push (mine/recipes/watches/files/scripts/mobileRemote/notes) — each was also a header toggle
+// chip duplicating a pane the left panel's category list (buildCategoryList(),
+// launcherCategoryList.ts) already counts via a strictly better single-select mechanism. This
+// function no longer needs the built item list at all as a result — only the store, for the
+// one stat that has no per-pane home.
 export function buildHeader(
   store: ShortcutStore,
-  files: readonly ProjectFileInfo[],
-  items: readonly LauncherItem[]
+  files: readonly ProjectFileInfo[]
 ): LauncherHeader {
   const primary = (vscode.workspace.workspaceFolders ?? [])[0];
   const project =
     primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject");
   const version = deriveProjectVersion(files, primary?.name);
 
-  // Count by pane, omitting an empty bucket so the meta line stays a tight summary of
-  // what is actually present rather than a row of zeros. The counting itself is shared with
-  // buildCategoryList() (launcherCategoryList.ts), which — unlike this header — keeps a
-  // zero-count pane, since it is a navigation aid rather than a compact summary.
-  const count = (pane: LauncherItem["pane"]): number => countItemsByPane(items, pane);
   // "Scheduled" means a live ritual: a stored shortcut whose schedule is switched ON
-  // (schedule.enabled === true). Rendered as an informational label (no pane toggle) since
-  // scheduled cards live inside "mine". With nothing enabled the count is 0 and pushStat
-  // omits it.
+  // (schedule.enabled === true). Scheduled cards live inside "mine", so this has no pane of
+  // its own and the left panel has nowhere to show it — it stays here as a plain
+  // informational stat. With nothing enabled the count is 0 and the stat is omitted.
   const scheduledRituals = [
     ...store.getProjectShortcuts(),
     ...store.getGlobalShortcuts(),
   ].filter((s) => s.schedule?.enabled === true).length;
   const stats: LauncherStat[] = [];
-  const pushStat = (
-    n: number,
-    icon: string,
-    key: string,
-    pane?: LauncherFilter
-  ): void => {
-    if (n > 0) {
-      stats.push({ pane, icon, text: l10n(key, { count: n }) });
-    }
-  };
-  pushStat(count("mine"), "star-full", "launcher.statShortcuts", "mine");
-  pushStat(count("recipes"), "lightbulb", "launcher.statRecipes", "recipes");
-  // Scheduled is informational (no pane toggle): the count of shortcuts with an enabled
-  // schedule. Scheduled cards live inside "mine", so a pane toggle would duplicate it.
-  pushStat(scheduledRituals, "clock", "launcher.statScheduled");
-  pushStat(count("watches"), "eye", "launcher.statWatches", "watches");
-  pushStat(count("files"), "files", "launcher.statFiles", "files");
-  pushStat(count("scripts"), "library", "launcher.statScripts", "scripts");
-  pushStat(count("mobileRemote"), "device-mobile", "launcher.statMobileRemote", "mobileRemote");
-  stats.push({
-    pane: "notes",
-    icon: "note",
-    text: l10n("launcher.statNotes", { count: count("notes") }),
-  });
-  // Compile-time exhaustiveness guard only — see EVERY_PANE_HAS_AN_ENTRY's own comment for
-  // exactly what this does and does not enforce.
-  void EVERY_PANE_HAS_AN_ENTRY;
+  if (scheduledRituals > 0) {
+    stats.push({ icon: "clock", text: l10n("launcher.statScheduled", { count: scheduledRituals }) });
+  }
 
   return {
     project,

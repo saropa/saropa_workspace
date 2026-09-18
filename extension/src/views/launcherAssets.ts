@@ -7,14 +7,20 @@
 //
 // Header: a two-part bar (.head-bar) — the project block on the leading edge, the compact
 // search group on the trailing edge. The project block reads as one line: the folder name,
-// then the declared version + per-pane counts inline beside it. Each count is a toggle chip:
-// clicking it shows or hides that pane section. A dimmed (`.off`) chip means the section is
-// hidden; full opacity means visible. Chips are disabled and dimmed a second, distinct way
-// (`.inactive`) whenever the left panel has a specific category selected, since they'd have
-// no visible effect on the already-single-pane center grid until "All" is reselected. A
-// loading indicator is shown until the first data message arrives.
-// The name paints synchronously from the host's initial HTML; the version + counts arrive in
+// then the declared version + a small informational stat (scheduled rituals) inline beside
+// it. A loading indicator is shown until the first data message arrives.
+// The name paints synchronously from the host's initial HTML; the version + stat arrive in
 // the first data message (they need the disk scan) and are written by renderHeader.
+//
+// Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stat CHIPS that
+// used to live here (mine/recipes/watches/files/scripts/mobileRemote/notes counts, each a
+// clickable show/hide toggle with its own hidden-state machine) — the left panel's category
+// list (step 3) already shows the same per-category counts via a strictly better single-
+// select mechanism, so the chips were pure duplication once that landed. The gear button and
+// the temporary right-panel-toggle button that used to sit beside the search group are also
+// gone, replaced by native view/title icons (saropaWorkspace.openSettings,
+// saropaWorkspace.launcher.toggleRightPanel). Search itself was NOT part of that cleanup —
+// see launcherViewShell.ts's header markup comment for why it has no native replacement.
 //
 // Layout (the design the launcher earns over a TreeView): the Panel is wide and short, so
 // the surface splits into responsive panes that sit side by side when wide and stack when
@@ -27,9 +33,10 @@
 //
 // Search is client-side: the host posts the full item set once per change and the script
 // filters live on every keystroke; while a query is active, collapsed groups reveal their
-// matches so a result is never hidden behind a fold. Pane visibility is toggled via the
-// header stat chips (on/off); inner groups collapse independently, with posture persisted
-// across reloads via the webview's getState/setState.
+// matches so a result is never hidden behind a fold. Pane visibility follows the left
+// panel's category selection (step 3) — "All" shows every pane, a specific category shows
+// only its own; inner groups collapse independently, with posture persisted across reloads
+// via the webview's getState/setState.
 
 import { LEFT_PANEL_LIMITS, RIGHT_PANEL_LIMITS } from "./launcher/launcherSplitLogic";
 
@@ -71,14 +78,6 @@ header {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px 16px; flex-wrap: wrap;
 }
-.hdr-btn {
-  flex: 0 0 auto; display: grid; place-items: center;
-  width: 26px; height: 26px; border: none; border-radius: 4px;
-  background: transparent; color: var(--vscode-descriptionForeground);
-  cursor: pointer; padding: 0;
-}
-.hdr-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,.12)); color: var(--vscode-foreground); }
-.hdr-btn:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -1px; }
 /* The project block grows to take the freed width and lays its parts on ONE line — the
    folder name, then the version + counts inline beside it — so the header reads as a single
    summary row rather than a stacked name-over-meta block. min-width:0 lets a long folder
@@ -113,43 +112,6 @@ header {
 .meta-item .codicon { font-size: 13px; }
 .meta-item.loading { color: var(--vscode-descriptionForeground); }
 .meta-item.version { color: var(--vscode-foreground); }
-.meta-item.toggle {
-  background: none; border: none; font: inherit;
-  cursor: pointer; border-radius: 3px; padding: 1px 5px;
-  color: var(--vscode-foreground);
-  opacity: 1;
-  transition: opacity 0.12s ease;
-}
-.meta-item.toggle:hover {
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
-}
-.meta-item.toggle:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.meta-item.toggle.off {
-  opacity: 0.4;
-}
-/* A left-panel category selection other than "All" disables these chips (they'd have no
-   visible effect on the already-single-pane center grid — see launcherScriptCore.ts's
-   syncCategoryChips()). A distinct class from .off: a chip can be hidden (.off) AND,
-   independently, inactive because a different category is selected — the two must not
-   visually collide or be conflated. */
-.meta-item.toggle.inactive {
-  cursor: default;
-  opacity: 0.35;
-}
-.meta-item.toggle.inactive:hover {
-  background: none;
-}
-.meta-item.meta-reset {
-  background: none; border: none; font: inherit;
-  cursor: pointer; border-radius: 3px; padding: 1px 5px;
-  color: var(--vscode-foreground);
-  opacity: 0.6;
-}
-.meta-item.meta-reset:hover {
-  opacity: 1;
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
-}
-.meta-item.meta-reset:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 /* Cap the search group's width: the Panel is very wide, and a wide input left the search bar
    stretched across the whole surface, crowding out the project summary. flex 0 1 keeps it a
    compact group (icon + input + count) on the trailing edge that may shrink but not grow past
@@ -298,9 +260,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 }
 .pane { flex: 1 1 340px; min-width: 0; }
 .pane.hidden { display: none; }
-/* The pane head is a clickable section label (glyph + title + count). Clicking it hides
-   the pane — the same toggle the header stat chip controls — so the board scales down to
-   just the sections in use. The header stat chip or the reset eye button brings it back. */
+/* The pane head is a clickable section label (glyph + title + count). Clicking it cycles
+   that pane's sort mode (Grouped → A-Z → Z-A) — see makePaneHead(), launcherScriptFolded.ts.
+   A pane's own visibility (shown/hidden) is decided by the left panel's category selection,
+   not by anything on the pane head itself. */
 .pane-head {
   display: flex; align-items: center; gap: 7px;
   width: 100%;
