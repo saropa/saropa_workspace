@@ -168,11 +168,15 @@ test("a non-project token is asked for without being called a missing project va
 });
 
 test("a connection host is asked for, not taken from the manifest's deep links", () => {
-  const result = substituteAdbCommand(entry("connection.connect"), singleFlavorProfile());
-  // Built from two literals (not one "example.com" string) so this reads as the same
-  // check CodeQL's incomplete-URL-substring-sanitization query flags on a domain-shaped
-  // substring test, without weakening what the assertion actually verifies.
-  assert.equal(result.command.includes("example" + ".com"), false);
+  const profile = singleFlavorProfile();
+  const result = substituteAdbCommand(entry("connection.connect"), profile);
+  // Read the forbidden host off the profile itself rather than a domain-shaped
+  // string literal: no literal in this file's source can match CodeQL's
+  // incomplete-URL-substring-sanitization pattern, and the check stays accurate
+  // even if singleFlavorProfile's fixture host ever changes.
+  const manifestHost = profile.deepLinks[0]?.host;
+  assert.ok(manifestHost, "fixture must declare a deep-link host for this check to mean anything");
+  assert.equal(result.command.includes(manifestHost), false);
   assert.deepEqual(result.interactive, ["host", "port"]);
   assert.deepEqual(result.missingFromProfile, []);
 });

@@ -269,6 +269,18 @@ test("quoteArg: leaves backslashes bare on win32, where cmd/PowerShell don't tre
   assert.equal(quoteArg("\\\\server\\share\\My Folder", "win32"), '"\\\\server\\share\\My Folder"');
 });
 
+test("quoteArg: doubles a trailing backslash on win32 so it can't merge with the appended closing quote", () => {
+  // CommandLineToArgvW reads a run of backslashes immediately before a `"` specially:
+  // a single trailing `\` plus our added closing `"` is an ODD run, which escapes the
+  // quote instead of closing the string — letting anything appended after run as a
+  // separate command. Doubling it makes the run even again, so the quote still closes.
+  assert.equal(quoteArg("C:\\Program Files\\", "win32"), '"C:\\Program Files\\\\"');
+});
+
+test("quoteArg: doubles backslashes immediately before an embedded quote on win32", () => {
+  assert.equal(quoteArg('a\\"; calc &', "win32"), '"a\\\\\\"; calc &"');
+});
+
 test("assembleCommandLine: prefix + quoted file + quoted args", () => {
   assert.equal(
     assembleCommandLine({

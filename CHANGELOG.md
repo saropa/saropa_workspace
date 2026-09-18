@@ -60,6 +60,10 @@ The Launcher panel has been restructured from six competing panes fighting for s
 - Sort and settings actions moved out of the Launcher's old in-content header and into native title-bar icons (the same chrome VS Code's Shortcuts view already uses), alongside a new show/hide icon for the right panel.
 - Trimmed the Launcher's custom header down to the project name, version, and search: the per-pane stat toggle chips and the settings gear are gone now that the left panel's category list and the native title-bar icons cover the same ground.
 
+### Fixed
+
+- Fixed a remaining incomplete-escaping gap in Windows command-line quoting flagged by CodeQL: a value ending in `\` (e.g. `C:\Program Files\`) could combine with the closing quote `quoteArg()` appends into an escaped quote instead of a closing one, letting anything appended after it run as a separate command. Backslash runs directly before an embedded quote or at the end of the value are now doubled on win32, matching how `CommandLineToArgvW` actually parses them.
+
 ---
 
 ## [1.10.0]

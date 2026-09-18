@@ -172,9 +172,17 @@ function basename(p: string): string {
 //     backslash followed by an UNescaped quote — closing the string early and
 //     letting anything after it run as a separate shell command.
 //   - cmd.exe/PowerShell (win32) do NOT treat `\` as an escape character inside
-//     "...", so doubling it there would corrupt every Windows path (UNC paths
-//     most visibly: `\\server\share` would become the malformed `\\\\server\share`).
-//     Only the embedded quote needs escaping on that side.
+//     "..." in general (UNC paths like `\\server\share` must stay untouched), but
+//     the underlying CommandLineToArgvW parser DOES special-case a run of
+//     backslashes that sits immediately before a `"`: an even count collapses to
+//     half as many literal backslashes and the quote still closes the string; an
+//     odd count does the same but also escapes the quote, so it does NOT close
+//     the string. That means a value ending in `\` (e.g. `C:\path\`) would merge
+//     with the closing quote we append into an odd run that escapes it open,
+//     letting anything after it run as a separate command. Only backslashes
+//     directly before an embedded `"` or at the very end of the value (where our
+//     own closing `"` lands next) need doubling; backslashes elsewhere are left
+//     alone so UNC paths are untouched.
 // Defaults to the host's own platform since a command line is always assembled
 // and run on the same machine; overridable so callers that know they are
 // targeting a specific shell (e.g. the bash `cd` line externalLauncher.ts builds
@@ -184,7 +192,11 @@ export function quoteArg(value: string, platform: NodeJS.Platform = process.plat
     return value;
   }
   const escaped =
-    platform === "win32" ? value.replace(/"/g, '\\"') : value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    platform === "win32"
+      ? value
+          .replace(/(\\*)"/g, (_match, backslashes: string) => backslashes + backslashes + '\\"')
+          .replace(/(\\+)$/, (_match, backslashes: string) => backslashes + backslashes)
+      : value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   return `"${escaped}"`;
 }
 
