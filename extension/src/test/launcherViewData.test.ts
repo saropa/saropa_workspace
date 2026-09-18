@@ -164,11 +164,13 @@ test("buildAllItems: merges shortcuts, watches, files, scripts and the adb catal
   assert.ok(items.some((i) => i.pane === "files"), "expected a file-sourced item");
   assert.ok(items.some((i) => i.pane === "scripts"), "expected a script-sourced item");
   assert.ok(items.some((i) => i.pane === "mobileRemote"), "expected the adb catalog to be included");
-  // Every pane of all five sources buildAllItems merges (notes are appended later, in
-  // launcherView.ts) is represented at least once with this input (no androidProfile is
-  // passed, but adbLauncherItems still emits the full catalog unsubstituted per its own
-  // doc comment). Asserting the exact sorted set (not just >= 5) also catches a stray or
-  // unexpected pane being merged in, which the five `.some()` checks above cannot.
+  // Every pane this input actually produces (notes are appended later, in launcherView.ts;
+  // no androidProfile is passed, but adbLauncherItems still emits the full catalog
+  // unsubstituted per its own doc comment). "recipes" is absent only because this fixture's
+  // store has no recipe shortcuts (getRecipeShortcuts() returns []), not because
+  // buildLauncherItems doesn't merge them — asserting the exact sorted set (not just >= 5)
+  // still catches a stray or unexpected pane being merged in, which the five `.some()`
+  // checks above cannot.
   assert.deepEqual(
     [...panes].sort(),
     ["files", "mine", "mobileRemote", "scripts", "watches"]

@@ -53,7 +53,7 @@ The Launcher panel has been restructured from six competing panes fighting for s
 ### Added
 
 - **Launcher panel restructure**: the Launcher's left side is now a single flat category list — All, plus one entry per category (Shortcuts, Recipes, Watches, Files, Scripts, Notes, and the new Mobile Remote Control) — each showing its own item count. Selecting a category filters the card grid to just that content; selecting All shows everything, grouped. Typing into the search box now always resets the selection to All, so a search is never silently scoped to whatever category happened to be selected.
-- A new resizable, collapsible right panel lists your recent adb run history (most-recent first, with per-command run counts) with a Run again button on each row — off by default, toggle it from the panel's title bar. Both panels remember their width and collapsed state across reloads.
+- New resizable, collapsible left and right panels. The left one is the category list described above; the right one lists your recent adb run history (most-recent first, with per-command run counts) with a Run again button on each row — off by default, toggle it from the panel's title bar. Both remember their width and collapsed state across reloads.
 
 ### Changed
 
