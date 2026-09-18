@@ -7,24 +7,27 @@ import { buildLauncherItems, LauncherItem } from "./launcherItems";
 import { watchLauncherItem } from "./launcherWatchItem";
 import { fileLauncherItem } from "./launcherFileItem";
 import { scriptLauncherItem } from "./launcherScriptItem";
+import { adbLauncherItems } from "./launcherAdbItem";
 import { hasInteractiveTokens } from "../exec/promptTokens";
 import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProvider";
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { glyphForCategory, ProjectFileInfo } from "../model/projectFiles";
+import type { AndroidProjectProfile } from "../model/androidProjectProfile";
 
 // The pure data-assembly layer for the Saropa Workspace panel webview host (launcherView.ts): turns
 // the store/watch/project-files state into the flat item list and header object the webview
 // renders. Kept apart from the class so the "what goes on screen" logic reads independently
 // of the lifecycle/message-routing concerns launcherView.ts keeps.
 
-// A pane that a header toggle chip can show or hide.
-export type LauncherFilter = LauncherItem["pane"];
-
-// One count shown in the header's meta line. When `pane` is set, the stat is a toggle chip
-// that shows/hides that pane section; when omitted, the stat is an informational label
-// (e.g. the scheduled-rituals count, which is not tied to a single pane).
+// One informational count shown in the header's meta line (e.g. the scheduled-rituals
+// count). Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stats that
+// used to also live here as toggle chips (mine/recipes/watches/files/scripts/mobileRemote/
+// notes counts) — the left panel's category list (buildCategoryList(), launcherCategoryList.ts,
+// build order step 3) already shows the same per-category counts via a strictly better
+// single-select mechanism, so keeping a second, duplicate copy in the header was pure
+// redundancy once that landed. What is left here is purely informational: nothing in
+// `LauncherStat` is pane-tied any more, so there is nothing left to toggle.
 export interface LauncherStat {
-  readonly pane?: LauncherFilter;
   readonly icon: string;
   readonly text: string;
 }
@@ -40,22 +43,27 @@ export interface LauncherHeader {
 }
 
 // Assemble every launcher row: the shortcut + recipe cards (the two existing panes), then
-// the watch cards and the project-file cards (the two flat panes). Each watch/file card is
-// formatted by the vscode-free builders in launcherWatchItem/launcherFileItem; the caller
-// supplies the bits those builders cannot compute (the watch's unseen tally, a file's
-// shortcut state and freshness clock). `files` is the already-scanned surfaced-file set the
-// caller passes in so the disk scan runs once per paint (shared with the header's
-// version/stats).
+// the watch cards, the project-file cards and the adb catalog cards (Mobile Remote
+// Control). Each watch/file card is formatted by the vscode-free builders in
+// launcherWatchItem/launcherFileItem; the caller supplies the bits those builders cannot
+// compute (the watch's unseen tally, a file's shortcut state and freshness clock). `files`
+// is the already-scanned surfaced-file set the caller passes in so the disk scan runs once
+// per paint (shared with the header's version/stats). `androidProfile` is resolved by the
+// caller exactly the way remoteControlPanel.ts resolves one (getAndroidProjectProfile on
+// the first workspace folder) — undefined on a non-Android workspace, in which case
+// adbLauncherItems still returns every catalog row, just with nothing profile-substituted.
 export function buildAllItems(
   store: ShortcutStore,
   watchStore: FolderWatchStore,
   files: readonly ProjectFileInfo[],
-  scriptsProvider: ScriptsTreeProvider
+  scriptsProvider: ScriptsTreeProvider,
+  androidProfile?: AndroidProjectProfile
 ): LauncherItem[] {
   const items = buildLauncherItems(store);
   items.push(...buildWatchItems(watchStore));
   items.push(...buildFileItems(files, store));
   items.push(...buildScriptItems(scriptsProvider));
+  items.push(...adbLauncherItems(androidProfile));
   return items;
 }
 
@@ -140,58 +148,44 @@ function buildScriptItems(scriptsProvider: ScriptsTreeProvider): LauncherItem[] 
 }
 
 // The launcher header's leading block: the current project (the first workspace folder),
-// its declared version, and a compact count of what the board holds. The name is also
-// painted synchronously from the initial HTML (renderHtml's projectName); posting it again
-// here keeps it correct when the open folder changes. Version + stats are the asynchronous
-// facets — version is read from the same already-scanned manifest set, stats from the built
-// items — so the developer's "version and stats computed asynchronously" lands without a
-// second disk scan.
+// its declared version, and a small informational stat the left panel does not already
+// surface. The name is also painted synchronously from the initial HTML (renderHtml's
+// projectName); posting it again here keeps it correct when the open folder changes.
+// Version + stats are the asynchronous facets — version is read from the same already-scanned
+// manifest set — so the developer's "version and stats computed asynchronously" lands without
+// a second disk scan.
+//
+// Build order step 7 (PLAN_Launcher_Restructure.md) removed every per-pane count this used to
+// push (mine/recipes/watches/files/scripts/mobileRemote/notes) — each was also a header toggle
+// chip duplicating a pane the left panel's category list (buildCategoryList(),
+// launcherCategoryList.ts) already counts via a strictly better single-select mechanism. This
+// function no longer needs the built item list at all as a result — only the store, for the
+// one stat that has no per-pane home.
 export function buildHeader(
   store: ShortcutStore,
-  files: readonly ProjectFileInfo[],
-  items: readonly LauncherItem[]
+  files: readonly ProjectFileInfo[]
 ): LauncherHeader {
   const primary = (vscode.workspace.workspaceFolders ?? [])[0];
   const project =
     primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject");
   const version = deriveProjectVersion(files, primary?.name);
 
-  // Count by pane, omitting an empty bucket so the meta line stays a tight summary of
-  // what is actually present rather than a row of zeros.
-  const count = (pane: LauncherItem["pane"]): number =>
-    items.reduce((n, it) => (it.pane === pane ? n + 1 : n), 0);
   // "Scheduled" means a live ritual: a stored shortcut whose schedule is switched ON
-  // (schedule.enabled === true). Rendered as an informational label (no pane toggle) since
-  // scheduled cards live inside "mine". With nothing enabled the count is 0 and pushStat
-  // omits it.
+  // (schedule.enabled === true). Scheduled cards live inside "mine", so this has no pane of
+  // its own and the left panel has nowhere to show it — it stays here as a plain
+  // informational stat. With nothing enabled the count is 0 and the stat is omitted —
+  // deliberately: `stats` (and so the header's whole meta line, once no version is detected
+  // either) can end up empty, and that is treated as acceptable design rather than a bug to
+  // patch with a filler stat — there is nothing else generically true of every project worth
+  // manufacturing a count for.
   const scheduledRituals = [
     ...store.getProjectShortcuts(),
     ...store.getGlobalShortcuts(),
   ].filter((s) => s.schedule?.enabled === true).length;
   const stats: LauncherStat[] = [];
-  const pushStat = (
-    n: number,
-    icon: string,
-    key: string,
-    pane?: LauncherFilter
-  ): void => {
-    if (n > 0) {
-      stats.push({ pane, icon, text: l10n(key, { count: n }) });
-    }
-  };
-  pushStat(count("mine"), "star-full", "launcher.statShortcuts", "mine");
-  pushStat(count("recipes"), "lightbulb", "launcher.statRecipes", "recipes");
-  // Scheduled is informational (no pane toggle): the count of shortcuts with an enabled
-  // schedule. Scheduled cards live inside "mine", so a pane toggle would duplicate it.
-  pushStat(scheduledRituals, "clock", "launcher.statScheduled");
-  pushStat(count("watches"), "eye", "launcher.statWatches", "watches");
-  pushStat(count("files"), "files", "launcher.statFiles", "files");
-  pushStat(count("scripts"), "library", "launcher.statScripts", "scripts");
-  stats.push({
-    pane: "notes",
-    icon: "note",
-    text: l10n("launcher.statNotes", { count: count("notes") }),
-  });
+  if (scheduledRituals > 0) {
+    stats.push({ icon: "clock", text: l10n("launcher.statScheduled", { count: scheduledRituals }) });
+  }
 
   return {
     project,

@@ -35,3 +35,26 @@ export function formatBytesJs(fnName: string): string {
   return value.toFixed(value >= 100 || exponent === 0 ? 0 : 1) + ' ' + units[exponent];
 }`;
 }
+
+// The Launcher's resizable-panel clamp/default/visibility arithmetic, generated from the
+// exact same algorithm as the host-side twin (views/launcher/launcherSplitLogic.ts's
+// clampPanelWidth/resolvePanelWidth/isPanelVisible) so the two can never silently drift —
+// src/test/launcherSplitLogic.test.ts evaluates this generated text and asserts it matches
+// the TS functions for shared fixtures. Function names match the host module's exports
+// exactly (no fnName parameter, unlike escapeHtmlJs/formatBytesJs above) since only one
+// webview currently needs this and a second caller can add a rename parameter later if one
+// ever does.
+export function panelWidthMathJs(): string {
+  return `function clampPanelWidth(width, limits) {
+  if (typeof width !== 'number' || !isFinite(width)) { return limits.min; }
+  return Math.max(limits.min, Math.min(limits.max, width));
+}
+function resolvePanelWidth(persisted, limits) {
+  var width = typeof persisted.width === 'number' ? persisted.width : limits.defaultWidth;
+  return clampPanelWidth(width, limits);
+}
+function isPanelVisible(persisted, defaultHidden) {
+  var hidden = typeof persisted.hidden === 'boolean' ? persisted.hidden : defaultHidden;
+  return !hidden;
+}`;
+}

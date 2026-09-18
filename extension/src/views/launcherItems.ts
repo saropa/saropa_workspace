@@ -39,10 +39,20 @@ export interface LauncherItem {
   // the entry carries none); the catalog prose for a recipe, surfaced on click.
   readonly desc: string | undefined;
   // Which pane the row files under: the user's own entries, auto-detected recipes,
-  // the folder/file watches, or the surfaced project files. Watches is always a flat
+  // the folder/file watches, the surfaced project files, or the adb command catalog
+  // (Mobile Remote Control, PLAN_Launcher_Restructure.md). Watches is always a flat
   // list; files groups by area (Project / Android / iOS / Web) when more than one area
   // is present and renders flat otherwise — see watchLauncherItem / fileLauncherItem.
-  readonly pane: "mine" | "recipes" | "watches" | "files" | "scripts" | "notes";
+  // mobileRemote is grouped by the adb catalog's own groups (connection, appControl,
+  // …) — see launcherAdbItem.ts.
+  readonly pane:
+    | "mine"
+    | "recipes"
+    | "watches"
+    | "files"
+    | "scripts"
+    | "notes"
+    | "mobileRemote";
   readonly section: string;
   readonly groupId: string;
   readonly groupIcon: string;
@@ -52,10 +62,10 @@ export interface LauncherItem {
   readonly kind: string;
   // Whether this card is a live scheduled ritual — a stored shortcut whose schedule is
   // switched on (schedule.enabled === true), the same signal the header's "scheduled" count
-  // and the status bar arm off. Drives the header's "scheduled" filter chip: the webview
-  // narrows the board to cards carrying this flag. Only "mine" shortcuts can be scheduled;
-  // recipes seed a disabled schedule, and watch/file cards have no schedule, so it is false
-  // for them.
+  // and the status bar arm off. It is informational only, not a filter; the left
+  // panel/header carry no "narrow to scheduled" control. Only "mine" shortcuts can be
+  // scheduled; recipes seed a disabled schedule, and watch/file cards have no schedule, so
+  // it is false for them.
   readonly scheduled?: boolean;
   // A human, localized name for the action kind (Shell command / Macro / Routine / …),
   // used as the card icon's tooltip so the kind is nameable on hover. Undefined for a file
@@ -156,8 +166,8 @@ function toItem(
     icon: rowIcon(shortcut, kind, fileName),
     color: rowColor(shortcut, kind, fileName),
     kind,
-    // A live scheduled ritual: a shortcut whose schedule is switched on. Mirrors the header's
-    // scheduledRituals count so the "scheduled" chip and the cards it reveals agree.
+    // A live scheduled ritual: a shortcut whose schedule is switched on. Mirrors the same
+    // predicate buildHeader() (launcherViewData.ts) counts for its "scheduled" stat.
     scheduled: shortcut.schedule?.enabled === true,
     // Name the kind for the icon tooltip; a file card needs none (its icon is file-typed).
     kindLabel: isFile ? undefined : l10n(`launcher.kind.${kind}`),

@@ -178,7 +178,37 @@ document.addEventListener('keydown', function (e) {
 window.addEventListener('blur', closeMenu);
 root.addEventListener('scroll', closeMenu, true);
 
-q.addEventListener('input', applyFilter);
+// Build-order step 4 (PLAN_Launcher_Restructure.md): search is already an always-visible
+// header element (not an icon-triggered popover), so the only wiring this step still owes is
+// forcing the left-panel selection back to "all" whenever the user types, so a search is never
+// silently scoped to whatever category happened to be selected. Mirrors the exact reset
+// sequence the "All" row's own click handler uses (makeCategoryRow(), launcherScriptRender.ts)
+// so the left-panel highlight re-syncs exactly as if the user had clicked "All" themselves.
+// This closes the typing-while-a-category-is-selected case only — see
+// applyFilter()'s own comment in launcherScriptRender.ts for exactly what is and isn't resolved
+// (there is a separate, still-open mirror case: selecting a category while a search is active).
+//
+// Interpretation of "typing... always switches the selection to All" (judgment call, documented
+// per the plan): ANY 'input' event forces the reset while a specific category is still selected,
+// regardless of the resulting value — including the value becoming empty again via backspace.
+// There is no "remember the previous category" behavior; forcing to "All" is a one-way move
+// triggered by search interaction, not something that un-forces itself when the field empties.
+// Once "all" is already selected (the common case, including right after a forced reset), this
+// stays the cheap applyFilter()-only path exactly as before — no extra render() per keystroke.
+//
+// This reset only fires on a real DOM 'input' event. Any future programmatic q.value=...
+// assignment (e.g. a later build-order step's host->webview "focus search" message) will NOT
+// trigger this handler unless it also dispatches an 'input' event or goes through a shared
+// helper — noted here so that gap doesn't reappear silently later.
+q.addEventListener('input', function () {
+  if (selectedCategory() !== 'all') {
+    setSelectedCategory('all');
+    syncCategorySelection();
+    render(); // render() calls applyFilter() itself at the end — do not double it here.
+    return;
+  }
+  applyFilter();
+});
 
 window.addEventListener('message', function (event) {
   const msg = event.data;
@@ -188,7 +218,38 @@ window.addEventListener('message', function (event) {
     tintHexes = msg.tintHexes || {};
     if (typeof msg.placeholder === 'string') { q.placeholder = msg.placeholder; }
     renderHeader(msg.header);
+    renderCategoryList(msg.categories);
+    renderRunHistory(msg.runHistory, msg.runHistoryEnabled !== false);
     render();
+  } else if (msg && msg.type === 'cycleSort') {
+    // Build-order step 5 (PLAN_Launcher_Restructure.md): the native view/title "cycle sort"
+    // icon's nudge. Sort is per-pane, so a single title-bar icon needs a target pane to act
+    // on; the left-panel category selection (step 3) is that target when one specific
+    // category is selected. "All" is the common case though (fresh install, after any reset,
+    // and after every search keystroke — see the search 'input' handler above), so treating
+    // it as a no-op would ship the icon inert for most users most of the time. Instead, "All"
+    // means "sort everything": cycle every pane currently visible under the present filter,
+    // the same set render() itself is about to paint, then repaint once. This also covers
+    // resolveSelectedCategory()'s self-healing side effect for this branch: whichever category
+    // it resolves to, the single render() call below re-syncs the left panel to match whatever
+    // just got persisted, so there's no separate no-op branch left that could skip it.
+    var cat = resolveSelectedCategory();
+    if (cat === 'all') {
+      var model = paneModel(visibleItems());
+      for (var i = 0; i < model.length; i++) {
+        setPaneSort(model[i].id, cyclePaneSort(model[i].id));
+      }
+    } else {
+      setPaneSort(cat, cyclePaneSort(cat));
+    }
+    render();
+  } else if (msg && msg.type === 'toggleRightPanel') {
+    // Build order step 7 (PLAN_Launcher_Restructure.md): the native view/title icon's nudge
+    // that replaces the header's own TEMPORARY toggle button (removed this same step). Right
+    // panel visibility lives entirely inside the webview (store.panels, launcherScriptSplit.ts),
+    // so the host has nothing to compute here — same "host pushes an unprompted instruction"
+    // shape as 'cycleSort' above, just for togglePanel('right') instead.
+    togglePanel('right');
   }
 });
 

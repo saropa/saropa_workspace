@@ -12,9 +12,14 @@ import { ProjectFilesTreeProvider, formatRelativeTime } from "./projectFilesProv
 import { ScriptsTreeProvider } from "./scriptsTreeProvider";
 import { handleLauncherMessage } from "./launcherViewMessages";
 import { buildAllItems, buildHeader } from "./launcherViewData";
+import { buildCategoryList } from "./launcherCategoryList";
+import { buildRunHistoryEntries } from "./launcherRunHistory";
 import { renderHtml } from "./launcherViewShell";
 import { noteLauncherItem } from "./launcherNoteItem";
 import { resolveTintHexes } from "./tintHexResolver";
+import { AndroidProjectProfile, getAndroidProjectProfile } from "../model/androidProjectProfile";
+import { ADB_COMMAND_CATALOG } from "../model/adbCommandCatalog";
+import { adbRunHistory } from "../exec/adbRunHistory";
 
 // The "Saropa Workspace" Panel webview: a second, always-reachable window onto the same
 // shortcut data the sidebar tree shows, living in the bottom Panel (beside Terminal /
@@ -61,6 +66,17 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     () => void this.post(),
     SAVE_RESCAN_DEBOUNCE_MS
   );
+  // The workspace's Android profile, resolved the same way remoteControlPanel.ts resolves
+  // one (getAndroidProjectProfile on the first workspace folder — itself cached, so this
+  // costs nothing extra on repeated paints). Re-read on every post(), so a folder switch is
+  // always picked up here. A profile-SOURCE edit (build.gradle, etc.) is a different story:
+  // this call only re-reads the cache, and the cache is invalidated by
+  // activation/sectionContext.ts's watchAndroidProjectProfile watcher, not by anything in
+  // the Launcher itself. If that watcher is ever removed, this field goes stale silently —
+  // there is nothing here that would notice. Kept as a field too so onMessage's run/pin
+  // routing (launcherViewMessages.ts) substitutes against the same profile the cards were
+  // built from, without re-resolving it a second time per message.
+  private androidProfile: AndroidProjectProfile | undefined;
 
   constructor(
     private readonly store: ShortcutStore,
@@ -90,11 +106,24 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       vscode.workspace.onDidSaveTextDocument(() => this.scheduleSaveRescan()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.post()),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("saropaWorkspace.projectFiles")) {
+        if (
+          e.affectsConfiguration("saropaWorkspace.projectFiles") ||
+          e.affectsConfiguration("saropaWorkspace.telemetry")
+        ) {
           void this.post();
         }
       }),
-      vscode.window.onDidChangeActiveColorTheme(() => void this.post())
+      vscode.window.onDidChangeActiveColorTheme(() => void this.post()),
+      // The run-history list's own data source: a run from the STANDALONE Mobile Remote
+      // Control panel (remoteControlPanel.ts) or a saropaWorkspace.resetRunHistory clear
+      // (shortcutCommands.ts) also calls adbRunHistory.record()/reset(), and neither of
+      // those paths knows this webview exists to repaint it — the launcher-initiated run
+      // path (handleAdbItem, launcherViewMessages.ts) is the only one this class used to
+      // hear about via its own explicit ctx.post(). Subscribing directly to
+      // adbRunHistory.onDidChange (fired by both record() and reset()) is the single fix
+      // that covers all three paths at once, per its own doc comment ("so an open panel
+      // can repaint").
+      adbRunHistory.onDidChange(() => void this.post())
     );
   }
 
@@ -146,8 +175,34 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       scriptsProvider: this.scriptsProvider,
       extensionPath: this.extensionUri.fsPath,
       globalState: this.globalState,
+      androidProfile: this.androidProfile,
       post: () => this.post(),
     });
+  }
+
+  // Build-order step 5 (PLAN_Launcher_Restructure.md): the native view/title "cycle sort"
+  // icon's implementation. Sort state lives entirely inside the webview (store.sort in
+  // launcherScriptCore.ts), so the host has nothing to compute here — it only nudges the
+  // webview to act, the same "host pushes an unprompted instruction" shape post() already
+  // uses for data, just with an empty payload. No-op while the view hasn't been resolved yet
+  // (mirrors post()'s own guard) since there is nothing sensible to cycle before a first paint.
+  cycleSort(): void {
+    void this.view?.webview.postMessage({ type: "cycleSort" });
+  }
+
+  // Build-order step 7 (PLAN_Launcher_Restructure.md): the native view/title "show/hide
+  // right panel" icons' shared implementation, replacing the header's own TEMPORARY button
+  // (see that button's removed comment, and step 5's own note that no native replacement had
+  // been built for it yet). Right-panel visibility lives entirely inside the webview
+  // (store.panels in launcherScriptSplit.ts), so — exactly like cycleSort() above — the host
+  // has nothing to compute here; it only nudges the webview to act. Both
+  // saropaWorkspace.launcher.showRightPanel and .hideRightPanel (wiringViews.ts) call this
+  // same method — which of the two is visible is purely a package.json `when`-clause concern
+  // (see handleLauncherMessage's "rightPanelVisibility" handler for how that context key gets
+  // set from the webview's own actual state, fixing the old single-icon version's lack of any
+  // state indication).
+  toggleRightPanel(): void {
+    void this.view?.webview.postMessage({ type: "toggleRightPanel" });
   }
 
   // Push the current item set + UI strings to the webview. No-op until the view is
@@ -162,8 +217,17 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const files = await this.projectFiles.listSurfacedFiles();
+    // Resolved before buildAllItems, same as remoteControlPanel.ts's resolveProfile — the
+    // read is cached per folder (androidProjectProfile.ts), so this is not a fresh disk
+    // scan on every paint. No workspace folder (or a folder with nothing Android-shaped)
+    // degrades to undefined, which adbLauncherItems treats as "nothing to substitute" and
+    // still lists the whole catalog.
+    const primaryFolder = vscode.workspace.workspaceFolders?.[0];
+    this.androidProfile = primaryFolder
+      ? await getAndroidProjectProfile(primaryFolder)
+      : undefined;
     const items: LauncherItem[] = buildAllItems(
-      this.store, this.watchStore, files, this.scriptsProvider
+      this.store, this.watchStore, files, this.scriptsProvider, this.androidProfile
     );
 
     const now = Date.now();
@@ -189,7 +253,33 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       type: "data",
       items,
       tintHexes: resolveTintHexes(),
-      header: buildHeader(this.store, files, items),
+      header: buildHeader(this.store, files),
+      // Feeds the left panel's category list (PLAN_Launcher_Restructure.md build order
+      // step 3). Sent as its own small field rather than derived client-side from `items`:
+      // buildCategoryList() (launcherCategoryList.ts) is the one place per-pane counting
+      // logic lives now that build order step 7 removed the header's own per-pane counts
+      // entirely (buildHeader(), launcherViewData.ts, emits only the scheduled-rituals stat),
+      // so there is nothing left in the header payload this list could reuse even client-side.
+      categories: buildCategoryList(items),
+      // Feeds the right panel's run-history list (PLAN_Launcher_Restructure.md build
+      // order step 6 — see launcherRunHistory.ts's own header comment for why this is a
+      // small new list rather than a reuse of an existing rendered table, which does not
+      // exist anywhere in this codebase). Re-sent on every post(), same as `categories`.
+      // Repainted whenever it goes stale via the constructor's adbRunHistory.onDidChange
+      // subscription — covering a run from either panel and an explicit history reset, not
+      // just a launcher-initiated run.
+      runHistory: buildRunHistoryEntries(
+        ADB_COMMAND_CATALOG,
+        adbRunHistory.recent(),
+        adbRunHistory.counts()
+      ),
+      // Distinguishes "genuinely nothing run yet" from "collection is turned off, so this
+      // can never populate" (saropaWorkspace.telemetry.enabled) — recent()/counts() already
+      // degrade to empty in the latter case with no signal of why, which would otherwise
+      // leave the webview showing an empty-state message telling the user to do something
+      // that can never work. A plain boolean plus the two strings.* values below is enough;
+      // no new message-passing plumbing needed.
+      runHistoryEnabled: adbRunHistory.enabled(),
       placeholder: l10n("launcher.searchPlaceholder"),
       strings: {
         run: l10n("launcher.run"),
@@ -203,10 +293,10 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         files: l10n("launcher.filesSection"),
         scripts: l10n("launcher.scriptsSection"),
         notes: l10n("launcher.notesSection"),
+        mobileRemote: l10n("launcher.mobileRemoteSection"),
         sortAsc: l10n("launcher.sortAsc"),
         sortDesc: l10n("launcher.sortDesc"),
         sortGrouped: l10n("launcher.sortGrouped"),
-        showAll: l10n("launcher.showAll"),
         // {n} / {shown} / {total} stay literal here: the webview substitutes the live
         // counts, so these are fetched without l10n params.
         count: l10n("launcher.count"),
@@ -216,6 +306,13 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
         // is sent once here and substituted client-side, same pattern as count/countFiltered.
         menuAriaLabel: l10n("launcher.menu.ariaLabel"),
         menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"),
+        runHistoryEmpty: l10n("launcher.runHistory.empty"),
+        runHistoryDisabled: l10n("launcher.runHistory.disabled"),
+        runHistoryAriaLabel: l10n("launcher.runHistory.ariaLabel"),
+        runHistoryRunAgain: l10n("launcher.runHistory.runAgain"),
+        // {count} stays literal here, substituted client-side per row — same pattern as
+        // count/countFiltered above.
+        runHistoryCount: l10n("launcher.runHistory.count"),
       },
     });
   }

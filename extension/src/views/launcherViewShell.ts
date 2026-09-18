@@ -53,7 +53,14 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
       <div id="projName" class="project-name${noProject ? " no-project" : ""}">${projectName}</div>
       <div id="projMeta" class="project-meta"><span class="meta-item loading"><span class="codicon codicon-loading codicon-modifier-spin"></span><span>${l10n("launcher.loading")}</span></span></div>
     </div>
-    <button id="settingsBtn" class="hdr-btn" type="button" title="${l10n("settings.title")}"><span class="codicon codicon-settings-gear"></span></button>
+    <!-- The gear button and the right-panel toggle button that used to live here (build
+         order step 1/5) are gone — build order step 7 removed them once their native
+         view/title replacements (saropaWorkspace.openSettings, saropaWorkspace.launcher.
+         showRightPanel/hideRightPanel) fully took over reaching settings and the right panel
+         from VS Code's own panel chrome. Search stays: unlike those two, it has no native
+         view/title replacement (a webview title-bar icon cannot host a free-text <input>),
+         so it remains this header's only interactive element (the project name/version
+         block above is always-visible too, but is not interactive). -->
     <div class="search">
       <span class="codicon codicon-search"></span>
       <input id="q" type="text" spellcheck="false" aria-label="${l10n("launcher.searchPlaceholder")}" />
@@ -61,8 +68,20 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
     </div>
   </div>
 </header>
-<div id="empty" class="empty hidden">${l10n("launcher.empty")}</div>
-<div id="root" class="root"></div>
+<div class="split">
+  <div id="leftPanel" class="side-panel left-panel">
+    <div class="side-panel-body">${l10n("launcher.leftPanelPlaceholder")}</div>
+    <div id="rsz-left" class="split-rsz split-rsz-left" title="${l10n("launcher.resizeLeftPanel")}"></div>
+  </div>
+  <div class="center">
+    <div id="empty" class="empty hidden">${l10n("launcher.empty")}</div>
+    <div id="root" class="root"></div>
+  </div>
+  <div id="rightPanel" class="side-panel right-panel hidden">
+    <div id="rsz-right" class="split-rsz split-rsz-right" title="${l10n("launcher.resizeRightPanel")}"></div>
+    <div class="side-panel-body">${l10n("launcher.rightPanelPlaceholder")}</div>
+  </div>
+</div>
 <script nonce="${nonce}">${LAUNCHER_SCRIPT}</script>
 </body>
 </html>`;

@@ -760,6 +760,24 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "saropaWorkspace.launcher.cycleSort",
+        "title": "%command.launcherCycleSort.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "saropaWorkspace.launcher.showRightPanel",
+        "title": "%command.launcherShowRightPanel.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(layout-sidebar-right)"
+      },
+      {
+        "command": "saropaWorkspace.launcher.hideRightPanel",
+        "title": "%command.launcherHideRightPanel.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(layout-sidebar-right-off)"
+      },
+      {
         "command": "saropaWorkspace.showLauncher",
         "title": "%command.showLauncher.title%",
         "category": "%extension.displayName%",
@@ -1666,6 +1684,26 @@
           "command": "saropaWorkspace.openNotesFolder",
           "when": "view == saropaWorkspace.notes",
           "group": "1_notes@2"
+        },
+        {
+          "command": "saropaWorkspace.launcher.cycleSort",
+          "when": "view == saropaWorkspace.launcher",
+          "group": "navigation@1"
+        },
+        {
+          "command": "saropaWorkspace.openSettings",
+          "when": "view == saropaWorkspace.launcher",
+          "group": "navigation@2"
+        },
+        {
+          "command": "saropaWorkspace.launcher.showRightPanel",
+          "when": "view == saropaWorkspace.launcher && !saropaWorkspace.launcher.rightPanelVisible",
+          "group": "navigation@3"
+        },
+        {
+          "command": "saropaWorkspace.launcher.hideRightPanel",
+          "when": "view == saropaWorkspace.launcher && saropaWorkspace.launcher.rightPanelVisible",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -2260,6 +2298,18 @@
         },
         {
           "command": "saropaWorkspace.recipe.snapshotProcesses",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.cycleSort",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.showRightPanel",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.hideRightPanel",
           "when": "false"
         }
       ]

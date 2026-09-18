@@ -12,25 +12,61 @@
 export const LAUNCHER_SCRIPT_CORE = `const vscode = acquireVsCodeApi();
 let strings = {};
 let items = [];
+// The left panel's category list, as the host built it (buildCategoryList,
+// launcherCategoryList.ts): [{id, label, count, icon}, ...], "all" first. Populated by the
+// 'data' message handler (launcherScriptMenu.ts) alongside items/strings.
+let categories = [];
 var tintHexes = {};
 let activeMenu = null;
-// Which panes the user has toggled off via the header stat chips. Persisted across reloads
-// so toggled-off sections stay hidden. Each key is a pane id; presence means hidden.
-function hiddenPanes() { return store.hidden || {}; }
-function isPaneHidden(pane) { return !!hiddenPanes()[pane]; }
-function hasHiddenPanes() {
-  const h = hiddenPanes();
-  for (var k in h) { if (h[k]) { return true; } }
-  return false;
-}
-function setPaneHidden(pane, hidden) {
-  store.hidden = store.hidden || {};
-  if (hidden) { store.hidden[pane] = true; } else { delete store.hidden[pane]; }
+
+// The left panel's selected category: a pane id, or 'all' (the default — everything, grouped
+// by category). Persisted via vscode.setState()/store, same as everything else in this
+// module's persisted store object. Selecting a specific category filters the center grid to
+// just that pane's own groups (see visibleItems()/render() in launcherScriptRender.ts); it
+// does NOT flatten a grouped pane's sub-groups (e.g. Mobile Remote Control's Connection/App
+// control/... groups still show).
+function selectedCategory() { return store.category || 'all'; }
+function setSelectedCategory(id) {
+  if (id === 'all') { delete store.category; } else { store.category = id; }
   vscode.setState(store);
 }
-function resetHiddenPanes() {
-  store.hidden = {};
-  vscode.setState(store);
+
+// Validates the persisted selection against the category list the host most recently sent
+// (module-level \`categories\`, populated by renderCategoryList()) and self-heals it to 'all'
+// when it no longer resolves to something worth showing. Two cases, both funneled through the
+// same fallback so there is one mechanism instead of two: (1) \`cat\` doesn't match any current
+// entry.id at all — a stale/unknown persisted category (a pane renamed or removed, or state
+// left over from before such a change); (2) \`cat\` matches an entry, but that entry's count is
+// 0 right now — buildCategoryList() (launcherCategoryList.ts) deliberately still lists a
+// zero-count pane as a clickable navigation row, so selecting it would otherwise leave every
+// pane empty with nothing to show. Without this, the center grid would render permanently
+// blank (see render()'s own call site) with no left-panel row even marked selected. Called
+// from both renderCategoryList() (right after \`categories\` is refreshed) and render() (before
+// it computes visibleItems()/paneModel()), since either a fresh category list or a stale
+// render pass can be the first place a bad selection surfaces.
+function resolveSelectedCategory() {
+  var cat = selectedCategory();
+  if (cat === 'all') { return cat; }
+  var entry = null;
+  for (var i = 0; i < categories.length; i++) {
+    if (categories[i].id === cat) { entry = categories[i]; break; }
+  }
+  if (!entry || entry.count === 0) {
+    setSelectedCategory('all');
+    return 'all';
+  }
+  return cat;
+}
+
+// The items the center grid should render right now: every item when 'all' is selected,
+// otherwise only the items filed under the selected pane. paneModel() (below) already
+// tolerates a pane with zero items (it renders as empty and is hidden), so handing it this
+// pre-filtered list is enough to make every other pane disappear from the center without any
+// change to paneModel's own grouping logic.
+function visibleItems() {
+  const cat = selectedCategory();
+  if (cat === 'all') { return items; }
+  return items.filter(function (it) { return it.pane === cat; });
 }
 
 // Per-pane sort mode. "grouped" keeps the host-supplied group structure (default for
@@ -108,6 +144,13 @@ const root = document.getElementById('root');
 const empty = document.getElementById('empty');
 const projName = document.getElementById('projName');
 const projMeta = document.getElementById('projMeta');
+// The left panel's content area (see launcherViewShell.ts's #leftPanel markup, from step 1).
+// renderCategoryList()/launcherScriptRender.ts owns everything painted inside it.
+const leftPanelBody = document.querySelector('#leftPanel .side-panel-body');
+// The right panel's content area (launcherViewShell.ts's #rightPanel markup, from step 1).
+// renderRunHistory()/launcherScriptRender.ts owns everything painted inside it (build-order
+// step 6).
+const rightPanelBody = document.querySelector('#rightPanel .side-panel-body');
 
 // Map a theme-color id ("charts.blue", "errorForeground") to its CSS variable. When a
 // hex fallback is given, it is embedded inside the var() so the color still renders if
@@ -127,60 +170,33 @@ function codicon(id) {
 
 // Fill the header's leading block from the host-built header object. The project name was
 // already painted in the initial HTML; re-applying it here keeps it correct when the open
-// folder changes. The version + counts are the asynchronous facets (they need the disk
+// folder changes. The version + stats are the asynchronous facets (they need the disk
 // scan), so they arrive only now and replace any prior meta line. Every label is
 // host-localized text set via textContent — the script holds no display strings.
+//
+// Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stat CHIPS this
+// used to also paint (each stat was a show/hide toggle button, with its own hidden-state
+// machine and a syncResetBtn()/syncCategoryChips() sync dance) — the left panel's category
+// list (step 3) already shows the same per-category counts via a strictly better single-
+// select mechanism, so the chips were pure duplication once that landed. What buildHeader()
+// still sends is plain informational stats (e.g. scheduled rituals, which the left panel
+// does not surface), rendered as inert spans below.
 function renderHeader(h) {
   if (!h) { return; }
   if (typeof h.project === 'string' && h.project) { projName.textContent = h.project; }
   projName.classList.toggle('no-project', !!h.noProject);
   projMeta.textContent = '';
-  if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true, null)); }
+  if (h.version) { projMeta.appendChild(metaItem('tag', h.version, true)); }
   const stats = Array.isArray(h.stats) ? h.stats : [];
-  for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false, s.pane)); }
-  syncResetBtn();
+  for (const s of stats) { projMeta.appendChild(metaItem(s.icon, s.text, false)); }
 }
 
-function syncResetBtn() {
-  var existing = projMeta.querySelector('.meta-reset');
-  if (hasHiddenPanes()) {
-    if (!existing) {
-      var btn = document.createElement('button');
-      btn.className = 'meta-item meta-reset';
-      btn.type = 'button';
-      btn.title = strings.showAll || 'Show all sections';
-      btn.appendChild(codicon('eye'));
-      btn.addEventListener('click', function () {
-        resetHiddenPanes();
-        for (var chip of projMeta.querySelectorAll('.meta-item.toggle')) {
-          chip.classList.remove('off');
-        }
-        applyFilter();
-        syncResetBtn();
-      });
-      projMeta.appendChild(btn);
-    }
-  } else if (existing) {
-    existing.remove();
-  }
-}
-
-function metaItem(icon, text, isVersion, pane) {
-  const el = document.createElement(pane ? 'button' : 'span');
+// A plain informational entry on the project meta line (an icon + a text value). No longer
+// ever interactive — see renderHeader()'s own comment for why the toggle-chip variant this
+// used to also build was removed.
+function metaItem(icon, text, isVersion) {
+  const el = document.createElement('span');
   el.className = isVersion ? 'meta-item version' : 'meta-item';
-  if (pane) {
-    el.classList.add('toggle');
-    el.type = 'button';
-    el.dataset.pane = pane;
-    if (isPaneHidden(pane)) { el.classList.add('off'); }
-    el.addEventListener('click', function () {
-      const nowHidden = !isPaneHidden(pane);
-      setPaneHidden(pane, nowHidden);
-      el.classList.toggle('off', nowHidden);
-      applyFilter();
-      syncResetBtn();
-    });
-  }
   el.appendChild(codicon(icon));
   const t = document.createElement('span');
   t.textContent = text;
@@ -189,11 +205,14 @@ function metaItem(icon, text, isVersion, pane) {
 }
 
 // Group the flat item list into panes in fixed order: mine, recipes, watches, files, scripts,
-// notes. Mine, recipes, files, and notes are grouped panes (collapsible category/scope groups,
-// in first-seen order); watches and scripts are flat lists. The files pane groups by area
-// (Project / Android / iOS / Web), but only when more than one area has matches: with a single
-// area it renders flat. The host controls ordering; an empty pane/group is hidden by
-// render/filter.
+// notes, mobileRemote. Mine, recipes, files, notes, and mobileRemote are grouped panes
+// (collapsible category/scope groups, in first-seen order); watches and scripts are flat
+// lists. mobileRemote is grouped like mine/recipes — always rendered as groups, never
+// flattened — because its groupId/section/groupIcon/groupColor fields (set by
+// launcherAdbItem.ts) exist specifically to drive one collapsible group per catalog group
+// (Connection / App control / Files / …). The files pane groups by area (Project / Android /
+// iOS / Web), but only when more than one area has matches: with a single area it renders
+// flat. The host controls ordering; an empty pane/group is hidden by render/filter.
 function paneModel(list) {
   const mine = { id: 'mine', title: strings.mine || 'My shortcuts', order: [], byId: {} };
   const recipes = { id: 'recipes', title: strings.recipes || 'Recipes', order: [], byId: {} };
@@ -201,7 +220,8 @@ function paneModel(list) {
   const notes = { id: 'notes', title: strings.notes || 'Notes', order: [], byId: {} };
   const watches = { id: 'watches', title: strings.watches || 'Watches', items: [] };
   const scripts = { id: 'scripts', title: strings.scripts || 'Scripts', items: [] };
-  const grouped = { mine: mine, recipes: recipes, files: files, notes: notes };
+  const mobileRemote = { id: 'mobileRemote', title: strings.mobileRemote || 'Mobile Remote Control', order: [], byId: {} };
+  const grouped = { mine: mine, recipes: recipes, files: files, notes: notes, mobileRemote: mobileRemote };
   const flat = { watches: watches, scripts: scripts };
   for (const it of list) {
     if (flat[it.pane]) { flat[it.pane].items.push(it); continue; }
@@ -221,8 +241,8 @@ function paneModel(list) {
   const filesPane = fileGroups.length > 1
     ? { id: 'files', icon: 'files', title: files.title, flat: false, groups: fileGroups }
     : { id: 'files', icon: 'files', title: files.title, flat: true, items: fileGroups[0] ? fileGroups[0].items : [] };
-  // Section glyphs mirror the header filter-chip icons (see buildHeader) so a pane and its
-  // chip read as the same thing.
+  // Section glyphs mirror the left panel's own category icons (PANE_ICON, launcherCategoryList.ts)
+  // so a pane and its left-panel row read as the same thing.
   var noteGroups = groupsOf(notes);
   var notesPane = noteGroups.length > 1
     ? { id: 'notes', icon: 'note', title: notes.title, flat: false, groups: noteGroups }
@@ -234,6 +254,7 @@ function paneModel(list) {
     filesPane,
     { id: 'scripts', icon: 'library', title: scripts.title, flat: true, items: scripts.items },
     notesPane,
+    { id: 'mobileRemote', icon: 'device-mobile', title: mobileRemote.title, flat: false, groups: groupsOf(mobileRemote) },
   ];
   // Apply per-pane sort: asc/desc flatten a grouped pane and sort all items by label.
   function sortCmp(a, b) { return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }); }
@@ -264,13 +285,6 @@ function postOpen(it) {
   else if (it.pane === 'files') { vscode.postMessage({ type: 'openFile', path: it.id }); }
   else if (it.pane === 'notes') { vscode.postMessage({ type: 'openNote', path: it.id }); }
   else { vscode.postMessage({ type: 'open', id: it.id }); }
-}
-
-var settingsBtn = document.getElementById('settingsBtn');
-if (settingsBtn) {
-  settingsBtn.addEventListener('click', function () {
-    vscode.postMessage({ type: 'openSettings' });
-  });
 }
 
 if (projName) {

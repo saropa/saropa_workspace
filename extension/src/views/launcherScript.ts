@@ -9,16 +9,20 @@
 // a single <script> with one shared global scope. The leading newline reproduces the original
 // template literal's framing exactly.
 import { LAUNCHER_SCRIPT_CORE } from './launcher/launcherScriptCore';
+import { LAUNCHER_SCRIPT_SPLIT } from './launcher/launcherScriptSplit';
 import { LAUNCHER_SCRIPT_CARDS } from './launcher/launcherScriptCards';
 import { LAUNCHER_SCRIPT_RENDER } from './launcher/launcherScriptRender';
 import { LAUNCHER_SCRIPT_FOLDED } from './launcher/launcherScriptFolded';
 import { LAUNCHER_SCRIPT_MENU } from './launcher/launcherScriptMenu';
 
 // The reassembled launcher webview script, in fragment load order (see the file header
-// for why the fragments are split and how the concatenation is injected).
+// for why the fragments are split and how the concatenation is injected). SPLIT runs right
+// after CORE since it reads CORE's `vscode`/`store` handles and its own boot wiring
+// (attaching the resize handles) must run once, in document order.
 export const LAUNCHER_SCRIPT =
   '\n' +
   LAUNCHER_SCRIPT_CORE +
+  LAUNCHER_SCRIPT_SPLIT +
   LAUNCHER_SCRIPT_CARDS +
   LAUNCHER_SCRIPT_RENDER +
   LAUNCHER_SCRIPT_FOLDED +

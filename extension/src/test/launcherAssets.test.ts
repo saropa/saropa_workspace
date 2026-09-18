@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LAUNCHER_STYLE } from "../views/launcherAssets";
 import { LAUNCHER_SCRIPT } from "../views/launcherScript";
+import { LAUNCHER_SCRIPT_MENU } from "../views/launcher/launcherScriptMenu";
 
 // --- LAUNCHER_STYLE -----------------------------------------------------
 
@@ -46,17 +47,6 @@ test("LAUNCHER_STYLE: the panes reflow via flex-wrap, not a fixed grid track", (
   assert.ok(panes, ".panes rule must exist");
   assert.ok(panes[0].includes("display: flex"), ".panes must lay out with flex");
   assert.ok(panes[0].includes("flex-wrap: wrap"), ".panes must wrap on a narrow Panel");
-});
-
-test("LAUNCHER_STYLE: pane-toggle stat chips have clear on/off styling", () => {
-  assert.ok(
-    /\.meta-item\.toggle\.off\s*\{[^}]*opacity/.test(LAUNCHER_STYLE),
-    "a toggled-off stat chip must dim via opacity"
-  );
-  assert.ok(
-    /\.meta-item\.toggle\s*\{[^}]*cursor:\s*pointer/.test(LAUNCHER_STYLE),
-    "stat toggle chips must be clickable"
-  );
 });
 
 test("LAUNCHER_STYLE: every var() fallback chain terminates in a static keyword", () => {
@@ -319,36 +309,83 @@ test("LAUNCHER_STYLE: the project block lays its parts on one row", () => {
   );
 });
 
-test("LAUNCHER_STYLE: a header stat is a clickable toggle chip", () => {
+test("LAUNCHER_STYLE/LAUNCHER_SCRIPT: the header stat chips and their buttons are gone (build order step 7)", () => {
+  // Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stat toggle chips,
+  // the gear button, and the TEMPORARY right-panel-toggle button — the left panel's category
+  // list (step 3) and native view/title icons (steps 5/7) replaced them. Guards a regression
+  // that brings any of this dead machinery back instead of leaving it cleanly removed.
   assert.ok(
-    /\.meta-item\.toggle\s*\{/.test(LAUNCHER_STYLE),
-    ".meta-item.toggle rule must exist so a stat reads as clickable"
+    !/\.meta-item\.toggle\b/.test(LAUNCHER_STYLE),
+    "the .meta-item.toggle stat-chip rule must be gone"
   );
   assert.ok(
-    /\.meta-item\.toggle\.off\s*\{/.test(LAUNCHER_STYLE),
-    ".meta-item.toggle.off rule must exist so a hidden pane's chip is dimmed"
+    !/\.meta-item\.meta-reset\b/.test(LAUNCHER_STYLE),
+    "the .meta-item.meta-reset 'show all sections' rule must be gone"
   );
+  assert.ok(!/\.hdr-btn\b/.test(LAUNCHER_STYLE), "the .hdr-btn rule must be gone");
+  assert.ok(
+    !LAUNCHER_SCRIPT.includes("settingsBtn"),
+    "the custom header's settings button wiring must be gone"
+  );
+  assert.ok(
+    !LAUNCHER_SCRIPT.includes("rightPanelToggleBtn"),
+    "the TEMPORARY right-panel-toggle button wiring must be gone"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("'toggleRightPanel'"),
+    "the native view/title icon's host->webview nudge must be wired instead"
+  );
+});
+
+// Extracts the `else if (msg && msg.type === 'toggleRightPanel') { ... }` branch body out of
+// LAUNCHER_SCRIPT_MENU by brace-counting from the branch's own opening `{`, mirroring
+// extractInputHandlerStatement's technique below (same brace-counting rationale: a nested
+// `{}` inside the branch must not be mistaken for its close).
+function extractToggleRightPanelBranch(script: string): string {
+  const marker = "msg.type === 'toggleRightPanel') {";
+  const start = script.indexOf(marker);
+  assert.ok(start !== -1, "expected a 'toggleRightPanel' message branch");
+  let depth = 0;
+  let i = start + marker.length - 1; // index of the branch's opening '{'
+  for (; i < script.length; i++) {
+    if (script[i] === "{") { depth++; }
+    else if (script[i] === "}") {
+      depth--;
+      if (depth === 0) { break; }
+    }
+  }
+  assert.ok(depth === 0, "expected the 'toggleRightPanel' branch to close");
+  return script.slice(start + marker.length, i);
+}
+
+test("LAUNCHER_SCRIPT: the 'toggleRightPanel' message branch actually calls togglePanel('right')", () => {
+  // Strengthens the previous plain substring check above (which only verified the string
+  // 'toggleRightPanel' appears somewhere in the script, not that its handler branch reaches
+  // togglePanel) by evaluating the branch body with togglePanel replaced by a spy — same
+  // `new Function`-eval idiom this suite already uses for the search-input handler
+  // (runInputHandler above).
+  const body = extractToggleRightPanelBranch(LAUNCHER_SCRIPT_MENU);
+  const calls: string[] = [];
+  const factory = new Function(
+    "calls",
+    `
+    function togglePanel(id) { calls.push('togglePanel:' + id); }
+    ${body}
+    `
+  );
+  factory(calls);
+  assert.deepEqual(calls, ["togglePanel:right"]);
 });
 
 test("LAUNCHER_SCRIPT: renders the header from the host-posted header object", () => {
   // The host posts { project, version, stats }; renderHeader writes the name, version chip,
-  // and per-pane counts. Both the call from the data handler and the function must persist.
+  // and the (now purely informational, no per-pane counts) stats. Both the call from the
+  // data handler and the function must persist.
   assert.ok(LAUNCHER_SCRIPT.includes("renderHeader(msg.header)"));
   assert.ok(LAUNCHER_SCRIPT.includes("function renderHeader"));
   // The header text is set via textContent, never innerHTML — the no-innerHTML test already
   // guards the file, but the project name/version are untrusted host values too.
   assert.ok(LAUNCHER_SCRIPT.includes("projName.textContent"));
-});
-
-test("LAUNCHER_SCRIPT: a header stat toggles its pane's visibility", () => {
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("isPaneHidden"),
-    "the toggle state must be checked for each pane"
-  );
-  assert.ok(
-    LAUNCHER_SCRIPT.includes("setPaneHidden"),
-    "clicking a stat chip must persist the toggle"
-  );
 });
 
 test("LAUNCHER_SCRIPT: recipe cards expose Pin and Schedule drawer buttons", () => {
@@ -412,6 +449,37 @@ test("LAUNCHER_SCRIPT: wires a flat 'scripts' pane into the pane model", () => {
   );
 });
 
+test("LAUNCHER_SCRIPT: wires a grouped 'mobileRemote' pane into the pane model", () => {
+  // Same wiring requirement as the 'scripts' test above, but for the grouped bucket a
+  // card with pane:'mobileRemote' needs: the grouped-pane bucket (byId/order, so its
+  // groupId-tagged cards can bucket into collapsible groups) AND the returned pane array
+  // entry that actually renders those groups (flat: false, groups: groupsOf(...)).
+  // Missing either half silently drops every adb card from the board, or renders them
+  // as one flat ungrouped list again (the fix #1 regression this guards against).
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("mobileRemote = { id: 'mobileRemote'") &&
+      LAUNCHER_SCRIPT.includes("order: [], byId: {} }"),
+    "the grouped pane bucket for mobileRemote must exist"
+  );
+  assert.ok(
+    LAUNCHER_SCRIPT.includes(
+      "{ id: 'mobileRemote', icon: 'device-mobile', title: mobileRemote.title, flat: false, groups: groupsOf(mobileRemote) }"
+    ),
+    "the returned pane array must render mobileRemote as groups, not a flat list"
+  );
+});
+
+test("LAUNCHER_SCRIPT: emits the 'pin' postMessage added for adb cards", () => {
+  // launcherScriptCards.ts's mobileRemote drawer button posts { type: 'pin', id }, routed
+  // host-side by launcherViewMessages.ts's handleAdbItem. A concatenation gap here (a
+  // fragment silently dropped from launcherScript.ts's join) would compile fine but leave
+  // Pin a dead button in the actual webview.
+  assert.ok(
+    LAUNCHER_SCRIPT.includes("vscode.postMessage({ type: 'pin', id: it.id })"),
+    "the mobileRemote card's Pin button must post a 'pin' message"
+  );
+});
+
 // --- LAUNCHER_SCRIPT ----------------------------------------------------
 
 test("LAUNCHER_SCRIPT: is a non-empty client script", () => {
@@ -440,6 +508,90 @@ test("LAUNCHER_SCRIPT: references the host-substituted count placeholders", () =
   assert.ok(LAUNCHER_SCRIPT.includes("{n}"));
   assert.ok(LAUNCHER_SCRIPT.includes("{shown}"));
   assert.ok(LAUNCHER_SCRIPT.includes("{total}"));
+});
+
+// Extracts the full `q.addEventListener('input', function () { ... });` statement out of
+// LAUNCHER_SCRIPT_MENU by brace-counting from the opening `{` of the listener's function body,
+// rather than a plain indexOf for the next literal "});" (the previous version of this test's
+// approach) — a brace count cannot be fooled by a nested function/addEventListener appearing
+// inside the handler in the future, where a naive indexOf would truncate the extracted body
+// early and silently stop checking the rest of the real handler.
+function extractInputHandlerStatement(script: string): string {
+  const marker = "q.addEventListener('input', function () {";
+  const start = script.indexOf(marker);
+  assert.ok(start !== -1, "expected a function-bodied 'input' listener on the search box");
+  let depth = 0;
+  let i = start + marker.length - 1; // index of the body's opening '{'
+  for (; i < script.length; i++) {
+    if (script[i] === "{") { depth++; }
+    else if (script[i] === "}") {
+      depth--;
+      if (depth === 0) { break; }
+    }
+  }
+  assert.ok(depth === 0, "expected the 'input' listener's function body to close");
+  const closeParen = script.indexOf(")", i);
+  const semicolon = script.indexOf(";", closeParen);
+  assert.ok(semicolon !== -1, "expected the addEventListener(...) call to end in ';'");
+  return script.slice(start, semicolon + 1);
+}
+
+// Evaluates the extracted 'input' listener statement with every collaborator it calls
+// (selectedCategory/setSelectedCategory/syncCategorySelection/render/applyFilter) replaced by
+// a spy that records its own name into a shared, ordered array — same `new Function`-eval
+// idiom this suite already uses for client-script fragments (see webviewClientUtils.test.ts's
+// compile() and launcherSplitLogic.test.ts's copy of it), just applied to one statement
+// instead of a whole generator's output. `q` itself is stubbed to just capture the listener
+// function so this can invoke it directly, exactly as the real 'input' DOM event would.
+function runInputHandler(categoryValue: string): string[] {
+  const calls: string[] = [];
+  const statement = extractInputHandlerStatement(LAUNCHER_SCRIPT_MENU);
+  const factory = new Function(
+    "calls",
+    "categoryValue",
+    `
+    var handler;
+    var q = { addEventListener: function (type, fn) { handler = fn; } };
+    function selectedCategory() { return categoryValue; }
+    function setSelectedCategory(v) { calls.push('setSelectedCategory:' + v); }
+    function syncCategorySelection() { calls.push('syncCategorySelection'); }
+    function render() { calls.push('render'); }
+    function applyFilter() { calls.push('applyFilter'); }
+    ${statement}
+    return handler;
+    `
+  );
+  const handler = factory(calls, categoryValue) as () => void;
+  handler();
+  return calls;
+}
+
+test("LAUNCHER_SCRIPT: typing in search while a category is selected resets to 'all', in order, without a direct applyFilter() call", () => {
+  // This is the case the previous version of this test could not distinguish from a broken
+  // implementation that runs the reset AFTER render() (re-introducing the scoped-search bug):
+  // asserting the exact recorded ORDER, not just that each name appears somewhere in the
+  // source, is what actually verifies the fix (finding #3 of the adversarial review). The
+  // sequence dropped its 'syncCategoryChips' step in build order step 7, once the header
+  // chips it used to re-sync were removed entirely.
+  const calls = runInputHandler("recipes");
+  assert.deepEqual(
+    calls,
+    ["setSelectedCategory:all", "syncCategorySelection", "render"],
+    "must reset to 'all', re-sync the left panel, then render — in that order — and must NOT " +
+      "also call applyFilter() directly (render() is responsible for that internally)"
+  );
+});
+
+test("LAUNCHER_SCRIPT: typing in search while 'all' is already selected only re-filters, cheaply", () => {
+  // This is the other broken implementation finding #3 flags: unconditionally running the
+  // full reset+render sequence on every keystroke, even when the selection is already 'all',
+  // which is exactly the per-keystroke rebuild cost the code comment promises not to pay.
+  const calls = runInputHandler("all");
+  assert.deepEqual(
+    calls,
+    ["applyFilter"],
+    "once 'all' is already selected, typing must only call applyFilter() — no reset, no render()"
+  );
 });
 
 test("LAUNCHER_SCRIPT: builds rows with textContent, never innerHTML", () => {

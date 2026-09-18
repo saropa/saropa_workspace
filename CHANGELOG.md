@@ -46,6 +46,22 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Launcher panel has been restructured from six competing panes fighting for space into one flexible, resizable layout, with Mobile Remote Control folded in as a category alongside your shortcuts, recipes, watches, files, scripts, and notes.
+
+### Added
+
+- **Launcher panel restructure**: the Launcher's left side is now a single flat category list — All, plus one entry per category (Shortcuts, Recipes, Watches, Files, Scripts, Notes, and the new Mobile Remote Control) — each showing its own item count. Selecting a category filters the card grid to just that content; selecting All shows everything, grouped. Typing into the search box now always resets the selection to All, so a search is never silently scoped to whatever category happened to be selected.
+- New resizable, collapsible left and right panels. The left one is the category list described above; the right one lists your recent adb run history (most-recent first, with per-command run counts) with a Run again button on each row — off by default, toggle it from the panel's title bar. Both remember their width and collapsed state across reloads.
+
+### Changed
+
+- Sort and settings actions moved out of the Launcher's old in-content header and into native title-bar icons (the same chrome VS Code's Shortcuts view already uses), alongside a new show/hide icon for the right panel.
+- Trimmed the Launcher's custom header down to the project name, version, and search: the per-pane stat toggle chips and the settings gear are gone now that the left panel's category list and the native title-bar icons cover the same ground.
+
+---
+
 ## [1.10.0]
 A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
 

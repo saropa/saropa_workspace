@@ -7,12 +7,22 @@
 //
 // Header: a two-part bar (.head-bar) — the project block on the leading edge, the compact
 // search group on the trailing edge. The project block reads as one line: the folder name,
-// then the declared version + per-pane counts inline beside it. Each count is a toggle chip:
-// clicking it shows or hides that pane section. A dimmed (`.off`) chip means the section is
-// hidden; full opacity means visible. A loading indicator is shown until the first data
-// message arrives.
-// The name paints synchronously from the host's initial HTML; the version + counts arrive in
+// then the declared version + a small informational stat (scheduled rituals) inline beside
+// it. A loading indicator is shown until the first data message arrives.
+// The name paints synchronously from the host's initial HTML; the version + stat arrive in
 // the first data message (they need the disk scan) and are written by renderHeader.
+//
+// Build order step 7 (PLAN_Launcher_Restructure.md) removed the per-pane stat CHIPS that
+// used to live here (mine/recipes/watches/files/scripts/mobileRemote/notes counts, each a
+// clickable show/hide toggle with its own hidden-state machine) — the left panel's category
+// list (step 3) already shows the same per-category counts via a strictly better single-
+// select mechanism, so the chips were pure duplication once that landed. The gear button and
+// the temporary right-panel-toggle button that used to sit beside the search group are also
+// gone, replaced by native view/title icons (saropaWorkspace.openSettings,
+// saropaWorkspace.launcher.showRightPanel/hideRightPanel — split into a complementary pair so
+// the icon itself reflects the panel's shown/hidden state, a review-flagged accessibility
+// fix). Search itself was NOT part of that cleanup — see launcherViewShell.ts's header markup
+// comment for why it has no native replacement.
 //
 // Layout (the design the launcher earns over a TreeView): the Panel is wide and short, so
 // the surface splits into responsive panes that sit side by side when wide and stack when
@@ -25,9 +35,12 @@
 //
 // Search is client-side: the host posts the full item set once per change and the script
 // filters live on every keystroke; while a query is active, collapsed groups reveal their
-// matches so a result is never hidden behind a fold. Pane visibility is toggled via the
-// header stat chips (on/off); inner groups collapse independently, with posture persisted
-// across reloads via the webview's getState/setState.
+// matches so a result is never hidden behind a fold. Pane visibility follows the left
+// panel's category selection (step 3) — "All" shows every pane, a specific category shows
+// only its own; inner groups collapse independently, with posture persisted across reloads
+// via the webview's getState/setState.
+
+import { LEFT_PANEL_LIMITS, RIGHT_PANEL_LIMITS } from "./launcher/launcherSplitLogic";
 
 export const LAUNCHER_STYLE = `
 /* The one place the card-button label size and box padding live. Every card action
@@ -67,14 +80,6 @@ header {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px 16px; flex-wrap: wrap;
 }
-.hdr-btn {
-  flex: 0 0 auto; display: grid; place-items: center;
-  width: 26px; height: 26px; border: none; border-radius: 4px;
-  background: transparent; color: var(--vscode-descriptionForeground);
-  cursor: pointer; padding: 0;
-}
-.hdr-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,.12)); color: var(--vscode-foreground); }
-.hdr-btn:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -1px; }
 /* The project block grows to take the freed width and lays its parts on ONE line — the
    folder name, then the version + counts inline beside it — so the header reads as a single
    summary row rather than a stacked name-over-meta block. min-width:0 lets a long folder
@@ -109,31 +114,6 @@ header {
 .meta-item .codicon { font-size: 13px; }
 .meta-item.loading { color: var(--vscode-descriptionForeground); }
 .meta-item.version { color: var(--vscode-foreground); }
-.meta-item.toggle {
-  background: none; border: none; font: inherit;
-  cursor: pointer; border-radius: 3px; padding: 1px 5px;
-  color: var(--vscode-foreground);
-  opacity: 1;
-  transition: opacity 0.12s ease;
-}
-.meta-item.toggle:hover {
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
-}
-.meta-item.toggle:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.meta-item.toggle.off {
-  opacity: 0.4;
-}
-.meta-item.meta-reset {
-  background: none; border: none; font: inherit;
-  cursor: pointer; border-radius: 3px; padding: 1px 5px;
-  color: var(--vscode-foreground);
-  opacity: 0.6;
-}
-.meta-item.meta-reset:hover {
-  opacity: 1;
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground, transparent));
-}
-.meta-item.meta-reset:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 /* Cap the search group's width: the Panel is very wide, and a wide input left the search bar
    stretched across the whole surface, crowding out the project summary. flex 0 1 keeps it a
    compact group (icon + input + count) on the trailing edge that may shrink but not grow past
@@ -167,6 +147,111 @@ header {
 }
 .count:empty { display: none; }
 
+/* Split layout: a left panel (category list, later step), the existing center content
+   (#empty/#root, untouched below), and a right panel (run-history table, later step) —
+   see PLAN_Launcher_Restructure.md. Both side panels are resizable (drag handle) and
+   collapsible (toggled fully out of the flex row via .hidden), sharing one component
+   (launcherScriptSplit.ts) rather than two different widgets. flex (not grid) so a
+   collapsed panel truly takes zero width instead of retaining a grid track's minmax. */
+.split { display: flex; align-items: stretch; gap: 10px; }
+.center { flex: 1 1 auto; min-width: 0; }
+.side-panel {
+  flex: 0 0 auto;
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+  border-radius: 5px;
+  background: var(--vscode-editorWidget-background, transparent);
+  padding: 8px 10px;
+}
+.side-panel.hidden { display: none; }
+.side-panel-body {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+  /* Scrolls independently of the drag handle below, which is absolutely positioned over
+     the panel's own edge (see .split-rsz) — overflow here, not on .side-panel, keeps the
+     handle's full width grabbable instead of being clipped to a sliver by the scroll box. */
+  overflow: auto;
+}
+.left-panel { width: var(--launcher-left-w, ${LEFT_PANEL_LIMITS.defaultWidth}px); }
+.right-panel { width: var(--launcher-right-w, ${RIGHT_PANEL_LIMITS.defaultWidth}px); }
+/* The left panel's category list (PLAN_Launcher_Restructure.md build order step 3): a flat
+   list of buttons, one per pane plus "All", each an icon + label + right-aligned count —
+   the same row shape VS Code's own list views use, so it reads at home beside the rest of
+   the editor chrome. */
+.cat-list { display: flex; flex-direction: column; gap: 1px; }
+.cat-item {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; text-align: left;
+  background: none; border: none; font: inherit;
+  color: var(--vscode-foreground);
+  border-radius: 3px; padding: 3px 6px;
+  cursor: pointer;
+}
+.cat-item:hover {
+  background: var(--vscode-list-hoverBackground, transparent);
+}
+.cat-item:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.cat-item.selected {
+  background: var(--vscode-list-activeSelectionBackground, transparent);
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+.cat-item .codicon { font-size: 14px; flex: none; }
+.cat-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-count {
+  flex: none;
+  color: var(--vscode-badge-foreground); background: var(--vscode-badge-background);
+  border-radius: 8px; padding: 0 6px; font-size: 0.85em; line-height: 1.6;
+}
+/* The right panel's run-history list (PLAN_Launcher_Restructure.md build order step 6): a
+   flat list of rows, each a label + lifetime-count badge + a "Run again" icon button — the
+   same row shape .cat-item above uses, so the two side panels read as one component family
+   rather than two differently-styled widgets. */
+.run-history-list { display: flex; flex-direction: column; gap: 1px; }
+.run-history-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px; border-radius: 3px;
+}
+.run-history-item:hover { background: var(--vscode-list-hoverBackground, transparent); }
+.run-history-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-history-count {
+  flex: none;
+  color: var(--vscode-badge-foreground); background: var(--vscode-badge-background);
+  border-radius: 8px; padding: 0 6px; font-size: 0.85em; line-height: 1.6;
+}
+.run-history-run {
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  background: none; border: none; border-radius: 3px;
+  color: var(--vscode-foreground); cursor: pointer;
+}
+.run-history-run:hover { background: var(--vscode-toolbar-hoverBackground, transparent); }
+.run-history-run:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.run-history-empty {
+  color: var(--vscode-descriptionForeground);
+  padding: 4px 2px;
+}
+/* The drag handle: a thin strip over the panel's shared edge with the center content,
+   matching Planner's .tb-rsz/.rsz handle pattern (src/views/plannerAssets.ts) — subtle
+   until hovered/dragging, when a themed accent bar appears. z-index is below the sticky
+   header's (3) so the handle never draws over it near the top of the panel. */
+.split-rsz {
+  position: absolute; top: 0; bottom: 0; width: 8px;
+  cursor: col-resize; z-index: 2;
+}
+.split-rsz::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
+  background: transparent; transition: background 0.12s ease;
+}
+.split-rsz:hover::after, .split-rsz.dragging::after { background: var(--vscode-focusBorder); }
+.split-rsz-left { right: -5px; }
+.split-rsz-right { left: -5px; }
+/* Set on <body> for the duration of a drag (see launcherScriptSplit.ts's attachSplitResizer)
+   so the resize cursor and disabled text-selection apply everywhere the pointer travels,
+   not just while it stays over the 8px handle strip. */
+body.resizing { cursor: col-resize; user-select: none; }
+
 /* Responsive panes via flex-wrap (not grid): side by side when the Panel is wide, wrapping
    to stacked (mine first) when narrow. align-items:flex-start so an empty/short pane does
    not stretch to its sibling's height. */
@@ -177,9 +262,10 @@ header {
 }
 .pane { flex: 1 1 340px; min-width: 0; }
 .pane.hidden { display: none; }
-/* The pane head is a clickable section label (glyph + title + count). Clicking it hides
-   the pane — the same toggle the header stat chip controls — so the board scales down to
-   just the sections in use. The header stat chip or the reset eye button brings it back. */
+/* The pane head is a clickable section label (glyph + title + count). Clicking it cycles
+   that pane's sort mode (Grouped → A-Z → Z-A) — see makePaneHead(), launcherScriptFolded.ts.
+   A pane's own visibility (shown/hidden) is decided by the left panel's category selection,
+   not by anything on the pane head itself. */
 .pane-head {
   display: flex; align-items: center; gap: 7px;
   width: 100%;

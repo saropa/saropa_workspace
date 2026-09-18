@@ -212,6 +212,26 @@ function setupLauncherPanel(
     ),
     vscode.commands.registerCommand("saropaWorkspace.showLauncher", () =>
       vscode.commands.executeCommand("saropaWorkspace.launcher.focus")
+    ),
+    // The native view/title "cycle sort" icon (PLAN_Launcher_Restructure.md build order
+    // step 5). Reaches the live provider instance the same way showLauncher above does —
+    // a closure over the `launcher` constructed just above, not a lookup — since a command
+    // registered here has no other way to reach a specific WebviewViewProvider instance.
+    vscode.commands.registerCommand("saropaWorkspace.launcher.cycleSort", () =>
+      launcher.cycleSort()
+    ),
+    // The native view/title "toggle right panel" icon (PLAN_Launcher_Restructure.md build
+    // order step 7), replacing the header's own removed TEMPORARY button. Split into two
+    // commands (review finding: the single-icon version had no state indication) so
+    // package.json can swap the icon via complementary `when` clauses on the
+    // saropaWorkspace.launcher.rightPanelVisible context key — mirroring
+    // filterPins/filterPinsActive's pattern. Both call the same host method: the icon swap
+    // is purely a package.json/context-key concern, not a behavior difference.
+    vscode.commands.registerCommand("saropaWorkspace.launcher.showRightPanel", () =>
+      launcher.toggleRightPanel()
+    ),
+    vscode.commands.registerCommand("saropaWorkspace.launcher.hideRightPanel", () =>
+      launcher.toggleRightPanel()
     )
   );
 }
