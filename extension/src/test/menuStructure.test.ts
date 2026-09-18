@@ -17,6 +17,7 @@ interface MenuItem {
   command?: string;
   submenu?: string;
   when?: string;
+  group?: string;
 }
 
 interface Manifest {
@@ -172,6 +173,37 @@ test("the Launcher's view/title commands are declared, scoped to the Launcher vi
         `"view == saropaWorkspace.launcher"`
     );
   }
+});
+
+test("showRightPanel/hideRightPanel's view/title when-clauses are exact complementary opposites", () => {
+  // The substring check in the previous test only confirms both commands are scoped to
+  // the Launcher view — it would still pass if someone accidentally dropped the "!" from
+  // one clause, which would show both icons (or neither) at once. This is the only
+  // automated guard for the whole point of splitting one ambiguous toggle icon into two
+  // state-reflecting ones (build order step 7); the manual checklist's "confirm the icon
+  // itself switches between its show and hide glyph" item is the only other check, and
+  // manual checklists rot.
+  const manifest = readManifest();
+  const viewTitle = manifest.contributes?.menus?.["view/title"] ?? [];
+
+  const show = viewTitle.find((item) => item.command === "saropaWorkspace.launcher.showRightPanel");
+  const hide = viewTitle.find((item) => item.command === "saropaWorkspace.launcher.hideRightPanel");
+
+  assert.ok(show, "expected saropaWorkspace.launcher.showRightPanel in view/title");
+  assert.ok(hide, "expected saropaWorkspace.launcher.hideRightPanel in view/title");
+  assert.equal(
+    show!.when,
+    "view == saropaWorkspace.launcher && !saropaWorkspace.launcher.rightPanelVisible"
+  );
+  assert.equal(
+    hide!.when,
+    "view == saropaWorkspace.launcher && saropaWorkspace.launcher.rightPanelVisible"
+  );
+  assert.equal(
+    show!.group,
+    hide!.group,
+    "show/hide right-panel icons must share the same view/title group so exactly one shows in the same slot"
+  );
 });
 
 test("the Launcher-only view/title commands are hidden from the Command Palette; openSettings is not", () => {

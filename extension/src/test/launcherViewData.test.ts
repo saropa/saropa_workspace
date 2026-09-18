@@ -12,7 +12,7 @@
 // which resolves to `undefined` like the real API's "no name" case — no stub change or
 // production refactor was needed to make this testable.
 
-import { test, beforeEach, afterEach } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { __setWorkspaceFolders, type WorkspaceFolder, Uri } from "./_stub/vscode";
 import { buildHeader, buildAllItems } from "../views/launcherViewData";
@@ -164,11 +164,15 @@ test("buildAllItems: merges shortcuts, watches, files, scripts and the adb catal
   assert.ok(items.some((i) => i.pane === "files"), "expected a file-sourced item");
   assert.ok(items.some((i) => i.pane === "scripts"), "expected a script-sourced item");
   assert.ok(items.some((i) => i.pane === "mobileRemote"), "expected the adb catalog to be included");
-  // Every pane the six sources can produce is represented at least once with this input
-  // (no androidProfile is passed, but adbLauncherItems still emits the full catalog
-  // unsubstituted per its own doc comment), so this also guards against a future source
-  // silently being dropped from the merge.
-  assert.ok(panes.size >= 5);
+  // Every pane of all five sources buildAllItems merges (notes are appended later, in
+  // launcherView.ts) is represented at least once with this input (no androidProfile is
+  // passed, but adbLauncherItems still emits the full catalog unsubstituted per its own
+  // doc comment). Asserting the exact sorted set (not just >= 5) also catches a stray or
+  // unexpected pane being merged in, which the five `.some()` checks above cannot.
+  assert.deepEqual(
+    [...panes].sort(),
+    ["files", "mine", "mobileRemote", "scripts", "watches"]
+  );
 });
 
 test("buildAllItems: with empty inputs, only the adb catalog (which needs no input data) contributes items", () => {

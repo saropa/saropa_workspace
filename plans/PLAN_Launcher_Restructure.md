@@ -206,3 +206,21 @@ before this ships:
       resort the visible cards as expected.
 - [ ] Confirm the native title-bar settings icon opens the same settings
       the old header's gear used to.
+- [ ] Click the "Run again" button on a row in the right panel's run-history
+      list and confirm it re-runs that exact command, the same as running it
+      fresh from a card.
+- [ ] Open the right panel on a fresh workspace with no run history and
+      confirm it shows a "Nothing run yet" message; then turn off
+      `saropaWorkspace.telemetry.enabled` and confirm the right panel shows a
+      different "history is turned off" message instead of the "nothing yet"
+      one.
+- [ ] With the Launcher open, run a command from the standalone Mobile
+      Remote Control panel (not from the Launcher itself) and confirm the
+      Launcher's right-panel run-history list updates live to include it.
+- [ ] Select a left-panel category, then make it empty (delete the last item
+      in that category, or simulate a stale persisted category id from
+      before a rename) and confirm the selection falls back to All instead
+      of leaving the center grid blank with no way back.
+- [ ] Confirm the right panel is genuinely collapsed/off by default on a
+      completely fresh workspace, matching the changelog's "off by default"
+      claim.
