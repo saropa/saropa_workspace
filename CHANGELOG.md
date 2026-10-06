@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [1.11.0]
 
-The Launcher panel has been restructured from six competing panes fighting for space into one flexible, resizable layout, with Mobile Remote Control folded in as a category alongside your shortcuts, recipes, watches, files, scripts, and notes.
+The Launcher panel has been restructured from six competing panes fighting for space into one flexible, resizable layout, with Mobile Remote Control folded in as a category alongside your shortcuts, recipes, watches, files, scripts, and notes. [log](https://github.com/saropa/saropa-workspace/blob/v1.11.0/CHANGELOG.md)
 
 ### Added
 
@@ -67,6 +67,7 @@ The Launcher panel has been restructured from six competing panes fighting for s
 ---
 
 ## [1.10.0]
+
 A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa-workspace/blob/v1.10.0/CHANGELOG.md)
 
 ### Added
