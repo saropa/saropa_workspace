@@ -2,7 +2,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { mapLimit } from "../board/pool";
-import { MAX_EXTRA_PROJECTS, MAX_PARENT_CHILDREN, Entry, addProjectPaths, candidateChildren, folderName, looksLikeProject } from "../board/extraProjects";
+import { MAX_EXTRA_PROJECTS, MAX_PARENT_CHILDREN, Entry, addProjectPaths, candidateChildren, cleanProjectPaths, removeProjectPaths, folderName, looksLikeProject } from "../board/extraProjects";
 import { chosenFolders, openFolderPaths, readProjectPaths, readProjectScope } from "../commands/boardExtraProjects";
 
 // Release Board, the setup step for the projects the board includes. A quick pick with four
@@ -52,7 +52,7 @@ async function saveAdded(add: readonly string[]): Promise<void> {
   await writePaths(next.paths);
   say("releaseBoard.projects.added", { count: next.added });
   const missed = add.length - next.added;
-  if (next.paths.length >= MAX_EXTRA_PROJECTS && missed > 0) {
+  if (cleanProjectPaths(next.paths, openFolderPaths(), Number.MAX_SAFE_INTEGER).paths.length >= MAX_EXTRA_PROJECTS && missed > 0) {
     say("releaseBoard.projects.overLimit", { max: MAX_EXTRA_PROJECTS });
   }
 }
@@ -108,14 +108,14 @@ async function addParent(): Promise<void> {
 }
 
 async function removeFolders(): Promise<void> {
-  const paths = chosenFolders().paths;
+  const paths = cleanProjectPaths(readProjectPaths(), openFolderPaths(), Number.MAX_SAFE_INTEGER).paths;
   const items = paths.map((p) => ({ label: folderName(p), description: p }));
   const chosen = await vscode.window.showQuickPick(items, { canPickMany: true, placeHolder: l10n("releaseBoard.projects.removePick") });
   if (!chosen || chosen.length === 0) {
     return;
   }
   const drop = new Set(chosen.map((c) => c.description));
-  await writePaths(paths.filter((p) => !drop.has(p)));
+  await writePaths(removeProjectPaths(readProjectPaths(), drop));
   say("releaseBoard.projects.removed", { count: chosen.length });
 }
 

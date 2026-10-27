@@ -46,20 +46,42 @@ test("readHead cuts to the first lines and readText returns the whole file", asy
   assert.equal(await src.readText!(dir, "docs/deep/b.md"), "bee");
 });
 
-test("list never follows a link: a linked folder and a linked file are left out", async () => {
-  const dir = tree();
+// Makes the listing of "docs" also report the given extra entries.
+function withExtraEntries(extra: Array<[string, number]>): () => void {
   const real = vscode.workspace.fs;
   const original = real.readDirectory.bind(real);
-  // The listing of "docs" also reports a linked folder that does not exist: following it would fail the walk.
   (real as { readDirectory: typeof real.readDirectory }).readDirectory = async (uri) => {
     const list = await original(uri);
-    return uri.fsPath.endsWith("docs") ? [...list, ["loop", vscode.FileType.Directory | vscode.FileType.SymbolicLink], ["out.md", vscode.FileType.File | vscode.FileType.SymbolicLink]] : list;
+    return uri.fsPath.endsWith("docs") ? [...list.filter(([n]) => !extra.some(([e]) => e === n)), ...extra] : list;
   };
+  return () => {
+    (real as { readDirectory: typeof real.readDirectory }).readDirectory = original;
+  };
+}
+
+test("for a chosen project list skips links: a linked folder and a linked file are left out", async () => {
+  const dir = tree();
+  fs.writeFileSync(path.join(dir, "docs", "alias.md"), "a");
+  // "loop" does not exist: following it would fail the walk.
+  const restore = withExtraEntries([["loop", vscode.FileType.Directory | vscode.FileType.SymbolicLink], ["alias.md", vscode.FileType.File | vscode.FileType.SymbolicLink]]);
   try {
-    const files = await workspaceFileSource().list(dir, "docs", (p) => p.endsWith(".md"));
+    const files = await workspaceFileSource().list(dir, "docs", (p) => p.endsWith(".md"), true);
     assert.deepEqual(files.map((f) => f.path).sort(), ["docs/a.md", "docs/deep/b.md"]);
   } finally {
-    (real as { readDirectory: typeof real.readDirectory }).readDirectory = original;
+    restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("for an open project a linked file is read as before", async () => {
+  const dir = tree();
+  fs.writeFileSync(path.join(dir, "docs", "alias.md"), "a");
+  const restore = withExtraEntries([["alias.md", vscode.FileType.File | vscode.FileType.SymbolicLink]]);
+  try {
+    const files = await workspaceFileSource().list(dir, "docs", (p) => p.endsWith(".md"));
+    assert.deepEqual(files.map((f) => f.path).sort(), ["docs/a.md", "docs/alias.md", "docs/deep/b.md"]);
+  } finally {
+    restore();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

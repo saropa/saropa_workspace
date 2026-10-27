@@ -7,6 +7,7 @@ import {
   needsStatusWord,
 } from "./ruleEngine";
 import { mapLimit } from "./pool";
+import { withTimeout } from "./timeout";
 import { mergeDict } from "./severity";
 import { DocFacts, FACTS_VERSION, FactsOptions, readFacts } from "./docFacts";
 import {
@@ -26,7 +27,9 @@ export interface FileSource {
   // `projectDir`, "/" separated.
   // `accept` says which paths the scan wants; a source should skip the others before it
   // pays for a stat.
-  list(projectDir: string, root: string, accept?: (path: string) => boolean): Promise<ScanFile[]>;
+  // `noLinks` says links to folders and files are skipped, not followed (used for the
+  // user's chosen projects, which may sit anywhere on the machine).
+  list(projectDir: string, root: string, accept?: (path: string) => boolean, noLinks?: boolean): Promise<ScanFile[]>;
   // The first `lines` lines of a file (only called for Markdown that may carry a
   // Status line).
   readHead(projectDir: string, path: string, lines: number): Promise<string>;
@@ -83,7 +86,28 @@ export interface ScanResult {
   // Open documents whose facts a "cached" scan did not read; see completeFacts.
   pending: PendingFacts[];
   stats: ScanStats;
+  // Chosen projects whose scan failed or took too long; they are left out of the rows and
+  // the snapshot and shown as grey rows (see dropFailed).
+  failed?: FailedProject[];
 }
+
+export interface FailedProject {
+  id: string;
+  name: string;
+  reason: "unreadable" | "timedOut";
+}
+
+// The config without the projects whose scan failed, and with a grey row for each.
+export function dropFailed(cfg: BoardConfig, failed: readonly FailedProject[] | undefined): BoardConfig {
+  if (!failed || failed.length === 0) {
+    return cfg;
+  }
+  const ids = new Set(failed.map((f) => f.id));
+  return { ...cfg, projects: cfg.projects.filter((p) => !ids.has(p.id)), skipped: [...(cfg.skipped ?? []), ...failed.map((f) => ({ name: f.name, reason: f.reason }))] };
+}
+
+// Longest one chosen project may take to scan before it becomes a grey row.
+export const EXTRA_SCAN_MS = 60_000;
 
 const DEFAULT_EXTENSIONS = [".md", ".sql"];
 const STATUS_LINES = 20;
@@ -133,7 +157,7 @@ export type FactsMode = "all" | "cached";
 async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: string) => boolean): Promise<ScanFile[]> {
   const listings = await mapLimit(project.roots, PROJECT_PARALLEL, async (root) => {
     try {
-      return await source.list(project.path, root, wanted);
+      return await source.list(project.path, root, wanted, project.extra === true);
     } catch (e) {
       if (isMissing(e)) {
         return [] as ScanFile[];
@@ -299,16 +323,33 @@ export async function scanAll(
   source: FileSource,
   previous?: ScanSnapshot,
   now: number = Date.now(),
-  factsMode: FactsMode = "all"
+  factsMode: FactsMode = "all",
+  extraMs: number = EXTRA_SCAN_MS
 ): Promise<ScanResult> {
   const started = Date.now();
-  const results = await mapLimit(cfg.projects, PROJECT_PARALLEL, (p) => scanProject(cfg, p, source, previous?.projects[p.id], factsMode));
+  const failed: FailedProject[] = [];
+  const results = await mapLimit(cfg.projects, PROJECT_PARALLEL, async (p) => {
+    const job = scanProject(cfg, p, source, previous?.projects[p.id], factsMode);
+    if (p.extra !== true) {
+      return job;
+    }
+    // A chosen project may sit on a slow or broken mount: it becomes a grey row, never a failed board.
+    try {
+      return await withTimeout(job, extraMs);
+    } catch (e) {
+      failed.push({ id: p.id, name: p.name ?? p.id, reason: e instanceof Error && e.message.startsWith("timed out") ? "timedOut" : "unreadable" });
+      return undefined;
+    }
+  });
   const rows: Classified[] = [];
   const projects: Record<string, ProjectSnapshot> = {};
   const pending: PendingFacts[] = [];
   const stats: ScanStats = { files: 0, headReads: 0, factReads: 0, ms: 0 };
   cfg.projects.forEach((p, i) => {
     const r = results[i];
+    if (!r) {
+      return;
+    }
     rows.push(...r.rows);
     projects[p.id] = p.extra ? { ...r.snapshot, extra: true } : r.snapshot;
     pending.push(...r.pending);
@@ -317,7 +358,8 @@ export async function scanAll(
     stats.factReads += r.factReads;
   });
   stats.ms = Date.now() - started;
-  return { rows, snapshot: { version: 1, takenAt: now, projects }, pending, stats };
+  failed.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { rows, snapshot: { version: 1, takenAt: now, projects }, pending, stats, ...(failed.length > 0 ? { failed } : {}) };
 }
 
 // Reads the facts a "cached" scan left pending and adds them to the result's snapshot.
@@ -329,8 +371,15 @@ export async function completeFacts(cfg: BoardConfig, source: FileSource, result
   const started = Date.now();
   for (const def of cfg.projects) {
     const todo = byProject.get(def.id);
-    if (todo) {
-      await readPending(def, source, result.snapshot.projects[def.id], factsOptions(cfg, def), todo);
+    const snap = result.snapshot.projects[def.id];
+    if (todo && snap) {
+      const read = readPending(def, source, snap, factsOptions(cfg, def), todo);
+      if (def.extra === true) {
+        // A slow chosen project keeps its documents unread (UNVERIFIED) instead of holding the board.
+        await withTimeout(read, EXTRA_SCAN_MS).catch(() => undefined);
+      } else {
+        await read;
+      }
       result.stats.factReads += todo.length;
     }
   }

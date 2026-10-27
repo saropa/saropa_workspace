@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_EXTRA_PROJECTS, addProjectPaths, asScope, candidateChildren, cleanProjectPaths, folderKey, folderName, folderProjects, insidePath, looksLikeProject, skippedRows } from "../../board/extraProjects";
+import { MAX_EXTRA_PROJECTS, addProjectPaths, removeProjectPaths, setPrefix, storedPaths, asScope, candidateChildren, cleanProjectPaths, folderKey, folderName, folderProjects, insidePath, looksLikeProject, skippedRows } from "../../board/extraProjects";
 
 test("the scope setting reads openOnly and treats everything else as all", () => {
   assert.equal(asScope("openOnly"), "openOnly");
@@ -162,4 +162,62 @@ test("a project list with nothing usable falls back to the folder itself", () =>
 
 test("skipped rows carry the folder name and the reason, never the path", () => {
   assert.deepEqual(skippedRows([{ path: "/secret/place/gone", reason: "missing" }]), [{ name: "gone", reason: "missing" }]);
+});
+
+test("adding keeps an open folder, an over-limit entry and every earlier entry in the stored list", () => {
+  const many = Array.from({ length: MAX_EXTRA_PROJECTS + 2 }, (_, i) => `/p/${i}`);
+  const r = addProjectPaths(["/open/A", ...many.slice(0, 3)], ["/open/B"], ["/open/B"]);
+  assert.deepEqual(r.paths, ["/open/A", "/p/0", "/p/1", "/p/2"], "the open folder A stays stored; B is open now so it is not added");
+  assert.equal(r.added, 0);
+  const bigList = addProjectPaths(many, ["/new"], []);
+  assert.equal(bigList.added, 0);
+  assert.deepEqual(bigList.paths, many, "over-limit entries are not dropped");
+});
+
+test("with folder A open, adding B keeps A in the stored list", () => {
+  const r = addProjectPaths(["/work/A"], ["/work/B"], ["/work/A"]);
+  assert.deepEqual(r.paths, ["/work/A", "/work/B"]);
+  assert.equal(r.added, 1);
+});
+
+test("the stored list drops only invalid entries and repeats", () => {
+  assert.deepEqual(storedPaths(["/a", "rel", 3, "/a/", "/b"]), ["/a", "/b"]);
+});
+
+test("removing drops only the named folders", () => {
+  assert.deepEqual(removeProjectPaths(["/a", "/b", "/c"], ["/b/"]), ["/a", "/c"]);
+  assert.deepEqual(removeProjectPaths(["/a"], ["/z"]), ["/a"]);
+});
+
+test("rule set keys of two folders never collide on a colon in an id", () => {
+  assert.equal(setPrefix("a:b"), "a%3Ab");
+  assert.equal(setPrefix("a%3Ab"), "a%253Ab");
+  const first = folderProjects({ ...input({ ruleSets: { "b:c": {} } }), id: "a" });
+  const second = folderProjects({ ...input({ ruleSets: { c: {} } }), id: "a:b" });
+  assert.deepEqual(Object.keys(first.ruleSets), ["a:b:c"]);
+  assert.deepEqual(Object.keys(second.ruleSets), ["a%3Ab:c"]);
+});
+
+test("only a fixed set of fields is taken from a chosen folder's project entry: health never is", () => {
+  const r = folderProjects(
+    input({
+      projects: [
+        {
+          id: "web",
+          path: "web",
+          roots: ["docs"],
+          ruleSets: [],
+          importance: "urgent",
+          dependsOn: ["db", 4],
+          health: { lintFile: "../../x", tests: ["run tests"], lint: ["run lint"] },
+          mentions: ["secret"],
+          params: { a: "b" },
+          rules: [{ id: "r" }, "bad"],
+          extra: false,
+        },
+      ],
+    })
+  );
+  assert.deepEqual(r.projects, [{ id: "web", name: "web", path: "file:///work/tool/web", roots: ["docs"], ruleSets: [], dependsOn: ["db"], rules: [{ id: "r" }], extra: true }]);
+  assert.equal("health" in r.projects[0], false);
 });

@@ -28,6 +28,8 @@ const labels: Record<string, string> = {
   skip_notFolder: "Not a folder.",
   skip_unreadable: "Unreadable.",
   skip_overLimit: "Limit {max}.",
+  hidden: "Chosen projects hidden: {count}",
+  hiddenTip: "Shown with the Projects button",
 };
 const t = new Proxy({ projectLabels: labels } as unknown as BoardStrings, {
   get: (o, k: string) => (k === "projectLabels" ? labels : k === "noGo" ? "NO-GO" : k === "unverified" ? "UNVERIFIED" : k === "go" ? "GO" : k in o ? (o as never)[k] : `[${k}]`),
@@ -203,4 +205,120 @@ test("a newly chosen project still needs an accepted scan of its own", () => {
   const r = checkScan(snapOf("app"), snapOf("app", "zed"));
   assert.deepEqual(r.findings.map((f) => [f.kind, f.project]), [["new-project", "zed"]]);
   assert.equal(r.clean, false);
+});
+
+// The whole board is never greener than what was read.
+
+import { BoardItem, BoardProject } from "../../board/boardModel";
+import { boardLights, buildSidebarRows, hasDocuments, worstLight, SidebarLabels } from "../../board/sidebar";
+import { hiddenNote } from "../../board/boardHtmlProjects";
+import { lightTooltip, umbrellaLines } from "../../commands/boardStatusLight";
+import { dropFailed } from "../../board/scanner";
+
+const goProject: BoardProject = { id: "app", name: "App", light: "go", reasons: [], items: [] as BoardItem[], blocked: 0, blockedStopping: 0, counts: { ...emptyCounts(), green: 3 }, dependsOn: [] };
+
+const sbLabels: SidebarLabels = {
+  light: { "no-go": "NO-GO", unverified: "UNVERIFIED", go: "GO" },
+  blockerOne: "1 blocker",
+  blockerMany: "{count} blockers",
+  reasons: { baseline: "b", grey: "g", health: "h", unread: "u" },
+  causeLint: "l",
+  causeBuild: "b",
+  causeDeps: "d",
+  causeTests: "t",
+  causeBlocked: "{count}",
+  causeHeld: "held",
+  umbrella: {
+    skipped: { missing: "Not found.", notFolder: "Not a folder.", unreadable: "Unreadable.", overLimit: "Over the limit.", timedOut: "Timed out." },
+    hidden: "Chosen projects hidden: {count}",
+  },
+};
+const sbOpts = { blockersPerProject: 3, expandProjects: "whenNoGo" as const };
+
+test("one GO project and one folder that could not be read: the aggregate is UNVERIFIED", () => {
+  const skipped = [{ name: "gone", reason: "missing" as const }];
+  assert.equal(worstLight(boardLights({ projects: [goProject] })), "go");
+  assert.equal(worstLight(boardLights({ projects: [goProject], skipped })), "unverified");
+  assert.deepEqual(boardLights({ projects: [goProject], skipped }), ["go", "unverified"]);
+});
+
+test("a NO-GO project still wins over a folder that could not be read", () => {
+  assert.equal(worstLight(boardLights({ projects: [{ ...goProject, light: "no-go" }], skipped: [{ name: "x", reason: "missing" }] })), "no-go");
+});
+
+test("the sidebar has one UNVERIFIED row per unread folder, with its name and reason", () => {
+  const rows = buildSidebarRows({ projects: [goProject], skipped: [{ name: "gone", reason: "missing" }, { name: "slow", reason: "timedOut" }] }, sbOpts, sbLabels);
+  assert.deepEqual(rows.map((r) => [r.projectId, r.name, r.light, r.description, r.note]), [
+    ["app", "App", "go", "GO", undefined],
+    ["skipped/0", "gone", "unverified", "UNVERIFIED · Not found.", undefined],
+    ["skipped/1", "slow", "unverified", "UNVERIFIED · Timed out.", undefined],
+  ]);
+  assert.deepEqual(rows[1].tooltip, ["gone: UNVERIFIED", "Not found."]);
+});
+
+test("a sidebar with only unread folders still has rows", () => {
+  assert.equal(hasDocuments({ projects: [], skipped: [{ name: "gone", reason: "missing" }] }), true);
+  assert.equal(hasDocuments({ projects: [] }), false);
+});
+
+test("the sidebar says how many chosen projects are hidden, as a note without a light", () => {
+  const rows = buildSidebarRows({ projects: [goProject], hidden: 3 }, sbOpts, sbLabels);
+  assert.equal(rows.length, 2);
+  assert.deepEqual([rows[1].name, rows[1].note, rows[1].projectId], ["Chosen projects hidden: 3", true, "hidden"]);
+  assert.equal(buildSidebarRows({ projects: [goProject] }, sbOpts, sbLabels).length, 1);
+});
+
+test("the status bar tooltip names what is not read and how many are hidden", () => {
+  assert.deepEqual(umbrellaLines([{ name: "gone", reason: "missing" }], 2), ["Not read: gone (The folder was not found.)", "Chosen projects hidden: 2"]);
+  assert.deepEqual(umbrellaLines(undefined, 0), []);
+  assert.equal(lightTooltip("unverified", undefined, [], "base", ["Not read: gone (x)"]), "UNVERIFIED\nNot read: gone (x)\nbase");
+});
+
+test("the page says how many chosen projects are hidden", () => {
+  const c = cfg();
+  c.hidden = 2;
+  const m = model(c);
+  assert.equal(m.hidden, 2);
+  assert.equal(hiddenNote(m, t), '<p class="note" title="Shown with the Projects button">Chosen projects hidden: 2</p>');
+  assert.equal(hiddenNote(model(cfg()), t), "");
+});
+
+test("a chosen project whose scan failed is left out and shown as a grey row", () => {
+  const out = dropFailed(cfg(["zed", "yak"], [{ name: "old", reason: "missing" }]), [{ id: "zed", name: "ZED", reason: "timedOut" }]);
+  assert.deepEqual(out.projects.map((p) => p.id), ["yak", "app"]);
+  assert.deepEqual(out.skipped, [{ name: "old", reason: "missing" }, { name: "ZED", reason: "timedOut" }]);
+  const same = cfg();
+  assert.equal(dropFailed(same, undefined), same);
+});
+
+test("a slow chosen project becomes a failed project and the others are still scanned", async () => {
+  const source: FileSource = {
+    list: async (dir): Promise<ScanFile[]> => (dir === "zed" ? new Promise<ScanFile[]>(() => undefined) : [{ path: "bugs/a.md", size: 1, mtimeMs: 1 }]),
+    readHead: async () => "",
+  };
+  const c = cfg(["zed"]);
+  c.projects.forEach((p) => (p.roots = ["bugs"]));
+  const r = await scanAll(c, source, undefined, 0, "all", 20);
+  assert.deepEqual(r.failed, [{ id: "zed", name: "ZED", reason: "timedOut" }]);
+  assert.deepEqual(Object.keys(r.snapshot.projects), ["app"]);
+  assert.deepEqual(r.rows.map((x) => x.project), ["app"]);
+});
+
+test("a chosen project that throws becomes a failed project; an open project that throws still fails the scan", async () => {
+  const bad = (dir: string): FileSource => ({ list: async () => { if (dir) { throw new Error("EACCES"); } return []; }, readHead: async () => "" });
+  const c = cfg(["zed"]);
+  c.projects.forEach((p) => (p.roots = ["bugs"]));
+  const only: FileSource = { list: async (dir) => { if (dir === "zed") { throw new Error("EACCES"); } return []; }, readHead: async () => "" };
+  const r = await scanAll(c, only);
+  assert.deepEqual(r.failed, [{ id: "zed", name: "ZED", reason: "unreadable" }]);
+  await assert.rejects(scanAll(c, bad("x")));
+});
+
+test("the scanner tells the source to skip links only for chosen projects", async () => {
+  const seen: Array<[string, boolean | undefined]> = [];
+  const source: FileSource = { list: async (dir, _root, _accept, noLinks) => { seen.push([dir, noLinks]); return []; }, readHead: async () => "" };
+  const c = cfg(["zed"]);
+  c.projects.forEach((p) => (p.roots = ["bugs"]));
+  await scanAll(c, source);
+  assert.deepEqual(seen.sort(), [["app", false], ["zed", true]]);
 });

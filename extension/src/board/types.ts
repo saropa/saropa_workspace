@@ -89,7 +89,7 @@ export interface ProjectDef {
 
 // Why a chosen folder is not on the board: it is not there, it is not a folder, it could
 // not be read in time, or the list is longer than the board takes.
-export type SkipReason = "missing" | "notFolder" | "unreadable" | "overLimit";
+export type SkipReason = "missing" | "notFolder" | "unreadable" | "overLimit" | "timedOut";
 
 // A chosen folder shown as a grey row: its name and why it was not read. Never its path.
 export interface SkippedProject {
@@ -127,6 +127,8 @@ export interface BoardConfig {
   pinned?: string[];
   // Chosen folders that could not be read; the board shows each as a grey row.
   skipped?: SkippedProject[];
+  // How many chosen projects the "open project only" scope hides.
+  hidden?: number;
 }
 
 // One file as seen by a scan.

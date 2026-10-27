@@ -106,7 +106,7 @@ export async function loadConfig(): Promise<BoardConfig> {
   const open = await openProjects(cfg, folders);
   // The user's extra projects follow the open ones, read the same way.
   const extra = await loadExtraProjects(new Set(open.map((p) => p.id)), uniqueProjectId, DEFAULT_ROOTS, DEFAULT_SETS);
-  if (extra.projects.length === 0 && extra.skipped.length === 0) {
+  if (extra.projects.length === 0 && extra.skipped.length === 0 && extra.hidden === 0) {
     return { ...cfg, projects: open };
   }
   return {
@@ -114,6 +114,7 @@ export async function loadConfig(): Promise<BoardConfig> {
     projects: [...open, ...extra.projects],
     ruleSets: { ...cfg.ruleSets, ...extra.ruleSets },
     ...(extra.skipped.length > 0 ? { skipped: extra.skipped } : {}),
+    ...(extra.hidden > 0 ? { hidden: extra.hidden } : {}),
   };
 }
 

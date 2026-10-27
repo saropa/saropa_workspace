@@ -335,6 +335,7 @@ export function buildBoard(
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
     ...(cfg.skipped && cfg.skipped.length > 0 ? { skipped: cfg.skipped } : {}),
+    ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),
     chains: buildChainSteps(links, byKey, ctx.names),
     flags: linkFlags(links, ctx.names),
     items: all,

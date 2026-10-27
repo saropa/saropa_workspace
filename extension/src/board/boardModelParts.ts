@@ -145,6 +145,8 @@ export interface BoardModel {
   liveUnnamed?: LiveUnnamed[];
   // Chosen folders that could not be read, shown as grey rows. Absent when there are none.
   skipped?: SkippedProject[];
+  // How many chosen projects the "open project only" scope hides. Absent when none.
+  hidden?: number;
 }
 
 // Optional inputs to buildBoard. Each is absent when its feature is off or has nothing to add.

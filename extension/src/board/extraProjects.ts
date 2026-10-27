@@ -58,12 +58,36 @@ export function cleanProjectPaths(raw: unknown, open: readonly string[], max = M
   return { paths, over };
 }
 
-// The setting's list after adding folders: the old order first, new folders after, no
-// duplicates, no open folder, capped. `added` is how many new folders made it in.
+// The list as it is stored: valid paths in their canonical text, repeats dropped, order kept.
+// Open folders and entries past the limit stay: they are filtered only when the board loads.
+export function storedPaths(raw: unknown): string[] {
+  return cleanProjectPaths(raw, [], Number.MAX_SAFE_INTEGER).paths;
+}
+
+// The stored list after adding folders: everything already stored stays, new folders follow
+// in order, repeats and open folders are not added, and the board's limit is respected.
+// `added` is how many new folders were appended.
 export function addProjectPaths(current: unknown, add: readonly string[], open: readonly string[], max = MAX_EXTRA_PROJECTS): { paths: string[]; added: number } {
-  const before = cleanProjectPaths(current, open, max).paths;
-  const after = cleanProjectPaths([...before, ...add], open, max).paths;
-  return { paths: after, added: after.length - before.length };
+  const stored = storedPaths(current);
+  const openKeys = new Set(open.map(folderKey));
+  const have = new Set(stored);
+  let live = stored.filter((p) => !openKeys.has(p)).length;
+  const fresh: string[] = [];
+  for (const p of storedPaths(add)) {
+    if (have.has(p) || openKeys.has(p) || live >= max) {
+      continue;
+    }
+    have.add(p);
+    fresh.push(p);
+    live += 1;
+  }
+  return { paths: [...stored, ...fresh], added: fresh.length };
+}
+
+// The stored list without the dropped folders; nothing else is removed.
+export function removeProjectPaths(current: unknown, drop: Iterable<string>): string[] {
+  const gone = new Set([...drop].map(folderKey));
+  return storedPaths(current).filter((p) => !gone.has(p));
 }
 
 // The last part of a folder path, for a project name.
@@ -146,16 +170,23 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-// The projects an extra folder brings. With no rules file (or none that lists projects) the
+// The id as a prefix that holds no ":", so "a" + "b:c" and "a:b" + "c" never give one key.
+export function setPrefix(id: string): string {
+  return id.replace(/%/g, "%25").replace(/:/g, "%3A");
+}
+
+// The projects an extra folder brings. Only a fixed set of fields is taken from the folder's
+// file (never health, which names files and shortcuts). With no rules file (or none that lists projects) the
 // folder is one project over the default rule sets. With one, each listed project inside the
 // folder becomes a project, and the file's own rule sets apply to them alone.
 export function folderProjects(input: FolderInput): FolderProjects {
+  const prefix = setPrefix(input.id);
   const own = isRecord(input.parsed?.ruleSets) ? (input.parsed!.ruleSets as Record<string, RuleSetDef>) : {};
   const renamed: Record<string, RuleSetDef> = {};
   const map = new Map<string, string>();
   for (const [name, def] of Object.entries(own)) {
-    map.set(name, `${input.id}:${name}`);
-    renamed[`${input.id}:${name}`] = def;
+    map.set(name, `${prefix}:${name}`);
+    renamed[`${prefix}:${name}`] = def;
   }
   const sets = (names: readonly unknown[]): string[] => names.filter((n): n is string => typeof n === "string").map((n) => map.get(n) ?? n);
   const listed = Array.isArray(input.parsed?.projects) ? input.parsed!.projects.filter(isRecord) : [];
@@ -166,14 +197,15 @@ export function folderProjects(input: FolderInput): FolderProjects {
       continue;
     }
     const name = typeof entry.name === "string" && entry.name ? entry.name : typeof entry.id === "string" && entry.id ? entry.id : input.name;
-    const def = entry as unknown as ProjectDef;
     projects.push({
-      ...def,
       id: input.uniqueId(typeof entry.id === "string" && entry.id ? entry.id : name),
       name,
       path: rel === "" ? input.uri : input.join(rel),
       roots: cleanRoots(entry.roots),
       ruleSets: sets(Array.isArray(entry.ruleSets) ? entry.ruleSets : input.defaultSets),
+      ...(entry.importance === "high" || entry.importance === "normal" || entry.importance === "low" ? { importance: entry.importance } : {}),
+      ...(Array.isArray(entry.dependsOn) ? { dependsOn: entry.dependsOn.filter((d): d is string => typeof d === "string") } : {}),
+      ...(Array.isArray(entry.rules) ? { rules: entry.rules.filter(isRecord) as unknown as ProjectDef["rules"] } : {}),
       extra: true,
     });
   }

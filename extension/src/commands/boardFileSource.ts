@@ -25,7 +25,7 @@ export async function pathExists(uri: vscode.Uri): Promise<boolean> {
 // scanner treats it as empty.
 export function workspaceFileSource(): FileSource {
   return {
-    async list(projectDir: string, root: string, accept?: (path: string) => boolean): Promise<ScanFile[]> {
+    async list(projectDir: string, root: string, accept?: (path: string) => boolean, noLinks = false): Promise<ScanFile[]> {
       const base = vscode.Uri.parse(projectDir);
       // Folders are walked in parallel and only wanted files are stat-ed, in parallel:
       // each call is a round trip, and on a remote workspace they dominate the scan.
@@ -34,8 +34,8 @@ export function workspaceFileSource(): FileSource {
         const dirs: string[] = [];
         const files: string[] = [];
         for (const [name, type] of entries) {
-          // A link is never followed: it could loop, or lead out of the project folder.
-          if (type & vscode.FileType.SymbolicLink) {
+          // In a chosen project a link is never followed: it could loop, or lead out of the folder.
+          if (noLinks && type & vscode.FileType.SymbolicLink) {
             continue;
           }
           const childRel = rel + "/" + name;

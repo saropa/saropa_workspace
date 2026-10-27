@@ -292,3 +292,138 @@ test("the hint is not shown once a project is chosen, even if it cannot be read"
   const cfg = await loadConfig();
   assert.equal(hintVisible(fakeContext(), cfg), false);
 });
+
+import { loadExtraProjects } from "../../commands/boardExtraProjects";
+import { buildBoard } from "../../board/boardModel";
+import { boardLights, worstLight } from "../../board/sidebar";
+
+test("a rules file in a chosen folder cannot bring health settings: lintFile and test shortcuts are dropped", async () => {
+  const home = mk(tmp(), "bugs");
+  const other = mk(tmp(), ".saropa", "docs");
+  fs.writeFileSync(
+    path.join(other, RULES_FILE),
+    JSON.stringify({ version: 1, projects: [{ id: "sub", path: ".", roots: ["docs"], ruleSets: [], health: { lintFile: "../../x", tests: ["open tests"], lint: ["open lint"] } }] })
+  );
+  open(home);
+  choose(other);
+  const sub = (await loadConfig()).projects.find((p) => p.id === "sub")!;
+  assert.equal(sub.health, undefined);
+  assert.deepEqual(Object.keys(sub).sort(), ["extra", "id", "name", "path", "roots", "ruleSets"]);
+});
+
+test("a rules file over the byte limit is ignored without being read whole", async () => {
+  const home = mk(tmp(), "bugs");
+  const other = mk(tmp(), ".saropa", "docs");
+  const pad = " ".repeat(300 * 1024);
+  fs.writeFileSync(path.join(other, RULES_FILE), `{"version":1,"projects":[{"id":"big","path":".","roots":["docs"],"ruleSets":[]}]${pad}}`);
+  open(home);
+  choose(other);
+  assert.deepEqual((await loadConfig()).projects.map((p) => p.id), ["app", path.basename(other)]);
+});
+
+test("a rules file that is a link, even to a small file outside the folder, is ignored", async () => {
+  const home = mk(tmp(), "bugs");
+  const outside = tmp();
+  const target = path.join(outside, "rules.json");
+  fs.writeFileSync(target, JSON.stringify({ version: 1, projects: [{ id: "linked", path: ".", roots: [], ruleSets: [] }] }));
+  const other = mk(tmp(), ".saropa", "docs");
+  try {
+    fs.symlinkSync(target, path.join(other, RULES_FILE));
+  } catch {
+    return; // links not allowed on this machine
+  }
+  open(home);
+  choose(other);
+  assert.deepEqual((await loadConfig()).projects.map((p) => p.id), ["app", path.basename(other)]);
+});
+
+test("a rules file reached through a linked .saropa folder that leaves the chosen folder is ignored", async () => {
+  const home = mk(tmp(), "bugs");
+  const outside = mk(tmp(), "cfg");
+  fs.writeFileSync(path.join(outside, "release-board.json"), JSON.stringify({ version: 1, projects: [{ id: "escaped", path: ".", roots: [], ruleSets: [] }] }));
+  const other = mk(tmp(), "docs");
+  try {
+    fs.symlinkSync(outside, path.join(other, ".saropa"), "dir");
+  } catch {
+    return;
+  }
+  open(home);
+  choose(other);
+  assert.deepEqual((await loadConfig()).projects.map((p) => p.id), ["app", path.basename(other)]);
+});
+
+test("a chosen folder that does not answer in time is one grey row and the others still load", async () => {
+  const slow = mk(tmp(), "docs");
+  const fast = mk(tmp(), "docs");
+  choose(slow, fast);
+  const real = vscode.workspace.fs;
+  const original = real.stat.bind(real);
+  (real as { stat: typeof real.stat }).stat = (uri) => (uri.fsPath === slow ? new Promise(() => undefined) : original(uri));
+  try {
+    const out = await loadExtraProjects(new Set(["app"]), (n, used) => (used.add(n), n), ["docs"], [], 50);
+    assert.deepEqual(out.skipped, [{ name: path.basename(slow), reason: "timedOut" }]);
+    assert.deepEqual(out.projects.map((p) => p.id), [path.basename(fast)]);
+  } finally {
+    (real as { stat: typeof real.stat }).stat = original;
+  }
+});
+
+test("with the open-only scope the chosen projects are counted as hidden and none is loaded", async () => {
+  const home = mk(tmp(), "bugs");
+  open(home);
+  choose(mk(tmp(), "docs"), mk(tmp(), "docs"));
+  stub.__setConfig(SECTION, "projectScope", "openOnly");
+  const cfg = await loadConfig();
+  assert.equal(cfg.hidden, 2);
+  assert.deepEqual(cfg.projects.map((p) => p.id), ["app"]);
+  const model = buildBoard(cfg, [], undefined, true);
+  assert.equal(model.hidden, 2);
+  stub.__setConfig(SECTION, "projectScope", "all");
+  assert.equal((await loadConfig()).hidden, undefined);
+});
+
+test("the hint still shows while chosen projects are hidden by the open-only scope", async () => {
+  const home = mk(tmp(), "bugs");
+  open(home);
+  choose(mk(tmp(), "docs"));
+  stub.__setConfig(SECTION, "projectScope", "openOnly");
+  assert.equal(hintVisible(fakeContext(), await loadConfig()), true);
+});
+
+test("a deleted chosen folder raises no safety finding but the board is not GO", async () => {
+  const home = mk(tmp(), "bugs");
+  const other = mk(tmp(), "docs");
+  open(home);
+  choose(other);
+  fs.rmSync(other, { recursive: true, force: true });
+  const cfg = await loadConfig();
+  assert.deepEqual(cfg.skipped, [{ name: path.basename(other), reason: "missing" }]);
+  const model = buildBoard(cfg, [], undefined, true);
+  model.projects.forEach((p) => (p.light = "go"));
+  assert.equal(worstLight(boardLights(model)), "unverified");
+});
+
+test("with the open folder A already stored, adding B keeps A in the setting", async () => {
+  const a = mk(tmp());
+  const b = mk(tmp());
+  open(a);
+  choose(a);
+  stub.__setPickHandler(async (items) => (items as Array<{ action: string }>).find((i) => i.action === "add"));
+  stub.__setOpenDialogHandler(async () => [vscode.Uri.file(b)]);
+  await chooseProjects();
+  assert.deepEqual(stub.__getConfig(SECTION, "projects"), [a, b]);
+  assert.deepEqual(chosenFolders().paths, [b], "the open folder is filtered only when the board loads");
+});
+
+test("removing one project keeps an open folder that is stored", async () => {
+  const a = mk(tmp());
+  const b = mk(tmp());
+  open(a);
+  choose(a, b);
+  stub.__setPickHandler(async (items) => {
+    const list = items as Array<{ action?: string; description?: string }>;
+    return list.some((i) => i.action) ? list.find((i) => i.action === "remove") : list.filter((i) => i.description === b);
+  });
+  await chooseProjects();
+  assert.deepEqual(stub.__getConfig(SECTION, "projects"), [a]);
+});

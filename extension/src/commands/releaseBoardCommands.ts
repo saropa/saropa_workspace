@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
-import { ScanResult, completeFacts, scanAll, snapshotFingerprint } from "../board/scanner";
+import { ScanResult, completeFacts, dropFailed, scanAll, snapshotFingerprint } from "../board/scanner";
 import { checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
 import { ProjectHealth } from "../board/health";
@@ -90,7 +90,7 @@ async function scanNow(
   if (!boardReady(quiet)) {
     return undefined;
   }
-  const cfg = await loadConfig();
+  let cfg = await loadConfig();
   // Per workspace: another workspace must never see or overwrite this baseline.
   const dir = context.storageUri ?? context.globalStorageUri;
   const accepted = await readAccepted(dir);
@@ -104,6 +104,7 @@ async function scanNow(
   const [result, health] = onFirst
     ? await work()
     : await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: l10n("releaseBoard.scanning") }, work);
+  cfg = dropFailed(cfg, result.failed);
   const safety = checkScan(accepted, result.snapshot);
   const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health, marks: await readMarks(context) };
   if (onFirst && result.pending.length > 0) {

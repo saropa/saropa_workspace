@@ -1,3 +1,4 @@
+import { MAX_EXTRA_PROJECTS } from "../board/extraProjects";
 import * as vscode from "vscode";
 import { Light } from "../board/boardModel";
 import { ExpandMode, SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, blockerColor, buildSidebarRows, clampBlockers, hasDocuments, lightLook } from "../board/sidebar";
@@ -41,6 +42,16 @@ function labels(): SidebarLabels {
     causeTests: l10n("releaseBoard.sidebar.causeTests"),
     causeBlocked: l10n("releaseBoard.sidebar.causeBlocked", { count: "{count}" }),
     causeHeld: l10n("releaseBoard.sidebar.causeHeld"),
+    umbrella: {
+      skipped: {
+        missing: l10n("releaseBoard.projects.label.skip_missing"),
+        notFolder: l10n("releaseBoard.projects.label.skip_notFolder"),
+        unreadable: l10n("releaseBoard.projects.label.skip_unreadable"),
+        overLimit: l10n("releaseBoard.projects.label.skip_overLimit", { max: MAX_EXTRA_PROJECTS }),
+        timedOut: l10n("releaseBoard.projects.label.skip_timedOut"),
+      },
+      hidden: l10n("releaseBoard.projects.label.hidden", { count: "{count}" }),
+    },
     reasons: {
       baseline: l10n("releaseBoard.panel.reasonBaseline"),
       grey: l10n("releaseBoard.panel.reasonGrey", { count: "{count}" }),
@@ -141,7 +152,7 @@ function projectItem(row: SidebarRow, expandMode: ExpandMode): vscode.TreeItem {
   item.description = row.description;
   item.tooltip = row.tooltip.join("\n");
   const look = lightLook(row.light as Light);
-  item.iconPath = themed(look.icon, look.color);
+  item.iconPath = row.note ? new vscode.ThemeIcon("info") : themed(look.icon, look.color);
   item.command = openBoardCommand();
   return item;
 }

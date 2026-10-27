@@ -1,4 +1,5 @@
 import { BoardItem, BoardModel, Light, UnverifiedReason } from "./boardModel";
+import { SkipReason } from "./types";
 
 // The Release Board sidebar section, as plain data: one row per project with its light,
 // a short description and the first few blockers. Pure, so the ordering, the expand rule
@@ -51,6 +52,12 @@ export const blockerColor = (status: BoardItem["status"]): string => ITEM_COLOR[
 
 const RANK: Record<Light, number> = { "no-go": 0, unverified: 1, go: 2 };
 
+// The lights the whole board is judged by: every project's, plus UNVERIFIED while a chosen
+// folder could not be read, so the aggregate is never greener than what was actually read.
+export function boardLights(model: Pick<BoardModel, "projects" | "skipped">): Light[] {
+  return [...model.projects.map((p) => p.light), ...((model.skipped?.length ?? 0) > 0 ? ["unverified" as const] : [])];
+}
+
 // The worst of several lights, or undefined when there are none.
 export function worstLight(lights: Light[]): Light | undefined {
   return lights.reduce<Light | undefined>((w, l) => (w === undefined || RANK[l] < RANK[w] ? l : w), undefined);
@@ -69,8 +76,8 @@ export function projectsFound(model: Pick<BoardModel, "projects">): boolean {
 
 // True when any project holds a document the board counts, open or finished: the sidebar
 // then shows rows, even if every project is clean.
-export function hasDocuments(model: Pick<BoardModel, "projects">): boolean {
-  return model.projects.some((p) => Object.values(p.counts).some((n) => n > 0));
+export function hasDocuments(model: Pick<BoardModel, "projects"> & Partial<Pick<BoardModel, "skipped">>): boolean {
+  return (model.skipped?.length ?? 0) > 0 || model.projects.some((p) => Object.values(p.counts).some((n) => n > 0));
 }
 
 // Whether the window start opens the board tab. `found` is projectsFound; `hasFolder` is
@@ -94,6 +101,12 @@ export interface SidebarLabels {
   // Contains {count}.
   causeBlocked: string;
   causeHeld: string;
+  // Words for the umbrella view; absent where there are no chosen projects.
+  umbrella?: {
+    skipped: Record<SkipReason, string>;
+    // Contains {count}.
+    hidden: string;
+  };
 }
 
 // One blocker listed under a project row.
@@ -113,6 +126,8 @@ export interface SidebarRow {
   tooltip: string[];
   blockers: SidebarBlocker[];
   expand: boolean;
+  // A note, not a project: drawn without a light.
+  note?: boolean;
 }
 
 // Settings for the sidebar rows.
@@ -129,7 +144,34 @@ export const isBlocker = (it: BoardItem): boolean => it.status === "red" || it.s
 const suffix = (note: string | undefined, text: string): string => (note ? `${text} (${note})` : text);
 
 // Builds one row per project with its light, description and first blockers.
-export function buildSidebarRows(model: Pick<BoardModel, "projects">, opts: SidebarOptions, labels: SidebarLabels): SidebarRow[] {
+export function buildSidebarRows(model: Pick<BoardModel, "projects"> & Partial<Pick<BoardModel, "skipped" | "hidden">>, opts: SidebarOptions, labels: SidebarLabels): SidebarRow[] {
+  return [...projectRows(model, opts, labels), ...umbrellaRows(model, opts, labels)];
+}
+
+// One UNVERIFIED row per chosen folder that could not be read, and a note when chosen
+// projects are hidden by the "open project only" scope.
+function umbrellaRows(model: Partial<Pick<BoardModel, "skipped" | "hidden">>, opts: SidebarOptions, labels: SidebarLabels): SidebarRow[] {
+  const words = labels.umbrella;
+  if (!words) {
+    return [];
+  }
+  const rows: SidebarRow[] = (model.skipped ?? []).map((sk, i) => ({
+    projectId: `skipped/${i}`,
+    name: sk.name,
+    light: "unverified" as const,
+    description: suffix(opts.staleNote, `${labels.light.unverified} · ${words.skipped[sk.reason]}`),
+    tooltip: [`${sk.name}: ${labels.light.unverified}`, words.skipped[sk.reason]],
+    blockers: [],
+    expand: false,
+  }));
+  if ((model.hidden ?? 0) > 0) {
+    const text = words.hidden.split("{count}").join(String(model.hidden));
+    rows.push({ projectId: "hidden", name: text, light: "unverified", description: "", tooltip: [text], blockers: [], expand: false, note: true });
+  }
+  return rows;
+}
+
+function projectRows(model: Pick<BoardModel, "projects">, opts: SidebarOptions, labels: SidebarLabels): SidebarRow[] {
   return model.projects.map((p) => {
     // The model already lists items red first, pinned first, most severe first.
     const all = p.items.filter(isBlocker);

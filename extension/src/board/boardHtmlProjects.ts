@@ -77,6 +77,14 @@ export function rollupBar(model: BoardModel, t: BoardStrings): string {
   return `<div class="roll" role="status"><b>${fill(label(t, "rollup"), { count: total })}</b>${pill("no-go", c.noGo, t.noGo)}${pill("unverified", c.unverified, t.unverified)}${pill("go", c.go, t.go)}${skipped > 0 ? `<span class="go skipped">${skipped} ${escapeHtml(label(t, "skippedShort"))}</span>` : ""}</div>`;
 }
 
+// A note under the roll-up when chosen projects are hidden by the open-only scope.
+export function hiddenNote(model: BoardModel, t: BoardStrings): string {
+  if (!model.hidden) {
+    return "";
+  }
+  return `<p class="note" title="${escapeHtml(label(t, "hiddenTip"))}">${fill(label(t, "hidden"), { count: model.hidden })}</p>`;
+}
+
 // The mark on the row of a project of the open workspace, shown only in the umbrella view.
 export function openBadge(p: BoardProject, model: BoardModel, t: BoardStrings): string {
   if (p.extra === true || !model.projects.some((q) => q.extra === true)) {

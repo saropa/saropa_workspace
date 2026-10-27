@@ -7,7 +7,7 @@ import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
-import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, projectsButtons, rollupBar, skippedBlock } from "./boardHtmlProjects";
+import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, hiddenNote, openBadge, projectsButtons, rollupBar, skippedBlock } from "./boardHtmlProjects";
 import { chains, needsRule, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
@@ -68,7 +68,7 @@ ${sinceBox(since)}
 ${state.stale || state.loading ? "" : tidyBox(model, t)}
 ${sittingsBox(model, t)}
 ${trainBox(trains, t)}
-${rollupBar(model, t)}
+${rollupBar(model, t)}${hiddenNote(model, t)}
 ${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading), openBadge(p, model, t))).join("")}
 ${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}
 ${list(t.resolveNow, by("red"), names, t)}
