@@ -136,6 +136,9 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30` or `60` minutes. |
 | `releaseBoard.sittings.maxSteps` | `25` | Most steps listed at once (5 to 100). The board reads at most 200 open steps per document. |
 | `releaseBoard.sittings.onlyOwnerDocuments` | `true` | Lists steps only from owner-action documents (name them with `ownerKinds` or `ownerFolders` in the rules file). |
+| `releaseBoard.tidy.enabled` | `true` | Shows a "Ready to tidy" box on the board: documents with every step done that have not changed for a while. It only lists them; a document moves only after you click its button and confirm. |
+| `releaseBoard.tidy.afterDays` | `7` | Days a finished document must stay unchanged before it is listed (1 to 365). |
+| `releaseBoard.tidy.archiveFolder` | `docs/history` | Folder inside the project that tidied documents move to, under a year/month/day sub-folder. |
 | `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |
 | `releaseBoard.editorLinks.codeLens` | `true` | Shows the line at the top of a file that lists those documents. |
 | `releaseBoard.editorLinks.statusBar` | `true` | Shows a status bar count, colored by the worst document. |

@@ -94,6 +94,16 @@ export interface BoardStrings {
   timeMinutes: string;
   // "{count}" minutes a step is thought to take.
   stepMinutes: string;
+  tidyHeading: string;
+  // "{days}" days without a change.
+  tidyNote: string;
+  // "{count}" steps done, "{days}" days untouched.
+  tidyDetail: string;
+  tidyMove: string;
+  // "{count}" documents ready to tidy.
+  tidyTitle: string;
+  // "{count}" more documents not listed.
+  tidyMore: string;
 }
 
 const LIST_CAP = 30;
@@ -287,6 +297,24 @@ function sittingsBox(model: BoardModel, t: BoardStrings): string {
   return `<section class="box" id="sit-panel" hidden><h2>${escapeHtml(t.sittingsHeading)}</h2><div class="seg" role="group">${v.contexts.map((c) => toggle(c.id, c.label)).join("")}</div> <div class="seg" role="group">${time}</div>${body}${rest}${untagged}</section>`;
 }
 
+// The Tidy box: documents with every step done that nobody has touched for a while. Open
+// by default when there is something to list. The button carries only an index; the host
+// resolves it against the list it rendered and asks before it moves anything.
+function tidyBox(model: BoardModel, t: BoardStrings): string {
+  const v = model.tidy;
+  if (!v || v.candidates.length === 0) {
+    return "";
+  }
+  const rows = v.candidates
+    .map((c, i) => {
+      const detail = t.tidyDetail.replace("{count}", String(c.stepsDone)).replace("{days}", String(c.idleDays));
+      return `<div class="row tidy"><span class="tag">${escapeHtml(c.projectName)}</span><span class="f click" tabindex="0" role="button" data-id="${c.id}" title="${escapeHtml(c.path)}">${escapeHtml(c.title)}</span><span class="k">${escapeHtml(detail)}</span><button data-tidy="${i}">${escapeHtml(t.tidyMove)}</button></div>`;
+    })
+    .join("");
+  const more = v.more > 0 ? `<p class="note">${escapeHtml(t.tidyMore.replace("{count}", String(v.more)))}</p>` : "";
+  return `<section class="box" id="tidy-box"><h2 title="${escapeHtml(t.tidyTitle.replace("{count}", String(v.candidates.length + v.more)))}">${escapeHtml(t.tidyHeading)}</h2><p class="note">${escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays)))}</p>${rows}${more}</section>`;
+}
+
 const STYLE = `
 :root{--bg:var(--vscode-editor-background,#16191d);--fg:var(--vscode-editor-foreground,#d6dbe1);--mute:var(--vscode-descriptionForeground,#8b949e);--line:var(--vscode-panel-border,#2b3138);--panel:var(--vscode-sideBar-background,#1c2026);--red:#e5484d;--amber:#d9a441;--purple:#a78bfa;--blue:#5aa0ff;--green:#3fb27f}
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:13px/1.45 var(--vscode-font-family,system-ui,sans-serif)}
@@ -316,6 +344,7 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .pin{width:8px;height:8px;border-radius:50%;border:2px solid var(--red);display:inline-block}.seg{display:inline-flex}.seg button{border-radius:0}.seg button.on{background:var(--vscode-button-background,#0e639c);color:var(--vscode-button-foreground,#fff)}
 .code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
 .ptgrow{cursor:pointer}.ptgrow:focus{outline:1px solid var(--blue)}.ptg{margin:0 0 6px;padding:6px 12px 6px 34px;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;background:var(--panel)}.ptg li{margin:4px 0}.ptg .st{margin-right:8px}.ptg li.done .st{text-decoration:line-through;color:var(--mute)}.ptg li.done::before{content:"\\2713 ";color:var(--green)}.ptg li.note{list-style:none;margin-left:-18px}.ptgb{margin-right:4px}
+.row.tidy{cursor:default}.row.tidy .f{cursor:pointer}.row.tidy button{flex:none}
 .seg{flex-wrap:wrap;margin:4px 0}.untag{margin-top:8px}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
@@ -345,6 +374,7 @@ document.querySelectorAll('[data-suggest]').forEach(b=>b.addEventListener('click
 document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'profile',value:b.dataset.profile,rev:REV})));
 document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessage({type:'rules',rev:REV});b.addEventListener('click',go);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
+document.querySelectorAll('[data-tidy]').forEach(b=>b.addEventListener('click',()=>{b.disabled=true;setTimeout(()=>{b.disabled=false;},3000);vscode.postMessage({type:'tidy',i:Number(b.dataset.tidy),rev:REV});}));
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
 document.querySelectorAll('.ext').forEach(r=>{const go=()=>vscode.postMessage({type:'external',g:Number(r.dataset.g),i:Number(r.dataset.i),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 const ST=(vscode.getState()||{}).ptg||{};const OPEN=new Set(ST.open||[]);const SEEN=ST.profile===PROFILE?(ST.seen||{}):{};const NOW=Date.now();const save=()=>vscode.setState({...(vscode.getState()||{}),ptg:{open:[...OPEN],seen:SEEN,profile:PROFILE}});
@@ -446,6 +476,7 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${model.sittings ? `<button id="sit-open" aria-controls="sit-panel">${escapeHtml(t.sittingsButton)}</button>` : ""}</div>
 <p class="note">${escapeHtml(t.intro)}</p>${banner}
+${state.stale || state.loading ? "" : tidyBox(model, t)}
 ${sittingsBox(model, t)}
 ${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading))).join("")}
 ${list(t.resolveNow, by("red"), names, t)}
