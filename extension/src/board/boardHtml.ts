@@ -1,6 +1,7 @@
 import { SittingLine } from "./sittings";
 import { BoardItem, ItemMarks, BoardModel, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
+import { Train, trainRows } from "./train";
 import { SinceView } from "./sinceLast";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
@@ -108,6 +109,11 @@ export interface BoardStrings {
   tidyTitle: string;
   // "{count}" more documents not listed.
   tidyMore: string;
+  // Release train. "{name}" is the train's name, "{names}" the projects holding the light back.
+  trainTitle: string;
+  trainHeldBy: string;
+  trainCycle: string;
+  trainOrder: string;
 }
 
 const LIST_CAP = 30;
@@ -355,6 +361,7 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .ptgrow{cursor:pointer}.ptgrow:focus{outline:1px solid var(--blue)}.ptg{margin:0 0 6px;padding:6px 12px 6px 34px;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;background:var(--panel)}.ptg li{margin:4px 0}.ptg .st{margin-right:8px}.ptg li.done .st{text-decoration:line-through;color:var(--mute)}.ptg li.done::before{content:"\\2713 ";color:var(--green)}.ptg li.note{list-style:none;margin-left:-18px}.ptgb{margin-right:4px}.hb{flex:none;margin-left:auto;font-size:11px;padding:0 6px}.ptg .hb{margin-left:0}
 .row.tidy{cursor:default}.row.tidy .f{cursor:pointer}.row.tidy button{flex:none}
 .seg{flex-wrap:wrap;margin:4px 0}.untag{margin-top:8px}
+.vd.train{border-style:dashed}.vd.train .pn{width:auto;min-width:110px}.ord{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.ord .f{flex:none}.ord .go{font-size:11px;padding:0 6px}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
 // The page shown at once, before any result exists: grey placeholder rows that shimmer.
@@ -448,6 +455,25 @@ function chains(model: BoardModel, t: BoardStrings): string {
   return `<details class="box"><summary><i class="link open" aria-label="${escapeHtml(t.linkedHeading)}" title="${escapeHtml(t.linkedHeading)}"></i></summary>${head}${flags}${suggest}</details>`;
 }
 
+// One row above the projects per train: its name, one light (the worst of its members) and
+// the order to ship in. It never carries a path.
+function trainBox(trains: Train[] | undefined, t: BoardStrings): string {
+  if (!trains || trains.length === 0) {
+    return "";
+  }
+  const word = { "no-go": t.noGo, unverified: t.unverified, go: t.go };
+  const rows = trainRows(trains, { title: t.trainTitle, light: word, heldBy: t.trainHeldBy, cycle: t.trainCycle });
+  return trains
+    .map((tr, i) => {
+      const tip = escapeHtml(rows[i].tooltip.join(" | "));
+      const steps = tr.members
+        .map((m, n) => `<span class="tag">${n + 1}</span><span class="f">${escapeHtml(m.name)}</span><span class="go ${m.light}" title="${escapeHtml(word[m.light])}">${escapeHtml(m.label)}</span>`)
+        .join('<span class="n">&rarr;</span>');
+      return `<div class="vd train" title="${tip}"><b class="pn">${fill(t.trainTitle, { name: tr.name })}</b><span class="go ${tr.light}">${escapeHtml(word[tr.light])}</span><span class="ord" aria-label="${escapeHtml(t.trainOrder)}">${steps}</span>${tr.cycle ? `<i class="info" title="${escapeHtml(t.trainCycle)}" aria-label="${escapeHtml(t.trainCycle)}"></i>` : ""}</div>`;
+    })
+    .join("");
+}
+
 function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean): string {
   if (!path) {
     return verdict(p, t, lights);
@@ -475,7 +501,7 @@ function sinceBox(view: SinceView | undefined): string {
   return `<section class="box since" role="status"><h2>${escapeHtml(view.heading)}</h2><ul class="sl">${rows}</ul></section>`;
 }
 
-export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView): string {
+export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[]): string {
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
   const lights = new Map<string, string>();
   for (const p of model.projects) {
@@ -500,6 +526,7 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
 ${sinceBox(since)}
 ${state.stale || state.loading ? "" : tidyBox(model, t)}
 ${sittingsBox(model, t)}
+${trainBox(trains, t)}
 ${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading))).join("")}
 ${list(t.resolveNow, by("red"), names, t)}
 ${list(t.inProgress, by("purple"), names, t)}

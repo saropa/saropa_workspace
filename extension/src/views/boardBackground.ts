@@ -5,6 +5,7 @@ import { asStartupMode, projectsFound, shouldOpenOnStartup } from "../board/side
 import { onDidRecordHealth } from "../commands/boardHealth";
 import { onDidChangeMarks, readMarks } from "../commands/boardMarks";
 import { BoardRun, DEFAULT_ROOTS, logBoardError, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { disposeTrain } from "./boardTrain";
 import { askRefresh, currentBoard, disposeFeed, hasPanelOpened, isPanelVisible, isStoredOnly, onDidAskRefresh, onDidChangePanelVisible, setFailed, setScanning } from "./boardFeed";
 import { openBoard } from "./boardPanel";
 import { publishBoard } from "./editorLinks";
@@ -196,5 +197,5 @@ export function registerBoardBackground(context: vscode.ExtensionContext): void 
     })
   );
   const start = setTimeout(() => void paintStored().then(() => scan()), START_DELAY_MS);
-  context.subscriptions.push({ dispose: () => clearTimeout(start) }, { dispose: disposeFeed });
+  context.subscriptions.push({ dispose: () => clearTimeout(start) }, { dispose: disposeFeed }, { dispose: disposeTrain });
 }

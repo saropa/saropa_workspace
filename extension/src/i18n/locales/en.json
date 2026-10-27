@@ -1960,5 +1960,9 @@
   "releaseBoard.sinceLast.clearedOne": "1 blocker cleared",
   "releaseBoard.sinceLast.clearedMany": "{count} blockers cleared",
   "releaseBoard.sinceLast.lightMoved": "went from {from} to {to}",
-  "releaseBoard.sinceLast.more": "and {count} more"
+  "releaseBoard.sinceLast.more": "and {count} more",
+  "releaseBoard.train.title": "Release train: {name}",
+  "releaseBoard.train.heldBy": "Held back by {names}",
+  "releaseBoard.train.cycle": "These projects depend on each other in a circle, so the order is only the order of the board.",
+  "releaseBoard.train.order": "Ship in this order"
 }
