@@ -6,7 +6,7 @@ import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
-import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
+import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
@@ -104,7 +104,7 @@ class BoardPanel extends BoardPanelWiring {
     } else if (message.type === "startup") {
       await this.startup(message.value);
     } else if (message.type === "rules") {
-      await openRulesFile();
+      await openRulesFile(undefined, documentColumn());
     } else if (message.type === "accept") {
       await this.accept();
     } else if (message.type === "open" && typeof message.id === "number") {
@@ -230,7 +230,7 @@ class BoardPanel extends BoardPanelWiring {
     const project = this.run?.cfg.projects.find((p) => p.id === u?.project);
     if (u && project && !this.scanning && !this.cached) {
       try {
-        if (await startBugDocument(vscode.Uri.parse(project.path), u, this.liveDays)) {
+        if (await startBugDocument(vscode.Uri.parse(project.path), u, this.liveDays, documentColumn())) {
           this.dirty = true;
           await this.refresh(true);
         }
@@ -308,7 +308,7 @@ class BoardPanel extends BoardPanelWiring {
     } else if (act === "hand") {
       await handToChat(this.model, this.paths, run, { k: "item", i: id });
     } else if (act === "rules") {
-      await openRulesFile({ project: item.project, folder });
+      await openRulesFile({ project: item.project, folder }, documentColumn());
     } else if (act === "status" || act === "assign" || act === "severity" || act === "auto") {
       const busy = this.busyReason();
       if (busy) {
@@ -340,7 +340,7 @@ class BoardPanel extends BoardPanelWiring {
   // An entry of the board options menu.
   private async optsMenu(act: string): Promise<void> {
     if (act === "rules") {
-      await openRulesFile();
+      await openRulesFile(undefined, documentColumn());
     } else if (act === "projects" || act === "settings") {
       await this.projectsMessage(act === "settings" ? "boardSettings" : "projects");
     }
@@ -420,7 +420,7 @@ class BoardPanel extends BoardPanelWiring {
         this.starting.delete(flight);
       }
     } else if (step.kind === "rules") {
-      await openRulesFile({ project: def.id, folder: step.folder ?? "" });
+      await openRulesFile({ project: def.id, folder: step.folder ?? "" }, documentColumn());
     } else if (step.kind === "accept") {
       await this.reviewAndAccept();
     }
@@ -489,7 +489,11 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
   };
   remember();
   panel.onDidChangeViewState(remember);
-  panel.onDidDispose(() => void context.workspaceState.update(PLACEMENT_KEY, lastColumn));
+  setBoardColumnSource(() => panel.viewColumn);
+  panel.onDidDispose(() => {
+    setBoardColumnSource(() => undefined);
+    void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
+  });
   current = new BoardPanel(context, panel);
   const fresh = background ? currentBoard() : undefined;
   if (fresh) {

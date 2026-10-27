@@ -196,8 +196,8 @@ export const workspace = {
   getConfiguration,
   // Modeled as an identity: the report writers pass the URI straight to
   // showTextDocument, which is where the test observes the open.
-  async openTextDocument(uri: Uri): Promise<{ uri: Uri }> {
-    return { uri };
+  async openTextDocument(uri: Uri): Promise<{ uri: Uri; save(): Promise<boolean> }> {
+    return { uri, save: async () => true };
   },
   get workspaceFolders(): WorkspaceFolder[] | undefined {
     return folders;
