@@ -66,12 +66,13 @@ const events = {
   foldersChanged: new EventEmitter<unknown>(),
   themeChanged: new EventEmitter<unknown>(),
   configChanged: new EventEmitter<{ affectsConfiguration(section: string): boolean }>(),
+  tabsChanged: new EventEmitter<unknown>(),
 };
 
 /** Names of the events a test can fire with `__fireHostEvent`. */
 export type HostEventName = keyof typeof events;
 
-/** Test hook: fires one of the document, folder, theme or configuration events with `payload`. */
+/** Test hook: fires one of the document, folder, theme, configuration or tab events with `payload`. */
 export function __fireHostEvent(name: HostEventName, payload: unknown): void {
   (events[name] as EventEmitter<unknown>).fire(payload);
 }
@@ -358,6 +359,7 @@ export const hostWindow = {
     get all(): readonly FakeTabGroup[] {
       return tabGroupList;
     },
+    onDidChangeTabs: events.tabsChanged.event,
   },
   registerTreeDataProvider: (viewId: string, provider?: unknown): Disposable => track("treeData", viewId, provider),
   registerWebviewViewProvider: (viewId: string, provider?: unknown, _options?: unknown): Disposable => track("webviewView", viewId, provider),

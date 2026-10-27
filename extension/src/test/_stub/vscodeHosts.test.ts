@@ -184,3 +184,12 @@ test("configuration changes reach a listener, which is bound to its owner and ad
   vscode.__fireHostEvent("configChanged", { affectsConfiguration: () => true });
   assert.deepEqual(owner.seen, [true], "a disposed listener hears nothing");
 });
+
+test("a tab change event reaches a listener on the tab groups", () => {
+  let heard = 0;
+  const handle = vscode.window.tabGroups.onDidChangeTabs(() => heard++);
+  vscode.__fireHostEvent("tabsChanged", {});
+  handle.dispose();
+  vscode.__fireHostEvent("tabsChanged", {});
+  assert.equal(heard, 1);
+});
