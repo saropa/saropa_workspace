@@ -262,5 +262,9 @@
   "config.releaseBoard.sittings.defaultHave.description": "Context ids switched on until you make a choice on the board, e.g. [\"iphone\", \"mac\"]. Empty by default: the board then remembers your last choice on this machine. Ids come from the contexts in the needs dictionary.",
   "config.releaseBoard.sittings.defaultTimeBox.description": "Time box used until you make a choice on the board: any, or steps that take at most 15, 30 or 60 minutes.",
   "config.releaseBoard.sittings.maxSteps.description": "Most steps listed at once in the \"I have...\" list (5 to 100). The rest are counted on one line.",
-  "config.releaseBoard.sittings.onlyOwnerDocuments.description": "List only steps from your own checks: documents the rules file marks as owner action (the human folder by default; set ownerKinds or ownerFolders in .saropa/release-board.json to change that). Turn off to list steps from every open document."
+  "config.releaseBoard.sittings.onlyOwnerDocuments.description": "List only steps from your own checks: documents the rules file marks as owner action (the human folder by default; set ownerKinds or ownerFolders in .saropa/release-board.json to change that). Turn off to list steps from every open document.",
+  "config.releaseBoard.editorLinks.enabled.description": "Show, in the editor, which open Release Board documents name the current file. Needs the Release Board to be on. Reads the last board result and never starts a scan.",
+  "config.releaseBoard.editorLinks.codeLens.description": "Show a line at the top of a file listing the open Release Board documents that name it. Click a name to open the document.",
+  "config.releaseBoard.editorLinks.statusBar.description": "Show a status bar item with the number of open documents naming the current file, in the color of the worst one.",
+  "config.releaseBoard.editorLinks.minSeverity.description": "Only show documents of at least this severity in the editor: any, medium, high or critical. Documents whose text was not read are left out when this is not any. Documents waiting on another document are collapsed on the board and never listed. Raise it if the editor lines feel noisy."
 }

@@ -11,6 +11,7 @@ import { Outside, emptyOutside, safeUrl } from "../board/outside";
 import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
 import { asTimeBox } from "../board/sittings";
+import { publishBoard } from "./editorLinks";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
@@ -227,6 +228,7 @@ class BoardPanel {
       this.rev += 1;
       this.lastKey = "";
       this.panel.webview.html = emptyPage(l10n("releaseBoard.disabled"));
+      publishBoard(undefined, undefined);
       return;
     }
     this.render();
@@ -280,6 +282,7 @@ class BoardPanel {
       return;
     }
     this.lastKey = key;
+    publishBoard(this.model, this.run);
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state);

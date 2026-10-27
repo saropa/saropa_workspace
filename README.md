@@ -127,6 +127,10 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30` or `60` minutes. |
 | `releaseBoard.sittings.maxSteps` | `25` | Most steps listed at once (5 to 100). The board reads at most 200 open steps per document. |
 | `releaseBoard.sittings.onlyOwnerDocuments` | `true` | Lists steps only from owner-action documents (name them with `ownerKinds` or `ownerFolders` in the rules file). |
+| `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |
+| `releaseBoard.editorLinks.codeLens` | `true` | Shows the line at the top of a file that lists those documents. |
+| `releaseBoard.editorLinks.statusBar` | `true` | Shows a status bar count, colored by the worst document. |
+| `releaseBoard.editorLinks.minSeverity` | `any` | Only shows documents at least this severe: `any`, `medium`, `high` or `critical`. |
 
 ```json
 {
