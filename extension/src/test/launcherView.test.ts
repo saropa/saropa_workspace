@@ -92,7 +92,7 @@ beforeEach(async () => {
   noteStore = new NoteStore(Object.assign(ctx, { globalStorageUri: Uri.file(`${fx.dir}/global`) }) as never);
   provider = new LauncherViewProvider(
     store, watchStore, noteStore, new ProjectFilesTreeProvider(store), new ScriptsTreeProvider(extDir),
-    Uri.file("/ext"), ctx.globalState
+    Uri.file("/ext") as never, ctx.globalState
   );
   __resetRecordedCommands();
 });

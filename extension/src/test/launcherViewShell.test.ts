@@ -4,6 +4,7 @@
 
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import type { Webview } from "vscode";
 import * as vscode from "./_stub/vscode";
 import { Uri, __setWorkspaceFolders, fakeWebviewPanel } from "./_stub/vscode";
 import { renderHtml } from "../views/launcherViewShell";
@@ -16,8 +17,8 @@ afterEach(() => {
 });
 
 const page = (): string => {
-  const webview = fakeWebviewPanel("t", "t").webview as unknown as vscode.Webview;
-  return renderHtml(webview, Uri.file("/ext"));
+  const webview = fakeWebviewPanel("t", "t").webview as unknown as Webview;
+  return renderHtml(webview, Uri.file("/ext") as never);
 };
 const folder = (name: string): void =>
   __setWorkspaceFolders([{ uri: Uri.file("/w/" + name), name, index: 0 }]);
