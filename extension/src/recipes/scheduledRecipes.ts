@@ -119,6 +119,7 @@ export async function detectScheduledRecipes(
   await pushDependencyFreshnessRitual(folder, out);
   await pushTestTrendRitual(folder, out);
   await pushPrReviewRitual(folder, out);
+  await pushReleaseCheckRituals(folder, out);
   pushSuiteDailyReportRitual(folder, out);
 
   // Every scheduled ritual lands in the "Recipes: Daily Routines" group.
@@ -127,6 +128,56 @@ export async function detectScheduledRecipes(
   }
 
   return out;
+}
+
+// A recipe that runs one of the in-process report commands for the project folder.
+function checkRecipe(folder: vscode.WorkspaceFolder, recipeId: string, label: string, description: string, icon: string, atTime: string, commandId: string): RecipeResult {
+  return {
+    recipeId,
+    label,
+    description: `${description} Read-only: it only writes a dated report under reports/ that starts with the summary line the Release Board reads, and opens it only when it finds something. Seeds disabled.`,
+    icon,
+    schedule: daily(atTime),
+    action: { kind: "command", commandId, commandArgs: [folder.uri.fsPath] },
+  };
+}
+
+const MANIFEST_FILES = ["package.json", "pubspec.yaml", "Cargo.toml", "pyproject.toml"];
+
+async function hasManifest(folder: vscode.WorkspaceFolder): Promise<boolean> {
+  for (const name of MANIFEST_FILES) {
+    if (await exists(folder, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The small read-only checks that feed the Release Board's notes: Release readiness summary,
+// Changelog check, Version consistency, Stale branch age, Large new file watch and Broken
+// links in docs. Each is offered only where its input exists.
+async function pushReleaseCheckRituals(
+  folder: vscode.WorkspaceFolder,
+  out: RecipeResult[]
+): Promise<void> {
+  const isGit = await exists(folder, ".git");
+  const manifest = await hasManifest(folder);
+  if ((await detectTest(folder)) || (await detectLinter(folder))) {
+    out.push(checkRecipe(folder, "ritual.readiness", "Release readiness summary", "Scheduled (daily, default 09:15): combines the newest build, test, lint and dependency reports into one dated report and one line on the board. It passes only when the test and lint reports are fresh and passing and nothing else is failing; a missing or old report keeps it from passing. Detected from the project's test runner or linter.", "checklist", "09:15", "saropaWorkspace.recipe.releaseReadiness"));
+  }
+  if (manifest && (await exists(folder, "CHANGELOG.md"))) {
+    out.push(checkRecipe(folder, "ritual.changelog", "Changelog check", "Scheduled (daily, default 09:20): checks that the newest released entry of CHANGELOG.md names the version in the project manifest (package.json, pubspec.yaml, Cargo.toml or pyproject.toml). The file name is a setting. Detected from CHANGELOG.md and a manifest.", "versions", "09:20", "saropaWorkspace.recipe.changelogCheck"));
+  }
+  if (manifest && ((await exists(folder, "package-lock.json")) || (await exists(folder, "Cargo.lock")) || (await exists(folder, "README.md")))) {
+    out.push(checkRecipe(folder, "ritual.version", "Version consistency", "Scheduled (daily, default 09:25): compares the manifest version with package-lock.json, Cargo.lock and any version badge in README.md, and lists the files that differ. Needs at least one other file to compare. Detected from a manifest and a lockfile or README.", "versions", "09:25", "saropaWorkspace.recipe.versionCheck"));
+  }
+  if (isGit) {
+    out.push(checkRecipe(folder, "ritual.branchAge", "Stale branch age", "Scheduled (daily, default 09:05): lists local branches not merged into the default branch whose last commit is older than the limit (setting, default 30 days). Nothing is deleted. Detected from a git repository.", "git-branch", "09:05", "saropaWorkspace.recipe.branchAge"));
+    out.push(checkRecipe(folder, "ritual.bigFiles", "Large new file watch", "Scheduled (daily, default 09:10): lists files added in the last 7 days, committed or not yet tracked, that are over the size limit (setting, default 1 MB). Detected from a git repository.", "file-binary", "09:10", "saropaWorkspace.recipe.largeNewFiles"));
+    if ((await exists(folder, "README.md")) || (await exists(folder, "docs"))) {
+      out.push(checkRecipe(folder, "ritual.links", "Broken links in docs", "Scheduled (daily, default 09:30): checks the relative links in the tracked Markdown documents and lists those that point at a file that does not exist. Web links and anchors are not checked. Detected from a git repository with a README or docs folder.", "link", "09:30", "saropaWorkspace.recipe.brokenLinks"));
+    }
+  }
 }
 
 // Saropa Suite daily report: the cross-tool day summary (Workspace run activity
@@ -279,7 +330,7 @@ async function pushDependencyFreshnessRitual(
       label: "Dependency freshness",
       description: "Scheduled (daily, default 07:00): writes a dated report of only the pubspec packages behind their latest version (up-to-date packages are omitted) and opens it when anything is stale. Seeds disabled. Detected from pubspec.yaml.",
       icon: "cloud-download",
-      schedule: daily("07:00"),
+      schedule: feeding("07:00"),
       action: {
         kind: "command",
         commandId: "saropaWorkspace.recipe.pubspecOutdated",
@@ -294,7 +345,7 @@ async function pushDependencyFreshnessRitual(
         label: "Dependency freshness",
         description: "Scheduled (daily, default 07:00): writes a dated report of what is behind latest plus the audit/advisory summary for the ecosystem — the staleness and security picture in one file. Seeds disabled. Detected from the lockfile / manifest.",
         icon: "cloud-download",
-        schedule: daily("07:00"),
+        schedule: feeding("07:00"),
         action: report(folder, deps, reportRelativePath("deps"), false),
       });
     }

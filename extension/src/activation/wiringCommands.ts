@@ -26,6 +26,7 @@ import { registerCiStatusCommand } from "../exec/ciStatus";
 import { registerOvernightDeltaCommand } from "../exec/overnightDelta";
 import { registerStandupDigestCommand } from "../exec/standupDigest";
 import { registerPubspecOutdatedCommand } from "../exec/pubspecOutdated";
+import { registerReleaseChecksCommands } from "../exec/releaseChecksCommands";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
 import { registerMorningBriefCommand } from "../commands/morningBrief";
 import { registerRemoteControlCommands } from "../commands/remoteControlCommands";
@@ -166,4 +167,7 @@ function registerReportCommands(
   // --json` and writes a report of ONLY the packages behind latest, driven by the
   // scheduled "Dependency freshness" recipe.
   registerPubspecOutdatedCommand(context);
+  // Release readiness summary, Changelog check, Version consistency, Stale branch age, Large
+  // new file watch and Broken links in docs: small read-only report recipes.
+  registerReleaseChecksCommands(context);
 }
