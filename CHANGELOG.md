@@ -46,6 +46,17 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Release Board now shows, for each project, the short list of steps between it and GO.
+
+### Added
+
+- **Release Board: Path to GO.** Click a project row to open a numbered list of what stands between that project and a green light, in the order that clears it fastest: the documents that stop the release (the one that frees the most waiting documents first; for a chain, the first document of the chain), then missing or failing lint and test evidence, then folders with no rule, then documents that could not be read, then accepting the scan. A project with no steps is GO, and a GO project has no steps; the list is worked out from the same facts as the light, so it never disagrees with it. A step that is done ticks off and stays struck through for a few minutes. Buttons: **Open** a document, **Run lint now** and **Run tests now** (start the shortcut the project names, in the background only, and the result is recorded as before), **Open the rules file** at a folder with no rule, and **Review and accept** for an unaccepted scan.
+- Settings for Path to GO: `saropaWorkspace.releaseBoard.pathToGo.enabled` (on), `saropaWorkspace.releaseBoard.pathToGo.maxSteps` (8, from 3 to 20) and `saropaWorkspace.releaseBoard.pathToGo.showRunButtons` (on; turn off if the board should never start a run).
+
+---
+
 ## [2.0.0]
 
 The Release Board arrives: an off-by-default screen that reads your bugs, docs and plans folders across projects, shows what blocks a release in red, amber and green, links documents that wait on each other, and only says GO when lint and tests are fresh and clean. [log](https://github.com/saropa/saropa-workspace/blob/v2.0.0/CHANGELOG.md)

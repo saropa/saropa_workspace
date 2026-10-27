@@ -257,5 +257,8 @@
   "config.releaseBoard.reviewRequests.description": "Show the pull requests waiting for your review as a separate list on the Release Board. Uses your existing GitHub sign-in in VS Code, never asks you to sign in, and never changes a project's light.",
   "config.releaseBoard.profile.description": "What stops a release on the Release Board: Rush (extreme and critical), Deliberate (adds high), Zero defects (adds medium). A red folder always stops a release.",
   "command.releaseBoard.mark.title": "Release Board: Mark This Document",
-  "command.releaseBoard.exportMarks.title": "Release Board: Export Marks to the Repository"
+  "command.releaseBoard.exportMarks.title": "Release Board: Export Marks to the Repository",
+  "config.releaseBoard.pathToGo.enabled.description": "Show a Path to GO under each project on the Release Board: a short ordered list of what stands between the project and a green light. Click a project row to open it.",
+  "config.releaseBoard.pathToGo.maxSteps.description": "Most steps listed in a Path to GO (3 to 20). Steps beyond the limit are counted, not listed.",
+  "config.releaseBoard.pathToGo.showRunButtons.description": "Show the Run lint now and Run tests now buttons in a Path to GO. They start the shortcut the project names for that run, in the background. Turn off if the board should never start a run."
 }
