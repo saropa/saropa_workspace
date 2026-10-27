@@ -4,6 +4,7 @@
 
 import { test, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import * as nodeFs from "node:fs";
 import {
   Uri, __registeredCommands, __warningMessages, __resetWarnings, __setWarningAnswer, __infoMessages, __resetInfo,
   __setConfig, __resetConfig, __resetHandlers, __openedDocuments, __resetOpenedDocuments, __resetHosts,
@@ -196,8 +197,13 @@ test("the open command opens a file shortcut in the editor", async () => {
   assert.deepEqual(__openedDocuments(), [`${fx.dir}/a.ts`]);
 });
 
-test("the refresh command rescans the store, so a file added outside is seen", async () => {
-  __setConfig("saropaWorkspace", "recipes.enabled", false);
+test("the refresh command reloads the shortcuts file, so an edit made outside shows up", async () => {
+  await addFile("a.ts");
+  const file = `${fx.dir}/.saropa/saropa-workspace.json`;
+  const data = JSON.parse(nodeFs.readFileSync(file, "utf8")) as { pins: Array<Record<string, unknown>> };
+  data.pins.push({ id: "outside", path: "added.ts", scope: "project", order: 9 });
+  nodeFs.writeFileSync(file, JSON.stringify(data));
+  assert.deepEqual(stored().map((s) => s.path), ["a.ts"]);
   await run("refresh");
-  assert.deepEqual(stored(), []);
+  assert.deepEqual(stored().map((s) => s.path), ["a.ts", "added.ts"]);
 });
