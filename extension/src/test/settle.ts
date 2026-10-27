@@ -3,9 +3,12 @@
 
 /** Yields to the event loop until `condition()` is true; throws after `timeoutMs` milliseconds. */
 export async function settle(condition: () => boolean, timeoutMs = 5000): Promise<void> {
+  // Bounded by loop turns as well as the clock: a test may freeze Date, which would
+  // otherwise stop the deadline from ever passing.
   const deadline = Date.now() + timeoutMs;
-  while (!condition()) {
-    if (Date.now() > deadline) {
+  const maxTurns = timeoutMs * 20;
+  for (let turns = 0; !condition(); turns++) {
+    if (Date.now() > deadline || turns > maxTurns) {
       throw new Error("settle: the condition never became true");
     }
     await new Promise<void>((resolve) => setImmediate(resolve));

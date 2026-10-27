@@ -4,7 +4,7 @@ import { Shortcut, ShortcutExecConfig, RunLocation } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { seedLocation, normalize, ConcurrencyEdit } from "../commands/configureRun";
 import { parseArgs, formatArgs } from "../commands/configureRunCommand";
-import { planRun, resolveRunPrefix } from "../exec/runPlanning";
+import { planRun, resolveRunPrefix, isRunnable } from "../exec/runPlanning";
 import { defaultHintKind } from "../exec/commandPlan";
 import { detectInterpreters } from "../exec/interpreterDetect";
 import { renderConfigureRunHtml } from "./configureRunShell";
@@ -284,7 +284,13 @@ export class ConfigureRunPanel {
     if (!uri) {
       return l10n("configureRun.footer.none");
     }
-    const plan = planRun({ ...shortcut, exec }, uri);
+    const candidate = { ...shortcut, exec };
+    // A file with no way to execute is opened by a run, not launched, so showing its bare
+    // path as a command would promise a run that never happens.
+    if (!isRunnable(candidate, uri.fsPath)) {
+      return l10n("configureRun.footer.none");
+    }
+    const plan = planRun(candidate, uri);
     if (plan.commandLine.trim() === "") {
       return l10n("configureRun.footer.none");
     }
