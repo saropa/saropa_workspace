@@ -14,18 +14,33 @@
 // ExtensionContext (an in-memory Map), not here.
 
 import * as nodeFs from "node:fs";
-import { Disposable, applyEdit, recordInfo, recordWarning } from "./vscodeExtras";
+import { Disposable, applyEdit, recordWarning, recordInfo, languages as readLanguages } from "./vscodeExtras";
 
 import { FileType, Uri, WorkspaceFolder, EventEmitter } from "./vscodeTypes";
 import { findFiles } from "./vscodeFind";
+import { hostWorkspace, hostWindow, hostLanguages } from "./vscodeHosts";
+import { showTextDocument, visibleTextEditors } from "./vscodeEditor";
+import { shellWindow, __clearInstalledExtensions } from "./vscodeShell";
+
+/** Stub of `vscode.languages`: the Problems panel read plus the provider registrations. */
+export const languages = { ...readLanguages, ...hostLanguages };
 import { createOutputChannel } from "./vscodeOutput";
 import { FakeWebviewPanel, fakeWebviewPanel, createdPanels } from "./vscodeWebview";
 
 // Value types live in vscodeTypes.ts; re-exported so `./_stub/vscode` stays the one entry point.
 export * from "./vscodeTypes";
 export * from "./vscodeWebview";
+export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
+export { authentication, __authRequests, __resetAuth, __setAuthFailure, __setAuthSession } from "./vscodeAuth";
+export { Range, Selection, TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
+export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands } from "./vscodeCommands";
+export type { FakeQuickPick } from "./vscodeHosts";
+export { ColorThemeKind, extensions, __setInstalledExtensions, __setColorThemeKind, __inputBoxes, __terminals, __resetShell } from "./vscodeShell";
+export type { FakeInputBox, FakeTerminal } from "./vscodeShell";
+export type { FakeTextEditor } from "./vscodeEditor";
+export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setQuickPickDriver, __setTabGroups, __resetHosts } from "./vscodeHosts";
 
-export { DiagnosticSeverity, Disposable, WorkspaceEdit, __clipboardWrites, __infoMessages, __resetWarnings, __setDiagnostics, __setInfoAnswer, __setWarningAnswer, __warningMessages, env, languages } from "./vscodeExtras";
+export { DiagnosticSeverity, Disposable, WorkspaceEdit, __clipboardWrites, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __infoCalls, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
 
 // that path); a test installs folders pointing at its temp directory.
 let folders: WorkspaceFolder[] | undefined;
@@ -69,7 +84,7 @@ export function __resetConfig(): void {
   configValues.clear();
   workspaceValues.clear();
   folderValues.clear();
-  installedExtensions.clear();
+  __clearInstalledExtensions();
 }
 
 // vscode.ConfigurationTarget: the status-bar action menu writes its "hide me" flag at
@@ -141,6 +156,20 @@ const fsApi = {
   async createDirectory(uri: Uri): Promise<void> {
     nodeFs.mkdirSync(uri.fsPath, { recursive: true });
   },
+  // Copies a file; refuses when the target exists unless overwrite is set, as the real call does.
+  async copy(from: Uri, to: Uri, options?: { overwrite?: boolean }): Promise<void> {
+    if (!options?.overwrite && nodeFs.existsSync(to.fsPath)) {
+      throw new Error("FileExists");
+    }
+    nodeFs.copyFileSync(from.fsPath, to.fsPath);
+  },
+  // Moves a file; refuses when the target exists unless overwrite is set, as the real call does.
+  async rename(from: Uri, to: Uri, options?: { overwrite?: boolean }): Promise<void> {
+    if (!options?.overwrite && nodeFs.existsSync(to.fsPath)) {
+      throw new Error("FileExists");
+    }
+    nodeFs.renameSync(from.fsPath, to.fsPath);
+  },
   async delete(uri: Uri, options?: { recursive?: boolean }): Promise<void> {
     nodeFs.rmSync(uri.fsPath, { recursive: !!options?.recursive, force: true });
   },
@@ -149,19 +178,6 @@ const fsApi = {
 // vscode.workspace stand-in: configuration reads, workspaceFolders /
 // getWorkspaceFolder, the real-filesystem-backed fs, and findFiles — the slice of
 // the real namespace the store and detectors actually touch.
-// The fsPaths handed to showTextDocument since the last reset. The report writers all
-// route their auto-open through exec/reportOpen, so this log is how a test asserts
-// that a routine raised exactly ONE window (its summary) rather than one per member.
-const openedDocuments: string[] = [];
-// The documents showTextDocument was called with since the last reset, in order.
-export function __openedDocuments(): readonly string[] {
-  return openedDocuments;
-}
-// Test-control hook: clears the opened-document log between tests.
-export function __resetOpenedDocuments(): void {
-  openedDocuments.length = 0;
-}
-
 // The messages window.showErrorMessage was called with since the last reset, in order.
 const errorMessages: string[] = [];
 /** Test hook: the error messages shown since the last reset. */
@@ -187,32 +203,24 @@ export const workspace = {
   getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined {
     return ownerFolder(uri);
   },
+  // Path relative to the owning folder with forward slashes (prefixed by the folder name when
+  // asked); a path outside every folder comes back unchanged.
+  asRelativePath(target: Uri | string, includeWorkspaceFolder?: boolean): string {
+    const uri = typeof target === "string" ? Uri.file(target) : target;
+    const owner = ownerFolder(uri);
+    if (!owner) {
+      return uri.fsPath;
+    }
+    const base = owner.uri.fsPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    const rel = uri.fsPath.replace(/\\/g, "/").slice(base.length).replace(/^\//, "");
+    return includeWorkspaceFolder ? `${owner.name}/${rel}` : rel;
+  },
   // Empty unless a test pushes a document (for example a dirty one).
   textDocuments: [] as Array<{ isDirty: boolean; uri: Uri }>,
   applyEdit,
-  // Configuration changes never fire in the stub; tests read settings directly.
-  onDidChangeConfiguration: (_listener: (e: { affectsConfiguration(section: string): boolean }) => void): { dispose(): void } => ({ dispose: (): void => undefined }),
   fs: fsApi,
   findFiles,
-};
-
-// vscode.extensions.getExtension: the suite recipes probe whether a sibling Saropa
-// tool's extension is installed (so they only seed a command the host can run). A
-// test installs the relevant ids; an unset id models "not installed" (the
-// graceful-absence path). getExtension returns a stand-in only carrying `.id`, the
-// single field the detector reads (it checks presence, not the activation surface).
-let installedExtensions = new Set<string>();
-// Test-control hook: sets which extension ids extensions.getExtension() reports
-// as installed for the rest of the test.
-export function __setInstalledExtensions(ids: string[]): void {
-  installedExtensions = new Set(ids);
-}
-// vscode.extensions stand-in: reports installed/not-installed by id, driven by
-// __setInstalledExtensions (defaults to "nothing installed").
-export const extensions = {
-  getExtension(id: string): { id: string } | undefined {
-    return installedExtensions.has(id) ? { id } : undefined;
-  },
+  ...hostWorkspace,
 };
 
 // window.showInputBox / showQuickPick: the interactive run-token tests drive these
@@ -220,12 +228,19 @@ export const extensions = {
 // cancel) and count how often a dialog was raised. Defaults to "cancel everything"
 // (undefined) until a test installs a handler; __resetHandlers restores that.
 type InputResult = string | undefined;
-type InputHandler = (opts?: { prompt?: string; value?: string }) => Promise<InputResult>;
+interface InputOptions {
+  prompt?: string;
+  value?: string;
+  title?: string;
+  placeHolder?: string;
+  validateInput?: (value: string) => string | undefined;
+}
+type InputHandler = (opts?: InputOptions) => Promise<InputResult>;
 // showQuickPick is modeled with one settable handler, but the real API yields a
 // QuickPickItem object (or, with canPickMany, an array of them) — not just a string.
 // So the handler sees the item list as `unknown[]` and may return any shape (a chosen
 // item, an array of items, or undefined for cancel); the tested editors narrow it.
-type PickHandler = (items: readonly unknown[]) => Promise<unknown>;
+type PickHandler = (items: readonly unknown[], options?: unknown) => Promise<unknown>;
 // window.showOpenDialog: the ${pickFolder:...} token test drives this through a
 // settable handler, same shape as input/pick — sees the options passed (so a test
 // can assert the defaultUri/title) and returns a chosen Uri array or undefined.
@@ -265,13 +280,12 @@ export const window = {
     createdPanels.push(panel);
     return panel;
   },
-  showInputBox(opts?: { prompt?: string; value?: string }): Promise<InputResult> {
+  showInputBox(opts?: InputOptions): Promise<InputResult> {
     return inputHandler(opts);
   },
-  // The real signature takes (items, options); the second arg is unused by the
-  // tested code paths, so the stub ignores it.
-  showQuickPick(items: readonly unknown[]): Promise<unknown> {
-    return pickHandler(items);
+  // The handler also sees the options (placeholder, canPickMany), so a test can assert them.
+  showQuickPick(items: readonly unknown[], options?: unknown): Promise<unknown> {
+    return pickHandler(items, options);
   },
   showOpenDialog(opts?: OpenDialogOptions): Promise<Uri[] | undefined> {
     return openDialogHandler(opts);
@@ -279,9 +293,7 @@ export const window = {
   showSaveDialog(_opts?: unknown): Promise<Uri | undefined> {
     return Promise.resolve(undefined);
   },
-  // The branch-set binder and several command handlers emit toasts via these. No
-  // test asserts on their text, so they are inert no-ops that resolve to undefined
-  // (the "no action button chosen" result) — they must only exist and not throw.
+  // Recorded and answered by the handler in vscodeExtras (default: dismissed).
   showInformationMessage(message: string, ...rest: unknown[]): Promise<string | undefined> {
     return recordInfo(message, rest);
   },
@@ -295,12 +307,9 @@ export const window = {
     errorMessages.push(message);
     return Promise.resolve(undefined);
   },
-  // Records which document was raised, so the report-open suppression tests can
-  // assert on the number and identity of windows a run produced.
-  async showTextDocument(doc: { uri: Uri } | Uri): Promise<void> {
-    // A document, or a bare Uri as the real call also accepts.
-    openedDocuments.push(("uri" in doc ? doc.uri : doc).fsPath);
-  },
+  // Logs the document and returns a fake editor over the file (see vscodeEditor).
+  showTextDocument,
+  visibleTextEditors,
   createOutputChannel,
   // Paired with ThemeColor above: shortcutOpen creates its peek-highlight decoration type at
   // module scope, so this must exist for any bundle that imports it to load at all. The
@@ -311,6 +320,8 @@ export const window = {
   onDidChangeWindowState: windowStateEmitter.event,
   onDidChangeTextEditorSelection: selectionEmitter.event,
   onDidChangeActiveTextEditor: activeEditorEmitter.event,
+  ...hostWindow,
+  ...shellWindow,
 };
 
 // Test drivers for the window activity events.
@@ -326,46 +337,6 @@ export function __fireSelection(): void {
 // "any fire counts as activity" shortcut as __fireSelection.
 export function __fireActiveEditor(): void {
   activeEditorEmitter.fire(undefined);
-}
-
-// commands.executeCommand: the analytics preview calls it to open the Markdown
-// preview, but the unit-tested path (buildReport) never reaches it. Modeled as an
-// inert async no-op. Each call is recorded so a test that DOES care which command
-// ran (the branch-set binder's on-switch shortcut runner) can assert it; the recording
-// is cleared by __resetRecordedCommands.
-const recordedCommands: Array<{ command: string; args: unknown[] }> = [];
-// vscode.commands stand-in: executeCommand is an inert no-op that records the
-// call, so a test that cares which command ran can assert against it afterward.
-export const commands = {
-  // Keeps the handler so a test can call it through __registeredCommands.
-  registerCommand(command: string, handler: (...args: unknown[]) => unknown): Disposable {
-    registeredCommands.set(command, handler);
-    return new Disposable(() => registeredCommands.delete(command));
-  },
-  executeCommand(command: string, ...rest: unknown[]): Promise<undefined> {
-    recordedCommands.push({ command, args: rest });
-    return Promise.resolve(undefined);
-  },
-};
-
-// Handlers added by commands.registerCommand, by command id.
-const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
-// The handlers registered with commands.registerCommand, by command id.
-export function __registeredCommands(): ReadonlyMap<string, (...args: unknown[]) => unknown> {
-  return registeredCommands;
-}
-
-// The commands executeCommand was called with since the last reset, for tests that
-// assert a side-effecting command fired (e.g. saropaWorkspace.runPin).
-export function __recordedCommands(): ReadonlyArray<{
-  command: string;
-  args: unknown[];
-}> {
-  return recordedCommands;
-}
-// Test-control hook: clears the recorded executeCommand call log between tests.
-export function __resetRecordedCommands(): void {
-  recordedCommands.length = 0;
 }
 
 // Test-control hook: installs the handler that answers window.showInputBox calls.

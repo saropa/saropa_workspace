@@ -59,46 +59,65 @@ export function __setWarningAnswer(next: Answer): void {
 export function __resetWarnings(): void {
   warnings = [];
   answer = () => undefined;
-  infos = [];
-  infoAnswer = () => undefined;
+  __resetInfo();
   clipboard = [];
 }
-let infos: string[] = [];
-let infoAnswer: Answer = () => undefined;
-let clipboard: string[] = [];
-// The messages window.showInformationMessage was called with since the last reset.
-export function __infoMessages(): readonly string[] {
-  return infos;
-}
-// Test-control hook: chooses what an information message answers (an item label, or undefined).
-export function __setInfoAnswer(next: Answer): void {
-  infoAnswer = next;
-}
-// Every text written to the clipboard since the last reset, oldest first.
-export function __clipboardWrites(): readonly string[] {
-  return clipboard;
-}
-// window.showInformationMessage: options objects are skipped, labels are passed to the handler.
-export function recordInfo(message: string, rest: unknown[]): Promise<string | undefined> {
-  infos.push(message);
-  return Promise.resolve(infoAnswer(message, rest.filter((x): x is string => typeof x === "string")));
-}
-// vscode.env: the clipboard only.
-export const env = {
-  clipboard: {
-    writeText(text: string): Promise<void> {
-      clipboard.push(text);
-      return Promise.resolve();
-    },
-    readText(): Promise<string> {
-      return Promise.resolve(clipboard[clipboard.length - 1] ?? "");
-    },
-  },
-};
 // window.showWarningMessage: options objects are skipped, labels are passed to the handler.
 export function recordWarning(message: string, rest: unknown[]): Promise<string | undefined> {
   warnings.push(message);
   return Promise.resolve(answer(message, rest.filter((x): x is string => typeof x === "string")));
+}
+
+// Every text written to the clipboard since the last reset, oldest first. vscode.env (in
+// vscodeEnv.ts) records its writes here, so one reset clears them with the toasts.
+let clipboard: string[] = [];
+// Every text written to the clipboard since the last reset, oldest first.
+export function __clipboardWrites(): readonly string[] {
+  return clipboard;
+}
+// Called by env.clipboard.writeText.
+export function recordClipboardWrite(text: string): void {
+  clipboard.push(text);
+}
+// Test-control hook: forgets the recorded clipboard writes.
+export function clearClipboardWrites(): void {
+  clipboard = [];
+}
+
+// Information toasts: recorded like warnings, answered by a replaceable handler (default: dismissed).
+let infos: string[] = [];
+let infoAnswer: Answer = () => undefined;
+// The messages window.showInformationMessage was called with since the last reset.
+export function __infoMessages(): readonly string[] {
+  return infos;
+}
+/** One information toast with the options object and button labels it was shown with. */
+export interface InfoCall {
+  readonly message: string;
+  readonly options: unknown;
+  readonly buttons: readonly string[];
+}
+let infoCalls: InfoCall[] = [];
+// The full calls (message, options such as modal and detail, buttons) since the last reset.
+export function __infoCalls(): readonly InfoCall[] {
+  return infoCalls;
+}
+// Test-control hook: chooses what an information toast answers (a button label, or undefined).
+export function __setInfoAnswer(next: Answer): void {
+  infoAnswer = next;
+}
+// Test-control hook: clears the recorded information toasts and restores the dismiss answer.
+export function __resetInfo(): void {
+  infos = [];
+  infoCalls = [];
+  infoAnswer = () => undefined;
+}
+// window.showInformationMessage: option objects are skipped, labels are passed to the handler.
+export function recordInfo(message: string, rest: unknown[]): Promise<string | undefined> {
+  infos.push(message);
+  const buttons = rest.filter((x): x is string => typeof x === "string");
+  infoCalls.push({ message, options: rest.find((x) => typeof x === "object"), buttons });
+  return Promise.resolve(infoAnswer(message, buttons));
 }
 
 // vscode.WorkspaceEdit, rename only: renameFile is queued and applyEdit performs it on disk.

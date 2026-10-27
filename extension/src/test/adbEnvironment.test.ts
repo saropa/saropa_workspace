@@ -1,15 +1,20 @@
 // Unit tests for the adb discovery / connection-health probe (MOBILE_REMOTE_CONTROL_PLAN
-// section 5). Only the pure halves are exercised: `adb devices` output in, counted
-// summary out. The probe itself shells out and is deliberately untested — CI has no adb
-// and no phone — which is exactly why the parsing and the counting were factored out of
-// it.
+// section 5). Pure halves: `adb devices` output in, counted summary out. The probe itself is
+// run against a stand-in adb script on a temporary PATH, so CI needs neither adb nor a phone.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as nodeFs from "node:fs";
+import * as nodeOs from "node:os";
+import * as nodePath from "node:path";
 import {
   adbMissing,
+  findAdb,
+  onAdbEnvironmentProbe,
   parseAdbDevices,
+  probeAdbEnvironment,
   summarizeAdbDevices,
+  type AdbEnvironment,
 } from "../exec/adbEnvironment";
 
 // --- parseAdbDevices -------------------------------------------------------
@@ -87,4 +92,77 @@ test("the missing-adb environment reports no devices at all, not zero devices", 
   assert.equal(env.available, false);
   assert.equal(env.failed, false);
   assert.equal(env.devices, undefined);
+});
+
+// --- probeAdbEnvironment ---------------------------------------------------
+// PATH is pointed at a temporary folder: empty (adb absent) or holding a stand-in script.
+
+async function withPath(script: string | undefined, body: (bin: string) => Promise<void>): Promise<void> {
+  const bin = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "sw-adbprobe-"));
+  const original = process.env.PATH;
+  process.env.PATH = bin;
+  try {
+    if (script !== undefined) {
+      const file = nodePath.join(bin, "adb");
+      nodeFs.writeFileSync(file, `#!/bin/sh\n${script}\n`);
+      nodeFs.chmodSync(file, 0o755);
+    }
+    await body(bin);
+  } finally {
+    process.env.PATH = original;
+    nodeFs.rmSync(bin, { recursive: true, force: true });
+  }
+}
+const posix = { skip: process.platform === "win32" };
+
+test("with no adb on PATH the probe reports it missing", async () => {
+  await withPath(undefined, async () => {
+    assert.equal(findAdb(), undefined);
+    assert.deepEqual(await probeAdbEnvironment(), adbMissing());
+  });
+});
+
+test("with adb on PATH the probe counts the attached devices", posix, async () => {
+  await withPath('printf "List of devices attached\\nemulator-5554\\tdevice\\nRF8N1\\tunauthorized\\n"', async (bin) => {
+    assert.equal(findAdb(), nodePath.join(bin, "adb"));
+    assert.deepEqual(await probeAdbEnvironment(), {
+      available: true,
+      path: nodePath.join(bin, "adb"),
+      devices: { total: 2, ready: 1, unauthorized: 1, offline: 0 },
+      failed: false,
+    });
+  });
+});
+
+test("an adb that exits with an error is reported as failed, not as missing", posix, async () => {
+  await withPath("exit 1", async (bin) => {
+    assert.deepEqual(await probeAdbEnvironment(), { available: true, path: nodePath.join(bin, "adb"), failed: true });
+  });
+});
+
+test("every probe result reaches the listeners until they are disposed", async () => {
+  const seen: AdbEnvironment[] = [];
+  const handle = onAdbEnvironmentProbe((env) => seen.push(env));
+  await withPath(undefined, async () => {
+    await probeAdbEnvironment();
+    handle.dispose();
+    await probeAdbEnvironment();
+  });
+  assert.deepEqual(seen, [adbMissing()]);
+});
+
+test("a listener that throws does not spoil the probe result", async () => {
+  const quiet = console.error;
+  console.error = (): void => {};
+  const handle = onAdbEnvironmentProbe(() => {
+    throw new Error("listener failure");
+  });
+  try {
+    await withPath(undefined, async () => {
+      assert.deepEqual(await probeAdbEnvironment(), adbMissing());
+    });
+  } finally {
+    handle.dispose();
+    console.error = quiet;
+  }
 });

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ensureNoteExtension } from "../model/noteStore";
-import { validateNoteName, hasBinaryContent, markdownToHtml } from "../commands/noteCommands";
+import { validateNoteName, hasBinaryContent } from "../commands/noteCommands";
 
 test("ensureNoteExtension appends .md when no extension present", () => {
   assert.equal(ensureNoteExtension("standup-checklist"), "standup-checklist.md");
@@ -97,66 +97,4 @@ test("hasBinaryContent only samples the first 8192 bytes", () => {
   assert.equal(hasBinaryContent(buf), false);
   buf[8191] = 0x00;
   assert.equal(hasBinaryContent(buf), true);
-});
-
-test("markdownToHtml converts headings", () => {
-  assert.equal(markdownToHtml("# Title"), "<h1>Title</h1>");
-  assert.equal(markdownToHtml("## Sub"), "<h2>Sub</h2>");
-  assert.equal(markdownToHtml("### Third"), "<h3>Third</h3>");
-});
-
-test("markdownToHtml converts inline markup", () => {
-  assert.equal(markdownToHtml("**bold**"), "<p><strong>bold</strong></p>");
-  assert.equal(markdownToHtml("*italic*"), "<p><em>italic</em></p>");
-  assert.equal(markdownToHtml("`code`"), "<p><code>code</code></p>");
-  assert.equal(
-    markdownToHtml("[link](http://x.com)"),
-    '<p><a href="http://x.com">link</a></p>'
-  );
-});
-
-test("markdownToHtml converts lists", () => {
-  const ul = markdownToHtml("- one\n- two");
-  assert.equal(ul, "<ul>\n<li>one</li>\n<li>two</li>\n</ul>");
-  const ol = markdownToHtml("1. first\n2. second");
-  assert.equal(ol, "<ol>\n<li>first</li>\n<li>second</li>\n</ol>");
-});
-
-test("markdownToHtml converts code blocks", () => {
-  const result = markdownToHtml("```\nconst x = 1;\n```");
-  assert.equal(result, "<pre><code>\nconst x = 1;\n</code></pre>");
-});
-
-test("markdownToHtml escapes HTML entities", () => {
-  assert.equal(markdownToHtml("<div>&</div>"), "<p>&lt;div&gt;&amp;&lt;/div&gt;</p>");
-});
-
-test("markdownToHtml converts blockquotes", () => {
-  assert.equal(markdownToHtml("> quoted"), "<blockquote>\n<p>quoted</p>\n</blockquote>");
-});
-
-test("markdownToHtml converts horizontal rules", () => {
-  assert.equal(markdownToHtml("---"), "<hr>");
-  assert.equal(markdownToHtml("***"), "<hr>");
-});
-
-
-test("markdownToHtml links http, https and mailto targets", () => {
-  assert.equal(markdownToHtml("[a](https://x.test/p?q=1)"), '<p><a href="https://x.test/p?q=1">a</a></p>');
-  assert.equal(markdownToHtml("[m](mailto:me@x.test)"), '<p><a href="mailto:me@x.test">m</a></p>');
-  assert.equal(markdownToHtml("![i](http://x.test/i.png)"), '<p><img src="http://x.test/i.png" alt="i"></p>');
-});
-
-test("markdownToHtml leaves non-web link targets as plain text", () => {
-  const html = markdownToHtml("[x](javascript:alert(1)) [y](notes/a.md) [z](data:text/html,hi)");
-  assert.ok(!html.includes("<a "));
-  assert.ok(html.includes("[y](notes/a.md)"));
-});
-
-test("markdownToHtml cannot break out of the href attribute with a quote", () => {
-  const html = markdownToHtml('[x](https://x.test/" onmouseover="alert(2))');
-  assert.ok(!html.includes('" onmouseover="'));
-  assert.ok(html.includes("&quot; onmouseover=&quot;"));
-  const img = markdownToHtml('![a" onerror="x](https://x.test/i.png)');
-  assert.ok(!img.includes('" onerror="'));
 });

@@ -41,6 +41,12 @@ export class Uri {
     return new Uri("file", p, p);
   }
 
+  // Builds a URI from parts, as vscode.Uri.from does; only scheme and path are modeled.
+  static from(parts: { scheme: string; path?: string }): Uri {
+    const path = parts.path ?? "";
+    return new Uri(parts.scheme, path, `${parts.scheme}:${path}`);
+  }
+
   static parse(value: string): Uri {
     const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(value);
     const scheme = match ? match[1] : "file";
@@ -93,9 +99,17 @@ type Listener<T> = (e: T) => void;
 // contract this fakes.
 export class EventEmitter<T> {
   private readonly listeners = new Set<Listener<T>>();
-  readonly event = (listener: Listener<T>): { dispose(): void } => {
-    this.listeners.add(listener);
-    return { dispose: (): boolean => this.listeners.delete(listener) };
+  // Like the real event: an optional `this` for the listener, and an optional list the handle is added to.
+  readonly event = (
+    listener: Listener<T>,
+    thisArgs?: unknown,
+    disposables?: Array<{ dispose(): unknown }>
+  ): { dispose(): void } => {
+    const bound: Listener<T> = thisArgs === undefined ? listener : (data) => listener.call(thisArgs, data);
+    this.listeners.add(bound);
+    const handle = { dispose: (): boolean => this.listeners.delete(bound) };
+    disposables?.push(handle);
+    return handle;
   };
   fire(data: T): void {
     for (const listener of [...this.listeners]) {
@@ -122,9 +136,47 @@ export class FileDecoration {
   color?: ThemeColor;
 }
 
-// vscode.ThemeIcon: quick-pick items carry one as their iconPath. Only the id is modeled.
+// vscode.ThemeIcon: quick-pick items and tree rows carry one as their iconPath. Models the id and tint.
 export class ThemeIcon {
-  constructor(public readonly id: string) {}
+  constructor(public readonly id: string, public readonly color?: { readonly id: string }) {}
+}
+
+// vscode.MarkdownString: rich tooltips. Keeps the text and the flags the rows set; appends build the text.
+export class MarkdownString {
+  supportThemeIcons = false;
+  isTrusted?: boolean;
+  supportHtml = false;
+  constructor(public value: string = "") {}
+  appendMarkdown(text: string): this {
+    this.value += text;
+    return this;
+  }
+  appendText(text: string): this {
+    this.value += text;
+    return this;
+  }
+}
+
+// vscode.DataTransferItem / DataTransfer: the payload of a tree drag. Items keep their value;
+// the transfer is a MIME-keyed map with the same get / set / forEach the tree controllers use.
+export class DataTransferItem {
+  constructor(public readonly value: unknown) {}
+  asString(): Promise<string> {
+    return Promise.resolve(typeof this.value === "string" ? this.value : String(this.value));
+  }
+}
+/** Stub of vscode.DataTransfer: a map from MIME type to item. */
+export class DataTransfer {
+  private readonly items = new Map<string, DataTransferItem>();
+  get(mimeType: string): DataTransferItem | undefined {
+    return this.items.get(mimeType);
+  }
+  set(mimeType: string, item: DataTransferItem): void {
+    this.items.set(mimeType, item);
+  }
+  forEach(callback: (item: DataTransferItem, mimeType: string) => void): void {
+    this.items.forEach(callback);
+  }
 }
 
 // vscode.TreeItem / TreeItemCollapsibleState: the tree-row classes extend TreeItem, so any
@@ -174,3 +226,21 @@ export const ViewColumn = {
   Two: 2,
   Three: 3,
 } as const;
+
+/** vscode.TabInputText: the tab input of a plain text editor; only the uri is modeled. */
+export class TabInputText {
+  constructor(public readonly uri: Uri) {}
+}
+
+/** vscode.QuickPickItemKind: a separator row is not selectable. */
+export const QuickPickItemKind = { Separator: -1, Default: 0 } as const;
+
+/** vscode.Position: a zero-based line and character. */
+export class Position {
+  constructor(public readonly line: number, public readonly character: number) {}
+}
+
+/** vscode.Location: a uri and the position (or range) inside it. */
+export class Location {
+  constructor(public readonly uri: Uri, public readonly range: Position) {}
+}
