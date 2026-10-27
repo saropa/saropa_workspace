@@ -46,7 +46,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.3.0]
 
 The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes, and a document's severity can be corrected from its row menu (Change severity, Back to automatic). [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md)
 
@@ -503,26 +503,6 @@ The Launcher panel gets a usability overhaul with new section visibility toggle 
 - Launcher header stat chips are now section visibility toggles (on/off) instead of pane filters — each chip independently shows or hides its section, with dimmed styling when off
 - The "scheduled" count is now an informational label (not a toggle), since scheduled cards live inside My shortcuts
 - Removed the folded-sections strip; pane visibility is controlled entirely from the header stat chips
-
----
-
-## [1.6.2]
-
-A brand new Notes view in the sidebar lets you manage project-scoped and global markdown notes, and collapsed launcher sections have been streamlined into a cleaner segmented bar that peeks titles on hover. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.2/CHANGELOG.md)
-
-### Added
-
-- Notes view — a 6th tree view in the sidebar for persistent, on-disk notes (Markdown by default). Notes are project-scoped (stored in `.saropa/notes/`, shareable via the repo) or global (stored in extension data, available in every workspace). Single click opens, context menu offers rename and delete. A file system watcher keeps the tree in sync with external changes
-- "New Note" and "New Note from Clipboard" commands for creating notes with an optional scope picker (project vs global)
-- "Open Notes Folder" command to reveal the notes directory in the OS file manager (creates the directory first if it does not exist)
-- Hover preview on note tree items — lazily reads the first 5 lines of the file and shows them in a Markdown tooltip
-- Filename validation blocks Windows reserved device names (CON, NUL, PRN, AUX, COM1–9, LPT1–9) and trailing dots or spaces
-- Drag-and-drop between groups in the Launcher panel — drag a shortcut card onto a different group header within My Shortcuts to move it there, with visual drop-target highlighting during the drag. Drop a card onto another card to reorder within or across groups (the dragged card inserts before the target)
-
-### Changed
-
-- Collapsed launcher sections now render as a connected segmented bar (icon + count per segment) instead of separate rounded pills, reducing visual clutter in the folded strip
-- Hovering a collapsed segment for 300ms peeks the section title inline; moving the mouse away or clicking hides it again
 
 ---
 

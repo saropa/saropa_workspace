@@ -4,6 +4,26 @@ This archive is for older versions. For current changes see [CHANGELOG.md](./CHA
 
 ---
 
+## [1.6.2]
+
+A brand new Notes view in the sidebar lets you manage project-scoped and global markdown notes, and collapsed launcher sections have been streamlined into a cleaner segmented bar that peeks titles on hover. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.2/CHANGELOG.md)
+
+### Added
+
+- Notes view — a 6th tree view in the sidebar for persistent, on-disk notes (Markdown by default). Notes are project-scoped (stored in `.saropa/notes/`, shareable via the repo) or global (stored in extension data, available in every workspace). Single click opens, context menu offers rename and delete. A file system watcher keeps the tree in sync with external changes
+- "New Note" and "New Note from Clipboard" commands for creating notes with an optional scope picker (project vs global)
+- "Open Notes Folder" command to reveal the notes directory in the OS file manager (creates the directory first if it does not exist)
+- Hover preview on note tree items — lazily reads the first 5 lines of the file and shows them in a Markdown tooltip
+- Filename validation blocks Windows reserved device names (CON, NUL, PRN, AUX, COM1–9, LPT1–9) and trailing dots or spaces
+- Drag-and-drop between groups in the Launcher panel — drag a shortcut card onto a different group header within My Shortcuts to move it there, with visual drop-target highlighting during the drag. Drop a card onto another card to reorder within or across groups (the dragged card inserts before the target)
+
+### Changed
+
+- Collapsed launcher sections now render as a connected segmented bar (icon + count per segment) instead of separate rounded pills, reducing visual clutter in the folded strip
+- Hovering a collapsed segment for 300ms peeks the section title inline; moving the mouse away or clicking hides it again
+
+---
+
 ## [1.6.1]
 
 The bottom-panel tab is now called "Saropa Workspace" to match the extension, complete with a new subtitle and a command palette entry so you can still easily find it by searching for "launcher". [log](https://github.com/saropa/saropa-workspace/blob/v1.6.1/CHANGELOG.md)
