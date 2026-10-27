@@ -24,3 +24,13 @@ test("every output method exists and returns nothing", () => {
     [undefined, undefined, undefined, undefined, undefined, undefined, undefined]
   );
 });
+
+test("the channel keeps what was written until it is cleared", () => {
+  const channel = createOutputChannel("x");
+  channel.appendLine("one");
+  channel.append("two");
+  channel.appendLine("three");
+  assert.deepEqual([channel.lines, channel.appended], [["one", "three"], ["two"]]);
+  channel.clear();
+  assert.deepEqual([channel.lines, channel.appended], [[], []]);
+});

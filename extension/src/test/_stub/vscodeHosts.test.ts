@@ -51,6 +51,16 @@ test("a file watcher records its pattern and relays create, change and delete", 
   assert.equal(watcher.disposed, true);
 });
 
+test("a relative pattern keeps its glob and the path of its base, whether a folder or a uri", () => {
+  const inFolder = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern({ uri: vscode.Uri.file("/a/b"), name: "b", index: 0 }, "*.md"));
+  const inUri = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file("/c") as never, "x.txt"));
+  const plain = vscode.workspace.createFileSystemWatcher("**/*");
+  assert.deepEqual(
+    [inFolder, inUri, plain].map((w) => [w.pattern, w.base]),
+    [["*.md", "/a/b"], ["x.txt", "/c"], ["**/*", undefined]]
+  );
+});
+
 test("a tree view records reveals and disposal", async () => {
   const view = vscode.window.createTreeView("v", {});
   await view.reveal("node");

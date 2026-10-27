@@ -78,6 +78,8 @@ export function __fireHostEvent(name: HostEventName, payload: unknown): void {
 /** A file-system watcher handle: three events and a dispose. */
 export interface FakeFileWatcher {
   readonly pattern: string;
+  /** The folder a relative pattern is rooted at (its path), or undefined for a plain string pattern. */
+  readonly base: string | undefined;
   readonly created: EventEmitter<unknown>;
   readonly changed: EventEmitter<unknown>;
   readonly deleted: EventEmitter<unknown>;
@@ -95,12 +97,19 @@ export function __fileWatchers(): readonly FakeFileWatcher[] {
   return watchers;
 }
 
+// The path of a RelativePattern base, which is a folder (with a uri) or a uri.
+function baseOf(base: unknown): string | undefined {
+  const holder = base as { fsPath?: string; uri?: { fsPath?: string } } | undefined;
+  return holder?.fsPath ?? holder?.uri?.fsPath;
+}
+
 function createFileSystemWatcher(pattern: unknown): FakeFileWatcher {
   const created = new EventEmitter<unknown>();
   const changed = new EventEmitter<unknown>();
   const deleted = new EventEmitter<unknown>();
   const watcher: FakeFileWatcher = {
     pattern: typeof pattern === "string" ? pattern : String((pattern as { pattern?: unknown }).pattern),
+    base: typeof pattern === "string" ? undefined : baseOf((pattern as { base?: unknown }).base),
     created,
     changed,
     deleted,

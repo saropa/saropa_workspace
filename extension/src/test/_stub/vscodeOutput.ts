@@ -1,9 +1,13 @@
-// No-op OutputChannel for the vscode test stub. Split out of vscode.ts.
+// OutputChannel for the vscode test stub: keeps what was written so a test can read it back.
+// Split out of vscode.ts.
 
-// A no-op OutputChannel: the store's getOutputChannel() constructs one lazily on an
-// error/diagnostic path. The tests do not assert on it; it must only not throw.
-export function createOutputChannel(name: string): {
-  name: string;
+/** The stub channel: the OutputChannel surface plus the text written to it. */
+export interface FakeOutputChannel {
+  readonly name: string;
+  /** Every line written with appendLine since the last clear, in order. */
+  readonly lines: string[];
+  /** Every string written with append since the last clear, in order. */
+  readonly appended: string[];
   appendLine(value: string): void;
   append(value: string): void;
   clear(): void;
@@ -11,12 +15,27 @@ export function createOutputChannel(name: string): {
   hide(): void;
   replace(value: string): void;
   dispose(): void;
-} {
+}
+
+// The store's getOutputChannel() constructs one lazily on an error/diagnostic path; most
+// tests do not read it, but those that do find the lines here.
+export function createOutputChannel(name: string): FakeOutputChannel {
+  const lines: string[] = [];
+  const appended: string[] = [];
   return {
     name,
-    appendLine(): void {},
-    append(): void {},
-    clear(): void {},
+    lines,
+    appended,
+    appendLine(value: string): void {
+      lines.push(value);
+    },
+    append(value: string): void {
+      appended.push(value);
+    },
+    clear(): void {
+      lines.length = 0;
+      appended.length = 0;
+    },
     show(): void {},
     hide(): void {},
     replace(): void {},
