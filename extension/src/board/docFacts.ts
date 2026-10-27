@@ -73,9 +73,10 @@ function sqlTitle(text: string): string {
 export function parseNeeds(body: string): string[] {
   const out: string[] = [];
   for (const m of body.matchAll(/^[\s>*_-]*\**needs\**\s*:\s*\**\s*(.+)$/gim)) {
-    for (const part of m[1].split(/[;,]|\s+and\s+/)) {
-      const link = /\]\(([^)\s]+)\)/.exec(part);
-      const t = (link ? link[1] : part).trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "");
+    // A Markdown link stands for its target, so a comma in the link text splits nothing.
+    const line = m[1].replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
+    for (const part of line.split(/[;,]|\s+and\s+/)) {
+      const t = part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "");
       if (t && !out.includes(t)) {
         out.push(t);
       }

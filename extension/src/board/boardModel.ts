@@ -94,7 +94,7 @@ const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };
 const IMPORTANCE: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
 function linkSummary(mine: Link[], byKey: Map<string, BoardItem>): { state: "open" | "done" | "flag"; detail: string } {
-  const flagged = mine.filter((l) => l.state === "missing" || l.state === "ambiguous");
+  const flagged = mine.filter((l) => l.state === "missing" || l.state === "ambiguous" || l.state === "self");
   const open = mine.filter((l) => l.state === "open");
   const label = (l: Link): string => {
     const t = l.toProject && l.toPath ? byKey.get(l.toProject + "\t" + l.toPath) : undefined;
@@ -218,11 +218,12 @@ export function buildBoard(
     }),
     { manual: cfg.groups, ungrouped: cfg.ungrouped }
   );
+  // Blocked documents are not listed, but what they wait on still counts.
   const needs = new Map<string, string[]>();
-  for (const it of all) {
-    const n = factsOf(it)?.needs;
+  for (const r of rows) {
+    const n = OPEN.has(r.status) ? snapshot?.projects[r.project]?.facts[r.path]?.facts.needs : undefined;
     if (n && n.length > 0) {
-      needs.set(keyOf(it), n);
+      needs.set(r.project + "\t" + r.path, n);
     }
   }
   const links = resolveLinks(rows, needs, cfg.projects);

@@ -151,7 +151,7 @@ export async function scanProject(
       }
       const row = classifyFile(cp, f, word || undefined);
       rows.push(row);
-      if (source.readText && OPEN.has(row.status) && row.note !== "blocked" && f.size <= MAX_FACTS_BYTES) {
+      if (source.readText && OPEN.has(row.status) && f.size <= MAX_FACTS_BYTES) {
         const hit = prevFacts?.[f.path];
         if (hit && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
           snap.facts[f.path] = hit;

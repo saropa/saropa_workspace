@@ -150,7 +150,7 @@ function chains(model: BoardModel, t: BoardStrings): string {
   const chain = model.chains.map((c) => `<div class="chain">${c.map(node).join("")}</div>`).join("");
   const flags = model.flags.length > 0 ? `<h3>${escapeHtml(t.flagsHeading)}</h3><p class="note">${escapeHtml(t.flagsNote)}</p>${model.flags.map((f) => `<div class="cn">${escapeHtml(f)}</div>`).join("")}` : "";
   const head = model.chains.length > 0 ? `<h2>${escapeHtml(t.linkedHeading)}</h2><p class="note">${escapeHtml(t.linkedNote)}</p>${chain}` : "";
-  return `<section class="box">${head}${flags}</section>`;
+  return `<details class="box"><summary><i class="link open" aria-label="${escapeHtml(t.linkedHeading)}" title="${escapeHtml(t.linkedHeading)}"></i></summary>${head}${flags}</details>`;
 }
 
 export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0): string {

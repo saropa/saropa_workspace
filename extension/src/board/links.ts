@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import { Classified, ProjectDef } from "./types";
 
 // Linkages between documents, from the "Needs:" lines they carry. A linked item is
@@ -12,7 +13,9 @@ export type LinkState =
   // No document matches the target.
   | "missing"
   // More than one document matches the target; say which with a path.
-  | "ambiguous";
+  | "ambiguous"
+  // The document names itself.
+  | "self";
 
 export interface Link {
   fromProject: string;
@@ -25,8 +28,15 @@ export interface Link {
 
 const key = (project: string, path: string): string => project + "\t" + path;
 
-function stripRelative(t: string): string {
-  return t.replace(/^(\.\.?\/)+/, "").replace(/^\//, "");
+// A target is resolved from the folder of the document that names it when it starts with
+// "./" or "../"; otherwise it is project-relative. "#anchor" and "?query" are dropped.
+function normalizeTarget(t: string, fromPath: string): string {
+  const bare = t.replace(/[#?].*$/, "");
+  if (/^\.\.?\//.test(bare)) {
+    const dir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
+    return posix.normalize(dir ? dir + "/" + bare : bare).replace(/^(\.\.\/)+/, "");
+  }
+  return bare.replace(/^\//, "");
 }
 
 // Resolve every Needs target to a document. `needs` maps "project\tpath" of the waiting
@@ -63,7 +73,7 @@ export function resolveLinks(
         project = projectIds.get(colon[1].toLowerCase());
         t = colon[2];
       }
-      t = stripRelative(t.trim());
+      t = normalizeTarget(t.trim(), fromPath);
       const scoped = project ?? fromProject;
       let hits: Classified[] = [];
       const exact = byKey.get(key(scoped, t));
@@ -77,7 +87,9 @@ export function resolveLinks(
         hits = same.length > 0 ? same : project ? [] : (byBase.get(base) ?? []).filter((r) => r.path === t || r.path.endsWith("/" + t));
       }
       const link: Link = { fromProject, fromPath, target: raw, state: "missing" };
-      if (hits.length > 1) {
+      if (hits.length === 1 && hits[0].project === fromProject && hits[0].path === fromPath) {
+        link.state = "self";
+      } else if (hits.length > 1) {
         link.state = "ambiguous";
       } else if (hits.length === 1) {
         const h = hits[0];
@@ -100,9 +112,12 @@ export interface ChainNode {
 }
 
 export function buildChains(links: Link[]): ChainNode[][] {
-  const waitsOn = new Map<string, string[]>();
-  const blocks = new Map<string, string[]>();
+  const waitsOn = new Map<string, Set<string>>();
+  const adj = new Map<string, Set<string>>();
   const nodes = new Map<string, ChainNode>();
+  const add = (m: Map<string, Set<string>>, a: string, b: string): void => {
+    (m.get(a) ?? m.set(a, new Set()).get(a)!).add(b);
+  };
   for (const l of links) {
     if (l.state !== "open" || !l.toProject || !l.toPath) {
       continue;
@@ -111,33 +126,51 @@ export function buildChains(links: Link[]): ChainNode[][] {
     const b = key(l.toProject, l.toPath);
     nodes.set(a, { project: l.fromProject, path: l.fromPath });
     nodes.set(b, { project: l.toProject, path: l.toPath });
-    (waitsOn.get(a) ?? waitsOn.set(a, []).get(a)!).push(b);
-    (blocks.get(b) ?? blocks.set(b, []).get(b)!).push(a);
+    add(waitsOn, a, b);
+    add(adj, a, b);
+    add(adj, b, a);
   }
+  // One chain per connected part, so a ladder of shared prerequisites is one list, not
+  // one list per path. Within a part, what must be finished first comes first (Kahn's
+  // order, ties by key); documents left in a loop follow, sorted.
   const chains: ChainNode[][] = [];
-  const roots = [...nodes.keys()].filter((k) => !waitsOn.has(k)).sort();
-  for (const root of roots) {
-    // Depth-first along "blocks" edges; each leaf-ending path is one chain. A visited
-    // set keeps a cycle from looping.
-    const walk = (k: string, trail: string[]): void => {
-      const next = (blocks.get(k) ?? []).filter((n) => !trail.includes(n)).sort();
-      if (next.length === 0) {
-        if (trail.length > 1) {
-          chains.push(trail.map((t) => nodes.get(t)!));
+  const seen = new Set<string>();
+  for (const start of [...nodes.keys()].sort()) {
+    if (seen.has(start)) {
+      continue;
+    }
+    const part: string[] = [];
+    const stack = [start];
+    seen.add(start);
+    while (stack.length > 0) {
+      const k = stack.pop()!;
+      part.push(k);
+      for (const n of adj.get(k) ?? []) {
+        if (!seen.has(n)) {
+          seen.add(n);
+          stack.push(n);
         }
-        return;
       }
-      for (const n of next) {
-        walk(n, [...trail, n]);
+    }
+    const left = new Map(part.map((k) => [k, waitsOn.get(k)?.size ?? 0]));
+    const order: string[] = [];
+    const ready = part.filter((k) => left.get(k) === 0).sort();
+    while (ready.length > 0) {
+      const k = ready.shift()!;
+      order.push(k);
+      left.delete(k);
+      for (const [w, set] of waitsOn) {
+        if (set.has(k) && left.has(w)) {
+          left.set(w, left.get(w)! - 1);
+          if (left.get(w) === 0) {
+            ready.push(w);
+            ready.sort();
+          }
+        }
       }
-    };
-    walk(root, [root]);
-  }
-  // Documents in a cycle have no root; list them once so a loop is visible, not hidden.
-  const covered = new Set(chains.flat().map((n) => key(n.project, n.path)));
-  const loop = [...nodes.keys()].filter((k) => !covered.has(k)).sort();
-  if (loop.length > 1) {
-    chains.push(loop.map((k) => nodes.get(k)!));
+    }
+    order.push(...[...left.keys()].sort());
+    chains.push(order.map((k) => nodes.get(k)!));
   }
   return chains;
 }

@@ -111,11 +111,22 @@ export function buildGroups(items: GroupInput[], opt: GroupOptions = {}): GroupR
     }
     return n;
   };
+  // Index by source file so a seed only looks at documents that share a file with it.
+  const byFile = new Map<string, GroupInput[]>();
+  for (const i of free) {
+    for (const f of filesOf.get(i.key)!) {
+      (byFile.get(f) ?? byFile.set(f, []).get(f)!).push(i);
+    }
+  }
   for (const seed of free) {
     if (taken.has(seed.key)) {
       continue;
     }
-    const mates = free.filter((o) => o.key !== seed.key && o.project === seed.project && !taken.has(o.key) && sharedCount(seed, o) >= 2).slice(0, maxFileGroup - 1);
+    const cands = new Set<GroupInput>();
+    for (const f of filesOf.get(seed.key)!) {
+      byFile.get(f)!.forEach((o) => cands.add(o));
+    }
+    const mates = free.filter((o) => cands.has(o) && o.key !== seed.key && o.project === seed.project && !taken.has(o.key) && sharedCount(seed, o) >= 2).slice(0, maxFileGroup - 1);
     if (mates.length > 0) {
       taken.add(seed.key);
       mates.forEach((m) => {
@@ -130,15 +141,16 @@ export function buildGroups(items: GroupInput[], opt: GroupOptions = {}): GroupR
     const r = find(i.key);
     (members.get(r) ?? members.set(r, []).get(r)!).push(i.key);
   }
+  const poolByKey = new Map(pool.map((i) => [i.key, i]));
   const groupOf = new Map<string, { id: string; name: string }>();
   for (const [root, keys] of members) {
     if (keys.length < 2) {
       continue;
     }
     const manualName = keys.map((k) => manualOf.get(k)).find(Boolean);
-    const first = pool.find((i) => i.key === keys[0])!;
+    const first = poolByKey.get(keys[0])!;
     const same = keys.every((k) => {
-      const i = pool.find((x) => x.key === k)!;
+      const i = poolByKey.get(k)!;
       return i.project === first.project && prefixOf(i.path) === prefixOf(first.path);
     });
     const meaningful = same && !generic.has(prefixOf(first.path));

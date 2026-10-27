@@ -102,3 +102,33 @@ test("groups: shared source files join differently named documents; manual group
   assert.equal(g2.groupOf.get("app\tdocs/ONE.md")?.name, "Related documents");
   assert.equal(g2.groupOf.get("app\tdocs/THREE.md")?.name, undefined, "one shared file is not enough");
 });
+
+test("a ladder of diamonds is one chain, not one per path", () => {
+  const names = ["A", "B", "C", "D", "E", "F", "G"].map((n) => `docs/${n}.md`);
+  const rows = names.map((p) => row("app", p, "amber"));
+  const needs = new Map<string, string[]>([
+    ["app\tdocs/A.md", ["B.md", "C.md"]],
+    ["app\tdocs/B.md", ["D.md"]],
+    ["app\tdocs/C.md", ["D.md"]],
+    ["app\tdocs/D.md", ["E.md", "F.md"]],
+    ["app\tdocs/E.md", ["G.md"]],
+    ["app\tdocs/F.md", ["G.md"]],
+  ]);
+  const chains = buildChains(resolveLinks(rows, needs, projects));
+  assert.equal(chains.length, 1);
+  assert.equal(chains[0][0].path, "docs/G.md");
+  assert.equal(chains[0][chains[0].length - 1].path, "docs/A.md");
+});
+
+test("relative targets resolve from the document folder; anchors are dropped; self is flagged", () => {
+  const rows = [row("app", "docs/a/P.md", "amber"), row("app", "docs/a/NOTES.md", "amber"), row("app", "docs/b/NOTES.md", "amber")];
+  const needs = new Map<string, string[]>([["app\tdocs/a/P.md", ["./NOTES.md#step-2", "P.md"]]]);
+  const links = resolveLinks(rows, needs, projects);
+  assert.equal(links[0].state, "open");
+  assert.equal(links[0].toPath, "docs/a/NOTES.md");
+  assert.equal(links[1].state, "self");
+});
+
+test("a comma inside link text does not split the target", () => {
+  assert.deepEqual(parseNeeds("Needs: [A, B](x/B.md), C.md"), ["x/B.md", "C.md"]);
+});

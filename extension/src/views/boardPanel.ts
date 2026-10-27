@@ -50,6 +50,8 @@ class BoardPanel {
   private run: BoardRun | undefined;
   // Bumped on every render; messages from an older page are ignored.
   private rev = 0;
+  // Each refresh takes a number; a scan that finishes after a newer one started is dropped.
+  private scanSeq = 0;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -72,7 +74,12 @@ class BoardPanel {
 
   async refresh(quiet = false): Promise<void> {
     try {
-      this.run = await runBoardScan(this.context, quiet);
+      const seq = ++this.scanSeq;
+      const run = await runBoardScan(this.context, quiet);
+      if (seq !== this.scanSeq) {
+        return;
+      }
+      this.run = run;
       if (!this.run) {
         this.model = undefined;
         this.rev += 1;
