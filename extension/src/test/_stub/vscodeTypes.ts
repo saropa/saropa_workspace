@@ -117,6 +117,33 @@ export class ThemeColor {
   constructor(public readonly id: string) {}
 }
 
+// vscode.ThemeIcon: quick-pick items carry one as their iconPath. Only the id is modeled.
+export class ThemeIcon {
+  constructor(public readonly id: string) {}
+}
+
+// vscode.TreeItem / TreeItemCollapsibleState: the tree-row classes extend TreeItem, so any
+// bundle that imports one needs the base class to exist at load. Only the fields the
+// rows assign and the unit tests read are modeled.
+export const TreeItemCollapsibleState = {
+  None: 0,
+  Collapsed: 1,
+  Expanded: 2,
+} as const;
+export class TreeItem {
+  description?: string | boolean;
+  tooltip?: unknown;
+  iconPath?: unknown;
+  contextValue?: string;
+  command?: unknown;
+  resourceUri?: Uri;
+  id?: string;
+  constructor(
+    public label: string | { label: string },
+    public collapsibleState: number = TreeItemCollapsibleState.None
+  ) {}
+}
+
 // vscode.TextEditorRevealType / OverviewRulerLane: same module-scope decoration options.
 // Modeled as the real numeric members so a bundle loads; no test asserts on them.
 export const TextEditorRevealType = {
