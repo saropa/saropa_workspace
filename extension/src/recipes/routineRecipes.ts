@@ -17,9 +17,9 @@ import { RoutineMember } from "../model/shortcut";
 // is only included when that ritual was actually detected for the project, so a
 // non-Dart / non-linted project simply gets a shorter routine.
 //
-// The code-health cluster (lint sweep + tech-debt/TODO harvest) and dependency
+// The code-health cluster (lint sweep + tech-debt marker harvest) and dependency
 // freshness are part of the morning block so the daily report includes lint issues,
-// TODO markers, and out-of-date packages (report bug items 4 and 5), not just the
+// deferred-work markers, and out-of-date packages (report bug items 4 and 5), not just the
 // git/PR digest.
 const MORNING_MEMBER_ORDER: ReadonlyArray<{ recipeId: string; label: string }> = [
   // First, always: whether the build is currently broken outranks every measurement

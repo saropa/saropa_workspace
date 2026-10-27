@@ -14,90 +14,19 @@
 // ExtensionContext (an in-memory Map), not here.
 
 import * as nodeFs from "node:fs";
-import * as nodePath from "node:path";
 import { Disposable, applyEdit, recordWarning } from "./vscodeExtras";
+
+import { FileType, Uri, WorkspaceFolder, EventEmitter } from "./vscodeTypes";
+import { findFiles } from "./vscodeFind";
+import { createOutputChannel } from "./vscodeOutput";
+import { FakeWebviewPanel, fakeWebviewPanel, createdPanels } from "./vscodeWebview";
+
+// Value types live in vscodeTypes.ts; re-exported so `./_stub/vscode` stays the one entry point.
+export * from "./vscodeTypes";
+export * from "./vscodeWebview";
 
 export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, languages } from "./vscodeExtras";
 
-// vscode.FileType: the store reads `.type` from a stat to tell a file from a
-// directory (the auto-shortcut literal-path branch). Only File/Directory are exercised.
-export const FileType = {
-  Unknown: 0,
-  File: 1,
-  Directory: 2,
-  SymbolicLink: 64,
-} as const;
-
-// A faithful-enough URI for both the store path helpers and real file IO. file()
-// yields the "file" scheme and echoes the path as fsPath; parse() reads the scheme
-// from a "scheme://..." string and round-trips toString(); joinPath() composes a
-// file URI from a base + path segments (used by every project-file read/write).
-// Real platform-specific fsPath normalization is not modeled — the tests use
-// forward-slash paths, which node's fs accepts on every OS — so this verifies the
-// store's BRANCHING and IO, not OS path canonicalization.
-export class Uri {
-  private constructor(
-    public readonly scheme: string,
-    public readonly fsPath: string,
-    private readonly raw: string
-  ) {}
-
-  // The path part of a "scheme://authority/path" string, as vscode.Uri.path.
-  get path(): string {
-    return this.fsPath.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]*/, "");
-  }
-
-  // The authority part of a "scheme://authority/path" string; empty when there is none.
-  get authority(): string {
-    return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^/]*)/.exec(this.fsPath)?.[1] ?? "";
-  }
-
-  static file(p: string): Uri {
-    return new Uri("file", p, p);
-  }
-
-  static parse(value: string): Uri {
-    const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(value);
-    const scheme = match ? match[1] : "file";
-    return new Uri(scheme, value, value);
-  }
-
-  // Compose a child file URI. Mirrors vscode.Uri.joinPath: append the segments to
-  // the base path with "/" separators (the store always passes POSIX-style
-  // relative segments). A trailing slash on the base is collapsed so the result
-  // never contains a double slash.
-  static joinPath(base: Uri, ...segments: string[]): Uri {
-    const head = base.fsPath.replace(/[\\/]+$/, "");
-    // Resolve "." and ".." like the real vscode.Uri.joinPath does; without this a
-    // ".." segment leaves a path such as "a/package.json/../x" that the OS rejects.
-    const joined = nodePath.posix.normalize([head, ...segments].join("/"));
-    return new Uri("file", joined, joined);
-  }
-
-  toString(): string {
-    return this.raw;
-  }
-}
-
-// A workspace folder: the store reads `.uri` (for joinPath / fsPath) and `.name`
-// (for stable auto-shortcut ids). `index` completes the vscode shape.
-export interface WorkspaceFolder {
-  readonly uri: Uri;
-  readonly name: string;
-  readonly index: number;
-}
-
-// vscode.RelativePattern: constructed by the store only on the GLOB auto-shortcut
-// branch (a pattern with wildcards). Holds the base folder + the glob string;
-// findFiles below reads both.
-export class RelativePattern {
-  constructor(
-    public readonly base: WorkspaceFolder,
-    public readonly pattern: string
-  ) {}
-}
-
-// Settable workspace folders. undefined models "no folder open" (the store guards
 // that path); a test installs folders pointing at its temp directory.
 let folders: WorkspaceFolder[] | undefined;
 // Test-control hook: installs the array `workspace.workspaceFolders` returns
@@ -181,75 +110,6 @@ function getConfiguration(section?: string): {
 // getConfiguration().update.
 export function __getConfig(section: string, key: string): unknown {
   return configValues.get(section ? `${section}.${key}` : key);
-}
-
-// Convert a VS Code glob to a RegExp anchored to a folder-relative POSIX path.
-// Handles the constructs the auto-shortcut patterns use: `**` (any depth), `*` (one
-// segment), `?` (one char). Enough to expand a real glob against the temp tree;
-// literal patterns never reach here (the store stats those directly).
-function globToRegExp(glob: string): RegExp {
-  let re = "";
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i];
-    if (c === "*") {
-      if (glob[i + 1] === "*") {
-        // `**/` matches any number of leading segments (including none); a bare
-        // `**` matches anything.
-        if (glob[i + 2] === "/") {
-          re += "(?:.*/)?";
-          i += 2;
-        } else {
-          re += ".*";
-          i += 1;
-        }
-      } else {
-        re += "[^/]*";
-      }
-    } else if (c === "?") {
-      re += "[^/]";
-    } else if ("\\^$.|+()[]{}".includes(c)) {
-      re += "\\" + c;
-    } else {
-      re += c;
-    }
-  }
-  return new RegExp("^" + re + "$");
-}
-
-// workspace.findFiles for the glob auto-shortcut branch: walk the base folder, match
-// each file's folder-relative POSIX path against the pattern, skip the excluded
-// subtree (the store passes node_modules), and cap at maxResults. The non-glob
-// branch never calls this — the store stats a literal path directly.
-async function findFiles(
-  include: RelativePattern,
-  exclude?: string,
-  maxResults?: number
-): Promise<Uri[]> {
-  const root = include.base.uri.fsPath;
-  const matcher = globToRegExp(include.pattern);
-  const excludeName = exclude ? exclude.replace(/[*/]/g, "") : undefined;
-  const out: Uri[] = [];
-  const walk = (dir: string): void => {
-    if (maxResults !== undefined && out.length >= maxResults) {
-      return;
-    }
-    for (const entry of nodeFs.readdirSync(dir, { withFileTypes: true })) {
-      if (excludeName && entry.name === excludeName) {
-        continue;
-      }
-      const full = nodePath.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-      } else {
-        const rel = nodePath.relative(root, full).replace(/\\/g, "/");
-        if (matcher.test(rel)) {
-          out.push(Uri.joinPath(include.base.uri, rel));
-        }
-      }
-    }
-  };
-  walk(root);
-  return out;
 }
 
 // workspace.fs backed by the real node filesystem. The store awaits these and
@@ -383,177 +243,10 @@ let inputHandler: InputHandler = async () => undefined;
 let pickHandler: PickHandler = async () => undefined;
 let openDialogHandler: OpenDialogHandler = async () => undefined;
 
-// A faithful-enough EventEmitter for code that exposes a `vscode.EventEmitter`'s
-// `.event` and fires it. Listeners registered via `.event` get a disposable; `.fire`
-// notifies a snapshot of the current listeners so a listener that disposes mid-fire
-// does not corrupt iteration. Models only what the idle monitor (and similar) use.
-type Listener<T> = (e: T) => void;
-// vscode.EventEmitter stand-in — see the comment above for the `.event`/`.fire`
-// contract this fakes.
-export class EventEmitter<T> {
-  private readonly listeners = new Set<Listener<T>>();
-  readonly event = (listener: Listener<T>): { dispose(): void } => {
-    this.listeners.add(listener);
-    return { dispose: (): boolean => this.listeners.delete(listener) };
-  };
-  fire(data: T): void {
-    for (const listener of [...this.listeners]) {
-      listener(data);
-    }
-  }
-  dispose(): void {
-    this.listeners.clear();
-  }
-}
-
-// Backing emitters for the window activity events the idle monitor subscribes to. A
-// test drives them through the __fire* helpers below to simulate the user interacting
 // (or the window losing focus, which is deliberately NOT activity).
 const windowStateEmitter = new EventEmitter<{ focused: boolean }>();
 const selectionEmitter = new EventEmitter<unknown>();
 const activeEditorEmitter = new EventEmitter<unknown>();
-
-// A no-op OutputChannel: the store's getOutputChannel() constructs one lazily on an
-// error/diagnostic path. The tests do not assert on it; it must only not throw.
-function createOutputChannel(name: string): {
-  name: string;
-  appendLine(value: string): void;
-  append(value: string): void;
-  clear(): void;
-  show(preserveFocus?: boolean): void;
-  hide(): void;
-  replace(value: string): void;
-  dispose(): void;
-} {
-  return {
-    name,
-    appendLine(): void {},
-    append(): void {},
-    clear(): void {},
-    show(): void {},
-    hide(): void {},
-    replace(): void {},
-    dispose(): void {},
-  };
-}
-
-// vscode.ThemeColor: shortcutOpen builds a peek-highlight decoration at MODULE scope, so any
-// bundle that transitively imports it constructs one at load time — before a test runs. Only
-// the id is modeled; nothing asserts on it, it must merely construct.
-export class ThemeColor {
-  constructor(public readonly id: string) {}
-}
-
-// vscode.TextEditorRevealType / OverviewRulerLane: same module-scope decoration options.
-// Modeled as the real numeric members so a bundle loads; no test asserts on them.
-export const TextEditorRevealType = {
-  Default: 0,
-  InCenter: 1,
-  InCenterIfOutsideViewport: 2,
-  AtTop: 3,
-} as const;
-export const OverviewRulerLane = {
-  Left: 1,
-  Center: 2,
-  Right: 4,
-  Full: 7,
-} as const;
-
-// vscode.ViewColumn: only the members a webview panel test needs to pass through
-// (never asserted on — a panel test cares about the html/postMessage/dispose
-// surface, not which editor column it opened in).
-export const ViewColumn = {
-  One: 1,
-  Two: 2,
-  Three: 3,
-} as const;
-
-// vscode.Webview stand-in (the panel's `.webview` sub-object): html setter,
-// postMessage (recorded so a test can assert what the host sent the client),
-// and onDidReceiveMessage (the test drives this directly via __receiveFromClient
-// to simulate the client script posting a message back).
-export interface FakeWebview {
-  html: string;
-  readonly postedMessages: unknown[];
-  postMessage(message: unknown): Promise<boolean>;
-  onDidReceiveMessage(handler: (message: unknown) => void): { dispose(): void };
-  __receiveFromClient(message: unknown): void;
-}
-
-// vscode.WebviewPanel stand-in for the Set Params / Configure Run panel tests.
-// reveal is a no-op; dispose fires the registered onDidDispose listener,
-// matching the real panel's host->message->dispose lifecycle.
-export interface FakeWebviewPanel {
-  readonly viewType: string;
-  title: string;
-  visible: boolean;
-  readonly webview: FakeWebview;
-  onDidDispose(handler: () => void): { dispose(): void };
-  onDidChangeViewState(handler: (e: unknown) => void): { dispose(): void };
-  reveal(column?: number): void;
-  dispose(): void;
-  readonly disposed: boolean;
-}
-
-function fakeWebviewPanel(viewType: string, title: string): FakeWebviewPanel {
-  let receiveHandler: ((message: unknown) => void) | undefined;
-  let disposeHandler: (() => void) | undefined;
-  let disposed = false;
-  const postedMessages: unknown[] = [];
-  const webview: FakeWebview = {
-    html: "",
-    postedMessages,
-    async postMessage(message: unknown): Promise<boolean> {
-      postedMessages.push(message);
-      return true;
-    },
-    onDidReceiveMessage(handler: (message: unknown) => void): { dispose(): void } {
-      receiveHandler = handler;
-      return { dispose: (): void => {} };
-    },
-    __receiveFromClient(message: unknown): void {
-      receiveHandler?.(message);
-    },
-  };
-  return {
-    viewType,
-    title,
-    visible: true,
-    webview,
-    onDidDispose(handler: () => void): { dispose(): void } {
-      disposeHandler = handler;
-      return { dispose: (): void => {} };
-    },
-    onDidChangeViewState(): { dispose(): void } {
-      return { dispose: (): void => {} };
-    },
-    reveal(): void {},
-    dispose(): void {
-      if (disposed) {
-        return;
-      }
-      disposed = true;
-      disposeHandler?.();
-    },
-    get disposed(): boolean {
-      return disposed;
-    },
-  };
-}
-
-// The panels created since the last reset, in creation order — a test reads the
-// most recent one back (createWebviewPanel's real return type carries no such
-// list; this is a test-only convenience) via __lastWebviewPanel().
-const createdPanels: FakeWebviewPanel[] = [];
-export function __lastWebviewPanel(): FakeWebviewPanel | undefined {
-  return createdPanels[createdPanels.length - 1];
-}
-export function __resetWebviewPanels(): void {
-  for (const p of createdPanels) {
-    p.dispose();
-  }
-  createdPanels.length = 0;
-}
 
 // vscode.window stand-in: the settable input/pick dialogs, inert message toasts,
 // the no-op output channel, the activity-event emitters the idle monitor
