@@ -4,7 +4,7 @@ import { readHandSettings } from "../commands/boardHandToChat";
 
 // The localized strings the board page is drawn with.
 // Headings, buttons and the light.
-function coreStrings(): Partial<BoardStrings> {
+function coreStrings() {
   return {
     title: l10n("releaseBoard.panel.title"),
     intro: l10n("releaseBoard.panel.intro"),
@@ -32,7 +32,7 @@ function coreStrings(): Partial<BoardStrings> {
 }
 
 // Profiles, suggestions, flags and loading text.
-function sectionStrings(): Partial<BoardStrings> {
+function sectionStrings() {
   return {
     dependsOn: l10n("releaseBoard.panel.dependsOn"),
     linkedHeading: l10n("releaseBoard.panel.linkedHeading"),
@@ -60,7 +60,7 @@ function sectionStrings(): Partial<BoardStrings> {
 }
 
 // Path to GO lines and buttons.
-function pathStrings(): Partial<BoardStrings> {
+function pathStrings() {
   return {
     ptgNone: l10n("releaseBoard.panel.ptgNone"),
     ptgItemRed: l10n("releaseBoard.panel.ptgItemRed"),
@@ -89,7 +89,7 @@ function pathStrings(): Partial<BoardStrings> {
 }
 
 // Sittings picker and its step times.
-function sittingsStrings(): Partial<BoardStrings> {
+function sittingsStrings() {
   return {
     sittingsButton: l10n("releaseBoard.sittings.button"),
     sittingsHeading: l10n("releaseBoard.sittings.heading"),
@@ -107,7 +107,7 @@ function sittingsStrings(): Partial<BoardStrings> {
 }
 
 // Hand to chat, Tidy and train text.
-function toolStrings(): Partial<BoardStrings> {
+function toolStrings() {
   return {
     handToChat: readHandSettings().enabled ? l10n("releaseBoard.handToChat.button") : "",
     handToChatTip: l10n("releaseBoard.handToChat.tip"),
@@ -125,7 +125,7 @@ function toolStrings(): Partial<BoardStrings> {
 }
 
 // Live evidence text.
-function liveStrings(): Partial<BoardStrings> {
+function liveStrings() {
   return {
     liveHead: l10n("releaseBoard.live.head"),
     liveProblems: l10n("releaseBoard.live.problems", { errors: "{errors}", warnings: "{warnings}" }),
@@ -147,5 +147,5 @@ export function strings(): BoardStrings {
     ...sittingsStrings(),
     ...toolStrings(),
     ...liveStrings(),
-  } as BoardStrings;
+  };
 }
