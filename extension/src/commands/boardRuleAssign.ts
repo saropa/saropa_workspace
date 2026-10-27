@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { AssignRefusal, RuleCategory, addFolderRule, folderGlob, ruleCategories } from "../board/ruleAssign";
+import { AssignRefusal, AssignResult, RuleCategory, addDocRule, addFolderRule, docGlob, folderGlob, ruleCategories } from "../board/ruleAssign";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
@@ -37,19 +37,24 @@ interface CategoryPick extends vscode.QuickPickItem {
   category: RuleCategory;
 }
 
-// Asks which category the folder's documents belong to, shows the rule that would be added,
-// asks to confirm, then adds the rule to the user's rules file (created when missing). Returns
-// true when the file was written, so the caller scans again. A file that does not parse, has an
-// unexpected shape, or changed while the user was choosing is never written.
-export async function assignFolderRule(run: BoardRun, entry: NoRuleFolder): Promise<boolean> {
+// What one rule change is made of: the pick list title, the rule file text turned into the new
+// text, the glob it writes, and the words of the confirmation.
+interface RuleChange {
+  project: string;
+  title: string;
+  glob: string;
+  folder: string;
+  make: (before: string | undefined, category: RuleCategory) => AssignResult;
+}
+
+// Asks which category to give, shows the rule that would be added, asks to confirm, then adds the
+// rule to the user's rules file (created when missing). Returns true when the file was written, so
+// the caller scans again. A file that does not parse, has an unexpected shape, or changed while the
+// user was choosing is never written.
+async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
   const root = vscode.workspace.workspaceFolders?.[0];
   if (!root) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
-    return false;
-  }
-  const glob = folderGlob(entry.folder);
-  if (glob === undefined) {
-    refuse("glob", entry.folder);
     return false;
   }
   const categories = ruleCategories(run.cfg);
@@ -57,24 +62,21 @@ export async function assignFolderRule(run: BoardRun, entry: NoRuleFolder): Prom
     void vscode.window.showInformationMessage(l10n("releaseBoard.noRule.noCategories"));
     return false;
   }
-  const picks: CategoryPick[] = categories.map((c) => ({ label: c.label, detail: l10n("releaseBoard.noRule.pickDetail", { glob }), category: c }));
-  const chosen = await vscode.window.showQuickPick(picks, {
-    title: l10n("releaseBoard.noRule.pick", { folder: entry.folder || "/", count: entry.count }),
-    placeHolder: l10n("releaseBoard.noRule.pickPlaceholder"),
-  });
+  const picks: CategoryPick[] = categories.map((cat) => ({ label: cat.label, detail: l10n("releaseBoard.noRule.pickDetail", { glob: c.glob }), category: cat }));
+  const chosen = await vscode.window.showQuickPick(picks, { title: c.title, placeHolder: l10n("releaseBoard.noRule.pickPlaceholder") });
   if (!chosen) {
     return false;
   }
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
   const before = await readRules(uri);
-  const result = addFolderRule(before, { project: entry.project, folder: entry.folder, category: chosen.category });
+  const result = c.make(before, chosen.category);
   if (!result.ok) {
-    refuse(result.reason, entry.folder);
+    refuse(result.reason, c.folder);
     return false;
   }
   const add = l10n("releaseBoard.noRule.add");
-  const project = run.cfg.projects.find((p) => p.id === entry.project);
-  const ask = l10n("releaseBoard.noRule.confirm", { file: RULES_FILE, glob: result.glob, project: project?.name ?? entry.project, label: chosen.category.label });
+  const project = run.cfg.projects.find((p) => p.id === c.project);
+  const ask = l10n("releaseBoard.noRule.confirm", { file: RULES_FILE, glob: result.glob, project: project?.name ?? c.project, label: chosen.category.label });
   if ((await vscode.window.showWarningMessage(ask, { modal: true }, add)) !== add) {
     return false;
   }
@@ -92,6 +94,38 @@ export async function assignFolderRule(run: BoardRun, entry: NoRuleFolder): Prom
   }
   void vscode.window.showInformationMessage(l10n("releaseBoard.noRule.added", { id: result.id, glob: result.glob, file: RULES_FILE }));
   return true;
+}
+
+// Gives every document of a folder a category by adding a rule for the folder.
+export async function assignFolderRule(run: BoardRun, entry: NoRuleFolder): Promise<boolean> {
+  const glob = folderGlob(entry.folder);
+  if (glob === undefined) {
+    refuse("glob", entry.folder);
+    return false;
+  }
+  return writeRule(run, {
+    project: entry.project,
+    glob,
+    folder: entry.folder,
+    title: l10n("releaseBoard.noRule.pick", { folder: entry.folder || "/", count: entry.count }),
+    make: (before, category) => addFolderRule(before, { project: entry.project, folder: entry.folder, category }),
+  });
+}
+
+// Gives one document a status by adding a rule for its path, ahead of the rule that placed it.
+// The same pick, confirmation and checks as a rule for a folder; the board scans again after.
+export async function changeDocStatus(run: BoardRun, doc: { project: string; path: string; title: string }): Promise<boolean> {
+  if (docGlob(doc.path) === undefined) {
+    refuse("glob", doc.path);
+    return false;
+  }
+  return writeRule(run, {
+    project: doc.project,
+    glob: doc.path,
+    folder: doc.path,
+    title: l10n("releaseBoard.rowMenu.statusPick", { title: doc.title }),
+    make: (before, category) => addDocRule(before, { project: doc.project, path: doc.path, category }),
+  });
 }
 
 // Tells how many documents of the project sit under the folder, with the first few. Changes nothing.

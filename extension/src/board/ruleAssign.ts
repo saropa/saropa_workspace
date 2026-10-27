@@ -10,6 +10,10 @@ export const RULES_PATH = ".saropa/release-board.json";
 // The rule set a rule added from the board goes into, when the file lists no projects.
 export const USER_RULE_SET = "my-rules";
 
+// The rule set a status chosen for one document goes into, when the file lists no projects. It is
+// read before the shipped rules, so the chosen status wins over the rule that placed the document.
+export const OVERRIDE_RULE_SET = "my-overrides";
+
 // One category the existing rules can put a document in.
 export interface RuleCategory {
   status: BoardStatus;
@@ -98,6 +102,24 @@ function indentOf(text: string): string {
   return m ? m[1] : "  ";
 }
 
+// The glob of one document: its path, when the path holds no character the globs read as a
+// wildcard. Undefined otherwise.
+export function docGlob(docPath: string): string | undefined {
+  const clean = docPath.replace(/\\/g, "/").replace(/^\/+/, "");
+  return clean === "" || /[*?{}]/.test(clean) ? undefined : clean;
+}
+
+// What a rule is added with: the glob, the id it starts from, the rule set it goes into when the
+// file lists no projects, and whether it goes first in its list.
+interface RuleSpec {
+  project: string;
+  glob: string;
+  idBase: string;
+  set: string;
+  front: boolean;
+  category: RuleCategory;
+}
+
 // Adds a rule that gives every document under `folder` of `project` the category. The text is
 // the current content of the rules file (undefined or blank when there is none). Refuses, and
 // leaves the text alone, when it does not parse, is not an object, or the folder cannot be
@@ -105,9 +127,19 @@ function indentOf(text: string): string {
 // project, else into the "my-rules" rule set.
 export function addFolderRule(text: string | undefined, a: { project: string; folder: string; category: RuleCategory }): AssignResult {
   const glob = folderGlob(a.folder);
-  if (glob === undefined) {
-    return { ok: false, reason: "glob" };
-  }
+  return glob === undefined ? { ok: false, reason: "glob" } : addRule(text, { project: a.project, glob, idBase: `assigned-${slug(a.folder)}`, set: USER_RULE_SET, front: false, category: a.category });
+}
+
+// Adds a rule that gives one document the category. It goes first, so it wins over the rule that
+// placed the document: into the project's own rules when the file lists that project, else into
+// the "my-overrides" rule set.
+export function addDocRule(text: string | undefined, a: { project: string; path: string; category: RuleCategory }): AssignResult {
+  const glob = docGlob(a.path);
+  return glob === undefined ? { ok: false, reason: "glob" } : addRule(text, { project: a.project, glob, idBase: `status-${slug(a.path)}`, set: OVERRIDE_RULE_SET, front: true, category: a.category });
+}
+
+function addRule(text: string | undefined, a: RuleSpec): AssignResult {
+  const { glob } = a;
   const blank = text === undefined || text.trim() === "";
   let doc: unknown;
   if (blank) {
@@ -122,15 +154,14 @@ export function addFolderRule(text: string | undefined, a: { project: string; fo
   if (!isObject(doc)) {
     return { ok: false, reason: "shape" };
   }
-  const target = ruleListOf(doc, a.project);
+  const target = ruleListOf(doc, a.project, a.set);
   if (!target) {
     return { ok: false, reason: "shape" };
   }
-  const base = `assigned-${slug(a.folder)}`;
   const used = new Set(target.rules.map((r) => (isObject(r) ? r.id : undefined)));
-  let id = base;
+  let id = a.idBase;
   for (let n = 2; used.has(id); n++) {
-    id = `${base}-${n}`;
+    id = `${a.idBase}-${n}`;
   }
   const set: Record<string, string> = { status: a.category.status };
   if (a.category.kind) {
@@ -139,7 +170,12 @@ export function addFolderRule(text: string | undefined, a: { project: string; fo
   if (a.category.note) {
     set.note = a.category.note;
   }
-  target.rules.push({ id, when: { path: glob }, set });
+  const rule = { id, when: { path: glob }, set };
+  if (a.front) {
+    target.rules.unshift(rule);
+  } else {
+    target.rules.push(rule);
+  }
   const source = blank ? "" : (text as string);
   const eol = source.includes("\r\n") ? "\r\n" : "\n";
   let out = JSON.stringify(doc, null, blank ? "  " : indentOf(source));
@@ -151,7 +187,7 @@ export function addFolderRule(text: string | undefined, a: { project: string; fo
 
 // The rules array a new rule goes into, created when absent; undefined when the file holds
 // something of the wrong shape at that place.
-function ruleListOf(doc: Record<string, unknown>, project: string): { name: string; rules: unknown[] } | undefined {
+function ruleListOf(doc: Record<string, unknown>, project: string, setName: string): { name: string; rules: unknown[] } | undefined {
   if (Array.isArray(doc.projects)) {
     const p = doc.projects.find((x) => isObject(x) && x.id === project);
     if (isObject(p)) {
@@ -172,10 +208,10 @@ function ruleListOf(doc: Record<string, unknown>, project: string): { name: stri
   if (!isObject(doc.ruleSets)) {
     return undefined;
   }
-  let set = doc.ruleSets[USER_RULE_SET];
+  let set = doc.ruleSets[setName];
   if (set === undefined) {
     set = {};
-    doc.ruleSets[USER_RULE_SET] = set;
+    doc.ruleSets[setName] = set;
   }
   if (!isObject(set)) {
     return undefined;
@@ -183,5 +219,5 @@ function ruleListOf(doc: Record<string, unknown>, project: string): { name: stri
   if (set.rules === undefined) {
     set.rules = [];
   }
-  return Array.isArray(set.rules) ? { name: USER_RULE_SET, rules: set.rules } : undefined;
+  return Array.isArray(set.rules) ? { name: setName, rules: set.rules } : undefined;
 }

@@ -53,7 +53,8 @@ test("the no-rule section always shows: a sentence when empty, a titled list wit
   assert.ok(html.includes('<span class="f" title="/">/</span>'), "the project root shows as a slash");
   assert.equal(html.match(/data-assign="/g)?.length, 2);
   assert.equal(html.match(/data-preview="/g)?.length, 2);
-  assert.ok(html.includes('data-rules="1"') && html.includes('title=".saropa/release-board.json"'), "the rules file is a link with its path");
+  assert.equal(html.includes("data-rules"), false, "the rules file is opened from the options menu only");
+  assert.equal(html.includes("ptgOpenRules"), false);
   assert.ok(html.includes("[needsRuleNote]"));
 });
 
@@ -62,7 +63,7 @@ test("the no-rule section offers no buttons while the board is stale", () => {
   const html = noRuleBox(m, t, new Map(), false);
   assert.equal(html.includes("data-assign"), false);
   assert.equal(html.includes("data-preview"), false);
-  assert.ok(html.includes("data-rules"));
+  assert.equal(html.includes("data-rules"), false);
 });
 
 test("the no-rule section lists at most 30 folders and counts the rest", () => {

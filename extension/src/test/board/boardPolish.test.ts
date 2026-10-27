@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { BoardStrings, renderBoard, renderSkeleton } from "../../board/boardHtml";
-import { STYLE } from "../../board/boardHtmlAssets";
+import { STYLE, script } from "../../board/boardHtmlAssets";
+import { kebab, optsMenu, rowMenu } from "../../board/boardHtmlMenus";
 import { PROJECTS_STYLE } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { evaluateHealth } from "../../board/health";
@@ -86,12 +87,15 @@ test("an item step is a link to its document, a lint step stays plain text with 
   assert.ok(lint.includes('<span class="st">[ptgLintMissing]</span>'));
 });
 
-test("the rules step links to the rules file with its path as the tooltip", () => {
+test("the rules step is plain text: the rules file opens only from the menus", () => {
   const m = buildBoard(cfg, [row("docs/loose/a.md", "grey")], undefined, true, snapshot({}, { "docs/loose": 3 }));
   const p = pathToGo(m, m.projects[0], { maxSteps: 8, canRun: () => false });
   const html = renderBoard(m, t, "n", 1, {}, [p]);
-  assert.ok(html.includes('<a class="doc ptgl" href="#" data-p="0" data-s="'));
-  assert.ok(html.includes('title=".saropa/release-board.json">[ptgOpenRules]</a>'));
+  assert.ok(html.includes("ptgRules"), "the step is still listed");
+  assert.equal(html.includes("ptgl"), false);
+  assert.equal(html.includes("data-rules"), false);
+  const opens = html.match(/data-act="rules"/g) ?? [];
+  assert.equal(opens.length, 2, "one entry in the row menu and one in the options menu");
 });
 
 test("In progress lists the documents being edited first, cut at the limit with an N more line", () => {
@@ -213,4 +217,52 @@ test("every releaseBoard setting is in the README table with its default, and th
   for (const [k, d] of expected) {
     assert.equal(found.get(k), d, `README default of ${k}`);
   }
+});
+
+test("the row menu has Open document, Change status, Assign rule, Hand to chat and the rules file, each with a tooltip", () => {
+  const html = rowMenu(t);
+  const acts = [...html.matchAll(/<button type="button" class="mi" role="menuitem" data-act="(\w+)" title="([^"]+)">([^<]+)<\/button>/g)];
+  assert.deepEqual(acts.map((m) => m[1]), ["open", "status", "assign", "hand", "rules"]);
+  assert.deepEqual(acts.map((m) => m[3]), ["menuOpen", "menuStatus", "menuAssign", "[handToChat]", "[ptgOpenRules]"]);
+  assert.ok(acts.every((m) => m[2].length > 0));
+  assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden aria-label='));
+});
+
+test("the row menu leaves out Hand to chat when that feature is off", () => {
+  const off = new Proxy(t, { get: (o, k: string) => (k === "handToChat" ? "" : o[k as keyof BoardStrings]) });
+  assert.deepEqual([...rowMenu(off).matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["open", "status", "assign", "rules"]);
+});
+
+test("the options menu opens the rules file, the project chooser and the settings", () => {
+  const html = optsMenu(t);
+  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["rules", "projects", "settings"]);
+  assert.ok(html.includes('id="menu-opts" role="menu" hidden'));
+});
+
+test("the kebab buttons are real buttons with a popup and expanded state, and a tooltip", () => {
+  assert.equal(kebab(t, "opts"), '<button type="button" class="kb sec" data-menu="opts" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-opts" title="optsMenu" aria-label="optsMenu">\u22EE</button>');
+  assert.ok(kebab(t, "row", 4, "A <b>").includes('data-id="4"'));
+});
+
+test("the page draws the options kebab in the top bar and each menu once, and the rules file is offered only in menus", () => {
+  const m = buildBoard(cfg, [row("docs/a.md", "amber")], undefined, true);
+  const html = renderBoard(m, t, "n", 1);
+  assert.equal(html.match(/id="menu-row"/g)?.length, 1);
+  assert.equal(html.match(/id="menu-opts"/g)?.length, 1);
+  assert.ok(/<div class="top">.*data-menu="opts".*<\/div>/.test(html.split("\n").find((l) => l.startsWith('<div class="top">')) ?? ""));
+  assert.equal(html.match(/\[ptgOpenRules\]/g)?.length, 2, "once in each menu and nowhere else");
+  assert.equal(html.includes("data-rules"), false);
+});
+
+test("the script opens a menu with the button, keeps aria-expanded, and closes on Escape, Tab, outside click and resize", () => {
+  const js = script(1, "x", "y");
+  for (const part of ["aria-expanded", "'ArrowDown'", "'ArrowUp'", "'Escape'", "'Tab'", "'Home'", "'End'", "role=menuitem", "window.addEventListener('resize'", "type:'rowMenu',act,id:Number(id),rev:REV", "type:'optsMenu',act,rev:REV"]) {
+    assert.ok(js.includes(part), `the script has ${part}`);
+  }
+});
+
+test("the narrow rules move what no longer fits into the kebab: project name, Hand to chat button and all but the top icon", () => {
+  assert.ok(STYLE.includes(".row .hb,.row .tag,.marks .mk:not(.top){display:none}"));
+  assert.ok(STYLE.includes(".kb,.mi{min-height:32px;min-width:32px}"));
+  assert.ok(STYLE.includes(".menu[hidden]{display:none}"));
 });

@@ -9,7 +9,7 @@ import * as vscode from "vscode";
 import defaultRules from "../../board/defaultRules.json";
 import { BoardConfig, Classified } from "../../board/types";
 import { BoardRun } from "../../commands/boardScanStore";
-import { assignFolderRule, previewFolder } from "../../commands/boardRuleAssign";
+import { assignFolderRule, changeDocStatus, previewFolder } from "../../commands/boardRuleAssign";
 import { stub, tmpDir } from "./hostHelpers";
 
 const vs = vscode as unknown as {
@@ -147,4 +147,40 @@ test("the preview counts the documents of that project under the folder and writ
   assert.deepEqual(vs.__infoMessages(), ["2 document(s) match docs/loose/**. First: docs/loose/a.md, docs/loose/b.md", "No document matches docs/none/**."]);
   assert.equal(fs.existsSync(file), false);
   assert.equal(fs.existsSync(path.join(dir, ".saropa")), false);
+});
+
+const doc = { project: "app", path: "docs/loose/a.md", title: "Loose A" };
+const pickDone = async (items: readonly unknown[]): Promise<unknown> => (items as Array<{ label: string }>).find((i) => i.label === "Done");
+
+test("a status chosen for one document writes a rule for its path, first, after a confirmation", async () => {
+  const { file, run } = setup();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ version: 1, ruleSets: { "my-overrides": { rules: [{ id: "old", when: { path: "x.md" }, set: { status: "blue" } }] } } }, null, 2) + "\n");
+  vs.__setPickHandler(async (items) => pickDone(items));
+  confirmAdd();
+  assert.equal(await changeDocStatus(run, doc), true);
+  const written = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.deepEqual(written.ruleSets["my-overrides"].rules.map((r: { id: string }) => r.id), ["status-docs-loose-a-md", "old"]);
+  assert.deepEqual(written.ruleSets["my-overrides"].rules[0], { id: "status-docs-loose-a-md", when: { path: "docs/loose/a.md" }, set: { status: "green" } });
+  assert.equal(stub.__warningMessages().length, 1, "one confirmation was asked");
+  assert.ok(stub.__warningMessages()[0].includes("docs/loose/a.md") && stub.__warningMessages()[0].includes("Done"));
+});
+
+test("nothing is written when the status pick or the confirmation is declined", async () => {
+  const { file, run } = setup();
+  vs.__setPickHandler(async () => undefined);
+  assert.equal(await changeDocStatus(run, doc), false);
+  vs.__setPickHandler(async (items) => pickDone(items));
+  stub.__setWarningAnswer(() => undefined);
+  assert.equal(await changeDocStatus(run, doc), false);
+  assert.equal(fs.existsSync(file), false);
+});
+
+test("a document path with a wildcard is refused with a message and no file", async () => {
+  const { file, run } = setup();
+  vs.__setPickHandler(async (items) => pickDone(items));
+  confirmAdd();
+  assert.equal(await changeDocStatus(run, { ...doc, path: "docs/a*.md" }), false);
+  assert.equal(fs.existsSync(file), false);
+  assert.equal(stub.__warningMessages().length, 1);
 });

@@ -10,7 +10,7 @@ import { applySuggestion, handToChat, openDocument, openExternalLink, openSittin
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { assignFolderRule, previewFolder } from "../commands/boardRuleAssign";
+import { assignFolderRule, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
 import { researchQueue } from "../board/futureResearch";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
@@ -92,6 +92,10 @@ class BoardPanel extends BoardPanelWiring {
       await this.noRule(message.type, message.i);
     } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
       await this.projectsMessage(message.type);
+    } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
+      await this.rowMenu(message.act, message.id);
+    } else if (message.type === "optsMenu" && typeof message.act === "string") {
+      await this.optsMenu(message.act);
     } else if (message.type === "rules") {
       await openRulesFile();
     } else if (message.type === "accept") {
@@ -256,6 +260,46 @@ class BoardPanel extends BoardPanelWiring {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.assigning = false;
+    }
+  }
+
+  // An entry of the menu on a document row. The page sent the entry name and the item's index;
+  // the document is the one this panel painted at that index.
+  private async rowMenu(act: string, id: number): Promise<void> {
+    const item = this.model?.items[id];
+    const run = this.run;
+    if (!item || !run) {
+      return;
+    }
+    const folder = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/")) : "";
+    if (act === "open") {
+      await this.openItem(id);
+    } else if (act === "hand") {
+      await handToChat(this.model, this.paths, run, { k: "item", i: id });
+    } else if (act === "rules") {
+      await openRulesFile({ project: item.project, folder });
+    } else if ((act === "status" || act === "assign") && !this.scanning && !this.cached && !this.assigning) {
+      this.assigning = true;
+      try {
+        const wrote = act === "status" ? await changeDocStatus(run, item) : await assignFolderRule(run, { project: item.project, folder, count: 1 });
+        if (wrote) {
+          this.dirty = true;
+          await this.refresh();
+        }
+      } catch (e) {
+        void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      } finally {
+        this.assigning = false;
+      }
+    }
+  }
+
+  // An entry of the board options menu.
+  private async optsMenu(act: string): Promise<void> {
+    if (act === "rules") {
+      await openRulesFile();
+    } else if (act === "projects" || act === "settings") {
+      await this.projectsMessage(act === "settings" ? "boardSettings" : "projects");
     }
   }
 

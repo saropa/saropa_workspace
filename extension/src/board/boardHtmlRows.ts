@@ -2,7 +2,7 @@ import { BoardItem, ItemMarks, BoardProject, UnverifiedReason } from "./boardMod
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { BoardStrings, fillT, collapsible, docLink, escapeHtml, handButton, liveLine, glyphTip, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
-import { RULES_PATH } from "./ruleAssign";
+import { kebab } from "./boardHtmlMenus";
 import type { FeedNote } from "./recipeEvidence";
 import { Signal, showsOnRow } from "./reportSignals";
 
@@ -125,7 +125,11 @@ function marks(m: ItemMarks | undefined, t: BoardStrings): string {
   const bars = [1, 2, 3, 4].map((n) => `<u${n <= m.size ? ' class="on"' : ""}></u>`).join("");
   const code = m.code === undefined ? "" : `<b class="code" ${m.code ? tip(t, "codeLang", { lang: m.code }) : tip(t, "codeNoLang")}>${escapeHtml(m.code ? m.code.charAt(0).toUpperCase() : "{}")}</b>`;
   const dots = m.mentions.map((n) => `<i class="pd" ${glyphTip(t, "g.greyDot", pl(t, "mentions", { name: n }))}></i>`).join("");
-  return `<span class="marks" title="${escapeHtml(m.detail)}"><i class="ring ${ring}" style="--p:${pct}" ${glyphTip(t, "g.ring", m.total === 0 ? pl(t, "ringNone") : pl(t, "ringSteps", { done: m.done, total: m.total }))}></i><i class="bars" ${glyphTip(t, "g.bars", pl(t, "barsSize", { size: m.size }))}>${bars}</i>${code}${dots}</span>`;
+  // On a narrow row only the ring (the first mark) stays; the group's tooltip lists them all.
+  const mk = (html: string, top = false): string => `<span class="mk${top ? " top" : ""}">${html}</span>`;
+  const ringHtml = `<i class="ring ${ring}" style="--p:${pct}" ${glyphTip(t, "g.ring", m.total === 0 ? pl(t, "ringNone") : pl(t, "ringSteps", { done: m.done, total: m.total }))}></i>`;
+  const barsHtml = `<i class="bars" ${glyphTip(t, "g.bars", pl(t, "barsSize", { size: m.size }))}>${bars}</i>`;
+  return `<span class="marks" title="${escapeHtml(m.detail)}">${mk(ringHtml, true)}${mk(barsHtml)}${code ? mk(code) : ""}${dots ? mk(dots) : ""}</span>`;
 }
 
 // A small flame on the row when the files the document names have errors, warnings or crashes.
@@ -139,38 +143,56 @@ function liveMark(m: LiveMark | undefined, t: BoardStrings): string {
   return `<i class="flame${m.hot ? " hot" : ""}" role="img" aria-label="${escapeHtml(tip)}" ${glyphTip(t, m.hot ? "g.flameRed" : "g.flameAmber", tip)}></i>`;
 }
 
+// The icons and counts at the end of a row. On a narrow row only the most severe one stays on
+// screen and the tooltip of the group lists all of them.
 function linkMark(i: BoardItem, t: BoardStrings): string {
-  const parts: string[] = [];
-  parts.push(liveMark(i.live, t));
+  const parts: Array<{ html: string; rank: number; text: string }> = [];
+  const add = (html: string, rank: number, text: string): void => {
+    if (html) {
+      parts.push({ html, rank, text });
+    }
+  };
+  if (i.live) {
+    const hot = i.live.hot;
+    add(liveMark(i.live, t), hot ? 90 : 50, pl(t, hot ? "g.flameRed" : "g.flameAmber"));
+  }
   if (i.link) {
-    parts.push(`<i class="link ${i.link.state}" ${glyphTip(t, i.link.state === "done" ? "g.greenDiamond" : i.link.state === "open" ? "g.amberDiamond" : "g.redDiamond", i.link.detail)}></i>`);
+    const rank = i.link.state === "done" ? 10 : i.link.state === "open" ? 40 : 70;
+    add(`<i class="link ${i.link.state}" ${glyphTip(t, i.link.state === "done" ? "g.greenDiamond" : i.link.state === "open" ? "g.amberDiamond" : "g.redDiamond", i.link.detail)}></i>`, rank, i.link.detail);
   }
   if (i.blocksCount > 0) {
-    parts.push(`<i class="link blocks" ${glyphTip(t, "g.amberDiamondFilled", pl(t, "blocks", { count: i.blocksCount }))}></i>`);
+    const text = pl(t, "blocks", { count: i.blocksCount });
+    add(`<i class="link blocks" ${glyphTip(t, "g.amberDiamondFilled", text)}></i>`, 60, text);
   }
   if (i.severity) {
-    parts.push(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" ${glyphTip(t, i.severity === "extreme" || i.severity === "critical" ? "g.redTriangle" : i.severity === "high" ? "g.amberTriangle" : "g.greyTriangle", pl(t, i.stopping ? "severityStops" : "severity", { severity: i.severity }))}></i>`);
+    const text = pl(t, i.stopping ? "severityStops" : "severity", { severity: i.severity });
+    const red = i.severity === "extreme" || i.severity === "critical";
+    add(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" ${glyphTip(t, red ? "g.redTriangle" : i.severity === "high" ? "g.amberTriangle" : "g.greyTriangle", text)}></i>`, (i.stopping ? 100 : red ? 95 : i.severity === "high" ? 80 : 20), text);
   }
   if (i.audience === "pro") {
-    parts.push(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`);
+    add(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`, 30, t.proOnly);
   }
   if (i.pinned) {
-    parts.push(`<i class="pin" ${glyphTip(t, "g.redRing", t.pinned)}></i>`);
+    add(`<i class="pin" ${glyphTip(t, "g.redRing", t.pinned)}></i>`, 30, t.pinned);
   }
   if (i.chats !== undefined) {
-    parts.push(pill(t, i.chats, "chatsPill", { count: i.chats }));
+    add(pill(t, i.chats, "chatsPill", { count: i.chats }), 20, pl(t, "chatsPill", { count: i.chats }));
   }
   if (i.hub) {
-    parts.push(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`);
+    add(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`, 5, t.hub);
   }
-  const shown = parts.filter(Boolean);
-  return shown.length > 0 ? `<span class="marks">${shown.join("")}</span>` : "";
+  if (parts.length === 0) {
+    return "";
+  }
+  const best = parts.reduce((a, b) => (b.rank > a.rank ? b : a));
+  const all = pl(t, "marksMore", { list: parts.map((p) => p.text).join("; ") });
+  return `<span class="marks lm" ${titleAttr(all)}>${parts.map((p) => `<span class="mk${p === best ? " top" : ""}">${p.html}</span>`).join("")}</span>`;
 }
 
 // One open document: the title is the link that opens it (its tooltip is the path inside the
 // project); a click anywhere else on the row opens it too.
-function row(i: BoardItem, name: string, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${tip(t, "row", { kind: i.kind || "-" })}><i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: i.title })}></i><span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span><span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${marks(i.marks, t)}${linkMark(i, t)}<span class="k" ${tip(t, "kind", { kind: i.kind || "-" })}>${escapeHtml(i.kind)}</span>${i.status === "red" || i.stopping ? handButton(t, `data-hk="item" data-i="${i.id}"`) : ""}</div>`;
+function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${tip(t, "row", { kind: i.kind || "-" })}><i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: i.title })}></i>${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${marks(i.marks, t)}${linkMark(i, t)}<span class="k" ${tip(t, "kind", { kind: i.kind || "-" })}>${escapeHtml(i.kind)}</span>${i.status === "red" || i.stopping ? handButton(t, `data-hk="item" data-i="${i.id}"`) : ""}${kebab(t, "row", i.id, i.title)}</div>`;
 }
 
 // What a list adds to the plain item list: its tooltip key, an explanation line, how many more
@@ -180,6 +202,8 @@ export interface ListOptions {
   note?: string;
   more?: number;
   cap?: number;
+  // Leave out the project name of each row: only one project is shown.
+  single?: boolean;
 }
 
 // One list of items under a heading, grouped items together, capped at a fixed length.
@@ -197,7 +221,7 @@ export function list(title: string, items: BoardItem[], names: Map<string, strin
       const g = opt.cap === undefined ? grouped(i) : undefined;
       const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b></div>` : "";
       last = g?.id;
-      return head + row(i, names.get(i.project) ?? i.project, t, g !== undefined);
+      return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined);
     })
     .join("");
   const left = items.length > cap ? items.length - cap : 0;
@@ -264,9 +288,8 @@ function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct
   const label = s.kind === "accept" ? t.ptgAcceptBtn : run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
   const button = (text: string, tipKey: string, debounce: boolean): string => `<button class="ptgb" data-p="${pi}" data-s="${si}"${debounce ? ' data-run="1"' : ""} ${tip(t, tipKey)}>${escapeHtml(text)}</button>`;
   const tipKey = s.kind === "accept" ? "ptgAccept" : s.kind === "lint" ? "ptgRunLint" : "ptgRunTests";
-  const rules = s.kind === "rules" ? `<a class="doc ptgl" href="#" data-p="${pi}" data-s="${si}" ${titleAttr(RULES_PATH)}>${escapeHtml(t.ptgOpenRules)}</a>` : "";
   // A row whose daily report is off offers both: turn the report on, and the run it had before.
-  return (enable ? button(t.ptgEnable, "ptgEnable", true) : "") + (label ? button(label, tipKey, Boolean(run)) : "") + rules;
+  return (enable ? button(t.ptgEnable, "ptgEnable", true) : "") + (label ? button(label, tipKey, Boolean(run)) : "");
 }
 
 // One project's steps, hidden until its row is clicked. A step that is no longer listed is

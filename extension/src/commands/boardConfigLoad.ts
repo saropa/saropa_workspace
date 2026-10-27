@@ -5,7 +5,7 @@ import { Profile, asProfile } from "../board/severity";
 import { BoardConfig, ProjectDef } from "../board/types";
 import { l10n } from "../i18n/l10n";
 import { pathExists } from "./boardFileSource";
-import { RULES_PATH, USER_RULE_SET } from "../board/ruleAssign";
+import { OVERRIDE_RULE_SET, RULES_PATH, USER_RULE_SET } from "../board/ruleAssign";
 import { hasChosenFolders, loadExtraProjects } from "./boardExtraProjects";
 
 // Release Board, loading the rule file. The user's own `.saropa/release-board.json` in the
@@ -78,7 +78,7 @@ async function readRules(folders: readonly vscode.WorkspaceFolder[]): Promise<Bo
 
 // One project per workspace folder, scanning the document folders it actually has.
 // A rule added from the board (the "my-rules" rule set) applies to these projects too.
-async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[], userRules: boolean): Promise<ProjectDef[]> {
+async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[], userRules: boolean, overrides: boolean): Promise<ProjectDef[]> {
   const projects: ProjectDef[] = [];
   const used = new Set<string>();
   for (const f of folders) {
@@ -89,7 +89,7 @@ async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[], use
       }
     }
     const id = uniqueProjectId(f.name, used);
-    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: userRules ? [...DEFAULT_SETS, USER_RULE_SET] : DEFAULT_SETS });
+    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: [...(overrides ? [OVERRIDE_RULE_SET] : []), ...DEFAULT_SETS, ...(userRules ? [USER_RULE_SET] : [])] });
   }
   return projects;
 }
@@ -129,5 +129,5 @@ async function openProjects(cfg: BoardConfig, folders: readonly vscode.Workspace
       path: (path.isAbsolute(p.path) ? (base.scheme === "file" ? vscode.Uri.file(p.path) : base.with({ path: p.path })) : vscode.Uri.joinPath(base, p.path)).toString(),
     }));
   }
-  return foldersAsProjects(folders, USER_RULE_SET in cfg.ruleSets);
+  return foldersAsProjects(folders, USER_RULE_SET in cfg.ruleSets, OVERRIDE_RULE_SET in cfg.ruleSets);
 }

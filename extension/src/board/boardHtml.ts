@@ -8,6 +8,7 @@ import { list, projectBlock } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, hiddenNote, openBadge, projectsButtons, rollupBar, skippedBlock } from "./boardHtmlProjects";
+import { kebab, optsMenu, rowMenu } from "./boardHtmlMenus";
 import { chains, noRuleBox, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
@@ -40,19 +41,21 @@ export interface RenderState {
 
 // The In progress list: documents being edited in this window first, then documents marked in
 // progress, cut at the limit with the rest counted. Without the feature it is every purple item.
-function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardStrings): string {
+function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardStrings, single: boolean): string {
   const v = model.inProgress;
   if (!v) {
-    return list(t.inProgress, model.items.filter((i) => i.status === "purple"), names, t, { tip: "list.inProgress" });
+    return list(t.inProgress, model.items.filter((i) => i.status === "purple"), names, t, { tip: "list.inProgress", single });
   }
   const items = v.ids.map((id) => model.items[id]).filter((i): i is BoardItem => i !== undefined);
-  return list(t.inProgress, items, names, t, { tip: "list.inProgress", note: pl(t, "inProgressNote"), more: v.more, cap: items.length });
+  return list(t.inProgress, items, names, t, { tip: "list.inProgress", note: pl(t, "inProgressNote"), more: v.more, cap: items.length, single });
 }
 
 // Renders the whole board page. `paths` holds one Path to GO per project, in the order of
 // model.projects; leave it out to show no paths.
 export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[], future?: FutureView): string {
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
+  // With one project in focus the project name on each row says nothing.
+  const single = model.projects.length <= 1 && (model.skipped?.length ?? 0) === 0;
   const lights = new Map<string, string>();
   for (const p of model.projects) {
     lights.set(p.id, p.light);
@@ -71,7 +74,7 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-<div class="top"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1><button id="refresh" class="sec" ${tip(t, "refresh")}>${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${projectsButtons(t)}</div>
+<div class="top"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1><button id="refresh" class="sec" ${tip(t, "refresh")}>${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${projectsButtons(t)}${kebab(t, "opts")}</div>
 ${hintBar(state.hint, t)}
 ${futureTabs(future, t)}
 <div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}"><p class="note">${escapeHtml(t.intro)}</p>${banner}
@@ -82,9 +85,9 @@ ${trainBox(trains, t)}
 ${rollupBar(model, t)}${hiddenNote(model, t)}
 ${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading), openBadge(p, model, t))).join("")}
 ${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}
-${list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow" })}
-${inProgressList(model, names, t)}
-${list(t.workOn, by("amber"), names, t, { tip: "list.workOn" })}
+${list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow", single })}
+${inProgressList(model, names, t, single)}
+${list(t.workOn, by("amber"), names, t, { tip: "list.workOn", single })}
 ${state.stale || state.loading ? "" : unnamedBox(model, t, true)}
 ${chains(model, t)}
 ${outsideBoxes(model, t)}
@@ -93,6 +96,7 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
+${rowMenu(t)}${optsMenu(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}</script></body></html>`;
 }

@@ -18,7 +18,7 @@ document.querySelectorAll('[data-settings]').forEach(b=>b.addEventListener('clic
 document.querySelectorAll('[data-hint-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'hintDismiss',rev:REV})));`;
 
 // The text of one label; the key itself when the table has none (a plain-browser layout check).
-function label(t: BoardStrings, key: string): string {
+export function label(t: BoardStrings, key: string): string {
   const table = t.projectLabels;
   return table && typeof table === "object" && typeof table[key] === "string" ? table[key] : key;
 }

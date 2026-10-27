@@ -135,8 +135,7 @@ export function noRuleBox(model: BoardModel, t: BoardStrings, names: Map<string,
     })
     .join("");
   const more = folders.length > NO_RULE_CAP ? `<p class="note">${pillify(t, escapeHtml(t.more.replace("{count}", String(folders.length - NO_RULE_CAP))))}</p>` : "";
-  const rules = `<p class="note"><a class="doc" href="#" data-rules="1" ${titleAttr(RULES_PATH)}>${escapeHtml(t.ptgOpenRules)}</a></p>`;
-  return section(`<p class="note">${escapeHtml(t.needsRuleNote)}</p>${rows}${more}${rules}`, folders.length <= 10);
+  return section(`<p class="note">${escapeHtml(t.needsRuleNote)}</p>${rows}${more}`, folders.length <= 10);
 }
 
 // One box per outside source group. Items with a link carry only an index.

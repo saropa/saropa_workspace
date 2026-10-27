@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import defaultRules from "../../board/defaultRules.json";
-import { USER_RULE_SET, addFolderRule, folderGlob, ruleCategories } from "../../board/ruleAssign";
+import { OVERRIDE_RULE_SET, USER_RULE_SET, addDocRule, addFolderRule, docGlob, folderGlob, ruleCategories } from "../../board/ruleAssign";
 import { layerUserRules } from "../../commands/boardConfigLoad";
 import { compileProject, classifyFile } from "../../board/ruleEngine";
 import { BoardConfig } from "../../board/types";
@@ -149,4 +149,54 @@ test("the rule written classifies the folder's documents the way the category sa
   assert.equal(hit.kind, "bug");
   assert.equal(hit.rule, "assigned-docs-loose");
   assert.equal(classifyFile(cp, file("docs/other/notes.md"), undefined).status, "grey", "other folders are still unplaced");
+});
+
+const done = { status: "green" as const, label: "Done" };
+
+test("a document becomes a glob of its own path; a wildcard in the path cannot", () => {
+  assert.equal(docGlob("docs/plans/a.md"), "docs/plans/a.md");
+  assert.equal(docGlob("\\docs\\a.md"), "docs/a.md");
+  assert.equal(docGlob("docs/a*.md"), undefined);
+  assert.equal(docGlob("docs/{a,b}.md"), undefined);
+  assert.equal(docGlob(""), undefined);
+  assert.deepEqual(addDocRule(undefined, { project: "app", path: "docs/a?.md", category: done }), { ok: false, reason: "glob" });
+});
+
+test("a status for one document goes first, into the my-overrides set when no project is listed", () => {
+  const first = addDocRule(undefined, { project: "app", path: "docs/a.md", category: done });
+  assert.ok(first.ok);
+  assert.equal(first.id, "status-docs-a-md");
+  const second = addDocRule(first.text, { project: "app", path: "docs/b.md", category: bug });
+  assert.ok(second.ok);
+  assert.deepEqual(JSON.parse(second.text), {
+    version: 1,
+    ruleSets: {
+      [OVERRIDE_RULE_SET]: {
+        rules: [
+          { id: "status-docs-b-md", when: { path: "docs/b.md" }, set: { status: "red", kind: "bug" } },
+          { id: "status-docs-a-md", when: { path: "docs/a.md" }, set: { status: "green" } },
+        ],
+      },
+    },
+  });
+});
+
+test("a status for one document wins over the shipped rule that placed it", () => {
+  const written = addDocRule(undefined, { project: "app", path: "bugs/BUG_a.md", category: done });
+  assert.ok(written.ok);
+  const cfg = layerUserRules(shipped, JSON.parse(written.text) as Partial<BoardConfig>);
+  const file = (path: string) => ({ path, size: 1, mtimeMs: 1 });
+  const before = compileProject(shipped, { id: "app", path: "app", roots: ["bugs"], ruleSets: ["folder-states", "doc-kinds"] });
+  const after = compileProject(cfg, { id: "app", path: "app", roots: ["bugs"], ruleSets: [OVERRIDE_RULE_SET, "folder-states", "doc-kinds"] });
+  assert.equal(classifyFile(before, file("bugs/BUG_a.md"), undefined).status, "red", "the shipped rules say red");
+  assert.equal(classifyFile(after, file("bugs/BUG_a.md"), undefined).status, "green");
+  assert.equal(classifyFile(after, file("bugs/BUG_b.md"), undefined).status, "red", "other documents keep their status");
+});
+
+test("a file that lists the project gets the status rule first in that project's rules", () => {
+  const text = JSON.stringify({ projects: [{ id: "app", rules: [{ id: "x", when: { path: "a" }, set: { status: "blue" } }] }] });
+  const r = addDocRule(text, { project: "app", path: "docs/a.md", category: done });
+  assert.ok(r.ok);
+  const ids = (JSON.parse(r.text).projects[0].rules as Array<{ id: string }>).map((x) => x.id);
+  assert.deepEqual(ids, ["status-docs-a-md", "x"]);
 });

@@ -199,3 +199,39 @@ test("steps beyond the limit are counted in one note", () => {
   assert.ok(path.hidden > 0);
   assert.ok(pathList(path, t, 0, true).includes(`ptgMore ${P(path.hidden)}`));
 });
+
+test("every row has a kebab button that opens the row menu, naming the document and carrying only its index", () => {
+  const m = buildBoard(cfg, [row("app", "docs/a.md", "amber"), row("app", "docs/b.md", "amber")], undefined, true);
+  const html = list("Work", m.items, new Map(), t);
+  assert.equal(html.match(/data-menu="row"/g)?.length, 2);
+  assert.ok(html.includes('data-menu="row" data-id="0" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-row" title="rowMenu" aria-label="rowMenu">⋮</button>'));
+  assert.ok(html.includes('data-id="1" aria-haspopup="menu"'));
+  assert.equal(/data-menu="row"[^>]*docs\//.test(html), false, "no path in the kebab");
+});
+
+test("the project name is left out of a row when one project is in focus, and shown otherwise", () => {
+  const m = buildBoard(cfg, [row("app", "docs/a.md", "amber"), row("db", "docs/b.md", "amber")], undefined, true);
+  const names = new Map([["app", "App"], ["db", "Db"]]);
+  assert.equal(list("Work", m.items, names, t, { single: true }).includes('class="tag"'), false);
+  assert.equal(list("Work", m.items, names, t).match(/class="tag"/g)?.length, 2);
+});
+
+test("a row's icons are grouped; the most severe one is marked to stay on a narrow row and the group's tooltip lists all", () => {
+  const snap = snapshotOf({ "bugs/a.md": "# A\n\nSeverity: critical. Data loss and a security hole when the app starts.\n" });
+  const m = buildBoard({ ...cfg, pinned: ["app/bugs/a.md"] }, [row("app", "bugs/a.md", "red")], undefined, true, snap);
+  const html = list("Work", m.items, new Map(), t);
+  const group = /<span class="marks lm" title="([^"]*)">(.*?)<\/span><span class="k"/.exec(html);
+  assert.ok(group, "the icon group is drawn");
+  assert.ok(group[1].startsWith("marksMore"));
+  assert.equal(group[2].match(/<span class="mk top">/g)?.length, 1, "exactly one icon stays");
+  assert.ok(/<span class="mk top"><i class="sev /.test(group[2]), "the severity triangle outranks the pin");
+  assert.ok((group[2].match(/<span class="mk"/g)?.length ?? 0) >= 1, "the others are hidden by the narrow rule");
+});
+
+test("the progress group keeps only its ring on a narrow row", () => {
+  const snap = snapshotOf({ "docs/a.md": "# A\n\n- [x] one\n- [ ] two\n" });
+  const m = buildBoard(cfg, [row("app", "docs/a.md", "amber")], undefined, true, snap);
+  const html = list("Work", m.items, new Map(), t);
+  assert.ok(html.includes('<span class="mk top"><i class="ring part"'));
+  assert.ok(html.includes('<span class="mk"><i class="bars"'));
+});
