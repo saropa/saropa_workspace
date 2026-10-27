@@ -12,6 +12,7 @@ import { registerDailyReport } from "../commands/dailyReport";
 import { registerReleaseBoard } from "../commands/releaseBoardCommands";
 import { registerEditorLinks } from "../views/editorLinks";
 import { registerBoardSidebar } from "../views/boardSidebar";
+import { registerSinceLast } from "../views/boardSinceLast";
 import { registerBoardBackground } from "../views/boardBackground";
 import { registerRunOutputDiff } from "../commands/diffRuns";
 import { registerShortcutCommands, createRoutineHooks } from "../commands/shortcutCommands";
@@ -48,6 +49,7 @@ export function registerCommandModules(
   registerDailyReport(context, store);
   registerReleaseBoard(context, store);
   registerEditorLinks(context);
+  registerSinceLast(context);
   registerBoardSidebar(context);
   registerBoardBackground(context);
   registerRunOutputDiff(context);

@@ -14,6 +14,7 @@ import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "..
 import { asTimeBox } from "../board/sittings";
 import { moveToArchive, readTidySettings } from "../commands/boardTidy";
 import { publishBoard } from "./editorLinks";
+import { onDidChangeSinceLast, panelLeft, panelShowed, viewFor } from "./boardSinceLast";
 import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
 import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
 import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed, setPanelVisible } from "./boardFeed";
@@ -172,8 +173,28 @@ class BoardPanel {
     // While the tab is showing it owns the scan: the sidebar's refresh button asks it.
     markPanelOpened();
     setPanelVisible(panel.visible);
-    panel.onDidChangeViewState(() => setPanelVisible(panel.visible), null, this.disposables);
+    panel.onDidChangeViewState(() => {
+      setPanelVisible(panel.visible);
+      // Leaving early is not a look; the dwell timer in boardSinceLast decides what counts as seen.
+      if (!panel.visible) {
+        panelLeft();
+      } else if (this.run) {
+        // Shown again: the strip is gone if the last look already took it as seen.
+        this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+      }
+    }, null, this.disposables);
     onDidAskRefresh(() => this.poke(0), null, this.disposables);
+    // The change was taken as seen (or marked seen): draw the board again without the strip.
+    onDidChangeSinceLast(
+      () => {
+        if (this.run) {
+          this.lastKey = "";
+          this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+        }
+      },
+      null,
+      this.disposables
+    );
     onDidRecordHealth(() => this.poke(300), null, this.disposables);
     // A mark changes only what is drawn, so the stored scan is shown again, not redone.
     onDidChangeMarks(
@@ -384,8 +405,15 @@ class BoardPanel {
           })
         )
       : undefined;
+    // The strip and the "seen" record only for a finished board: a loading or stored paint can
+    // hold unread documents, which would read as blockers that cleared.
+    const finished = !state.loading && !state.stale && !this.partial;
+    const since = finished ? viewFor(model) : undefined;
+    if (finished && this.panel.visible) {
+      panelShowed(model);
+    }
     // The same board in the same state is not painted again: no flicker, no lost scroll.
-    const key = JSON.stringify([this.model, state, this.paths, readHandSettings().enabled]);
+    const key = JSON.stringify([this.model, state, this.paths, since, readHandSettings().enabled]);
     if (key === this.lastKey) {
       return;
     }
@@ -397,7 +425,7 @@ class BoardPanel {
     }
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
-    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths);
+    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since);
   }
 
   // The Sittings choice (remembered per machine, else the settings' defaults) with the
@@ -631,6 +659,7 @@ class BoardPanel {
   private dispose(): void {
     current = undefined;
     setPanelVisible(false);
+    panelLeft();
     this.disposed = true;
     this.outsideToken++;
     clearTimeout(this.timer);
