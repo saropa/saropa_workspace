@@ -220,7 +220,35 @@ export function pill(t: BoardStrings, n: number | string, tipKey = "pillTip", va
 // Wraps every whole number in already-escaped text in a pill. Only for sentences the board
 // builds from its own counts; never for a document title or a name.
 export function pillify(t: BoardStrings, escaped: string): string {
-  return escaped.replace(/(^|[^\w.#&])(\d+)(?![\w.]*\d|\w|\.\w)/g, (_m, pre: string, n: string) => `${pre}${pill(t, n)}`);
+  const word = (c: string | undefined): boolean => c !== undefined && /\w/.test(c);
+  let out = "";
+  let i = 0;
+  while (i < escaped.length) {
+    const c = escaped[i];
+    if (c < "0" || c > "9") {
+      out += c;
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < escaped.length && escaped[j] >= "0" && escaped[j] <= "9") {
+      j++;
+    }
+    const before = i === 0 ? undefined : escaped[i - 1];
+    const next = escaped[j];
+    // A number in the middle of a word, a version, an entity or a decimal is left as it is.
+    let plain = (before !== undefined && (word(before) || before === "." || before === "#" || before === "&")) || word(next);
+    if (!plain && next === ".") {
+      let k = j;
+      while (escaped[k] === ".") {
+        k++;
+      }
+      plain = k === j + 1 ? word(escaped[k]) : escaped[k] >= "0" && escaped[k] <= "9";
+    }
+    out += plain ? escaped.slice(i, j) : pill(t, escaped.slice(i, j));
+    i = j;
+  }
+  return out;
 }
 
 // A section the reader can fold: a details element whose summary holds the heading. Native

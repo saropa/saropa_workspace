@@ -4,7 +4,11 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as vscode from "vscode";
 import { BoardConfig } from "../../board/types";
-import { EditedDeps, collectEdited, readInProgressSettings, resetEditedCache } from "../../commands/boardInProgress";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { execFileSync } from "node:child_process";
+import { EditedDeps, collectEdited, gitChanged, readInProgressSettings, resetEditedCache } from "../../commands/boardInProgress";
 import { stub } from "./hostHelpers";
 
 afterEach(() => {
@@ -78,4 +82,28 @@ test("at most 100 open documents of a project are looked at", async () => {
   const many = Array.from({ length: 150 }, (_x, i) => doc(`/w/app/docs/${i}.md`));
   await collectEdited(cfg(["app", "/w/app"]), deps(many, {}, calls), 1000);
   assert.equal(calls[0][1].length, 100);
+});
+
+test("git is asked without optional locks and still reports a changed file", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "board-git-"));
+  try {
+    const git = (...args: string[]): void => {
+      execFileSync("git", args, { cwd: dir, stdio: "ignore", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" } });
+    };
+    git("init", "-q");
+    fs.writeFileSync(path.join(dir, "a.md"), "one\n");
+    fs.writeFileSync(path.join(dir, "b.md"), "one\n");
+    git("add", ".");
+    git("commit", "-q", "-m", "first");
+    fs.writeFileSync(path.join(dir, "a.md"), "two\n");
+    assert.deepEqual(await gitChanged(dir, ["a.md", "b.md"]), ["a.md"]);
+    assert.equal(fs.existsSync(path.join(dir, ".git", "index.lock")), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the source asks git with --no-optional-locks and GIT_OPTIONAL_LOCKS=0", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "..", "src", "commands", "boardInProgress.ts"), "utf8");
+  assert.ok(src.includes('"--no-optional-locks"') && src.includes('GIT_OPTIONAL_LOCKS: "0"'));
 });

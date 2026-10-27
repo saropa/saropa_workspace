@@ -235,3 +235,13 @@ test("the progress group keeps only its ring on a narrow row", () => {
   assert.ok(html.includes('<span class="mk top"><i class="ring part"'));
   assert.ok(html.includes('<span class="mk"><i class="bars"'));
 });
+
+test("a document that stops the release (the pin or the stopping severity) is the icon that stays on a narrow row or another stopper, even beside a hot flame and a waiting link", () => {
+  const snap = snapshotOf({ "docs/a.md": "# A\nNeeds: docs/b.md\n", "docs/b.md": "# B\n" });
+  const m = buildBoard({ ...cfg, pinned: ["app/docs/a.md"] }, [row("app", "docs/a.md", "amber"), row("app", "docs/b.md", "amber")], undefined, true, snap);
+  m.items[0].live = { errors: 1, warnings: 0, crashes: 0, hot: true, files: [{ file: "lib/a.dart", problems: { errors: 1, warnings: 0 } }], more: 0 };
+  const html = list("Work", [m.items[0]], new Map(), t);
+  const top = /<span class="marks lm"[^>]*>[\s\S]*?<span class="mk top">(.*?)<\/span>/.exec(html);
+  assert.ok(top && /^<i class="(pin|sev [^"]* stop)"/.test(top[1]), `a stopper stays, not the flame or the link: ${top?.[1]}`);
+  assert.ok(html.includes('class="flame hot"') && html.includes('class="link open"'), "the lesser marks are still drawn");
+});

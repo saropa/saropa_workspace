@@ -33,7 +33,8 @@ export async function gitChanged(root: string, rels: string[]): Promise<string[]
     return [];
   }
   try {
-    const run = (args: string[]): Promise<{ stdout: string }> => execFile("git", args, { cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 });
+    // No optional locks: a look at the status must never take the index lock from the user's own git commands.
+    const run = (args: string[]): Promise<{ stdout: string }> => execFile("git", ["--no-optional-locks", ...args], { cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } });
     const [status, prefix] = await Promise.all([run(["status", "--porcelain=v1", "-z", "--", ...rels]), run(["rev-parse", "--show-prefix"])]);
     return underPrefix(parsePorcelainZ(status.stdout), prefix.stdout);
   } catch {

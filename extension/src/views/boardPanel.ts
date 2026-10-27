@@ -246,7 +246,11 @@ class BoardPanel extends BoardPanelWiring {
   private async noRule(kind: "assign" | "preview", i: number): Promise<void> {
     const entry = this.model?.needsRule[i];
     const run = this.run;
-    if (!entry || !run || this.scanning || this.cached || this.assigning) {
+    if (!entry || !run) {
+      return;
+    }
+    if (this.scanning || this.cached || this.assigning) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.busy"));
       return;
     }
     if (kind === "preview") {
@@ -281,10 +285,14 @@ class BoardPanel extends BoardPanelWiring {
       await handToChat(this.model, this.paths, run, { k: "item", i: id });
     } else if (act === "rules") {
       await openRulesFile({ project: item.project, folder });
-    } else if ((act === "status" || act === "assign") && !this.scanning && !this.cached && !this.assigning) {
+    } else if (act === "status" || act === "assign") {
+      if (this.scanning || this.cached || this.assigning) {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.busy"));
+        return;
+      }
       this.assigning = true;
       try {
-        const wrote = act === "status" ? await changeDocStatus(run, item) : await assignFolderRule(run, { project: item.project, folder, count: 1 });
+        const wrote = act === "status" ? await changeDocStatus(run, item) : await assignFolderRule(run, { project: item.project, folder, count: 1 }, true);
         if (wrote) {
           this.dirty = true;
           await this.refresh();

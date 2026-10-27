@@ -182,7 +182,7 @@ test("a new standup report is a change, worded with its count", () => {
   const d = diffSeen(seen, now);
   assert.deepEqual(d?.changes[0].reports, [{ kind: "standup", count: 7 }, { kind: "delta", count: 4 }]);
   assert.deepEqual(d?.changes[0].added, []);
-  assert.deepEqual(sinceLines(d!, labels, 5), [{ text: "App: standup digest: 7 commits, since yesterday: 4 commits", details: [] }]);
+  assert.deepEqual(sinceLines(d!, labels, 5), [{ text: "App: standup digest: 7 commits, since yesterday: 4 commits", name: "App", details: [] }]);
 });
 
 test("the same report seen again is not new, and an older one never is", () => {

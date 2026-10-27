@@ -112,6 +112,9 @@ export function classifyFile(
   let rule: string | undefined;
   let ruleSet: string | undefined;
   for (const c of cp.rules) {
+    if (c.rule.when.project !== undefined && c.rule.when.project !== cp.project.id) {
+      continue;
+    }
     if (c.path && !c.path.test(file.path)) {
       continue;
     }

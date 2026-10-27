@@ -62,9 +62,9 @@ button,select,input[type=text]{min-height:32px}input[type=checkbox]{width:18px;h
 
 // The page script. It posts messages that carry only indexes, never paths or URLs.
 export const script = (rev: number, label: string, profile: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const PROFILE=${JSON.stringify(profile).replace(/</g, "\\u003c")};
-const saved=vscode.getState()||{};const SEC=saved.sec||{};
+const saved=vscode.getState()||{};const SEC_MAX=100;const SEC=Object.create(null);Object.keys(saved.sec||{}).filter(k=>typeof saved.sec[k]==='boolean'&&k.indexOf('outside:')!==0).slice(-SEC_MAX).forEach(k=>{SEC[k]=saved.sec[k];});
 const keep=()=>vscode.setState({...(vscode.getState()||{}),y:window.scrollY,sec:SEC});
-document.querySelectorAll('details[data-sec]').forEach(d=>{const k=d.dataset.sec;if(Object.prototype.hasOwnProperty.call(SEC,k)){d.open=SEC[k]===true;}d.addEventListener('toggle',()=>{SEC[k]=d.open;keep();});});
+document.querySelectorAll('details[data-sec]').forEach(d=>{const k=d.dataset.sec;if(k in SEC){d.open=SEC[k]===true;}const sm=d.querySelector(':scope>summary');if(sm&&k.indexOf('outside:')!==0){sm.addEventListener('click',()=>{delete SEC[k];SEC[k]=!d.open;const ks=Object.keys(SEC);if(ks.length>SEC_MAX){delete SEC[ks[0]];}keep();});}});
 let st;window.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(keep,150);},{passive:true});
 let ct;const choose=()=>{clearTimeout(ct);ct=setTimeout(()=>{keep();vscode.postMessage({type:'sitting',have:[...document.querySelectorAll('[data-have][aria-pressed=true]')].map(b=>b.dataset.have),box:(document.querySelector('[data-box][aria-pressed=true]')||{dataset:{box:'any'}}).dataset.box,rev:REV});},250);};
 document.querySelectorAll('[data-have]').forEach(b=>b.addEventListener('click',()=>{b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));choose();}));

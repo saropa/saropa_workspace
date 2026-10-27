@@ -233,6 +233,8 @@ export interface SinceLabels {
 export interface SinceLine {
   // "App: 2 new blockers, 1 cleared, went from UNVERIFIED to NO-GO".
   text: string;
+  // The project name the text starts with (before ": "); the page keeps it out of the number pills.
+  name?: string;
   // "+ title" and "- title" lines, each kind capped, then "and N more".
   details: string[];
 }
@@ -264,7 +266,7 @@ export function sinceLines(change: SinceLast, labels: SinceLabels, maxListed: nu
     for (const r of c.reports) {
       parts.push(fill(r.kind === "standup" ? labels.reportStandup : labels.reportDelta, { count: String(r.count) }));
     }
-    return { text: `${c.name}: ${parts.join(", ")}`, details: [...listed("+", c.added, maxListed, labels.more), ...listed("-", c.cleared, maxListed, labels.more)] };
+    return { text: `${c.name}: ${parts.join(", ")}`, name: c.name, details: [...listed("+", c.added, maxListed, labels.more), ...listed("-", c.cleared, maxListed, labels.more)] };
   });
 }
 

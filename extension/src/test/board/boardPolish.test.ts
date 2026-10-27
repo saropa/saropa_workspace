@@ -15,7 +15,10 @@ import { pathToGo } from "../../board/pathToGo";
 import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
-import { POLISH_KEYS, strings } from "../../views/boardStrings";
+import { POLISH_KEYS, PROJECT_LABEL_KEYS, strings } from "../../views/boardStrings";
+import { buildFuture } from "../../board/futureList";
+import { futurePanel } from "../../board/boardHtmlFuture";
+import { sinceBox, unnamedBox } from "../../board/boardHtmlBoxes";
 import { asTimeBox } from "../../board/sittings";
 import en from "../../i18n/locales/en.json";
 
@@ -265,4 +268,35 @@ test("the narrow rules move what no longer fits into the kebab: project name, Ha
   assert.ok(STYLE.includes(".row .hb,.row .tag,.marks .mk:not(.top){display:none}"));
   assert.ok(STYLE.includes(".kb,.mi{min-height:32px;min-width:32px}"));
   assert.ok(STYLE.includes(".menu[hidden]{display:none}"));
+});
+
+const P = (n: string | number): string => `<span class="pill" title="pillTip">${n}</span>`;
+
+test("project names, paths and file names are never cut into number pills; only the figures are", () => {
+  const since = sinceBox({ heading: "H", lines: [{ text: "Proj 7: 2 new blockers", name: "Proj 7", details: [] }] }, t);
+  assert.ok(since.includes(`<li>Proj 7: ${P(2)} new blockers</li>`), since);
+  const real = strings();
+  const fut = futurePanel(
+    { items: buildFuture([{ project: "app", projectName: "App", path: "plans/deferred/a.md", text: "# Idea\n\nBody\n" }]), outside: [{ project: "app", projectName: "App", path: "plans/2026/a1.md", title: "Later", line: 4, why: "later" }], sort: "score", canEdit: false, researchParallel: 3, handEnabled: false },
+    real
+  );
+  assert.ok(/plans\/2026\/a1\.md, line <span class="pill" title="[^"]+">4<\/span> \(Later\)<\/span>/.test(fut), "the path is plain text and the line number is a pill");
+  const m = buildBoard(cfg, [], undefined, true, undefined, undefined, undefined, { live: { signals: { app: { "lib/v2/x3.dart": { logs: { errors: 0, warnings: 0, crashes: 2 } } } }, includeWarnings: true, fold: false, unnamedBox: true } });
+  const box = unnamedBox(m, real, true);
+  assert.ok(box.includes("lib/v2/x3.dart: "), "the file name is not cut");
+  assert.ok(/<span class="pill" title="[^"]+">2<\/span>/.test(box), "the count is a pill");
+});
+
+test("every key the umbrella controls read is in the label table and in the catalog", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "..", "src", "board", "boardHtmlProjects.ts"), "utf8");
+  const used = new Set([...src.matchAll(/label\(t, "(\w+)"\)/g)].map((m) => m[1]));
+  assert.ok(used.size >= 10);
+  for (const k of used) {
+    assert.ok((PROJECT_LABEL_KEYS as readonly string[]).includes(k), `label key "${k}" is not in PROJECT_LABEL_KEYS`);
+  }
+  const real = strings().projectLabels ?? {};
+  for (const k of PROJECT_LABEL_KEYS) {
+    assert.ok(typeof real[k] === "string" && real[k] !== "", `label "${k}" has no text`);
+    assert.ok(typeof (en as Record<string, string>)["releaseBoard.projects.label." + k] === "string", `label "${k}" is not in en.json`);
+  }
 });

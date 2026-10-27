@@ -39,6 +39,9 @@ export interface RuleSet_Set {
 export interface RuleWhen {
   path?: string;
   name?: string;
+  // Only this project (its id). A rule written from the board always has it, because the rule
+  // sets it goes into are read by every project.
+  project?: string;
 }
 
 // One rule: when it matches a file, what state it sets.

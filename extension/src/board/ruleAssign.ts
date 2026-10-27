@@ -74,17 +74,17 @@ export function ruleCategories(cfg: BoardConfig): RuleCategory[] {
 }
 
 // The glob a folder of documents gets, or undefined when the folder name holds a character
-// the board's globs read as a wildcard (they have no escape).
+// the board's globs read as a wildcard (they have no escape) or "$" (read as a parameter).
 export function folderGlob(folder: string): string | undefined {
   const clean = folder.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  if (/[*?{}]/.test(clean)) {
+  if (/[*?{}$]/.test(clean)) {
     return undefined;
   }
   return clean === "" ? "*" : `${clean}/**`;
 }
 
 // Why a rule could not be added.
-export type AssignRefusal = "parse" | "shape" | "glob";
+export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy";
 
 export type AssignResult = { ok: true; text: string; id: string; glob: string } | { ok: false; reason: AssignRefusal };
 
@@ -103,10 +103,10 @@ function indentOf(text: string): string {
 }
 
 // The glob of one document: its path, when the path holds no character the globs read as a
-// wildcard. Undefined otherwise.
+// wildcard or "$". Undefined otherwise.
 export function docGlob(docPath: string): string | undefined {
   const clean = docPath.replace(/\\/g, "/").replace(/^\/+/, "");
-  return clean === "" || /[*?{}]/.test(clean) ? undefined : clean;
+  return clean === "" || /[*?{}$]/.test(clean) ? undefined : clean;
 }
 
 // What a rule is added with: the glob, the id it starts from, the rule set it goes into when the
@@ -125,9 +125,13 @@ interface RuleSpec {
 // leaves the text alone, when it does not parse, is not an object, or the folder cannot be
 // written as a glob. The rule goes into the project's own rules when the file lists that
 // project, else into the "my-rules" rule set.
-export function addFolderRule(text: string | undefined, a: { project: string; folder: string; category: RuleCategory }): AssignResult {
+export function addFolderRule(text: string | undefined, a: { project: string; folder: string; category: RuleCategory; front?: boolean }): AssignResult {
   const glob = folderGlob(a.folder);
-  return glob === undefined ? { ok: false, reason: "glob" } : addRule(text, { project: a.project, glob, idBase: `assigned-${slug(a.folder)}`, set: USER_RULE_SET, front: false, category: a.category });
+  if (glob === undefined) {
+    return { ok: false, reason: "glob" };
+  }
+  // A rule that must win over the shipped ones goes first, into the set that is read first.
+  return addRule(text, { project: a.project, glob, idBase: `assigned-${slug(a.folder)}`, set: a.front ? OVERRIDE_RULE_SET : USER_RULE_SET, front: a.front === true, category: a.category });
 }
 
 // Adds a rule that gives one document the category. It goes first, so it wins over the rule that
@@ -141,6 +145,9 @@ export function addDocRule(text: string | undefined, a: { project: string; path:
 function addRule(text: string | undefined, a: RuleSpec): AssignResult {
   const { glob } = a;
   const blank = text === undefined || text.trim() === "";
+  if (!blank && losesData(text as string)) {
+    return { ok: false, reason: "lossy" };
+  }
   let doc: unknown;
   if (blank) {
     doc = { version: 1 };
@@ -170,7 +177,7 @@ function addRule(text: string | undefined, a: RuleSpec): AssignResult {
   if (a.category.note) {
     set.note = a.category.note;
   }
-  const rule = { id, when: { path: glob }, set };
+  const rule = { id, when: { path: glob, project: a.project }, set };
   if (a.front) {
     target.rules.unshift(rule);
   } else {
@@ -196,9 +203,7 @@ function ruleListOf(doc: Record<string, unknown>, project: string, setName: stri
       }
       return Array.isArray(p.rules) ? { name: "project", rules: p.rules } : undefined;
     }
-    if (doc.projects.length > 0) {
-      return undefined;
-    }
+    // A project the file does not list (a chosen folder) takes the shared set, like a file with no projects.
   } else if (doc.projects !== undefined) {
     return undefined;
   }
@@ -220,4 +225,74 @@ function ruleListOf(doc: Record<string, unknown>, project: string, setName: stri
     set.rules = [];
   }
   return Array.isArray(set.rules) ? { name: setName, rules: set.rules } : undefined;
+}
+
+// The text of a rules file, or undefined when it is not plain UTF-8 (a byte order mark, or bytes
+// that are not valid UTF-8). A lossy read would be written back as damaged text.
+export function decodeRules(bytes: Uint8Array): string | undefined {
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return undefined;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+// True when writing the parsed file back would lose something: an object with the same key twice
+// (the later one wins in a parse, the first is lost), or a number a double cannot hold exactly.
+// A single pass over the text; strings are skipped by their quotes.
+export function losesData(text: string): boolean {
+  const keys: Array<Set<string> | undefined> = [];
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < n && text[j] !== '"') {
+        j += text[j] === "\\" ? 2 : 1;
+      }
+      const top = keys[keys.length - 1];
+      let k = j + 1;
+      while (k < n && " \t\r\n".includes(text[k])) {
+        k++;
+      }
+      if (top && text[k] === ":") {
+        const name = text.slice(i, j + 1);
+        if (top.has(name)) {
+          return true;
+        }
+        top.add(name);
+      }
+      i = j + 1;
+    } else if (c === "{") {
+      keys.push(new Set());
+      i++;
+    } else if (c === "[") {
+      keys.push(undefined);
+      i++;
+    } else if (c === "}" || c === "]") {
+      keys.pop();
+      i++;
+    } else if (c === "-" || (c >= "0" && c <= "9")) {
+      let j = i + 1;
+      while (j < n && /[0-9.eE+-]/.test(text[j])) {
+        j++;
+      }
+      const tok = text.slice(i, j);
+      const digits = tok.replace(/[eE].*$/, "").replace(/[^0-9]/g, "").replace(/^0+/, "");
+      if (digits.length > 15 && Number(tok) !== Math.trunc(Number(tok))) {
+        return true;
+      }
+      if (digits.length > 15 && !Number.isSafeInteger(Number(tok))) {
+        return true;
+      }
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return false;
 }

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import defaultRules from "../../board/defaultRules.json";
-import { OVERRIDE_RULE_SET, USER_RULE_SET, addDocRule, addFolderRule, docGlob, folderGlob, ruleCategories } from "../../board/ruleAssign";
+import { OVERRIDE_RULE_SET, USER_RULE_SET, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, losesData, ruleCategories } from "../../board/ruleAssign";
 import { layerUserRules } from "../../commands/boardConfigLoad";
 import { compileProject, classifyFile } from "../../board/ruleEngine";
 import { BoardConfig } from "../../board/types";
@@ -58,7 +58,8 @@ test("with no file, a small one is made with the rule in the my-rules set", () =
         {
           "id": "assigned-docs-notes",
           "when": {
-            "path": "docs/notes/**"
+            "path": "docs/notes/**",
+            "project": "app"
           },
           "set": {
             "status": "red",
@@ -83,7 +84,7 @@ test("existing content, key order and indent are kept; the new rule is appended"
   assert.deepEqual(out.pinned, ["app/docs/a.md"]);
   assert.deepEqual(Object.keys(out), ["version", "profile", "pinned", "ruleSets"]);
   assert.deepEqual(Object.keys(out.ruleSets), ["mine", "my-rules"]);
-  assert.deepEqual(out.ruleSets["my-rules"].rules, [{ id: "assigned-plans-x", when: { path: "plans/x/**" }, set: { status: "amber", note: "blocked" } }]);
+  assert.deepEqual(out.ruleSets["my-rules"].rules, [{ id: "assigned-plans-x", when: { path: "plans/x/**", project: "app" }, set: { status: "amber", note: "blocked" } }]);
   assert.ok(r.text.startsWith('{\n\t"version": 1,'), "the tab indent is kept");
   assert.ok(r.text.endsWith("}\n"));
 });
@@ -127,7 +128,7 @@ test("a file that does not parse, or has the wrong shape, is refused and not cha
   assert.deepEqual(addFolderRule('{"ruleSets": []}', a), { ok: false, reason: "shape" });
   assert.deepEqual(addFolderRule('{"ruleSets": {"my-rules": {"rules": 3}}}', a), { ok: false, reason: "shape" });
   assert.deepEqual(addFolderRule('{"projects": "x"}', a), { ok: false, reason: "shape" });
-  assert.deepEqual(addFolderRule('{"projects": [{"id": "other"}]}', a), { ok: false, reason: "shape" });
+  assert.equal(addFolderRule('{"projects": [{"id": "other"}]}', a).ok, true, "a chosen project the file does not list takes the shared set");
   assert.deepEqual(addFolderRule(undefined, { ...a, folder: "d*" }), { ok: false, reason: "glob" });
 });
 
@@ -173,8 +174,8 @@ test("a status for one document goes first, into the my-overrides set when no pr
     ruleSets: {
       [OVERRIDE_RULE_SET]: {
         rules: [
-          { id: "status-docs-b-md", when: { path: "docs/b.md" }, set: { status: "red", kind: "bug" } },
-          { id: "status-docs-a-md", when: { path: "docs/a.md" }, set: { status: "green" } },
+          { id: "status-docs-b-md", when: { path: "docs/b.md", project: "app" }, set: { status: "red", kind: "bug" } },
+          { id: "status-docs-a-md", when: { path: "docs/a.md", project: "app" }, set: { status: "green" } },
         ],
       },
     },
@@ -199,4 +200,70 @@ test("a file that lists the project gets the status rule first in that project's
   assert.ok(r.ok);
   const ids = (JSON.parse(r.text).projects[0].rules as Array<{ id: string }>).map((x) => x.id);
   assert.deepEqual(ids, ["status-docs-a-md", "x"]);
+});
+
+const green = { status: "green" as const, label: "Done" };
+const files = (path: string) => ({ path, size: 1, mtimeMs: 1 });
+const twoProjects = (sets: string[]) => [
+  { id: "a", path: "a", roots: ["docs"], ruleSets: sets },
+  { id: "b", path: "b", roots: ["docs"], ruleSets: sets },
+];
+
+test("a rule written for one project never changes another project's document at the same path", () => {
+  const written = addDocRule(undefined, { project: "a", path: "bugs/BUG_x.md", category: green });
+  assert.ok(written.ok);
+  const cfg = layerUserRules(shipped, JSON.parse(written.text) as Partial<BoardConfig>);
+  const [a, b] = twoProjects([OVERRIDE_RULE_SET, "folder-states", "doc-kinds"]).map((p) => compileProject(cfg, p));
+  assert.equal(classifyFile(a, files("bugs/BUG_x.md"), undefined).status, "green");
+  assert.equal(classifyFile(b, files("bugs/BUG_x.md"), undefined).status, "red", "the other project keeps its status");
+});
+
+test("a folder rule written for one project is scoped the same way", () => {
+  const written = addFolderRule(undefined, { project: "a", folder: "docs/loose", category: bug });
+  assert.ok(written.ok);
+  const cfg = layerUserRules(shipped, JSON.parse(written.text) as Partial<BoardConfig>);
+  const [a, b] = twoProjects(["doc-kinds", USER_RULE_SET]).map((p) => compileProject(cfg, p));
+  assert.equal(classifyFile(a, files("docs/loose/n.md"), undefined).status, "red");
+  assert.equal(classifyFile(b, files("docs/loose/n.md"), undefined).status, "grey");
+});
+
+test("a row's folder rule goes first and moves a document a shipped rule already placed; the no-rule rule goes last and does not", () => {
+  const winning = addFolderRule(undefined, { project: "a", folder: "bugs", category: green, front: true });
+  assert.ok(winning.ok);
+  assert.equal(winning.id, "assigned-bugs");
+  const cfgFirst = layerUserRules(shipped, JSON.parse(winning.text) as Partial<BoardConfig>);
+  assert.ok(OVERRIDE_RULE_SET in cfgFirst.ruleSets);
+  const first = compileProject(cfgFirst, { id: "a", path: "a", roots: ["bugs"], ruleSets: [OVERRIDE_RULE_SET, "folder-states", "doc-kinds"] });
+  assert.equal(classifyFile(first, files("bugs/BUG_x.md"), undefined).status, "green", "the document moved");
+  const last = addFolderRule(undefined, { project: "a", folder: "bugs", category: green });
+  assert.ok(last.ok);
+  const cfgLast = layerUserRules(shipped, JSON.parse(last.text) as Partial<BoardConfig>);
+  const behind = compileProject(cfgLast, { id: "a", path: "a", roots: ["bugs"], ruleSets: ["folder-states", "doc-kinds", USER_RULE_SET] });
+  assert.equal(classifyFile(behind, files("bugs/BUG_x.md"), undefined).status, "red", "a placed document is left alone");
+});
+
+test("a dollar sign in a folder or document path is refused, because the engine would read it as a parameter", () => {
+  assert.equal(folderGlob("docs/$name"), undefined);
+  assert.equal(docGlob("docs/$name.md"), undefined);
+  assert.deepEqual(addFolderRule(undefined, { project: "a", folder: "d$x", category: bug }), { ok: false, reason: "glob" });
+});
+
+test("a file with a repeated key or a number a double cannot hold is refused, not rewritten", () => {
+  assert.equal(losesData('{"a": 1, "a": 2}'), true);
+  assert.equal(losesData('{"x": {"a": 1}, "y": {"a": 2}}'), false, "the same key in two objects is fine");
+  assert.equal(losesData('{"a": [{"k": 1}, {"k": 2}]}'), false);
+  assert.equal(losesData('{"s": "a\\" \\"b\\": 1"}'), false, "a quote or colon inside a string is not a key");
+  assert.equal(losesData('{"n": 12345678901234567890}'), true);
+  assert.equal(losesData('{"n": 0.1234567890123456789}'), true);
+  assert.equal(losesData('{"n": 9007199254740991, "m": 1.5, "e": 1e3}'), false);
+  const a = { project: "app", folder: "docs", category: bug };
+  assert.deepEqual(addFolderRule('{"version": 1, "version": 2}', a), { ok: false, reason: "lossy" });
+  assert.deepEqual(addDocRule('{"big": 12345678901234567890}', { project: "app", path: "docs/a.md", category: green }), { ok: false, reason: "lossy" });
+});
+
+test("a rules file with a byte order mark or bytes that are not UTF-8 is not read", () => {
+  assert.equal(decodeRules(new Uint8Array([0x7b, 0x7d])), "{}");
+  assert.equal(decodeRules(new Uint8Array([0xef, 0xbb, 0xbf, 0x7b, 0x7d])), undefined);
+  assert.equal(decodeRules(new Uint8Array([0x7b, 0xff, 0x7d])), undefined);
+  assert.equal(decodeRules(new TextEncoder().encode('{"a": "\u00e9\u4e2d"}')), '{"a": "\u00e9\u4e2d"}');
 });

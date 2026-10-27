@@ -1,7 +1,7 @@
 import { EFFORTS, Importance, IMPORTANCES, MAX_FREE_TEXT, REACHES, RESEARCH_STATES, RISKS } from "./futureBlock";
 import { FUTURE_SORTS, FutureGroup, FutureItem, FutureOutside, FutureSort, groupItems, scoreOf } from "./futureList";
 import { researchCounts, researchQueue } from "./futureResearch";
-import { BoardStrings, collapsible, docLink, escapeHtml, pill, pillify, tip, titleAttr } from "./boardHtmlUtil";
+import { BoardStrings, collapsible, docLink, escapeHtml, fillT, pill, pillify, tip, titleAttr } from "./boardHtmlUtil";
 
 // The Future tab of the board page: deferred and blocked documents under their flag, with
 // the characteristics and the controls that set them. Every control carries only an index;
@@ -123,7 +123,8 @@ function outsideBox(view: FutureView, t: BoardStrings): string {
   const rows = view.outside
     .map((o, j) => {
       const src = ft(t, "outsideSource").replace("{path}", () => o.path).replace("{line}", () => String(o.line)).replace("{why}", () => ft(t, "why." + o.why));
-      return `<div class="fut ro" ${tip(t, "futureOutsideRow")}><div class="fl"><span class="tag" ${tip(t, "project", { name: o.projectName })}>${escapeHtml(o.projectName)}</span><span class="f">${docLink(o.title, o.path, `data-fopen-o="${j}"`)}</span><span class="k" ${titleAttr(src)}>${pillify(t, escapeHtml(src))}</span></div></div>`;
+      const shown = fillT(t, ft(t, "outsideSource"), { line: o.line, why: ft(t, "why." + o.why) }, { path: escapeHtml(o.path) });
+      return `<div class="fut ro" ${tip(t, "futureOutsideRow")}><div class="fl"><span class="tag" ${tip(t, "project", { name: o.projectName })}>${escapeHtml(o.projectName)}</span><span class="f">${docLink(o.title, o.path, `data-fopen-o="${j}"`)}</span><span class="k" ${titleAttr(src)}>${shown}</span></div></div>`;
     })
     .join("");
   return `<details class="box" data-sec="future:outside"${view.outside.length <= 10 ? " open" : ""}><summary ${tip(t, "futureOutsideSummary")}>${pillify(t, escapeHtml(ft(t, "outsideHeading").replace("{count}", () => String(view.outside.length))))}</summary><p class="note">${escapeHtml(ft(t, "outsideNote"))}</p>${rows}</details>`;

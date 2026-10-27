@@ -97,7 +97,7 @@ export function unnamedBox(model: BoardModel, t: BoardStrings, canAct: boolean):
     .map((u, i) => {
       const detail = liveLine({ file: u.file, logs: u.logs }, t);
       const btn = canAct && u.folder ? `<button data-bug="${i}" ${tip(t, "liveStart")}>${escapeHtml(t.liveUnnamedStart)}</button>` : "";
-      return `<div class="row tidy" ${tip(t, "liveRow")}><span class="tag" ${tip(t, "project", { name: u.projectName })}>${escapeHtml(u.projectName)}</span><span class="f" title="${escapeHtml(detail)}">${pillify(t, escapeHtml(detail))}</span>${btn}</div>`;
+      return `<div class="row tidy" ${tip(t, "liveRow")}><span class="tag" ${tip(t, "project", { name: u.projectName })}>${escapeHtml(u.projectName)}</span><span class="f" title="${escapeHtml(detail)}">${escapeHtml(u.file + ": ")}${pillify(t, escapeHtml(detail.slice(u.file.length + 2)))}</span>${btn}</div>`;
     })
     .join("");
   return collapsible({ id: "live", domId: "live-box", tipAttr: tip(t, "liveHeading"), head: `${escapeHtml(t.liveUnnamedHeading)} ${pill(t, list.length, "count", { count: list.length })}`, body: `<p class="note">${escapeHtml(t.liveUnnamedNote)}</p>${rows}` });
@@ -194,13 +194,19 @@ export function trainBox(trains: Train[] | undefined, t: BoardStrings): string {
     .join("");
 }
 
+// The text of one line of the strip: the project name as plain text, the figures after it as pills.
+function sinceText(t: BoardStrings, l: { text: string; name?: string }): string {
+  const lead = l.name !== undefined && l.text.startsWith(l.name + ": ") ? l.name + ": " : "";
+  return escapeHtml(lead) + pillify(t, escapeHtml(l.text.slice(lead.length)));
+}
+
 // The strip at the top: what changed since the board was last seen. Text only, all escaped.
 export function sinceBox(view: SinceView | undefined, t: BoardStrings): string {
   if (!view || view.lines.length === 0) {
     return "";
   }
   const rows = view.lines
-    .map((l) => `<li>${pillify(t, escapeHtml(l.text))}${l.details.length > 0 ? `<ul class="sd">${l.details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>` : ""}</li>`)
+    .map((l) => `<li>${sinceText(t, l)}${l.details.length > 0 ? `<ul class="sd">${l.details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>` : ""}</li>`)
     .join("");
   return collapsible({ id: "since", cls: "box since", tipAttr: tip(t, "sinceHeading"), head: escapeHtml(view.heading), body: `<ul class="sl">${rows}</ul>`, attrs: ` role="status" aria-label="${escapeHtml(view.heading)}"` });
 }

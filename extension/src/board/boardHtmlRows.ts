@@ -173,7 +173,8 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
     add(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`, 30, t.proOnly);
   }
   if (i.pinned) {
-    add(`<i class="pin" ${glyphTip(t, "g.redRing", t.pinned)}></i>`, 30, t.pinned);
+    // A pinned document stops the release, so nothing less severe may stand in for it on a narrow row.
+    add(`<i class="pin" ${glyphTip(t, "g.redRing", t.pinned)}></i>`, 97, t.pinned);
   }
   if (i.chats !== undefined) {
     add(pill(t, i.chats, "chatsPill", { count: i.chats }), 20, pl(t, "chatsPill", { count: i.chats }));

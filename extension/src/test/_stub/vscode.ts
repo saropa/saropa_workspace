@@ -134,8 +134,10 @@ export function __getConfig(section: string, key: string): unknown {
 const fsApi = {
   async stat(uri: Uri): Promise<{ type: number; size: number; ctime: number; mtime: number }> {
     const s = nodeFs.statSync(uri.fsPath);
+    // Like the real API, a link reports the type of its target plus the SymbolicLink bit.
+    const link = nodeFs.lstatSync(uri.fsPath).isSymbolicLink() ? FileType.SymbolicLink : 0;
     return {
-      type: s.isDirectory() ? FileType.Directory : FileType.File,
+      type: (s.isDirectory() ? FileType.Directory : FileType.File) | link,
       size: s.size,
       ctime: Math.trunc(s.ctimeMs),
       mtime: Math.trunc(s.mtimeMs),

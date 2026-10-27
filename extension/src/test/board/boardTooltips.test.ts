@@ -294,7 +294,7 @@ test("every glyph says what it looks like and what it means, and no title only r
     }
   }
   const words = new Set(glyphs.map((g) => g.split(":")[0]));
-  for (const look of ["Red square", "Amber square", "Purple square", "Red triangle", "Progress ring", "Size bars", "Red dot", "Green dot", "Grey dot", "Amber diamond", "Filled amber diamond", "Red flame", "Red ring", "Information icon"]) {
+  for (const look of ["Red square", "Amber square", "Purple square", "Red triangle", "Progress ring", "Size bars", "Red dot", "Green dot", "Gray dot", "Amber diamond", "Filled amber diamond", "Red flame", "Red ring", "Information icon"]) {
     assert.ok(words.has(look), `the full page draws a glyph described as "${look}"`);
   }
 });
@@ -330,7 +330,9 @@ test("every section and subsection folds, each remembers its state under its own
 test("the page script keeps each folded section's state per viewer", () => {
   const js = script(1, "x", "y");
   assert.ok(js.includes("details[data-sec]"));
-  assert.ok(js.includes("SEC[k]=d.open"));
+  assert.ok(js.includes("SEC[k]=!d.open"), "only a click on the summary records a choice");
+  assert.equal(js.includes("addEventListener('toggle'"), false, "a change the page makes itself is not recorded");
+  assert.ok(js.includes("SEC_MAX=100") && js.includes("indexOf('outside:')"), "the stored keys are bounded and group ids are not stored");
   assert.ok(js.includes("vscode.setState({...(vscode.getState()||{}),y:window.scrollY,sec:SEC})"));
   assert.ok(js.includes("d.open=SEC[k]===true"));
 });

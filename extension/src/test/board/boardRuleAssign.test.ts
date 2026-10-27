@@ -55,7 +55,7 @@ test("a chosen category and a confirmation write the rule into a new rules file"
   const written = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.deepEqual(written, {
     version: 1,
-    ruleSets: { "my-rules": { rules: [{ id: "assigned-docs-loose", when: { path: "docs/loose/**" }, set: { status: "red", kind: "bug" } }] } },
+    ruleSets: { "my-rules": { rules: [{ id: "assigned-docs-loose", when: { path: "docs/loose/**", project: "app" }, set: { status: "red", kind: "bug" } }] } },
   });
   assert.deepEqual(vs.__infoMessages(), ["Release Board: added rule assigned-docs-loose (docs/loose/**) to .saropa/release-board.json. Scanning again."]);
   assert.equal(stub.__warningMessages().length, 1, "one confirmation was asked");
@@ -161,7 +161,7 @@ test("a status chosen for one document writes a rule for its path, first, after 
   assert.equal(await changeDocStatus(run, doc), true);
   const written = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.deepEqual(written.ruleSets["my-overrides"].rules.map((r: { id: string }) => r.id), ["status-docs-loose-a-md", "old"]);
-  assert.deepEqual(written.ruleSets["my-overrides"].rules[0], { id: "status-docs-loose-a-md", when: { path: "docs/loose/a.md" }, set: { status: "green" } });
+  assert.deepEqual(written.ruleSets["my-overrides"].rules[0], { id: "status-docs-loose-a-md", when: { path: "docs/loose/a.md", project: "app" }, set: { status: "green" } });
   assert.equal(stub.__warningMessages().length, 1, "one confirmation was asked");
   assert.ok(stub.__warningMessages()[0].includes("docs/loose/a.md") && stub.__warningMessages()[0].includes("Done"));
 });
@@ -183,4 +183,69 @@ test("a document path with a wildcard is refused with a message and no file", as
   assert.equal(await changeDocStatus(run, { ...doc, path: "docs/a*.md" }), false);
   assert.equal(fs.existsSync(file), false);
   assert.equal(stub.__warningMessages().length, 1);
+});
+
+const docsOpen = vscode.workspace.textDocuments as unknown as Array<{ isDirty: boolean; uri: vscode.Uri }>;
+
+test("a rules file that is not plain UTF-8 is refused and left alone", async () => {
+  const { file, run } = setup();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const bom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("{}")]);
+  fs.writeFileSync(file, bom);
+  vs.__setPickHandler(async (items) => pickDone(items));
+  confirmAdd();
+  assert.equal(await changeDocStatus(run, doc), false);
+  assert.deepEqual(fs.readFileSync(file), bom);
+  assert.ok(stub.__warningMessages().some((m) => m.includes("not plain UTF-8")));
+  fs.writeFileSync(file, Buffer.from([0x7b, 0xff, 0x7d]));
+  assert.equal(await changeDocStatus(run, doc), false);
+  assert.deepEqual(fs.readFileSync(file), Buffer.from([0x7b, 0xff, 0x7d]));
+});
+
+test("a rules file with unsaved edits in an editor is not written", async () => {
+  const { file, run } = setup();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "{}\n");
+  docsOpen.push({ isDirty: true, uri: vscode.Uri.file(file) });
+  try {
+    vs.__setPickHandler(async (items) => pickDone(items));
+    confirmAdd();
+    assert.equal(await changeDocStatus(run, doc), false);
+    assert.equal(fs.readFileSync(file, "utf8"), "{}\n");
+    assert.ok(stub.__warningMessages().some((m) => m.includes("unsaved edits")));
+  } finally {
+    docsOpen.length = 0;
+  }
+});
+
+test("a rules file or folder that is a symbolic link is not written through", async () => {
+  const { dir, file, run } = setup();
+  const real = path.join(dir, "elsewhere.json");
+  fs.writeFileSync(real, "{}\n");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.symlinkSync(real, file);
+  vs.__setPickHandler(async (items) => pickDone(items));
+  confirmAdd();
+  assert.equal(await changeDocStatus(run, doc), false);
+  assert.equal(fs.readFileSync(real, "utf8"), "{}\n");
+  assert.ok(stub.__warningMessages().some((m) => m.includes("symbolic link")));
+});
+
+test("the confirmation for a status says the project's light may change", async () => {
+  const { run } = setup();
+  vs.__setPickHandler(async (items) => pickDone(items));
+  confirmAdd();
+  await changeDocStatus(run, doc);
+  assert.ok(stub.__warningMessages()[0].includes("light may change"));
+  assert.ok(stub.__warningMessages()[0].includes("docs/loose/a.md"));
+});
+
+test("a row's Assign rule asks with text that says it also changes documents that already have a status", async () => {
+  const { file, run } = setup();
+  vs.__setPickHandler(pickBug);
+  confirmAdd();
+  assert.equal(await assignFolderRule(run, entry, true), true);
+  assert.ok(stub.__warningMessages()[0].includes("already have a status"));
+  const written = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.deepEqual(Object.keys(written.ruleSets), ["my-overrides"]);
 });
