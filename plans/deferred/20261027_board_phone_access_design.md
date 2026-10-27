@@ -1,6 +1,6 @@
 # Release Board on a phone: read-only view over the local network
 
-Status: design only. Nothing in this document is built.
+Status: deferred. Design only. Nothing in this document is built.
 
 Request: "if there is a way for a mobile phone on the same network to access this dashboard it would be a wonderful addition for developers and project managers to be able to look at the current status of the project."
 
