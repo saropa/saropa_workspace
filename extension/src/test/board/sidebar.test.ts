@@ -23,11 +23,11 @@ const labels: SidebarLabels = {
 };
 
 function item(id: number, title: string, status: BoardItem["status"], stopping = false): BoardItem {
-  return { id, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, blocksCount: 0, pinned: false, stopping };
+  return { id, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping };
 }
 
 function project(light: BoardProject["light"], items: BoardItem[], reasons: BoardProject["reasons"] = []): BoardProject {
-  return { id: "app", name: "App", light, reasons, items, blocked: 0, counts: { ...emptyCounts(), grey: 2 }, dependsOn: [] };
+  return { id: "app", name: "App", light, reasons, items, blocked: 0, blockedStopping: 0, counts: { ...emptyCounts(), grey: 2 }, dependsOn: [] };
 }
 
 const opts = { blockersPerProject: 3, expandProjects: "whenNoGo" as const };
