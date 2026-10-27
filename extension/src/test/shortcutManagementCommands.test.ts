@@ -20,6 +20,7 @@ import { ShortcutStore } from "../model/shortcutStore";
 import type { Shortcut } from "../model/shortcut";
 import { ShortcutFolderItem, ShortcutGroupItem, ShortcutTreeItem } from "../views/shortcutTreeItem";
 import { l10n } from "../i18n/l10n";
+import { flushEvents, settle } from "./settle";
 
 let fx: FsFixture;
 let store: ShortcutStore;
@@ -32,7 +33,7 @@ const stored = (): Shortcut[] => store.getProjectShortcuts().filter((p) => !p.is
 const globals = (): Shortcut[] => store.getGlobalShortcuts();
 const infos = (): string[] => [...__infoMessages()];
 const warnings = (): string[] => [...__warningMessages()];
-const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20));
+const idle = (): Promise<void> => flushEvents();
 const projectFile = (): Record<string, unknown> =>
   JSON.parse(nodeFs.readFileSync(nodePath.join(fx.dir, ".saropa", "saropa-workspace.json"), "utf8"));
 
@@ -89,7 +90,7 @@ test("a group added from the Global Shortcuts header goes into the global scope"
   assert.deepEqual(store.getProjectGroups(), []);
 });
 
-test("cancelling the group name creates nothing, and a project group with no folder open warns", async () => {
+test("canceling the group name creates nothing, and a project group with no folder open warns", async () => {
   driveInputs(undefined);
   await run("addGroup");
   assert.deepEqual([store.getProjectGroups(), infos(), warnings()], [[], [], []]);
@@ -149,12 +150,12 @@ test("the active-file commands add the argument file or the editor file, and war
 
   win.activeTextEditor = { document: { uri: asUri(`${fx.dir}/a.ts`) } };
   await run("pinActiveFile");
-  await settle();
+  await settle(() => stored().length === 1);
   assert.deepEqual(stored().map((s) => [s.path, s.scope]), [["a.ts", "project"]]);
 
   fx.write("b.ts", "x");
   await run("pinActiveFileGlobal", asUri(`${fx.dir}/b.ts`));
-  await settle();
+  await settle(() => globals().length === 1);
   assert.deepEqual(globals().map((s) => s.scope), ["global"]);
 });
 
@@ -162,24 +163,24 @@ test("the explorer commands only act on a real file argument", async () => {
   fx.write("c.ts", "x");
   await run("pinFile", "not a uri");
   await run("pinFileGlobal", undefined);
-  await settle();
+  await idle();
   assert.deepEqual([stored().length, globals().length], [0, 0]);
   await run("pinFile", asUri(`${fx.dir}/c.ts`));
   await run("pinFileGlobal", asUri(`${fx.dir}/c.ts`));
-  await settle();
+  await settle(() => stored().length === 1 && globals().length === 1);
   assert.deepEqual([stored().map((s) => s.path), globals().length], [["c.ts"], 1]);
 });
 
 test("add and remove by scope work from a file, from a row, and from the open editor", async () => {
   await run("addProjectPin", asUri(`${fx.dir}/a.ts`));
-  await settle();
+  await settle(() => stored().length === 1);
   assert.equal(stored().length, 1);
   await run("removeProjectPin", new ShortcutTreeItem({ shortcut: stored()[0] }));
   assert.equal(stored().length, 0);
 
   win.activeTextEditor = { document: { uri: asUri(`${fx.dir}/a.ts`) } };
   await run("addGlobalPin");
-  await settle();
+  await settle(() => globals().length === 1);
   assert.equal(globals().length, 1);
   await run("removeGlobalPin");
   assert.equal(globals().length, 0);
@@ -189,7 +190,7 @@ test("with no argument and no editor the scope commands do nothing", async () =>
   for (const id of ["addProjectPin", "removeProjectPin", "addGlobalPin", "removeGlobalPin"]) {
     await run(id);
   }
-  await settle();
+  await idle();
   assert.deepEqual([stored().length, globals().length, infos(), warnings()], [0, 0, [], []]);
 });
 
@@ -259,7 +260,7 @@ async function openRoutines(routines: Shortcut[], enable: (s: Shortcut) => Promi
     enableScheduledRecipe: enable,
   });
   const pending = run("setupDailyRoutines");
-  await settle();
+  await settle(() => __quickPicks().length > 0);
   const pick = __quickPicks()[0];
   (pick as unknown as { pending: Promise<unknown> }).pending = pending;
   return pick;

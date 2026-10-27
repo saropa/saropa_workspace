@@ -25,6 +25,7 @@ import type { Shortcut } from "../model/shortcut";
 import { l10n } from "../i18n/l10n";
 import type { FakeOutputChannel } from "./_stub/vscodeOutput";
 import type * as vscode from "vscode";
+import { settle } from "./settle";
 
 let fx: FsFixture;
 let context: ReturnType<typeof registrarContext>;
@@ -122,7 +123,7 @@ test("the link handler is registered and imports a shared shortcut after confirm
   const link = new URL(encodeShortcutLink({ id: "x", path: "", scope: "project", label: "Deploy", action: { kind: "shell", shellCommand: "ls" } } as Shortcut));
   __setInfoAnswer((_m, buttons) => buttons[0]);
   handler.handleUri({ path: link.pathname, query: link.search.slice(1) });
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await settle(() => store.getProjectShortcuts().some((s) => s.label === "Deploy"));
   assert.deepEqual(store.getProjectShortcuts().filter((s) => !s.isAuto).map((s) => s.label), ["Deploy"]);
   assert.deepEqual([...__warningMessages()], []);
 });

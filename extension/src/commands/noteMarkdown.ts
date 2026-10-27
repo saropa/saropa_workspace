@@ -19,14 +19,16 @@ const SAFE_URL = /^(?:https?:\/\/|mailto:)/i;
  * first, so user text cannot open a tag. Link and image targets are the one place text
  * lands inside an attribute, so they are limited to http, https and mailto URLs and have
  * double quotes escaped; a target with another scheme is left as plain text. Code spans
- * are set aside before emphasis so asterisks inside backticks stay literal.
+ * are set aside before emphasis so asterisks inside backticks stay literal, and their double
+ * quotes are escaped so a span inside a link target or image text cannot leave the attribute.
  */
 function inlineMarkup(line: string): string {
   // Code spans are lifted out first (NUL-delimited slots; any NUL in the text is dropped)
   // so link, bold and italic rules never rewrite what is inside backticks.
   const spans: string[] = [];
   let s = escapeMd(line.replace(/\u0000/g, "")).replace(/`([^`]+)`/g, (_m, code: string) => {
-    spans.push(code);
+    // Quotes are escaped here because a span can land inside a link or image attribute.
+    spans.push(code.replace(/"/g, "&quot;"));
     return `\u0000${spans.length - 1}\u0000`;
   });
   s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt: string, url: string) =>

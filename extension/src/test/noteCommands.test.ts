@@ -105,7 +105,7 @@ test("with no folder open the scope is not asked and the note is global", async 
   assert.equal(nodeFs.existsSync(`${globalDir()}/loose.md`), true);
 });
 
-test("cancelling the scope question or the name creates nothing", async () => {
+test("canceling the scope question or the name creates nothing", async () => {
   drivePicks(undefined);
   const inputs = driveInputs("never");
   await run("newNote");

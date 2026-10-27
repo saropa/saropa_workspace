@@ -11,3 +11,10 @@ export async function settle(condition: () => boolean, timeoutMs = 5000): Promis
     await new Promise<void>((resolve) => setImmediate(resolve));
   }
 }
+
+/** Lets pending promise chains and immediate callbacks run: yields to the event loop `turns` times, with no timer. For "nothing happens" checks, where there is no condition to wait for. */
+export async function flushEvents(turns = 10): Promise<void> {
+  for (let i = 0; i < turns; i++) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}

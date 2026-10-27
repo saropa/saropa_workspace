@@ -17,6 +17,7 @@ import { KNOWN_FAVORITES_SOURCES } from "../import/favoritesImport";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
 import type * as vscode from "vscode";
+import { flushEvents, settle } from "./settle";
 
 let fx: FsFixture;
 let store: ShortcutStore;
@@ -24,7 +25,7 @@ let context: ReturnType<typeof registrarContext>;
 
 const infos = (): string[] => [...__infoMessages()];
 const stored = (): string[] => store.getProjectShortcuts().filter((p) => !p.isAuto).map((p) => p.path);
-const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 30));
+const idle = (): Promise<void> => flushEvents();
 const memento = (): vscode.Memento => context.workspaceState;
 
 beforeEach(async () => {
@@ -106,10 +107,10 @@ test("a watcher is armed for every known favorites file, and a created or change
 
   fx.write(".favorites.json", "[]");
   watchers[0].created.fire({});
-  await settle();
+  await settle(() => infos().length === 1);
   assert.equal(infos().length, 1);
   watchers[1].changed.fire({});
-  await settle();
+  await idle();
   assert.equal(infos().length, 1, "the gate is already latched");
 });
 
@@ -117,13 +118,13 @@ test("a change to a favorites setting raises the offer and any other setting doe
   registerFavoritesImportWatchers(context, store);
   fx.write(".favorites.json", "[]");
   __fireHostEvent("configChanged", { affectsConfiguration: (s: string) => s === "editor.fontSize" });
-  await settle();
+  await idle();
   assert.deepEqual(infos(), []);
   for (const section of ["favorites.resources", "favoritesPanel.commands", "favoritesPanel.commandsForWorkspace"]) {
     __resetInfo();
     context.workspaceState.update("saropaWorkspace.favoritesImportOffered", undefined);
     __fireHostEvent("configChanged", { affectsConfiguration: (s: string) => s === section });
-    await settle();
+    await settle(() => infos().length === 1);
     assert.equal(infos().length, 1, section);
   }
 });
@@ -133,7 +134,7 @@ function existingInstall(): void {
 }
 const aiNotice = async (): Promise<void> => {
   maybeNotifyAiContextDefaultChange(context);
-  await settle();
+  await idle();
 };
 
 test("a fresh install gets no AI context notice and the gate stays open", async () => {

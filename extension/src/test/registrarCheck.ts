@@ -17,9 +17,22 @@ export function registrarContext(): RegistrarContext {
   return Object.assign(fakeContext(), { subscriptions: [] as { dispose(): void }[] });
 }
 
+/** The package.json found by walking up from `start`, so the test works from src or from the bundle folder. */
+function findPackageJson(start: string): string {
+  for (let dir = start; ; dir = path.dirname(dir)) {
+    const candidate = path.join(dir, "package.json");
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+    if (path.dirname(dir) === dir) {
+      throw new Error(`package.json not found above ${start}`);
+    }
+  }
+}
+
 /** Every command id package.json declares under contributes.commands, in file order. */
 export function declaredCommandIds(): string[] {
-  const file = path.join(__dirname, "..", "..", "package.json");
+  const file = findPackageJson(__dirname);
   const pkg = JSON.parse(fs.readFileSync(file, "utf8")) as {
     contributes: { commands: { command: string }[] };
   };

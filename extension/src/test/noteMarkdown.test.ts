@@ -140,3 +140,24 @@ test("markdownToHtml keeps a code span inside link text and does not link inside
 test("markdownToHtml drops NUL characters so they cannot forge a code slot", () => {
   assert.equal(markdownToHtml("a\u00000\u0000b"), "<p>a0b</p>");
 });
+
+test("markdownToHtml keeps a double quote in a code span inside a link target from leaving the attribute", () => {
+  assert.equal(
+    markdownToHtml('[x](https://a.com/`" onmouseover="alert(1)`)'),
+    '<p><a href="https://a.com/<code>&quot; onmouseover=&quot;alert(1)</code>">x</a></p>'
+  );
+});
+
+test("markdownToHtml keeps a double quote in a code span inside an image target from leaving the attribute", () => {
+  assert.equal(
+    markdownToHtml('![x](https://a.com/`" onerror="alert(1)`)'),
+    '<p><img src="https://a.com/<code>&quot; onerror=&quot;alert(1)</code>" alt="x"></p>'
+  );
+});
+
+test("markdownToHtml keeps a double quote in a code span inside image alt text from leaving the attribute", () => {
+  assert.equal(
+    markdownToHtml('![a`" onerror="alert(1)`](https://a.com/i.png)'),
+    '<p><img src="https://a.com/i.png" alt="a<code>&quot; onerror=&quot;alert(1)</code>"></p>'
+  );
+});

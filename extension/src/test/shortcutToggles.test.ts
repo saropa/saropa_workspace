@@ -29,7 +29,15 @@ beforeEach(() => {
   stub.__setWorkspaceFolders(undefined);
 });
 
+const tempDirs: string[] = [];
+function tempDir(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tog-"));
+  tempDirs.push(dir);
+  return dir;
+}
+
 afterEach(() => {
+  tempDirs.splice(0).forEach((dir) => fs.rmSync(dir, { recursive: true, force: true }));
   win.showInformationMessage = origInfo;
   win.showWarningMessage = origWarn;
 });
@@ -50,7 +58,7 @@ function fakeStore(folder?: vscode.WorkspaceFolder) {
 }
 
 function repoOn(branch: string): vscode.WorkspaceFolder {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tog-"));
+  const dir = tempDir();
   fs.mkdirSync(path.join(dir, ".git"));
   fs.writeFileSync(path.join(dir, ".git", "HEAD"), `ref: refs/heads/${branch}\n`);
   return { uri: vscode.Uri.file(dir), name: "r", index: 0 };
@@ -118,7 +126,7 @@ test("linking falls back to the first workspace folder when the shortcut has non
 });
 
 test("an unreadable branch (no .git) leaves the shortcut unlinked", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tog-"));
+  const dir = tempDir();
   const { store, branches } = fakeStore({ uri: vscode.Uri.file(dir), name: "n", index: 0 });
   await toggleBranchLink(store, file());
   assert.deepEqual(branches, []);

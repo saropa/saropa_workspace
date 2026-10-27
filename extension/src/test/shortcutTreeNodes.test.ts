@@ -79,7 +79,7 @@ test("a shortcut that was never opened carries the untapped dot until it is tapp
 test("the row reads the missing and shadows-auto answers from the store", () => {
   missing.add("a");
   const item = buildShortcutItem(store, make("a"));
-  assert.match(String((item.accessibilityInformation as { label: string }).label), new RegExp(l10n("a11y.missingState")));
+  assert.ok((item.accessibilityInformation as { label: string }).label.includes(l10n("a11y.missingState")));
   assert.notEqual(String(buildShortcutItem(store, make("b")).tooltip), String(item.tooltip));
 });
 

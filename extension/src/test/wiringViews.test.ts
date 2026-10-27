@@ -20,6 +20,7 @@ import { ShortcutStore } from "../model/shortcutStore";
 import { FolderWatchStore } from "../model/folderWatch";
 import { l10n } from "../i18n/l10n";
 import type * as vscode from "vscode";
+import { flushEvents, settle } from "./settle";
 
 let fx: FsFixture;
 let ext: string;
@@ -30,7 +31,7 @@ let store: ShortcutStore;
 const run = (id: string, ...args: unknown[]): Promise<unknown> =>
   Promise.resolve(__registeredCommands().get(`saropaWorkspace.${id}`)!(...args));
 const item = (id: string): { script: { id: string } } => ({ script: { id } });
-const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20));
+
 
 beforeEach(async () => {
   __resetConfig();
@@ -154,7 +155,11 @@ test("a change to the shortcut set republishes which files are shortcuts", async
   fx.write("a.ts", "x");
   __resetRecordedCommands();
   await store.addShortcut(Uri.file(`${fx.dir}/a.ts`) as unknown as vscode.Uri, "project");
-  await settle();
+  await settle(() =>
+    __recordedCommands().some(
+      (c) => c.command === "setContext" && c.args[0] === "saropaWorkspace.projectPinnedPaths" && `${fx.dir}/a.ts` in (c.args[1] as object)
+    )
+  );
   const published = Object.fromEntries(
     __recordedCommands().filter((c) => c.command === "setContext").map((c) => [c.args[0], c.args[1]])
   );

@@ -61,12 +61,12 @@ test("each row shows the name, a state line, the target and an icon that follows
   assert.equal(rows[0].description, l10n("folderWatch.rowDescription", {
     kind: l10n("folderWatch.kindFolder"), mode: l10n("folderWatch.modeNew"), state: l10n("folderWatch.stateOn"),
   }));
-  assert.match(rows[1].description, new RegExp(l10n("folderWatch.stateOff")));
+  assert.ok(rows[1].description.includes(l10n("folderWatch.stateOff")));
   assert.equal(rows[2].description, l10n("folderWatch.rowDescriptionGlobal", { base: l10n("folderWatch.rowDescription", {
     kind: l10n("folderWatch.kindFolder"), mode: l10n("folderWatch.modeNew"), state: l10n("folderWatch.stateOn"),
   }) }));
-  assert.match(rows[3].description, new RegExp(l10n("github.kindRepo")));
-  assert.match(rows[4].description, new RegExp(l10n("folderWatch.kindFile")));
+  assert.ok(rows[3].description.includes(l10n("github.kindRepo")));
+  assert.ok(rows[4].description.includes(l10n("folderWatch.kindFile")));
   assert.deepEqual(shown[0].rows.map(iconOf), ["eye", "eye-closed", "globe", "github", "eye"]);
   assert.equal(shown[0].options.title, l10n("folderWatch.manageTitle"));
 });

@@ -7,9 +7,20 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { fakeContext } from "../_stub/context";
 
-// A fresh empty temp folder.
+// Every folder tmpDir made in this process. They are removed when the process exits, so the
+// many test files that share this helper need no clean-up hook of their own.
+const created: string[] = [];
+process.on("exit", () => {
+  for (const dir of created) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A fresh empty temp folder, removed when the test process ends.
 export function tmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "board-host-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "board-host-"));
+  created.push(dir);
+  return dir;
 }
 
 // An in-memory context whose extension storage is the given folder.

@@ -179,7 +179,7 @@ test("copy link puts the shortcut's share link on the clipboard and names it", a
   assert.deepEqual(infos(), [l10n("share.copied", { name: "a.ts" })]);
 });
 
-test("adding a file from anywhere stores a global shortcut, and a cancelled picker adds nothing", async () => {
+test("adding a file from anywhere stores a global shortcut, and a canceled picker adds nothing", async () => {
   fx.write("elsewhere.sh", "x");
   const dialogs: Array<Record<string, unknown>> = [];
   __setOpenDialogHandler(async (opts) => (dialogs.push({ ...opts }), undefined));

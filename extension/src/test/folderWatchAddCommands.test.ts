@@ -94,7 +94,7 @@ test("a file passed to the folder command falls back to the folder picker", asyn
   }]);
 });
 
-test("a path that does not exist falls back to the picker, and a cancelled picker adds nothing", async () => {
+test("a path that does not exist falls back to the picker, and a canceled picker adds nothing", async () => {
   drivePicks(l10n("folderWatch.modeNew"));
   driveInputs("");
   await addFolderWatch(store, asUri(`${fx.dir}/missing`));
@@ -103,12 +103,12 @@ test("a path that does not exist falls back to the picker, and a cancelled picke
   assert.deepEqual(titles(), []);
 });
 
-test("cancelling the mode question or the glob question adds nothing", async () => {
+test("canceling the mode question or the glob question adds nothing", async () => {
   drivePicks(undefined);
   const inputs = driveInputs("never");
   await addFolderWatch(store, asUri(`${fx.dir}/docs`));
   assert.deepEqual(store.list(), []);
-  assert.deepEqual(inputs, [], "the glob is not asked after a cancelled mode");
+  assert.deepEqual(inputs, [], "the glob is not asked after a canceled mode");
 
   drivePicks(l10n("folderWatch.modeNew"));
   driveInputs(undefined);
@@ -163,7 +163,7 @@ test("a folder passed to the file command opens the file picker, which asks for 
   }]);
 });
 
-test("a cancelled or empty file picker adds nothing", async () => {
+test("a canceled or empty file picker adds nothing", async () => {
   await addFileWatch(store, undefined);
   __setOpenDialogHandler(async () => []);
   await addFileWatch(store, undefined);

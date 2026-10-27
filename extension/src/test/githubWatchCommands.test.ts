@@ -115,7 +115,7 @@ test("no prefill when the remote is not on GitHub, there is no remote, or no fol
   assert.equal(inputs[0].value, undefined);
 });
 
-test("cancelling the slug box, a blank slug, or either filter box adds nothing", async () => {
+test("canceling the slug box, a blank slug, or either filter box adds nothing", async () => {
   driveInputs(undefined);
   await addGitHubRepoWatch(store);
   driveInputs("");
@@ -169,7 +169,7 @@ test("editing changes the target in place, keeps the label and filters, and drop
   assert.deepEqual(titles(), [l10n("github.repoRetargeted", { repo: "saropa/other" })]);
 });
 
-test("editing to the same repo (any case) or cancelling changes nothing and checks nothing", async () => {
+test("editing to the same repo (any case) or canceling changes nothing and checks nothing", async () => {
   const watch = await seed({});
   await store.addUnseen("r1", ["issue:1"]);
   driveInputs("SAROPA/Demo");
