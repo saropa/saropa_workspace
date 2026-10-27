@@ -173,6 +173,7 @@ async function turnOn(context: vscode.ExtensionContext, store: ShortcutStore, lo
   changed.fire();
 }
 
+// Starts the nightly check and registers the enable and dismiss commands.
 export function registerBoardOvernight(context: vscode.ExtensionContext, store: ShortcutStore, loadConfig: () => Promise<BoardConfig>): void {
   const check = (): void => void tonight(context, store, loadConfig);
   const first = setTimeout(check, FIRST_CHECK_MS);

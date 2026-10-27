@@ -11,12 +11,14 @@ import { l10n } from "../i18n/l10n";
 const SHOW_FILE_CHATS = "saropaChatExplorer.fileSessions.show";
 const ASK_MS = 3000;
 
+// The Hand to chat settings, already checked.
 export interface HandSettings {
   enabled: boolean;
   detail: DetailLevel;
   openChat: OpenChatMode;
 }
 
+// Reads the Hand to chat settings; a bad value falls back to its default.
 export function readHandSettings(): HandSettings {
   const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard.handToChat");
   return { enabled: c.get<boolean>("enabled", true), detail: asDetail(c.get<string>("detail", "standard")), openChat: asOpenChat(c.get<string>("openChat", "never")) };
