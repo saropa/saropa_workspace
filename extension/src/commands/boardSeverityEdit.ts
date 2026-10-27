@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { EditRefusal, EditResult, PreviewResult, SeverityDraft, applyDraft, removeSeverity } from "../board/severityEdit";
+import { SeverityDict } from "../board/severity";
+import { EditRefusal, EditResult, PreviewResult, SeverityDraft, applyDraft, dictOfSeverity, removeSeverity } from "../board/severityEdit";
 import { RULES_FILE } from "./boardConfigLoad";
 import { hasUnsavedCopy, isLink, readRules, sameRead } from "./boardRuleAssign";
 
@@ -22,16 +23,54 @@ function refuse(reason: EditRefusal): void {
 }
 
 // What is saved: a draft, or the removal of the whole `severity` key.
-export type SeverityChange = { kind: "draft"; draft: SeverityDraft; impact?: PreviewResult } | { kind: "restore" };
+export type SeverityChange =
+  | {
+      kind: "draft";
+      draft: SeverityDraft;
+      impact?: PreviewResult;
+      // Open documents the keywords can change; more than impact.checked when the check was partial.
+      total?: number;
+      // The parts of the file whose unusable values the save drops or replaces, in words.
+      lossy?: string;
+    }
+  | { kind: "restore" };
 
 export type SaveOutcome = "saved" | "unchanged" | "declined" | "refused";
 
 // The words about what the change does to the open documents.
-function impactText(impact: PreviewResult | undefined): string {
-  if (!impact || impact.checked === 0) {
-    return "";
+export function impactText(impact: PreviewResult | undefined, total?: number, lossy?: string): string {
+  const bits: string[] = [];
+  if (impact && impact.checked > 0) {
+    bits.push(impact.changed === 0 ? l10n("releaseBoard.keywords.msg.impactNone") : l10n("releaseBoard.keywords.msg.impact", { changed: impact.changed, checked: impact.checked, eased: impact.eased }));
+    if (total !== undefined && total > impact.checked) {
+      bits.push(l10n("releaseBoard.keywords.msg.impactPartial", { checked: impact.checked, total }));
+    }
   }
-  return impact.changed === 0 ? l10n("releaseBoard.keywords.msg.impactNone") : l10n("releaseBoard.keywords.msg.impact", { changed: impact.changed, checked: impact.checked, eased: impact.eased });
+  if (lossy) {
+    bits.push(l10n("releaseBoard.keywords.msg.lossyConfirm", { parts: lossy }));
+  }
+  return bits.join(" ");
+}
+
+// The dictionary the rules file holds now, or undefined when the file cannot be read as one.
+export async function currentSeverityDict(): Promise<SeverityDict | undefined> {
+  const root = vscode.workspace.workspaceFolders?.[0];
+  if (!root) {
+    return undefined;
+  }
+  const read = await readRules(vscode.Uri.joinPath(root.uri, RULES_FILE));
+  if (read.kind === "none") {
+    return dictOfSeverity(undefined);
+  }
+  if (read.kind === "encoding") {
+    return undefined;
+  }
+  try {
+    const doc: unknown = JSON.parse(read.text);
+    return dictOfSeverity(typeof doc === "object" && doc !== null ? (doc as Record<string, unknown>).severity : undefined);
+  } catch {
+    return undefined;
+  }
 }
 
 // Saves the change after the user confirmed. Returns "saved" when the file was written, so the
@@ -68,7 +107,7 @@ export async function saveSeverity(change: SeverityChange): Promise<SaveOutcome>
     return "unchanged";
   }
   const button = l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saveButton" : "releaseBoard.keywords.msg.restoreButton");
-  const ask = change.kind === "draft" ? l10n("releaseBoard.keywords.msg.confirmSave", { file: RULES_FILE, impact: impactText(change.impact) }) : l10n("releaseBoard.keywords.msg.confirmRestore", { file: RULES_FILE });
+  const ask = change.kind === "draft" ? l10n("releaseBoard.keywords.msg.confirmSave", { file: RULES_FILE, impact: impactText(change.impact, change.total, change.lossy) }) : l10n("releaseBoard.keywords.msg.confirmRestore", { file: RULES_FILE });
   if ((await vscode.window.showWarningMessage(ask, { modal: true }, button)) !== button) {
     return "declined";
   }

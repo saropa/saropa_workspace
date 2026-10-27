@@ -16,9 +16,12 @@ const READ_PARALLEL = 8;
 const SCORE_CHUNK = 20;
 
 // Reads the open documents (at most `max`) and scores each under the saved dictionary. A
-// document that cannot be read is left out. Resolves with the documents and how many were open.
+// document that cannot be read is left out. A document whose severity was set by hand, or that is
+// pinned, cannot change with the keywords and is not read. Resolves with the documents and how
+// many documents the keywords can change.
 export async function loadPreviewDocs(items: readonly BoardItem[], projects: readonly ProjectDef[], names: ReadonlyMap<string, string>, current: SeverityDict, max: number): Promise<{ docs: PreviewDoc[]; total: number }> {
-  const read = await mapLimit(items.slice(0, max), READ_PARALLEL, async (it): Promise<PreviewDoc | undefined> => {
+  const eligible = items.filter((it) => !it.severityByUser && !it.pinned);
+  const read = await mapLimit(eligible.slice(0, max), READ_PARALLEL, async (it): Promise<PreviewDoc | undefined> => {
     const def = projects.find((p) => p.id === it.project);
     if (!def) {
       return undefined;
@@ -31,7 +34,7 @@ export async function loadPreviewDocs(items: readonly BoardItem[], projects: rea
       return undefined;
     }
   });
-  return { docs: read.filter((d): d is PreviewDoc => d !== undefined), total: items.length };
+  return { docs: read.filter((d): d is PreviewDoc => d !== undefined), total: eligible.length };
 }
 
 const yieldToHost = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));

@@ -11,7 +11,7 @@ import { DEFAULT_SEVERITY, scoreDocument } from "../../board/severity";
 import { PreviewResult, SeverityDraft, defaultDraft } from "../../board/severityEdit";
 import { BoardItem } from "../../board/boardModel";
 import { BoardConfig } from "../../board/types";
-import { saveSeverity } from "../../commands/boardSeverityEdit";
+import { impactText, saveSeverity } from "../../commands/boardSeverityEdit";
 import { PREVIEW_DOCS, asPreviewMax, readKeywordSettings } from "../../commands/boardKeywordSettings";
 import { loadPreviewDocs, previewAsync } from "../../commands/boardKeywordPreview";
 import { openKeywordEditor } from "../../views/keywordEditorPanel";
@@ -232,8 +232,8 @@ test("the settings fall back to their defaults and are bounded", () => {
 function project(dir: string): BoardConfig["projects"][number] {
   return { id: "app", name: "App", path: vscode.Uri.file(dir).toString(), roots: ["docs"], ruleSets: [] };
 }
-function item(id: number, file: string, title: string): BoardItem {
-  return { id, project: "app", path: file, title, status: "red", kind: "", hub: false, blocksCount: 0, waitsOn: [], pinned: false, stopping: false } as BoardItem;
+function item(id: number, file: string, title: string, extra: Partial<BoardItem> = {}): BoardItem {
+  return { id, project: "app", path: file, title, status: "red", kind: "", hub: false, blocksCount: 0, waitsOn: [], pinned: false, stopping: false, ...extra } as BoardItem;
 }
 
 function docsIn(dir: string): BoardItem[] {
@@ -381,4 +381,60 @@ test("Cancel closes the editor and a message of the wrong shape is ignored", asy
   assert.equal(panel().disposed, true);
   open(dir);
   assert.equal(panel().disposed, false, "a closed editor can be opened again");
+});
+
+test("documents set by hand or pinned are not read: the keywords cannot change them", async () => {
+  const dir = tmpDir();
+  const items = docsIn(dir);
+  const mixed = [item(0, "docs/pricing.md", "Hand", { severityByUser: true }), item(1, "docs/plain.md", "Pinned", { pinned: true }), items[1]];
+  const { docs, total } = await loadPreviewDocs(mixed, [project(dir)], new Map(), DEFAULT_SEVERITY, 300);
+  assert.equal(total, 1);
+  assert.deepEqual(docs.map((d) => d.title), ["Plain"]);
+});
+
+test("the confirmation says when the check was partial and what the editor will drop", () => {
+  const impact: PreviewResult = { checked: 300, changed: 2, lowered: 2, raised: 0, eased: 1, tightened: 0, examples: [] };
+  const text = impactText(impact, 800, "threshold, High phrases");
+  assert.ok(text.includes("2 of 300 open documents would change level"));
+  assert.ok(text.includes("Only the first 300 of 800 open documents were checked."));
+  assert.ok(text.includes("dropped or replaced by the shipped ones: threshold, High phrases."));
+  assert.equal(impactText(impact, 300).includes("Only the first"), false);
+  assert.equal(impactText(undefined, 5, ""), "");
+});
+
+test("a save confirmation carries the partial check and the dropped values", async () => {
+  setup();
+  confirm("Save keywords");
+  const impact: PreviewResult = { checked: 20, changed: 0, lowered: 0, raised: 0, eased: 0, tightened: 0, examples: [] };
+  await saveSeverity({ kind: "draft", draft: lower, impact, total: 50, lossy: "weights" });
+  const ask = stub.__warningMessages()[0];
+  assert.ok(ask.includes("Only the first 20 of 50") && ask.includes("weights"), ask);
+});
+
+test("an editor opened on odd values names what a save drops, on the page and in the confirmation", async () => {
+  const { dir, file } = setup();
+  let saved = 0;
+  open(dir, async () => void (saved += 1), { threshold: 100, phrases: { low: ["ok", "a\tb"] } } as never);
+  put(file, JSON.stringify({ version: 1, severity: { threshold: 100, phrases: { low: ["ok", "a\tb"] } } }));
+  assert.ok(panel().webview.html.includes("will be dropped or replaced by the shipped ones when you save: Low phrases, threshold."));
+  confirm("Save keywords");
+  send({ type: "save", draft: draftWith((d) => (d.threshold = 4)) });
+  await settleUntil(() => saved === 1);
+  assert.ok(stub.__warningMessages()[0].includes("Low phrases, threshold"));
+});
+
+test("a file that changed since the editor opened is not written over a stale check", async () => {
+  const { dir, file } = setup();
+  let saved = 0;
+  open(dir, async () => void (saved += 1), { threshold: 5 });
+  put(file, '{"version":1}');
+  confirm("Save keywords");
+  send({ type: "save", draft: lower });
+  await settleUntil(() => stub.__warningMessages().length > 0);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(stub.__warningMessages()[0].includes("changed since the editor was opened"));
+  assert.equal(stub.__warningMessages().length, 1, "no confirmation was asked");
+  assert.equal(saved, 0);
+  assert.equal(fs.readFileSync(file, "utf8"), '{"version":1}');
+  assert.equal(panel().disposed, false);
 });

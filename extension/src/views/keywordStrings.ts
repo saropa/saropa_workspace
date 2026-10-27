@@ -9,7 +9,7 @@ export const KEYWORD_LABEL_KEYS = [
   "title", "intro", "warn", "previewTitle", "previewTitleTip", "previewWait", "previewInvalid", "previewNone", "previewSummary", "previewEase", "previewTighten",
   "previewPartial", "previewExample", "previewEaseMark", "previewTightenMark", "previewMore", "previewListTip", "sev_extreme", "sev_critical",
   "sev_high", "sev_medium", "sev_low", "help_extreme", "help_critical", "help_high", "help_low", "mediumNote", "levelTip", "phrasesHint", "chipTip",
-  "removeTip", "removeText", "addPlaceholder", "inputTip", "addButton", "addTip", "restoreLevel", "restoreLevelTip", "restoreAll", "restoreAllTip",
+  "removeTip", "addPlaceholder", "inputTip", "addButton", "addTip", "restoreLevel", "restoreLevelTip", "restoreAll", "restoreAllTip",
   "changedMark", "changedTip", "scoringTitle", "scoringTip", "thresholdLabel", "thresholdHelp", "wTitleLabel", "wTitleHelp", "wHeadLabel",
   "wHeadHelp", "wBodyLabel", "wBodyHelp", "wCapLabel", "wCapHelp", "numTip", "negTitle", "negTip", "negHelp", "negChipTip", "negRemoveTip",
   "negInputTip", "negAddTip", "negRestoreTip", "save", "saveTip", "cancel", "cancelTip", "problemTooLong", "problemTooMany", "problemDuplicate",
@@ -37,4 +37,9 @@ export function keywordBoardLabels(): Record<string, string> {
     out.edit = "";
   }
   return out;
+}
+
+// The words for the parts of a dictionary, joined (e.g. "threshold, High phrases").
+export function partNames(parts: readonly string[]): string {
+  return parts.map((p) => l10n(`releaseBoard.keywords.board.part_${p.split(".").join("_")}`)).join(l10n("releaseBoard.keywords.board.partSep"));
 }

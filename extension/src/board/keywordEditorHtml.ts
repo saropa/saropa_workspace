@@ -59,7 +59,7 @@ function dataBlock(t: KeywordLabelTable, draft: SeverityDraft, saved: SeverityDr
   return json.split("<").join("\\u003c");
 }
 
-export function renderKeywordEditor(t: KeywordLabelTable, nonce: string, draft: SeverityDraft, saved: SeverityDraft = draft): string {
+export function renderKeywordEditor(t: KeywordLabelTable, nonce: string, draft: SeverityDraft, saved: SeverityDraft = draft, note = ""): string {
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
   const differs = new Set(draftDiffers(draft));
   const sections = EDIT_LEVELS.map((l) => listSection(t, l, draft.phrases[l], differs.has(`phrases.${l}`))).join("\n");
@@ -75,6 +75,7 @@ ${numberField(t, "n-perPhraseCap", t.wCapLabel, t.wCapHelp, w.perPhraseCap, LIMI
 <h1 title="${e(t.title)}">${e(t.title)}</h1>
 <p class="note" title="${e(t.intro)}">${e(t.intro)}</p>
 <p class="warn" role="note" title="${e(t.warn)}">${e(t.warn)}</p>
+${note ? `<p class="warn" role="note" title="${e(note)}">${e(note)}</p>` : ""}
 <details class="box" open data-sec="preview"><summary title="${e(t.previewTitleTip)}">${e(t.previewTitle)} <span class="pill" id="pv-count" title="${e(t.previewTitleTip)}">0</span></summary>
 <p id="pv-text" role="status" aria-live="polite" title="${e(t.previewTitleTip)}">${e(t.previewWait)}</p>
 <ul id="pv-list" title="${e(t.previewListTip)}"></ul></details>

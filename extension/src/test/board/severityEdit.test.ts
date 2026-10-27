@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_SEVERITY, scoreDocument } from "../../board/severity";
 import {
   EDIT_LEVELS, LIMITS, SeverityDraft, applyDraft, checkDraft, customizedParts, defaultDraft, dictFromDraft, dictOfSeverity, draftDiffers, draftFromDict, draftOfText,
-  normalizeText, previewChanges, removeSeverity,
+  draftFromDictChecked, normalizeText, previewChanges, removeSeverity,
 } from "../../board/severityEdit";
 
 const clone = (d: SeverityDraft): SeverityDraft => JSON.parse(JSON.stringify(d));
@@ -246,4 +246,40 @@ test("examples put documents that stop the release no longer first, and are cut 
   assert.equal(r.changed, 14, "the two shipped documents change as well");
   assert.equal(r.examples.length, 5);
   assert.ok(r.examples.every((e) => e.stopsFrom && !e.stopsTo));
+});
+
+test("a value the board scores with counts as customized even when the editor cannot show it", () => {
+  const parts = (over: unknown): string[] => customizedParts(over);
+  assert.deepEqual(parts({ threshold: 100 }), ["threshold"]);
+  assert.deepEqual(parts({ threshold: "100" }), ["threshold"]);
+  assert.deepEqual(parts({ threshold: null }), ["threshold"]);
+  assert.deepEqual(parts({ phrases: { critical: null } }), ["phrases.critical"]);
+  assert.deepEqual(parts({ phrases: { extreme: null, high: "x" } }), ["phrases.extreme", "phrases.high"]);
+  assert.deepEqual(parts({ weights: { title: 0.1 } }), ["weights"]);
+  assert.deepEqual(parts({ weights: { title: "3" } }), ["weights"]);
+  assert.deepEqual(parts({ weights: "x" }), ["weights"]);
+  assert.deepEqual(parts({ phrases: { low: [...DEFAULT_SEVERITY.phrases.low!, "x".repeat(200)] } }), ["phrases.low"]);
+  assert.deepEqual(parts({ phrases: { low: [...DEFAULT_SEVERITY.phrases.low!, "tab\there"] } }), ["phrases.low"]);
+  assert.deepEqual(parts({ phrases: { low: [5] } }), ["phrases.low"]);
+  assert.deepEqual(parts({ negation: null }), ["negation"]);
+  assert.deepEqual(parts({ audience: { pro: null } }), ["audience"]);
+  assert.deepEqual(parts({ minBodyDensity: "3" }), ["minBodyDensity"]);
+  assert.deepEqual(parts({ weights: null, phrases: null, audience: null }), [], "a null section is ignored by the board, as the shipped one");
+  assert.deepEqual(parts({ audience: {}, weights: {}, phrases: {} }), []);
+});
+
+test("a severity key with an empty audience still scores", () => {
+  const dict = dictOfSeverity({ audience: {} });
+  assert.deepEqual(dict.audience.pro, DEFAULT_SEVERITY.audience.pro);
+  assert.equal(scoreDocument("# x\n", "a.md", dict).audience, "all");
+  assert.deepEqual(dictOfSeverity({ audience: { pro: null } }).audience.pro, DEFAULT_SEVERITY.audience.pro);
+});
+
+test("the parts where the editor drops or replaces a value are named", () => {
+  assert.deepEqual(draftFromDictChecked(DEFAULT_SEVERITY).replaced, []);
+  const odd = { ...DEFAULT_SEVERITY, threshold: 100, weights: { ...DEFAULT_SEVERITY.weights, title: 0.1 }, negation: null, phrases: { ...DEFAULT_SEVERITY.phrases, low: ["ok", "x".repeat(99), "a\tb"], high: [7] } } as unknown as typeof DEFAULT_SEVERITY;
+  const r = draftFromDictChecked(odd);
+  assert.deepEqual(r.replaced.sort(), ["negation", "phrases.high", "phrases.low", "threshold", "weights"]);
+  assert.deepEqual(r.draft.phrases.low, ["ok"]);
+  assert.equal(r.draft.threshold, 3);
 });

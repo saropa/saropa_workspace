@@ -3,13 +3,14 @@ import * as vscode from "vscode";
 import { BoardItem } from "../board/boardModel";
 import { renderKeywordEditor } from "../board/keywordEditorHtml";
 import { Profile } from "../board/severity";
-import { DraftProblem, LIMITS, PreviewDoc, checkDraft, dictFromDraft, dictOfSeverity, draftFromDict } from "../board/severityEdit";
+import { DraftProblem, LIMITS, PreviewDoc, checkDraft, dictFromDraft, dictOfSeverity, draftFromDictChecked } from "../board/severityEdit";
 import { BoardConfig } from "../board/types";
 import { loadPreviewDocs, previewAsync } from "../commands/boardKeywordPreview";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
-import { saveSeverity } from "../commands/boardSeverityEdit";
+import { currentSeverityDict, saveSeverity } from "../commands/boardSeverityEdit";
 import { l10n } from "../i18n/l10n";
-import { keywordLabels } from "./keywordStrings";
+import { RULES_FILE } from "../commands/boardConfigLoad";
+import { keywordLabels, partNames } from "./keywordStrings";
 
 // Release Board, the keyword editor: an editor-tab webview with the phrases, threshold, weights
 // and negation words that decide a document's severity. One instance. The page holds a draft;
@@ -35,12 +36,16 @@ class KeywordEditorPanel {
   private readonly dict;
   private readonly docs: Promise<{ docs: PreviewDoc[]; total: number }>;
   private saving = false;
+  // The parts whose unusable values a save would drop or replace, in words (empty when none).
+  private readonly lossy: string;
 
   constructor(private readonly panel: vscode.WebviewPanel, private readonly input: KeywordEditorInput) {
     this.dict = dictOfSeverity(input.cfg.severity);
+    const { draft: saved, replaced } = draftFromDictChecked(this.dict);
+    this.lossy = replaced.length > 0 ? partNames(replaced) : "";
     this.docs = loadPreviewDocs(input.items, input.cfg.projects, input.projectNames, this.dict, readKeywordSettings().previewMaxDocuments).catch(() => ({ docs: [], total: input.items.length }));
-    const saved = draftFromDict(this.dict);
-    panel.webview.html = renderKeywordEditor(keywordLabels(), crypto.randomBytes(16).toString("base64"), saved, saved);
+    const note = this.lossy ? l10n("releaseBoard.keywords.msg.lossyNote", { parts: this.lossy }) : "";
+    panel.webview.html = renderKeywordEditor(keywordLabels(), crypto.randomBytes(16).toString("base64"), saved, saved, note);
     panel.onDidDispose(() => this.onClosed(), null, this.disposables);
     panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
   }
@@ -96,9 +101,16 @@ class KeywordEditorPanel {
     }
     this.saving = true;
     try {
-      const { docs } = await this.docs;
+      // The file may have changed since the editor opened (Restore defaults, a hand edit): the
+      // dictionary the check ran against would be out of date, so nothing is written.
+      const now = await currentSeverityDict();
+      if (now && JSON.stringify(now) !== JSON.stringify(this.dict)) {
+        void vscode.window.showWarningMessage(l10n("releaseBoard.keywords.msg.changedSinceOpen", { file: RULES_FILE }));
+        return;
+      }
+      const { docs, total } = await this.docs;
       const impact = await previewAsync(docs, dictFromDraft(checked.draft, this.dict), this.input.profile, () => true);
-      if ((await saveSeverity({ kind: "draft", draft: checked.draft, impact })) === "saved") {
+      if ((await saveSeverity({ kind: "draft", draft: checked.draft, impact, total, lossy: this.lossy })) === "saved") {
         this.panel.dispose();
         await this.input.onSaved();
       }

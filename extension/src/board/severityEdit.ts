@@ -136,36 +136,59 @@ export function checkDraft(raw: unknown): DraftCheck {
   return { ok: true, draft };
 }
 
-// The draft a dictionary stands for, as the page starts from it. Lenient: a hand-edited value
-// that cannot be used falls back to the shipped one, and lists are cut at the limits.
-export function draftFromDict(dict: SeverityDict): SeverityDraft {
-  const num = (v: unknown, fallback: number, r: { min: number; max: number }): number => (isWhole(v, r) ? v : fallback);
+// The draft a dictionary stands for, as the page starts from it, and the parts where a value the
+// editor cannot use (out of range, wrong type, too long, a control character, over the cap) was
+// dropped or replaced by the shipped one. A save would write the cleaned draft.
+export function draftFromDictChecked(dict: SeverityDict): { draft: SeverityDraft; replaced: string[] } {
   const d = DEFAULT_SEVERITY;
-  const list = (v: unknown, shipped: readonly string[], max: number, chars: number): string[] => {
-    const items = Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !hasControl(x) && normalizeText(x).length <= chars) : [...shipped];
+  const replaced: string[] = [];
+  const num = (v: unknown, fallback: number, r: { min: number; max: number }): { n: number; ok: boolean } => (isWhole(v, r) ? { n: v, ok: true } : { n: fallback, ok: false });
+  const list = (v: unknown, shipped: readonly string[], max: number, chars: number, part: string): string[] => {
+    if (!Array.isArray(v)) {
+      replaced.push(part);
+      return [...shipped];
+    }
     const seen = new Set<string>();
-    return items.filter((x) => {
+    const out: string[] = [];
+    for (const x of v) {
+      if (typeof x !== "string" || hasControl(x) || normalizeText(x).length > chars) {
+        replaced.push(part);
+        continue;
+      }
       const n = normalizeText(x);
-      return n !== "" && !seen.has(n) && seen.add(n);
-    }).slice(0, max);
+      if (n !== "" && !seen.has(n)) {
+        seen.add(n);
+        out.push(x);
+      }
+    }
+    if (out.length > max) {
+      replaced.push(part);
+    }
+    return out.slice(0, max);
   };
   const phrases = {} as Record<EditLevel, string[]>;
   for (const level of EDIT_LEVELS) {
-    phrases[level] = list(dict.phrases?.[level], defaultLevel(level), LIMITS.phrases, LIMITS.phraseChars);
+    phrases[level] = list(dict.phrases?.[level], defaultLevel(level), LIMITS.phrases, LIMITS.phraseChars, `phrases.${level}`);
   }
-  const w = dict.weights ?? d.weights;
-  return {
-    threshold: num(dict.threshold, d.threshold, LIMITS.threshold),
-    weights: {
-      title: num(w.title, d.weights.title, LIMITS.weight),
-      head: num(w.head, d.weights.head, LIMITS.weight),
-      body: num(w.body, d.weights.body, LIMITS.weight),
-      perPhraseCap: num(w.perPhraseCap, d.weights.perPhraseCap, LIMITS.cap),
-    },
-    negation: list(dict.negation, d.negation, LIMITS.negation, LIMITS.negationChars),
+  const w = (isObject(dict.weights) ? dict.weights : d.weights) as SeverityDict["weights"];
+  const t = num(dict.threshold, d.threshold, LIMITS.threshold);
+  const wt = { title: num(w.title, d.weights.title, LIMITS.weight), head: num(w.head, d.weights.head, LIMITS.weight), body: num(w.body, d.weights.body, LIMITS.weight), perPhraseCap: num(w.perPhraseCap, d.weights.perPhraseCap, LIMITS.cap) };
+  if (!t.ok) {
+    replaced.push("threshold");
+  }
+  if (!isObject(dict.weights) || !wt.title.ok || !wt.head.ok || !wt.body.ok || !wt.perPhraseCap.ok) {
+    replaced.push("weights");
+  }
+  const draft: SeverityDraft = {
+    threshold: t.n,
+    weights: { title: wt.title.n, head: wt.head.n, body: wt.body.n, perPhraseCap: wt.perPhraseCap.n },
+    negation: list(dict.negation, d.negation, LIMITS.negation, LIMITS.negationChars, "negation"),
     phrases,
   };
+  return { draft, replaced: [...new Set(replaced)] };
 }
+
+export const draftFromDict = (dict: SeverityDict): SeverityDraft => draftFromDictChecked(dict).draft;
 
 // The shipped values as a draft.
 export const defaultDraft = (): SeverityDraft => draftFromDict(DEFAULT_SEVERITY);
@@ -204,20 +227,49 @@ export function draftDiffers(draft: SeverityDraft): string[] {
   return out;
 }
 
-// The parts of a user's `severity` key that differ from the shipped dictionary, by part. Also
-// covers the parts the editor does not show ("minBodyDensity", "audience"), so the board can say
-// the keywords are customized however the change was made.
+// The parts of a user's `severity` key that differ from the shipped dictionary, by part, judged
+// on the raw values the board scores with (so an out-of-range number, a null list or a part of
+// the wrong type counts as a change, even though the editor cannot show it). Also covers the
+// parts the editor does not show ("minBodyDensity", "audience").
 export function customizedParts(over: unknown): string[] {
   if (!isObject(over)) {
     return [];
   }
-  const dict = dictOfSeverity(over);
-  const out = draftDiffers(draftFromDict(dict));
-  if (dict.minBodyDensity !== DEFAULT_SEVERITY.minBodyDensity && Object.prototype.hasOwnProperty.call(over, "minBodyDensity")) {
+  const d = DEFAULT_SEVERITY;
+  const out: string[] = [];
+  const has = (o: Record<string, unknown>, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+  // A list is the shipped one when it holds the same strings in any order.
+  const isShipped = (v: unknown, shipped: readonly string[]): boolean => Array.isArray(v) && v.every((x) => typeof x === "string") && sameList(v as string[], shipped);
+  // mergeDict ignores a null or missing section and spreads anything else.
+  const section = (k: string): Record<string, unknown> | "bad" | undefined => {
+    const v = over[k];
+    return v === undefined || v === null ? undefined : isObject(v) ? v : "bad";
+  };
+  if (has(over, "threshold") && over.threshold !== d.threshold) {
+    out.push("threshold");
+  }
+  const w = section("weights");
+  if (w === "bad" || (w && (Object.keys(d.weights) as Array<keyof typeof d.weights>).some((k) => has(w, k) && w[k] !== d.weights[k]))) {
+    out.push("weights");
+  }
+  if (has(over, "negation") && !isShipped(over.negation, d.negation)) {
+    out.push("negation");
+  }
+  const p = section("phrases");
+  if (p === "bad") {
+    out.push(...EDIT_LEVELS.map((l) => `phrases.${l}`));
+  } else if (p) {
+    for (const level of EDIT_LEVELS) {
+      if (has(p, level) && !isShipped(p[level], defaultLevel(level))) {
+        out.push(`phrases.${level}`);
+      }
+    }
+  }
+  if (has(over, "minBodyDensity") && over.minBodyDensity !== d.minBodyDensity) {
     out.push("minBodyDensity");
   }
-  const pro = isObject(over.audience) && Array.isArray(over.audience.pro) ? over.audience.pro.filter((x): x is string => typeof x === "string") : undefined;
-  if (pro && !sameList(pro, DEFAULT_SEVERITY.audience.pro)) {
+  const a = section("audience");
+  if (a === "bad" || (a && has(a, "pro") && !isShipped(a.pro, d.audience.pro))) {
     out.push("audience");
   }
   return out;
@@ -339,7 +391,14 @@ export function dictOfSeverity(over: unknown): SeverityDict {
     return DEFAULT_SEVERITY;
   }
   const o = over as Partial<SeverityDict>;
-  return { ...DEFAULT_SEVERITY, ...o, weights: { ...DEFAULT_SEVERITY.weights, ...(isObject(o.weights) ? o.weights : {}) }, phrases: { ...DEFAULT_SEVERITY.phrases, ...(isObject(o.phrases) ? o.phrases : {}) } };
+  const pro = isObject(o.audience) && Array.isArray(o.audience.pro) && o.audience.pro.every((x) => typeof x === "string") ? o.audience.pro : DEFAULT_SEVERITY.audience.pro;
+  return {
+    ...DEFAULT_SEVERITY,
+    ...o,
+    weights: { ...DEFAULT_SEVERITY.weights, ...(isObject(o.weights) ? o.weights : {}) },
+    phrases: { ...DEFAULT_SEVERITY.phrases, ...(isObject(o.phrases) ? o.phrases : {}) },
+    audience: { ...DEFAULT_SEVERITY.audience, ...(isObject(o.audience) ? o.audience : {}), pro },
+  };
 }
 
 // ---- Preview: which documents change level ----
