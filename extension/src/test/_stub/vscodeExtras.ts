@@ -65,6 +65,28 @@ export function recordWarning(message: string, rest: unknown[]): Promise<string 
   return Promise.resolve(answer(message, rest.filter((x): x is string => typeof x === "string")));
 }
 
+// Information toasts: recorded like warnings, answered by a replaceable handler (default: dismissed).
+let infos: string[] = [];
+let infoAnswer: Answer = () => undefined;
+// The messages window.showInformationMessage was called with since the last reset.
+export function __infoMessages(): readonly string[] {
+  return infos;
+}
+// Test-control hook: chooses what an information toast answers (a button label, or undefined).
+export function __setInfoAnswer(next: Answer): void {
+  infoAnswer = next;
+}
+// Test-control hook: clears the recorded information toasts and restores the dismiss answer.
+export function __resetInfo(): void {
+  infos = [];
+  infoAnswer = () => undefined;
+}
+// window.showInformationMessage: option objects are skipped, labels are passed to the handler.
+export function recordInfo(message: string, rest: unknown[]): Promise<string | undefined> {
+  infos.push(message);
+  return Promise.resolve(infoAnswer(message, rest.filter((x): x is string => typeof x === "string")));
+}
+
 // vscode.WorkspaceEdit, rename only: renameFile is queued and applyEdit performs it on disk.
 export class WorkspaceEdit {
   readonly renames: Array<{ from: { fsPath: string }; to: { fsPath: string } }> = [];

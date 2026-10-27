@@ -19,11 +19,16 @@ const SAFE_URL = /^(?:https?:\/\/|mailto:)/i;
  * first, so user text cannot open a tag. Link and image targets are the one place text
  * lands inside an attribute, so they are limited to http, https and mailto URLs and have
  * double quotes escaped; a target with another scheme is left as plain text. Code spans
- * go before emphasis so asterisks inside backticks are not treated as bold.
+ * are set aside before emphasis so asterisks inside backticks stay literal.
  */
 function inlineMarkup(line: string): string {
-  let s = escapeMd(line);
-  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // Code spans are lifted out first (NUL-delimited slots; any NUL in the text is dropped)
+  // so link, bold and italic rules never rewrite what is inside backticks.
+  const spans: string[] = [];
+  let s = escapeMd(line.replace(/\u0000/g, "")).replace(/`([^`]+)`/g, (_m, code: string) => {
+    spans.push(code);
+    return `\u0000${spans.length - 1}\u0000`;
+  });
   s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt: string, url: string) =>
     SAFE_URL.test(url) ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}">` : m
   );
@@ -34,7 +39,7 @@ function inlineMarkup(line: string): string {
   s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
   s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
   s = s.replace(/_(.+?)_/g, "<em>$1</em>");
-  return s;
+  return s.replace(/\u0000(\d+)\u0000/g, (_m, i: string) => `<code>${spans[Number(i)]}</code>`);
 }
 
 /** Which block (if any) the converter is currently inside. */

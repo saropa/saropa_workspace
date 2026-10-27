@@ -187,3 +187,14 @@ test("window activity events reach their subscribers", () => {
   __fireSelection();
   assert.deepEqual(seen, ["focus:false", "selection", "editor"]);
 });
+
+test("the quick pick handler also receives the options", async () => {
+  let seen: unknown;
+  __setPickHandler(async (_items, options) => {
+    seen = options;
+    return undefined;
+  });
+  await window.showQuickPick(["a"], { placeHolder: "Pick one" });
+  assert.deepEqual(seen, { placeHolder: "Pick one" });
+  __resetHandlers();
+});

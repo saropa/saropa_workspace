@@ -1,0 +1,97 @@
+import { test, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import * as vscode from "./vscode";
+
+beforeEach(() => vscode.__resetHosts());
+
+test("a provider registration is recorded until its handle is disposed", () => {
+  const a = vscode.window.registerTreeDataProvider("view.a", {});
+  vscode.window.registerWebviewViewProvider("view.b", {});
+  vscode.workspace.registerTextDocumentContentProvider("scheme", {});
+  assert.deepEqual(vscode.__providerRegistrations(), [
+    { kind: "treeData", id: "view.a" },
+    { kind: "webviewView", id: "view.b" },
+    { kind: "textDocumentContent", id: "scheme" },
+  ]);
+  a.dispose();
+  a.dispose();
+  assert.deepEqual(vscode.__providerRegistrations().map((p) => p.id), ["view.b", "scheme"]);
+});
+
+test("a code lens provider is keyed by a string selector or the JSON of an object one", () => {
+  vscode.languages.registerCodeLensProvider("json", {});
+  vscode.languages.registerCodeLensProvider({ language: "dart" }, {});
+  assert.deepEqual(vscode.__providerRegistrations().map((p) => p.id), ["json", '{"language":"dart"}']);
+});
+
+test("host events reach their listeners until disposed", () => {
+  const seen: unknown[] = [];
+  const sub = vscode.workspace.onDidSaveTextDocument((d) => seen.push(d));
+  vscode.__fireHostEvent("textSaved", "one");
+  sub.dispose();
+  vscode.__fireHostEvent("textSaved", "two");
+  assert.deepEqual(seen, ["one"]);
+});
+
+test("a file watcher records its pattern and relays create, change and delete", () => {
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.json");
+  const seen: string[] = [];
+  watcher.onDidCreate(() => seen.push("create"));
+  watcher.onDidChange(() => seen.push("change"));
+  watcher.onDidDelete(() => seen.push("delete"));
+  watcher.created.fire(1);
+  watcher.changed.fire(1);
+  watcher.deleted.fire(1);
+  assert.deepEqual(seen, ["create", "change", "delete"]);
+  assert.equal(vscode.__fileWatchers()[0].pattern, "**/*.json");
+  watcher.dispose();
+  assert.equal(watcher.disposed, true);
+});
+
+test("a tree view records reveals and disposal", async () => {
+  const view = vscode.window.createTreeView("v", {});
+  await view.reveal("node");
+  view.dispose();
+  assert.deepEqual(vscode.__treeViews()[0].revealed, ["node"]);
+  assert.equal(view.disposed, true);
+});
+
+test("a status bar item shows, hides and disposes", () => {
+  const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
+  assert.equal(item.alignment, 2);
+  assert.equal(item.priority, 90);
+  item.show();
+  assert.equal(item.visible, true);
+  item.hide();
+  assert.equal(item.visible, false);
+  item.show();
+  item.dispose();
+  assert.equal(item.visible, false);
+  assert.equal(item.disposed, true);
+});
+
+test("a reset forgets every recorded host object", () => {
+  vscode.window.createTreeView("v", {});
+  vscode.window.createStatusBarItem();
+  vscode.workspace.createFileSystemWatcher("x");
+  vscode.window.registerUriHandler({});
+  vscode.window.createQuickPick();
+  vscode.__resetHosts();
+  assert.equal(vscode.__treeViews().length + vscode.__statusBarItems().length + vscode.__fileWatchers().length + vscode.__providerRegistrations().length + vscode.__quickPicks().length, 0);
+});
+
+test("a quick pick accepts the selected item and hides on request", () => {
+  const pick = vscode.window.createQuickPick();
+  const log: string[] = [];
+  pick.onDidAccept(() => log.push(`accept ${String(pick.selectedItems[0])}`));
+  pick.onDidHide(() => log.push("hide"));
+  pick.show();
+  assert.equal(pick.shown, true);
+  pick.accept("row");
+  pick.hide();
+  pick.dispose();
+  assert.deepEqual(log, ["accept row", "hide"]);
+  assert.equal(pick.shown, false);
+  assert.equal(pick.disposed, true);
+  assert.equal(vscode.__quickPicks()[0], pick);
+});

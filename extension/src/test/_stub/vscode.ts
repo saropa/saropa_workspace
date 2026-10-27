@@ -14,10 +14,14 @@
 // ExtensionContext (an in-memory Map), not here.
 
 import * as nodeFs from "node:fs";
-import { Disposable, applyEdit, recordWarning } from "./vscodeExtras";
+import { Disposable, applyEdit, recordWarning, recordInfo, languages as readLanguages } from "./vscodeExtras";
 
 import { FileType, Uri, WorkspaceFolder, EventEmitter } from "./vscodeTypes";
 import { findFiles } from "./vscodeFind";
+import { hostWorkspace, hostWindow, hostLanguages } from "./vscodeHosts";
+
+/** Stub of `vscode.languages`: the Problems panel read plus the provider registrations. */
+export const languages = { ...readLanguages, ...hostLanguages };
 import { createOutputChannel } from "./vscodeOutput";
 import { FakeWebviewPanel, fakeWebviewPanel, createdPanels } from "./vscodeWebview";
 
@@ -25,8 +29,10 @@ import { FakeWebviewPanel, fakeWebviewPanel, createdPanels } from "./vscodeWebvi
 export * from "./vscodeTypes";
 export * from "./vscodeWebview";
 export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
+export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands } from "./vscodeCommands";
+export { StatusBarAlignment, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __resetHosts } from "./vscodeHosts";
 
-export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, languages } from "./vscodeExtras";
+export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
 
 // that path); a test installs folders pointing at its temp directory.
 let folders: WorkspaceFolder[] | undefined;
@@ -195,6 +201,7 @@ export const workspace = {
   onDidChangeConfiguration: (_listener: (e: { affectsConfiguration(section: string): boolean }) => void): { dispose(): void } => ({ dispose: (): void => undefined }),
   fs: fsApi,
   findFiles,
+  ...hostWorkspace,
 };
 
 // vscode.extensions.getExtension: the suite recipes probe whether a sibling Saropa
@@ -226,7 +233,7 @@ type InputHandler = (opts?: { prompt?: string; value?: string }) => Promise<Inpu
 // QuickPickItem object (or, with canPickMany, an array of them) — not just a string.
 // So the handler sees the item list as `unknown[]` and may return any shape (a chosen
 // item, an array of items, or undefined for cancel); the tested editors narrow it.
-type PickHandler = (items: readonly unknown[]) => Promise<unknown>;
+type PickHandler = (items: readonly unknown[], options?: unknown) => Promise<unknown>;
 // window.showOpenDialog: the ${pickFolder:...} token test drives this through a
 // settable handler, same shape as input/pick — sees the options passed (so a test
 // can assert the defaultUri/title) and returns a chosen Uri array or undefined.
@@ -269,10 +276,9 @@ export const window = {
   showInputBox(opts?: { prompt?: string; value?: string }): Promise<InputResult> {
     return inputHandler(opts);
   },
-  // The real signature takes (items, options); the second arg is unused by the
-  // tested code paths, so the stub ignores it.
-  showQuickPick(items: readonly unknown[]): Promise<unknown> {
-    return pickHandler(items);
+  // The handler also sees the options (placeholder, canPickMany), so a test can assert them.
+  showQuickPick(items: readonly unknown[], options?: unknown): Promise<unknown> {
+    return pickHandler(items, options);
   },
   showOpenDialog(opts?: OpenDialogOptions): Promise<Uri[] | undefined> {
     return openDialogHandler(opts);
@@ -280,14 +286,9 @@ export const window = {
   showSaveDialog(_opts?: unknown): Promise<Uri | undefined> {
     return Promise.resolve(undefined);
   },
-  // The branch-set binder and several command handlers emit toasts via these. No
-  // test asserts on their text, so they are inert no-ops that resolve to undefined
-  // (the "no action button chosen" result) — they must only exist and not throw.
-  showInformationMessage(
-    _message: string,
-    ..._items: string[]
-  ): Promise<string | undefined> {
-    return Promise.resolve(undefined);
+  // Recorded and answered by the handler in vscodeExtras (default: dismissed).
+  showInformationMessage(message: string, ...rest: unknown[]): Promise<string | undefined> {
+    return recordInfo(message, rest);
   },
   // Recorded and answered by the handler in vscodeExtras (default: dismissed).
   showWarningMessage(message: string, ...rest: unknown[]): Promise<string | undefined> {
@@ -315,6 +316,7 @@ export const window = {
   onDidChangeWindowState: windowStateEmitter.event,
   onDidChangeTextEditorSelection: selectionEmitter.event,
   onDidChangeActiveTextEditor: activeEditorEmitter.event,
+  ...hostWindow,
 };
 
 // Test drivers for the window activity events.
@@ -330,46 +332,6 @@ export function __fireSelection(): void {
 // "any fire counts as activity" shortcut as __fireSelection.
 export function __fireActiveEditor(): void {
   activeEditorEmitter.fire(undefined);
-}
-
-// commands.executeCommand: the analytics preview calls it to open the Markdown
-// preview, but the unit-tested path (buildReport) never reaches it. Modeled as an
-// inert async no-op. Each call is recorded so a test that DOES care which command
-// ran (the branch-set binder's on-switch shortcut runner) can assert it; the recording
-// is cleared by __resetRecordedCommands.
-const recordedCommands: Array<{ command: string; args: unknown[] }> = [];
-// vscode.commands stand-in: executeCommand is an inert no-op that records the
-// call, so a test that cares which command ran can assert against it afterward.
-export const commands = {
-  // Keeps the handler so a test can call it through __registeredCommands.
-  registerCommand(command: string, handler: (...args: unknown[]) => unknown): Disposable {
-    registeredCommands.set(command, handler);
-    return new Disposable(() => registeredCommands.delete(command));
-  },
-  executeCommand(command: string, ...rest: unknown[]): Promise<undefined> {
-    recordedCommands.push({ command, args: rest });
-    return Promise.resolve(undefined);
-  },
-};
-
-// Handlers added by commands.registerCommand, by command id.
-const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
-// The handlers registered with commands.registerCommand, by command id.
-export function __registeredCommands(): ReadonlyMap<string, (...args: unknown[]) => unknown> {
-  return registeredCommands;
-}
-
-// The commands executeCommand was called with since the last reset, for tests that
-// assert a side-effecting command fired (e.g. saropaWorkspace.runPin).
-export function __recordedCommands(): ReadonlyArray<{
-  command: string;
-  args: unknown[];
-}> {
-  return recordedCommands;
-}
-// Test-control hook: clears the recorded executeCommand call log between tests.
-export function __resetRecordedCommands(): void {
-  recordedCommands.length = 0;
 }
 
 // Test-control hook: installs the handler that answers window.showInputBox calls.
