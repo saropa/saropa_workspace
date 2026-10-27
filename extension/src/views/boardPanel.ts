@@ -3,8 +3,9 @@ import * as vscode from "vscode";
 import { onDidRecordHealth } from "../commands/boardHealth";
 import { onDidChangeMarks, readMarks, updateLocalMarks } from "../commands/boardMarks";
 import { applyMarks, pinnedKeys } from "../board/marks";
-import { BoardRun, acceptBoardRun, hasOutsideProject, openRulesFile, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { BoardRun, acceptBoardRun, canRunHealth, hasOutsideProject, openRulesFile, readLastRun, runBoardScan, runHealthNow } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
+import { PathToGo, clampMaxSteps, pathToGo } from "../board/pathToGo";
 import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
 import { Outside, emptyOutside, safeUrl } from "../board/outside";
@@ -16,8 +17,8 @@ import { currentBoard, onDidAskRefresh, setPanelOpen } from "./boardFeed";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
-// are "refresh", "accept", "profile", "suggest", "rules", "open <id>" and "external <group,
-// item>", and the host resolves each id or index against the model it rendered, so the page
+// are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
+// item>" and "path <project, step>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -68,6 +69,29 @@ function strings(): BoardStrings {
     loading: l10n("releaseBoard.panel.loading"),
     refreshing: l10n("releaseBoard.panel.refreshing"),
     chatsTitle: l10n("releaseBoard.panel.chatsTitle", { count: "{count}" }),
+    ptgNone: l10n("releaseBoard.panel.ptgNone"),
+    ptgItemRed: l10n("releaseBoard.panel.ptgItemRed"),
+    ptgItemPinned: l10n("releaseBoard.panel.ptgItemPinned"),
+    ptgItemSeverity: l10n("releaseBoard.panel.ptgItemSeverity"),
+    ptgUnblocks: l10n("releaseBoard.panel.ptgUnblocks"),
+    ptgWaiter: l10n("releaseBoard.panel.ptgWaiter"),
+    ptgItemFirst: l10n("releaseBoard.panel.ptgItemFirst"),
+    ptgItemFirstAny: l10n("releaseBoard.panel.ptgItemFirstAny"),
+    ptgBlocked: l10n("releaseBoard.panel.ptgBlocked"),
+    ptgLintMissing: l10n("releaseBoard.panel.ptgLintMissing"),
+    ptgLintFailing: l10n("releaseBoard.panel.ptgLintFailing"),
+    ptgTestsMissing: l10n("releaseBoard.panel.ptgTestsMissing"),
+    ptgTestsFailing: l10n("releaseBoard.panel.ptgTestsFailing"),
+    ptgRules: l10n("releaseBoard.panel.ptgRules"),
+    ptgRulesAny: l10n("releaseBoard.panel.ptgRulesAny"),
+    ptgUnread: l10n("releaseBoard.panel.ptgUnread"),
+    ptgAccept: l10n("releaseBoard.panel.ptgAccept"),
+    ptgMore: l10n("releaseBoard.panel.ptgMore"),
+    ptgOpen: l10n("releaseBoard.panel.ptgOpen"),
+    ptgRunLint: l10n("releaseBoard.panel.ptgRunLint"),
+    ptgRunTests: l10n("releaseBoard.panel.ptgRunTests"),
+    ptgOpenRules: l10n("releaseBoard.panel.ptgOpenRules"),
+    ptgAcceptBtn: l10n("releaseBoard.panel.ptgAcceptBtn"),
     sittingsButton: l10n("releaseBoard.sittings.button"),
     sittingsHeading: l10n("releaseBoard.sittings.heading"),
     sittingsPick: l10n("releaseBoard.sittings.pick"),
@@ -83,12 +107,27 @@ function strings(): BoardStrings {
   };
 }
 
+// Path to GO settings, read from the editor settings. Undefined when the feature is off.
+function pathSettings(): { maxSteps: number; showRunButtons: boolean } | undefined {
+  const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard.pathToGo");
+  if (!c.get<boolean>("enabled", true)) {
+    return undefined;
+  }
+  return { maxSteps: clampMaxSteps(c.get<number>("maxSteps", 8)), showRunButtons: c.get<boolean>("showRunButtons", true) };
+}
+
 function emptyPage(text: string): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"></head><body style="font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:16px"><p>${escapeHtml(text)}</p></body></html>`;
 }
 
 class BoardPanel {
   private model: BoardModel | undefined;
+  // One Path to GO per project, in the order of model.projects: what the page shows, so a
+  // click's indexes are resolved against exactly this.
+  private paths: PathToGo[] | undefined;
+  // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
+  private readonly starting = new Set<string>();
+  private reviewing = false;
   private run: BoardRun | undefined;
   // Bumped on every render; messages from an older page are ignored.
   private rev = 0;
@@ -290,8 +329,21 @@ class BoardPanel {
       this.run.health,
       { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: this.sittings() }
     );
+    const model = this.model;
+    const settings = pathSettings();
+    this.paths = settings
+      ? model.projects.map((p) =>
+          pathToGo(model, p, {
+            maxSteps: settings.maxSteps,
+            canRun: (kind) => {
+              const def = cfg.projects.find((d) => d.id === p.id);
+              return settings.showRunButtons && def !== undefined && canRunHealth(def, kind);
+            },
+          })
+        )
+      : undefined;
     // The same board in the same state is not painted again: no flicker, no lost scroll.
-    const key = JSON.stringify([this.model, state]);
+    const key = JSON.stringify([this.model, state, this.paths]);
     if (key === this.lastKey) {
       return;
     }
@@ -299,7 +351,7 @@ class BoardPanel {
     publishBoard(this.model, this.run);
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
-    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state);
+    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths);
   }
 
   // The Sittings choice (remembered per machine, else the settings' defaults) with the
@@ -370,26 +422,96 @@ class BoardPanel {
       }
     } else if (msg.type === "rules") {
       await openRulesFile();
-    } else if (msg.type === "accept" && this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold)) {
-      if (await acceptBoardRun(this.run)) {
-        this.lastKey = "";
-        this.render();
-      } else {
-        void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
-        await this.refresh();
-      }
+    } else if (msg.type === "accept") {
+      await this.accept();
     } else if (msg.type === "open" && typeof msg.id === "number") {
-      const item = this.model?.items[msg.id];
-      const project = this.run?.cfg.projects.find((p) => p.id === item?.project);
-      if (item && project) {
-        const uri = vscode.Uri.joinPath(vscode.Uri.parse(project.path), item.path);
-        try {
-          await vscode.window.showTextDocument(uri, { preview: true });
-        } catch (e) {
-          void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-        }
+      await this.openItem(msg.id);
+    } else if (msg.type === "path" && typeof (message as { p?: unknown }).p === "number" && typeof (message as { s?: unknown }).s === "number") {
+      const m = message as { p: number; s: number };
+      await this.pathAction(m.p, m.s);
+    }
+  }
+
+  private async accept(): Promise<void> {
+    if (!(this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold))) {
+      return;
+    }
+    if (await acceptBoardRun(this.run)) {
+      this.lastKey = "";
+      this.render();
+    } else {
+      void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
+      await this.refresh();
+    }
+  }
+
+  private async openItem(id: number): Promise<void> {
+    const item = this.model?.items[id];
+    const project = this.run?.cfg.projects.find((p) => p.id === item?.project);
+    if (item && project) {
+      const uri = vscode.Uri.joinPath(vscode.Uri.parse(project.path), item.path);
+      try {
+        await vscode.window.showTextDocument(uri, { preview: true });
+      } catch (e) {
+        void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
       }
     }
+  }
+
+  // A button in a Path to GO list. The page sent a project and step index; both are resolved
+  // against the paths this panel rendered, never against anything the page names.
+  private async pathAction(pi: number, si: number): Promise<void> {
+    const project = this.model?.projects[pi];
+    const step = this.paths?.[pi]?.steps[si];
+    const def = this.run?.cfg.projects.find((d) => d.id === project?.id);
+    if (!project || !step || !def || this.scanning || this.cached) {
+      return;
+    }
+    if (step.kind === "item" && step.itemId !== undefined) {
+      await this.openItem(step.itemId);
+    } else if ((step.kind === "lint" || step.kind === "tests") && step.run) {
+      const flight = `${def.id}:${step.kind}`;
+      if (this.starting.has(flight)) {
+        return;
+      }
+      this.starting.add(flight);
+      try {
+        if (!(await runHealthNow(def, step.kind))) {
+          void vscode.window.showInformationMessage(l10n("releaseBoard.noRunShortcut"));
+        }
+      } finally {
+        this.starting.delete(flight);
+      }
+    } else if (step.kind === "rules") {
+      await openRulesFile({ project: def.id, folder: step.folder ?? "" });
+    } else if (step.kind === "accept") {
+      await this.reviewAndAccept();
+    }
+  }
+
+  // Asks first, saying what the scan holds, then accepts through the same path as the banner.
+  private async reviewAndAccept(): Promise<void> {
+    if (this.reviewing || !this.run || !(this.model?.baseline || this.model?.safetyHold)) {
+      return;
+    }
+    // The scan being reviewed: if the board repaints while the dialog is open, it is another scan.
+    const run = this.run;
+    const rev = this.rev;
+    const accept = l10n("releaseBoard.accept");
+    const text = run.safety.baseline ? l10n("releaseBoard.acceptBaseline") : l10n("releaseBoard.held", { count: run.safety.findings.length });
+    this.reviewing = true;
+    try {
+      if ((await vscode.window.showWarningMessage(text, accept)) !== accept) {
+        return;
+      }
+    } finally {
+      this.reviewing = false;
+    }
+    if (this.run !== run || this.rev !== rev) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.changedDuringReview"));
+      return;
+    }
+    await this.accept();
   }
 
   private dispose(): void {

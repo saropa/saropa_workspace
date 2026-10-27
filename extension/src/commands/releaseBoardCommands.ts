@@ -6,7 +6,8 @@ import { SafetyResult, checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
 import { mapLimit } from "../board/pool";
 import { ProjectHealth } from "../board/health";
-import { collectHealth, startHealthRecorder } from "./boardHealth";
+import { collectHealth, findHealthShortcut, startHealthRecorder } from "./boardHealth";
+import { toBackground } from "../exec/chainRunner";
 import { exportMarksCommand, markCommand, readMarks } from "./boardMarks";
 import { MarksFile } from "../board/marks";
 import { ShortcutStore } from "../model/shortcutStore";
@@ -351,8 +352,10 @@ const RULES_TEMPLATE = `{
 }
 `;
 
-// Opens the user's rules file, creating a small one first when there is none.
-export async function openRulesFile(): Promise<void> {
+// Opens the user's rules file, creating a small one first when there is none. With a
+// project id and folder it moves to that project in the file when the file names it, and
+// says which folder needs a rule.
+export async function openRulesFile(at?: { project: string; folder: string }): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
@@ -364,7 +367,17 @@ export async function openRulesFile(): Promise<void> {
     await vscode.workspace.fs.writeFile(uri, Buffer.from(RULES_TEMPLATE, "utf8"));
     void vscode.window.showInformationMessage(l10n("releaseBoard.rulesCreated", { file: RULES_FILE }));
   }
-  await vscode.window.showTextDocument(uri);
+  const editor = await vscode.window.showTextDocument(uri);
+  if (at) {
+    const text = editor.document.getText();
+    const i = text.indexOf(JSON.stringify(at.project));
+    if (i >= 0) {
+      const pos = editor.document.positionAt(i);
+      editor.selection = new vscode.Selection(pos, pos);
+      editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+    }
+    void vscode.window.showInformationMessage(l10n("releaseBoard.ruleFor", { folder: at.folder ? `${at.folder}/**` : "/" }));
+  }
 }
 
 // Asks for a glob and reports how many documents it matches, so a rule can be checked
@@ -389,6 +402,23 @@ async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
 
 // The shortcut store, for resolving the shortcuts a project names as its test and lint runs.
 let boardStore: ShortcutStore | undefined;
+
+// True when the project names a shortcut for this evidence and the board can start it.
+export function canRunHealth(project: ProjectDef, kind: "lint" | "tests"): boolean {
+  return boardStore !== undefined && findHealthShortcut(boardStore, project, kind) !== undefined;
+}
+
+// Starts the shortcut the project names as its lint or test run, in the background only:
+// that is the one mode with an exit code the board trusts. boardHealth.ts records the
+// result when the run ends. Returns false when no shortcut is named.
+export async function runHealthNow(project: ProjectDef, kind: "lint" | "tests"): Promise<boolean> {
+  const shortcut = boardStore ? findHealthShortcut(boardStore, project, kind) : undefined;
+  if (!shortcut) {
+    return false;
+  }
+  await vscode.commands.executeCommand("saropaWorkspace.runPin", toBackground(shortcut));
+  return true;
+}
 
 // True when a project lives outside the open workspace folders, where no file watcher sees
 // changes: the board then rescans on every open.
