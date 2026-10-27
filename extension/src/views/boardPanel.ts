@@ -42,6 +42,9 @@ class BoardPanel extends BoardPanelWiring {
     }
     const msg = message as { type?: string; id?: number; rev?: number; value?: string; key?: string };
     if (msg.rev !== this.rev) {
+      if (msg.type === "hand") {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.stale"));
+      }
       return;
     }
     if (msg.type === "refresh") {
