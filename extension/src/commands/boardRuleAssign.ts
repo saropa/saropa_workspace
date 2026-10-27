@@ -311,7 +311,7 @@ export async function backToAutomatic(run: BoardRun, doc: { project: string; pat
       // Both found nothing to take away, or the file could not be read as rules.
       return sev.reason === "none" && st.reason === "none" ? { ok: false, reason: "none" } : st.reason === "none" ? sev : st;
     },
-    confirm: (vars) => l10n("releaseBoard.rowMenu.autoConfirm", { file: RULES_FILE, glob: doc.path, project, what: l10n("releaseBoard.rowMenu.autoWhat" + vars.what) }),
+    confirm: (vars) => l10n("releaseBoard.rowMenu.autoConfirm", { file: RULES_FILE, glob: doc.path, project, what: l10n(`releaseBoard.rowMenu.autoWhat${vars.what}`) }),
     button: l10n("releaseBoard.rowMenu.autoButton"),
     done: () => l10n("releaseBoard.rowMenu.autoDone", { glob: doc.path, file: RULES_FILE }),
     refusal: refuse,
