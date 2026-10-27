@@ -10,17 +10,33 @@ import * as path from "node:path";
 import { detectInterpreters, clearInterpreterCache, findOnPath } from "../exec/interpreterDetect";
 
 const origPath = process.env.PATH;
+const origPathExt = process.env.PATHEXT;
+const made: string[] = [];
+
+function tmp(prefix: string): string {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  made.push(d);
+  return d;
+}
 const origPlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
 let bin: string;
 
 beforeEach(() => {
-  bin = fs.mkdtempSync(path.join(os.tmpdir(), "interp-"));
+  bin = tmp("interp-");
   process.env.PATH = bin;
   clearInterpreterCache();
 });
 
 afterEach(() => {
   process.env.PATH = origPath;
+  if (origPathExt === undefined) {
+    delete process.env.PATHEXT;
+  } else {
+    process.env.PATHEXT = origPathExt;
+  }
+  for (const d of made.splice(0)) {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
   Object.defineProperty(process, "platform", origPlatform);
   clearInterpreterCache();
 });
@@ -43,9 +59,9 @@ test("findOnPath returns undefined for a missing or empty name", () => {
 });
 
 test("findOnPath searches directories in order and skips directories named like the binary", () => {
-  const first = fs.mkdtempSync(path.join(os.tmpdir(), "interp-a-"));
+  const first = tmp("interp-a-");
   fs.mkdirSync(path.join(first, "tool"));
-  const second = fs.mkdtempSync(path.join(os.tmpdir(), "interp-b-"));
+  const second = tmp("interp-b-");
   const exe = fake("tool", second);
   process.env.PATH = [first, second].join(path.delimiter);
   assert.equal(findOnPath("tool"), exe);
@@ -64,7 +80,6 @@ test("findOnPath tries PATHEXT suffixes on Windows", () => {
   process.env.PATHEXT = ".EXE;.CMD";
   const exe = fake("tool.CMD");
   assert.equal(findOnPath("tool"), exe);
-  delete process.env.PATHEXT;
 });
 
 test("detectInterpreters lists only the catalog interpreters that exist", async () => {

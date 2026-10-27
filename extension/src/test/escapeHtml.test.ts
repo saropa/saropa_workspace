@@ -13,8 +13,13 @@ test("leaves plain text untouched", () => {
   assert.equal(escapeHtml(""), "");
 });
 
-test("does not double-escape in a single pass", () => {
+test("text that already looks like an entity is escaped literally, so it displays as typed", () => {
   assert.equal(escapeHtml("&lt;"), "&amp;lt;");
+});
+
+test("each character is escaped exactly once in one pass", () => {
+  assert.equal(escapeHtml("a&b<c"), "a&amp;b&lt;c");
+  assert.equal(escapeHtml("<<"), "&lt;&lt;");
 });
 
 test("neutralizes a script tag and an attribute breakout", () => {

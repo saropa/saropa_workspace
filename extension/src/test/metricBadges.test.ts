@@ -47,6 +47,7 @@ beforeEach(() => {
 
 afterEach(() => {
   metricBadges.track([]);
+  fs.rmSync(dir, { recursive: true, force: true });
   win.showWarningMessage = origWarn;
   delete ws.createFileSystemWatcher;
 });

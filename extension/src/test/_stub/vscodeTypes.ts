@@ -117,6 +117,11 @@ export class ThemeColor {
   constructor(public readonly id: string) {}
 }
 
+// vscode.FileDecoration: the explorer decoration provider sets only the color.
+export class FileDecoration {
+  color?: ThemeColor;
+}
+
 // vscode.ThemeIcon: quick-pick items carry one as their iconPath. Only the id is modeled.
 export class ThemeIcon {
   constructor(public readonly id: string) {}

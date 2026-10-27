@@ -52,6 +52,14 @@ async function finished(pinId: string): Promise<NonNullable<ReturnType<typeof ru
   throw new Error("run did not finish");
 }
 
+// Poll until a condition holds (the toast and registry clean-up land just after the record).
+async function until(cond: () => boolean, what: string): Promise<void> {
+  for (let i = 0; i < 200 && !cond(); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.ok(cond(), `timed out waiting for ${what}`);
+}
+
 const nodeCmd = (code: string): string => `node -e "${code}"`;
 
 test("a successful run records success, exit 0, its output, and says it finished", async () => {
@@ -73,7 +81,7 @@ test("a failing run records failure with its exit code and raises an error toast
   const result = await finished(pinId);
   assert.equal(result.outcome, "failure");
   assert.equal(result.exitCode, 3);
-  await new Promise((r) => setTimeout(r, 20));
+  await until(() => errors.length > 0, "the error toast");
   assert.equal(errors.length, 1);
   assert.match(errors[0].message, /^Broken failed \(exit 3\) after /);
   assert.deepEqual(errors[0].actions, ["Show Output"]);
@@ -114,7 +122,7 @@ test("a failure whose output suggests a fix command offers to run it", async () 
     pinId
   );
   await finished(pinId);
-  await new Promise((r) => setTimeout(r, 20));
+  await until(() => errors.length > 0, "the error toast");
   assert.deepEqual(errors[0].actions, ["Run: npm install left-pad", "Show Output"]);
 });
 
@@ -123,7 +131,7 @@ test("a run is registered as running while alive and cleared afterwards", async 
   await runInBackground(nodeCmd("setTimeout(()=>{}, 300)"), cwd, undefined, "Slow", pinId);
   assert.equal(processRegistry.isRunning(pinId), true);
   await finished(pinId);
-  await new Promise((r) => setTimeout(r, 20));
+  await until(() => !processRegistry.isRunning(pinId), "the process to be cleared");
   assert.equal(processRegistry.isRunning(pinId), false);
 });
 

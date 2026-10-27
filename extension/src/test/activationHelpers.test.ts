@@ -96,7 +96,10 @@ test("a falsy but defined check value (0, empty string) still shows and latches"
   const mem = fakeContext().workspaceState;
   const shown: unknown[] = [];
   await gatedNotice(mem, "z", () => 0, (v) => void shown.push(v));
-  assert.deepEqual(shown, [0]);
+  await gatedNotice(mem, "e", () => "", (v) => void shown.push(v));
+  assert.deepEqual(shown, [0, ""]);
+  assert.equal(mem.get("z"), true);
+  assert.equal(mem.get("e"), true);
 });
 
 test("makeDebounced collapses a burst into one trailing call", () => {
@@ -227,6 +230,15 @@ function importUri(path: string, query: string): vscode.Uri {
   return { path, query } as unknown as vscode.Uri;
 }
 
+// The import URI VS Code would hand the handler for a real share link.
+function uriOfLink(link: string): vscode.Uri {
+  const u = new URL(link);
+  return importUri(u.pathname, u.search.slice(1));
+}
+
+const deployLink = (): string =>
+  encodeShortcutLink({ id: "x", path: "", scope: "project", label: "Deploy", action: { kind: "shell", shellCommand: "ls" } } as Shortcut);
+
 test("handleShortcutImportUri ignores URIs that are not /import", async () => {
   const t = captureToasts("accept");
   try {
@@ -249,15 +261,12 @@ test("handleShortcutImportUri warns on undecodable data", async () => {
 });
 
 test("handleShortcutImportUri imports into the project scope when the user accepts", async () => {
-  const link = encodeShortcutLink({ id: "x", path: "", scope: "project", label: "Deploy", action: { kind: "shell", shellCommand: "ls" } } as Shortcut);
-  const data = new URL(link.startsWith("http") || link.includes("://") ? link : `vscode://x/import?${link}`).searchParams.get("data");
-  assert.ok(data, "encoded link carries data");
   stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(ROOT), name: "p", index: 0 }]);
   const calls: string[] = [];
   const store = { importShortcut: async (_s: unknown, scope: string) => (calls.push(scope), true) } as unknown as ShortcutStore;
   const t = captureToasts("accept");
   try {
-    await handleShortcutImportUri(importUri("/import", `data=${encodeURIComponent(data)}`), store);
+    await handleShortcutImportUri(uriOfLink(deployLink()), store);
     assert.deepEqual(calls, ["project"]);
     assert.match(t.info[t.info.length - 1], /Deploy/);
   } finally {
@@ -267,13 +276,11 @@ test("handleShortcutImportUri imports into the project scope when the user accep
 });
 
 test("handleShortcutImportUri imports nothing when the user declines", async () => {
-  const link = encodeShortcutLink({ id: "x", path: "", scope: "project", label: "Deploy", action: { kind: "shell", shellCommand: "ls" } } as Shortcut);
-  const data = new URL(link.includes("://") ? link : `vscode://x/import?${link}`).searchParams.get("data")!;
   let imported = 0;
   const store = { importShortcut: async () => (imported++, true) } as unknown as ShortcutStore;
   const t = captureToasts(undefined);
   try {
-    await handleShortcutImportUri(importUri("/import", `data=${encodeURIComponent(data)}`), store);
+    await handleShortcutImportUri(uriOfLink(deployLink()), store);
     assert.equal(imported, 0);
   } finally {
     t.restore();

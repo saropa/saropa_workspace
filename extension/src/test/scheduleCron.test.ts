@@ -62,8 +62,9 @@ test("parseCron rejects malformed tokens", () => {
 test("matchesCronDay uses the OR rule when both day fields are restricted", () => {
   // 15th of the month OR any Monday.
   const p = parseCron("0 0 15 * 1")!;
-  assert.equal(matchesCronDay(p, new Date(2026, 5, 15)), true); // Mon Jun 15? either way dom hits
-  assert.equal(matchesCronDay(p, new Date(2026, 5, 22)), true); // Monday only
+  assert.equal(matchesCronDay(p, new Date(2026, 5, 15)), true); // Mon Jun 15: both fields match
+  assert.equal(matchesCronDay(p, new Date(2026, 6, 15)), true); // Wed Jul 15: day of month only
+  assert.equal(matchesCronDay(p, new Date(2026, 5, 22)), true); // Mon Jun 22: weekday only
   assert.equal(matchesCronDay(p, new Date(2026, 5, 23)), false); // Tuesday, not the 15th
 });
 

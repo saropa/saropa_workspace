@@ -10,7 +10,6 @@ import {
   publishProjectContext,
   publishDeviceContext,
   wireSectionContext,
-  onSectionProfileChange,
 } from "../activation/sectionContext";
 import { emptyAndroidProjectProfile } from "../model/androidProjectProfile";
 import type { AdbEnvironment } from "../exec/adbEnvironment";
@@ -38,10 +37,13 @@ beforeEach(() => {
   stub.__setWorkspaceFolders(undefined);
 });
 
-test("context keys are namespaced under saropaWorkspace", () => {
-  for (const k of [HAS_ANDROID_KEY, HAS_FLUTTER_KEY, HAS_DEVICE_KEY]) {
-    assert.ok(k.startsWith("saropaWorkspace.has"));
-  }
+// These strings are the contract with `when` clauses; renaming one silently breaks them.
+test("the three context keys keep their published names", () => {
+  assert.deepEqual([HAS_ANDROID_KEY, HAS_FLUTTER_KEY, HAS_DEVICE_KEY], [
+    "saropaWorkspace.hasAndroid",
+    "saropaWorkspace.hasFlutter",
+    "saropaWorkspace.hasDevice",
+  ]);
 });
 
 test("an unresolved profile reads as neither Android nor Flutter", () => {
@@ -87,10 +89,4 @@ test("wiring with no workspace folder publishes safe defaults and registers disp
   for (const s of subscriptions) {
     s.dispose();
   }
-});
-
-test("onSectionProfileChange is a subscribable event", () => {
-  const sub = onSectionProfileChange(() => {});
-  assert.equal(typeof sub.dispose, "function");
-  sub.dispose();
 });

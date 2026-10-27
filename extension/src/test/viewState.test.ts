@@ -12,6 +12,7 @@ import { wireTreeViewState, SHOW_ALL_BRANCHES_KEY } from "../activation/viewStat
 import { ShortcutFilterState } from "../views/shortcutFilter";
 import { ShortcutFolderItem, RecentRootItem } from "../views/shortcutTreeItems";
 import { telemetry } from "../exec/telemetry";
+import { runStatusRegistry } from "../exec/runStatus";
 import type { ShortcutStore } from "../model/shortcutStore";
 import type { ShortcutsTreeProvider } from "../views/shortcutsTreeProvider";
 import type { BranchTracker } from "../exec/gitBranch";
@@ -110,16 +111,35 @@ test("turning on a chip updates its key, activates the filter and reports the hi
   assert.equal(lastContext("saropaWorkspace.filterActive"), true);
   assert.equal(lastContext("saropaWorkspace.filterScripts"), true);
   assert.equal(lastContext("saropaWorkspace.filterFiles"), false);
-  assert.match(h.treeView.message!, /1 hidden/);
+  assert.equal(h.treeView.message, "Filter: Scripts — 1 hidden. Clear it from the view toolbar.");
 });
 
 test("the files chip and the failed-only facet each have their own key", () => {
   const h = wire([file("a"), shell("s")]);
   h.filter.toggleFiles();
   assert.equal(lastContext("saropaWorkspace.filterFiles"), true);
-  assert.match(h.treeView.message!, /1 hidden/);
+  assert.equal(h.treeView.message, "Filter: Files — 1 hidden. Clear it from the view toolbar.");
   h.filter.toggleFailed();
   assert.equal(lastContext("saropaWorkspace.filterFailed"), true);
+});
+
+test("failed-only hides everything except shortcuts whose last run failed", () => {
+  const bad = file("viewstate-bad");
+  const good = file("viewstate-good");
+  const never = file("viewstate-never");
+  runStatusRegistry.record(bad.id, { outcome: "failure", exitCode: 1, durationMs: 1, endedAt: 1 });
+  runStatusRegistry.record(good.id, { outcome: "success", exitCode: 0, durationMs: 1, endedAt: 1 });
+  try {
+    const h = wire([bad, good, never]);
+    h.filter.toggleFailed();
+    assert.equal(h.treeView.message, "Filter: Failed — 2 hidden. Clear it from the view toolbar.");
+    runStatusRegistry.record(good.id, { outcome: "failure", exitCode: 2, durationMs: 1, endedAt: 2 });
+    h.storeChange.fire();
+    assert.equal(h.treeView.message, "Filter: Failed — 1 hidden. Clear it from the view toolbar.");
+  } finally {
+    runStatusRegistry.clear(bad.id);
+    runStatusRegistry.clear(good.id);
+  }
 });
 
 test("clearing the filter clears the message and keys", () => {
@@ -135,10 +155,10 @@ test("a store change recounts hidden shortcuts, ignoring recipes", () => {
   const recipe = { ...file("r"), isRecipe: true } as Shortcut;
   const h = wire([file("a"), recipe]);
   h.filter.setText("a.ts");
-  assert.match(h.treeView.message!, /0 hidden/);
+  assert.equal(h.treeView.message, 'Filter: "a.ts" — 0 hidden. Clear it from the view toolbar.');
   h.shortcuts.push(file("b"));
   h.storeChange.fire();
-  assert.match(h.treeView.message!, /1 hidden/);
+  assert.equal(h.treeView.message, 'Filter: "a.ts" — 1 hidden. Clear it from the view toolbar.');
 });
 
 test("the gesture tip is shown once, and only for a real shortcut", async () => {

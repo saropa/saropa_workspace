@@ -30,10 +30,20 @@ test("ignores words shorter than three letters", () => {
   assert.deepEqual(guessTagsFromContent("ab ab ab ab ab"), []);
 });
 
-test("a word seen once needs enough length to clear the score floor", () => {
-  // score = count * sqrt(length): 1 * sqrt(4) = 2 > 1.5 passes; sqrt(3) = 1.73 passes too.
-  assert.deepEqual(guessTagsFromContent("abcd"), ["abcd"]);
+test("a word seen once passes the score floor from three letters up", () => {
+  // score = count * sqrt(length): the shortest allowed word scores sqrt(3) = 1.73, above 1.5.
   assert.deepEqual(guessTagsFromContent("abc"), ["abc"]);
+  assert.deepEqual(guessTagsFromContent("abcd"), ["abcd"]);
+  assert.deepEqual(guessTagsFromContent("ab"), []);
+});
+
+test("at equal counts the longer word ranks first", () => {
+  assert.deepEqual(guessTagsFromContent("cat elephant dog"), ["elephant", "cat", "dog"]);
+});
+
+test("a more frequent short word outranks a rarer long one", () => {
+  // cat: 3 * sqrt(3) = 5.2; elephant: 1 * sqrt(8) = 2.8.
+  assert.deepEqual(guessTagsFromContent("elephant cat cat cat"), ["cat", "elephant"]);
 });
 
 test("caps the result at max", () => {

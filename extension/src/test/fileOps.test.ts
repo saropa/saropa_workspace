@@ -180,17 +180,20 @@ test("rename: moves the file and follows the shortcut; same name, clash and canc
 test("copy to: copies into the chosen folder, refuses an existing target, can reveal", async () => {
   const { shortcut } = file("a.txt", "data");
   const dest = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "fops-dest-")).replace(/\\/g, "/");
-  __setOpenDialogHandler(async () => [Uri.file(dest)]);
-  infoAnswer = "Reveal";
-  await copyFileTo(store(), shortcut);
-  assert.equal(nodeFs.readFileSync(`${dest}/a.txt`, "utf8"), "data");
-  assert.deepEqual(executed, ["revealFileInOS"]);
-  await copyFileTo(store(), shortcut);
-  assert.match(warn[0], /already exists/);
-  __setOpenDialogHandler(async () => undefined);
-  await copyFileTo(store(), shortcut);
-  assert.equal(info.length, 1);
-  nodeFs.rmSync(dest, { recursive: true, force: true });
+  try {
+    __setOpenDialogHandler(async () => [Uri.file(dest)]);
+    infoAnswer = "Reveal";
+    await copyFileTo(store(), shortcut);
+    assert.equal(nodeFs.readFileSync(`${dest}/a.txt`, "utf8"), "data");
+    assert.deepEqual(executed, ["revealFileInOS"]);
+    await copyFileTo(store(), shortcut);
+    assert.match(warn[0], /already exists/);
+    __setOpenDialogHandler(async () => undefined);
+    await copyFileTo(store(), shortcut);
+    assert.equal(info.length, 1);
+  } finally {
+    nodeFs.rmSync(dest, { recursive: true, force: true });
+  }
 });
 
 test("delete: needs confirmation, then offers to drop the shortcut", async () => {
@@ -208,8 +211,8 @@ test("delete: needs confirmation, then offers to drop the shortcut", async () =>
 });
 
 test("lock toggles the owner write bit both ways", async (t) => {
-  if (process.platform === "win32" || process.getuid?.() === 0) {
-    t.skip("permission bits are not enforced for this user or platform");
+  if (process.platform === "win32") {
+    t.skip("permission bits are not enforced on Windows");
     return;
   }
   const { shortcut, abs } = file("a.txt");

@@ -121,3 +121,17 @@ test("refreshing with nothing to report fires nothing", () => {
   p.refresh();
   assert.equal(events.length, 0);
 });
+
+test("fewer issues tint the file green and more issues tint it red", () => {
+  const better = sc();
+  const worse = sc();
+  shortcuts = [better, worse];
+  sweep(better, 5, 2);
+  sweep(worse, 1, 4);
+  const p = provider();
+  p.refresh();
+  const colorOf = (s: Shortcut): string | undefined =>
+    (p.provideFileDecoration(Uri.file(`/proj/${s.path}`) as unknown as vscode.Uri)?.color as unknown as { id: string } | undefined)?.id;
+  assert.equal(colorOf(better), "charts.green");
+  assert.equal(colorOf(worse), "errorForeground");
+});

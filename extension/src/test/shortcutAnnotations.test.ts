@@ -115,11 +115,11 @@ test("a website shortcut uses its label, falls back to the URL for the toast, an
   await addUrl(s, "project", anchor);
   assert.equal(urls[0].scope, "global");
   assert.equal(urls[0].after, anchor);
-  assert.match(info[0], /https:\/\/example\.com/);
+  assert.equal(info[0], "Added https://example.com. Single-click opens https://example.com.");
   sequence("example.org", "Org site");
   await addUrl(s, "global", undefined);
   assert.equal(urls[1].scope, "global");
-  assert.match(info[1], /Org site/);
+  assert.equal(info[1], "Added Org site. Single-click opens https://example.org.");
 });
 
 test("cancelling either website prompt adds nothing", async () => {

@@ -15,11 +15,22 @@ type StubVscode = typeof vscode & { __setWorkspaceFolders(f: vscode.WorkspaceFol
 const stub = vscode as StubVscode;
 const win = vscode.window as unknown as Record<string, unknown>;
 const ws = vscode.workspace as unknown as Record<string, unknown>;
+const proto = ShortcutExpiry.prototype as unknown as { sweep(): Promise<void> };
+const realSweep = proto.sweep;
+let sweeps: Promise<void>[] = [];
+const made: string[] = [];
 let origInfo: unknown;
 let infos: string[];
 let choice: string | undefined;
 
 beforeEach(() => {
+  // Keep every sweep promise so a test can wait for the sweeps to finish.
+  sweeps = [];
+  proto.sweep = function (this: ShortcutExpiry): Promise<void> {
+    const run = realSweep.call(this);
+    sweeps.push(run);
+    return run;
+  };
   origInfo = win.showInformationMessage;
   infos = [];
   choice = undefined;
@@ -37,13 +48,23 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  proto.sweep = realSweep;
+  for (const d of made.splice(0)) {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
   win.showInformationMessage = origInfo;
   delete ws.createFileSystemWatcher;
   delete ws.onDidChangeWorkspaceFolders;
 });
 
-function gitProject(branch: string): vscode.WorkspaceFolder {
+function tempDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "exp-"));
+  made.push(dir);
+  return dir;
+}
+
+function gitProject(branch: string): vscode.WorkspaceFolder {
+  const dir = tempDir();
   fs.mkdirSync(path.join(dir, ".git"));
   fs.writeFileSync(path.join(dir, ".git", "HEAD"), `ref: refs/heads/${branch}\n`);
   return { uri: vscode.Uri.file(dir), name: "p", index: 0 };
@@ -66,8 +87,10 @@ function fakeStore(shortcuts: Shortcut[], folder?: vscode.WorkspaceFolder) {
   return { store, removed, restored };
 }
 
-// The constructor kicks off an async sweep; let it finish.
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 30));
+// The constructor kicks off an async sweep; wait for every sweep started so far.
+const settle = async (): Promise<void> => {
+  await Promise.all(sweeps);
+};
 
 test("a shortcut past its expiry time is removed and announced", async () => {
   const { store, removed } = fakeStore([sh("old", { at: Date.now() - 1000 }), sh("future", { at: Date.now() + 3_600_000 }), sh("plain")]);
@@ -115,7 +138,7 @@ test("a branch-bound shortcut is removed once the branch changes", async () => {
 });
 
 test("a branch-bound shortcut with no readable branch is kept", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "exp-"));
+  const dir = tempDir();
   const folder = { uri: vscode.Uri.file(dir), name: "p", index: 0 };
   const { store, removed } = fakeStore([sh("keep", { onBranchAway: "main" })], folder);
   const e = new ShortcutExpiry(store);

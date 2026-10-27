@@ -27,6 +27,19 @@ test("prevDailyTime skips disallowed weekdays", () => {
   assert.equal(prevDailyTime("09:00", at(2026, 6, 25, 10, 0), [1]), at(2026, 6, 22, 9, 0));
 });
 
+test("prevDailyTime counts a slot exactly at now as already due", () => {
+  assert.equal(prevDailyTime("09:00", at(2026, 6, 25, 9, 0), undefined), at(2026, 6, 25, 9, 0));
+});
+
+test("prevDailyTime reaches back a full week for a single weekday", () => {
+  // Only Thursdays (4), asked before today's slot: the last one is a week ago.
+  assert.equal(prevDailyTime("09:00", at(2026, 6, 25, 8, 0), [4]), at(2026, 6, 18, 9, 0));
+});
+
+test("prevDailyTime gives up when no listed weekday exists", () => {
+  assert.equal(prevDailyTime("09:00", at(2026, 6, 25, 10, 0), [9]), undefined);
+});
+
 test("prevDailyTime returns undefined for an unparseable time", () => {
   assert.equal(prevDailyTime("nope", at(2026, 6, 25, 10, 0), undefined), undefined);
 });

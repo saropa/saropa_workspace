@@ -147,3 +147,24 @@ test("getSetShortcuts marks everything project scope and returns [] for an unkno
   assert.ok(active.every((p) => p.scope === "project"));
   assert.deepEqual(await store.getSetShortcuts("Ghost"), []);
 });
+
+test("the last remaining set cannot be deleted and keeps its shortcuts", async () => {
+  const store = await newStore();
+  await add(store, "a.ts");
+  const result = await store.deleteSet("Default");
+  assert.deepEqual(result, { outcome: "lastOne", active: "Default" });
+  assert.deepEqual(store.getSetNames(), ["Default"]);
+  assert.deepEqual(mine(store).map((p) => p.path), ["a.ts"]);
+});
+
+test("deleting the active set switches to another set and drops its shortcuts", async () => {
+  const store = await newStore();
+  await add(store, "a.ts");
+  await store.createSet("Side");
+  await add(store, "b.ts");
+  const result = await store.deleteSet("Side");
+  assert.deepEqual(result, { outcome: "deleted", active: "Default" });
+  assert.equal(store.getActiveSetName(), "Default");
+  assert.deepEqual(store.getSetNames(), ["Default"]);
+  assert.deepEqual(mine(store).map((p) => p.path), ["a.ts"]);
+});
