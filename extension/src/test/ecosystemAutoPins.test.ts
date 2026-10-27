@@ -1,7 +1,7 @@
 // Unit tests for the one-time ecosystem auto-pin pattern seeding. Runs the real
 // marker detection against a temp project folder.
 
-import { test, beforeEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -19,8 +19,11 @@ type StubVscode = typeof vscode & {
 };
 const stub = vscode as StubVscode;
 
+const made: string[] = [];
+
 function project(files: Record<string, string>): vscode.WorkspaceFolder {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eco-"));
+  made.push(dir);
   for (const [name, body] of Object.entries(files)) {
     fs.writeFileSync(path.join(dir, name), body);
   }
@@ -34,6 +37,12 @@ function fakeStore(explicit: boolean): ShortcutStore {
 function patterns(): string[] {
   return stub.__getConfig("saropaWorkspace", "autoPins.patterns") as string[];
 }
+
+afterEach(() => {
+  for (const d of made.splice(0)) {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
+});
 
 beforeEach(() => {
   stub.__resetConfig();
@@ -113,4 +122,26 @@ test("a failing folder is logged and does not abort the run", async () => {
   }
   assert.equal(logged.length, 1);
   assert.match(logged[0], /ecosystemAutoPins failed for proj: boom/);
+});
+
+test("a pure Dart package (no flutter section) still gets the pubspec patterns", async () => {
+  const folder = project({ "pubspec.yaml": "name: tool\nenvironment:\n  sdk: '>=3.0.0'\n" });
+  stub.__setWorkspaceFolders([folder]);
+  await seedEcosystemAutoPins(fakeContext(), fakeStore(false));
+  assert.deepEqual(patterns(), [".env", "pubspec.yaml", "analysis_options.yaml"]);
+});
+
+test("the user is told which patterns were added for which folder", async () => {
+  const folder = project({ "go.mod": "module x" });
+  stub.__setWorkspaceFolders([folder]);
+  const win = vscode.window as unknown as Record<string, unknown>;
+  const orig = win.showInformationMessage;
+  const shown: string[] = [];
+  win.showInformationMessage = (m: string): Promise<undefined> => (shown.push(m), Promise.resolve(undefined));
+  try {
+    await seedEcosystemAutoPins(fakeContext(), fakeStore(false));
+  } finally {
+    win.showInformationMessage = orig;
+  }
+  assert.deepEqual(shown, ["Detected this project's type and added .env, go.mod to auto-pins for proj."]);
 });

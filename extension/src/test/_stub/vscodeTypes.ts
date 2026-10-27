@@ -117,6 +117,11 @@ export class ThemeColor {
   constructor(public readonly id: string) {}
 }
 
+// vscode.FileDecoration: the explorer decoration provider sets only the color.
+export class FileDecoration {
+  color?: ThemeColor;
+}
+
 // vscode.ThemeIcon: quick-pick items carry one as their iconPath. Only the id is modeled.
 export class ThemeIcon {
   constructor(public readonly id: string) {}
@@ -130,6 +135,7 @@ export const TreeItemCollapsibleState = {
   Collapsed: 1,
   Expanded: 2,
 } as const;
+/** Minimal tree row: the fields the tree-item classes set and the tests read. */
 export class TreeItem {
   description?: string | boolean;
   tooltip?: unknown;

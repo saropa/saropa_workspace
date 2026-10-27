@@ -101,7 +101,7 @@ test("entering hides everything except shortcut files and their ancestor folders
   tree();
   await enterFocusMode(store([{ path: "src/deep/keep.ts" }]), fakeContext());
   assert.deepEqual(Object.keys(exclude!).sort(), ["README.md", "docs", "src/other.ts"]);
-  assert.match(info[0], /3/);
+  assert.equal(info[0], "Focused the Explorer on your shortcut files (3 entries hidden). Exit Focus to restore.");
 });
 
 test("existing excludes are kept and saved for restore", async () => {

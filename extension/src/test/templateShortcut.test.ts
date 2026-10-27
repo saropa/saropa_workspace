@@ -107,3 +107,17 @@ test("a non-file or unresolvable shortcut is refused", async () => {
   await useAsTemplate({ resolveUri: () => undefined } as unknown as ShortcutStore, gone);
   assert.equal(warn.length, 2);
 });
+
+test("an empty name creates nothing, and the input box rejects a blank name as the user types", async () => {
+  const { store, shortcut } = source("user_card.py", "x");
+  let validate: ((v: string) => string | undefined) | undefined;
+  __setInputHandler(async (opts) => {
+    validate = (opts as { validateInput?: (v: string) => string | undefined }).validateInput;
+    return "";
+  });
+  await useAsTemplate(store, shortcut);
+  assert.deepEqual(nodeFs.readdirSync(dir), ["user_card.py"]);
+  assert.deepEqual(info, []);
+  assert.equal(validate?.("   "), "Enter a name.");
+  assert.equal(validate?.("order"), undefined);
+});

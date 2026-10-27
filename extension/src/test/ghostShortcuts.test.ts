@@ -57,7 +57,10 @@ const lines = (cmd: string, n: number): string => Array.from({ length: n }, () =
 test("with no history at all it says nothing was found", async () => {
   const { s, added } = store();
   await suggestFromHistory(s);
-  assert.match(info[0], /3/);
+  assert.equal(
+    info[0],
+    "No commands found that you have typed at least 3 times. The scan reads your local shell history only and is never transmitted."
+  );
   assert.deepEqual(added, []);
 });
 
@@ -89,8 +92,7 @@ test("bash and zsh histories are merged, zsh timestamps stripped, and ranked by 
   const { s } = store();
   await suggestFromHistory(s);
   assert.deepEqual(offered.map((o) => o.label), ["npm run build --watch", "docker compose up -d"]);
-  assert.match(offered[0].description, /4/);
-  assert.match(offered[1].description, /3/);
+  assert.deepEqual(offered.map((o) => o.description), ["typed 4 times", "typed 3 times"]);
 });
 
 test("picked commands become global terminal shortcuts, with long labels shortened", async () => {
@@ -104,7 +106,10 @@ test("picked commands become global terminal shortcuts, with long labels shorten
   assert.equal(longOne.label.length, 50);
   assert.ok(longOne.label.endsWith("…"));
   assert.ok(added.every((a) => a.scope === "global" && a.terminal === true));
-  assert.match(info[info.length - 1], /2/);
+  assert.equal(
+    info[info.length - 1],
+    "Saved 2 command(s) as global shell shortcuts. They never run on their own — double-click to run."
+  );
 });
 
 test("cancelling the picker adds nothing", async () => {

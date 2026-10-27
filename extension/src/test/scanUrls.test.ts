@@ -37,10 +37,16 @@ afterEach(() => {
   win.showWarningMessage = origWarn;
   stub.__setWorkspaceFolders(undefined);
   stub.__resetHandlers();
+  for (const d of made.splice(0)) {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
 });
+
+const made: string[] = [];
 
 function projectWithHomepage(homepage: string): void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "urls-"));
+  made.push(dir);
   fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ homepage }));
   stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(dir), name: "p", index: 0 }]);
 }

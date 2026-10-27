@@ -12,6 +12,7 @@ import {
   targetUri,
   scopeFromAddGroupArg,
 } from "../commands/shortcutArgResolution";
+import { ShortcutTreeItem } from "../views/shortcutTreeItem";
 import type { ShortcutStore } from "../model/shortcutStore";
 import type { Shortcut } from "../model/shortcut";
 
@@ -57,4 +58,24 @@ test("targetUri handles a Uri, a plain TreeItem and no argument", () => {
 test("scopeFromAddGroupArg defaults to the project scope", () => {
   assert.equal(scopeFromAddGroupArg(undefined), "project");
   assert.equal(scopeFromAddGroupArg({ group: "global" }), "project");
+});
+
+test("a file shortcut row copies its resolved path, falling back to the stored path", () => {
+  const row = new ShortcutTreeItem({ shortcut: sc });
+  const resolving = { resolveUri: () => Uri.file("/proj/src/a.ts") } as unknown as ShortcutStore;
+  const unresolved = { resolveUri: () => undefined } as unknown as ShortcutStore;
+  assert.equal(pathToCopy(resolving, row), "/proj/src/a.ts");
+  assert.equal(pathToCopy(unresolved, row), "src/a.ts");
+});
+
+test("a non-file shortcut row copies its action target, not a file path", () => {
+  const url = { id: "u", path: "https://example.com", scope: "project", action: { kind: "url", url: "https://example.com" } } as Shortcut;
+  const neverResolved = { resolveUri: () => assert.fail("a non-file shortcut has no file to resolve") } as unknown as ShortcutStore;
+  assert.equal(pathToCopy(neverResolved, new ShortcutTreeItem({ shortcut: url })), "https://example.com");
+});
+
+test("targetUri resolves a file shortcut row back to its file", () => {
+  const file = Uri.file("/proj/src/a.ts");
+  const store = { resolveUri: () => file } as unknown as ShortcutStore;
+  assert.equal(targetUri(store, new ShortcutTreeItem({ shortcut: sc })), file);
 });
