@@ -52,3 +52,11 @@ test("the last created panel can be read back, and a reset disposes and forgets 
   assert.equal(__lastWebviewPanel(), undefined);
   assert.deepEqual([first.disposed, second.disposed], [true, true]);
 });
+
+test("the webview keeps a local address as it is and offers a policy source token", () => {
+  const { webview } = fakeWebviewPanel("t", "t");
+  const local = { fsPath: "/media/x.js" };
+  assert.equal(webview.asWebviewUri(local), local);
+  assert.equal(typeof webview.cspSource, "string");
+  assert.ok(webview.cspSource.length > 0);
+});
