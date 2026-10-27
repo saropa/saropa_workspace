@@ -84,6 +84,26 @@ test("folder names come from the project, then its rule sets, then the defaults"
   assert.deepEqual(foldersFor(cfg, "missing"), { deferred: ["deferred"], blocked: ["blocked"] });
 });
 
+test("a declined folder from the rules never counts as future work", () => {
+  const cfg: BoardConfig = {
+    version: 1,
+    ignore: [],
+    ruleSets: { states: { params: { deferredFolders: ["deferred", "Declined"], blockedFolders: ["blocked"] } }, only: { params: { deferredFolders: ["declined"] } } },
+    projects: [
+      { id: "a", path: "a", roots: [], ruleSets: ["states"] },
+      { id: "b", path: "b", roots: [], ruleSets: ["only", "states"] },
+    ],
+  };
+  const a = foldersFor(cfg, "a");
+  assert.deepEqual(a, { deferred: ["deferred"], blocked: ["blocked"] });
+  assert.equal(futureSource("plans/declined/X.md", a), undefined);
+  assert.equal(futureSource("docs/Declined/ux/X.md", a), undefined);
+  assert.equal(futureSource("plans/deferred/X.md", a), "deferred");
+  // A rule set that names only declined falls through to the next one.
+  assert.deepEqual(foldersFor(cfg, "b"), { deferred: ["deferred"], blocked: ["blocked"] });
+  assert.deepEqual(buildFuture([{ ...input("plans/declined/X.md"), folders: a }, { ...input("plans/deferred/Y.md"), folders: a }]).map((i) => i.path), ["plans/deferred/Y.md"]);
+});
+
 test("guesses: importance from the folder and the text, effort from the length, risk from the words", () => {
   const g = (text: string, source: "deferred" | "blocked" = "deferred") => guessFields(text, source);
   assert.deepEqual(g("# T\n"), { importance: "nice-to-have", wow: 3, reach: "weekly", effort: "S", risk: "low" });

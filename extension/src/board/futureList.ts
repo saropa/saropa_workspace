@@ -92,8 +92,11 @@ export const DEFAULT_FOLDERS: FutureFolders = { deferred: ["deferred"], blocked:
 // A folder name from the rules: one plain segment, nothing that climbs or nests.
 const folderName = (v: unknown): v is string => typeof v === "string" && v !== "" && !/[\\/]/.test(v) && v !== "." && v !== "..";
 
+// A declined document was rejected, so it is never future work.
+const DECLINED = "declined";
+
 function namesOf(v: ParamValue | undefined): string[] {
-  return (Array.isArray(v) ? v : v === undefined ? [] : [v]).filter(folderName);
+  return (Array.isArray(v) ? v : v === undefined ? [] : [v]).filter(folderName).filter((n) => n.toLowerCase() !== DECLINED);
 }
 
 // The folder names for one project: its own parameters first, then those of its rule sets
