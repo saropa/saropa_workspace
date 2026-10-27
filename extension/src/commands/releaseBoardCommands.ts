@@ -1,36 +1,35 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
-import defaultRules from "../board/defaultRules.json";
-import { FileSource, ScanResult, ScanSnapshot, completeFacts, scanAll, snapshotFingerprint } from "../board/scanner";
-import { SafetyResult, checkScan } from "../board/safety";
+import { ScanResult, completeFacts, scanAll, snapshotFingerprint } from "../board/scanner";
+import { checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
-import { mapLimit } from "../board/pool";
 import { ProjectHealth } from "../board/health";
 import { collectHealth, findHealthShortcut, startHealthRecorder } from "./boardHealth";
 import { registerBoardOvernight } from "./boardOvernight";
 import { toBackground } from "../exec/chainRunner";
 import { exportMarksCommand, markCommand, readMarks } from "./boardMarks";
-import { MarksFile } from "../board/marks";
 import { ShortcutStore } from "../model/shortcutStore";
-import { Profile, asProfile } from "../board/severity";
-import { globToRegExp } from "../board/glob";
-import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
+import { BoardConfig, ProjectDef, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
 import { withTimeout } from "../board/timeout";
 import { bindStatusLight } from "./boardStatusLight";
+import { workspaceFileSource } from "./boardFileSource";
+import { DEFAULT_ROOTS, boardReady, loadConfig } from "./boardConfigLoad";
+import { BoardRun, readAccepted, readLastRun, writeAccepted, writeLast } from "./boardScanStore";
+import { openRulesFile, previewGlob } from "./boardRules";
 
-// Release Board, VS Code layer: scan the open workspace folders with the
-// board's rule engine, run the safety check against the last accepted scan, and print
-// the result. The board core (src/board) has no VS Code imports; this file supplies the
-// file source (workspace.fs, so remote workspaces work), the cache location and the
-// command. Gated by saropaWorkspace.releaseBoard.enabled (on by default).
+// Release Board, VS Code layer: the scan flow. It runs one queued scan of the open workspace
+// folders with the board's rule engine, checks it against the last accepted scan, stores the
+// baseline, prints the result and registers the board commands and the status bar button.
+// The board core (src/board) has no VS Code imports. The file source (workspace.fs, so
+// remote workspaces work), rule loading, stored scans and rules-file helpers live in the
+// sibling board*.ts modules; the exports callers use are re-exported here.
+// Gated by saropaWorkspace.releaseBoard.enabled (on by default).
+
+export type { BoardRun };
+export { DEFAULT_ROOTS, readLastRun, openRulesFile };
 
 const OUTPUT_NAME = "Saropa Release Board";
-const CACHE_FILE = "release-board-accepted.json";
-const RULES_FILE = ".saropa/release-board.json";
-// Folders a project may keep its documents in; only the ones that exist are scanned.
-export const DEFAULT_ROOTS = ["bugs", "docs", "plans", "reports", "db-access"];
-const DEFAULT_SETS = ["folder-states", "reference-docs", "doc-kinds", "live-folders", "status-line"];
 
 let channel: vscode.OutputChannel | undefined;
 
@@ -44,217 +43,15 @@ export function logBoardError(e: unknown): void {
   out().appendLine(`Release Board scan failed: ${e instanceof Error ? e.message : String(e)}`);
 }
 
-// FileSource over workspace.fs. Walks a root recursively; a missing root throws and the
-// scanner treats it as empty.
-export function workspaceFileSource(): FileSource {
-  return {
-    async list(projectDir: string, root: string, accept?: (path: string) => boolean): Promise<ScanFile[]> {
-      const base = vscode.Uri.parse(projectDir);
-      // Folders are walked in parallel and only wanted files are stat-ed, in parallel:
-      // each call is a round trip, and on a remote workspace they dominate the scan.
-      const walk = async (rel: string): Promise<ScanFile[]> => {
-        const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(base, rel));
-        const dirs: string[] = [];
-        const files: string[] = [];
-        for (const [name, type] of entries) {
-          const childRel = rel + "/" + name;
-          if (type & vscode.FileType.Directory) {
-            dirs.push(childRel);
-          } else if (type & vscode.FileType.File && (!accept || accept(childRel))) {
-            files.push(childRel);
-          }
-        }
-        const [stats, nested] = await Promise.all([
-          mapLimit(files, 32, async (childRel): Promise<ScanFile> => {
-            const st = await vscode.workspace.fs.stat(vscode.Uri.joinPath(base, childRel));
-            return { path: childRel, size: st.size, mtimeMs: st.mtime };
-          }),
-          mapLimit(dirs, 8, walk),
-        ]);
-        return [...stats, ...nested.flat()];
-      };
-      return walk(root);
-    },
-    async readHead(projectDir: string, p: string, lines: number): Promise<string> {
-      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
-      return Buffer.from(bytes).toString("utf8").split(/\r?\n/).slice(0, lines).join("\n");
-    },
-    async readText(projectDir: string, p: string): Promise<string> {
-      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
-      return Buffer.from(bytes).toString("utf8");
-    },
-  };
-}
-
-async function exists(uri: vscode.Uri): Promise<boolean> {
-  try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// The rule file: the user's own `.saropa/release-board.json` in the first folder when
-// present, else the rules shipped with the extension. A user file may leave out any
-// section; rule sets are layered over the shipped ones. When no projects are listed,
-// every workspace folder becomes one, scanning the document folders it actually has.
-// Project paths become URI strings so remote and virtual workspaces resolve correctly.
-async function loadConfig(): Promise<BoardConfig> {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  const shipped = defaultRules as unknown as BoardConfig;
-  let cfg: BoardConfig = { ...shipped };
-  if (folders.length > 0) {
-    const user = vscode.Uri.joinPath(folders[0].uri, RULES_FILE);
-    if (await exists(user)) {
-      const bytes = await vscode.workspace.fs.readFile(user);
-      const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as Partial<BoardConfig>;
-      cfg = {
-        ...shipped,
-        ...parsed,
-        ignore: parsed.ignore ?? shipped.ignore,
-        ruleSets: { ...shipped.ruleSets, ...(parsed.ruleSets ?? {}) },
-        projects: parsed.projects ?? [],
-      };
-    }
-  }
-  // A profile chosen in settings wins over the rules file.
-  const setting = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").inspect<Profile>("profile");
-  const chosen = setting?.workspaceFolderValue ?? setting?.workspaceValue ?? setting?.globalValue;
-  cfg = { ...cfg, profile: asProfile(chosen ?? cfg.profile) };
-  if (cfg.projects.length > 0) {
-    const base = folders[0].uri;
-    const projects = cfg.projects.map((p) => ({
-      ...p,
-      path: (path.isAbsolute(p.path) ? (base.scheme === "file" ? vscode.Uri.file(p.path) : base.with({ path: p.path })) : vscode.Uri.joinPath(base, p.path)).toString(),
-    }));
-    return { ...cfg, projects };
-  }
-  const projects: ProjectDef[] = [];
-  const used = new Set<string>();
-  for (const f of folders) {
-    const roots: string[] = [];
-    for (const r of DEFAULT_ROOTS) {
-      if (await exists(vscode.Uri.joinPath(f.uri, r))) {
-        roots.push(r);
-      }
-    }
-    // Two folders can share a name; the project id must stay unique.
-    let id = f.name;
-    for (let n = 2; used.has(id); n++) {
-      id = `${f.name}-${n}`;
-    }
-    used.add(id);
-    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: DEFAULT_SETS });
-  }
-  return { ...cfg, projects };
-}
-
-async function readAccepted(dir: vscode.Uri): Promise<ScanSnapshot | undefined> {
-  try {
-    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, CACHE_FILE));
-    return JSON.parse(Buffer.from(bytes).toString("utf8")) as ScanSnapshot;
-  } catch {
-    return undefined;
-  }
-}
-
-async function writeAccepted(dir: vscode.Uri, snap: ScanSnapshot): Promise<void> {
-  await vscode.workspace.fs.createDirectory(dir);
-  await vscode.workspace.fs.writeFile(
-    vscode.Uri.joinPath(dir, CACHE_FILE),
-    Buffer.from(JSON.stringify(snap), "utf8")
-  );
-}
-
+// The status counts as one output line.
 function countsLine(c: StatusCounts): string {
   // Done, deferred and reference work is never printed as a count.
   return `red ${c.red} · amber ${c.amber} · purple ${c.purple} · grey ${c.grey}`;
 }
 
-export interface BoardRun {
-  cfg: BoardConfig;
-  result: ScanResult;
-  safety: SafetyResult;
-  dir: vscode.Uri;
-  // The scan is the accepted baseline (clean, or the user accepted it).
-  accepted: boolean;
-  // The last accepted scan this run was compared with.
-  previous?: ScanSnapshot;
-  health: Record<string, ProjectHealth>;
-  // Hand marks, shared file under local ones.
-  marks: MarksFile;
-}
-
-// Gate shared by every board command. Returns false (after telling the user why) when
-// the board is off or there is nothing to scan.
-function ready(quiet = false): boolean {
-  const enabled = vscode.workspace
-    .getConfiguration("saropaWorkspace.releaseBoard")
-    .get<boolean>("enabled", true);
-  if (!enabled) {
-    if (!quiet) {
-      void vscode.window.showInformationMessage(l10n("releaseBoard.disabled"));
-    }
-    return false;
-  }
-  if (!vscode.workspace.workspaceFolders?.length) {
-    if (!quiet) {
-      void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
-    }
-    return false;
-  }
-  return true;
-}
-
-const LAST_FILE = "release-board-last.json";
+// The fingerprint of the last result written, so an unchanged board is not written again.
 let lastFingerprint = "";
 
-// What the board last showed, kept so the next open paints at once while a fresh scan runs.
-interface LastRun {
-  version: 1;
-  rows: ScanResult["rows"];
-  snapshot: ScanSnapshot;
-  accepted: boolean;
-  safety: SafetyResult;
-  health: Record<string, ProjectHealth>;
-}
-
-async function writeLast(dir: vscode.Uri, run: BoardRun): Promise<void> {
-  const last: LastRun = { version: 1, rows: run.result.rows, snapshot: run.result.snapshot, accepted: run.accepted, safety: run.safety, health: run.health };
-  await vscode.workspace.fs.createDirectory(dir);
-  await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, LAST_FILE), Buffer.from(JSON.stringify(last), "utf8"));
-}
-
-// The last shown board, or undefined. It is only a first paint: the caller must mark it as
-// not yet refreshed and scan again.
-export async function readLastRun(context: vscode.ExtensionContext): Promise<BoardRun | undefined> {
-  if (!ready(true)) {
-    return undefined;
-  }
-  try {
-    const dir = context.storageUri ?? context.globalStorageUri;
-    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, LAST_FILE));
-    const last = JSON.parse(Buffer.from(bytes).toString("utf8")) as LastRun;
-    if (last.version !== 1) {
-      return undefined;
-    }
-    const cfg = await loadConfig();
-    // Only if the same projects are configured; otherwise the old rows mean nothing.
-    if (cfg.projects.some((p) => !last.snapshot.projects[p.id])) {
-      return undefined;
-    }
-    const result: ScanResult = { rows: last.rows, snapshot: last.snapshot, pending: [], stats: { files: last.rows.length, headReads: 0, factReads: 0, ms: 0 } };
-    // The accepted scan the result was compared with, so a stored paint is never greener than the real one.
-    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, previous: await readAccepted(dir), health: last.health, marks: await readMarks(context) };
-  } catch {
-    return undefined;
-  }
-}
-
-// Scan, run the safety check against the last accepted scan, and store the scan as the
-// new baseline only when the check found nothing. `onFirst` gets the board as soon as the
-// documents are sorted, before their text is read for marks and severity.
 // Every scan (the tab, the background scan, the Scan command, the pattern preview) goes
 // through one chain, so two never run or write the baseline and last-result files at once.
 let scanChain: Promise<unknown> = Promise.resolve();
@@ -266,6 +63,9 @@ interface Abandon {
   gone: boolean;
 }
 
+// Scan, run the safety check against the last accepted scan, and store the scan as the
+// new baseline only when the check found nothing. `onFirst` gets the board as soon as the
+// documents are sorted, before their text is read for marks and severity.
 export function runBoardScan(
   context: vscode.ExtensionContext,
   quiet = false,
@@ -285,7 +85,7 @@ async function scanNow(
   onFirst: ((run: BoardRun) => void) | undefined,
   token: Abandon
 ): Promise<BoardRun | undefined> {
-  if (!ready(quiet)) {
+  if (!boardReady(quiet)) {
     return undefined;
   }
   const cfg = await loadConfig();
@@ -396,62 +196,6 @@ async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
   }
 }
 
-const RULES_TEMPLATE = `{
-  "version": 1,
-  "profile": "deliberate",
-  "pinned": [],
-  "groups": []
-}
-`;
-
-// Opens the user's rules file, creating a small one first when there is none. With a
-// project id and folder it moves to that project in the file when the file names it, and
-// says which folder needs a rule.
-export async function openRulesFile(at?: { project: string; folder: string }): Promise<void> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (!folder) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
-    return;
-  }
-  const uri = vscode.Uri.joinPath(folder.uri, RULES_FILE);
-  if (!(await exists(uri))) {
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, ".saropa"));
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(RULES_TEMPLATE, "utf8"));
-    void vscode.window.showInformationMessage(l10n("releaseBoard.rulesCreated", { file: RULES_FILE }));
-  }
-  const editor = await vscode.window.showTextDocument(uri);
-  if (at) {
-    const text = editor.document.getText();
-    const i = text.indexOf(JSON.stringify(at.project));
-    if (i >= 0) {
-      const pos = editor.document.positionAt(i);
-      editor.selection = new vscode.Selection(pos, pos);
-      editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-    }
-    void vscode.window.showInformationMessage(l10n("releaseBoard.ruleFor", { folder: at.folder ? `${at.folder}/**` : "/" }));
-  }
-}
-
-// Asks for a glob and reports how many documents it matches, so a rule can be checked
-// before it is written. Matches the path inside each project, like a rule does.
-async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
-  const glob = await vscode.window.showInputBox({ prompt: l10n("releaseBoard.previewPrompt") });
-  if (!glob) {
-    return;
-  }
-  const run = await runBoardScan(context);
-  if (!run) {
-    return;
-  }
-  const re = globToRegExp(glob);
-  const hits = run.result.rows.filter((r) => re.test(r.path) || re.test(r.project + "/" + r.path));
-  void vscode.window.showInformationMessage(
-    hits.length === 0
-      ? l10n("releaseBoard.previewNone", { glob })
-      : l10n("releaseBoard.previewResult", { count: hits.length, glob, sample: hits.slice(0, 5).map((h) => h.path).join(", ") })
-  );
-}
-
 // The shortcut store, for resolving the shortcuts a project names as its test and lint runs.
 let boardStore: ShortcutStore | undefined;
 
@@ -479,6 +223,8 @@ export function hasOutsideProject(cfg: BoardConfig): boolean {
   return cfg.projects.some((p) => !roots.some((r) => p.path === r || p.path.startsWith(r + "/")));
 }
 
+// Registers the board commands and the status bar button, and starts the health recorder
+// and the overnight run.
 export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
   boardStore = store;
   startHealthRecorder(context, store, loadConfig);
@@ -506,6 +252,6 @@ export function registerReleaseBoard(context: vscode.ExtensionContext, store: Sh
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.mark", () => markCommand(context, loadConfig)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.exportMarks", () => exportMarksCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openRules", () => openRulesFile()),
-    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.previewGlob", () => previewGlob(context))
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.previewGlob", () => previewGlob(() => runBoardScan(context)))
   );
 }

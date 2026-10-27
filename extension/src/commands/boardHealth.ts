@@ -15,7 +15,8 @@ import { shortcutDisplayName } from "../model/shortcutDisplayName";
 
 const HEALTH_FILE = "release-board-health.json";
 
-async function readHealthFile(dir: vscode.Uri): Promise<HealthFile> {
+// The stored run records; an empty file when none is stored or it cannot be read.
+export async function readHealthFile(dir: vscode.Uri): Promise<HealthFile> {
   try {
     const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, HEALTH_FILE));
     const f = JSON.parse(Buffer.from(bytes).toString("utf8")) as Partial<HealthFile>;
@@ -41,7 +42,8 @@ function nameCounts(store: ShortcutStore): Map<string, number> {
   return counts;
 }
 
-function matches(list: string[] | undefined, id: string, name: string, counts: Map<string, number>): boolean {
+// True when the list names the shortcut by id, or by a name no other shortcut carries.
+export function matches(list: string[] | undefined, id: string, name: string, counts: Map<string, number>): boolean {
   const n = name.toLowerCase();
   return (list ?? []).some((x) => x === id || (x.toLowerCase() === n && counts.get(n) === 1));
 }
@@ -59,6 +61,7 @@ export function findHealthShortcut(store: ShortcutStore, project: ProjectDef, ki
 
 // Fires after a run was recorded, so an open board can rescan.
 const recorded = new vscode.EventEmitter<void>();
+// Fires after a finished run was recorded.
 export const onDidRecordHealth = recorded.event;
 
 // Records finished background runs of the shortcuts the projects name.
@@ -117,6 +120,7 @@ async function record(context: vscode.ExtensionContext, store: ShortcutStore, lo
 // One recording at a time: two overlapping reads of the file would let the older write win.
 let chain: Promise<void> = Promise.resolve();
 
+// Starts recording finished background runs of the shortcuts the projects name.
 export function startHealthRecorder(context: vscode.ExtensionContext, store: ShortcutStore, loadConfig: () => Promise<BoardConfig>): void {
   context.subscriptions.push(runStatusRegistry.onDidChange(() => {
       chain = chain.then(() => record(context, store, loadConfig)).catch(() => undefined);
