@@ -13,8 +13,11 @@ Copyright: (c) 2026 Saropa
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import subprocess
+import sys
 
 from modules._audit import run_audit
 from modules._build import build, newest_vsix, package_vsix, type_check
@@ -32,12 +35,16 @@ from modules._timing import StepTimer
 from modules._utils import (
     GITHUB_REPO,
     PACKAGE_JSON,
+    REPO_ROOT,
     VERSION_RE,
     detail,
     error,
     fail,
     header,
+    info,
+    is_headless,
     prompt_on_failure,
+    run,
     reset_headless_retry,
     success,
     warn,
@@ -102,17 +109,98 @@ def _attempt(
         return (code if isinstance(code, int) else 1), True
 
 
+# Package-manager commands that install each tool, tried in order; the first
+# whose manager is on PATH is used. Windows: winget. macOS: Homebrew.
+# Linux: apt-get, dnf, then pacman (sudo -n never prompts for a password).
+_INSTALLERS: dict[str, list[list[str]]] = {
+    "node": [
+        ["brew", "install", "node"],
+        ["winget", "install", "--id", "OpenJS.NodeJS.LTS", "-e", "--accept-source-agreements", "--accept-package-agreements"],
+        ["sudo", "-n", "apt-get", "install", "-y", "nodejs", "npm"],
+        ["sudo", "-n", "dnf", "install", "-y", "nodejs", "npm"],
+        ["sudo", "-n", "pacman", "-S", "--noconfirm", "nodejs", "npm"],
+    ],
+    "git": [
+        ["brew", "install", "git"],
+        ["winget", "install", "--id", "Git.Git", "-e", "--accept-source-agreements", "--accept-package-agreements"],
+        ["sudo", "-n", "apt-get", "install", "-y", "git"],
+        ["sudo", "-n", "dnf", "install", "-y", "git"],
+        ["sudo", "-n", "pacman", "-S", "--noconfirm", "git"],
+    ],
+    "gh": [
+        ["brew", "install", "gh"],
+        ["winget", "install", "--id", "GitHub.cli", "-e", "--accept-source-agreements", "--accept-package-agreements"],
+        ["sudo", "-n", "apt-get", "install", "-y", "gh"],
+        ["sudo", "-n", "dnf", "install", "-y", "gh"],
+        ["sudo", "-n", "pacman", "-S", "--noconfirm", "github-cli"],
+    ],
+}
+_TOOL_PACKAGE = {"npm": "node", "npx": "node", "node": "node", "git": "git", "gh": "gh"}
+
+
+def _refresh_path() -> None:
+    """Add the usual package-manager bin dirs so a just-installed tool is found
+    without restarting the shell."""
+    extra = ["/opt/homebrew/bin", "/usr/local/bin", "/home/linuxbrew/.linuxbrew/bin",
+             r"C:\\Program Files\\nodejs", r"C:\\Program Files\\Git\\cmd", r"C:\\Program Files\\GitHub CLI"]
+    current = os.environ.get("PATH", "").split(os.pathsep)
+    os.environ["PATH"] = os.pathsep.join(current + [d for d in extra if d not in current and os.path.isdir(d)])
+
+
+def _install_tool(tool: str) -> bool:
+    """Install the package that provides *tool*. Reports the action, then does it."""
+    package = _TOOL_PACKAGE.get(tool, tool)
+    for cmd in _INSTALLERS.get(package, []):
+        if shutil.which(cmd[0] if cmd[0] != "sudo" else cmd[2]) is None:
+            continue
+        info(f"{tool} is missing; installing it now with: {' '.join(cmd)}")
+        # Output goes straight to the terminal so the operator sees progress.
+        result = run(cmd, REPO_ROOT, check=False, timeout=1800)
+        _refresh_path()
+        if shutil.which(tool) is not None:
+            success(f"Installed {tool}.")
+            return True
+        warn(f"{' '.join(cmd)} finished (exit {result.returncode}) but {tool} is still not on PATH.")
+    return False
+
+
+def _ensure_gh_login() -> int:
+    """Log in to GitHub when gh has no session; opens the browser flow."""
+    if run(["gh", "auth", "status"], REPO_ROOT, capture=True, check=False, timeout=60).returncode == 0:
+        return 0
+    if is_headless() or not sys.stdin or not sys.stdin.isatty():
+        return fail("gh is not logged in; run 'gh auth login' once or set GH_TOKEN.", 1)
+    info("gh is not logged in; starting 'gh auth login --web' (approve in the browser).")
+    # The only step that needs the operator's hands: inherit the terminal.
+    code = subprocess.run([shutil.which("gh") or "gh", "auth", "login", "--web", "--git-protocol", "https"]).returncode
+    return 0 if code == 0 else fail("gh login did not complete.", 1)
+
+
 def check_prerequisites(mode: str) -> int:
     if not PACKAGE_JSON.exists():
         return fail(f"extension/package.json not found at {PACKAGE_JSON}", 1)
-    required = ["npm", "npx"]
+    required = ["node", "npm", "npx"]
     if mode in ("full", "audit", "ci-fallback"):
         required += ["git"]
     if mode == "full":
         required += ["gh"]
+    _refresh_path()
     missing = [tool for tool in required if shutil.which(tool) is None]
-    if missing:
-        return fail(f"Required tools not found on PATH: {', '.join(missing)}", 1)
+    installed_packages: set[str] = set()
+    for tool in missing:
+        package = _TOOL_PACKAGE[tool]
+        if package not in installed_packages and shutil.which(tool) is None:
+            _install_tool(tool)
+            installed_packages.add(package)
+    still_missing = [tool for tool in required if shutil.which(tool) is None]
+    if still_missing:
+        return fail(
+            f"Could not install: {', '.join(still_missing)}. No supported package manager "
+            "(Homebrew, winget, apt-get, dnf, pacman) is available or it needs a password.",
+            1,
+        )
+    if mode == "full":
+        return _ensure_gh_login()
     return 0
 
 

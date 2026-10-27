@@ -53,9 +53,17 @@ class SyncWithRemoteTest(unittest.TestCase):
         e.g. ["git", "rev-list", ...] is looked up under "rev-list".
         """
         calls: list[list[str]] = []
+        stashed = False
 
-        def _side_effect(args, cwd, *, check=True, capture=False):  # noqa: ANN001
+        def _side_effect(args, cwd, *, check=True, capture=False, **_kw):  # noqa: ANN001
+            nonlocal stashed
+            # `git stash list` is a read-only probe, not a mutation; it reports a
+            # pending stash only after `git stash -u`, and stays out of `calls`.
+            if args[1:3] == ["stash", "list"]:
+                return _completed("stash@{0}: sync\n" if stashed else "")
             calls.append(args)
+            if args[1:3] == ["stash", "-u"]:
+                stashed = True
             key = args[1] if len(args) > 1 else args[0]
             result = responses.get(key, _completed())
             if check and result.returncode != 0:
@@ -208,6 +216,8 @@ class SyncWithRemoteTest(unittest.TestCase):
                 return _completed("0\t2\n")
             if key == "status":
                 return _completed(" M file.py\n")
+            if args == ["git", "stash", "list"]:
+                return _completed("stash@{0}: sync\n")
             if args == ["git", "stash", "pop"]:
                 raise subprocess.CalledProcessError(1, args)
             return _completed()
