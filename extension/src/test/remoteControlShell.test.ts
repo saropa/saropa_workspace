@@ -10,7 +10,7 @@ test("the CSP is strict and every script tag carries its nonce", () => {
   const nonce = /script-src 'nonce-([^']+)'/.exec(csp)![1];
   assert.ok(csp.includes("default-src 'none'"));
   assert.ok(!csp.includes("unsafe-eval"));
-  const tags = html.match(/<script[^>]*>/g) ?? [];
+  const tags = html.split("<script").slice(1).map((part) => "<script" + part.slice(0, part.indexOf(">") + 1));
   assert.ok(tags.length >= 1);
   for (const tag of tags) {
     assert.ok(tag.includes(`nonce="${nonce}"`), tag);

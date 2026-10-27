@@ -11,8 +11,9 @@ test("the CSP is strict and its nonce matches the single inline script", () => {
   assert.ok(csp.includes("default-src 'none'"));
   assert.ok(!csp.includes("unsafe-eval"));
   assert.ok(html.includes(`nonce="${nonce}"`));
-  assert.ok((html.match(/<script/g) ?? []).length >= 1);
-  for (const tag of html.match(/<script[^>]*>/g) ?? []) {
+  const tags = html.split("<script").slice(1).map((part) => "<script" + part.slice(0, part.indexOf(">") + 1));
+  assert.ok(tags.length >= 1);
+  for (const tag of tags) {
     assert.ok(tag.includes(`nonce="${nonce}"`), `script tag without the nonce: ${tag}`);
   }
 });
