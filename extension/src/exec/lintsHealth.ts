@@ -121,16 +121,16 @@ function bandLabel(score: number): string {
   return l10n("lints.band.poor");
 }
 
-// Read and report the Saropa Lints health score. Degrades through every failure mode
-// with a useful next step: no extension -> say so; no data yet -> offer to run the
-// analysis that produces it; partial sweep -> say the score is withheld and why.
-export async function showLintsHealthScore(): Promise<void> {
-  const api = await getLintsApi();
-  if (!api) {
-    vscode.window.showInformationMessage(l10n("lints.notInstalled"));
-    return;
-  }
-
+/**
+ * Reads the Lints violations data. When none exists yet, offers to run the
+ * analysis that produces it and reads again. Returns undefined when the user
+ * declines or the analysis yields nothing (a message says why). `params` is the
+ * value read before any analysis run, so a first-time run shows "score
+ * unavailable" until the next invocation, as before.
+ */
+async function loadViolations(
+  api: SaropaLintsApi
+): Promise<{ data: ViolationsData; params: HealthScoreParams | null } | undefined> {
   let data = api.getViolationsData();
   const params = api.getHealthScoreParams();
   if (!data || !params) {
@@ -142,7 +142,7 @@ export async function showLintsHealthScore(): Promise<void> {
       run
     );
     if (choice !== run) {
-      return;
+      return undefined;
     }
     const ok = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: l10n("lints.analyzing") },
@@ -150,14 +150,32 @@ export async function showLintsHealthScore(): Promise<void> {
     );
     if (!ok) {
       vscode.window.showWarningMessage(l10n("lints.analysisFailed"));
-      return;
+      return undefined;
     }
     data = api.getViolationsData();
     if (!data) {
       vscode.window.showWarningMessage(l10n("lints.stillNoData"));
-      return;
+      return undefined;
     }
   }
+  return { data, params };
+}
+
+// Read and report the Saropa Lints health score. Degrades through every failure mode
+// with a useful next step: no extension -> say so; no data yet -> offer to run the
+// analysis that produces it; partial sweep -> say the score is withheld and why.
+export async function showLintsHealthScore(): Promise<void> {
+  const api = await getLintsApi();
+  if (!api) {
+    vscode.window.showInformationMessage(l10n("lints.notInstalled"));
+    return;
+  }
+
+  const loaded = await loadViolations(api);
+  if (!loaded) {
+    return;
+  }
+  const { data, params } = loaded;
 
   const health = params ? computeScore(data, params) : null;
   if (!health) {

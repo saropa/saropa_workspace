@@ -118,19 +118,14 @@ function numOr(value: unknown, fallback: number): number {
     : fallback;
 }
 
-// The wizard: capture a scope folder, a mode, and (for an oversized scan) the
-// ceilings, generate a descriptive name, and save it as a command-action shortcut that
-// re-runs this exact scan. Saved to project scope when a folder is open, else global.
-async function newHygieneScan(store: ShortcutStore): Promise<void> {
-  const root = await pickScope();
-  if (!root) {
-    return;
-  }
-  const mode = await pickMode();
-  if (!mode) {
-    return;
-  }
-
+/**
+ * Size ceilings for the scan. Only the oversized modes ask (file and folder, in
+ * MB); other modes keep the defaults (100 MB file, 1 GB folder). Returns
+ * undefined when the user cancels a prompt.
+ */
+async function pickCeilings(
+  mode: ScanOptions["mode"]
+): Promise<{ fileMaxBytes: number; folderMaxBytes: number } | undefined> {
   let fileMaxBytes = 100 * 1024 * 1024;
   let folderMaxBytes = 1024 * 1024 * 1024;
   if (mode === "oversized" || mode === "both") {
@@ -151,12 +146,31 @@ async function newHygieneScan(store: ShortcutStore): Promise<void> {
     fileMaxBytes = fileMB * 1024 * 1024;
     folderMaxBytes = folderMB * 1024 * 1024;
   }
+  return { fileMaxBytes, folderMaxBytes };
+}
+
+// The wizard: capture a scope folder, a mode, and (for an oversized scan) the
+// ceilings, generate a descriptive name, and save it as a command-action shortcut that
+// re-runs this exact scan. Saved to project scope when a folder is open, else global.
+async function newHygieneScan(store: ShortcutStore): Promise<void> {
+  const root = await pickScope();
+  if (!root) {
+    return;
+  }
+  const mode = await pickMode();
+  if (!mode) {
+    return;
+  }
+
+  const ceilings = await pickCeilings(mode);
+  if (!ceilings) {
+    return;
+  }
 
   const options: ScanOptions = {
     roots: [root],
     mode,
-    fileMaxBytes,
-    folderMaxBytes,
+    ...ceilings,
     respectGitignore: true,
     excludeGlobs: [],
   };

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Shortcut, shortcutKind } from "../model/shortcut";
+import type { MacroStep } from "../model/shortcutAction";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 import { ShortcutStore } from "../model/shortcutStore";
 import { planRun, expandRecipeTokens } from "../exec/runner";
@@ -221,6 +222,22 @@ function locationLabel(location: string, elevated: boolean): string {
   }
 }
 
+/** Numbered list of a macro's steps; each shows its label and the target it would use. */
+function macroStepLines(steps: readonly MacroStep[]): string[] {
+  return steps.map((step, index) => {
+    const label = step.label ?? step.kind;
+    const detail =
+      step.kind === "open"
+        ? expandRecipeTokens(step.path ?? "")
+        : step.kind === "shell"
+          ? expandRecipeTokens(step.shellCommand ?? "")
+          : step.kind === "url"
+            ? step.url ?? ""
+            : step.commandId ?? "";
+    return `${index + 1}. **${label}** — \`${detail}\``;
+  });
+}
+
 // Markdown for a non-file recipe shortcut (url / shell / command / macro): what running
 // it would do, with $workspaceRoot/$date tokens resolved the same way a real run
 // resolves them so the audit shows concrete paths, not raw tokens.
@@ -268,18 +285,7 @@ function buildActionReport(shortcut: Shortcut, name: string): string {
       break;
     case "macro":
       lines.push(`## ${l10n("simulate.action.macro")}`, "");
-      (action.steps ?? []).forEach((step, index) => {
-        const label = step.label ?? step.kind;
-        const detail =
-          step.kind === "open"
-            ? expandRecipeTokens(step.path ?? "")
-            : step.kind === "shell"
-              ? expandRecipeTokens(step.shellCommand ?? "")
-              : step.kind === "url"
-                ? step.url ?? ""
-                : step.commandId ?? "";
-        lines.push(`${index + 1}. **${label}** — \`${detail}\``);
-      });
+      lines.push(...macroStepLines(action.steps ?? []));
       lines.push("");
       break;
   }

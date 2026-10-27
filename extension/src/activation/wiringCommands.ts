@@ -107,6 +107,35 @@ export function registerCommandModules(
   // reached through the panel's search, not a contributed command of its own.
   registerRemoteControlCommands(context, store);
 
+  registerReportCommands(context, store);
+
+  // Schedule & Workflow Planner webview: the visual day/week timelines and the
+  // chained-trigger graph. Opens (or reveals the single instance of) the panel.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.openPlanner", () =>
+      PlannerPanel.show(context, store)
+    )
+  );
+
+  // Settings webview: a single screen surfacing every saropaWorkspace.*
+  // preference with an info icon and the appropriate control.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("saropaWorkspace.openSettings", () =>
+      SettingsPanel.show(context)
+    )
+  );
+  return branchSetBinder;
+}
+
+/**
+ * Registers the commands behind the scheduled report recipes (hygiene, bloat,
+ * project stats, build status, overnight delta, standup digest, dependency
+ * freshness). Each writes a dated report; none shares state with the others.
+ */
+function registerReportCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
   // Workspace hygiene scanner (recipe book section H, #63): the recursive
   // empty/oversized outlier scan that writes a dated JSON report and a sticky toast,
   // plus the per-instance saved-scan wizard.
@@ -137,21 +166,4 @@ export function registerCommandModules(
   // --json` and writes a report of ONLY the packages behind latest, driven by the
   // scheduled "Dependency freshness" recipe.
   registerPubspecOutdatedCommand(context);
-
-  // Schedule & Workflow Planner webview: the visual day/week timelines and the
-  // chained-trigger graph. Opens (or reveals the single instance of) the panel.
-  context.subscriptions.push(
-    vscode.commands.registerCommand("saropaWorkspace.openPlanner", () =>
-      PlannerPanel.show(context, store)
-    )
-  );
-
-  // Settings webview: a single screen surfacing every saropaWorkspace.*
-  // preference with an info icon and the appropriate control.
-  context.subscriptions.push(
-    vscode.commands.registerCommand("saropaWorkspace.openSettings", () =>
-      SettingsPanel.show(context)
-    )
-  );
-  return branchSetBinder;
 }

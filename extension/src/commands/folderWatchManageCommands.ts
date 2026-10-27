@@ -71,12 +71,20 @@ function describeWatch(watch: FolderWatch): string {
     : base;
 }
 
-// Action sheet for a single watch. Returns "removed-last" so the hub closes when
-// the final watch is deleted (its empty-list branch would otherwise re-toast).
-async function actOnWatch(
-  store: FolderWatchStore,
-  watch: FolderWatch
-): Promise<"continue" | "removed-last"> {
+/**
+ * The action-sheet labels for one watch, plus the two facts the labels depend on:
+ * whether the watch is global and whether this window currently gets its alerts.
+ * `actions` is the ordered list shown; the other labels identify the picked row.
+ */
+function watchActions(watch: FolderWatch): {
+  toggle: string;
+  makeGlobal: string;
+  alertHere: string;
+  editRepo: string | undefined;
+  global: boolean;
+  alertsHere: boolean;
+  actions: string[];
+} {
   const toggle = watch.enabled
     ? l10n("folderWatch.disable")
     : l10n("folderWatch.enable");
@@ -107,6 +115,17 @@ async function actOnWatch(
     ...(editRepo ? [editRepo] : []),
     remove,
   ];
+  return { toggle, makeGlobal, alertHere, editRepo, global, alertsHere, actions };
+}
+
+// Action sheet for a single watch. Returns "removed-last" so the hub closes when
+// the final watch is deleted (its empty-list branch would otherwise re-toast).
+async function actOnWatch(
+  store: FolderWatchStore,
+  watch: FolderWatch
+): Promise<"continue" | "removed-last"> {
+  const { toggle, makeGlobal, alertHere, editRepo, global, alertsHere, actions } =
+    watchActions(watch);
   const choice = await vscode.window.showQuickPick(actions, {
     title: watchDisplayName(watch),
     placeHolder: l10n("folderWatch.actionPlaceholder"),

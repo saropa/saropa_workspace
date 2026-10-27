@@ -65,33 +65,17 @@ async function detectActiveRepo(): Promise<RepoSlug | undefined> {
   return remote?.host === "github" ? { owner: remote.owner, repo: remote.repo } : undefined;
 }
 
-export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void> {
-  const detected = await detectActiveRepo();
-  const slug = await vscode.window.showInputBox({
-    title: l10n("github.addRepoTitle"),
-    prompt: l10n("github.addRepoPrompt"),
-    placeHolder: "owner/repo",
-    value: detected ? `${detected.owner}/${detected.repo}` : undefined,
-    // Trim before validating so trailing whitespace (common when pasting from a
-    // URL bar) does not block submission — matches the trim applied post-submit.
-    validateInput: (value) =>
-      isValidRepoSlug(value.trim()) ? undefined : l10n("github.invalidSlug"),
-  });
-  if (!slug) {
-    return;
-  }
-  const trimmed = slug.trim();
+/** Optional issue/PR filters for a repo watch; empty values mean "no filter". */
+interface RepoWatchFilters {
+  readonly labels: string[];
+  readonly author: string;
+}
 
-  if (findDuplicateRepoWatch(store, trimmed)) {
-    notifyWatchChange(l10n("github.alreadyWatched", { repo: trimmed }));
-    return;
-  }
-
-  const parsed = parseRepoSlug(trimmed);
-  if (!parsed) {
-    return;
-  }
-
+/**
+ * Asks for the optional label and author filters. Returns undefined when the user
+ * cancels either box, which abandons the whole add-flow.
+ */
+async function promptWatchFilters(): Promise<RepoWatchFilters | undefined> {
   // Optional narrowing: leave either box empty to alert on every open issue/PR (the
   // pre-filter default). Asked up front, before the auth/existence check, so a
   // cancel here (Escape) abandons the whole add-flow the same way an empty slug
@@ -119,15 +103,15 @@ export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void>
     return;
   }
   const filterAuthor = authorInput.trim();
+  return { labels: filterLabels, author: filterAuthor };
+}
 
-  if (!(await verifyRepoReachable(parsed, trimmed))) {
-    return;
-  }
-
+/** Builds the stored watch for a repo slug that has passed every check. */
+function buildRepoWatch(slug: string, filters: RepoWatchFilters): FolderWatch {
   const scopes = creationScopes();
   const watch: FolderWatch = {
     id: newId(),
-    target: trimmed,
+    target: slug,
     kind: "repo",
     isFile: false,
     mode: "new",
@@ -143,9 +127,49 @@ export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void>
     // one case (no folder open at creation) gives it a home instead of a silent
     // dead end; a folder is open, it still gets the normal project-scoped default.
     global: scopes === undefined ? true : undefined,
-    filterLabels: filterLabels.length > 0 ? filterLabels : undefined,
-    filterAuthor: filterAuthor.length > 0 ? filterAuthor : undefined,
+    filterLabels: filters.labels.length > 0 ? filters.labels : undefined,
+    filterAuthor: filters.author.length > 0 ? filters.author : undefined,
   };
+  return watch;
+}
+
+export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void> {
+  const detected = await detectActiveRepo();
+  const slug = await vscode.window.showInputBox({
+    title: l10n("github.addRepoTitle"),
+    prompt: l10n("github.addRepoPrompt"),
+    placeHolder: "owner/repo",
+    value: detected ? `${detected.owner}/${detected.repo}` : undefined,
+    // Trim before validating so trailing whitespace (common when pasting from a
+    // URL bar) does not block submission — matches the trim applied post-submit.
+    validateInput: (value) =>
+      isValidRepoSlug(value.trim()) ? undefined : l10n("github.invalidSlug"),
+  });
+  if (!slug) {
+    return;
+  }
+  const trimmed = slug.trim();
+
+  if (findDuplicateRepoWatch(store, trimmed)) {
+    notifyWatchChange(l10n("github.alreadyWatched", { repo: trimmed }));
+    return;
+  }
+
+  const parsed = parseRepoSlug(trimmed);
+  if (!parsed) {
+    return;
+  }
+
+  const filters = await promptWatchFilters();
+  if (!filters) {
+    return;
+  }
+
+  if (!(await verifyRepoReachable(parsed, trimmed))) {
+    return;
+  }
+
+  const watch = buildRepoWatch(trimmed, filters);
   await store.add(watch);
   notifyWatchChange(l10n("github.repoAdded", { repo: trimmed }));
 }

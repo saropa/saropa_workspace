@@ -106,6 +106,16 @@ function setupScriptsView(
   });
   context.subscriptions.push(scriptsView, syncViewCount(scriptsView, scripts));
 
+  registerScriptCommands(context, scripts);
+
+  return scripts;
+}
+
+/** Registers refresh, run and set-parameters for the script library tree. */
+function registerScriptCommands(
+  context: vscode.ExtensionContext,
+  scripts: ScriptsTreeProvider
+): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.refreshScripts", () => {
       scripts.refresh();
@@ -151,8 +161,6 @@ function setupScriptsView(
       }
     )
   );
-
-  return scripts;
 }
 
 function setupNotesView(context: vscode.ExtensionContext): NoteStore {

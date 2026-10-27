@@ -13,24 +13,22 @@ import { l10n } from "../i18n/l10n";
 // with configureSchedule's day-set summary and day picker, so it is exported from here.
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Friendly cron builder. The user composes a common schedule from presets (some
-// of which prompt for a time or weekday); the cron string is emitted under the
-// hood, so raw cron is only ever typed via the explicit "advanced" path. Every
-// path stores a cron string already validated by parseCron, so a built schedule
-// can never be malformed (acceptance: the builder produces valid schedules).
-export async function editCron(work: WorkSchedule, title: string): Promise<void> {
-  interface CronItem extends vscode.QuickPickItem {
-    action:
-      | "clear"
-      | "weekdayAt" // every weekday (Mon-Fri) at a chosen time
-      | "dailyAt" // every day at a chosen time
-      | "weeklyAt" // a chosen weekday each week at a chosen time
-      | "monthlyAt" // the 1st of each month at a chosen time
-      | "workHours" // every N minutes during Mon-Fri 09:00-17:00
-      | "hourly" // top of every hour
-      | "advanced"; // type a raw cron expression
-  }
-  const items: CronItem[] = [
+/** One row of the cron preset picker; `action` says which preset it applies. */
+interface CronItem extends vscode.QuickPickItem {
+  action:
+    | "clear"
+    | "weekdayAt" // every weekday (Mon-Fri) at a chosen time
+    | "dailyAt" // every day at a chosen time
+    | "weeklyAt" // a chosen weekday each week at a chosen time
+    | "monthlyAt" // the 1st of each month at a chosen time
+    | "workHours" // every N minutes during Mon-Fri 09:00-17:00
+    | "hourly" // top of every hour
+    | "advanced"; // type a raw cron expression
+}
+
+/** Preset rows plus an "advanced" row that shows the current expression. */
+function buildCronItems(work: WorkSchedule): CronItem[] {
+  return [
     { label: l10n("schedule.cron.clear"), action: "clear" },
     { label: l10n("schedule.cron.preset.weekdayAt"), action: "weekdayAt" },
     { label: l10n("schedule.cron.preset.dailyAt"), action: "dailyAt" },
@@ -44,15 +42,15 @@ export async function editCron(work: WorkSchedule, title: string): Promise<void>
       action: "advanced",
     },
   ];
+}
 
-  const pick = await vscode.window.showQuickPick(items, {
-    title,
-    placeHolder: l10n("schedule.cron.placeholder"),
-  });
-  if (!pick) {
-    return;
-  }
-  switch (pick.action) {
+/** Applies the chosen preset to `work.cron`, prompting for a time where one is needed. */
+async function applyCronAction(
+  action: CronItem["action"],
+  work: WorkSchedule,
+  title: string
+): Promise<void> {
+  switch (action) {
     case "clear":
       work.cron = undefined;
       return;
@@ -78,6 +76,22 @@ export async function editCron(work: WorkSchedule, title: string): Promise<void>
       await editCronWeekly(work, title);
       return;
   }
+}
+
+// Friendly cron builder. The user composes a common schedule from presets (some
+// of which prompt for a time or weekday); the cron string is emitted under the
+// hood, so raw cron is only ever typed via the explicit "advanced" path. Every
+// path stores a cron string already validated by parseCron, so a built schedule
+// can never be malformed (acceptance: the builder produces valid schedules).
+export async function editCron(work: WorkSchedule, title: string): Promise<void> {
+  const pick = await vscode.window.showQuickPick(buildCronItems(work), {
+    title,
+    placeHolder: l10n("schedule.cron.placeholder"),
+  });
+  if (!pick) {
+    return;
+  }
+  await applyCronAction(pick.action, work, title);
 }
 
 // Prompt for a daily time and store the cron the `build` callback derives from its

@@ -129,6 +129,50 @@ async function pickFolder(): Promise<FolderChoice> {
   return picked ? picked.entry : "canceled";
 }
 
+/** Shows the profile picker (the active one is ticked); returns the choice, or undefined. */
+async function pickProfile(
+  profiles: readonly EnvProfile[],
+  currentName: string | undefined
+): Promise<EnvProfile | undefined> {
+  const items = profiles.map((profile) => ({
+    label: profile.name,
+    description: profile.name === currentName ? l10n("env.activeTag") : "",
+    iconPath: new vscode.ThemeIcon(
+      profile.name === currentName ? "pass-filled" : "circle-outline"
+    ),
+    profile,
+  }));
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: l10n("env.placeholder"),
+  });
+  return picked?.profile;
+}
+
+/**
+ * Asks before overwriting a hand-edited `.env`, then saves it to the backup file.
+ * Returns false when the user declines, so the caller leaves everything untouched.
+ */
+async function confirmBackup(
+  folder: vscode.WorkspaceFolder,
+  profileName: string,
+  activeContent: string
+): Promise<boolean> {
+  const backUp = l10n("env.backupAction");
+  const choice = await vscode.window.showWarningMessage(
+    l10n("env.unsavedConfirm", { name: profileName }),
+    { modal: true },
+    backUp
+  );
+  if (choice !== backUp) {
+    return false;
+  }
+  await vscode.workspace.fs.writeFile(
+    vscode.Uri.joinPath(folder.uri, BACKUP_ENV),
+    Buffer.from(activeContent, "utf8")
+  );
+  return true;
+}
+
 // Swap the active `.env` to a chosen profile. Never destroys a hand-edited `.env`:
 // when the current `.env` matches no profile, it is backed up to `.env.bak` after a
 // modal confirm before being overwritten. Switching between recognized profiles
@@ -151,21 +195,10 @@ export async function switchEnvProfile(): Promise<void> {
   const activeContent = await readTextOrUndefined(activeUri);
   const currentName = await activeProfileName(activeContent, profiles);
 
-  const items = profiles.map((profile) => ({
-    label: profile.name,
-    description: profile.name === currentName ? l10n("env.activeTag") : "",
-    iconPath: new vscode.ThemeIcon(
-      profile.name === currentName ? "pass-filled" : "circle-outline"
-    ),
-    profile,
-  }));
-  const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: l10n("env.placeholder"),
-  });
-  if (!picked) {
+  const profile = await pickProfile(profiles, currentName);
+  if (!profile) {
     return;
   }
-  const profile = picked.profile;
   if (profile.name === currentName) {
     vscode.window.showInformationMessage(
       l10n("env.alreadyActive", { name: profile.name })
@@ -183,19 +216,9 @@ export async function switchEnvProfile(): Promise<void> {
   // A `.env` that matches no profile carries manual edits. Confirm + back it up to
   // `.env.bak` before overwriting, so a hand-edited active file is never lost.
   if (activeContent !== undefined && currentName === undefined) {
-    const backUp = l10n("env.backupAction");
-    const choice = await vscode.window.showWarningMessage(
-      l10n("env.unsavedConfirm", { name: profile.name }),
-      { modal: true },
-      backUp
-    );
-    if (choice !== backUp) {
+    if (!(await confirmBackup(folder, profile.name, activeContent))) {
       return;
     }
-    await vscode.workspace.fs.writeFile(
-      vscode.Uri.joinPath(folder.uri, BACKUP_ENV),
-      Buffer.from(activeContent, "utf8")
-    );
   }
   await vscode.workspace.fs.writeFile(
     activeUri,

@@ -93,6 +93,34 @@ export async function saveLayout(
   );
 }
 
+/**
+ * Reopens each saved tab in its saved column. A tab that no longer opens
+ * (moved, deleted, untitled) is counted and skipped so the rest still restore.
+ */
+async function reopenTabs(
+  layout: SavedLayout
+): Promise<{ opened: number; failed: number }> {
+  let opened = 0;
+  let failed = 0;
+  for (const tab of layout.tabs) {
+    try {
+      const doc = await vscode.workspace.openTextDocument(
+        vscode.Uri.parse(tab.uri)
+      );
+      await vscode.window.showTextDocument(doc, {
+        viewColumn: tab.viewColumn,
+        preview: false,
+      });
+      opened++;
+    } catch {
+      // The document no longer opens (moved/deleted/untitled): skip it but keep
+      // restoring the rest, and report the gap below.
+      failed++;
+    }
+  }
+  return { opened, failed };
+}
+
 // Restore a saved layout: recreate its grid columns, then reopen each captured
 // document in its column. A document that no longer resolves (file moved/deleted,
 // untitled buffer gone) is skipped and counted, so the toast tells the user exactly
@@ -129,24 +157,7 @@ export async function restoreLayout(
     groups: Array.from({ length: Math.max(layout.columns, 1) }, () => ({})),
   });
 
-  let opened = 0;
-  let failed = 0;
-  for (const tab of layout.tabs) {
-    try {
-      const doc = await vscode.workspace.openTextDocument(
-        vscode.Uri.parse(tab.uri)
-      );
-      await vscode.window.showTextDocument(doc, {
-        viewColumn: tab.viewColumn,
-        preview: false,
-      });
-      opened++;
-    } catch {
-      // The document no longer opens (moved/deleted/untitled): skip it but keep
-      // restoring the rest, and report the gap below.
-      failed++;
-    }
-  }
+  const { opened, failed } = await reopenTabs(layout);
   if (failed > 0) {
     vscode.window.showInformationMessage(
       l10n("layout.restoredPartial", { name: layout.name, opened, failed })

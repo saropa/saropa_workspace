@@ -4,6 +4,7 @@ import type { RoutineBrief } from "../../exec/routineRunner";
 // apostrophe — the canonical version escapes it too, which is strictly safer.
 import { escapeHtml as esc } from "../../utils/escapeHtml";
 
+// Maps a member status to the CSS class and glyph used on its card in the HTML export.
 function statusGlyph(status: string): { cls: string; icon: string } {
   switch (status) {
     case "ok":
@@ -17,6 +18,7 @@ function statusGlyph(status: string): { cls: string; icon: string } {
   }
 }
 
+// "250 ms" under a second, otherwise seconds with one decimal.
 function formatDuration(ms: number): string {
   if (ms < 1000) {
     return `${ms} ms`;
@@ -24,6 +26,7 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)} s`;
 }
 
+// Locale date-time for display; an unparseable stamp is shown as-is.
 function formatTime(iso: string): string {
   try {
     return new Date(iso).toLocaleString();
@@ -32,6 +35,7 @@ function formatTime(iso: string): string {
   }
 }
 
+// Emoji twin of statusGlyph for the Markdown export (renders in Slack/GitHub).
 function statusIcon(status: string): string {
   switch (status) {
     case "ok":
@@ -45,15 +49,19 @@ function statusIcon(status: string): string {
   }
 }
 
+// The one-line verdict: "all clear" or the localized "{count} need attention".
+function verdictLabel(brief: RoutineBrief, strings: Record<string, string>): string {
+  return brief.verdict === "clear"
+    ? strings.allClear
+    : strings.needsAttention.replace("{count}", String(brief.attentionCount));
+}
+
 /** Renders a brief as a Markdown snippet for pasting into Slack, GitHub, etc. */
 export function renderBriefMarkdown(
   brief: RoutineBrief,
   strings: Record<string, string>
 ): string {
-  const verdictText =
-    brief.verdict === "clear"
-      ? strings.allClear
-      : strings.needsAttention.replace("{count}", String(brief.attentionCount));
+  const verdictText = verdictLabel(brief, strings);
 
   const lines: string[] = [
     `**${strings.title}** — ${brief.routineName}`,
@@ -73,17 +81,9 @@ export function renderBriefMarkdown(
   return lines.join("\n");
 }
 
-/** Renders a self-contained HTML document from a RoutineBrief for sharing outside VS Code. */
-export function renderBriefExportHtml(
-  brief: RoutineBrief,
-  strings: Record<string, string>
-): string {
-  const verdictClass = brief.verdict === "clear" ? "clear" : "attention";
-  const verdictText =
-    brief.verdict === "clear"
-      ? strings.allClear
-      : strings.needsAttention.replace("{count}", String(brief.attentionCount));
-
+// One card per routine member. Every dynamic value is escaped; the glyph and
+// classes come from fixed lookups, never from member text.
+function renderMemberCards(brief: RoutineBrief): string {
   let cards = "";
   for (const m of brief.members) {
     const cardClass = m.attention ? "attention-card" : "clear-card";
@@ -100,17 +100,12 @@ export function renderBriefExportHtml(
     }
     cards += `</div></div>`;
   }
+  return cards;
+}
 
-  const title = strings.title;
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${esc(title)} — ${esc(brief.routineName)}</title>
-<style>
-:root { color-scheme: light dark; }
+// Stylesheet of the exported page. Self-contained (no external files) so the
+// HTML works when emailed or opened outside VS Code; dark colors follow the OS.
+const EXPORT_CSS = `:root { color-scheme: light dark; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
@@ -157,7 +152,26 @@ h1 { font-size: 1.3em; margin: 0 0 4px; }
 }
 .card-duration { color: #888; font-size: 0.82em; font-variant-numeric: tabular-nums; margin-top: 2px; }
 .footer { margin-top: 12px; color: #888; font-size: 0.82em; }
-</style>
+`;
+
+/** Renders a self-contained HTML document from a RoutineBrief for sharing outside VS Code. */
+export function renderBriefExportHtml(
+  brief: RoutineBrief,
+  strings: Record<string, string>
+): string {
+  const verdictClass = brief.verdict === "clear" ? "clear" : "attention";
+  const verdictText = verdictLabel(brief, strings);
+  const cards = renderMemberCards(brief);
+  const title = strings.title;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${esc(title)} — ${esc(brief.routineName)}</title>
+<style>
+${EXPORT_CSS}</style>
 </head>
 <body>
 <h1>${esc(title)}</h1>

@@ -152,6 +152,44 @@ function announce(report: BloatReport, reportUri: vscode.Uri | undefined): void 
 
 // --- remediation (current project only) --------------------------------
 
+/**
+ * Reads `.vscode/settings.json` for editing. A missing file is an empty object.
+ * A JSONC file we cannot safely round-trip is never overwritten: we warn and
+ * return undefined rather than clobber hand-edited config.
+ */
+async function readGuardSettings(
+  settingsPath: string
+): Promise<Record<string, unknown> | undefined> {
+  const fs = await import("fs/promises");
+  try {
+    const text = await fs.readFile(settingsPath, "utf8");
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    if (await pathExists(settingsPath)) {
+      vscode.window.showWarningMessage(l10n("bloat.guardUnparseable", { path: settingsPath }));
+      return undefined;
+    }
+    return {};
+  }
+}
+
+/** Sets each glob in `files.watcherExclude`; returns how many were newly added. */
+function addWatcherExcludes(settings: Record<string, unknown>, globs: string[]): number {
+  const current =
+    settings["files.watcherExclude"] && typeof settings["files.watcherExclude"] === "object"
+      ? (settings["files.watcherExclude"] as Record<string, unknown>)
+      : {};
+  let added = 0;
+  for (const g of globs) {
+    if (current[g] !== true) {
+      current[g] = true;
+      added++;
+    }
+  }
+  settings["files.watcherExclude"] = current;
+  return added;
+}
+
 // Merge files.watcherExclude entries into a project's .vscode/settings.json so VS
 // Code stops crawling the flagged dirs. Scoped to ONE project; merges into the
 // existing files.watcherExclude rather than overwriting it. Applied only to the open
@@ -181,32 +219,11 @@ async function guardProject(
   const settingsDir = path.join(root, ".vscode");
   const settingsPath = path.join(settingsDir, "settings.json");
 
-  let settings: Record<string, unknown> = {};
-  try {
-    const text = await fs.readFile(settingsPath, "utf8");
-    settings = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    // Missing or unparseable: a JSONC settings file we cannot safely round-trip is
-    // not overwritten — bail with guidance rather than clobbering hand-edited config.
-    const existing = await pathExists(settingsPath);
-    if (existing) {
-      vscode.window.showWarningMessage(l10n("bloat.guardUnparseable", { path: settingsPath }));
-      return;
-    }
+  const settings = await readGuardSettings(settingsPath);
+  if (!settings) {
+    return;
   }
-
-  const current =
-    settings["files.watcherExclude"] && typeof settings["files.watcherExclude"] === "object"
-      ? (settings["files.watcherExclude"] as Record<string, unknown>)
-      : {};
-  let added = 0;
-  for (const g of toAdd) {
-    if (current[g] !== true) {
-      current[g] = true;
-      added++;
-    }
-  }
-  settings["files.watcherExclude"] = current;
+  const added = addWatcherExcludes(settings, toAdd);
 
   try {
     await fs.mkdir(settingsDir, { recursive: true });

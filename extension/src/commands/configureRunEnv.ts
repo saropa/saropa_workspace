@@ -10,22 +10,20 @@ import { l10n } from "../i18n/l10n";
 // variables (an add/edit/delete sub-hub), and the prerequisite-shortcut dependency.
 // Split out of configureRun.ts so the hub file holds the flow.
 
-export async function editCwd(
-  work: ShortcutExecConfig,
-  title: string,
-  store: ShortcutStore,
-  shortcut: Shortcut
-): Promise<void> {
-  const uri = store.resolveUri(shortcut);
-  const owningFolder = uri
-    ? vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath
-    : undefined;
-  const fileDir = uri ? path.dirname(uri.fsPath) : undefined;
+/** One row of the working-directory picker; `value` is the folder it selects. */
+interface CwdItem extends vscode.QuickPickItem {
+  id: "default" | "workspace" | "fileDir" | "custom";
+  value?: string;
+}
 
-  interface CwdItem extends vscode.QuickPickItem {
-    id: "default" | "workspace" | "fileDir" | "custom";
-    value?: string;
-  }
+/**
+ * Builds the picker rows: the default, the owning workspace folder and the file's
+ * own folder (each only when it exists and differs), and a "custom" entry.
+ */
+function buildCwdItems(
+  owningFolder: string | undefined,
+  fileDir: string | undefined
+): CwdItem[] {
   const items: CwdItem[] = [
     {
       id: "default",
@@ -50,7 +48,45 @@ export async function editCwd(
     });
   }
   items.push({ id: "custom", label: l10n("configure.cwd.custom") });
+  return items;
+}
 
+/** Asks for a folder path; returns the trimmed path, or undefined if cancelled. */
+async function promptCustomCwd(
+  title: string,
+  current: string | undefined
+): Promise<string | undefined> {
+  const entered = await vscode.window.showInputBox({
+    title,
+    prompt: l10n("configure.cwd.customPrompt"),
+    value: current ?? "",
+    ignoreFocusOut: true,
+    // Validate existence inline so an invalid path never persists.
+    validateInput: async (input) => {
+      if (input.trim() === "") {
+        return l10n("configure.cwd.empty");
+      }
+      return (await directoryExists(input.trim()))
+        ? undefined
+        : l10n("configure.cwd.notFound");
+    },
+  });
+  return entered === undefined ? undefined : entered.trim();
+}
+
+export async function editCwd(
+  work: ShortcutExecConfig,
+  title: string,
+  store: ShortcutStore,
+  shortcut: Shortcut
+): Promise<void> {
+  const uri = store.resolveUri(shortcut);
+  const owningFolder = uri
+    ? vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath
+    : undefined;
+  const fileDir = uri ? path.dirname(uri.fsPath) : undefined;
+
+  const items = buildCwdItems(owningFolder, fileDir);
   const pick = await vscode.window.showQuickPick(items, {
     title,
     placeHolder: l10n("configure.cwd.placeholder"),
@@ -64,25 +100,10 @@ export async function editCwd(
     return;
   }
   if (pick.id === "custom") {
-    const entered = await vscode.window.showInputBox({
-      title,
-      prompt: l10n("configure.cwd.customPrompt"),
-      value: work.cwd ?? "",
-      ignoreFocusOut: true,
-      // Validate existence inline so an invalid path never persists.
-      validateInput: async (input) => {
-        if (input.trim() === "") {
-          return l10n("configure.cwd.empty");
-        }
-        return (await directoryExists(input.trim()))
-          ? undefined
-          : l10n("configure.cwd.notFound");
-      },
-    });
-    if (entered === undefined) {
-      return;
+    const entered = await promptCustomCwd(title, work.cwd);
+    if (entered !== undefined) {
+      work.cwd = entered;
     }
-    work.cwd = entered.trim();
     return;
   }
   work.cwd = pick.value;

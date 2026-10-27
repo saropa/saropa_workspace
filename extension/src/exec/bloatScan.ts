@@ -280,20 +280,17 @@ export async function measureDirectory(
   return { bytes, files };
 }
 
-// Scan one project root: measure its immediate child dirs, read its watcher guards,
-// and emit findings for oversized crawlable dirs + an unguarded test-downloader
-// cache. Pure of UI — the command layer writes the report and badges the shortcut.
-async function scanRoot(
+/**
+ * Measures each crawlable immediate child dir of `root` and pushes a finding for
+ * every one over the size or file-count ceiling. Returns how many dirs were
+ * measured (watcher-excluded dirs count: they are skipped, not unseen).
+ */
+async function findOversizedDirs(
   root: string,
   options: BloatOptions,
+  globs: string[],
   out: BloatFinding[]
-): Promise<BloatRootSummary> {
-  const settings = await readSettings(root);
-  const globs = watcherExcludeGlobs(settings);
-  const guardedTestCache = isWatcherExcluded(".vscode-test", globs);
-  const usesDownloader = await usesTestDownloader(root);
-
-  // Half one: oversized, crawlable immediate child dirs.
+): Promise<number> {
   let measured = 0;
   let children: import("fs").Dirent[] = [];
   try {
@@ -336,6 +333,24 @@ async function scanRoot(
         (prunable ? `, and prune / pin ${child.name} so it stops growing.` : "."),
     });
   }
+  return measured;
+}
+
+// Scan one project root: measure its immediate child dirs, read its watcher guards,
+// and emit findings for oversized crawlable dirs + an unguarded test-downloader
+// cache. Pure of UI — the command layer writes the report and badges the shortcut.
+async function scanRoot(
+  root: string,
+  options: BloatOptions,
+  out: BloatFinding[]
+): Promise<BloatRootSummary> {
+  const settings = await readSettings(root);
+  const globs = watcherExcludeGlobs(settings);
+  const guardedTestCache = isWatcherExcluded(".vscode-test", globs);
+  const usesDownloader = await usesTestDownloader(root);
+
+  // Half one: oversized, crawlable immediate child dirs.
+  const measured = await findOversizedDirs(root, options, globs, out);
 
   // Half two: an unguarded test-downloader cache. A finding even when .vscode-test is
   // small or absent today — the guard belongs in place before the cache grows.

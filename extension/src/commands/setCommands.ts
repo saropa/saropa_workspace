@@ -48,16 +48,11 @@ interface SetPickItem extends vscode.QuickPickItem {
   setName?: string;
 }
 
-// The switcher hub: pick a set to switch to, or a manage action. Opened by the
-// status-bar item and the "Switch Shortcut Set..." view-title command.
-async function switchShortcutSet(store: ShortcutStore): Promise<void> {
-  if (!hasWorkspaceFolder()) {
-    vscode.window.showWarningMessage(l10n("pinSet.noWorkspace"));
-    return;
-  }
-  const active = store.getActiveSetName();
-  const names = store.getSetNames();
-
+/**
+ * Rows of the switcher: one per set (the active one ticked), then the
+ * new / rename / duplicate / delete actions for the active set.
+ */
+function buildSwitchItems(names: readonly string[], active: string): SetPickItem[] {
   const items: SetPickItem[] = [];
   items.push({
     label: l10n("pinSet.switch.setsSeparator"),
@@ -91,13 +86,15 @@ async function switchShortcutSet(store: ShortcutStore): Promise<void> {
     label: l10n("pinSet.switch.delete", { name: active }),
     action: "delete",
   });
+  return items;
+}
 
-  const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: l10n("pinSet.switch.placeholder"),
-  });
-  if (!picked) {
-    return;
-  }
+/** Performs the picked row: a real set change, or one of the set actions. */
+async function runSetAction(
+  store: ShortcutStore,
+  picked: SetPickItem,
+  active: string
+): Promise<void> {
   switch (picked.action) {
     case "switch":
       // Switching to the already-active set is a no-op; only act on a real change.
@@ -121,6 +118,26 @@ async function switchShortcutSet(store: ShortcutStore): Promise<void> {
       await duplicateShortcutSet(store);
       return;
   }
+}
+
+// The switcher hub: pick a set to switch to, or a manage action. Opened by the
+// status-bar item and the "Switch Shortcut Set..." view-title command.
+async function switchShortcutSet(store: ShortcutStore): Promise<void> {
+  if (!hasWorkspaceFolder()) {
+    vscode.window.showWarningMessage(l10n("pinSet.noWorkspace"));
+    return;
+  }
+  const active = store.getActiveSetName();
+  const names = store.getSetNames();
+
+  const items = buildSwitchItems(names, active);
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: l10n("pinSet.switch.placeholder"),
+  });
+  if (!picked) {
+    return;
+  }
+  await runSetAction(store, picked, active);
 }
 
 async function newShortcutSet(store: ShortcutStore): Promise<void> {

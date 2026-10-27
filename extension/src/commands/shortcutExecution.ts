@@ -330,12 +330,11 @@ export function createRoutineHooks(store: ShortcutStore): RoutineHooks {
   };
 }
 
-// "New routine from selection": compose the multi-selected shortcuts into one routine
-// shortcut that runs them in sequence. Members reference each shortcut by recipeId
-// (preferred — it survives promote/reload) or shortcut id (a non-recipe stored shortcut),
-// skipping routines (no nesting) and de-duping. The auto-offered Morning routine is the
-// convenient default; this lets any set of recipe shortcuts be hand-composed.
-export async function newRoutineFromSelection(store: ShortcutStore, arg: unknown, args: unknown[]): Promise<void> {
+/**
+ * Turns the selected tree rows into routine members, in selection order.
+ * Duplicates, nested routines and comment/separator rows are dropped.
+ */
+function collectRoutineMembers(arg: unknown, args: unknown[]): RoutineMember[] {
   // A view/item context-menu command receives (clickedItem, allSelectedItems[]). Fall
   // back to the single clicked item when no multi-selection array is passed.
   const rawItems = Array.isArray(args) && args.length > 0 ? args : arg !== undefined ? [arg] : [];
@@ -362,7 +361,16 @@ export async function newRoutineFromSelection(store: ShortcutStore, arg: unknown
         : { pinId: shortcut.id, label: shortcut.label }
     );
   }
+  return members;
+}
 
+// "New routine from selection": compose the multi-selected shortcuts into one routine
+// shortcut that runs them in sequence. Members reference each shortcut by recipeId
+// (preferred — it survives promote/reload) or shortcut id (a non-recipe stored shortcut),
+// skipping routines (no nesting) and de-duping. The auto-offered Morning routine is the
+// convenient default; this lets any set of recipe shortcuts be hand-composed.
+export async function newRoutineFromSelection(store: ShortcutStore, arg: unknown, args: unknown[]): Promise<void> {
+  const members = collectRoutineMembers(arg, args);
   if (members.length < 2) {
     vscode.window.showWarningMessage(l10n("routine.new.needTwo"));
     return;

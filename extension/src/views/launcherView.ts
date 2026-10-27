@@ -49,6 +49,7 @@ import { adbRunHistory } from "../exec/adbRunHistory";
 // watching the panel after a single save.
 const SAVE_RESCAN_DEBOUNCE_MS = 400;
 
+/** Provider for the bottom-Panel launcher webview: owns its lifecycle and pushes data to it. */
 export class LauncherViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewId = "saropaWorkspace.launcher";
 
@@ -230,25 +231,7 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       this.store, this.watchStore, files, this.scriptsProvider, this.androidProfile
     );
 
-    const now = Date.now();
-    const [projNotes, globalNotes] = await Promise.all([
-      this.noteStore.listProjectNotes(),
-      this.noteStore.listGlobalNotes(),
-    ]);
-    const allNotes = [...projNotes, ...globalNotes];
-    const previews = await Promise.all(
-      allNotes.map((n) => readNotePreview(n.uri).catch(() => ""))
-    );
-    for (let i = 0; i < allNotes.length; i++) {
-      const n = allNotes[i];
-      items.push(noteLauncherItem({
-        path: n.uri.fsPath,
-        filename: n.filename,
-        scope: n.scope,
-        relative: formatRelativeTime(n.mtime, now),
-        preview: previews[i],
-      }));
-    }
+    await appendNoteItems(items, this.noteStore);
     void this.view.webview.postMessage({
       type: "data",
       items,
@@ -281,39 +264,70 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
       // no new message-passing plumbing needed.
       runHistoryEnabled: adbRunHistory.enabled(),
       placeholder: l10n("launcher.searchPlaceholder"),
-      strings: {
-        run: l10n("launcher.run"),
-        open: l10n("launcher.open"),
-        copyPath: l10n("launcher.copyPath"),
-        pin: l10n("launcher.pin"),
-        schedule: l10n("launcher.schedule"),
-        mine: l10n("launcher.mineSection"),
-        recipes: l10n("launcher.recipesSection"),
-        watches: l10n("launcher.watchesSection"),
-        files: l10n("launcher.filesSection"),
-        scripts: l10n("launcher.scriptsSection"),
-        notes: l10n("launcher.notesSection"),
-        mobileRemote: l10n("launcher.mobileRemoteSection"),
-        sortAsc: l10n("launcher.sortAsc"),
-        sortDesc: l10n("launcher.sortDesc"),
-        sortGrouped: l10n("launcher.sortGrouped"),
-        // {n} / {shown} / {total} stay literal here: the webview substitutes the live
-        // counts, so these are fetched without l10n params.
-        count: l10n("launcher.count"),
-        countFiltered: l10n("launcher.countFiltered"),
-        // BUG-009: the right-click menu's aria-label needs the acted-on item's name,
-        // which only the webview client knows at open time — so the template ({name})
-        // is sent once here and substituted client-side, same pattern as count/countFiltered.
-        menuAriaLabel: l10n("launcher.menu.ariaLabel"),
-        menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"),
-        runHistoryEmpty: l10n("launcher.runHistory.empty"),
-        runHistoryDisabled: l10n("launcher.runHistory.disabled"),
-        runHistoryAriaLabel: l10n("launcher.runHistory.ariaLabel"),
-        runHistoryRunAgain: l10n("launcher.runHistory.runAgain"),
-        // {count} stays literal here, substituted client-side per row — same pattern as
-        // count/countFiltered above.
-        runHistoryCount: l10n("launcher.runHistory.count"),
-      },
+      strings: launcherStrings(),
     });
   }
+}
+
+/**
+ * Appends one launcher card per Markdown note (project notes, then global) to
+ * `items`. Previews are read in parallel; an unreadable file gets an empty preview.
+ */
+async function appendNoteItems(items: LauncherItem[], noteStore: NoteStore): Promise<void> {
+  const now = Date.now();
+  const [projNotes, globalNotes] = await Promise.all([
+    noteStore.listProjectNotes(),
+    noteStore.listGlobalNotes(),
+  ]);
+  const allNotes = [...projNotes, ...globalNotes];
+  const previews = await Promise.all(
+    allNotes.map((n) => readNotePreview(n.uri).catch(() => ""))
+  );
+  for (let i = 0; i < allNotes.length; i++) {
+    const n = allNotes[i];
+    items.push(noteLauncherItem({
+      path: n.uri.fsPath,
+      filename: n.filename,
+      scope: n.scope,
+      relative: formatRelativeTime(n.mtime, now),
+      preview: previews[i],
+    }));
+  }
+}
+
+/** The localized UI strings the launcher webview needs, sent with every data message. */
+function launcherStrings(): Record<string, string> {
+  return {
+    run: l10n("launcher.run"),
+    open: l10n("launcher.open"),
+    copyPath: l10n("launcher.copyPath"),
+    pin: l10n("launcher.pin"),
+    schedule: l10n("launcher.schedule"),
+    mine: l10n("launcher.mineSection"),
+    recipes: l10n("launcher.recipesSection"),
+    watches: l10n("launcher.watchesSection"),
+    files: l10n("launcher.filesSection"),
+    scripts: l10n("launcher.scriptsSection"),
+    notes: l10n("launcher.notesSection"),
+    mobileRemote: l10n("launcher.mobileRemoteSection"),
+    sortAsc: l10n("launcher.sortAsc"),
+    sortDesc: l10n("launcher.sortDesc"),
+    sortGrouped: l10n("launcher.sortGrouped"),
+    // {n} / {shown} / {total} stay literal here: the webview substitutes the live
+    // counts, so these are fetched without l10n params.
+    count: l10n("launcher.count"),
+    countFiltered: l10n("launcher.countFiltered"),
+    // BUG-009: the right-click menu's aria-label needs the acted-on item's name,
+    // which only the webview client knows at open time — so the template ({name})
+    // is sent once here and substituted client-side, same pattern as count/countFiltered.
+    menuAriaLabel: l10n("launcher.menu.ariaLabel"),
+    menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"),
+    runHistoryEmpty: l10n("launcher.runHistory.empty"),
+    runHistoryDisabled: l10n("launcher.runHistory.disabled"),
+    runHistoryAriaLabel: l10n("launcher.runHistory.ariaLabel"),
+    runHistoryRunAgain: l10n("launcher.runHistory.runAgain"),
+    // {count} stays literal here, substituted client-side per row — same pattern as
+    // count/countFiltered above.
+    runHistoryCount: l10n("launcher.runHistory.count"),
+  };
 }

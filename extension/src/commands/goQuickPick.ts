@@ -70,71 +70,83 @@ export function registerGoCommand(
 // Everything the list can contain, already display-resolved. Notes are the only async
 // source (a directory read), so the whole gather is async.
 async function collectGoSources(stores: GoStores): Promise<GoSource[]> {
-  const sources: GoSource[] = [];
+  return [
+    ...shortcutAndRecipeSources(stores.store),
+    ...scriptSources(stores.scripts),
+    ...(await noteSources(stores.noteStore)),
+    ...watchSources(stores.watchStore),
+    ...adbSources(),
+  ];
+}
 
-  // Shortcuts and recipes both live in the shortcut store; recipes are the isRecipe
-  // entries the Recipes view paints, so they are split into their own category here
-  // exactly as they are split into their own tree. Annotation rows (comments and
-  // separators) are inert in the tree and so are not offered.
+// Shortcuts and recipes both live in the shortcut store; recipes are the isRecipe
+// entries the Recipes view paints, so they are split into their own category here
+// exactly as they are split into their own tree. Annotation rows (comments and
+// separators) are inert in the tree and so are not offered.
+function shortcutAndRecipeSources(store: ShortcutStore): GoSource[] {
+  const sources: GoSource[] = [];
   const shortcuts = [
-    ...stores.store.getProjectShortcuts(),
-    ...stores.store.getGlobalShortcuts(),
+    ...store.getProjectShortcuts(),
+    ...store.getGlobalShortcuts(),
   ].filter((s) => !isAnnotationShortcut(s) && !s.isRecipe);
   for (const shortcut of shortcuts) {
     sources.push(shortcutSource("shortcut", shortcut));
   }
-  for (const recipe of stores.store.getRecipeShortcuts()) {
+  for (const recipe of store.getRecipeShortcuts()) {
     if (!isAnnotationShortcut(recipe)) {
       sources.push(shortcutSource("recipe", recipe));
     }
   }
-
-  for (const script of stores.scripts.scripts) {
-    sources.push({
-      category: "script",
-      id: script.id,
-      label: script.label,
-      description: script.tags.join(", "),
-      detail: script.description,
-    });
-  }
-
-  const notes = [
-    ...(await stores.noteStore.listProjectNotes()),
-    ...(await stores.noteStore.listGlobalNotes()),
-  ];
-  for (const note of notes) {
-    sources.push({
-      category: "note",
-      id: note.uri.toString(),
-      label: note.filename,
-      description:
-        note.scope === "project" ? l10n("go.scopeProject") : l10n("notes.globalRoot"),
-      detail: note.uri.fsPath,
-    });
-  }
-
-  for (const watch of stores.watchStore.list()) {
-    sources.push({
-      category: "watch",
-      id: watch.id,
-      label: watchDisplayName(watch),
-      description: watchKindLabel(watch),
-      detail: watch.target,
-    });
-  }
-
-  for (const entry of ADB_COMMAND_CATALOG) {
-    sources.push({
-      category: "adb",
-      id: entry.id,
-      label: l10n(entry.labelKey),
-      description: entry.commandTemplate,
-      detail: l10n(entry.descriptionKey),
-    });
-  }
-
   return sources;
+}
+
+/** Library scripts, described by their tags. */
+function scriptSources(scripts: ScriptsTreeProvider): GoSource[] {
+  return scripts.scripts.map((script) => ({
+    category: "script",
+    id: script.id,
+    label: script.label,
+    description: script.tags.join(", "),
+    detail: script.description,
+  }));
+}
+
+/** Project notes, then global notes; the id is the note's URI. */
+async function noteSources(noteStore: NoteStore): Promise<GoSource[]> {
+  const notes = [
+    ...(await noteStore.listProjectNotes()),
+    ...(await noteStore.listGlobalNotes()),
+  ];
+  return notes.map((note) => ({
+    category: "note",
+    id: note.uri.toString(),
+    label: note.filename,
+    description:
+      note.scope === "project" ? l10n("go.scopeProject") : l10n("notes.globalRoot"),
+    detail: note.uri.fsPath,
+  }));
+}
+
+/** Folder, file and repo watches, described by their kind. */
+function watchSources(watchStore: FolderWatchStore): GoSource[] {
+  return watchStore.list().map((watch) => ({
+    category: "watch",
+    id: watch.id,
+    label: watchDisplayName(watch),
+    description: watchKindLabel(watch),
+    detail: watch.target,
+  }));
+}
+
+/** The whole adb command catalog, with each command template as the description. */
+function adbSources(): GoSource[] {
+  return ADB_COMMAND_CATALOG.map((entry) => ({
+    category: "adb",
+    id: entry.id,
+    label: l10n(entry.labelKey),
+    description: entry.commandTemplate,
+    detail: l10n(entry.descriptionKey),
+  }));
 }
 
 function shortcutSource(category: GoCategory, shortcut: Shortcut): GoSource {
@@ -206,21 +218,16 @@ function goLabels(): { recent: string; categories: Record<GoCategory, string> } 
   };
 }
 
-async function showGoQuickPick(stores: GoStores): Promise<void> {
-  const sources = await collectGoSources(stores);
-  const recent = collectRecency();
-  const labels = goLabels();
-
-  const qp = vscode.window.createQuickPick<GoQuickPickItem>();
-  qp.title = l10n("go.title");
-  qp.placeholder = l10n("go.placeholder", {
-    categories: GO_CATEGORIES.map((c) => `>${c}`).join(" "),
-  });
-  qp.ignoreFocusOut = true;
-  qp.matchOnDescription = true;
-  qp.matchOnDetail = true;
-  qp.items = buildGoRows(sources, labels, { recent }).map(toQuickPickItem);
-
+/**
+ * Wires the `>category` drill-down onto the quick pick. Needs the same data the
+ * initial list was built from, so it can rebuild rows for each category.
+ */
+function wireCategoryNarrowing(
+  qp: vscode.QuickPick<GoQuickPickItem>,
+  sources: GoSource[],
+  labels: ReturnType<typeof goLabels>,
+  recent: ReturnType<typeof collectRecency>
+): void {
   // The drill-down. `>adb screenshot` narrows the list to adb and leaves "screenshot" in
   // the box for VS Code's own fuzzy match to apply, so no filtering is re-implemented
   // here.
@@ -276,6 +283,24 @@ async function showGoQuickPick(stores: GoStores): Promise<void> {
     }
     // Otherwise this is ordinary search text inside the active category: leave it narrowed.
   });
+}
+
+async function showGoQuickPick(stores: GoStores): Promise<void> {
+  const sources = await collectGoSources(stores);
+  const recent = collectRecency();
+  const labels = goLabels();
+
+  const qp = vscode.window.createQuickPick<GoQuickPickItem>();
+  qp.title = l10n("go.title");
+  qp.placeholder = l10n("go.placeholder", {
+    categories: GO_CATEGORIES.map((c) => `>${c}`).join(" "),
+  });
+  qp.ignoreFocusOut = true;
+  qp.matchOnDescription = true;
+  qp.matchOnDetail = true;
+  qp.items = buildGoRows(sources, labels, { recent }).map(toQuickPickItem);
+
+  wireCategoryNarrowing(qp, sources, labels, recent);
 
   // Unlike hubQuickPick.ts this resolves nothing to a caller, so accept and hide need no
   // discrimination: accept dispatches and then hides, and hide always disposes.

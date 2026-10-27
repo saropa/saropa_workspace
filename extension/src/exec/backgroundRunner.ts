@@ -24,6 +24,68 @@ import { createBoundedCapture } from "./outputCapture";
 // suggested fix command). Split out of runner.ts as the densest run path, tightly
 // coupled around the child process and its single settle() closure.
 
+/** Everything the end-of-run bookkeeping needs from the run that just finished. */
+interface RunEndContext {
+  readonly child: import("child_process").ChildProcess;
+  readonly capture: ReturnType<typeof attachOutputCapture>;
+  readonly startedAt: number;
+  readonly lockName: string | undefined;
+  readonly pinId: string;
+  readonly name: string;
+  readonly cwd: string;
+  readonly extractResult: string | undefined;
+  readonly retry: (() => void) | undefined;
+  readonly soundOverride: SoundOverride | undefined;
+}
+
+/**
+ * Records a finished background run: releases the lock, stores the result and
+ * output, plays the finish cue, fires the chain event, then badges and notifies.
+ * Called once per run (the caller's `settled` guard enforces that).
+ */
+function recordRunEnd(
+  ctx: RunEndContext,
+  outcome: "success" | "failure",
+  code: number | null
+): void {
+  const { child, capture, startedAt, lockName, pinId, name, cwd, extractResult, retry, soundOverride } = ctx;
+  const durationMs = Date.now() - startedAt;
+  const endedAt = Date.now();
+  // Free the cross-process lock now this run has ended (release only clears our
+  // own record, so a run that already stole the lock is unaffected).
+  if (lockName && child.pid !== undefined) {
+    runLock.release(lockName, child.pid);
+  }
+  runStatusRegistry.record(pinId, {
+    outcome,
+    exitCode: code,
+    durationMs,
+    endedAt,
+  });
+  // Audio finish cue (#64): distinct success/failure tone, honoring the shortcut's
+  // override. Paired with the notifyCompletion toast below — the cue is the
+  // additive channel, the toast stays the visible feedback.
+  playCue(outcome, soundOverride);
+  // Real tracked outcome for the chain engine — a shortcut chained "after" this one
+  // (with onlyOnSuccess) runs only when this background run actually succeeded.
+  shortcutEvents.fireComplete(pinId, outcome);
+  // Snapshot once — getCaptured() rebuilds head+marker+tail on each call,
+  // so caching avoids a redundant up-to-1MB string allocation.
+  const captured = capture.getCaptured();
+  // Keep this run's output for the "Diff Last Two Runs" command.
+  runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
+  // Badge, extract, and notify: none of this needs the dedupe guard or the
+  // registries above, so it is delegated to keep this closure focused on the
+  // mutable state (settled, the registries) the header comment defends keeping
+  // together.
+  handleRunSettled(
+    { pinId, name, cwd, captured, extractResult, retry },
+    outcome,
+    code,
+    durationMs
+  );
+}
+
 export async function runInBackground(
   commandLine: string,
   cwd: string,
@@ -71,40 +133,10 @@ export async function runInBackground(
       return;
     }
     settled = true;
-    const durationMs = Date.now() - startedAt;
-    const endedAt = Date.now();
-    // Free the cross-process lock now this run has ended (release only clears our
-    // own record, so a run that already stole the lock is unaffected).
-    if (lockName && child.pid !== undefined) {
-      runLock.release(lockName, child.pid);
-    }
-    runStatusRegistry.record(pinId, {
+    recordRunEnd(
+      { child, capture, startedAt, lockName, pinId, name, cwd, extractResult, retry, soundOverride },
       outcome,
-      exitCode: code,
-      durationMs,
-      endedAt,
-    });
-    // Audio finish cue (#64): distinct success/failure tone, honoring the shortcut's
-    // override. Paired with the notifyCompletion toast below — the cue is the
-    // additive channel, the toast stays the visible feedback.
-    playCue(outcome, soundOverride);
-    // Real tracked outcome for the chain engine — a shortcut chained "after" this one
-    // (with onlyOnSuccess) runs only when this background run actually succeeded.
-    shortcutEvents.fireComplete(pinId, outcome);
-    // Snapshot once — getCaptured() rebuilds head+marker+tail on each call,
-    // so caching avoids a redundant up-to-1MB string allocation.
-    const captured = capture.getCaptured();
-    // Keep this run's output for the "Diff Last Two Runs" command.
-    runOutputs.record(pinId, { output: captured, endedAt, exitCode: code });
-    // Badge, extract, and notify: none of this needs the dedupe guard or the
-    // registries above, so it is delegated to keep this closure focused on the
-    // mutable state (settled, the registries) the header comment defends keeping
-    // together.
-    handleRunSettled(
-      { pinId, name, cwd, captured, extractResult, retry },
-      outcome,
-      code,
-      durationMs
+      code
     );
   };
 
