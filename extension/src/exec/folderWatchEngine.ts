@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { promises as fs } from "fs";
+
 import {
   FolderWatch,
   FolderSnapshot,
@@ -11,12 +11,13 @@ import {
   watchAlertsIn,
   watchKind,
   watchDisplayName,
-  matchesRepoFilter,
 } from "../model/folderWatch";
-import { globToRegExp } from "./globMatch";
+
+import { scanFolderTarget, scanRepoTarget, repoPollIntervalMs } from "./folderWatchScan";
+import { toastFolderDelta, toastRepoItems } from "./folderWatchToast";
 import { l10n } from "../i18n/l10n";
-import { fetchOpenRepoItems, parseRepoSlug, repoIssuesUrl } from "../github/githubClient";
-import { GitHubWatchItem, newestRepoItem } from "../github/githubTypes";
+import { repoIssuesUrl } from "../github/githubClient";
+import { GitHubWatchItem } from "../github/githubTypes";
 
 // Engine for the folder/file watches (PLAN_FILE_AND_FOLDER_WATCH). Two jobs:
 //   1. On startup, scan each enabled watch and diff it against the cached baseline,
@@ -29,35 +30,6 @@ import { GitHubWatchItem, newestRepoItem } from "../github/githubTypes";
 // for the next startup. Disposable so every watcher and timer is torn down on
 // deactivation (a leaked FileSystemWatcher survives a reload and double-fires).
 
-// Directories never worth crawling for a "new file" alert: VCS internals, package
-// caches, and build output churn constantly and would bury a real new file in
-// noise. Skipped during the recursive folder walk. A file watch (isFile) bypasses
-// the walk entirely, so an explicit watch on a file inside one of these still works.
-const SKIP_DIRS = new Set([
-  ".git",
-  "node_modules",
-  ".dart_tool",
-  "build",
-  "dist",
-  "out",
-  ".next",
-  ".turbo",
-  "coverage",
-  "__pycache__",
-  ".venv",
-]);
-
-// Hard ceiling on files captured per folder scan. A watch aimed at a huge tree
-// would otherwise stat tens of thousands of files on every event; the cap keeps a
-// misconfigured watch from stalling the window. Reaching it is logged once per
-// scan, not toasted, so it never masquerades as a "new files" alert.
-const MAX_FILES = 5000;
-
-// How many filenames a toast lists before collapsing the rest into "+N more", so a
-// burst of new files names the first few (UX: name the item) without an unbounded
-// wall of text.
-const MAX_LISTED = 5;
-
 // Delay before the startup scan runs, so it lands after activation completes rather
 // than competing with it for IO. Short enough that a closed-window arrival is
 // surfaced promptly once the window is up.
@@ -67,17 +39,6 @@ const STARTUP_SCAN_DELAY_MS = 1500;
 // multi-file write (a report generator, a git operation) touches the tree several
 // times in quick succession; 500 ms absorbs the burst while still feeling prompt.
 const DEBOUNCE_MS = 500;
-
-// A repo watch has no live filesystem event source, so it is polled on a fixed
-// interval instead of arming a FileSystemWatcher. Read fresh from config on every
-// tick (not cached at construction) so editing the setting takes effect on the next
-// tick rather than requiring a reload.
-function repoPollIntervalMs(): number {
-  const minutes = vscode.workspace
-    .getConfiguration("saropaWorkspace")
-    .get<number>("github.pollIntervalMinutes", 5);
-  return Math.max(1, minutes) * 60_000;
-}
 
 interface ArmedWatch {
   watcher: vscode.FileSystemWatcher;
@@ -378,96 +339,13 @@ export class FolderWatchEngine implements vscode.Disposable {
     }
   }
 
-  // Build the snapshot for a watch: a single-entry map for a file watch, a bounded
-  // recursive walk for a folder watch (glob-filtered, heavy dirs skipped), or a
-  // GitHub fetch for a repo watch.
   private async scanTarget(watch: FolderWatch): Promise<FolderSnapshot> {
     if (watchKind(watch) === "repo") {
-      return this.scanRepoTarget(watch);
+      const { snapshot, items } = await scanRepoTarget(watch);
+      this.repoItemsCache.set(watch.id, items);
+      return snapshot;
     }
-    if (watch.isFile) {
-      const stat = await fs.stat(watch.target);
-      return { [path.basename(watch.target)]: stat.mtimeMs };
-    }
-    const snapshot: FolderSnapshot = {};
-    const matcher = watch.glob ? this.compileGlob(watch.glob) : undefined;
-    await this.walk(watch.target, watch.target, matcher, snapshot);
-    return snapshot;
-  }
-
-  // Fetch a repo's open issues/PRs and build a snapshot keyed by item ("issue:123"
-  // / "pr:45") mapped to its updated_at timestamp, so diffSnapshots reports newly-
-  // opened items exactly like a newly-arrived file (mode is fixed at "new" for repo
-  // watches — GitHub already has its own notion of "updated"; re-alerting on every
-  // edit to an existing issue would be noise, not signal). The fetched items are
-  // also cached (title/URL) for the toast and the row-click open action.
-  private async scanRepoTarget(watch: FolderWatch): Promise<FolderSnapshot> {
-    const slug = parseRepoSlug(watch.target);
-    if (!slug) {
-      throw new Error(`invalid repo slug: ${watch.target}`);
-    }
-    const fetched = await fetchOpenRepoItems(slug, false);
-    // Filter BEFORE caching/snapshotting: a filtered-out item must never enter the
-    // baseline or the toast cache, so it can neither trigger a toast now nor appear
-    // via the row-click "open newest unseen" action later.
-    const items = fetched.filter((item) => matchesRepoFilter(watch, item));
-    this.repoItemsCache.set(watch.id, items);
-    const snapshot: FolderSnapshot = {};
-    for (const item of items) {
-      snapshot[item.key] = Date.parse(item.updatedAt) || 0;
-    }
-    return snapshot;
-  }
-
-  // Recursive directory walk into `snapshot`, keyed by forward-slashed paths
-  // relative to the watch root. Stops adding once MAX_FILES is reached.
-  private async walk(
-    root: string,
-    dir: string,
-    matcher: RegExp | undefined,
-    snapshot: FolderSnapshot
-  ): Promise<void> {
-    if (Object.keys(snapshot).length >= MAX_FILES) {
-      return;
-    }
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (Object.keys(snapshot).length >= MAX_FILES) {
-        this.output.appendLine(
-          l10n("folderWatch.tooManyFiles", { max: MAX_FILES, dir: root })
-        );
-        return;
-      }
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name)) {
-          continue;
-        }
-        await this.walk(root, full, matcher, snapshot);
-      } else if (entry.isFile()) {
-        const rel = path.relative(root, full).split(path.sep).join("/");
-        if (matcher && !matcher.test(rel)) {
-          continue;
-        }
-        try {
-          const stat = await fs.stat(full);
-          snapshot[rel] = stat.mtimeMs;
-        } catch {
-          // A file that vanished between readdir and stat is simply skipped — it is
-          // not part of the current contents, so it neither adds nor changes.
-        }
-      }
-    }
-  }
-
-  // Compile the folder-relative glob once per scan. A malformed pattern compiles to
-  // a never-match so one bad glob disables only that watch's filter, never throws.
-  private compileGlob(glob: string): RegExp {
-    try {
-      return globToRegExp(glob);
-    } catch {
-      return /$.^/;
-    }
+    return scanFolderTarget(watch, this.output);
   }
 
   private async toast(
@@ -476,128 +354,11 @@ export class FolderWatchEngine implements vscode.Disposable {
     isStartup: boolean
   ): Promise<void> {
     if (watchKind(watch) === "repo") {
-      await this.toastRepo(watch, delta);
+      // Repo watches name the new issues/PRs by title, from the fetched-items cache.
+      await toastRepoItems(delta, this.repoItemsCache.get(watch.id) ?? [], this.nameOf(watch));
       return;
     }
-    const label = this.nameOf(watch);
-    // Ordered new-then-changed so the listed filenames line up with the split
-    // counts the message states.
-    const files = [...delta.added, ...delta.changed];
-    const summary = this.formatFiles(files);
-    const hasAdded = delta.added.length > 0;
-    const hasChanged = delta.changed.length > 0;
-    // Name new vs changed precisely rather than collapsing both into one
-    // ambiguous "new or changed" verb: a batch that is purely edits must read as
-    // "changed" (not "new"), and a mixed batch states each count so the reader
-    // knows which files arrived vs which were edited. The startup variants add
-    // the "while you were away" framing for closed-window arrivals.
-    let message: string;
-    if (hasAdded && hasChanged) {
-      message = l10n(
-        isStartup ? "folderWatch.mixedFilesStartup" : "folderWatch.mixedFiles",
-        {
-          added: delta.added.length,
-          changed: delta.changed.length,
-          label,
-          files: summary,
-        }
-      );
-    } else if (hasChanged) {
-      message = l10n(
-        isStartup
-          ? "folderWatch.changedFilesStartup"
-          : "folderWatch.changedFiles",
-        { count: delta.changed.length, label, files: summary }
-      );
-    } else {
-      message = l10n(
-        isStartup ? "folderWatch.newFilesStartup" : "folderWatch.newFiles",
-        { count: delta.added.length, label, files: summary }
-      );
-    }
-
-    const open = l10n("folderWatch.open");
-    const choice = await vscode.window.showInformationMessage(message, open);
-    if (choice !== open) {
-      return;
-    }
-    // Open the first changed/new file (folder watch) or the target itself (file
-    // watch), so the action lands the user on the thing the toast named.
-    const first = files[0];
-    const toOpen = watch.isFile
-      ? vscode.Uri.file(watch.target)
-      : vscode.Uri.file(path.join(watch.target, first));
-    try {
-      await vscode.window.showTextDocument(toOpen, { preview: true });
-    } catch {
-      // A binary or unopenable file: reveal it in the Explorer instead of failing.
-      await vscode.commands.executeCommand("revealInExplorer", toOpen);
-    }
-  }
-
-  // Toast for a repo watch: names the new issues/PRs by title (not just a count,
-  // matching the folder-watch toast's "name the item" convention) and opens the
-  // newest one on GitHub. delta.added holds the composite keys ("issue:123");
-  // delta.changed is always empty for a repo watch (mode is fixed to "new").
-  private async toastRepo(watch: FolderWatch, delta: FolderWatchDelta): Promise<void> {
-    const label = this.nameOf(watch);
-    const items = this.repoItemsCache.get(watch.id) ?? [];
-    const byKey = new Map(items.map((i) => [i.key, i]));
-    const newItems = delta.added
-      .map((key) => byKey.get(key))
-      .filter((i): i is GitHubWatchItem => i !== undefined);
-    if (newItems.length === 0) {
-      return;
-    }
-    const issueCount = newItems.filter((i) => i.kind === "issue").length;
-    const prCount = newItems.filter((i) => i.kind === "pr").length;
-    const summary = this.formatItems(newItems);
-
-    let message: string;
-    if (issueCount > 0 && prCount > 0) {
-      message = l10n("github.newMixed", {
-        issues: issueCount,
-        prs: prCount,
-        label,
-        items: summary,
-      });
-    } else if (prCount > 0) {
-      message = l10n("github.newPrs", { count: prCount, label, items: summary });
-    } else {
-      message = l10n("github.newIssues", { count: issueCount, label, items: summary });
-    }
-
-    const open = l10n("folderWatch.open");
-    const choice = await vscode.window.showInformationMessage(message, open);
-    if (choice !== open) {
-      return;
-    }
-    const target = newestRepoItem(newItems);
-    if (target) {
-      await vscode.env.openExternal(vscode.Uri.parse(target.htmlUrl));
-    }
-  }
-
-  // List up to MAX_LISTED item titles as "#N title", then "+N more", mirroring
-  // formatFiles for the repo-watch toast.
-  private formatItems(items: GitHubWatchItem[]): string {
-    const shown = items.slice(0, MAX_LISTED).map((i) => `#${i.number} ${i.title}`);
-    const extra = items.length - shown.length;
-    return extra > 0
-      ? l10n("folderWatch.fileListMore", { files: shown.join(", "), more: extra })
-      : shown.join(", ");
-  }
-
-  // List up to MAX_LISTED filenames, then "+N more", so the toast names files
-  // without an unbounded list. Basename only — the folder is already named.
-  private formatFiles(files: string[]): string {
-    const shown = files
-      .slice(0, MAX_LISTED)
-      .map((f) => f.split("/").pop() ?? f);
-    const extra = files.length - shown.length;
-    return extra > 0
-      ? l10n("folderWatch.fileListMore", { files: shown.join(", "), more: extra })
-      : shown.join(", ");
+    await toastFolderDelta(watch, delta, isStartup, this.nameOf(watch));
   }
 
   private nameOf(watch: FolderWatch): string {
