@@ -15,9 +15,9 @@
 
 import * as nodeFs from "node:fs";
 import * as nodePath from "node:path";
-import { Disposable } from "./vscodeExtras";
+import { Disposable, applyEdit, recordWarning } from "./vscodeExtras";
 
-export { DiagnosticSeverity, Disposable, __setDiagnostics, languages } from "./vscodeExtras";
+export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, languages } from "./vscodeExtras";
 
 // vscode.FileType: the store reads `.type` from a stat to tell a file from a
 // directory (the auto-shortcut literal-path branch). Only File/Directory are exercised.
@@ -122,6 +122,13 @@ function ownerFolder(uri: Uri): WorkspaceFolder | undefined {
 // before store IO existed). A test sets recipes.enabled=false to skip the recipe
 // detection graph, or autoShortcuts.patterns to drive seeding.
 const configValues = new Map<string, unknown>();
+// Values set at workspace and folder scope; only inspect() sees them, get() reads the global map.
+const workspaceValues = new Map<string, unknown>();
+const folderValues = new Map<string, unknown>();
+// Test-control hook: sets a value at workspace or folder scope for inspect().
+export function __setConfigAt(scope: "workspace" | "folder", section: string, key: string, value: unknown): void {
+  (scope === "workspace" ? workspaceValues : folderValues).set(`${section}.${key}`, value);
+}
 // Test-control hook: seeds a single "section.key" value, read back by
 // getConfiguration().get() in place of the caller's supplied default.
 export function __setConfig(section: string, key: string, value: unknown): void {
@@ -131,6 +138,8 @@ export function __setConfig(section: string, key: string, value: unknown): void 
 // does not leak from one test into the next.
 export function __resetConfig(): void {
   configValues.clear();
+  workspaceValues.clear();
+  folderValues.clear();
   installedExtensions.clear();
 }
 
@@ -152,10 +161,13 @@ function getConfiguration(section?: string): {
       const full = section ? `${section}.${key}` : key;
       return (configValues.has(full) ? configValues.get(full) : defaultValue) as T;
     },
-    // A value set by a test counts as the user (global) value; unset keys inspect as undefined.
-    inspect<T>(key: string): { globalValue?: T } | undefined {
+    // __setConfig sets the user (global) value; __setConfigAt sets a workspace or folder one.
+    inspect<T>(key: string): { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined {
       const full = section ? `${section}.${key}` : key;
-      return configValues.has(full) ? { globalValue: configValues.get(full) as T } : undefined;
+      const found = [configValues, workspaceValues, folderValues].some((m) => m.has(full));
+      return found
+        ? { globalValue: configValues.get(full) as T, workspaceValue: workspaceValues.get(full) as T, workspaceFolderValue: folderValues.get(full) as T }
+        : undefined;
     },
     // Writes into the same map get() reads, so a test asserts the effect of a
     // settings-writing action by reading the value back through __getConfig.
@@ -313,8 +325,9 @@ export const workspace = {
   getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined {
     return ownerFolder(uri);
   },
-  // No document is open in the stub, so nothing is dirty.
+  // Empty unless a test pushes a document (for example a dirty one).
   textDocuments: [] as Array<{ isDirty: boolean; uri: Uri }>,
+  applyEdit,
   // Configuration changes never fire in the stub; tests read settings directly.
   onDidChangeConfiguration: (_listener: (e: { affectsConfiguration(section: string): boolean }) => void): { dispose(): void } => ({ dispose: (): void => undefined }),
   fs: fsApi,
@@ -580,11 +593,9 @@ export const window = {
   ): Promise<string | undefined> {
     return Promise.resolve(undefined);
   },
-  showWarningMessage(
-    _message: string,
-    ..._items: string[]
-  ): Promise<string | undefined> {
-    return Promise.resolve(undefined);
+  // Recorded and answered by the handler in vscodeExtras (default: dismissed).
+  showWarningMessage(message: string, ...rest: unknown[]): Promise<string | undefined> {
+    return recordWarning(message, rest);
   },
   // Records the message so a test can assert which diagnostic surfaced (e.g. a
   // script's missing-requirement toast), then resolves inert like the other toasts.

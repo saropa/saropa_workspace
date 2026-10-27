@@ -12,6 +12,7 @@ import { DEFAULT_ROOTS, RULES_FILE, boardReady, layerUserRules, loadConfig, uniq
 
 const stub = vscode as unknown as {
   __setConfig(section: string, key: string, value: unknown): void;
+  __setConfigAt(scope: "workspace" | "folder", section: string, key: string, value: unknown): void;
   __resetConfig(): void;
   __setWorkspaceFolders(f: Array<{ uri: vscode.Uri; name: string; index: number }> | undefined): void;
 };
@@ -90,4 +91,18 @@ test("the user's rules file replaces the project list and a profile setting wins
   stub.__setConfig("saropaWorkspace.releaseBoard", "profile", "deliberate");
   cfg = await loadConfig();
   assert.equal(cfg.profile, "deliberate");
+});
+
+test("a profile set in settings wins by scope: folder over workspace over user, and all over the rules file", async () => {
+  const dir = tmp();
+  fs.mkdirSync(path.join(dir, ".saropa"));
+  fs.writeFileSync(path.join(dir, RULES_FILE), JSON.stringify({ version: 1, profile: "zero" }));
+  open(dir);
+  const section = "saropaWorkspace.releaseBoard";
+  stub.__setConfig(section, "profile", "rush");
+  assert.equal((await loadConfig()).profile, "rush");
+  stub.__setConfigAt("workspace", section, "profile", "deliberate");
+  assert.equal((await loadConfig()).profile, "deliberate");
+  stub.__setConfigAt("folder", section, "profile", "zero");
+  assert.equal((await loadConfig()).profile, "zero");
 });

@@ -18,13 +18,13 @@ import { DEFAULT_ROOTS, boardReady, loadConfig } from "./boardConfigLoad";
 import { BoardRun, readAccepted, readLastRun, writeAccepted, writeLast } from "./boardScanStore";
 import { openRulesFile, previewGlob } from "./boardRules";
 
-// Release Board, VS Code layer: scan the open workspace folders with the
-// board's rule engine, run the safety check against the last accepted scan, and print
-// the result. The board core (src/board) has no VS Code imports; the helpers here supply the
-// file source (workspace.fs, so remote workspaces work), the cache location and the
-// command. Gated by saropaWorkspace.releaseBoard.enabled (on by default).
-// The file source, rule loading, stored scans and rules-file helpers live in the sibling
-// board*.ts modules; they are re-exported here so callers keep one import.
+// Release Board, VS Code layer: the scan flow. It runs one queued scan of the open workspace
+// folders with the board's rule engine, checks it against the last accepted scan, stores the
+// baseline, prints the result and registers the board commands and the status bar button.
+// The board core (src/board) has no VS Code imports. The file source (workspace.fs, so
+// remote workspaces work), rule loading, stored scans and rules-file helpers live in the
+// sibling board*.ts modules; the exports callers use are re-exported here.
+// Gated by saropaWorkspace.releaseBoard.enabled (on by default).
 
 export type { BoardRun };
 export { DEFAULT_ROOTS, readLastRun, openRulesFile };

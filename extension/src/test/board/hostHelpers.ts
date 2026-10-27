@@ -20,6 +20,10 @@ export function contextIn(dir: string): vscode.ExtensionContext {
 // The stub's test-control hooks, typed.
 export const stub = vscode as unknown as {
   __setConfig(section: string, key: string, value: unknown): void;
+  __setConfigAt(scope: "workspace" | "folder", section: string, key: string, value: unknown): void;
+  __setWarningAnswer(next: (message: string, items: string[]) => string | undefined): void;
+  __resetWarnings(): void;
+  __warningMessages(): readonly string[];
   __resetConfig(): void;
   __setWorkspaceFolders(f: Array<{ uri: vscode.Uri; name: string; index: number }> | undefined): void;
   __resetRecordedCommands(): void;

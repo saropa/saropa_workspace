@@ -60,7 +60,8 @@ async function mayAsk(from: vscode.Uri, to: vscode.Uri, c: TidyCandidate): Promi
 }
 
 // Moves one listed document into the archive folder. Returns true when it moved.
-// Refuses when the file changed since the scan, or when the destination already exists.
+// Refuses when the file is gone, changed since the scan, has unsaved edits, or when the
+// destination already exists; the checks run again after the confirmation.
 export async function moveToArchive(projectRoot: vscode.Uri, c: TidyCandidate): Promise<boolean> {
   const from = vscode.Uri.joinPath(projectRoot, c.path);
   const to = vscode.Uri.joinPath(projectRoot, c.to);

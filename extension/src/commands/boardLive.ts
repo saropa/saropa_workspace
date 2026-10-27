@@ -209,6 +209,7 @@ async function collectProject(
     return;
   }
   const lintErrors = [...lints].filter(([, c]) => c.errors > 0).map(([k]) => k);
+  // The budget is per project.
   for (const f of filesToAsk(named, lintErrors, erroring, run.cfg.sourceDirs)) {
     ask(p.id, root, f);
   }

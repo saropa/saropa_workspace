@@ -3,6 +3,8 @@
 
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import { BoardItem } from "../../board/boardModel";
 import { BoardConfig } from "../../board/types";
@@ -83,15 +85,31 @@ test("files to ask: named first, then nameable error files, no repeats, capped",
   assert.ok(!files.includes("node_modules/x.js"));
   const many = Array.from({ length: 500 }, (_, i) => `src/f${i}.ts`);
   assert.equal(filesToAsk(new Map(), many, [], ["src"]).length, 300);
-  assert.equal(typeof liveFold, "boolean");
+  // Paths compare without regard to case only where the file system does not.
+  assert.equal(liveFold, process.platform === "win32" || process.platform === "darwin");
 });
 
 test("the gather puts Problems counts on the files a document names", async () => {
   const root = tmpDir();
-  const a = vscode.Uri.file(`${root}/src/a.ts`);
+  const a = vscode.Uri.joinPath(vscode.Uri.file(root), "src/a.ts");
   stub.__setDiagnostics([[a, [{ severity: ERROR }, { severity: WARNING }]]]);
   const live = await loadLiveSignals(runFor(root, ["src/a.ts"]), [item("app", "docs/bug.md")], readLiveSettings());
   assert.deepEqual(live.app["src/a.ts"].problems, { errors: 1, warnings: 1 });
+  assert.equal(live.app["src/a.ts"].lints, undefined);
+});
+
+test("the gather adds lint counts from a fresh violations file, and ignores a stale one", async () => {
+  const root = tmpDir();
+  const file = path.join(root, "reports", ".saropa_lints", "violations.json");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ violations: [{ file: "src/a.ts", severity: "error" }, { file: "src/a.ts", severity: "warning" }, { file: "src/b.ts", severity: "error" }] }));
+  const live = await loadLiveSignals(runFor(root, ["src/a.ts"]), [item("app", "docs/bug.md")], readLiveSettings());
+  assert.deepEqual(live.app["src/a.ts"].lints, { errors: 1, warnings: 1 });
+  // Only files a document names are reported.
+  assert.equal(live.app["src/b.ts"], undefined);
+  const old = new Date(Date.now() - 30 * 86400000);
+  fs.utimesSync(file, old, old);
+  assert.deepEqual(await loadLiveSignals(runFor(root, ["src/a.ts"]), [item("app", "docs/bug.md")], readLiveSettings()), {});
 });
 
 test("a document that names no file gets no signals, and a failing read gives an empty result", async () => {
