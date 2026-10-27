@@ -4,6 +4,8 @@ import { ExpandMode, SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, bl
 import { TrainRow, trainRows } from "../board/train";
 import { l10n } from "../i18n/l10n";
 import { onDidChangeTrainVersions, trainsFor } from "./boardTrain";
+import { SinceLast } from "../board/sinceLast";
+import { currentChange, onDidChangeSinceLast, sidebarLines, whenText } from "./boardSinceLast";
 import { askRefresh, currentBoard, hasFailed, isFirstScanDone, staleNote, isScanning, onDidChangeBoard } from "./boardFeed";
 
 // The Release Board section at the top of the sidebar: one row per project with its light,
@@ -34,7 +36,7 @@ function labels(): SidebarLabels {
   };
 }
 
-type Node = { kind: "train"; row: TrainRow } | { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
+type Node = { kind: "train"; row: TrainRow } | { kind: "since"; change: SinceLast } | { kind: "change"; text: string; details: string[] } | { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
 
 function themed(icon: string, color: string): vscode.ThemeIcon {
   return new vscode.ThemeIcon(icon, new vscode.ThemeColor(color));
@@ -83,6 +85,22 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
+    if (node.kind === "since") {
+      const item = new vscode.TreeItem(l10n("releaseBoard.sinceLast.title"), vscode.TreeItemCollapsibleState.Expanded);
+      item.id = `since/${node.change.since}`;
+      item.description = whenText(node.change.since);
+      item.iconPath = new vscode.ThemeIcon("history");
+      item.contextValue = "releaseBoardSince";
+      item.tooltip = l10n("releaseBoard.sinceLast.tooltip");
+      item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
+      return item;
+    }
+    if (node.kind === "change") {
+      const item = new vscode.TreeItem(node.text, vscode.TreeItemCollapsibleState.None);
+      item.tooltip = [node.text, ...node.details].join("\n");
+      item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
+      return item;
+    }
     if (node.kind === "blocker") {
       const item = new vscode.TreeItem(node.blocker.title, vscode.TreeItemCollapsibleState.None);
       item.id = `${node.project.projectId}/${node.blocker.id}/${node.stamp}`;
@@ -114,7 +132,15 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
 
   getChildren(node?: Node): Node[] {
     if (!node) {
-      return [...this.trains.map((row): Node => ({ kind: "train", row })), ...this.rows.map((row): Node => ({ kind: "project", row }))];
+      // The change leads the section, and only while there is one.
+      const change = this.rows.length > 0 ? currentChange() : undefined;
+      return [...(change ? [{ kind: "since" as const, change }] : []), ...this.trains.map((row) => ({ kind: "train" as const, row })), ...this.rows.map((row) => ({ kind: "project" as const, row }))];
+    }
+    if (node.kind === "since") {
+      return sidebarLines(node.change).map((l) => ({ kind: "change" as const, text: l.text, details: l.details }));
+    }
+    if (node.kind === "change") {
+      return [];
     }
     return node.kind === "project" ? node.row.blockers.map((blocker) => ({ kind: "blocker", project: node.row, blocker, stamp: this.stamp })) : [];
   }
@@ -150,6 +176,7 @@ export function registerBoardSidebar(context: vscode.ExtensionContext): void {
     vscode.window.registerTreeDataProvider(VIEW, provider),
     onDidChangeBoard(refresh),
     onDidChangeTrainVersions(refresh),
+    onDidChangeSinceLast(refresh),
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(SETTINGS) && refresh()),
     vscode.workspace.onDidChangeWorkspaceFolders(refresh),
     vscode.commands.registerCommand(OPEN_BLOCKER, (id: unknown, stamp: unknown) => openBlocker(id, stamp)),
