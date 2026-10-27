@@ -39,6 +39,7 @@ function normalizeTarget(t: string, fromPath: string): string {
   }
   return bare.replace(/^\//, "");
 }
+
 // The lookup tables that targets are resolved against.
 interface LinkIndex {
   byBase: Map<string, Classified[]>;

@@ -19,8 +19,9 @@ test("a value cannot close the script element", () => {
 
 test("every message the page posts carries the revision and only indexes or keys", () => {
   const js = script(1, "x", "y");
+  assert.ok(js.includes("const REV=1;"));
   for (const type of ["refresh", "open", "path", "hand", "tidy", "liveBug", "external", "step", "sitting", "profile", "rules", "accept", "suggest"]) {
-    assert.ok(js.includes(`type:'${type}'`), `posts ${type}`);
+    assert.ok(new RegExp(`type:'${type}'[^;]*rev:REV`).test(js), `posts ${type} with the revision`);
   }
   assert.ok(!/path:[a-z]*\.(dataset|textContent)/i.test(js), "no file path is read from the page");
   assert.ok(!js.includes("href"), "the page opens nothing by URL");
