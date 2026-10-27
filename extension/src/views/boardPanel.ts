@@ -6,11 +6,13 @@ import { startBugDocument } from "../commands/boardLive";
 import { currentBoard } from "./boardFeed";
 import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
+import { editBlocker, setFutureField } from "../commands/boardFuture";
+import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>" and "hand <kind, index>", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureOpen <index>" and "futureSort <value>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -19,6 +21,8 @@ class BoardPanel extends BoardPanelWiring {
   // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
   private readonly starting = new Set<string>();
   private reviewing = false;
+  // A Future tab edit (with its dialogs) is under way: a second one is ignored.
+  private editing = false;
   // A tidy move (with its confirmation) is under way: a second click is ignored.
   private moving = false;
 
@@ -63,6 +67,14 @@ class BoardPanel extends BoardPanelWiring {
       await this.tidyMove(message.i);
     } else if (message.type === "liveBug" && typeof message.i === "number") {
       await this.liveBug(message.i);
+    } else if (message.type === "futureSet" || message.type === "futureBlocker") {
+      await this.futureEdit(message);
+    } else if (message.type === "futureOpen") {
+      await this.futureOpen(message);
+    } else if (message.type === "futureSort" && FUTURE_SORTS.includes(message.value as FutureSort)) {
+      this.futureSort = message.value as FutureSort;
+      this.lastKey = "";
+      this.render(this.cached ? { stale: true } : {});
     } else if (message.type === "rules") {
       await openRulesFile();
     } else if (message.type === "accept") {
@@ -71,6 +83,52 @@ class BoardPanel extends BoardPanelWiring {
       await this.openItem(message.id);
     } else if (message.type === "path" && typeof message.p === "number" && typeof message.s === "number") {
       await this.pathAction(message.p, message.s);
+    }
+  }
+
+  // The listed document and its project folder for an index the page sent; the index is
+  // resolved against the Future list this panel painted, never a path from the page.
+  private futureTarget(i: unknown): { item: FutureItem; root: vscode.Uri } | undefined {
+    const item = typeof i === "number" ? this.futureShown[i] : undefined;
+    const def = this.run?.cfg.projects.find((p) => p.id === item?.project);
+    return item && def ? { item, root: vscode.Uri.parse(def.path) } : undefined;
+  }
+
+  // Sets one flag or characteristic, or the blocker line, of a listed document. The page is
+  // painted again afterwards whatever the outcome, so its controls show what the file holds.
+  private async futureEdit(message: Record<string, unknown>): Promise<void> {
+    const target = this.futureTarget(message.i);
+    const field = typeof message.field === "string" ? message.field : "";
+    const key = blockKeyOf(field);
+    if (!target || this.cached || this.editing) {
+      return;
+    }
+    this.editing = true;
+    try {
+      if (message.type === "futureBlocker") {
+        await editBlocker(target.root, target.item);
+      } else if (key && isFieldValue(field, message.value)) {
+        await setFutureField(target.root, target.item, key, message.value);
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.editing = false;
+    }
+    this.lastKey = "";
+    this.dirty = true;
+    await this.refreshFuture();
+  }
+
+  // Opens a listed document (a deferred one by index, a read-only one by outside index).
+  private async futureOpen(message: Record<string, unknown>): Promise<void> {
+    const item = typeof message.i === "number" ? this.futureShown[message.i] : undefined;
+    const outside = typeof message.o === "number" ? this.futureOutsideShown[message.o] : undefined;
+    const hit = item ?? outside;
+    const def = this.run?.cfg.projects.find((p) => p.id === hit?.project);
+    if (hit && def) {
+      const pos = outside ? new vscode.Position(Math.max(0, outside.line - 1), 0) : undefined;
+      await openDocument(vscode.Uri.joinPath(vscode.Uri.parse(def.path), hit.path), pos ? new vscode.Range(pos, pos) : undefined);
     }
   }
 

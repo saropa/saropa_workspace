@@ -2708,6 +2708,24 @@
             "default": "docs/history",
             "description": "%config.releaseBoard.tidy.archiveFolder.description%"
           },
+          "saropaWorkspace.releaseBoard.future.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.future.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.future.defaultSort": {
+            "type": "string",
+            "enum": ["score", "wow", "effort", "risk", "reach"],
+            "default": "score",
+            "enumDescriptions": [
+              "%config.releaseBoard.future.defaultSort.score%",
+              "%config.releaseBoard.future.defaultSort.wow%",
+              "%config.releaseBoard.future.defaultSort.effort%",
+              "%config.releaseBoard.future.defaultSort.risk%",
+              "%config.releaseBoard.future.defaultSort.reach%"
+            ],
+            "description": "%config.releaseBoard.future.defaultSort.description%"
+          },
           "saropaWorkspace.releaseBoard.train.enabled": {
             "type": "boolean",
             "default": true,
