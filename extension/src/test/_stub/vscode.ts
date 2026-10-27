@@ -32,7 +32,7 @@ export * from "./vscodeWebview";
 export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
 export { Range, Selection, TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
 export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands } from "./vscodeCommands";
-export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setTabGroups, __resetHosts } from "./vscodeHosts";
+export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setQuickPickDriver, __setTabGroups, __resetHosts } from "./vscodeHosts";
 
 export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __infoCalls, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
 

@@ -120,3 +120,18 @@ test("withProgress records its location and title and resolves with the task res
   vscode.__resetHosts();
   assert.deepEqual(vscode.__progressRuns(), []);
 });
+
+test("a quick pick driver answers the menu as it is shown, and a reset removes it", () => {
+  vscode.__resetHosts();
+  vscode.__setQuickPickDriver((pick) => pick.accept("auto"));
+  const pick = vscode.window.createQuickPick();
+  const seen: unknown[] = [];
+  pick.onDidAccept(() => seen.push(pick.selectedItems[0]));
+  pick.show();
+  assert.deepEqual(seen, ["auto"]);
+  vscode.__resetHosts();
+  const later = vscode.window.createQuickPick();
+  later.onDidAccept(() => seen.push("never"));
+  later.show();
+  assert.deepEqual(seen, ["auto"]);
+});

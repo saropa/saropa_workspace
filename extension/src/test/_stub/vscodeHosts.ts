@@ -184,6 +184,15 @@ export interface FakeQuickPick {
 }
 
 const quickPicks: FakeQuickPick[] = [];
+let quickPickDriver: ((pick: FakeQuickPick) => void) | undefined;
+
+/**
+ * Test hook: installs a function called each time a quick pick is shown. It answers the
+ * menu by calling `pick.accept(item)` or `pick.hide()`; pass undefined to remove it.
+ */
+export function __setQuickPickDriver(driver: ((pick: FakeQuickPick) => void) | undefined): void {
+  quickPickDriver = driver;
+}
 
 /** Test hook: every quick pick created since the last reset, in creation order. */
 export function __quickPicks(): readonly FakeQuickPick[] {
@@ -206,6 +215,7 @@ function createQuickPick(): FakeQuickPick {
     onDidHide: hidden.event,
     show(): void {
       pick.shown = true;
+      quickPickDriver?.(pick);
     },
     hide(): void {
       pick.shown = false;
@@ -275,6 +285,7 @@ export function __resetHosts(): void {
   treeViews.length = 0;
   statusItems.length = 0;
   quickPicks.length = 0;
+  quickPickDriver = undefined;
   tabGroupList = [];
   progressRuns.length = 0;
 }
