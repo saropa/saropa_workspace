@@ -9,16 +9,42 @@ import { EventEmitter } from "./vscodeTypes";
 /** vscode.StatusBarAlignment values. */
 export const StatusBarAlignment = { Left: 1, Right: 2 } as const;
 
+/** vscode.ProgressLocation values. */
+export const ProgressLocation = { SourceControl: 1, Window: 10, Notification: 15 } as const;
+
+/** One recorded withProgress call: where it showed and its title. */
+export interface ProgressRun {
+  readonly location: number | undefined;
+  readonly title: string | undefined;
+}
+
+const progressRuns: ProgressRun[] = [];
+
+/** Test hook: the withProgress calls made since the last reset, in order. */
+export function __progressRuns(): readonly ProgressRun[] {
+  return progressRuns;
+}
+
+function withProgress<T>(
+  options: { location?: number; title?: string },
+  task: (progress: { report(value: unknown): void }) => PromiseLike<T>
+): Promise<T> {
+  progressRuns.push({ location: options.location, title: options.title });
+  return Promise.resolve(task({ report: (): void => undefined }));
+}
+
 /** One recorded provider registration. */
 export interface ProviderRegistration {
   readonly kind: string;
   readonly id: string;
+  /** The provider object passed at registration, so a test can call it. */
+  readonly provider: unknown;
 }
 
 const providers: ProviderRegistration[] = [];
 
-function track(kind: string, id: string): Disposable {
-  const entry: ProviderRegistration = { kind, id };
+function track(kind: string, id: string, provider?: unknown): Disposable {
+  const entry: ProviderRegistration = { kind, id, provider };
   providers.push(entry);
   return new Disposable(() => {
     const at = providers.indexOf(entry);
@@ -249,33 +275,54 @@ export function __resetHosts(): void {
   treeViews.length = 0;
   statusItems.length = 0;
   quickPicks.length = 0;
+  tabGroupList = [];
+  progressRuns.length = 0;
 }
 
 /** The extra members of `vscode.workspace`. */
 export const hostWorkspace = {
   createFileSystemWatcher,
-  registerTextDocumentContentProvider: (scheme: string, _provider?: unknown): Disposable => track("textDocumentContent", scheme),
+  registerTextDocumentContentProvider: (scheme: string, provider?: unknown): Disposable => track("textDocumentContent", scheme, provider),
   onDidChangeTextDocument: events.textChanged.event,
   onDidSaveTextDocument: events.textSaved.event,
   onDidCloseTextDocument: events.textClosed.event,
   onDidChangeWorkspaceFolders: events.foldersChanged.event,
 };
 
+/** One editor group of the tab model: its column and tabs (only the tab input is modeled). */
+export interface FakeTabGroup {
+  readonly viewColumn: number;
+  readonly tabs: ReadonlyArray<{ readonly input: unknown }>;
+}
+
+let tabGroupList: readonly FakeTabGroup[] = [];
+
+/** Test hook: sets the editor groups `window.tabGroups.all` reports. */
+export function __setTabGroups(groups: readonly FakeTabGroup[]): void {
+  tabGroupList = groups;
+}
+
 /** The extra members of `vscode.window`. */
 export const hostWindow = {
   createTreeView,
   createStatusBarItem,
   createQuickPick,
-  registerTreeDataProvider: (viewId: string, _provider?: unknown): Disposable => track("treeData", viewId),
-  registerWebviewViewProvider: (viewId: string, _provider?: unknown, _options?: unknown): Disposable => track("webviewView", viewId),
-  registerUriHandler: (_handler?: unknown): Disposable => track("uriHandler", "uri"),
-  registerFileDecorationProvider: (_provider?: unknown): Disposable => track("fileDecoration", "file"),
+  withProgress,
+  tabGroups: {
+    get all(): readonly FakeTabGroup[] {
+      return tabGroupList;
+    },
+  },
+  registerTreeDataProvider: (viewId: string, provider?: unknown): Disposable => track("treeData", viewId, provider),
+  registerWebviewViewProvider: (viewId: string, provider?: unknown, _options?: unknown): Disposable => track("webviewView", viewId, provider),
+  registerUriHandler: (handler?: unknown): Disposable => track("uriHandler", "uri", handler),
+  registerFileDecorationProvider: (provider?: unknown): Disposable => track("fileDecoration", "file", provider),
   onDidChangeActiveColorTheme: events.themeChanged.event,
 };
 
 /** The extra members of `vscode.languages`. */
 export const hostLanguages = {
-  registerCodeLensProvider: (selector: unknown, _provider?: unknown): Disposable =>
-    track("codeLens", typeof selector === "string" ? selector : JSON.stringify(selector)),
+  registerCodeLensProvider: (selector: unknown, provider?: unknown): Disposable =>
+    track("codeLens", typeof selector === "string" ? selector : JSON.stringify(selector), provider),
   onDidChangeDiagnostics: new EventEmitter<unknown>().event,
 };

@@ -41,6 +41,12 @@ export class Uri {
     return new Uri("file", p, p);
   }
 
+  // Builds a URI from parts, as vscode.Uri.from does; only scheme and path are modeled.
+  static from(parts: { scheme: string; path?: string }): Uri {
+    const path = parts.path ?? "";
+    return new Uri(parts.scheme, path, `${parts.scheme}:${path}`);
+  }
+
   static parse(value: string): Uri {
     const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(value);
     const scheme = match ? match[1] : "file";
@@ -174,3 +180,11 @@ export const ViewColumn = {
   Two: 2,
   Three: 3,
 } as const;
+
+/** vscode.TabInputText: the tab input of a plain text editor; only the uri is modeled. */
+export class TabInputText {
+  constructor(public readonly uri: Uri) {}
+}
+
+/** vscode.QuickPickItemKind: a separator row is not selectable. */
+export const QuickPickItemKind = { Separator: -1, Default: 0 } as const;

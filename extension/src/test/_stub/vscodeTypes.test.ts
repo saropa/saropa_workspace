@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter, FileType, RelativePattern, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
+import { EventEmitter, FileType, QuickPickItemKind, RelativePattern, TabInputText, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
 
 test("Uri.file echoes the path as fsPath and in toString", () => {
   const u = Uri.file("/p/a.ts");
@@ -78,4 +78,19 @@ test("RelativePattern keeps its base folder and pattern", () => {
   const base = { uri: Uri.file("/p"), name: "p", index: 0 };
   const p = new RelativePattern(base, "**/*.md");
   assert.deepEqual([p.base, p.pattern], [base, "**/*.md"]);
+});
+
+test("Uri.from builds a uri from scheme and path, with an empty path by default", () => {
+  const u = Uri.from({ scheme: "demo", path: "/a/b.log" });
+  assert.deepEqual([u.scheme, u.fsPath, u.toString()], ["demo", "/a/b.log", "demo:/a/b.log"]);
+  assert.equal(Uri.from({ scheme: "demo" }).toString(), "demo:");
+});
+
+test("TabInputText keeps the document uri", () => {
+  const uri = Uri.file("/x.ts");
+  assert.equal(new TabInputText(uri).uri, uri);
+});
+
+test("QuickPickItemKind matches VS Code's values", () => {
+  assert.deepEqual([QuickPickItemKind.Separator, QuickPickItemKind.Default], [-1, 0]);
 });

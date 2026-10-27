@@ -5,13 +5,16 @@ import * as vscode from "./vscode";
 beforeEach(() => vscode.__resetHosts());
 
 test("a provider registration is recorded until its handle is disposed", () => {
-  const a = vscode.window.registerTreeDataProvider("view.a", {});
-  vscode.window.registerWebviewViewProvider("view.b", {});
-  vscode.workspace.registerTextDocumentContentProvider("scheme", {});
+  const treeProvider = { name: "tree" };
+  const viewProvider = { name: "view" };
+  const contentProvider = { name: "content" };
+  const a = vscode.window.registerTreeDataProvider("view.a", treeProvider);
+  vscode.window.registerWebviewViewProvider("view.b", viewProvider);
+  vscode.workspace.registerTextDocumentContentProvider("scheme", contentProvider);
   assert.deepEqual(vscode.__providerRegistrations(), [
-    { kind: "treeData", id: "view.a" },
-    { kind: "webviewView", id: "view.b" },
-    { kind: "textDocumentContent", id: "scheme" },
+    { kind: "treeData", id: "view.a", provider: treeProvider },
+    { kind: "webviewView", id: "view.b", provider: viewProvider },
+    { kind: "textDocumentContent", id: "scheme", provider: contentProvider },
   ]);
   a.dispose();
   a.dispose();
@@ -94,4 +97,26 @@ test("a quick pick accepts the selected item and hides on request", () => {
   assert.equal(pick.shown, false);
   assert.equal(pick.disposed, true);
   assert.equal(vscode.__quickPicks()[0], pick);
+});
+
+test("tab groups report what was set and are cleared by a reset", () => {
+  vscode.__setTabGroups([{ viewColumn: 2, tabs: [{ input: "x" }] }]);
+  assert.deepEqual(vscode.window.tabGroups.all, [{ viewColumn: 2, tabs: [{ input: "x" }] }]);
+  vscode.__resetHosts();
+  assert.deepEqual(vscode.window.tabGroups.all, []);
+});
+
+test("withProgress records its location and title and resolves with the task result", async () => {
+  vscode.__resetHosts();
+  const value = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: "Working" },
+    async (progress) => {
+      progress.report({ message: "x" });
+      return 7;
+    }
+  );
+  assert.equal(value, 7);
+  assert.deepEqual(vscode.__progressRuns(), [{ location: 15, title: "Working" }]);
+  vscode.__resetHosts();
+  assert.deepEqual(vscode.__progressRuns(), []);
 });
