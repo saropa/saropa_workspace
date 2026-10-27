@@ -1,5 +1,5 @@
 import { Outside, OutsideGroup } from "./outside";
-import { DocFacts, sizeClass, stepTotals } from "./docFacts";
+import { DocFacts, isNameableSource, sizeClass, stepTotals } from "./docFacts";
 import { globToRegExp } from "./glob";
 import { ProjectHealth } from "./health";
 import { Audience, Profile, Severity, asProfile, stops } from "./severity";
@@ -10,6 +10,7 @@ import { inferLinks } from "./inferred";
 import { ScanSnapshot } from "./scanner";
 import { mergeNeeds } from "./needs";
 import { TidyOptions, TidyView, buildTidy } from "./tidy";
+import { LiveMark, LiveSignals, LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { SittingDoc, SittingLine, SittingSelection, buildSittings } from "./sittings";
 import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCounts } from "./types";
 
@@ -54,6 +55,9 @@ export interface BoardItem {
   waitsOn: number[];
   // Claude sessions that read or edited this document (absent when none, or Chat Explorer is not installed).
   chats?: number;
+  // Errors and warnings in the source files this document names (absent when quiet or unknown).
+  // Information only: it never reaches the light.
+  live?: LiveMark;
   // From the phrase dictionary (absent when the text was not read) and the pin list.
   severity?: Severity;
   audience?: Audience;
@@ -139,6 +143,8 @@ export interface BoardModel {
   sittings?: SittingsView;
   // Absent when the Tidy sweep is switched off.
   tidy?: TidyView;
+  // Crash signals in files no open document names. Empty when there are none.
+  liveUnnamed?: LiveUnnamed[];
 }
 
 const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
@@ -261,7 +267,7 @@ export function buildBoard(
   previous?: ScanSnapshot,
   health?: Record<string, ProjectHealth>,
   // Links the user accepted (waiting document "project/path" -> targets) and suggestions turned down.
-  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[]; outside?: Outside; sittings?: { selection: SittingSelection; onlyOwner: boolean }; tidy?: TidyOptions }
+  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[]; outside?: Outside; sittings?: { selection: SittingSelection; onlyOwner: boolean }; tidy?: TidyOptions; live?: { signals: LiveSignals; includeWarnings: boolean; fold: boolean; unnamedBox: boolean } }
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
@@ -432,6 +438,24 @@ export function buildBoard(
       it.chats = n;
     }
   }
+  // Live evidence is attached last, after every light is decided, so it cannot change one.
+  let liveUnnamed: LiveUnnamed[] | undefined;
+  if (extra?.live) {
+    const lv = extra.live;
+    for (const it of all) {
+      it.live = markFor(it.project, factsOf(it)?.sourceFiles ?? [], lv.signals, lv);
+    }
+    if (lv.unnamedBox) {
+      const named = new Map<string, Set<string>>();
+      for (const r of rows) {
+        const files = OPEN.has(r.status) ? snapshot?.projects[r.project]?.facts[r.path]?.facts.sourceFiles : undefined;
+        if (files) {
+          named.set(r.project, new Set([...(named.get(r.project) ?? []), ...files]));
+        }
+      }
+      liveUnnamed = unnamedFiles(lv.signals, named, cfg.projects.map((p) => ({ id: p.id, name: p.name ?? p.id, bugsFolder: bugsFolderOf(p.roots) })), lv.fold, (rel) => isNameableSource(rel, cfg.sourceDirs));
+    }
+  }
   const tidy = extra?.tidy
     ? buildTidy(
         all.map((it) => {
@@ -457,6 +481,7 @@ export function buildBoard(
     : undefined;
   return {
     tidy,
+    liveUnnamed,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
     chains,

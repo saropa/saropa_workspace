@@ -1,6 +1,7 @@
 import { SittingLine } from "./sittings";
 import { BoardItem, ItemMarks, BoardModel, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
+import { LiveFile, LiveMark } from "./liveEvidence";
 import { Train, trainRows } from "./train";
 import { SinceView } from "./sinceLast";
 
@@ -109,6 +110,16 @@ export interface BoardStrings {
   tidyTitle: string;
   // "{count}" more documents not listed.
   tidyMore: string;
+  // Live evidence. Heading of the mark's tooltip; then one line per source with "{errors}",
+  // "{warnings}" and "{crashes}"; "{count}" more files.
+  liveHead: string;
+  liveProblems: string;
+  liveLints: string;
+  liveLogs: string;
+  liveMore: string;
+  liveUnnamedHeading: string;
+  liveUnnamedNote: string;
+  liveUnnamedStart: string;
   // Release train. "{name}" is the train's name, "{names}" the projects holding the light back.
   trainTitle: string;
   trainHeldBy: string;
@@ -173,8 +184,27 @@ function marks(m: ItemMarks | undefined): string {
   return `<span class="marks" title="${escapeHtml(m.detail)}"><i class="ring ${ring}" style="--p:${pct}"></i><i class="bars">${bars}</i>${code}${dots}</span>`;
 }
 
+function liveLine(f: LiveFile, t: BoardStrings): string {
+  const v = (c: { errors: number; warnings: number; crashes?: number }): Record<string, number> => ({ errors: c.errors, warnings: c.warnings, crashes: c.crashes ?? 0 });
+  const raw = (tmpl: string, c: { errors: number; warnings: number; crashes?: number }): string => tmpl.replace(/\{(\w+)\}/g, (m, k: string) => String(v(c)[k] ?? m));
+  const bits = [f.logs ? raw(t.liveLogs, f.logs) : "", f.problems ? raw(t.liveProblems, f.problems) : "", f.lints ? raw(t.liveLints, f.lints) : ""].filter(Boolean);
+  return `${f.file}: ${bits.join("; ")}`;
+}
+
+// A small flame on the row when the files the document names have errors, warnings or crashes.
+// Red for errors and crashes, amber for warnings only. Never an input to the light.
+function liveMark(m: LiveMark | undefined, t: BoardStrings): string {
+  if (!m) {
+    return "";
+  }
+  const lines = [t.liveHead, ...m.files.map((f) => liveLine(f, t)), ...(m.more > 0 ? [t.liveMore.replace("{count}", String(m.more))] : [])];
+  const tip = lines.join("\n");
+  return `<i class="flame${m.hot ? " hot" : ""}" role="img" aria-label="${escapeHtml(tip)}" title="${escapeHtml(tip)}"></i>`;
+}
+
 function linkMark(i: BoardItem, t: BoardStrings): string {
   const parts: string[] = [];
+  parts.push(liveMark(i.live, t));
   if (i.link) {
     parts.push(`<i class="link ${i.link.state}" title="${escapeHtml(i.link.detail)}"></i>`);
   }
@@ -196,7 +226,8 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
   if (i.hub) {
     parts.push(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`);
   }
-  return parts.length > 0 ? `<span class="marks">${parts.join("")}</span>` : "";
+  const shown = parts.filter(Boolean);
+  return shown.length > 0 ? `<span class="marks">${shown.join("")}</span>` : "";
 }
 
 // The Hand to chat button. It carries only indexes; the host builds the prompt from the model it rendered.
@@ -330,6 +361,23 @@ function tidyBox(model: BoardModel, t: BoardStrings): string {
   return `<section class="box" id="tidy-box"><h2 title="${escapeHtml(t.tidyTitle.replace("{count}", String(v.candidates.length + v.more)))}">${escapeHtml(t.tidyHeading)}</h2><p class="note">${escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays)))}</p>${rows}${more}</section>`;
 }
 
+// Crash signals from debug runs in files that no open document names. The button carries only
+// an index; the host resolves it against the list it rendered and writes one new document.
+function unnamedBox(model: BoardModel, t: BoardStrings, canAct: boolean): string {
+  const list = model.liveUnnamed ?? [];
+  if (list.length === 0) {
+    return "";
+  }
+  const rows = list
+    .map((u, i) => {
+      const detail = liveLine({ file: u.file, logs: u.logs }, t);
+      const btn = canAct && u.folder ? `<button data-bug="${i}">${escapeHtml(t.liveUnnamedStart)}</button>` : "";
+      return `<div class="row tidy"><span class="tag">${escapeHtml(u.projectName)}</span><span class="f" title="${escapeHtml(detail)}">${escapeHtml(detail)}</span>${btn}</div>`;
+    })
+    .join("");
+  return `<section class="box" id="live-box"><h2>${escapeHtml(t.liveUnnamedHeading)}</h2><p class="note">${escapeHtml(t.liveUnnamedNote)}</p>${rows}</section>`;
+}
+
 const STYLE = `
 :root{--bg:var(--vscode-editor-background,#16191d);--fg:var(--vscode-editor-foreground,#d6dbe1);--mute:var(--vscode-descriptionForeground,#8b949e);--line:var(--vscode-panel-border,#2b3138);--panel:var(--vscode-sideBar-background,#1c2026);--red:#e5484d;--amber:#d9a441;--purple:#a78bfa;--blue:#5aa0ff;--green:#3fb27f}
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:13px/1.45 var(--vscode-font-family,system-ui,sans-serif)}
@@ -359,6 +407,7 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .pin{width:8px;height:8px;border-radius:50%;border:2px solid var(--red);display:inline-block}.seg{display:inline-flex}.seg button{border-radius:0}.seg button.on{background:var(--vscode-button-background,#0e639c);color:var(--vscode-button-foreground,#fff)}
 .code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
 .ptgrow{cursor:pointer}.ptgrow:focus{outline:1px solid var(--blue)}.ptg{margin:0 0 6px;padding:6px 12px 6px 34px;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;background:var(--panel)}.ptg li{margin:4px 0}.ptg .st{margin-right:8px}.ptg li.done .st{text-decoration:line-through;color:var(--mute)}.ptg li.done::before{content:"\\2713 ";color:var(--green)}.ptg li.note{list-style:none;margin-left:-18px}.ptgb{margin-right:4px}.hb{flex:none;margin-left:auto;font-size:11px;padding:0 6px}.ptg .hb{margin-left:0}
+.flame{width:9px;height:12px;border-radius:50% 50% 50% 50%/65% 65% 35% 35%;background:var(--amber);display:inline-block;flex:none}.flame.hot{background:var(--red)}
 .row.tidy{cursor:default}.row.tidy .f{cursor:pointer}.row.tidy button{flex:none}
 .seg{flex-wrap:wrap;margin:4px 0}.untag{margin-top:8px}
 .vd.train{border-style:dashed}.vd.train .pn{width:auto;min-width:110px}.ord{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.ord .f{flex:none}.ord .go{font-size:11px;padding:0 6px}
@@ -391,6 +440,7 @@ document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click
 document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessage({type:'rules',rev:REV});b.addEventListener('click',go);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
 document.querySelectorAll('[data-tidy]').forEach(b=>b.addEventListener('click',()=>{b.disabled=true;setTimeout(()=>{b.disabled=false;},3000);vscode.postMessage({type:'tidy',i:Number(b.dataset.tidy),rev:REV});}));
+document.querySelectorAll('[data-bug]').forEach(b=>b.addEventListener('click',()=>{b.disabled=true;setTimeout(()=>{b.disabled=false;},3000);vscode.postMessage({type:'liveBug',i:Number(b.dataset.bug),rev:REV});}));
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
 document.querySelectorAll('.ext').forEach(r=>{const go=()=>vscode.postMessage({type:'external',g:Number(r.dataset.g),i:Number(r.dataset.i),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 const ST=(vscode.getState()||{}).ptg||{};const OPEN=new Set(ST.open||[]);const SEEN=ST.profile===PROFILE?(ST.seen||{}):{};const NOW=Date.now();const save=()=>vscode.setState({...(vscode.getState()||{}),ptg:{open:[...OPEN],seen:SEEN,profile:PROFILE}});
@@ -531,6 +581,7 @@ ${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state
 ${list(t.resolveNow, by("red"), names, t)}
 ${list(t.inProgress, by("purple"), names, t)}
 ${list(t.workOn, by("amber"), names, t)}
+${state.stale || state.loading ? "" : unnamedBox(model, t, true)}
 ${chains(model, t)}
 ${outsideBoxes(model)}
 ${needsRule(model, t, names)}
