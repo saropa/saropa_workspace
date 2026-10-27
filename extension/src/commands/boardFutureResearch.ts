@@ -26,7 +26,11 @@ export interface HandResult {
   stopped: boolean;
 }
 
-const today = (): string => new Date().toISOString().slice(0, 10);
+// Today in local time, YYYY-MM-DD.
+export function today(d: Date = new Date()): string {
+  const two = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+}
 
 function isDirty(uri: vscode.Uri): boolean {
   return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());

@@ -40,7 +40,7 @@ export const RESEARCH_STATES = ["none", "needed", "in-progress", "ready", "revie
 export type ResearchState = (typeof RESEARCH_STATES)[number];
 
 const BOM = "﻿";
-const LINE = /^(importance|research[ \t]+question|research|wow|reach|effort|risk|blocker)[ \t]*:[ \t]*(.*?)[ \t]*$/i;
+const LINE = /^(importance|research[ \t]+question|research|wow|reach|effort|risk|blocker)[ \t]*:(.*)$/i;
 const H1 = /^#[ \t]+\S/;
 // Longest value kept for a free-text key (the blocker and the research question).
 export const MAX_FREE_TEXT = 300;
@@ -155,7 +155,7 @@ export function parseValue(key: BlockKey, raw: string): Importance | number | Re
       return RISKS.find((x) => x === nameKey(v));
     case "Blocker":
     case "Research question":
-      return v === "" ? undefined : v.slice(0, MAX_FREE_TEXT);
+      return v === "" ? undefined : safeCut(v);
     default:
       return RESEARCH_STATES.find((x) => x === nameKey(v));
   }
@@ -207,10 +207,16 @@ export type BlockChanges = Partial<Record<BlockKey, string | null>>;
 
 // One line of plain text: line breaks and other control characters become spaces, and the
 // text is cut to the free-text limit.
-// A cut never leaves half of a surrogate pair.
-export function oneLine(v: string): string {
-  const cut = v.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ").trim().slice(0, MAX_FREE_TEXT);
+// The first MAX_FREE_TEXT characters; a cut never leaves half of a surrogate pair.
+function safeCut(v: string): string {
+  const cut = v.slice(0, MAX_FREE_TEXT);
   return /[\ud800-\udbff]$/.test(cut) ? cut.slice(0, -1) : cut;
+}
+
+// One line of plain text: bidi overrides and zero-width characters are dropped, line
+// breaks and other control characters become spaces, and the text is cut to the limit.
+export function oneLine(v: string): string {
+  return safeCut(v.replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g, "").replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ").trim());
 }
 
 // True when the first line opens front matter that is never closed.
@@ -244,6 +250,8 @@ export function setBlockFields(text: string, changes: BlockChanges): string | un
   if (unclosedFrontMatter(lines)) {
     return undefined;
   }
+  // Existing design: a block that is not fully valid is never edited, so a new block goes
+  // above it and the keys of the old one stay hidden behind it.
   const place = locate(lines, true);
   const next = place.block ? rewrite(lines, place.block, keys, changes, eol) : create(lines, place.insertAt, keys, changes, eol);
   if (next === undefined) {

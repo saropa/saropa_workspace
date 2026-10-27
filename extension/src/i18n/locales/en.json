@@ -2063,5 +2063,7 @@
   "releaseBoard.future.research.confirmReviewed": "Mark the research in {path} as reviewed?\n\nDo this after you have read the Research section that was added.",
   "releaseBoard.future.research.handed": "Documents marked as being researched: {count}.",
   "releaseBoard.future.research.handedQueued": "Documents marked as being researched: {count}. Still queued: {queued}. Use the button again for the next batch.",
+  "releaseBoard.future.tooLong": "At most {max} characters are kept.",
+  "releaseBoard.future.cutAt": "Release Board: the question for {path} was cut to {max} characters.",
   "releaseBoard.future.stateChanged": "Release Board: the research state of {path} changed since the board was painted, so it was not changed."
 }

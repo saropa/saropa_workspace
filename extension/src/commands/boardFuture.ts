@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { mapLimit } from "../board/pool";
 import { withTimeout } from "../board/timeout";
-import { BlockChanges, BlockKey, FutureBlock, parseBlock, setBlockFields } from "../board/futureBlock";
+import { BlockChanges, BlockKey, FutureBlock, MAX_FREE_TEXT, parseBlock, setBlockFields } from "../board/futureBlock";
 import { FutureFolders, FutureInput, FutureItem, FutureOutside, FutureSort, MAX_FUTURE_BYTES, MAX_FUTURE_ITEMS, asFutureSort, buildFuture, findOutside, foldersFor, futureSource, moveTarget } from "../board/futureList";
 import { asResearchParallel } from "../board/futureResearch";
 import { BoardRun } from "./boardScanStore";
@@ -159,7 +159,11 @@ export async function setFutureField(root: vscode.Uri, item: FutureItem, key: Bl
 
 // Asks for the blocker line and writes it. An empty answer removes the line.
 export async function editBlocker(root: vscode.Uri, item: FutureItem): Promise<boolean> {
-  const answer = await vscode.window.showInputBox({ prompt: l10n("releaseBoard.future.blockerPrompt"), value: item.blocker ?? "" });
+  const answer = await vscode.window.showInputBox({
+    prompt: l10n("releaseBoard.future.blockerPrompt"),
+    value: item.blocker ?? "",
+    validateInput: (v) => (v.trim().length > MAX_FREE_TEXT ? l10n("releaseBoard.future.tooLong", { max: MAX_FREE_TEXT }) : undefined),
+  });
   if (answer === undefined) {
     return false;
   }
@@ -208,5 +212,8 @@ async function offerMove(root: vscode.Uri, from: string, to: string): Promise<bo
 // Writes the research question from the page's text field. The writer cuts it to one line
 // of at most 300 characters; an empty text removes the line.
 export async function setResearchQuestion(root: vscode.Uri, item: FutureItem, value: string): Promise<boolean> {
+  if (value.trim().length > MAX_FREE_TEXT) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.future.cutAt", { max: MAX_FREE_TEXT, path: item.path }));
+  }
   return (await writeBlock(vscode.Uri.joinPath(root, item.path), item.path, { "Research question": value })) === "written";
 }

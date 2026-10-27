@@ -279,3 +279,33 @@ test("what a research write puts in is what the reader gets back", () => {
   const out = setBlockFields("# T\n\nImportance: marketable\n\nBody\n", { Research: "in-progress", "Research question": "Does the host API allow it?" })!;
   assert.deepEqual(parseBlock(out), { importance: "marketable", research: "in-progress", researchQuestion: "Does the host API allow it?", invalid: [] });
 });
+
+test("a very long run of spaces is read quickly and the value is still trimmed", () => {
+  const started = Date.now();
+  const b = parseBlock(`# T\n\nBlocker: kept${" ".repeat(60000)}x${" ".repeat(60000)}\nWow: 2\n`);
+  assert.equal(b.blocker?.length, 300);
+  assert.equal(b.wow, 2);
+  assert.equal(parseBlock(`# T\n\nWow:${" ".repeat(60000)}3${" ".repeat(60000)}\n`).wow, 3);
+  assert.equal(setBlockFields(`# T\n\nBlocker:${" ".repeat(60000)}\n`, { Wow: "2" })?.startsWith("# T"), true);
+  assert.ok(Date.now() - started < 2000, "linear time");
+});
+
+test("a value cut at 300 characters on read never splits a surrogate pair", () => {
+  const b = parseBlock(`# T\n\nBlocker: ${"a".repeat(299)}😀tail\nResearch question: ${"b".repeat(299)}😀tail\n`);
+  assert.equal(b.blocker, "a".repeat(299));
+  assert.equal(b.researchQuestion, "b".repeat(299));
+});
+
+test("a blocker over 300 characters is written cut to 300", () => {
+  assert.equal(setBlockFields("# T\n\nBody\n", { Blocker: "c".repeat(450) }), `# T\n\nBlocker: ${"c".repeat(300)}\n\nBody\n`);
+  assert.equal(setBlockFields("# T\n\nBlocker: old\n\nBody\n", { Blocker: "d".repeat(450) }), `# T\n\nBlocker: ${"d".repeat(300)}\n\nBody\n`);
+});
+
+test("a whitespace-only blocker removes the blocker line", () => {
+  assert.equal(setBlockFields("# T\n\nImportance: not-feasible\nBlocker: old\n\nBody\n", { Blocker: " \t\n " }), "# T\n\nImportance: not-feasible\n\nBody\n");
+  assert.equal(setBlockFields("# T\n\nBody\n", { Blocker: "   " }), "# T\n\nBody\n");
+});
+
+test("direction overrides and zero-width characters are dropped from a written value", () => {
+  assert.equal(setBlockFields("# T\n\nBody\n", { Blocker: "no\u202e\u200bAPI\ufeff" }), "# T\n\nBlocker: noAPI\n\nBody\n");
+});
