@@ -19,6 +19,7 @@ import { Disposable, applyEdit, recordWarning, recordInfo, languages as readLang
 import { FileType, Uri, WorkspaceFolder, EventEmitter } from "./vscodeTypes";
 import { findFiles } from "./vscodeFind";
 import { hostWorkspace, hostWindow, hostLanguages } from "./vscodeHosts";
+import { showTextDocument, visibleTextEditors } from "./vscodeEditor";
 
 /** Stub of `vscode.languages`: the Problems panel read plus the provider registrations. */
 export const languages = { ...readLanguages, ...hostLanguages };
@@ -29,10 +30,11 @@ import { FakeWebviewPanel, fakeWebviewPanel, createdPanels } from "./vscodeWebvi
 export * from "./vscodeTypes";
 export * from "./vscodeWebview";
 export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
+export { Range, Selection, TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
 export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands } from "./vscodeCommands";
 export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setTabGroups, __resetHosts } from "./vscodeHosts";
 
-export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
+export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __infoCalls, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
 
 // that path); a test installs folders pointing at its temp directory.
 let folders: WorkspaceFolder[] | undefined;
@@ -156,19 +158,6 @@ const fsApi = {
 // vscode.workspace stand-in: configuration reads, workspaceFolders /
 // getWorkspaceFolder, the real-filesystem-backed fs, and findFiles — the slice of
 // the real namespace the store and detectors actually touch.
-// The fsPaths handed to showTextDocument since the last reset. The report writers all
-// route their auto-open through exec/reportOpen, so this log is how a test asserts
-// that a routine raised exactly ONE window (its summary) rather than one per member.
-const openedDocuments: string[] = [];
-// The documents showTextDocument was called with since the last reset, in order.
-export function __openedDocuments(): readonly string[] {
-  return openedDocuments;
-}
-// Test-control hook: clears the opened-document log between tests.
-export function __resetOpenedDocuments(): void {
-  openedDocuments.length = 0;
-}
-
 // The messages window.showErrorMessage was called with since the last reset, in order.
 const errorMessages: string[] = [];
 /** Test hook: the error messages shown since the last reset. */
@@ -300,12 +289,9 @@ export const window = {
     errorMessages.push(message);
     return Promise.resolve(undefined);
   },
-  // Records which document was raised, so the report-open suppression tests can
-  // assert on the number and identity of windows a run produced.
-  async showTextDocument(doc: { uri: Uri } | Uri): Promise<void> {
-    // A document, or a bare Uri as the real call also accepts.
-    openedDocuments.push(("uri" in doc ? doc.uri : doc).fsPath);
-  },
+  // Logs the document and returns a fake editor over the file (see vscodeEditor).
+  showTextDocument,
+  visibleTextEditors,
   createOutputChannel,
   // Paired with ThemeColor above: shortcutOpen creates its peek-highlight decoration type at
   // module scope, so this must exist for any bundle that imports it to load at all. The

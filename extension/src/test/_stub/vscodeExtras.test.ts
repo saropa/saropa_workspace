@@ -38,3 +38,15 @@ test("information toasts are recorded and answered by the installed handler", as
   assert.equal(await vscode.window.showInformationMessage("second", "A", "B"), undefined);
   vscode.__resetInfo();
 });
+
+test("information calls keep the options object and the button labels", async () => {
+  vscode.__resetInfo();
+  await vscode.window.showInformationMessage("m", { modal: true, detail: "d" }, "Run", "Promote");
+  await vscode.window.showInformationMessage("plain");
+  assert.deepEqual(vscode.__infoCalls(), [
+    { message: "m", options: { modal: true, detail: "d" }, buttons: ["Run", "Promote"] },
+    { message: "plain", options: undefined, buttons: [] },
+  ]);
+  vscode.__resetInfo();
+  assert.deepEqual(vscode.__infoCalls(), []);
+});

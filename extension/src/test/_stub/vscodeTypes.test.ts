@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter, FileType, QuickPickItemKind, RelativePattern, TabInputText, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
+import { EventEmitter, FileType, Location, Position, QuickPickItemKind, RelativePattern, TabInputText, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
 
 test("Uri.file echoes the path as fsPath and in toString", () => {
   const u = Uri.file("/p/a.ts");
@@ -93,4 +93,11 @@ test("TabInputText keeps the document uri", () => {
 
 test("QuickPickItemKind matches VS Code's values", () => {
   assert.deepEqual([QuickPickItemKind.Separator, QuickPickItemKind.Default], [-1, 0]);
+});
+
+test("Position and Location keep their parts", () => {
+  const at = new Position(3, 4);
+  const loc = new Location(Uri.file("/a.ts"), at);
+  assert.deepEqual([at.line, at.character], [3, 4]);
+  assert.deepEqual([loc.uri.fsPath, loc.range], ["/a.ts", at]);
 });

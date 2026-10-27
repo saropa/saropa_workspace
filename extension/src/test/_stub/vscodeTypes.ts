@@ -188,3 +188,13 @@ export class TabInputText {
 
 /** vscode.QuickPickItemKind: a separator row is not selectable. */
 export const QuickPickItemKind = { Separator: -1, Default: 0 } as const;
+
+/** vscode.Position: a zero-based line and character. */
+export class Position {
+  constructor(public readonly line: number, public readonly character: number) {}
+}
+
+/** vscode.Location: a uri and the position (or range) inside it. */
+export class Location {
+  constructor(public readonly uri: Uri, public readonly range: Position) {}
+}

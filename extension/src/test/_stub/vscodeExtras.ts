@@ -72,6 +72,17 @@ let infoAnswer: Answer = () => undefined;
 export function __infoMessages(): readonly string[] {
   return infos;
 }
+/** One information toast with the options object and button labels it was shown with. */
+export interface InfoCall {
+  readonly message: string;
+  readonly options: unknown;
+  readonly buttons: readonly string[];
+}
+let infoCalls: InfoCall[] = [];
+// The full calls (message, options such as modal and detail, buttons) since the last reset.
+export function __infoCalls(): readonly InfoCall[] {
+  return infoCalls;
+}
 // Test-control hook: chooses what an information toast answers (a button label, or undefined).
 export function __setInfoAnswer(next: Answer): void {
   infoAnswer = next;
@@ -79,12 +90,15 @@ export function __setInfoAnswer(next: Answer): void {
 // Test-control hook: clears the recorded information toasts and restores the dismiss answer.
 export function __resetInfo(): void {
   infos = [];
+  infoCalls = [];
   infoAnswer = () => undefined;
 }
 // window.showInformationMessage: option objects are skipped, labels are passed to the handler.
 export function recordInfo(message: string, rest: unknown[]): Promise<string | undefined> {
   infos.push(message);
-  return Promise.resolve(infoAnswer(message, rest.filter((x): x is string => typeof x === "string")));
+  const buttons = rest.filter((x): x is string => typeof x === "string");
+  infoCalls.push({ message, options: rest.find((x) => typeof x === "object"), buttons });
+  return Promise.resolve(infoAnswer(message, buttons));
 }
 
 // vscode.WorkspaceEdit, rename only: renameFile is queued and applyEdit performs it on disk.
