@@ -19,7 +19,7 @@ const RULES_TEMPLATE = `{
 // Opens the user's rules file, creating a small one first when there is none. With a
 // project id and folder it moves to that project in the file when the file names it, and
 // says which folder needs a rule.
-export async function openRulesFile(at?: { project: string; folder: string }): Promise<void> {
+export async function openRulesFile(at?: { project: string; folder: string }, viewColumn?: number): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
@@ -31,7 +31,7 @@ export async function openRulesFile(at?: { project: string; folder: string }): P
     await vscode.workspace.fs.writeFile(uri, Buffer.from(RULES_TEMPLATE, "utf8"));
     void vscode.window.showInformationMessage(l10n("releaseBoard.rulesCreated", { file: RULES_FILE }));
   }
-  const editor = await vscode.window.showTextDocument(uri);
+  const editor = await vscode.window.showTextDocument(uri, viewColumn === undefined ? undefined : { viewColumn });
   if (at) {
     const text = editor.document.getText();
     const i = text.indexOf(JSON.stringify(at.project));

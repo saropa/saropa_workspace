@@ -339,6 +339,7 @@ export const hostWorkspace = {
 /** One editor group of the tab model: its column and tabs (only the tab input is modeled). */
 export interface FakeTabGroup {
   readonly viewColumn: number;
+  readonly isActive?: boolean;
   readonly tabs: ReadonlyArray<{ readonly input: unknown }>;
 }
 
@@ -358,6 +359,9 @@ export const hostWindow = {
   tabGroups: {
     get all(): readonly FakeTabGroup[] {
       return tabGroupList;
+    },
+    get activeTabGroup(): FakeTabGroup {
+      return tabGroupList.find((g) => g.isActive) ?? tabGroupList[0] ?? { viewColumn: 1, tabs: [] };
     },
     onDidChangeTabs: events.tabsChanged.event,
   },

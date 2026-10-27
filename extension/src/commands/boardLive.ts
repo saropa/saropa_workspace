@@ -253,7 +253,7 @@ export async function loadLiveSignals(run: BoardRun, items: BoardItem[], s: Live
 // Writes one new bug document for a listed signal and opens it. Never overwrites: the file is
 // created with overwrite off, and a taken name gets a number. The folder must stay inside the
 // project. Returns true when a file was written.
-export async function startBugDocument(projectRoot: vscode.Uri, u: LiveUnnamed, lookbackDays: number): Promise<boolean> {
+export async function startBugDocument(projectRoot: vscode.Uri, u: LiveUnnamed, lookbackDays: number, viewColumn?: number): Promise<boolean> {
   if (!u.folder) {
     return false;
   }
@@ -275,7 +275,7 @@ export async function startBugDocument(projectRoot: vscode.Uri, u: LiveUnnamed, 
     if (await vscode.workspace.applyEdit(edit)) {
       const opened = await vscode.workspace.openTextDocument(target);
       await opened.save();
-      await vscode.window.showTextDocument(opened, { preview: false });
+      await vscode.window.showTextDocument(opened, viewColumn === undefined ? { preview: false } : { preview: false, viewColumn });
       return true;
     }
   }
