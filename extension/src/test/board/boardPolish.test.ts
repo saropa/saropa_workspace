@@ -208,9 +208,9 @@ test("every releaseBoard setting is in the README table with its default, and th
   }
   const readme = fs.readFileSync(path.join(root, "..", "README.md"), "utf8");
   const found = new Map<string, string>();
-  for (const m of readme.matchAll(/^\| `(releaseBoard\.[\w.]+)` \| `([^`]*)` \|/gm)) {
+  for (const m of readme.matchAll(/^\| `(releaseBoard\.[\w.]+)` \| (?:`([^`]*)`|(empty)) \|/gm)) {
     assert.ok(!found.has(m[1]), `${m[1]} is listed twice`);
-    found.set(m[1], m[2]);
+    found.set(m[1], m[3] ? "" : m[2]);
   }
   assert.ok(expected.size >= 40);
   assert.deepEqual([...found.keys()].sort(), [...expected.keys()].sort());
