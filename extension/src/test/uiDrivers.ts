@@ -73,25 +73,32 @@ export type PickRow = { readonly label: string } & Record<string, unknown>;
 /** What one pick prompt offered, and the options it was opened with. */
 export interface PickShowing {
   readonly rows: readonly PickRow[];
+  /** The text of each choice: a row's label, or the string itself for a list of strings. */
+  readonly labels: readonly string[];
   readonly options: Record<string, unknown>;
 }
 
 /**
- * Answers the pick prompts in order. A string picks the row with that label; an array
+ * Answers the pick prompts in order. A string picks the row with that label (or the equal string, for a list of strings); an array
  * picks several rows (multi-select); undefined cancels. Returns the log of the showings.
  */
 export function drivePicks(...answers: Array<string | string[] | undefined>): PickShowing[] {
   const showings: PickShowing[] = [];
   let n = 0;
   __setPickHandler(async (items, options) => {
-    const rows = items as PickRow[];
-    showings.push({ rows, options: (options ?? {}) as Record<string, unknown> });
+    const rows = items as Array<PickRow | string>;
+    const textOf = (row: PickRow | string): string => (typeof row === "string" ? row : row.label);
+    showings.push({
+      rows: rows as PickRow[],
+      labels: rows.map(textOf),
+      options: (options ?? {}) as Record<string, unknown>,
+    });
     const answer = answers[n++];
     if (answer === undefined) {
       return undefined;
     }
-    const find = (label: string): PickRow => {
-      const row = rows.find((r) => r.label === label);
+    const find = (label: string): PickRow | string => {
+      const row = rows.find((r) => textOf(r) === label);
       if (!row) {
         throw new Error(`pick ${n} has no row labeled ${label}`);
       }

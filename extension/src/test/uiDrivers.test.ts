@@ -55,6 +55,12 @@ test("pick answers choose one row, several rows, or cancel, and log rows and opt
   assert.equal(log[0].rows, rows);
 });
 
+test("a list of plain strings is logged by text and a string answer returns that string", async () => {
+  const log = drivePicks("Two");
+  assert.equal(await vscode.window.showQuickPick(["One", "Two"]), "Two");
+  assert.deepEqual(log[0].labels, ["One", "Two"]);
+});
+
 test("a pick answer with no such label is reported", async () => {
   drivePicks("Nope");
   await assert.rejects(vscode.window.showQuickPick([{ label: "One" }]), /no row labeled Nope/);
