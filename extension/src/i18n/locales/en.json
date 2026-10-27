@@ -1814,5 +1814,6 @@
   "releaseBoard.baseline": "First scan: nothing to compare with yet. Accept it to use it as the baseline.",
   "releaseBoard.accept": "Accept",
   "releaseBoard.acceptBaseline": "Release Board: accept this first scan as the baseline?",
-  "releaseBoard.held": "Release Board: {count} change(s) need your check before the board updates. See the Saropa Release Board output."
+  "releaseBoard.held": "Release Board: {count} change(s) need your check before the board updates. See the Saropa Release Board output.",
+  "releaseBoard.failed": "Release Board scan failed: {error}"
 }

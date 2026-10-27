@@ -32,7 +32,7 @@ export function workspaceFileSource(): FileSource {
   return {
     async list(projectDir: string, root: string): Promise<ScanFile[]> {
       const files: ScanFile[] = [];
-      const base = vscode.Uri.file(projectDir);
+      const base = vscode.Uri.parse(projectDir);
       const walk = async (rel: string): Promise<void> => {
         const dir = vscode.Uri.joinPath(base, rel);
         for (const [name, type] of await vscode.workspace.fs.readDirectory(dir)) {
@@ -49,7 +49,7 @@ export function workspaceFileSource(): FileSource {
       return files;
     },
     async readHead(projectDir: string, p: string, lines: number): Promise<string> {
-      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.file(projectDir), p));
+      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
       return Buffer.from(bytes).toString("utf8").split(/\r?\n/).slice(0, lines).join("\n");
     },
   };
@@ -65,22 +65,38 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 }
 
 // The rule file: the user's own `.saropa/release-board.json` in the first folder when
-// present, else the rules shipped with the extension. When the file lists no projects,
+// present, else the rules shipped with the extension. A user file may leave out any
+// section; rule sets are layered over the shipped ones. When no projects are listed,
 // every workspace folder becomes one, scanning the document folders it actually has.
+// Project paths become URI strings so remote and virtual workspaces resolve correctly.
 async function loadConfig(): Promise<BoardConfig> {
   const folders = vscode.workspace.workspaceFolders ?? [];
-  let cfg = defaultRules as unknown as BoardConfig;
+  const shipped = defaultRules as unknown as BoardConfig;
+  let cfg: BoardConfig = { ...shipped };
   if (folders.length > 0) {
     const user = vscode.Uri.joinPath(folders[0].uri, RULES_FILE);
     if (await exists(user)) {
       const bytes = await vscode.workspace.fs.readFile(user);
-      cfg = JSON.parse(Buffer.from(bytes).toString("utf8")) as BoardConfig;
+      const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as Partial<BoardConfig>;
+      cfg = {
+        ...shipped,
+        ...parsed,
+        ignore: parsed.ignore ?? shipped.ignore,
+        ruleSets: { ...shipped.ruleSets, ...(parsed.ruleSets ?? {}) },
+        projects: parsed.projects ?? [],
+      };
     }
   }
   if (cfg.projects.length > 0) {
-    return cfg;
+    const base = folders[0].uri;
+    const projects = cfg.projects.map((p) => ({
+      ...p,
+      path: (path.isAbsolute(p.path) ? vscode.Uri.file(p.path) : vscode.Uri.joinPath(base, p.path)).toString(),
+    }));
+    return { ...cfg, projects };
   }
   const projects: ProjectDef[] = [];
+  const used = new Set<string>();
   for (const f of folders) {
     const roots: string[] = [];
     for (const r of DEFAULT_ROOTS) {
@@ -88,13 +104,13 @@ async function loadConfig(): Promise<BoardConfig> {
         roots.push(r);
       }
     }
-    projects.push({
-      id: f.name,
-      name: f.name,
-      path: f.uri.fsPath,
-      roots,
-      ruleSets: DEFAULT_SETS,
-    });
+    // Two folders can share a name; the project id must stay unique.
+    let id = f.name;
+    for (let n = 2; used.has(id); n++) {
+      id = `${f.name}-${n}`;
+    }
+    used.add(id);
+    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: DEFAULT_SETS });
   }
   return { ...cfg, projects };
 }
@@ -121,7 +137,7 @@ function countsLine(c: StatusCounts): string {
   return `red ${c.red} · amber ${c.amber} · purple ${c.purple} · grey ${c.grey}`;
 }
 
-async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
+async function scan(context: vscode.ExtensionContext): Promise<void> {
   const enabled = vscode.workspace
     .getConfiguration("saropaWorkspace.releaseBoard")
     .get<boolean>("enabled", false);
@@ -134,7 +150,8 @@ async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
     return;
   }
   const cfg = await loadConfig();
-  const dir = context.globalStorageUri;
+  // Per workspace: another workspace must never see or overwrite this baseline.
+  const dir = context.storageUri ?? context.globalStorageUri;
   const accepted = await readAccepted(dir);
   const result = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Window, title: l10n("releaseBoard.scanning") },
@@ -155,7 +172,7 @@ async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
     o.appendLine(l10n("releaseBoard.baseline"));
   }
   for (const f of safety.findings) {
-    o.appendLine(`[${f.severity}] ${f.project}: ${f.text}`);
+    o.appendLine(`${f.project}: ${f.text}`);
   }
   o.show(true);
   if (safety.clean) {
@@ -169,6 +186,14 @@ async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
   );
   if (pick === accept) {
     await writeAccepted(dir, result.snapshot);
+  }
+}
+
+async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    await scan(context);
+  } catch (e) {
+    void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
   }
 }
 

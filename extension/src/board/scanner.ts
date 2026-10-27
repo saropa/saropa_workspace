@@ -36,8 +36,9 @@ export interface CachedFile {
 
 export interface ProjectSnapshot {
   counts: StatusCounts;
-  // Files per folder (the folder is the path without the file name).
-  folders: Record<string, number>;
+  // For every folder, at every depth: all documents under it, and how many of those are
+  // green. "docs/history/2026" counts toward "docs/history" and "docs".
+  folders: Record<string, { n: number; green: number }>;
   // Files per rule, keyed "ruleSet/ruleId".
   ruleCounts: Record<string, number>;
   // Folder of each state-defining match, for the "needs a rule" list: grey files per folder.
@@ -64,6 +65,13 @@ function folderOf(path: string): string {
   return i < 0 ? "" : path.slice(0, i);
 }
 
+// A root that does not exist is simply empty; any other error (permission, a broken
+// remote) must surface, or a whole root would silently drop out of the board.
+function isMissing(e: unknown): boolean {
+  const err = e as { code?: unknown; name?: unknown };
+  return err.code === "ENOENT" || /FileNotFound|EntryNotFound/.test(String(err.code ?? err.name ?? ""));
+}
+
 export async function scanProject(
   cfg: BoardConfig,
   project: ProjectDef,
@@ -86,9 +94,11 @@ export async function scanProject(
     let files: ScanFile[];
     try {
       files = await source.list(project.path, root);
-    } catch {
-      // A root that does not exist in this project is simply empty.
-      continue;
+    } catch (e) {
+      if (isMissing(e)) {
+        continue;
+      }
+      throw e;
     }
     for (const f of files) {
       if (seen.has(f.path)) {
@@ -116,7 +126,13 @@ export async function scanProject(
       rows.push(row);
       snap.counts[row.status] += 1;
       const dir = folderOf(f.path);
-      snap.folders[dir] = (snap.folders[dir] ?? 0) + 1;
+      for (let d = dir; d !== ""; d = folderOf(d)) {
+        const e = (snap.folders[d] ??= { n: 0, green: 0 });
+        e.n += 1;
+        if (row.status === "green") {
+          e.green += 1;
+        }
+      }
       if (row.rule && row.ruleSet) {
         const key = row.ruleSet + "/" + row.rule.split(" ")[0];
         snap.ruleCounts[key] = (snap.ruleCounts[key] ?? 0) + 1;

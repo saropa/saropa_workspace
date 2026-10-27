@@ -7,14 +7,21 @@ import { checkScan } from "../../board/safety";
 import { FileSource, ProjectSnapshot, ScanSnapshot, scanAll } from "../../board/scanner";
 import { BoardConfig, ScanFile, emptyCounts } from "../../board/types";
 
+// `folders` maps a folder to [documents under it, green ones]; plain numbers mean none green.
+type FolderSpec = Record<string, number | [number, number]>;
+
 function project(
   counts: Partial<ReturnType<typeof emptyCounts>>,
-  folders: Record<string, number>,
+  folders: FolderSpec,
   ruleCounts: Record<string, number>
 ): ProjectSnapshot {
+  const f: ProjectSnapshot["folders"] = {};
+  for (const [k, v] of Object.entries(folders)) {
+    f[k] = Array.isArray(v) ? { n: v[0], green: v[1] } : { n: v, green: 0 };
+  }
   return {
     counts: { ...emptyCounts(), ...counts },
-    folders,
+    folders: f,
     ruleCounts,
     greyFolders: {},
     files: {},
@@ -31,7 +38,7 @@ test("first scan is a baseline, never clean", () => {
   assert.equal(r.clean, false);
 });
 
-test("renaming a small folder is caught by the rule and folder checks, not by percent", () => {
+test("renaming a small folder is caught by the folder check, not by percent", () => {
   // 10 of 444 documents: 2 percent, below the percent threshold, but the folder is gone.
   const before = snap(project({ blue: 444, green: 4000 }, { "docs/deferred": 10, "docs/history": 4000 }, { "folder-states/deferred": 444 }));
   const after = snap(project({ blue: 434, amber: 10, green: 4000 }, { "docs/parked": 10, "docs/history": 4000 }, { "folder-states/deferred": 434 }));
@@ -55,13 +62,38 @@ test("small count moves do not fire", () => {
   assert.equal(r.findings.length, 0);
 });
 
-test("a bulk archive is an accepted summary, not a hold", () => {
-  const before = snap(project({ amber: 120, green: 100 }, { "docs/plans": 120, "docs/history": 100 }, { "s/plan": 120 }));
-  const after = snap(project({ amber: 0, green: 220 }, { "docs/history": 100, "docs/history/2026": 120 }, { "s/plan": 0 }));
+test("a bulk archive is shown as a summary the user accepts; it never auto-accepts", () => {
+  const before = snap(project({ amber: 120, green: 100 }, { "docs/plans": 120, "docs/history": [100, 100] }, { "s/plan": 120 }));
+  const after = snap(project({ amber: 0, green: 220 }, { "docs/history": [220, 220], "docs/history/2026": [120, 120] }, { "s/plan": 0 }));
   const r = checkScan(before, after);
-  assert.ok(r.findings.some((f) => f.kind === "moved-to-done" && f.severity === "info"));
-  // The rule going to zero is still reported; only the move explains the folders.
-  assert.ok(r.findings.some((f) => f.kind === "rule-matches-nothing"));
+  assert.ok(r.findings.some((f) => f.kind === "moved-to-done"));
+  assert.equal(r.clean, false, "the user accepts the move");
+  assert.ok(!r.findings.some((f) => f.kind === "count-shift"), "the move explains the counts");
+});
+
+test("a rename that recolors documents is not mistaken for an archive", () => {
+  // Documents leave docs/deferred and land in docs/parked, which is NOT all green.
+  const before = snap(project({ blue: 50, green: 100 }, { "docs/deferred": 50, "docs/history": [100, 100] }, { "folder-states/deferred": 50 }));
+  const after = snap(project({ amber: 50, green: 100 }, { "docs/parked": 50, "docs/history": [100, 100] }, {}));
+  const r = checkScan(before, after);
+  assert.ok(r.findings.some((f) => f.kind === "folder-gone"));
+  assert.ok(!r.findings.some((f) => f.kind === "moved-to-done"));
+  assert.ok(r.findings.some((f) => f.kind === "count-shift" && f.text.startsWith("blue")));
+});
+
+test("a renamed parent whose subfolders are small is still caught, once", () => {
+  const before = snap(project({ blue: 8 }, { "docs/deferred": 8, "docs/deferred/a": 2, "docs/deferred/b": 2, "docs/deferred/c": 4 }, {}));
+  const after = snap(project({ amber: 8 }, { "docs/parked": 8, "docs/parked/a": 2, "docs/parked/b": 2, "docs/parked/c": 4 }, {}));
+  const folderFindings = checkScan(before, after).findings.filter((f) => f.kind === "folder-gone");
+  assert.equal(folderFindings.length, 1);
+  assert.ok(folderFindings[0].text.includes("docs/deferred"));
+});
+
+test("a project with no accepted scan, or one that vanished, is reported", () => {
+  const accepted: ScanSnapshot = { version: 1, takenAt: 0, projects: { app: project({}, {}, {}) } };
+  const next: ScanSnapshot = { version: 1, takenAt: 1, projects: { web: project({}, {}, {}) } };
+  const kinds = checkScan(accepted, next).findings.map((f) => f.kind).sort();
+  assert.deepEqual(kinds, ["new-project", "project-gone"]);
 });
 
 // In-memory source for the cache test.

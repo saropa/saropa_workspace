@@ -76,14 +76,17 @@ export function compileProject(cfg: BoardConfig, p: ProjectDef): CompiledProject
 }
 
 // The first 20 lines of a document are enough to find a Status line.
-const STATUS_LINE_RE = /^\W*status\W*:?\**\s*(\S+)/im;
+// A real Status line has a colon: "Status: WIP", "**Status:** done", "> Status: fixed".
+// Table rows ("| Status | Fixed |") and prose ("Status of the work") do not match, and a
+// word followed by "?" is a question, not a state.
+const STATUS_LINE_RE = /^[>\s*_#-]*status\**\s*:\s*\**\s*([A-Za-z]+)(?![A-Za-z?])/im;
 
 export function findStatusWord(head: string): string | undefined {
   const m = STATUS_LINE_RE.exec(head);
   if (!m) {
     return undefined;
   }
-  return m[1].toLowerCase().replace(/[^a-z]/g, "");
+  return m[1].toLowerCase();
 }
 
 export function compileIgnore(cfg: BoardConfig): RegExp[] {
@@ -142,7 +145,7 @@ export function classifyFile(
 // True when a file's state could be moved by a Status line, so the scanner has to
 // read its head. Only Markdown has one.
 export function needsStatusWord(cp: CompiledProject, file: ScanFile): boolean {
-  if (!cp.statusLine || !file.path.endsWith(".md")) {
+  if (!cp.statusLine || !file.path.toLowerCase().endsWith(".md")) {
     return false;
   }
   // The state before the Status line decides whether it applies; classify without it.

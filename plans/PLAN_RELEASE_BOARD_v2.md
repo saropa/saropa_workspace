@@ -145,13 +145,16 @@ Read from each markdown document and cached, shown as the marks above:
 ### 8. Safety against silent mislabeling (built first)
 
 - Built in the first step with the rule engine, before any light is shown.
-- After each scan, compare with the last scan. Stop the update and ask when any of these holds:
-  - A folder that matched a rule last scan now matches none.
-  - A rule that matched documents last scan now matches zero.
-  - The count in any state changes by 20 percent or more AND by at least 5 documents. The absolute floor stops small counts from firing on every change.
-  - A bulk move is recognized when the documents reappear in `history/`. It is shown as a summary the user accepts, not as an error.
+- After each scan, compare with the last accepted scan. Any finding holds the update until the user accepts it:
+  - A rule that matched 3 or more documents last scan now matches none.
+  - A folder, at any depth, that held 3 or more documents now holds none. A renamed parent is reported once.
+  - New documents appeared in new folders and every one of them is green: reported as a bulk archive ("moved to done"). The user still accepts it; it never updates silently.
+  - New documents appeared in new folders that are not all green: reported as a possible rename.
+  - A state's count changes by 20 percent or more AND by at least 5 documents. A bulk archive explains green gaining and other states losing up to the number of moved documents.
+  - A project has no accepted scan yet (new baseline), or was in the last accepted scan and is gone.
+- The accepted scan is stored per workspace, so another workspace never sees or overwrites it.
 - The first scan has no baseline. It is shown as UNVERIFIED until the user accepts it.
-- Prototype case: renaming `docs/deferred` to `docs/parked` would have turned 444 deferred into red and amber with no error. The first two checks catch that case even though it is 2 percent of some folders.
+- Prototype case: renaming `docs/deferred` to `docs/parked` would have turned 444 deferred into red and amber with no error. The folder check catches that case even though it is 2 percent of some folders.
 
 ## Titles and groups
 
