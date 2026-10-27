@@ -125,7 +125,8 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     blockedStop > 0 ||
     (!ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
     h?.lint === "failing" ||
-    h?.tests === "failing";
+    h?.tests === "failing" ||
+    h?.build === "failing";
   return {
     id: def.id,
     name: def.name ?? def.id,
