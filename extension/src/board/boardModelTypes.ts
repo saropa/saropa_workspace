@@ -12,6 +12,7 @@ import { StatusCounts } from "./types";
 
 export type Light = "no-go" | "unverified" | "go";
 
+// Why a project reads UNVERIFIED instead of GO.
 export type UnverifiedReason =
   // The scan has not been accepted as the baseline (first scan, or held by the safety check).
   | "baseline"
@@ -22,6 +23,7 @@ export type UnverifiedReason =
   // Open documents whose text was not read, so their severity is unknown.
   | "unread";
 
+// One open document on the board, with the marks and links the page draws on its row.
 export interface BoardItem {
   id: number;
   project: string;
@@ -54,6 +56,7 @@ export interface BoardItem {
   stopping: boolean;
 }
 
+// The small marks on a row, rolled up from a document's text.
 export interface ItemMarks {
   // Steps done and total; total 0 means no checklist.
   done: number;
@@ -68,6 +71,7 @@ export interface ItemMarks {
   detail: string;
 }
 
+// One project's row: its light, why it reads that way, its open items and its counts.
 export interface BoardProject {
   id: string;
   name: string;
@@ -110,6 +114,7 @@ export interface SittingsView {
   untaggedMore: number;
 }
 
+// Everything the first screen shows, built by buildBoard.
 export interface BoardModel {
   projects: BoardProject[];
   chains: ChainStep[][];

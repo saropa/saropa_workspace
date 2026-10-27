@@ -21,6 +21,7 @@ interface CompiledRule {
   name?: RegExp;
 }
 
+// A project with its rules turned into patterns, in the order they are tried.
 export interface CompiledProject {
   project: ProjectDef;
   rules: CompiledRule[];
@@ -47,6 +48,7 @@ function projectParams(cfg: BoardConfig, p: ProjectDef): Record<string, ParamVal
   return Object.assign(out, p.params ?? {});
 }
 
+// Turns a project's own rules and its rule sets into patterns, filling in parameters.
 export function compileProject(cfg: BoardConfig, p: ProjectDef): CompiledProject {
   const params = projectParams(cfg, p);
   const ordered: Array<{ ruleSet: string; rule: Rule }> = [];
@@ -81,6 +83,7 @@ export function compileProject(cfg: BoardConfig, p: ProjectDef): CompiledProject
 // word followed by "?" is a question, not a state.
 const STATUS_LINE_RE = /^[>\s*_#-]*status\**\s*:\s*\**\s*([A-Za-z]+)(?![A-Za-z?])/im;
 
+// The word of a Status line in the head of a document, in lower case, or undefined.
 export function findStatusWord(head: string): string | undefined {
   const m = STATUS_LINE_RE.exec(head);
   if (!m) {
@@ -89,6 +92,7 @@ export function findStatusWord(head: string): string | undefined {
   return m[1].toLowerCase();
 }
 
+// The ignore globs of the rules file as patterns.
 export function compileIgnore(cfg: BoardConfig): RegExp[] {
   return cfg.ignore.map(globToRegExp);
 }

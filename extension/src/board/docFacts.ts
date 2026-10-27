@@ -23,6 +23,7 @@ export interface DocStep {
 const MAX_STEPS = 200;
 const STEP_TEXT = 160;
 
+// The facts read from one document's text.
 export interface DocFacts {
   title: string;
   headings: number;
@@ -56,6 +57,7 @@ export interface DocFacts {
   audience: Audience;
 }
 
+// Settings that change how facts are read.
 export interface FactsOptions {
   // Project id to regex source, matched case-insensitively against the body.
   mentions?: Record<string, string>;

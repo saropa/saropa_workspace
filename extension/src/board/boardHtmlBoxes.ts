@@ -77,6 +77,7 @@ export function profilePicker(model: BoardModel, t: BoardStrings): string {
   return `<span class="seg" role="group" aria-label="${escapeHtml(t.profileLabel)}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, label]) => `<button data-profile="${v}"${model.profile === v ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}>${escapeHtml(label)}</button>`).join("")}</span>`;
 }
 
+// The collapsed list of folders where documents no rule placed sit, so the owner can add a rule.
 export function needsRule(model: BoardModel, t: BoardStrings, names: Map<string, string>): string {
   if (model.needsRule.length === 0) {
     return "";
@@ -99,6 +100,7 @@ export function outsideBoxes(model: BoardModel): string {
     .join("");
 }
 
+// The collapsed box of linked documents: chains in finish order, Needs lines that need a look, and suggested links.
 export function chains(model: BoardModel, t: BoardStrings): string {
   if (model.chains.length === 0 && model.flags.length === 0 && model.suggestions.length === 0) {
     return "";

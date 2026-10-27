@@ -8,14 +8,19 @@ import { SittingLine } from "./sittings";
 // purpose: it is meant to be pasted into any chat tool.
 
 export const DETAIL_LEVELS = ["short", "standard", "full"] as const;
+// How much a Hand to chat prompt says.
 export type DetailLevel = (typeof DETAIL_LEVELS)[number];
+// Whether the board offers to open a chat after copying a prompt.
 export const OPEN_CHAT_MODES = ["never", "offer"] as const;
+// One of the open-chat modes.
 export type OpenChatMode = (typeof OPEN_CHAT_MODES)[number];
 
+// Plain setting value to a detail level; anything unknown means standard.
 export function asDetail(v: unknown): DetailLevel {
   return typeof v === "string" && (DETAIL_LEVELS as readonly string[]).includes(v) ? (v as DetailLevel) : "standard";
 }
 
+// Plain setting value to an open-chat mode; anything but offer means never.
 export function asOpenChat(v: unknown): OpenChatMode {
   return v === "offer" ? "offer" : "never";
 }
@@ -65,6 +70,7 @@ function projectFacts(p: BoardProject | undefined): string[] {
   return out;
 }
 
+// The prompt target for a blocker or open document.
 export function itemTarget(model: BoardModel, it: BoardItem): HandTarget {
   const project = model.projects.find((p) => p.id === it.project);
   const stops = it.status === "red" || it.stopping;
@@ -104,6 +110,7 @@ export function itemTarget(model: BoardModel, it: BoardItem): HandTarget {
   return { headline: `${stops ? "Blocker" : "Open document"}: ${it.title}`, project: project?.name ?? it.project, file: it.path, evidence, extra };
 }
 
+// The prompt target for a Path to GO step.
 export function stepTarget(model: BoardModel, project: BoardProject, step: PathStep): HandTarget {
   if (step.kind === "item" && step.itemId !== undefined && model.items[step.itemId]) {
     return itemTarget(model, model.items[step.itemId]);
@@ -128,6 +135,7 @@ export function stepTarget(model: BoardModel, project: BoardProject, step: PathS
   }
 }
 
+// The prompt target for a Sittings line.
 export function lineTarget(model: BoardModel, l: SittingLine): HandTarget {
   const evidence = [`Document: ${l.docTitle}`, `Estimated time: ${l.minutes} minutes`];
   if (l.needs.length > 0) {

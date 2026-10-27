@@ -14,8 +14,10 @@ export interface SafetyOptions {
   minStructureFiles: number;
 }
 
+// The thresholds used when none are given.
 export const DEFAULT_SAFETY: SafetyOptions = { minPercent: 20, minFiles: 5, minStructureFiles: 3 };
 
+// The kinds of change the safety check reports.
 export type FindingKind =
   | "new-project"
   | "project-gone"
@@ -24,12 +26,14 @@ export type FindingKind =
   | "count-shift"
   | "moved-to-done";
 
+// One change that needs the user's look before the new scan is trusted.
 export interface SafetyFinding {
   kind: FindingKind;
   project: string;
   text: string;
 }
 
+// The verdict of comparing a new scan with the accepted one.
 export interface SafetyResult {
   // True when there was no accepted scan to compare with. The first scan is shown as
   // UNVERIFIED until the user accepts it.

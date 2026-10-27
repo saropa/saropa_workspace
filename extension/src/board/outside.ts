@@ -10,27 +10,33 @@ export interface OutsideItem {
   url?: string;
 }
 
+// A titled list of items handed over by another extension.
 export interface OutsideGroup {
   id: string;
   label: string;
   items: OutsideItem[];
 }
 
+// Session counts per document and the groups from other extensions.
 export interface Outside {
   // "project/path" of an open document -> number of Claude sessions that touched it.
   chats: Record<string, number>;
   groups: OutsideGroup[];
 }
 
+// An Outside with nothing in it.
 export const emptyOutside = (): Outside => ({ chats: {}, groups: [] });
 
+// Most groups kept from other extensions.
 export const MAX_GROUPS = 8;
+// Most items kept in one group.
 export const MAX_ITEMS = 20;
 const MAX_TEXT = 200;
 
 const text = (v: unknown, max = MAX_TEXT): string | undefined =>
   typeof v === "string" && v.trim() !== "" ? v.replace(/[\r\n\t]+/g, " ").trim().slice(0, max) : undefined;
 
+// The URL when it is a valid https link, otherwise undefined.
 export function safeUrl(v: unknown): string | undefined {
   if (typeof v !== "string") {
     return undefined;
@@ -43,6 +49,7 @@ export function safeUrl(v: unknown): string | undefined {
   }
 }
 
+// Keeps the items that have a title, as plain text with a safe link, up to the item limit.
 export function cleanItems(raw: unknown): OutsideItem[] {
   if (!Array.isArray(raw)) {
     return [];

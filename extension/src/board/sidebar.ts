@@ -5,15 +5,20 @@ import { BoardItem, BoardModel, Light, UnverifiedReason } from "./boardModel";
 // and the light's icon and color are unit-tested without a tree view.
 
 export type ExpandMode = "never" | "whenNoGo" | "always";
+// When the board opens by itself at start.
 export type StartupMode = "never" | "whenProjectsFound" | "always";
 
+// Most blockers a setting may show under one project.
 export const MAX_BLOCKERS = 10;
+// Blockers shown under a project when the setting is missing.
 export const DEFAULT_BLOCKERS = 3;
 
+// Plain setting value to an expand mode; anything unknown means only when NO-GO.
 export function asExpandMode(v: unknown): ExpandMode {
   return v === "never" || v === "always" ? v : "whenNoGo";
 }
 
+// Plain setting value to a startup mode; anything unknown means when projects are found.
 export function asStartupMode(v: unknown): StartupMode {
   return v === "never" || v === "always" ? v : "whenProjectsFound";
 }
@@ -23,6 +28,7 @@ export function clampBlockers(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(MAX_BLOCKERS, Math.max(0, Math.round(v))) : DEFAULT_BLOCKERS;
 }
 
+// How a light is drawn in the sidebar.
 export interface LightLook {
   // A codicon name and a theme color id, so dark and light themes both work.
   icon: string;
@@ -35,10 +41,12 @@ const LOOK: Record<Light, LightLook> = {
   go: { icon: "pass-filled", color: "charts.green" },
 };
 
+// The icon and color of a light.
 export const lightLook = (light: Light): LightLook => LOOK[light];
 
 const ITEM_COLOR: Record<BoardItem["status"], string> = { red: "charts.red", purple: "charts.purple", amber: "charts.yellow" };
 
+// The theme color of a blocker by its state.
 export const blockerColor = (status: BoardItem["status"]): string => ITEM_COLOR[status];
 
 const RANK: Record<Light, number> = { "no-go": 0, unverified: 1, go: 2 };
@@ -48,6 +56,7 @@ export function worstLight(lights: Light[]): Light | undefined {
   return lights.reduce<Light | undefined>((w, l) => (w === undefined || RANK[l] < RANK[w] ? l : w), undefined);
 }
 
+// True when a project row starts open under the expand mode.
 export function shouldExpand(mode: ExpandMode, light: Light): boolean {
   return mode === "always" || (mode === "whenNoGo" && light === "no-go");
 }
@@ -85,6 +94,7 @@ export interface SidebarLabels {
   causeHeld: string;
 }
 
+// One blocker listed under a project row.
 export interface SidebarBlocker {
   // Index into the model's items; the host checks it against the model it was built from.
   id: number;
@@ -92,6 +102,7 @@ export interface SidebarBlocker {
   status: BoardItem["status"];
 }
 
+// One project row of the sidebar, with its blockers.
 export interface SidebarRow {
   projectId: string;
   name: string;
@@ -102,6 +113,7 @@ export interface SidebarRow {
   expand: boolean;
 }
 
+// Settings for the sidebar rows.
 export interface SidebarOptions {
   blockersPerProject: number;
   expandProjects: ExpandMode;
@@ -114,6 +126,7 @@ export const isBlocker = (it: BoardItem): boolean => it.status === "red" || it.s
 
 const suffix = (note: string | undefined, text: string): string => (note ? `${text} (${note})` : text);
 
+// Builds one row per project with its light, description and first blockers.
 export function buildSidebarRows(model: Pick<BoardModel, "projects">, opts: SidebarOptions, labels: SidebarLabels): SidebarRow[] {
   return model.projects.map((p) => {
     // The model already lists items red first, pinned first, most severe first.

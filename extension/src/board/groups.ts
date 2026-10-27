@@ -17,12 +17,14 @@ export interface GroupInput {
   sourceFiles: string[];
 }
 
+// A group listed by hand in the rules file.
 export interface ManualGroup {
   name: string;
   // Globs matched against "project/path".
   match: string[];
 }
 
+// Settings for building groups; every field has a default.
 export interface GroupOptions {
   manual?: ManualGroup[];
   // Globs of "project/path" that are never grouped.
@@ -38,6 +40,7 @@ export interface GroupOptions {
 
 const DEFAULT_GENERIC = ["PLAN", "BUG", "DOC", "DOCS", "NOTES", "NOTE", "TODO", "README", "INDEX", "REPORT", "SPEC", "GUIDE", "DRAFT", "ANALYSIS"];
 
+// The groups found and the documents that act as hubs.
 export interface GroupResult {
   // Item key to its group (a unique id and the heading), for items in a group of two or more.
   groupOf: Map<string, { id: string; name: string }>;

@@ -16,6 +16,7 @@ export interface HealthConfig {
   staleDays?: number;
 }
 
+// Where the Saropa Lints violations file is looked for when a project names none.
 export const DEFAULT_LINT_FILE = "reports/.saropa_lints/violations.json";
 const DEFAULT_STALE_DAYS = 7;
 // Below this share of expected files analyzed, a lint file is a partial sweep (the same
@@ -35,11 +36,13 @@ export interface RunRecord {
   failed?: number;
 }
 
+// The last recorded lint run and test run of a project.
 export interface RecordedRuns {
   tests?: RunRecord;
   lint?: RunRecord;
 }
 
+// The stored record of runs, per project.
 export interface HealthFile {
   version: 1;
   projects: Record<string, RecordedRuns>;
@@ -47,6 +50,7 @@ export interface HealthFile {
   seen: Record<string, number>;
 }
 
+// The counts read from a trusted lint file, and when they were taken.
 export interface LintResult {
   errors: number;
   warnings: number;
@@ -54,6 +58,7 @@ export interface LintResult {
   takenAt: number;
 }
 
+// The outcome of reading a lint file: the result, or why it cannot be trusted.
 export type LintRead = { ok: true; result: LintResult } | { ok: false; why: "unreadable" | "empty" | "partial" };
 
 function num(v: unknown): number {
@@ -146,8 +151,10 @@ export function parseTestTally(output: string): { run: number; failed: number } 
   return undefined;
 }
 
+// One kind of evidence: failing, passing, missing, or not applicable to the project.
 export type Evidence = "failing" | "passing" | "missing" | "na";
 
+// The lint and test evidence of one project, with a detail line for each.
 export interface ProjectHealth {
   lint: Evidence;
   tests: Evidence;

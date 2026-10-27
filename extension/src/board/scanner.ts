@@ -50,6 +50,7 @@ export interface CachedFacts {
   facts: DocFacts;
 }
 
+// What one scan found in one project: counts, folder and rule tallies, cached words and facts.
 export interface ProjectSnapshot {
   counts: StatusCounts;
   // For every folder, at every depth: all documents under it, and how many of those are
@@ -66,12 +67,14 @@ export interface ProjectSnapshot {
   factsKey?: string;
 }
 
+// What one scan found in every project, with the time it was taken.
 export interface ScanSnapshot {
   version: 1;
   takenAt: number;
   projects: Record<string, ProjectSnapshot>;
 }
 
+// The rows of a scan, its snapshot, the documents still to read and the timing.
 export interface ScanResult {
   rows: Classified[];
   snapshot: ScanSnapshot;
@@ -111,6 +114,7 @@ export interface PendingFacts {
   mtimeMs: number;
 }
 
+// How much work a scan did.
 export interface ScanStats {
   files: number;
   headReads: number;
@@ -287,6 +291,7 @@ function factsOptions(cfg: BoardConfig, project: ProjectDef): FactsOptions {
 
 const factsKeyOf = (opt: FactsOptions): string => FACTS_VERSION + ":" + JSON.stringify(opt);
 
+// Scans every project, a few at a time, and gathers the rows, snapshot and timing.
 export async function scanAll(
   cfg: BoardConfig,
   source: FileSource,

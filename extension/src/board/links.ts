@@ -17,6 +17,7 @@ export type LinkState =
   // The document names itself.
   | "self";
 
+// One Needs target resolved to a document, or the reason it could not be.
 export interface Link {
   fromProject: string;
   fromPath: string;
