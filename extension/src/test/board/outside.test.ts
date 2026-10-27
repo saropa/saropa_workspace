@@ -61,7 +61,7 @@ test("the page shows the session count and the outside group, escaped, with link
   const outside = { chats: { "app/bugs/A.md": 2 }, groups: [{ id: "g", label: "Review <b>", items: [{ title: "<img src=x>", url: "https://github.com/a/b/pull/1" }] }] };
   const m = buildBoard(cfg, [row("bugs/A.md", "amber")], undefined, true, undefined, undefined, undefined, { outside });
   const html = renderBoard(m, t, "n");
-  assert.ok(html.includes(">2</b>"));
+  assert.ok(html.includes('<span class="pill" title="chatsPill">2</span>'));
   assert.ok(!html.includes("<img src=x>") && !html.includes("<b>Review"));
   assert.ok(html.includes('data-g="0" data-i="0"'));
   const attrs = [...html.matchAll(/="([^"]*)"/g)].map((m) => m[1]);

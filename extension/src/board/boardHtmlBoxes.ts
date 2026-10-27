@@ -3,7 +3,7 @@ import { SittingLine } from "./sittings";
 import { Train, trainRows } from "./train";
 import { SinceView } from "./sinceLast";
 import { TidyReport } from "./tidy";
-import { BoardStrings, docLink, escapeHtml, fill, handButton, liveLine, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { BoardStrings, collapsible, fillT, docLink, escapeHtml, handButton, glyphTip, liveLine, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { RULES_PATH } from "./ruleAssign";
 
 // The boxes around the project rows: sittings, tidy, unnamed crashes, trains, linked
@@ -26,22 +26,22 @@ export function sittingsBox(model: BoardModel, t: BoardStrings): string {
   const all = v.contexts.length > 0 ? `<button class="chip sec" data-haveall="1" aria-pressed="${v.have.length === v.contexts.length}" ${tip(t, "chipAll")}>${escapeHtml(pl(t, "haveAll"))}</button>` : "";
   const time = TIME_LABELS.map(([n, key]) => `<button class="chip sec" data-box="${n}" aria-pressed="${v.timeBox === n}" ${tip(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) })}>${escapeHtml(pl(t, key))}</button>`).join("");
   const line = (l: SittingLine, i: number): string =>
-    `<div class="row" ${tip(t, "step", { minutes: l.minutes })}><span class="tag" ${tip(t, "project", { name: l.projectName })}>${escapeHtml(l.projectName)}</span><span class="f">${docLink(l.text || l.heading || l.docTitle, l.path, `data-step="${i}"`)}</span><span class="k" ${tip(t, "stepDoc", { title: l.docTitle })}>${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k" ${tip(t, "stepNeeds")}>${escapeHtml(l.needs.join(" + "))}</span>` : ""}<span class="k" ${titleAttr(t.stepMinutes.replace("{count}", String(l.minutes)))}>${l.minutes}</span>${handButton(t, `data-hk="line" data-i="${i}"`)}</div>`;
+    `<div class="row" ${tip(t, "step", { minutes: l.minutes })}><span class="tag" ${tip(t, "project", { name: l.projectName })}>${escapeHtml(l.projectName)}</span><span class="f">${docLink(l.text || l.heading || l.docTitle, l.path, `data-step="${i}"`)}</span><span class="k" ${tip(t, "stepDoc", { title: l.docTitle })}>${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k" ${tip(t, "stepNeeds")}>${escapeHtml(l.needs.join(" + "))}</span>` : ""}${pill(t, l.minutes, "stepMinutesPill", { minutes: l.minutes })}${handButton(t, `data-hk="line" data-i="${i}"`)}</div>`;
   const doable = v.lines.slice(0, v.doable).map((l, i) => line(l, i)).join("");
   const rest = [
-    v.more > 0 ? `<p class="note">${escapeHtml(t.sittingsMore.replace("{count}", String(v.more)))}</p>` : "",
-    v.needOther > 0 ? `<p class="note">${escapeHtml(t.sittingsNeedOther.replace("{count}", String(v.needOther)))}</p>` : "",
-    v.tooLong > 0 ? `<p class="note">${escapeHtml(t.sittingsTooLong.replace("{count}", String(v.tooLong)))}</p>` : "",
+    v.more > 0 ? `<p class="note">${pillify(t, escapeHtml(t.sittingsMore.replace("{count}", String(v.more))))}</p>` : "",
+    v.needOther > 0 ? `<p class="note">${pillify(t, escapeHtml(t.sittingsNeedOther.replace("{count}", String(v.needOther))))}</p>` : "",
+    v.tooLong > 0 ? `<p class="note">${pillify(t, escapeHtml(t.sittingsTooLong.replace("{count}", String(v.tooLong))))}</p>` : "",
   ].join("");
   const body = v.have.length === 0 ? `<p class="note">${escapeHtml(t.sittingsPick)}</p>` : v.doable === 0 ? `<p class="note">${escapeHtml(t.sittingsNone)}</p>` : doable;
   const shownUntagged = v.lines.slice(v.doable).map((l, i) => line(l, v.doable + i)).join("");
   const untagged =
     v.untagged > 0
-      ? `<details class="untag" id="sit-untag"><summary ${tip(t, "untagged")}>${escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore)))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
+      ? `<details class="untag" id="sit-untag" data-sec="sittings-untagged" open><summary ${tip(t, "untagged")}>${pillify(t, escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore))))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
       : "";
-  const fit = `<details class="steps" id="sit-steps" open><summary ${tip(t, "stepsSummary")}>${escapeHtml(pl(t, "stepsFit", { count: v.doable }))}</summary>${body}${rest}${untagged}</details>`;
+  const fit = `<details class="steps" id="sit-steps" data-sec="sittings-steps" open><summary ${tip(t, "stepsSummary")}>${pillify(t, escapeHtml(pl(t, "stepsFit", { count: v.doable })))}</summary>${body}${rest}${untagged}</details>`;
   const filter = `<div class="filter"><span class="k" ${tip(t, "timeLabelTip")}>${escapeHtml(pl(t, "timeLabel"))}</span><span class="seg" role="group" aria-label="${escapeHtml(pl(t, "timeLabel"))}" ${tip(t, "timeGroup")}>${time}</span><span class="k" ${tip(t, "haveLabelTip")}>${escapeHtml(pl(t, "haveLabel"))}</span><span class="seg" role="group" aria-label="${escapeHtml(pl(t, "haveLabel"))}" ${tip(t, "haveGroup")}>${all}${v.contexts.map((c) => chip(c.id, c.label)).join("")}</span></div>`;
-  return `<section class="box" id="sit-panel"><h2 ${tip(t, "sittingsHeading")}>${escapeHtml(t.sittingsHeading)}</h2>${filter}${fit}</section>`;
+  return collapsible({ id: "sittings", domId: "sit-panel", tipAttr: tip(t, "sittingsHeading"), head: escapeHtml(t.sittingsHeading), body: filter + fit });
 }
 
 // The words for one report candidate in the Tidy box. Already escaped.
@@ -49,14 +49,14 @@ function reportText(r: TidyReport, t: BoardStrings): string {
   switch (r.kind) {
     case "debt": {
       const word = r.trend === "up" ? t.tidyTrendUp : r.trend === "down" ? t.tidyTrendDown : r.trend === "same" ? t.tidyTrendSame : undefined;
-      return word === undefined ? fill(t.tidyRepDebt, { count: r.count }) : fill(t.tidyRepDebtTrend, { count: r.count, trend: word });
+      return word === undefined ? fillT(t, t.tidyRepDebt, { count: r.count }) : fillT(t, t.tidyRepDebtTrend, { count: r.count, trend: word });
     }
     case "branches":
-      return fill(t.tidyRepBranches, { count: r.count });
+      return fillT(t, t.tidyRepBranches, { count: r.count });
     case "bloat":
-      return fill(t.tidyRepBloat, { count: r.count });
+      return fillT(t, t.tidyRepBloat, { count: r.count });
     default:
-      return fill(t.tidyRepBigFiles, { count: r.count });
+      return fillT(t, t.tidyRepBigFiles, { count: r.count });
   }
 }
 
@@ -73,17 +73,17 @@ export function tidyBox(model: BoardModel, t: BoardStrings): string {
   const rows = v.candidates
     .map((c, i) => {
       const detail = t.tidyDetail.replace("{count}", String(c.stepsDone)).replace("{days}", String(c.idleDays));
-      return `<div class="row tidy" ${tip(t, "tidyRow")}><span class="tag" ${tip(t, "project", { name: c.projectName })}>${escapeHtml(c.projectName)}</span><span class="f">${docLink(c.title, c.path, `data-id="${c.id}"`)}</span><span class="k" ${titleAttr(detail)}>${escapeHtml(detail)}</span><button data-tidy="${i}" ${tip(t, "tidyMove")}>${escapeHtml(t.tidyMove)}</button></div>`;
+      return `<div class="row tidy" ${tip(t, "tidyRow")}><span class="tag" ${tip(t, "project", { name: c.projectName })}>${escapeHtml(c.projectName)}</span><span class="f">${docLink(c.title, c.path, `data-id="${c.id}"`)}</span><span class="k" ${titleAttr(detail)}>${pillify(t, escapeHtml(detail))}</span><button data-tidy="${i}" ${tip(t, "tidyMove")}>${escapeHtml(t.tidyMove)}</button></div>`;
     })
     .join("");
-  const more = v.more > 0 ? `<p class="note">${escapeHtml(t.tidyMore.replace("{count}", String(v.more)))}</p>` : "";
+  const more = v.more > 0 ? `<p class="note">${pillify(t, escapeHtml(t.tidyMore.replace("{count}", String(v.more))))}</p>` : "";
   const repRows = reports
     .map((r, i) => `<div class="row tidy" ${tip(t, "tidyReportRow")}><span class="tag" ${tip(t, "project", { name: r.projectName })}>${escapeHtml(r.projectName)}</span><span class="f">${reportText(r, t)}</span><button class="sec" data-tidyrep="${i}" ${tip(t, "tidyReport")}>${escapeHtml(t.tidyOpenReport)}</button></div>`)
     .join("");
   const repNote = reports.length > 0 ? `<p class="note">${escapeHtml(t.tidyReportsNote)}</p>` : "";
-  const note = v.candidates.length > 0 ? `<p class="note">${escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays)))}</p>` : "";
+  const note = v.candidates.length > 0 ? `<p class="note">${pillify(t, escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays))))}</p>` : "";
   const total = v.candidates.length + v.more + reports.length;
-  return `<section class="box" id="tidy-box"><h2 title="${escapeHtml(t.tidyTitle.replace("{count}", String(total)))}">${escapeHtml(t.tidyHeading)} <span class="n" ${tip(t, "count", { count: total })}>${total}</span></h2>${note}${rows}${more}${repNote}${repRows}</section>`;
+  return collapsible({ id: "tidy", domId: "tidy-box", tipAttr: titleAttr(t.tidyTitle.replace("{count}", String(total))), head: `${escapeHtml(t.tidyHeading)} ${pill(t, total, "count", { count: total })}`, body: note + rows + more + repNote + repRows, open: total <= 25 });
 }
 
 // Crash signals from debug runs in files that no open document names. The button carries only
@@ -97,10 +97,10 @@ export function unnamedBox(model: BoardModel, t: BoardStrings, canAct: boolean):
     .map((u, i) => {
       const detail = liveLine({ file: u.file, logs: u.logs }, t);
       const btn = canAct && u.folder ? `<button data-bug="${i}" ${tip(t, "liveStart")}>${escapeHtml(t.liveUnnamedStart)}</button>` : "";
-      return `<div class="row tidy" ${tip(t, "liveRow")}><span class="tag" ${tip(t, "project", { name: u.projectName })}>${escapeHtml(u.projectName)}</span><span class="f" title="${escapeHtml(detail)}">${escapeHtml(detail)}</span>${btn}</div>`;
+      return `<div class="row tidy" ${tip(t, "liveRow")}><span class="tag" ${tip(t, "project", { name: u.projectName })}>${escapeHtml(u.projectName)}</span><span class="f" title="${escapeHtml(detail)}">${pillify(t, escapeHtml(detail))}</span>${btn}</div>`;
     })
     .join("");
-  return `<section class="box" id="live-box"><h2 ${tip(t, "liveHeading")}>${escapeHtml(t.liveUnnamedHeading)}</h2><p class="note">${escapeHtml(t.liveUnnamedNote)}</p>${rows}</section>`;
+  return collapsible({ id: "live", domId: "live-box", tipAttr: tip(t, "liveHeading"), head: `${escapeHtml(t.liveUnnamedHeading)} ${pill(t, list.length, "count", { count: list.length })}`, body: `<p class="note">${escapeHtml(t.liveUnnamedNote)}</p>${rows}` });
 }
 
 // The Profile picker: how strict the light is.
@@ -119,9 +119,10 @@ const NO_RULE_CAP = 30;
 export function noRuleBox(model: BoardModel, t: BoardStrings, names: Map<string, string>, canAct: boolean): string {
   const folders = model.needsRule;
   const total = folders.reduce((a, n) => a + n.count, 0);
-  const head = `<h2 ${tip(t, "noRuleHeading")}>${escapeHtml(t.needsRuleHeading)} <span class="n" ${tip(t, "count", { count: total })}>${total}</span></h2>`;
+  const head = `${escapeHtml(t.needsRuleHeading)} ${pill(t, total, "count", { count: total })}`;
+  const section = (body: string, open: boolean): string => collapsible({ id: "norule", domId: "norule-box", tipAttr: tip(t, "noRuleHeading"), head, body, open });
   if (folders.length === 0) {
-    return `<section class="box" id="norule-box">${head}<p class="note">${escapeHtml(pl(t, "noRuleEmpty"))}</p></section>`;
+    return section(`<p class="note">${escapeHtml(pl(t, "noRuleEmpty"))}</p>`, true);
   }
   const rows = folders
     .slice(0, NO_RULE_CAP)
@@ -130,12 +131,12 @@ export function noRuleBox(model: BoardModel, t: BoardStrings, names: Map<string,
       const folder = n.folder || "/";
       const count = pl(t, "noRuleCount", { count: n.count });
       const buttons = canAct ? `<button data-assign="${i}" ${tip(t, "noRuleAssignTip", { folder, file: RULES_PATH })}>${escapeHtml(pl(t, "noRuleAssign"))}</button><button class="sec" data-preview="${i}" ${tip(t, "noRulePreviewTip", { folder })}>${escapeHtml(pl(t, "noRulePreview"))}</button>` : "";
-      return `<div class="row tidy" ${tip(t, "noRuleRow", { folder })}><span class="tag" ${tip(t, "project", { name: project })}>${escapeHtml(project)}</span><span class="f" ${titleAttr(folder)}>${escapeHtml(folder)}</span><span class="k" ${titleAttr(count)}>${escapeHtml(count)}</span>${buttons}</div>`;
+      return `<div class="row tidy" ${tip(t, "noRuleRow", { folder })}><span class="tag" ${tip(t, "project", { name: project })}>${escapeHtml(project)}</span><span class="f" ${titleAttr(folder)}>${escapeHtml(folder)}</span><span class="k" ${titleAttr(count)}>${pillify(t, escapeHtml(count))}</span>${buttons}</div>`;
     })
     .join("");
-  const more = folders.length > NO_RULE_CAP ? `<p class="note">${escapeHtml(t.more.replace("{count}", String(folders.length - NO_RULE_CAP)))}</p>` : "";
+  const more = folders.length > NO_RULE_CAP ? `<p class="note">${pillify(t, escapeHtml(t.more.replace("{count}", String(folders.length - NO_RULE_CAP))))}</p>` : "";
   const rules = `<p class="note"><a class="doc" href="#" data-rules="1" ${titleAttr(RULES_PATH)}>${escapeHtml(t.ptgOpenRules)}</a></p>`;
-  return `<section class="box" id="norule-box">${head}<p class="note">${escapeHtml(t.needsRuleNote)}</p>${rows}${more}${rules}</section>`;
+  return section(`<p class="note">${escapeHtml(t.needsRuleNote)}</p>${rows}${more}${rules}`, folders.length <= 10);
 }
 
 // One box per outside source group. Items with a link carry only an index.
@@ -143,9 +144,9 @@ export function outsideBoxes(model: BoardModel, t: BoardStrings): string {
   return model.outside
     .map(
       (g, gi) =>
-        `<section class="box"><h2 ${tip(t, "outsideGroup", { label: g.label, count: g.items.length })}>${escapeHtml(g.label)} <span class="n" ${tip(t, "count", { count: g.items.length })}>${g.items.length}</span></h2>${g.items
-          .map((it, ii) => `<div class="cn${it.url ? " click ext" : ""}"${it.url ? ` tabindex="0" role="button" data-g="${gi}" data-i="${ii}"` : ""} ${tip(t, it.url ? "outsideLink" : "outsideItem")}><span class="f">${escapeHtml(it.title)}</span>${it.detail ? `<span class="k" ${titleAttr(it.detail)}>${escapeHtml(it.detail)}</span>` : ""}</div>`)
-          .join("")}</section>`
+        collapsible({ id: "outside:" + g.id, tipAttr: tip(t, "outsideGroup", { label: g.label, count: g.items.length }), head: `${escapeHtml(g.label)} ${pill(t, g.items.length, "count", { count: g.items.length })}`, open: g.items.length <= 25, body: g.items
+          .map((it, ii) => `<div class="cn${it.url ? " click ext" : ""}"${it.url ? ` tabindex="0" role="button" data-g="${gi}" data-i="${ii}"` : ""} ${tip(t, it.url ? "outsideLink" : "outsideItem")}><span class="f">${escapeHtml(it.title)}</span>${it.detail ? `<span class="k" ${tip(t, "outsideDetail", { detail: it.detail })}>${escapeHtml(it.detail)}</span>` : ""}</div>`)
+          .join("") })
     )
     .join("");
 }
@@ -164,14 +165,16 @@ export function chains(model: BoardModel, t: BoardStrings): string {
       ? `<h3 ${tip(t, "suggestHeading")}>${escapeHtml(t.suggestHeading)}</h3><p class="note">${escapeHtml(t.suggestNote)}</p>${model.suggestions
           .map(
             (s) =>
-              `<div class="cn sug" ${tip(t, "suggestRow")}><i class="link suggest" ${tip(t, "suggestMark")}></i><span class="tag" ${tip(t, "project", { name: s.from.project })}>${escapeHtml(s.from.project)}</span><span class="f">${docLink(s.from.title, s.fromKey.slice(s.fromKey.indexOf("/") + 1), `data-id="${s.from.id}"`)}</span><span class="n" ${tip(t, "arrowWaits")}>&rarr;</span><span class="f">${docLink(s.to.title, s.toPath, `data-id="${s.to.id}"`)}</span><button data-suggest="${escapeHtml(s.key)}" data-decision="accept" ${tip(t, "suggestAccept")}>${escapeHtml(t.suggestAccept)}</button><button class="sec" data-suggest="${escapeHtml(s.key)}" data-decision="reject" ${tip(t, "suggestReject")}>${escapeHtml(t.suggestReject)}</button></div>`
+              `<div class="cn sug" ${tip(t, "suggestRow")}><i class="link suggest" ${glyphTip(t, "g.greyDiamondDashed", pl(t, "suggestMark"))}></i><span class="tag" ${tip(t, "project", { name: s.from.project })}>${escapeHtml(s.from.project)}</span><span class="f">${docLink(s.from.title, s.fromKey.slice(s.fromKey.indexOf("/") + 1), `data-id="${s.from.id}"`)}</span><span class="n" ${tip(t, "arrowWaits")}>&rarr;</span><span class="f">${docLink(s.to.title, s.toPath, `data-id="${s.to.id}"`)}</span><button data-suggest="${escapeHtml(s.key)}" data-decision="accept" ${tip(t, "suggestAccept")}>${escapeHtml(t.suggestAccept)}</button><button class="sec" data-suggest="${escapeHtml(s.key)}" data-decision="reject" ${tip(t, "suggestReject")}>${escapeHtml(t.suggestReject)}</button></div>`
           )
           .join("")}`
       : "";
   const head = model.chains.length > 0 ? `<p class="note">${escapeHtml(t.linkedNote)}</p>${chain}` : "";
   const name = model.chains.length > 0 ? t.linkedHeading : model.flags.length > 0 ? t.flagsHeading : t.suggestHeading;
-  return `<details class="box"><summary ${tip(t, "linkedSummary")}><i class="link open" aria-label="${escapeHtml(name)}" title="${escapeHtml(name)}"></i> ${escapeHtml(name)}</summary>${head}${flags}${suggest}</details>`;
+  return `<details class="box" data-sec="linked" open><summary ${tip(t, "linkedSummary")}><i class="link open" aria-label="${escapeHtml(name)}" ${glyphTip(t, "g.amberDiamond", name)}></i> ${escapeHtml(name)}</summary>${head}${flags}${suggest}</details>`;
 }
+
+const lightKey = (l: "go" | "no-go" | "unverified"): string => (l === "go" ? "light.go" : l === "no-go" ? "light.noGo" : "light.unverified");
 
 // One row above the projects per train: its name, one light (the worst of its members) and
 // the order to ship in. It never carries a path.
@@ -185,9 +188,9 @@ export function trainBox(trains: Train[] | undefined, t: BoardStrings): string {
     .map((tr, i) => {
       const rowTip = escapeHtml(rows[i].tooltip.join(" | "));
       const steps = tr.members
-        .map((m, n) => `<span class="tag" ${tip(t, "trainStep", { n: n + 1 })}>${n + 1}</span><span class="f">${escapeHtml(m.name)}</span><span class="go ${m.light}" title="${escapeHtml(word[m.light])}">${escapeHtml(m.label)}</span>`)
+        .map((m, n) => `<span class="tag" ${tip(t, "trainStep", { n: n + 1 })}>${n + 1}</span><span class="f">${escapeHtml(m.name)}</span><span class="go ${m.light}" ${tip(t, lightKey(m.light))}>${escapeHtml(m.label)}</span>`)
         .join(`<span class="n" ${tip(t, "arrowThen")}>&rarr;</span>`);
-      return `<div class="vd train" title="${rowTip}"><b class="pn" ${tip(t, "trainName")}>${fill(t.trainTitle, { name: tr.name })}</b><span class="go ${tr.light}" title="${escapeHtml(word[tr.light])}">${escapeHtml(word[tr.light])}</span><span class="ord" role="group" aria-label="${escapeHtml(t.trainOrder)}" title="${escapeHtml(t.trainOrder)}">${steps}</span>${tr.cycle ? `<i class="info" title="${escapeHtml(t.trainCycle)}" aria-label="${escapeHtml(t.trainCycle)}"></i>` : ""}</div>`;
+      return `<div class="vd train" title="${rowTip}"><b class="pn" ${tip(t, "trainName")}>${fillT(t, t.trainTitle, { name: tr.name })}</b><span class="go ${tr.light}" ${tip(t, lightKey(tr.light))}>${escapeHtml(word[tr.light])}</span><span class="ord" role="group" aria-label="${escapeHtml(t.trainOrder)}" title="${escapeHtml(t.trainOrder)}">${steps}</span>${tr.cycle ? `<i class="info" ${glyphTip(t, "g.infoIcon", t.trainCycle)} aria-label="${escapeHtml(t.trainCycle)}"></i>` : ""}</div>`;
     })
     .join("");
 }
@@ -198,7 +201,7 @@ export function sinceBox(view: SinceView | undefined, t: BoardStrings): string {
     return "";
   }
   const rows = view.lines
-    .map((l) => `<li>${escapeHtml(l.text)}${l.details.length > 0 ? `<ul class="sd">${l.details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>` : ""}</li>`)
+    .map((l) => `<li>${pillify(t, escapeHtml(l.text))}${l.details.length > 0 ? `<ul class="sd">${l.details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>` : ""}</li>`)
     .join("");
-  return `<section class="box since" role="status" aria-label="${escapeHtml(view.heading)}"><h2 ${tip(t, "sinceHeading")}>${escapeHtml(view.heading)}</h2><ul class="sl">${rows}</ul></section>`;
+  return collapsible({ id: "since", cls: "box since", tipAttr: tip(t, "sinceHeading"), head: escapeHtml(view.heading), body: `<ul class="sl">${rows}</ul>`, attrs: ` role="status" aria-label="${escapeHtml(view.heading)}"` });
 }

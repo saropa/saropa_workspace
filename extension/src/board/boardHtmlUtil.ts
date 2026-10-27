@@ -192,6 +192,11 @@ export function titleAttr(text: string): string {
   return `title="${escapeHtml(text)}"`;
 }
 
+// A title for a glyph: what it looks like, then what it means ("Red dot: lint is failing").
+export function glyphTip(t: BoardStrings, look: string, text: string): string {
+  return titleAttr(`${pl(t, look)}: ${text}`);
+}
+
 // A document the page can open: an underlined link whose tooltip is the document's path inside
 // its project. It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
 export function docLink(text: string, path: string, attr: string): string {
@@ -202,4 +207,31 @@ export function docLink(text: string, path: string, attr: string): string {
 // `html` are already-built markup (a link, say) and go in as they are.
 export function fill(tmpl: string, vars: Record<string, string | number | undefined>, html: Record<string, string> = {}): string {
   return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => (html[k] !== undefined ? html[k] : vars[k] === undefined ? m : escapeHtml(String(vars[k]))));
+}
+
+// A number shown on the page: a small rounded pill, so it stands out from the words around it.
+export function pill(t: BoardStrings, n: number | string, tipKey = "pillTip", vars: Record<string, string | number> = {}): string {
+  return `<span class="pill" ${tip(t, tipKey, vars)}>${escapeHtml(String(n))}</span>`;
+}
+
+// Wraps every whole number in already-escaped text in a pill. Only for sentences the board
+// builds from its own counts; never for a document title or a name.
+export function pillify(t: BoardStrings, escaped: string): string {
+  return escaped.replace(/(^|[^\w.#&])(\d+)(?![\w.]*\d|\w|\.\w)/g, (_m, pre: string, n: string) => `${pre}${pill(t, n)}`);
+}
+
+// A section the reader can fold: a details element whose summary holds the heading. Native
+// details gives keyboard support and the expanded state; the page script remembers it per
+// viewer under `id`. Expanded unless `open` is false.
+export function collapsible(o: { id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string }): string {
+  const h = o.level === 3 ? "h3" : "h2";
+  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${o.head}</${h}></summary>${o.body}</details>`;
+}
+
+// Like fill, for page text: a number among the values goes in as a pill.
+export function fillT(t: BoardStrings, tmpl: string, vars: Record<string, string | number | undefined>, html: Record<string, string> = {}): string {
+  return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => {
+    const v = vars[k];
+    return html[k] !== undefined ? html[k] : v === undefined ? m : typeof v === "number" ? pill(t, v) : escapeHtml(v);
+  });
 }

@@ -2,7 +2,7 @@ import { BoardItem, BoardModel } from "./boardModel";
 import { PathToGo } from "./pathToGo";
 import { Train } from "./train";
 import { SinceView } from "./sinceLast";
-import { BoardStrings, escapeHtml, pl, tip } from "./boardHtmlUtil";
+import { BoardStrings, escapeHtml, glyphTip, pillify, pl, tip } from "./boardHtmlUtil";
 import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
@@ -82,7 +82,7 @@ ${state.stale || state.loading ? "" : unnamedBox(model, t, true)}
 ${chains(model, t)}
 ${outsideBoxes(model, t)}
 ${noRuleBox(model, t, names, !(state.stale || state.loading))}
-${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"></i> ${escapeHtml(t.blocked.replace("{count}", String(blocked)))}</p>` : ""}
+${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber" ${glyphTip(t, "g.amberSquare", t.blocked.replace("{count}", String(blocked)))}></i> ${pillify(t, escapeHtml(t.blocked.replace("{count}", String(blocked))))}</p>` : ""}
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}

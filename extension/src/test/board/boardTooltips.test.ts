@@ -15,10 +15,13 @@ import { ScanSnapshot } from "../../board/scanner";
 import { Train } from "../../board/train";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 import { POLISH_KEYS, strings } from "../../views/boardStrings";
+import { STYLE, script } from "../../board/boardHtmlAssets";
 
 // One opening tag of the page with the attributes the walk needs.
 interface Tag {
   name: string;
+  // The text right after the opening tag, up to the next tag (empty when a tag follows).
+  text: string;
   attrs: Record<string, string>;
   // True when an element above it (still open) has a title or an aria-label.
   ancestorTitled: boolean;
@@ -47,7 +50,8 @@ function walk(html: string): Tag[] {
       attrs[a[1]] = a[2] ?? "";
     }
     const titled = (attrs.title ?? attrs["aria-label"] ?? "").trim() !== "";
-    out.push({ name: tag, attrs, ancestorTitled: open.some((o) => o.titled) });
+    const after = text.slice((m.index ?? 0) + m[0].length);
+    out.push({ name: tag, attrs, text: after.slice(0, Math.max(0, after.indexOf("<"))).trim(), ancestorTitled: open.some((o) => o.titled) });
     if (!VOID.has(tag)) {
       open.push({ name: tag, titled });
     }
@@ -55,7 +59,7 @@ function walk(html: string): Tag[] {
   return out;
 }
 
-const CLASSES_NEEDING_TITLE = ["row", "vd", "tag", "k", "n", "go", "pn", "fn", "cn", "fut", "grp", "ptgrow", "chip", "hl", "sq", "link", "flame", "pin", "sev", "info", "ring", "bars"];
+const CLASSES_NEEDING_TITLE = ["row", "vd", "tag", "k", "n", "go", "pn", "fn", "cn", "fut", "grp", "ptgrow", "chip", "hl", "sq", "link", "flame", "pin", "sev", "info", "ring", "bars", "pill"];
 // Pure text containers and layout wrappers: they hold text that already says what it is.
 const TEXT_CONTAINERS = ["div", "span", "p", "ul", "ol", "li", "section", "details", "label", "option", "body", "head", "html", "title", "meta", "main"];
 // Decorative glyphs inside a titled parent (the ring and the bars of a marks group).
@@ -102,14 +106,25 @@ function snapshot(files: Record<string, string>): ScanSnapshot {
 }
 
 const FILES: Record<string, string> = {
-  "docs/BUG_a.md": "# Crash on start\n\nSeverity: critical\n\n- [x] repro\n- [ ] Upload the build with Xcode\n\n```dart\nvoid main() {}\n```\nNeeds: docs/plan.md\nSee lib/main.dart\n",
+  "docs/BUG_a.md": "# Crash on start\n\nSeverity: critical. Data loss and a security hole when the app starts.\n\n- [x] repro\n- [ ] Upload the build with Xcode\n\n```dart\nvoid main() {}\n```\nNeeds: docs/plan.md\nSee lib/main.dart\n",
   "docs/plan.md": "# Plan\n\n- [ ] Write the notes\n- [ ] Install the APK with adb\n",
   "docs/wip.md": "# Work in progress\n\n- [x] one\n",
   "docs/done.md": "# Done thing\n\n- [x] only step\n",
   "docs/blocked/waiting.md": "# Waiting\n",
 };
 
-const HEALTH = { app: evaluateHealth(undefined, undefined, undefined, 1) };
+const HEALTH = {
+  app: evaluateHealth(
+    undefined,
+    {
+      lint: { name: "lint", outcome: "failure", exitCode: 1, endedAt: 1 },
+      tests: { name: "tests", outcome: "success", exitCode: 0, endedAt: 1, run: 5, failed: 0 },
+    },
+    undefined,
+    1,
+    { build: { ok: false, feed: "build", why: "stale", detail: "Build report is old" } }
+  ),
+};
 
 const train: Train = {
   key: "a|b",
@@ -230,4 +245,91 @@ test("document links carry their project-relative path as the tooltip and no dat
       }
     }
   }
+});
+
+const decode = (s: string): string => s.replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(Number(n)));
+
+test("every glyph says what it looks like and what it means, and no title only repeats its label", () => {
+  const glyphs: string[] = [];
+  for (const [name, html] of pages()) {
+    for (const t of walk(html)) {
+      const title = decode(t.attrs.title ?? t.attrs["aria-label"] ?? "");
+      const classes = (t.attrs.class ?? "").split(/\s+/);
+      if (t.name === "i") {
+        assert.ok(t.attrs.title !== undefined && t.attrs.title.trim() !== "", `page "${name}": a glyph <i class="${t.attrs.class}"> has its own title`);
+        assert.ok(/^[A-Z][\w -]+: \S/.test(title), `page "${name}": glyph title "${title}" is "<look>: <meaning>"`);
+        glyphs.push(title);
+      }
+      const label = decode(t.text);
+      const labelled = t.name === "button" || ["tag", "k", "pill", "go", "pn", "code"].some((c) => classes.includes(c));
+      if (labelled && label !== "") {
+        assert.notEqual(title.toLowerCase(), label.toLowerCase(), `page "${name}": title repeats its label "${label}"`);
+        assert.ok(title.length > label.length, `page "${name}": title "${title}" says more than "${label}"`);
+      }
+    }
+  }
+  const words = new Set(glyphs.map((g) => g.split(":")[0]));
+  for (const look of ["Red square", "Amber square", "Purple square", "Red triangle", "Progress ring", "Size bars", "Red dot", "Green dot", "Grey dot", "Amber diamond", "Filled amber diamond", "Red flame", "Red ring", "Information icon"]) {
+    assert.ok(words.has(look), `the full page draws a glyph described as "${look}"`);
+  }
+});
+
+test("each glyph look has its own meaning text", () => {
+  const exact = pages()[0][1];
+  assert.ok(/title="[A-Za-z]+ triangle: [a-z]+ severity/.test(exact), exact.match(/triangle[^"]*/g)?.join("; ") ?? "no triangle");
+  assert.ok(exact.includes('title="Red square: needs action now - Crash on start"'));
+  assert.ok(exact.includes('title="Amber square: needs review - '));
+});
+
+test("every section and subsection folds, each remembers its state under its own name, and long lists start folded", () => {
+  const html = pages()[0][1];
+  const tags = walk(html);
+  const details = tags.filter((t) => t.name === "details");
+  assert.ok(details.length >= 8);
+  const ids = details.map((d) => d.attrs["data-sec"]);
+  assert.ok(ids.every((i) => i !== undefined && i !== ""), "every details element has a state name");
+  assert.equal(new Set(ids).size, ids.length, "no two share a name");
+  for (const must of ["list.resolveNow", "list.inProgress", "list.workOn", "since", "tidy", "sittings", "sittings-steps", "norule", "linked", "live"]) {
+    assert.ok(ids.includes(must), `a folding section named ${must}: ${ids.join(", ")}`);
+  }
+  assert.ok(ids.some((i) => i?.startsWith("future:")), "the Future groups fold too");
+  assert.ok(details.every((d) => "open" in d.attrs), "everything starts open when the lists are short");
+  const summaries = tags.filter((t) => t.name === "summary");
+  assert.equal(summaries.length, details.length, "every details element has its summary");
+  const m = buildBoard(cfg, Array.from({ length: 26 }, (_x, i) => row("app", `docs/BUG_${i}.md`, "red")), undefined, true, snapshot(FILES));
+  const long = walk(renderBoard(m, strings(), "n")).filter((t) => t.name === "details" && t.attrs["data-sec"] === "list.resolveNow");
+  assert.equal(long.length, 1);
+  assert.equal("open" in long[0].attrs, false, "a list of more than 25 starts folded");
+});
+
+test("the page script keeps each folded section's state per viewer", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("details[data-sec]"));
+  assert.ok(js.includes("SEC[k]=d.open"));
+  assert.ok(js.includes("vscode.setState({...(vscode.getState()||{}),y:window.scrollY,sec:SEC})"));
+  assert.ok(js.includes("d.open=SEC[k]===true"));
+});
+
+test("every number the page counts is a pill, a small rounded badge in the editor's badge colors", () => {
+  assert.ok(STYLE.includes(".pill{display:inline-block;font-size:11px;"));
+  assert.ok(STYLE.includes("border-radius:9px"));
+  assert.ok(STYLE.includes("background:var(--vscode-badge-background,#4d4d4d);color:var(--vscode-badge-foreground,#fff)"));
+  const html = pages()[0][1];
+  const pills = walk(html).filter((t) => (t.attrs.class ?? "").split(/\s+/).includes("pill"));
+  assert.ok(pills.length >= 20);
+  assert.ok(pills.every((p) => /^\d+$/.test(p.text)), "a pill holds only a number");
+  // Visible text with the pills, the document links, the headings and the hidden parts taken out:
+  // no bare number may remain, apart from version labels and list numbering.
+  const bare = html
+    .replace(/<script[\s\S]*?<\/script>/g, "")
+    .replace(/<style[\s\S]*?<\/style>/g, "")
+    .replace(/<span class="pill"[^>]*>\d+<\/span>/g, "")
+    .replace(/<a class="doc"[^>]*>[^<]*<\/a>/g, "")
+    .replace(/<h1[^>]*>[^<]*<\/h1>/g, "")
+    .replace(/<option[^>]*>[^<]*<\/option>/g, "")
+    .replace(/<[^>]*>/g, "|")
+    .split("|")
+    .map((x) => decode(x).trim())
+    .filter((x) => /\b\d+\b/.test(x));
+  assert.deepEqual(bare, ["15 min", "30 min", "1 hour", "1", "1.0.0", "2", "2.0.0", "repo#1"], "time labels, train numbering and versions, and a review reference are not counts");
 });

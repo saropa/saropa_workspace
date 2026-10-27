@@ -1,7 +1,7 @@
 import { BoardItem, ItemMarks, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
-import { BoardStrings, docLink, escapeHtml, fill, handButton, liveLine, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { BoardStrings, fillT, collapsible, docLink, escapeHtml, handButton, liveLine, glyphTip, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { RULES_PATH } from "./ruleAssign";
 import type { FeedNote } from "./recipeEvidence";
 import { Signal, showsOnRow } from "./reportSignals";
@@ -9,6 +9,8 @@ import { Signal, showsOnRow } from "./reportSignals";
 // The project rows and the item lists of the board page.
 
 const LIST_CAP = 30;
+// A list longer than this starts folded.
+const LONG_LIST = 25;
 
 function reasonText(r: UnverifiedReason, p: BoardProject, t: BoardStrings): string {
   switch (r) {
@@ -27,7 +29,7 @@ function reasonText(r: UnverifiedReason, p: BoardProject, t: BoardStrings): stri
 function feedSentence(kind: "build" | "lint" | "tests", note: FeedNote, t: BoardStrings): string {
   const what = kind === "build" ? t.feedWhatBuild : kind === "lint" ? t.feedWhatLint : t.feedWhatTests;
   const tmpl = note.state === "off" ? t.ptgFeedOff : note.state === "checking" ? t.ptgFeedChecking : note.state === "waiting" ? t.ptgFeedWaiting : t.ptgFeedFailed;
-  return fill(tmpl, { what, reason: note.reason ?? "" });
+  return fillT(t, tmpl, { what, reason: note.reason ?? "" });
 }
 
 // Two small marks: lint and tests, and a third for the build once a daily build report was
@@ -39,7 +41,7 @@ function healthMarks(p: BoardProject, t: BoardStrings): string {
   }
   const h = p.health;
   const one = (label: string, e: string, detail: string): string =>
-    `<i class="hl ${e}" title="${escapeHtml(label + ": " + detail)}" aria-label="${escapeHtml(label + ": " + detail)}"></i>`;
+    `<i class="hl ${e}" ${glyphTip(t, e === "failing" ? "g.redDot" : e === "passing" ? "g.greenDot" : e === "na" ? "g.dashedDot" : "g.greyDot", label + ": " + detail)} aria-label="${escapeHtml(label + ": " + detail)}"></i>`;
   const build = h.build !== undefined ? one(t.healthBuild, h.build, h.buildDetail ?? "") : "";
   const deps = h.deps !== undefined ? one(t.healthDeps, h.deps, h.depsDetail ?? "") : "";
   return `<span class="marks">${build}${deps}${one(t.healthLint, h.lint, h.lintDetail)}${one(t.healthTests, h.tests, h.testsDetail)}</span>`;
@@ -68,19 +70,19 @@ function signalText(s: Signal, t: BoardStrings): { text: string; warn: boolean }
   const count = s.count ?? 0;
   switch (s.kind) {
     case "prs":
-      return { text: fill(t.sigPrs, { count }), warn: false };
+      return { text: fillT(t, t.sigPrs, { count }), warn: false };
     case "uncommitted":
-      return { text: fill(t.sigUncommitted, { count }), warn: true };
+      return { text: fillT(t, t.sigUncommitted, { count }), warn: true };
     case "staleBranches":
-      return { text: fill(t.sigStaleBranches, { count }), warn: true };
+      return { text: fillT(t, t.sigStaleBranches, { count }), warn: true };
     case "changelog":
-      return { text: fill(t.sigChangelog, {}), warn: true };
+      return { text: fillT(t, t.sigChangelog, {}), warn: true };
     case "version":
-      return { text: fill(t.sigVersion, {}), warn: true };
+      return { text: fillT(t, t.sigVersion, {}), warn: true };
     case "links":
-      return { text: fill(t.sigLinks, { count }), warn: true };
+      return { text: fillT(t, t.sigLinks, { count }), warn: true };
     default:
-      return s.result === "pass" ? { text: fill(t.sigReadyPass, {}), warn: false } : { text: fill(t.sigReadyFail, { count }), warn: true };
+      return s.result === "pass" ? { text: fillT(t, t.sigReadyPass, {}), warn: false } : { text: fillT(t, t.sigReadyFail, { count }), warn: true };
   }
 }
 
@@ -107,9 +109,9 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
     .join("");
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
-  const dep = p.dependsOn.length > 0 ? `<span class="link ${waiting ? "wait" : "ok"}" title="${escapeHtml(t.dependsOn)} ${escapeHtml(p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", "))}"></span>` : "";
+  const dep = p.dependsOn.length > 0 ? `<i class="link ${waiting ? "wait" : "ok"}" ${glyphTip(t, waiting ? "g.amberDiamond" : "g.greenDiamond", `${t.dependsOn} ${p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", ")}`)}></i>` : "";
   const rowTip = toggles ? tip(t, "projectRow", { name: p.name }) : tip(t, "projectRowPlain", { name: p.name });
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${escapeHtml(p.name)}</b><span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar" ${tip(t, "squares", { count: p.items.length })}>${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${escapeHtml(p.name)}</b><span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar" ${tip(t, "squares", { count: p.items.length })}>${squares}</span>${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
 }
 
 // The small marks on a row: a progress ring, size bars, a code letter and one dot per
@@ -122,8 +124,8 @@ function marks(m: ItemMarks | undefined, t: BoardStrings): string {
   const ring = m.total === 0 ? "none" : m.done === m.total ? "ok" : m.done > 0 ? "part" : "none";
   const bars = [1, 2, 3, 4].map((n) => `<u${n <= m.size ? ' class="on"' : ""}></u>`).join("");
   const code = m.code === undefined ? "" : `<b class="code" ${m.code ? tip(t, "codeLang", { lang: m.code }) : tip(t, "codeNoLang")}>${escapeHtml(m.code ? m.code.charAt(0).toUpperCase() : "{}")}</b>`;
-  const dots = m.mentions.map((n) => `<i class="pd" ${tip(t, "mentions", { name: n })}></i>`).join("");
-  return `<span class="marks" title="${escapeHtml(m.detail)}"><i class="ring ${ring}" style="--p:${pct}"></i><i class="bars">${bars}</i>${code}${dots}</span>`;
+  const dots = m.mentions.map((n) => `<i class="pd" ${glyphTip(t, "g.greyDot", pl(t, "mentions", { name: n }))}></i>`).join("");
+  return `<span class="marks" title="${escapeHtml(m.detail)}"><i class="ring ${ring}" style="--p:${pct}" ${glyphTip(t, "g.ring", m.total === 0 ? pl(t, "ringNone") : pl(t, "ringSteps", { done: m.done, total: m.total }))}></i><i class="bars" ${glyphTip(t, "g.bars", pl(t, "barsSize", { size: m.size }))}>${bars}</i>${code}${dots}</span>`;
 }
 
 // A small flame on the row when the files the document names have errors, warnings or crashes.
@@ -134,29 +136,29 @@ function liveMark(m: LiveMark | undefined, t: BoardStrings): string {
   }
   const lines = [t.liveHead, ...m.files.map((f) => liveLine(f, t)), ...(m.more > 0 ? [t.liveMore.replace("{count}", String(m.more))] : [])];
   const tip = lines.join("\n");
-  return `<i class="flame${m.hot ? " hot" : ""}" role="img" aria-label="${escapeHtml(tip)}" title="${escapeHtml(tip)}"></i>`;
+  return `<i class="flame${m.hot ? " hot" : ""}" role="img" aria-label="${escapeHtml(tip)}" ${glyphTip(t, m.hot ? "g.flameRed" : "g.flameAmber", tip)}></i>`;
 }
 
 function linkMark(i: BoardItem, t: BoardStrings): string {
   const parts: string[] = [];
   parts.push(liveMark(i.live, t));
   if (i.link) {
-    parts.push(`<i class="link ${i.link.state}" title="${escapeHtml(i.link.detail)}"></i>`);
+    parts.push(`<i class="link ${i.link.state}" ${glyphTip(t, i.link.state === "done" ? "g.greenDiamond" : i.link.state === "open" ? "g.amberDiamond" : "g.redDiamond", i.link.detail)}></i>`);
   }
   if (i.blocksCount > 0) {
-    parts.push(`<i class="link blocks" ${tip(t, "blocks", { count: i.blocksCount })}></i>`);
+    parts.push(`<i class="link blocks" ${glyphTip(t, "g.amberDiamondFilled", pl(t, "blocks", { count: i.blocksCount }))}></i>`);
   }
   if (i.severity) {
-    parts.push(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" ${tip(t, i.stopping ? "severityStops" : "severity", { severity: i.severity })}></i>`);
+    parts.push(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" ${glyphTip(t, i.severity === "extreme" || i.severity === "critical" ? "g.redTriangle" : i.severity === "high" ? "g.amberTriangle" : "g.greyTriangle", pl(t, i.stopping ? "severityStops" : "severity", { severity: i.severity }))}></i>`);
   }
   if (i.audience === "pro") {
     parts.push(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`);
   }
   if (i.pinned) {
-    parts.push(`<i class="pin" title="${escapeHtml(t.pinned)}"></i>`);
+    parts.push(`<i class="pin" ${glyphTip(t, "g.redRing", t.pinned)}></i>`);
   }
   if (i.chats !== undefined) {
-    parts.push(`<b class="code" title="${escapeHtml(t.chatsTitle.replace("{count}", String(i.chats)))}">${i.chats}</b>`);
+    parts.push(pill(t, i.chats, "chatsPill", { count: i.chats }));
   }
   if (i.hub) {
     parts.push(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`);
@@ -200,17 +202,19 @@ export function list(title: string, items: BoardItem[], names: Map<string, strin
     .join("");
   const left = items.length > cap ? items.length - cap : 0;
   const hidden = left + (opt.more ?? 0);
-  const more = hidden > 0 ? `<p class="note" ${titleAttr(t.more.replace("{count}", String(hidden)))}>${escapeHtml(t.more.replace("{count}", String(hidden)))}</p>` : "";
+  const more = hidden > 0 ? `<p class="note" ${titleAttr(t.more.replace("{count}", String(hidden)))}>${pillify(t, escapeHtml(t.more.replace("{count}", String(hidden))))}</p>` : "";
   const body = items.length === 0 ? `<p class="note">${escapeHtml(t.nothingHere)}</p>` : shown + more;
   const note = opt.note ? `<p class="note">${escapeHtml(opt.note)}</p>` : "";
-  return `<section class="box"><h2 ${tip(t, opt.tip ?? "list", { title, count: items.length + (opt.more ?? 0) })}>${escapeHtml(title)} <span class="n" ${tip(t, "count", { count: items.length + (opt.more ?? 0) })}>${items.length + (opt.more ?? 0)}</span></h2>${note}${body}</section>`;
+  const total = items.length + (opt.more ?? 0);
+  // A long list starts folded; the heading still shows how many it holds.
+  return collapsible({ id: opt.tip ?? "list:" + title, tipAttr: tip(t, opt.tip ?? "list", { title, count: total }), head: `${escapeHtml(title)} ${pill(t, total, "count", { count: total })}`, body: note + body, open: items.length <= LONG_LIST });
 }
 
 // The step line for a row whose daily report job has something to say. Escaped.
 function feedStepText(kind: "build" | "lint" | "tests", s: PathStep, t: BoardStrings): string {
   const what = kind === "build" ? t.feedWhatBuild : kind === "lint" ? t.feedWhatLint : t.feedWhatTests;
   const tmpl = s.feed === "off" ? t.ptgFeedOff : s.feed === "checking" ? t.ptgFeedChecking : s.feed === "waiting" ? t.ptgFeedWaiting : s.feed === "failed" ? t.ptgFeedFailed : undefined;
-  return tmpl === undefined ? "" : fill(tmpl, { what, reason: s.reason ?? "" });
+  return tmpl === undefined ? "" : fillT(t, tmpl, { what, reason: s.reason ?? "" });
 }
 
 function stepText(s: PathStep, t: BoardStrings): string {
@@ -219,31 +223,31 @@ function stepText(s: PathStep, t: BoardStrings): string {
       // The document's title is a link to it; the project name, when shown, stays plain text.
       const link = s.itemId !== undefined ? docLink(s.title ?? "", s.docPath ?? "", `data-id="${s.itemId}"`) : escapeHtml(s.title ?? "");
       const named = s.project ? `${link} (${escapeHtml(s.project)})` : link;
-      const unblocks = s.unblocks ? " " + fill(t.ptgUnblocks, { count: s.unblocks }) : "";
+      const unblocks = s.unblocks ? " " + fillT(t, t.ptgUnblocks, { count: s.unblocks }) : "";
       if (s.why === undefined) {
         // The document does not stop the release itself: the one that waits on it does.
-        return fill(s.waiter ? t.ptgItemFirst : t.ptgItemFirstAny, { waiter: s.waiter ?? "" }, { title: named }) + unblocks;
+        return fillT(t, s.waiter ? t.ptgItemFirst : t.ptgItemFirstAny, { waiter: s.waiter ?? "" }, { title: named }) + unblocks;
       }
       const base = s.why === "red" ? t.ptgItemRed : s.why === "pinned" ? t.ptgItemPinned : t.ptgItemSeverity;
-      const waiter = s.waiter ? " " + fill(t.ptgWaiter, { title: s.waiter }) : "";
-      return fill(base, { severity: s.severity ?? "" }, { title: named }) + unblocks + waiter;
+      const waiter = s.waiter ? " " + fillT(t, t.ptgWaiter, { title: s.waiter }) : "";
+      return fillT(t, base, { severity: s.severity ?? "" }, { title: named }) + unblocks + waiter;
     }
     case "blocked":
-      return fill(t.ptgBlocked, { count: s.count });
+      return fillT(t, t.ptgBlocked, { count: s.count });
     case "build":
-      return s.evidence === "failing" ? fill(t.ptgBuildFailing, {}) : feedStepText("build", s, t);
+      return s.evidence === "failing" ? fillT(t, t.ptgBuildFailing, {}) : feedStepText("build", s, t);
     case "deps":
-      return fill(t.ptgDepsFailing, {});
+      return fillT(t, t.ptgDepsFailing, {});
     case "lint":
-      return s.evidence === "failing" ? fill(t.ptgLintFailing, {}) : s.feed ? feedStepText("lint", s, t) : fill(t.ptgLintMissing, {});
+      return s.evidence === "failing" ? fillT(t, t.ptgLintFailing, {}) : s.feed ? feedStepText("lint", s, t) : fillT(t, t.ptgLintMissing, {});
     case "tests":
-      return s.evidence === "failing" ? fill(t.ptgTestsFailing, {}) : s.feed ? feedStepText("tests", s, t) : fill(t.ptgTestsMissing, {});
+      return s.evidence === "failing" ? fillT(t, t.ptgTestsFailing, {}) : s.feed ? feedStepText("tests", s, t) : fillT(t, t.ptgTestsMissing, {});
     case "rules":
-      return s.folder === undefined ? fill(t.ptgRulesAny, { count: s.count }) : fill(t.ptgRules, { count: s.count, folder: s.folder || "/" });
+      return s.folder === undefined ? fillT(t, t.ptgRulesAny, { count: s.count }) : fillT(t, t.ptgRules, { count: s.count, folder: s.folder || "/" });
     case "unread":
-      return fill(t.ptgUnread, { count: s.count });
+      return fillT(t, t.ptgUnread, { count: s.count });
     case "accept":
-      return fill(t.ptgAccept, {});
+      return fillT(t, t.ptgAccept, {});
   }
 }
 
@@ -271,7 +275,7 @@ export function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: bo
   const items = path.steps
     .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" || s.kind === "build" || s.kind === "deps" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}${handButton(t, `data-hk="step" data-p="${pi}" data-s="${si}"`)}</li>`)
     .join("");
-  const more = path.hidden > 0 ? `<li class="note" data-more="1">${fill(t.ptgMore, { count: path.hidden })}</li>` : "";
+  const more = path.hidden > 0 ? `<li class="note" data-more="1">${fillT(t, t.ptgMore, { count: path.hidden })}</li>` : "";
   const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";
   return `<ol class="ptg" hidden data-live="${canAct ? 1 : 0}" data-all="${escapeHtml(JSON.stringify(path.allKeys))}">${none}${items}${more}</ol>`;
 }

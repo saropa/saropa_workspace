@@ -43,12 +43,12 @@ test("the profile picker marks the chosen profile as pressed", () => {
 test("the no-rule section always shows: a sentence when empty, a titled list with counts when not", () => {
   const empty = buildBoard(cfg, [], undefined, true);
   const none = noRuleBox(empty, t, new Map(), true);
-  assert.ok(none.startsWith('<section class="box" id="norule-box"><h2 title="noRuleHeading">[needsRuleHeading] <span class="n" title="count">0</span></h2>'));
+  assert.ok(none.startsWith('<details class="box" id="norule-box" data-sec="norule" open><summary class="sh" title="noRuleHeading"><h2 title="noRuleHeading">[needsRuleHeading] <span class="pill" title="count">0</span></h2></summary>'));
   assert.ok(none.includes('<p class="note">noRuleEmpty</p>'), "one sentence instead of a bare icon");
-  assert.ok(!none.includes("<details") && !none.includes("<summary"), "no hidden panel");
+  assert.equal(none.match(/<details/g)?.length, 1, "one section, open, with nothing hidden inside");
   const m = buildBoard(cfg, [], undefined, true, snapshotOf({}, 1, { "docs/<odd>": 4, "": 1 }));
   const html = noRuleBox(m, t, new Map([["app", "App"]]), true);
-  assert.ok(html.includes('<span class="n" title="count">5</span>'), "the heading counts all documents");
+  assert.ok(html.includes('<span class="pill" title="count">5</span>'), "the heading counts all documents");
   assert.ok(html.includes("docs/&#60;odd&#62;"));
   assert.ok(html.includes('<span class="f" title="/">/</span>'), "the project root shows as a slash");
   assert.equal(html.match(/data-assign="/g)?.length, 2);
@@ -81,7 +81,7 @@ test("linked documents: chains, flags and suggestions, with indexes only", () =>
   });
   const m = buildBoard(cfg, [row("docs/a.md"), row("docs/b.md"), row("docs/c.md")], undefined, true, snap);
   const html = chains(m, t);
-  assert.ok(html.startsWith('<details class="box">'));
+  assert.ok(html.startsWith('<details class="box" data-sec="linked" open>'));
   assert.ok(html.includes('class="chain"'));
   assert.ok(html.includes("[flagsHeading]"));
   assert.ok(html.includes("ghost.md: missing"));
@@ -156,7 +156,7 @@ test("the sittings box is always visible: the time filter and the chips on top, 
     sittings: { selection: { have: ["mac"], timeBox: "any", maxSteps: 10 }, onlyOwner: false },
   });
   const html = sittingsBox(m, t);
-  assert.ok(html.startsWith('<section class="box" id="sit-panel"><h2 title="sittingsHeading">[sittingsHeading]</h2><div class="filter">'));
+  assert.ok(html.startsWith('<details class="box" id="sit-panel" data-sec="sittings" open><summary class="sh" title="sittingsHeading"><h2 title="sittingsHeading">[sittingsHeading]</h2></summary><div class="filter">'));
   assert.equal(html.includes("hidden"), false, "nothing is hidden behind a button");
   assert.ok(html.includes('data-have="mac" aria-pressed="true"'));
   assert.ok(html.includes('data-have="iphone" aria-pressed="false"'));
@@ -166,7 +166,7 @@ test("the sittings box is always visible: the time filter and the chips on top, 
     assert.ok(html.includes(`data-box="${box}" aria-pressed="false"`), `time box ${box}`);
   }
   assert.equal(html.match(/data-step="/g)?.length, 2, "one step that fits and one with no context");
-  assert.ok(html.includes('<details class="steps" id="sit-steps" open>'));
+  assert.ok(html.includes('<details class="steps" id="sit-steps" data-sec="sittings-steps" open>'));
   assert.ok(html.includes('id="sit-untag"'));
   assert.ok(html.includes('<a class="doc" href="#" data-step="0" title="docs/a.md">'), "a step is a link whose tooltip is the document path");
   assert.equal(html.includes('data-path'), false);

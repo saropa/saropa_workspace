@@ -181,8 +181,8 @@ test("the summary counts each state and uses the fixed count wording", () => {
         : `[${k}]`,
   });
   const html = futurePanel(withResearch([["A", ["Research: needed"]], ["B", ["Research: needed"]], ["C", ["Research: in-progress"]], ["D", ["Research: ready"]], ["E", ["Research: reviewed"]]]), t2);
-  assert.ok(html.includes('<span title="researchCounts">2 waiting \u00b7 1 running \u00b7 1 ready, not reviewed</span>'));
-  assert.ok(html.includes(">Hand all (2)</button>"));
+  assert.ok(html.includes('<span title="researchCounts"><span class="pill" title="pillTip">2</span> waiting \u00b7 <span class="pill" title="pillTip">1</span> running \u00b7 <span class="pill" title="pillTip">1</span> ready, not reviewed</span>'));
+  assert.ok(html.includes('>Hand all (<span class="pill" title="pillTip">2</span>)</button>'));
 });
 
 test("when more are flagged than the limit the button names the batch and how many stay queued", () => {
@@ -190,9 +190,9 @@ test("when more are flagged than the limit the button names the batch and how ma
     get: (_o, k: string) => (k === "futureLabels" ? { handAll: "Hand all ({count})", handBatch: "Hand {batch} ({queued} queued)" } : `[${k}]`),
   });
   const five: Array<[string, string[]]> = ["A", "B", "C", "D", "E"].map((n) => [n, ["Research: needed"]]);
-  assert.ok(futurePanel(withResearch(five, { researchParallel: 3 }), t2).includes(">Hand 3 (2 queued)</button>"));
-  assert.ok(futurePanel(withResearch(five, { researchParallel: 5 }), t2).includes(">Hand all (5)</button>"));
-  assert.ok(futurePanel(withResearch(five, { researchParallel: 1 }), t2).includes(">Hand 1 (4 queued)</button>"));
+  assert.ok(futurePanel(withResearch(five, { researchParallel: 3 }), t2).includes('>Hand <span class="pill" title="pillTip">3</span> (<span class="pill" title="pillTip">2</span> queued)</button>'));
+  assert.ok(futurePanel(withResearch(five, { researchParallel: 5 }), t2).includes('>Hand all (<span class="pill" title="pillTip">5</span>)</button>'));
+  assert.ok(futurePanel(withResearch(five, { researchParallel: 1 }), t2).includes('>Hand <span class="pill" title="pillTip">1</span> (<span class="pill" title="pillTip">4</span> queued)</button>'));
 });
 
 test("the hand-off button is disabled when the tab cannot edit or Hand to chat is off", () => {

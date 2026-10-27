@@ -135,7 +135,7 @@ test("the sittings filter shows when the model has a sittings view, and no butto
   assert.ok(!renderBoard(without, t, "n").includes('id="sit-panel"'));
   const withView = buildBoard(cfg, [], undefined, true, undefined, undefined, undefined, { sittings: { selection: { timeBox: "any", maxSteps: 5 }, onlyOwner: false } });
   const html = renderBoard(withView, t, "n");
-  assert.ok(html.includes('<section class="box" id="sit-panel">'));
+  assert.ok(html.includes('<details class="box" id="sit-panel" data-sec="sittings" open>'));
   assert.equal(html.includes('id="sit-open"'), false);
   assert.equal(html.includes("sit-panel\" hidden"), false);
 });

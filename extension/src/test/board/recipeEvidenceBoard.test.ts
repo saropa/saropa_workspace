@@ -228,5 +228,5 @@ test("html: the build mark shows only when a build report was read", () => {
   const without = html(evaluateHealth(undefined, undefined, undefined, NOW));
   assert.ok(!without.includes("Build: "));
   const withBuild = html(evaluateHealth(undefined, undefined, undefined, NOW, { build: report("build", HOUR, "fail", 1) }));
-  assert.ok(withBuild.includes('title="Build: Build report: failing, 1 failing (1 h ago)"'));
+  assert.ok(withBuild.includes('title="g.redDot: Build: Build report: failing, 1 failing (1 h ago)"'));
 });

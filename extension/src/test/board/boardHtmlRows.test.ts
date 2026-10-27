@@ -12,6 +12,7 @@ import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 
+const P = (n: number): string => `<span class="pill" title="pillTip">${n}</span>`;
 const t: BoardStrings = new Proxy({} as BoardStrings, {
   get: (_o, k: string) => (k === "more" || k === "reasonGrey" || k === "ptgMore" || k === "ptgRules" || k === "ptgBlocked" ? `${k} {count}` : `[${k}]`),
 });
@@ -114,7 +115,7 @@ test("the list is capped at 30 rows and says how many are left out", () => {
 test("an empty list says there is nothing here", () => {
   const html = list("Resolve", [], new Map(), t);
   assert.ok(html.includes("[nothingHere]"));
-  assert.ok(html.includes('<h2 title="list">Resolve <span class="n" title="count">0</span></h2>'));
+  assert.ok(html.includes('<summary class="sh" title="list"><h2 title="list">Resolve <span class="pill" title="count">0</span></h2></summary>'));
 });
 
 test("related items sit under a group heading, indented", () => {
@@ -196,5 +197,5 @@ test("steps beyond the limit are counted in one note", () => {
   const m = buildBoard(cfg, rows, undefined, true);
   const path = pathToGo(m, m.projects[0], { maxSteps: 3, canRun: () => false });
   assert.ok(path.hidden > 0);
-  assert.ok(pathList(path, t, 0, true).includes(`ptgMore ${path.hidden}`));
+  assert.ok(pathList(path, t, 0, true).includes(`ptgMore ${P(path.hidden)}`));
 });

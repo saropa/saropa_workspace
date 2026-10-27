@@ -11,6 +11,8 @@ button:hover:not(:disabled){background:var(--vscode-button-hoverBackground,#1177
 button.sec[aria-pressed=true]{background:var(--vscode-button-background,#0e639c);color:var(--vscode-button-foreground,#fff);box-shadow:inset 0 -2px 0 var(--vscode-focusBorder,#fff)}button:disabled{opacity:.5;cursor:default}
 button:focus-visible,a.doc:focus-visible,summary:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:1px solid var(--vscode-focusBorder,#007fd4);outline-offset:2px}
 .vscode-high-contrast button,.vscode-high-contrast-light button{border:1px solid var(--vscode-contrastBorder,currentColor)}.vscode-high-contrast button[aria-pressed=true],.vscode-high-contrast-light button[aria-pressed=true]{font-weight:700;text-decoration:underline}
+summary.sh{list-style:none;display:flex;align-items:baseline;gap:6px}summary.sh::-webkit-details-marker{display:none}summary.sh::before{content:"\\25B8";color:var(--mute);flex:none}details[open]>summary.sh::before{content:"\\25BE"}summary.sh h2,summary.sh h3{display:inline;margin:0}details.box>summary.sh{margin-bottom:6px}details.box:not([open])>summary.sh{margin-bottom:0}
+.pill{display:inline-block;font-size:11px;line-height:1.5;font-weight:600;min-width:1.7em;padding:0 6px;border-radius:9px;text-align:center;vertical-align:baseline;background:var(--vscode-badge-background,#4d4d4d);color:var(--vscode-badge-foreground,#fff)}.vscode-high-contrast .pill,.vscode-high-contrast-light .pill{border:1px solid var(--vscode-contrastBorder,currentColor)}
 a.doc{color:var(--vscode-textLink-foreground,#3794ff);text-decoration:underline;cursor:pointer}a.doc:hover{color:var(--vscode-textLink-activeForeground,#3794ff)}summary{cursor:pointer}.filter{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;margin:4px 0 8px}.filter .k{color:var(--fg);font-size:inherit;font-weight:600}.filter .seg{margin:0;gap:4px}details.steps>summary{margin:4px 0}
 .since .sl,.since .sd{margin:0;padding-left:18px}.since .sd{color:var(--mute);margin:2px 0 4px}.box{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:12px 14px;margin:12px 0}
 .vd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);margin:6px 0}
@@ -47,11 +49,10 @@ a.doc{color:var(--vscode-textLink-foreground,#3794ff);text-decoration:underline;
 
 // The page script. It posts messages that carry only indexes, never paths or URLs.
 export const script = (rev: number, label: string, profile: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const PROFILE=${JSON.stringify(profile).replace(/</g, "\\u003c")};
-const saved=vscode.getState()||{};const steps=document.getElementById('sit-steps');
-if(steps&&saved.stepsClosed){steps.open=false;}
-const ut=document.getElementById('sit-untag');if(ut&&saved.untag){ut.open=true;}
-const keep=()=>vscode.setState({...(vscode.getState()||{}),y:window.scrollY,stepsClosed:!!steps&&!steps.open,untag:!!ut&&ut.open});
-let st;window.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(keep,150);},{passive:true});if(ut){ut.addEventListener('toggle',keep);}if(steps){steps.addEventListener('toggle',keep);}
+const saved=vscode.getState()||{};const SEC=saved.sec||{};
+const keep=()=>vscode.setState({...(vscode.getState()||{}),y:window.scrollY,sec:SEC});
+document.querySelectorAll('details[data-sec]').forEach(d=>{const k=d.dataset.sec;if(Object.prototype.hasOwnProperty.call(SEC,k)){d.open=SEC[k]===true;}d.addEventListener('toggle',()=>{SEC[k]=d.open;keep();});});
+let st;window.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(keep,150);},{passive:true});
 let ct;const choose=()=>{clearTimeout(ct);ct=setTimeout(()=>{keep();vscode.postMessage({type:'sitting',have:[...document.querySelectorAll('[data-have][aria-pressed=true]')].map(b=>b.dataset.have),box:(document.querySelector('[data-box][aria-pressed=true]')||{dataset:{box:'any'}}).dataset.box,rev:REV});},250);};
 document.querySelectorAll('[data-have]').forEach(b=>b.addEventListener('click',()=>{b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));choose();}));
 document.querySelectorAll('[data-haveall]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-have]').forEach(o=>o.setAttribute('aria-pressed','true'));b.setAttribute('aria-pressed','true');choose();}));
