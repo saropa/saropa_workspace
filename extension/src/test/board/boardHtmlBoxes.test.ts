@@ -85,7 +85,9 @@ test("outside groups: an item with a link carries group and item indexes, not th
   const html = outsideBoxes(m);
   assert.ok(html.includes("Reviews &#60;3&#62;"));
   assert.ok(html.includes('data-g="0" data-i="0"'));
-  assert.ok(!html.includes("example.com"));
+  const attrs = [...html.matchAll(/="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(attrs.every((a) => a !== "https://example.com/pull/1"), "no attribute holds the link");
+  assert.equal(/\bhref\s*=/i.test(html), false, "the page has no href");
   assert.equal(html.match(/click ext/g)?.length, 1, "only the item with a link is clickable");
 });
 
