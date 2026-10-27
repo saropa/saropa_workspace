@@ -176,13 +176,14 @@ export class ScheduleStatusBar {
       clearTimeout(this.justRanTimer);
     }
     const remaining = JUST_RAN_WINDOW_MS - (Date.now() - ranAt);
-    if (remaining <= 0) {
+    if (remaining < 0) {
       return;
     }
+    // One extra millisecond: isJustRan still holds at exactly the window length.
     this.justRanTimer = setTimeout(() => {
       this.justRanTimer = undefined;
       this.recompute();
-    }, remaining);
+    }, remaining + 1);
   }
 
   dispose(): void {

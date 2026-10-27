@@ -3,7 +3,7 @@ import { Link, LinkState } from "./links";
 import { ScanSnapshot } from "./scanner";
 import { mergeNeeds } from "./needs";
 import { SittingDoc, SittingLine, SittingSelection, buildSittings } from "./sittings";
-import { BoardConfig, BoardStatus, Classified, StatusCounts } from "./types";
+import { BoardConfig, BoardStatus, Classified, SkippedProject, StatusCounts } from "./types";
 import { OutsideGroup, Outside } from "./outside";
 import { ProjectHealth } from "./health";
 import { Audience, Profile, Severity } from "./severity";
@@ -90,6 +90,8 @@ export interface BoardProject {
   counts: StatusCounts;
   dependsOn: string[];
   health?: ProjectHealth;
+  // The project is one of the user's extra projects; absent for a project of the open workspace.
+  extra?: boolean;
 }
 
 // One step of a chain, in the order things must be finished.
@@ -145,6 +147,10 @@ export interface BoardModel {
   inProgress?: InProgressView;
   // Crash signals in files no open document names. Empty when there are none.
   liveUnnamed?: LiveUnnamed[];
+  // Chosen folders that could not be read, shown as grey rows. Absent when there are none.
+  skipped?: SkippedProject[];
+  // How many chosen projects the "open project only" scope hides. Absent when none.
+  hidden?: number;
 }
 
 // Optional inputs to buildBoard. Each is absent when its feature is off or has nothing to add.

@@ -19,6 +19,7 @@ import { strings } from "./boardStrings";
 import { FutureData, emptyFuture, loadFuture, readFutureSettings } from "../commands/boardFuture";
 import { FutureView } from "../board/boardHtmlFuture";
 import { FutureItem, FutureOutside, FutureSort } from "../board/futureList";
+import { hintVisible, dismissHint } from "./boardProjectsHint";
 import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
 
@@ -290,10 +291,18 @@ export abstract class BoardPanelCore {
     }
   }
 
-  protected render(state: RenderState = {}): void {
+  // Hides the "add more projects" hint for good and paints the page again without it.
+  protected async dismissHint(): Promise<void> {
+    await dismissHint(this.context);
+    this.lastKey = "";
+    this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+  }
+
+  protected render(requested: RenderState = {}): void {
     if (!this.run || this.disposed) {
       return;
     }
+    const state: RenderState = hintVisible(this.context, this.run.cfg) ? { ...requested, hint: true } : requested;
     const { cfg, marks } = this.run;
     // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
     this.model = buildBoard(

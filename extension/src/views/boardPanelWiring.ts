@@ -99,7 +99,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => {
-        if (["enabled", "profile", ...REPORT_SETTINGS].some((k) => e.affectsConfiguration(`saropaWorkspace.releaseBoard.${k}`))) {
+        if (["enabled", "profile", "projects", "projectScope", ...REPORT_SETTINGS].some((k) => e.affectsConfiguration(`saropaWorkspace.releaseBoard.${k}`))) {
           this.poke(300);
         } else if (e.affectsConfiguration("saropaWorkspace.releaseBoard")) {
           // Display-only settings: draw the stored scan again, no rescan.

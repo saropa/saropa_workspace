@@ -99,7 +99,7 @@ function signalLine(p: BoardProject, t: BoardStrings): string {
 }
 
 // One project's verdict row: name, light, link mark, health marks and the item squares.
-export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false): string {
+export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false, badge = ""): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
   const why = p.light !== "unverified" ? "" : p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
   const lightTip = why || pl(t, p.light === "go" ? "light.go" : p.light === "no-go" ? "light.noGo" : "light.unverified");
@@ -111,7 +111,7 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<i class="link ${waiting ? "wait" : "ok"}" ${glyphTip(t, waiting ? "g.amberDiamond" : "g.greenDiamond", `${t.dependsOn} ${p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", ")}`)}></i>` : "";
   const rowTip = toggles ? tip(t, "projectRow", { name: p.name }) : tip(t, "projectRowPlain", { name: p.name });
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${escapeHtml(p.name)}</b><span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar" ${tip(t, "squares", { count: p.items.length })}>${squares}</span>${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar" ${tip(t, "squares", { count: p.items.length })}>${squares}</span>${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
 }
 
 // The small marks on a row: a progress ring, size bars, a code letter and one dot per
@@ -281,9 +281,9 @@ export function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: bo
 }
 
 // A project's verdict row, with its Path to GO folded under it when there is one.
-export function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean): string {
+export function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean, badge = ""): string {
   if (!path) {
-    return verdict(p, t, lights);
+    return verdict(p, t, lights, false, badge);
   }
-  return `<div class="pj" data-pid="${escapeHtml(p.id)}">${verdict(p, t, lights, true)}${pathList(path, t, i, canAct)}</div>`;
+  return `<div class="pj" data-pid="${escapeHtml(p.id)}">${verdict(p, t, lights, true, badge)}${pathList(path, t, i, canAct)}</div>`;
 }

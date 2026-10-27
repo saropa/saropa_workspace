@@ -141,6 +141,7 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     blockedStopping: blockedStop,
     counts,
     dependsOn: def.dependsOn ?? [],
+    ...(def.extra ? { extra: true } : {}),
   };
 }
 
@@ -311,7 +312,8 @@ export function buildBoard(
     exactPins: new Set(extra?.pins ?? []),
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };
-  const defs: ProjectDef[] = [...cfg.projects].sort((a, b) => (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1));
+  // The open workspace's projects first, then the extra ones; importance orders within each.
+  const defs: ProjectDef[] = [...cfg.projects].sort((a, b) => Number(a.extra === true) - Number(b.extra === true) || (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1));
   const projects = defs.map((def) => buildProject(def, ctx, all));
   // Groups, linkages and chains need every open item, so they are computed once all
   // projects are built.
@@ -334,6 +336,8 @@ export function buildBoard(
     liveUnnamed,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
+    ...(cfg.skipped && cfg.skipped.length > 0 ? { skipped: cfg.skipped } : {}),
+    ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),
     chains: buildChainSteps(links, byKey, ctx.names),
     flags: linkFlags(links, ctx.names),
     items: all,

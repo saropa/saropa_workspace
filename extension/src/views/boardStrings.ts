@@ -366,11 +366,22 @@ export const POLISH_KEYS = [
   "g.flameAmber",
   "g.infoIcon",
   "arrowThen",
+  "hintBar",
+  "rollupBar",
+  "rollupLight",
+  "rollupSkipped",
+  "skippedRow",
 ] as const;
 
 // Tooltips and the labels of the controls added with them.
 function polishStrings() {
   return { polish: Object.fromEntries(POLISH_KEYS.map((k) => [k, l10n("releaseBoard.polish." + k)])) as Record<string, string> };
+}
+
+// Labels of the umbrella view: the Projects and Settings buttons, the hint, the roll-up and the grey rows.
+function projectStrings() {
+  const keys = ["projects", "projectsTip", "settings", "settingsTip", "hintText", "hintAdd", "hintDismiss", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "hiddenTip"];
+  return { projectLabels: Object.fromEntries(keys.map((k) => [k, l10n("releaseBoard.projects.label." + k, { count: "{count}", max: "{max}" })])) };
 }
 
 // All page strings, merged from the groups above.
@@ -384,5 +395,6 @@ export function strings(): BoardStrings {
     ...liveStrings(),
     ...futureStrings(),
     ...polishStrings(),
+    ...projectStrings(),
   };
 }

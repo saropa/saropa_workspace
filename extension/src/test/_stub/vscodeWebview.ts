@@ -7,6 +7,10 @@
 // to simulate the client script posting a message back).
 export interface FakeWebview {
   html: string;
+  /** The content-security-policy source token a page allows its own resources from. */
+  readonly cspSource: string;
+  /** Maps a local resource to the address the page loads it from (the stub keeps the same address). */
+  asWebviewUri<T>(local: T): T;
   readonly postedMessages: unknown[];
   postMessage(message: unknown): Promise<boolean>;
   onDidReceiveMessage(handler: (message: unknown) => void): { dispose(): void };
@@ -36,6 +40,8 @@ export function fakeWebviewPanel(viewType: string, title: string): FakeWebviewPa
   const postedMessages: unknown[] = [];
   const webview: FakeWebview = {
     html: "",
+    cspSource: "vscode-webview://fake",
+    asWebviewUri: <T>(local: T): T => local,
     postedMessages,
     async postMessage(message: unknown): Promise<boolean> {
       postedMessages.push(message);
