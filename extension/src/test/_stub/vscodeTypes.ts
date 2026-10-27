@@ -135,6 +135,7 @@ export const TreeItemCollapsibleState = {
   Collapsed: 1,
   Expanded: 2,
 } as const;
+/** Minimal tree row: the fields the tree-item classes set and the tests read. */
 export class TreeItem {
   description?: string | boolean;
   tooltip?: unknown;

@@ -35,6 +35,7 @@ export function mergeBadge(into: ShortcutBadge, from: ShortcutBadge | undefined)
   into.testsFailed = add(into.testsFailed, from.testsFailed);
 }
 
+/** True when the badge carries at least one lint or test count worth showing. */
 export function hasBadgeCounts(badge: ShortcutBadge): boolean {
   return (
     badge.errors !== undefined ||

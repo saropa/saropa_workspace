@@ -11,10 +11,13 @@ interface ConfigFolderContext {
   readonly globalState: vscode.Memento;
 }
 
+// Global-state keys: the last config file opened, and the short recent list.
 const LAST_CONFIG_KEY = "saropaWorkspace.lastConfigFile";
 const RECENT_CONFIGS_KEY = "saropaWorkspace.recentConfigFiles";
 const MAX_RECENT = 5;
 
+// A config file lives in the project root or one of the known config folders under it;
+// either way the project root is the folder to open.
 function projectRootFromConfig(configFsPath: string): string {
   let folder = path.dirname(configFsPath);
   if ((KNOWN_CONFIG_DIRS as readonly string[]).includes(path.basename(folder))) {
@@ -23,6 +26,8 @@ function projectRootFromConfig(configFsPath: string): string {
   return folder;
 }
 
+// Move the config to the front of the recent list (no duplicates, capped) and remember it
+// as the last one opened.
 async function pushRecentConfig(
   globalState: vscode.Memento,
   configFsPath: string,
@@ -37,6 +42,7 @@ async function pushRecentConfig(
   await globalState.update(LAST_CONFIG_KEY, configFsPath);
 }
 
+// Record the config as recent, then open its project root in this window.
 async function openConfigFolder(
   ctx: ConfigFolderContext,
   configFsPath: string,
@@ -46,6 +52,7 @@ async function openConfigFolder(
   await vscode.commands.executeCommand("vscode.openFolder", folderUri);
 }
 
+// Let the user pick a config file, starting from the project of the last one opened.
 async function browseForConfig(ctx: ConfigFolderContext): Promise<void> {
   const lastPath = ctx.globalState.get<string>(LAST_CONFIG_KEY);
   const defaultUri = lastPath
@@ -65,6 +72,7 @@ async function browseForConfig(ctx: ConfigFolderContext): Promise<void> {
   await openConfigFolder(ctx, picked[0].fsPath);
 }
 
+/** Offer the recent config projects (or go straight to browsing when there are none), then open the choice. */
 export async function handleOpenFolder(ctx: ConfigFolderContext): Promise<void> {
   const recent = ctx.globalState.get<string[]>(RECENT_CONFIGS_KEY, []);
   if (!recent.length) {
