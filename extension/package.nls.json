@@ -248,5 +248,7 @@
   "color.pink.description": "Pink tint for shortcut icons (theme-aware, lighter on dark and darker on light).",
   "color.brown.description": "Brown tint for shortcut icons (theme-aware, lighter on dark and darker on light).",
   "color.slate.description": "Slate tint for shortcut icons (theme-aware, lighter on dark and darker on light).",
-  "color.gray.description": "Gray tint for shortcut icons (theme-aware, lighter on dark and darker on light)."
+  "color.gray.description": "Gray tint for shortcut icons (theme-aware, lighter on dark and darker on light).",
+  "command.releaseBoard.scan.title": "Release Board: Scan",
+  "config.releaseBoard.enabled.description": "Turn on the Release Board (experimental): scans the workspace folders' bugs, docs and plans documents and reports their state."
 }

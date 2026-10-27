@@ -736,6 +736,12 @@
         "icon": "$(graph)"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.scan",
+        "title": "%command.releaseBoard.scan.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "saropaWorkspace.dailyReport",
         "title": "%command.dailyReport.title%",
         "category": "%extension.displayName%",
@@ -1993,6 +1999,10 @@
       ],
       "commandPalette": [
         {
+          "command": "saropaWorkspace.releaseBoard.scan",
+          "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
           "command": "saropaWorkspace.copyNoteContent",
           "when": "false"
         },
@@ -2337,6 +2347,11 @@
             "minimum": 150,
             "maximum": 1000,
             "description": "%config.doubleClickMs.description%"
+          },
+          "saropaWorkspace.releaseBoard.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.releaseBoard.enabled.description%"
           },
           "saropaWorkspace.previewMode.enabled": {
             "type": "boolean",
