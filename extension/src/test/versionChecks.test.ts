@@ -137,3 +137,10 @@ test("report tables escape a backslash in a source name", () => {
   const md = buildVersionMarkdown({ result: "fail", count: 1, manifest: { file: "package.json", version: "1.0.0" }, rows: [{ source: "dir\\lock.json", version: "2.0.0", agrees: false }] }, "NOW");
   assert.ok(md.includes("| dir\\\\lock.json | 2.0.0 | **differs** |"));
 });
+
+test("badge reading stays fast on 200,000 repetitions of the image opener", () => {
+  const start = Date.now();
+  assert.deepEqual(badgeVersions("![".repeat(200000)), []);
+  assert.equal(badgeVersions("![version 1.2.3](".repeat(20000) + "x").length, 10000);
+  assert.ok(Date.now() - start < 5000, `took ${Date.now() - start} ms`);
+});

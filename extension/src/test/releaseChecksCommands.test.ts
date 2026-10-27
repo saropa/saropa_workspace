@@ -44,11 +44,22 @@ function write(rel: string, text: string | Buffer): void {
   fs.writeFileSync(full, text);
 }
 
+// The environment without any GIT_* variable, so an outer repository or hook setting cannot reach the test repositories.
+function cleanEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!k.startsWith("GIT_")) {
+      env[k] = v;
+    }
+  }
+  return env;
+}
+
 const git = (args: string[], date?: Date): string =>
   execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, ...(date ? { GIT_AUTHOR_DATE: date.toISOString(), GIT_COMMITTER_DATE: date.toISOString() } : {}) },
+    env: { ...cleanEnv(), ...(date ? { GIT_AUTHOR_DATE: date.toISOString(), GIT_COMMITTER_DATE: date.toISOString() } : {}) },
   });
 
 function initRepo(): void {
@@ -298,4 +309,107 @@ test("every command writes only under reports/, and with no folder says so and w
   const result = await handler?.(undefined);
   assert.equal(result, undefined);
   assert.ok(stub.__warningMessages().some((m) => /Open a workspace folder/.test(m)), stub.__warningMessages().join("|"));
+});
+
+test("large new files: run from a subfolder of the repository, only that folder is checked and a big file is found", async () => {
+  initRepo();
+  write("README.md", "x");
+  write("pkg/app/big.bin", Buffer.alloc(2 * 1048576));
+  write("other/huge.bin", Buffer.alloc(3 * 1048576));
+  commitAll("recent");
+  const r = readReport(await run("largeNewFiles", path.join(root, "pkg", "app")));
+  assert.equal(r.summary?.result, "fail");
+  assert.equal(r.summary?.count, 1);
+  assert.ok(r.text.includes("| big.bin | 2.0 MB |"), r.text);
+  assert.ok(!r.text.includes("huge.bin"));
+});
+
+test("large new files: more new files than the scan limit is unknown, not a pass", async () => {
+  initRepo();
+  write("README.md", "x");
+  commitAll("first");
+  fs.mkdirSync(path.join(root, "many"));
+  for (let i = 0; i < 5001; i += 1) {
+    fs.writeFileSync(path.join(root, "many", `f${i}.txt`), "");
+  }
+  const r = readReport(await run("largeNewFiles"));
+  assert.equal(r.summary?.result, "unknown");
+  assert.ok(r.text.includes("cut short"), r.text);
+});
+
+test("large new files: a cut-short scan that already found a big file still fails", async () => {
+  initRepo();
+  write("README.md", "x");
+  commitAll("first");
+  fs.mkdirSync(path.join(root, "many"));
+  for (let i = 0; i < 5001; i += 1) {
+    fs.writeFileSync(path.join(root, "many", `f${i}.txt`), "");
+  }
+  fs.writeFileSync(path.join(root, "aaa-big.bin"), Buffer.alloc(2 * 1048576));
+  const r = readReport(await run("largeNewFiles"));
+  assert.deepEqual([r.summary?.result, r.summary?.count], ["fail", 1]);
+  assert.ok(r.text.includes("more may exist"), r.text);
+});
+
+test("broken links: a document over the size cap makes a clean result unknown; a found break still fails", async () => {
+  initRepo();
+  write("README.md", "[ok](docs/a.md)");
+  write("docs/a.md", "text");
+  write("docs/huge.md", Buffer.alloc(1024 * 1024 + 10, "a"));
+  commitAll("docs");
+  const r = readReport(await run("brokenLinks"));
+  assert.equal(r.summary?.result, "unknown");
+  assert.ok(r.text.includes("skipped"), r.text);
+  write("README.md", "[ok](docs/a.md)\n[gone](docs/nope.md)");
+  commitAll("break");
+  const f = readReport(await run("brokenLinks"));
+  assert.deepEqual([f.summary?.result, f.summary?.count], ["fail", 1]);
+});
+
+test("broken links: more documents than the limit is unknown", async () => {
+  initRepo();
+  fs.mkdirSync(path.join(root, "d"));
+  for (let i = 0; i < 2001; i += 1) {
+    fs.writeFileSync(path.join(root, "d", `n${i}.md`), "plain");
+  }
+  commitAll("many");
+  const r = readReport(await run("brokenLinks"));
+  assert.equal(r.summary?.result, "unknown");
+});
+
+test("broken links: a name that starts with two dots is checked; a link outside the folder is not; a tracked link file is neither read nor an unknown", async () => {
+  initRepo();
+  write("README.md", "[a](..notes.md)\n[b](../out.md)");
+  commitAll("docs");
+  const r = readReport(await run("brokenLinks"));
+  assert.equal(r.summary?.result, "fail");
+  assert.equal(r.summary?.count, 1);
+  assert.ok(r.text.includes("| README.md | 1 | ..notes.md |"), r.text);
+  assert.ok(!r.text.includes("out.md"));
+});
+
+test("symlinks are not followed: a document link to a file outside the folder is skipped, not read", async (t) => {
+  initRepo();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "sw-outside-"));
+  try {
+    fs.writeFileSync(path.join(outside, "secret.md"), "[gone](missing-from-outside.md)");
+    try {
+      fs.symlinkSync(path.join(outside, "secret.md"), path.join(root, "LINKED.md"));
+    } catch {
+      t.skip("symbolic links are not available here");
+      return;
+    }
+    write("README.md", "[ok](README.md)");
+    commitAll("docs");
+    const r = readReport(await run("brokenLinks"));
+    assert.deepEqual([r.summary?.result, r.summary?.count], ["pass", 0]);
+    assert.ok(!r.text.includes("missing-from-outside"));
+    // A linked changelog is not read either.
+    fs.symlinkSync(path.join(outside, "secret.md"), path.join(root, "CHANGELOG.md"));
+    write("package.json", JSON.stringify({ version: "1.0.0" }));
+    const c = readReport(await run("changelogCheck"));
+    assert.equal(c.summary?.result, "unknown");
+  } finally {
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
 });

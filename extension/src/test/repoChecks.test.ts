@@ -3,6 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { parseSummaryLine } from "../board/reportSummary";
 import {
   LINKS_LISTED,
   bigFilesSummaryLine,
@@ -160,4 +161,22 @@ test("links: summary lines and report text; the list is capped but the count is 
 test("report tables escape a backslash in a branch name", () => {
   const md = buildBranchAgeMarkdown(true, [{ name: "a\\b|c", ageDays: 40, author: "x" }], 30, "main", "NOW");
   assert.ok(md.includes("| a\\\\b\\|c | 40 | x |"));
+});
+
+test("a scan cut short never passes, but a found problem still fails", () => {
+  const big = [{ path: "a.bin", bytes: 2 * 1048576 }];
+  assert.equal(parseSummaryLine(bigFilesSummaryLine(true, [], T, false))?.result, "unknown");
+  assert.equal(parseSummaryLine(bigFilesSummaryLine(true, big, T, false))?.result, "fail");
+  assert.equal(parseSummaryLine(linksSummaryLine(10, 0, T, false))?.result, "unknown");
+  assert.equal(parseSummaryLine(linksSummaryLine(10, 2, T, false))?.count, 2);
+  assert.ok(buildBigFilesMarkdown(true, [], 5, 1024, "NOW", false).includes("cut short"));
+  assert.ok(buildLinksMarkdown(3, 9, [], "NOW", false).includes("skipped"));
+});
+
+test("link extraction stays fast on hostile input", () => {
+  const start = Date.now();
+  extractLinks("![".repeat(200000));
+  extractLinks("](<".repeat(100000));
+  extractLinks("[a]: <".repeat(50000));
+  assert.ok(Date.now() - start < 5000);
 });

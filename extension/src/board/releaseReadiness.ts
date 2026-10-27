@@ -57,10 +57,18 @@ export function readinessSummaryLine(c: Readiness, time: number): string {
 
 const WORD: Record<RowState, string> = { pass: "passing", fail: "**failing**", unclear: "not usable", none: "no report" };
 
+// Says which parts were checked and which had no report, so a pass never claims more than was read.
+function passingLine(c: Readiness): string {
+  const names = (state: RowState): string[] => c.rows.filter((r) => r.state === state).map((r) => r.name);
+  const passed = names("pass").join(", ");
+  const missing = names("none").join(" and ").toLowerCase();
+  return `${passed} passing${missing ? `; ${missing} not reported` : ""}.`;
+}
+
 export function buildReadinessMarkdown(c: Readiness, generated: string): string {
   const head =
     c.result === "pass"
-      ? "Build, tests, lint and dependencies agree: every report that exists is fresh and passing."
+      ? passingLine(c)
       : c.result === "fail"
         ? `${c.count} check(s) failing.`
         : "Not ready to call: a required report (tests, lint) is missing or old, or a report could not be read.";

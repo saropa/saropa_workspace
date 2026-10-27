@@ -96,8 +96,9 @@ interactive in the integrated terminal.
 ## Report recipes that feed the Release Board
 
 Scheduled recipes that write a dated report under `reports/<date>_workspace/`. They are
-read-only, seed switched off (enable the schedule from the recipe's context menu or from the
-board's **Turn on** button), and are offered only where their input exists. The first line of
+read-only, seed switched off (enable the schedule from the recipe's context menu; the board's
+**Turn on** button exists only for the build, lint and test reports), and are offered only
+where their input exists. The first line of
 each report is a hidden summary line the board reads: recipe, time, `pass`, `fail` or
 `unknown`, and one count. A check that has nothing to compare, or could not look, writes
 `unknown`, which the board treats as no evidence. The board never shows a report's text or
@@ -146,7 +147,9 @@ path; **Open report** buttons resolve the file on your machine.
 - **Report:** `*_large_new_files.md`. Default time 09:10.
 - **Offered when:** the folder is a git repository.
 - **Lists:** files added in the last 7 days, committed or not yet tracked, that are larger than
-  the limit. A file exactly at the limit is not listed.
+  the limit. A file exactly at the limit is not listed. Works from a subfolder of the
+  repository (only that folder is checked). More than 5000 new files cuts the scan short:
+  the result is unknown, or a failure if an oversized file was already found.
 - **Setting:** `recipes.largeNewFileKB` (default 1024).
 - **Board:** a read-only entry in the Tidy box.
 
@@ -156,7 +159,7 @@ path; **Open report** buttons resolve the file on your machine.
 - **Offered when:** a git repository has a `README.md` or a `docs` folder.
 - **Checks:** relative links in tracked Markdown documents (at most 2000 documents). Web
   links, page anchors, absolute paths and links inside code are not checked, and neither are
-  links that leave the folder. At most 200 broken links are listed; the count is complete.
+  links that leave the folder. At most 200 broken links are listed; the count is complete when the scan finishes. A scan cut short by a limit (more than 2000 documents, 50,000 links, or a document that is too large or unreadable) reports unknown, or a failure if it already found a broken link.
 - **Board:** a note on the row with the count.
 
 ### Existing recipes that now feed the board

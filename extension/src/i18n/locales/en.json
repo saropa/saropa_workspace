@@ -1956,7 +1956,7 @@
   "releaseBoard.signal.changelog": "The changelog's newest entry does not match the project version",
   "releaseBoard.signal.version": "The version differs between project files",
   "releaseBoard.signal.links": "Broken links in documents: {count}",
-  "releaseBoard.signal.readyPass": "Release checks: all passing",
+  "releaseBoard.signal.readyPass": "Release checks: tests and lint passing",
   "releaseBoard.signal.readyFail": "Release checks failing: {count}",
   "releaseBoard.sittings.stepMinutes": "about {count} minutes",
   "releaseBoard.handToChat.button": "Hand to chat",

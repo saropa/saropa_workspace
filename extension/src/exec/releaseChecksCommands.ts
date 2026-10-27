@@ -43,11 +43,12 @@ async function git(root: string, args: string[]): Promise<string | undefined> {
   }
 }
 
-// A file under the project folder as text, or undefined when it is missing, too large or unreadable.
+// A file under the project folder as text, or undefined when it is missing, a link, too large or unreadable.
 async function readSmall(root: string, rel: string): Promise<string | undefined> {
   try {
     const file = path.join(root, ...rel.split("/"));
-    const st = await fs.stat(file);
+    // lstat: a link is never followed, so a read cannot leave the folder.
+    const st = await fs.lstat(file);
     return st.isFile() && st.size <= MAX_READ_BYTES ? await fs.readFile(file, "utf8") : undefined;
   } catch {
     return undefined;
@@ -204,21 +205,34 @@ async function runLargeNewFiles(folderPath?: unknown): Promise<string | undefine
   const limitKb = clampLargeKb(vscode.workspace.getConfiguration("saropaWorkspace.recipes").get<number>("largeNewFileKB", 1024));
   const now = Date.now();
   const since = now - NEW_FILE_DAYS * 86_400_000;
-  const added = await git(root, ["log", `--since=${NEW_FILE_DAYS}.days.ago`, "--diff-filter=A", "--name-only", "-z", "--pretty=format:"]);
+  // --relative: names are relative to the folder and limited to it, also when it is a subfolder of the repository.
+  const added = await git(root, ["log", "--relative", `--since=${NEW_FILE_DAYS}.days.ago`, "--diff-filter=A", "--name-only", "-z", "--pretty=format:"]);
   const untracked = await git(root, ["ls-files", "--others", "--exclude-standard", "-z"]);
   const known = added !== undefined && untracked !== undefined;
   let files: SizedFile[] = [];
+  let complete = true;
   if (known) {
-    const committed = parseZNames(added).slice(0, MAX_NEW_FILES);
-    const fresh = parseZNames(untracked).slice(0, MAX_NEW_FILES);
+    const allCommitted = parseZNames(added);
+    const allFresh = parseZNames(untracked);
+    complete = allCommitted.length <= MAX_NEW_FILES && allFresh.length <= MAX_NEW_FILES;
+    const committed = allCommitted.slice(0, MAX_NEW_FILES);
+    const fresh = allFresh.slice(0, MAX_NEW_FILES);
     const seen = new Set(committed);
     files = [...(await sizesOf(root, committed)), ...(await sizesOf(root, fresh.filter((n) => !seen.has(n)), since))];
   }
   const big = overLimit(files, limitKb);
-  return writeReport(root, "large_new_files", bigFilesSummaryLine(known, big, now), buildBigFilesMarkdown(known, big, files.length, limitKb, stamp()), big.length > 0);
+  return writeReport(root, "large_new_files", bigFilesSummaryLine(known, big, now, complete), buildBigFilesMarkdown(known, big, files.length, limitKb, stamp(), complete), big.length > 0);
 }
 
 // ---- Broken relative links in documents ----
+
+async function isLink(file: string): Promise<boolean> {
+  try {
+    return (await fs.lstat(file)).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
 
 async function runBrokenLinks(folderPath?: unknown): Promise<string | undefined> {
   const root = rootOf(folderPath);
@@ -227,7 +241,10 @@ async function runBrokenLinks(folderPath?: unknown): Promise<string | undefined>
     return undefined;
   }
   const listing = await git(root, ["ls-files", "-z"]);
-  const docs = listing === undefined ? [] : parseZNames(listing).filter((n) => /\.(?:md|markdown)$/i.test(n)).slice(0, MAX_DOCS);
+  const allDocs = listing === undefined ? [] : parseZNames(listing).filter((n) => /\.(?:md|markdown)$/i.test(n));
+  const docs = allDocs.slice(0, MAX_DOCS);
+  // Anything skipped for a limit (too many documents or links, a document too large or unreadable) makes the result incomplete.
+  let complete = allDocs.length <= MAX_DOCS;
   const exists = new Map<string, boolean>();
   const broken: BrokenLink[] = [];
   let checked = 0;
@@ -235,6 +252,10 @@ async function runBrokenLinks(folderPath?: unknown): Promise<string | undefined>
   for (const doc of docs) {
     const text = await readSmall(root, doc);
     if (text === undefined) {
+      // A link to another file is left alone on purpose; anything else that could not be read is a gap.
+      if (!(await isLink(path.join(root, ...doc.split("/"))))) {
+        complete = false;
+      }
       continue;
     }
     checked += 1;
@@ -242,13 +263,17 @@ async function runBrokenLinks(folderPath?: unknown): Promise<string | undefined>
       const abs = path.resolve(root, path.dirname(doc), link.target);
       const rel = path.relative(root, abs);
       // A link that leaves the project folder is not checked.
-      if (rel.startsWith("..") || path.isAbsolute(rel) || linksChecked >= MAX_LINKS) {
+      if (rel === ".." || rel.startsWith(".." + path.sep) || path.isAbsolute(rel)) {
+        continue;
+      }
+      if (linksChecked >= MAX_LINKS) {
+        complete = false;
         continue;
       }
       linksChecked += 1;
       let ok = exists.get(abs);
       if (ok === undefined) {
-        ok = await fs.stat(abs).then(() => true, () => false);
+        ok = await fs.lstat(abs).then(() => true, () => false);
         exists.set(abs, ok);
       }
       if (!ok) {
@@ -256,7 +281,7 @@ async function runBrokenLinks(folderPath?: unknown): Promise<string | undefined>
       }
     }
   }
-  return writeReport(root, "broken_links", linksSummaryLine(checked, broken.length, Date.now()), buildLinksMarkdown(checked, linksChecked, broken, stamp()), broken.length > 0);
+  return writeReport(root, "broken_links", linksSummaryLine(checked, broken.length, Date.now(), complete), buildLinksMarkdown(checked, linksChecked, broken, stamp(), complete), broken.length > 0);
 }
 
 /** Registers the report recipes' commands. Each takes the project folder path as its first argument. */

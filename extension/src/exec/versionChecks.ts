@@ -133,7 +133,7 @@ export function cargoLockVersion(text: string, crate: string | undefined): State
 // (one the badge service fills in itself) states nothing.
 export function badgeVersions(readme: string): Stated[] {
   const out: Stated[] = [];
-  for (const m of readme.matchAll(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)/g)) {
+  for (const m of readme.matchAll(/!\[([^\]\n]{0,200})\]\(\s{0,20}<?([^)\s>]{1,2000})/g)) {
     const alt = m[1];
     let url = m[2];
     try {

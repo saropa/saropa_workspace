@@ -54,6 +54,7 @@ test("the summary line and report say exactly what was found", () => {
   assert.equal(readinessSummaryLine(pass, NOW), "<!-- saropa-summary recipe=ritual.readiness time=2026-10-27T12:00:00.000Z result=pass count=0 -->");
   assert.equal(readinessSummaryLine({ result: "unknown", count: 0, rows: [] } as Readiness, NOW), "<!-- saropa-summary recipe=ritual.readiness time=2026-10-27T12:00:00.000Z result=unknown -->");
   const md = buildReadinessMarkdown(pass, "NOW");
+  assert.ok(md.includes("**Result:** Tests, Lint passing; build and dependencies not reported."));
   assert.ok(md.includes("| Tests | passing | Test report: passing (1 h ago) |"));
   assert.ok(md.includes("| Build | no report | No report yet |"));
   assert.ok(md.includes("Not covered (no report): Build, Dependencies."));

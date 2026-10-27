@@ -46,7 +46,7 @@ const WORDS: Record<EvidenceFeed, Words> = {
   bloat: { label: "Bloat report", failCount: "oversized or unguarded folders", clean: "nothing oversized" },
   standup: { label: "Standup report", passCount: "commits", clean: "no commits" },
   delta: { label: "Since-yesterday report", passCount: "commits", clean: "no commits" },
-  readiness: { label: "Release readiness report", failCount: "checks failing", clean: "all checks passing" },
+  readiness: { label: "Release readiness report", failCount: "checks failing", clean: "tests and lint passing" },
   changelog: { label: "Changelog check", failCount: "mismatch", clean: "matches the version" },
   version: { label: "Version check", failCount: "files differ", clean: "all files agree" },
   staleBranches: { label: "Branch age report", failCount: "old branches", clean: "no old branches" },

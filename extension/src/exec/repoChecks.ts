@@ -109,21 +109,27 @@ export function formatSize(bytes: number): string {
   return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-export function bigFilesSummaryLine(known: boolean, big: readonly SizedFile[], time: number): string {
-  return !known ? summary("bigFiles", time, "unknown") : summary("bigFiles", time, big.length > 0 ? "fail" : "pass", big.length);
+// A scan cut short can still fail (what it found is real) but never passes.
+export function bigFilesSummaryLine(known: boolean, big: readonly SizedFile[], time: number, complete = true): string {
+  if (known && big.length > 0) {
+    return summary("bigFiles", time, "fail", big.length);
+  }
+  return known && complete ? summary("bigFiles", time, "pass", 0) : summary("bigFiles", time, "unknown");
 }
 
-export function buildBigFilesMarkdown(known: boolean, big: readonly SizedFile[], checked: number, limitKb: number, generated: string): string {
+const CUT_SHORT = "The scan was cut short by a limit, so it cannot say that nothing is wrong.";
+
+export function buildBigFilesMarkdown(known: boolean, big: readonly SizedFile[], checked: number, limitKb: number, generated: string, complete = true): string {
   const lines = ["# Large new files", "", `Generated ${generated}`, ""];
   if (!known) {
     lines.push("Git did not answer for this folder, so new files could not be listed.", "");
     return lines.join("\n");
   }
   if (big.length === 0) {
-    lines.push(`${checked} file(s) added in the last ${NEW_FILE_DAYS} days were checked. None is over ${formatSize(limitKb * 1024)}.`, "");
+    lines.push(complete ? `${checked} file(s) added in the last ${NEW_FILE_DAYS} days were checked. None is over ${formatSize(limitKb * 1024)}.` : `${checked} file(s) were checked and none is over ${formatSize(limitKb * 1024)}. ${CUT_SHORT}`, "");
     return lines.join("\n");
   }
-  lines.push(`${big.length} of ${checked} file(s) added in the last ${NEW_FILE_DAYS} days are over ${formatSize(limitKb * 1024)}.`, "", "| File | Size |", "|---|---:|");
+  lines.push(`${big.length} of ${checked} file(s) added in the last ${NEW_FILE_DAYS} days are over ${formatSize(limitKb * 1024)}.${complete ? "" : ` The scan was cut short, so more may exist.`}`, "", "| File | Size |", "|---|---:|");
   for (const f of big) {
     lines.push(`| ${cell(f.path)} | ${formatSize(f.bytes)} |`);
   }
@@ -180,10 +186,10 @@ export function extractLinks(markdown: string): DocLink[] {
         out.push({ line: i + 1, target: t });
       }
     };
-    for (const m of line.matchAll(/\]\(\s*(<[^>]*>|[^)\s]+)/g)) {
+    for (const m of line.matchAll(/\]\(\s{0,20}(<[^>\n]{0,500}>|[^)\s]{1,2000})/g)) {
       add(m[1]);
     }
-    const ref = /^\s{0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]*>|\S+)/.exec(line);
+    const ref = /^\s{0,3}\[(?!\^)[^\]]{1,500}\]:\s{0,20}(<[^>\n]{0,500}>|\S{1,2000})/.exec(line);
     if (ref) {
       add(ref[1]);
     }
@@ -200,23 +206,30 @@ export interface BrokenLink {
 // Most broken links written into the report; the summary line still carries the full count.
 export const LINKS_LISTED = 200;
 
-export function linksSummaryLine(filesChecked: number, broken: number, time: number): string {
-  return filesChecked === 0 ? summary("links", time, "unknown") : summary("links", time, broken > 0 ? "fail" : "pass", broken);
+// A scan cut short (documents or links skipped) can still fail but never passes.
+export function linksSummaryLine(filesChecked: number, broken: number, time: number, complete = true): string {
+  if (filesChecked > 0 && broken > 0) {
+    return summary("links", time, "fail", broken);
+  }
+  return filesChecked > 0 && complete ? summary("links", time, "pass", 0) : summary("links", time, "unknown");
 }
 
-export function buildLinksMarkdown(filesChecked: number, linksChecked: number, broken: readonly BrokenLink[], generated: string): string {
+export function buildLinksMarkdown(filesChecked: number, linksChecked: number, broken: readonly BrokenLink[], generated: string, complete = true): string {
   const lines = ["# Broken links in documents", "", `Generated ${generated}`, ""];
   if (filesChecked === 0) {
     lines.push("No Markdown documents were found to check.", "");
     return lines.join("\n");
   }
   if (broken.length === 0) {
-    lines.push(`${linksChecked} relative link(s) in ${filesChecked} document(s) were checked. None is broken.`, "");
+    lines.push(complete ? `${linksChecked} relative link(s) in ${filesChecked} document(s) were checked. None is broken.` : `${linksChecked} relative link(s) in ${filesChecked} document(s) were checked and none is broken. ${CUT_SHORT} Some documents or links were skipped.`, "");
     return lines.join("\n");
   }
   lines.push(`${broken.length} of ${linksChecked} relative link(s) in ${filesChecked} document(s) point at a file that does not exist.`, "", "| Document | Line | Link |", "|---|---:|---|");
   for (const b of broken.slice(0, LINKS_LISTED)) {
     lines.push(`| ${cell(b.file)} | ${b.line} | ${cell(b.target)} |`);
+  }
+  if (!complete) {
+    lines.push("", "Some documents or links were skipped, so more broken links may exist.");
   }
   if (broken.length > LINKS_LISTED) {
     lines.push("", `${broken.length - LINKS_LISTED} more not listed.`);

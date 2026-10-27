@@ -38,7 +38,7 @@ test("detail lines of the new feeds, exact", () => {
   assert.equal(detail("branches", "pass", 2), "Branch report: 2 merged branches (3 h ago)");
   assert.equal(detail("bloat", "fail", 1), "Bloat report: 1 oversized or unguarded folders (3 h ago)");
   assert.equal(detail("standup", "pass", 7), "Standup report: 7 commits (3 h ago)");
-  assert.equal(detail("readiness", "pass", 0), "Release readiness report: all checks passing (3 h ago)");
+  assert.equal(detail("readiness", "pass", 0), "Release readiness report: tests and lint passing (3 h ago)");
   assert.equal(detail("readiness", "fail", 2), "Release readiness report: 2 checks failing (3 h ago)");
   assert.equal(detail("changelog", "fail", 1), "Changelog check: 1 mismatch (3 h ago)");
   assert.equal(detail("version", "pass", 0), "Version check: all files agree (3 h ago)");
@@ -183,7 +183,7 @@ const t: BoardStrings = new Proxy({} as BoardStrings, {
       sigChangelog: "The changelog does not match",
       sigVersion: "The version differs",
       sigLinks: "Broken links: {count}",
-      sigReadyPass: "Release checks: all passing",
+      sigReadyPass: "Release checks: tests and lint passing",
       sigReadyFail: "Release checks failing: {count}",
       healthDeps: "Dependencies",
       ptgDepsFailing: "Dependencies are failing.",
@@ -224,7 +224,7 @@ test("html: the row notes read exactly, warnings are marked, a clean report adds
   assert.ok(out.includes('<span class="fn" title="Review queue report: 3 waiting for review (1 h ago)">Pull requests waiting for your review: 3</span>'));
   assert.ok(out.includes('<span class="fn warn" title="Uncommitted-work report: 5 files not committed (1 h ago)">Files not committed: 5</span>'));
   assert.ok(out.includes('<span class="fn warn" title="Link report: 2 broken links (1 h ago)">Broken links: 2</span>'));
-  assert.ok(out.includes('<span class="fn" title="Release readiness report: all checks passing (1 h ago)">Release checks: all passing</span>'));
+  assert.ok(out.includes('<span class="fn" title="Release readiness report: tests and lint passing (1 h ago)">Release checks: tests and lint passing</span>'));
   assert.ok(!out.includes("Old unmerged"));
   assert.ok(!out.includes("reports/"));
 });
