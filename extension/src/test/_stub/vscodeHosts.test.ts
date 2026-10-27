@@ -157,3 +157,16 @@ test("typing into a quick pick fires the value event, and setting the value does
   assert.equal(pick.value, "x");
   assert.deepEqual([pick.matchOnDescription, pick.matchOnDetail], [false, false]);
 });
+
+test("a multi-select accept selects every item given", () => {
+  const pick = vscode.window.createQuickPick();
+  let accepted = 0;
+  pick.onDidAccept(() => accepted++);
+  assert.equal(pick.canSelectMany, false);
+  pick.accept("a", "b");
+  assert.deepEqual([pick.selectedItems, accepted], [["a", "b"], 1]);
+  pick.accept("c");
+  assert.deepEqual(pick.selectedItems, ["c"]);
+  pick.accept();
+  assert.deepEqual([pick.selectedItems, accepted], [[], 3]);
+});

@@ -230,7 +230,7 @@ test("an entry removed after the list was built runs nothing, and accepting with
   await settleTurn();
   assert.deepEqual(ran(), []);
   const again = await open();
-  again.accept(undefined);
+  again.accept();
   await settleTurn();
   assert.deepEqual(ran(), []);
 });

@@ -181,6 +181,7 @@ export interface FakeQuickPick {
   activeItems: readonly unknown[];
   selectedItems: readonly unknown[];
   ignoreFocusOut: boolean;
+  canSelectMany: boolean;
   matchOnDescription: boolean;
   matchOnDetail: boolean;
   /** The text in the box. Setting it fires onDidChangeValue, as the real box does. */
@@ -193,8 +194,8 @@ export interface FakeQuickPick {
   show(): void;
   hide(): void;
   dispose(): void;
-  /** Test driver: selects `item` and fires the accept event, as a user pressing Enter would. */
-  accept(item: unknown): void;
+  /** Test driver: selects `items` (none, one or several) and fires the accept event, as Enter would. */
+  accept(...items: unknown[]): void;
   /** Test driver: types `text` into the box, as a user would (same event as setting value). */
   type(text: string): void;
 }
@@ -227,6 +228,7 @@ function createQuickPick(): FakeQuickPick {
     activeItems: [],
     selectedItems: [],
     ignoreFocusOut: false,
+    canSelectMany: false,
     matchOnDescription: false,
     matchOnDetail: false,
     get value(): string {
@@ -252,8 +254,8 @@ function createQuickPick(): FakeQuickPick {
     dispose(): void {
       pick.disposed = true;
     },
-    accept(item: unknown): void {
-      pick.selectedItems = [item];
+    accept(...items: unknown[]): void {
+      pick.selectedItems = items;
       accepted.fire(undefined);
     },
     type(next: string): void {
