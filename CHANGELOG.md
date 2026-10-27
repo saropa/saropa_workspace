@@ -46,10 +46,6 @@ cspell:disable
 
 ---
 
-## [Unreleased]
-
----
-
 ## [2.0.0]
 
 The Release Board arrives: an off-by-default screen that reads your bugs, docs and plans folders across projects, shows what blocks a release in red, amber and green, links documents that wait on each other, and only says GO when lint and tests are fresh and clean. [log](https://github.com/saropa/saropa-workspace/blob/v2.0.0/CHANGELOG.md)
