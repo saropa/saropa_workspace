@@ -59,7 +59,11 @@ afterEach(() => {
   __setWorkspaceFolders(undefined);
   __resetConfig();
   __resetHandlers();
-  process.env.PATH = originalPath;
+  if (originalPath === undefined) {
+    delete process.env.PATH;
+  } else {
+    process.env.PATH = originalPath;
+  }
   clearInterpreterCache();
   nodeFs.rmSync(dir, { recursive: true, force: true });
   nodeFs.rmSync(binDir, { recursive: true, force: true });

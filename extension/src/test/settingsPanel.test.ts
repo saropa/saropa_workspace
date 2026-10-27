@@ -190,17 +190,27 @@ test("a value that does not fit the setting is refused and nothing is written", 
   for (const [key, value] of refused) {
     send({ type: "change", key, value });
   }
-  await flushEvents();
+  await settle(() => posted().length === refused.length);
   for (const [key] of refused) {
     assert.equal(read(key), undefined, key);
   }
   assert.deepEqual(__errorMessages(), []);
+  assert.deepEqual(posted().map((m) => [m.type, m.key, m.value]), refused.map(([key]) => ["revertSetting", key, undefined]));
+});
+
+test("a refused value sends the page the stored value back", async () => {
+  __setConfig("saropaWorkspace", "terminalName", "Kept");
+  SettingsPanel.show(context());
+  send({ type: "change", key: "terminalName", value: 12 });
+  await settle(() => posted().length === 1);
+  assert.deepEqual(posted()[0], { type: "revertSetting", key: "terminalName", value: "Kept" });
+  assert.equal(read("terminalName"), "Kept");
 });
 
 test("a change without a value is refused", async () => {
   SettingsPanel.show(context());
   send({ type: "change", key: "previewMode.enabled" });
-  await flushEvents();
+  await settle(() => posted().length === 1);
   assert.equal(read("previewMode.enabled"), undefined);
 });
 

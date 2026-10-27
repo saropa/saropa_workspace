@@ -215,7 +215,16 @@ export class SettingsPanel {
     // The payload comes from the page: only a listed setting, with a value of the right
     // kind, is written to the user's settings.
     const def = SETTING_DEFS.get(key);
-    if (!def || !fitsSetting(def, value, this.loadSchemaMeta()[`saropaWorkspace.${key}`])) {
+    if (!def) {
+      return;
+    }
+    if (!fitsSetting(def, value, this.loadSchemaMeta()[`saropaWorkspace.${key}`])) {
+      // The page may already show the refused value; put the stored one back.
+      await this.panel.webview.postMessage({
+        type: "revertSetting",
+        key,
+        value: vscode.workspace.getConfiguration("saropaWorkspace").get(key),
+      });
       return;
     }
     const cfg = vscode.workspace.getConfiguration("saropaWorkspace");
