@@ -48,7 +48,7 @@ cspell:disable
 
 ## [Unreleased]
 
-The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes. [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md) You can also correct a document's severity from its row menu (Change severity, Back to automatic).
+The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes, and a document's severity can be corrected from its row menu (Change severity, Back to automatic). [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md)
 
 ### Added
 - **Change severity on any document.** The row menu has **Change severity** (extreme, critical, high, medium, low) and **Back to automatic**. The severity is guessed from phrases, so you can correct it. Your choice replaces the guess for that document only, is stored in `.saropa/release-board.json` under `severityOverrides` (for the project and the exact path), and is asked about first. The confirmation says it can change the release light. **Back to automatic** in the row menu also takes away a status you set with **Change status**.
