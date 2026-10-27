@@ -152,6 +152,13 @@ def publish_marketplaces() -> int:
 # --------------------------------------------------------------------------- #
 
 
+def _version_key(version: str) -> tuple:
+    """Sort key for X.Y.Z[-pre]: numeric core, release ranks above prerelease."""
+    core, _, pre = version.partition("-")
+    nums = tuple(int(p) if p.isdigit() else 0 for p in core.split("."))
+    return (nums, pre == "")
+
+
 def _marketplace_latest(item_name: str) -> str | None:
     url = "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery"
     payload = {
@@ -170,7 +177,10 @@ def _marketplace_latest(item_name: str) -> str | None:
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
             data = json.loads(response.read().decode("utf-8"))
-        return data["results"][0]["extensions"][0]["versions"][0]["version"]
+        # The gallery does not guarantee newest-first ordering across calls
+        # (edge nodes returned 2.2.0 then 1.11.0), so take the highest version.
+        versions = [v["version"] for v in data["results"][0]["extensions"][0]["versions"]]
+        return max(versions, key=_version_key)
     except (OSError, ValueError, KeyError, IndexError, TypeError):
         return None
 
