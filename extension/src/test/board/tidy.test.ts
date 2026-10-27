@@ -21,6 +21,8 @@ const doc = (over: Partial<TidyDoc> = {}): TidyDoc => ({
   mtimeMs: NOW - 10 * DAY,
   pinned: false,
   waiting: false,
+  status: "amber",
+  stopping: false,
   ...over,
 });
 const opt = { now: NOW, afterDays: 7, archiveFolder: "docs/history" };
@@ -44,6 +46,18 @@ test("pinned and waiting documents are never offered, nor ones already in the ar
   assert.equal(buildTidy([doc({ pinned: true })], opt).candidates.length, 0);
   assert.equal(buildTidy([doc({ waiting: true })], opt).candidates.length, 0);
   assert.equal(buildTidy([doc({ path: "docs/history/2026/BUG_A.md" })], opt).candidates.length, 0);
+});
+
+test("red, purple and release-stopping documents are never offered", () => {
+  assert.equal(buildTidy([doc({ status: "red" })], opt).candidates.length, 0);
+  assert.equal(buildTidy([doc({ status: "purple" })], opt).candidates.length, 0);
+  assert.equal(buildTidy([doc({ stopping: true })], opt).candidates.length, 0);
+});
+
+test("the default archive folder counts as archived even when another is chosen", () => {
+  const o = { ...opt, archiveFolder: "archive" };
+  assert.equal(buildTidy([doc({ path: "docs/history/2026/A.md" })], o).candidates.length, 0);
+  assert.equal(buildTidy([doc({ path: "archive/2026/A.md" })], o).candidates.length, 0);
 });
 
 test("a time in the future counts as zero idle days", () => {

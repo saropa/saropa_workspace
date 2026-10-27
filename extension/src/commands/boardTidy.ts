@@ -47,17 +47,45 @@ export async function moveToArchive(projectRoot: vscode.Uri, c: TidyCandidate): 
     void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.targetExists", { path: c.to }));
     return false;
   }
+  if (isDirty(from)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.dirty", { path: c.path }));
+    return false;
+  }
   const move = l10n("releaseBoard.tidy.move");
   const answer = await vscode.window.showWarningMessage(l10n("releaseBoard.tidy.confirm", { from: c.path, to: c.to }), { modal: true }, move);
   if (answer !== move) {
     return false;
   }
+  // The dialog can stay open for a while: check again right before the move.
+  try {
+    if (Math.abs((await vscode.workspace.fs.stat(from)).mtime - c.mtimeMs) > 2) {
+      void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.changed", { path: c.path }));
+      return false;
+    }
+  } catch {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.gone", { path: c.path }));
+    return false;
+  }
+  if (isDirty(from) || (await exists(to))) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.changed", { path: c.path }));
+    return false;
+  }
   try {
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(to, ".."));
-    await vscode.workspace.fs.rename(from, to, { overwrite: false });
+    // A workspace edit, so an open tab follows the file.
+    const edit = new vscode.WorkspaceEdit();
+    edit.renameFile(from, to, { overwrite: false });
+    if (!(await vscode.workspace.applyEdit(edit))) {
+      void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.changed", { path: c.path }));
+      return false;
+    }
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     return false;
   }
   return true;
+}
+
+function isDirty(uri: vscode.Uri): boolean {
+  return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
 }

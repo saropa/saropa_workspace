@@ -108,6 +108,7 @@ function strings(): BoardStrings {
     tidyHeading: l10n("releaseBoard.tidy.heading"),
     tidyNote: l10n("releaseBoard.tidy.note", { days: "{days}" }),
     tidyDetail: l10n("releaseBoard.tidy.detail", { count: "{count}", days: "{days}" }),
+    tidyTitle: l10n("releaseBoard.tidy.title", { count: "{count}" }),
     tidyMove: l10n("releaseBoard.tidy.move"),
     tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
   };

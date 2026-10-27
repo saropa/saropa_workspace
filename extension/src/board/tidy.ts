@@ -22,6 +22,10 @@ export interface TidyDoc {
   // Pinned documents and documents waiting on an open Needs link are never offered.
   pinned: boolean;
   waiting: boolean;
+  // Board state: red and purple (in progress) items are never offered.
+  status: string;
+  // The item stops a release under the chosen profile.
+  stopping: boolean;
 }
 
 export interface TidyCandidate {
@@ -80,17 +84,20 @@ export function archiveTarget(path: string, folder: string, now: number): string
   return `${folder}/${y}/${ym}/${ym}.${pad(d.getDate())}/${base}`;
 }
 
+// The destination is dated by day and keeps the file name, so a second document with the
+// same name moved on the same day clashes; the move is then refused, never overwritten.
 // Done means at least one step and none open. Idle means not modified for `afterDays`.
 export function buildTidy(docs: TidyDoc[], opt: TidyOptions): TidyView {
   const afterDays = clampAfterDays(opt.afterDays);
   const folder = cleanArchiveFolder(opt.archiveFolder);
   const found: TidyCandidate[] = [];
   for (const d of docs) {
-    if (d.pinned || d.waiting || d.mtimeMs === undefined || d.stepsTotal === 0 || d.stepsDone < d.stepsTotal) {
+    if (d.pinned || d.waiting || d.stopping || d.status === "red" || d.status === "purple" || d.mtimeMs === undefined || d.stepsTotal === 0 || d.stepsDone < d.stepsTotal) {
       continue;
     }
-    // Already in the archive folder: nothing to move.
-    if (d.path.toLowerCase().startsWith(folder.toLowerCase() + "/")) {
+    // Already in an archive folder (the chosen one or the default): nothing to move.
+    const lower = d.path.toLowerCase();
+    if ([folder, DEFAULT_ARCHIVE_FOLDER].some((f) => lower.startsWith(f.toLowerCase() + "/"))) {
       continue;
     }
     const idleDays = Math.floor(Math.max(0, opt.now - d.mtimeMs) / DAY_MS);

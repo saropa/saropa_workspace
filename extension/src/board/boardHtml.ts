@@ -100,6 +100,8 @@ export interface BoardStrings {
   // "{count}" steps done, "{days}" days untouched.
   tidyDetail: string;
   tidyMove: string;
+  // "{count}" documents ready to tidy.
+  tidyTitle: string;
   // "{count}" more documents not listed.
   tidyMore: string;
 }
@@ -310,7 +312,7 @@ function tidyBox(model: BoardModel, t: BoardStrings): string {
     })
     .join("");
   const more = v.more > 0 ? `<p class="note">${escapeHtml(t.tidyMore.replace("{count}", String(v.more)))}</p>` : "";
-  return `<section class="box" id="tidy-box"><h2 title="${v.candidates.length + v.more}">${escapeHtml(t.tidyHeading)}</h2><p class="note">${escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays)))}</p>${rows}${more}</section>`;
+  return `<section class="box" id="tidy-box"><h2 title="${escapeHtml(t.tidyTitle.replace("{count}", String(v.candidates.length + v.more)))}">${escapeHtml(t.tidyHeading)}</h2><p class="note">${escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays)))}</p>${rows}${more}</section>`;
 }
 
 const STYLE = `

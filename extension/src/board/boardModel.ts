@@ -448,6 +448,8 @@ export function buildBoard(
             mtimeMs: snap?.files[it.path]?.mtimeMs,
             pinned: it.pinned,
             waiting: it.link?.state === "open",
+            status: it.status,
+            stopping: it.stopping,
           };
         }),
         extra.tidy

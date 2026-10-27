@@ -1913,6 +1913,8 @@
   "releaseBoard.tidy.heading": "Ready to tidy",
   "releaseBoard.tidy.note": "Every step is done and the document has not changed for {days} days or more. Nothing moves until you click and confirm.",
   "releaseBoard.tidy.detail": "{count} steps done, untouched {days} days",
+  "releaseBoard.tidy.title": "{count} documents are ready to tidy",
+  "releaseBoard.tidy.dirty": "Release Board: {path} has unsaved changes, so it was not moved. Save or close it first.",
   "releaseBoard.tidy.move": "Move to archive",
   "releaseBoard.tidy.more": "{count} more documents are ready to tidy",
   "releaseBoard.tidy.confirm": "Move this document to the archive folder?\n\nFrom: {from}\nTo: {to}",
