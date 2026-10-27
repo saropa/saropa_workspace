@@ -16,6 +16,7 @@ export interface HealthConfig {
   staleDays?: number;
 }
 
+// Where the Saropa Lints violations file is looked for when a project names none.
 export const DEFAULT_LINT_FILE = "reports/.saropa_lints/violations.json";
 const DEFAULT_STALE_DAYS = 7;
 // Below this share of expected files analyzed, a lint file is a partial sweep (the same
@@ -35,11 +36,13 @@ export interface RunRecord {
   failed?: number;
 }
 
+// The last recorded lint run and test run of a project.
 export interface RecordedRuns {
   tests?: RunRecord;
   lint?: RunRecord;
 }
 
+// The stored record of runs, per project.
 export interface HealthFile {
   version: 1;
   projects: Record<string, RecordedRuns>;
@@ -47,6 +50,7 @@ export interface HealthFile {
   seen: Record<string, number>;
 }
 
+// The counts read from a trusted lint file, and when they were taken.
 export interface LintResult {
   errors: number;
   warnings: number;
@@ -54,6 +58,7 @@ export interface LintResult {
   takenAt: number;
 }
 
+// The outcome of reading a lint file: the result, or why it cannot be trusted.
 export type LintRead = { ok: true; result: LintResult } | { ok: false; why: "unreadable" | "empty" | "partial" };
 
 function num(v: unknown): number {
@@ -146,8 +151,10 @@ export function parseTestTally(output: string): { run: number; failed: number } 
   return undefined;
 }
 
+// One kind of evidence: failing, passing, missing, or not applicable to the project.
 export type Evidence = "failing" | "passing" | "missing" | "na";
 
+// The lint and test evidence of one project, with a detail line for each.
 export interface ProjectHealth {
   lint: Evidence;
   tests: Evidence;
@@ -162,59 +169,61 @@ function ago(ms: number): string {
   return d >= 1 ? `${d} d ago` : `${Math.max(1, Math.floor(ms / 3600000))} h ago`;
 }
 
+// The lint verdict: the Lints file and the lint shortcut's last run. The newer fresh one
+// decides; a file dated in the future is not evidence.
+function lintEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number, staleMs: number): { lint: Evidence; lintDetail: string } {
+  if (cfg?.lintApplies === false) {
+    return { lint: "na", lintDetail: "No lint for this project" };
+  }
+  let lintDetail = "No trusted lint result";
+  const cands: Array<{ at: number; e: Evidence; detail: string }> = [];
+  if (lintFile?.ok) {
+    const r = lintFile.result;
+    if (r.takenAt > now + 86400000) {
+      lintDetail = "Lints file is dated in the future";
+    } else if (now - r.takenAt > staleMs) {
+      lintDetail = `Lints file is stale (${ago(now - r.takenAt)})`;
+    } else {
+      cands.push({ at: r.takenAt, e: r.errors > 0 ? "failing" : "passing", detail: `${r.errors} errors, ${r.warnings} warnings, ${r.info} info (${ago(now - r.takenAt)})` });
+    }
+  } else if (lintFile && !lintFile.ok) {
+    lintDetail = `Lints file not trusted: ${lintFile.why}`;
+  }
+  if (runs?.lint) {
+    const r = runs.lint;
+    if (now - r.endedAt > staleMs) {
+      lintDetail = `Lint run is stale (${ago(now - r.endedAt)})`;
+    } else {
+      cands.push({ at: r.endedAt, e: r.outcome === "failure" ? "failing" : "passing", detail: `${r.name}: exit ${r.exitCode} (${ago(now - r.endedAt)})` });
+    }
+  }
+  const newest = cands.sort((x, y) => y.at - x.at)[0];
+  return newest ? { lint: newest.e, lintDetail: newest.detail } : { lint: "missing", lintDetail };
+}
+
+// The test verdict: the last recorded test run, if it is fresh and ran at least one test.
+function testsEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, now: number, staleMs: number): { tests: Evidence; testsDetail: string } {
+  if (cfg?.testsApply === false) {
+    return { tests: "na", testsDetail: "No tests for this project" };
+  }
+  const r = runs?.tests;
+  if (!r) {
+    return { tests: "missing", testsDetail: "No test run recorded" };
+  }
+  if (now - r.endedAt > staleMs) {
+    return { tests: "missing", testsDetail: `Test run is stale (${ago(now - r.endedAt)})` };
+  }
+  const tally = r.run !== undefined ? `${r.run} tests run, ${r.failed ?? 0} failed` : `exit code ${r.exitCode}`;
+  // A run that ran no tests is no evidence (a filter that matched nothing).
+  const tests: Evidence = r.outcome === "failure" || (r.failed ?? 0) > 0 ? "failing" : r.run === 0 ? "missing" : "passing";
+  return { tests, testsDetail: `${r.name}: ${tally} (${ago(now - r.endedAt)})` };
+}
+
+// Weighs the lint and test evidence against the age limit. Only fresh, clean evidence of both kinds is clean.
 export function evaluateHealth(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number): ProjectHealth {
   const staleMs = (cfg?.staleDays ?? DEFAULT_STALE_DAYS) * 86400000;
-  // Lint evidence: the Lints file and the lint shortcut's last run. The newer fresh one
-  // decides; a file dated in the future is not evidence.
-  let lint: Evidence = "missing";
-  let lintDetail = "No trusted lint result";
-  if (cfg?.lintApplies === false) {
-    lint = "na";
-    lintDetail = "No lint for this project";
-  } else {
-    const cands: Array<{ at: number; e: Evidence; detail: string }> = [];
-    if (lintFile?.ok) {
-      const r = lintFile.result;
-      if (r.takenAt > now + 86400000) {
-        lintDetail = "Lints file is dated in the future";
-      } else if (now - r.takenAt > staleMs) {
-        lintDetail = `Lints file is stale (${ago(now - r.takenAt)})`;
-      } else {
-        cands.push({ at: r.takenAt, e: r.errors > 0 ? "failing" : "passing", detail: `${r.errors} errors, ${r.warnings} warnings, ${r.info} info (${ago(now - r.takenAt)})` });
-      }
-    } else if (lintFile && !lintFile.ok) {
-      lintDetail = `Lints file not trusted: ${lintFile.why}`;
-    }
-    if (runs?.lint) {
-      const r = runs.lint;
-      if (now - r.endedAt > staleMs) {
-        lintDetail = `Lint run is stale (${ago(now - r.endedAt)})`;
-      } else {
-        cands.push({ at: r.endedAt, e: r.outcome === "failure" ? "failing" : "passing", detail: `${r.name}: exit ${r.exitCode} (${ago(now - r.endedAt)})` });
-      }
-    }
-    const newest = cands.sort((x, y) => y.at - x.at)[0];
-    if (newest) {
-      lint = newest.e;
-      lintDetail = newest.detail;
-    }
-  }
-  let tests: Evidence = "missing";
-  let testsDetail = "No test run recorded";
-  if (cfg?.testsApply === false) {
-    tests = "na";
-    testsDetail = "No tests for this project";
-  } else if (runs?.tests) {
-    const r = runs.tests;
-    if (now - r.endedAt > staleMs) {
-      testsDetail = `Test run is stale (${ago(now - r.endedAt)})`;
-    } else {
-      const tally = r.run !== undefined ? `${r.run} tests run, ${r.failed ?? 0} failed` : `exit code ${r.exitCode}`;
-      // A run that ran no tests is no evidence (a filter that matched nothing).
-      tests = r.outcome === "failure" || (r.failed ?? 0) > 0 ? "failing" : r.run === 0 ? "missing" : "passing";
-      testsDetail = `${r.name}: ${tally} (${ago(now - r.endedAt)})`;
-    }
-  }
+  const { lint, lintDetail } = lintEvidence(cfg, runs, lintFile, now, staleMs);
+  const { tests, testsDetail } = testsEvidence(cfg, runs, now, staleMs);
   const ok = (e: Evidence): boolean => e === "passing" || e === "na";
   return { lint, tests, lintDetail, testsDetail, clean: ok(lint) && ok(tests) };
 }

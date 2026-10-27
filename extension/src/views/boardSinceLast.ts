@@ -17,6 +17,7 @@ const KEY = "saropaWorkspace.releaseBoard.sinceLast.seen";
 const DWELL_MS = 8000;
 
 const changed = new vscode.EventEmitter<void>();
+// Fires when the baseline moved or the setting changed.
 export const onDidChangeSinceLast = changed.event;
 
 let store: vscode.Memento | undefined;
@@ -35,6 +36,7 @@ const on = (): boolean => {
   return c.get<boolean>("enabled", true) && c.get<boolean>("sinceLast.enabled", true);
 };
 
+// How many changes are listed before "and more"; clamped.
 export const maxListed = (): number => clampListed(vscode.workspace.getConfiguration(SETTINGS).get("sinceLast.maxListed", 5));
 
 function labels(): SinceLabels {
@@ -66,6 +68,7 @@ export function currentChange(): SinceLast | undefined {
   return diffSeen(seen, digestOf(board.model, Date.now(), seen));
 }
 
+// The change as sidebar lines.
 export function sidebarLines(change: SinceLast): ReturnType<typeof sinceLines> {
   return sinceLines(change, labels(), maxListed());
 }
@@ -122,6 +125,7 @@ export function markSeenNow(): void {
   }
 }
 
+// Loads the last seen record and registers the "mark as seen" command.
 export function registerSinceLast(context: vscode.ExtensionContext): void {
   store = context.workspaceState;
   seen = readSeen(store.get(KEY));

@@ -11,6 +11,7 @@ const CHAT_LIMIT = 200;
 const REVIEW_MS = 2 * 60 * 1000;
 const PROVIDER_MS = 5000;
 
+// The part of Chat Explorer's public API the board uses.
 export interface ChatApi {
   apiVersion?: number;
   chatsForFile?: (file: string) => Promise<unknown>;
@@ -25,8 +26,10 @@ export interface BoardGroupProvider {
 
 const providers = new Map<string, BoardGroupProvider>();
 const changed = new vscode.EventEmitter<void>();
+// Fires when a group provider is added or removed.
 export const onDidChangeProviders = changed.event;
 
+// Adds a group to the board. Dispose the result to take it away again.
 export function addBoardGroup(provider: BoardGroupProvider): vscode.Disposable {
   providers.set(provider.id, provider);
   changed.fire();
@@ -38,6 +41,7 @@ export function addBoardGroup(provider: BoardGroupProvider): vscode.Disposable {
   });
 }
 
+// Chat Explorer's API when it is installed and speaks version 1, else undefined.
 export async function chatApi(): Promise<ChatApi | undefined> {
   const ext = vscode.extensions.getExtension(CHAT_EXTENSION);
   if (!ext) {

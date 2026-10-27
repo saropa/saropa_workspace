@@ -15,6 +15,7 @@ export type BoardStatus =
   | "reference"
   | "grey";
 
+// Every state, in the order they are counted.
 export const ALL_STATUSES: readonly BoardStatus[] = [
   "red",
   "amber",
@@ -40,6 +41,7 @@ export interface RuleWhen {
   name?: string;
 }
 
+// One rule: when it matches a file, what state it sets.
 export interface Rule {
   id: string;
   when: RuleWhen;
@@ -52,8 +54,10 @@ export interface StatusLineConfig {
   words: Record<string, BoardStatus>;
 }
 
+// A rule parameter: one text, or a list of texts.
 export type ParamValue = string | string[];
 
+// A named set of rules with parameters, shared by projects.
 export interface RuleSetDef {
   description?: string;
   params?: Record<string, ParamValue>;
@@ -61,6 +65,7 @@ export interface RuleSetDef {
   statusLine?: StatusLineConfig;
 }
 
+// One project: where its documents are and which rules apply.
 export interface ProjectDef {
   id: string;
   name?: string;
@@ -80,6 +85,7 @@ export interface ProjectDef {
   health?: HealthConfig;
 }
 
+// The rules file: rule sets, projects and the optional settings of the board.
 export interface BoardConfig {
   version: number;
   ignore: string[];
@@ -132,8 +138,10 @@ export interface Classified {
   statusWord?: string;
 }
 
+// How many documents are in each state.
 export type StatusCounts = Record<BoardStatus, number>;
 
+// Counts with every state at zero.
 export function emptyCounts(): StatusCounts {
   return {
     red: 0,

@@ -12,8 +12,11 @@ export interface OvernightConfig {
   stepTimeoutMs: number;
 }
 
+// When the overnight window opens by default (local time).
 export const DEFAULT_START = "02:00";
+// How long the overnight window stays open by default.
 export const DEFAULT_WINDOW_HOURS = 3;
+// Longest one step may run by default before it is stopped.
 export const DEFAULT_STEP_MINUTES = 30;
 const MAX_WINDOW_HOURS = 6;
 const MAX_STEP_MINUTES = 120;
@@ -68,6 +71,7 @@ export function dueDay(now: Date, cfg: OvernightConfig, lastDay: string | undefi
   return day !== undefined && day !== lastDay ? day : undefined;
 }
 
+// What the plan needs to know about a project: can it lint, can it test.
 export interface OvernightProject {
   id: string;
   // True when the project names a shortcut for that run.
@@ -75,6 +79,7 @@ export interface OvernightProject {
   canTests: boolean;
 }
 
+// One unattended run: a lint or a test run of one project.
 export interface OvernightStep {
   projectId: string;
   kind: "lint" | "tests";
@@ -114,6 +119,7 @@ export interface StepFacts {
   notRunnable: boolean;
 }
 
+// Why a step is skipped instead of started.
 export type SkipReason = "blocked" | "dependency" | "interactive" | "missing" | "notRunnable";
 
 // Why a step must be skipped, or undefined when it may start. Anything that would show a

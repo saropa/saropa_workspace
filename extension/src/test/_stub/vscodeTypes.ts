@@ -27,6 +27,16 @@ export class Uri {
     private readonly raw: string
   ) {}
 
+  // The path part of a "scheme://authority/path" string, as vscode.Uri.path.
+  get path(): string {
+    return this.fsPath.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]*/, "");
+  }
+
+  // The authority part of a "scheme://authority/path" string; empty when there is none.
+  get authority(): string {
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^/]*)/.exec(this.fsPath)?.[1] ?? "";
+  }
+
   static file(p: string): Uri {
     return new Uri("file", p, p);
   }

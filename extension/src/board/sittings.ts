@@ -7,8 +7,10 @@ import { Severity } from "./severity";
 // document. Pure, so the matching and the order are unit-tested without a webview.
 
 export const TIME_BOXES = ["any", "15", "30", "60"] as const;
+// The time the owner has: any, or 15, 30 or 60 minutes.
 export type TimeBox = (typeof TIME_BOXES)[number];
 
+// Plain value to a time box; anything unknown means any.
 export function asTimeBox(v: unknown): TimeBox {
   return typeof v === "string" && (TIME_BOXES as readonly string[]).includes(v) ? (v as TimeBox) : "any";
 }
@@ -27,6 +29,7 @@ export interface SittingDoc {
   cut?: number;
 }
 
+// One open step that can be done now.
 export interface SittingLine {
   project: string;
   projectName: string;
@@ -42,12 +45,14 @@ export interface SittingLine {
   severity?: Severity;
 }
 
+// What the owner has in hand, the time box and the list limit.
 export interface SittingSelection {
   have: string[];
   timeBox: TimeBox;
   maxSteps: number;
 }
 
+// The steps that fit, and counts of those left out and why.
 export interface SittingResult {
   // Steps that can be done now, in order, capped at maxSteps.
   lines: SittingLine[];
@@ -77,6 +82,7 @@ export function compareLines(a: SittingLine, b: SittingLine): number {
   );
 }
 
+// Picks the open steps that fit what the owner has in hand and the time box, in order.
 export function buildSittings(docs: SittingDoc[], dict: NeedsDict, sel: SittingSelection): SittingResult {
   const have = new Set(sel.have);
   const labels = new Map(dict.contexts.map((c) => [c.id, c.label]));

@@ -1,0 +1,53 @@
+// Shared page helpers: escaping, placeholder filling, live lines and the Hand to chat button.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { BoardStrings, escapeHtml, fill, handButton, liveLine } from "../../board/boardHtmlUtil";
+
+const t = new Proxy({} as BoardStrings, {
+  get: (_o, k: string) =>
+    k === "liveLogs" ? "logs {errors}e {warnings}w {crashes}c" : k === "liveProblems" ? "problems {errors}e {warnings}w" : k === "liveLints" ? "lints {errors}e {warnings}w" : `[${k}]`,
+});
+
+test("escapeHtml turns every markup character into a numeric reference", () => {
+  assert.equal(escapeHtml(`<a href="x" title='y'>&</a>`), "&#60;a href=&#34;x&#34; title=&#39;y&#39;&#62;&#38;&#60;/a&#62;");
+});
+
+test("escapeHtml leaves plain text alone and escapes an ampersand every time", () => {
+  assert.equal(escapeHtml("plain text 123"), "plain text 123");
+  assert.equal(escapeHtml("&#38;"), "&#38;#38;");
+  assert.equal(escapeHtml(""), "");
+});
+
+test("fill replaces known placeholders and keeps unknown ones", () => {
+  assert.equal(fill("{count} of {total}", { count: 3 }), "3 of {total}");
+  assert.equal(fill("{a}{a}", { a: "x" }), "xx");
+  assert.equal(fill("{gone}", { gone: undefined }), "{gone}");
+});
+
+test("fill escapes the template and the values, so a title can never add markup", () => {
+  assert.equal(fill("<b>{title}</b>", { title: "<script>alert(1)</script>" }), "&#60;b&#62;&#60;script&#62;alert(1)&#60;/script&#62;&#60;/b&#62;");
+});
+
+test("liveLine names the file and each source that has counts", () => {
+  const line = liveLine({ file: "lib/a.dart", logs: { errors: 2, warnings: 1, crashes: 3 }, problems: { errors: 4, warnings: 0 } }, t);
+  assert.equal(line, "lib/a.dart: logs 2e 1w 3c; problems 4e 0w");
+});
+
+test("liveLine fills a missing crash count with zero and skips sources without counts", () => {
+  assert.equal(liveLine({ file: "x.ts", lints: { errors: 0, warnings: 5 } }, t), "x.ts: lints 0e 5w");
+  assert.equal(liveLine({ file: "x.ts" }, t), "x.ts: ");
+});
+
+test("the Hand to chat button carries its attributes and escaped text", () => {
+  const strings = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "handToChat" ? "Hand <over>" : k === "handToChatTip" ? 'say "hi"' : "") });
+  const html = handButton(strings, 'data-hk="item" data-i="3"');
+  assert.ok(html.startsWith('<button class="hb" data-hk="item" data-i="3"'));
+  assert.ok(html.includes("Hand &#60;over&#62;"));
+  assert.ok(html.includes("title=\"say &#34;hi&#34;\""));
+});
+
+test("no button is drawn when the feature is off", () => {
+  const off = new Proxy({} as BoardStrings, { get: () => "" });
+  assert.equal(handButton(off, 'data-hk="item"'), "");
+});

@@ -9,6 +9,7 @@ export interface InferInput {
   refs: string[];
 }
 
+// A link the board guesses between two documents of one project.
 export interface Suggestion {
   fromProject: string;
   fromPath: string;
@@ -19,6 +20,7 @@ export interface Suggestion {
 
 const MAX = 50;
 
+// The key a suggested link is stored under when it is rejected.
 export function suggestionKey(project: string, from: string, to: string): string {
   return `${project}/${from}->${project}/${to}`;
 }
