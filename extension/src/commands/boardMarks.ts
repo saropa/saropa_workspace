@@ -39,6 +39,15 @@ export async function readMarks(context: vscode.ExtensionContext): Promise<Marks
   return mergeMarks(await readSharedMarks(), await readLocalMarks(context));
 }
 
+// One change at a time: two quick clicks must not both read the file before either writes.
+let writing: Promise<unknown> = Promise.resolve();
+
+export function updateLocalMarks(context: vscode.ExtensionContext, change: (f: MarksFile) => MarksFile): Promise<void> {
+  const next = writing.then(async () => writeLocalMarks(context, change(await readLocalMarks(context))));
+  writing = next.catch(() => undefined);
+  return next;
+}
+
 export async function writeLocalMarks(context: vscode.ExtensionContext, f: MarksFile): Promise<void> {
   const dir = storageDir(context);
   await vscode.workspace.fs.createDirectory(dir);
@@ -49,10 +58,16 @@ export async function writeLocalMarks(context: vscode.ExtensionContext, f: Marks
 // Which project and path a file belongs to, by its place under a project's folder.
 function locate(cfg: BoardConfig, uri: vscode.Uri): { project: string; path: string } | undefined {
   const target = uri.toString();
+  // Drive letters and folders differ in case on Windows; compare file paths that way.
+  const fold = (s: string): string => (uri.scheme === "file" ? s.toLowerCase() : s);
   for (const p of cfg.projects) {
     const base = p.path.endsWith("/") ? p.path : p.path + "/";
-    if (target.startsWith(base)) {
-      return { project: p.id, path: decodeURIComponent(target.slice(base.length)) };
+    if (fold(target).startsWith(fold(base))) {
+      try {
+        return { project: p.id, path: decodeURIComponent(target.slice(base.length)) };
+      } catch {
+        return undefined;
+      }
     }
   }
   return undefined;
@@ -79,8 +94,7 @@ export async function markCommand(context: vscode.ExtensionContext, loadConfig: 
   if (!pick) {
     return;
   }
-  const local = await readLocalMarks(context);
-  await writeLocalMarks(context, setMark(local, markKey(found.project, found.path), pick.change));
+  await updateLocalMarks(context, (local) => setMark(local, markKey(found.project, found.path), pick.change));
 }
 
 // Copies the merged marks into the shared file in the repository.

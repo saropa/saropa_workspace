@@ -102,7 +102,7 @@ export interface BoardModel {
   baseline: boolean;
   profile: Profile;
   // Links the board guesses from documents naming each other; the user accepts or rejects.
-  suggestions: Array<{ key: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
+  suggestions: Array<{ key: string; fromKey: string; toProject: string; toPath: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
   // Folders where documents no rule placed sit, for the "needs a rule" list.
   needsRule: Array<{ project: string; folder: string; count: number }>;
 }
@@ -167,11 +167,13 @@ export function buildBoard(
   previous?: ScanSnapshot,
   health?: Record<string, ProjectHealth>,
   // Links the user accepted (waiting document "project/path" -> targets) and suggestions turned down.
-  extra?: { needs?: Record<string, string[]>; rejected?: string[] }
+  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[] }
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
   const profile: Profile = asProfile(cfg.profile);
+  // Hand pins are exact documents; the rules file's pins are globs.
+  const exactPins = new Set(extra?.pins ?? []);
   const pins = (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp);
   const names = new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id]));
   const defs: ProjectDef[] = [...cfg.projects].sort(
@@ -191,7 +193,7 @@ export function buildBoard(
         continue;
       }
       const facts = snapshot?.projects[def.id]?.facts[r.path]?.facts;
-      const pinned = pins.some((re) => re.test(def.id + "/" + r.path));
+      const pinned = exactPins.has(def.id + "/" + r.path) || pins.some((re) => re.test(def.id + "/" + r.path));
       if (r.status === "amber" && r.note === "blocked" && !pinned) {
         // A waiting document is collapsed into one mark, but one that would stop a
         // release under the profile still counts toward NO-GO.
@@ -313,7 +315,7 @@ export function buildBoard(
   ).flatMap((s) => {
     const a = byKey.get(s.fromProject + "\t" + s.fromPath);
     const b = byKey.get(s.fromProject + "\t" + s.toPath);
-    return a && b ? [{ key: s.key, from: { project: names.get(a.project) ?? a.project, title: a.title, id: a.id }, to: { project: names.get(b.project) ?? b.project, title: b.title, id: b.id } }] : [];
+    return a && b ? [{ key: s.key, fromKey: `${s.fromProject}/${s.fromPath}`, toProject: s.fromProject, toPath: s.toPath, from: { project: names.get(a.project) ?? a.project, title: a.title, id: a.id }, to: { project: names.get(b.project) ?? b.project, title: b.title, id: b.id } }] : [];
   });
   const flags = links
     .filter((l) => l.state !== "open")

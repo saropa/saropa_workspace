@@ -26,9 +26,12 @@ export function emptyMarks(): MarksFile {
 }
 
 // Reads a marks file, tolerating a missing or damaged one: bad parts are dropped.
+const MAX_ENTRIES = 5000;
+const MAX_BYTES = 1_000_000;
+
 export function parseMarks(text: string | undefined): MarksFile {
   const out = emptyMarks();
-  if (!text) {
+  if (!text || text.length > MAX_BYTES) {
     return out;
   }
   let data: Partial<MarksFile>;
@@ -37,22 +40,24 @@ export function parseMarks(text: string | undefined): MarksFile {
   } catch {
     return out;
   }
-  for (const [k, v] of Object.entries(data?.marks ?? {})) {
-    if (v && typeof v === "object") {
+  // A marks file can come from the repository: bound its size and ignore odd keys.
+  const okKey = (k: string): boolean => k.includes("/") && k !== "__proto__" && !k.startsWith("__proto__/") && k.length < 600;
+  for (const [k, v] of Object.entries(data?.marks ?? {}).slice(0, MAX_ENTRIES)) {
+    if (okKey(k) && v && typeof v === "object") {
       out.marks[k] = { inProgress: v.inProgress === true || undefined, pinned: v.pinned === true || undefined };
     }
   }
-  for (const [k, v] of Object.entries(data?.needs ?? {})) {
-    if (Array.isArray(v)) {
-      out.needs[k] = v.filter((x): x is string => typeof x === "string");
+  for (const [k, v] of Object.entries(data?.needs ?? {}).slice(0, MAX_ENTRIES)) {
+    if (okKey(k) && Array.isArray(v)) {
+      out.needs[k] = v.filter((x): x is string => typeof x === "string").slice(0, 50);
     }
   }
-  out.rejected = (Array.isArray(data?.rejected) ? data.rejected : []).filter((x): x is string => typeof x === "string");
+  out.rejected = (Array.isArray(data?.rejected) ? data.rejected : []).filter((x): x is string => typeof x === "string").slice(0, MAX_ENTRIES);
   return out;
 }
 
-// The shared file first, the local marks over it: a local mark (even an unset one) wins
-// per document, and needs and rejections add up.
+// The shared file first, the local marks over it: a local mark wins per document, and needs
+// and rejections add up. A mark from the shared file is switched off by editing that file.
 export function mergeMarks(shared: MarksFile, local: MarksFile): MarksFile {
   const needs: Record<string, string[]> = { ...shared.needs };
   for (const [k, v] of Object.entries(local.needs)) {
@@ -78,12 +83,13 @@ export function setMark(f: MarksFile, key: string, change: MarkEntry): MarksFile
   return { ...f, marks };
 }
 
-// "In progress" turns an open document purple. A finished, deferred or reference document
-// is left alone: a folder says it is not work.
+// "In progress" turns a waiting-to-be-done (amber) document purple. A red document stays red,
+// so a mark can never lift a blocker; a finished, deferred, reference or blocked one is left
+// alone, since its folder says it is not work to start now.
 export function applyMarks(rows: Classified[], f: MarksFile): Classified[] {
   return rows.map((r) =>
-    f.marks[markKey(r.project, r.path)]?.inProgress && (r.status === "red" || r.status === "amber")
-      ? { ...r, status: "purple" as const, note: "" }
+    f.marks[markKey(r.project, r.path)]?.inProgress && r.status === "amber" && r.note !== "blocked"
+      ? { ...r, status: "purple" as const }
       : r
   );
 }

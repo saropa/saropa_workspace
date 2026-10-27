@@ -1,8 +1,8 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { onDidRecordHealth } from "../commands/boardHealth";
-import { onDidChangeMarks, readLocalMarks, writeLocalMarks } from "../commands/boardMarks";
-import { applyMarks, pinnedKeys, splitKey } from "../board/marks";
+import { onDidChangeMarks, readMarks, updateLocalMarks } from "../commands/boardMarks";
+import { applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, acceptBoardRun, hasOutsideProject, openRulesFile, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
@@ -91,7 +91,18 @@ class BoardPanel {
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
     onDidRecordHealth(() => this.schedule(300), null, this.disposables);
-    onDidChangeMarks(() => this.schedule(0), null, this.disposables);
+    // A mark changes only what is drawn, so the stored scan is shown again, not redone.
+    onDidChangeMarks(
+      () =>
+        void readMarks(this.context).then((m) => {
+          if (this.run) {
+            this.run.marks = m;
+            this.render();
+          }
+        }),
+      null,
+      this.disposables
+    );
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.schedule(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && this.schedule(300),
@@ -200,14 +211,14 @@ class BoardPanel {
     const { cfg, marks } = this.run;
     // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
     this.model = buildBoard(
-      { ...cfg, pinned: [...(Array.isArray(cfg.pinned) ? cfg.pinned : []), ...pinnedKeys(marks)] },
+      cfg,
       applyMarks(this.run.result.rows, marks),
       this.run.safety,
       this.run.accepted,
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks) }
     );
     // The same board in the same state is not painted again: no flicker, no lost scroll.
     const key = JSON.stringify([this.model, state]);
@@ -236,17 +247,16 @@ class BoardPanel {
       await vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").update("profile", msg.value, vscode.ConfigurationTarget.Workspace);
     } else if (msg.type === "suggest" && typeof msg.key === "string" && (msg.value === "accept" || msg.value === "reject")) {
       // Only a suggestion the page was actually shown can be acted on.
-      const shown = this.model?.suggestions.some((s) => s.key === msg.key);
-      const [from, to] = msg.key.split("->");
-      if (shown && from && to) {
-        const local = await readLocalMarks(this.context);
-        if (msg.value === "reject") {
-          local.rejected = [...new Set([...local.rejected, msg.key])];
-        } else {
-          const t = splitKey(to);
-          local.needs[from] = [...new Set([...(local.needs[from] ?? []), `${t.project}:${t.path}`])];
-        }
-        await writeLocalMarks(this.context, local);
+      const shown = this.model?.suggestions.find((s) => s.key === msg.key);
+      if (shown) {
+        await updateLocalMarks(this.context, (local) => {
+          if (msg.value === "reject") {
+            local.rejected = [...new Set([...local.rejected, shown.key])];
+          } else {
+            local.needs[shown.fromKey] = [...new Set([...(local.needs[shown.fromKey] ?? []), `${shown.toProject}:${shown.toPath}`])];
+          }
+          return local;
+        });
       }
     } else if (msg.type === "rules") {
       await openRulesFile();

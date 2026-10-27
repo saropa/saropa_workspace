@@ -66,3 +66,40 @@ test("the facts keep the document names, and the board shows the suggestion and 
   assert.equal(accepted.items.find((i) => i.path === "docs/A.md")!.link?.state, "open");
   assert.equal(buildBoard(cfg, rows, undefined, true, snap, undefined, undefined, { rejected: [m.suggestions[0].key] }).suggestions.length, 0);
 });
+
+test("an in-progress mark never lifts a blocker: red stays red, blocked stays collapsed", () => {
+  const marks = setMark(setMark(emptyMarks(), "app/bugs/R.md", { inProgress: true }), "app/docs/W.md", { inProgress: true });
+  const out = applyMarks([row("bugs/R.md", "red"), { ...row("docs/W.md"), note: "blocked" }], marks);
+  assert.deepEqual(out.map((r) => r.status), ["red", "amber"]);
+  const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
+  assert.equal(buildBoard(cfg, out, undefined, true).projects[0].light, "no-go");
+});
+
+test("hand pins are exact documents, not globs", () => {
+  const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
+  const rows = [row("docs/A.md"), row("docs/B.md")];
+  const m = buildBoard(cfg, rows, undefined, true, undefined, undefined, undefined, { pins: ["app/**"] });
+  assert.ok(m.items.every((i) => !i.pinned));
+  const exact = buildBoard(cfg, rows, undefined, true, undefined, undefined, undefined, { pins: ["app/docs/A.md"] });
+  assert.deepEqual(exact.items.filter((i) => i.pinned).map((i) => i.path), ["docs/A.md"]);
+});
+
+test("a marks file from a repository is bounded and ignores odd keys", () => {
+  const m = parseMarks('{"marks":{"__proto__":{"pinned":true},"noslash":{"pinned":true},"app/a.md":{"pinned":true}}}');
+  assert.deepEqual(Object.keys(m.marks), ["app/a.md"]);
+  assert.equal(({} as Record<string, unknown>).pinned, undefined);
+  assert.deepEqual(parseMarks("x".repeat(2_000_000)), emptyMarks());
+});
+
+test("a path containing an arrow still yields the right target", () => {
+  const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
+  const facts = (p: string, t: string) => ({ size: 1, mtimeMs: 1, facts: readFacts(t, p) });
+  const snap: ScanSnapshot = {
+    version: 1,
+    takenAt: 1,
+    projects: { app: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: { "docs/a.md": facts("docs/a.md", "# A\nsee c.md\n"), "docs/x->y/c.md": facts("docs/x->y/c.md", "# C\n") } } },
+  };
+  const m = buildBoard(cfg, [row("docs/a.md"), row("docs/x->y/c.md")], undefined, true, snap);
+  assert.equal(m.suggestions[0]?.toPath, "docs/x->y/c.md");
+  assert.equal(m.suggestions[0]?.fromKey, "app/docs/a.md");
+});
