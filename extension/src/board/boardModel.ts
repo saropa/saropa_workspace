@@ -1,5 +1,6 @@
 import { DocFacts, sizeClass, stepTotals } from "./docFacts";
 import { globToRegExp } from "./glob";
+import { ProjectHealth } from "./health";
 import { Audience, Profile, Severity, asProfile, stops } from "./severity";
 import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
@@ -13,7 +14,7 @@ import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCo
 // The light is honest. NO-GO when anything is in a red folder. Never GO yet: GO needs
 // lint and test evidence (step 6). With no blocker it reads UNVERIFIED, and says why.
 
-export type Light = "no-go" | "unverified";
+export type Light = "no-go" | "unverified" | "go";
 
 export type UnverifiedReason =
   // The scan has not been accepted as the baseline (first scan, or held by the safety check).
@@ -21,7 +22,9 @@ export type UnverifiedReason =
   // Documents that no rule placed.
   | "grey"
   // No lint or test result exists for the project (until step 6).
-  | "health";
+  | "health"
+  // Open documents whose text was not read, so their severity is unknown.
+  | "unread";
 
 export interface BoardItem {
   id: number;
@@ -73,6 +76,7 @@ export interface BoardProject {
   blocked: number;
   counts: StatusCounts;
   dependsOn: string[];
+  health?: ProjectHealth;
 }
 
 // One step of a chain, in the order things must be finished.
@@ -157,7 +161,8 @@ export function buildBoard(
   safety: SafetyResult | undefined,
   accepted: boolean,
   snapshot?: ScanSnapshot,
-  previous?: ScanSnapshot
+  previous?: ScanSnapshot,
+  health?: Record<string, ProjectHealth>
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
@@ -225,12 +230,27 @@ export function buildBoard(
     if (counts.grey > 0) {
       reasons.push("grey");
     }
-    reasons.push("health");
+    const h = health?.[def.id];
+    if (!h?.clean) {
+      reasons.push("health");
+    }
+    if (items.some((i) => i.severity === undefined)) {
+      reasons.push("unread");
+    }
+    // A scan held by the safety check must never hide red work the accepted scan had.
+    const blocker =
+      counts.red > 0 ||
+      items.some((i) => i.stopping) ||
+      blockedStop > 0 ||
+      (!accepted && (previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
+      h?.lint === "failing" ||
+      h?.tests === "failing";
     projects.push({
       id: def.id,
       name: def.name ?? def.id,
-      // A scan held by the safety check must never hide red work the accepted scan had.
-      light: counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0 || (!accepted && (previous?.projects[def.id]?.counts.red ?? 0) > 0) ? "no-go" : "unverified",
+      // GO needs every check to pass; anything missing keeps it at UNVERIFIED.
+      light: blocker ? "no-go" : reasons.length === 0 ? "go" : "unverified",
+      health: h,
       reasons,
       items,
       blocked,

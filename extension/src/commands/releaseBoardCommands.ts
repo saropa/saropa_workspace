@@ -4,6 +4,9 @@ import defaultRules from "../board/defaultRules.json";
 import { FileSource, ScanResult, ScanSnapshot, scanAll } from "../board/scanner";
 import { SafetyResult, checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
+import { ProjectHealth } from "../board/health";
+import { collectHealth, startHealthRecorder } from "./boardHealth";
+import { ShortcutStore } from "../model/shortcutStore";
 import { Profile, asProfile } from "../board/severity";
 import { globToRegExp } from "../board/glob";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
@@ -157,6 +160,7 @@ export interface BoardRun {
   accepted: boolean;
   // The last accepted scan this run was compared with.
   previous?: ScanSnapshot;
+  health: Record<string, ProjectHealth>;
 }
 
 // Gate shared by every board command. Returns false (after telling the user why) when
@@ -198,7 +202,8 @@ export async function runBoardScan(context: vscode.ExtensionContext, quiet = fal
   if (safety.clean) {
     await writeAccepted(dir, result.snapshot);
   }
-  return { cfg, result, safety, dir, accepted: safety.clean, previous: accepted };
+  const health = await collectHealth(context, cfg);
+  return { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health };
 }
 
 // Stores the scan as the baseline. Refused (false) when the stored baseline is no longer
@@ -300,7 +305,8 @@ async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
   );
 }
 
-export function registerReleaseBoard(context: vscode.ExtensionContext): void {
+export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
+  startHealthRecorder(context, store, loadConfig);
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context)),

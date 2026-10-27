@@ -31,6 +31,10 @@ function strings(): BoardStrings {
     reasonBaseline: l10n("releaseBoard.panel.reasonBaseline"),
     reasonGrey: l10n("releaseBoard.panel.reasonGrey", { count: "{count}" }),
     reasonHealth: l10n("releaseBoard.panel.reasonHealth"),
+    reasonUnread: l10n("releaseBoard.panel.reasonUnread"),
+    go: l10n("releaseBoard.panel.go"),
+    healthLint: l10n("releaseBoard.panel.healthLint"),
+    healthTests: l10n("releaseBoard.panel.healthTests"),
     allClear: l10n("releaseBoard.panel.allClear"),
     dependsOn: l10n("releaseBoard.panel.dependsOn"),
     linkedHeading: l10n("releaseBoard.panel.linkedHeading"),
@@ -105,7 +109,7 @@ class BoardPanel {
     if (!this.run) {
       return;
     }
-    this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted, this.run.result.snapshot, this.run.previous);
+    this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted, this.run.result.snapshot, this.run.previous, this.run.health);
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev);

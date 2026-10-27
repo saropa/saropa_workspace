@@ -43,7 +43,7 @@ export function registerCommandModules(
   registerSimulationPreview(context);
   registerRunAnalytics(context);
   registerDailyReport(context, store);
-  registerReleaseBoard(context);
+  registerReleaseBoard(context, store);
   registerRunOutputDiff(context);
   // treeView is threaded through only for runSelectedShortcut (#26, moved here from
   // wiringStatusBars.ts) — it needs the live tree selection, which no other command
