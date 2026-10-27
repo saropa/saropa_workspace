@@ -4,7 +4,7 @@
 import * as path from "path";
 import { l10n } from "../i18n/l10n";
 import { escapeHtml } from "../utils/escapeHtml";
-import { fenceBlock } from "./actionRunner";
+import { fenceBlock } from "./actionReport";
 import { MemberOutcome, sanitizeDetail, defaultNote, statusLabel, embedMemberReport } from "./routineText";
 // The structured brief — a projection of data writeRoutineSummary already has,
 // shaped for the webview panel. No new computation; this packages outcomes,

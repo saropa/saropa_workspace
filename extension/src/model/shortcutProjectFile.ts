@@ -71,6 +71,11 @@ export async function ensureProjectFileOn(folder: vscode.WorkspaceFolder): Promi
       );
       continue;
     }
+    // Valid JSON that is not an object (null, a number, an array) carries no
+    // shortcuts: migrate it as an empty file rather than throwing on `.pins`.
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      parsed = emptyProjectShortcutsFile();
+    }
     if (Array.isArray(parsed.pins)) {
       for (const pin of parsed.pins) {
         if (
