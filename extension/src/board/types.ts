@@ -84,6 +84,10 @@ export interface BoardConfig {
   extensions?: string[];
   // Folders whose files count as "source files named" in a document.
   sourceDirs?: string[];
+  // Groups made by hand: documents matching any glob of "project/path" form one group.
+  groups?: Array<{ name: string; match: string[] }>;
+  // Globs of "project/path" that are never grouped.
+  ungrouped?: string[];
 }
 
 // One file as seen by a scan.

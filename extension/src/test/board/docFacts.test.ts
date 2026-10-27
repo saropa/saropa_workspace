@@ -68,3 +68,9 @@ test("size classes", () => {
 test("a bad mention pattern in a user rule file mentions nothing and does not throw", () => {
   assert.deepEqual(readFacts("x", "a.md", { mentions: { a: "(" } }).mentions, []);
 });
+
+test("a heading-looking line inside a code block is not a heading", () => {
+  const f = readFacts("# Real\n\n```md\n# not a heading\n```\n", "docs/a.md");
+  assert.equal(f.headings, 1);
+  assert.equal(f.title, "Real");
+});

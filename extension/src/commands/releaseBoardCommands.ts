@@ -96,7 +96,7 @@ async function loadConfig(): Promise<BoardConfig> {
     const base = folders[0].uri;
     const projects = cfg.projects.map((p) => ({
       ...p,
-      path: (path.isAbsolute(p.path) ? vscode.Uri.file(p.path) : vscode.Uri.joinPath(base, p.path)).toString(),
+      path: (path.isAbsolute(p.path) ? (base.scheme === "file" ? vscode.Uri.file(p.path) : base.with({ path: p.path })) : vscode.Uri.joinPath(base, p.path)).toString(),
     }));
     return { ...cfg, projects };
   }
@@ -149,20 +149,26 @@ export interface BoardRun {
   dir: vscode.Uri;
   // The scan is the accepted baseline (clean, or the user accepted it).
   accepted: boolean;
+  // The last accepted scan this run was compared with.
+  previous?: ScanSnapshot;
 }
 
 // Gate shared by every board command. Returns false (after telling the user why) when
 // the board is off or there is nothing to scan.
-function ready(): boolean {
+function ready(quiet = false): boolean {
   const enabled = vscode.workspace
     .getConfiguration("saropaWorkspace.releaseBoard")
     .get<boolean>("enabled", false);
   if (!enabled) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.disabled"));
+    if (!quiet) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.disabled"));
+    }
     return false;
   }
   if (!vscode.workspace.workspaceFolders?.length) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
+    if (!quiet) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
+    }
     return false;
   }
   return true;
@@ -170,8 +176,8 @@ function ready(): boolean {
 
 // Scan, run the safety check against the last accepted scan, and store the scan as the
 // new baseline only when the check found nothing.
-export async function runBoardScan(context: vscode.ExtensionContext): Promise<BoardRun | undefined> {
-  if (!ready()) {
+export async function runBoardScan(context: vscode.ExtensionContext, quiet = false): Promise<BoardRun | undefined> {
+  if (!ready(quiet)) {
     return undefined;
   }
   const cfg = await loadConfig();
@@ -186,12 +192,19 @@ export async function runBoardScan(context: vscode.ExtensionContext): Promise<Bo
   if (safety.clean) {
     await writeAccepted(dir, result.snapshot);
   }
-  return { cfg, result, safety, dir, accepted: safety.clean };
+  return { cfg, result, safety, dir, accepted: safety.clean, previous: accepted };
 }
 
-export async function acceptBoardRun(run: BoardRun): Promise<void> {
+// Stores the scan as the baseline. Refused (false) when the stored baseline is no longer
+// the one this scan was compared with: the user must look at a fresh scan first.
+export async function acceptBoardRun(run: BoardRun): Promise<boolean> {
+  const stored = await readAccepted(run.dir);
+  if ((stored?.takenAt ?? 0) !== (run.previous?.takenAt ?? 0)) {
+    return false;
+  }
   await writeAccepted(run.dir, run.result.snapshot);
   run.accepted = true;
+  return true;
 }
 
 async function scan(context: vscode.ExtensionContext): Promise<void> {
@@ -224,8 +237,8 @@ async function scan(context: vscode.ExtensionContext): Promise<void> {
     safety.baseline ? l10n("releaseBoard.acceptBaseline") : l10n("releaseBoard.held", { count: safety.findings.length }),
     accept
   );
-  if (pick === accept) {
-    await acceptBoardRun(run);
+  if (pick === accept && !(await acceptBoardRun(run))) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
   }
 }
 

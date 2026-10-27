@@ -3,6 +3,9 @@
 // pull requests, links and other projects. Pure and cheap; cached by size and modified
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
+// Bump when the way facts are read changes, so cached facts from an older reader are dropped.
+export const FACTS_VERSION = 1;
+
 export interface DocFacts {
   title: string;
   headings: number;
@@ -18,6 +21,10 @@ export interface DocFacts {
   langs: Record<string, number>;
   docRefs: number;
   sourceRefs: number;
+  // The source files named (first 40), for grouping documents that touch the same files.
+  sourceFiles: string[];
+  // Targets of "Needs:" lines: what must be done before this document's work can finish.
+  needs: string[];
   prs: number;
   urls: number;
   // Ids of other projects the text mentions (see ProjectDef.mentions).
@@ -61,6 +68,23 @@ function sqlTitle(text: string): string {
   return "";
 }
 
+// "Needs: docs/PLAN_A.md, [Other](../x/PLAN_B.md); supabase:db-access/run.sql" gives the
+// three targets. A target is a path, a file name, a Markdown link, or "project:path".
+export function parseNeeds(body: string): string[] {
+  const out: string[] = [];
+  for (const m of body.matchAll(/^[\s>*_-]*\**needs\**\s*:\s*\**\s*(.+)$/gim)) {
+    // A Markdown link stands for its target, so a comma in the link text splits nothing.
+    const line = m[1].replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
+    for (const part of line.split(/[;,]|\s+and\s+/)) {
+      const t = part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "");
+      if (t && !out.includes(t)) {
+        out.push(t);
+      }
+    }
+  }
+  return out;
+}
+
 export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
   const isSql = path.toLowerCase().endsWith(".sql");
   // Opening fences carry the language tag; closing fences have none.
@@ -98,7 +122,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
       }
     }
   }
-  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})\s+(.+)$/gm)];
+  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})[ \t]+(.+)$/gm)];
   const title = isSql ? sqlTitle(text) : (heads[0]?.[2] ?? "").trim().slice(0, 80);
 
   const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
@@ -124,8 +148,10 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     rowsDone,
     codeBlocks,
     langs: isSql ? { sql: 1 } : langs,
-    docRefs: unique(body.matchAll(/[\w./-]+\.md/g)),
+    docRefs: unique(body.matchAll(/[\w./-]{1,200}\.md/g)),
     sourceRefs: unique(text.matchAll(srcRe)),
+    sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
+    needs: isSql ? [] : parseNeeds(body),
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
     mentions: mentions.sort(),

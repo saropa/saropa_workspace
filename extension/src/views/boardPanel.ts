@@ -2,7 +2,7 @@ import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { BoardRun, acceptBoardRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
-import { BoardStrings, renderBoard } from "../board/boardHtml";
+import { BoardStrings, escapeHtml, renderBoard } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
@@ -33,12 +33,25 @@ function strings(): BoardStrings {
     reasonHealth: l10n("releaseBoard.panel.reasonHealth"),
     allClear: l10n("releaseBoard.panel.allClear"),
     dependsOn: l10n("releaseBoard.panel.dependsOn"),
+    linkedHeading: l10n("releaseBoard.panel.linkedHeading"),
+    linkedNote: l10n("releaseBoard.panel.linkedNote"),
+    flagsHeading: l10n("releaseBoard.panel.flagsHeading"),
+    flagsNote: l10n("releaseBoard.panel.flagsNote"),
+    hub: l10n("releaseBoard.panel.hub"),
   };
+}
+
+function emptyPage(text: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"></head><body style="font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:16px"><p>${escapeHtml(text)}</p></body></html>`;
 }
 
 class BoardPanel {
   private model: BoardModel | undefined;
   private run: BoardRun | undefined;
+  // Bumped on every render; messages from an older page are ignored.
+  private rev = 0;
+  // Each refresh takes a number; a scan that finishes after a newer one started is dropped.
+  private scanSeq = 0;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -46,6 +59,12 @@ class BoardPanel {
     private readonly panel: vscode.WebviewPanel
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
+    vscode.workspace.onDidChangeWorkspaceFolders(() => void this.refresh(true), null, this.disposables);
+    vscode.workspace.onDidChangeConfiguration(
+      (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && void this.refresh(true),
+      null,
+      this.disposables
+    );
     panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
   }
 
@@ -53,9 +72,20 @@ class BoardPanel {
     this.panel.reveal();
   }
 
-  async refresh(): Promise<void> {
+  async refresh(quiet = false): Promise<void> {
     try {
-      this.run = await runBoardScan(this.context);
+      const seq = ++this.scanSeq;
+      const run = await runBoardScan(this.context, quiet);
+      if (seq !== this.scanSeq) {
+        return;
+      }
+      this.run = run;
+      if (!this.run) {
+        this.model = undefined;
+        this.rev += 1;
+        this.panel.webview.html = emptyPage(l10n("releaseBoard.disabled"));
+        return;
+      }
       this.render();
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
@@ -66,27 +96,39 @@ class BoardPanel {
     if (!this.run) {
       return;
     }
-    this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted, this.run.result.snapshot);
+    this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted, this.run.result.snapshot, this.run.previous);
     const nonce = crypto.randomBytes(16).toString("base64");
-    this.panel.webview.html = renderBoard(this.model, strings(), nonce);
+    this.rev += 1;
+    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev);
   }
 
   private async onMessage(message: unknown): Promise<void> {
     if (typeof message !== "object" || message === null) {
       return;
     }
-    const msg = message as { type?: string; id?: number };
+    const msg = message as { type?: string; id?: number; rev?: number };
+    if (msg.rev !== this.rev) {
+      return;
+    }
     if (msg.type === "refresh") {
       await this.refresh();
-    } else if (msg.type === "accept" && this.run) {
-      await acceptBoardRun(this.run);
-      this.render();
+    } else if (msg.type === "accept" && this.run && (this.model?.baseline || this.model?.safetyHold)) {
+      if (await acceptBoardRun(this.run)) {
+        this.render();
+      } else {
+        void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
+        await this.refresh();
+      }
     } else if (msg.type === "open" && typeof msg.id === "number") {
       const item = this.model?.items[msg.id];
       const project = this.run?.cfg.projects.find((p) => p.id === item?.project);
       if (item && project) {
         const uri = vscode.Uri.joinPath(vscode.Uri.parse(project.path), item.path);
-        await vscode.window.showTextDocument(uri, { preview: true });
+        try {
+          await vscode.window.showTextDocument(uri, { preview: true });
+        } catch (e) {
+          void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+        }
       }
     }
   }
@@ -110,7 +152,7 @@ export async function openBoard(context: vscode.ExtensionContext): Promise<void>
     "saropaWorkspace.releaseBoard",
     l10n("releaseBoard.panel.title"),
     vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One,
-    { enableScripts: true, retainContextWhenHidden: true }
+    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
   current = new BoardPanel(context, panel);
   await current.refresh();
