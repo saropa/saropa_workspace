@@ -68,6 +68,8 @@ export function compileProject(cfg: BoardConfig, p: ProjectDef): CompiledProject
       ordered.push({ ruleSet: name, rule: r });
     }
   }
+  // A rule the user confirmed from the board to win comes before every other rule, whichever list it sits in.
+  ordered.sort((a, b) => Number(b.rule.set.final === true) - Number(a.rule.set.final === true));
   const rules = ordered.map(({ ruleSet, rule }) => ({
     ruleSet,
     rule,
@@ -111,6 +113,7 @@ export function classifyFile(
   let note = "";
   let rule: string | undefined;
   let ruleSet: string | undefined;
+  let final = false;
   for (const c of cp.rules) {
     if (c.rule.when.project !== undefined && c.rule.when.project !== cp.project.id) {
       continue;
@@ -126,10 +129,11 @@ export function classifyFile(
     note = c.rule.set.note ?? "";
     rule = c.rule.id;
     ruleSet = c.ruleSet;
+    final = c.rule.set.final === true;
     break;
   }
   let usedWord: string | undefined;
-  if (statusWord && cp.statusLine && cp.statusLine.appliesTo.includes(status)) {
+  if (!final && statusWord && cp.statusLine && cp.statusLine.appliesTo.includes(status)) {
     const to = cp.statusLine.words[statusWord];
     if (to) {
       status = to;

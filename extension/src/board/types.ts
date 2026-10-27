@@ -31,6 +31,9 @@ export interface RuleSet_Set {
   status: BoardStatus;
   kind?: string;
   note?: string;
+  // A rule the user confirmed from the board to win: it is tried before every other rule and the
+  // Status line does not move its document. Only rules written from the board carry it.
+  final?: boolean;
 }
 
 // A rule matches on the project-relative path, the file name, or both. Globs support

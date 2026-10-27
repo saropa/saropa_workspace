@@ -161,7 +161,7 @@ test("a status chosen for one document writes a rule for its path, first, after 
   assert.equal(await changeDocStatus(run, doc), true);
   const written = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.deepEqual(written.ruleSets["my-overrides"].rules.map((r: { id: string }) => r.id), ["status-docs-loose-a-md", "old"]);
-  assert.deepEqual(written.ruleSets["my-overrides"].rules[0], { id: "status-docs-loose-a-md", when: { path: "docs/loose/a.md", project: "app" }, set: { status: "green" } });
+  assert.deepEqual(written.ruleSets["my-overrides"].rules[0], { id: "status-docs-loose-a-md", when: { path: "docs/loose/a.md", project: "app" }, set: { status: "green", final: true } });
   assert.equal(stub.__warningMessages().length, 1, "one confirmation was asked");
   assert.ok(stub.__warningMessages()[0].includes("docs/loose/a.md") && stub.__warningMessages()[0].includes("Done"));
 });
@@ -236,7 +236,7 @@ test("the confirmation for a status says the project's light may change", async 
   vs.__setPickHandler(async (items) => pickDone(items));
   confirmAdd();
   await changeDocStatus(run, doc);
-  assert.ok(stub.__warningMessages()[0].includes("light may change"));
+  assert.ok(stub.__warningMessages()[0].includes("move the project's light"));
   assert.ok(stub.__warningMessages()[0].includes("docs/loose/a.md"));
 });
 
@@ -245,7 +245,38 @@ test("a row's Assign rule asks with text that says it also changes documents tha
   vs.__setPickHandler(pickBug);
   confirmAdd();
   assert.equal(await assignFolderRule(run, entry, true), true);
-  assert.ok(stub.__warningMessages()[0].includes("already have a status"));
+  assert.ok(stub.__warningMessages()[0].includes("ahead of all the others"));
   const written = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.deepEqual(Object.keys(written.ruleSets), ["my-overrides"]);
+});
+
+test("a rule for a project whose id is made from a shared folder name is refused", async () => {
+  const { file, run } = setup();
+  const unstable = { ...run, cfg: { ...run.cfg, projects: [{ ...run.cfg.projects[0], id: "lib-2", path: vscode.Uri.file(path.join(path.dirname(file), "..", "lib")).toString() }] } } as BoardRun;
+  vs.__setPickHandler(async (items) => pickDone(items));
+  confirmAdd();
+  assert.equal(await changeDocStatus(unstable, { ...doc, project: "lib-2" }), false);
+  assert.equal(fs.existsSync(file), false);
+  assert.ok(stub.__warningMessages().some((m) => m.includes("lib-2") && m.includes("Nothing was written")));
+});
+
+test("a link made while the dialogs were open is caught by the check just before the write", async () => {
+  const { dir, file, run } = setup();
+  const real = path.join(dir, "elsewhere.json");
+  fs.writeFileSync(real, "{}\n");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "{}\n");
+  vs.__setPickHandler(async (items) => pickDone(items));
+  let swapped = false;
+  stub.__setWarningAnswer((_m, items) => {
+    if (!swapped) {
+      swapped = true;
+      fs.rmSync(file);
+      fs.symlinkSync(real, file);
+    }
+    return items.find((i) => i === "Add rule");
+  });
+  assert.equal(await changeDocStatus(run, doc), false);
+  assert.equal(fs.readFileSync(real, "utf8"), "{}\n", "nothing was written through the link");
+  assert.ok(stub.__warningMessages().some((m) => m.includes("symbolic link")));
 });

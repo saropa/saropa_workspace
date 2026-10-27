@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { AssignRefusal, AssignResult, RuleCategory, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, ruleCategories } from "../board/ruleAssign";
+import { AssignRefusal, AssignResult, RuleCategory, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, idIsStable, ruleCategories } from "../board/ruleAssign";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
@@ -87,6 +87,11 @@ async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
     return false;
   }
+  const def = run.cfg.projects.find((p) => p.id === c.project);
+  if (def && !idIsStable(def.id, def.path)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unstableId", { project: def.id }));
+    return false;
+  }
   const categories = ruleCategories(run.cfg);
   if (categories.length === 0) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noRule.noCategories"));
@@ -102,7 +107,8 @@ async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
     return false;
   }
-  if ((await isLink(vscode.Uri.joinPath(root.uri, ".saropa"))) || (await isLink(uri))) {
+  const linked = async (): Promise<boolean> => (await isLink(vscode.Uri.joinPath(root.uri, ".saropa"))) || (await isLink(uri));
+  if (await linked()) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
     return false;
   }
@@ -125,6 +131,10 @@ async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
   // The file is read again just before the write: a change made while the dialogs were open wins.
   if (hasUnsavedCopy(uri) || !sameRead(await readRules(uri), before)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.changed", { file: RULES_FILE }));
+    return false;
+  }
+  if (await linked()) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
     return false;
   }
   try {

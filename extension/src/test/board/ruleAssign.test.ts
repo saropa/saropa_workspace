@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import defaultRules from "../../board/defaultRules.json";
-import { OVERRIDE_RULE_SET, USER_RULE_SET, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, losesData, ruleCategories } from "../../board/ruleAssign";
+import { OVERRIDE_RULE_SET, USER_RULE_SET, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, idIsStable, losesData, ruleCategories } from "../../board/ruleAssign";
+import en from "../../i18n/locales/en.json";
 import { layerUserRules } from "../../commands/boardConfigLoad";
 import { compileProject, classifyFile } from "../../board/ruleEngine";
 import { BoardConfig } from "../../board/types";
@@ -174,8 +175,8 @@ test("a status for one document goes first, into the my-overrides set when no pr
     ruleSets: {
       [OVERRIDE_RULE_SET]: {
         rules: [
-          { id: "status-docs-b-md", when: { path: "docs/b.md", project: "app" }, set: { status: "red", kind: "bug" } },
-          { id: "status-docs-a-md", when: { path: "docs/a.md", project: "app" }, set: { status: "green" } },
+          { id: "status-docs-b-md", when: { path: "docs/b.md", project: "app" }, set: { status: "red", kind: "bug", final: true } },
+          { id: "status-docs-a-md", when: { path: "docs/a.md", project: "app" }, set: { status: "green", final: true } },
         ],
       },
     },
@@ -266,4 +267,59 @@ test("a rules file with a byte order mark or bytes that are not UTF-8 is not rea
   assert.equal(decodeRules(new Uint8Array([0xef, 0xbb, 0xbf, 0x7b, 0x7d])), undefined);
   assert.equal(decodeRules(new Uint8Array([0x7b, 0xff, 0x7d])), undefined);
   assert.equal(decodeRules(new TextEncoder().encode('{"a": "\u00e9\u4e2d"}')), '{"a": "\u00e9\u4e2d"}');
+});
+
+const statusRed = { status: "red" as const, label: "Address now" };
+
+test("the Status line cannot undo a status the user confirmed from the board, but still moves an ordinary rule's document", () => {
+  const project = { id: "a", path: "a", roots: ["docs"], ruleSets: [OVERRIDE_RULE_SET, "doc-kinds", "status-line", "folder-states", USER_RULE_SET] };
+  const mine = addDocRule(undefined, { project: "a", path: "docs/x.md", category: statusRed });
+  assert.ok(mine.ok);
+  assert.deepEqual((JSON.parse(mine.text).ruleSets[OVERRIDE_RULE_SET].rules[0] as { set: object }).set, { status: "red", final: true });
+  const cfg = layerUserRules(shipped, JSON.parse(mine.text) as Partial<BoardConfig>);
+  const cp = compileProject(cfg, project);
+  assert.equal(classifyFile(cp, files("docs/x.md"), "done").status, "red", "the user's red stays although the document says Status: done");
+  const plain = addFolderRule(undefined, { project: "a", folder: "docs", category: statusRed });
+  assert.ok(plain.ok);
+  const cfgPlain = layerUserRules(shipped, JSON.parse(plain.text) as Partial<BoardConfig>);
+  assert.equal(classifyFile(compileProject(cfgPlain, project), files("docs/y.md"), "done").status, "green", "a folder rule for unplaced documents is not final");
+});
+
+test("a rule the user confirmed wins over the project's own rules and over any rule set", () => {
+  const mine = addDocRule(undefined, { project: "a", path: "bugs/BUG_x.md", category: green });
+  assert.ok(mine.ok);
+  const cfg = layerUserRules(shipped, JSON.parse(mine.text) as Partial<BoardConfig>);
+  const own = [{ id: "own", when: { path: "bugs/**" }, set: { status: "amber" as const } }];
+  const cp = compileProject(cfg, { id: "a", path: "a", roots: ["bugs"], ruleSets: ["folder-states", OVERRIDE_RULE_SET], rules: own });
+  assert.equal(classifyFile(cp, files("bugs/BUG_x.md"), undefined).status, "green", "ahead of the project's own rule and of a set listed after the shipped ones");
+  assert.equal(classifyFile(cp, files("bugs/BUG_y.md"), undefined).status, "amber", "other documents keep the project's own rule");
+});
+
+test("a project id made from a shared folder name is not stable; a plain name or an id with a matching folder is", () => {
+  assert.equal(idIsStable("lib", "file:///w/lib"), true);
+  assert.equal(idIsStable("lib-2", "file:///w/other/lib"), false);
+  assert.equal(idIsStable("lib-2", "file:///w/lib-2"), true, "a folder really named lib-2");
+  assert.equal(idIsStable("app-3", "/w/app-3/"), true);
+  assert.equal(idIsStable("app", "file:///w/packages/app-x"), true, "an id with no number suffix is a plain id");
+});
+
+test("broken JSON gets the not-valid-JSON refusal even when it also repeats a key", () => {
+  assert.deepEqual(addFolderRule('{"a": 1, "a": 2', { project: "app", folder: "docs", category: bug }), { ok: false, reason: "parse" });
+});
+
+test("the busy texts say apart: a dialog is open, a scan is running, an old result is shown", () => {
+  const keys = ["busyDialog", "busyScan", "busyStale"].map((k) => (en as Record<string, string>)["releaseBoard.rowMenu." + k]);
+  assert.ok(keys.every((k) => typeof k === "string"));
+  assert.equal(new Set(keys).size, 3);
+  assert.ok(keys[0].includes("dialog") && !keys[0].includes("scan"));
+  assert.ok(keys[1].includes("scan is running"));
+  assert.ok(keys[2].includes("last result") && keys[2].includes("Refresh"));
+  assert.equal((en as Record<string, string>)["releaseBoard.rowMenu.busy"], undefined);
+});
+
+test("the confirmations say plainly that the rule can turn a blocking document green and move the light to GO", () => {
+  for (const k of ["statusConfirm", "assignConfirm"]) {
+    const text = (en as Record<string, string>)["releaseBoard.rowMenu." + k];
+    assert.ok(text.includes("turn a document that blocks the release green") && text.includes("for example to GO") && text.includes("Status line cannot undo it"), k);
+  }
 });

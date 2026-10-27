@@ -249,8 +249,9 @@ class BoardPanel extends BoardPanelWiring {
     if (!entry || !run) {
       return;
     }
-    if (this.scanning || this.cached || this.assigning) {
-      void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.busy"));
+    const busy = this.busyReason();
+    if (busy) {
+      void vscode.window.showInformationMessage(l10n(busy));
       return;
     }
     if (kind === "preview") {
@@ -270,6 +271,12 @@ class BoardPanel extends BoardPanelWiring {
     }
   }
 
+  // Why a rule cannot be added now, as a message key: another rule dialog is open, a scan is
+  // running, or the page shows an old result. Undefined when it can.
+  private busyReason(): string | undefined {
+    return this.assigning ? "releaseBoard.rowMenu.busyDialog" : this.scanning ? "releaseBoard.rowMenu.busyScan" : this.cached ? "releaseBoard.rowMenu.busyStale" : undefined;
+  }
+
   // An entry of the menu on a document row. The page sent the entry name and the item's index;
   // the document is the one this panel painted at that index.
   private async rowMenu(act: string, id: number): Promise<void> {
@@ -286,8 +293,9 @@ class BoardPanel extends BoardPanelWiring {
     } else if (act === "rules") {
       await openRulesFile({ project: item.project, folder });
     } else if (act === "status" || act === "assign") {
-      if (this.scanning || this.cached || this.assigning) {
-        void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.busy"));
+      const busy = this.busyReason();
+      if (busy) {
+        void vscode.window.showInformationMessage(l10n(busy));
         return;
       }
       this.assigning = true;

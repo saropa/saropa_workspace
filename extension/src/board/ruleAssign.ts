@@ -145,9 +145,6 @@ export function addDocRule(text: string | undefined, a: { project: string; path:
 function addRule(text: string | undefined, a: RuleSpec): AssignResult {
   const { glob } = a;
   const blank = text === undefined || text.trim() === "";
-  if (!blank && losesData(text as string)) {
-    return { ok: false, reason: "lossy" };
-  }
   let doc: unknown;
   if (blank) {
     doc = { version: 1 };
@@ -157,6 +154,10 @@ function addRule(text: string | undefined, a: RuleSpec): AssignResult {
     } catch {
       return { ok: false, reason: "parse" };
     }
+  }
+  // Only a file that parses is looked at for data a rewrite would lose.
+  if (!blank && losesData(text as string)) {
+    return { ok: false, reason: "lossy" };
   }
   if (!isObject(doc)) {
     return { ok: false, reason: "shape" };
@@ -170,12 +171,16 @@ function addRule(text: string | undefined, a: RuleSpec): AssignResult {
   for (let n = 2; used.has(id); n++) {
     id = `${a.idBase}-${n}`;
   }
-  const set: Record<string, string> = { status: a.category.status };
+  const set: Record<string, string | boolean> = { status: a.category.status };
   if (a.category.kind) {
     set.kind = a.category.kind;
   }
   if (a.category.note) {
     set.note = a.category.note;
+  }
+  // A rule that must win is final: tried first, and the Status line does not move its document.
+  if (a.front) {
+    set.final = true;
   }
   const rule = { id, when: { path: glob, project: a.project }, set };
   if (a.front) {
@@ -295,4 +300,21 @@ export function losesData(text: string): boolean {
     }
   }
   return false;
+}
+
+// True when a project id names its folder, so a rule saved for it cannot later hit another folder.
+// An id such as "lib-2" is made from a folder name when two folders share it; it changes when folders
+// are added, removed or put in another order. `path` is the project's path or URI string.
+export function idIsStable(id: string, path: string): boolean {
+  if (!/-\d+$/.test(id)) {
+    return true;
+  }
+  const last = path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+  let name = last;
+  try {
+    name = decodeURIComponent(last);
+  } catch {
+    name = last;
+  }
+  return name === id;
 }
