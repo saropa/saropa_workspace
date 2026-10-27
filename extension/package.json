@@ -2480,6 +2480,23 @@
             "default": true,
             "description": "%config.releaseBoard.pathToGo.showRunButtons.description%"
           },
+          "saropaWorkspace.releaseBoard.handToChat.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.handToChat.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.handToChat.detail": {
+            "type": "string",
+            "enum": ["short", "standard", "full"],
+            "default": "standard",
+            "description": "%config.releaseBoard.handToChat.detail.description%"
+          },
+          "saropaWorkspace.releaseBoard.handToChat.openChat": {
+            "type": "string",
+            "enum": ["never", "offer"],
+            "default": "never",
+            "description": "%config.releaseBoard.handToChat.openChat.description%"
+          },
           "saropaWorkspace.releaseBoard.editorLinks.enabled": {
             "type": "boolean",
             "default": true,

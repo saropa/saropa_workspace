@@ -13,12 +13,14 @@ import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
 import { asTimeBox } from "../board/sittings";
 import { publishBoard } from "./editorLinks";
+import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
+import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
 import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed, setPanelVisible } from "./boardFeed";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>" and "path <project, step>", and the host resolves each id or index against the model it rendered, so the page
+// item>" and "path <project, step>" and "hand <kind, index>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -104,6 +106,8 @@ function strings(): BoardStrings {
     timeAny: l10n("releaseBoard.sittings.timeAny"),
     timeMinutes: l10n("releaseBoard.sittings.timeMinutes", { count: "{count}" }),
     stepMinutes: l10n("releaseBoard.sittings.stepMinutes", { count: "{count}" }),
+    handToChat: readHandSettings().enabled ? l10n("releaseBoard.handToChat.button") : "",
+    handToChatTip: l10n("releaseBoard.handToChat.tip"),
   };
 }
 
@@ -372,7 +376,7 @@ class BoardPanel {
         )
       : undefined;
     // The same board in the same state is not painted again: no flicker, no lost scroll.
-    const key = JSON.stringify([this.model, state, this.paths]);
+    const key = JSON.stringify([this.model, state, this.paths, readHandSettings().enabled]);
     if (key === this.lastKey) {
       return;
     }
@@ -453,6 +457,8 @@ class BoardPanel {
           void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
         }
       }
+    } else if (msg.type === "hand") {
+      await this.hand(message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
     } else if (msg.type === "rules") {
       await openRulesFile();
     } else if (msg.type === "accept") {
@@ -462,6 +468,45 @@ class BoardPanel {
     } else if (msg.type === "path" && typeof (message as { p?: unknown }).p === "number" && typeof (message as { s?: unknown }).s === "number") {
       const m = message as { p: number; s: number };
       await this.pathAction(m.p, m.s);
+    }
+  }
+
+  // Hand to chat: the page names an item, a step or a Sittings line by index; the prompt is
+  // built from the model this panel rendered and copied to the clipboard.
+  private async hand(m: { k?: unknown; i?: unknown; p?: unknown; s?: unknown }): Promise<void> {
+    const settings = readHandSettings();
+    const model = this.model;
+    if (!settings.enabled || !model) {
+      return;
+    }
+    let target: HandTarget | undefined;
+    let file: { project: string; path: string } | undefined;
+    if (m.k === "item" && typeof m.i === "number" && model.items[m.i]) {
+      const it = model.items[m.i];
+      target = itemTarget(model, it);
+      file = it;
+    } else if (m.k === "line" && typeof m.i === "number" && model.sittings?.lines[m.i]) {
+      const l = model.sittings.lines[m.i];
+      target = lineTarget(model, l);
+      file = l;
+    } else if (m.k === "step" && typeof m.p === "number" && typeof m.s === "number") {
+      const project = model.projects[m.p];
+      const step = this.paths?.[m.p]?.steps[m.s];
+      if (project && step) {
+        target = stepTarget(model, project, step);
+        const item = step.kind === "item" && step.itemId !== undefined ? model.items[step.itemId] : undefined;
+        file = item;
+      }
+    }
+    if (!target) {
+      return;
+    }
+    const def = this.run?.cfg.projects.find((p) => p.id === file?.project);
+    const doc = def && file ? vscode.Uri.joinPath(vscode.Uri.parse(def.path), file.path) : undefined;
+    try {
+      await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat);
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     }
   }
 

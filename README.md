@@ -128,6 +128,9 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.openOnStartup` | `whenProjectsFound` | Opens the board as a background tab once when a window starts: `never`, `whenProjectsFound` or `always`. |
 | `releaseBoard.statusBar.showLight` | `true` | Tints the Release Board status bar button with the worst light and names it in the tooltip. |
 | `releaseBoard.reviewRequests` | `false` | Lists pull requests waiting for your review on the board. |
+| `releaseBoard.handToChat.enabled` | `true` | Shows a Hand to chat button on each release blocker, Path to GO step and Sittings step. It copies a ready prompt to the clipboard; nothing is sent. |
+| `releaseBoard.handToChat.detail` | `standard` | How much the copied prompt says: `short` (blocker and file), `standard` (adds the evidence) or `full` (adds what it waits on, its group, and lint and test evidence). |
+| `releaseBoard.handToChat.openChat` | `never` | `offer` shows an Open chats button after copying, when Chat Explorer is installed and knows chats for the document. `never` only copies. |
 | `releaseBoard.pathToGo.enabled` | `true` | Shows a Path to GO under each project on the board: click a project row to see the few steps between it and GO. |
 | `releaseBoard.pathToGo.maxSteps` | `8` | Most steps listed in a Path to GO (3 to 20). |
 | `releaseBoard.pathToGo.showRunButtons` | `true` | Shows the Run lint now and Run tests now buttons in a Path to GO. Turn off if the board should never start a run. |
