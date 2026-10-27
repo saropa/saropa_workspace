@@ -7,7 +7,7 @@ import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
-import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, hiddenNote, openBadge, projectsButtons, rollupBar, skippedBlock } from "./boardHtmlProjects";
+import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, hiddenNote, openBadge, projectsButtons, rollupBar, skippedBlock, startupToggle } from "./boardHtmlProjects";
 import { kebab, optsMenu, rowMenu } from "./boardHtmlMenus";
 import { chains, noRuleBox, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
@@ -37,6 +37,8 @@ export interface RenderState {
   loading?: boolean;
   // Show the one-line hint about adding more projects.
   hint?: boolean;
+  // Whether the board opens at start-up (the setting is not "never"); undefined leaves the checkbox out.
+  startup?: boolean;
 }
 
 // The line that says how many severities the user set by hand, and how many of those were lowered
@@ -85,7 +87,7 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-<div class="top"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1><button id="refresh" class="sec" ${tip(t, "refresh")}>${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${projectsButtons(t)}${kebab(t, "opts")}</div>
+<div class="top"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1><button id="refresh" class="sec" ${tip(t, "refresh")}>${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${projectsButtons(t)}${kebab(t, "opts")}${startupToggle(state.startup, t)}</div>
 ${hintBar(state.hint, t)}
 ${futureTabs(future, t)}
 <div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}"><p class="note">${escapeHtml(t.intro)}</p>${byUserNote(model, t)}${banner}
