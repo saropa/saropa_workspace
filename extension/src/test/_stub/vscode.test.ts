@@ -222,3 +222,19 @@ test("fs.copy copies a file and refuses an existing target unless overwrite is s
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("fs.rename moves a file and refuses an existing target unless overwrite is set", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sw-stubmove-"));
+  try {
+    fs.writeFileSync(`${dir}/a.txt`, "one");
+    fs.writeFileSync(`${dir}/b.txt`, "other");
+    await assert.rejects(workspace.fs.rename(Uri.file(`${dir}/a.txt`), Uri.file(`${dir}/b.txt`)), /FileExists/);
+    assert.equal(fs.existsSync(`${dir}/a.txt`), true);
+    await workspace.fs.rename(Uri.file(`${dir}/a.txt`), Uri.file(`${dir}/c.txt`));
+    assert.deepEqual([fs.existsSync(`${dir}/a.txt`), fs.readFileSync(`${dir}/c.txt`, "utf8")], [false, "one"]);
+    await workspace.fs.rename(Uri.file(`${dir}/c.txt`), Uri.file(`${dir}/b.txt`), { overwrite: true });
+    assert.equal(fs.readFileSync(`${dir}/b.txt`, "utf8"), "one");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

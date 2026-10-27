@@ -163,6 +163,13 @@ const fsApi = {
     }
     nodeFs.copyFileSync(from.fsPath, to.fsPath);
   },
+  // Moves a file; refuses when the target exists unless overwrite is set, as the real call does.
+  async rename(from: Uri, to: Uri, options?: { overwrite?: boolean }): Promise<void> {
+    if (!options?.overwrite && nodeFs.existsSync(to.fsPath)) {
+      throw new Error("FileExists");
+    }
+    nodeFs.renameSync(from.fsPath, to.fsPath);
+  },
   async delete(uri: Uri, options?: { recursive?: boolean }): Promise<void> {
     nodeFs.rmSync(uri.fsPath, { recursive: !!options?.recursive, force: true });
   },
