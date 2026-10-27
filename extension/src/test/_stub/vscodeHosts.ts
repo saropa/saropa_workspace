@@ -181,15 +181,22 @@ export interface FakeQuickPick {
   activeItems: readonly unknown[];
   selectedItems: readonly unknown[];
   ignoreFocusOut: boolean;
+  matchOnDescription: boolean;
+  matchOnDetail: boolean;
+  /** The text in the box. Setting it fires onDidChangeValue, as the real box does. */
+  value: string;
   shown: boolean;
   disposed: boolean;
   onDidAccept: EventEmitter<unknown>["event"];
   onDidHide: EventEmitter<unknown>["event"];
+  onDidChangeValue: EventEmitter<string>["event"];
   show(): void;
   hide(): void;
   dispose(): void;
   /** Test driver: selects `item` and fires the accept event, as a user pressing Enter would. */
   accept(item: unknown): void;
+  /** Test driver: types `text` into the box, as a user would (same event as setting value). */
+  type(text: string): void;
 }
 
 const quickPicks: FakeQuickPick[] = [];
@@ -211,6 +218,8 @@ export function __quickPicks(): readonly FakeQuickPick[] {
 function createQuickPick(): FakeQuickPick {
   const accepted = new EventEmitter<unknown>();
   const hidden = new EventEmitter<unknown>();
+  const typed = new EventEmitter<string>();
+  let text = "";
   const pick: FakeQuickPick = {
     title: undefined,
     placeholder: undefined,
@@ -218,10 +227,20 @@ function createQuickPick(): FakeQuickPick {
     activeItems: [],
     selectedItems: [],
     ignoreFocusOut: false,
+    matchOnDescription: false,
+    matchOnDetail: false,
+    get value(): string {
+      return text;
+    },
+    set value(next: string) {
+      text = next;
+      typed.fire(next);
+    },
     shown: false,
     disposed: false,
     onDidAccept: accepted.event,
     onDidHide: hidden.event,
+    onDidChangeValue: typed.event,
     show(): void {
       pick.shown = true;
       quickPickDriver?.(pick);
@@ -236,6 +255,9 @@ function createQuickPick(): FakeQuickPick {
     accept(item: unknown): void {
       pick.selectedItems = [item];
       accepted.fire(undefined);
+    },
+    type(next: string): void {
+      pick.value = next;
     },
   };
   quickPicks.push(pick);

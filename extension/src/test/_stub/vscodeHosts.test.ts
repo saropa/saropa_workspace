@@ -145,3 +145,15 @@ test("a quick pick driver answers the menu as it is shown, and a reset removes i
   later.show();
   assert.deepEqual(seen, ["auto"]);
 });
+
+test("typing into a quick pick fires the value event, and setting the value does the same", () => {
+  const pick = vscode.window.createQuickPick();
+  const seen: string[] = [];
+  pick.onDidChangeValue((v) => seen.push(v));
+  assert.equal(pick.value, "");
+  pick.type(">adb ");
+  pick.value = "x";
+  assert.deepEqual(seen, [">adb ", "x"]);
+  assert.equal(pick.value, "x");
+  assert.deepEqual([pick.matchOnDescription, pick.matchOnDetail], [false, false]);
+});

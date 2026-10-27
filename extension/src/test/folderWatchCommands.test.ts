@@ -111,7 +111,7 @@ test("the folder command adds a watch from the right-clicked folder", async () =
 test("the file command opens the file picker when no file is passed", async () => {
   registerFolderWatchCommands(registrarContext(), store, engine);
   fx.write("a.txt", "x");
-  __setOpenDialogHandler(async () => [vscode.Uri.file(`${fx.dir}/a.txt`)]);
+  __setOpenDialogHandler(async () => [vscode.Uri.file(`${fx.dir}/a.txt`)] as never);
   await run("watchFile");
   assert.deepEqual(store.list().map((w) => [w.target, w.isFile, w.mode]), [[`${fx.dir}/a.txt`, true, "changed"]]);
 });
