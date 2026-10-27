@@ -4,9 +4,24 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 3;
+export const FACTS_VERSION = 4;
 
 import { Audience, Severity, SeverityDict, scoreDocument } from "./severity";
+
+// One open step of a document: a checklist box or a table row with an open state word.
+export interface DocStep {
+  // 1-based line in the document.
+  line: number;
+  // The nearest heading above the step ("" when none).
+  heading: string;
+  text: string;
+  // The cell under a table column named "Needs", when the row has one.
+  needsCell?: string;
+}
+
+// Open steps kept per document, and the length of each step's text.
+const MAX_STEPS = 200;
+const STEP_TEXT = 160;
 
 export interface DocFacts {
   title: string;
@@ -15,6 +30,10 @@ export interface DocFacts {
   chars: number;
   stepsOpen: number;
   stepsDone: number;
+  // The open steps themselves (first 200), for lists that pick steps across documents.
+  steps: DocStep[];
+  // Open steps past the limit, not kept.
+  stepsCut: number;
   // Table rows that carry a state word (done, applied, pending ...), counted as steps too.
   rowsAll: number;
   rowsDone: number;
@@ -105,30 +124,65 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     }
   }
   const codeBlocks = isSql ? 0 : Math.floor(fenceLines.length / 2);
-  const body = isSql ? text : text.replace(/```[\s\S]*?```/g, "");
+  // A fenced block leaves its line breaks behind, so line numbers still match the file.
+  const body = isSql ? text : text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
 
   const stepsOpen = (body.match(/^\s*[-*] \[ \]/gm) ?? []).length;
   const stepsDone = (body.match(/^\s*[-*] \[[xX]\]/gm) ?? []).length;
   let rowsAll = 0;
   let rowsDone = 0;
+  const steps: DocStep[] = [];
+  let stepsCut = 0;
   if (!isSql) {
-    for (const l of body.split(/\r?\n/)) {
-      if (!l.startsWith("|") || /^\|[\s:|-]+\|$/.test(l)) {
-        continue;
+    const lines = body.split(/\r?\n/);
+    let heading = "";
+    // The header cells of the table the loop is inside, when its second line is a divider.
+    let header: string[] | undefined;
+    const addStep = (step: DocStep): void => {
+      if (steps.length < MAX_STEPS) {
+        steps.push(step);
+      } else {
+        stepsCut += 1;
       }
-      const cells = l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim().toLowerCase());
+    };
+    lines.forEach((l, i) => {
+      const h = /^#{1,6}[ \t]+(.+?)[ \t#]*$/.exec(l);
+      if (h) {
+        heading = h[1].trim().slice(0, STEP_TEXT);
+      }
+      const box = /^\s*[-*] \[ \]\s*(.*)$/.exec(l);
+      if (box) {
+        addStep({ line: i + 1, heading, text: box[1].trim().slice(0, STEP_TEXT) });
+      }
+      if (!l.startsWith("|")) {
+        header = undefined;
+        return;
+      }
+      if (/^\|[\s:|-]+\|$/.test(l)) {
+        return;
+      }
+      const raw = l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      if (/^\|[\s:|-]+\|$/.test(lines[i + 1] ?? "")) {
+        header = raw.map((c) => c.toLowerCase());
+      }
+      const cells = raw.map((c) => c.toLowerCase());
       if (cells.some((c) => ["status", "item", "dev", "prod"].includes(c))) {
-        continue;
+        return;
       }
       const tail = cells.slice(-3);
       const isDone = tail.some((c) => DONE_WORDS.includes(c.split(" ")[0]));
-      if (isDone || tail.some((c) => OPEN_WORDS.includes(c))) {
+      const isOpen = tail.some((c) => OPEN_WORDS.includes(c));
+      if (isDone || isOpen) {
         rowsAll += 1;
         if (isDone) {
           rowsDone += 1;
+        } else {
+          const col = header ? header.indexOf("needs") : -1;
+          const text = raw.filter((c, k) => c && k !== col && !OPEN_WORDS.includes(c.toLowerCase())).slice(0, 2).join(" - ");
+          addStep({ line: i + 1, heading, text: text.slice(0, STEP_TEXT), needsCell: col >= 0 ? raw[col].slice(0, STEP_TEXT) : undefined });
         }
       }
-    }
+    });
   }
   const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})[ \t]+(.+)$/gm)];
   const title = isSql ? sqlTitle(text) : (heads[0]?.[2] ?? "").trim().slice(0, 80);
@@ -152,6 +206,8 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     chars: text.length,
     stepsOpen,
     stepsDone,
+    steps,
+    stepsCut,
     rowsAll,
     rowsDone,
     codeBlocks,
