@@ -11,6 +11,7 @@
 
 import { designTokenRoot } from "./webviewDesignTokens";
 
+/** Stylesheet for the Planner panel. */
 export const PLANNER_STYLE = `
 ${designTokenRoot({
   extra: `  --link: var(--vscode-textLink-foreground);

@@ -22,6 +22,7 @@ type DeltaDir = "improving" | "worsening";
 const COLOR_IMPROVING = new vscode.ThemeColor("charts.green");
 const COLOR_WORSENING = new vscode.ThemeColor("errorForeground");
 
+/** Colors a file shortcut green or red when its lint or test badge improved or worsened since the previous sweep. */
 export class ShortcutDecorationProvider
   implements vscode.FileDecorationProvider
 {

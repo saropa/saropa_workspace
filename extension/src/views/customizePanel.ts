@@ -215,17 +215,33 @@ export class CustomizePanel {
   </div>
 </div>
 
-<div class="card">
-  <div class="ttl">${esc(l10n("customize.section.name"))}</div>
-  <div class="desc">${esc(l10n("customize.name.desc"))}</div>
-  <input type="text" id="nameInput" placeholder="${esc(l10n("customize.name.placeholder"))}" />
-</div>
+${this.nameCard()}
 
 ${this.iconCard()}
 ${this.colorCard()}
 ${this.tagCard()}
 
-<div class="footer">
+${this.footerCard(basename)}
+
+${this.tagChipTemplate()}
+
+<script nonce="${nonce}">${CUSTOMIZE_SCRIPT}</script>
+</body>
+</html>`;
+  }
+
+  // The rename card: a single text box whose placeholder is the guessed name.
+  private nameCard(): string {
+    return `<div class="card">
+  <div class="ttl">${esc(l10n("customize.section.name"))}</div>
+  <div class="desc">${esc(l10n("customize.name.desc"))}</div>
+  <input type="text" id="nameInput" placeholder="${esc(l10n("customize.name.placeholder"))}" />
+</div>`;
+  }
+
+  // Bottom bar: live preview of the icon and name, plus Cancel and Save.
+  private footerCard(basename: string): string {
+    return `<div class="footer">
   <span class="pl">${esc(l10n("customize.preview"))}</span>
   <div class="prow">
     <span class="pic codicon codicon-file" id="previewIcon"></span>
@@ -234,15 +250,14 @@ ${this.tagCard()}
   <div class="spacer"></div>
   <button class="btn" id="cancel">${esc(l10n("customize.cancel"))}</button>
   <button class="btn primary" id="save">${esc(l10n("customize.save"))}</button>
-</div>
+</div>`;
+  }
 
-<template id="tagChipTpl"><span class="chip"><span class="tname"></span><button class="x" type="button" aria-label="${esc(
+  // Cloned by the page script for each tag chip the user adds.
+  private tagChipTemplate(): string {
+    return `<template id="tagChipTpl"><span class="chip"><span class="tname"></span><button class="x" type="button" aria-label="${esc(
       l10n("customize.tags.remove")
-    )}">&#x2715;</button></span></template>
-
-<script nonce="${nonce}">${CUSTOMIZE_SCRIPT}</script>
-</body>
-</html>`;
+    )}">&#x2715;</button></span></template>`;
   }
 
   // The searchable, categorized icon grid. A standalone "default" group at the top holds

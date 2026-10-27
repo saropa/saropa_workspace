@@ -33,7 +33,9 @@ import {
 // and 3's second half) are what read them later.
 
 export const HAS_ANDROID_KEY = "saropaWorkspace.hasAndroid";
+/** Context key set when the open workspace is a Flutter project. */
 export const HAS_FLUTTER_KEY = "saropaWorkspace.hasFlutter";
+/** Context key set while at least one usable device is attached to adb. */
 export const HAS_DEVICE_KEY = "saropaWorkspace.hasDevice";
 
 // The profile this module has read, broadcast for the section-aware surfaces that

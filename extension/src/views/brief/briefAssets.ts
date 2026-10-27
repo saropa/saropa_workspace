@@ -4,6 +4,7 @@
 // "openReport" with a path the host re-validates before opening.
 import { escapeHtmlJs } from "../webviewClientUtils";
 
+/** Stylesheet for the Morning Brief panel; colors come from the VS Code theme. */
 export const BRIEF_STYLE = `
 :root { color-scheme: light dark; }
 body {
@@ -121,6 +122,7 @@ button.secondary:hover { background: var(--vscode-button-secondaryHoverBackgroun
 .empty { color: var(--vscode-descriptionForeground); padding: 24px 0; text-align: center; }
 `;
 
+/** Client script for the Morning Brief panel: renders the brief the host sends and posts back only a request to open a report. */
 export const BRIEF_SCRIPT = `
 (function() {
   const vscode = acquireVsCodeApi();

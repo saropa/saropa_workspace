@@ -133,6 +133,11 @@ function buildRepoWatch(slug: string, filters: RepoWatchFilters): FolderWatch {
   return watch;
 }
 
+/**
+ * Adds a GitHub repository watch: asks for an owner/repo slug (pre-filled from the
+ * active repo), the optional label and author filters, checks the repo is
+ * reachable, then stores the watch. Cancelling any prompt adds nothing.
+ */
 export async function addGitHubRepoWatch(store: FolderWatchStore): Promise<void> {
   const detected = await detectActiveRepo();
   const slug = await vscode.window.showInputBox({

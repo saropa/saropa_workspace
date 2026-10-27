@@ -20,10 +20,12 @@ const AUTH_SCOPES = ["repo"];
 // but rejecting those edge cases is GitHub's job at fetch time, not this validator's.
 const SLUG_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 
+/** True when the text looks like `owner/repo` (surrounding whitespace is ignored). */
 export function isValidRepoSlug(slug: string): boolean {
   return SLUG_PATTERN.test(slug.trim());
 }
 
+/** Splits an `owner/repo` slug into its parts, or returns undefined when it is not valid. */
 export function parseRepoSlug(slug: string): RepoSlug | undefined {
   const trimmed = slug.trim();
   if (!isValidRepoSlug(trimmed)) {

@@ -5,6 +5,7 @@
 // contrast without a hardcoded palette. Mirrors the Dashboard's asset split.
 import { escapeHtmlJs } from "./webviewClientUtils";
 
+/** Stylesheet for the Schedule panel. */
 export const SCHEDULE_STYLE = `
 :root { color-scheme: light dark; }
 body {

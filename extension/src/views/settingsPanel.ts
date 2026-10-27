@@ -122,6 +122,7 @@ const KNOWN_KEYS = new Set(
   SECTIONS.flatMap((s) => s.settings.map((d) => d.key))
 );
 
+/** The single Settings webview that lists every extension setting with an info tooltip and a matching control. */
 export class SettingsPanel {
   private static current: SettingsPanel | undefined;
   private static readonly viewType = "saropaWorkspace.settings";
@@ -245,17 +246,7 @@ export class SettingsPanel {
     const title = l10n("settings.title");
     const meta = this.loadSchemaMeta();
 
-    const sectionCards = SECTIONS.map((section) => {
-      const rows = section.settings.map((def) => {
-        const label = l10n(def.labelKey);
-        const m = meta[`saropaWorkspace.${def.key}`];
-        return this.renderSettingRow(def, label, m?.desc ?? "", m?.min, m?.max);
-      }).join("");
-      return `<div class="card">
-  <div class="ttl">${esc(l10n(section.titleKey))}</div>
-  ${rows}
-</div>`;
-    }).join("");
+    const sectionCards = this.renderSectionCards(meta);
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -268,18 +259,7 @@ export class SettingsPanel {
 <style>${SETTINGS_STYLE}</style>
 </head>
 <body>
-<div class="hero">
-  <div class="glyph"><span class="codicon codicon-settings-gear"></span></div>
-  <div class="htext">
-    <h1>${esc(title)}</h1>
-    <div class="sub">${esc(l10n("settings.subtitle"))}</div>
-  </div>
-</div>
-
-<div class="search-bar">
-  <span class="codicon codicon-search search-icon"></span>
-  <input type="text" id="settingsSearch" placeholder="${esc(l10n("settings.searchPlaceholder"))}" />
-</div>
+${this.renderHeader(title)}
 
 ${sectionCards}
 
@@ -292,6 +272,38 @@ ${sectionCards}
 <script nonce="${nonce}">${SETTINGS_SCRIPT}</script>
 </body>
 </html>`;
+  }
+
+  // Title block and the search box above the settings cards.
+  private renderHeader(title: string): string {
+    return `<div class="hero">
+  <div class="glyph"><span class="codicon codicon-settings-gear"></span></div>
+  <div class="htext">
+    <h1>${esc(title)}</h1>
+    <div class="sub">${esc(l10n("settings.subtitle"))}</div>
+  </div>
+</div>
+
+<div class="search-bar">
+  <span class="codicon codicon-search search-icon"></span>
+  <input type="text" id="settingsSearch" placeholder="${esc(l10n("settings.searchPlaceholder"))}" />
+</div>`;
+  }
+
+  // One card per settings section, each listing its rows with the description and
+  // numeric bounds read from package.json.
+  private renderSectionCards(meta: ReturnType<SettingsPanel["loadSchemaMeta"]>): string {
+    return SECTIONS.map((section) => {
+      const rows = section.settings.map((def) => {
+        const label = l10n(def.labelKey);
+        const m = meta[`saropaWorkspace.${def.key}`];
+        return this.renderSettingRow(def, label, m?.desc ?? "", m?.min, m?.max);
+      }).join("");
+      return `<div class="card">
+  <div class="ttl">${esc(l10n(section.titleKey))}</div>
+  ${rows}
+</div>`;
+    }).join("");
   }
 
   private renderSettingRow(def: SettingDef, label: string, desc: string, min?: number, max?: number): string {

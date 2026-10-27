@@ -74,6 +74,11 @@ async function promptCustomCwd(
   return entered === undefined ? undefined : entered.trim();
 }
 
+/**
+ * Lets the user pick the working directory for a run: the default, the owning
+ * workspace folder, the file's own folder, or a custom path that must exist.
+ * Writes the choice into `work.cwd`; cancelling leaves it unchanged.
+ */
 export async function editCwd(
   work: ShortcutExecConfig,
   title: string,

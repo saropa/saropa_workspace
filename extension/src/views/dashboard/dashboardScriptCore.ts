@@ -9,6 +9,7 @@
 // shows/hides the active tab panel and asks the host to load its data.
 import { escapeHtmlJs, formatBytesJs } from "../webviewClientUtils";
 
+/** Client script core for the Dashboard panel: shared state, the chart palette, formatting helpers and the tab switcher. */
 export const DASHBOARD_CORE = `const vscode = acquireVsCodeApi();
 let state = {
   active: INITIAL_TAB,

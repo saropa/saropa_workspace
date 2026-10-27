@@ -236,32 +236,16 @@ export interface WorkspaceApi {
   addBoardGroup(provider: BoardGroupProvider): vscode.Disposable;
 }
 
-// Entry point: constructs the shortcut store, the on-device stores, the tree view,
-// folder/file watches, all command modules, status bars, and the background engines
-// (scheduler, chain runner, git/idle/expiry watchers), then runs the post-load tail
-// once the shortcut set has finished loading.
-export async function activate(context: vscode.ExtensionContext): Promise<WorkspaceApi> {
-  const store = new ShortcutStore(context);
-  // Disposes the store's onDidChange / onDidRemoveShortcut EventEmitters. The store
-  // lives for the whole extension lifetime today, so this only matters on the
-  // deactivate() path — but leaving it off subscriptions would be relying on "never
-  // disposed" rather than declaring it, and every other Disposable in this file is
-  // pushed here (see the VS Code API rule: dispose everything).
-  context.subscriptions.push({ dispose: () => store.dispose() });
-
-  initCoreStores(context);
-
-  // One-time notice for BUG-014's default flip (aiContext.enabled true -> false):
-  // synchronous and config/globalState-only (no store or workspace data needed), so
-  // it runs here rather than in the post-load tail — it must not wait on store.init().
-  maybeNotifyAiContextDefaultChange(context);
-
-  // Centralized per-shortcut cleanup (BUG-011 follow-up): wired ONCE here rather than
-  // duplicated at every removal call site, so a future removal path cannot forget to
-  // clear these id-keyed maps. Each would otherwise grow unboundedly for the life of
-  // the session (a removed shortcut's id is never reused, so a stale entry never gets
-  // overwritten). promptMemory is persisted in workspaceState, so its leak survived
-  // reloads — the rest are in-memory-only and bounded to the session.
+// Centralized per-shortcut cleanup (BUG-011 follow-up): wired ONCE here rather than
+// duplicated at every removal call site, so a future removal path cannot forget to
+// clear these id-keyed maps. Each would otherwise grow unboundedly for the life of
+// the session (a removed shortcut's id is never reused, so a stale entry never gets
+// overwritten). promptMemory is persisted in workspaceState, so its leak survived
+// reloads — the rest are in-memory-only and bounded to the session.
+function wireShortcutRemovalCleanup(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
   context.subscriptions.push(
     store.onDidRemoveShortcut((id) => {
       // Each cleanup is independent state (a different Map, a different module) —
@@ -289,6 +273,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<Worksp
       }
     })
   );
+}
+
+// Entry point: constructs the shortcut store, the on-device stores, the tree view,
+// folder/file watches, all command modules, status bars, and the background engines
+// (scheduler, chain runner, git/idle/expiry watchers), then runs the post-load tail
+// once the shortcut set has finished loading.
+export async function activate(context: vscode.ExtensionContext): Promise<WorkspaceApi> {
+  const store = new ShortcutStore(context);
+  // Disposes the store's onDidChange / onDidRemoveShortcut EventEmitters. The store
+  // lives for the whole extension lifetime today, so this only matters on the
+  // deactivate() path — but leaving it off subscriptions would be relying on "never
+  // disposed" rather than declaring it, and every other Disposable in this file is
+  // pushed here (see the VS Code API rule: dispose everything).
+  context.subscriptions.push({ dispose: () => store.dispose() });
+
+  initCoreStores(context);
+
+  // One-time notice for BUG-014's default flip (aiContext.enabled true -> false):
+  // synchronous and config/globalState-only (no store or workspace data needed), so
+  // it runs here rather than in the post-load tail — it must not wait on store.init().
+  maybeNotifyAiContextDefaultChange(context);
+
+  wireShortcutRemovalCleanup(context, store);
 
   const dispatcher = createShortcutDispatcher(store);
   context.subscriptions.push({ dispose: () => dispatcher.dispose() });

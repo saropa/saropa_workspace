@@ -41,6 +41,47 @@ export async function showScheduleStatusBarActions(
   }
 }
 
+/** Menu entry that switches a scheduled shortcut off (the run stops, the indicator may stay). */
+function disableScheduleAction(
+  store: ShortcutStore,
+  shortcut: Shortcut,
+  name: string
+): ScheduleAction {
+  return {
+    label: l10n("statusBar.actions.disable", { name }),
+    detail: l10n("statusBar.actions.disableDetail"),
+    run: async () => {
+      // Re-read the shortcut when the action fires, not when the menu was built:
+      // updateShortcutSchedule replaces the WHOLE schedule object, so writing a
+      // snapshot taken before the picker opened would discard a cron or time the
+      // user changed in between.
+      const live = store.findShortcut(shortcut.id);
+      if (!live?.schedule) {
+        return;
+      }
+      await store.updateShortcutSchedule(live, { ...live.schedule, enabled: false });
+      vscode.window.showInformationMessage(l10n("statusBar.actions.disabled", { name }));
+    },
+  };
+}
+
+/** Menu entry that hides the indicator itself, without touching any schedule. */
+function hideIndicatorAction(): ScheduleAction {
+  return {
+    label: l10n("statusBar.actions.hide"),
+    detail: l10n("statusBar.actions.hideDetail"),
+    run: async () => {
+      // Global (user) scope: the indicator is chrome, and a user who dismisses it in
+      // one project means it everywhere. The setting is the durable record; VS Code's
+      // own right-click hide is per-window and lost on profile changes.
+      await vscode.workspace
+        .getConfiguration("saropaWorkspace")
+        .update(SCHEDULE_STATUS_BAR_SETTING, false, vscode.ConfigurationTarget.Global);
+      vscode.window.showInformationMessage(l10n("statusBar.actions.hidden"));
+    },
+  };
+}
+
 function buildActions(
   store: ShortcutStore,
   shortcut: Shortcut,
@@ -94,37 +135,9 @@ function buildActions(
   // Turning the schedule off is distinct from hiding the indicator: one stops the
   // run, the other stops the reminder. Both are offered, and each says which it is.
   if (shortcut.schedule) {
-    actions.push({
-      label: l10n("statusBar.actions.disable", { name }),
-      detail: l10n("statusBar.actions.disableDetail"),
-      run: async () => {
-        // Re-read the shortcut when the action fires, not when the menu was built:
-        // updateShortcutSchedule replaces the WHOLE schedule object, so writing a
-        // snapshot taken before the picker opened would discard a cron or time the
-        // user changed in between.
-        const live = store.findShortcut(shortcut.id);
-        if (!live?.schedule) {
-          return;
-        }
-        await store.updateShortcutSchedule(live, { ...live.schedule, enabled: false });
-        vscode.window.showInformationMessage(l10n("statusBar.actions.disabled", { name }));
-      },
-    });
+    actions.push(disableScheduleAction(store, shortcut, name));
   }
-
-  actions.push({
-    label: l10n("statusBar.actions.hide"),
-    detail: l10n("statusBar.actions.hideDetail"),
-    run: async () => {
-      // Global (user) scope: the indicator is chrome, and a user who dismisses it in
-      // one project means it everywhere. The setting is the durable record; VS Code's
-      // own right-click hide is per-window and lost on profile changes.
-      await vscode.workspace
-        .getConfiguration("saropaWorkspace")
-        .update(SCHEDULE_STATUS_BAR_SETTING, false, vscode.ConfigurationTarget.Global);
-      vscode.window.showInformationMessage(l10n("statusBar.actions.hidden"));
-    },
-  });
+  actions.push(hideIndicatorAction());
 
   return actions;
 }

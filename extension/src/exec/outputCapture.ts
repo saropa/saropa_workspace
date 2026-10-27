@@ -18,6 +18,7 @@
 const HEAD_LIMIT = 512 * 1024;
 const TAIL_LIMIT = 512 * 1024;
 
+/** Collects a run's output within a fixed memory cap by keeping the start and the end. */
 export interface BoundedCapture {
   // Feed the next chunk of stdout/stderr text (called once per "data" event).
   append(text: string): void;

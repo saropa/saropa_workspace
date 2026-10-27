@@ -5,6 +5,39 @@ import { SharedShortcut } from "../import/shareLink";
 import { ShortcutStoreAdd } from "./shortcutStoreAdd";
 import { pruneRoutineMembers } from "./routineMembers";
 
+/**
+ * The fields a duplicated run-variant inherits from its source: action, icon,
+ * color, group, run config (with only `args` replaced), plus `masked` and `line`,
+ * which are behavior rather than decoration. Schedule, triggers, metric, expiry,
+ * tags and branch link are deliberately not carried (see duplicateShortcut).
+ */
+function buildDuplicateCarry(
+  shortcut: Shortcut,
+  label: string,
+  args: string[]
+): Partial<Shortcut> {
+  const trimmedLabel = label.trim();
+  // Merge the new args over any existing exec so the interpreter/cwd/env/run-location
+  // survive; an empty args line clears the field so the variant carries no inert array.
+  const execCandidate: ShortcutExecConfig = {
+    ...(shortcut.exec ?? {}),
+    args: args.length > 0 ? args : undefined,
+  };
+  const hasExec = Object.values(execCandidate).some((v) => v !== undefined);
+  return {
+    action: shortcut.action,
+    icon: shortcut.icon,
+    color: shortcut.color,
+    ...(hasExec ? { exec: execCandidate } : {}),
+    ...(shortcut.groupId ? { groupId: shortcut.groupId } : {}),
+    // Carry the screen-share guard and the open-at-line target (see the method doc):
+    // both are behavior, not decoration, so they must not be silently dropped.
+    ...(shortcut.masked ? { masked: true } : {}),
+    ...(shortcut.line !== undefined ? { line: shortcut.line } : {}),
+    ...(trimmedLabel ? { label: trimmedLabel } : {}),
+  };
+}
+
 // Core mutation layer: import / duplicate / remove / rename / re-point shortcuts,
 // plus the shared mutateShortcut (find-apply-persist-refresh) helper the update/set
 // toggles in ShortcutStoreMutation build on. The add-family (addShortcut and its
@@ -79,26 +112,7 @@ export abstract class ShortcutStoreMutationCore extends ShortcutStoreAdd {
     label: string,
     args: string[]
   ): Promise<boolean> {
-    const trimmedLabel = label.trim();
-    // Merge the new args over any existing exec so the interpreter/cwd/env/run-location
-    // survive; an empty args line clears the field so the variant carries no inert array.
-    const execCandidate: ShortcutExecConfig = {
-      ...(shortcut.exec ?? {}),
-      args: args.length > 0 ? args : undefined,
-    };
-    const hasExec = Object.values(execCandidate).some((v) => v !== undefined);
-    const carry: Partial<Shortcut> = {
-      action: shortcut.action,
-      icon: shortcut.icon,
-      color: shortcut.color,
-      ...(hasExec ? { exec: execCandidate } : {}),
-      ...(shortcut.groupId ? { groupId: shortcut.groupId } : {}),
-      // Carry the screen-share guard and the open-at-line target (see the method doc):
-      // both are behavior, not decoration, so they must not be silently dropped.
-      ...(shortcut.masked ? { masked: true } : {}),
-      ...(shortcut.line !== undefined ? { line: shortcut.line } : {}),
-      ...(trimmedLabel ? { label: trimmedLabel } : {}),
-    };
+    const carry = buildDuplicateCarry(shortcut, label, args);
 
     if (shortcut.scope === "global") {
       const shortcuts = this.readGlobalShortcuts();

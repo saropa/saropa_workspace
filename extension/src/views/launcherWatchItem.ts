@@ -20,33 +20,17 @@ export interface WatchItemInput {
   readonly isGlobal: boolean;
 }
 
-// Build the launcher card for one folder/file watch. The glyph, tint, and secondary line
-// mirror the Watches sidebar row (watchesTreeProvider) exactly so the two surfaces never
-// disagree: a disabled watch reads muted (closed eye, "off"); a global watch carries a
-// globe glyph and a "global" note; an enabled watch with unseen files leads with the count
-// on a blue glyph; an idle local one shows a plain eye. The card is openable but not
-// runnable — a primary click expands the drawer (whose Open clears the unseen counter),
-// never opens on the bare click, so an accidental click cannot mark a watch seen (the
-// launcher's deliberate browse-then-act model; styleguide 1.1a / 4.5).
-export function watchLauncherItem(w: WatchItemInput): LauncherItem {
-  // Repo watches have their own kind/mode keys; folder/file watches use the
-  // existing ones. Mirrors watchesTreeProvider's kind/mode wording.
-  const isRepo = w.watchKind === "repo";
-  const kind = l10n(
-    isRepo
-      ? "github.kindRepo"
-      : w.isFile
-      ? "folderWatch.kindFile"
-      : "folderWatch.kindFolder"
-  );
-  const mode = l10n(
-    isRepo
-      ? "github.modeNewItems"
-      : w.mode === "changed"
-      ? "folderWatch.modeChanged"
-      : "folderWatch.modeNew"
-  );
-
+/**
+ * Icon, tint and state line for a watch row. Precedence: disabled, then global
+ * (with or without unseen alerts), then unseen alerts, then idle — the same
+ * order as the Watches tree row.
+ */
+function watchRowAppearance(
+  w: WatchItemInput,
+  isRepo: boolean,
+  kind: string,
+  mode: string
+): { icon: string; color: string; sub: string } {
   // Base icon differs by watch kind (github glyph vs eye); disabled/global/unseen
   // state overrides follow the same precedence as the Watches tree row so the two
   // surfaces never disagree about the same watch's visual state.
@@ -78,6 +62,37 @@ export function watchLauncherItem(w: WatchItemInput): LauncherItem {
     color = "foreground";
     sub = l10n("watchesView.rowIdle", { kind, mode });
   }
+  return { icon, color, sub };
+}
+
+// Build the launcher card for one folder/file watch. The glyph, tint, and secondary line
+// mirror the Watches sidebar row (watchesTreeProvider) exactly so the two surfaces never
+// disagree: a disabled watch reads muted (closed eye, "off"); a global watch carries a
+// globe glyph and a "global" note; an enabled watch with unseen files leads with the count
+// on a blue glyph; an idle local one shows a plain eye. The card is openable but not
+// runnable — a primary click expands the drawer (whose Open clears the unseen counter),
+// never opens on the bare click, so an accidental click cannot mark a watch seen (the
+// launcher's deliberate browse-then-act model; styleguide 1.1a / 4.5).
+export function watchLauncherItem(w: WatchItemInput): LauncherItem {
+  // Repo watches have their own kind/mode keys; folder/file watches use the
+  // existing ones. Mirrors watchesTreeProvider's kind/mode wording.
+  const isRepo = w.watchKind === "repo";
+  const kind = l10n(
+    isRepo
+      ? "github.kindRepo"
+      : w.isFile
+      ? "folderWatch.kindFile"
+      : "folderWatch.kindFolder"
+  );
+  const mode = l10n(
+    isRepo
+      ? "github.modeNewItems"
+      : w.mode === "changed"
+      ? "folderWatch.modeChanged"
+      : "folderWatch.modeNew"
+  );
+
+  const { icon, color, sub } = watchRowAppearance(w, isRepo, kind, mode);
 
   return {
     id: w.id,

@@ -3,6 +3,23 @@
 // only — matched as the user types, never shown as translated prose, so they live
 // here rather than in the l10n catalog. Split into two parts purely to keep each
 // file under the line cap; iconKeywords.ts merges them back into ICON_KEYWORDS.
+//
+// Shape: one entry per codicon id, in alphabetical id order. The value is a single
+// string of lowercase, space-separated words (synonyms, related concepts, shapes).
+// Order inside the string carries no meaning.
+//
+// This part covers ids from "account"
+// through "layout". The ids are split by position in the sorted list, not by
+// category, so a key never appears in both parts; if it did, part 2 would win in the merge.
+//
+// How the words are used: the Customize panel's icon search lowercases the query and
+// checks whether it occurs anywhere in the tile's id, these keywords, or its category
+// label (a plain substring test, see filterIcons in customizeAssets.ts). Typing "upload"
+// therefore finds arrow-circle-up even though the id never says "upload".
+//
+// An icon with no entry here still works: it is found by its id and category label, and
+// ICON_KEYWORDS[id] is read with a "" fallback. Add words only when users would search
+// for a concept the id does not name.
 export const ICON_KEYWORDS_PART_1: Record<string, string> = {
   "account": "person people face user contact profile avatar",
   "activate-breakpoints": "debug dot circle toggle switch enable",

@@ -55,6 +55,57 @@ interface SaropaShortcutsFile {
   pins?: { path?: string }[];
 }
 
+/**
+ * Looks in each sibling directory of `parent` for a known favorites file and
+ * returns one entry per file found. Open folders and files already seen are
+ * skipped; an unreadable parent yields nothing.
+ */
+async function scanParentDir(
+  parent: vscode.Uri,
+  openFolderPaths: Set<string>,
+  seenFiles: Set<string>
+): Promise<SiblingFavorites[]> {
+  const found: SiblingFavorites[] = [];
+  let entries: [string, vscode.FileType][];
+  try {
+    entries = await vscode.workspace.fs.readDirectory(parent);
+  } catch {
+    // Parent unreadable (permissions, virtual FS); skip rather than fail.
+    return found;
+  }
+
+  for (const [name, fileType] of entries) {
+    if ((fileType & vscode.FileType.Directory) === 0) {
+      continue;
+    }
+    const siblingDir = vscode.Uri.joinPath(parent, name);
+    // A sibling that is itself open owns its favorites as project shortcuts.
+    if (openFolderPaths.has(siblingDir.fsPath)) {
+      continue;
+    }
+    for (const source of siblingSourceList()) {
+      const fileUri = vscode.Uri.joinPath(siblingDir, source.relPath);
+      if (seenFiles.has(fileUri.fsPath)) {
+        continue;
+      }
+      try {
+        await vscode.workspace.fs.stat(fileUri);
+      } catch {
+        continue; // Not present in this sibling.
+      }
+      seenFiles.add(fileUri.fsPath);
+      found.push({
+        siblingDir,
+        siblingName: name,
+        fileUri,
+        fileLabel: source.relPath,
+        format: source.format,
+      });
+    }
+  }
+  return found;
+}
+
 // Scan the immediate sibling folders of every open workspace folder for known
 // favorites files. Skips the workspace folders themselves (their favorites are
 // project shortcuts, not cross-project imports) and de-duplicates shared parents.
@@ -74,43 +125,7 @@ export async function detectSiblingFavorites(): Promise<SiblingFavorites[]> {
     }
     scannedParents.add(parent.fsPath);
 
-    let entries: [string, vscode.FileType][];
-    try {
-      entries = await vscode.workspace.fs.readDirectory(parent);
-    } catch {
-      // Parent unreadable (permissions, virtual FS); skip rather than fail.
-      continue;
-    }
-
-    for (const [name, fileType] of entries) {
-      if ((fileType & vscode.FileType.Directory) === 0) {
-        continue;
-      }
-      const siblingDir = vscode.Uri.joinPath(parent, name);
-      // A sibling that is itself open owns its favorites as project shortcuts.
-      if (openFolderPaths.has(siblingDir.fsPath)) {
-        continue;
-      }
-      for (const source of siblingSourceList()) {
-        const fileUri = vscode.Uri.joinPath(siblingDir, source.relPath);
-        if (seenFiles.has(fileUri.fsPath)) {
-          continue;
-        }
-        try {
-          await vscode.workspace.fs.stat(fileUri);
-        } catch {
-          continue; // Not present in this sibling.
-        }
-        seenFiles.add(fileUri.fsPath);
-        found.push({
-          siblingDir,
-          siblingName: name,
-          fileUri,
-          fileLabel: source.relPath,
-          format: source.format,
-        });
-      }
-    }
+    found.push(...(await scanParentDir(parent, openFolderPaths, seenFiles)));
   }
   return found;
 }

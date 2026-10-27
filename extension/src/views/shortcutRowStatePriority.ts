@@ -10,6 +10,7 @@
 // intentional: those facts have no equivalent in the other channel. See the
 // "tails diverge on purpose" comment at each call site.
 export const ROW_STATE_PRIORITY = ["stopping", "running", "locked", "paused"] as const;
+/** One of the live states in ROW_STATE_PRIORITY. */
 export type RowStatePriorityKey = (typeof ROW_STATE_PRIORITY)[number];
 
 // Returns the first defined value in ROW_STATE_PRIORITY order (stopping beats

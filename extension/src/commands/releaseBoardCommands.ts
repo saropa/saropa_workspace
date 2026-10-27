@@ -172,6 +172,7 @@ function countsLine(c: StatusCounts): string {
   return `red ${c.red} · amber ${c.amber} · purple ${c.purple} · grey ${c.grey}`;
 }
 
+/** One finished board scan: its config, results, safety verdict, folder, and the baseline it was compared with. */
 export interface BoardRun {
   cfg: BoardConfig;
   result: ScanResult;
@@ -266,6 +267,7 @@ interface Abandon {
   gone: boolean;
 }
 
+/** Queues a board scan behind any running one, with a timeout. Resolves to the finished run, or undefined when the scan could not complete. */
 export function runBoardScan(
   context: vscode.ExtensionContext,
   quiet = false,
@@ -479,6 +481,7 @@ export function hasOutsideProject(cfg: BoardConfig): boolean {
   return cfg.projects.some((p) => !roots.some((r) => p.path === r || p.path.startsWith(r + "/")));
 }
 
+/** Registers the Release Board commands, status bar button and background recorders. Call once at activation. */
 export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
   boardStore = store;
   startHealthRecorder(context, store, loadConfig);

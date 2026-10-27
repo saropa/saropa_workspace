@@ -27,6 +27,7 @@ const STOP_WORDS = new Set([
   "enum", "struct", "package", "protected", "readonly", "declare",
 ]);
 
+/** Suggests up to `max` tags from the most frequent meaningful words in a file, ignoring short words and language keywords. */
 export function guessTagsFromContent(content: string, max = 6): string[] {
   // Split camelCase/PascalCase into separate words before lowercasing
   const expanded = content

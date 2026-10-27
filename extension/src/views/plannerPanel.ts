@@ -39,6 +39,21 @@ import {
 // plannerPanelShell.ts) as pure functions of the store/context; this class stays a
 // thin lifecycle + dispatch shell around them.
 
+/** The fields a planner webview message may carry; each handler reads the ones it needs. */
+interface PlannerMessage {
+  type?: string;
+  id?: string;
+  to?: string;
+  from?: string;
+  kind?: "pin" | "event";
+  event?: SystemEventName;
+  atTime?: string;
+  fromDay?: number;
+  toDay?: number;
+  positions?: Record<string, { x: number; y: number }>;
+}
+
+/** The single Planner webview: Day and Week timelines plus the workflow graph of chained triggers. */
 export class PlannerPanel {
   private static current: PlannerPanel | undefined;
   private static readonly viewType = "saropaWorkspace.planner";
@@ -89,18 +104,7 @@ export class PlannerPanel {
     if (typeof message !== "object" || message === null) {
       return;
     }
-    const msg = message as {
-      type?: string;
-      id?: string;
-      to?: string;
-      from?: string;
-      kind?: "pin" | "event";
-      event?: SystemEventName;
-      atTime?: string;
-      fromDay?: number;
-      toDay?: number;
-      positions?: Record<string, { x: number; y: number }>;
-    };
+    const msg = message as PlannerMessage;
     switch (msg.type) {
       case "ready":
       case "refresh":

@@ -41,6 +41,7 @@ import { asShortcut } from "./shortcutArgResolution";
 // same double-invocation symptom. A `force` re-run (Stop-and-re-run / Run anyway,
 // chosen from a dialog the user just closed) always bypasses it.
 const lastRunAtByShortcutId = new Map<string, number>();
+/** A second run of the same shortcut inside this many milliseconds is dropped as a stray double trigger. */
 export const REPEAT_INVOCATION_GUARD_MS = 500;
 
 // Drop a removed shortcut's repeat-invocation timestamp. Without this,
@@ -61,6 +62,12 @@ export function isRepeatInvocation(shortcutId: string, now: number = Date.now())
   return lastRunAt !== undefined && now - lastRunAt < REPEAT_INVOCATION_GUARD_MS;
 }
 
+/**
+ * The single entry point for running a shortcut. Skips annotation rows and
+ * repeat triggers, enforces the single-instance guard and prerequisite, then
+ * dispatches by kind. `force` bypasses the guards after the user chose to
+ * overlap or has just stopped the earlier run.
+ */
 export async function runShortcutCommand(
   store: ShortcutStore,
   shortcut: Shortcut,

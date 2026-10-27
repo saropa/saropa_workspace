@@ -63,27 +63,27 @@ export interface LauncherMessageContext {
   readonly post: () => Promise<void>;
 }
 
-/** Resolves a webview message to an action on the addressed shortcut. The payload is untrusted, so each id is narrowed and re-resolved against the store. */
-export async function handleLauncherMessage(
-  message: unknown,
-  ctx: LauncherMessageContext
-): Promise<void> {
-  if (typeof message !== "object" || message === null) {
-    return;
-  }
-  const msg = message as {
-    type?: string;
-    id?: string;
-    command?: string;
-    path?: string;
-    pane?: string;
-    groupId?: string;
-    targetId?: string;
-    visible?: boolean;
-  };
+/** The fields a launcher webview message may carry; each handler checks the ones it needs. */
+interface LauncherMsg {
+  type?: string;
+  id?: string;
+  command?: string;
+  path?: string;
+  pane?: string;
+  groupId?: string;
+  targetId?: string;
+  visible?: boolean;
+}
+
+/**
+ * Handles messages identified by `type` alone (ready, panel visibility, open and
+ * copy actions, group drops). Returns true when the message was handled, so the
+ * caller only falls through to id-based routing for the rest.
+ */
+async function handleTypedMessage(msg: LauncherMsg, ctx: LauncherMessageContext): Promise<boolean> {
   if (msg.type === "ready") {
     await ctx.post();
-    return;
+    return true;
   }
   if (msg.type === "rightPanelVisibility" && typeof msg.visible === "boolean") {
     // The webview posts this both right after togglePanel('right') runs and once at its own
@@ -97,34 +97,49 @@ export async function handleLauncherMessage(
       "saropaWorkspace.launcher.rightPanelVisible",
       msg.visible
     );
-    return;
+    return true;
   }
   if (msg.type === "openFolder") {
     await handleOpenFolder(ctx);
-    return;
+    return true;
   }
   if (msg.type === "openWatch" && typeof msg.id === "string") {
     await handleOpenWatch(msg.id, ctx);
-    return;
+    return true;
   }
   if (msg.type === "openFile" && typeof msg.path === "string") {
     await handleOpenFile(msg.path, ctx);
-    return;
+    return true;
   }
   if (msg.type === "openNote" && typeof msg.path === "string") {
     await handleOpenNote(msg.path, ctx);
-    return;
+    return true;
   }
   if (msg.type === "copyPath" && typeof msg.id === "string") {
     await handleCopyPath(msg.id, ctx);
-    return;
+    return true;
   }
   if (msg.type === "dropOnGroup" && typeof msg.groupId === "string" && typeof msg.id === "string") {
     await applyGroupDrop(msg.groupId, msg.id, ctx);
-    return;
+    return true;
   }
   if (msg.type === "dropOnCard" && typeof msg.groupId === "string" && typeof msg.id === "string" && typeof msg.targetId === "string") {
     await applyGroupDrop(msg.groupId, msg.id, ctx, msg.targetId);
+    return true;
+  }
+  return false;
+}
+
+/** Resolves a webview message to an action on the addressed shortcut. The payload is untrusted, so each id is narrowed and re-resolved against the store. */
+export async function handleLauncherMessage(
+  message: unknown,
+  ctx: LauncherMessageContext
+): Promise<void> {
+  if (typeof message !== "object" || message === null) {
+    return;
+  }
+  const msg = message as LauncherMsg;
+  if (await handleTypedMessage(msg, ctx)) {
     return;
   }
   if (typeof msg.id !== "string") {

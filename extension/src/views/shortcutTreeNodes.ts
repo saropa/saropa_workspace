@@ -34,6 +34,7 @@ function owningFolderName(
   return store.folderOf(shortcut)?.name;
 }
 
+/** Builds the tree row for a shortcut, gathering its live state (running, last run, missing file, lock, badges, untapped, owning folder) from the store and registries. */
 export function buildShortcutItem(
   store: ShortcutStore,
   shortcut: Shortcut

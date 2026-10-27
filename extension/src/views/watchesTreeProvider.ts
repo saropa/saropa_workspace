@@ -93,6 +93,53 @@ export class WatchesTreeProvider
   }
 }
 
+/**
+ * Icon and note for a watch row, most-muted state first. A disabled watch reads
+ * muted (closed eye, "off"). A global watch carries a globe glyph and a "global"
+ * note so it is never mistaken for a local one; a local watch uses the base icon.
+ * Either, with unseen items, leads with the count and tints its glyph blue to
+ * stand out from idle.
+ */
+function watchRowState(
+  watch: FolderWatch,
+  unseen: number,
+  isGlobal: boolean,
+  labels: { kind: string; mode: string; isRepo: boolean; baseIcon: string }
+): { iconPath: vscode.ThemeIcon; description: string } {
+  const { kind, mode, isRepo, baseIcon } = labels;
+  if (!watch.enabled) {
+    return {
+      iconPath: new vscode.ThemeIcon("eye-closed"),
+      description: l10n("watchesView.rowOff", { kind, mode }),
+    };
+  }
+  if (isGlobal && unseen > 0) {
+    return {
+      iconPath: new vscode.ThemeIcon("globe", new vscode.ThemeColor("charts.blue")),
+      description: l10n("watchesView.rowGlobalUnseen", { count: unseen, kind, mode }),
+    };
+  }
+  if (isGlobal) {
+    return {
+      iconPath: new vscode.ThemeIcon("globe"),
+      description: l10n("watchesView.rowGlobal", { kind, mode }),
+    };
+  }
+  if (unseen > 0) {
+    return {
+      iconPath: new vscode.ThemeIcon(
+        isRepo ? baseIcon : "bell-dot",
+        new vscode.ThemeColor("charts.blue")
+      ),
+      description: l10n("watchesView.rowUnseen", { count: unseen, kind, mode }),
+    };
+  }
+  return {
+    iconPath: new vscode.ThemeIcon(baseIcon),
+    description: l10n("watchesView.rowIdle", { kind, mode }),
+  };
+}
+
 // One watch row. The unseen count is the "counter" — shown in the description and
 // signaled by a tinted bell glyph so a watch with pending new files stands out from
 // an idle one. Clicking the row runs openWatch, which opens what changed and clears
@@ -116,36 +163,9 @@ export class WatchTreeItem extends vscode.TreeItem {
     // as its un-tinted starting point.
     const baseIcon = watchBaseIcon(watch);
 
-    // Icon + note by state, most-muted first. A disabled watch reads muted (closed
-    // eye, "off"). A global watch carries a globe glyph and a "global" note so it is
-    // never mistaken for a local one; a local watch uses the base icon. Either, with
-    // unseen items, leads with the count and tints its glyph blue to stand out from idle.
-    if (!watch.enabled) {
-      this.iconPath = new vscode.ThemeIcon("eye-closed");
-      this.description = l10n("watchesView.rowOff", { kind, mode });
-    } else if (isGlobal && unseen > 0) {
-      this.iconPath = new vscode.ThemeIcon(
-        "globe",
-        new vscode.ThemeColor("charts.blue")
-      );
-      this.description = l10n("watchesView.rowGlobalUnseen", {
-        count: unseen,
-        kind,
-        mode,
-      });
-    } else if (isGlobal) {
-      this.iconPath = new vscode.ThemeIcon("globe");
-      this.description = l10n("watchesView.rowGlobal", { kind, mode });
-    } else if (unseen > 0) {
-      this.iconPath = new vscode.ThemeIcon(
-        isRepo ? baseIcon : "bell-dot",
-        new vscode.ThemeColor("charts.blue")
-      );
-      this.description = l10n("watchesView.rowUnseen", { count: unseen, kind, mode });
-    } else {
-      this.iconPath = new vscode.ThemeIcon(baseIcon);
-      this.description = l10n("watchesView.rowIdle", { kind, mode });
-    }
+    const state = watchRowState(watch, unseen, isGlobal, { kind, mode, isRepo, baseIcon });
+    this.iconPath = state.iconPath;
+    this.description = state.description;
 
     // Tooltip names the target and the watch's reach (global vs this project), so the
     // scope is legible without opening the manage hub.

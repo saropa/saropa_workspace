@@ -86,6 +86,13 @@ function recordRunEnd(
   );
 }
 
+/**
+ * Runs a command as a tracked background process: streams its output to the shared
+ * channel, settles exactly once on exit, then records the result and surfaces the
+ * outcome (success toast, or a failure toast with Show Output, port-unwedge and
+ * suggested-fix actions). `retry` re-dispatches the run for the port-unwedge path;
+ * `lockName` holds a cross-process lock for the run's lifetime.
+ */
 export async function runInBackground(
   commandLine: string,
   cwd: string,

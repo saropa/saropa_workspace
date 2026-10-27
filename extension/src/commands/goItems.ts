@@ -21,6 +21,7 @@ export const GO_CATEGORIES = [
   "adb",
 ] as const;
 
+/** One kind of thing the Go list can jump to; the `>` prefix narrows the list to it. */
 export type GoCategory = (typeof GO_CATEGORIES)[number];
 
 // One candidate, already resolved to display text by the caller. `id` is unique only
@@ -50,6 +51,7 @@ export interface GoLabels {
   readonly categories: Readonly<Record<GoCategory, string>>;
 }
 
+/** Options for building the Go rows: recency ordering, one-category narrowing and the Recent cap. */
 export interface GoBuildOptions {
   // Recency keys (goKey() form), most-recently-used first. Entries naming something not
   // in `sources` are ignored, so a stale history record never paints a dead row.

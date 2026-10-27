@@ -5,6 +5,7 @@ import { ShortcutAction, MacroStep } from "../model/shortcut";
 import { getOutputChannel } from "../exec/runner";
 import { l10n } from "../i18n/l10n";
 import type { ImportResult } from "./favoritesImport";
+import type { SharedShortcut } from "./shareLink";
 
 // The settings-key favorites importers (no file on disk): howardzuo "favorites"
 // (`favorites.resources`, an array of paths) and sabitovvt "Favorites Panel"
@@ -297,6 +298,43 @@ export async function detectSabitovvtFavoritesCount(): Promise<number> {
   return items.filter(isImportableSabitovvtItem).length;
 }
 
+/** Imports a file favorite as a project shortcut; one outside the workspace is skipped and logged. */
+async function importMappedFile(
+  file: vscode.Uri,
+  label: string,
+  sourceLabel: string,
+  store: ShortcutStore,
+  channel: vscode.OutputChannel
+): Promise<"added" | "skipped" | "none"> {
+  // A file outside the workspace folder cannot be a project shortcut.
+  if (!vscode.workspace.getWorkspaceFolder(file)) {
+    channel.appendLine(
+      l10n("import.log.skipOutsideFolder", { file: sourceLabel, path: file.fsPath })
+    );
+    return "skipped";
+  }
+  // autoGroup:false: keep the imported layout; no re-sort into a default group.
+  const ok = await store.addShortcut(file, "project", label, undefined, {
+    autoGroup: false,
+  });
+  return ok ? "added" : "none";
+}
+
+/** Builds the share payload for an action favorite, carrying icon and color when set. */
+function shortcutForAction(
+  raw: SabitovvtItem,
+  label: string,
+  action: ShortcutAction
+): SharedShortcut {
+  const icon = typeof raw.icon === "string" && raw.icon.trim() ? raw.icon.trim() : undefined;
+  const color =
+    typeof raw.iconColor === "string" && raw.iconColor.trim()
+      ? raw.iconColor.trim()
+      : undefined;
+  // `v` is ignored by importShortcut (it reads only the shortcut fields); set to 1.
+  return { v: 1, label, action, icon, color };
+}
+
 // Import one list of sabitovvt items (from a settings key or a custom config file)
 // as project shortcuts. File items go through addShortcut (folder-relative, deduped);
 // non-file items go through importShortcut with an action, deduped via the shared
@@ -329,24 +367,11 @@ async function importSabitovvtItemList(
       continue;
     }
     if ("file" in mapped) {
-      // A file outside the workspace folder cannot be a project shortcut.
-      if (!vscode.workspace.getWorkspaceFolder(mapped.file)) {
-        channel.appendLine(
-          l10n("import.log.skipOutsideFolder", {
-            file: sourceLabel,
-            path: mapped.file.fsPath,
-          })
-        );
-        skipped++;
-        continue;
-      }
-      // autoGroup:false: keep the imported layout; no re-sort into a default group.
-      if (
-        await store.addShortcut(mapped.file, "project", label, undefined, {
-          autoGroup: false,
-        })
-      ) {
+      const outcome = await importMappedFile(mapped.file, label, sourceLabel, store, channel);
+      if (outcome === "added") {
         added++;
+      } else if (outcome === "skipped") {
+        skipped++;
       }
       continue;
     }
@@ -355,13 +380,7 @@ async function importSabitovvtItemList(
     if (seenActions.has(sig)) {
       continue; // Already present — idempotent, not a reportable skip.
     }
-    const icon = typeof raw.icon === "string" && raw.icon.trim() ? raw.icon.trim() : undefined;
-    const color =
-      typeof raw.iconColor === "string" && raw.iconColor.trim()
-        ? raw.iconColor.trim()
-        : undefined;
-    // `v` is ignored by importShortcut (it reads only the shortcut fields); set to 1.
-    if (await store.importShortcut({ v: 1, label, action: mapped.action, icon, color }, "project")) {
+    if (await store.importShortcut(shortcutForAction(raw, label, mapped.action), "project")) {
       seenActions.add(sig);
       added++;
     }

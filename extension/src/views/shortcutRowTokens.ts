@@ -64,10 +64,11 @@ export interface ShortcutRowIconInput {
   readonly fileName: string | undefined;
 }
 
-// Resolve the single ThemeIcon a resting/active shortcut row shows, applying the
-// priority documented above. Annotation rows (comment/separator) never reach here
-// — they are inert and set their own glyph before this is consulted.
-export function resolveShortcutRowIcon(input: ShortcutRowIconInput): vscode.ThemeIcon {
+/**
+ * Icons for the states that outrank everything else, in priority order: running,
+ * missing target, blocked, masked. Returns undefined when none applies.
+ */
+function transientStateIcon(input: ShortcutRowIconInput): vscode.ThemeIcon | undefined {
   if (input.isRunning || input.isStopping) {
     return new vscode.ThemeIcon("loading~spin");
   }
@@ -88,6 +89,17 @@ export function resolveShortcutRowIcon(input: ShortcutRowIconInput): vscode.Them
   // actionable live state worth showing and reveal nothing about the file's identity.
   if (input.masked) {
     return new vscode.ThemeIcon("lock");
+  }
+  return undefined;
+}
+
+// Resolve the single ThemeIcon a resting/active shortcut row shows, applying the
+// priority documented above. Annotation rows (comment/separator) never reach here
+// — they are inert and set their own glyph before this is consulted.
+export function resolveShortcutRowIcon(input: ShortcutRowIconInput): vscode.ThemeIcon {
+  const transient = transientStateIcon(input);
+  if (transient) {
+    return transient;
   }
   // Paused: the shortcut's own glyph, muted, so the row reads as "not running on its
   // own" while a manual run stays possible — a resting state, not an error tint.

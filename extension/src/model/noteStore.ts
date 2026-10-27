@@ -8,6 +8,7 @@
 import * as vscode from "vscode";
 import { configDirName } from "./shortcutFile";
 
+/** One note file on disk: its name, location, project or global scope, and last-modified time. */
 export interface NoteEntry {
   readonly filename: string;
   readonly uri: vscode.Uri;
@@ -28,6 +29,7 @@ function globalNotesDirUri(context: vscode.ExtensionContext): vscode.Uri {
   return vscode.Uri.joinPath(context.globalStorageUri, "notes");
 }
 
+/** Creates the folder (and parents) if needed; an existing folder is not an error. */
 export async function ensureDir(uri: vscode.Uri): Promise<void> {
   try {
     await vscode.workspace.fs.createDirectory(uri);
@@ -76,6 +78,7 @@ async function listMarkdownFiles(
 
 const PREVIEW_BYTES = 512;
 
+/** First few lines (at most 512 bytes) of a note, with an ellipsis when cut. Returns an empty string if the file cannot be read. */
 export async function readNotePreview(uri: vscode.Uri): Promise<string> {
   try {
     const raw = await vscode.workspace.fs.readFile(uri);
@@ -90,6 +93,7 @@ export async function readNotePreview(uri: vscode.Uri): Promise<string> {
   }
 }
 
+/** Reads and writes Markdown notes in the project and global notes folders, and fires a change event when either folder changes. */
 export class NoteStore {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;

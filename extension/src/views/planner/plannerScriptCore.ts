@@ -8,6 +8,7 @@
 // helper, and the small formatting/lookup utilities the rest of the script calls.
 import { escapeHtmlJs } from "../webviewClientUtils";
 
+/** Client script core for the Planner panel: shared state, saved view settings, the resize helper and formatting utilities. */
 export const PLANNER_CORE = `const vscode = acquireVsCodeApi();
 // Weekday abbreviations come from the host-injected STRINGS (l10n bridge), not a
 // hardcoded English array, so the Day/Week views stay translation-ready.

@@ -54,6 +54,7 @@ export interface GoStores {
   readonly scripts: ScriptsTreeProvider;
 }
 
+/** Registers the Go command, which opens one search box over shortcuts, recipes, scripts, notes, watches and adb commands. */
 export function registerGoCommand(
   context: vscode.ExtensionContext,
   stores: GoStores

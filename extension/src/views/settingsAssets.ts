@@ -4,6 +4,7 @@
 
 import { designTokenRoot } from "./webviewDesignTokens";
 
+/** Stylesheet for the Settings panel. */
 export const SETTINGS_STYLE = `
 ${designTokenRoot({ durationMs: 140 })}
 * { box-sizing: border-box; }
@@ -190,6 +191,7 @@ button.btn.primary:hover { background: var(--brand-2); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 `;
 
+/** Client script for the Settings panel: loads values, saves changes and shows the info tooltips. */
 export const SETTINGS_SCRIPT = `
 const vscode = acquireVsCodeApi();
 const tipEl = document.getElementById('infoTip');
