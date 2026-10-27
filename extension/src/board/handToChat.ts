@@ -33,6 +33,15 @@ export interface HandTarget {
 
 const MAX_NAMES = 8;
 
+// "1 open document waits on it", "2 open documents wait on it".
+function waitPhrase(n: number): string {
+  return `${n} open document${n === 1 ? " waits" : "s wait"} on`;
+}
+
+function docs(n: number): string {
+  return `${n} document${n === 1 ? "" : "s"}`;
+}
+
 function names(titles: string[]): string {
   const shown = titles.slice(0, MAX_NAMES).join("; ");
   return titles.length > MAX_NAMES ? `${shown}; and ${titles.length - MAX_NAMES} more` : shown;
@@ -67,7 +76,7 @@ export function itemTarget(model: BoardModel, it: BoardItem): HandTarget {
     evidence.push(`Severity: ${it.severity}`);
   }
   if (it.blocksCount > 0) {
-    evidence.push(`${it.blocksCount} open document${it.blocksCount === 1 ? "" : "s"} wait on it`);
+    evidence.push(`${waitPhrase(it.blocksCount)} it`);
   }
   if (it.link) {
     evidence.push(`Link: ${it.link.detail}`);
@@ -107,11 +116,11 @@ export function stepTarget(model: BoardModel, project: BoardProject, step: PathS
       return { ...base, headline: `${label} evidence is ${step.evidence ?? "missing"}`, evidence: step.detail ? [step.detail] : [] };
     }
     case "blocked":
-      return { ...base, headline: `${step.count ?? 0} collapsed document(s) in blocked folders would stop the release` };
+      return { ...base, headline: `${docs(step.count ?? 0)} in blocked folders would stop the release` };
     case "rules":
-      return { ...base, headline: `${step.count ?? 0} document(s) have no rule placing them`, file: step.folder || undefined };
+      return { ...base, headline: `${docs(step.count ?? 0)} ${(step.count ?? 0) === 1 ? "has" : "have"} no rule placing ${(step.count ?? 0) === 1 ? "it" : "them"}`, file: step.folder || undefined };
     case "unread":
-      return { ...base, headline: `${step.count ?? 0} open document(s) could not be read, so their severity is unknown` };
+      return { ...base, headline: `${docs(step.count ?? 0)} could not be read, so ${(step.count ?? 0) === 1 ? "its severity is" : "their severity is"} unknown` };
     case "accept":
       return { ...base, headline: "The scan has not been accepted as the baseline" };
     default:
@@ -132,7 +141,7 @@ export function lineTarget(model: BoardModel, l: SittingLine): HandTarget {
     extra.push(`Section: ${l.heading}`);
   }
   if (l.blocksCount > 0) {
-    extra.push(`${l.blocksCount} open document${l.blocksCount === 1 ? "" : "s"} wait on this document`);
+    extra.push(`${waitPhrase(l.blocksCount)} this document`);
   }
   extra.push(...projectFacts(model.projects.find((p) => p.id === l.project)));
   return { headline: `Step: ${l.text || l.heading || l.docTitle}`, project: l.projectName, file: l.line > 0 ? `${l.path}:${l.line}` : l.path, evidence, extra };

@@ -480,7 +480,7 @@ class BoardPanel {
       return;
     }
     let target: HandTarget | undefined;
-    let file: { project: string; path: string } | undefined;
+    let file: { project: string; path: string; chats?: number } | undefined;
     if (m.k === "item" && typeof m.i === "number" && model.items[m.i]) {
       const it = model.items[m.i];
       target = itemTarget(model, it);
@@ -504,7 +504,7 @@ class BoardPanel {
     const def = this.run?.cfg.projects.find((p) => p.id === file?.project);
     const doc = def && file ? vscode.Uri.joinPath(vscode.Uri.parse(def.path), file.path) : undefined;
     try {
-      await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat);
+      await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat, file?.chats);
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     }

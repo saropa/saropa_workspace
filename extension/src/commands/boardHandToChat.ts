@@ -22,14 +22,25 @@ export function readHandSettings(): HandSettings {
   return { enabled: c.get<boolean>("enabled", true), detail: asDetail(c.get<string>("detail", "standard")), openChat: asOpenChat(c.get<string>("openChat", "never")) };
 }
 
-// True when Chat Explorer answers within a moment and knows chats for the file.
-async function hasChats(file: string): Promise<boolean> {
-  const api = await chatApi();
-  if (!api?.chatsForFile) {
-    return false;
-  }
+// Runs a call with a time limit; the timer is cleared whether the call wins or not.
+async function within<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const reply = (await Promise.race([api.chatsForFile(file), new Promise<never>((_, no) => setTimeout(() => no(new Error("timeout")), ASK_MS))])) as { total?: unknown };
+    return await Promise.race([work, new Promise<never>((_, no) => (timer = setTimeout(() => no(new Error("timeout")), ASK_MS)))]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// True when Chat Explorer answers within a moment and knows chats for the file. Both its
+// start-up and its answer are bounded.
+async function hasChats(file: string): Promise<boolean> {
+  try {
+    const api = await within(chatApi());
+    if (!api?.chatsForFile) {
+      return false;
+    }
+    const reply = (await within(api.chatsForFile(file))) as { total?: unknown };
     return typeof reply?.total === "number" && reply.total > 0;
   } catch {
     return false;
@@ -37,9 +48,10 @@ async function hasChats(file: string): Promise<boolean> {
 }
 
 // Copies the prompt. `doc` is the document the prompt is about, when there is one.
-export async function copyHandPrompt(text: string, doc: vscode.Uri | undefined, openChat: OpenChatMode): Promise<void> {
+// `knownChats` is the chat count the board already holds for it; when given, Chat Explorer is not asked again.
+export async function copyHandPrompt(text: string, doc: vscode.Uri | undefined, openChat: OpenChatMode, knownChats?: number): Promise<void> {
   await vscode.env.clipboard.writeText(text);
-  if (openChat !== "offer" || !doc || !(await hasChats(doc.fsPath))) {
+  if (openChat !== "offer" || !doc || !(knownChats !== undefined ? knownChats > 0 : await hasChats(doc.fsPath))) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.copied"));
     return;
   }

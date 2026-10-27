@@ -63,14 +63,36 @@ test("a prompt never holds an absolute path", () => {
   }
 });
 
-test("a waiting document is named at the full level", () => {
-  const rows = [row("a.md", "red"), row("b.md", "amber")];
+test("a waiting document is named, with exact singular and plural wording", () => {
+  const rows = [row("a.md", "red"), row("b.md", "amber"), row("c.md", "amber")];
   const m = buildBoard(cfg, rows, undefined, true, undefined, undefined, {}, {});
   m.items[1].waitsOn = [m.items[0].id];
   m.items[0].blocksCount = 1;
-  const text = formatPrompt(itemTarget(m, m.items[0]), "full");
-  assert.match(text, /1 open document waits? on it|1 open document wait on it/);
-  assert.match(text, /Waiting on it: /);
+  const one = formatPrompt(itemTarget(m, m.items[0]), "full");
+  assert.ok(one.includes("- 1 open document waits on it\n"));
+  assert.match(one, /Waiting on it: /);
+  m.items[0].blocksCount = 2;
+  const two = formatPrompt(itemTarget(m, m.items[0]), "standard");
+  assert.ok(two.includes("- 2 open documents wait on it\n"));
+});
+
+test("a Sittings line uses the same singular and plural wording", () => {
+  const m = model();
+  const line = { project: "app", projectName: "App", path: "x.md", docTitle: "X", heading: "", line: 0, text: "t", needs: [], minutes: 5 };
+  assert.ok(formatPrompt(lineTarget(m, { ...line, blocksCount: 1 }), "full").includes("- 1 open document waits on this document\n"));
+  assert.ok(formatPrompt(lineTarget(m, { ...line, blocksCount: 3 }), "full").includes("- 3 open documents wait on this document\n"));
+});
+
+test("step headlines use real singular and plural", () => {
+  const m = model();
+  const p = m.projects[0];
+  const head = (kind: "blocked" | "rules" | "unread", count: number): string => stepTarget(m, p, { kind, key: kind, count }).headline;
+  assert.equal(head("blocked", 1), "1 document in blocked folders would stop the release");
+  assert.equal(head("blocked", 2), "2 documents in blocked folders would stop the release");
+  assert.equal(head("rules", 1), "1 document has no rule placing it");
+  assert.equal(head("rules", 3), "3 documents have no rule placing them");
+  assert.equal(head("unread", 1), "1 document could not be read, so its severity is unknown");
+  assert.equal(head("unread", 2), "2 documents could not be read, so their severity is unknown");
 });
 
 test("steps without a file carry no file line", () => {
