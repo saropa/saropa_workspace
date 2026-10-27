@@ -3,6 +3,7 @@
 // time. Pure, so the rule is unit-tested without a webview.
 
 export const DEFAULT_ARCHIVE_FOLDER = "docs/history";
+// Days without a change before a finished document is offered by default.
 export const DEFAULT_AFTER_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Candidates listed at once; the rest are counted on one line.
@@ -28,6 +29,7 @@ export interface TidyDoc {
   stopping: boolean;
 }
 
+// One finished document offered for moving to the archive.
 export interface TidyCandidate {
   // Id of the board item, so a click opens the document.
   id: number;
@@ -42,6 +44,7 @@ export interface TidyCandidate {
   to: string;
 }
 
+// The Tidy list: candidates, how many more there are, and the idle days used.
 export interface TidyView {
   candidates: TidyCandidate[];
   // Candidates past the list cap.
@@ -49,12 +52,15 @@ export interface TidyView {
   afterDays: number;
 }
 
+// The time, the idle days and the archive folder for a Tidy sweep.
 export interface TidyOptions {
   now: number;
   afterDays: number;
   archiveFolder: string;
 }
 
+// Keeps the idle days between 1 and 365: a number out of range is clamped. A value that is not
+// a number gives the default; null, "" and true are read as numbers first (0, 0, 1), then clamped to 1.
 export function clampAfterDays(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(365, Math.max(1, Math.round(n))) : DEFAULT_AFTER_DAYS;

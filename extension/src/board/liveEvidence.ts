@@ -10,6 +10,7 @@ export interface Counts {
   warnings: number;
 }
 
+// Counts from debug logs, with crashes and the newest signal.
 export interface LogCounts extends Counts {
   // Crashes seen in debug runs.
   crashes: number;
@@ -29,6 +30,7 @@ export interface FileSignal {
 // Project id -> project-relative file ("/" separated) -> signal.
 export type LiveSignals = Record<string, Record<string, FileSignal>>;
 
+// The signals known for one source file.
 export interface LiveFile {
   file: string;
   problems?: Counts;
@@ -36,6 +38,7 @@ export interface LiveFile {
   logs?: LogCounts;
 }
 
+// The flame on a row: totals and the worst files behind it.
 export interface LiveMark {
   // True when any error or crash is present; false when only warnings are.
   hot: boolean;
@@ -58,7 +61,9 @@ export interface LiveUnnamed {
   folder?: string;
 }
 
+// Most files listed in one mark's tooltip.
 export const MAX_MARK_FILES = 5;
+// Most crash signals listed in the box of files no document names.
 export const MAX_UNNAMED = 5;
 const MAX_COUNT = 1_000_000;
 const MAX_LINT_ROWS = 50_000;
@@ -66,6 +71,7 @@ const MAX_TITLE = 120;
 
 const posInt = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), MAX_COUNT) : 0);
 
+// A project-relative path with "/" separators; lower-cased where the file system ignores case.
 export function normRel(p: string, fold: boolean): string {
   const s = p.replace(/\\/g, "/").replace(/^\.\//, "");
   return fold ? s.toLowerCase() : s;
@@ -78,6 +84,7 @@ export function pathKey(p: string, fold: boolean): string {
   return fold ? s.toLowerCase() : s;
 }
 
+// Looks back 1 to 30 days: a number out of range is clamped, anything that is not a number gives 1.
 export function clampLookbackDays(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(30, Math.max(1, Math.round(v))) : 1;
 }
@@ -127,8 +134,10 @@ export interface SignalsApi {
   signalsForFiles?: unknown;
 }
 
+// Oldest version of the other extension's API the board will use.
 export const MIN_API_VERSION = 1;
 
+// True when the other extension's API is new enough and has the call the board needs.
 export function apiUsable(api: SignalsApi | undefined): boolean {
   return !!api && typeof api.apiVersion === "number" && api.apiVersion >= MIN_API_VERSION && typeof api.signalsForFiles === "function";
 }
@@ -138,6 +147,7 @@ export function apiUsable(api: SignalsApi | undefined): boolean {
 // asked for to its project and relative file; an answer for any other path is dropped.
 export type PathLookup = Map<string, Array<{ project: string; rel: string }>>;
 
+// Cleans the reply of the other extension into counts per known file; unknown paths are dropped.
 export function readApiSignals(reply: unknown, lookup: PathLookup, fold: boolean): Array<{ project: string; rel: string; logs: LogCounts }> {
   const list = Array.isArray(reply) ? reply : Array.isArray((reply as { files?: unknown } | null)?.files) ? (reply as { files: unknown[] }).files : [];
   const out: Array<{ project: string; rel: string; logs: LogCounts }> = [];
@@ -164,6 +174,7 @@ export function readApiSignals(reply: unknown, lookup: PathLookup, fold: boolean
   return out;
 }
 
+// Settings that change which signals count.
 export interface LiveOptions {
   // Warnings are counted and shown. When false only errors and crashes are.
   includeWarnings: boolean;
@@ -257,6 +268,7 @@ export function bugsFolderOf(roots: string[]): string | undefined {
 }
 
 const pad = (n: number): string => String(n).padStart(2, "0");
+// A local date as YYYY-MM-DD from a time in milliseconds.
 export const dateOf = (ms: number): string => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

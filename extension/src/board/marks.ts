@@ -10,6 +10,7 @@ export interface MarkEntry {
   pinned?: boolean;
 }
 
+// The hand marks of a workspace: marks, accepted links and rejected suggestions.
 export interface MarksFile {
   version: 1;
   marks: Record<string, MarkEntry>;
@@ -19,16 +20,18 @@ export interface MarksFile {
   rejected: string[];
 }
 
+// The key a document's mark is stored under: project id and path.
 export const markKey = (project: string, path: string): string => `${project}/${path}`;
 
+// A marks file with nothing in it.
 export function emptyMarks(): MarksFile {
   return { version: 1, marks: {}, needs: {}, rejected: [] };
 }
 
-// Reads a marks file, tolerating a missing or damaged one: bad parts are dropped.
 const MAX_ENTRIES = 5000;
 const MAX_BYTES = 1_000_000;
 
+// Reads a marks file, tolerating a missing or damaged one: bad parts are dropped.
 export function parseMarks(text: string | undefined): MarksFile {
   const out = emptyMarks();
   if (!text || text.length > MAX_BYTES) {
@@ -94,6 +97,7 @@ export function applyMarks(rows: Classified[], f: MarksFile): Classified[] {
   );
 }
 
+// The keys of every document pinned as critical.
 export function pinnedKeys(f: MarksFile): string[] {
   return Object.entries(f.marks).filter(([, v]) => v.pinned).map(([k]) => k);
 }

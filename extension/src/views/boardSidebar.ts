@@ -19,9 +19,16 @@ const VIEW = "saropaWorkspace.releaseBoard";
 const STATE_KEY = "saropaWorkspace.releaseBoard.sidebarState";
 const OPEN_BLOCKER = "saropaWorkspace.releaseBoard.sidebar.openBlocker";
 
+// The light names in the user's language, shared by the project rows and the trains.
+function lightWords(): Record<Light, string> {
+  return { "no-go": l10n("releaseBoard.panel.noGo"), unverified: l10n("releaseBoard.panel.unverified"), go: l10n("releaseBoard.panel.go") };
+}
+
+// The texts the sidebar rows are built from. `{count}`, `{name}` and `{names}` stay in the
+// text for the pure row builder to fill.
 function labels(): SidebarLabels {
   return {
-    light: { "no-go": l10n("releaseBoard.panel.noGo"), unverified: l10n("releaseBoard.panel.unverified"), go: l10n("releaseBoard.panel.go") },
+    light: lightWords(),
     blockerOne: l10n("releaseBoard.sidebar.blockerOne"),
     blockerMany: l10n("releaseBoard.sidebar.blockerMany", { count: "{count}" }),
     causeLint: l10n("releaseBoard.sidebar.causeLint"),
@@ -37,12 +44,104 @@ function labels(): SidebarLabels {
   };
 }
 
+// What a row of the tree stands for. Blockers carry the stamp of the board they came from.
 type Node = { kind: "offer" } | { kind: "train"; row: TrainRow } | { kind: "since"; change: SinceLast } | { kind: "change"; text: string; details: string[] } | { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
 
+// A codicon tinted with a theme color.
 function themed(icon: string, color: string): vscode.ThemeIcon {
   return new vscode.ThemeIcon(icon, new vscode.ThemeColor(color));
 }
 
+// What the welcome text under the title shows.
+export type SidebarState = "ready" | "empty" | "failed" | "loading";
+
+// Picks the sidebar state. `on` is the board switched on with a folder open, `found` that
+// the board has documents, `failed` that the last scan failed with no board to show.
+export function sidebarState(s: { on: boolean; found: boolean; failed: boolean; firstScanDone: boolean; scanning: boolean }): SidebarState {
+  if (s.found) {
+    return "ready";
+  }
+  if (!s.on) {
+    return "empty";
+  }
+  if (s.failed) {
+    return "failed";
+  }
+  return !s.firstScanDone || s.scanning ? "loading" : "empty";
+}
+
+// A click on any of these opens the board tab.
+function openBoardCommand(): vscode.Command {
+  return { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
+}
+
+// The line that offers to turn the overnight run on.
+function offerItem(): vscode.TreeItem {
+  const item = new vscode.TreeItem(l10n("releaseBoard.overnight.offer"), vscode.TreeItemCollapsibleState.None);
+  item.id = "offer/overnight";
+  item.iconPath = new vscode.ThemeIcon("history");
+  item.tooltip = l10n("releaseBoard.overnight.offerTip");
+  item.contextValue = "releaseBoardOvernightOffer";
+  item.command = { command: "saropaWorkspace.releaseBoard.overnight.enable", title: l10n("releaseBoard.overnight.offer") };
+  return item;
+}
+
+// The "since you last looked" heading; its changes are the children.
+function sinceItem(change: SinceLast): vscode.TreeItem {
+  const item = new vscode.TreeItem(l10n("releaseBoard.sinceLast.title"), vscode.TreeItemCollapsibleState.Expanded);
+  item.id = `since/${change.since}`;
+  item.description = whenText(change.since);
+  item.iconPath = new vscode.ThemeIcon("history");
+  item.contextValue = "releaseBoardSince";
+  item.tooltip = l10n("releaseBoard.sinceLast.tooltip");
+  item.command = openBoardCommand();
+  return item;
+}
+
+// One line of the change under the "since" heading.
+function changeItem(text: string, details: string[]): vscode.TreeItem {
+  const item = new vscode.TreeItem(text, vscode.TreeItemCollapsibleState.None);
+  item.tooltip = [text, ...details].join("\n");
+  item.command = openBoardCommand();
+  return item;
+}
+
+// A blocker row; its click names an index into the board it was built from.
+function blockerItem(project: SidebarRow, blocker: SidebarBlocker, stamp: number): vscode.TreeItem {
+  const item = new vscode.TreeItem(blocker.title, vscode.TreeItemCollapsibleState.None);
+  item.id = `${project.projectId}/${blocker.id}/${stamp}`;
+  item.iconPath = themed("circle-filled", blockerColor(blocker.status));
+  item.command = { command: OPEN_BLOCKER, title: l10n("releaseBoard.sidebar.openBlocker"), arguments: [blocker.id, stamp] };
+  return item;
+}
+
+// A release train row.
+function trainItem(row: TrainRow): vscode.TreeItem {
+  const item = new vscode.TreeItem(row.name, vscode.TreeItemCollapsibleState.None);
+  item.id = `train/${row.key}`;
+  item.description = row.description;
+  item.tooltip = row.tooltip.join("\n");
+  item.iconPath = themed("rocket", lightLook(row.light).color);
+  item.command = openBoardCommand();
+  return item;
+}
+
+// A project row: expanded or collapsed by the setting, with its light as the icon. The
+// expand mode is part of the id so a change of the setting takes effect at once.
+function projectItem(row: SidebarRow, expandMode: ExpandMode): vscode.TreeItem {
+  const state = row.blockers.length === 0 ? vscode.TreeItemCollapsibleState.None : row.expand ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed;
+  const item = new vscode.TreeItem(row.name, state);
+  item.id = `project/${row.projectId}/${expandMode}`;
+  item.description = row.description;
+  item.tooltip = row.tooltip.join("\n");
+  const look = lightLook(row.light as Light);
+  item.iconPath = themed(look.icon, look.color);
+  item.command = openBoardCommand();
+  return item;
+}
+
+// Tree provider for the Release Board section. It rebuilds its rows from the published
+// board on every refresh and keeps no scan state of its own.
 class BoardSidebar implements vscode.TreeDataProvider<Node> {
   constructor(private readonly context: vscode.ExtensionContext) {}
   private readonly emitter = new vscode.EventEmitter<Node | undefined>();
@@ -55,6 +154,8 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
   // Part of each project row's id: a change of the expand setting then takes effect at once.
   private expandMode: ExpandMode = "whenNoGo";
 
+  // Rebuilds the rows from the published board and the settings, tells the welcome text
+  // which state applies, and repaints.
   refresh(): void {
     const board = currentBoard();
     const cfg = vscode.workspace.getConfiguration(SETTINGS);
@@ -69,7 +170,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     this.trains = board
       ? trainRows(trainsFor(board.model, board.run.cfg), {
           title: l10n("releaseBoard.train.title", { name: "{name}" }),
-          light: { "no-go": l10n("releaseBoard.panel.noGo"), unverified: l10n("releaseBoard.panel.unverified"), go: l10n("releaseBoard.panel.go") },
+          light: lightWords(),
           heldBy: l10n("releaseBoard.train.heldBy", { names: "{names}" }),
           cycle: l10n("releaseBoard.train.cycle"),
         })
@@ -79,7 +180,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     // The welcome text under the title depends on this: loading, empty, or rows.
     const on = cfg.get<boolean>("enabled", true) && (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
     const found = on && board !== undefined && hasDocuments(board.model);
-    const state = found ? "ready" : !on ? "empty" : hasFailed() && !board ? "failed" : !isFirstScanDone() || isScanning() ? "loading" : "empty";
+    const state = sidebarState({ on, found, failed: hasFailed() && !board, firstScanDone: isFirstScanDone(), scanning: isScanning() });
     if (!found) {
       this.rows = [];
       this.trains = [];
@@ -89,60 +190,24 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
-    if (node.kind === "offer") {
-      const item = new vscode.TreeItem(l10n("releaseBoard.overnight.offer"), vscode.TreeItemCollapsibleState.None);
-      item.id = "offer/overnight";
-      item.iconPath = new vscode.ThemeIcon("history");
-      item.tooltip = l10n("releaseBoard.overnight.offerTip");
-      item.contextValue = "releaseBoardOvernightOffer";
-      item.command = { command: "saropaWorkspace.releaseBoard.overnight.enable", title: l10n("releaseBoard.overnight.offer") };
-      return item;
+    switch (node.kind) {
+      case "offer":
+        return offerItem();
+      case "since":
+        return sinceItem(node.change);
+      case "change":
+        return changeItem(node.text, node.details);
+      case "blocker":
+        return blockerItem(node.project, node.blocker, node.stamp);
+      case "train":
+        return trainItem(node.row);
+      case "project":
+        return projectItem(node.row, this.expandMode);
     }
-    if (node.kind === "since") {
-      const item = new vscode.TreeItem(l10n("releaseBoard.sinceLast.title"), vscode.TreeItemCollapsibleState.Expanded);
-      item.id = `since/${node.change.since}`;
-      item.description = whenText(node.change.since);
-      item.iconPath = new vscode.ThemeIcon("history");
-      item.contextValue = "releaseBoardSince";
-      item.tooltip = l10n("releaseBoard.sinceLast.tooltip");
-      item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
-      return item;
-    }
-    if (node.kind === "change") {
-      const item = new vscode.TreeItem(node.text, vscode.TreeItemCollapsibleState.None);
-      item.tooltip = [node.text, ...node.details].join("\n");
-      item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
-      return item;
-    }
-    if (node.kind === "blocker") {
-      const item = new vscode.TreeItem(node.blocker.title, vscode.TreeItemCollapsibleState.None);
-      item.id = `${node.project.projectId}/${node.blocker.id}/${node.stamp}`;
-      item.iconPath = themed("circle-filled", blockerColor(node.blocker.status));
-      item.command = { command: OPEN_BLOCKER, title: l10n("releaseBoard.sidebar.openBlocker"), arguments: [node.blocker.id, node.stamp] };
-      return item;
-    }
-    if (node.kind === "train") {
-      const item = new vscode.TreeItem(node.row.name, vscode.TreeItemCollapsibleState.None);
-      item.id = `train/${node.row.key}`;
-      item.description = node.row.description;
-      item.tooltip = node.row.tooltip.join("\n");
-      const look = lightLook(node.row.light);
-      item.iconPath = themed("rocket", look.color);
-      item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
-      return item;
-    }
-    const row = node.row;
-    const state = row.blockers.length === 0 ? vscode.TreeItemCollapsibleState.None : row.expand ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed;
-    const item = new vscode.TreeItem(row.name, state);
-    item.id = `project/${row.projectId}/${this.expandMode}`;
-    item.description = row.description;
-    item.tooltip = row.tooltip.join("\n");
-    const look = lightLook(row.light as Light);
-    item.iconPath = themed(look.icon, look.color);
-    item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
-    return item;
   }
 
+  // Roots: the change, the trains, the projects, then the overnight offer. Children: a
+  // change's lines, or a project's blockers.
   getChildren(node?: Node): Node[] {
     if (!node) {
       // The change leads the section, and only while there is one.
@@ -160,6 +225,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     return node.kind === "project" ? node.row.blockers.map((blocker) => ({ kind: "blocker", project: node.row, blocker, stamp: this.stamp })) : [];
   }
 
+  // Releases the change emitter.
   dispose(): void {
     this.emitter.dispose();
   }
@@ -183,6 +249,8 @@ async function openBlocker(id: unknown, stamp: unknown): Promise<void> {
   }
 }
 
+// Registers the sidebar tree, its refresh triggers and the two commands (open a blocker,
+// scan now), then draws it once.
 export function registerBoardSidebar(context: vscode.ExtensionContext): void {
   const provider = new BoardSidebar(context);
   const refresh = (): void => provider.refresh();

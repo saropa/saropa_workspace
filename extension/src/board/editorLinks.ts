@@ -9,10 +9,12 @@ import { Severity } from "./severity";
 
 export type MinSeverity = "any" | "medium" | "high" | "critical";
 
+// Plain setting value to a severity filter; anything unknown means no filter.
 export function asMinSeverity(v: unknown): MinSeverity {
   return v === "medium" || v === "high" || v === "critical" ? v : "any";
 }
 
+// An open document that names a source file.
 export interface FileLink {
   // Index into the model's items, for the host to open.
   id: number;
@@ -23,6 +25,7 @@ export interface FileLink {
   capped: boolean;
 }
 
+// Source file (project and path) to the open documents that name it.
 export type FileIndex = Map<string, FileLink[]>;
 
 const SEV_RANK: Record<Severity, number> = { extreme: 4, critical: 3, high: 2, medium: 1, low: 0 };

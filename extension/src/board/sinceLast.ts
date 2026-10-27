@@ -11,9 +11,12 @@ import { isBlocker } from "./sidebar";
 export const MAX_RECORDED = 200;
 const TITLE_MAX = 120;
 const KEY_MAX = 200;
+// Most projects kept in the record of what was seen.
 export const MAX_PROJECTS = 50;
 
+// Lines listed per project when the setting is missing.
 export const DEFAULT_LISTED = 5;
+// Most lines a setting may list per project.
 export const MAX_LISTED = 20;
 
 // A whole number from 1 to 20; anything else falls back to the default.
@@ -21,6 +24,7 @@ export function clampListed(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(MAX_LISTED, Math.max(1, Math.round(v))) : DEFAULT_LISTED;
 }
 
+// What was shown for one project the last time the board was seen.
 export interface SeenProject {
   name: string;
   light: Light;
@@ -28,6 +32,7 @@ export interface SeenProject {
   blockers: Record<string, string>;
 }
 
+// The record of what the board showed the last time it was seen.
 export interface SeenRecord {
   version: 1;
   // When the board was seen (ms since the epoch).
@@ -103,6 +108,7 @@ export function readSeen(v: unknown): SeenRecord | undefined {
   return { version: 1, at: r.at, projects };
 }
 
+// What changed in one project since the record.
 export interface ProjectChange {
   id: string;
   name: string;
@@ -114,6 +120,7 @@ export interface ProjectChange {
   lightTo?: Light;
 }
 
+// All changes since the board was last seen.
 export interface SinceLast {
   // When the board was last seen.
   since: number;
@@ -176,6 +183,7 @@ export interface SinceLabels {
   light: Record<Light, string>;
 }
 
+// One line of the strip at the top of the board, with its detail lines.
 export interface SinceLine {
   // "App: 2 new blockers, 1 cleared, went from UNVERIFIED to NO-GO".
   text: string;
@@ -194,6 +202,7 @@ function listed(sign: string, titles: string[], max: number, more: string): stri
   return out;
 }
 
+// Turns the changes into the text lines of the strip, each detail list capped.
 export function sinceLines(change: SinceLast, labels: SinceLabels, maxListed: number): SinceLine[] {
   return change.changes.map((c) => {
     const parts: string[] = [];
