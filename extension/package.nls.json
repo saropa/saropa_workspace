@@ -282,6 +282,7 @@
   "config.releaseBoard.future.defaultSort.effort": "Smallest effort first.",
   "config.releaseBoard.future.defaultSort.risk": "Lowest risk first.",
   "config.releaseBoard.future.defaultSort.reach": "Most frequent use first.",
+  "config.releaseBoard.future.researchParallel.description": "Most documents the Future tab hands to a chat at once with Hand all to chat (1 to 10). The rest stay queued and the button says how many remain; press it again for the next batch.",
   "config.releaseBoard.tidy.enabled.description": "Show a \"Ready to tidy\" box on the Release Board: documents whose steps are all done and that have not changed for a while. The board only lists them; a document moves to the archive folder only after you click its button and confirm.",
   "config.releaseBoard.tidy.afterDays.description": "Days a finished document must stay unchanged before it is listed as ready to tidy (1 to 365).",
   "config.releaseBoard.tidy.archiveFolder.description": "Folder, inside the project, that tidied documents move to. A dated sub-folder (year, month, day) is added. A path outside the project is ignored and the default is used.",

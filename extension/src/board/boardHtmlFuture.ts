@@ -1,5 +1,6 @@
-import { EFFORTS, Importance, IMPORTANCES, REACHES, RISKS } from "./futureBlock";
+import { EFFORTS, Importance, IMPORTANCES, MAX_FREE_TEXT, REACHES, RESEARCH_STATES, RISKS } from "./futureBlock";
 import { FUTURE_SORTS, FutureGroup, FutureItem, FutureOutside, FutureSort, groupItems, scoreOf } from "./futureList";
+import { researchCounts, researchQueue } from "./futureResearch";
 import { BoardStrings, escapeHtml } from "./boardHtmlUtil";
 
 // The Future tab of the board page: deferred and blocked documents under their flag, with
@@ -13,6 +14,10 @@ export interface FutureView {
   sort: FutureSort;
   // False while a scan is running or the stored result is on screen: the controls are off.
   canEdit: boolean;
+  // Most documents handed to a chat at once (the setting, already checked).
+  researchParallel: number;
+  // False when Hand to chat is turned off: the hand-off button stays but cannot be used.
+  handEnabled: boolean;
 }
 
 // One word of the tab's text table; the key itself when the table has no entry.
@@ -57,6 +62,23 @@ function importanceControl(t: BoardStrings, i: number, item: FutureItem, off: st
   return `<label class="fcl"><span class="k">${escapeHtml(name)}</span><select data-ff="importance" data-fi="${i}" class="${item.importance === undefined ? "guess" : ""}" aria-label="${escapeHtml(name)}"${off}>${opts}</select></label>${propose}`;
 }
 
+// The research controls of one item: the "Research needed" toggle, the state, the question
+// and, when the research is ready, the label and the review button. The toggle only moves
+// between "none" and "needed"; the other states are set by the hand-off, the chat and the
+// review, or by the state control.
+function researchRow(item: FutureItem, i: number, t: BoardStrings, off: string): string {
+  const toggleOff = item.research === "none" || item.research === "needed" ? off : " disabled";
+  const toggle = `<label class="fcl"><input type="checkbox" data-frt="${i}"${item.research === "needed" ? " checked" : ""}${toggleOff}> <span>${escapeHtml(ft(t, "researchNeeded"))}</span></label>`;
+  const state = control(t, i, "research", RESEARCH_STATES, item.research, false, off, (v) => ft(t, "research." + v));
+  const q = ft(t, "question");
+  const question = `<label class="fcl"><span class="k">${escapeHtml(q)}</span><input type="text" class="fq" data-fq="${i}" maxlength="${MAX_FREE_TEXT}" value="${escapeHtml(item.researchQuestion ?? "")}" placeholder="${escapeHtml(ft(t, "questionHint"))}" aria-label="${escapeHtml(q)}"${off}></label>`;
+  const ready =
+    item.research === "ready"
+      ? `<span class="tag" title="${escapeHtml(ft(t, "readyTip"))}">${escapeHtml(ft(t, "readyNotReviewed"))}</span><button data-frev="${i}"${off}>${escapeHtml(ft(t, "markReviewed"))}</button>`
+      : "";
+  return `<div class="fc fr">${toggle}${state}${question}${ready}</div>`;
+}
+
 function itemRow(item: FutureItem, i: number, t: BoardStrings, canEdit: boolean): string {
   const off = canEdit ? "" : " disabled";
   const g = (f: string): boolean => item.guessed.includes(f as never);
@@ -72,7 +94,26 @@ function itemRow(item: FutureItem, i: number, t: BoardStrings, canEdit: boolean)
     control(t, i, "effort", EFFORTS, item.effort, g("effort"), off, (v) => v),
     control(t, i, "risk", RISKS, item.risk, g("risk"), off, (v) => ft(t, "risk." + v)),
   ].join("");
-  return `<div class="fut" data-fut="${i}"><div class="fl"><span class="tag">${escapeHtml(item.projectName)}</span><span class="f click-f" tabindex="0" role="button" data-fopen="${i}" title="${escapeHtml(item.path)}">${escapeHtml(item.title)}</span><span class="k" title="${escapeHtml(score)}">${escapeHtml(String(scoreOf(item)))}</span></div><div class="fc">${controls}</div>${blocker}</div>`;
+  return `<div class="fut" data-fut="${i}"><div class="fl"><span class="tag">${escapeHtml(item.projectName)}</span><span class="f click-f" tabindex="0" role="button" data-fopen="${i}" title="${escapeHtml(item.path)}">${escapeHtml(item.title)}</span><span class="k" title="${escapeHtml(score)}">${escapeHtml(String(scoreOf(item)))}</span></div><div class="fc">${controls}</div>${researchRow(item, i, t, off)}${blocker}</div>`;
+}
+
+// The research summary and the hand-off button; empty when no document has a research state.
+function researchBar(view: FutureView, t: BoardStrings): string {
+  const c = researchCounts(view.items);
+  if (c.needed + c.inProgress + c.readyUnreviewed === 0) {
+    return "";
+  }
+  const num = (key: string, n: number): string => ft(t, key).replace("{count}", () => String(n));
+  const parts = [c.needed > 0 ? num("waiting", c.needed) : "", c.inProgress > 0 ? num("inProgressCount", c.inProgress) : "", c.readyUnreviewed > 0 ? num("readyCount", c.readyUnreviewed) : ""].filter((x) => x !== "");
+  let button = "";
+  if (c.needed > 0) {
+    const { batch, queued } = researchQueue(view.items, view.sort, view.researchParallel);
+    const label = queued > 0 ? ft(t, "handBatch").replace("{batch}", () => String(batch.length)).replace("{queued}", () => String(queued)) : num("handAll", batch.length);
+    const off = view.canEdit && view.handEnabled ? "" : " disabled";
+    const tip = view.handEnabled ? ft(t, "handTip") : ft(t, "handOffTip");
+    button = ` <button data-fhand title="${escapeHtml(tip)}"${off}>${escapeHtml(label)}</button>`;
+  }
+  return `<div class="fresearch"><span>${escapeHtml(parts.join(" \u00b7 "))}</span>${button}</div>`;
 }
 
 function outsideBox(view: FutureView, t: BoardStrings): string {
@@ -100,5 +141,5 @@ export function futurePanel(view: FutureView | undefined, t: BoardStrings): stri
       return `<section class="fg"><h3>${escapeHtml(label(g.group))} <span class="n">${g.entries.length}</span></h3>${g.entries.map((e) => itemRow(e.item, e.i, t, view.canEdit)).join("")}</section>`;
     })
     .join("");
-  return `<section id="tab-future" role="tabpanel" aria-labelledby="tb-future" hidden><h2>${escapeHtml(ft(t, "heading"))}</h2><p class="note">${escapeHtml(ft(t, "note"))}</p><div class="fsort">${sort}</div>${groups}${outsideBox(view, t)}</section>`;
+  return `<section id="tab-future" role="tabpanel" aria-labelledby="tb-future" hidden><h2>${escapeHtml(ft(t, "heading"))}</h2><p class="note">${escapeHtml(ft(t, "note"))}</p><div class="fsort">${sort}</div>${researchBar(view, t)}${groups}${outsideBox(view, t)}</section>`;
 }

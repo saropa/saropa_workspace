@@ -3,7 +3,7 @@
 // everything else in the document, including line endings, a byte order mark and front
 // matter, comes back byte for byte.
 
-export const BLOCK_KEYS = ["Importance", "Research", "Wow", "Reach", "Effort", "Risk", "Blocker"] as const;
+export const BLOCK_KEYS = ["Importance", "Research", "Research question", "Wow", "Reach", "Effort", "Risk", "Blocker"] as const;
 // One key of the header block.
 export type BlockKey = (typeof BLOCK_KEYS)[number];
 
@@ -29,15 +29,23 @@ export interface FutureBlock {
   effort?: Effort;
   risk?: Risk;
   blocker?: string;
+  research?: ResearchState;
+  // The question the research should answer: one line, free text.
+  researchQuestion?: string;
   invalid: BlockKey[];
 }
 
 export const RESEARCH_STATES = ["none", "needed", "in-progress", "ready", "reviewed"] as const;
+// Where the research on a document stands.
+export type ResearchState = (typeof RESEARCH_STATES)[number];
 
 const BOM = "﻿";
-const LINE = /^(importance|research|wow|reach|effort|risk|blocker)[ \t]*:[ \t]*(.*?)[ \t]*$/i;
+const LINE = /^(importance|research[ \t]+question|research|wow|reach|effort|risk|blocker)[ \t]*:[ \t]*(.*?)[ \t]*$/i;
 const H1 = /^#[ \t]+\S/;
-const MAX_BLOCKER = 300;
+// Longest value kept for a free-text key (the blocker and the research question).
+export const MAX_FREE_TEXT = 300;
+// Keys whose value is free text: any non-empty line is valid.
+const FREE_TEXT: readonly BlockKey[] = ["Blocker", "Research question"];
 
 interface Line {
   text: string;
@@ -56,7 +64,8 @@ function splitLines(text: string): Line[] {
 const join = (lines: Line[]): string => lines.map((l) => l.text + l.eol).join("");
 
 function canonicalKey(raw: string): BlockKey {
-  return BLOCK_KEYS.find((k) => k.toLowerCase() === raw.toLowerCase()) as BlockKey;
+  const flat = raw.toLowerCase().replace(/[ \t]+/g, " ");
+  return BLOCK_KEYS.find((k) => k.toLowerCase() === flat) as BlockKey;
 }
 
 // Where the block can sit: first line after optional front matter, or right after the
@@ -75,7 +84,7 @@ function afterFrontMatter(lines: Line[]): number {
 }
 
 // A run of key lines starting at `from`. A strict run (what a write may touch) must also
-// have a valid value on every line (a blocker may be any text) and end at a blank line or
+// have a valid value on every line (a blocker or a research question may be any text) and end at a blank line or
 // the end of the file, so a paragraph that merely starts with a key word is never taken
 // for the block.
 function blockAt(lines: Line[], from: number, strict: boolean): { start: number; end: number } | undefined {
@@ -91,7 +100,7 @@ function blockAt(lines: Line[], from: number, strict: boolean): { start: number;
     const valid = lines.slice(from, end).every((l) => {
       const m = LINE.exec(l.text)!;
       const key = canonicalKey(m[1]);
-      return key === "Blocker" || parseValue(key, m[2]) !== undefined;
+      return FREE_TEXT.includes(key) || parseValue(key, m[2]) !== undefined;
     });
     if (!closed || !valid) {
       return undefined;
@@ -145,7 +154,8 @@ export function parseValue(key: BlockKey, raw: string): Importance | number | Re
     case "Risk":
       return RISKS.find((x) => x === nameKey(v));
     case "Blocker":
-      return v === "" ? undefined : v.slice(0, MAX_BLOCKER);
+    case "Research question":
+      return v === "" ? undefined : v.slice(0, MAX_FREE_TEXT);
     default:
       return RESEARCH_STATES.find((x) => x === nameKey(v));
   }
@@ -183,6 +193,10 @@ export function parseBlock(text: string): FutureBlock {
       out.risk = value as Risk;
     } else if (key === "Blocker") {
       out.blocker = value as string;
+    } else if (key === "Research") {
+      out.research = value as ResearchState;
+    } else if (key === "Research question") {
+      out.researchQuestion = value as string;
     }
   }
   return out;
@@ -191,7 +205,13 @@ export function parseBlock(text: string): FutureBlock {
 // New value per key: text to set it, null to remove its line, absent to leave it alone.
 export type BlockChanges = Partial<Record<BlockKey, string | null>>;
 
-const oneLine = (v: string): string => v.replace(/[\r\n]+/g, " ").trim();
+// One line of plain text: line breaks and other control characters become spaces, and the
+// text is cut to the free-text limit.
+// A cut never leaves half of a surrogate pair.
+export function oneLine(v: string): string {
+  const cut = v.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ").trim().slice(0, MAX_FREE_TEXT);
+  return /[\ud800-\udbff]$/.test(cut) ? cut.slice(0, -1) : cut;
+}
 
 // True when the first line opens front matter that is never closed.
 function unclosedFrontMatter(lines: Line[]): boolean {
@@ -209,6 +229,14 @@ export function setBlockFields(text: string, changes: BlockChanges): string | un
   const lines = splitLines(bom ? text.slice(1) : text);
   const eol = lines.find((l) => l.eol !== "")?.eol ?? "\n";
   const lastOpen = lines.length > 0 && lines[lines.length - 1].eol === "";
+  // A free-text value that is empty once cleaned removes its line; it never writes "Key: ".
+  const wanted: BlockChanges = { ...changes };
+  for (const k of FREE_TEXT) {
+    if (typeof wanted[k] === "string" && oneLine(wanted[k] as string) === "") {
+      wanted[k] = null;
+    }
+  }
+  changes = wanted;
   const keys = BLOCK_KEYS.filter((k) => changes[k] !== undefined);
   if (keys.length === 0) {
     return text;

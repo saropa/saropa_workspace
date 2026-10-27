@@ -54,11 +54,47 @@ export function __warningMessages(): readonly string[] {
 export function __setWarningAnswer(next: Answer): void {
   answer = next;
 }
-// Test-control hook: clears the recorded warnings and restores the dismiss-everything answer.
+// Test-control hook: clears the recorded warnings, information messages and clipboard
+// writes, and restores the dismiss-everything answers.
 export function __resetWarnings(): void {
   warnings = [];
   answer = () => undefined;
+  infos = [];
+  infoAnswer = () => undefined;
+  clipboard = [];
 }
+let infos: string[] = [];
+let infoAnswer: Answer = () => undefined;
+let clipboard: string[] = [];
+// The messages window.showInformationMessage was called with since the last reset.
+export function __infoMessages(): readonly string[] {
+  return infos;
+}
+// Test-control hook: chooses what an information message answers (an item label, or undefined).
+export function __setInfoAnswer(next: Answer): void {
+  infoAnswer = next;
+}
+// Every text written to the clipboard since the last reset, oldest first.
+export function __clipboardWrites(): readonly string[] {
+  return clipboard;
+}
+// window.showInformationMessage: options objects are skipped, labels are passed to the handler.
+export function recordInfo(message: string, rest: unknown[]): Promise<string | undefined> {
+  infos.push(message);
+  return Promise.resolve(infoAnswer(message, rest.filter((x): x is string => typeof x === "string")));
+}
+// vscode.env: the clipboard only.
+export const env = {
+  clipboard: {
+    writeText(text: string): Promise<void> {
+      clipboard.push(text);
+      return Promise.resolve();
+    },
+    readText(): Promise<string> {
+      return Promise.resolve(clipboard[clipboard.length - 1] ?? "");
+    },
+  },
+};
 // window.showWarningMessage: options objects are skipped, labels are passed to the handler.
 export function recordWarning(message: string, rest: unknown[]): Promise<string | undefined> {
   warnings.push(message);

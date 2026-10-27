@@ -1,4 +1,4 @@
-import { BlockKey, Effort, FutureBlock, Importance, Reach, Risk, parseBlock, parseValue } from "./futureBlock";
+import { BlockKey, Effort, FutureBlock, Importance, Reach, ResearchState, Risk, parseBlock, parseValue } from "./futureBlock";
 import { titleFromPath } from "./boardModelParts";
 import { BoardConfig, ParamValue } from "./types";
 
@@ -55,6 +55,10 @@ export interface FutureItem {
   // Fields whose value above was guessed because the block did not give it.
   guessed: GuessedField[];
   blocker?: string;
+  // Where the research on it stands; "none" when the document says nothing.
+  research: ResearchState;
+  // The question the research should answer, when the document names one.
+  researchQuestion?: string;
   // Score as a fraction (higher is better): wow x reach weight over effort weight.
   scoreNum: number;
   scoreDen: number;
@@ -212,6 +216,8 @@ export function buildItem(input: FutureInput, source: FutureSource): FutureItem 
     risk,
     guessed,
     blocker: block.blocker,
+    research: block.research ?? "none",
+    researchQuestion: block.researchQuestion,
     scoreNum: wow * REACH_WEIGHT[reach],
     scoreDen: EFFORT_WEIGHT[effort],
   };
@@ -281,7 +287,7 @@ export function isFieldValue(field: string, value: unknown): value is string {
   return key !== undefined && typeof value === "string" && parseValue(key, value) !== undefined;
 }
 
-const FIELD_KEYS: Record<string, BlockKey | undefined> = { importance: "Importance", wow: "Wow", reach: "Reach", effort: "Effort", risk: "Risk" };
+const FIELD_KEYS: Record<string, BlockKey | undefined> = { importance: "Importance", research: "Research", wow: "Wow", reach: "Reach", effort: "Effort", risk: "Risk" };
 
 // The block key a page field name stands for.
 export function blockKeyOf(field: string): BlockKey | undefined {
