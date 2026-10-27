@@ -1,3 +1,4 @@
+import { escapeCell } from "./textEscape";
 import type { EvidenceRead } from "./recipeEvidence";
 import { feedInfo, formatSummaryLine } from "./reportSummary";
 
@@ -73,7 +74,7 @@ export function buildReadinessMarkdown(c: Readiness, generated: string): string 
     "",
     "| Check | State | Detail |",
     "|---|---|---|",
-    ...c.rows.map((r) => `| ${r.name} | ${WORD[r.state]} | ${r.detail.replace(/\|/g, "\\|")} |`),
+    ...c.rows.map((r) => `| ${escapeCell(r.name)} | ${WORD[r.state]} | ${escapeCell(r.detail)} |`),
     "",
     notCovered.length > 0 ? `Not covered (no report): ${notCovered.join(", ")}.` : "",
     "",

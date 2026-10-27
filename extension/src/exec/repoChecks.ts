@@ -1,3 +1,4 @@
+import { escapeCell } from "../board/textEscape";
 import { ReportSummary, feedInfo, formatSummaryLine } from "../board/reportSummary";
 
 // Pure parts of the Stale branch age, Large new file watch and Broken links recipes: reading
@@ -6,7 +7,7 @@ import { ReportSummary, feedInfo, formatSummaryLine } from "../board/reportSumma
 // look says "unknown", never "pass".
 
 const DAY_S = 86400;
-const cell = (s: string): string => s.replace(/\|/g, "\\|").replace(/[\r\n`]/g, " ");
+const cell = escapeCell;
 
 function summary(feed: "staleBranches" | "bigFiles" | "links", time: number, result: ReportSummary["result"], count?: number): string {
   return formatSummaryLine({ recipe: feedInfo(feed).recipeId, time, result, count: result === "unknown" ? undefined : count });

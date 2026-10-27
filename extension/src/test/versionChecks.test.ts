@@ -126,3 +126,14 @@ test("a configured file name stays inside the project folder", () => {
     assert.equal(cleanRelativeFile(bad, "CHANGELOG.md"), "CHANGELOG.md", String(bad));
   }
 });
+
+test("a crate name with a backslash is looked up literally", () => {
+  const lock = '[[package]]\nname = "a\\\\b"\nversion = "1.2.3"\n\n[[package]]\nname = "ab"\nversion = "9.9.9"\n';
+  assert.deepEqual(cargoLockVersion(lock, "a\\\\b"), [{ source: "Cargo.lock", version: "1.2.3" }]);
+  assert.deepEqual(cargoLockVersion(lock, "a.b"), []);
+});
+
+test("report tables escape a backslash in a source name", () => {
+  const md = buildVersionMarkdown({ result: "fail", count: 1, manifest: { file: "package.json", version: "1.0.0" }, rows: [{ source: "dir\\lock.json", version: "2.0.0", agrees: false }] }, "NOW");
+  assert.ok(md.includes("| dir\\\\lock.json | 2.0.0 | **differs** |"));
+});

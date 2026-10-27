@@ -156,3 +156,8 @@ test("links: summary lines and report text; the list is capped but the count is 
   assert.ok(buildLinksMarkdown(0, 0, [], "NOW").includes("No Markdown documents were found"));
   assert.ok(buildLinksMarkdown(4, 20, [], "NOW").includes("20 relative link(s) in 4 document(s) were checked. None is broken."));
 });
+
+test("report tables escape a backslash in a branch name", () => {
+  const md = buildBranchAgeMarkdown(true, [{ name: "a\\b|c", ageDays: 40, author: "x" }], 30, "main", "NOW");
+  assert.ok(md.includes("| a\\\\b\\|c | 40 | x |"));
+});

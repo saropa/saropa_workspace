@@ -1,3 +1,4 @@
+import { escapeCell, escapeRegExp } from "../board/textEscape";
 import { formatSummaryLine, ReportSummary, feedInfo } from "../board/reportSummary";
 
 // Pure parts of the Changelog check and Version consistency recipes: reading a version out of
@@ -48,7 +49,7 @@ export interface ManifestVersion {
 
 // The text between a TOML section header and the next one.
 function tomlSection(text: string, header: string): string | undefined {
-  const start = text.search(new RegExp(`^\\[${header.replace(/\./g, "\\.")}\\]\\s*$`, "m"));
+  const start = text.search(new RegExp(`^\\[${escapeRegExp(header)}\\]\\s*$`, "m"));
   if (start < 0) {
     return undefined;
   }
@@ -119,7 +120,7 @@ export function cargoLockVersion(text: string, crate: string | undefined): State
     return [];
   }
   for (const block of text.split(/^\[\[package\]\]\s*$/m).slice(1)) {
-    if (new RegExp(`^name\\s*=\\s*"${crate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*$`, "m").test(block)) {
+    if (new RegExp(`^name\\s*=\\s*"${escapeRegExp(crate)}"\\s*$`, "m").test(block)) {
       const v = /^version\s*=\s*"([^"]+)"/m.exec(block);
       return v ? [{ source: "Cargo.lock", version: v[1] }] : [];
     }
@@ -203,7 +204,7 @@ export function versionSummaryLine(c: VersionCheck, time: number): string {
   return formatSummaryLine(s);
 }
 
-const cell = (s: string): string => s.replace(/\|/g, "\\|").replace(/[\r\n`]/g, " ");
+const cell = escapeCell;
 
 export function buildChangelogMarkdown(c: ChangelogCheck, changelogFile: string, generated: string): string {
   const head = c.result === "pass" ? "The top changelog entry matches the project version." : c.result === "fail" ? "The top changelog entry does not match the project version." : "Could not compare: a version is missing.";
