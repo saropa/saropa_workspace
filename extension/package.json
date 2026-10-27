@@ -2497,6 +2497,28 @@
             "default": "never",
             "description": "%config.releaseBoard.handToChat.openChat.description%"
           },
+          "saropaWorkspace.releaseBoard.liveEvidence.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.liveEvidence.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.liveEvidence.includeWarnings": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.liveEvidence.includeWarnings.description%"
+          },
+          "saropaWorkspace.releaseBoard.liveEvidence.lookbackDays": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 30,
+            "description": "%config.releaseBoard.liveEvidence.lookbackDays.description%"
+          },
+          "saropaWorkspace.releaseBoard.liveEvidence.unnamedBox": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.liveEvidence.unnamedBox.description%"
+          },
           "saropaWorkspace.releaseBoard.editorLinks.enabled": {
             "type": "boolean",
             "default": true,

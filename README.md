@@ -142,6 +142,10 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.tidy.enabled` | `true` | Shows a "Ready to tidy" box on the board: documents with every step done that have not changed for a while. It only lists them; a document moves only after you click its button and confirm. |
 | `releaseBoard.tidy.afterDays` | `7` | Days a finished document must stay unchanged before it is listed (1 to 365). |
 | `releaseBoard.tidy.archiveFolder` | `docs/history` | Folder inside the project that tidied documents move to, under a year/month/day sub-folder. |
+| `releaseBoard.liveEvidence.enabled` | `true` | Shows a small flame on a board row when the source files that document names have errors or warnings (Problems panel, Saropa Lints file, and Log Capture when installed). Information only: it never changes a light. |
+| `releaseBoard.liveEvidence.includeWarnings` | `true` | Counts warnings as well as errors and crashes. Off: only errors and crashes mark a row. |
+| `releaseBoard.liveEvidence.lookbackDays` | `1` | Days of debug runs Log Capture is asked about (1 to 30). |
+| `releaseBoard.liveEvidence.unnamedBox` | `true` | Lists crash signals in files no open document names, with a Start a bug document button. Needs Log Capture. |
 | `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |
 | `releaseBoard.editorLinks.codeLens` | `true` | Shows the line at the top of a file that lists those documents. |
 | `releaseBoard.editorLinks.statusBar` | `true` | Shows a status bar count, colored by the worst document. |

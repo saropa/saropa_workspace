@@ -14,6 +14,8 @@ import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "..
 import { asTimeBox } from "../board/sittings";
 import { moveToArchive, readTidySettings } from "../commands/boardTidy";
 import { publishBoard } from "./editorLinks";
+import { LiveSettings, liveFold, loadLiveSignals, readLiveSettings, startBugDocument } from "../commands/boardLive";
+import { LiveSignals } from "../board/liveEvidence";
 import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
 import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
 import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed, setPanelVisible } from "./boardFeed";
@@ -21,7 +23,7 @@ import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>" and "hand <kind, index>", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>" and "hand <kind, index>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -115,6 +117,14 @@ function strings(): BoardStrings {
     tidyTitle: l10n("releaseBoard.tidy.title", { count: "{count}" }),
     tidyMove: l10n("releaseBoard.tidy.move"),
     tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
+    liveHead: l10n("releaseBoard.live.head"),
+    liveProblems: l10n("releaseBoard.live.problems", { errors: "{errors}", warnings: "{warnings}" }),
+    liveLints: l10n("releaseBoard.live.lints", { errors: "{errors}", warnings: "{warnings}" }),
+    liveLogs: l10n("releaseBoard.live.logs", { errors: "{errors}", crashes: "{crashes}" }),
+    liveMore: l10n("releaseBoard.live.more", { count: "{count}" }),
+    liveUnnamedHeading: l10n("releaseBoard.live.unnamedHeading"),
+    liveUnnamedNote: l10n("releaseBoard.live.unnamedNote"),
+    liveUnnamedStart: l10n("releaseBoard.live.start"),
   };
 }
 
@@ -162,6 +172,10 @@ class BoardPanel {
   private outsideToken = 0;
   private disposed = false;
   private outsidePending = false;
+  // Error and warning counts for the files open documents name; loaded after the scan.
+  private live: LiveSignals = {};
+  private liveToken = 0;
+  private liveTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -188,6 +202,17 @@ class BoardPanel {
       this.disposables
     );
     onDidChangeProviders(() => void this.refreshOutside(), null, this.disposables);
+    // The Problems panel changes often while typing: look again at most every few seconds.
+    vscode.languages.onDidChangeDiagnostics(
+      () => {
+        if (this.panel.visible && readLiveSettings().enabled) {
+          clearTimeout(this.liveTimer);
+          this.liveTimer = setTimeout(() => void this.refreshLive(), 4000);
+        }
+      },
+      null,
+      this.disposables
+    );
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => {
@@ -198,6 +223,7 @@ class BoardPanel {
           this.lastKey = "";
           this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
           void this.refreshOutside();
+          void this.refreshLive();
         }
       },
       null,
@@ -261,6 +287,7 @@ class BoardPanel {
     this.lastScanAt = Date.now();
     this.render();
     void this.refreshOutside();
+    void this.refreshLive();
   }
 
   // Paints the previous result at once, dimmed, while the scan runs.
@@ -328,6 +355,28 @@ class BoardPanel {
     }
     this.render();
     void this.refreshOutside();
+    void this.refreshLive();
+  }
+
+  // Counts the errors and warnings in the files open documents name, off the scan's path,
+  // and paints them when they arrive; a newer call wins. Marks are information only.
+  private async refreshLive(): Promise<void> {
+    const run = this.run;
+    const model = this.model;
+    if (!run || !model || this.disposed) {
+      return;
+    }
+    const token = ++this.liveToken;
+    const s = readLiveSettings();
+    const next = s.enabled ? await loadLiveSignals(run, model.items, s) : {};
+    if (token === this.liveToken && !this.disposed) {
+      this.live = next;
+      if (!this.scanning && !this.cached) {
+        this.render();
+      } else {
+        this.outsidePending = true;
+      }
+    }
   }
 
   // Fetches what lives outside the scan and paints it when it arrives; a newer call wins.
@@ -369,7 +418,7 @@ class BoardPanel {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: this.sittings(), tidy: this.tidy() }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: this.sittings(), tidy: this.tidy(), live: this.liveInput() }
     );
     const model = this.model;
     const settings = pathSettings();
@@ -409,6 +458,11 @@ class BoardPanel {
     }
     const choice = readSittingsChoice(this.context) ?? { have: s.defaultHave, timeBox: s.defaultTimeBox };
     return { selection: { have: choice.have, timeBox: choice.timeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
+  }
+
+  private liveInput(): { signals: LiveSignals; includeWarnings: boolean; fold: boolean; unnamedBox: boolean } | undefined {
+    const s: LiveSettings = readLiveSettings();
+    return s.enabled ? { signals: this.live, includeWarnings: s.includeWarnings, fold: liveFold, unnamedBox: s.unnamedBox } : undefined;
   }
 
   // The Tidy sweep's settings with the time now; undefined when the sweep is off.
@@ -476,6 +530,20 @@ class BoardPanel {
       await this.hand(message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
     } else if (msg.type === "tidy" && typeof (message as { i?: unknown }).i === "number") {
       await this.tidyMove((message as { i: number }).i);
+    } else if (msg.type === "liveBug" && typeof (message as { i?: unknown }).i === "number") {
+      // The index is resolved against the list this panel rendered, never a path from the page.
+      const u = this.model?.liveUnnamed?.[(message as { i: number }).i];
+      const project = this.run?.cfg.projects.find((p) => p.id === u?.project);
+      if (u && project && !this.scanning && !this.cached) {
+        try {
+          if (await startBugDocument(vscode.Uri.parse(project.path), u, readLiveSettings().lookbackDays)) {
+            this.dirty = true;
+            await this.refresh(true);
+          }
+        } catch (e) {
+          void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+        }
+      }
     } else if (msg.type === "rules") {
       await openRulesFile();
     } else if (msg.type === "accept") {
@@ -633,7 +701,9 @@ class BoardPanel {
     setPanelVisible(false);
     this.disposed = true;
     this.outsideToken++;
+    this.liveToken++;
     clearTimeout(this.timer);
+    clearTimeout(this.liveTimer);
     this.panel.dispose();
     for (const d of this.disposables) {
       d.dispose();

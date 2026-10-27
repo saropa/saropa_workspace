@@ -292,5 +292,9 @@
   "config.releaseBoard.openOnStartup.whenProjectsFound": "Open it when the first scan finds open documents (red, amber or purple) in at least one project.",
   "config.releaseBoard.openOnStartup.always": "Open it whenever a folder is open.",
   "config.releaseBoard.statusBar.showLight.description": "Tint the Release Board status bar button with the worst light of all projects (red for NO-GO, amber for UNVERIFIED, green for GO) and name it in the tooltip.",
-  "viewsWelcome.releaseBoard.failed": "The scan failed, so there is nothing to show yet. Check the Saropa Release Board output.\n[Retry](command:saropaWorkspace.releaseBoard.sidebar.refresh)\n[Open the rules file](command:saropaWorkspace.releaseBoard.openRules)"
+  "viewsWelcome.releaseBoard.failed": "The scan failed, so there is nothing to show yet. Check the Saropa Release Board output.\n[Retry](command:saropaWorkspace.releaseBoard.sidebar.refresh)\n[Open the rules file](command:saropaWorkspace.releaseBoard.openRules)",
+  "config.releaseBoard.liveEvidence.enabled.description": "Show a small flame on a Release Board row when the source files that document names have errors or warnings (from the Problems panel, the Saropa Lints file and, when installed, Log Capture). The mark is information only: it never changes a light.",
+  "config.releaseBoard.liveEvidence.includeWarnings.description": "Count warnings as well as errors and crashes. Off: a row is marked only for errors and crashes.",
+  "config.releaseBoard.liveEvidence.lookbackDays.description": "How many days of debug runs Log Capture is asked about (1 to 30). Ignored when Log Capture is not installed.",
+  "config.releaseBoard.liveEvidence.unnamedBox.description": "List crash signals from debug runs in files that no open document names, with a button that starts a bug document. Needs Log Capture; shows nothing without it."
 }

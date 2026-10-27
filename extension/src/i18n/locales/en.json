@@ -1947,5 +1947,14 @@
   "releaseBoard.sidebar.causeHeld": "held: the last accepted scan had red work",
   "releaseBoard.sidebar.scanFailed": "last scan failed",
   "releaseBoard.sidebar.updating": "updating…",
-  "releaseBoard.sidebar.lastResult": "last result, not refreshed yet"
+  "releaseBoard.sidebar.lastResult": "last result, not refreshed yet",
+  "releaseBoard.live.head": "Live evidence in the source files this document names:",
+  "releaseBoard.live.problems": "{errors} errors, {warnings} warnings in Problems",
+  "releaseBoard.live.lints": "{errors} lint errors, {warnings} lint warnings",
+  "releaseBoard.live.logs": "{errors} errors, {crashes} crashes in debug runs",
+  "releaseBoard.live.more": "{count} more files with signals",
+  "releaseBoard.live.unnamedHeading": "Errors with no document",
+  "releaseBoard.live.unnamedNote": "Crash signals from recent debug runs in files that no open document names. Starting a document writes one new file in the project's bugs folder and opens it for you to finish.",
+  "releaseBoard.live.start": "Start a bug document",
+  "releaseBoard.live.exists": "Release Board: {path} and its numbered copies already exist, so no document was written."
 }
