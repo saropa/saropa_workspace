@@ -218,8 +218,6 @@ export const workspace = {
   // Empty unless a test pushes a document (for example a dirty one).
   textDocuments: [] as Array<{ isDirty: boolean; uri: Uri }>,
   applyEdit,
-  // Configuration changes never fire in the stub; tests read settings directly.
-  onDidChangeConfiguration: (_listener: (e: { affectsConfiguration(section: string): boolean }) => void): { dispose(): void } => ({ dispose: (): void => undefined }),
   fs: fsApi,
   findFiles,
   ...hostWorkspace,

@@ -65,14 +65,15 @@ const events = {
   textClosed: new EventEmitter<unknown>(),
   foldersChanged: new EventEmitter<unknown>(),
   themeChanged: new EventEmitter<unknown>(),
+  configChanged: new EventEmitter<{ affectsConfiguration(section: string): boolean }>(),
 };
 
 /** Names of the events a test can fire with `__fireHostEvent`. */
 export type HostEventName = keyof typeof events;
 
-/** Test hook: fires one of the document, folder or theme events with `payload`. */
+/** Test hook: fires one of the document, folder, theme or configuration events with `payload`. */
 export function __fireHostEvent(name: HostEventName, payload: unknown): void {
-  events[name].fire(payload);
+  (events[name] as EventEmitter<unknown>).fire(payload);
 }
 
 /** A file-system watcher handle: three events and a dispose. */
@@ -331,6 +332,7 @@ export const hostWorkspace = {
   onDidSaveTextDocument: events.textSaved.event,
   onDidCloseTextDocument: events.textClosed.event,
   onDidChangeWorkspaceFolders: events.foldersChanged.event,
+  onDidChangeConfiguration: events.configChanged.event,
 };
 
 /** One editor group of the tab model: its column and tabs (only the tab input is modeled). */

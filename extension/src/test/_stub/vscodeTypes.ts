@@ -99,9 +99,17 @@ type Listener<T> = (e: T) => void;
 // contract this fakes.
 export class EventEmitter<T> {
   private readonly listeners = new Set<Listener<T>>();
-  readonly event = (listener: Listener<T>): { dispose(): void } => {
-    this.listeners.add(listener);
-    return { dispose: (): boolean => this.listeners.delete(listener) };
+  // Like the real event: an optional `this` for the listener, and an optional list the handle is added to.
+  readonly event = (
+    listener: Listener<T>,
+    thisArgs?: unknown,
+    disposables?: Array<{ dispose(): unknown }>
+  ): { dispose(): void } => {
+    const bound: Listener<T> = thisArgs === undefined ? listener : (data) => listener.call(thisArgs, data);
+    this.listeners.add(bound);
+    const handle = { dispose: (): boolean => this.listeners.delete(bound) };
+    disposables?.push(handle);
+    return handle;
   };
   fire(data: T): void {
     for (const listener of [...this.listeners]) {

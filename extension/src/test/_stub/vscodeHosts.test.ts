@@ -170,3 +170,17 @@ test("a multi-select accept selects every item given", () => {
   pick.accept();
   assert.deepEqual([pick.selectedItems, accepted], [[], 3]);
 });
+
+test("configuration changes reach a listener, which is bound to its owner and added to the given list", () => {
+  const owner = { seen: [] as boolean[] };
+  const handles: Array<{ dispose(): unknown }> = [];
+  const handle = vscode.workspace.onDidChangeConfiguration(function (this: typeof owner, e) {
+    this.seen.push(e.affectsConfiguration("a.b"));
+  }, owner, handles);
+  vscode.__fireHostEvent("configChanged", { affectsConfiguration: (s: string) => s === "a.b" });
+  assert.deepEqual(owner.seen, [true]);
+  assert.deepEqual(handles, [handle]);
+  handle.dispose();
+  vscode.__fireHostEvent("configChanged", { affectsConfiguration: () => true });
+  assert.deepEqual(owner.seen, [true], "a disposed listener hears nothing");
+});
