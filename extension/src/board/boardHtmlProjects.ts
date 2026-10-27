@@ -1,5 +1,5 @@
 import type { BoardModel, BoardProject } from "./boardModel";
-import { BoardStrings, escapeHtml, fill } from "./boardHtmlUtil";
+import { BoardStrings, escapeHtml, fillT, pill, tip, titleAttr } from "./boardHtmlUtil";
 
 // The pieces of the board page that belong to the umbrella view: the Projects and Settings
 // buttons, the one-line hint, the roll-up of lights, the open mark and the grey rows of
@@ -18,7 +18,7 @@ document.querySelectorAll('[data-settings]').forEach(b=>b.addEventListener('clic
 document.querySelectorAll('[data-hint-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'hintDismiss',rev:REV})));`;
 
 // The text of one label; the key itself when the table has none (a plain-browser layout check).
-function label(t: BoardStrings, key: string): string {
+export function label(t: BoardStrings, key: string): string {
   const table = t.projectLabels;
   return table && typeof table === "object" && typeof table[key] === "string" ? table[key] : key;
 }
@@ -34,7 +34,7 @@ export function hintBar(show: boolean | undefined, t: BoardStrings): string {
   if (!show) {
     return "";
   }
-  return `<div class="hint" role="note"><span class="f">${escapeHtml(label(t, "hintText"))}</span><button data-projects>${escapeHtml(label(t, "hintAdd"))}</button><button data-hint-dismiss title="${escapeHtml(label(t, "hintDismissTip"))}" aria-label="${escapeHtml(label(t, "hintDismissTip"))}">${escapeHtml(label(t, "hintDismiss"))}</button></div>`;
+  return `<div class="hint" role="note" ${tip(t, "hintBar")}><span class="f" ${tip(t, "hintBar")}>${escapeHtml(label(t, "hintText"))}</span><button data-projects title="${escapeHtml(label(t, "projectsTip"))}">${escapeHtml(label(t, "hintAdd"))}</button><button data-hint-dismiss title="${escapeHtml(label(t, "hintDismissTip"))}" aria-label="${escapeHtml(label(t, "hintDismissTip"))}">${escapeHtml(label(t, "hintDismiss"))}</button></div>`;
 }
 
 export interface Rollup {
@@ -71,10 +71,10 @@ export function rollupBar(model: BoardModel, t: BoardStrings): string {
     return "";
   }
   const c = rollupCounts(model.projects);
-  const pill = (cls: string, n: number, text: string): string => `<span class="go ${cls}${n === 0 ? " zero" : ""}">${n} ${escapeHtml(text)}</span>`;
+  const light = (cls: string, n: number, text: string): string => `<span class="go ${cls}${n === 0 ? " zero" : ""}" ${tip(t, "rollupLight", { count: n, light: text })}>${pill(t, n)} ${escapeHtml(text)}</span>`;
   const skipped = model.skipped?.length ?? 0;
   const total = model.projects.length + skipped;
-  return `<div class="roll" role="status"><b>${fill(label(t, "rollup"), { count: total })}</b>${pill("no-go", c.noGo, t.noGo)}${pill("unverified", c.unverified, t.unverified)}${pill("go", c.go, t.go)}${skipped > 0 ? `<span class="go skipped">${skipped} ${escapeHtml(label(t, "skippedShort"))}</span>` : ""}</div>`;
+  return `<div class="roll" role="status" ${tip(t, "rollupBar", { count: total })}><b ${tip(t, "rollupBar", { count: total })}>${fillT(t, label(t, "rollup"), { count: total })}</b>${light("no-go", c.noGo, t.noGo)}${light("unverified", c.unverified, t.unverified)}${light("go", c.go, t.go)}${skipped > 0 ? `<span class="go skipped" ${tip(t, "rollupSkipped", { count: skipped })}>${pill(t, skipped)} ${escapeHtml(label(t, "skippedShort"))}</span>` : ""}</div>`;
 }
 
 // A note under the roll-up when chosen projects are hidden by the open-only scope.
@@ -82,7 +82,7 @@ export function hiddenNote(model: BoardModel, t: BoardStrings): string {
   if (!model.hidden) {
     return "";
   }
-  return `<p class="note" title="${escapeHtml(label(t, "hiddenTip"))}">${fill(label(t, "hidden"), { count: model.hidden })}</p>`;
+  return `<p class="note" title="${escapeHtml(label(t, "hiddenTip"))}">${fillT(t, label(t, "hidden"), { count: model.hidden })}</p>`;
 }
 
 // The mark on the row of a project of the open workspace, shown only in the umbrella view.
@@ -96,6 +96,9 @@ export function openBadge(p: BoardProject, model: BoardModel, t: BoardStrings): 
 // One grey row per chosen folder that could not be read, with the reason.
 export function skippedBlock(model: BoardModel, t: BoardStrings, maxExtra: number): string {
   return (model.skipped ?? [])
-    .map((s) => `<div class="vd skip"><b class="pn">${escapeHtml(s.name)}</b><span class="go skipped">${escapeHtml(label(t, "skippedShort"))}</span><span class="fn">${fill(label(t, "skip_" + s.reason), { max: maxExtra })}</span></div>`)
+    .map((s) => {
+      const why = label(t, "skip_" + s.reason).replace("{max}", String(maxExtra));
+      return `<div class="vd skip" ${tip(t, "skippedRow", { name: s.name })}><b class="pn" ${tip(t, "projectName", { name: s.name })}>${escapeHtml(s.name)}</b><span class="go skipped" ${titleAttr(why)}>${escapeHtml(label(t, "skippedShort"))}</span><span class="fn" ${titleAttr(why)}>${fillT(t, label(t, "skip_" + s.reason), { max: maxExtra })}</span></div>`;
+    })
     .join("");
 }

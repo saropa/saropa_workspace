@@ -221,9 +221,9 @@ test("html: the row notes read exactly, warnings are marked, a clean report adds
     readiness: read("readiness", HOUR, "pass", 0),
   });
   const out = page(h);
-  assert.ok(out.includes('<span class="fn" title="Review queue report: 3 waiting for review (1 h ago)">Pull requests waiting for your review: 3</span>'));
-  assert.ok(out.includes('<span class="fn warn" title="Uncommitted-work report: 5 files not committed (1 h ago)">Files not committed: 5</span>'));
-  assert.ok(out.includes('<span class="fn warn" title="Link report: 2 broken links (1 h ago)">Broken links: 2</span>'));
+  assert.ok(out.includes('<span class="fn" title="Review queue report: 3 waiting for review (1 h ago)">Pull requests waiting for your review: <span class="pill" title="pillTip">3</span></span>'));
+  assert.ok(out.includes('<span class="fn warn" title="Uncommitted-work report: 5 files not committed (1 h ago)">Files not committed: <span class="pill" title="pillTip">5</span></span>'));
+  assert.ok(out.includes('<span class="fn warn" title="Link report: 2 broken links (1 h ago)">Broken links: <span class="pill" title="pillTip">2</span></span>'));
   assert.ok(out.includes('<span class="fn" title="Release readiness report: tests and lint passing (1 h ago)">Release checks: tests and lint passing</span>'));
   assert.ok(!out.includes("Old unmerged"));
   assert.ok(!out.includes("reports/"));
@@ -234,7 +234,7 @@ test("html: a project with no signal has no note span; the dependency mark shows
   assert.ok(!plain.includes('class="fn'));
   assert.ok(!plain.includes("Dependencies: "));
   const withDeps = page(evaluateHealth(undefined, undefined, undefined, NOW, { ...good, deps: read("deps", HOUR, "fail", 2) }));
-  assert.ok(withDeps.includes('title="Dependencies: Dependency report: 2 vulnerable or discontinued (1 h ago)"'));
+  assert.ok(withDeps.includes('title="g.redDot: Dependencies: Dependency report: 2 vulnerable or discontinued (1 h ago)"'));
   assert.ok(withDeps.includes("Dependencies are failing."));
 });
 
@@ -271,8 +271,8 @@ test("html: the Tidy box lists report candidates read-only, by index, with no pa
     branches: read("branches", HOUR, "pass", 3),
   });
   const out = page(h, { tidy: tidyOn });
-  assert.ok(out.includes('<span class="f">Debt: 12, unchanged</span><button data-tidyrep="0">Open report</button>'));
-  assert.ok(out.includes('<span class="f">Merged branches: 3</span><button data-tidyrep="1">Open report</button>'));
+  assert.ok(out.includes('<span class="f">Debt: <span class="pill" title="pillTip">12</span>, unchanged</span><button class="sec" data-tidyrep="0" title="tidyReport">Open report</button>'));
+  assert.ok(out.includes('<span class="f">Merged branches: <span class="pill" title="pillTip">3</span></span><button class="sec" data-tidyrep="1" title="tidyReport">Open report</button>'));
   assert.ok(out.includes("From the daily reports."));
   assert.ok(!out.includes("data-tidy="), "no document move button");
   assert.ok(!out.includes("Idle 7 days"), "the document note is left out when no document is listed");

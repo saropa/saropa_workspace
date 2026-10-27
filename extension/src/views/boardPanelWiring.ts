@@ -60,6 +60,13 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
     panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
     // Problems changed while the tab was hidden: look again when it is shown.
     panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
+    // Documents were edited while the tab was hidden: look again when it is shown.
+    panel.onDidChangeViewState(() => {
+      if (this.panel.visible && this.editedStale) {
+        this.editedStale = false;
+        void this.refreshEdited();
+      }
+    }, null, this.disposables);
     panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
     // Something is on screen at once: placeholders, then the last result, then the scan.
     panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
@@ -82,6 +89,11 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
       null,
       this.disposables
     );
+    // A document was opened, edited, saved or closed: the In progress list may change.
+    vscode.workspace.onDidChangeTextDocument((e) => e.document.uri.scheme === "file" && this.scheduleEdited(), null, this.disposables);
+    vscode.workspace.onDidSaveTextDocument((d) => d.uri.scheme === "file" && this.scheduleEdited(), null, this.disposables);
+    vscode.workspace.onDidOpenTextDocument((d) => d.uri.scheme === "file" && this.scheduleEdited(), null, this.disposables);
+    vscode.workspace.onDidCloseTextDocument((d) => d.uri.scheme === "file" && this.scheduleEdited(), null, this.disposables);
     // A project version was read: draw the train name again.
     onDidChangeTrainVersions(() => !this.scanning && !this.cached && this.render(), null, this.disposables);
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
@@ -96,6 +108,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
           void this.refreshOutside();
           void this.refreshLive();
           void this.refreshFuture();
+          void this.refreshEdited();
         }
       },
       null,

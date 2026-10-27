@@ -5,13 +5,14 @@ import { Profile, asProfile } from "../board/severity";
 import { BoardConfig, ProjectDef } from "../board/types";
 import { l10n } from "../i18n/l10n";
 import { pathExists } from "./boardFileSource";
+import { OVERRIDE_RULE_SET, RULES_PATH, USER_RULE_SET } from "../board/ruleAssign";
 import { hasChosenFolders, loadExtraProjects } from "./boardExtraProjects";
 
 // Release Board, loading the rule file. The user's own `.saropa/release-board.json` in the
 // first folder wins over the rules shipped with the extension; a missing section falls back
 // to the shipped one.
 
-export const RULES_FILE = ".saropa/release-board.json";
+export const RULES_FILE = RULES_PATH;
 // Folders a project may keep its documents in; only the ones that exist are scanned.
 export const DEFAULT_ROOTS = ["bugs", "docs", "plans", "reports", "db-access"];
 const DEFAULT_SETS = ["folder-states", "reference-docs", "doc-kinds", "live-folders", "status-line"];
@@ -75,8 +76,24 @@ async function readRules(folders: readonly vscode.WorkspaceFolder[]): Promise<Bo
   return layerUserRules(shipped, JSON.parse(Buffer.from(bytes).toString("utf8")) as Partial<BoardConfig>);
 }
 
+// The rule sets every folder project reads: the rules written for one document first, the shipped
+// sets, then the rules written for a folder. A written rule names its project, so a set shared
+// by all projects never changes another project's documents.
+export function ruleSetsFor(cfg: BoardConfig): string[] {
+  return [...(OVERRIDE_RULE_SET in cfg.ruleSets ? [OVERRIDE_RULE_SET] : []), ...DEFAULT_SETS, ...(USER_RULE_SET in cfg.ruleSets ? [USER_RULE_SET] : [])];
+}
+
+// A chosen project that names its own rule sets still reads the rules written from the board:
+// the "my-overrides" set first and the "my-rules" set last, when the file has them.
+function withUserSets(p: ProjectDef, cfg: BoardConfig): ProjectDef {
+  const first = OVERRIDE_RULE_SET in cfg.ruleSets && !p.ruleSets.includes(OVERRIDE_RULE_SET) ? [OVERRIDE_RULE_SET] : [];
+  const last = USER_RULE_SET in cfg.ruleSets && !p.ruleSets.includes(USER_RULE_SET) ? [USER_RULE_SET] : [];
+  return first.length + last.length === 0 ? p : { ...p, ruleSets: [...first, ...p.ruleSets, ...last] };
+}
+
 // One project per workspace folder, scanning the document folders it actually has.
-async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[]): Promise<ProjectDef[]> {
+// A rule added from the board (the "my-rules" rule set) applies to these projects too.
+async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[], sets: string[]): Promise<ProjectDef[]> {
   const projects: ProjectDef[] = [];
   const used = new Set<string>();
   for (const f of folders) {
@@ -87,7 +104,7 @@ async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[]): Pr
       }
     }
     const id = uniqueProjectId(f.name, used);
-    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: DEFAULT_SETS });
+    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: sets, ...(id !== f.name ? { idMadeUnique: true } : {}) });
   }
   return projects;
 }
@@ -105,13 +122,13 @@ export async function loadConfig(): Promise<BoardConfig> {
   cfg = { ...cfg, profile: asProfile(chosen ?? cfg.profile) };
   const open = await openProjects(cfg, folders);
   // The user's extra projects follow the open ones, read the same way.
-  const extra = await loadExtraProjects(new Set(open.map((p) => p.id)), uniqueProjectId, DEFAULT_ROOTS, DEFAULT_SETS);
+  const extra = await loadExtraProjects(new Set(open.map((p) => p.id)), uniqueProjectId, DEFAULT_ROOTS, ruleSetsFor(cfg));
   if (extra.projects.length === 0 && extra.skipped.length === 0 && extra.hidden === 0) {
     return { ...cfg, projects: open };
   }
   return {
     ...cfg,
-    projects: [...open, ...extra.projects],
+    projects: [...open, ...extra.projects.map((p) => withUserSets(p, cfg))],
     ruleSets: { ...cfg.ruleSets, ...extra.ruleSets },
     ...(extra.skipped.length > 0 ? { skipped: extra.skipped } : {}),
     ...(extra.hidden > 0 ? { hidden: extra.hidden } : {}),
@@ -127,5 +144,5 @@ async function openProjects(cfg: BoardConfig, folders: readonly vscode.Workspace
       path: (path.isAbsolute(p.path) ? (base.scheme === "file" ? vscode.Uri.file(p.path) : base.with({ path: p.path })) : vscode.Uri.joinPath(base, p.path)).toString(),
     }));
   }
-  return foldersAsProjects(folders);
+  return foldersAsProjects(folders, ruleSetsFor(cfg));
 }

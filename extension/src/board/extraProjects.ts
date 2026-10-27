@@ -162,6 +162,8 @@ export interface FolderInput {
   defaultSets: string[];
   // The folder's own rules file, parsed, or undefined.
   parsed?: Partial<BoardConfig>;
+  // True when `id` was made unique by adding a number.
+  idMadeUnique?: boolean;
   // Makes a project id unique among all projects.
   uniqueId: (name: string) => string;
 }
@@ -197,8 +199,11 @@ export function folderProjects(input: FolderInput): FolderProjects {
       continue;
     }
     const name = typeof entry.name === "string" && entry.name ? entry.name : typeof entry.id === "string" && entry.id ? entry.id : input.name;
+    const wanted = typeof entry.id === "string" && entry.id ? entry.id : name;
+    const id = input.uniqueId(wanted);
     projects.push({
-      id: input.uniqueId(typeof entry.id === "string" && entry.id ? entry.id : name),
+      id,
+      ...(id !== wanted ? { idMadeUnique: true } : {}),
       name,
       path: rel === "" ? input.uri : input.join(rel),
       roots: cleanRoots(entry.roots),
@@ -210,7 +215,7 @@ export function folderProjects(input: FolderInput): FolderProjects {
     });
   }
   if (projects.length === 0) {
-    projects.push({ id: input.id, name: input.name, path: input.uri, roots: input.roots, ruleSets: sets(input.defaultSets), extra: true });
+    projects.push({ id: input.id, name: input.name, path: input.uri, roots: input.roots, ruleSets: sets(input.defaultSets), extra: true, ...(input.idMadeUnique ? { idMadeUnique: true } : {}) });
   }
   return { projects, ruleSets: renamed };
 }

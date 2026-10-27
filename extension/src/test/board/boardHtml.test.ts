@@ -65,7 +65,7 @@ test("the page carries no file path or URL outside the row tooltips", () => {
   const html = renderBoard(m, t, "n");
   const attrs = [...html.matchAll(/="([^"]*)"/g)].map((m) => m[1]);
   assert.ok(attrs.every((a) => a !== "https://example.com/x"), "no attribute holds the link");
-  assert.equal(/\bhref\s*=/i.test(html), false, "the page has no href");
+  assert.equal(/\bhref\s*=\s*"(?!#")/i.test(html), false, "the only href is the in-page # of a document link");
   const withoutTooltips = html.replace(/title="[^"]*"/g, "");
   assert.ok(!withoutTooltips.includes("secret/place"));
 });
@@ -127,12 +127,15 @@ test("the since strip and the train row appear above the projects", () => {
     { key: "k", name: "Train", light: "go", members: [{ id: "app", name: "App", light: "go", label: "1" }], heldBy: [], cycle: false },
   ]);
   const at = (s: string): number => html.indexOf(s);
-  assert.ok(at("Since then") > 0 && at("Since then") < at('class="vd train"') && at('class="vd train"') < at('class="pn">App'));
+  assert.ok(at("Since then") > 0 && at("Since then") < at('class="vd train"') && at('class="vd train"') < at('>App</b>'));
 });
 
-test("the sittings button shows only when the model has a sittings view", () => {
+test("the sittings filter shows when the model has a sittings view, and no button hides it", () => {
   const without = buildBoard(cfg, [], undefined, true);
-  assert.ok(!renderBoard(without, t, "n").includes('id="sit-open"'));
-  const withView = buildBoard(cfg, [], undefined, true, undefined, undefined, undefined, { sittings: { selection: { have: [], timeBox: "any", maxSteps: 5 }, onlyOwner: false } });
-  assert.ok(renderBoard(withView, t, "n").includes('id="sit-open"'));
+  assert.ok(!renderBoard(without, t, "n").includes('id="sit-panel"'));
+  const withView = buildBoard(cfg, [], undefined, true, undefined, undefined, undefined, { sittings: { selection: { timeBox: "any", maxSteps: 5 }, onlyOwner: false } });
+  const html = renderBoard(withView, t, "n");
+  assert.ok(html.includes('<details class="box" id="sit-panel" data-sec="sittings" open>'));
+  assert.equal(html.includes('id="sit-open"'), false);
+  assert.equal(html.includes("sit-panel\" hidden"), false);
 });

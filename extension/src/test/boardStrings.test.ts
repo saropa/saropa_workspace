@@ -47,7 +47,6 @@ test("the table carries the same text as the catalog entries it is built from", 
   const t = strings();
   assert.equal(t.title, l10n("releaseBoard.panel.title"));
   assert.equal(t.accept, l10n("releaseBoard.accept"));
-  assert.equal(t.sittingsButton, l10n("releaseBoard.sittings.button"));
   assert.equal(t.tidyHeading, l10n("releaseBoard.tidy.heading"));
   assert.equal(t.liveHead, l10n("releaseBoard.live.head"));
 });

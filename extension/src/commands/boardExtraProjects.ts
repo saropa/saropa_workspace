@@ -151,8 +151,10 @@ export async function loadExtraProjects(used: Set<string>, uniqueId: (name: stri
     }
     const ok = c as { p: string; uri: vscode.Uri; roots: string[]; parsed?: Record<string, unknown> };
     const name = folderName(ok.p);
+    const id = uniqueId(name, used);
     const made = folderProjects({
-      id: uniqueId(name, used),
+      id,
+      idMadeUnique: id !== name,
       name,
       uri: ok.uri.toString(),
       join: (rel) => vscode.Uri.joinPath(ok.uri, rel).toString(),

@@ -83,12 +83,10 @@ export interface BoardStrings {
   ptgUnread: string;
   ptgAccept: string;
   ptgMore: string;
-  ptgOpen: string;
   ptgRunLint: string;
   ptgRunTests: string;
   ptgOpenRules: string;
   ptgAcceptBtn: string;
-  sittingsButton: string;
   sittingsHeading: string;
   sittingsPick: string;
   sittingsNone: string;
@@ -101,9 +99,6 @@ export interface BoardStrings {
   // "{count}" steps with no context found.
   sittingsUntagged: string;
   sittingsUntaggedNote: string;
-  timeAny: string;
-  // "{count}" minutes.
-  timeMinutes: string;
   // "{count}" minutes a step is thought to take.
   stepMinutes: string;
   // Label of the Hand to chat button; empty when the feature is off (no button is drawn).
@@ -157,6 +152,8 @@ export interface BoardStrings {
   trainOrder: string;
   // Future tab: every label and phrase, keyed (see views/boardStrings.ts).
   futureLabels: Record<string, string>;
+  // Tooltips and the labels of the controls added with them, keyed (see views/boardStrings.ts).
+  polish: Record<string, string>;
 }
 
 // Small helpers shared by every part of the page: escaping, placeholder filling and the
@@ -177,10 +174,95 @@ export function liveLine(f: LiveFile, t: BoardStrings): string {
 
 // The Hand to chat button. It carries only indexes; the host builds the prompt from the model it rendered.
 export function handButton(t: BoardStrings, attrs: string): string {
-  return t.handToChat ? `<button class="hb" ${attrs} title="${escapeHtml(t.handToChatTip)}">${escapeHtml(t.handToChat)}</button>` : "";
+  return t.handToChat ? `<button class="hb sec" ${attrs} title="${escapeHtml(t.handToChatTip)}">${escapeHtml(t.handToChat)}</button>` : "";
 }
 
-// Fills {name} placeholders after escaping, so a document title can never add markup.
-export function fill(tmpl: string, vars: Record<string, string | number | undefined>): string {
-  return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] === undefined ? m : escapeHtml(String(vars[k]))));
+// One word or sentence of the control and tooltip table, with {name} placeholders filled in.
+// The key itself when the table has no entry, so a missing entry is visible, never empty.
+export function pl(t: BoardStrings, key: string, vars: Record<string, string | number> = {}): string {
+  const table = t.polish as Record<string, string> | undefined;
+  const text = table && typeof table === "object" ? (table[key] ?? key) : key;
+  return text.replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] === undefined ? m : String(vars[k])));
+}
+
+// A title attribute from the table, escaped. Every element on the page carries one.
+export function tip(t: BoardStrings, key: string, vars: Record<string, string | number> = {}): string {
+  return `title="${escapeHtml(pl(t, key, vars))}"`;
+}
+
+// A title attribute from plain text, escaped.
+export function titleAttr(text: string): string {
+  return `title="${escapeHtml(text)}"`;
+}
+
+// A title for a glyph: what it looks like, then what it means ("Red dot: lint is failing").
+export function glyphTip(t: BoardStrings, look: string, text: string): string {
+  return titleAttr(`${pl(t, look)}: ${text}`);
+}
+
+// A document the page can open: an underlined link whose tooltip is the document's path inside
+// its project. It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
+export function docLink(text: string, path: string, attr: string): string {
+  return `<a class="doc" href="#" ${attr} ${titleAttr(path)}>${escapeHtml(text)}</a>`;
+}
+
+// Fills {name} placeholders after escaping, so a document title can never add markup. Values in
+// `html` are already-built markup (a link, say) and go in as they are.
+export function fill(tmpl: string, vars: Record<string, string | number | undefined>, html: Record<string, string> = {}): string {
+  return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => (html[k] !== undefined ? html[k] : vars[k] === undefined ? m : escapeHtml(String(vars[k]))));
+}
+
+// A number shown on the page: a small rounded pill, so it stands out from the words around it.
+export function pill(t: BoardStrings, n: number | string, tipKey = "pillTip", vars: Record<string, string | number> = {}): string {
+  return `<span class="pill" ${tip(t, tipKey, vars)}>${escapeHtml(String(n))}</span>`;
+}
+
+// Wraps every whole number in already-escaped text in a pill. Only for sentences the board
+// builds from its own counts; never for a document title or a name.
+export function pillify(t: BoardStrings, escaped: string): string {
+  const word = (c: string | undefined): boolean => c !== undefined && /\w/.test(c);
+  let out = "";
+  let i = 0;
+  while (i < escaped.length) {
+    const c = escaped[i];
+    if (c < "0" || c > "9") {
+      out += c;
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < escaped.length && escaped[j] >= "0" && escaped[j] <= "9") {
+      j++;
+    }
+    const before = i === 0 ? undefined : escaped[i - 1];
+    const next = escaped[j];
+    // A number in the middle of a word, a version, an entity or a decimal is left as it is.
+    let plain = (before !== undefined && (word(before) || before === "." || before === "#" || before === "&")) || word(next);
+    if (!plain && next === ".") {
+      let k = j;
+      while (escaped[k] === ".") {
+        k++;
+      }
+      plain = k === j + 1 ? word(escaped[k]) : escaped[k] >= "0" && escaped[k] <= "9";
+    }
+    out += plain ? escaped.slice(i, j) : pill(t, escaped.slice(i, j));
+    i = j;
+  }
+  return out;
+}
+
+// A section the reader can fold: a details element whose summary holds the heading. Native
+// details gives keyboard support and the expanded state; the page script remembers it per
+// viewer under `id`. Expanded unless `open` is false.
+export function collapsible(o: { id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string }): string {
+  const h = o.level === 3 ? "h3" : "h2";
+  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${o.head}</${h}></summary>${o.body}</details>`;
+}
+
+// Like fill, for page text: a number among the values goes in as a pill.
+export function fillT(t: BoardStrings, tmpl: string, vars: Record<string, string | number | undefined>, html: Record<string, string> = {}): string {
+  return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => {
+    const v = vars[k];
+    return html[k] !== undefined ? html[k] : v === undefined ? m : typeof v === "number" ? pill(t, v) : escapeHtml(v);
+  });
 }

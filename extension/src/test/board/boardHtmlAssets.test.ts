@@ -20,9 +20,10 @@ test("a value cannot close the script element", () => {
 test("every message the page posts carries the revision and only indexes or keys", () => {
   const js = script(1, "x", "y");
   assert.ok(js.includes("const REV=1;"));
-  for (const type of ["refresh", "open", "path", "hand", "tidy", "liveBug", "external", "step", "sitting", "profile", "rules", "accept", "suggest"]) {
+  for (const type of ["refresh", "open", "path", "hand", "tidy", "liveBug", "external", "step", "sitting", "profile", "rowMenu", "optsMenu", "accept", "suggest", "assign", "preview", "futureOpen"]) {
     assert.ok(new RegExp(`type:'${type}'[^;]*rev:REV`).test(js), `posts ${type} with the revision`);
   }
+  assert.equal(js.includes("type:'rules'"), false, "the page has no way to open the rules file but the menus");
   assert.ok(!/path:[a-z]*\.(dataset|textContent)/i.test(js), "no file path is read from the page");
   assert.ok(!js.includes("href"), "the page opens nothing by URL");
 });

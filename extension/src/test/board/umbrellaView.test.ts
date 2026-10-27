@@ -108,7 +108,7 @@ test("with several projects the header states the total and how many are in each
   const m = model(cfg(["a", "b"]), [row("a", "bugs/x.md", "red")]);
   assert.equal(
     rollupBar(m, t),
-    '<div class="roll" role="status"><b>3 projects</b><span class="go no-go">1 NO-GO</span><span class="go unverified">2 UNVERIFIED</span><span class="go go zero">0 GO</span></div>'
+    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">3</span> projects</b><span class="go no-go" title="rollupLight"><span class="pill" title="pillTip">1</span> NO-GO</span><span class="go unverified" title="rollupLight"><span class="pill" title="pillTip">2</span> UNVERIFIED</span><span class="go go zero" title="rollupLight"><span class="pill" title="pillTip">0</span> GO</span></div>'
   );
 });
 
@@ -117,7 +117,7 @@ test("a chosen folder that could not be read is counted apart and never as a lig
   assert.equal(isUmbrella(m), true);
   assert.equal(
     rollupBar(m, t),
-    '<div class="roll" role="status"><b>2 projects</b><span class="go no-go zero">0 NO-GO</span><span class="go unverified">1 UNVERIFIED</span><span class="go go zero">0 GO</span><span class="go skipped">1 NOT READ</span></div>'
+    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">2</span> projects</b><span class="go no-go zero" title="rollupLight"><span class="pill" title="pillTip">0</span> NO-GO</span><span class="go unverified" title="rollupLight"><span class="pill" title="pillTip">1</span> UNVERIFIED</span><span class="go go zero" title="rollupLight"><span class="pill" title="pillTip">0</span> GO</span><span class="go skipped" title="rollupSkipped"><span class="pill" title="pillTip">1</span> NOT READ</span></div>'
   );
 });
 
@@ -131,8 +131,8 @@ test("a grey row names the folder and the reason and carries no path", () => {
   const m = model(cfg([], [{ name: "gone<b>", reason: "missing" }, { name: "big", reason: "overLimit" }]));
   assert.equal(
     skippedBlock(m, t, 40),
-    '<div class="vd skip"><b class="pn">gone&#60;b&#62;</b><span class="go skipped">NOT READ</span><span class="fn">Not found.</span></div>' +
-      '<div class="vd skip"><b class="pn">big</b><span class="go skipped">NOT READ</span><span class="fn">Limit 40.</span></div>'
+    '<div class="vd skip" title="skippedRow"><b class="pn" title="projectName">gone&#60;b&#62;</b><span class="go skipped" title="Not found.">NOT READ</span><span class="fn" title="Not found.">Not found.</span></div>' +
+      '<div class="vd skip" title="skippedRow"><b class="pn" title="projectName">big</b><span class="go skipped" title="Limit 40.">NOT READ</span><span class="fn" title="Limit 40.">Limit <span class="pill" title="pillTip">40</span>.</span></div>'
   );
 });
 
@@ -148,7 +148,7 @@ test("the hint is one line with the add and dismiss buttons, and only when asked
   assert.equal(hintBar(undefined, t), "");
   assert.equal(
     hintBar(true, t),
-    '<div class="hint" role="note"><span class="f">Only this project is shown.</span><button data-projects>Add more projects</button><button data-hint-dismiss title="Hide the hint" aria-label="Hide the hint">Dismiss</button></div>'
+    '<div class="hint" role="note" title="hintBar"><span class="f" title="hintBar">Only this project is shown.</span><button data-projects title="Choose projects">Add more projects</button><button data-hint-dismiss title="Hide the hint" aria-label="Hide the hint">Dismiss</button></div>'
   );
 });
 
@@ -170,8 +170,8 @@ test("the page has the controls, the open mark and the roll-up in order, and sen
 test("every work list row names its project when several are shown", () => {
   const m = model(cfg(["zed"]), [row("zed", "bugs/a.md", "red"), row("app", "bugs/b.md", "red")]);
   const html = renderBoard(m, t, "n");
-  assert.ok(html.includes('<span class="tag">ZED</span>'));
-  assert.ok(html.includes('<span class="tag">App</span>'));
+  assert.ok(html.includes('<span class="tag" title="project">ZED</span>'));
+  assert.ok(html.includes('<span class="tag" title="project">App</span>'));
 });
 
 // Safety around projects that come and go by the user's choice.
@@ -279,7 +279,7 @@ test("the page says how many chosen projects are hidden", () => {
   c.hidden = 2;
   const m = model(c);
   assert.equal(m.hidden, 2);
-  assert.equal(hiddenNote(m, t), '<p class="note" title="Shown with the Projects button">Chosen projects hidden: 2</p>');
+  assert.equal(hiddenNote(m, t), '<p class="note" title="Shown with the Projects button">Chosen projects hidden: <span class="pill" title="pillTip">2</span></p>');
   assert.equal(hiddenNote(model(cfg()), t), "");
 });
 

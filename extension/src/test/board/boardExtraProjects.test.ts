@@ -88,7 +88,21 @@ test("a chosen folder named like an open project gets its own id", async () => {
   const other = mk(path.join(parent, "two", "same"), "bugs");
   open(home, "same");
   choose(other);
-  assert.deepEqual((await loadConfig()).projects.map((p) => p.id), ["same", "same-2"]);
+  const projects = (await loadConfig()).projects;
+  assert.deepEqual(projects.map((p) => p.id), ["same", "same-2"]);
+  assert.deepEqual(projects.map((p) => p.idMadeUnique), [undefined, true], "only the id that had a number added is marked");
+});
+
+test("two open folders with one name: the second id is marked as made unique", async () => {
+  const parent = tmp();
+  const one = mk(path.join(parent, "one", "same"), "bugs");
+  const two = mk(path.join(parent, "two", "same"), "bugs");
+  stub.__setWorkspaceFolders([
+    { uri: vscode.Uri.file(one), name: "same", index: 0 },
+    { uri: vscode.Uri.file(two), name: "same", index: 1 },
+  ]);
+  const projects = (await loadConfig()).projects;
+  assert.deepEqual(projects.map((p) => [p.id, p.idMadeUnique]), [["same", undefined], ["same-2", true]]);
 });
 
 test("an open folder in the list is not added twice", async () => {
@@ -426,4 +440,18 @@ test("removing one project keeps an open folder that is stored", async () => {
   });
   await chooseProjects();
   assert.deepEqual(stub.__getConfig(SECTION, "projects"), [a]);
+});
+
+test("rules written from the board apply to a chosen folder too: the overrides set first, the my-rules set last", async () => {
+  const home = mk(tmp(), "bugs");
+  const other = mk(tmp(), "bugs");
+  fs.mkdirSync(path.join(home, ".saropa"));
+  fs.writeFileSync(path.join(home, ".saropa", "release-board.json"), JSON.stringify({ version: 1, ruleSets: { "my-overrides": { rules: [] }, "my-rules": { rules: [] } } }));
+  open(home, "app");
+  choose(other);
+  const cfg = await loadConfig();
+  const [openProject, chosen] = cfg.projects;
+  assert.equal(openProject.ruleSets[0], "my-overrides");
+  assert.equal(openProject.ruleSets[openProject.ruleSets.length - 1], "my-rules");
+  assert.deepEqual(chosen.ruleSets, openProject.ruleSets, "the chosen folder reads the same sets in the same order");
 });

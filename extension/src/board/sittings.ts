@@ -6,8 +6,8 @@ import { Severity } from "./severity";
 // owner has in hand and in the time they have. Read-only: nothing is written into a
 // document. Pure, so the matching and the order are unit-tested without a webview.
 
-export const TIME_BOXES = ["any", "15", "30", "60"] as const;
-// The time the owner has: any, or 15, 30 or 60 minutes.
+export const TIME_BOXES = ["any", "15", "30", "60", "240"] as const;
+// The time the owner has: any, or 15 minutes, 30 minutes, 1 hour or half a day (240 minutes).
 export type TimeBox = (typeof TIME_BOXES)[number];
 
 // Plain value to a time box; anything unknown means any.

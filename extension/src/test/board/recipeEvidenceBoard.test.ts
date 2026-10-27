@@ -197,8 +197,8 @@ test("html: the off note reads 'Turn on the daily test report' with Turn on and 
   assert.ok(out.includes("Turn on the daily test report"));
   const buttons = out.match(/<button class="ptgb"[^>]*>[^<]*<\/button>/g) ?? [];
   assert.equal(buttons.length, 2);
-  assert.ok(/data-p="0" data-s="0" data-run="1">Turn on</.test(buttons[0]));
-  assert.ok(/data-p="0" data-s="0" data-run="1">\[ptgRunTests\]/.test(buttons[1]), buttons[1]);
+  assert.equal(buttons[0], '<button class="ptgb" data-p="0" data-s="0" data-run="1" title="ptgEnable">Turn on</button>');
+  assert.equal(buttons[1], '<button class="ptgb" data-p="0" data-s="0" data-run="1" title="ptgRunTests">[ptgRunTests] {title} {count}</button>');
   assert.ok(!out.includes("reports/"));
 });
 
@@ -209,7 +209,7 @@ test("html: while a job checks or waits there is no run button", () => {
 
 test("html: a running job shows 'Checking the build now.' on the row and in the list", () => {
   const out = html({ ...evaluateHealth(undefined, undefined, undefined, NOW), feeds: { build: { state: "checking" } } });
-  assert.ok(out.includes('<span class="fn">Checking the build now.</span>'));
+  assert.ok(out.includes('<span class="fn" title="feedLine">Checking the build now.</span>'));
   assert.ok(out.includes('<span class="st">Checking the build now.</span>'));
 });
 
@@ -228,5 +228,5 @@ test("html: the build mark shows only when a build report was read", () => {
   const without = html(evaluateHealth(undefined, undefined, undefined, NOW));
   assert.ok(!without.includes("Build: "));
   const withBuild = html(evaluateHealth(undefined, undefined, undefined, NOW, { build: report("build", HOUR, "fail", 1) }));
-  assert.ok(withBuild.includes('title="Build: Build report: failing, 1 failing (1 h ago)"'));
+  assert.ok(withBuild.includes('title="g.redDot: Build: Build report: failing, 1 failing (1 h ago)"'));
 });

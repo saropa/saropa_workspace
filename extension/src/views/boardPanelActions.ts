@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { BoardRun } from "../commands/releaseBoardCommands";
 import { BoardModel } from "../board/boardModel";
+import type { BoardExtra } from "../board/boardModelParts";
 import { PathToGo, clampMaxSteps } from "../board/pathToGo";
 import { escapeHtml } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
@@ -13,6 +14,7 @@ import { LiveSignals } from "../board/liveEvidence";
 import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
 import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
 import { updateLocalMarks } from "../commands/boardMarks";
+import { readInProgressSettings } from "../commands/boardInProgress";
 
 // Helpers for the Release Board panel: the settings it reads, the page for a disabled
 // board, and the handlers for the page's messages. Each handler resolves the page's
@@ -33,14 +35,24 @@ export function emptyPage(text: string): string {
 }
 
 // The Sittings choice (remembered per machine, else the settings' defaults) with the
-// settings' limits; undefined when the feature is off.
-export function sittingsInput(context: vscode.ExtensionContext): { selection: { have: string[]; timeBox: ReturnType<typeof asTimeBox>; maxSteps: number }; onlyOwner: boolean } | undefined {
+// settings' limits; undefined when the feature is off. With no remembered choice and no
+// default list, `have` is left out and the board treats every context as in hand, so nothing
+// is hidden until the user changes a choice.
+export function sittingsInput(context: vscode.ExtensionContext): NonNullable<BoardExtra["sittings"]> | undefined {
   const s = readSittingsSettings();
   if (!s.enabled) {
     return undefined;
   }
-  const choice = readSittingsChoice(context) ?? { have: s.defaultHave, timeBox: s.defaultTimeBox };
-  return { selection: { have: choice.have, timeBox: choice.timeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
+  const choice = readSittingsChoice(context);
+  const have = choice ? choice.have : s.defaultHave.length > 0 ? s.defaultHave : undefined;
+  return { selection: { have, timeBox: choice ? choice.timeBox : s.defaultTimeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
+}
+
+// The In progress input: the edited documents the panel found and the list limit; undefined
+// when the feature is off (the list is then every document marked in progress).
+export function inProgressInput(edited: string[]): NonNullable<BoardExtra["inProgress"]> | undefined {
+  const s = readInProgressSettings();
+  return s.enabled ? { edited, max: s.max } : undefined;
 }
 
 /** The live-signals input for the board, or undefined when the live feature is off. */

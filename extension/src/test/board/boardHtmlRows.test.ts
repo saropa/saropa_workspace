@@ -12,6 +12,7 @@ import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 
+const P = (n: number): string => `<span class="pill" title="pillTip">${n}</span>`;
 const t: BoardStrings = new Proxy({} as BoardStrings, {
   get: (_o, k: string) => (k === "more" || k === "reasonGrey" || k === "ptgMore" || k === "ptgRules" || k === "ptgBlocked" ? `${k} {count}` : `[${k}]`),
 });
@@ -114,7 +115,7 @@ test("the list is capped at 30 rows and says how many are left out", () => {
 test("an empty list says there is nothing here", () => {
   const html = list("Resolve", [], new Map(), t);
   assert.ok(html.includes("[nothingHere]"));
-  assert.ok(html.includes('title="0"'));
+  assert.ok(html.includes('<summary class="sh" title="list"><h2 title="list">Resolve <span class="pill" title="count">0</span></h2></summary>'));
 });
 
 test("related items sit under a group heading, indented", () => {
@@ -134,7 +135,7 @@ test("related items sit under a group heading, indented", () => {
 test("a row shows the Hand to chat button for a blocker only", () => {
   const m = buildBoard(cfg, [row("app", "bugs/a.md", "red"), row("app", "docs/b.md", "amber")], undefined, true);
   const html = list("All", m.items, new Map(), t);
-  assert.equal(html.match(/class="hb"/g)?.length, 1);
+  assert.equal(html.match(/class="hb sec"/g)?.length, 1);
   assert.ok(html.includes('data-hk="item" data-i="0"'));
 });
 
@@ -143,7 +144,7 @@ test("marks: a ring and size bars from the facts, a pin, and a hub label", () =>
   const m = buildBoard({ ...cfg, pinned: ["app/docs/a.md"] }, [row("app", "docs/a.md", "amber")], undefined, true, snap);
   const html = list("Work", m.items, new Map(), t);
   assert.ok(html.includes('class="ring part"'), "one of two steps done");
-  assert.ok(html.includes("<b class=\"code\">S</b>"), "the first code language letter");
+  assert.ok(html.includes("<b class=\"code\" title=\"codeLang\">S</b>"), "the first code language letter");
   assert.ok(html.includes('class="pin"'));
 });
 
@@ -196,5 +197,51 @@ test("steps beyond the limit are counted in one note", () => {
   const m = buildBoard(cfg, rows, undefined, true);
   const path = pathToGo(m, m.projects[0], { maxSteps: 3, canRun: () => false });
   assert.ok(path.hidden > 0);
-  assert.ok(pathList(path, t, 0, true).includes(`ptgMore ${path.hidden}`));
+  assert.ok(pathList(path, t, 0, true).includes(`ptgMore ${P(path.hidden)}`));
+});
+
+test("every row has a kebab button that opens the row menu, naming the document and carrying only its index", () => {
+  const m = buildBoard(cfg, [row("app", "docs/a.md", "amber"), row("app", "docs/b.md", "amber")], undefined, true);
+  const html = list("Work", m.items, new Map(), t);
+  assert.equal(html.match(/data-menu="row"/g)?.length, 2);
+  assert.ok(html.includes('data-menu="row" data-id="0" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-row" title="rowMenu" aria-label="rowMenu">⋮</button>'));
+  assert.ok(html.includes('data-id="1" aria-haspopup="menu"'));
+  assert.equal(/data-menu="row"[^>]*docs\//.test(html), false, "no path in the kebab");
+});
+
+test("the project name is left out of a row when one project is in focus, and shown otherwise", () => {
+  const m = buildBoard(cfg, [row("app", "docs/a.md", "amber"), row("db", "docs/b.md", "amber")], undefined, true);
+  const names = new Map([["app", "App"], ["db", "Db"]]);
+  assert.equal(list("Work", m.items, names, t, { single: true }).includes('class="tag"'), false);
+  assert.equal(list("Work", m.items, names, t).match(/class="tag"/g)?.length, 2);
+});
+
+test("a row's icons are grouped; the most severe one is marked to stay on a narrow row and the group's tooltip lists all", () => {
+  const snap = snapshotOf({ "bugs/a.md": "# A\n\nSeverity: critical. Data loss and a security hole when the app starts.\n" });
+  const m = buildBoard({ ...cfg, pinned: ["app/bugs/a.md"] }, [row("app", "bugs/a.md", "red")], undefined, true, snap);
+  const html = list("Work", m.items, new Map(), t);
+  const group = /<span class="marks lm" title="([^"]*)">(.*?)<\/span><span class="k"/.exec(html);
+  assert.ok(group, "the icon group is drawn");
+  assert.ok(group[1].startsWith("marksMore"));
+  assert.equal(group[2].match(/<span class="mk top">/g)?.length, 1, "exactly one icon stays");
+  assert.ok(/<span class="mk top"><i class="sev /.test(group[2]), "the severity triangle outranks the pin");
+  assert.ok((group[2].match(/<span class="mk"/g)?.length ?? 0) >= 1, "the others are hidden by the narrow rule");
+});
+
+test("the progress group keeps only its ring on a narrow row", () => {
+  const snap = snapshotOf({ "docs/a.md": "# A\n\n- [x] one\n- [ ] two\n" });
+  const m = buildBoard(cfg, [row("app", "docs/a.md", "amber")], undefined, true, snap);
+  const html = list("Work", m.items, new Map(), t);
+  assert.ok(html.includes('<span class="mk top"><i class="ring part"'));
+  assert.ok(html.includes('<span class="mk"><i class="bars"'));
+});
+
+test("a document that stops the release (the pin or the stopping severity) is the icon that stays on a narrow row or another stopper, even beside a hot flame and a waiting link", () => {
+  const snap = snapshotOf({ "docs/a.md": "# A\nNeeds: docs/b.md\n", "docs/b.md": "# B\n" });
+  const m = buildBoard({ ...cfg, pinned: ["app/docs/a.md"] }, [row("app", "docs/a.md", "amber"), row("app", "docs/b.md", "amber")], undefined, true, snap);
+  m.items[0].live = { errors: 1, warnings: 0, crashes: 0, hot: true, files: [{ file: "lib/a.dart", problems: { errors: 1, warnings: 0 } }], more: 0 };
+  const html = list("Work", [m.items[0]], new Map(), t);
+  const top = /<span class="marks lm"[^>]*>[\s\S]*?<span class="mk top">(.*?)<\/span>/.exec(html);
+  assert.ok(top && /^<i class="(pin|sev [^"]* stop)"/.test(top[1]), `a stopper stays, not the flame or the link: ${top?.[1]}`);
+  assert.ok(html.includes('class="flame hot"') && html.includes('class="link open"'), "the lesser marks are still drawn");
 });
