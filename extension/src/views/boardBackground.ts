@@ -20,7 +20,7 @@ const SETTINGS = "saropaWorkspace.releaseBoard";
 // Same short delay the editor lines use, so startup is never in the way.
 const START_DELAY_MS = 3000;
 // Settings that change what a scan finds. Everything else only changes how it is drawn.
-const SCAN_SETTINGS = ["enabled", "profile"].map((k) => `${SETTINGS}.${k}`);
+const SCAN_SETTINGS = ["enabled", "profile", "recipeEvidence.enabled", "recipeEvidence.maxAgeHours"].map((k) => `${SETTINGS}.${k}`);
 const IGNORED = /[\\/](?:node_modules|\.git|build|\.dart_tool|Pods|vendor)[\\/]/;
 
 function boardOn(): boolean {

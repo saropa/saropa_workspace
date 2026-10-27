@@ -65,6 +65,15 @@ export async function writeLast(dir: vscode.Uri, run: BoardRun): Promise<void> {
   await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, LAST_FILE), Buffer.from(JSON.stringify(last), "utf8"));
 }
 
+// The stored health without the notes on what the daily report jobs were doing: they describe
+// a moment that has passed, so a stored paint must not say "checking now".
+function withoutFeedNotes(health: LastRun["health"]): LastRun["health"] {
+  if (!health) {
+    return health;
+  }
+  return Object.fromEntries(Object.entries(health).map(([id, h]) => [id, { ...h, feeds: undefined }]));
+}
+
 // The last shown board, or undefined. It is only a first paint: the caller must mark it as
 // not yet refreshed and scan again.
 export async function readLastRun(context: vscode.ExtensionContext): Promise<BoardRun | undefined> {
@@ -85,7 +94,7 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
     }
     const result: ScanResult = { rows: last.rows, snapshot: last.snapshot, pending: [], stats: { files: last.rows.length, headReads: 0, factReads: 0, ms: 0 } };
     // The accepted scan the result was compared with, so a stored paint is never greener than the real one.
-    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, previous: await readAccepted(dir), health: last.health, marks: await readMarks(context) };
+    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, previous: await readAccepted(dir), health: withoutFeedNotes(last.health), marks: await readMarks(context) };
   } catch {
     return undefined;
   }

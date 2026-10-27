@@ -2,6 +2,7 @@ import { BoardItem, ItemMarks, BoardProject, UnverifiedReason } from "./boardMod
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { BoardStrings, escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
+import type { FeedNote } from "./recipeEvidence";
 
 // The project rows and the item lists of the board page.
 
@@ -20,15 +21,43 @@ function reasonText(r: UnverifiedReason, p: BoardProject, t: BoardStrings): stri
   }
 }
 
-// Two small marks: lint and tests. Red failing, green passing, grey missing; the figures
-// are in the tooltip. Nothing shows for a project with no health setup and no evidence.
+// The sentence for what a row's daily report job is doing. Already escaped.
+function feedSentence(kind: "build" | "lint" | "tests", note: FeedNote, t: BoardStrings): string {
+  const what = kind === "build" ? t.feedWhatBuild : kind === "lint" ? t.feedWhatLint : t.feedWhatTests;
+  const tmpl = note.state === "off" ? t.ptgFeedOff : note.state === "checking" ? t.ptgFeedChecking : note.state === "waiting" ? t.ptgFeedWaiting : t.ptgFeedFailed;
+  return fill(tmpl, { what, reason: note.reason ?? "" });
+}
+
+// Two small marks: lint and tests, and a third for the build once a daily build report was
+// found. Red failing, green passing, grey missing; the figures are in the tooltip. Nothing
+// shows for a project with no health setup and no evidence.
 function healthMarks(p: BoardProject, t: BoardStrings): string {
   if (!p.health) {
     return "";
   }
+  const h = p.health;
   const one = (label: string, e: string, detail: string): string =>
     `<i class="hl ${e}" title="${escapeHtml(label + ": " + detail)}" aria-label="${escapeHtml(label + ": " + detail)}"></i>`;
-  return `<span class="marks">${one(t.healthLint, p.health.lint, p.health.lintDetail)}${one(t.healthTests, p.health.tests, p.health.testsDetail)}</span>`;
+  const build = h.build !== undefined ? one(t.healthBuild, h.build, h.buildDetail ?? "") : "";
+  return `<span class="marks">${build}${one(t.healthLint, h.lint, h.lintDetail)}${one(t.healthTests, h.tests, h.testsDetail)}</span>`;
+}
+
+// A short line on the row while a daily report job runs, waits or failed to start. Only for
+// a row whose evidence is still missing; the "turn on" offer lives in the Path to GO list.
+function feedLine(p: BoardProject, t: BoardStrings): string {
+  const h = p.health;
+  if (!h?.feeds) {
+    return "";
+  }
+  const lines: string[] = [];
+  for (const kind of ["build", "lint", "tests"] as const) {
+    const note = h.feeds[kind];
+    const evidence = kind === "build" ? h.build : h[kind];
+    if (note && note.state !== "off" && evidence !== "passing" && evidence !== "failing") {
+      lines.push(feedSentence(kind, note, t));
+    }
+  }
+  return lines.length > 0 ? `<span class="fn">${lines.join(" ")}</span>` : "";
 }
 
 // One project's verdict row: name, light, link mark, health marks and the item squares.
@@ -42,7 +71,7 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<span class="link ${waiting ? "wait" : "ok"}" title="${escapeHtml(t.dependsOn)} ${escapeHtml(p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", "))}"></span>` : "";
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""}><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}<span class="bar">${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""}><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}<span class="bar">${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
 }
 
 // The small marks on a row: a progress ring, size bars, a code letter and one dot per
@@ -124,6 +153,13 @@ export function list(title: string, items: BoardItem[], names: Map<string, strin
   return `<section class="box"><h2 title="${items.length}">${escapeHtml(title)}</h2>${body}</section>`;
 }
 
+// The step line for a row whose daily report job has something to say. Escaped.
+function feedStepText(kind: "build" | "lint" | "tests", s: PathStep, t: BoardStrings): string {
+  const what = kind === "build" ? t.feedWhatBuild : kind === "lint" ? t.feedWhatLint : t.feedWhatTests;
+  const tmpl = s.feed === "off" ? t.ptgFeedOff : s.feed === "checking" ? t.ptgFeedChecking : s.feed === "waiting" ? t.ptgFeedWaiting : s.feed === "failed" ? t.ptgFeedFailed : undefined;
+  return tmpl === undefined ? "" : fill(tmpl, { what, reason: s.reason ?? "" });
+}
+
 function stepText(s: PathStep, t: BoardStrings): string {
   switch (s.kind) {
     case "item": {
@@ -139,10 +175,12 @@ function stepText(s: PathStep, t: BoardStrings): string {
     }
     case "blocked":
       return fill(t.ptgBlocked, { count: s.count });
+    case "build":
+      return s.evidence === "failing" ? fill(t.ptgBuildFailing, {}) : feedStepText("build", s, t);
     case "lint":
-      return fill(s.evidence === "failing" ? t.ptgLintFailing : t.ptgLintMissing, {});
+      return s.evidence === "failing" ? fill(t.ptgLintFailing, {}) : s.feed ? feedStepText("lint", s, t) : fill(t.ptgLintMissing, {});
     case "tests":
-      return fill(s.evidence === "failing" ? t.ptgTestsFailing : t.ptgTestsMissing, {});
+      return s.evidence === "failing" ? fill(t.ptgTestsFailing, {}) : s.feed ? feedStepText("tests", s, t) : fill(t.ptgTestsMissing, {});
     case "rules":
       return s.folder === undefined ? fill(t.ptgRulesAny, { count: s.count }) : fill(t.ptgRules, { count: s.count, folder: s.folder || "/" });
     case "unread":
@@ -158,16 +196,20 @@ function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct
   if (!canAct) {
     return "";
   }
-  const run = (s.kind === "lint" || s.kind === "tests") && s.run;
+  const evidenceKind = s.kind === "lint" || s.kind === "tests" || s.kind === "build";
+  const enable = evidenceKind && s.enable === true;
+  const run = (s.kind === "lint" || s.kind === "tests") && s.run && s.feed !== "checking" && s.feed !== "waiting";
   const label = s.kind === "item" ? t.ptgOpen : s.kind === "rules" ? t.ptgOpenRules : s.kind === "accept" ? t.ptgAcceptBtn : run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
-  return label ? `<button class="ptgb" data-p="${pi}" data-s="${si}"${run ? ' data-run="1"' : ""}>${escapeHtml(label)}</button>` : "";
+  const button = (text: string, debounce: boolean): string => `<button class="ptgb" data-p="${pi}" data-s="${si}"${debounce ? ' data-run="1"' : ""}>${escapeHtml(text)}</button>`;
+  // A row whose daily report is off offers both: turn the report on, and the run it had before.
+  return (enable ? button(t.ptgEnable, true) : "") + (label ? button(label, Boolean(run)) : "");
 }
 
 // One project's steps, hidden until its row is clicked. A step that is no longer listed is
 // shown ticked by the page script, for a few minutes.
 export function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: boolean): string {
   const items = path.steps
-    .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}${handButton(t, `data-hk="step" data-p="${pi}" data-s="${si}"`)}</li>`)
+    .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" || s.kind === "build" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}${handButton(t, `data-hk="step" data-p="${pi}" data-s="${si}"`)}</li>`)
     .join("");
   const more = path.hidden > 0 ? `<li class="note" data-more="1">${fill(t.ptgMore, { count: path.hidden })}</li>` : "";
   const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";

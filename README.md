@@ -128,6 +128,9 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.openOnStartup` | `whenProjectsFound` | Opens the board as a background tab once when a window starts: `never`, `whenProjectsFound` or `always`. |
 | `releaseBoard.statusBar.showLight` | `true` | Tints the Release Board status bar button with the worst light and names it in the tooltip. |
 | `releaseBoard.reviewRequests` | `false` | Lists pull requests waiting for your review on the board. |
+| `releaseBoard.recipeEvidence.enabled` | `true` | Reads the newest daily report of the Build status, Test trend tracker and Dawn lint sweep recipes as board evidence: a fresh failing report makes the row worse, a missing or old report changes nothing, and rows say when a report is being checked or its daily schedule is off. |
+| `releaseBoard.recipeEvidence.maxAgeHours` | `36` | A daily report older than this (1 to 720 hours) is not used as evidence. |
+| `releaseBoard.recipeEvidence.idleMinutes` | `2` | Minutes of quiet before a heavy missed report (the full test run) starts at VS Code start (0 to 60). 0 starts it at once. |
 | `releaseBoard.handToChat.enabled` | `true` | Shows a Hand to chat button on each release blocker, Path to GO step and Sittings step. It copies a ready prompt to the clipboard; nothing is sent. |
 | `releaseBoard.handToChat.detail` | `standard` | How much the copied prompt says: `short` (blocker and file), `standard` (adds the evidence) or `full` (adds what it waits on, its group, and lint and test evidence). |
 | `releaseBoard.handToChat.openChat` | `never` | `offer` shows an Open chats button after copying, when Chat Explorer is installed and knows chats for the document. `never` only copies. |

@@ -24,6 +24,7 @@ export interface BoardStrings {
   go: string;
   healthLint: string;
   healthTests: string;
+  healthBuild: string;
   allClear: string;
   dependsOn: string;
   linkedHeading: string;
@@ -62,6 +63,16 @@ export interface BoardStrings {
   ptgLintFailing: string;
   ptgTestsMissing: string;
   ptgTestsFailing: string;
+  ptgBuildFailing: string;
+  // Daily report job notes. "{what}" is the word below, "{reason}" why a job did not start.
+  ptgFeedOff: string;
+  ptgFeedChecking: string;
+  ptgFeedWaiting: string;
+  ptgFeedFailed: string;
+  feedWhatBuild: string;
+  feedWhatLint: string;
+  feedWhatTests: string;
+  ptgEnable: string;
   ptgRules: string;
   ptgRulesAny: string;
   ptgUnread: string;

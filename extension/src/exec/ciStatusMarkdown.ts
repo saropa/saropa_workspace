@@ -1,10 +1,23 @@
 import type { CiStatus } from "./ciStatus";
+import { ReportSummary, formatSummaryLine } from "../board/reportSummary";
 
 // Markdown rendering of a CI status. Split out of ciStatus.ts, which re-exports
 // ciHeadline and buildCiMarkdown so existing imports keep working.
 
 // Runs listed in the report's table. The rest are fetched for the bisect only.
 const RUN_SHOWN = 10;
+
+/**
+ * The machine-readable line at the top of the report, which the Release Board reads. Red when the
+ * newest completed run failed; the count is the length of that failing streak. An old failure that a
+ * later run fixed does not count. When gh did not answer, or there are no runs, the verdict is
+ * unknown: it is never a pass.
+ */
+export function ciSummaryLine(status: CiStatus, time: number): string {
+  const result: ReportSummary["result"] = status.unavailable || status.runs.length === 0 ? "unknown" : status.broke ? "fail" : "pass";
+  const count = result === "unknown" ? undefined : status.broke?.failingSince ?? 0;
+  return formatSummaryLine({ recipe: "ritual.ci", time, result, count });
+}
 
 /** Returns a one-line verdict string and attention flag for the given CI status. Attention is raised when anything is failing. */
 export function ciHeadline(status: CiStatus): { text: string; attention: boolean } {

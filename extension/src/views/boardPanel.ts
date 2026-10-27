@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { acceptBoardRun, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
+import { acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
 import { moveToArchive } from "../commands/boardTidy";
 import { startBugDocument } from "../commands/boardLive";
@@ -199,6 +199,20 @@ class BoardPanel extends BoardPanelWiring {
     }
     if (step.kind === "item" && step.itemId !== undefined) {
       await this.openItem(step.itemId);
+    } else if ((step.kind === "build" || step.kind === "lint" || step.kind === "tests") && step.enable) {
+      const flight = `${def.id}:${step.kind}:enable`;
+      if (this.starting.has(flight)) {
+        return;
+      }
+      this.starting.add(flight);
+      try {
+        if (await enableDailyReport(def, step.kind)) {
+          this.dirty = true;
+          await this.refresh();
+        }
+      } finally {
+        this.starting.delete(flight);
+      }
     } else if ((step.kind === "lint" || step.kind === "tests") && step.run) {
       const flight = `${def.id}:${step.kind}`;
       if (this.starting.has(flight)) {

@@ -27,6 +27,7 @@ function coreStrings() {
     go: l10n("releaseBoard.panel.go"),
     healthLint: l10n("releaseBoard.panel.healthLint"),
     healthTests: l10n("releaseBoard.panel.healthTests"),
+    healthBuild: l10n("releaseBoard.panel.healthBuild"),
     allClear: l10n("releaseBoard.panel.allClear"),
   };
 }
@@ -75,6 +76,15 @@ function pathStrings() {
     ptgLintFailing: l10n("releaseBoard.panel.ptgLintFailing"),
     ptgTestsMissing: l10n("releaseBoard.panel.ptgTestsMissing"),
     ptgTestsFailing: l10n("releaseBoard.panel.ptgTestsFailing"),
+    ptgBuildFailing: l10n("releaseBoard.panel.ptgBuildFailing"),
+    ptgFeedOff: l10n("releaseBoard.panel.ptgFeedOff", { what: "{what}" }),
+    ptgFeedChecking: l10n("releaseBoard.panel.ptgFeedChecking", { what: "{what}" }),
+    ptgFeedWaiting: l10n("releaseBoard.panel.ptgFeedWaiting", { what: "{what}" }),
+    ptgFeedFailed: l10n("releaseBoard.panel.ptgFeedFailed", { what: "{what}", reason: "{reason}" }),
+    feedWhatBuild: l10n("releaseBoard.panel.feedWhatBuild"),
+    feedWhatLint: l10n("releaseBoard.panel.feedWhatLint"),
+    feedWhatTests: l10n("releaseBoard.panel.feedWhatTests"),
+    ptgEnable: l10n("releaseBoard.panel.ptgEnable"),
     ptgRules: l10n("releaseBoard.panel.ptgRules"),
     ptgRulesAny: l10n("releaseBoard.panel.ptgRulesAny"),
     ptgUnread: l10n("releaseBoard.panel.ptgUnread"),

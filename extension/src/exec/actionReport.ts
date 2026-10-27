@@ -25,7 +25,8 @@ export function fenceBlock(body: string): string {
 // is stated plainly rather than left as a blank fence, so "no output" reads as a
 // deliberate outcome. Single source for every scheduled shell ritual's report shape.
 // Exported for the unit test (report-bug items 1 and 2: no more unfenced slop).
-export function buildCommandReport(name: string, commandLine: string, body: string): string {
+// `summaryLine`, when given, is the machine-readable line the Release Board reads; it goes first.
+export function buildCommandReport(name: string, commandLine: string, body: string, summaryLine?: string): string {
   const trimmed = body.trim();
   const output = trimmed.length > 0 ? fenceBlock(body) : "_No output._";
   const headline = summarizeReportBody(trimmed);
@@ -35,6 +36,7 @@ export function buildCommandReport(name: string, commandLine: string, body: stri
   // understands the output — the summarizer — not guessed at later from wording.
   const label = headline?.attention ? "Attention" : "Headline";
   return (
+    (summaryLine ? `${summaryLine}\n` : "") +
     `# ${name}\n\n` +
     `**Generated** ${new Date().toLocaleString()}\n\n` +
     (headline ? `**${label}:** ${headline.text}\n\n` : "") +

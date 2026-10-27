@@ -48,7 +48,7 @@ cspell:disable
 
 ## [Unreleased]
 
-The Release Board has a Future tab for deferred and blocked work.
+The Release Board has a Future tab for deferred and blocked work, and its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start. [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md)
 
 ### Added
 
@@ -58,6 +58,9 @@ The Release Board has a Future tab for deferred and blocked work.
 - **Moving between deferred and blocked.** Changing a flag to or from Not feasible asks, in a dialog naming the exact source and destination, whether to move the document between `deferred` and `blocked`. The board never moves a file on its own; decline and the flag is still written.
 - **Later work outside the deferred folders.** Bullets under a Later or Exploratory heading in `ROADMAP.md` and `plans/MASTER_PLAN.md`, and master plan headings whose Status says Not started, are listed in a read-only box at the bottom of the tab, with their source and line. Click one to open it there.
 - **Settings:** `releaseBoard.future.enabled` (on) and `releaseBoard.future.defaultSort` (`score`, `wow`, `effort`, `risk` or `reach`; default `score`).
+- **Release Board: daily reports feed the Build, Lint and Tests marks.** The newest report of the Build status, Dawn lint sweep and Test trend tracker recipes is now read as evidence. Each of those reports starts with one hidden summary line (recipe, time, pass or fail, one count). A fresh failing report makes the project's row worse (the new Build mark turns red, and a failing build stops GO). A fresh passing report counts like any other fresh passing result, so GO still needs fresh, clean evidence of both lint and tests. A report older than the age limit, a missing report or one that cannot be read is never green: the row stays grey and says "Report is 3 days old" or "No report yet". When no report exists, every light is exactly what it was. Settings: `releaseBoard.recipeEvidence.enabled` (on) and `.maxAgeHours` (36, from 1 to 720).
+- **Release Board: missed reports run at start.** The three recipes above now start with "catch up" on, so after the machine was off at their time, each missed report runs once at the next start (not once per missed day), one at a time: build, then lint, then tests. The full test run waits until the editor has been quiet for 2 minutes. A row says "Checking the build now." while its job runs, says why when a job could not start, and the board refreshes after each report is written. A recipe you already stored keeps your own catch-up choice. Setting: `releaseBoard.recipeEvidence.idleMinutes` (2, from 0 to 60; 0 starts at once).
+- **Release Board: turn on the daily report.** When a row has no fresh report and the matching recipe's daily schedule is off, its Path to GO step says "Turn on the daily test report" (or lint, or build) with one **Turn on** button that switches that schedule on.
 
 ---
 

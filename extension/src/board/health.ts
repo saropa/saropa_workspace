@@ -3,6 +3,8 @@
 // a result that is stale, partial, from a run with no exit code, or absent counts as
 // missing, and a missing result keeps the light at UNVERIFIED.
 
+import type { EvidenceRead, FeedNote } from "./recipeEvidence";
+
 export interface HealthConfig {
   // Shortcuts (id or name) whose background run is the project's test run, and its lint run.
   tests?: string[];
@@ -162,6 +164,20 @@ export interface ProjectHealth {
   testsDetail: string;
   // True when both kinds of evidence are present and clean: the only way to GO.
   clean: boolean;
+  // Build evidence, set only when a daily build report was found. It can make the row worse
+  // (failing) and is never required for GO.
+  build?: Evidence;
+  buildDetail?: string;
+  // What the daily report job for each row is doing, set by the host.
+  feeds?: Partial<Record<"build" | "lint" | "tests", FeedNote>>;
+}
+
+// The newest daily report read for each row; absent when there is none to read.
+export type FeedReports = Partial<Record<"build" | "lint" | "tests", EvidenceRead>>;
+
+// Failing first when two pieces of evidence share a time, so a tie is never read as a pass.
+function newestFirst(x: { at: number; e: Evidence }, y: { at: number; e: Evidence }): number {
+  return y.at - x.at || Number(y.e === "failing") - Number(x.e === "failing");
 }
 
 function ago(ms: number): string {
@@ -171,7 +187,7 @@ function ago(ms: number): string {
 
 // The lint verdict: the Lints file and the lint shortcut's last run. The newer fresh one
 // decides; a file dated in the future is not evidence.
-function lintEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number, staleMs: number): { lint: Evidence; lintDetail: string } {
+function lintEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number, staleMs: number, report?: EvidenceRead): { lint: Evidence; lintDetail: string } {
   if (cfg?.lintApplies === false) {
     return { lint: "na", lintDetail: "No lint for this project" };
   }
@@ -197,33 +213,62 @@ function lintEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undefi
       cands.push({ at: r.endedAt, e: r.outcome === "failure" ? "failing" : "passing", detail: `${r.name}: exit ${r.exitCode} (${ago(now - r.endedAt)})` });
     }
   }
-  const newest = cands.sort((x, y) => y.at - x.at)[0];
+  if (report?.ok) {
+    cands.push({ at: report.at, e: report.result === "fail" ? "failing" : "passing", detail: report.detail });
+  } else if (report && report.why !== "none") {
+    lintDetail = cands.length === 0 ? report.detail : lintDetail;
+  }
+  const newest = cands.sort(newestFirst)[0];
   return newest ? { lint: newest.e, lintDetail: newest.detail } : { lint: "missing", lintDetail };
 }
 
-// The test verdict: the last recorded test run, if it is fresh and ran at least one test.
-function testsEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, now: number, staleMs: number): { tests: Evidence; testsDetail: string } {
+// The test verdict: the last recorded test run and the newest daily report, whichever is newer
+// and fresh. A run that ran at least one test is evidence; one that ran none is not.
+function testsEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, now: number, staleMs: number, report?: EvidenceRead): { tests: Evidence; testsDetail: string } {
   if (cfg?.testsApply === false) {
     return { tests: "na", testsDetail: "No tests for this project" };
   }
+  const cands: Array<{ at: number; e: Evidence; detail: string }> = [];
+  let testsDetail = "No test run recorded";
   const r = runs?.tests;
-  if (!r) {
-    return { tests: "missing", testsDetail: "No test run recorded" };
+  if (r && now - r.endedAt > staleMs) {
+    testsDetail = `Test run is stale (${ago(now - r.endedAt)})`;
+  } else if (r) {
+    const tally = r.run !== undefined ? `${r.run} tests run, ${r.failed ?? 0} failed` : `exit code ${r.exitCode}`;
+    // A run that ran no tests is no evidence (a filter that matched nothing).
+    const e: Evidence = r.outcome === "failure" || (r.failed ?? 0) > 0 ? "failing" : r.run === 0 ? "missing" : "passing";
+    testsDetail = `${r.name}: ${tally} (${ago(now - r.endedAt)})`;
+    if (e !== "missing") {
+      cands.push({ at: r.endedAt, e, detail: testsDetail });
+    }
   }
-  if (now - r.endedAt > staleMs) {
-    return { tests: "missing", testsDetail: `Test run is stale (${ago(now - r.endedAt)})` };
+  if (report?.ok) {
+    cands.push({ at: report.at, e: report.result === "fail" ? "failing" : "passing", detail: report.detail });
+  } else if (report && report.why !== "none" && cands.length === 0 && !r) {
+    testsDetail = report.detail;
   }
-  const tally = r.run !== undefined ? `${r.run} tests run, ${r.failed ?? 0} failed` : `exit code ${r.exitCode}`;
-  // A run that ran no tests is no evidence (a filter that matched nothing).
-  const tests: Evidence = r.outcome === "failure" || (r.failed ?? 0) > 0 ? "failing" : r.run === 0 ? "missing" : "passing";
-  return { tests, testsDetail: `${r.name}: ${tally} (${ago(now - r.endedAt)})` };
+  const newest = cands.sort(newestFirst)[0];
+  return newest ? { tests: newest.e, testsDetail: newest.detail } : { tests: "missing", testsDetail };
+}
+
+// The build verdict from the daily build report alone. Nothing is said when no report was found.
+function buildEvidence(report: EvidenceRead | undefined): { build: Evidence; buildDetail: string } | undefined {
+  if (!report || (!report.ok && report.why === "none")) {
+    return undefined;
+  }
+  return report.ok ? { build: report.result === "fail" ? "failing" : "passing", buildDetail: report.detail } : { build: "missing", buildDetail: report.detail };
 }
 
 // Weighs the lint and test evidence against the age limit. Only fresh, clean evidence of both kinds is clean.
-export function evaluateHealth(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number): ProjectHealth {
+// The daily reports can add evidence: a fresh pass counts like any other fresh pass, a fresh
+// failure makes the row worse, and a stale or missing report changes nothing. A failing build
+// stops GO; a missing build never does.
+export function evaluateHealth(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number, reports?: FeedReports): ProjectHealth {
   const staleMs = (cfg?.staleDays ?? DEFAULT_STALE_DAYS) * 86400000;
-  const { lint, lintDetail } = lintEvidence(cfg, runs, lintFile, now, staleMs);
-  const { tests, testsDetail } = testsEvidence(cfg, runs, now, staleMs);
+  const { lint, lintDetail } = lintEvidence(cfg, runs, lintFile, now, staleMs, reports?.lint);
+  const { tests, testsDetail } = testsEvidence(cfg, runs, now, staleMs, reports?.tests);
+  const b = buildEvidence(reports?.build);
   const ok = (e: Evidence): boolean => e === "passing" || e === "na";
-  return { lint, tests, lintDetail, testsDetail, clean: ok(lint) && ok(tests) };
+  const health: ProjectHealth = { lint, tests, lintDetail, testsDetail, clean: ok(lint) && ok(tests) && b?.build !== "failing" };
+  return b ? { ...health, ...b } : health;
 }
