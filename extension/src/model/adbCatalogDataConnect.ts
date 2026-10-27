@@ -2,6 +2,7 @@
 // adbCommandCatalog.ts to keep each file small.
 import { AdbCommandEntry, entry } from "./adbCatalogTypes";
 
+/** Catalog rows for connection, app control, device info and files. */
 export const ADB_CATALOG_CONNECT: AdbCommandEntry[] = [
   // --- Connection ----------------------------------------------------------
   // Subsumes the adb half of the bundled device-connect Python script

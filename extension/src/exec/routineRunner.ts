@@ -22,6 +22,7 @@ import {
   buildVerdictSection,
   buildMergedSections,
   buildRoutineBrief,
+  RoutineBrief,
 } from "./routineBrief";
 
 // Re-exported so existing import paths keep working.
@@ -196,6 +197,36 @@ async function runRoutineMember(
   };
 }
 
+/**
+ * Badges the routine shortcut itself and fires its completion event. Result is a
+ * worst-outcome (red when any member failed) plus the aggregated finding counts.
+ */
+function recordRoutineResult(pinId: string, aggregate: ShortcutBadge, anyFailed: boolean): void {
+  // Badge the routine shortcut: a tracked worst-outcome result (red when any member
+  // failed) plus the aggregated finding counts, both through the per-shortcut machinery
+  // the tree already paints.
+  runStatusRegistry.record(pinId, {
+    outcome: anyFailed ? "failure" : "success",
+    exitCode: anyFailed ? 1 : 0,
+    durationMs: 0,
+    endedAt: Date.now(),
+  });
+  if (hasBadgeCounts(aggregate)) {
+    shortcutBadges.record(pinId, aggregate);
+  }
+  shortcutEvents.fireComplete(pinId, anyFailed ? "failure" : "success");
+}
+
+/** Shows the "routine starting" toast unless run toasts are switched off. */
+function announceRoutineStart(name: string, count: number): void {
+  const showToasts = vscode.workspace
+    .getConfiguration("saropaWorkspace")
+    .get<boolean>("showRunToasts", true);
+  if (showToasts) {
+    vscode.window.showInformationMessage(l10n("routine.starting", { name, count: String(count) }));
+  }
+}
+
 // Run a routine's members strictly in sequence, continue-on-failure, then write a
 // one-row-per-member summary report and badge the routine shortcut with the worst member
 // outcome. Mirrors runMacro's failure policy (one broken member never blocks the
@@ -222,14 +253,7 @@ export async function runRoutine(
     return;
   }
 
-  const showToasts = vscode.workspace
-    .getConfiguration("saropaWorkspace")
-    .get<boolean>("showRunToasts", true);
-  if (showToasts) {
-    vscode.window.showInformationMessage(
-      l10n("routine.starting", { name, count: String(members.length) })
-    );
-  }
+  announceRoutineStart(name, members.length);
 
   const outcomes: MemberOutcome[] = [];
   const aggregate: ShortcutBadge = { at: Date.now() };
@@ -263,19 +287,7 @@ export async function runRoutine(
     }
   });
 
-  // Badge the routine shortcut: a tracked worst-outcome result (red when any member
-  // failed) plus the aggregated finding counts, both through the per-shortcut machinery
-  // the tree already paints.
-  runStatusRegistry.record(shortcut.id, {
-    outcome: anyFailed ? "failure" : "success",
-    exitCode: anyFailed ? 1 : 0,
-    durationMs: 0,
-    endedAt: Date.now(),
-  });
-  if (hasBadgeCounts(aggregate)) {
-    shortcutBadges.record(shortcut.id, aggregate);
-  }
-  shortcutEvents.fireComplete(shortcut.id, anyFailed ? "failure" : "success");
+  recordRoutineResult(shortcut.id, aggregate, anyFailed);
 
   await writeRoutineSummary(shortcut.id, name, outcomes, anyFailed, source);
 }
@@ -303,6 +315,37 @@ function hasBadgeCounts(badge: ShortcutBadge): boolean {
     badge.testsPassed !== undefined ||
     badge.testsFailed !== undefined
   );
+}
+
+/**
+ * Shows the finished routine: the Brief panel (falling back to the Markdown report
+ * if the panel fails), or just a log line for a clean scheduled run.
+ */
+async function showSummary(
+  brief: RoutineBrief,
+  reportPath: string,
+  name: string,
+  source: RunSource,
+  needsReader: boolean
+): Promise<void> {
+  const channel = getOutputChannel();
+  // A manual run must produce a visible window (no-silent-async rule).
+  // A scheduled run opens only when something needs the reader.
+  const shouldOpen = source !== "scheduled" || needsReader;
+  if (shouldOpen) {
+    try {
+      BriefPanel.show(brief);
+    } catch (panelErr) {
+      channel.appendLine(
+        `[brief] panel failed, falling back to markdown: ${panelErr instanceof Error ? panelErr.message : String(panelErr)}`
+      );
+      await openReport(reportPath);
+    }
+  } else {
+    channel.appendLine(
+      l10n("routine.summary.quietClean", { name, path: reportPath })
+    );
+  }
 }
 
 // Write the routine summary — the day's CONTENT, not execution mechanics: each
@@ -357,24 +400,7 @@ async function writeRoutineSummary(
     const brief = buildRoutineBrief(name, outcomes, contents, attentionCount, reportPath);
     recordLastBrief(pinId, brief);
 
-    // A manual run must produce a visible window (no-silent-async rule).
-    // A scheduled run opens only when something needs the reader.
-    const shouldOpen =
-      source !== "scheduled" || anyFailed || attentionCount > 0;
-    if (shouldOpen) {
-      try {
-        BriefPanel.show(brief);
-      } catch (panelErr) {
-        channel.appendLine(
-          `[brief] panel failed, falling back to markdown: ${panelErr instanceof Error ? panelErr.message : String(panelErr)}`
-        );
-        await openReport(reportPath);
-      }
-    } else {
-      channel.appendLine(
-        l10n("routine.summary.quietClean", { name, path: reportPath })
-      );
-    }
+    await showSummary(brief, reportPath, name, source, anyFailed || attentionCount > 0);
   } catch (err) {
     channel.appendLine(
       l10n("report.failed", { name, error: err instanceof Error ? err.message : String(err) })

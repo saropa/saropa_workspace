@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 
 import { ShortcutAction, MacroStep } from "../model/shortcut";
 
+/** One entry of the sabitovvt favorites list: a label with a single command or a sequence of commands. */
 export interface SabitovvtItem {
   label?: string;
   icon?: string;

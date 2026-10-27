@@ -27,6 +27,7 @@ export function pathSettings(): { maxSteps: number; showRunButtons: boolean } | 
   return { maxSteps: clampMaxSteps(c.get<number>("maxSteps", 8)), showRunButtons: c.get<boolean>("showRunButtons", true) };
 }
 
+/** A bare page with one escaped line of text, for a board that has nothing to show. */
 export function emptyPage(text: string): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"></head><body style="font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:16px"><p>${escapeHtml(text)}</p></body></html>`;
 }
@@ -42,6 +43,7 @@ export function sittingsInput(context: vscode.ExtensionContext): { selection: { 
   return { selection: { have: choice.have, timeBox: choice.timeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
 }
 
+/** The live-signals input for the board, or undefined when the live feature is off. */
 export function liveInput(live: LiveSignals): { signals: LiveSignals; includeWarnings: boolean; fold: boolean; unnamedBox: boolean } | undefined {
   const s: LiveSettings = readLiveSettings();
   return s.enabled ? { signals: live, includeWarnings: s.includeWarnings, fold: liveFold, unnamedBox: s.unnamedBox } : undefined;

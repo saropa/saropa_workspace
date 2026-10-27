@@ -36,6 +36,7 @@ interface RunEndContext {
 /**
  * Records a finished background run: releases the lock, stores the result and
  * output, plays the finish cue, fires the chain event, then badges and notifies.
+ * A standalone function, not a closure: everything it needs arrives in `ctx`.
  * Called once per run (the caller's `settled` guard enforces that).
  */
 function recordRunEnd(

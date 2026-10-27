@@ -24,6 +24,7 @@ const STATUS_KEYS: Record<MemberOutcome["status"], string> = {
   dispatched: "routine.status.dispatched",
 };
 
+/** The localized label for a member status. */
 export function statusLabel(status: MemberOutcome["status"]): string {
   return l10n(STATUS_KEYS[status]);
 }

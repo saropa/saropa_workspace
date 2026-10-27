@@ -19,8 +19,73 @@ import {
 
 import { getOutputChannel } from "../exec/runner";
 
+/** Where the project shortcuts file lives for a folder, from the configured relative path. */
 export function projectFileUriOn(folder: vscode.WorkspaceFolder): vscode.Uri {
   return vscode.Uri.joinPath(folder.uri, configuredProjectFileRelative());
+}
+
+/**
+ * Moves the project file from one legacy config folder to the current location,
+ * rewriting pin paths that pointed at a legacy location. Returns true when the
+ * file was migrated. A missing or corrupt legacy file returns false so the caller
+ * keeps checking the remaining known locations (a corrupt file must not crash
+ * activation, BUG-001).
+ */
+async function migrateLegacyFile(
+  folder: vscode.WorkspaceFolder,
+  dir: string,
+  currentRelative: string
+): Promise<boolean> {
+  const legacyRelative = `${dir}/saropa-workspace.json`;
+  const legacyUri = vscode.Uri.joinPath(folder.uri, legacyRelative);
+  let legacyBytes: Uint8Array | undefined;
+  try {
+    legacyBytes = await vscode.workspace.fs.readFile(legacyUri);
+  } catch {
+    return false;
+  }
+
+  // Migrate: rewrite any pins whose path targeted a known legacy config
+  // location so the seed shortcut stays accurate. A corrupt legacy file
+  // must not crash activation (BUG-001) — treat it like "no legacy file
+  // here" and keep checking the remaining known locations.
+  let parsed: ProjectShortcutsFile;
+  try {
+    parsed = JSON.parse(Buffer.from(legacyBytes).toString("utf8"));
+  } catch (err) {
+    getOutputChannel().appendLine(
+      `[config] ${legacyRelative} is not valid JSON, skipping migration for ${
+        folder.name
+      }: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return false;
+  }
+  // Valid JSON that is not an object (null, a number, an array) carries no
+  // shortcuts: migrate it as an empty file rather than throwing on `.pins`.
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    parsed = emptyProjectShortcutsFile();
+  }
+  if (Array.isArray(parsed.pins)) {
+    for (const pin of parsed.pins) {
+      if (
+        pin.path === LEGACY_PROJECT_FILE_RELATIVE ||
+        pin.path === PROJECT_FILE_RELATIVE
+      ) {
+        pin.path = currentRelative;
+      }
+    }
+  }
+  await writeProjectFileOn(folder, parsed);
+  try {
+    await vscode.workspace.fs.delete(legacyUri);
+  } catch {
+    // Delete failed (locked file, permissions) — the migrated copy is safe;
+    // next activation will see the configured path and skip migration.
+  }
+  getOutputChannel().appendLine(
+    `[config] migrated ${legacyRelative} → ${currentRelative} for ${folder.name}`
+  );
+  return true;
 }
 
 // Create the project config file for a folder that has none yet. Checks every
@@ -47,56 +112,9 @@ export async function ensureProjectFileOn(folder: vscode.WorkspaceFolder): Promi
     if (dir === currentDir) {
       continue;
     }
-    const legacyRelative = `${dir}/saropa-workspace.json`;
-    const legacyUri = vscode.Uri.joinPath(folder.uri, legacyRelative);
-    let legacyBytes: Uint8Array | undefined;
-    try {
-      legacyBytes = await vscode.workspace.fs.readFile(legacyUri);
-    } catch {
-      continue;
+    if (await migrateLegacyFile(folder, dir, currentRelative)) {
+      return;
     }
-
-    // Migrate: rewrite any pins whose path targeted a known legacy config
-    // location so the seed shortcut stays accurate. A corrupt legacy file
-    // must not crash activation (BUG-001) — treat it like "no legacy file
-    // here" and keep checking the remaining known locations.
-    let parsed: ProjectShortcutsFile;
-    try {
-      parsed = JSON.parse(Buffer.from(legacyBytes).toString("utf8"));
-    } catch (err) {
-      getOutputChannel().appendLine(
-        `[config] ${legacyRelative} is not valid JSON, skipping migration for ${
-          folder.name
-        }: ${err instanceof Error ? err.message : String(err)}`
-      );
-      continue;
-    }
-    // Valid JSON that is not an object (null, a number, an array) carries no
-    // shortcuts: migrate it as an empty file rather than throwing on `.pins`.
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      parsed = emptyProjectShortcutsFile();
-    }
-    if (Array.isArray(parsed.pins)) {
-      for (const pin of parsed.pins) {
-        if (
-          pin.path === LEGACY_PROJECT_FILE_RELATIVE ||
-          pin.path === PROJECT_FILE_RELATIVE
-        ) {
-          pin.path = currentRelative;
-        }
-      }
-    }
-    await writeProjectFileOn(folder, parsed);
-    try {
-      await vscode.workspace.fs.delete(legacyUri);
-    } catch {
-      // Delete failed (locked file, permissions) — the migrated copy is safe;
-      // next activation will see the configured path and skip migration.
-    }
-    getOutputChannel().appendLine(
-      `[config] migrated ${legacyRelative} → ${currentRelative} for ${folder.name}`
-    );
-    return;
   }
 
   try {
@@ -110,6 +128,10 @@ export async function ensureProjectFileOn(folder: vscode.WorkspaceFolder): Promi
   }
 }
 
+/**
+ * Reads and normalizes a folder's project shortcuts file. A missing or unreadable file
+ * gives an empty one, and older file versions are upgraded in memory without losing fields.
+ */
 export async function readProjectFileOn(
   folder: vscode.WorkspaceFolder
 ): Promise<ProjectShortcutsFile> {
@@ -198,6 +220,7 @@ async function readProjectFileBytes(
   return undefined;
 }
 
+/** Writes the project shortcuts file as indented JSON, creating the config folder first. */
 export async function writeProjectFileOn(
   folder: vscode.WorkspaceFolder,
   file: ProjectShortcutsFile

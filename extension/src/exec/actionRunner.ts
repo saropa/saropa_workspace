@@ -202,6 +202,60 @@ export async function runShellAction(
   }
 }
 
+/** What a captured-to-report run needs to write its report and record its outcome. */
+interface ReportRun {
+  readonly pinId: string;
+  readonly name: string;
+  readonly commandLine: string;
+  readonly body: string;
+  readonly reportPath: string;
+  readonly code: number | null;
+  readonly durationMs: number;
+  readonly autoOpen: boolean;
+}
+
+/**
+ * Writes the captured output as a report file, then records the run: last-report
+ * link, status, finish cue, chain event, badge, and the optional auto-open.
+ * Throws on a file error; the caller logs it.
+ */
+async function writeReportAndRecord(run: ReportRun): Promise<void> {
+  const { pinId, name, commandLine, body, reportPath, code, durationMs, autoOpen } = run;
+  const channel = getOutputChannel();
+  const nodePath = await import("path");
+    const fs = await import("fs/promises");
+    await fs.mkdir(nodePath.dirname(reportPath), { recursive: true });
+    await fs.writeFile(reportPath, buildCommandReport(name, commandLine, body), "utf8");
+    channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
+    // Hand the written report path to the scheduler so a scheduled fire can
+    // persist a durable "Open report" link for this shortcut (see lastReport.ts).
+    recordLastReport(pinId, reportPath);
+    runStatusRegistry.record(pinId, {
+      outcome: code === 0 ? "success" : "failure",
+      exitCode: code,
+      durationMs,
+      endedAt: Date.now(),
+    });
+    // Finish cue (#64) for a captured-to-report run (scheduled rituals, the
+    // process snapshot). Report recipes carry no per-shortcut override, so they
+    // follow the global cue settings.
+    playCue(code === 0 ? "success" : "failure");
+    // Tracked outcome for the chain engine, same as the background path.
+    shortcutEvents.fireComplete(pinId, code === 0 ? "success" : "failure");
+    // Badge the shortcut from the captured report body (#26, #32): the lint sweep /
+    // test-trend rituals run through this report path, so this is where their
+    // severity counts / test tally reach the shortcut.
+    const badge = parseRunBadge(body);
+    if (badge) {
+      shortcutBadges.record(pinId, badge);
+    }
+    if (autoOpen) {
+      // No-op while this run is a member of a routine — the routine opens its
+      // consolidated summary instead of every member's own report.
+      await openReport(reportPath);
+    }
+}
+
 // Run a command, capture its combined output to a dated report file (created with
 // its parent directory), and optionally open it. Used by scheduled report recipes.
 async function runShellToReport(
@@ -248,37 +302,7 @@ async function runShellToReport(
         runLock.release(lockName, child.pid);
       }
       try {
-        const fs = await import("fs/promises");
-        await fs.mkdir(nodePath.dirname(reportPath), { recursive: true });
-        await fs.writeFile(reportPath, buildCommandReport(name, commandLine, body), "utf8");
-        channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
-        // Hand the written report path to the scheduler so a scheduled fire can
-        // persist a durable "Open report" link for this shortcut (see lastReport.ts).
-        recordLastReport(pinId, reportPath);
-        runStatusRegistry.record(pinId, {
-          outcome: code === 0 ? "success" : "failure",
-          exitCode: code,
-          durationMs,
-          endedAt: Date.now(),
-        });
-        // Finish cue (#64) for a captured-to-report run (scheduled rituals, the
-        // process snapshot). Report recipes carry no per-shortcut override, so they
-        // follow the global cue settings.
-        playCue(code === 0 ? "success" : "failure");
-        // Tracked outcome for the chain engine, same as the background path.
-        shortcutEvents.fireComplete(pinId, code === 0 ? "success" : "failure");
-        // Badge the shortcut from the captured report body (#26, #32): the lint sweep /
-        // test-trend rituals run through this report path, so this is where their
-        // severity counts / test tally reach the shortcut.
-        const badge = parseRunBadge(body);
-        if (badge) {
-          shortcutBadges.record(pinId, badge);
-        }
-        if (autoOpen) {
-          // No-op while this run is a member of a routine — the routine opens its
-          // consolidated summary instead of every member's own report.
-          await openReport(reportPath);
-        }
+        await writeReportAndRecord({ pinId, name, commandLine, body, reportPath, code, durationMs, autoOpen });
       } catch (err) {
         channel.appendLine(
           l10n("report.failed", { name, error: err instanceof Error ? err.message : String(err) })

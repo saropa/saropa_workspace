@@ -14,9 +14,13 @@ import { askRefresh, currentBoard, hasFailed, isFirstScanDone, staleNote, isScan
 // on a blocker names an index into the model it was built from, and the host resolves it
 // there, never from text.
 
+// Configuration section that holds every Release Board setting; a change under it refreshes the tree.
 const SETTINGS = "saropaWorkspace.releaseBoard";
+// Id of the tree view contributed in package.json.
 const VIEW = "saropaWorkspace.releaseBoard";
+// Context key the welcome text keys off (ready, empty, failed or loading).
 const STATE_KEY = "saropaWorkspace.releaseBoard.sidebarState";
+// Internal command a blocker row runs; its arguments are the item index and the board stamp.
 const OPEN_BLOCKER = "saropaWorkspace.releaseBoard.sidebar.openBlocker";
 
 // The light names in the user's language, shared by the project rows and the trains.
@@ -189,6 +193,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     this.emitter.fire(undefined);
   }
 
+  // Maps a node to its tree row; each kind has its own builder above.
   getTreeItem(node: Node): vscode.TreeItem {
     switch (node.kind) {
       case "offer":
@@ -237,6 +242,7 @@ async function openBlocker(id: unknown, stamp: unknown): Promise<void> {
   if (!board || typeof id !== "number" || stamp !== board.stamp) {
     return;
   }
+  // The id indexes the model the row was built from; the stamp check above guarantees it is the same one.
   const item = board.model.items[id];
   const project = board.run.cfg.projects.find((p) => p.id === item?.project);
   if (!item || !project) {

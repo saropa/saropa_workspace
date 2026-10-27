@@ -6,16 +6,30 @@ function escapeMd(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** Escapes a double quote so a value can sit inside a double-quoted HTML attribute. */
+function escapeAttr(s: string): string {
+  return s.replace(/"/g, "&quot;");
+}
+
+/** Only these URL schemes become links or images; anything else (javascript:, data:, a bare path) stays text. */
+const SAFE_URL = /^(?:https?:\/\/|mailto:)/i;
+
 /**
- * Escapes a line, then turns inline Markdown into tags. The escape runs first so
- * user text can never inject HTML; code spans go before emphasis so asterisks
- * inside backticks are not treated as bold.
+ * Escapes a line, then turns inline Markdown into tags. Text is escaped for &, < and >
+ * first, so user text cannot open a tag. Link and image targets are the one place text
+ * lands inside an attribute, so they are limited to http, https and mailto URLs and have
+ * double quotes escaped; a target with another scheme is left as plain text. Code spans
+ * go before emphasis so asterisks inside backticks are not treated as bold.
  */
 function inlineMarkup(line: string): string {
   let s = escapeMd(line);
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
-  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt: string, url: string) =>
+    SAFE_URL.test(url) ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}">` : m
+  );
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, text: string, url: string) =>
+    SAFE_URL.test(url) ? `<a href="${escapeAttr(url)}">${text}</a>` : m
+  );
   s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
   s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");

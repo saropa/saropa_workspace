@@ -43,6 +43,7 @@
 import { LEFT_PANEL_LIMITS, RIGHT_PANEL_LIMITS } from "./launcher/launcherSplitLogic";
 import { LAUNCHER_STYLE_CONTROLS } from "./launcherAssetsControls";
 
+/** Stylesheet for the launcher webview. */
 export const LAUNCHER_STYLE = `
 /* The one place the card-button label size and box padding live. Every card action
    button (.run, .btn) reads these variables, so a retune is a single edit and the two

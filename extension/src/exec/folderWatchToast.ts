@@ -33,6 +33,7 @@ function formatFiles(files: string[]): string {
     : shown.join(", ");
 }
 
+/** Shows one toast for the new and changed files of a folder watch, worded for a startup scan or a live change. */
 export async function toastFolderDelta(
   watch: FolderWatch,
   delta: FolderWatchDelta,

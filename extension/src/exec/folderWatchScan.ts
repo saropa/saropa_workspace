@@ -86,6 +86,7 @@ export function compileGlob(glob: string): RegExp {
   }
 }
 
+/** Snapshots a watched file or folder as name to modified-time. A folder is walked recursively, filtered by the watch's glob. */
 export async function scanFolderTarget(
   watch: FolderWatch,
   output: { appendLine(line: string): void }
