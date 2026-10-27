@@ -14,7 +14,7 @@ import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "..
 import { asTimeBox } from "../board/sittings";
 import { moveToArchive, readTidySettings } from "../commands/boardTidy";
 import { publishBoard } from "./editorLinks";
-import { panelLeft, panelShowed, viewFor } from "./boardSinceLast";
+import { onDidChangeSinceLast, panelLeft, panelShowed, viewFor } from "./boardSinceLast";
 import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed, setPanelVisible } from "./boardFeed";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
@@ -171,7 +171,7 @@ class BoardPanel {
     setPanelVisible(panel.visible);
     panel.onDidChangeViewState(() => {
       setPanelVisible(panel.visible);
-      // Hidden means seen: what the tab showed is the new baseline for "since you last looked".
+      // Leaving early is not a look; the dwell timer in boardSinceLast decides what counts as seen.
       if (!panel.visible) {
         panelLeft();
       } else if (this.run) {
@@ -180,6 +180,17 @@ class BoardPanel {
       }
     }, null, this.disposables);
     onDidAskRefresh(() => this.poke(0), null, this.disposables);
+    // The change was taken as seen (or marked seen): draw the board again without the strip.
+    onDidChangeSinceLast(
+      () => {
+        if (this.run) {
+          this.lastKey = "";
+          this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+        }
+      },
+      null,
+      this.disposables
+    );
     onDidRecordHealth(() => this.poke(300), null, this.disposables);
     // A mark changes only what is drawn, so the stored scan is shown again, not redone.
     onDidChangeMarks(
@@ -392,7 +403,7 @@ class BoardPanel {
       : undefined;
     // The strip and the "seen" record only for a finished board: a loading or stored paint can
     // hold unread documents, which would read as blockers that cleared.
-    const finished = !state.loading && !state.stale;
+    const finished = !state.loading && !state.stale && !this.partial;
     const since = finished ? viewFor(model) : undefined;
     if (finished && this.panel.visible) {
       panelShowed(model);

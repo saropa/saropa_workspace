@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { BoardModel } from "../board/boardModel";
-import { SeenRecord, SinceLabels, SinceLast, SinceView, clampListed, diffSeen, digestOf, readSeen, sinceLines } from "../board/sinceLast";
+import { SeenRecord, SinceLabels, SinceLast, SinceView, clampListed, diffSeen, digestOf, readSeen, sameRecord, sinceLines } from "../board/sinceLast";
 import { l10n } from "../i18n/l10n";
 import { currentBoard, isStoredOnly, onDidChangeBoard } from "./boardFeed";
 
@@ -8,11 +8,9 @@ import { currentBoard, isStoredOnly, onDidChangeBoard } from "./boardFeed";
 // (extension storage, never a document), decides when the board counts as seen, and hands
 // the sidebar, the status bar tooltip and the board page the same change.
 //
-// Seen means: the board tab was showing a finished board. The record is written after the
-// tab has been showing it for a few seconds, and the baseline moves to it when the tab is
-// hidden or closed. So the strip stays on screen while the tab is open and is gone the
-// next time it is shown. The very first board is recorded silently: there is nothing to
-// compare it with.
+// Seen means: the board tab showed a finished board for DWELL_MS. Then the record is written,
+// the baseline moves to it and everything clears. A tab hidden or closed sooner is not a
+// look. The very first board is recorded silently: there is nothing to compare it with.
 
 const SETTINGS = "saropaWorkspace.releaseBoard";
 const KEY = "saropaWorkspace.releaseBoard.sinceLast.seen";
@@ -52,8 +50,10 @@ function labels(): SinceLabels {
 }
 
 // The time of the last look in the user's own format.
-export function whenText(since: number): string {
-  return new Date(since).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+// Within the last 6 days the weekday and time; older, the date and time.
+export function whenText(since: number, now = Date.now()): string {
+  const recent = now - since < 6 * 24 * 3600 * 1000;
+  return new Date(since).toLocaleString(undefined, recent ? { weekday: "short", hour: "2-digit", minute: "2-digit" } : { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 // The change on the sidebar and in the status bar: the published board against the baseline.
@@ -63,7 +63,7 @@ export function currentChange(): SinceLast | undefined {
   if (!on() || !board || isStoredOnly()) {
     return undefined;
   }
-  return diffSeen(seen, digestOf(board.model, Date.now()));
+  return diffSeen(seen, digestOf(board.model, Date.now(), seen));
 }
 
 export function sidebarLines(change: SinceLast): ReturnType<typeof sinceLines> {
@@ -75,49 +75,48 @@ export function viewFor(model: BoardModel): SinceView | undefined {
   if (!on()) {
     return undefined;
   }
-  const change = diffSeen(seen, digestOf(model, Date.now()));
+  const change = diffSeen(seen, digestOf(model, Date.now(), seen));
   return change ? { heading: l10n("releaseBoard.sinceLast.heading", { time: whenText(change.since) }), lines: sinceLines(change, labels(), maxListed()) } : undefined;
 }
 
-// The tab painted a finished board. It is written down as seen after a short stay.
+// The tab painted a finished board. After DWELL_MS on screen it counts as seen: the baseline
+// moves to it and the strip, sidebar row and tooltip clear. A tab hidden or closed before that
+// has not been looked at, so nothing is taken as seen.
 export function panelShowed(model: BoardModel): void {
   if (!on()) {
     return;
   }
-  shown = digestOf(model, Date.now());
+  shown = digestOf(model, Date.now(), seen);
   if (!seen) {
     // First board ever: nothing to compare, so it is the baseline at once.
     seen = shown;
     save(shown);
     return;
   }
-  if (!timer) {
+  if (!timer && !sameRecord(seen, shown)) {
     timer = setTimeout(() => {
       timer = undefined;
-      if (shown) {
+      if (shown && seen && !sameRecord(seen, shown)) {
+        seen = shown;
         save(shown);
+        changed.fire();
       }
     }, DWELL_MS);
   }
 }
 
-// The tab was hidden or closed: what it showed is now what was seen.
+// The tab was hidden or closed: a stay shorter than the dwell time is not a look.
 export function panelLeft(): void {
   clearTimeout(timer);
   timer = undefined;
-  if (shown) {
-    seen = shown;
-    save(shown);
-    shown = undefined;
-    changed.fire();
-  }
+  shown = undefined;
 }
 
 // The sidebar's "mark as seen" button: the board as published becomes the baseline.
 export function markSeenNow(): void {
   const board = currentBoard();
-  if (board && !isStoredOnly()) {
-    seen = digestOf(board.model, Date.now());
+  if (on() && board && !isStoredOnly()) {
+    seen = digestOf(board.model, Date.now(), seen);
     save(seen);
     changed.fire();
   }

@@ -10,6 +10,8 @@ import { isBlocker } from "./sidebar";
 // Most blockers kept per project in the record, and the longest title kept.
 export const MAX_RECORDED = 200;
 const TITLE_MAX = 120;
+const KEY_MAX = 200;
+export const MAX_PROJECTS = 50;
 
 export const DEFAULT_LISTED = 5;
 export const MAX_LISTED = 20;
@@ -35,21 +37,48 @@ export interface SeenRecord {
 
 const LIGHTS: readonly string[] = ["no-go", "unverified", "go"];
 
-// The record for a board that is on screen.
-export function digestOf(model: Pick<BoardModel, "projects">, at: number): SeenRecord {
+// The record for a board that is on screen. `previous` is the record the board is measured
+// against: a blocker it holds whose document is still open but could not be read this time
+// (severity unknown) is kept, so a failed read never looks like a cleared blocker.
+export function digestOf(model: Pick<BoardModel, "projects">, at: number, previous?: SeenRecord): SeenRecord {
   const projects: Record<string, SeenProject> = {};
-  for (const p of model.projects) {
+  for (const p of model.projects.slice(0, MAX_PROJECTS)) {
     const blockers: Record<string, string> = {};
+    const old = previous?.projects[p.id]?.blockers;
     let n = 0;
     for (const it of p.items) {
-      if (isBlocker(it) && n < MAX_RECORDED) {
-        blockers[`${it.project}/${it.path}`] = it.title.slice(0, TITLE_MAX);
+      const key = `${it.project}/${it.path}`.slice(0, KEY_MAX);
+      if (n >= MAX_RECORDED) {
+        break;
+      }
+      if (isBlocker(it)) {
+        blockers[key] = it.title.slice(0, TITLE_MAX);
+        n += 1;
+      } else if (it.severity === undefined && old && key in old) {
+        blockers[key] = old[key];
         n += 1;
       }
     }
     projects[p.id] = { name: p.name, light: p.light, blockers };
   }
   return { version: 1, at, projects };
+}
+
+// True when two records hold the same lights and blockers (the time and names are ignored).
+export function sameRecord(a: SeenRecord, b: SeenRecord): boolean {
+  const ids = Object.keys(a.projects);
+  if (ids.length !== Object.keys(b.projects).length) {
+    return false;
+  }
+  return ids.every((id) => {
+    const x = a.projects[id];
+    const y = b.projects[id];
+    if (!y || x.light !== y.light) {
+      return false;
+    }
+    const kx = Object.keys(x.blockers);
+    return kx.length === Object.keys(y.blockers).length && kx.every((k) => k in y.blockers);
+  });
 }
 
 // A stored value checked and copied; undefined when it is not a record this version wrote.
@@ -59,14 +88,14 @@ export function readSeen(v: unknown): SeenRecord | undefined {
     return undefined;
   }
   const projects: Record<string, SeenProject> = {};
-  for (const [id, p] of Object.entries(r.projects)) {
+  for (const [id, p] of Object.entries(r.projects).slice(0, MAX_PROJECTS)) {
     if (!p || typeof p.name !== "string" || !LIGHTS.includes(p.light) || typeof p.blockers !== "object" || p.blockers === null) {
       return undefined;
     }
     const blockers: Record<string, string> = {};
-    for (const [k, t] of Object.entries(p.blockers)) {
+    for (const [k, t] of Object.entries(p.blockers).slice(0, MAX_RECORDED)) {
       if (typeof t === "string") {
-        blockers[k] = t;
+        blockers[k.slice(0, KEY_MAX)] = t.slice(0, TITLE_MAX);
       }
     }
     projects[id] = { name: p.name, light: p.light, blockers };
@@ -91,6 +120,23 @@ export interface SinceLast {
   changes: ProjectChange[];
 }
 
+// A document renamed or moved shows as one gone and one new with the same title: neither is
+// reported. Each title cancels one on the other side.
+function withoutMoves(added: string[], cleared: string[]): [string[], string[]] {
+  const cancel = (from: string[], other: string[]): string[] => {
+    const pool = [...other];
+    return from.filter((t) => {
+      const i = pool.indexOf(t);
+      if (i >= 0) {
+        pool.splice(i, 1);
+        return false;
+      }
+      return true;
+    });
+  };
+  return [cancel(added, cleared), cancel(cleared, added)];
+}
+
 // The changes between the last seen record and now, or undefined when nothing changed.
 // A project that is new or gone has nothing to compare and is left out.
 export function diffSeen(seen: SeenRecord | undefined, now: SeenRecord): SinceLast | undefined {
@@ -103,8 +149,10 @@ export function diffSeen(seen: SeenRecord | undefined, now: SeenRecord): SinceLa
     if (!old) {
       continue;
     }
-    const added = Object.keys(cur.blockers).filter((k) => !(k in old.blockers)).map((k) => cur.blockers[k]);
-    const cleared = Object.keys(old.blockers).filter((k) => !(k in cur.blockers)).map((k) => old.blockers[k]);
+    const [added, cleared] = withoutMoves(
+      Object.keys(cur.blockers).filter((k) => !(k in old.blockers)).map((k) => cur.blockers[k]),
+      Object.keys(old.blockers).filter((k) => !(k in cur.blockers)).map((k) => old.blockers[k])
+    );
     const moved = old.light !== cur.light;
     if (added.length > 0 || cleared.length > 0 || moved) {
       changes.push({ id, name: cur.name, added, cleared, ...(moved ? { lightFrom: old.light, lightTo: cur.light } : {}) });

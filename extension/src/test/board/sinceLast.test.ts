@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { BoardItem, BoardProject } from "../../board/boardModel";
 import { emptyCounts } from "../../board/types";
 import { renderBoard } from "../../board/boardHtml";
-import { SinceLabels, clampListed, diffSeen, digestOf, readSeen, sinceLines, MAX_RECORDED } from "../../board/sinceLast";
+import { SinceLabels, clampListed, diffSeen, digestOf, readSeen, sameRecord, sinceLines, MAX_PROJECTS, MAX_RECORDED } from "../../board/sinceLast";
 
 const labels: SinceLabels = {
   newOne: "1 new blocker",
@@ -115,4 +115,53 @@ test("the page escapes the strip and shows it only with lines", () => {
   assert.ok(!html.includes("<img>"));
   assert.ok(!renderBoard(model, t, "n", 1, {}, undefined, undefined).includes('class="box since"'));
   assert.ok(!renderBoard(model, t, "n", 1, {}, undefined, { heading: "h", lines: [] }).includes('class="box since"'));
+});
+
+test("an open document that could not be read keeps its blocker and is not cleared", () => {
+  const seen = digestOf(board(project("no-go", [item("A", "amber", true)])), 1);
+  const unread = { ...item("A", "amber", false), severity: undefined };
+  const now = digestOf(board(project("unverified", [unread])), 2, seen);
+  assert.deepEqual(Object.values(now.projects.app.blockers), ["A"]);
+  assert.deepEqual(diffSeen(seen, now)?.changes[0].cleared ?? [], []);
+});
+
+test("an unread document that was not a blocker is not invented as one", () => {
+  const seen = digestOf(board(project("unverified", [])), 1);
+  const now = digestOf(board(project("unverified", [{ ...item("B", "amber"), severity: undefined }])), 2, seen);
+  assert.deepEqual(now.projects.app.blockers, {});
+});
+
+test("a read document that is no longer a blocker still counts as cleared", () => {
+  const seen = digestOf(board(project("no-go", [item("A", "amber", true)])), 1);
+  const now = digestOf(board(project("unverified", [{ ...item("A", "amber", false), severity: "low" }])), 2, seen);
+  assert.deepEqual(diffSeen(seen, now)?.changes[0].cleared, ["A"]);
+});
+
+test("a moved document (same title gone and new) is not reported", () => {
+  const seen = digestOf(board(project("no-go", [item("A")])), 1);
+  const moved = { ...item("A"), path: "bugs/sub/A.md" };
+  assert.equal(diffSeen(seen, digestOf(board(project("no-go", [moved])), 2, seen)), undefined);
+  const more = digestOf(board(project("no-go", [moved, item("N")])), 2, seen);
+  assert.deepEqual(diffSeen(seen, more)?.changes[0].added, ["N"]);
+  assert.deepEqual(diffSeen(seen, more)?.changes[0].cleared, []);
+});
+
+test("sameRecord ignores time and names but not lights, blockers or projects", () => {
+  const a = digestOf(board(project("no-go", [item("A")])), 1);
+  assert.ok(sameRecord(a, digestOf(board(project("no-go", [item("A")])), 99)));
+  assert.ok(!sameRecord(a, digestOf(board(project("unverified", [item("A")])), 1)));
+  assert.ok(!sameRecord(a, digestOf(board(project("no-go", [item("B")])), 1)));
+  assert.ok(!sameRecord(a, digestOf(board(project("no-go", [item("A")]), project("go", [], "x")), 1)));
+});
+
+test("projects, paths and titles are capped in the record and when reading it back", () => {
+  const many = Array.from({ length: MAX_PROJECTS + 5 }, (_, i) => project("go", [], `p${i}`));
+  assert.equal(Object.keys(digestOf(board(...many), 0).projects).length, MAX_PROJECTS);
+  const long = { ...item("A"), path: "x".repeat(400) };
+  const rec = digestOf(board(project("no-go", [long])), 0);
+  assert.ok(Object.keys(rec.projects.app.blockers).every((k) => k.length <= 200));
+  const raw = { version: 1, at: 1, projects: Object.fromEntries(Array.from({ length: 80 }, (_, i) => [`p${i}`, { name: "n", light: "go", blockers: { ["k".repeat(500)]: "t" } }])) };
+  const back = readSeen(raw)!;
+  assert.equal(Object.keys(back.projects).length, MAX_PROJECTS);
+  assert.ok(Object.keys(back.projects.p0.blockers).every((k) => k.length <= 200));
 });
