@@ -152,6 +152,8 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.liveEvidence.includeWarnings` | `true` | Counts warnings as well as errors and crashes. Off: only errors and crashes mark a row. |
 | `releaseBoard.liveEvidence.lookbackDays` | `1` | Days of debug runs Log Capture is asked about (1 to 30). |
 | `releaseBoard.liveEvidence.unnamedBox` | `true` | Lists crash signals in files no open document names, with a Start a bug document button. Needs Log Capture. |
+| `releaseBoard.future.enabled` | `true` | Shows a Future tab on the board whenever the project has deferred or blocked documents (`plans/deferred`, `plans/blocked`, `docs/deferred`, `docs/blocked`): each under its importance flag with wow, reach, effort and risk. Lists only; it never counts as a problem and never changes a light. Setting a flag writes a short header block at the top of that document and nothing else; a document moves between `deferred` and `blocked` only after you confirm. |
+| `releaseBoard.future.defaultSort` | `score` | Order inside each flag: `score` (wow and reach over effort, lower risk on a tie), `wow`, `effort`, `risk` or `reach`. You can also change it on the tab. |
 | `releaseBoard.train.enabled` | `true` | Shows a Release train row on the board and in the sidebar when more than one project is found: one light (the worst of the projects that ship together) and the order to ship them in. Read-only. |
 | `releaseBoard.train.naming` | `version` | Names the train by the version of the project that ships last (from `package.json` or `pubspec.yaml`), or by its folder name (`folder`). |
 | `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |

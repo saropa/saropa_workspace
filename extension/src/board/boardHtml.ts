@@ -5,6 +5,7 @@ import { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml } from "./boardHtmlUtil";
 import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock } from "./boardHtmlRows";
+import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { chains, needsRule, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
@@ -35,7 +36,7 @@ export interface RenderState {
 
 // Renders the whole board page. `paths` holds one Path to GO per project, in the order of
 // model.projects; leave it out to show no paths.
-export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[]): string {
+export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[], future?: FutureView): string {
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
   const lights = new Map<string, string>();
   for (const p of model.projects) {
@@ -56,7 +57,8 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
 <div id="live" class="vh" role="status" aria-live="polite"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${model.sittings ? `<button id="sit-open" aria-controls="sit-panel">${escapeHtml(t.sittingsButton)}</button>` : ""}</div>
-<p class="note">${escapeHtml(t.intro)}</p>${banner}
+${futureTabs(future, t)}
+<div id="tab-board" role="tabpanel"><p class="note">${escapeHtml(t.intro)}</p>${banner}
 ${sinceBox(since)}
 ${state.stale || state.loading ? "" : tidyBox(model, t)}
 ${sittingsBox(model, t)}
@@ -71,5 +73,7 @@ ${outsideBoxes(model)}
 ${needsRule(model, t, names)}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber"></i></p>` : ""}
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
+</div>
+${futurePanel(future, t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}</script></body></html>`;
 }

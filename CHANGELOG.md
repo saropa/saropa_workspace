@@ -46,6 +46,21 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Release Board has a Future tab for deferred and blocked work.
+
+### Added
+
+- **Release Board: Future tab.** When a project has deferred or blocked documents (`plans/deferred`, `plans/blocked`, `docs/deferred/<area>`, `docs/blocked`), a **Future** tab appears next to **Board** at the top of the board page, with the count. It lists every such document from every project under its importance flag: Unflagged first (so nothing is forgotten), then Build next, Marketable, Nice to have, Needs a decision, and last Not feasible, which shows the blocker line. Each row shows wow (1 to 5), reach (daily, weekly, rare), effort (S to XL) and risk (low, medium, high). Inside a flag the default order is wow times reach, divided by effort, with lower risk first on a tie; a Sort by list switches to wow, effort, risk or reach. These items never count as problems and never change a light.
+- **Folder names follow your rules.** The tab reads the `deferredFolders` and `blockedFolders` parameters of the board rules, so renamed folders work; a `declined` folder is never listed.
+- **Setting flags from the tab.** Each row has lists for the flag and the four characteristics. Choosing a value writes a short block of `Key: value` lines (`Importance`, `Wow`, `Reach`, `Effort`, `Risk`, `Blocker`) at the top of that document, right under its title, and changes nothing else in it: line endings, front matter and all other text stay byte for byte. A document without the block is still listed; values the board guessed are drawn with a dashed amber border and can be written with one click on **Proposed: ...**. Only a complete block is edited (every value valid, followed by a blank line); a paragraph that merely starts with a word like `Risk:` is left alone and a new block is written above it. Documents with unsaved edits, that changed while being written, that are not plain UTF-8 text, or whose front matter never closes, are not written.
+- **Moving between deferred and blocked.** Changing a flag to or from Not feasible asks, in a dialog naming the exact source and destination, whether to move the document between `deferred` and `blocked`. The board never moves a file on its own; decline and the flag is still written.
+- **Later work outside the deferred folders.** Bullets under a Later or Exploratory heading in `ROADMAP.md` and `plans/MASTER_PLAN.md`, and master plan headings whose Status says Not started, are listed in a read-only box at the bottom of the tab, with their source and line. Click one to open it there.
+- **Settings:** `releaseBoard.future.enabled` (on) and `releaseBoard.future.defaultSort` (`score`, `wow`, `effort`, `risk` or `reach`; default `score`).
+
+---
+
 ## [2.2.0]
 
 The Release Board is now always in view: a sidebar section, a status bar light and a tab that opens at window start, plus a list of what to do next, a strip of what changed since you last looked, tidy-up suggestions, one-click prompts for a chat, live error marks, a release train row and an optional overnight proof run. [log](https://github.com/saropa/saropa-workspace/blob/v2.2.0/CHANGELOG.md)
