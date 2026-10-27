@@ -2603,6 +2603,23 @@
             "default": true,
             "description": "%config.releaseBoard.sittings.onlyOwnerDocuments.description%"
           },
+          "saropaWorkspace.releaseBoard.tidy.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.tidy.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.tidy.afterDays": {
+            "type": "number",
+            "default": 7,
+            "minimum": 1,
+            "maximum": 365,
+            "description": "%config.releaseBoard.tidy.afterDays.description%"
+          },
+          "saropaWorkspace.releaseBoard.tidy.archiveFolder": {
+            "type": "string",
+            "default": "docs/history",
+            "description": "%config.releaseBoard.tidy.archiveFolder.description%"
+          },
           "saropaWorkspace.previewMode.enabled": {
             "type": "boolean",
             "default": false,
