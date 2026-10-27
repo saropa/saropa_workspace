@@ -12,6 +12,7 @@ import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } 
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { assignFolderRule, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
 import { researchQueue } from "../board/futureResearch";
+import { busyReason } from "./boardBusy";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
@@ -271,10 +272,8 @@ class BoardPanel extends BoardPanelWiring {
     }
   }
 
-  // Why a rule cannot be added now, as a message key: another rule dialog is open, a scan is
-  // running, or the page shows an old result. Undefined when it can.
   private busyReason(): string | undefined {
-    return this.assigning ? "releaseBoard.rowMenu.busyDialog" : this.scanning ? "releaseBoard.rowMenu.busyScan" : this.cached ? "releaseBoard.rowMenu.busyStale" : undefined;
+    return busyReason({ assigning: this.assigning, scanning: this.scanning, cached: this.cached });
   }
 
   // An entry of the menu on a document row. The page sent the entry name and the item's index;

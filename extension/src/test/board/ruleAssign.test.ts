@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import defaultRules from "../../board/defaultRules.json";
-import { OVERRIDE_RULE_SET, USER_RULE_SET, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, idIsStable, losesData, ruleCategories } from "../../board/ruleAssign";
+import { OVERRIDE_RULE_SET, USER_RULE_SET, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, losesData, ruleCategories } from "../../board/ruleAssign";
+import { busyReason } from "../../views/boardBusy";
 import en from "../../i18n/locales/en.json";
 import { layerUserRules } from "../../commands/boardConfigLoad";
 import { compileProject, classifyFile } from "../../board/ruleEngine";
@@ -295,12 +296,27 @@ test("a rule the user confirmed wins over the project's own rules and over any r
   assert.equal(classifyFile(cp, files("bugs/BUG_y.md"), undefined).status, "amber", "other documents keep the project's own rule");
 });
 
-test("a project id made from a shared folder name is not stable; a plain name or an id with a matching folder is", () => {
-  assert.equal(idIsStable("lib", "file:///w/lib"), true);
-  assert.equal(idIsStable("lib-2", "file:///w/other/lib"), false);
-  assert.equal(idIsStable("lib-2", "file:///w/lib-2"), true, "a folder really named lib-2");
-  assert.equal(idIsStable("app-3", "/w/app-3/"), true);
-  assert.equal(idIsStable("app", "file:///w/packages/app-x"), true, "an id with no number suffix is a plain id");
+test("final is honored only on a rule that names its project", () => {
+  const project = { id: "a", path: "a", roots: ["docs"], ruleSets: ["doc-kinds", "status-line", "x"] };
+  const withProject = { ruleSets: { x: { rules: [{ id: "r", when: { path: "docs/**", project: "a" }, set: { status: "red", final: true } }] } } };
+  const without = { ruleSets: { x: { rules: [{ id: "r", when: { path: "docs/**" }, set: { status: "red", final: true } }] } } };
+  const first = compileProject(layerUserRules(shipped, withProject as unknown as Partial<BoardConfig>), project);
+  assert.equal(classifyFile(first, files("docs/z.md"), "done").status, "red", "final with a project: the Status line cannot undo it");
+  const second = compileProject(layerUserRules(shipped, without as unknown as Partial<BoardConfig>), project);
+  const hit = classifyFile(second, files("docs/z.md"), "done");
+  assert.equal(hit.status, "green", "final with no project is ignored: the Status line still moves it");
+  assert.equal(second.rules[0].rule.id === "r", false, "and it is not moved to the front");
+});
+
+test("a folder rule that must win is final too: the Status lines of its folder's documents cannot undo it", () => {
+  const written = addFolderRule(undefined, { project: "a", folder: "docs", category: statusRed, front: true });
+  assert.ok(written.ok);
+  assert.equal((JSON.parse(written.text).ruleSets[OVERRIDE_RULE_SET].rules[0] as { set: { final: boolean } }).set.final, true);
+  const cfg = layerUserRules(shipped, JSON.parse(written.text) as Partial<BoardConfig>);
+  const cp = compileProject(cfg, { id: "a", path: "a", roots: ["docs"], ruleSets: [OVERRIDE_RULE_SET, "doc-kinds", "status-line"] });
+  for (const name of ["docs/one.md", "docs/two.md"]) {
+    assert.equal(classifyFile(cp, files(name), "done").status, "red", name);
+  }
 });
 
 test("broken JSON gets the not-valid-JSON refusal even when it also repeats a key", () => {
@@ -312,6 +328,13 @@ test("the busy texts say apart: a dialog is open, a scan is running, an old resu
   assert.ok(keys.every((k) => typeof k === "string"));
   assert.equal(new Set(keys).size, 3);
   assert.ok(keys[0].includes("dialog") && !keys[0].includes("scan"));
+  const key = (assigning: boolean, scanning: boolean, cached: boolean): string | undefined => busyReason({ assigning, scanning, cached });
+  assert.equal(key(false, false, false), undefined);
+  assert.equal(key(true, false, false), "releaseBoard.rowMenu.busyDialog");
+  assert.equal(key(false, true, false), "releaseBoard.rowMenu.busyScan");
+  assert.equal(key(false, false, true), "releaseBoard.rowMenu.busyStale");
+  assert.equal(key(true, true, true), "releaseBoard.rowMenu.busyDialog", "an open dialog is named first");
+  assert.equal(key(false, true, true), "releaseBoard.rowMenu.busyScan", "a running scan is named before an old result");
   assert.ok(keys[1].includes("scan is running"));
   assert.ok(keys[2].includes("last result") && keys[2].includes("Refresh"));
   assert.equal((en as Record<string, string>)["releaseBoard.rowMenu.busy"], undefined);
@@ -320,6 +343,6 @@ test("the busy texts say apart: a dialog is open, a scan is running, an old resu
 test("the confirmations say plainly that the rule can turn a blocking document green and move the light to GO", () => {
   for (const k of ["statusConfirm", "assignConfirm"]) {
     const text = (en as Record<string, string>)["releaseBoard.rowMenu." + k];
-    assert.ok(text.includes("turn a document that blocks the release green") && text.includes("for example to GO") && text.includes("Status line cannot undo it"), k);
+    assert.ok(text.includes("turn a document that blocks the release green") && text.includes("for example to GO") && text.includes("Status line"), k);
   }
 });

@@ -32,7 +32,8 @@ export interface RuleSet_Set {
   kind?: string;
   note?: string;
   // A rule the user confirmed from the board to win: it is tried before every other rule and the
-  // Status line does not move its document. Only rules written from the board carry it.
+  // Status line does not move its document. Only rules written from the board carry it, and it is
+  // honored only on a rule that names its project (`when.project`); anywhere else it is ignored.
   final?: boolean;
 }
 
@@ -82,6 +83,9 @@ export interface ProjectDef {
   importance?: "high" | "normal" | "low";
   dependsOn?: string[];
   ruleSets: string[];
+  // True when the id was made unique by adding a number because another project had the same
+  // name. Such an id can change when folders are added, so no rule is written for it.
+  idMadeUnique?: boolean;
   // Regex sources (case-insensitive) that say a document mentions this project, e.g.
   // "supabase". Used for the "also mentions" mark on documents of other projects.
   mentions?: string[];

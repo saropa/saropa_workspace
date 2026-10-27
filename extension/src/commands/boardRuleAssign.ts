@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { AssignRefusal, AssignResult, RuleCategory, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, idIsStable, ruleCategories } from "../board/ruleAssign";
+import { AssignRefusal, AssignResult, RuleCategory, addDocRule, addFolderRule, decodeRules, docGlob, folderGlob, ruleCategories } from "../board/ruleAssign";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
@@ -88,7 +88,7 @@ async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
     return false;
   }
   const def = run.cfg.projects.find((p) => p.id === c.project);
-  if (def && !idIsStable(def.id, def.path)) {
+  if (def?.idMadeUnique) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unstableId", { project: def.id }));
     return false;
   }

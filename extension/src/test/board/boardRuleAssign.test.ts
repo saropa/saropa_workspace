@@ -250,14 +250,20 @@ test("a row's Assign rule asks with text that says it also changes documents tha
   assert.deepEqual(Object.keys(written.ruleSets), ["my-overrides"]);
 });
 
-test("a rule for a project whose id is made from a shared folder name is refused", async () => {
+test("a rule for a project whose id had a number added is refused; a chosen id with a number is accepted", async () => {
   const { file, run } = setup();
-  const unstable = { ...run, cfg: { ...run.cfg, projects: [{ ...run.cfg.projects[0], id: "lib-2", path: vscode.Uri.file(path.join(path.dirname(file), "..", "lib")).toString() }] } } as BoardRun;
+  const base = run.cfg.projects[0];
+  const made = { ...run, cfg: { ...run.cfg, projects: [{ ...base, id: "lib-2", idMadeUnique: true }] } } as BoardRun;
   vs.__setPickHandler(async (items) => pickDone(items));
   confirmAdd();
-  assert.equal(await changeDocStatus(unstable, { ...doc, project: "lib-2" }), false);
+  assert.equal(await changeDocStatus(made, { ...doc, project: "lib-2" }), false);
   assert.equal(fs.existsSync(file), false);
   assert.ok(stub.__warningMessages().some((m) => m.includes("lib-2") && m.includes("Nothing was written")));
+  stub.__resetWarnings();
+  confirmAdd();
+  const chosen = { ...run, cfg: { ...run.cfg, projects: [{ ...base, id: "web-2", path: vscode.Uri.file(path.join(path.dirname(file), "web")).toString() }] } } as BoardRun;
+  assert.equal(await changeDocStatus(chosen, { ...doc, project: "web-2" }), true, "an id the user listed is stable whatever it looks like");
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).ruleSets["my-overrides"].rules[0].when.project, "web-2");
 });
 
 test("a link made while the dialogs were open is caught by the check just before the write", async () => {

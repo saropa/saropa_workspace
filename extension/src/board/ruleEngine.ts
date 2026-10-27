@@ -21,6 +21,12 @@ interface CompiledRule {
   name?: RegExp;
 }
 
+// A rule the user confirmed from the board to win. It counts only when it names its project, so a
+// rule set copied from elsewhere cannot make itself win in every project.
+function isFinal(rule: Rule): boolean {
+  return rule.set.final === true && rule.when.project !== undefined;
+}
+
 // A project with its rules turned into patterns, in the order they are tried.
 export interface CompiledProject {
   project: ProjectDef;
@@ -69,7 +75,7 @@ export function compileProject(cfg: BoardConfig, p: ProjectDef): CompiledProject
     }
   }
   // A rule the user confirmed from the board to win comes before every other rule, whichever list it sits in.
-  ordered.sort((a, b) => Number(b.rule.set.final === true) - Number(a.rule.set.final === true));
+  ordered.sort((a, b) => Number(isFinal(b.rule)) - Number(isFinal(a.rule)));
   const rules = ordered.map(({ ruleSet, rule }) => ({
     ruleSet,
     rule,
@@ -129,7 +135,7 @@ export function classifyFile(
     note = c.rule.set.note ?? "";
     rule = c.rule.id;
     ruleSet = c.ruleSet;
-    final = c.rule.set.final === true;
+    final = isFinal(c.rule);
     break;
   }
   let usedWord: string | undefined;

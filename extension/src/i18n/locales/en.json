@@ -2123,7 +2123,7 @@
   "releaseBoard.noRule.badLossy": "Release Board: {file} has the same key twice or a number too large to keep exactly, so nothing was written. Fix it by hand first.",
   "releaseBoard.noRule.unsaved": "Release Board: {file} is open with unsaved edits. Save or close it first; nothing was written.",
   "releaseBoard.noRule.symlink": "Release Board: {file} or its folder is a symbolic link, so nothing was written.",
-  "releaseBoard.rowMenu.assignConfirm": "Add a rule to {file}? Every document under {glob} in {project} becomes: {label}. This rule is placed ahead of all the others and the document's Status line cannot undo it. It can turn a document that blocks the release green, and move the project's light, for example to GO. Only add it if you mean that.",
+  "releaseBoard.rowMenu.assignConfirm": "Add a rule to {file}? Every document under {glob} in {project} becomes: {label}. This rule is placed ahead of all the others and the Status lines of those documents cannot undo it. It can turn a document that blocks the release green, and move the project's light, for example to GO. Only add it if you mean that.",
   "releaseBoard.rowMenu.statusConfirm": "Add a rule to {file}? The document {glob} in {project} becomes: {label}. This rule is placed ahead of all the others and the document's Status line cannot undo it. It can turn a document that blocks the release green, and move the project's light, for example to GO. Only add it if you mean that.",
   "releaseBoard.rowMenu.busyDialog": "Release Board: another rule dialog is still open. Finish or cancel it first.",
   "releaseBoard.rowMenu.busyScan": "Release Board: a scan is running. Try again when it has finished.",

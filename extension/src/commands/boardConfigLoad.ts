@@ -104,7 +104,7 @@ async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[], set
       }
     }
     const id = uniqueProjectId(f.name, used);
-    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: sets });
+    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: sets, ...(id !== f.name ? { idMadeUnique: true } : {}) });
   }
   return projects;
 }
