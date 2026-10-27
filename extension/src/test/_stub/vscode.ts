@@ -32,6 +32,8 @@ export * from "./vscodeWebview";
 export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
 export { Range, Selection, TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
 export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands } from "./vscodeCommands";
+export type { FakeQuickPick } from "./vscodeHosts";
+export type { FakeTextEditor } from "./vscodeEditor";
 export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setQuickPickDriver, __setTabGroups, __resetHosts } from "./vscodeHosts";
 
 export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __infoCalls, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
@@ -217,7 +219,14 @@ export const extensions = {
 // cancel) and count how often a dialog was raised. Defaults to "cancel everything"
 // (undefined) until a test installs a handler; __resetHandlers restores that.
 type InputResult = string | undefined;
-type InputHandler = (opts?: { prompt?: string; value?: string }) => Promise<InputResult>;
+interface InputOptions {
+  prompt?: string;
+  value?: string;
+  title?: string;
+  placeHolder?: string;
+  validateInput?: (value: string) => string | undefined;
+}
+type InputHandler = (opts?: InputOptions) => Promise<InputResult>;
 // showQuickPick is modeled with one settable handler, but the real API yields a
 // QuickPickItem object (or, with canPickMany, an array of them) — not just a string.
 // So the handler sees the item list as `unknown[]` and may return any shape (a chosen
@@ -262,7 +271,7 @@ export const window = {
     createdPanels.push(panel);
     return panel;
   },
-  showInputBox(opts?: { prompt?: string; value?: string }): Promise<InputResult> {
+  showInputBox(opts?: InputOptions): Promise<InputResult> {
     return inputHandler(opts);
   },
   // The handler also sees the options (placeholder, canPickMany), so a test can assert them.

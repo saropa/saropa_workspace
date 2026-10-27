@@ -11,82 +11,27 @@ import {
   __setWorkspaceFolders,
   __setConfig,
   __resetConfig,
-  __setPickHandler,
-  __setInputHandler,
   __resetHandlers,
   __resetWarnings,
   __warningMessages,
   __infoMessages,
   __resetInfo,
-  __setQuickPickDriver,
   __quickPicks,
   __resetHosts,
 } from "./_stub/vscode";
 import { fakeContext } from "./_stub/context";
 import { ShortcutStore } from "../model/shortcutStore";
 import { configureSchedule } from "../commands/configureSchedule";
+import { driveHub, drivePicks, driveInputs, type HubShowing } from "./uiDrivers";
 import type { Shortcut } from "../model/shortcut";
-
-interface HubRow {
-  id: string;
-  label: string;
-  description?: string;
-}
-interface PickRow {
-  label: string;
-  day?: number;
-  shortcut?: string;
-  minutes?: number;
-  action?: string;
-  unitMs?: number;
-  picked?: boolean;
-}
 
 let dir: string;
 let store: ShortcutStore;
-let hubs: Array<{ rows: HubRow[]; active: string | undefined; title: string | undefined }>;
+let hubs: HubShowing[];
 
 // Answers the hub in order with row ids; running out of answers presses Esc.
 function hub(...ids: string[]): void {
-  let n = 0;
-  __setQuickPickDriver((pick) => {
-    const rows = pick.items as HubRow[];
-    hubs.push({ rows, active: (pick.activeItems[0] as HubRow | undefined)?.id, title: pick.title });
-    const id = ids[n++];
-    if (id === undefined) {
-      pick.hide();
-    } else {
-      pick.accept(rows.find((r) => r.id === id));
-    }
-  });
-}
-
-function pickLabels(...answers: Array<string | string[] | undefined>): PickRow[][] {
-  const shown: PickRow[][] = [];
-  let n = 0;
-  __setPickHandler(async (items, options) => {
-    shown.push([...items] as PickRow[]);
-    const answer = answers[n++];
-    const rows = items as PickRow[];
-    if (answer === undefined) {
-      return undefined;
-    }
-    if ((options as { canPickMany?: boolean } | undefined)?.canPickMany) {
-      return (answer as string[]).map((a) => rows.find((r) => r.label === a));
-    }
-    return rows.find((r) => r.label === answer);
-  });
-  return shown;
-}
-
-function typed(...values: Array<string | undefined>): Array<{ validateInput?: (v: string) => string | undefined }> {
-  const seen: Array<{ validateInput?: (v: string) => string | undefined }> = [];
-  let n = 0;
-  __setInputHandler(async (opts) => {
-    seen.push(opts as never);
-    return values[n++];
-  });
-  return seen;
+  hubs = driveHub(...ids);
 }
 
 async function stored(name = "job.sh", schedule?: Record<string, unknown>): Promise<Shortcut> {
@@ -151,7 +96,7 @@ test("a fresh hub lists every field as unset, enabled on, and ends with Save", a
 test("Esc at the hub discards every edit", async () => {
   const s = await stored();
   hub("atTime");
-  typed("09:30");
+  driveInputs("09:30");
   await configureSchedule(store, s);
   assert.equal(schedOf(s), undefined);
   assert.deepEqual(__infoMessages(), []);
@@ -160,7 +105,7 @@ test("Esc at the hub discards every edit", async () => {
 test("a daily time is stored on Save with the shortcut enabled", async () => {
   const s = await stored();
   hub("atTime", "save");
-  typed(" 09:30 ");
+  driveInputs(" 09:30 ");
   await configureSchedule(store, s);
   assert.deepEqual(schedOf(s), { atTime: "09:30", enabled: true });
   assert.deepEqual(__infoMessages(), ["Saved schedule for job.sh."]);
@@ -176,7 +121,7 @@ test("Save with no timing stores no schedule", async () => {
 test("the row just edited is the active row on the next render", async () => {
   const s = await stored();
   hub("runOnStartup", "cron", "save");
-  pickLabels(undefined);
+  drivePicks(undefined);
   await configureSchedule(store, s);
   assert.deepEqual(hubs.map((h) => h.active), [undefined, "runOnStartup", "cron"]);
 });
@@ -184,8 +129,8 @@ test("the row just edited is the active row on the next render", async () => {
 test("the daily time prompt rejects a bad time, allows empty, and empty clears the time", async () => {
   const s = await stored("t.sh", { atTime: "08:00", enabled: true });
   hub("atTime", "interval", "save");
-  const inputs = typed("");
-  pickLabels("Every 5 minutes");
+  const inputs = driveInputs("");
+  drivePicks("Every 5 minutes");
   await configureSchedule(store, s);
   const validate = inputs[0].validateInput!;
   assert.equal(validate("24:00"), "Enter a 24-hour time as HH:mm (00:00-23:59).");
@@ -197,7 +142,7 @@ test("the daily time prompt rejects a bad time, allows empty, and empty clears t
 test("canceling the time prompt keeps the existing time", async () => {
   const s = await stored("t.sh", { atTime: "08:00", enabled: true });
   hub("atTime", "save");
-  typed(undefined);
+  driveInputs(undefined);
   await configureSchedule(store, s);
   assert.equal(schedOf(s)!.atTime, "08:00");
 });
@@ -212,13 +157,13 @@ test("days need a time first and say so", async () => {
 test("the Weekdays and Weekends rows set their days and override the ticked days", async () => {
   const s = await stored("d.sh", { atTime: "08:00", enabled: true });
   hub("days", "save");
-  const shown = pickLabels(["$(briefcase) Weekdays (Mon-Fri)", "Sat"]);
+  const shown = drivePicks(["$(briefcase) Weekdays (Mon-Fri)", "Sat"]);
   await configureSchedule(store, s);
   assert.deepEqual(schedOf(s)!.days, [1, 2, 3, 4, 5]);
-  assert.deepEqual(shown[0].map((r) => r.label).slice(0, 4), ["$(briefcase) Weekdays (Mon-Fri)", "$(home) Weekends (Sat-Sun)", "Individual days", "Sun"]);
+  assert.deepEqual(shown[0].rows.map((r) => r.label).slice(0, 4), ["$(briefcase) Weekdays (Mon-Fri)", "$(home) Weekends (Sat-Sun)", "Individual days", "Sun"]);
 
   hub("days", "save");
-  pickLabels(["$(home) Weekends (Sat-Sun)"]);
+  drivePicks(["$(home) Weekends (Sat-Sun)"]);
   await configureSchedule(store, await stored("d2.sh", { atTime: "08:00", enabled: true }));
   const d2 = store.getProjectShortcuts().find((p) => p.path === "d2.sh")!;
   assert.deepEqual((d2.schedule as { days: number[] }).days, [0, 6]);
@@ -227,17 +172,17 @@ test("the Weekdays and Weekends rows set their days and override the ticked days
 test("ticked days are stored in week order, and none or all seven both mean every day", async () => {
   const s = await stored("w.sh", { atTime: "08:00", enabled: true });
   hub("days", "save");
-  pickLabels(["Wed", "Mon"]);
+  drivePicks(["Wed", "Mon"]);
   await configureSchedule(store, s);
   assert.deepEqual(schedOf(s)!.days, [1, 3]);
 
   hub("days", "save");
-  pickLabels([]);
+  drivePicks([]);
   await configureSchedule(store, store.findShortcut(s.id)!);
   assert.equal(schedOf(s)!.days, undefined);
 
   hub("days", "save");
-  pickLabels(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  drivePicks(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
   await configureSchedule(store, store.findShortcut(s.id)!);
   assert.equal(schedOf(s)!.days, undefined);
 });
@@ -245,9 +190,9 @@ test("ticked days are stored in week order, and none or all seven both mean ever
 test("currently chosen days start ticked in the day picker", async () => {
   const s = await stored("p.sh", { atTime: "08:00", days: [2, 4], enabled: true });
   hub("days");
-  const shown = pickLabels(undefined);
+  const shown = drivePicks(undefined);
   await configureSchedule(store, s);
-  assert.deepEqual(shown[0].filter((r) => r.picked).map((r) => r.label), ["Tue", "Thu"]);
+  assert.deepEqual(shown[0].rows.filter((r) => r.picked).map((r) => r.label), ["Tue", "Thu"]);
 });
 
 test("the hub summarizes days as every day, weekdays, weekends or the names", async () => {
@@ -258,7 +203,6 @@ test("the hub summarizes days as every day, weekdays, weekends or the names", as
     [[5, 1], "Mon, Fri"],
   ];
   for (const [days, text] of cases) {
-    hubs = [];
     hub();
     await configureSchedule(store, { id: "x", scope: "project", path: "x", order: 0, schedule: { atTime: "08:00", days, enabled: true } } as unknown as Shortcut);
     assert.equal(hubs[0].rows.find((r) => r.id === "days")!.description, text);
@@ -267,10 +211,10 @@ test("the hub summarizes days as every day, weekdays, weekends or the names", as
 
 test("interval presets store minutes as milliseconds, and the hub names them in the coarsest exact unit", async () => {
   const s = await stored();
-  const shown = pickLabels("Every 6 hour(s)");
+  const shown = drivePicks("Every 6 hour(s)");
   hub("interval", "interval", "save");
   await configureSchedule(store, s);
-  assert.deepEqual(shown[0].map((r) => r.label), [
+  assert.deepEqual(shown[0].rows.map((r) => r.label), [
     "$(circle-slash) No repeat",
     "Every 5 minutes",
     "Every 15 minutes",
@@ -288,8 +232,8 @@ test("interval presets store minutes as milliseconds, and the hub names them in 
 test("No repeat clears the interval", async () => {
   const s = await stored("i.sh", { everyMs: 900000, enabled: true });
   hub("interval", "atTime", "save");
-  pickLabels("$(circle-slash) No repeat");
-  typed("10:00");
+  drivePicks("$(circle-slash) No repeat");
+  driveInputs("10:00");
   await configureSchedule(store, s);
   assert.deepEqual(schedOf(s), { atTime: "10:00", enabled: true });
 });
@@ -299,11 +243,11 @@ test("a custom interval is a unit and a whole count", async () => {
   for (const [unit, ms] of units) {
     const s = await stored(`c-${ms}.sh`);
     hub("interval", "save");
-    const shown = pickLabels("$(edit) Custom...", unit);
-    const inputs = typed(" 3 ");
+    const shown = drivePicks("$(edit) Custom...", unit);
+    const inputs = driveInputs(" 3 ");
     await configureSchedule(store, s);
     assert.equal(schedOf(s)!.everyMs, 3 * ms, unit);
-    assert.deepEqual(shown[1].map((r) => r.label), ["$(watch) Minutes", "$(clock) Hours", "$(calendar) Days"]);
+    assert.deepEqual(shown[1].rows.map((r) => r.label), ["$(watch) Minutes", "$(clock) Hours", "$(calendar) Days"]);
     const validate = inputs[0].validateInput!;
     for (const bad of ["0", "-2", "1.5", "abc", ""]) {
       assert.equal(validate(bad), "Enter a whole number greater than zero.", bad);
@@ -315,13 +259,13 @@ test("a custom interval is a unit and a whole count", async () => {
 test("canceling the unit or the count leaves the interval unset", async () => {
   const s = await stored();
   hub("interval", "interval", "save");
-  pickLabels("$(edit) Custom...", undefined);
+  drivePicks("$(edit) Custom...", undefined);
   await configureSchedule(store, s);
   assert.equal(schedOf(s), undefined);
   const t = await stored("c2.sh");
   hub("interval", "save");
-  pickLabels("$(edit) Custom...", "$(clock) Hours");
-  typed(undefined);
+  drivePicks("$(edit) Custom...", "$(clock) Hours");
+  driveInputs(undefined);
   await configureSchedule(store, t);
   assert.equal(schedOf(t), undefined);
 });
@@ -329,7 +273,7 @@ test("canceling the unit or the count leaves the interval unset", async () => {
 test("the cron row opens the cron builder and its result is saved", async () => {
   const s = await stored();
   hub("cron", "save");
-  pickLabels("$(sync) Every hour, on the hour");
+  drivePicks("$(sync) Every hour, on the hour");
   await configureSchedule(store, s);
   assert.deepEqual(schedOf(s), { cron: "0 * * * *", enabled: true });
 });
@@ -339,7 +283,6 @@ test("run on workspace open toggles on and back off", async () => {
   hub("runOnStartup", "save");
   await configureSchedule(store, s);
   assert.deepEqual(schedOf(s), { runOnStartup: true, enabled: true });
-  hubs = [];
   hub("runOnStartup", "save");
   await configureSchedule(store, store.findShortcut(s.id)!);
   assert.equal(schedOf(s), undefined);
@@ -353,7 +296,7 @@ test("a stored but disabled schedule with timing turns on when saved, unless Ena
 
   const t = await stored("e2.sh", { atTime: "07:00", enabled: true });
   hub("enabled", "interval", "save");
-  pickLabels("Every 5 minutes");
+  drivePicks("Every 5 minutes");
   await configureSchedule(store, t);
   assert.equal(schedOf(t)!.enabled, false, "a deliberate off stays off");
 });
