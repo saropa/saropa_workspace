@@ -94,6 +94,9 @@ export interface BoardStrings {
   timeMinutes: string;
   // "{count}" minutes a step is thought to take.
   stepMinutes: string;
+  // Label of the Hand to chat button; empty when the feature is off (no button is drawn).
+  handToChat: string;
+  handToChatTip: string;
   tidyHeading: string;
   // "{days}" days without a change.
   tidyNote: string;
@@ -189,8 +192,13 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
   return parts.length > 0 ? `<span class="marks">${parts.join("")}</span>` : "";
 }
 
+// The Hand to chat button. It carries only indexes; the host builds the prompt from the model it rendered.
+function handButton(t: BoardStrings, attrs: string): string {
+  return t.handToChat ? `<button class="hb" ${attrs} title="${escapeHtml(t.handToChatTip)}">${escapeHtml(t.handToChat)}</button>` : "";
+}
+
 function row(i: BoardItem, name: string, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" tabindex="0" role="button" data-id="${i.id}" title="${escapeHtml(i.path)}"><i class="sq ${i.status}"></i><span class="tag">${escapeHtml(name)}</span><span class="f">${escapeHtml(i.title)}</span>${marks(i.marks)}${linkMark(i, t)}<span class="k">${escapeHtml(i.kind)}</span></div>`;
+  return `<div class="row${indent ? " in" : ""}" tabindex="0" role="button" data-id="${i.id}" title="${escapeHtml(i.path)}"><i class="sq ${i.status}"></i><span class="tag">${escapeHtml(name)}</span><span class="f">${escapeHtml(i.title)}</span>${marks(i.marks)}${linkMark(i, t)}<span class="k">${escapeHtml(i.kind)}</span>${i.status === "red" || i.stopping ? handButton(t, `data-hk="item" data-i="${i.id}"`) : ""}</div>`;
 }
 
 function list(title: string, items: BoardItem[], names: Map<string, string>, t: BoardStrings): string {
@@ -262,7 +270,7 @@ function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct
 // shown ticked by the page script, for a few minutes.
 function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: boolean): string {
   const items = path.steps
-    .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}</li>`)
+    .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}${handButton(t, `data-hk="step" data-p="${pi}" data-s="${si}"`)}</li>`)
     .join("");
   const more = path.hidden > 0 ? `<li class="note" data-more="1">${fill(t.ptgMore, { count: path.hidden })}</li>` : "";
   const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";
@@ -281,7 +289,7 @@ function sittingsBox(model: BoardModel, t: BoardStrings): string {
   const boxes: Array<[string, string]> = [["any", t.timeAny], ...["15", "30", "60"].map((n): [string, string] => [n, t.timeMinutes.replace("{count}", n)])];
   const time = boxes.map(([n, label]) => `<button data-box="${n}" aria-pressed="${v.timeBox === n}" class="${v.timeBox === n ? "on" : ""}">${escapeHtml(label)}</button>`).join("");
   const line = (l: SittingLine, i: number): string =>
-    `<div class="row" tabindex="0" role="button" data-step="${i}" title="${escapeHtml(l.docTitle + " - " + t.stepMinutes.replace("{count}", String(l.minutes)))}"><span class="tag">${escapeHtml(l.projectName)}</span><span class="f">${escapeHtml(l.text || l.heading || l.docTitle)}</span><span class="k">${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k">${escapeHtml(l.needs.join(" + "))}</span>` : ""}<span class="k">${l.minutes}</span></div>`;
+    `<div class="row" tabindex="0" role="button" data-step="${i}" title="${escapeHtml(l.docTitle + " - " + t.stepMinutes.replace("{count}", String(l.minutes)))}"><span class="tag">${escapeHtml(l.projectName)}</span><span class="f">${escapeHtml(l.text || l.heading || l.docTitle)}</span><span class="k">${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k">${escapeHtml(l.needs.join(" + "))}</span>` : ""}<span class="k">${l.minutes}</span>${handButton(t, `data-hk="line" data-i="${i}"`)}</div>`;
   const doable = v.lines.slice(0, v.doable).map((l, i) => line(l, i)).join("");
   const rest = [
     v.more > 0 ? `<p class="note">${escapeHtml(t.sittingsMore.replace("{count}", String(v.more)))}</p>` : "",
@@ -343,7 +351,7 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .sev{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid var(--mute);display:inline-block}.sev.s-extreme,.sev.s-critical{border-bottom-color:var(--red)}.sev.s-high{border-bottom-color:var(--amber)}.sev.s-low{opacity:.5}.sev.stop{filter:drop-shadow(0 0 2px var(--red))}
 .pin{width:8px;height:8px;border-radius:50%;border:2px solid var(--red);display:inline-block}.seg{display:inline-flex}.seg button{border-radius:0}.seg button.on{background:var(--vscode-button-background,#0e639c);color:var(--vscode-button-foreground,#fff)}
 .code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
-.ptgrow{cursor:pointer}.ptgrow:focus{outline:1px solid var(--blue)}.ptg{margin:0 0 6px;padding:6px 12px 6px 34px;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;background:var(--panel)}.ptg li{margin:4px 0}.ptg .st{margin-right:8px}.ptg li.done .st{text-decoration:line-through;color:var(--mute)}.ptg li.done::before{content:"\\2713 ";color:var(--green)}.ptg li.note{list-style:none;margin-left:-18px}.ptgb{margin-right:4px}
+.ptgrow{cursor:pointer}.ptgrow:focus{outline:1px solid var(--blue)}.ptg{margin:0 0 6px;padding:6px 12px 6px 34px;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;background:var(--panel)}.ptg li{margin:4px 0}.ptg .st{margin-right:8px}.ptg li.done .st{text-decoration:line-through;color:var(--mute)}.ptg li.done::before{content:"\\2713 ";color:var(--green)}.ptg li.note{list-style:none;margin-left:-18px}.ptgb{margin-right:4px}.hb{flex:none;margin-left:auto;font-size:11px;padding:0 6px}.ptg .hb{margin-left:0}
 .row.tidy{cursor:default}.row.tidy .f{cursor:pointer}.row.tidy button{flex:none}
 .seg{flex-wrap:wrap;margin:4px 0}.untag{margin-top:8px}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
@@ -388,6 +396,7 @@ const done=(SEEN[pid]||[]).filter(d=>!all.includes(d.k)&&NOW-(d.at||NOW)<600000&
 if(live){SEEN[pid]=[...cur,...done];}set(OPEN.has(pid));
 const tog=()=>set(ol.hidden);row.addEventListener('click',tog);row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tog();}});});
 if(saved.y){window.scrollTo(0,saved.y);}
+document.querySelectorAll('.hb').forEach(b=>{const stop=e=>e.stopPropagation();b.addEventListener('keydown',stop);b.addEventListener('click',e=>{e.stopPropagation();vscode.postMessage({type:'hand',k:b.dataset.hk,i:Number(b.dataset.i),p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV});});});
 document.querySelectorAll('.ptgb').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.run){b.disabled=true;setTimeout(()=>{b.disabled=false;},5000);}vscode.postMessage({type:'path',p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV});}));
 document.querySelectorAll('.row[data-id],.click:not(.rulefix):not(.ext)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
 
