@@ -153,6 +153,25 @@ Read from each markdown document and cached, shown as the marks above:
 - The first scan has no baseline. It is shown as UNVERIFIED until the user accepts it.
 - Prototype case: renaming `docs/deferred` to `docs/parked` would have turned 444 deferred into red and amber with no error. The first two checks catch that case even though it is 2 percent of some folders.
 
+## Titles and groups
+
+### Real titles
+- Every row shows the document's own title (its first heading), not the file name. The file name appears on hover.
+- A SQL file has no heading, so its title is its first descriptive comment line. Comment lines that are only `cspell`, a date, a file name or a `Why:` label are skipped.
+- A document with no heading falls back to its file name.
+
+### Groups (clusters)
+- Documents that belong together appear under one group heading. The heading carries the worst severity of its members and one small square per member.
+- A group is formed by the first of these rules that matches:
+  1. Same project and same file-name prefix after the date is removed (OWNER_*, HANDOVER_*, emergency_*).
+  2. Two or more shared source files under `lib/` or the database folders. Shared tool scripts (`scripts/`) do not count.
+  3. One document that names several files, or several documents, is a **hub** when it is very large or names many other documents. A hub links to the groups it names and never merges them.
+- A group can be set by hand in Settings, and a document can be pulled out of a group.
+- Real result on today's blockers: "Owner actions and checks" (5 documents), "Handover documents" (2), "Emergency data fixes" (5 SQL scripts). The Launch Test checklist is a hub. Without the hub rule it merged the owner and handover groups into one group of eight.
+- Groups are the unit for linkage. A `Needs:` link between two groups is drawn once, group to group. Opening the group shows the document-level links.
+- A group's progress ring adds up the steps of its members. A group with a member that waits on another project shows the link mark.
+- The same grouping applies to a Claude session that works on several documents, and to one document that spans several files (2.x, with the Chat Explorer lookup).
+
 ## Optional integrations
 
 Each link turns on only if that extension is installed. The board works fully without them.
