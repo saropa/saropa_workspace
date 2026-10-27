@@ -1872,5 +1872,16 @@
   "releaseBoard.markProgress": "Mark in progress",
   "releaseBoard.markPin": "Pin as critical",
   "releaseBoard.markClear": "Clear my marks",
-  "releaseBoard.marksExported": "Release Board: marks written to {file}. Commit it to share them."
+  "releaseBoard.marksExported": "Release Board: marks written to {file}. Commit it to share them.",
+  "editorLinks.statusBarName": "Release Board: documents naming this file",
+  "editorLinks.summaryOne": "Named by 1 open document",
+  "editorLinks.summaryMany": "Named by {count} open documents",
+  "editorLinks.summaryTooltip": "Open Release Board documents that name this file. Click to choose one.",
+  "editorLinks.openTooltip": "Open {title}",
+  "editorLinks.more": "+{count} more",
+  "editorLinks.pickPlaceholder": "Open a document that names this file",
+  "editorLinks.capped": "{title} names more than 40 source files. Only the first 40 are matched, so this list may be incomplete.",
+  "editorLinks.status.red": "red",
+  "editorLinks.status.amber": "amber",
+  "editorLinks.status.purple": "purple"
 }

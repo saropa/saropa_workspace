@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Release Board: the board in the editor.** Open a source file that an open board document names and a line appears at the top: "Named by 2 open documents", followed by the document titles and their colors. Click a title to open the document. A small status bar item shows how many documents name the file, in the color of the worst one. It uses the last board result and never starts a scan; nothing shows when the board is off or has not been scanned yet. A document keeps only the first 40 source files it names, and the tooltip says so when a document names more. Four new settings: `releaseBoard.editorLinks.enabled`, `.codeLens`, `.statusBar` and `.minSeverity` (any, medium, high or critical) to narrow it down if it feels noisy.
+
+---
+
 ## [2.0.0]
 
 The Release Board arrives: an off-by-default screen that reads your bugs, docs and plans folders across projects, shows what blocks a release in red, amber and green, links documents that wait on each other, and only says GO when lint and tests are fresh and clean. [log](https://github.com/saropa/saropa-workspace/blob/v2.0.0/CHANGELOG.md)
