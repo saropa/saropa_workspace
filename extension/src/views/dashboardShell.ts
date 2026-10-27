@@ -20,6 +20,23 @@ function headerHtml(isActive: (tab: DashboardTab) => string): string {
 </header>`;
 }
 
+/** The Processes tab body: sort buttons, copy-report button, sparkline and the process groups. */
+function processesSectionHtml(hiddenClass: string): string {
+  return `<section id="tab-processes" class="tab-panel${hiddenClass}">
+  <div id="host" class="host"></div>
+  <div class="actions">
+    <button id="sortCpu" class="seg active">${l10n("dashboard.sortCpu")}</button>
+    <button id="sortRam" class="seg">${l10n("dashboard.sortRam")}</button>
+    <button id="sortPid" class="seg">${l10n("dashboard.sortProc")}</button>
+    <span class="spacer"></span>
+    <button id="copy">${l10n("dashboard.copyReport")}</button>
+  </div>
+  <div id="spark" class="spark"></div>
+  <div id="status" class="status"></div>
+  <div id="groups"></div>
+</section>`;
+}
+
 // The static HTML shell: a strict CSP locked to this nonce for scripts and to the
 // webview's own inline styles, no remote anything. The tab strip and all three tab
 // panels are framed here; data arrives by postMessage and the inlined script renders
@@ -48,19 +65,7 @@ export function renderShell(initialTab: DashboardTab): string {
 <body>
 ${headerHtml(isActive)}
 
-<section id="tab-processes" class="tab-panel${isShown("processes")}">
-  <div id="host" class="host"></div>
-  <div class="actions">
-    <button id="sortCpu" class="seg active">${l10n("dashboard.sortCpu")}</button>
-    <button id="sortRam" class="seg">${l10n("dashboard.sortRam")}</button>
-    <button id="sortPid" class="seg">${l10n("dashboard.sortProc")}</button>
-    <span class="spacer"></span>
-    <button id="copy">${l10n("dashboard.copyReport")}</button>
-  </div>
-  <div id="spark" class="spark"></div>
-  <div id="status" class="status"></div>
-  <div id="groups"></div>
-</section>
+${processesSectionHtml(isShown("processes"))}
 
 <section id="tab-analytics" class="tab-panel${isShown("analytics")}">
   <div id="analytics"></div>
