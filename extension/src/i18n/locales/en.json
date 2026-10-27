@@ -1931,5 +1931,14 @@
   "releaseBoard.sidebar.causeHeld": "held: the last accepted scan had red work",
   "releaseBoard.sidebar.scanFailed": "last scan failed",
   "releaseBoard.sidebar.updating": "updating…",
-  "releaseBoard.sidebar.lastResult": "last result, not refreshed yet"
+  "releaseBoard.sidebar.lastResult": "last result, not refreshed yet",
+  "releaseBoard.sinceLast.title": "Since you last looked",
+  "releaseBoard.sinceLast.heading": "Since you last looked ({time})",
+  "releaseBoard.sinceLast.tooltip": "What changed on the board since it was last shown. Click to open the board. The small check button marks it as seen.",
+  "releaseBoard.sinceLast.newOne": "1 new blocker",
+  "releaseBoard.sinceLast.newMany": "{count} new blockers",
+  "releaseBoard.sinceLast.clearedOne": "1 blocker cleared",
+  "releaseBoard.sinceLast.clearedMany": "{count} blockers cleared",
+  "releaseBoard.sinceLast.lightMoved": "went from {from} to {to}",
+  "releaseBoard.sinceLast.more": "and {count} more"
 }

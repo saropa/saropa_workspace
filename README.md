@@ -131,6 +131,8 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.pathToGo.enabled` | `true` | Shows a Path to GO under each project on the board: click a project row to see the few steps between it and GO. |
 | `releaseBoard.pathToGo.maxSteps` | `8` | Most steps listed in a Path to GO (3 to 20). |
 | `releaseBoard.pathToGo.showRunButtons` | `true` | Shows the Run lint now and Run tests now buttons in a Path to GO. Turn off if the board should never start a run. |
+| `releaseBoard.sinceLast.enabled` | `true` | Shows what changed since the board was last seen (new blockers, cleared blockers, lights that moved) at the top of the board, in the sidebar and in the status bar tooltip. Only shown when something changed. |
+| `releaseBoard.sinceLast.maxListed` | `5` | Most document titles listed per project in that strip (1 to 20). |
 | `releaseBoard.sittings.enabled` | `true` | Shows the "I have..." button: pick what you have in hand and the time, get one list of steps you can do now. |
 | `releaseBoard.sittings.defaultHave` | `[]` | Context ids switched on only until you first choose on the board (for example `["iphone","mac"]`); after that your remembered choice wins. Empty remembers your last choice on this machine. |
 | `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30` or `60` minutes. |
