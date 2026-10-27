@@ -165,7 +165,7 @@ test("registerCommand keeps the handler until the registration is disposed", () 
 test("an extension is installed only when its id was declared", () => {
   assert.equal(extensions.getExtension("a.b"), undefined);
   __setInstalledExtensions(["a.b"]);
-  assert.deepEqual(extensions.getExtension("a.b"), { id: "a.b" });
+  assert.deepEqual(extensions.getExtension("a.b"), { id: "a.b", packageJSON: undefined });
   assert.equal(extensions.getExtension("c.d"), undefined);
   __resetConfig();
   assert.equal(extensions.getExtension("a.b"), undefined);

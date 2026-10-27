@@ -20,6 +20,7 @@ import { FileType, Uri, WorkspaceFolder, EventEmitter } from "./vscodeTypes";
 import { findFiles } from "./vscodeFind";
 import { hostWorkspace, hostWindow, hostLanguages } from "./vscodeHosts";
 import { showTextDocument, visibleTextEditors } from "./vscodeEditor";
+import { shellWindow, __clearInstalledExtensions } from "./vscodeShell";
 
 /** Stub of `vscode.languages`: the Problems panel read plus the provider registrations. */
 export const languages = { ...readLanguages, ...hostLanguages };
@@ -33,6 +34,8 @@ export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
 export { Range, Selection, TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
 export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands } from "./vscodeCommands";
 export type { FakeQuickPick } from "./vscodeHosts";
+export { ColorThemeKind, extensions, __setInstalledExtensions, __setColorThemeKind, __inputBoxes, __resetShell } from "./vscodeShell";
+export type { FakeInputBox } from "./vscodeShell";
 export type { FakeTextEditor } from "./vscodeEditor";
 export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setQuickPickDriver, __setTabGroups, __resetHosts } from "./vscodeHosts";
 
@@ -80,7 +83,7 @@ export function __resetConfig(): void {
   configValues.clear();
   workspaceValues.clear();
   folderValues.clear();
-  installedExtensions.clear();
+  __clearInstalledExtensions();
 }
 
 // vscode.ConfigurationTarget: the status-bar action menu writes its "hide me" flag at
@@ -207,25 +210,6 @@ export const workspace = {
   ...hostWorkspace,
 };
 
-// vscode.extensions.getExtension: the suite recipes probe whether a sibling Saropa
-// tool's extension is installed (so they only seed a command the host can run). A
-// test installs the relevant ids; an unset id models "not installed" (the
-// graceful-absence path). getExtension returns a stand-in only carrying `.id`, the
-// single field the detector reads (it checks presence, not the activation surface).
-let installedExtensions = new Set<string>();
-// Test-control hook: sets which extension ids extensions.getExtension() reports
-// as installed for the rest of the test.
-export function __setInstalledExtensions(ids: string[]): void {
-  installedExtensions = new Set(ids);
-}
-// vscode.extensions stand-in: reports installed/not-installed by id, driven by
-// __setInstalledExtensions (defaults to "nothing installed").
-export const extensions = {
-  getExtension(id: string): { id: string } | undefined {
-    return installedExtensions.has(id) ? { id } : undefined;
-  },
-};
-
 // window.showInputBox / showQuickPick: the interactive run-token tests drive these
 // through settable handlers, so a test can return a chosen value or undefined (a
 // cancel) and count how often a dialog was raised. Defaults to "cancel everything"
@@ -324,6 +308,7 @@ export const window = {
   onDidChangeTextEditorSelection: selectionEmitter.event,
   onDidChangeActiveTextEditor: activeEditorEmitter.event,
   ...hostWindow,
+  ...shellWindow,
 };
 
 // Test drivers for the window activity events.
