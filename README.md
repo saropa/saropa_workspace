@@ -142,6 +142,9 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.handToChat.enabled` | `true` | Shows a Hand to chat button on each release blocker, Path to GO step and Sittings step. It copies a ready prompt to the clipboard; nothing is sent. |
 | `releaseBoard.handToChat.detail` | `standard` | How much the copied prompt says: `short` (blocker and file), `standard` (adds the evidence) or `full` (adds what it waits on, its group, and lint and test evidence). |
 | `releaseBoard.handToChat.openChat` | `never` | `offer` shows an Open chats button after copying, when Chat Explorer is installed and knows chats for the document. `never` only copies. |
+| `releaseBoard.handToChat.agent` | `none` | The chat tool the copied-prompt message can open: `none` (copy only), `claudeCode`, `copilotChat`, `cursor` or `custom`. The prompt is always on the clipboard; paste it into the chat. |
+| `releaseBoard.handToChat.customCommand` | empty | A VS Code command id to run after copying when the chat tool is `custom`. It gets no arguments. |
+| `releaseBoard.handToChat.autoOpen` | `false` | Opens the chosen chat tool at once after copying, instead of on the message's Open button. |
 | `releaseBoard.overnight.enabled` | `false` | Runs each project's own lint and test shortcuts once a night while VS Code is open, one project at a time, and records fresh evidence. Never edits files. Off by default; while off, the sidebar shows one hideable line offering to turn it on. |
 | `releaseBoard.overnight.startTime` | `02:00` | Local time (HH:MM) when the overnight window opens. |
 | `releaseBoard.overnight.windowHours` | `3` | Hours the window stays open (1 to 6). No step starts after it closes. |

@@ -161,18 +161,22 @@ export class CustomizePanel {
       this.panel.dispose();
       return;
     }
-    const rawName = (msg.name ?? "").trim();
+    // The payload comes from the page, so each field is checked for its type before use.
+    const rawName = typeof msg.name === "string" ? msg.name.trim() : "";
     await this.store.renameShortcut(shortcut, rawName);
 
     // A color tints the icon, so it is meaningless without one — clear it when no icon is
     // chosen (matches the QuickPick's "clearing the icon clears the color" rule).
-    const icon = msg.icon || undefined;
-    const color = icon ? msg.color || undefined : undefined;
+    const icon = typeof msg.icon === "string" && msg.icon ? msg.icon : undefined;
+    const color = icon && typeof msg.color === "string" && msg.color ? msg.color : undefined;
     await this.store.updateShortcutAppearance(shortcut, icon, color);
 
-    await this.store.setShortcutTags(shortcut, Array.isArray(msg.tags) ? msg.tags : []);
+    const tags = Array.isArray(msg.tags) ? msg.tags.filter((t): t is string => typeof t === "string") : [];
+    await this.store.setShortcutTags(shortcut, tags);
 
-    const finalName = rawName || shortcutDisplayName(shortcut);
+    // `shortcut` still carries the label from before the rename, so the name shown in the
+    // toast is built from the label just saved (a cleared name falls back to the file name).
+    const finalName = shortcutDisplayName({ ...shortcut, label: rawName || undefined });
     vscode.window.showInformationMessage(l10n("customize.saved", { name: finalName }));
     this.panel.dispose();
   }

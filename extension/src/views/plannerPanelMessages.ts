@@ -1,6 +1,9 @@
 import * as vscode from "vscode";
 import { Shortcut, ShortcutSchedule, SystemEventName } from "../model/shortcut";
+import { SYSTEM_EVENTS } from "../model/shortcutSchedule";
 import { ShortcutStore } from "../model/shortcutStore";
+import { shortcutDisplayName } from "../model/shortcutDisplayName";
+import { parseHourMinute } from "../exec/schedule";
 import { l10n } from "../i18n/l10n";
 
 // Workspace-state key for the hand-arranged Workflow graph's node positions —
@@ -72,7 +75,7 @@ export async function toggleEnabled(store: ShortcutStore, id?: string): Promise<
   // Name the shortcut and the new state — the strip's "(paused)" text also updates,
   // but a toast confirms the gesture took and which shortcut it acted on (no silent
   // async).
-  const name = shortcut.label ?? shortcut.id;
+  const name = shortcutDisplayName(shortcut);
   vscode.window.showInformationMessage(
     l10n(resumed ? "planner.scheduleResumed" : "planner.schedulePaused", { name })
   );
@@ -92,15 +95,16 @@ export async function retime(
   toDay?: number
 ): Promise<void> {
   const shortcut = findStored(store, id);
-  if (!shortcut?.schedule || !atTime) {
+  // The payload is untrusted: the time must be a real HH:mm and a moved day a real weekday.
+  if (!shortcut?.schedule || typeof atTime !== "string" || !parseHourMinute(atTime)) {
     return;
   }
   const schedule: ShortcutSchedule = { ...shortcut.schedule, atTime };
   const hadDays = shortcut.schedule.days && shortcut.schedule.days.length > 0;
   if (
     hadDays &&
-    fromDay !== undefined &&
-    toDay !== undefined &&
+    isWeekday(fromDay) &&
+    isWeekday(toDay) &&
     fromDay !== toDay
   ) {
     const set = new Set(shortcut.schedule.days);
@@ -109,6 +113,11 @@ export async function retime(
     schedule.days = [...set].sort((a, b) => a - b);
   }
   await store.updateShortcutSchedule(shortcut, schedule);
+}
+
+/** Whether `day` is a weekday number, 0 (Sunday) to 6 (Saturday). */
+function isWeekday(day: unknown): day is number {
+  return typeof day === "number" && Number.isInteger(day) && day >= 0 && day <= 6;
 }
 
 // Add a trigger to the TARGET shortcut (`to`). A shortcut link records the source
@@ -127,7 +136,9 @@ export async function addTrigger(
   }
   const triggers = target.triggers ? [...target.triggers] : [];
   if (kind === "pin") {
-    if (!from || from === to) {
+    // The source must be a stored shortcut: a link to one that is gone could never be
+    // drawn on the graph, so it could never be removed either.
+    if (!from || from === to || !findStored(store, from)) {
       return;
     }
     if (
@@ -136,7 +147,7 @@ export async function addTrigger(
       return;
     }
     triggers.push({ kind: "pin", pinId: from });
-  } else if (kind === "event" && event) {
+  } else if (kind === "event" && event && SYSTEM_EVENTS.includes(event)) {
     if (triggers.some((t) => t.kind === "event" && t.event === event)) {
       return;
     }
@@ -145,7 +156,7 @@ export async function addTrigger(
     return;
   }
   await store.updateShortcutTriggers(target, triggers, target.emits);
-  const targetName = target.label ?? target.id;
+  const targetName = shortcutDisplayName(target);
   vscode.window.showInformationMessage(
     l10n("planner.linked", { name: targetName })
   );
@@ -161,15 +172,12 @@ export async function removeTrigger(store: ShortcutStore, to?: string, from?: st
   }
   // `from` is a shortcut id for a shortcut trigger, or an event id ("event:build")
   // for an event trigger. An idle trigger has no graph edge, so it can never be the
-  // removal target — give it a sentinel that no `from` value matches, leaving it
-  // untouched.
+  // removal target and is always kept, whatever `from` says.
   const remaining = target.triggers.filter((t) => {
-    const sourceId =
-      t.kind === "pin"
-        ? t.pinId
-        : t.kind === "event"
-          ? `event:${t.event}`
-          : "idle";
+    if (t.kind === "idle") {
+      return true;
+    }
+    const sourceId = t.kind === "pin" ? t.pinId : `event:${t.event}`;
     return sourceId !== from;
   });
   await store.updateShortcutTriggers(target, remaining, target.emits);
@@ -182,8 +190,16 @@ export async function savePositions(
   context: vscode.ExtensionContext,
   positions?: Record<string, { x: number; y: number }>
 ): Promise<void> {
-  if (!positions) {
+  if (typeof positions !== "object" || positions === null || Array.isArray(positions)) {
     return;
   }
-  await context.workspaceState.update(LAYOUT_KEY, positions);
+  // Keep only entries that are a pair of finite numbers, so a malformed payload cannot
+  // leave the graph with a node placed at NaN.
+  const clean: Record<string, { x: number; y: number }> = {};
+  for (const [id, pos] of Object.entries(positions)) {
+    if (typeof pos === "object" && pos !== null && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      clean[id] = { x: pos.x, y: pos.y };
+    }
+  }
+  await context.workspaceState.update(LAYOUT_KEY, clean);
 }
