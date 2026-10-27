@@ -2637,6 +2637,21 @@
             "default": "docs/history",
             "description": "%config.releaseBoard.tidy.archiveFolder.description%"
           },
+          "saropaWorkspace.releaseBoard.train.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.train.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.train.naming": {
+            "type": "string",
+            "enum": ["version", "folder"],
+            "default": "version",
+            "enumDescriptions": [
+              "%config.releaseBoard.train.naming.version%",
+              "%config.releaseBoard.train.naming.folder%"
+            ],
+            "description": "%config.releaseBoard.train.naming.description%"
+          },
           "saropaWorkspace.previewMode.enabled": {
             "type": "boolean",
             "default": false,

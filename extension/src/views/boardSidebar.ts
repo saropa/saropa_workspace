@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
 import { Light } from "../board/boardModel";
 import { ExpandMode, SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, blockerColor, buildSidebarRows, clampBlockers, hasDocuments, lightLook } from "../board/sidebar";
+import { TrainRow, trainRows } from "../board/train";
 import { l10n } from "../i18n/l10n";
+import { onDidChangeTrainVersions, trainsFor } from "./boardTrain";
 import { SinceLast } from "../board/sinceLast";
 import { currentChange, onDidChangeSinceLast, sidebarLines, whenText } from "./boardSinceLast";
 import { askRefresh, currentBoard, hasFailed, isFirstScanDone, staleNote, isScanning, onDidChangeBoard } from "./boardFeed";
@@ -34,7 +36,7 @@ function labels(): SidebarLabels {
   };
 }
 
-type Node = { kind: "since"; change: SinceLast } | { kind: "change"; text: string; details: string[] } | { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
+type Node = { kind: "train"; row: TrainRow } | { kind: "since"; change: SinceLast } | { kind: "change"; text: string; details: string[] } | { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
 
 function themed(icon: string, color: string): vscode.ThemeIcon {
   return new vscode.ThemeIcon(icon, new vscode.ThemeColor(color));
@@ -44,6 +46,8 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
   private readonly emitter = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
   private rows: SidebarRow[] = [];
+  // Release trains: shown first, only when more than one project is found.
+  private trains: TrainRow[] = [];
   private stamp = 0;
   // Part of each project row's id: a change of the expand setting then takes effect at once.
   private expandMode: ExpandMode = "whenNoGo";
@@ -59,6 +63,14 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
           labels()
         )
       : [];
+    this.trains = board
+      ? trainRows(trainsFor(board.model, board.run.cfg), {
+          title: l10n("releaseBoard.train.title", { name: "{name}" }),
+          light: { "no-go": l10n("releaseBoard.panel.noGo"), unverified: l10n("releaseBoard.panel.unverified"), go: l10n("releaseBoard.panel.go") },
+          heldBy: l10n("releaseBoard.train.heldBy", { names: "{names}" }),
+          cycle: l10n("releaseBoard.train.cycle"),
+        })
+      : [];
     this.stamp = board?.stamp ?? 0;
     // The welcome text under the title depends on this: loading, empty, or rows.
     const on = cfg.get<boolean>("enabled", true) && (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
@@ -66,6 +78,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     const state = found ? "ready" : !on ? "empty" : hasFailed() && !board ? "failed" : !isFirstScanDone() || isScanning() ? "loading" : "empty";
     if (!found) {
       this.rows = [];
+      this.trains = [];
     }
     void vscode.commands.executeCommand("setContext", STATE_KEY, state);
     this.emitter.fire(undefined);
@@ -95,6 +108,16 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
       item.command = { command: OPEN_BLOCKER, title: l10n("releaseBoard.sidebar.openBlocker"), arguments: [node.blocker.id, node.stamp] };
       return item;
     }
+    if (node.kind === "train") {
+      const item = new vscode.TreeItem(node.row.name, vscode.TreeItemCollapsibleState.None);
+      item.id = `train/${node.row.key}`;
+      item.description = node.row.description;
+      item.tooltip = node.row.tooltip.join("\n");
+      const look = lightLook(node.row.light);
+      item.iconPath = themed("rocket", look.color);
+      item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
+      return item;
+    }
     const row = node.row;
     const state = row.blockers.length === 0 ? vscode.TreeItemCollapsibleState.None : row.expand ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed;
     const item = new vscode.TreeItem(row.name, state);
@@ -111,7 +134,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     if (!node) {
       // The change leads the section, and only while there is one.
       const change = this.rows.length > 0 ? currentChange() : undefined;
-      return [...(change ? [{ kind: "since" as const, change }] : []), ...this.rows.map((row) => ({ kind: "project" as const, row }))];
+      return [...(change ? [{ kind: "since" as const, change }] : []), ...this.trains.map((row) => ({ kind: "train" as const, row })), ...this.rows.map((row) => ({ kind: "project" as const, row }))];
     }
     if (node.kind === "since") {
       return sidebarLines(node.change).map((l) => ({ kind: "change" as const, text: l.text, details: l.details }));
@@ -152,6 +175,7 @@ export function registerBoardSidebar(context: vscode.ExtensionContext): void {
     provider,
     vscode.window.registerTreeDataProvider(VIEW, provider),
     onDidChangeBoard(refresh),
+    onDidChangeTrainVersions(refresh),
     onDidChangeSinceLast(refresh),
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(SETTINGS) && refresh()),
     vscode.workspace.onDidChangeWorkspaceFolders(refresh),
