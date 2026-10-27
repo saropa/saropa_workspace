@@ -1951,5 +1951,14 @@
   "releaseBoard.overnight.offer": "Prove overnight: run lint and tests at night",
   "releaseBoard.overnight.offerTip": "Click to turn on. At the set time each night, with VS Code open, the board runs each project's own lint and test shortcuts, one at a time, and records fresh evidence. It never edits files. Use the x to hide this line.",
   "releaseBoard.overnight.noShortcuts": "Release Board: no project names a lint or test shortcut yet, so an overnight run has nothing to do. Add them under health in the rules file.",
-  "releaseBoard.overnight.enabledMsg": "Overnight proof is on. It runs from {start} for up to {hours} hours."
+  "releaseBoard.overnight.enabledMsg": "Overnight proof is on. It runs from {start} for up to {hours} hours.",
+  "releaseBoard.sinceLast.title": "Since you last looked",
+  "releaseBoard.sinceLast.heading": "Since you last looked ({time})",
+  "releaseBoard.sinceLast.tooltip": "What changed on the board since it was last shown. Click to open the board. The small check button marks it as seen.",
+  "releaseBoard.sinceLast.newOne": "1 new blocker",
+  "releaseBoard.sinceLast.newMany": "{count} new blockers",
+  "releaseBoard.sinceLast.clearedOne": "1 blocker cleared",
+  "releaseBoard.sinceLast.clearedMany": "{count} blockers cleared",
+  "releaseBoard.sinceLast.lightMoved": "went from {from} to {to}",
+  "releaseBoard.sinceLast.more": "and {count} more"
 }
