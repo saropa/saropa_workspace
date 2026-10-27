@@ -67,6 +67,7 @@ Each deferred document starts with a short block the board reads:
 ```
 Importance: build-next | marketable | nice-to-have | needs-decision | not-feasible
 Research: none | needed | in-progress | ready | reviewed
+Research question: one line, up to 300 characters
 Wow: 1-5
 Reach: daily | weekly | rare
 Effort: S | M | L | XL
@@ -115,3 +116,8 @@ Blocker: one line, only for not-feasible
 5. The research result review step.
 
 Each step: Opus reviews the design, Sonnet builds, Opus reviews the diff. Every setting has a default. The tab is visible with no clicks once any deferred document exists.
+
+## Wave 2 status
+
+- Built: the research states and question in the block, the count, "Research ready, not reviewed", Hand all to chat (one prompt per document, handed one after another because Hand to chat copies a single prompt at a time; a document becomes in-progress only after the paste is confirmed), Mark reviewed (after a confirmation).
+- Setting: `releaseBoard.future.researchParallel` (default 3, 1 to 10).

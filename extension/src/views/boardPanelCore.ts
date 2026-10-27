@@ -288,7 +288,7 @@ export abstract class BoardPanelCore {
     // The same board in the same state is not painted again: no flicker, no lost scroll.
     const trains = trainsFor(model, cfg);
     const fset = readFutureSettings();
-    const future: FutureView | undefined = fset.enabled ? { items: this.future.items, outside: this.future.outside, sort: this.futureSort ?? fset.defaultSort, canEdit: !state.stale && !state.loading } : undefined;
+    const future: FutureView | undefined = fset.enabled ? { items: this.future.items, outside: this.future.outside, sort: this.futureSort ?? fset.defaultSort, canEdit: !state.stale && !state.loading, researchParallel: fset.researchParallel, handEnabled: readHandSettings().enabled } : undefined;
     this.futureShown = future?.items ?? [];
     this.futureOutsideShown = future?.outside ?? [];
     const key = JSON.stringify([this.model, state, this.paths, since, readHandSettings().enabled, trains, future]);

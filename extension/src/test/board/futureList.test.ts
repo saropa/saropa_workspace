@@ -256,7 +256,8 @@ test("sort names from settings or the page", () => {
 test("page fields map to block keys and only valid values pass", () => {
   assert.equal(blockKeyOf("importance"), "Importance");
   assert.equal(blockKeyOf("wow"), "Wow");
-  assert.equal(blockKeyOf("research"), undefined);
+  assert.equal(blockKeyOf("research"), "Research");
+  assert.equal(blockKeyOf("question"), undefined);
   assert.equal(blockKeyOf("blocker"), undefined);
   assert.equal(isFieldValue("importance", "not-feasible"), true);
   assert.equal(isFieldValue("importance", ""), false);
@@ -265,6 +266,10 @@ test("page fields map to block keys and only valid values pass", () => {
   assert.equal(isFieldValue("wow", "6"), false);
   assert.equal(isFieldValue("wow", 5), false);
   assert.equal(isFieldValue("effort", "XL"), true);
+  assert.equal(isFieldValue("research", "in-progress"), true);
+  assert.equal(isFieldValue("research", "reviewed"), true);
+  assert.equal(isFieldValue("research", "done"), false);
+  assert.equal(isFieldValue("research", ""), false);
   assert.equal(isFieldValue("nope", "x"), false);
 });
 
@@ -320,4 +325,15 @@ test("no more than 50 items are listed from one document", () => {
 test("a document with CRLF lines and a byte order mark reads the same", () => {
   const list = outside("﻿## Later\r\n- One\r\n- Two\r\n");
   assert.deepEqual(list.map((o) => [o.title, o.line]), [["One", 2], ["Two", 3]]);
+});
+
+test("an item carries its research state and question; a document with neither reads as none", () => {
+  const a = buildItem(input("plans/deferred/A.md", ["Research: ready", "Research question: Is the API still public?"]), "deferred");
+  assert.equal(a.research, "ready");
+  assert.equal(a.researchQuestion, "Is the API still public?");
+  const b = buildItem(input("plans/deferred/B.md"), "deferred");
+  assert.equal(b.research, "none");
+  assert.equal(b.researchQuestion, undefined);
+  const c = buildItem(input("plans/deferred/C.md", ["Research: maybe"]), "deferred");
+  assert.equal(c.research, "none", "an unknown state is not a state");
 });

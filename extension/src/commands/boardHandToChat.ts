@@ -51,8 +51,12 @@ async function hasChats(file: string): Promise<boolean> {
 
 // Copies the prompt. `doc` is the document the prompt is about, when there is one.
 // `knownChats` is the chat count the board already holds for it; when given, Chat Explorer is not asked again.
-export async function copyHandPrompt(text: string, doc: vscode.Uri | undefined, openChat: OpenChatMode, knownChats?: number): Promise<void> {
+// `quiet` copies without any message: the caller shows its own.
+export async function copyHandPrompt(text: string, doc: vscode.Uri | undefined, openChat: OpenChatMode, knownChats?: number, quiet = false): Promise<void> {
   await vscode.env.clipboard.writeText(text);
+  if (quiet) {
+    return;
+  }
   if (openChat !== "offer" || !doc || !(knownChats !== undefined ? knownChats > 0 : await hasChats(doc.fsPath))) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.copied"));
     return;

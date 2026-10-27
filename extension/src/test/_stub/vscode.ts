@@ -14,7 +14,7 @@
 // ExtensionContext (an in-memory Map), not here.
 
 import * as nodeFs from "node:fs";
-import { Disposable, applyEdit, recordWarning } from "./vscodeExtras";
+import { Disposable, applyEdit, recordInfo, recordWarning } from "./vscodeExtras";
 
 import { FileType, Uri, WorkspaceFolder, EventEmitter } from "./vscodeTypes";
 import { findFiles } from "./vscodeFind";
@@ -25,7 +25,7 @@ import { FakeWebviewPanel, fakeWebviewPanel, createdPanels } from "./vscodeWebvi
 export * from "./vscodeTypes";
 export * from "./vscodeWebview";
 
-export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, languages } from "./vscodeExtras";
+export { DiagnosticSeverity, Disposable, WorkspaceEdit, __clipboardWrites, __infoMessages, __resetWarnings, __setDiagnostics, __setInfoAnswer, __setWarningAnswer, __warningMessages, env, languages } from "./vscodeExtras";
 
 // that path); a test installs folders pointing at its temp directory.
 let folders: WorkspaceFolder[] | undefined;
@@ -282,11 +282,8 @@ export const window = {
   // The branch-set binder and several command handlers emit toasts via these. No
   // test asserts on their text, so they are inert no-ops that resolve to undefined
   // (the "no action button chosen" result) — they must only exist and not throw.
-  showInformationMessage(
-    _message: string,
-    ..._items: string[]
-  ): Promise<string | undefined> {
-    return Promise.resolve(undefined);
+  showInformationMessage(message: string, ...rest: unknown[]): Promise<string | undefined> {
+    return recordInfo(message, rest);
   },
   // Recorded and answered by the handler in vscodeExtras (default: dismissed).
   showWarningMessage(message: string, ...rest: unknown[]): Promise<string | undefined> {

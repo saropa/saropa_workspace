@@ -7,13 +7,15 @@ import { startBugDocument } from "../commands/boardLive";
 import { currentBoard } from "./boardFeed";
 import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
-import { editBlocker, setFutureField } from "../commands/boardFuture";
+import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
+import { handResearch, markReviewed } from "../commands/boardFutureResearch";
+import { researchQueue } from "../board/futureResearch";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureOpen <index>" and "futureSort <value>", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>" and "futureSort <value>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -70,8 +72,10 @@ class BoardPanel extends BoardPanelWiring {
       await this.tidyReport(message.i);
     } else if (message.type === "liveBug" && typeof message.i === "number") {
       await this.liveBug(message.i);
-    } else if (message.type === "futureSet" || message.type === "futureBlocker") {
+    } else if (message.type === "futureSet" || message.type === "futureBlocker" || message.type === "futureQuestion" || message.type === "futureReviewed") {
       await this.futureEdit(message);
+    } else if (message.type === "futureHand") {
+      await this.futureHand();
     } else if (message.type === "futureOpen") {
       await this.futureOpen(message);
     } else if (message.type === "futureSort" && FUTURE_SORTS.includes(message.value as FutureSort)) {
@@ -110,8 +114,46 @@ class BoardPanel extends BoardPanelWiring {
     try {
       if (message.type === "futureBlocker") {
         await editBlocker(target.root, target.item);
+      } else if (message.type === "futureQuestion") {
+        if (typeof message.value === "string") {
+          await setResearchQuestion(target.root, target.item, message.value);
+        }
+      } else if (message.type === "futureReviewed") {
+        if (target.item.research === "ready") {
+          await markReviewed(target.root, target.item);
+        }
       } else if (key && isFieldValue(field, message.value)) {
         await setFutureField(target.root, target.item, key, message.value, this.run ? foldersFor(this.run.cfg, target.item.project) : undefined);
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.editing = false;
+    }
+    this.lastKey = "";
+    this.dirty = true;
+    await this.refreshFuture();
+  }
+
+  // Hands the next batch of flagged documents to a chat, one prompt each. The batch is
+  // chosen here from the list this panel painted and the setting, never from the page.
+  private async futureHand(): Promise<void> {
+    const run = this.run;
+    if (!run || this.cached || this.editing || this.scanning) {
+      return;
+    }
+    this.editing = true;
+    try {
+      const sort = this.futureSort ?? readFutureSettings().defaultSort;
+      const { batch, queued } = researchQueue(this.futureShown, sort, readFutureSettings().researchParallel);
+      const entries = batch.flatMap((i) => {
+        const item = this.futureShown[i];
+        const def = run.cfg.projects.find((p) => p.id === item.project);
+        return def ? [{ item, root: vscode.Uri.parse(def.path) }] : [];
+      });
+      const done = await handResearch(entries);
+      if (done.handed > 0) {
+        void vscode.window.showInformationMessage(l10n(queued > 0 ? "releaseBoard.future.research.handedQueued" : "releaseBoard.future.research.handed", { count: done.handed, queued }));
       }
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));

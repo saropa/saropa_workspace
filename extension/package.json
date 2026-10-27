@@ -2760,6 +2760,13 @@
             ],
             "description": "%config.releaseBoard.future.defaultSort.description%"
           },
+          "saropaWorkspace.releaseBoard.future.researchParallel": {
+            "type": "integer",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 10,
+            "description": "%config.releaseBoard.future.researchParallel.description%"
+          },
           "saropaWorkspace.releaseBoard.train.enabled": {
             "type": "boolean",
             "default": true,
