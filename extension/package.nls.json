@@ -250,7 +250,7 @@
   "color.slate.description": "Slate tint for shortcut icons (theme-aware, lighter on dark and darker on light).",
   "color.gray.description": "Gray tint for shortcut icons (theme-aware, lighter on dark and darker on light).",
   "command.releaseBoard.scan.title": "Release Board: Scan",
-  "config.releaseBoard.enabled.description": "Turn on the Release Board (experimental): scans the workspace folders' bugs, docs and plans documents and reports their state.",
+  "config.releaseBoard.enabled.description": "Show the Release Board: scans the workspace folders' bugs, docs and plans documents and reports their state. On by default; turn it off to hide the status bar button and the commands.",
   "command.releaseBoard.open.title": "Release Board: Open",
   "command.releaseBoard.openRules.title": "Release Board: Open Rules File",
   "command.releaseBoard.previewGlob.title": "Release Board: Preview a Rule Pattern",

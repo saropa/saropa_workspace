@@ -19,7 +19,7 @@ import { l10n } from "../i18n/l10n";
 // board's rule engine, run the safety check against the last accepted scan, and print
 // the result. The board core (src/board) has no VS Code imports; this file supplies the
 // file source (workspace.fs, so remote workspaces work), the cache location and the
-// command. Gated by saropaWorkspace.releaseBoard.enabled (off by default).
+// command. Gated by saropaWorkspace.releaseBoard.enabled (on by default).
 
 const OUTPUT_NAME = "Saropa Release Board";
 const CACHE_FILE = "release-board-accepted.json";
@@ -182,7 +182,7 @@ export interface BoardRun {
 function ready(quiet = false): boolean {
   const enabled = vscode.workspace
     .getConfiguration("saropaWorkspace.releaseBoard")
-    .get<boolean>("enabled", false);
+    .get<boolean>("enabled", true);
   if (!enabled) {
     if (!quiet) {
       void vscode.window.showInformationMessage(l10n("releaseBoard.disabled"));
@@ -399,7 +399,23 @@ export function hasOutsideProject(cfg: BoardConfig): boolean {
 export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
   boardStore = store;
   startHealthRecorder(context, store, loadConfig);
+  // One click from anywhere in the window; shown while the board is on.
+  const button = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
+  button.name = l10n("releaseBoard.statusBarName");
+  button.text = "$(checklist) " + l10n("releaseBoard.statusBarText");
+  button.tooltip = l10n("releaseBoard.statusBarTooltip");
+  button.command = "saropaWorkspace.releaseBoard.open";
+  const showButton = (): void => {
+    if (vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("enabled", true)) {
+      button.show();
+    } else {
+      button.hide();
+    }
+  };
+  showButton();
   context.subscriptions.push(
+    button,
+    vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration("saropaWorkspace.releaseBoard.enabled") && showButton()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.mark", () => markCommand(context, loadConfig)),

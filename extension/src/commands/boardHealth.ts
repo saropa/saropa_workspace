@@ -51,7 +51,7 @@ export const onDidRecordHealth = recorded.event;
 
 // Records finished background runs of the shortcuts the projects name.
 async function record(context: vscode.ExtensionContext, store: ShortcutStore, loadConfig: () => Promise<BoardConfig>): Promise<void> {
-  const enabled = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("enabled", false);
+  const enabled = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("enabled", true);
   if (!enabled) {
     return;
   }
