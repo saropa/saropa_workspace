@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SETTINGS_STYLE, SETTINGS_SCRIPT } from "../views/settingsAssets";
-import { assertScriptParses, assertCssBalanced, assertNoRemoteLoads, assertSingleApiHandle } from "./_stub/assetChecks";
+import { assertScriptParses, assertCssBalanced, assertNoRemoteLoads, assertSingleApiHandle } from "./assetChecks";
 
 test("the stylesheet has balanced braces and loads nothing remote", () => {
   assertCssBalanced("SETTINGS_STYLE", SETTINGS_STYLE);

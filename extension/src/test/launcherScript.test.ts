@@ -11,7 +11,7 @@ import { LAUNCHER_SCRIPT_CARDS } from "../views/launcher/launcherScriptCards";
 import { LAUNCHER_SCRIPT_RENDER } from "../views/launcher/launcherScriptRender";
 import { LAUNCHER_SCRIPT_FOLDED } from "../views/launcher/launcherScriptFolded";
 import { LAUNCHER_SCRIPT_MENU } from "../views/launcher/launcherScriptMenu";
-import { assertScriptParses, assertNoRemoteLoads, assertSingleApiHandle } from "./_stub/assetChecks";
+import { assertScriptParses, assertNoRemoteLoads, assertSingleApiHandle } from "./assetChecks";
 
 const FRAGMENTS = {
   core: LAUNCHER_SCRIPT_CORE,

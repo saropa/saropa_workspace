@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SCHEDULE_STYLE, SCHEDULE_SCRIPT } from "../views/schedulePanelAssets";
-import { assertScriptParses, assertCssBalanced, assertNoRemoteLoads, assertSingleApiHandle } from "./_stub/assetChecks";
+import { assertScriptParses, assertCssBalanced, assertNoRemoteLoads, assertSingleApiHandle } from "./assetChecks";
 
 test("the stylesheet has balanced braces and loads nothing remote", () => {
   assertCssBalanced("SCHEDULE_STYLE", SCHEDULE_STYLE);

@@ -8,7 +8,7 @@ import { DASHBOARD_PROCESSES } from "../views/dashboard/dashboardScriptProcesses
 import { DASHBOARD_ANALYTICS } from "../views/dashboard/dashboardScriptAnalytics";
 import { DASHBOARD_TRENDS } from "../views/dashboard/dashboardScriptTrends";
 import { DASHBOARD_BOOTSTRAP } from "../views/dashboard/dashboardScriptBootstrap";
-import { assertScriptParses, assertNoRemoteLoads, assertSingleApiHandle } from "./_stub/assetChecks";
+import { assertScriptParses, assertNoRemoteLoads, assertSingleApiHandle } from "./assetChecks";
 
 // The host shell defines these two globals ahead of the script (see dashboardShell).
 const PRELUDE = 'const INITIAL_TAB = "processes"; const STRINGS = {};\n';
