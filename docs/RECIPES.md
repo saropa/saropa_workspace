@@ -92,3 +92,81 @@ Add the `Makefile` as a shortcut:
 Set **Run in** to *Background output channel* in Configure Run. Background runs
 can be stopped from the tree and show a success/failure badge; terminal runs stay
 interactive in the integrated terminal.
+
+## Report recipes that feed the Release Board
+
+Scheduled recipes that write a dated report under `reports/<date>_workspace/`. They are
+read-only, seed switched off (enable the schedule from the recipe's context menu or from the
+board's **Turn on** button), and are offered only where their input exists. The first line of
+each report is a hidden summary line the board reads: recipe, time, `pass`, `fail` or
+`unknown`, and one count. A check that has nothing to compare, or could not look, writes
+`unknown`, which the board treats as no evidence. The board never shows a report's text or
+path; **Open report** buttons resolve the file on your machine.
+
+### Release readiness summary
+
+- **Report:** `*_release_readiness.md`. Default time 09:15.
+- **Offered when:** the project has a test runner or a linter.
+- **Reads:** the newest build, test, lint and dependency reports, within the age limit
+  `releaseBoard.recipeEvidence.maxAgeHours`.
+- **Result:** `fail` with the number of failing reports; `pass` only when the test and lint
+  reports are fresh and passing and every other report that exists is passing; otherwise
+  `unknown`. A missing report is listed as not covered.
+- **Board:** one "Release checks" note on the project row. It never changes the light.
+
+### Changelog check
+
+- **Report:** `*_changelog_check.md`. Default time 09:20.
+- **Offered when:** the folder has `CHANGELOG.md` and a manifest (`package.json`,
+  `pubspec.yaml`, `Cargo.toml` or `pyproject.toml`).
+- **Compares:** the newest released heading (an Unreleased heading is skipped) with the
+  manifest version. A leading `v` and build metadata after `+` are ignored.
+- **Setting:** `recipes.changelogFile` (default `CHANGELOG.md`, relative to the folder).
+- **Board:** a note on the row when they differ.
+
+### Version consistency
+
+- **Report:** `*_version_check.md`. Default time 09:25.
+- **Offered when:** a manifest exists with a `package-lock.json`, `Cargo.lock` or `README.md`.
+- **Compares:** the manifest version with the lockfile's own version and any README badge
+  whose text or address names a version or release. At least one other file is needed.
+- **Board:** a note on the row when any file differs.
+
+### Stale branch age
+
+- **Report:** `*_branch_age.md`. Default time 09:05.
+- **Offered when:** the folder is a git repository.
+- **Lists:** local branches not merged into the default branch whose last commit is at least
+  the limit old. The checked-out and default branches are never listed. Nothing is deleted.
+- **Setting:** `recipes.staleBranchDays` (default 30).
+- **Board:** a note on the row with the count.
+
+### Large new file watch
+
+- **Report:** `*_large_new_files.md`. Default time 09:10.
+- **Offered when:** the folder is a git repository.
+- **Lists:** files added in the last 7 days, committed or not yet tracked, that are larger than
+  the limit. A file exactly at the limit is not listed.
+- **Setting:** `recipes.largeNewFileKB` (default 1024).
+- **Board:** a read-only entry in the Tidy box.
+
+### Broken links in docs
+
+- **Report:** `*_broken_links.md`. Default time 09:30.
+- **Offered when:** a git repository has a `README.md` or a `docs` folder.
+- **Checks:** relative links in tracked Markdown documents (at most 2000 documents). Web
+  links, page anchors, absolute paths and links inside code are not checked, and neither are
+  links that leave the folder. At most 200 broken links are listed; the count is complete.
+- **Board:** a note on the row with the count.
+
+### Existing recipes that now feed the board
+
+| Recipe | Board place |
+|---|---|
+| Dependency freshness | Dependencies mark; vulnerable or discontinued packages make the row worse |
+| PR review queue | Row note: pull requests waiting for review |
+| End-of-day uncommitted guard | Row note: files not committed |
+| Tech-debt harvest | Tidy entry with the trend |
+| Branch hygiene | Tidy entry: merged branches |
+| Workspace bloat scan | Tidy entry |
+| Standup digest, Since yesterday | A line in "Since you last looked" |
