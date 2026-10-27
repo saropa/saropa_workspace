@@ -11,7 +11,7 @@ const CHAT_LIMIT = 200;
 const REVIEW_MS = 2 * 60 * 1000;
 const PROVIDER_MS = 5000;
 
-interface ChatApi {
+export interface ChatApi {
   apiVersion?: number;
   chatsForFile?: (file: string) => Promise<unknown>;
 }
@@ -38,7 +38,7 @@ export function addBoardGroup(provider: BoardGroupProvider): vscode.Disposable {
   });
 }
 
-async function chatApi(): Promise<ChatApi | undefined> {
+export async function chatApi(): Promise<ChatApi | undefined> {
   const ext = vscode.extensions.getExtension(CHAT_EXTENSION);
   if (!ext) {
     return undefined;
