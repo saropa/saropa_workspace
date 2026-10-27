@@ -71,3 +71,16 @@ test("the config reset also marks every extension as not installed", () => {
   vscode.__resetConfig();
   assert.equal(vscode.extensions.getExtension("a.b"), undefined);
 });
+
+test("a terminal records its options, shows and typed text until the shell reset", () => {
+  const terminal = vscode.window.createTerminal({ name: "Run", cwd: "/work" });
+  terminal.show(true);
+  terminal.show();
+  terminal.sendText("npm test");
+  assert.deepEqual(vscode.__terminals(), [terminal]);
+  assert.deepEqual([terminal.options, terminal.shownWith, terminal.sentTexts], [{ name: "Run", cwd: "/work" }, [true, false], ["npm test"]]);
+  terminal.dispose();
+  assert.equal(terminal.disposed, true);
+  vscode.__resetShell();
+  assert.deepEqual(vscode.__terminals(), []);
+});

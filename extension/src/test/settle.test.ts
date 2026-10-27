@@ -16,5 +16,5 @@ test("settle waits for a flag that a later turn sets", async () => {
 });
 
 test("settle throws when the condition never holds within the turn limit", async () => {
-  await assert.rejects(settle(() => false, 3), /never became true/);
+  await assert.rejects(settle(() => false, 20), /never became true/);
 });

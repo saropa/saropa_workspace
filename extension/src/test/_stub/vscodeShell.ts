@@ -91,6 +91,44 @@ function createInputBox(): FakeInputBox {
   return box;
 }
 
+/** An integrated terminal handle: what it was created with, what was typed into it, how it was shown. */
+export interface FakeTerminal {
+  readonly options: { name?: string; cwd?: string; env?: Record<string, string> };
+  readonly sentTexts: string[];
+  readonly shownWith: boolean[];
+  disposed: boolean;
+  show(preserveFocus?: boolean): void;
+  sendText(text: string, addNewLine?: boolean): void;
+  dispose(): void;
+}
+
+const terminals: FakeTerminal[] = [];
+
+/** Test hook: every terminal created since the last reset, in creation order. */
+export function __terminals(): readonly FakeTerminal[] {
+  return terminals;
+}
+
+function createTerminal(options: FakeTerminal["options"]): FakeTerminal {
+  const terminal: FakeTerminal = {
+    options,
+    sentTexts: [],
+    shownWith: [],
+    disposed: false,
+    show(preserveFocus?: boolean): void {
+      terminal.shownWith.push(preserveFocus === true);
+    },
+    sendText(text: string): void {
+      terminal.sentTexts.push(text);
+    },
+    dispose(): void {
+      terminal.disposed = true;
+    },
+  };
+  terminals.push(terminal);
+  return terminal;
+}
+
 // Installed extensions: id -> manifest. getExtension reports presence and the manifest.
 let installed = new Map<string, unknown>();
 
@@ -111,9 +149,10 @@ export const extensions = {
   },
 };
 
-/** Test hook: forgets the input boxes, resets the theme to dark and removes all extensions. */
+/** Test hook: forgets the input boxes, terminals, resets the theme to dark and removes all extensions. */
 export function __resetShell(): void {
   inputBoxes.length = 0;
+  terminals.length = 0;
   themeKind = ColorThemeKind.Dark;
   __clearInstalledExtensions();
 }
@@ -121,6 +160,7 @@ export function __resetShell(): void {
 /** The extra members of `vscode.window`. */
 export const shellWindow = {
   createInputBox,
+  createTerminal,
   activeColorTheme: {
     get kind(): number {
       return themeKind;

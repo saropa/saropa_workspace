@@ -187,7 +187,10 @@ async function runNearestScript(fallback: vscode.Uri | undefined): Promise<void>
     vscode.window.showWarningMessage(l10n("recipe.script.none"));
     return;
   }
-  const pkgUri = await findNearestPackageJson(base, stopAt);
+  // An active file starts the search in its folder; the fallback is already a folder, so
+  // taking its parent would skip the folder's own package.json.
+  const startDir = active ? path.dirname(active.fsPath) : base.fsPath;
+  const pkgUri = await findNearestPackageJson(startDir, stopAt);
   if (!pkgUri) {
     vscode.window.showWarningMessage(l10n("recipe.script.none"));
     return;
@@ -227,15 +230,15 @@ async function runNearestScript(fallback: vscode.Uri | undefined): Promise<void>
   terminal.sendText(`${pm} run ${pick.label}`);
 }
 
-// Find the package.json nearest `start`, walking up to (and including) `stopAt`.
+// Find the package.json nearest the folder `startDir`, walking up to (and including) `stopAt`.
 // Built on the shared walkUp helper (detectorHelpers.ts) — the same "climb to the
 // workspace root, then give up" shape packageManager() uses for its lockfile search,
 // differing only in the per-directory predicate and the Uri return type.
 async function findNearestPackageJson(
-  start: vscode.Uri,
+  startDir: string,
   stopAt: vscode.Uri
 ): Promise<vscode.Uri | undefined> {
-  return walkUp(path.dirname(start.fsPath), stopAt.fsPath, async (dir) => {
+  return walkUp(startDir, stopAt.fsPath, async (dir) => {
     const candidate = vscode.Uri.file(path.join(dir, "package.json"));
     return (await fileExists(candidate)) ? candidate : undefined;
   });

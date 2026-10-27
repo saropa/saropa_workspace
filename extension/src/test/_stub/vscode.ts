@@ -34,8 +34,8 @@ export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
 export { Range, Selection, TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
 export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands } from "./vscodeCommands";
 export type { FakeQuickPick } from "./vscodeHosts";
-export { ColorThemeKind, extensions, __setInstalledExtensions, __setColorThemeKind, __inputBoxes, __resetShell } from "./vscodeShell";
-export type { FakeInputBox } from "./vscodeShell";
+export { ColorThemeKind, extensions, __setInstalledExtensions, __setColorThemeKind, __inputBoxes, __terminals, __resetShell } from "./vscodeShell";
+export type { FakeInputBox, FakeTerminal } from "./vscodeShell";
 export type { FakeTextEditor } from "./vscodeEditor";
 export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setQuickPickDriver, __setTabGroups, __resetHosts } from "./vscodeHosts";
 
@@ -154,6 +154,13 @@ const fsApi = {
   },
   async createDirectory(uri: Uri): Promise<void> {
     nodeFs.mkdirSync(uri.fsPath, { recursive: true });
+  },
+  // Copies a file; refuses when the target exists unless overwrite is set, as the real call does.
+  async copy(from: Uri, to: Uri, options?: { overwrite?: boolean }): Promise<void> {
+    if (!options?.overwrite && nodeFs.existsSync(to.fsPath)) {
+      throw new Error("FileExists");
+    }
+    nodeFs.copyFileSync(from.fsPath, to.fsPath);
   },
   async delete(uri: Uri, options?: { recursive?: boolean }): Promise<void> {
     nodeFs.rmSync(uri.fsPath, { recursive: !!options?.recursive, force: true });

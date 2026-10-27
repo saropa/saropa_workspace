@@ -206,3 +206,19 @@ test("asRelativePath is relative to the owning folder, can add the folder name, 
   assert.equal(workspace.asRelativePath(Uri.file("/elsewhere/b.ts")), "/elsewhere/b.ts");
   __setWorkspaceFolders(undefined);
 });
+
+test("fs.copy copies a file and refuses an existing target unless overwrite is set", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sw-stubcopy-"));
+  try {
+    fs.writeFileSync(`${dir}/a.txt`, "one");
+    await workspace.fs.copy(Uri.file(`${dir}/a.txt`), Uri.file(`${dir}/b.txt`));
+    assert.equal(fs.readFileSync(`${dir}/b.txt`, "utf8"), "one");
+    fs.writeFileSync(`${dir}/a.txt`, "two");
+    await assert.rejects(workspace.fs.copy(Uri.file(`${dir}/a.txt`), Uri.file(`${dir}/b.txt`)), /FileExists/);
+    assert.equal(fs.readFileSync(`${dir}/b.txt`, "utf8"), "one");
+    await workspace.fs.copy(Uri.file(`${dir}/a.txt`), Uri.file(`${dir}/b.txt`), { overwrite: true });
+    assert.equal(fs.readFileSync(`${dir}/b.txt`, "utf8"), "two");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
