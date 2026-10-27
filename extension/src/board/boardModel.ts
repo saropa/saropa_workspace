@@ -80,6 +80,8 @@ export interface BoardProject {
   items: BoardItem[];
   // Amber documents in a "blocked" folder, shown as one line, not one row each.
   blocked: number;
+  // How many of those collapsed documents would stop a release under the profile.
+  blockedStopping: number;
   counts: StatusCounts;
   dependsOn: string[];
   health?: ProjectHealth;
@@ -268,6 +270,7 @@ export function buildBoard(
       reasons,
       items,
       blocked,
+      blockedStopping: blockedStop,
       counts,
       dependsOn: def.dependsOn ?? [],
     });
