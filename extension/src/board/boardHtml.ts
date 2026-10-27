@@ -13,7 +13,8 @@ import { chains, needsRule, outsideBoxes, profilePicker, sinceBox, sittingsBox, 
 
 // Existing import paths keep working: the text table and the escape helper live in their
 // own modules and are re-exported here.
-export { BoardStrings, escapeHtml } from "./boardHtmlUtil";
+export type { BoardStrings } from "./boardHtmlUtil";
+export { escapeHtml } from "./boardHtmlUtil";
 
 // The page shown at once, before any result exists: grey placeholder rows that shimmer.
 export function renderSkeleton(t: BoardStrings, nonce: string): string {

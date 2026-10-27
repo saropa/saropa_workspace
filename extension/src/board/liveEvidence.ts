@@ -84,7 +84,7 @@ export function pathKey(p: string, fold: boolean): string {
   return fold ? s.toLowerCase() : s;
 }
 
-// Looks back 1 to 30 days; anything else means 1.
+// Looks back 1 to 30 days: a number out of range is clamped, anything that is not a number gives 1.
 export function clampLookbackDays(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(30, Math.max(1, Math.round(v))) : 1;
 }

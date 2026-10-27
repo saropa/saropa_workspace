@@ -231,6 +231,19 @@ test("ensureProjectFile migrates a legacy .vscode/ config to .saropa/ and rewrit
   );
 });
 
+test("ensureProjectFile migrates a legacy file whose JSON is null as an empty config", async () => {
+  const legacyDir = nodePath.join(tmpDir, ".vscode");
+  nodeFs.mkdirSync(legacyDir, { recursive: true });
+  const legacyPath = nodePath.join(legacyDir, "saropa-workspace.json");
+  nodeFs.writeFileSync(legacyPath, "null");
+  const store = new ShortcutStore(fakeContext());
+  await store.init();
+
+  const migrated = JSON.parse(nodeFs.readFileSync(configPath(), "utf8"));
+  assert.deepEqual(migrated.pins, [], "a null legacy file should migrate as an empty config");
+  assert.equal(nodeFs.existsSync(legacyPath), false, "the legacy file should be removed");
+});
+
 test("ensureProjectFile skips a corrupt legacy file without crashing activation (BUG-001)", async () => {
   // A legacy .vscode/ config containing invalid JSON must not throw a SyntaxError
   // that crashes activate() — the store logs the problem, skips this legacy dir,
