@@ -142,6 +142,8 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.tidy.enabled` | `true` | Shows a "Ready to tidy" box on the board: documents with every step done that have not changed for a while. It only lists them; a document moves only after you click its button and confirm. |
 | `releaseBoard.tidy.afterDays` | `7` | Days a finished document must stay unchanged before it is listed (1 to 365). |
 | `releaseBoard.tidy.archiveFolder` | `docs/history` | Folder inside the project that tidied documents move to, under a year/month/day sub-folder. |
+| `releaseBoard.train.enabled` | `true` | Shows a Release train row on the board and in the sidebar when more than one project is found: one light (the worst of the projects that ship together) and the order to ship them in. Read-only. |
+| `releaseBoard.train.naming` | `version` | Names the train by the version of the project that ships last (from `package.json` or `pubspec.yaml`), or by its folder name (`folder`). |
 | `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |
 | `releaseBoard.editorLinks.codeLens` | `true` | Shows the line at the top of a file that lists those documents. |
 | `releaseBoard.editorLinks.statusBar` | `true` | Shows a status bar count, colored by the worst document. |
