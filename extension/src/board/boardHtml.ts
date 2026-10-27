@@ -29,6 +29,15 @@ export interface BoardStrings {
   flagsHeading: string;
   flagsNote: string;
   hub: string;
+  profileLabel: string;
+  profileRush: string;
+  profileDeliberate: string;
+  profileZero: string;
+  severityNames: string;
+  proOnly: string;
+  pinned: string;
+  needsRuleHeading: string;
+  needsRuleNote: string;
 }
 
 const LIST_CAP = 30;
@@ -83,6 +92,15 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
   if (i.blocksCount > 0) {
     parts.push(`<i class="link blocks" title="${i.blocksCount}"></i>`);
   }
+  if (i.severity) {
+    parts.push(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" title="${escapeHtml(i.severity)}"></i>`);
+  }
+  if (i.audience === "pro") {
+    parts.push(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`);
+  }
+  if (i.pinned) {
+    parts.push(`<i class="pin" title="${escapeHtml(t.pinned)}"></i>`);
+  }
   if (i.hub) {
     parts.push(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`);
   }
@@ -133,13 +151,32 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .f{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.k{color:var(--mute);font-size:12px;flex:none}
 .marks{display:inline-flex;gap:6px;align-items:center;flex:none}.ring{width:14px;height:14px;border-radius:50%;display:inline-block;background:conic-gradient(var(--rc,var(--mute)) calc(var(--p)*1%),rgba(128,128,128,.25) 0)}.ring.part{--rc:var(--amber)}.ring.ok{--rc:var(--green)}
 .bars{display:inline-flex;gap:1px;align-items:flex-end;height:12px}.bars u{display:block;width:3px;background:rgba(128,128,128,.3)}.bars u:nth-child(1){height:4px}.bars u:nth-child(2){height:7px}.bars u:nth-child(3){height:10px}.bars u:nth-child(4){height:12px}.bars u.on{background:var(--blue)}
+.sev{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid var(--mute);display:inline-block}.sev.s-extreme,.sev.s-critical{border-bottom-color:var(--red)}.sev.s-high{border-bottom-color:var(--amber)}.sev.s-low{opacity:.5}.sev.stop{filter:drop-shadow(0 0 2px var(--red))}
+.pin{width:8px;height:8px;border-radius:50%;border:2px solid var(--red);display:inline-block}.seg{display:inline-flex}.seg button{border-radius:0}.seg button.on{background:var(--vscode-button-background,#0e639c);color:var(--vscode-button-foreground,#fff)}
 .code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
 const script = (rev: number): string => `const vscode=acquireVsCodeApi();const REV=${rev};
 document.getElementById('refresh').addEventListener('click',()=>vscode.postMessage({type:'refresh',rev:REV}));
+document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'profile',value:b.dataset.profile,rev:REV})));
+document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessage({type:'rules',rev:REV});b.addEventListener('click',go);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
-document.querySelectorAll('.row,.click').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
+document.querySelectorAll('.row,.click:not(.rulefix)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
+
+function profilePicker(model: BoardModel, t: BoardStrings): string {
+  const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
+  return `<span class="seg" role="group" aria-label="${escapeHtml(t.profileLabel)}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, label]) => `<button data-profile="${v}"${model.profile === v ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}>${escapeHtml(label)}</button>`).join("")}</span>`;
+}
+
+function needsRule(model: BoardModel, t: BoardStrings, names: Map<string, string>): string {
+  if (model.needsRule.length === 0) {
+    return "";
+  }
+  const rows = model.needsRule
+    .map((n) => `<div class="cn rulefix click" tabindex="0" role="button" title="${n.count}"><i class="sq"></i><span class="tag">${escapeHtml(names.get(n.project) ?? n.project)}</span><span class="f">${escapeHtml(n.folder || "/")}</span></div>`)
+    .join("");
+  return `<details class="box"><summary><i class="sq" aria-label="${escapeHtml(t.needsRuleHeading)}" title="${escapeHtml(t.needsRuleHeading)}"></i></summary><h2>${escapeHtml(t.needsRuleHeading)}</h2><p class="note">${escapeHtml(t.needsRuleNote)}</p>${rows}</details>`;
+}
 
 function chains(model: BoardModel, t: BoardStrings): string {
   if (model.chains.length === 0 && model.flags.length === 0) {
@@ -170,13 +207,14 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
       : "";
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}</style></head><body>
-<div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button></div>
+<div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}</div>
 <p class="note">${escapeHtml(t.intro)}</p>${banner}
 ${model.projects.map((p) => verdict(p, t, lights)).join("")}
 ${list(t.resolveNow, by("red"), names, t)}
 ${list(t.inProgress, by("purple"), names, t)}
 ${list(t.workOn, by("amber"), names, t)}
 ${chains(model, t)}
+${needsRule(model, t, names)}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber"></i></p>` : ""}
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 <script nonce="${nonce}">${script(rev)}</script></body></html>`;

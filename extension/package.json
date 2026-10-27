@@ -748,6 +748,18 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.openRules",
+        "title": "%command.releaseBoard.openRules.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "saropaWorkspace.releaseBoard.previewGlob",
+        "title": "%command.releaseBoard.previewGlob.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "saropaWorkspace.dailyReport",
         "title": "%command.dailyReport.title%",
         "category": "%extension.displayName%",
@@ -2009,6 +2021,14 @@
           "when": "config.saropaWorkspace.releaseBoard.enabled"
         },
         {
+          "command": "saropaWorkspace.releaseBoard.openRules",
+          "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.previewGlob",
+          "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
           "command": "saropaWorkspace.releaseBoard.open",
           "when": "config.saropaWorkspace.releaseBoard.enabled"
         },
@@ -2362,6 +2382,12 @@
             "type": "boolean",
             "default": false,
             "description": "%config.releaseBoard.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.profile": {
+            "type": "string",
+            "enum": ["rush", "deliberate", "zero"],
+            "default": "deliberate",
+            "description": "%config.releaseBoard.profile.description%"
           },
           "saropaWorkspace.previewMode.enabled": {
             "type": "boolean",

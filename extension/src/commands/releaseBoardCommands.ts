@@ -4,6 +4,8 @@ import defaultRules from "../board/defaultRules.json";
 import { FileSource, ScanResult, ScanSnapshot, scanAll } from "../board/scanner";
 import { SafetyResult, checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
+import { Profile } from "../board/severity";
+import { globToRegExp } from "../board/glob";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
 
@@ -91,6 +93,12 @@ async function loadConfig(): Promise<BoardConfig> {
         projects: parsed.projects ?? [],
       };
     }
+  }
+  // A profile chosen in settings wins over the rules file.
+  const setting = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").inspect<Profile>("profile");
+  const chosen = setting?.workspaceFolderValue ?? setting?.workspaceValue ?? setting?.globalValue;
+  if (chosen) {
+    cfg = { ...cfg, profile: chosen };
   }
   if (cfg.projects.length > 0) {
     const base = folders[0].uri;
@@ -250,9 +258,55 @@ async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
   }
 }
 
+const RULES_TEMPLATE = `{
+  "version": 1,
+  "profile": "deliberate",
+  "pinned": [],
+  "groups": []
+}
+`;
+
+// Opens the user's rules file, creating a small one first when there is none.
+export async function openRulesFile(): Promise<void> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
+    return;
+  }
+  const uri = vscode.Uri.joinPath(folder.uri, RULES_FILE);
+  if (!(await exists(uri))) {
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, ".saropa"));
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(RULES_TEMPLATE, "utf8"));
+    void vscode.window.showInformationMessage(l10n("releaseBoard.rulesCreated", { file: RULES_FILE }));
+  }
+  await vscode.window.showTextDocument(uri);
+}
+
+// Asks for a glob and reports how many documents it matches, so a rule can be checked
+// before it is written. Matches the path inside each project, like a rule does.
+async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
+  const glob = await vscode.window.showInputBox({ prompt: l10n("releaseBoard.previewPrompt") });
+  if (!glob) {
+    return;
+  }
+  const run = await runBoardScan(context);
+  if (!run) {
+    return;
+  }
+  const re = globToRegExp(glob);
+  const hits = run.result.rows.filter((r) => re.test(r.path));
+  void vscode.window.showInformationMessage(
+    hits.length === 0
+      ? l10n("releaseBoard.previewNone", { glob })
+      : l10n("releaseBoard.previewResult", { count: hits.length, glob, sample: hits.slice(0, 5).map((h) => h.path).join(", ") })
+  );
+}
+
 export function registerReleaseBoard(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
-    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context))
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context)),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openRules", () => openRulesFile()),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.previewGlob", () => previewGlob(context))
   );
 }
