@@ -1,55 +1,33 @@
 import * as vscode from "vscode";
-import {
-  Shortcut,
-  ShortcutExecConfig,
-  ShortcutGroup,
-  ShortcutMetric,
-  ShortcutSchedule,
-  ShortcutScope,
-  ShortcutSet,
-  ShortcutTrigger,
-  SystemEventName,
-  ProjectShortcutsFile,
-  PROJECT_SHORTCUTS_VERSION,
-  PROJECT_FILE_RELATIVE,
-  configuredProjectFileRelative,
-  DEFAULT_SET_NAME,
-  emptyProjectShortcutsFile,
-  shortcutKind,
-} from "./shortcut";
-import { parseGlobalPath, globalStoredPath } from "./shortcutPaths";
-import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
+import { Shortcut, ProjectShortcutsFile } from "./shortcut";
+
+import { detectOnDemandRecipes, RecipeResult } from "../recipes/detectors";
 import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
 import { detectSuiteRecipes } from "../recipes/suiteRecipes";
+import { detectRoutineRecipes } from "../recipes/routineRecipes";
 import { detectProcessRecipes } from "../recipes/processRecipes";
 import { detectHygieneRecipes } from "../recipes/hygieneRecipes";
-import { detectRoutineRecipes } from "../recipes/routineRecipes";
+
 import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
-import { getOutputChannel } from "../exec/runner";
-import { telemetry } from "../exec/telemetry";
-import { SharedShortcut } from "../import/shareLink";
+
 import { l10n } from "../i18n/l10n";
 import {
-  MoveTarget,
-  GLOBAL_STATE_KEY,
-  GLOBAL_GROUPS_KEY,
-  RECIPE_GROUPS,
-  RECIPE_SUBGROUPS,
   RECIPE_GROUP_EXPANDED_PREFIX,
   recipeGroupId,
   recipeSubGroupId,
-  isSyntheticRecipeGroupId,
   recipeGroupColor,
   RECOMMENDED_GROUP_ID,
   RECOMMENDED_HINT_DISMISSED_KEY,
   selectRecommendedRecipes,
   DEFAULT_GROUP_EXPANDED_PREFIX,
-  isGlobPattern,
-  setsEqual,
-  sameSetName,
 } from "./shortcutStoreShared";
-import { ShortcutStoreBase } from "./shortcutStoreBase";
 
+import { ShortcutStoreBase } from "./shortcutStoreBase";
+import {
+  globAutoShortcutPaths,
+  buildConfigExampleShortcut,
+  collectAdoptedRecipeIds,
+} from "./shortcutAutoScan";
 // Recipe + auto-shortcut detection layer: turns workspace files into the synthetic
 // recipe shortcuts and the auto-shortcut files that refresh() seeds into the tree.
 export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
@@ -82,50 +60,9 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
     if (cached) {
       return cached;
     }
-    const paths: string[] = [];
-    const seen = new Set<string>();
-    const add = (relative: string): void => {
-      if (!seen.has(relative)) {
-        seen.add(relative);
-        paths.push(relative);
-      }
-    };
-    for (const pattern of patterns) {
-      // BUG FIX (2026-06-25, slow startup): an exact-name pattern (no glob
-      // metacharacters) can only ever match the one file at that relative path —
-      // a RelativePattern without `**` does not recurse — so resolve it with a
-      // single fs.stat instead of vscode.workspace.findFiles. findFiles spins up
-      // the workspace search service (a full file-tree walk) even when the file
-      // is absent, and this is the ONLY search-service call on the awaited
-      // activation path (store.init -> refresh -> seedAutoShortcuts). For the default
-      // `pubspec.yaml` + `analysis_options.yaml` patterns that meant two
-      // whole-workspace searches on every launch — wasted entirely in a project
-      // that has neither (the common non-Dart case). A direct stat turns each
-      // into an instant hit/miss.
-      if (!isGlobPattern(pattern)) {
-        const uri = vscode.Uri.joinPath(folder.uri, pattern);
-        try {
-          const stat = await vscode.workspace.fs.stat(uri);
-          if (stat.type === vscode.FileType.File) {
-            add(this.toFolderRelative(folder, uri));
-          }
-        } catch {
-          // Absent — the normal case for a pattern that does not apply here.
-        }
-        continue;
-      }
-      // A real glob still needs the search service to expand it. Limit each
-      // pattern to a small result set; auto-shortcuts are a convenience, not a
-      // project-wide scan.
-      const matches = await vscode.workspace.findFiles(
-        new vscode.RelativePattern(folder, pattern),
-        "**/node_modules/**",
-        50
-      );
-      for (const uri of matches) {
-        add(this.toFolderRelative(folder, uri));
-      }
-    }
+    const paths = await globAutoShortcutPaths(folder, patterns, (uri) =>
+      this.toFolderRelative(folder, uri)
+    );
     this.autoShortcutScanCache.set(key, paths);
     return paths;
   }
@@ -165,47 +102,12 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
     return shortcuts;
   }
 
-  // Build the synthetic "Workspace config" example shortcut for a folder, or
-  // undefined when it should not appear. It links to the folder's own config file so
-  // a brand-new project still has one working shortcut. Returns undefined when the
-  // user removed it (sticky via removedAutoPins) or when a stored/auto shortcut
-  // already targets the config file, which avoids duplicating a project's own
-  // committed config shortcut (e.g. this repo's sample-config). The id matches the
-  // auto-shortcut scheme so removeShortcut's isAuto branch suppresses it the same way.
   protected configExampleShortcut(
     folder: vscode.WorkspaceFolder,
     file: ProjectShortcutsFile,
     autoShortcuts: readonly Shortcut[]
   ): Shortcut | undefined {
-    const configPath = configuredProjectFileRelative();
-    const id = `auto:${folder.name}:${configPath}`;
-    // Accept the old id too so a removal persisted under the previous configDir
-    // keeps sticking after the user changes the setting.
-    const legacyId = `auto:${folder.name}:${PROJECT_FILE_RELATIVE}`;
-    if (
-      file.removedAutoPins.includes(id) ||
-      file.removedAutoPins.includes(legacyId)
-    ) {
-      return undefined;
-    }
-    const alreadyAdded =
-      file.pins.some((p) => p.path === configPath) ||
-      autoShortcuts.some((p) => p.path === configPath);
-    if (alreadyAdded) {
-      return undefined;
-    }
-    return {
-      id,
-      path: configPath,
-      label: l10n("pin.sampleConfig"),
-      scope: "project",
-      isAuto: true,
-      // Re-apply the folder the user dragged the config shortcut into, if any.
-      groupId: file.autoGroups[id],
-      // Negative order sorts it ahead of explicit shortcuts (order >= 0), so the
-      // example sits at the top of the Project scope.
-      order: -1,
-    };
+    return buildConfigExampleShortcut(folder, file, autoShortcuts);
   }
 
   // --- recipes -----------------------------------------------------------
@@ -363,7 +265,7 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
   ): Shortcut[] {
     const picks = selectRecommendedRecipes(results, {
       aggressive: this.recommendAggressive(),
-      adoptedRecipeIds: this.adoptedRecipeIds(folder, results),
+      adoptedRecipeIds: collectAdoptedRecipeIds(folder, results),
     });
     const shortcuts: Shortcut[] = [];
     let order = 1900;
@@ -409,27 +311,6 @@ export abstract class ShortcutStoreRecipes extends ShortcutStoreBase {
       });
     }
     return shortcuts;
-  }
-
-  // recipeIds the user has already RUN on demand, used to demote them from the curated /
-  // aggressive picks (a recipe in use no longer needs featuring). A run records local
-  // telemetry under the shortcut id it ran from: the home-category row (`recipe:`) or the
-  // shelf pointer (`recommend:`), so both ids are checked. Disabled rituals are not
-  // demoted by this (see RecommendedSelectionOptions). Returns an empty set when telemetry
-  // is disabled — count() reads 0 for every id then, so nothing is demoted.
-  private adoptedRecipeIds(
-    folder: vscode.WorkspaceFolder,
-    results: readonly RecipeResult[]
-  ): Set<string> {
-    const adopted = new Set<string>();
-    for (const r of results) {
-      const ranFromCategory = telemetry.count(`recipe:${folder.name}:${r.recipeId}`) > 0;
-      const ranFromShelf = telemetry.count(`recommend:${folder.name}:${r.recipeId}`) > 0;
-      if (ranFromCategory || ranFromShelf) {
-        adopted.add(r.recipeId);
-      }
-    }
-    return adopted;
   }
 
   // Re-add every removed recipe across all folders (the Restore counterpart for
