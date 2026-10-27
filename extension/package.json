@@ -802,6 +802,18 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.openSettings",
+        "title": "%command.releaseBoard.openSettings.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "saropaWorkspace.releaseBoard.projects",
+        "title": "%command.releaseBoard.projects.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "saropaWorkspace.releaseBoard.mark",
         "title": "%command.releaseBoard.mark.title%",
         "category": "%extension.displayName%",
@@ -2142,6 +2154,14 @@
           "when": "config.saropaWorkspace.releaseBoard.enabled"
         },
         {
+          "command": "saropaWorkspace.releaseBoard.openSettings",
+          "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.projects",
+          "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
           "command": "saropaWorkspace.copyNoteContent",
           "when": "false"
         },
@@ -2497,6 +2517,23 @@
             "enum": ["rush", "deliberate", "zero"],
             "default": "deliberate",
             "description": "%config.releaseBoard.profile.description%"
+          },
+          "saropaWorkspace.releaseBoard.projects": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "maxItems": 40,
+            "uniqueItems": true,
+            "scope": "machine",
+            "description": "%config.releaseBoard.projects.description%"
+          },
+          "saropaWorkspace.releaseBoard.projectScope": {
+            "type": "string",
+            "enum": ["openOnly", "all"],
+            "enumDescriptions": ["%config.releaseBoard.projectScope.openOnly%", "%config.releaseBoard.projectScope.all%"],
+            "default": "all",
+            "scope": "machine",
+            "description": "%config.releaseBoard.projectScope.description%"
           },
           "saropaWorkspace.releaseBoard.pathToGo.enabled": {
             "type": "boolean",

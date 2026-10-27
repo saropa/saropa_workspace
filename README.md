@@ -126,6 +126,8 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `configDir` | `.saropa` | The folder holding the project shortcut file. |
 | `releaseBoard.enabled` | `true` | Shows the Release Board button and commands. |
 | `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
+| `releaseBoard.projects` | `[]` | Folders the board includes besides the folders open in the window, one absolute path each (up to 40). A user setting: a workspace cannot change it. Use the **Projects** button on the board to add, add every project inside a parent folder, or remove; each folder is read like a workspace folder, with its own `.saropa/release-board.json` when it has one. Empty shows only the open folders. |
+| `releaseBoard.projectScope` | `all` | `all` shows the open folders and every chosen project; `openOnly` shows only the open folders and keeps the chosen list. Only matters once a project is chosen. |
 | `releaseBoard.sidebar.enabled` | `true` | Shows the Release Board at the top of the sidebar: one row per project with its light and first blockers. |
 | `releaseBoard.sidebar.blockersPerProject` | `3` | Most blockers listed under each project in the sidebar (0 to 10). |
 | `releaseBoard.sidebar.expandProjects` | `whenNoGo` | Which projects start open in the sidebar: `never`, `whenNoGo` or `always`. |

@@ -5,6 +5,7 @@ import { Profile, asProfile } from "../board/severity";
 import { BoardConfig, ProjectDef } from "../board/types";
 import { l10n } from "../i18n/l10n";
 import { pathExists } from "./boardFileSource";
+import { hasChosenFolders, loadExtraProjects } from "./boardExtraProjects";
 
 // Release Board, loading the rule file. The user's own `.saropa/release-board.json` in the
 // first folder wins over the rules shipped with the extension; a missing section falls back
@@ -50,7 +51,8 @@ export function boardReady(quiet = false): boolean {
     }
     return false;
   }
-  if (!vscode.workspace.workspaceFolders?.length) {
+  // Chosen projects are enough on their own: a window with no folder open can still show them.
+  if (!vscode.workspace.workspaceFolders?.length && !hasChosenFolders()) {
     if (!quiet) {
       void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
     }
@@ -101,13 +103,29 @@ export async function loadConfig(): Promise<BoardConfig> {
   const setting = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").inspect<Profile>("profile");
   const chosen = setting?.workspaceFolderValue ?? setting?.workspaceValue ?? setting?.globalValue;
   cfg = { ...cfg, profile: asProfile(chosen ?? cfg.profile) };
+  const open = await openProjects(cfg, folders);
+  // The user's extra projects follow the open ones, read the same way.
+  const extra = await loadExtraProjects(new Set(open.map((p) => p.id)), uniqueProjectId, DEFAULT_ROOTS, DEFAULT_SETS);
+  if (extra.projects.length === 0 && extra.skipped.length === 0 && extra.hidden === 0) {
+    return { ...cfg, projects: open };
+  }
+  return {
+    ...cfg,
+    projects: [...open, ...extra.projects],
+    ruleSets: { ...cfg.ruleSets, ...extra.ruleSets },
+    ...(extra.skipped.length > 0 ? { skipped: extra.skipped } : {}),
+    ...(extra.hidden > 0 ? { hidden: extra.hidden } : {}),
+  };
+}
+
+// The projects of the open workspace: those the rules file lists, else one per folder.
+async function openProjects(cfg: BoardConfig, folders: readonly vscode.WorkspaceFolder[]): Promise<ProjectDef[]> {
   if (cfg.projects.length > 0) {
     const base = folders[0].uri;
-    const projects = cfg.projects.map((p) => ({
+    return cfg.projects.map((p) => ({
       ...p,
       path: (path.isAbsolute(p.path) ? (base.scheme === "file" ? vscode.Uri.file(p.path) : base.with({ path: p.path })) : vscode.Uri.joinPath(base, p.path)).toString(),
     }));
-    return { ...cfg, projects };
   }
-  return { ...cfg, projects: await foldersAsProjects(folders) };
+  return foldersAsProjects(folders);
 }

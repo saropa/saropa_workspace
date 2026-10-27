@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
-import { ScanResult, completeFacts, scanAll, snapshotFingerprint } from "../board/scanner";
+import { ScanResult, completeFacts, dropFailed, scanAll, snapshotFingerprint } from "../board/scanner";
 import { checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
 import { ProjectHealth } from "../board/health";
@@ -18,6 +18,7 @@ import { workspaceFileSource } from "./boardFileSource";
 import { DEFAULT_ROOTS, boardReady, loadConfig } from "./boardConfigLoad";
 import { BoardRun, readAccepted, readLastRun, writeAccepted, writeLast } from "./boardScanStore";
 import { openRulesFile, previewGlob } from "./boardRules";
+import { chooseProjects, openBoardSettings } from "../views/boardProjectsFlow";
 
 // Release Board, VS Code layer: the scan flow. It runs one queued scan of the open workspace
 // folders with the board's rule engine, checks it against the last accepted scan, stores the
@@ -89,7 +90,7 @@ async function scanNow(
   if (!boardReady(quiet)) {
     return undefined;
   }
-  const cfg = await loadConfig();
+  let cfg = await loadConfig();
   // Per workspace: another workspace must never see or overwrite this baseline.
   const dir = context.storageUri ?? context.globalStorageUri;
   const accepted = await readAccepted(dir);
@@ -103,6 +104,7 @@ async function scanNow(
   const [result, health] = onFirst
     ? await work()
     : await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: l10n("releaseBoard.scanning") }, work);
+  cfg = dropFailed(cfg, result.failed);
   const safety = checkScan(accepted, result.snapshot);
   const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health, marks: await readMarks(context) };
   if (onFirst && result.pending.length > 0) {
@@ -259,6 +261,8 @@ export function registerReleaseBoard(context: vscode.ExtensionContext, store: Sh
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.mark", () => markCommand(context, loadConfig)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.exportMarks", () => exportMarksCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openRules", () => openRulesFile()),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openSettings", () => openBoardSettings()),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.projects", () => chooseProjects()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.previewGlob", () => previewGlob(() => runBoardScan(context)))
   );
 }
