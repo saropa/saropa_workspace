@@ -1856,5 +1856,7 @@
   "releaseBoard.panel.reasonUnread": "Some open documents could not be read, so their severity is unknown",
   "releaseBoard.panel.go": "GO",
   "releaseBoard.panel.healthLint": "Lint",
-  "releaseBoard.panel.healthTests": "Tests"
+  "releaseBoard.panel.healthTests": "Tests",
+  "releaseBoard.panel.loading": "Reading the project folders…",
+  "releaseBoard.panel.refreshing": "Refreshing"
 }

@@ -42,6 +42,8 @@ export interface BoardStrings {
   pinned: string;
   needsRuleHeading: string;
   needsRuleNote: string;
+  loading: string;
+  refreshing: string;
 }
 
 const LIST_CAP = 30;
@@ -157,6 +159,11 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .box{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:12px 14px;margin:12px 0}
 .vd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);margin:6px 0}
 .pn{width:110px}.go{font-family:var(--vscode-editor-font-family,monospace);font-weight:600;border-radius:4px;padding:2px 10px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.prog{position:fixed;top:0;left:0;right:0;height:2px;overflow:hidden;display:none}.busy .prog{display:block}.prog::after{content:"";display:block;height:100%;width:30%;background:var(--blue);animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{0%{margin-left:-30%}100%{margin-left:100%}}@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.stale .vd,.stale .box{opacity:.6}.loading .marks,.loading .go{color:transparent;border-color:transparent;background:linear-gradient(90deg,rgba(128,128,128,.15) 25%,rgba(128,128,128,.35) 50%,rgba(128,128,128,.15) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite;border-radius:4px;min-width:40px;min-height:12px}
+.sk{height:12px;border-radius:4px;background:linear-gradient(90deg,rgba(128,128,128,.15) 25%,rgba(128,128,128,.35) 50%,rgba(128,128,128,.15) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite;margin:8px 0}.sk.w1{width:70%}.sk.w2{width:90%}.sk.w3{width:55%}
+@media (prefers-reduced-motion:reduce){.prog::after,.sk,.loading .marks,.loading .go{animation:none}}
 .hl{width:10px;height:10px;border-radius:50%;display:inline-block;background:rgba(128,128,128,.4)}.hl.failing{background:var(--red)}.hl.passing{background:var(--green)}.hl.na{background:transparent;border:1px dashed var(--mute)}.go.go{background:var(--green);color:#fff}
 .go.no-go{background:var(--red);color:#fff}.go.unverified{background:rgba(217,164,65,.18);color:var(--amber);border:1px solid var(--amber)}
 .info{width:14px;height:14px;border-radius:50%;border:1px solid var(--mute);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-style:normal;color:var(--mute)}.info::before{content:"i"}.bar{display:inline-flex;gap:3px}.sq{width:10px;height:10px;border-radius:2px;display:inline-block;background:var(--mute);flex:none}
@@ -174,10 +181,21 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
-const script = (rev: number): string => `const vscode=acquireVsCodeApi();const REV=${rev};
+// The page shown at once, before any result exists: grey placeholder rows that shimmer.
+export function renderSkeleton(t: BoardStrings, nonce: string): string {
+  const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
+  const rows = Array.from({ length: 5 }, () => `<div class="vd"><div class="sk w3" style="flex:1"></div></div>`).join("");
+  const box = `<section class="box"><div class="sk w3"></div><div class="sk w2"></div><div class="sk w1"></div><div class="sk w2"></div></section>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}</style></head><body class="busy" aria-busy="true">
+<div class="prog" role="progressbar" aria-label="${escapeHtml(t.loading)}"></div>
+<div class="top"><h1>${escapeHtml(t.title)}</h1></div><p class="note">${escapeHtml(t.loading)}</p>${rows}${box}${box}</body></html>`;
+}
+
+const script = (rev: number, label: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const LABEL=${JSON.stringify(label).replace(/</g, "\\u003c")};
 document.getElementById('refresh').addEventListener('click',()=>vscode.postMessage({type:'refresh',rev:REV}));
 document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'profile',value:b.dataset.profile,rev:REV})));
 document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessage({type:'rules',rev:REV});b.addEventListener('click',go);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
 document.querySelectorAll('.row,.click:not(.rulefix)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
 
@@ -208,7 +226,14 @@ function chains(model: BoardModel, t: BoardStrings): string {
   return `<details class="box"><summary><i class="link open" aria-label="${escapeHtml(t.linkedHeading)}" title="${escapeHtml(t.linkedHeading)}"></i></summary>${head}${flags}</details>`;
 }
 
-export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0): string {
+// Page state while a scan is running: `stale` is the previous result shown again, `loading`
+// means the documents are sorted but their text is still being read.
+export interface RenderState {
+  stale?: boolean;
+  loading?: boolean;
+}
+
+export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}): string {
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
   const lights = new Map<string, string>();
   for (const p of model.projects) {
@@ -217,14 +242,17 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
   }
   const by = (s: string): BoardItem[] => model.items.filter((i) => i.status === s);
   const blocked = model.projects.reduce((a, p) => a + p.blocked, 0);
-  const accept = `<button id="accept">${escapeHtml(t.accept)}</button>`;
+  // No Accept while the result is the stored one or still being completed.
+  const accept = state.stale || state.loading ? "" : `<button id="accept">${escapeHtml(t.accept)}</button>`;
   const banner = model.baseline
     ? `<div class="box"><p>${escapeHtml(t.baseline)} ${accept}</p></div>`
     : model.safetyHold
       ? `<div class="box"><p>${escapeHtml(t.safetyHold)} ${accept}</p></div>`
       : "";
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}</style></head><body>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+<div id="live" class="vh" role="status" aria-live="polite"></div>
+<div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}</div>
 <p class="note">${escapeHtml(t.intro)}</p>${banner}
 ${model.projects.map((p) => verdict(p, t, lights)).join("")}
@@ -235,5 +263,5 @@ ${chains(model, t)}
 ${needsRule(model, t, names)}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber"></i></p>` : ""}
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
-<script nonce="${nonce}">${script(rev)}</script></body></html>`;
+<script nonce="${nonce}">${script(rev, t.refreshing)}</script></body></html>`;
 }

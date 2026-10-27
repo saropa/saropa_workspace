@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
 import defaultRules from "../board/defaultRules.json";
-import { FileSource, ScanResult, ScanSnapshot, scanAll } from "../board/scanner";
+import { FileSource, ScanResult, ScanSnapshot, completeFacts, scanAll, snapshotFingerprint } from "../board/scanner";
 import { SafetyResult, checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
+import { mapLimit } from "../board/pool";
 import { ProjectHealth } from "../board/health";
 import { collectHealth, startHealthRecorder } from "./boardHealth";
 import { ShortcutStore } from "../model/shortcutStore";
@@ -36,23 +37,32 @@ function out(): vscode.OutputChannel {
 // scanner treats it as empty.
 export function workspaceFileSource(): FileSource {
   return {
-    async list(projectDir: string, root: string): Promise<ScanFile[]> {
-      const files: ScanFile[] = [];
+    async list(projectDir: string, root: string, accept?: (path: string) => boolean): Promise<ScanFile[]> {
       const base = vscode.Uri.parse(projectDir);
-      const walk = async (rel: string): Promise<void> => {
-        const dir = vscode.Uri.joinPath(base, rel);
-        for (const [name, type] of await vscode.workspace.fs.readDirectory(dir)) {
+      // Folders are walked in parallel and only wanted files are stat-ed, in parallel:
+      // each call is a round trip, and on a remote workspace they dominate the scan.
+      const walk = async (rel: string): Promise<ScanFile[]> => {
+        const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(base, rel));
+        const dirs: string[] = [];
+        const files: string[] = [];
+        for (const [name, type] of entries) {
           const childRel = rel + "/" + name;
           if (type & vscode.FileType.Directory) {
-            await walk(childRel);
-          } else if (type & vscode.FileType.File) {
-            const st = await vscode.workspace.fs.stat(vscode.Uri.joinPath(base, childRel));
-            files.push({ path: childRel, size: st.size, mtimeMs: st.mtime });
+            dirs.push(childRel);
+          } else if (type & vscode.FileType.File && (!accept || accept(childRel))) {
+            files.push(childRel);
           }
         }
+        const [stats, nested] = await Promise.all([
+          mapLimit(files, 32, async (childRel): Promise<ScanFile> => {
+            const st = await vscode.workspace.fs.stat(vscode.Uri.joinPath(base, childRel));
+            return { path: childRel, size: st.size, mtimeMs: st.mtime };
+          }),
+          mapLimit(dirs, 8, walk),
+        ]);
+        return [...stats, ...nested.flat()];
       };
-      await walk(root);
-      return files;
+      return walk(root);
     },
     async readHead(projectDir: string, p: string, lines: number): Promise<string> {
       const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
@@ -184,9 +194,58 @@ function ready(quiet = false): boolean {
   return true;
 }
 
+const LAST_FILE = "release-board-last.json";
+let lastFingerprint = "";
+
+// What the board last showed, kept so the next open paints at once while a fresh scan runs.
+interface LastRun {
+  version: 1;
+  rows: ScanResult["rows"];
+  snapshot: ScanSnapshot;
+  accepted: boolean;
+  safety: SafetyResult;
+  health: Record<string, ProjectHealth>;
+}
+
+async function writeLast(dir: vscode.Uri, run: BoardRun): Promise<void> {
+  const last: LastRun = { version: 1, rows: run.result.rows, snapshot: run.result.snapshot, accepted: run.accepted, safety: run.safety, health: run.health };
+  await vscode.workspace.fs.createDirectory(dir);
+  await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, LAST_FILE), Buffer.from(JSON.stringify(last), "utf8"));
+}
+
+// The last shown board, or undefined. It is only a first paint: the caller must mark it as
+// not yet refreshed and scan again.
+export async function readLastRun(context: vscode.ExtensionContext): Promise<BoardRun | undefined> {
+  if (!ready(true)) {
+    return undefined;
+  }
+  try {
+    const dir = context.storageUri ?? context.globalStorageUri;
+    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, LAST_FILE));
+    const last = JSON.parse(Buffer.from(bytes).toString("utf8")) as LastRun;
+    if (last.version !== 1) {
+      return undefined;
+    }
+    const cfg = await loadConfig();
+    // Only if the same projects are configured; otherwise the old rows mean nothing.
+    if (cfg.projects.some((p) => !last.snapshot.projects[p.id])) {
+      return undefined;
+    }
+    const result: ScanResult = { rows: last.rows, snapshot: last.snapshot, pending: [], stats: { files: last.rows.length, headReads: 0, factReads: 0, ms: 0 } };
+    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, health: last.health };
+  } catch {
+    return undefined;
+  }
+}
+
 // Scan, run the safety check against the last accepted scan, and store the scan as the
-// new baseline only when the check found nothing.
-export async function runBoardScan(context: vscode.ExtensionContext, quiet = false): Promise<BoardRun | undefined> {
+// new baseline only when the check found nothing. `onFirst` gets the board as soon as the
+// documents are sorted, before their text is read for marks and severity.
+export async function runBoardScan(
+  context: vscode.ExtensionContext,
+  quiet = false,
+  onFirst?: (run: BoardRun) => void
+): Promise<BoardRun | undefined> {
   if (!ready(quiet)) {
     return undefined;
   }
@@ -194,16 +253,33 @@ export async function runBoardScan(context: vscode.ExtensionContext, quiet = fal
   // Per workspace: another workspace must never see or overwrite this baseline.
   const dir = context.storageUri ?? context.globalStorageUri;
   const accepted = await readAccepted(dir);
-  const result = await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Window, title: l10n("releaseBoard.scanning") },
-    () => scanAll(cfg, workspaceFileSource(), accepted)
-  );
+  const source = workspaceFileSource();
+  const work = (): Promise<[ScanResult, Record<string, ProjectHealth>]> =>
+    Promise.all([
+      scanAll(cfg, source, accepted, Date.now(), onFirst ? "cached" : "all"),
+      boardStore ? collectHealth(context, boardStore, cfg) : Promise.resolve({} as Record<string, ProjectHealth>),
+    ]);
+  // The board tab has its own progress bar; the commands show one in the status bar.
+  const [result, health] = onFirst
+    ? await work()
+    : await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: l10n("releaseBoard.scanning") }, work);
   const safety = checkScan(accepted, result.snapshot);
-  if (safety.clean) {
+  const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health };
+  if (onFirst && result.pending.length > 0) {
+    onFirst(run);
+    await completeFacts(cfg, source, result);
+  }
+  const baselineChanged = !accepted || snapshotFingerprint(accepted) !== snapshotFingerprint(result.snapshot) || result.stats.headReads + result.stats.factReads > 0;
+  if (safety.clean && baselineChanged) {
     await writeAccepted(dir, result.snapshot);
   }
-  const health = boardStore ? await collectHealth(context, boardStore, cfg) : {};
-  return { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health };
+  // The stored last result also holds the health marks and the accepted state.
+  if (baselineChanged || snapshotFingerprint(result.snapshot, health) !== lastFingerprint) {
+    lastFingerprint = snapshotFingerprint(result.snapshot, health);
+    await writeLast(dir, run).catch(() => undefined);
+  }
+  out().appendLine(`Release Board scan: ${result.stats.files} files, ${result.stats.headReads} heads and ${result.stats.factReads} documents read, ${result.stats.ms} ms`);
+  return run;
 }
 
 // Stores the scan as the baseline. Refused (false) when the stored baseline is no longer
@@ -215,6 +291,7 @@ export async function acceptBoardRun(run: BoardRun): Promise<boolean> {
   }
   await writeAccepted(run.dir, run.result.snapshot);
   run.accepted = true;
+  await writeLast(run.dir, run).catch(() => undefined);
   return true;
 }
 
@@ -307,6 +384,13 @@ async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
 
 // The shortcut store, for resolving the shortcuts a project names as its test and lint runs.
 let boardStore: ShortcutStore | undefined;
+
+// True when a project lives outside the open workspace folders, where no file watcher sees
+// changes: the board then rescans on every open.
+export function hasOutsideProject(cfg: BoardConfig): boolean {
+  const roots = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.toString());
+  return cfg.projects.some((p) => !roots.some((r) => p.path === r || p.path.startsWith(r + "/")));
+}
 
 export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
   boardStore = store;

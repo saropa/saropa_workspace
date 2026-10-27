@@ -1,9 +1,9 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { onDidRecordHealth } from "../commands/boardHealth";
-import { BoardRun, acceptBoardRun, openRulesFile, runBoardScan } from "../commands/releaseBoardCommands";
+import { BoardRun, acceptBoardRun, hasOutsideProject, openRulesFile, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
-import { BoardStrings, escapeHtml, renderBoard } from "../board/boardHtml";
+import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
@@ -52,6 +52,8 @@ function strings(): BoardStrings {
     pinned: l10n("releaseBoard.panel.pinned"),
     needsRuleHeading: l10n("releaseBoard.panel.needsRuleHeading"),
     needsRuleNote: l10n("releaseBoard.panel.needsRuleNote"),
+    loading: l10n("releaseBoard.panel.loading"),
+    refreshing: l10n("releaseBoard.panel.refreshing"),
   };
 }
 
@@ -64,8 +66,17 @@ class BoardPanel {
   private run: BoardRun | undefined;
   // Bumped on every render; messages from an older page are ignored.
   private rev = 0;
-  // Each refresh takes a number; a scan that finishes after a newer one started is dropped.
-  private scanSeq = 0;
+  // Overlapping triggers (a setting change, a file save, a Refresh click) share one scan:
+  // while one runs, a new request only asks for one more pass afterwards.
+  private scanning = false;
+  private again = false;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  // A document changed since the last scan; reopening or showing the tab then rescans.
+  private dirty = true;
+  // What is on screen is the stored last result, not a fresh scan.
+  private cached = false;
+  private lastScanAt = 0;
+  private lastKey = "";
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -73,48 +84,122 @@ class BoardPanel {
     private readonly panel: vscode.WebviewPanel
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
-    onDidRecordHealth(() => void this.refresh(true), null, this.disposables);
-    vscode.workspace.onDidChangeWorkspaceFolders(() => void this.refresh(true), null, this.disposables);
+    onDidRecordHealth(() => this.schedule(300), null, this.disposables);
+    vscode.workspace.onDidChangeWorkspaceFolders(() => this.schedule(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
-      (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && void this.refresh(true),
+      (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && this.schedule(300),
       null,
       this.disposables
     );
+    // Documents change on disk: rescan while the tab is showing, else only remember it.
+    const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board.json");
+    const watcher = vscode.workspace.createFileSystemWatcher("**/*.{md,sql}");
+    rules.onDidChange(() => this.schedule(300), null, this.disposables);
+    rules.onDidCreate(() => this.schedule(300), null, this.disposables);
+    rules.onDidDelete(() => this.schedule(300), null, this.disposables);
+    this.disposables.push(rules);
+    const changed = (uri: vscode.Uri): void => {
+      if (/[\\/](?:node_modules|\.git)[\\/]/.test(uri.path)) {
+        return;
+      }
+      this.dirty = true;
+      if (this.panel.visible) {
+        this.schedule(1500);
+      }
+    };
+    watcher.onDidChange(changed, null, this.disposables);
+    watcher.onDidCreate(changed, null, this.disposables);
+    watcher.onDidDelete(changed, null, this.disposables);
+    this.disposables.push(watcher);
+    panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
     panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
+    // Something is on screen at once: placeholders, then the last result, then the scan.
+    panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
   }
 
   reveal(): void {
     this.panel.reveal();
   }
 
-  async refresh(quiet = false): Promise<void> {
-    try {
-      const seq = ++this.scanSeq;
-      const run = await runBoardScan(this.context, quiet);
-      if (seq !== this.scanSeq) {
-        return;
-      }
-      this.run = run;
-      if (!this.run) {
-        this.model = undefined;
-        this.rev += 1;
-        this.panel.webview.html = emptyPage(l10n("releaseBoard.disabled"));
-        return;
-      }
-      this.render();
-    } catch (e) {
-      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+  // Rescan when something changed or the result is old; otherwise just show it.
+  needsRefresh(): boolean {
+    return this.dirty || (this.run !== undefined && hasOutsideProject(this.run.cfg)) || Date.now() - this.lastScanAt > 60 * 1000;
+  }
+
+  private schedule(ms: number): void {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => void this.refresh(true), ms);
+  }
+
+  // Paints the previous result at once, dimmed, while the scan runs.
+  async showCached(): Promise<void> {
+    const last = await readLastRun(this.context).catch(() => undefined);
+    if (last && !this.run) {
+      this.run = last;
+      this.cached = true;
+      this.render({ stale: true });
     }
   }
 
-  private render(): void {
+  async refresh(quiet = false): Promise<void> {
+    if (this.scanning) {
+      this.again = true;
+      return;
+    }
+    this.scanning = true;
+    try {
+      do {
+        this.again = false;
+        this.dirty = false;
+        await this.scanOnce(quiet);
+      } while (this.again);
+    } catch (e) {
+      // Whatever half-finished state is on screen is settled, and the next open rescans.
+      this.dirty = true;
+      this.lastKey = "";
+      this.render(this.cached ? { stale: true } : {});
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.scanning = false;
+      void this.panel.webview.postMessage({ type: "busy", on: false });
+    }
+  }
+
+  private async scanOnce(quiet: boolean): Promise<void> {
+    void this.panel.webview.postMessage({ type: "busy", on: true });
+    const run = await runBoardScan(this.context, quiet, (first) => {
+      // Documents are sorted; their text is still being read for marks and severity.
+      this.run = first;
+      this.cached = false;
+      this.render({ loading: true });
+    });
+    this.run = run;
+    this.cached = false;
+    this.lastScanAt = Date.now();
+    if (!run) {
+      this.model = undefined;
+      this.rev += 1;
+      this.lastKey = "";
+      this.panel.webview.html = emptyPage(l10n("releaseBoard.disabled"));
+      return;
+    }
+    this.render();
+  }
+
+  private render(state: RenderState = {}): void {
     if (!this.run) {
       return;
     }
     this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted, this.run.result.snapshot, this.run.previous, this.run.health);
+    // The same board in the same state is not painted again: no flicker, no lost scroll.
+    const key = JSON.stringify([this.model, state]);
+    if (key === this.lastKey) {
+      return;
+    }
+    this.lastKey = key;
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
-    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev);
+    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state);
   }
 
   private async onMessage(message: unknown): Promise<void> {
@@ -126,14 +211,16 @@ class BoardPanel {
       return;
     }
     if (msg.type === "refresh") {
+      this.dirty = true;
       await this.refresh();
     } else if (msg.type === "profile" && (msg.value === "rush" || msg.value === "deliberate" || msg.value === "zero")) {
       // The setting change refreshes the board through the configuration listener.
       await vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").update("profile", msg.value, vscode.ConfigurationTarget.Workspace);
     } else if (msg.type === "rules") {
       await openRulesFile();
-    } else if (msg.type === "accept" && this.run && (this.model?.baseline || this.model?.safetyHold)) {
+    } else if (msg.type === "accept" && this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold)) {
       if (await acceptBoardRun(this.run)) {
+        this.lastKey = "";
         this.render();
       } else {
         void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
@@ -155,6 +242,7 @@ class BoardPanel {
 
   private dispose(): void {
     current = undefined;
+    clearTimeout(this.timer);
     this.panel.dispose();
     for (const d of this.disposables) {
       d.dispose();
@@ -165,7 +253,9 @@ class BoardPanel {
 export async function openBoard(context: vscode.ExtensionContext): Promise<void> {
   if (current) {
     current.reveal();
-    await current.refresh();
+    if (current.needsRefresh()) {
+      await current.refresh();
+    }
     return;
   }
   const panel = vscode.window.createWebviewPanel(
@@ -175,5 +265,6 @@ export async function openBoard(context: vscode.ExtensionContext): Promise<void>
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
   current = new BoardPanel(context, panel);
+  await current.showCached();
   await current.refresh();
 }
