@@ -1,6 +1,6 @@
 import { DocFacts, sizeClass, stepTotals } from "./docFacts";
 import { globToRegExp } from "./glob";
-import { Audience, Profile, Severity, stops } from "./severity";
+import { Audience, Profile, Severity, asProfile, stops } from "./severity";
 import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
 import { Link, LinkState, buildChains, resolveLinks } from "./links";
@@ -161,8 +161,8 @@ export function buildBoard(
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
-  const profile: Profile = cfg.profile ?? "deliberate";
-  const pins = (cfg.pinned ?? []).map(globToRegExp);
+  const profile: Profile = asProfile(cfg.profile);
+  const pins = (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp);
   const names = new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id]));
   const defs: ProjectDef[] = [...cfg.projects].sort(
     (a, b) => (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1)
@@ -171,6 +171,7 @@ export function buildBoard(
     const counts = emptyCounts();
     const items: BoardItem[] = [];
     let blocked = 0;
+    let blockedStop = 0;
     for (const r of rows) {
       if (r.project !== def.id) {
         continue;
@@ -179,12 +180,17 @@ export function buildBoard(
       if (!OPEN.has(r.status)) {
         continue;
       }
-      if (r.status === "amber" && r.note === "blocked") {
-        blocked += 1;
-        continue;
-      }
       const facts = snapshot?.projects[def.id]?.facts[r.path]?.facts;
       const pinned = pins.some((re) => re.test(def.id + "/" + r.path));
+      if (r.status === "amber" && r.note === "blocked" && !pinned) {
+        // A waiting document is collapsed into one mark, but one that would stop a
+        // release under the profile still counts toward NO-GO.
+        blocked += 1;
+        if (facts !== undefined && stops(profile, facts.severity)) {
+          blockedStop += 1;
+        }
+        continue;
+      }
       items.push({
         id: -1,
         project: def.id,
@@ -224,7 +230,7 @@ export function buildBoard(
       id: def.id,
       name: def.name ?? def.id,
       // A scan held by the safety check must never hide red work the accepted scan had.
-      light: counts.red > 0 || items.some((i) => i.stopping) || (!accepted && (previous?.projects[def.id]?.counts.red ?? 0) > 0) ? "no-go" : "unverified",
+      light: counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0 || (!accepted && (previous?.projects[def.id]?.counts.red ?? 0) > 0) ? "no-go" : "unverified",
       reasons,
       items,
       blocked,

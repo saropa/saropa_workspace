@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreDocument, stops } from "../../board/severity";
+import { asProfile, mergeDict, scoreDocument, stops } from "../../board/severity";
 import { buildBoard } from "../../board/boardModel";
 import { BoardConfig, Classified, emptyCounts } from "../../board/types";
 import { readFacts } from "../../board/docFacts";
@@ -65,4 +65,28 @@ test("a pinned document stops a release in every profile and sorts first; grey f
   assert.equal(m.projects[0].light, "no-go");
   assert.equal(m.items[0].path, "docs/B.md");
   assert.deepEqual(m.needsRule, [{ project: "app", folder: "docs/x", count: 2 }]);
+});
+
+test("phrases start at a word boundary and negation words stand alone", () => {
+  assert.equal(scoreDocument("# Generating reports\n", "docs/PLAN_generating_reports.md").severity, "medium");
+  assert.equal(scoreDocument("# Casino payment fix\n", "docs/x.md").severity, "extreme");
+  assert.equal(scoreDocument("# No payment change\n", "docs/x.md").severity, "medium");
+});
+
+test("a partial dictionary override keeps the other defaults", () => {
+  const d = mergeDict({ weights: { title: 5 } } as never);
+  assert.equal(d.weights.head, 2);
+  assert.equal(scoreDocument("# Refund\n", "docs/x.md", d).severity, "extreme");
+});
+
+test("an invalid profile falls back to deliberate; rush stops critical; waiting documents count", () => {
+  assert.equal(asProfile("Rush"), "deliberate");
+  assert.equal(stops("nonsense" as never, "high"), true);
+  const rows = [{ project: "app", path: "docs/W.md", status: "amber" as const, kind: "", note: "blocked" }];
+  const s = snap({ "docs/W.md": "# Data loss on sync\n" });
+  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, s).projects[0].light, "no-go");
+  const low = snap({ "docs/W.md": "# Colour tweak\n" });
+  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, low).projects[0].light, "unverified");
+  const red: Classified[] = [{ project: "app", path: "bugs/R.md", status: "red", kind: "", note: "" }];
+  assert.equal(buildBoard(cfg("rush"), red, undefined, true, low).projects[0].light, "no-go");
 });

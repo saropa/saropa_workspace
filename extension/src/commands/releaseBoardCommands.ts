@@ -4,7 +4,7 @@ import defaultRules from "../board/defaultRules.json";
 import { FileSource, ScanResult, ScanSnapshot, scanAll } from "../board/scanner";
 import { SafetyResult, checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
-import { Profile } from "../board/severity";
+import { Profile, asProfile } from "../board/severity";
 import { globToRegExp } from "../board/glob";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
@@ -97,9 +97,7 @@ async function loadConfig(): Promise<BoardConfig> {
   // A profile chosen in settings wins over the rules file.
   const setting = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").inspect<Profile>("profile");
   const chosen = setting?.workspaceFolderValue ?? setting?.workspaceValue ?? setting?.globalValue;
-  if (chosen) {
-    cfg = { ...cfg, profile: chosen };
-  }
+  cfg = { ...cfg, profile: asProfile(chosen ?? cfg.profile) };
   if (cfg.projects.length > 0) {
     const base = folders[0].uri;
     const projects = cfg.projects.map((p) => ({
@@ -294,7 +292,7 @@ async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
     return;
   }
   const re = globToRegExp(glob);
-  const hits = run.result.rows.filter((r) => re.test(r.path));
+  const hits = run.result.rows.filter((r) => re.test(r.path) || re.test(r.project + "/" + r.path));
   void vscode.window.showInformationMessage(
     hits.length === 0
       ? l10n("releaseBoard.previewNone", { glob })
