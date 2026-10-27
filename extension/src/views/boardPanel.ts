@@ -6,7 +6,7 @@ import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
-import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
+import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
@@ -16,13 +16,14 @@ import { busyReason } from "./boardBusy";
 import { openKeywordEditor } from "./keywordEditorPanel";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
+import { setStartup } from "./boardStartup";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "assign <index>", "preview <index>", "keywords" and "keywordsRestore", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "assign <index>", "preview <index>", "keywords" and "keywordsRestore", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -105,8 +106,10 @@ class BoardPanel extends BoardPanelWiring {
       await this.optsMenu(message.act);
     } else if (message.type === "keywords" || message.type === "keywordsRestore") {
       await this.keywords(message.type === "keywordsRestore");
+    } else if (message.type === "startup") {
+      await this.startup(message.value);
     } else if (message.type === "rules") {
-      await openRulesFile();
+      await openRulesFile(undefined, documentColumn());
     } else if (message.type === "accept") {
       await this.accept();
     } else if (message.type === "open" && typeof message.id === "number") {
@@ -124,6 +127,21 @@ class BoardPanel extends BoardPanelWiring {
       await openBoardSettings();
     } else {
       await this.dismissHint();
+    }
+  }
+
+  // The start-up checkbox: the page sent a boolean. On success the setting change repaints the
+  // board; only a refused value or a failed write paints it again, to put the box back.
+  private async startup(value: unknown): Promise<void> {
+    let ok = false;
+    try {
+      ok = await setStartup(this.context, value);
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    }
+    if (!ok) {
+      this.lastKey = "";
+      this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
     }
   }
 
@@ -217,7 +235,7 @@ class BoardPanel extends BoardPanelWiring {
     const project = this.run?.cfg.projects.find((p) => p.id === u?.project);
     if (u && project && !this.scanning && !this.cached) {
       try {
-        if (await startBugDocument(vscode.Uri.parse(project.path), u, this.liveDays)) {
+        if (await startBugDocument(vscode.Uri.parse(project.path), u, this.liveDays, documentColumn())) {
           this.dirty = true;
           await this.refresh(true);
         }
@@ -295,7 +313,7 @@ class BoardPanel extends BoardPanelWiring {
     } else if (act === "hand") {
       await handToChat(this.model, this.paths, run, { k: "item", i: id });
     } else if (act === "rules") {
-      await openRulesFile({ project: item.project, folder });
+      await openRulesFile({ project: item.project, folder }, documentColumn());
     } else if (act === "status" || act === "assign" || act === "severity" || act === "auto") {
       const busy = this.busyReason();
       if (busy) {
@@ -327,7 +345,7 @@ class BoardPanel extends BoardPanelWiring {
   // An entry of the board options menu.
   private async optsMenu(act: string): Promise<void> {
     if (act === "rules") {
-      await openRulesFile();
+      await openRulesFile(undefined, documentColumn());
     } else if (act === "keywords") {
       await this.keywords(false);
     } else if (act === "projects" || act === "settings") {
@@ -448,7 +466,7 @@ class BoardPanel extends BoardPanelWiring {
         this.starting.delete(flight);
       }
     } else if (step.kind === "rules") {
-      await openRulesFile({ project: def.id, folder: step.folder ?? "" });
+      await openRulesFile({ project: def.id, folder: step.folder ?? "" }, documentColumn());
     } else if (step.kind === "accept") {
       await this.reviewAndAccept();
     }
@@ -517,7 +535,11 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
   };
   remember();
   panel.onDidChangeViewState(remember);
-  panel.onDidDispose(() => void context.workspaceState.update(PLACEMENT_KEY, lastColumn));
+  setBoardColumnSource(() => panel.viewColumn);
+  panel.onDidDispose(() => {
+    setBoardColumnSource(() => undefined);
+    void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
+  });
   current = new BoardPanel(context, panel);
   const fresh = background ? currentBoard() : undefined;
   if (fresh) {

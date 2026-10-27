@@ -213,8 +213,8 @@ function pages(): Array<[string, string]> {
   const since = { heading: "Since you last looked", lines: [{ text: "App: 1 new blocker", details: ["+ Crash on start"] }] };
   const empty = buildBoard({ ...cfg, severity: undefined }, [], undefined, true);
   return [
-    ["full", renderBoard(m, t, "n", 1, {}, paths, since, [train], future(true))],
-    ["stale", renderBoard(m, t, "n", 1, { stale: true }, paths, undefined, [train], future(false))],
+    ["full", renderBoard(m, t, "n", 1, { startup: true }, paths, since, [train], future(true))],
+    ["stale", renderBoard(m, t, "n", 1, { stale: true, startup: false }, paths, undefined, [train], future(false))],
     ["loading", renderBoard(m, t, "n", 1, { loading: true }, paths)],
     ["empty", renderBoard(empty, t, "n", 1)],
     ["skeleton", renderSkeleton(t, "n")],

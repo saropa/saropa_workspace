@@ -339,6 +339,7 @@
   "config.releaseBoard.placement.description": "Where the Release Board tab opens. It is one tab: opening it again shows the existing tab where it is, and it remembers the group you moved it to for this workspace.",
   "config.releaseBoard.placement.beside": "Open it in its own editor group beside your files.",
   "config.releaseBoard.placement.sameGroup": "Open it in the same editor group as the active file.",
+  "config.releaseBoard.openBeside.description": "Open documents from the Release Board in another editor group so they sit side by side with the board. Uses an existing other group, or opens one beside. Has no effect when the board is set to open in the same group as the active file.",
   "config.releaseBoard.statusBar.showLight.description": "Tint the Release Board status bar button with the worst light of all projects (red for NO-GO, amber for UNVERIFIED, green for GO) and name it in the tooltip.",
   "viewsWelcome.releaseBoard.failed": "The scan failed, so there is nothing to show yet. Check the Saropa Release Board output.\n[Retry](command:saropaWorkspace.releaseBoard.sidebar.refresh)\n[Open the rules file](command:saropaWorkspace.releaseBoard.openRules)",
   "config.releaseBoard.liveEvidence.enabled.description": "Show a small flame on a Release Board row when the source files that document names have errors or warnings (from the Problems panel, the Saropa Lints file and, when installed, Log Capture). The mark is information only: it never changes a light.",
