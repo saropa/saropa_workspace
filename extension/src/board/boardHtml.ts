@@ -1,4 +1,5 @@
 import { BoardItem, ItemMarks, BoardModel, BoardProject, UnverifiedReason } from "./boardModel";
+import { PathStep, PathToGo } from "./pathToGo";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
 // as a table so the core stays free of VS Code and of the l10n catalog, and the page can
@@ -50,6 +51,28 @@ export interface BoardStrings {
   refreshing: string;
   // "{count}" Claude sessions touched this document.
   chatsTitle: string;
+  // Path to GO. "{title}", "{count}", "{folder}", "{severity}" are filled in by the page.
+  ptgNone: string;
+  ptgItemRed: string;
+  ptgItemPinned: string;
+  ptgItemSeverity: string;
+  ptgUnblocks: string;
+  ptgWaiter: string;
+  ptgBlocked: string;
+  ptgLintMissing: string;
+  ptgLintFailing: string;
+  ptgTestsMissing: string;
+  ptgTestsFailing: string;
+  ptgRules: string;
+  ptgRulesAny: string;
+  ptgUnread: string;
+  ptgAccept: string;
+  ptgMore: string;
+  ptgOpen: string;
+  ptgRunLint: string;
+  ptgRunTests: string;
+  ptgOpenRules: string;
+  ptgAcceptBtn: string;
 }
 
 const LIST_CAP = 30;
@@ -82,7 +105,7 @@ function healthMarks(p: BoardProject, t: BoardStrings): string {
   return `<span class="marks">${one(t.healthLint, p.health.lint, p.health.lintDetail)}${one(t.healthTests, p.health.tests, p.health.testsDetail)}</span>`;
 }
 
-function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>): string {
+function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
   const why = p.light !== "unverified" ? "" : p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
   const squares = p.items
@@ -92,7 +115,7 @@ function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>):
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<span class="link ${waiting ? "wait" : "ok"}" title="${escapeHtml(t.dependsOn)} ${escapeHtml(p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", "))}"></span>` : "";
-  return `<div class="vd"><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}<span class="bar">${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""}><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}<span class="bar">${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
 }
 
 // The small marks on a row: a progress ring, size bars, a code letter and one dot per
@@ -160,6 +183,53 @@ function list(title: string, items: BoardItem[], names: Map<string, string>, t: 
   return `<section class="box"><h2 title="${items.length}">${escapeHtml(title)}</h2>${body}</section>`;
 }
 
+// Fills {name} placeholders after escaping, so a document title can never add markup.
+function fill(tmpl: string, vars: Record<string, string | number | undefined>): string {
+  return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] === undefined ? m : escapeHtml(String(vars[k]))));
+}
+
+function stepText(s: PathStep, t: BoardStrings): string {
+  switch (s.kind) {
+    case "item": {
+      const base = s.why === "red" ? t.ptgItemRed : s.why === "pinned" ? t.ptgItemPinned : t.ptgItemSeverity;
+      const unblocks = s.unblocks ? " " + fill(t.ptgUnblocks, { count: s.unblocks }) : "";
+      const waiter = s.waiter ? " " + fill(t.ptgWaiter, { title: s.waiter }) : "";
+      return fill(base, { title: s.title, severity: s.severity ?? "" }) + unblocks + waiter;
+    }
+    case "blocked":
+      return fill(t.ptgBlocked, { count: s.count });
+    case "lint":
+      return fill(s.evidence === "failing" ? t.ptgLintFailing : t.ptgLintMissing, {});
+    case "tests":
+      return fill(s.evidence === "failing" ? t.ptgTestsFailing : t.ptgTestsMissing, {});
+    case "rules":
+      return s.folder === undefined ? fill(t.ptgRulesAny, { count: s.count }) : fill(t.ptgRules, { count: s.count, folder: s.folder || "/" });
+    case "unread":
+      return fill(t.ptgUnread, { count: s.count });
+    case "accept":
+      return fill(t.ptgAccept, {});
+  }
+}
+
+// The button of a step, or nothing when the step has no action the board can take. The page
+// sends only the project and step index; the host resolves them.
+function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct: boolean): string {
+  const label =
+    s.kind === "item" ? t.ptgOpen : s.kind === "rules" ? t.ptgOpenRules : s.kind === "accept" ? (canAct ? t.ptgAcceptBtn : "") : (s.kind === "lint" || s.kind === "tests") && s.run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
+  return label ? `<button class="ptgb" data-p="${pi}" data-s="${si}">${escapeHtml(label)}</button>` : "";
+}
+
+// One project's steps, hidden until its row is clicked. A step that is no longer listed is
+// shown ticked by the page script, for a few minutes.
+function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: boolean): string {
+  const items = path.steps
+    .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}</li>`)
+    .join("");
+  const more = path.hidden > 0 ? `<li class="note" data-more="1">${fill(t.ptgMore, { count: path.hidden })}</li>` : "";
+  const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";
+  return `<ol class="ptg" hidden data-all="${escapeHtml(JSON.stringify(path.allKeys))}">${none}${items}${more}</ol>`;
+}
+
 const STYLE = `
 :root{--bg:var(--vscode-editor-background,#16191d);--fg:var(--vscode-editor-foreground,#d6dbe1);--mute:var(--vscode-descriptionForeground,#8b949e);--line:var(--vscode-panel-border,#2b3138);--panel:var(--vscode-sideBar-background,#1c2026);--red:#e5484d;--amber:#d9a441;--purple:#a78bfa;--blue:#5aa0ff;--green:#3fb27f}
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:13px/1.45 var(--vscode-font-family,system-ui,sans-serif)}
@@ -188,6 +258,7 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .sev{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid var(--mute);display:inline-block}.sev.s-extreme,.sev.s-critical{border-bottom-color:var(--red)}.sev.s-high{border-bottom-color:var(--amber)}.sev.s-low{opacity:.5}.sev.stop{filter:drop-shadow(0 0 2px var(--red))}
 .pin{width:8px;height:8px;border-radius:50%;border:2px solid var(--red);display:inline-block}.seg{display:inline-flex}.seg button{border-radius:0}.seg button.on{background:var(--vscode-button-background,#0e639c);color:var(--vscode-button-foreground,#fff)}
 .code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
+.ptgrow{cursor:pointer}.ptgrow:focus{outline:1px solid var(--blue)}.ptg{margin:0 0 6px;padding:6px 12px 6px 34px;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;background:var(--panel)}.ptg li{margin:4px 0}.ptg .st{margin-right:8px}.ptg li.done .st{text-decoration:line-through;color:var(--mute)}.ptg li.done::before{content:"\\2713 ";color:var(--green)}.ptg li.note{list-style:none;margin-left:-18px}.ptgb{margin-right:4px}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
 // The page shown at once, before any result exists: grey placeholder rows that shimmer.
@@ -208,6 +279,16 @@ document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessag
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
 document.querySelectorAll('.ext').forEach(r=>{const go=()=>vscode.postMessage({type:'external',g:Number(r.dataset.g),i:Number(r.dataset.i),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+const ST=(vscode.getState()||{});const OPEN=new Set(ST.open||[]);const SEEN=ST.seen||{};const NOW=Date.now();
+document.querySelectorAll('.pj').forEach(pj=>{const pid=pj.dataset.pid,row=pj.querySelector('.ptgrow'),ol=pj.querySelector('.ptg');
+const set=on=>{ol.hidden=!on;row.setAttribute('aria-expanded',on?'true':'false');if(on){OPEN.add(pid);}else{OPEN.delete(pid);}vscode.setState({open:[...OPEN],seen:SEEN});};
+let all=[];try{all=JSON.parse(ol.dataset.all||'[]');}catch(e){}
+const cur=[...ol.querySelectorAll('li[data-k]')].map(l=>({k:l.dataset.k,t:l.querySelector('.st').textContent}));
+const done=(SEEN[pid]||[]).filter(d=>!all.includes(d.k)&&NOW-(d.at||NOW)<600000).slice(0,10).map(d=>({k:d.k,t:d.t,at:d.at||NOW}));
+[...done].reverse().forEach(d=>{const li=document.createElement('li');li.className='done';const sp=document.createElement('span');sp.className='st';sp.textContent=d.t;li.appendChild(sp);ol.insertBefore(li,ol.firstChild);});
+SEEN[pid]=[...cur,...done];set(OPEN.has(pid));
+const tog=()=>set(ol.hidden);row.addEventListener('click',tog);row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tog();}});});
+document.querySelectorAll('.ptgb').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'path',p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV})));
 document.querySelectorAll('.row,.click:not(.rulefix):not(.ext)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
 
 function profilePicker(model: BoardModel, t: BoardStrings): string {
@@ -257,6 +338,13 @@ function chains(model: BoardModel, t: BoardStrings): string {
   return `<details class="box"><summary><i class="link open" aria-label="${escapeHtml(t.linkedHeading)}" title="${escapeHtml(t.linkedHeading)}"></i></summary>${head}${flags}${suggest}</details>`;
 }
 
+function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean): string {
+  if (!path) {
+    return verdict(p, t, lights);
+  }
+  return `<div class="pj" data-pid="${escapeHtml(p.id)}">${verdict(p, t, lights, true)}${pathList(path, t, i, canAct)}</div>`;
+}
+
 // Page state while a scan is running: `stale` is the previous result shown again, `loading`
 // means the documents are sorted but their text is still being read.
 export interface RenderState {
@@ -264,7 +352,9 @@ export interface RenderState {
   loading?: boolean;
 }
 
-export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}): string {
+// `paths` holds one Path to GO per project, in the order of model.projects; leave it out to
+// show no paths.
+export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[]): string {
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
   const lights = new Map<string, string>();
   for (const p of model.projects) {
@@ -286,7 +376,7 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}</div>
 <p class="note">${escapeHtml(t.intro)}</p>${banner}
-${model.projects.map((p) => verdict(p, t, lights)).join("")}
+${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading))).join("")}
 ${list(t.resolveNow, by("red"), names, t)}
 ${list(t.inProgress, by("purple"), names, t)}
 ${list(t.workOn, by("amber"), names, t)}
