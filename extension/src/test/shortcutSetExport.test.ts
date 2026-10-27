@@ -49,7 +49,7 @@ beforeEach(() => {
   origSave = win.showSaveDialog;
   win.showInformationMessage = (m: string): Promise<undefined> => (info.push(m), Promise.resolve(undefined));
   win.showWarningMessage = (m: string): Promise<undefined> => (warn.push(m), Promise.resolve(undefined));
-  win.showSaveDialog = async (): Promise<unknown> => Object.assign(Uri.file(exportFile), { path: exportFile });
+  win.showSaveDialog = async (): Promise<unknown> => Uri.file(exportFile);
   pickScope("all");
   __setOpenDialogHandler(async () => [Uri.file(exportFile)]);
 });

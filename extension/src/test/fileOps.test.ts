@@ -54,8 +54,6 @@ beforeEach(() => {
   executed = [];
   warnAnswer = undefined;
   infoAnswer = undefined;
-  // The stub Uri carries no `.path`; mirror fsPath like the real POSIX one.
-  Object.defineProperty(Uri.prototype, "path", { get(this: Uri) { return this.fsPath; }, configurable: true });
   for (const [obj, name] of [[win, "showInformationMessage"], [win, "showWarningMessage"], [win, "showTextDocument"], [fsApi, "copy"], [fsApi, "rename"], [fsApi, "delete"], [cmds, "executeCommand"]] as const) {
     saved[name] = obj[name];
   }
@@ -69,7 +67,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete (Uri.prototype as unknown as Record<string, unknown>).path;
   win.showInformationMessage = saved.showInformationMessage;
   win.showWarningMessage = saved.showWarningMessage;
   win.showTextDocument = saved.showTextDocument;

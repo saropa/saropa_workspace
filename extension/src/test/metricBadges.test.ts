@@ -51,10 +51,8 @@ afterEach(() => {
   delete ws.createFileSystemWatcher;
 });
 
-// The stub Uri lacks `.path`, which the registry reads.
 function uriOf(file: string): vscode.Uri {
-  const u = vscode.Uri.file(file);
-  return Object.assign(u, { path: file });
+  return vscode.Uri.file(file);
 }
 
 function target(file: string, metric: MetricTarget["metric"], pinId = `m${++n}`): MetricTarget {
