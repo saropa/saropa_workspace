@@ -39,6 +39,17 @@ export interface RenderState {
   hint?: boolean;
 }
 
+// The line that says how many severities the user set by hand, and how many of those were lowered
+// below a level that stops the release, so a lowered severity is never hidden.
+export function byUserNote(model: BoardModel, t: BoardStrings): string {
+  const b = model.byUser;
+  if (!b) {
+    return "";
+  }
+  const text = pl(t, b.lowered > 0 ? "byUserLowered" : "byUserNote", { count: b.count, lowered: b.lowered });
+  return `<p class="note byuser" role="status" title="${escapeHtml(pl(t, "byUserTip"))}">${pillify(t, escapeHtml(text))}</p>`;
+}
+
 // The In progress list: documents being edited in this window first, then documents marked in
 // progress, cut at the limit with the rest counted. Without the feature it is every purple item.
 function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardStrings, single: boolean): string {
@@ -77,7 +88,7 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
 <div class="top"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1><button id="refresh" class="sec" ${tip(t, "refresh")}>${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${projectsButtons(t)}${kebab(t, "opts")}</div>
 ${hintBar(state.hint, t)}
 ${futureTabs(future, t)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}"><p class="note">${escapeHtml(t.intro)}</p>${banner}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}"><p class="note">${escapeHtml(t.intro)}</p>${byUserNote(model, t)}${banner}
 ${sinceBox(since, t)}
 ${state.stale || state.loading ? "" : tidyBox(model, t)}
 ${sittingsBox(model, t)}

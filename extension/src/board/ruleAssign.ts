@@ -1,3 +1,4 @@
+import { Severity } from "./severity";
 import { BoardConfig, BoardStatus, Rule } from "./types";
 
 // Assigning a category to a folder of documents no rule placed: which categories the
@@ -84,7 +85,7 @@ export function folderGlob(folder: string): string | undefined {
 }
 
 // Why a rule could not be added.
-export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy";
+export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy" | "none";
 
 export type AssignResult = { ok: true; text: string; id: string; glob: string } | { ok: false; reason: AssignRefusal };
 
@@ -142,8 +143,10 @@ export function addDocRule(text: string | undefined, a: { project: string; path:
   return glob === undefined ? { ok: false, reason: "glob" } : addRule(text, { project: a.project, glob, idBase: `status-${slug(a.path)}`, set: OVERRIDE_RULE_SET, front: true, category: a.category });
 }
 
-function addRule(text: string | undefined, a: RuleSpec): AssignResult {
-  const { glob } = a;
+// A rules file text read for an edit: the parsed object, and whether the file was blank.
+type Parsed = { ok: true; doc: Record<string, unknown>; blank: boolean; source: string } | { ok: false; reason: AssignRefusal };
+
+function parseForEdit(text: string | undefined): Parsed {
   const blank = text === undefined || text.trim() === "";
   let doc: unknown;
   if (blank) {
@@ -162,6 +165,26 @@ function addRule(text: string | undefined, a: RuleSpec): AssignResult {
   if (!isObject(doc)) {
     return { ok: false, reason: "shape" };
   }
+  return { ok: true, doc, blank, source: blank ? "" : (text as string) };
+}
+
+// The edited object as file text: the indent and line ends of the source are kept.
+function serialize(p: { doc: Record<string, unknown>; blank: boolean; source: string }): string {
+  const eol = p.source.includes("\r\n") ? "\r\n" : "\n";
+  let out = JSON.stringify(p.doc, null, p.blank ? "  " : indentOf(p.source));
+  if (eol === "\r\n") {
+    out = out.replace(/\n/g, eol);
+  }
+  return out + (p.blank || /\n$/.test(p.source) ? eol : "");
+}
+
+function addRule(text: string | undefined, a: RuleSpec): AssignResult {
+  const { glob } = a;
+  const parsed = parseForEdit(text);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const doc = parsed.doc;
   const target = ruleListOf(doc, a.project, a.set);
   if (!target) {
     return { ok: false, reason: "shape" };
@@ -188,13 +211,7 @@ function addRule(text: string | undefined, a: RuleSpec): AssignResult {
   } else {
     target.rules.push(rule);
   }
-  const source = blank ? "" : (text as string);
-  const eol = source.includes("\r\n") ? "\r\n" : "\n";
-  let out = JSON.stringify(doc, null, blank ? "  " : indentOf(source));
-  if (eol === "\r\n") {
-    out = out.replace(/\n/g, eol);
-  }
-  return { ok: true, text: out + (blank || /\n$/.test(source) ? eol : ""), id, glob };
+  return { ok: true, text: serialize(parsed), id, glob };
 }
 
 // The rules array a new rule goes into, created when absent; undefined when the file holds
@@ -300,4 +317,111 @@ export function losesData(text: string): boolean {
     }
   }
   return false;
+}
+
+// The levels a document's severity can be set to by hand, most severe first.
+export const SEVERITY_LEVELS: readonly Severity[] = ["extreme", "critical", "high", "medium", "low"];
+
+// The key of the rules file that holds severities chosen for single documents.
+export const SEVERITY_KEY = "severityOverrides";
+
+// A severity chosen by hand for one document of one project. The path is exact, never a glob.
+export interface SeverityOverride {
+  project: string;
+  path: string;
+  severity: Severity;
+}
+
+// The key of a document in the lookup maps: project, "/", path.
+export const overrideKey = (project: string, path: string): string => `${project}/${path}`;
+
+// The severities chosen by hand, from a rules file's parsed content. An entry of the wrong shape,
+// with an unknown level or with a wildcard in its path is ignored; the first entry of a document wins.
+export function severityOverrides(cfg: { severityOverrides?: unknown }): Map<string, Severity> {
+  const out = new Map<string, Severity>();
+  const list = cfg.severityOverrides;
+  for (const e of Array.isArray(list) ? list : []) {
+    if (!isObject(e) || typeof e.project !== "string" || typeof e.path !== "string" || docGlob(e.path) === undefined) {
+      continue;
+    }
+    const level = SEVERITY_LEVELS.find((l) => l === e.severity);
+    const key = overrideKey(e.project, e.path);
+    if (level && !out.has(key)) {
+      out.set(key, level);
+    }
+  }
+  return out;
+}
+
+export type SeverityResult = { ok: true; text: string } | { ok: false; reason: AssignRefusal };
+
+// Sets the severity of one document, or (severity undefined) takes the entry away so the
+// computed one applies again. Same refusals as a rule: text that does not parse, has the wrong
+// shape, has a key twice, or a path that holds a wildcard. Taking away what is not there is
+// refused as "none" and nothing is written.
+export function setDocSeverity(text: string | undefined, a: { project: string; path: string; severity: Severity | undefined }): SeverityResult {
+  if (docGlob(a.path) === undefined || (a.severity !== undefined && !SEVERITY_LEVELS.includes(a.severity))) {
+    return { ok: false, reason: "glob" };
+  }
+  const parsed = parseForEdit(text);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const doc = parsed.doc;
+  if (doc[SEVERITY_KEY] !== undefined && !Array.isArray(doc[SEVERITY_KEY])) {
+    return { ok: false, reason: "shape" };
+  }
+  const list = (Array.isArray(doc[SEVERITY_KEY]) ? doc[SEVERITY_KEY] : []) as unknown[];
+  const same = (e: unknown): boolean => isObject(e) && e.project === a.project && e.path === a.path;
+  const kept = list.filter((e) => !same(e));
+  if (a.severity === undefined) {
+    if (kept.length === list.length) {
+      return { ok: false, reason: "none" };
+    }
+  } else {
+    kept.push({ project: a.project, path: a.path, severity: a.severity });
+  }
+  if (kept.length === 0) {
+    delete doc[SEVERITY_KEY];
+  } else {
+    doc[SEVERITY_KEY] = kept;
+  }
+  return { ok: true, text: serialize(parsed) };
+}
+
+// Takes away the status chosen by hand for one document: the rules the board wrote for its exact
+// path (ids that start with "status-", in the project's own rules or in the "my-overrides" set).
+export function clearDocStatus(text: string | undefined, a: { project: string; path: string }): SeverityResult {
+  const glob = docGlob(a.path);
+  if (glob === undefined) {
+    return { ok: false, reason: "glob" };
+  }
+  const parsed = parseForEdit(text);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const doc = parsed.doc;
+  const lists: unknown[][] = [];
+  if (Array.isArray(doc.projects)) {
+    for (const p of doc.projects) {
+      if (isObject(p) && p.id === a.project && Array.isArray(p.rules)) {
+        lists.push(p.rules);
+      }
+    }
+  }
+  const set = isObject(doc.ruleSets) ? doc.ruleSets[OVERRIDE_RULE_SET] : undefined;
+  if (isObject(set) && Array.isArray(set.rules)) {
+    lists.push(set.rules);
+  }
+  let removed = 0;
+  for (const rules of lists) {
+    for (let i = rules.length - 1; i >= 0; i--) {
+      const r = rules[i];
+      if (isObject(r) && typeof r.id === "string" && r.id.startsWith("status-") && isObject(r.when) && r.when.path === glob && r.when.project === a.project) {
+        rules.splice(i, 1);
+        removed += 1;
+      }
+    }
+  }
+  return removed === 0 ? { ok: false, reason: "none" } : { ok: true, text: serialize(parsed) };
 }

@@ -183,13 +183,13 @@ function future(canEdit: boolean): FutureView {
 function fullModel() {
   const rows = [
     row("app", "docs/BUG_a.md", "red", "", "bug"),
-    row("app", "docs/plan.md", "amber", "", "plan"),
+    { ...row("app", "docs/plan.md", "amber", "", "plan"), rule: "status-docs-plan-md" },
     row("app", "docs/wip.md", "purple"),
     row("app", "docs/done.md", "amber"),
     row("app", "docs/blocked/waiting.md", "amber", "blocked"),
     row("db", "docs/x.md", "amber"),
   ];
-  return buildBoard({ ...cfg, pinned: ["app/docs/plan.md"] }, rows, undefined, false, snapshot(FILES), undefined, HEALTH, {
+  return buildBoard({ ...cfg, pinned: ["app/docs/plan.md"], severityOverrides: [{ project: "app", path: "docs/BUG_a.md", severity: "critical" }, { project: "app", path: "docs/plan.md", severity: "high" }] }, rows, undefined, false, snapshot(FILES), undefined, HEALTH, {
     sittings: { selection: { timeBox: "any", maxSteps: 10 }, onlyOwner: false },
     tidy: { now: Date.UTC(2026, 5, 1), afterDays: 7, archiveFolder: "docs/history" },
     inProgress: { edited: ["app/docs/plan.md"], max: 15 },
@@ -297,6 +297,15 @@ test("every glyph says what it looks like and what it means, and no title only r
   for (const look of ["Red square", "Amber square", "Purple square", "Red triangle", "Progress ring", "Size bars", "Red dot", "Green dot", "Gray dot", "Amber diamond", "Filled amber diamond", "Red flame", "Red ring", "Information icon"]) {
     assert.ok(words.has(look), `the full page draws a glyph described as "${look}"`);
   }
+});
+
+test("what the user set is marked with a tooltip, counted in the summary, and its menu entries have tooltips", () => {
+  const html = pages()[0][1];
+  assert.ok(html.includes("Set by you. Back to automatic in the row menu."));
+  assert.ok(walk(html).some((t) => t.name === "b" && t.text === "You" && (t.attrs.title ?? "").startsWith("Set by you")));
+  assert.ok(walk(html).some((t) => (t.attrs.class ?? "").includes("byuser") && (t.attrs.title ?? "") !== ""));
+  assert.ok(walk(html).some((t) => t.attrs["data-act"] === "severity" && (t.attrs.title ?? "") !== ""));
+  assert.ok(walk(html).some((t) => t.attrs["data-act"] === "auto" && (t.attrs.title ?? "") !== ""));
 });
 
 test("each glyph look has its own meaning text", () => {
