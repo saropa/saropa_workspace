@@ -12,11 +12,20 @@ const SECTION = "saropaWorkspace.releaseBoard.handToChat";
 beforeEach(() => __resetConfig());
 
 test("every entry is non-empty text and none is an unresolved catalog key", () => {
-  const table = strings() as unknown as Record<string, string>;
-  for (const [name, value] of Object.entries(table)) {
+  const table = strings() as unknown as Record<string, string | Record<string, string>>;
+  const check = (name: string, value: unknown): void => {
     assert.equal(typeof value, "string", name);
-    assert.ok(value.length > 0, `${name} is empty`);
-    assert.ok(!/^releaseBoard\.[\w.]+$/.test(value), `${name} shows a raw key: ${value}`);
+    const text = value as string;
+    assert.ok(text.length > 0, `${name} is empty`);
+    assert.ok(!/^releaseBoard\.[\w.]+$/.test(text), `${name} shows a raw key: ${text}`);
+  };
+  for (const [name, value] of Object.entries(table)) {
+    if (typeof value === "object") {
+      // A nested table (the Future tab labels): every entry is checked the same way.
+      Object.entries(value).forEach(([key, text]) => check(`${name}.${key}`, text));
+    } else {
+      check(name, value);
+    }
   }
 });
 
