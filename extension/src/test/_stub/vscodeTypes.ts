@@ -136,9 +136,9 @@ export class FileDecoration {
   color?: ThemeColor;
 }
 
-// vscode.ThemeIcon: quick-pick items carry one as their iconPath. Only the id is modeled.
+// vscode.ThemeIcon: quick-pick items and tree rows carry one as their iconPath. Models the id and tint.
 export class ThemeIcon {
-  constructor(public readonly id: string) {}
+  constructor(public readonly id: string, public readonly color?: { readonly id: string }) {}
 }
 
 // vscode.MarkdownString: rich tooltips. Keeps the text and the flags the rows set; appends build the text.

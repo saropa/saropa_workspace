@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter, FileType, Location, MarkdownString, Position, QuickPickItemKind, RelativePattern, TabInputText, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
+import { EventEmitter, FileType, Location, MarkdownString, Position, QuickPickItemKind, RelativePattern, TabInputText, ThemeColor, ThemeIcon, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
 
 test("Uri.file echoes the path as fsPath and in toString", () => {
   const u = Uri.file("/p/a.ts");
@@ -107,4 +107,9 @@ test("MarkdownString starts with its text and appends in order", () => {
   md.appendMarkdown("**b**").appendText("c");
   assert.deepEqual([md.value, md.supportThemeIcons, md.supportHtml], ["a**b**c", false, false]);
   assert.equal(new MarkdownString().value, "");
+});
+
+test("ThemeIcon keeps its id and optional tint", () => {
+  assert.equal(new ThemeIcon("eye").color, undefined);
+  assert.deepEqual([new ThemeIcon("globe", new ThemeColor("charts.blue")).id, new ThemeIcon("globe", new ThemeColor("charts.blue")).color?.id], ["globe", "charts.blue"]);
 });
