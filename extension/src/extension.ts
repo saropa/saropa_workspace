@@ -1,3 +1,4 @@
+import { BoardGroupProvider, addBoardGroup } from "./commands/boardOutside";
 import * as vscode from "vscode";
 import { ShortcutStore } from "./model/shortcutStore";
 import { ShortcutsTreeProvider } from "./views/shortcutsTreeProvider";
@@ -232,7 +233,14 @@ async function runPostLoadTasks(
 // folder/file watches, all command modules, status bars, and the background engines
 // (scheduler, chain runner, git/idle/expiry watchers), then runs the post-load tail
 // once the shortcut set has finished loading.
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+// Public API for other extensions (extension.exports).
+export interface WorkspaceApi {
+  apiVersion: 1;
+  // Adds a group of items (title, detail, https link) to the Release Board. Never changes a light.
+  addBoardGroup(provider: BoardGroupProvider): vscode.Disposable;
+}
+
+export async function activate(context: vscode.ExtensionContext): Promise<WorkspaceApi> {
   const store = new ShortcutStore(context);
   // Disposes the store's onDidChange / onDidRemoveShortcut EventEmitters. The store
   // lives for the whole extension lifetime today, so this only matters on the
@@ -326,6 +334,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   wireRecentEditorTracking(context, store);
 
   await runPostLoadTasks(context, store, branchTracker, scheduler, folderWatchEngine);
+  return { apiVersion: 1, addBoardGroup };
 }
 
 // No-op: every disposable this extension creates is pushed onto

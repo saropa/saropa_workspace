@@ -48,6 +48,8 @@ export interface BoardStrings {
   suggestAccept: string;
   suggestReject: string;
   refreshing: string;
+  // "{count}" Claude sessions touched this document.
+  chatsTitle: string;
 }
 
 const LIST_CAP = 30;
@@ -123,6 +125,9 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
   }
   if (i.pinned) {
     parts.push(`<i class="pin" title="${escapeHtml(t.pinned)}"></i>`);
+  }
+  if (i.chats !== undefined) {
+    parts.push(`<b class="code" title="${escapeHtml(t.chatsTitle.replace("{count}", String(i.chats)))}">${i.chats}</b>`);
   }
   if (i.hub) {
     parts.push(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`);
@@ -202,7 +207,8 @@ document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click
 document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessage({type:'rules',rev:REV});b.addEventListener('click',go);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
-document.querySelectorAll('.row,.click:not(.rulefix)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
+document.querySelectorAll('.ext').forEach(r=>{const go=()=>vscode.postMessage({type:'external',g:Number(r.dataset.g),i:Number(r.dataset.i),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+document.querySelectorAll('.row,.click:not(.rulefix):not(.ext)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
 
 function profilePicker(model: BoardModel, t: BoardStrings): string {
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
@@ -217,6 +223,17 @@ function needsRule(model: BoardModel, t: BoardStrings, names: Map<string, string
     .map((n) => `<div class="cn rulefix click" tabindex="0" role="button" title="${n.count}"><i class="sq"></i><span class="tag">${escapeHtml(names.get(n.project) ?? n.project)}</span><span class="f">${escapeHtml(n.folder || "/")}</span></div>`)
     .join("");
   return `<details class="box"><summary><i class="sq" aria-label="${escapeHtml(t.needsRuleHeading)}" title="${escapeHtml(t.needsRuleHeading)}"></i></summary><h2>${escapeHtml(t.needsRuleHeading)}</h2><p class="note">${escapeHtml(t.needsRuleNote)}</p>${rows}</details>`;
+}
+
+function outsideBoxes(model: BoardModel): string {
+  return model.outside
+    .map(
+      (g, gi) =>
+        `<section class="box"><h2 title="${g.items.length}">${escapeHtml(g.label)}</h2>${g.items
+          .map((it, ii) => `<div class="cn${it.url ? " click ext" : ""}"${it.url ? ` tabindex="0" role="button" data-g="${gi}" data-i="${ii}"` : ""}><span class="f">${escapeHtml(it.title)}</span>${it.detail ? `<span class="k">${escapeHtml(it.detail)}</span>` : ""}</div>`)
+          .join("")}</section>`
+    )
+    .join("");
 }
 
 function chains(model: BoardModel, t: BoardStrings): string {
@@ -274,6 +291,7 @@ ${list(t.resolveNow, by("red"), names, t)}
 ${list(t.inProgress, by("purple"), names, t)}
 ${list(t.workOn, by("amber"), names, t)}
 ${chains(model, t)}
+${outsideBoxes(model)}
 ${needsRule(model, t, names)}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber"></i></p>` : ""}
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}

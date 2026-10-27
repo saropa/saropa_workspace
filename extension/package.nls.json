@@ -254,6 +254,7 @@
   "command.releaseBoard.open.title": "Release Board: Open",
   "command.releaseBoard.openRules.title": "Release Board: Open Rules File",
   "command.releaseBoard.previewGlob.title": "Release Board: Preview a Rule Pattern",
+  "config.releaseBoard.reviewRequests.description": "Show the pull requests waiting for your review as a separate list on the Release Board. Uses your existing GitHub sign-in in VS Code, never asks you to sign in, and never changes a project's light.",
   "config.releaseBoard.profile.description": "What stops a release on the Release Board: Rush (extreme and critical), Deliberate (adds high), Zero defects (adds medium). A red folder always stops a release.",
   "command.releaseBoard.mark.title": "Release Board: Mark This Document",
   "command.releaseBoard.exportMarks.title": "Release Board: Export Marks to the Repository"

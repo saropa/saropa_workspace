@@ -48,7 +48,11 @@ cspell:disable
 
 ## [Unreleased]
 
-The Release Board begins to arrive: an experimental, off-by-default scan that reads your bugs, docs and plans documents and tells you what state each one is in.
+---
+
+## [2.0.0]
+
+The Release Board arrives: an off-by-default screen that reads your bugs, docs and plans folders across projects, shows what blocks a release in red, amber and green, links documents that wait on each other, and only says GO when lint and tests are fresh and clean. [log](https://github.com/saropa/saropa-workspace/blob/v2.0.0/CHANGELOG.md)
 
 ### Added
 
@@ -61,6 +65,10 @@ The Release Board begins to arrive: an experimental, off-by-default scan that re
 - **Release Board: hand marks and suggested links.** *Release Board: Mark This Document* sets a Markdown file in progress (purple) or pins it as critical; *Export Marks to the Repository* writes `.saropa/release-board-marks.json` so a team shares them. When one open document names another open document of the same project by file name, the board suggests a dashed link; Accept makes it a real wait, Reject stops the suggestion.
 - Each open item on the Release Board shows its real title (the document's first heading, or the first descriptive comment of an SQL file) and small marks: a progress ring for checklist steps done, size bars, a code letter, and a dot for each other project it mentions. Hover for the exact figures.
 - A safety check holds the board when a folder is renamed or a rule stops matching, instead of silently recoloring documents. The first scan asks you to accept it as the baseline, and the baseline is kept per workspace.
+
+- **Release Board: Claude sessions per document.** When Saropa Chat Explorer is installed, each open document shows a small number: how many Claude sessions read or edited it. Hover for the count. Without Chat Explorer nothing shows. Needs a Chat Explorer release newer than 0.36.
+- **Release Board: pull requests waiting for your review.** Turn on `saropaWorkspace.releaseBoard.reviewRequests` to list them as a separate box under the documents. It uses the GitHub sign-in VS Code already has, never opens a sign-in prompt, and never changes a project's light.
+- **Release Board: groups from other extensions.** An extension can add its own box of items to the board through the new Saropa Workspace API (`addBoardGroup`). Items are plain text with an optional https link; a box never changes a project's light.
 
 ### Fixed
 
