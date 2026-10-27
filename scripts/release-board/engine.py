@@ -6,7 +6,7 @@ def glob2re(g):
     alts=[]
     def alt(m): alts.append('(?:'+'|'.join(re.escape(x) for x in m.group(1).split(','))+')'); return '\x02%d\x02'%(len(alts)-1)
     g=re.sub(r'\{([^{}]*)\}',alt,g)
-    g=g.replace('.','\\.').replace('**/','\x00').replace('**','\x01').replace('*','[^/]*').replace('?','[^/]')
+    g=g.replace('\\','\\\\').replace('.','\\.').replace('**/','\x00').replace('**','\x01').replace('*','[^/]*').replace('?','[^/]')
     g=g.replace('\x00','(?:.*/)?').replace('\x01','.*')
     g=re.sub('\x02(\\d+)\x02',lambda m:alts[int(m.group(1))],g)
     return re.compile('^'+g+'$')
