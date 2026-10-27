@@ -7,6 +7,7 @@ import { openBoard } from "../views/boardPanel";
 import { mapLimit } from "../board/pool";
 import { ProjectHealth } from "../board/health";
 import { collectHealth, findHealthShortcut, startHealthRecorder } from "./boardHealth";
+import { registerBoardOvernight } from "./boardOvernight";
 import { toBackground } from "../exec/chainRunner";
 import { exportMarksCommand, markCommand, readMarks } from "./boardMarks";
 import { MarksFile } from "../board/marks";
@@ -481,6 +482,7 @@ export function hasOutsideProject(cfg: BoardConfig): boolean {
 export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
   boardStore = store;
   startHealthRecorder(context, store, loadConfig);
+  registerBoardOvernight(context, store, loadConfig);
   // One click from anywhere in the window; shown while the board is on.
   const button = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
   button.name = l10n("releaseBoard.statusBarName");
