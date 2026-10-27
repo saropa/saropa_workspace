@@ -431,10 +431,13 @@ function splitTopLevel(src: string, isSep: (ch: string) => boolean): string[] {
   const out: string[] = [];
   let depth = 0;
   let quote = "";
+  let escaped = false;
   let cur = "";
   for (const ch of src) {
     if (quote) {
-      quote = ch === quote ? "" : quote;
+      // A backslash inside quotes escapes the next character, as in CSS strings.
+      quote = !escaped && ch === quote ? "" : quote;
+      escaped = !escaped && ch === "\\";
     } else if (ch === '"' || ch === "'") {
       quote = ch;
     } else if (ch === "[" || ch === "(") {
@@ -475,13 +478,19 @@ function parseCompound(src: string): Simple[] {
       i++;
       out.push({ kind: "class", name: ident() });
     } else if (ch === "[") {
-      const end = src.indexOf("]", i);
+      let end = i + 1;
+      for (let quote = "", escaped = false; end < src.length && (quote || src[end] !== "]"); end++) {
+        const c = src[end];
+        quote = quote ? (!escaped && c === quote ? "" : quote) : c === '"' || c === "'" ? c : "";
+        escaped = !!quote && !escaped && c === "\\";
+      }
       const body = src.slice(i + 1, end);
       i = end + 1;
       const eq = body.indexOf("=");
+      const unquote = (v: string): string => v.trim().replace(/^(["'])([\s\S]*)\1$/, "$2").replace(/\\([\s\S])/g, "$1");
       out.push(eq < 0
         ? { kind: "attr", name: body.trim(), value: null }
-        : { kind: "attr", name: body.slice(0, eq).trim(), value: body.slice(eq + 1).trim().replace(/^(["'])(.*)\1$/, "$2") });
+        : { kind: "attr", name: body.slice(0, eq).trim(), value: unquote(body.slice(eq + 1)) });
     } else if (src.startsWith(":not(", i)) {
       const end = src.indexOf(")", i);
       out.push({ kind: "not", inner: parseCompound(src.slice(i + 5, end)) });

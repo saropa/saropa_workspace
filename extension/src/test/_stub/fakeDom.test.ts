@@ -35,6 +35,14 @@ test("selectors: tag, class, id, attribute, :not, descendant, child and lists", 
   assert.throws(() => page.all("p:first-child"), /unsupported selector/);
 });
 
+test("quoted attribute values may hold escaped quotes, backslashes and brackets", () => {
+  const page = runPage(PAGE());
+  const odd = page.document.createElement("span");
+  odd.dataset.id = 'a"b\\c]d e';
+  page.document.body.appendChild(odd);
+  assert.equal(page.document.querySelector('[data-id="a\\"b\\\\c]d e"]'), odd);
+});
+
 test("closest, matches and contains follow the tree", () => {
   const page = runPage(PAGE());
   const p = page.one('[data-n="2"]');
