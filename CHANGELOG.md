@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Release Board: daily reports feed the Build, Lint and Tests marks.** The newest report of the Build status, Dawn lint sweep and Test trend tracker recipes is now read as evidence. Each of those reports starts with one hidden summary line (recipe, time, pass or fail, one count). A fresh failing report makes the project's row worse (the new Build mark turns red, and a failing build stops GO). A fresh passing report counts like any other fresh passing result, so GO still needs fresh, clean evidence of both lint and tests. A report older than the age limit, a missing report or one that cannot be read is never green: the row stays grey and says "Report is 3 days old" or "No report yet". When no report exists, every light is exactly what it was. Settings: `releaseBoard.recipeEvidence.enabled` (on) and `.maxAgeHours` (36, from 1 to 720).
+- **Release Board: missed reports run at start.** The three recipes above now start with "catch up" on, so after the machine was off at their time, each missed report runs once at the next start (not once per missed day), one at a time: build, then lint, then tests. The full test run waits until the editor has been quiet for 2 minutes. A row says "Checking the build now." while its job runs, says why when a job could not start, and the board refreshes after each report is written. A recipe you already stored keeps your own catch-up choice. Setting: `releaseBoard.recipeEvidence.idleMinutes` (2, from 0 to 60; 0 starts at once).
+- **Release Board: turn on the daily report.** When a row has no fresh report and the matching recipe's daily schedule is off, its Path to GO step says "Turn on the daily test report" (or lint, or build) with one **Turn on** button that switches that schedule on.
+
 ## [2.2.0]
 
 The Release Board is now always in view: a sidebar section, a status bar light and a tab that opens at window start, plus a list of what to do next, a strip of what changed since you last looked, tidy-up suggestions, one-click prompts for a chat, live error marks, a release train row and an optional overnight proof run. [log](https://github.com/saropa/saropa-workspace/blob/v2.2.0/CHANGELOG.md)

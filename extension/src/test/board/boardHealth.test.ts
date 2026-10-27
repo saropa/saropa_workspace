@@ -5,7 +5,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as vscode from "vscode";
 import { HealthFile } from "../../board/health";
+import { formatSummaryLine } from "../../board/reportSummary";
 import { BoardConfig, ProjectDef } from "../../board/types";
 import { Shortcut } from "../../model/shortcut";
 import { ShortcutStore } from "../../model/shortcutStore";
@@ -81,4 +83,38 @@ test("a recorded run is evidence only while its shortcut is still the one the pr
   assert.equal((await collectHealth(ctx, storeOf(shortcut("a1", "Run tests")), other, now)).app.tests, "missing");
   // The shortcut is deleted: no evidence either.
   assert.equal((await collectHealth(ctx, storeOf(), cfg, now)).app.tests, "missing");
+});
+
+test("collecting health: no report leaves the result as it was; a fresh report adds its verdict; a stale one adds nothing", async () => {
+  const dir = tmpDir();
+  const projectDir = tmpDir();
+  try {
+    const ctx = contextIn(dir);
+    const now = Date.now();
+    const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ ...project({ lintApplies: false }), path: vscode.Uri.file(projectDir).toString() }] };
+    const empty = await collectHealth(ctx, storeOf(), cfg, now);
+    assert.deepEqual(empty.app, { lint: "na", tests: "missing", lintDetail: "No lint for this project", testsDetail: "No test run recorded", clean: false });
+
+    const writeTests = (name: string, ageMs: number, result: "pass" | "fail", count: number): void => {
+      const day = path.join(projectDir, "reports", "2026.10.27_workspace");
+      fs.mkdirSync(day, { recursive: true });
+      const file = path.join(day, name);
+      fs.writeFileSync(file, `${formatSummaryLine({ recipe: "ritual.tests", time: now - ageMs, result, count })}\n# Test trend\n`);
+      fs.utimesSync(file, (now - ageMs) / 1000, (now - ageMs) / 1000);
+    };
+    writeTests("2026.10.27_workspace_050000_tests.txt", 3 * 3600000, "fail", 2);
+    const failing = await collectHealth(ctx, storeOf(), cfg, now);
+    assert.equal(failing.app.tests, "failing");
+    assert.equal(failing.app.testsDetail, "Test report: failing, 2 failed (3 h ago)");
+
+    fs.rmSync(path.join(projectDir, "reports"), { recursive: true });
+    writeTests("2026.10.27_workspace_050000_tests.txt", 3 * 86400000, "pass", 0);
+    const stale = await collectHealth(ctx, storeOf(), cfg, now);
+    assert.equal(stale.app.tests, "missing");
+    assert.equal(stale.app.testsDetail, "Report is 3 days old");
+    assert.equal(stale.app.clean, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(projectDir, { recursive: true, force: true });
+  }
 });

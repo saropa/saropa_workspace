@@ -2515,6 +2515,25 @@
             "default": true,
             "description": "%config.releaseBoard.pathToGo.showRunButtons.description%"
           },
+          "saropaWorkspace.releaseBoard.recipeEvidence.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.recipeEvidence.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.recipeEvidence.maxAgeHours": {
+            "type": "number",
+            "default": 36,
+            "minimum": 1,
+            "maximum": 720,
+            "description": "%config.releaseBoard.recipeEvidence.maxAgeHours.description%"
+          },
+          "saropaWorkspace.releaseBoard.recipeEvidence.idleMinutes": {
+            "type": "number",
+            "default": 2,
+            "minimum": 0,
+            "maximum": 60,
+            "description": "%config.releaseBoard.recipeEvidence.idleMinutes.description%"
+          },
           "saropaWorkspace.releaseBoard.handToChat.enabled": {
             "type": "boolean",
             "default": true,
