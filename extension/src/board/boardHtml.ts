@@ -1,6 +1,7 @@
 import { SittingLine } from "./sittings";
 import { BoardItem, ItemMarks, BoardModel, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
+import { SinceView } from "./sinceLast";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
 // as a table so the core stays free of VS Code and of the l10n catalog, and the page can
@@ -292,7 +293,7 @@ const STYLE = `
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:13px/1.45 var(--vscode-font-family,system-ui,sans-serif)}
 h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:var(--mute);margin:4px 0}.n{color:var(--mute);font-weight:400}
 .top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:12px}button{background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 10px;cursor:pointer}
-.box{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:12px 14px;margin:12px 0}
+.since .sl,.since .sd{margin:0;padding-left:18px}.since .sd{color:var(--mute);margin:2px 0 4px}.box{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:12px 14px;margin:12px 0}
 .vd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);margin:6px 0}
 .pn{width:110px}.go{font-family:var(--vscode-editor-font-family,monospace);font-weight:600;border-radius:4px;padding:2px 10px}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.prog{position:fixed;top:0;left:0;right:0;height:2px;overflow:hidden;display:none}.busy .prog{display:block}.prog::after{content:"";display:block;height:100%;width:30%;background:var(--blue);animation:slide 1.2s ease-in-out infinite}
@@ -424,7 +425,18 @@ export interface RenderState {
 
 // `paths` holds one Path to GO per project, in the order of model.projects; leave it out to
 // show no paths.
-export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[]): string {
+// The strip at the top: what changed since the board was last seen. Text only, all escaped.
+function sinceBox(view: SinceView | undefined): string {
+  if (!view || view.lines.length === 0) {
+    return "";
+  }
+  const rows = view.lines
+    .map((l) => `<li>${escapeHtml(l.text)}${l.details.length > 0 ? `<ul class="sd">${l.details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>` : ""}</li>`)
+    .join("");
+  return `<section class="box since" role="status"><h2>${escapeHtml(view.heading)}</h2><ul class="sl">${rows}</ul></section>`;
+}
+
+export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView): string {
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
   const lights = new Map<string, string>();
   for (const p of model.projects) {
@@ -446,6 +458,7 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${model.sittings ? `<button id="sit-open" aria-controls="sit-panel">${escapeHtml(t.sittingsButton)}</button>` : ""}</div>
 <p class="note">${escapeHtml(t.intro)}</p>${banner}
+${sinceBox(since)}
 ${sittingsBox(model, t)}
 ${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading))).join("")}
 ${list(t.resolveNow, by("red"), names, t)}
