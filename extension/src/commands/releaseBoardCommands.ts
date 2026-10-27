@@ -18,6 +18,7 @@ import { workspaceFileSource } from "./boardFileSource";
 import { DEFAULT_ROOTS, boardReady, loadConfig } from "./boardConfigLoad";
 import { BoardRun, readAccepted, readLastRun, writeAccepted, writeLast } from "./boardScanStore";
 import { openRulesFile, previewGlob } from "./boardRules";
+import { chooseProjects, openBoardSettings } from "../views/boardProjectsFlow";
 
 // Release Board, VS Code layer: the scan flow. It runs one queued scan of the open workspace
 // folders with the board's rule engine, checks it against the last accepted scan, stores the
@@ -259,6 +260,8 @@ export function registerReleaseBoard(context: vscode.ExtensionContext, store: Sh
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.mark", () => markCommand(context, loadConfig)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.exportMarks", () => exportMarksCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openRules", () => openRulesFile()),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openSettings", () => openBoardSettings()),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.projects", () => chooseProjects()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.previewGlob", () => previewGlob(() => runBoardScan(context)))
   );
 }

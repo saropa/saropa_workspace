@@ -3,6 +3,9 @@ import { LiveFile } from "./liveEvidence";
 // The text table the board page needs. The strings come in as a table so the core stays
 // free of VS Code and of the l10n catalog.
 export interface BoardStrings {
+  // Labels of the Projects and Settings buttons, the hint, the roll-up and the grey rows,
+  // keyed by name (see boardHtmlProjects.ts). Optional: a plain-browser check may omit them.
+  projectLabels?: Record<string, string>;
   title: string;
   intro: string;
   noGo: string;

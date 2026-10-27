@@ -45,3 +45,21 @@ test("readHead cuts to the first lines and readText returns the whole file", asy
   assert.equal(await src.readHead!(dir, "docs/a.md", 2), "line1\nline2");
   assert.equal(await src.readText!(dir, "docs/deep/b.md"), "bee");
 });
+
+test("list never follows a link: a linked folder and a linked file are left out", async () => {
+  const dir = tree();
+  const real = vscode.workspace.fs;
+  const original = real.readDirectory.bind(real);
+  // The listing of "docs" also reports a linked folder that does not exist: following it would fail the walk.
+  (real as { readDirectory: typeof real.readDirectory }).readDirectory = async (uri) => {
+    const list = await original(uri);
+    return uri.fsPath.endsWith("docs") ? [...list, ["loop", vscode.FileType.Directory | vscode.FileType.SymbolicLink], ["out.md", vscode.FileType.File | vscode.FileType.SymbolicLink]] : list;
+  };
+  try {
+    const files = await workspaceFileSource().list(dir, "docs", (p) => p.endsWith(".md"));
+    assert.deepEqual(files.map((f) => f.path).sort(), ["docs/a.md", "docs/deep/b.md"]);
+  } finally {
+    (real as { readDirectory: typeof real.readDirectory }).readDirectory = original;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

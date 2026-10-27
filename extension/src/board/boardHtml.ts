@@ -6,6 +6,8 @@ import { BoardStrings, escapeHtml } from "./boardHtmlUtil";
 import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
+import { MAX_EXTRA_PROJECTS } from "./extraProjects";
+import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, projectsButtons, rollupBar, skippedBlock } from "./boardHtmlProjects";
 import { chains, needsRule, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
@@ -32,6 +34,8 @@ export function renderSkeleton(t: BoardStrings, nonce: string): string {
 export interface RenderState {
   stale?: boolean;
   loading?: boolean;
+  // Show the one-line hint about adding more projects.
+  hint?: boolean;
 }
 
 // Renders the whole board page. `paths` holds one Path to GO per project, in the order of
@@ -53,17 +57,20 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
       ? `<div class="box"><p>${escapeHtml(t.safetyHold)} ${accept}</p></div>`
       : "";
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-<div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${model.sittings ? `<button id="sit-open" aria-controls="sit-panel">${escapeHtml(t.sittingsButton)}</button>` : ""}</div>
+<div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${projectsButtons(t)}${model.sittings ? `<button id="sit-open" aria-controls="sit-panel">${escapeHtml(t.sittingsButton)}</button>` : ""}</div>
+${hintBar(state.hint, t)}
 ${futureTabs(future, t)}
 <div id="tab-board" role="tabpanel"><p class="note">${escapeHtml(t.intro)}</p>${banner}
 ${sinceBox(since)}
 ${state.stale || state.loading ? "" : tidyBox(model, t)}
 ${sittingsBox(model, t)}
 ${trainBox(trains, t)}
-${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading))).join("")}
+${rollupBar(model, t)}
+${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading), openBadge(p, model, t))).join("")}
+${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}
 ${list(t.resolveNow, by("red"), names, t)}
 ${list(t.inProgress, by("purple"), names, t)}
 ${list(t.workOn, by("amber"), names, t)}
@@ -75,5 +82,6 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
-<script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}</script></body></html>`;
+<script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
+${PROJECTS_SCRIPT}</script></body></html>`;
 }

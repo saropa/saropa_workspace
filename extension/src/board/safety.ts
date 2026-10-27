@@ -177,7 +177,8 @@ export function checkScan(
     }
   }
   for (const id of Object.keys(accepted.projects)) {
-    if (!next.projects[id]) {
+    // An extra project the user took off the list (or hid) is a choice, not a loss.
+    if (!next.projects[id] && !accepted.projects[id].extra) {
       findings.push({
         kind: "project-gone",
         project: id,

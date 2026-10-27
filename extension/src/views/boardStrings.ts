@@ -235,6 +235,12 @@ function futureStrings() {
   };
 }
 
+// Labels of the umbrella view: the Projects and Settings buttons, the hint, the roll-up and the grey rows.
+function projectStrings() {
+  const keys = ["projects", "projectsTip", "settings", "settingsTip", "hintText", "hintAdd", "hintDismiss", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit"];
+  return { projectLabels: Object.fromEntries(keys.map((k) => [k, l10n("releaseBoard.projects.label." + k, { count: "{count}", max: "{max}" })])) };
+}
+
 // All page strings, merged from the groups above.
 export function strings(): BoardStrings {
   return {
@@ -245,5 +251,6 @@ export function strings(): BoardStrings {
     ...toolStrings(),
     ...liveStrings(),
     ...futureStrings(),
+    ...projectStrings(),
   };
 }

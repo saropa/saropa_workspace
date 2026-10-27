@@ -83,6 +83,18 @@ export interface ProjectDef {
   rules?: Rule[];
   // Where lint and test evidence comes from (see health.ts).
   health?: HealthConfig;
+  // The project comes from the user's list of extra projects, not from an open workspace folder.
+  extra?: boolean;
+}
+
+// Why a chosen folder is not on the board: it is not there, it is not a folder, it could
+// not be read in time, or the list is longer than the board takes.
+export type SkipReason = "missing" | "notFolder" | "unreadable" | "overLimit";
+
+// A chosen folder shown as a grey row: its name and why it was not read. Never its path.
+export interface SkippedProject {
+  name: string;
+  reason: SkipReason;
 }
 
 // The rules file: rule sets, projects and the optional settings of the board.
@@ -113,6 +125,8 @@ export interface BoardConfig {
   profile?: Profile;
   // Documents pinned as critical, as "project/path" globs. They stay on the first screen.
   pinned?: string[];
+  // Chosen folders that could not be read; the board shows each as a grey row.
+  skipped?: SkippedProject[];
 }
 
 // One file as seen by a scan.

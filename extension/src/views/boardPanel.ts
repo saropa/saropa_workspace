@@ -10,6 +10,7 @@ import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { researchQueue } from "../board/futureResearch";
+import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
@@ -82,6 +83,8 @@ class BoardPanel extends BoardPanelWiring {
       this.futureSort = message.value as FutureSort;
       this.lastKey = "";
       this.render(this.cached ? { stale: true } : {});
+    } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
+      await this.projectsMessage(message.type);
     } else if (message.type === "rules") {
       await openRulesFile();
     } else if (message.type === "accept") {
@@ -90,6 +93,17 @@ class BoardPanel extends BoardPanelWiring {
       await this.openItem(message.id);
     } else if (message.type === "path" && typeof message.p === "number" && typeof message.s === "number") {
       await this.pathAction(message.p, message.s);
+    }
+  }
+
+  // The Projects and Settings buttons and the hint of the top bar. The page sends the kind only.
+  private async projectsMessage(kind: string): Promise<void> {
+    if (kind === "projects") {
+      await chooseProjects();
+    } else if (kind === "boardSettings") {
+      await openBoardSettings();
+    } else {
+      await this.dismissHint();
     }
   }
 

@@ -34,6 +34,10 @@ export function workspaceFileSource(): FileSource {
         const dirs: string[] = [];
         const files: string[] = [];
         for (const [name, type] of entries) {
+          // A link is never followed: it could loop, or lead out of the project folder.
+          if (type & vscode.FileType.SymbolicLink) {
+            continue;
+          }
           const childRel = rel + "/" + name;
           if (type & vscode.FileType.Directory) {
             dirs.push(childRel);

@@ -65,6 +65,8 @@ export interface ProjectSnapshot {
   facts: Record<string, CachedFacts>;
   // The reader version and options the cached facts were taken with; a mismatch drops them.
   factsKey?: string;
+  // The project is one of the user's extra projects; taking it off the list is not a finding.
+  extra?: boolean;
 }
 
 // What one scan found in every project, with the time it was taken.
@@ -308,7 +310,7 @@ export async function scanAll(
   cfg.projects.forEach((p, i) => {
     const r = results[i];
     rows.push(...r.rows);
-    projects[p.id] = r.snapshot;
+    projects[p.id] = p.extra ? { ...r.snapshot, extra: true } : r.snapshot;
     pending.push(...r.pending);
     stats.files += r.rows.length;
     stats.headReads += r.headReads;
