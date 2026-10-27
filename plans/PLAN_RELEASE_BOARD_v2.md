@@ -32,7 +32,7 @@ No AI is involved. Every light comes from a coded rule the user can read and edi
 | Other project | Mentions another project | One small dot per project |
 | Chats | Active or saved chats are linked (2.x) | Purple if active |
 
-- A project row shows its one light, plus a small bar of its open items by color. No counts of done or deferred work.
+- A project row shows its one light, plus a small bar of its open items by color. The bar contains red, amber and purple items only. Blue, grey and green are not in it. No counts of done or deferred work.
 - Words and numbers appear after a click, never on the first screen.
 
 ### Always show linkages
@@ -40,10 +40,10 @@ No AI is involved. Every light comes from a coded rule the user can read and edi
 - A linked item is never shown alone. Its row shows the link mark. Opening the row shows the chain, drawn as a short vertical path across projects:
   `Supabase SQL script → waits on → App build (pull request 1923) → waits on → two-phone device check`
 - A project row shows a link mark when any of its items waits on another project.
-- A blocked item sorts under the item that blocks it, and its color is amber until the first item is done.
+- A blocked item sorts under the item that blocks it. It keeps its folder color. Its link mark is amber until the first item is done, then green.
 - Linkages come from, in this order:
   1. A `Needs:` line in a document (explicit).
-  2. A shared pull request number or document file name mentioned in both documents (inferred, shown with a dashed link so the user can accept or reject it).
+  2. A shared pull request number or document file name mentioned in both documents (inferred, 2.x, shown with a dashed link so the user can accept or reject it).
   3. A project dependency set in Settings (whole project waits on another).
 - A `Needs:` line that points to a document that no longer exists, or that is already in `history/`, is flagged as stale.
 - Status lines inside documents stay untrusted, but `Needs:` is an explicit statement of a dependency, not a status. A stale target is flagged so it cannot mislead.
@@ -64,7 +64,7 @@ A GO light requires evidence. Missing evidence is never GO.
   - An open item of a stopping severity (see profiles).
   - Any item in a red folder, whatever its severity score. A red folder blocks in every profile.
   - A lint error or a failing test from a trusted result.
-  - A `Needs:` chain whose first item is not done.
+  - A `Needs:` chain whose waiting item itself stops the release under the chosen profile, and whose first item is not done. A low-severity item waiting on something never makes a project NO-GO under Rush to market.
 - **UNVERIFIED** when no blocker is found but evidence is missing:
   - Documents that no rule placed (grey).
   - No trusted lint or test result for the project, or the result is older than the staleness limit.
@@ -97,7 +97,7 @@ A GO light requires evidence. Missing evidence is never GO.
 | Purple | In progress. A manual mark, cannot be derived |
 | Blue | Needs consideration (deferred). Never counted on screen |
 | Green | Done. Never counted on screen |
-| Grey | No rule placed it. Makes the light UNVERIFIED. Listed under "Needs a rule" with one click to the rule editor |
+| Grey | No rule placed it. Makes the light UNVERIFIED. Listed under "Needs a rule" with one click to the rule editor (until the editor exists in step 5, a link to the rules file) |
 
 Users mark any document by hand. Marks are stored in the local cache and can be exported to a shared file in the repo so a team sees them (open: the file name and format).
 
@@ -130,10 +130,10 @@ Read from each markdown document and cached, shown as the marks above:
 - A lint error or a failing test makes a project NO-GO in every profile. Warnings and info never do.
 - **Sources of results:**
   - Only background-mode shortcuts give a trusted pass or fail. Terminal, external-window, command and macro runs report only "dispatched" (`exec/shortcutEvents.ts`) and VS Code 1.74 exposes no terminal exit code. Their result is "unknown", never a pass.
-  - Results are stored in the local cache. Today they are held in memory and lost on reload (`exec/runStatus.ts`).
+  - Results are stored in the local cache. Today they are held in memory and lost on reload (`exec/runStatus.ts` says this is intended). Keeping them is a deliberate change, made only for the board's cache; the shortcut run status shown elsewhere is unchanged.
   - Lint results can also come from the Saropa Lints file `reports/.saropa_lints/violations.json`.
 - **Trust checks on a lint file:** reuse Workspace's existing coverage gate (`exec/lintsHealth.ts`, refuses a score below 15 percent of files analyzed). Check `filesAnalyzed` and the file's `timestamp`. A file older than the staleness limit, or from a partial run, counts as missing.
-- **Tests:** run only the test files that open plans name, never the whole suite (about 70 minutes for the app). The result reads "N tests run, M failed", never "tests pass". A project with no test run is UNVERIFIED.
+- **Tests:** run only the test files that open plans name, never the whole suite (about 70 minutes for the app). The result reads "N tests run, M failed", never "tests pass". A project with no test run is UNVERIFIED, unless its setting `testsApply` is false (a project with no tests, such as a documentation-only or database-script repo). A root outside the open window is UNVERIFIED by design, and the board says so.
 - **Other roots:** each root's results are stored per root. A sibling extension reports only its own window's workspace, so a root outside the open window gets health from its own result file, written by that root's shortcuts. Open: how a root outside the window runs shortcuts.
 
 ### 7. Cache and speed
@@ -201,15 +201,44 @@ Community extensions appear as a separate group. They never change a core projec
 - Release profile per release (open: per project or per release).
 - Staleness limit for lint and test results.
 
+## How it is built
+
+### Where the work can run
+- **Online (a cloud session):** install, typecheck (`npm run lint`), the unit tests (`npm test`, about 1,500 tests, 3 seconds) and the bundle build (`npm run build`). Checked in the cloud on 27 Oct: install and typecheck pass; 1,501 tests pass and 2 fail on `main` before any change (`runTargets.test.ts`, package.json script detection). Cause: the test stub's `Uri.joinPath` (`src/test/_stub/vscode.ts`) does not resolve `..`, so on Linux the lockfile paths are invalid. A stub bug, not a product bug. Fix first: normalize the path in the stub.
+- **Online, with fixtures:** the board screens, by rendering the webview page in a headless browser against fixture data. This catches layout and script errors, not VS Code behavior.
+- **Online, against the real repos:** the scanner and rule engine run over the checked-out app, Supabase and website repos.
+- **Headless browser caveat:** the webview needs `acquireVsCodeApi` and its security policy shimmed in the test page. Not yet tried.
+- **Not online:** opening the extension inside VS Code, GitHub sign-in, and the sibling extensions (Lints, Log Capture, Chat Explorer). Each build step ends with a short checklist for you to run in VS Code (install the built package, open the board, check the listed items).
+
+### Shape of the code
+- A **core** folder (`extension/src/board/`) with no VS Code imports. Its tests live in `extension/src/test/board/`, because the test build (`esbuild.test.js`) collects only `*.test.ts` under `src/test`. One unit test fails if any file in `src/board/` imports `vscode`, since the test build replaces `vscode` with a stub and a stray import would otherwise pass. File reading is passed in from the VS Code layer, so the core also works in remote workspaces: rule engine, scanner, document reader, severity scorer, safety check, cache format, linkage and grouping. Unit-tested with the existing node test runner, like the rest of the extension.
+- A thin **VS Code layer** on top (the file reader, the webview, the commands, file watching, shortcut-result capture.
+- Rules and the phrase dictionary are JSON files shipped with the extension and overridable per project.
+
+### Build steps and what proves each one
+0. **Test stub fix** (the two failing tests above). Small pull request first, so a green baseline exists.
+1. **Scanner, cache, rule engine, safety check.** Proof: a frozen fixture committed with the tests (the file-path list of each repo and the expected state counts: App red 10, amber 53, grey 4; Supabase red 6, amber 3, grey 8; Website red 2, amber 26). The fixture is what the unit test runs, because the three repos live outside this repo and their counts change with every commit. Running against the live repos is a manual script, not a test. The prototype scripts move into this repo under `scripts/` as the reference. Plus tests for the rename case, the first scan, and a bulk archive.
+2. **Roll-up marks and first screen.** Proof: headless-browser render with fixtures, checked in dark and light, and a pass at phone width.
+3. **Document facts.** Proof: the TypeScript reader matches the prototype's facts on the 20 real blockers (words, headings, steps, code languages, groups).
+4. **Linkages, groups and project dependencies set in Settings.** Proof: the share-keys chain and the three groups come out as in the mockup; a stale `Needs:` is flagged.
+5. **Severity and profiles.** Proof: the 20 blockers get the same levels as the prototype; each profile gives the same NO-GO set.
+6. **Code health.** Proof: unit tests with recorded Lints files (fresh, stale, partial) and recorded shortcut results (background, terminal). Live check by you in VS Code.
+7. **Shared marks and inferred links** (2.x).
+
+### Delivery
+- One pull request per step, each with tests, a changelog line and the VS Code checklist. The version is bumped to 2.0.0 when step 6 ships, since GO becomes possible then. Steps 1 to 5 ship as 1.x minor versions behind the setting `saropaWorkspace.releaseBoard.enabled` (off by default, like the existing `previewMode.enabled`), so the extension is unchanged for current users. Steps 7 and later ship as 2.x.
+- Each pull request is reviewed by a second model before merge.
+
 ## Build order
 
+0. Fix the test stub so the baseline is green.
 1. Scanner, cache, rule engine over several roots, **and the safety check**. Port the prototype to TypeScript.
 2. Roll-up marks and the first screen. Lights are NO-GO or UNVERIFIED only.
 3. Document facts as marks.
 4. `Needs:` linkages and the chain view, marks, pins.
 5. Severity, profiles, and the repo details and settings tabs (rule editor with preview).
 6. Code health from background shortcuts and the Lints file. GO light is allowed from this step.
-7. Shared marks export, inferred linkages.
+7. Shared marks export, inferred linkages (2.x).
 8. 2.x items: Chat Explorer lookup, GitHub review-requested list, community group.
 
 ## Not built or not verified
