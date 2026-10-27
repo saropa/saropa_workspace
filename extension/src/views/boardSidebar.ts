@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { Light } from "../board/boardModel";
 import { ExpandMode, SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, blockerColor, buildSidebarRows, clampBlockers, hasDocuments, lightLook } from "../board/sidebar";
 import { l10n } from "../i18n/l10n";
+import { onDidChangeOvernightOffer, overnightOfferVisible } from "../commands/boardOvernight";
 import { askRefresh, currentBoard, hasFailed, isFirstScanDone, staleNote, isScanning, onDidChangeBoard } from "./boardFeed";
 
 // The Release Board section at the top of the sidebar: one row per project with its light,
@@ -32,17 +33,19 @@ function labels(): SidebarLabels {
   };
 }
 
-type Node = { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
+type Node = { kind: "offer" } | { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
 
 function themed(icon: string, color: string): vscode.ThemeIcon {
   return new vscode.ThemeIcon(icon, new vscode.ThemeColor(color));
 }
 
 class BoardSidebar implements vscode.TreeDataProvider<Node> {
+  constructor(private readonly context: vscode.ExtensionContext) {}
   private readonly emitter = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
   private rows: SidebarRow[] = [];
   private stamp = 0;
+  private offer = false;
   // Part of each project row's id: a change of the expand setting then takes effect at once.
   private expandMode: ExpandMode = "whenNoGo";
 
@@ -58,6 +61,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
         )
       : [];
     this.stamp = board?.stamp ?? 0;
+    this.offer = overnightOfferVisible(this.context);
     // The welcome text under the title depends on this: loading, empty, or rows.
     const on = cfg.get<boolean>("enabled", true) && (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
     const found = on && board !== undefined && hasDocuments(board.model);
@@ -70,6 +74,15 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
+    if (node.kind === "offer") {
+      const item = new vscode.TreeItem(l10n("releaseBoard.overnight.offer"), vscode.TreeItemCollapsibleState.None);
+      item.id = "offer/overnight";
+      item.iconPath = new vscode.ThemeIcon("history");
+      item.tooltip = l10n("releaseBoard.overnight.offerTip");
+      item.contextValue = "releaseBoardOvernightOffer";
+      item.command = { command: "saropaWorkspace.releaseBoard.overnight.enable", title: l10n("releaseBoard.overnight.offer") };
+      return item;
+    }
     if (node.kind === "blocker") {
       const item = new vscode.TreeItem(node.blocker.title, vscode.TreeItemCollapsibleState.None);
       item.id = `${node.project.projectId}/${node.blocker.id}/${node.stamp}`;
@@ -91,7 +104,9 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
 
   getChildren(node?: Node): Node[] {
     if (!node) {
-      return this.rows.map((row) => ({ kind: "project", row }));
+      const rows: Node[] = this.rows.map((row) => ({ kind: "project", row }));
+      // One line under the rows, only while the feature is off and not dismissed.
+      return rows.length > 0 && this.offer ? [...rows, { kind: "offer" }] : rows;
     }
     return node.kind === "project" ? node.row.blockers.map((blocker) => ({ kind: "blocker", project: node.row, blocker, stamp: this.stamp })) : [];
   }
@@ -120,12 +135,13 @@ async function openBlocker(id: unknown, stamp: unknown): Promise<void> {
 }
 
 export function registerBoardSidebar(context: vscode.ExtensionContext): void {
-  const provider = new BoardSidebar();
+  const provider = new BoardSidebar(context);
   const refresh = (): void => provider.refresh();
   context.subscriptions.push(
     provider,
     vscode.window.registerTreeDataProvider(VIEW, provider),
     onDidChangeBoard(refresh),
+    onDidChangeOvernightOffer(refresh),
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(SETTINGS) && refresh()),
     vscode.workspace.onDidChangeWorkspaceFolders(refresh),
     vscode.commands.registerCommand(OPEN_BLOCKER, (id: unknown, stamp: unknown) => openBlocker(id, stamp)),
