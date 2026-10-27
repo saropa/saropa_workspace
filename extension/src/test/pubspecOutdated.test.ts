@@ -7,7 +7,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildOutdatedMarkdown, isStale } from "../exec/pubspecOutdated";
+import { buildOutdatedMarkdown, isStale, parseOutdated } from "../exec/pubspecOutdated";
 
 // isStale is the core of report-bug item 4: keep only the packages the user can act
 // on. These pin the filter directly (the "only out-of-date items" contract), since
@@ -92,4 +92,25 @@ test("a discontinued package is flagged inline", () => {
     },
   ]);
   assert.match(md, /old_pkg \(discontinued\)/);
+});
+
+test("parseOutdated: output with no package list is an error, never an all-clear", () => {
+  assert.throws(() => parseOutdated("{}"), /no package list/);
+  assert.throws(() => parseOutdated('{"packages":null}'), /no package list/);
+  assert.throws(() => parseOutdated("not json"));
+  assert.deepEqual(parseOutdated('{"packages":[]}'), []);
+});
+
+test("parseOutdated: keeps only packages behind latest or discontinued, with their version strings", () => {
+  const json = JSON.stringify({
+    packages: [
+      { package: "a", kind: "direct", current: { version: "1.0.0" }, upgradable: { version: "1.0.1" }, resolvable: { version: "1.0.1" }, latest: { version: "2.0.0" } },
+      { package: "b", current: { version: "1.0.0" }, latest: { version: "1.0.0" } },
+      { package: "c", isDiscontinued: true, current: { version: "0.1.0" }, latest: { version: "0.1.0" } },
+    ],
+  });
+  assert.deepEqual(parseOutdated(json), [
+    { name: "a", kind: "direct", current: "1.0.0", upgradable: "1.0.1", resolvable: "1.0.1", latest: "2.0.0", discontinued: false },
+    { name: "c", kind: "direct", current: "0.1.0", upgradable: "—", resolvable: "—", latest: "0.1.0", discontinued: true },
+  ]);
 });

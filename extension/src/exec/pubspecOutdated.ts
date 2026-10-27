@@ -6,6 +6,7 @@ import { execFile as execFileCb } from "child_process";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { openReport } from "./reportOpen";
 import { l10n } from "../i18n/l10n";
+import { outdatedSummaryLine } from "../board/recipeSummaries";
 
 const execFile = promisify(execFileCb);
 
@@ -44,7 +45,7 @@ interface OutdatedPackage {
 
 // A package the report will show: it is behind latest (or discontinued), reduced to
 // the four version strings the table renders.
-interface StalePackage {
+export interface StalePackage {
   name: string;
   kind: string;
   current: string;
@@ -92,9 +93,17 @@ export async function collectOutdated(root: string): Promise<StalePackage[]> {
     timeout: PUB_TIMEOUT_MS,
   });
 
-  const parsed = JSON.parse(stdout) as { packages?: OutdatedPackage[] };
-  const packages = parsed.packages ?? [];
-  return packages.filter(isStale).map((pkg) => ({
+  return parseOutdated(stdout);
+}
+
+// The packages behind latest, from the `--json` output. Output without a package list is an
+// error, not "everything is current": an empty answer must never read as an all-clear.
+export function parseOutdated(stdout: string): StalePackage[] {
+  const parsed = JSON.parse(stdout) as { packages?: unknown };
+  if (!Array.isArray(parsed.packages)) {
+    throw new Error("dart pub outdated returned no package list");
+  }
+  return (parsed.packages as OutdatedPackage[]).filter(isStale).map((pkg) => ({
     name: pkg.package,
     kind: pkg.kind ?? "direct",
     current: version(pkg.current),
@@ -185,7 +194,8 @@ async function runPubspecOutdated(
   const file = path.join(root, ...relative.split("/"));
   try {
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, buildOutdatedMarkdown(stale), "utf8");
+    // The first line is the summary the Release Board reads.
+    await fs.writeFile(file, `${outdatedSummaryLine(stale, Date.now())}\n${buildOutdatedMarkdown(stale)}`, "utf8");
   } catch (err) {
     vscode.window.showErrorMessage(
       l10n("deps.failed", { error: err instanceof Error ? err.message : String(err) })

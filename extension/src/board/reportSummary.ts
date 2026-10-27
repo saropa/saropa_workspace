@@ -1,11 +1,30 @@
 import { parseTestTally } from "./health";
+import { Parsed, parseDebtMarkers, parseDepsShell, parseMergedBranches, parsePrQueue, parseUncommitted } from "./reportParsers";
 
 // The one-line summary at the top of a feeding recipe's report, and the table that says
 // which recipes feed which Release Board row. Pure: the recipes write the line, the board
 // core reads it, and both use this file so the two can never drift apart.
 
-// The board rows a report can feed. `deps` is listed so catch-up can order it; no row reads it yet.
-export type FeedKind = "build" | "lint" | "tests" | "deps";
+// What a report can feed. build, lint, tests and deps are rows of a project's verdict; the rest
+// are notes on the row, Tidy sweep candidates, or lines of the "Since you last looked" strip.
+export type FeedKind =
+  | "build"
+  | "lint"
+  | "tests"
+  | "deps"
+  | "prs"
+  | "uncommitted"
+  | "debt"
+  | "branches"
+  | "bloat"
+  | "standup"
+  | "delta"
+  | "readiness"
+  | "changelog"
+  | "version"
+  | "staleBranches"
+  | "bigFiles"
+  | "links";
 
 // A feeding recipe: its id, the row it feeds, where it runs in catch-up, and its report file ending.
 export interface FeedInfo {
@@ -17,14 +36,36 @@ export interface FeedInfo {
   heavy: boolean;
   // The ending of the recipe's report file name (reports/<day>/<day>_<time>_<suffix>).
   suffix: string;
+  // Other endings the same recipe writes.
+  alsoSuffixes?: string[];
 }
 
 export const FEEDS: readonly FeedInfo[] = [
   { feed: "build", recipeId: "ritual.ci", rank: 0, heavy: false, suffix: "_ci.md" },
   { feed: "lint", recipeId: "ritual.lint", rank: 1, heavy: false, suffix: "_lint.txt" },
   { feed: "tests", recipeId: "ritual.tests", rank: 2, heavy: true, suffix: "_tests.txt" },
-  { feed: "deps", recipeId: "ritual.deps", rank: 3, heavy: true, suffix: "_deps.md" },
+  { feed: "deps", recipeId: "ritual.deps", rank: 3, heavy: true, suffix: "_deps.md", alsoSuffixes: ["_pubspec_outdated.md"] },
+  { feed: "prs", recipeId: "ritual.prs", rank: 4, heavy: false, suffix: "_prs.md" },
+  { feed: "uncommitted", recipeId: "ritual.eod", rank: 5, heavy: false, suffix: "_uncommitted.md" },
+  { feed: "debt", recipeId: "ritual.debt", rank: 6, heavy: false, suffix: "_debt.md" },
+  { feed: "branches", recipeId: "ritual.branches", rank: 7, heavy: false, suffix: "_branches.md" },
+  { feed: "bloat", recipeId: "hygiene.bloat", rank: 8, heavy: true, suffix: "_workspace_hygiene.md" },
+  { feed: "standup", recipeId: "ritual.standup", rank: 9, heavy: false, suffix: "_standup.md" },
+  { feed: "delta", recipeId: "ritual.delta", rank: 10, heavy: false, suffix: "_since_yesterday.md" },
+  { feed: "changelog", recipeId: "ritual.changelog", rank: 11, heavy: false, suffix: "_changelog_check.md" },
+  { feed: "version", recipeId: "ritual.version", rank: 12, heavy: false, suffix: "_version_check.md" },
+  { feed: "staleBranches", recipeId: "ritual.branchAge", rank: 13, heavy: false, suffix: "_branch_age.md" },
+  { feed: "bigFiles", recipeId: "ritual.bigFiles", rank: 14, heavy: false, suffix: "_large_new_files.md" },
+  { feed: "links", recipeId: "ritual.links", rank: 15, heavy: true, suffix: "_broken_links.md" },
+  // Last: it combines the reports above.
+  { feed: "readiness", recipeId: "ritual.readiness", rank: 20, heavy: false, suffix: "_release_readiness.md" },
 ];
+
+// Every ending a feed's report file can have.
+export function feedSuffixes(feed: FeedKind): string[] {
+  const info = feedInfo(feed);
+  return [info.suffix, ...(info.alsoSuffixes ?? [])];
+}
 
 // The feed info for a row kind.
 export function feedInfo(feed: FeedKind): FeedInfo {
@@ -35,6 +76,15 @@ export function feedInfo(feed: FeedKind): FeedInfo {
 const COMMAND_FEEDS: Record<string, FeedKind> = {
   "saropaWorkspace.recipe.ciStatus": "build",
   "saropaWorkspace.recipe.pubspecOutdated": "deps",
+  "saropaWorkspace.recipe.standupDigest": "standup",
+  "saropaWorkspace.recipe.overnightDelta": "delta",
+  "saropaWorkspace.recipe.runBloatScan": "bloat",
+  "saropaWorkspace.recipe.releaseReadiness": "readiness",
+  "saropaWorkspace.recipe.changelogCheck": "changelog",
+  "saropaWorkspace.recipe.versionCheck": "version",
+  "saropaWorkspace.recipe.branchAge": "staleBranches",
+  "saropaWorkspace.recipe.largeNewFiles": "bigFiles",
+  "saropaWorkspace.recipe.brokenLinks": "links",
 };
 
 // Which feed a recipe or stored shortcut action belongs to, from the command it runs or the
@@ -48,7 +98,7 @@ export function feedOfAction(action: { commandId?: string; reportFile?: string }
     return feedInfo(byCommand);
   }
   const file = action.reportFile;
-  return file ? FEEDS.find((f) => file.endsWith(f.suffix)) : undefined;
+  return file ? FEEDS.find((f) => feedSuffixes(f.feed).some((x) => file.endsWith(x))) : undefined;
 }
 
 export type SummaryResult = "pass" | "fail" | "unknown";
@@ -110,12 +160,33 @@ export function parseLintCount(output: string): number | undefined {
   return undefined;
 }
 
-// The summary of a finished shell run (lint or tests). A run that did not exit is unknown. A
-// tests run passes only with exit code 0 and no failed test in its summary line.
+// What a finished shell run says, by the feed its report belongs to. Undefined for a feed
+// whose report does not come from a captured shell run.
+function parseShell(feed: FeedKind, code: number | null, output: string): Parsed | undefined {
+  switch (feed) {
+    case "deps":
+      return parseDepsShell(code, output);
+    case "prs":
+      return parsePrQueue(code, output);
+    case "uncommitted":
+      return parseUncommitted(code, output);
+    case "debt":
+      return parseDebtMarkers(code, output);
+    case "branches":
+      return parseMergedBranches(code, output);
+    default:
+      return undefined;
+  }
+}
+
+// The summary of a finished shell run. A run that did not exit is unknown. A tests run passes
+// only with exit code 0 and no failed test in its summary line, and one that ran no tests is
+// unknown. The other feeds are read from their output (see reportParsers.ts).
 export function summarizeShellRun(feed: FeedKind, code: number | null, output: string, time: number): ReportSummary | undefined {
   const info = feedInfo(feed);
   if (feed !== "lint" && feed !== "tests") {
-    return undefined;
+    const parsed = parseShell(feed, code, output);
+    return parsed ? { recipe: info.recipeId, time, result: parsed.result, count: parsed.count } : undefined;
   }
   const tally = feed === "tests" ? parseTestTally(output) : undefined;
   const count = feed === "tests" ? tally?.failed : parseLintCount(output);
