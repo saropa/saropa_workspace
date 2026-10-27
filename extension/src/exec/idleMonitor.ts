@@ -79,6 +79,11 @@ export class IdleMonitor implements vscode.Disposable {
     }
   }
 
+  // Milliseconds since the user last touched the editor.
+  idleMs(): number {
+    return Date.now() - this.lastActivity;
+  }
+
   private markActivity(): void {
     this.lastActivity = Date.now();
     // The user is back: let every threshold fire again on the next idle stretch.

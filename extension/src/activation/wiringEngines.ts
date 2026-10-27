@@ -22,16 +22,17 @@ export function wireBackgroundEngines(
   context: vscode.ExtensionContext,
   store: ShortcutStore
 ): Scheduler {
-  // In-process scheduler for shortcuts with a schedule. Registered as a disposable so
-  // every timer is cleared on deactivation (no orphaned timers leak).
-  const scheduler = new Scheduler(store);
-  context.subscriptions.push(scheduler);
-
   // Editor-idle detector (WOW #18): tracks time since the last VS Code interaction and
-  // feeds the chain engine's run-on-idle triggers. Constructed before the chain engine
-  // so it can be handed in; disposable so its listeners and poll timer are cleared.
+  // feeds the chain engine's run-on-idle triggers and the scheduler's heavy catch-up jobs.
+  // Constructed before both so it can be handed in; disposable so its listeners and poll
+  // timer are cleared.
   const idleMonitor = new IdleMonitor();
   context.subscriptions.push(idleMonitor);
+
+  // In-process scheduler for shortcuts with a schedule. Registered as a disposable so
+  // every timer is cleared on deactivation (no orphaned timers leak).
+  const scheduler = new Scheduler(store, { idleMs: () => idleMonitor.idleMs() });
+  context.subscriptions.push(scheduler);
 
   // Chain engine (recipe chaining + special events + run-on-idle): listens for
   // shortcut completions, system events (build / publish emitted by a marked shortcut,
