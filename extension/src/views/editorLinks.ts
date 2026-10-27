@@ -61,7 +61,7 @@ function linksFor(uri: vscode.Uri, min: MinSeverity): FileLink[] {
   const out: FileLink[] = [];
   for (const p of state.run.cfg.projects) {
     const base = vscode.Uri.parse(p.path);
-    if (base.scheme !== uri.scheme || base.authority !== uri.authority) {
+    if (base.scheme !== uri.scheme || (FOLD ? base.authority.toLowerCase() !== uri.authority.toLowerCase() : base.authority !== uri.authority)) {
       continue;
     }
     const rel = relativeTo(base.path, uri.path, FOLD);
@@ -90,8 +90,9 @@ async function openDocument(id: number, at: number): Promise<void> {
   }
 }
 
-async function pick(): Promise<void> {
-  const uri = vscode.window.activeTextEditor?.document.uri;
+// `owner` is the file the lens sits in; the status bar passes nothing and uses the active editor.
+async function pick(owner?: unknown): Promise<void> {
+  const uri = owner instanceof vscode.Uri ? owner : vscode.window.activeTextEditor?.document.uri;
   const at = state?.stamp;
   if (!uri || at === undefined) {
     return;
@@ -131,6 +132,7 @@ class Lenses implements vscode.CodeLensProvider {
       title: l10n(links.length === 1 ? "editorLinks.summaryOne" : "editorLinks.summaryMany", { count: links.length }),
       tooltip: notes.length > 0 ? notes.join("\n") : l10n("editorLinks.summaryTooltip"),
       command: PICK,
+      arguments: [doc.uri],
     });
     const named = links.slice(0, LENS_NAMES).map(
       (l) =>
@@ -143,7 +145,7 @@ class Lenses implements vscode.CodeLensProvider {
     );
     const rest = links.length - named.length;
     if (rest > 0) {
-      named.push(new vscode.CodeLens(range, { title: l10n("editorLinks.more", { count: rest }), command: PICK }));
+      named.push(new vscode.CodeLens(range, { title: l10n("editorLinks.more", { count: rest }), command: PICK, arguments: [doc.uri] }));
     }
     return [summary, ...named];
   }
@@ -195,11 +197,16 @@ export function registerEditorLinks(context: vscode.ExtensionContext): void {
     changed,
     vscode.languages.registerCodeLensProvider({ scheme: "*" }, new Lenses()),
     vscode.commands.registerCommand(OPEN_ONE, (id: unknown, at: unknown) => (typeof id === "number" && typeof at === "number" ? openDocument(id, at) : undefined)),
-    vscode.commands.registerCommand(PICK, () => pick()),
+    vscode.commands.registerCommand(PICK, (owner?: unknown) => pick(owner)),
     changed.event(refresh),
     vscode.window.onDidChangeActiveTextEditor(refresh),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(SETTINGS)) {
+        // A change to anything but these four settings may change the projects: drop the
+        // cached board so the stored result is read again (the board tab publishes anew).
+        if (!e.affectsConfiguration(SETTINGS + ".editorLinks")) {
+          state = undefined;
+        }
         void loadStored(context).then(() => {
           changed.fire();
         });

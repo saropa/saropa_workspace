@@ -261,5 +261,5 @@
   "config.releaseBoard.editorLinks.enabled.description": "Show, in the editor, which open Release Board documents name the current file. Needs the Release Board to be on. Reads the last board result and never starts a scan.",
   "config.releaseBoard.editorLinks.codeLens.description": "Show a line at the top of a file listing the open Release Board documents that name it. Click a name to open the document.",
   "config.releaseBoard.editorLinks.statusBar.description": "Show a status bar item with the number of open documents naming the current file, in the color of the worst one.",
-  "config.releaseBoard.editorLinks.minSeverity.description": "Only show documents of at least this severity in the editor: any, medium, high or critical. Raise it if the editor lines feel noisy."
+  "config.releaseBoard.editorLinks.minSeverity.description": "Only show documents of at least this severity in the editor: any, medium, high or critical. Documents whose text was not read are left out when this is not any. Documents waiting on another document are collapsed on the board and never listed. Raise it if the editor lines feel noisy."
 }

@@ -89,11 +89,12 @@ export function worstColor(links: FileLink[]): FileLink["status"] | undefined {
 // The part of `target` below `base`, "/" separated, or undefined when it is not inside.
 // Both are URI paths of the same scheme and authority (the caller checks that).
 export function relativeTo(base: string, target: string, fold: boolean): string | undefined {
-  const b = norm(base, fold).replace(/\/+$/, "");
-  const t = norm(target, fold);
-  if (!t.startsWith(b + "/")) {
-    return undefined;
-  }
-  // Slice the original text so the case the caller passed is kept for display.
-  return target.replace(/\\/g, "/").slice(b.length + 1);
+  const clean = (p: string): string => p.replace(/\\/g, "/").replace(/^\.\//, "");
+  const b = clean(base).replace(/\/+$/, "");
+  const t = clean(target);
+  // Compare the same number of original characters, so a character whose lowercase has a
+  // different length can never shift the cut.
+  const head = t.slice(0, b.length);
+  const same = fold ? head.toLowerCase() === b.toLowerCase() : head === b;
+  return same && t.charAt(b.length) === "/" ? t.slice(b.length + 1) : undefined;
 }

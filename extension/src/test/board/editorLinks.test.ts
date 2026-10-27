@@ -72,6 +72,12 @@ test("relativeTo needs the file to be inside the base", () => {
   assert.equal(relativeTo("/w/APP", "/w/app/lib/a.dart", false), undefined);
 });
 
+test("relativeTo cuts by original length when lowercasing changes length", () => {
+  // U+0130 lowercases to two characters.
+  assert.equal(relativeTo("/w/\u0130", "/w/\u0130/lib/a.dart", true), "lib/a.dart");
+  assert.equal(relativeTo("/w/\u0130x", "/w/\u0130/lib/a.dart", true), undefined);
+});
+
 test("minSeverity setting values fall back to any", () => {
   assert.equal(asMinSeverity("high"), "high");
   assert.equal(asMinSeverity("bogus"), "any");
