@@ -117,67 +117,6 @@ Ordered by value to a board row. All are read-only unless noted.
 
 Each step: Opus reviews the design, Sonnet builds, Opus reviews the diff. Tests prove stale data never gives green.
 
-## 9. Forward list: a tab for deferred work
+## 9. Forward list
 
-### What the user sees
-
-- A tab named "Future" on the board.
-- One list of every deferred item from every project root, newest idea last.
-- Items are never counted as problems. They do not change any light.
-- The list is ordered by a score the user can read and change.
-
-### Where items come from
-
-- Documents in `plans/deferred/`, and in `docs/deferred/<area>/` for projects that use that layout.
-- Items in `ROADMAP.md` under Later or Exploratory.
-- Items in the master plan that are marked not started.
-- The "Not built or not verified" section of any plan.
-
-### Characteristics for ordering
-
-Each item gets these values. The board reads them from a small block at the top of the item's document. If the block is missing, the board proposes values and marks them "guessed".
-
-| Characteristic | Values | Meaning |
-|---|---|---|
-| Wow | 1 to 5 | How much a user would notice and enjoy it |
-| Reach | daily, weekly, rare | How often the user meets it |
-| Effort | S, M, L, XL | Build size |
-| Risk | low, medium, high | Chance of harm: destructive actions, data loss, shared code |
-| Blocked by | none, platform, owner decision, other item | Why it cannot start |
-| Free line | free, may be paid add-on | Whether it touches the free line |
-
-Score for the default order: Wow x Reach weight, divided by Effort, with risk as a tie-break and "blocked" items grouped at the bottom. The user can switch the order to Wow, Effort, Risk or Blocked.
-
-### Current deferred items, scored by me (guessed, not owner-confirmed)
-
-| Item | Wow | Reach | Effort | Risk | Blocked by |
-|---|---|---|---|---|---|
-| Onboarding wizard for first install (5.2) | 4 | once | M | low | none |
-| Status bar quick-run for top shortcut (5.4) | 4 | daily | S | low | none |
-| Shortcut usage in the sidebar (5.5) | 3 | weekly | S | low | none |
-| Quick-add from recent files (5.3) | 3 | weekly | S | low | none |
-| Notes organization: tags, pin to top, sort (6.5 phase 2) | 3 | weekly | M | low | none |
-| Notes across projects and search (6.5 phase 3) | 3 | weekly | M | low | none |
-| Group shortcuts by folder in multi-root (6.1) | 3 | daily for multi-root users | M | low | none |
-| Pin badge trend sparkline (6.2) | 2 | weekly | M | low | owner decision |
-| Linux terminal choice (5.6) | 2 | rare | S | low | none |
-| Git conflict command center (6.3) | 4 | rare | L | high | none |
-| Run rollback, "Revert Last Run" (6.4) | 4 | rare | L | high | none |
-| Release board: shared marks export, inferred links | 3 | weekly | M | low | none |
-| Release board: GitHub review-requested list | 3 | daily | M | low | token scope untested |
-| Release board: Chat Explorer lookup | 3 | weekly | S | low | Chat Explorer API release |
-| Release board: crash signals from Log Capture | 4 | weekly | M | low | Log Capture API not built |
-| Recipes feeding the board (sections 3 to 7) | 5 | daily | M | low | none |
-| Haptic cues | 2 | rare | L | low | platform has no API |
-| HUD Launcher desktop app | 5 | daily | XL | high | separate product |
-
-Highest value for the effort: recipes feeding the board, status bar quick-run, onboarding wizard.
-
-### Build order for the tab
-
-1. A reader that finds deferred documents and the not-started items in the plans.
-2. The characteristics block format and the "guessed" marking.
-3. The tab, with the default order and the four alternative orders.
-4. A one-line "Move to active" action that opens the item's document. It writes nothing.
-
-Open questions for the owner: none that change what ships. The scores above are mine and are listed as guessed until the owner edits them.
+Designed in `bugs/20261027_future_tab_deferred_work.md`.
