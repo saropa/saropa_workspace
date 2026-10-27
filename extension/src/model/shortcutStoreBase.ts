@@ -1,52 +1,27 @@
 import * as vscode from "vscode";
 import {
   Shortcut,
-  ShortcutExecConfig,
   ShortcutGroup,
-  ShortcutMetric,
-  ShortcutSchedule,
   ShortcutScope,
-  ShortcutSet,
-  ShortcutTrigger,
-  SystemEventName,
   ProjectShortcutsFile,
-  PROJECT_SHORTCUTS_VERSION,
-  PROJECT_FILE_RELATIVE,
-  LEGACY_PROJECT_FILE_RELATIVE,
-  KNOWN_CONFIG_DIRS,
-  configDirName,
-  configuredProjectFileRelative,
   DEFAULT_SET_NAME,
-  emptyProjectShortcutsFile,
-  shortcutKind,
 } from "./shortcut";
-import { parseGlobalPath, globalStoredPath } from "./shortcutPaths";
+
+import { parseGlobalPath } from "./shortcutPaths";
 import { relativeToBaseLoose } from "../utils/pathCompare";
-import { detectOnDemandRecipes, RecipeCategory, RecipeResult } from "../recipes/detectors";
-import { detectScheduledRecipes } from "../recipes/scheduledRecipes";
-import { detectSuiteRecipes } from "../recipes/suiteRecipes";
-import { detectProcessRecipes } from "../recipes/processRecipes";
-import { detectHygieneRecipes } from "../recipes/hygieneRecipes";
-import { detectRoutineRecipes } from "../recipes/routineRecipes";
-import { detectAiContextRecipes } from "../recipes/aiContextRecipes";
-import { getOutputChannel } from "../exec/runner";
-import { SharedShortcut } from "../import/shareLink";
-import { l10n } from "../i18n/l10n";
+import { RecipeResult } from "../recipes/detectors";
+
 import {
-  MoveTarget,
   GLOBAL_STATE_KEY,
   GLOBAL_GROUPS_KEY,
-  RECIPE_GROUPS,
-  RECIPE_SUBGROUPS,
-  RECIPE_GROUP_EXPANDED_PREFIX,
-  recipeGroupId,
-  recipeSubGroupId,
   isSyntheticRecipeGroupId,
-  recipeGroupColor,
-  isGlobPattern,
-  setsEqual,
-  sameSetName,
 } from "./shortcutStoreShared";
+import {
+  projectFileUriOn,
+  ensureProjectFileOn,
+  readProjectFileOn,
+  writeProjectFileOn,
+} from "./shortcutProjectFile";
 
 // Foundation layer: cached state fields, the change-event emitter, the file /
 // global-state persistence, and the synchronous query accessors. The higher
@@ -129,7 +104,6 @@ export abstract class ShortcutStoreBase {
   // name, so any folder would agree after a switch. See getActiveSetName / switchSet.
   protected activeSetName = DEFAULT_SET_NAME;
   protected setNamesCache: string[] = [DEFAULT_SET_NAME];
-
 
   constructor(protected readonly context: vscode.ExtensionContext) {}
 
@@ -306,189 +280,26 @@ export abstract class ShortcutStoreBase {
   // --- project file IO ---------------------------------------------------
 
   protected projectFileUri(folder: vscode.WorkspaceFolder): vscode.Uri {
-    return vscode.Uri.joinPath(folder.uri, configuredProjectFileRelative());
+    return projectFileUriOn(folder);
   }
 
-  // Create the project config file for a folder that has none yet. Checks every
-  // known previous config directory (KNOWN_CONFIG_DIRS) as a migration source,
-  // skipping the current configDir. If a legacy file is found, its content is
-  // copied to the configured location with pin paths rewritten, and the source
-  // is deleted (delete failure is isolated — the migrated copy is safe). When no
-  // legacy file exists, a fresh empty config is created. A write failure
-  // (read-only folder, virtual filesystem) is swallowed and logged.
+  // Create the project config file for a folder that has none yet, migrating a
+  // legacy config location when one exists (see ensureProjectFileOn).
   protected async ensureProjectFile(folder: vscode.WorkspaceFolder): Promise<void> {
-    const uri = this.projectFileUri(folder);
-    try {
-      await vscode.workspace.fs.stat(uri);
-      return; // already present — do not overwrite
-    } catch {
-      // Configured path absent — check legacy locations before creating.
-    }
-
-    const currentDir = configDirName();
-    const currentRelative = configuredProjectFileRelative();
-
-    // Try each known legacy location (newest convention first).
-    for (const dir of KNOWN_CONFIG_DIRS) {
-      if (dir === currentDir) {
-        continue;
-      }
-      const legacyRelative = `${dir}/saropa-workspace.json`;
-      const legacyUri = vscode.Uri.joinPath(folder.uri, legacyRelative);
-      let legacyBytes: Uint8Array | undefined;
-      try {
-        legacyBytes = await vscode.workspace.fs.readFile(legacyUri);
-      } catch {
-        continue;
-      }
-
-      // Migrate: rewrite any pins whose path targeted a known legacy config
-      // location so the seed shortcut stays accurate. A corrupt legacy file
-      // must not crash activation (BUG-001) — treat it like "no legacy file
-      // here" and keep checking the remaining known locations.
-      let parsed: ProjectShortcutsFile;
-      try {
-        parsed = JSON.parse(Buffer.from(legacyBytes).toString("utf8"));
-      } catch (err) {
-        getOutputChannel().appendLine(
-          `[config] ${legacyRelative} is not valid JSON, skipping migration for ${
-            folder.name
-          }: ${err instanceof Error ? err.message : String(err)}`
-        );
-        continue;
-      }
-      if (Array.isArray(parsed.pins)) {
-        for (const pin of parsed.pins) {
-          if (
-            pin.path === LEGACY_PROJECT_FILE_RELATIVE ||
-            pin.path === PROJECT_FILE_RELATIVE
-          ) {
-            pin.path = currentRelative;
-          }
-        }
-      }
-      await this.writeProjectFile(folder, parsed);
-      try {
-        await vscode.workspace.fs.delete(legacyUri);
-      } catch {
-        // Delete failed (locked file, permissions) — the migrated copy is safe;
-        // next activation will see the configured path and skip migration.
-      }
-      getOutputChannel().appendLine(
-        `[config] migrated ${legacyRelative} → ${currentRelative} for ${folder.name}`
-      );
-      return;
-    }
-
-    try {
-      await this.writeProjectFile(folder, emptyProjectShortcutsFile());
-    } catch (err) {
-      getOutputChannel().appendLine(
-        `[config] could not create ${currentRelative} for ${folder.name}: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
-    }
+    await ensureProjectFileOn(folder);
   }
 
   protected async readProjectFile(
     folder: vscode.WorkspaceFolder
   ): Promise<ProjectShortcutsFile> {
-    try {
-      const bytes = await this.readProjectFileBytes(folder);
-      if (!bytes) {
-        return emptyProjectShortcutsFile();
-      }
-      const parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
-      // Defensive defaults + staged migration. v1->v2: a v1 file has no `groups`;
-      // it reads as an empty group list and its shortcuts (which lack groupId) render
-      // at the top level. v2->v3: a v2 file has no `activeSet`/`sets`; its existing
-      // top-level shortcuts/groups BECOME the default set's contents (activeSet
-      // defaults to DEFAULT_SET_NAME, sets defaults to []), so nothing is moved or
-      // dropped — a single-set workspace stays identical to the pre-sets layout. No
-      // shortcut field is ever lost. `sets` entries are sanitized so a hand-edited
-      // file with a malformed set never crashes the reader.
-      return {
-        version: PROJECT_SHORTCUTS_VERSION,
-        pins: Array.isArray(parsed.pins) ? parsed.pins : [],
-        groups: Array.isArray(parsed.groups) ? parsed.groups : [],
-        // A non-empty string wins; anything else (missing/blank/non-string from a
-        // v2 file or a bad hand-edit) falls back to the default set name.
-        activeSet:
-          typeof parsed.activeSet === "string" &&
-          parsed.activeSet.trim().length > 0
-            ? parsed.activeSet
-            : DEFAULT_SET_NAME,
-        // Only well-formed, named sets survive the read; each set's shortcuts/groups
-        // default to [] when absent so a partial hand-edit can't throw later.
-        sets: Array.isArray(parsed.sets)
-          ? parsed.sets
-              .filter(
-                (s: unknown): s is ShortcutSet =>
-                  !!s &&
-                  typeof (s as ShortcutSet).name === "string" &&
-                  (s as ShortcutSet).name.trim().length > 0
-              )
-              .map((s: ShortcutSet) => ({
-                name: s.name,
-                pins: Array.isArray(s.pins) ? s.pins : [],
-                groups: Array.isArray(s.groups) ? s.groups : [],
-              }))
-          : [],
-        removedAutoPins: Array.isArray(parsed.removedAutoPins)
-          ? parsed.removedAutoPins
-          : [],
-        removedRecipes: Array.isArray(parsed.removedRecipes)
-          ? parsed.removedRecipes
-          : [],
-        // A v1/v2 file (or one written before auto-shortcut grouping) has no
-        // autoGroups; it reads as an empty map and every auto-shortcut stays at top
-        // level until the user drags one into a folder.
-        autoGroups:
-          parsed.autoGroups && typeof parsed.autoGroups === "object"
-            ? (parsed.autoGroups as Record<string, string>)
-            : {},
-      };
-    } catch {
-      return emptyProjectShortcutsFile();
-    }
-  }
-
-  // Try the configured dir first, then each known legacy location as a fallback.
-  private async readProjectFileBytes(
-    folder: vscode.WorkspaceFolder
-  ): Promise<Uint8Array | undefined> {
-    try {
-      return await vscode.workspace.fs.readFile(this.projectFileUri(folder));
-    } catch {
-      // Configured path absent — try legacy locations.
-    }
-    const currentDir = configDirName();
-    for (const dir of KNOWN_CONFIG_DIRS) {
-      if (dir === currentDir) {
-        continue;
-      }
-      try {
-        return await vscode.workspace.fs.readFile(
-          vscode.Uri.joinPath(folder.uri, `${dir}/saropa-workspace.json`)
-        );
-      } catch {
-        continue;
-      }
-    }
-    return undefined;
+    return readProjectFileOn(folder);
   }
 
   protected async writeProjectFile(
     folder: vscode.WorkspaceFolder,
     file: ProjectShortcutsFile
   ): Promise<void> {
-    const uri = this.projectFileUri(folder);
-    await vscode.workspace.fs.createDirectory(
-      vscode.Uri.joinPath(folder.uri, configDirName())
-    );
-    const json = JSON.stringify(file, null, 2) + "\n";
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(json, "utf8"));
+    await writeProjectFileOn(folder, file);
   }
 
   // --- global state IO ---------------------------------------------------

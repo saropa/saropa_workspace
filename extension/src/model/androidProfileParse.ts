@@ -1,6 +1,7 @@
-import { AndroidVariantId, AndroidDeepLink } from "./androidProfileTypes";
 // Pure text parsers for the Android project profile: Gradle, pubspec and the
 // manifest. No VS Code access; unit-tested directly. Split out of androidProjectProfile.ts.
+
+import { AndroidVariantId, AndroidDeepLink } from "./androidProfileTypes";
 
 // ---------------------------------------------------------------------------
 // Gradle (Groovy / Kotlin DSL)
