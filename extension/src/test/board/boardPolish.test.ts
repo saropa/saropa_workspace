@@ -188,3 +188,29 @@ test("no layout container is given a fixed width above 280 pixels", () => {
     }
   }
 });
+
+// The settings table of the README and the settings of package.json say the same.
+test("every releaseBoard setting is in the README table with its default, and the table lists no other", () => {
+  const root = path.join(__dirname, "..", "..", "..");
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { contributes: { configuration: { properties: Record<string, { default?: unknown }> } | Array<{ properties: Record<string, { default?: unknown }> }> } };
+  const conf = pkg.contributes.configuration;
+  const props = Object.assign({}, ...(Array.isArray(conf) ? conf.map((c) => c.properties) : [conf.properties])) as Record<string, { default?: unknown }>;
+  const shown = (v: unknown): string => (Array.isArray(v) ? JSON.stringify(v) : String(v));
+  const expected = new Map<string, string>();
+  for (const [k, v] of Object.entries(props)) {
+    if (k.startsWith("saropaWorkspace.releaseBoard.")) {
+      expected.set(k.slice("saropaWorkspace.".length), shown(v.default));
+    }
+  }
+  const readme = fs.readFileSync(path.join(root, "..", "README.md"), "utf8");
+  const found = new Map<string, string>();
+  for (const m of readme.matchAll(/^\| `(releaseBoard\.[\w.]+)` \| `([^`]*)` \|/gm)) {
+    assert.ok(!found.has(m[1]), `${m[1]} is listed twice`);
+    found.set(m[1], m[2]);
+  }
+  assert.ok(expected.size >= 40);
+  assert.deepEqual([...found.keys()].sort(), [...expected.keys()].sort());
+  for (const [k, d] of expected) {
+    assert.equal(found.get(k), d, `README default of ${k}`);
+  }
+});

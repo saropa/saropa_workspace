@@ -66,10 +66,24 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 * **Editable Promotion:** Keep scripts hidden, toggle entire recipe domains off, or choose `Promote to Shortcut` to customize a macro permanently.
 
 ### 🚦 Release Board
-* **One Screen For "Can We Ship?":** Click **Release Board** in the status bar (or the checklist button in the Shortcuts view title bar, or run **Release Board: Open**). It reads your bugs, docs and plans folders across projects and shows what blocks a release in red, amber and purple.
+* **One Screen For "Can We Ship?":** Click **Release Board** in the status bar (or the checklist button in the Shortcuts view title bar, or run **Release Board: Open**). It reads your bugs, docs and plans folders across projects and shows what blocks a release in red, amber and purple. The tab is named **Saropa Release Board**.
 * **Honest Light:** NO-GO, UNVERIFIED or GO per project. GO needs an accepted baseline, nothing blocking, every open document read, and fresh, clean lint and test results.
+* **Always In View:** A Release Board section at the top of the sidebar shows one row per project with its light and first blockers. The status bar button is tinted with the worst light. The board can open once as a background tab when a window starts.
+* **Several Projects:** The **Projects** button adds folders, or every project inside a parent folder, next to the folders open in the window. With more than one project, a header counts the projects by light, and a folder that cannot be read gets its own grey row with the reason. The **Settings** button opens the board settings.
+* **Documents Are Links:** An openable document is an underlined link, and its tooltip is its path inside the project. Anything else stays plain text. Every element, colored dot, triangle, square and mark has a tooltip that says what it is and what it means. Every count is a small rounded pill.
+* **Folds And Narrow Panels:** Every section can be folded, with the keyboard too, and the board remembers which ones you folded. Long lists start folded. The layout reflows down to a panel about 280 pixels wide: no sideways scrolling, buttons under the text, touch targets at least 32 pixels high.
 * **Linked Work:** `Needs:` lines in documents draw chains between documents and projects; related documents cluster into groups; the board suggests links you can accept or reject.
-* **Path to GO:** Click a project row to see the few steps between it and GO, fastest first, with buttons to open a document, run lint or tests in the background, open the rules file or accept the scan. Steps tick off as they are done.
+* **Path to GO:** Click a project row to see the few steps between it and GO, fastest first, with links to open a document or the rules file, buttons to run lint or tests in the background, and to accept the scan. Steps tick off as they are done.
+* **Steps I Can Do Now (Sittings):** An always-visible filter, **Time I have**: Any, 15 min, 30 min, 1 hour or Half a day, plus a chip for each thing you have in hand (iPhone, Mac, SQL editor and so on). By default everything is allowed for any time. Your choice is remembered on this machine.
+* **In Progress:** Lists the open documents you are editing right now (unsaved edits or changed in git) that belong to the board, then the documents marked in progress. The list is capped; the rest is counted as "N more".
+* **Documents With No Rule:** A section for documents no rule placed, with the number and the folders they sit in. **Add a rule** asks which category the folder gets, shows the rule, and writes it to `.saropa/release-board.json` only after you confirm (a file that does not parse is never touched). **Preview** shows what the rule would match. **Open the rules file** opens it. The board scans again after a rule is added.
+* **Since You Last Looked:** A strip at the top lists new blockers, cleared blockers and lights that moved, plus standup and since-yesterday report lines.
+* **Live Evidence:** A small flame on a row when the source files a document names have errors or warnings right now. Crash signals in files no document names are listed with a **Start a bug document** button.
+* **Tidy:** A **Ready to tidy** box lists finished documents that have not changed for a while, and the tech-debt, branch and bloat reports. A document moves to the archive only after you click and confirm.
+* **Hand To Chat:** A small button on each blocker, Path to GO step and Sittings step copies a ready prompt to the clipboard. Nothing is sent.
+* **Prove Overnight:** Optional. Runs each project's own lint and test shortcuts once a night while VS Code is open and records fresh evidence.
+* **Release Train:** When more than one project ships together, one row shows the worst light of them and what holds the release.
+* **Daily Report Evidence:** The newest Build status, Dawn lint sweep, Test trend tracker and Dependency freshness reports feed the Build, Lint, Tests and Dependencies marks. Other daily reports add row notes and lines in Tidy and in Since you last looked.
 * **Release Profiles:** Rush, Deliberate or Zero defects decide which severities stop a release.
 * **Optional Links:** Saropa Lints results, Claude sessions per document (Chat Explorer) and the pull requests waiting for your review.
 * **Future Tab And Research:** Deferred and blocked documents are listed under an importance flag, never as problems. Each can carry a research state in its header block (`Research: none | needed | in-progress | ready | reviewed`) and a one-line `Research question:`. **Hand all to chat** copies one research prompt per flagged document, one after another (Hand to chat copies a single prompt at a time): paste each into a chat, confirm, and the document becomes `in-progress`. A document with `ready` research shows **Research ready, not reviewed** until you press **Mark reviewed**.
@@ -151,11 +165,13 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.sinceLast.enabled` | `true` | Shows what changed since the board was last seen (new blockers, cleared blockers, lights that moved) at the top of the board, in the sidebar and in the status bar tooltip. Only shown when something changed. |
 | `releaseBoard.sinceLast.maxListed` | `5` | Most document titles listed per project in that strip (1 to 20). |
 | `releaseBoard.sinceLast.reports` | `true` | Adds a line to "Since you last looked" when a new standup digest or since-yesterday report was written. Read-only. |
-| `releaseBoard.sittings.enabled` | `true` | Shows the "I have..." button: pick what you have in hand and the time, get one list of steps you can do now. |
-| `releaseBoard.sittings.defaultHave` | `[]` | Context ids switched on only until you first choose on the board (for example `["iphone","mac"]`); after that your remembered choice wins. Empty remembers your last choice on this machine. |
-| `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30` or `60` minutes. |
+| `releaseBoard.sittings.enabled` | `true` | Shows the **Steps I can do now** filter on the board: pick the time you have and what you have in hand, get one list of steps you can do now. |
+| `releaseBoard.sittings.defaultHave` | `[]` | Context ids switched on only until you first choose on the board (for example `["iphone","mac"]`); after that your remembered choice wins. Empty means everything is in hand. |
+| `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30`, `60` or `240` (half a day) minutes. |
 | `releaseBoard.sittings.maxSteps` | `25` | Most steps listed at once (5 to 100). The board reads at most 200 open steps per document. |
 | `releaseBoard.sittings.onlyOwnerDocuments` | `true` | Lists steps only from owner-action documents (name them with `ownerKinds` or `ownerFolders` in the rules file). |
+| `releaseBoard.inProgress.enabled` | `true` | Shows the open documents you are editing (unsaved or changed in git) in the In progress list. Off: the list holds only documents marked in progress. |
+| `releaseBoard.inProgress.max` | `15` | Most documents listed in In progress (1 to 50). The rest are counted as "N more". |
 | `releaseBoard.tidy.enabled` | `true` | Shows a "Ready to tidy" box on the board: documents with every step done that have not changed for a while. It only lists them; a document moves only after you click its button and confirm. |
 | `releaseBoard.tidy.afterDays` | `7` | Days a finished document must stay unchanged before it is listed (1 to 365). |
 | `releaseBoard.tidy.archiveFolder` | `docs/history` | Folder inside the project that tidied documents move to, under a year/month/day sub-folder. |
