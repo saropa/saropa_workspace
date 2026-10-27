@@ -381,4 +381,3 @@ async function writeRoutineSummary(
     );
   }
 }
-
