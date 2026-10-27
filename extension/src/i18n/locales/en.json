@@ -1872,5 +1872,16 @@
   "releaseBoard.markProgress": "Mark in progress",
   "releaseBoard.markPin": "Pin as critical",
   "releaseBoard.markClear": "Clear my marks",
-  "releaseBoard.marksExported": "Release Board: marks written to {file}. Commit it to share them."
+  "releaseBoard.marksExported": "Release Board: marks written to {file}. Commit it to share them.",
+  "releaseBoard.sittings.button": "I have…",
+  "releaseBoard.sittings.heading": "What I can do with what I have",
+  "releaseBoard.sittings.pick": "Switch on what you have in hand, and the time you have.",
+  "releaseBoard.sittings.none": "No open step needs only what you have in hand and fits the time.",
+  "releaseBoard.sittings.more": "{count} more steps fit",
+  "releaseBoard.sittings.tooLong": "{count} more steps need more time than this",
+  "releaseBoard.sittings.untagged": "{count} untagged steps",
+  "releaseBoard.sittings.untaggedNote": "The board found no device or console in these steps, so it cannot tell if you can do them now. Add words to the needs dictionary in .saropa/release-board.json to tag them.",
+  "releaseBoard.sittings.timeAny": "Any time",
+  "releaseBoard.sittings.timeMinutes": "{count} minutes",
+  "releaseBoard.sittings.stepMinutes": "about {count} minutes"
 }

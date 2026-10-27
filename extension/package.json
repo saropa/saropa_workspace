@@ -2419,6 +2419,37 @@
             "default": false,
             "description": "%config.releaseBoard.reviewRequests.description%"
           },
+          "saropaWorkspace.releaseBoard.sittings.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.sittings.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.sittings.defaultHave": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%config.releaseBoard.sittings.defaultHave.description%"
+          },
+          "saropaWorkspace.releaseBoard.sittings.defaultTimeBox": {
+            "type": "string",
+            "enum": ["any", "15", "30", "60"],
+            "default": "any",
+            "description": "%config.releaseBoard.sittings.defaultTimeBox.description%"
+          },
+          "saropaWorkspace.releaseBoard.sittings.maxSteps": {
+            "type": "number",
+            "default": 25,
+            "minimum": 5,
+            "maximum": 100,
+            "description": "%config.releaseBoard.sittings.maxSteps.description%"
+          },
+          "saropaWorkspace.releaseBoard.sittings.onlyOwnerDocuments": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.sittings.onlyOwnerDocuments.description%"
+          },
           "saropaWorkspace.previewMode.enabled": {
             "type": "boolean",
             "default": false,

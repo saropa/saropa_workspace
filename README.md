@@ -122,6 +122,11 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.enabled` | `true` | Shows the Release Board button and commands. |
 | `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
 | `releaseBoard.reviewRequests` | `false` | Lists pull requests waiting for your review on the board. |
+| `releaseBoard.sittings.enabled` | `true` | Shows the "I have..." button: pick what you have in hand and the time, get one list of steps you can do now. |
+| `releaseBoard.sittings.defaultHave` | `[]` | Context ids switched on until you choose on the board (for example `["iphone","mac"]`). Empty remembers your last choice on this machine. |
+| `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30` or `60` minutes. |
+| `releaseBoard.sittings.maxSteps` | `25` | Most steps listed at once (5 to 100). |
+| `releaseBoard.sittings.onlyOwnerDocuments` | `true` | Lists steps only from owner-action documents (name them with `ownerKinds` or `ownerFolders` in the rules file). |
 
 ```json
 {

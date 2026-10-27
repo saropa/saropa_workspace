@@ -46,6 +46,16 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Release Board gains an "I have..." button: say what is in your hand and how long you have, and get one list of the open steps you can do now.
+
+### Added
+
+- **Release Board: Sittings.** The "I have..." button opens toggles for iPhone, Android phone, Mac, Windows PC, Supabase SQL Editor, App Store Connect, Play Console and a Google account with backups, plus a time box of 15, 30 or 60 minutes (or any). The board answers with one list of open steps from all projects that need only what you have. Steps that unblock other documents come first, then the more severe, then the shorter. Each line opens the document at the step. Your choice is remembered on this machine. This first version only reads: it never writes into your documents.
+- **Steps are tagged from a readable word list**, `needs-dictionary.json` (for example "TestFlight" means iPhone or Mac, "SQL Editor" means the Supabase SQL Editor). A table column named "Needs" is read directly. Add or change words under `needs` in `.saropa/release-board.json`. A step with no match is never hidden: an "untagged steps" line lists them.
+- **Settings:** `releaseBoard.sittings.enabled`, `.defaultHave`, `.defaultTimeBox`, `.maxSteps` and `.onlyOwnerDocuments`. By default only owner-action documents (the `human` folder) are listed; `ownerKinds` and `ownerFolders` in the rules file name others.
+
 ## [2.0.0]
 
 The Release Board arrives: an off-by-default screen that reads your bugs, docs and plans folders across projects, shows what blocks a release in red, amber and green, links documents that wait on each other, and only says GO when lint and tests are fresh and clean. [log](https://github.com/saropa/saropa-workspace/blob/v2.0.0/CHANGELOG.md)
