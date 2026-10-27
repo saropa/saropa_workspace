@@ -201,6 +201,32 @@ Community extensions appear as a separate group. They never change a core projec
 - Release profile per release (open: per project or per release).
 - Staleness limit for lint and test results.
 
+## How it is built
+
+### Where the work can run
+- **Online (a cloud session):** install, typecheck (`npm run lint`), the unit tests (`npm test`, about 1,500 tests, 3 seconds) and the bundle build (`npm run build`). Checked in the cloud on 27 Oct: install and typecheck pass; 1,501 tests pass and 2 fail on `main` before any change (package.json script-detection tests, cause not yet read).
+- **Online, with fixtures:** the board screens, by rendering the webview page in a headless browser against fixture data. This catches layout and script errors, not VS Code behavior.
+- **Online, against the real repos:** the scanner and rule engine run over the checked-out app, Supabase and website repos.
+- **Not online:** opening the extension inside VS Code, GitHub sign-in, and the sibling extensions (Lints, Log Capture, Chat Explorer). Each build step ends with a short checklist for you to run in VS Code (install the built package, open the board, check the listed items).
+
+### Shape of the code
+- A **core** folder (`extension/src/board/`) with no VS Code imports: rule engine, scanner, document reader, severity scorer, safety check, cache format, linkage and grouping. Unit-tested with the existing node test runner, like the rest of the extension.
+- A thin **VS Code layer** on top: the webview, the commands, file watching, shortcut-result capture.
+- Rules and the phrase dictionary are JSON files shipped with the extension and overridable per project.
+
+### Build steps and what proves each one
+1. **Scanner, rule engine, safety check.** Proof: a golden test that runs the TypeScript engine over the three real repos and matches the Python prototype's state counts (App red 10, amber 53, grey 4; Supabase red 6, amber 3, grey 8; Website red 2, amber 26). Plus tests for the rename case, the first scan, and a bulk archive.
+2. **Roll-up marks and first screen.** Proof: headless-browser render with fixtures, checked in dark and light, and a pass at phone width.
+3. **Document facts.** Proof: the TypeScript reader matches the prototype's facts on the 20 real blockers (words, headings, steps, code languages, groups).
+4. **Linkages and groups.** Proof: the share-keys chain and the three groups come out as in the mockup; a stale `Needs:` is flagged.
+5. **Severity and profiles.** Proof: the 20 blockers get the same levels as the prototype; each profile gives the same NO-GO set.
+6. **Code health.** Proof: unit tests with recorded Lints files (fresh, stale, partial) and recorded shortcut results (background, terminal). Live check by you in VS Code.
+7. **Shared marks and inferred links.**
+
+### Delivery
+- One pull request per step, each with tests, a changelog line and the VS Code checklist. The version is bumped to 2.0.0 when step 6 ships, since GO becomes possible then. Earlier steps ship behind a setting that is off by default, so the existing extension is unchanged for current users.
+- Each pull request is reviewed by a second model before merge.
+
 ## Build order
 
 1. Scanner, cache, rule engine over several roots, **and the safety check**. Port the prototype to TypeScript.
