@@ -402,6 +402,11 @@ export class ThemeColor {
   constructor(public readonly id: string) {}
 }
 
+// vscode.ThemeIcon: quick-pick items carry one as their iconPath. Only the id is modeled.
+export class ThemeIcon {
+  constructor(public readonly id: string) {}
+}
+
 // vscode.TextEditorRevealType / OverviewRulerLane: same module-scope decoration options.
 // Modeled as the real numeric members so a bundle loads; no test asserts on them.
 export const TextEditorRevealType = {
