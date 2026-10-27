@@ -30,6 +30,43 @@ interface WorkTriggers {
   emits: SystemEventName[];
 }
 
+/**
+ * Runs the edit behind a hub row: opens the matching editor, removes a trigger,
+ * or flips its success gate. `choice.index` points into `work.triggers`.
+ */
+async function applyHubChoice(
+  choice: HubChoice,
+  store: ShortcutStore,
+  shortcut: Shortcut,
+  work: WorkTriggers,
+  title: string
+): Promise<void> {
+  switch (choice.act) {
+    case "addShortcut":
+      await addShortcutTrigger(store, shortcut, work, title);
+      break;
+    case "addEvent":
+      await addEventTrigger(work, title);
+      break;
+    case "addIdle":
+      await addIdleTrigger(work, title);
+      break;
+    case "emits":
+      await editEmits(work, title);
+      break;
+    case "removeTrigger":
+      if (choice.index !== undefined) {
+        work.triggers.splice(choice.index, 1);
+      }
+      break;
+    case "toggleSuccess":
+      if (choice.index !== undefined) {
+        toggleOnlyOnSuccess(work.triggers[choice.index]);
+      }
+      break;
+  }
+}
+
 // "Configure Triggers" command entry point (recipe chaining + special events). Warns
 // and exits for an auto-shortcut (nowhere to persist triggers); otherwise builds a
 // working copy of the triggers/emits lists, loops the hub tracking the last-acted row
@@ -68,30 +105,7 @@ export async function configureTriggers(
       break;
     }
     activeKey = { act: choice.act, index: choice.index };
-    switch (choice.act) {
-      case "addShortcut":
-        await addShortcutTrigger(store, shortcut, work, title);
-        break;
-      case "addEvent":
-        await addEventTrigger(work, title);
-        break;
-      case "addIdle":
-        await addIdleTrigger(work, title);
-        break;
-      case "emits":
-        await editEmits(work, title);
-        break;
-      case "removeTrigger":
-        if (choice.index !== undefined) {
-          work.triggers.splice(choice.index, 1);
-        }
-        break;
-      case "toggleSuccess":
-        if (choice.index !== undefined) {
-          toggleOnlyOnSuccess(work.triggers[choice.index]);
-        }
-        break;
-    }
+    await applyHubChoice(choice, store, shortcut, work, title);
   }
 
   await store.updateShortcutTriggers(

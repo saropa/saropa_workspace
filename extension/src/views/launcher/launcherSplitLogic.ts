@@ -34,6 +34,7 @@ export interface PanelLimits {
 // (launcherAssets.ts), and this module's own tests, so there is exactly one place to
 // change a limit instead of three copies silently drifting apart.
 export const LEFT_PANEL_LIMITS: PanelLimits = { min: 160, max: 400, defaultWidth: 220 };
+/** Width limits and default for the right panel (see LEFT_PANEL_LIMITS above). */
 export const RIGHT_PANEL_LIMITS: PanelLimits = { min: 200, max: 480, defaultWidth: 260 };
 
 // Clamp a candidate width to the panel's configured [min, max] range. Shared by both the

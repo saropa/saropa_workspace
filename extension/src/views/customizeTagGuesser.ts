@@ -1,6 +1,7 @@
 // Content-based tag guesser for the Customize panel. Tokenizes file content,
 // filters stop words (grammar, pronouns, generic programming keywords), scores
-// by frequency weighted toward longer words, and returns the top candidates.
+// by count x sqrt(word length) so longer words rank higher, keeps scores above
+// 1.5, and returns the top candidates.
 
 const STOP_WORDS = new Set([
   "the", "and", "but", "for", "nor", "yet", "not",
@@ -27,6 +28,7 @@ const STOP_WORDS = new Set([
   "enum", "struct", "package", "protected", "readonly", "declare",
 ]);
 
+/** Suggests up to `max` tags from the most frequent meaningful words in a file, ignoring short words and language keywords. */
 export function guessTagsFromContent(content: string, max = 6): string[] {
   // Split camelCase/PascalCase into separate words before lowercasing
   const expanded = content

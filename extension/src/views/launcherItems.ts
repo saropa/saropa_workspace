@@ -98,6 +98,7 @@ export interface LauncherItem {
   readonly menu: readonly LauncherMenuEntry[];
 }
 
+/** One row of a card's right-click menu; a row with `children` is a submenu header. */
 export interface LauncherMenuEntry {
   readonly command: string;
   readonly label: string;

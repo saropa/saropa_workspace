@@ -7,6 +7,36 @@ import { PANEL_STYLE, PANEL_SCRIPT } from "./dashboardAssets";
 // process poll only runs while the Processes tab is showing.
 export type DashboardTab = "processes" | "analytics" | "trends";
 
+/** Tab bar plus the Refresh button; `isActive` marks the tab the panel opened on. */
+function headerHtml(isActive: (tab: DashboardTab) => string): string {
+  return `<header>
+  <div class="tabs">
+    <button class="tab${isActive("processes")}" data-tab="processes">${l10n("tab.processes")}</button>
+    <button class="tab${isActive("analytics")}" data-tab="analytics">${l10n("tab.analytics")}</button>
+    <button class="tab${isActive("trends")}" data-tab="trends">${l10n("tab.trends")}</button>
+    <span class="spacer"></span>
+    <button id="refresh">${l10n("dashboard.refresh")}</button>
+  </div>
+</header>`;
+}
+
+/** The Processes tab body: sort buttons, copy-report button, sparkline and the process groups. */
+function processesSectionHtml(hiddenClass: string): string {
+  return `<section id="tab-processes" class="tab-panel${hiddenClass}">
+  <div id="host" class="host"></div>
+  <div class="actions">
+    <button id="sortCpu" class="seg active">${l10n("dashboard.sortCpu")}</button>
+    <button id="sortRam" class="seg">${l10n("dashboard.sortRam")}</button>
+    <button id="sortPid" class="seg">${l10n("dashboard.sortProc")}</button>
+    <span class="spacer"></span>
+    <button id="copy">${l10n("dashboard.copyReport")}</button>
+  </div>
+  <div id="spark" class="spark"></div>
+  <div id="status" class="status"></div>
+  <div id="groups"></div>
+</section>`;
+}
+
 // The static HTML shell: a strict CSP locked to this nonce for scripts and to the
 // webview's own inline styles, no remote anything. The tab strip and all three tab
 // panels are framed here; data arrives by postMessage and the inlined script renders
@@ -33,29 +63,9 @@ export function renderShell(initialTab: DashboardTab): string {
 <style>${PANEL_STYLE}</style>
 </head>
 <body>
-<header>
-  <div class="tabs">
-    <button class="tab${isActive("processes")}" data-tab="processes">${l10n("tab.processes")}</button>
-    <button class="tab${isActive("analytics")}" data-tab="analytics">${l10n("tab.analytics")}</button>
-    <button class="tab${isActive("trends")}" data-tab="trends">${l10n("tab.trends")}</button>
-    <span class="spacer"></span>
-    <button id="refresh">${l10n("dashboard.refresh")}</button>
-  </div>
-</header>
+${headerHtml(isActive)}
 
-<section id="tab-processes" class="tab-panel${isShown("processes")}">
-  <div id="host" class="host"></div>
-  <div class="actions">
-    <button id="sortCpu" class="seg active">${l10n("dashboard.sortCpu")}</button>
-    <button id="sortRam" class="seg">${l10n("dashboard.sortRam")}</button>
-    <button id="sortPid" class="seg">${l10n("dashboard.sortProc")}</button>
-    <span class="spacer"></span>
-    <button id="copy">${l10n("dashboard.copyReport")}</button>
-  </div>
-  <div id="spark" class="spark"></div>
-  <div id="status" class="status"></div>
-  <div id="groups"></div>
-</section>
+${processesSectionHtml(isShown("processes"))}
 
 <section id="tab-analytics" class="tab-panel${isShown("analytics")}">
   <div id="analytics"></div>

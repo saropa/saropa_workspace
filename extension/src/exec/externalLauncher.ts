@@ -36,6 +36,42 @@ function findExe(binary: string): string | undefined {
   return found?.toLowerCase().endsWith(".exe") ? found : undefined;
 }
 
+/**
+ * On Windows the outer launcher's stderr is piped so a Start-Process failure
+ * reports what went wrong rather than vanishing silently. Logs the launcher's
+ * exit and shows an error toast when it failed. No-op when stderr is not piped.
+ */
+function reportLauncherExit(
+  child: ChildProcess,
+  channel: ReturnType<typeof getOutputChannel>,
+  name: string
+): void {
+  if (child.stderr) {
+    let stderr = "";
+    const STDERR_CAP = 4096;
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (stderr.length < STDERR_CAP) {
+        stderr = (stderr + chunk.toString()).slice(0, STDERR_CAP);
+      }
+    });
+    child.on("exit", (code) => {
+      if (code !== 0 && code !== null) {
+        const detail = stderr.trim().slice(0, STDERR_CAP) || `exit code ${code}`;
+        channel.appendLine(`[${name}] external launcher failed: ${detail}`);
+        vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: detail }));
+      } else {
+        // A clean wrapper exit only means Start-Process was asked to launch the
+        // window, not that the window actually opened (Start-Process is
+        // fire-and-forget and returns before the target finishes initializing) —
+        // exactly the gap that let the Job Object failure go unnoticed. Worded to
+        // reflect that: confirms the request succeeded, not the window's presence.
+        channel.appendLine(`[${name}] external launcher: window requested successfully`);
+      }
+      child.stderr?.destroy();
+    });
+  }
+}
+
 // Launch the command in a NEW OS terminal window, outside VS Code. The window
 // stays open after the command exits so the user can read the output (the run is
 // fire-and-forget: VS Code does not own the process, so there is no Stop action
@@ -80,32 +116,7 @@ export async function runInExternal(
     child.stderr?.destroy();
   });
 
-  // On Windows the outer launcher's stderr is piped so a Start-Process failure
-  // reports what went wrong rather than vanishing silently.
-  if (child.stderr) {
-    let stderr = "";
-    const STDERR_CAP = 4096;
-    child.stderr.on("data", (chunk: Buffer) => {
-      if (stderr.length < STDERR_CAP) {
-        stderr = (stderr + chunk.toString()).slice(0, STDERR_CAP);
-      }
-    });
-    child.on("exit", (code) => {
-      if (code !== 0 && code !== null) {
-        const detail = stderr.trim().slice(0, STDERR_CAP) || `exit code ${code}`;
-        channel.appendLine(`[${name}] external launcher failed: ${detail}`);
-        vscode.window.showErrorMessage(l10n("run.externalFailed", { name, error: detail }));
-      } else {
-        // A clean wrapper exit only means Start-Process was asked to launch the
-        // window, not that the window actually opened (Start-Process is
-        // fire-and-forget and returns before the target finishes initializing) —
-        // exactly the gap that let the Job Object failure go unnoticed. Worded to
-        // reflect that: confirms the request succeeded, not the window's presence.
-        channel.appendLine(`[${name}] external launcher: window requested successfully`);
-      }
-      child.stderr?.destroy();
-    });
-  }
+  reportLauncherExit(child, channel, name);
 
   // Elevation drops per-shortcut env vars (the elevated process gets a fresh
   // environment); say so once so a missing var is not a silent surprise.

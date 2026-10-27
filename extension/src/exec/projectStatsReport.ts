@@ -8,6 +8,7 @@ import * as fs from "fs/promises";
 import { formatBytes } from "../utils/formatBytes";
 import type { LangStat, ProjectStats } from "./projectStats";
 
+/** Cap on tracked files read for the report; a larger repo is cut off and the report says so. */
 export const MAX_FILES = 20000;
 
 // How many source languages the table shows before folding the tail into a count.
@@ -211,28 +212,9 @@ function buildDeltaHeadline(stats: ProjectStats, previous: StatsMarker): string 
   return parts.join(", ");
 }
 
-// Render the stats as a Markdown report: a per-language table (with each language's
-// share of total lines), the totals, and the recent git activity.
-export function buildStatsMarkdown(stats: ProjectStats, previous?: StatsMarker): string {
+/** The per-language table with its total row, plus notes for folded and asset-only languages. */
+function languageTableLines(stats: ProjectStats): string[] {
   const lines: string[] = [];
-  lines.push("# Project stats");
-  lines.push("");
-  lines.push(`Generated ${new Date(stats.generatedAt).toLocaleString()}`);
-  if (stats.branch) {
-    lines.push(`Branch: \`${stats.branch}\``);
-  }
-  lines.push("");
-  lines.push(`**Headline:** ${statsHeadline(stats, previous)}`);
-  lines.push("");
-
-  lines.push("## By language");
-  lines.push("");
-  if (stats.truncated) {
-    lines.push(
-      `> Capped at the first ${MAX_FILES.toLocaleString()} tracked files; the totals below cover that subset.`
-    );
-    lines.push("");
-  }
   const { rows, assets, folded } = summarizeLanguages(stats.languages);
   lines.push("| Language | Files | Lines | Share | Size |");
   lines.push("|----------|------:|------:|------:|-----:|");
@@ -261,6 +243,32 @@ export function buildStatsMarkdown(stats: ProjectStats, previous?: StatsMarker):
     );
     lines.push("");
   }
+  return lines;
+}
+
+// Render the stats as a Markdown report: a per-language table (with each language's
+// share of total lines), the totals, and the recent git activity.
+export function buildStatsMarkdown(stats: ProjectStats, previous?: StatsMarker): string {
+  const lines: string[] = [];
+  lines.push("# Project stats");
+  lines.push("");
+  lines.push(`Generated ${new Date(stats.generatedAt).toLocaleString()}`);
+  if (stats.branch) {
+    lines.push(`Branch: \`${stats.branch}\``);
+  }
+  lines.push("");
+  lines.push(`**Headline:** ${statsHeadline(stats, previous)}`);
+  lines.push("");
+
+  lines.push("## By language");
+  lines.push("");
+  if (stats.truncated) {
+    lines.push(
+      `> Capped at the first ${MAX_FILES.toLocaleString()} tracked files; the totals below cover that subset.`
+    );
+    lines.push("");
+  }
+  lines.push(...languageTableLines(stats));
 
   // Recent commits are deliberately absent: the standup digest reports the same
   // history in the same routine, and 30 subjects restated here was the single

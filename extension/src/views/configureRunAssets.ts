@@ -17,6 +17,7 @@
 
 import { designTokenRoot } from "./webviewDesignTokens";
 
+/** Stylesheet shared by the Configure Run and Remote Control panels. */
 export const CONFIGURE_RUN_STYLE = `
 ${designTokenRoot({ extra: "  --bad: var(--vscode-editorError-foreground, #f85149);" })}
 * { box-sizing: border-box; }

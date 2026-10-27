@@ -27,6 +27,7 @@
 import { panelWidthMathJs } from '../webviewClientUtils';
 import { LEFT_PANEL_LIMITS, RIGHT_PANEL_LIMITS } from './launcherSplitLogic';
 
+/** Client script for the launcher's resizable side panels. */
 export const LAUNCHER_SCRIPT_SPLIT = `
 // Fixed sizing rules per panel: the drag clamp range and the width used before any drag.
 // Serialized from launcherSplitLogic.ts's LEFT_PANEL_LIMITS/RIGHT_PANEL_LIMITS — the single

@@ -203,6 +203,7 @@ function watchFiles(bg: BackgroundScan): vscode.Disposable[] {
   return [docs, folders, rules];
 }
 
+/** Starts the background board scan: rescans after file, folder, setting and health changes (debounced) and skips work while nothing needs it. */
 export function registerBoardBackground(context: vscode.ExtensionContext): void {
   const bg = new BackgroundScan(context);
   context.subscriptions.push(

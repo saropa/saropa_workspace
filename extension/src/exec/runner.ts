@@ -44,6 +44,58 @@ export {
   reportRelativePath,
 } from "./actionRunner";
 
+/** The inputs of one run that the location-specific launchers need. */
+interface RunDispatch {
+  readonly shortcut: Shortcut;
+  readonly effectiveShortcut: Shortcut;
+  readonly uri: vscode.Uri;
+  readonly source: RunSource;
+  readonly extraTokens: Record<string, string> | undefined;
+}
+
+/**
+ * Hands the plan to the launcher for its location (terminal, external window or
+ * background process) and fires the chain event for runs whose exit is untracked.
+ */
+async function dispatchPlan(
+  plan: ReturnType<typeof planRun>,
+  run: RunDispatch
+): Promise<void> {
+  const { shortcut, effectiveShortcut, uri, source, extraTokens } = run;
+  switch (plan.location) {
+    case "terminal":
+      // A fresh terminal every run, so a shortcut launched while an earlier one
+      // is still busy never has its command land in that busy terminal.
+      runInTerminal(plan.commandLine, plan.cwd, plan.env, plan.name);
+      // Terminal runs have no tracked exit, so chaining keys off dispatch: the
+      // dependent fires as soon as the command is sent. Background fires its real
+      // outcome from settle() instead (so it is excluded here).
+      shortcutEvents.fireComplete(shortcut.id, "dispatched");
+      break;
+    case "external":
+      await runInExternal(plan.commandLine, plan.cwd, plan.env, plan.elevated, plan.name);
+      // External windows are fire-and-forget too: chain off the dispatch.
+      shortcutEvents.fireComplete(shortcut.id, "dispatched");
+      break;
+    case "background":
+      await runInBackground(
+        plan.commandLine,
+        plan.cwd,
+        plan.env,
+        plan.name,
+        shortcut.id,
+        plan.extractResult,
+        effectiveShortcut.exec?.sound,
+        // Re-run from the original shortcut (not effectiveShortcut) so a kill+retry re-resolves
+        // any interactive ${prompt:}/${pick:} tokens, matching a fresh manual run.
+        () => void runShortcut(shortcut, uri, source, extraTokens),
+        // Cross-process lock held for this run's lifetime when the shortcut opts in.
+        shortcut.lockName
+      );
+      break;
+  }
+}
+
 // `source` distinguishes a user-triggered run ("manual", the default) from an
 // unattended scheduled fire ("scheduled", passed by the Scheduler) for the local
 // run telemetry that feeds the Recent group and the palette's recents.
@@ -103,36 +155,5 @@ export async function runShortcut(
   // their exit, so the start cue is their only audio acknowledgment.
   playCue("start", effectiveShortcut.exec?.sound);
 
-  switch (plan.location) {
-    case "terminal":
-      // A fresh terminal every run, so a shortcut launched while an earlier one
-      // is still busy never has its command land in that busy terminal.
-      runInTerminal(plan.commandLine, plan.cwd, plan.env, plan.name);
-      // Terminal runs have no tracked exit, so chaining keys off dispatch: the
-      // dependent fires as soon as the command is sent. Background fires its real
-      // outcome from settle() instead (so it is excluded here).
-      shortcutEvents.fireComplete(shortcut.id, "dispatched");
-      break;
-    case "external":
-      await runInExternal(plan.commandLine, plan.cwd, plan.env, plan.elevated, plan.name);
-      // External windows are fire-and-forget too: chain off the dispatch.
-      shortcutEvents.fireComplete(shortcut.id, "dispatched");
-      break;
-    case "background":
-      await runInBackground(
-        plan.commandLine,
-        plan.cwd,
-        plan.env,
-        plan.name,
-        shortcut.id,
-        plan.extractResult,
-        effectiveShortcut.exec?.sound,
-        // Re-run from the original shortcut (not effectiveShortcut) so a kill+retry re-resolves
-        // any interactive ${prompt:}/${pick:} tokens, matching a fresh manual run.
-        () => void runShortcut(shortcut, uri, source, extraTokens),
-        // Cross-process lock held for this run's lifetime when the shortcut opts in.
-        shortcut.lockName
-      );
-      break;
-  }
+  await dispatchPlan(plan, { shortcut, effectiveShortcut, uri, source, extraTokens });
 }

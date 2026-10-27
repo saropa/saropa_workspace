@@ -164,6 +164,7 @@ export function __resetOpenedDocuments(): void {
 
 // The messages window.showErrorMessage was called with since the last reset, in order.
 const errorMessages: string[] = [];
+/** Test hook: the error messages shown since the last reset. */
 export function __errorMessages(): readonly string[] {
   return errorMessages;
 }
@@ -172,6 +173,7 @@ export function __resetErrorMessages(): void {
   errorMessages.length = 0;
 }
 
+/** Stub of `vscode.workspace`: configuration, text documents and folders for tests. */
 export const workspace = {
   getConfiguration,
   // Modeled as an identity: the report writers pass the URI straight to

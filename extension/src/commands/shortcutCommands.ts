@@ -79,18 +79,9 @@ function registerWorkspaceLevelCommands(
   // the focused tree item as an argument, so this reads the view's live selection
   // instead. Nothing (or a non-shortcut row) selected surfaces an info message
   // rather than running nothing silently.
-  reg("saropaWorkspace.runSelectedShortcut", () => {
-    // Type predicate on .find() so the result is already narrowed — no second
-    // instanceof check needed.
-    const selected = treeView.selection.find(
-      (item): item is ShortcutTreeItem => item instanceof ShortcutTreeItem
-    );
-    if (selected) {
-      void runShortcutCommand(store, selected.shortcut);
-    } else {
-      vscode.window.showInformationMessage(l10n("run.noSelection"));
-    }
-  });
+  reg("saropaWorkspace.runSelectedShortcut", () =>
+    runSelectedShortcut(store, treeView)
+  );
 
   // The manual Refresh is the user's explicit "re-scan now" — clear the cached
   // glob/detection so newly-added files matching auto-shortcut patterns or new recipes
@@ -110,22 +101,7 @@ function registerWorkspaceLevelCommands(
   // Clear the local, on-device run history (the Recent group + palette recents).
   // Modal confirm because it is not undoable; the data never left the machine, so
   // there is nothing else to revoke.
-  reg("saropaWorkspace.resetRunHistory", async () => {
-    const confirm = l10n("telemetry.resetConfirmAction");
-    const choice = await vscode.window.showWarningMessage(
-      l10n("telemetry.resetConfirm"),
-      { modal: true },
-      confirm
-    );
-    if (choice === confirm) {
-      // Both on-device run histories are cleared together: the shortcut telemetry and the
-      // Mobile Remote Control adb history, which docs/PRIVACY.md describes as living in the
-      // same globalState under the same opt-out and cleared by this one command.
-      await telemetry.reset();
-      await adbRunHistory.reset();
-      vscode.window.showInformationMessage(l10n("telemetry.resetDone"));
-    }
-  });
+  reg("saropaWorkspace.resetRunHistory", () => resetRunHistory());
 
   // Open the on-demand local run-analytics summary (most-run shortcuts, totals, the
   // session's success/failure split, last-run times) as a read-only Markdown
@@ -183,14 +159,7 @@ function registerWorkspaceLevelCommands(
   // shortcut's id, label, file path, or basename (in that order), so a user can bind
   // by a human-friendly reference instead of an opaque id:
   //   { "key": "...", "command": "saropaWorkspace.runPinById", "args": "deploy.sh" }
-  reg("saropaWorkspace.runPinById", (ref: unknown) => {
-    const shortcut = resolveShortcutRef(store, ref);
-    if (shortcut) {
-      void runShortcutCommand(store, shortcut);
-    } else {
-      vscode.window.showWarningMessage(l10n("runTop.notFound", { ref: String(ref) }));
-    }
-  });
+  reg("saropaWorkspace.runPinById", (ref: unknown) => runShortcutByRef(store, ref));
 
   // Generic "run the Nth shortcut" commands, bindable without knowing any id. The Nth
   // shortcut is the Nth in the tree's order (project shortcuts, then global) — reorder
@@ -198,6 +167,51 @@ function registerWorkspaceLevelCommands(
   // to its own key.
   for (let slot = 1; slot <= TOP_SHORTCUT_SLOTS; slot++) {
     reg(`saropaWorkspace.runTopPin${slot}`, () => runTopShortcut(store, slot));
+  }
+}
+
+/** Runs the shortcut selected in the Shortcuts view, or says nothing is selected. */
+function runSelectedShortcut(
+  store: ShortcutStore,
+  treeView: vscode.TreeView<vscode.TreeItem>
+): void {
+  // Type predicate on .find() so the result is already narrowed — no second
+  // instanceof check needed.
+  const selected = treeView.selection.find(
+    (item): item is ShortcutTreeItem => item instanceof ShortcutTreeItem
+  );
+  if (selected) {
+    void runShortcutCommand(store, selected.shortcut);
+  } else {
+    vscode.window.showInformationMessage(l10n("run.noSelection"));
+  }
+}
+
+/** Clears the on-device run histories after a modal confirm (not undoable). */
+async function resetRunHistory(): Promise<void> {
+  const confirm = l10n("telemetry.resetConfirmAction");
+  const choice = await vscode.window.showWarningMessage(
+    l10n("telemetry.resetConfirm"),
+    { modal: true },
+    confirm
+  );
+  if (choice === confirm) {
+    // Both on-device run histories are cleared together: the shortcut telemetry and the
+    // Mobile Remote Control adb history, which docs/PRIVACY.md describes as living in the
+    // same globalState under the same opt-out and cleared by this one command.
+    await telemetry.reset();
+    await adbRunHistory.reset();
+    vscode.window.showInformationMessage(l10n("telemetry.resetDone"));
+  }
+}
+
+/** Runs the shortcut a keybinding names by id, label or path; warns when none match. */
+function runShortcutByRef(store: ShortcutStore, ref: unknown): void {
+  const shortcut = resolveShortcutRef(store, ref);
+  if (shortcut) {
+    void runShortcutCommand(store, shortcut);
+  } else {
+    vscode.window.showWarningMessage(l10n("runTop.notFound", { ref: String(ref) }));
   }
 }
 

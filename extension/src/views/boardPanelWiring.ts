@@ -11,6 +11,7 @@ import { markPanelOpened, onDidAskRefresh, setPanelVisible } from "./boardFeed";
 import { strings } from "./boardStrings";
 import { BoardPanelCore, LIVE_GAP_MS } from "./boardPanelCore";
 
+/** Connects the board panel to its event sources (visibility, refresh, marks, documents, health) and schedules rescans. */
 export abstract class BoardPanelWiring extends BoardPanelCore {
   constructor(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
     super(context, panel);

@@ -44,6 +44,65 @@ function setRowDescription(
   return tags.length > 0 ? tags.join(" · ") : undefined;
 }
 
+/** One row of the "run on switch" picker; `pinId` is unset for the "None" row. */
+interface ShortcutPick extends vscode.QuickPickItem {
+  pinId?: string;
+}
+
+/**
+ * Step 2 of the link flow: pick a shortcut to run on the switch. Candidates are the
+ * target set's stored project shortcuts (read without switching) plus the shared
+ * global shortcuts; annotation shortcuts (comment/separator) are excluded since
+ * they never run. A "None" row keeps the on-switch shortcut optional, and Escape
+ * cancels the whole flow (returns undefined).
+ */
+async function pickRunShortcut(
+  store: ShortcutStore,
+  set: string
+): Promise<ShortcutPick | undefined> {
+  const candidates = [
+    ...(await store.getSetShortcuts(set)),
+    ...store.getGlobalShortcuts(),
+  ].filter((p) => !isAnnotationShortcut(p));
+  const shortcutItems: ShortcutPick[] = [
+    { label: l10n("branchSet.link.noPin") },
+    ...candidates.map((p) => ({
+      label: shortcutDisplayName(p),
+      description: p.path.length > 0 ? p.path : undefined,
+      pinId: p.id,
+    })),
+  ];
+  return vscode.window.showQuickPick(shortcutItems, {
+    placeHolder: l10n("branchSet.link.pinPlaceholder", { set }),
+  });
+}
+
+/**
+ * Confirms a stored link. When the feature is off, offers to turn it on
+ * (otherwise the binding is stored but never applied) — a one-tap next step
+ * rather than a silent no-op.
+ */
+async function confirmLink(
+  binder: BranchSetBinder,
+  set: string,
+  branch: string
+): Promise<void> {
+  if (binder.isEnabled()) {
+    vscode.window.showInformationMessage(l10n("branchSet.linked", { set, branch }));
+    return;
+  }
+  const enable = l10n("branchSet.enableAction");
+  const choice = await vscode.window.showInformationMessage(
+    l10n("branchSet.linkedDisabled", { set, branch }),
+    enable
+  );
+  if (choice === enable) {
+    await vscode.workspace
+      .getConfiguration("saropaWorkspace")
+      .update("branchAware.enabled", true, vscode.ConfigurationTarget.Workspace);
+  }
+}
+
 async function linkBranchToSet(
   store: ShortcutStore,
   binder: BranchSetBinder
@@ -73,28 +132,8 @@ async function linkBranchToSet(
   }
   const set = pickedSet.label;
 
-  // Step 2: optionally pick a shortcut to run on the switch. Candidates are the target
-  // set's stored project shortcuts (read without switching) plus the shared global shortcuts;
-  // annotation shortcuts (comment/separator) are excluded since they never run. A "None"
-  // row keeps the on-switch shortcut optional, and Escape cancels the whole flow.
-  interface ShortcutPick extends vscode.QuickPickItem {
-    pinId?: string;
-  }
-  const candidates = [
-    ...(await store.getSetShortcuts(set)),
-    ...store.getGlobalShortcuts(),
-  ].filter((p) => !isAnnotationShortcut(p));
-  const shortcutItems: ShortcutPick[] = [
-    { label: l10n("branchSet.link.noPin") },
-    ...candidates.map((p) => ({
-      label: shortcutDisplayName(p),
-      description: p.path.length > 0 ? p.path : undefined,
-      pinId: p.id,
-    })),
-  ];
-  const pickedShortcut = await vscode.window.showQuickPick(shortcutItems, {
-    placeHolder: l10n("branchSet.link.pinPlaceholder", { set }),
-  });
+  // Step 2: optionally pick a shortcut to run on the switch.
+  const pickedShortcut = await pickRunShortcut(store, set);
   if (!pickedShortcut) {
     return;
   }
@@ -105,22 +144,7 @@ async function linkBranchToSet(
     ...(runPinId ? { runPinId } : {}),
   });
 
-  // Confirm, and when the feature is off offer to turn it on (otherwise the binding
-  // is stored but never applied) — a one-tap next step rather than a silent no-op.
-  if (binder.isEnabled()) {
-    vscode.window.showInformationMessage(l10n("branchSet.linked", { set, branch }));
-    return;
-  }
-  const enable = l10n("branchSet.enableAction");
-  const choice = await vscode.window.showInformationMessage(
-    l10n("branchSet.linkedDisabled", { set, branch }),
-    enable
-  );
-  if (choice === enable) {
-    await vscode.workspace
-      .getConfiguration("saropaWorkspace")
-      .update("branchAware.enabled", true, vscode.ConfigurationTarget.Workspace);
-  }
+  await confirmLink(binder, set, branch);
 }
 
 async function unlinkBranch(binder: BranchSetBinder): Promise<void> {

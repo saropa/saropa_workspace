@@ -190,6 +190,7 @@ async function loadStored(context: vscode.ExtensionContext): Promise<void> {
   publishBoard(model, run, true);
 }
 
+/** Registers the editor links status bar item, code lenses and pick command. */
 export function registerEditorLinks(context: vscode.ExtensionContext): void {
   const bar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
   bar.name = l10n("editorLinks.statusBarName");

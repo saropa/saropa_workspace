@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import { NoteEntry, NoteStore, readNotePreview } from "../model/noteStore";
 import { l10n } from "../i18n/l10n";
 
+/** Tree data for the Notes view: project notes, then a collapsible group of global notes. */
 export class NotesTreeProvider
   implements vscode.TreeDataProvider<vscode.TreeItem>
 {
@@ -21,10 +22,13 @@ export class NotesTreeProvider
     store.onDidChange(() => this._onDidChangeTreeData.fire());
   }
 
+  // Total number of notes (project + global). Read by the view to show a count badge.
   get count(): number {
     return this._count;
   }
 
+  // Updates the count and fires only on a real change, so the view title is not
+  // repainted on every refresh.
   private setCount(next: number): void {
     if (next === this._count) {
       return;
@@ -37,6 +41,8 @@ export class NotesTreeProvider
     return element;
   }
 
+  // Loads the hover preview lazily. VS Code calls this when the user hovers a row, so a
+  // large notes folder never reads every file up front; an empty note keeps its path tooltip.
   async resolveTreeItem(
     item: vscode.TreeItem
   ): Promise<vscode.TreeItem> {
@@ -52,6 +58,8 @@ export class NotesTreeProvider
     return item;
   }
 
+  // Root level: project notes first, then one collapsible "Global Notes" folder (only
+  // when there are global notes). The only nested level is that folder's children.
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
     if (element) {
       if (element instanceof NotesScopeItem) {
@@ -81,6 +89,8 @@ export class NotesTreeProvider
   }
 }
 
+// The collapsible "Global Notes" folder row. It holds its children directly because the
+// list was already read when the root was built.
 class NotesScopeItem extends vscode.TreeItem {
   constructor(readonly children: NoteTreeItem[]) {
     super(
@@ -92,6 +102,7 @@ class NotesScopeItem extends vscode.TreeItem {
   }
 }
 
+/** One note row; clicking it opens the file. */
 export class NoteTreeItem extends vscode.TreeItem {
   readonly note: NoteEntry;
 
@@ -99,6 +110,7 @@ export class NoteTreeItem extends vscode.TreeItem {
     super(entry.filename, vscode.TreeItemCollapsibleState.None);
     this.note = entry;
 
+    // resourceUri gives the row the file-type decoration VS Code derives from the path.
     this.resourceUri = entry.uri;
     this.iconPath = new vscode.ThemeIcon("note");
 
@@ -107,6 +119,7 @@ export class NoteTreeItem extends vscode.TreeItem {
     }
 
     this.tooltip = entry.uri.fsPath;
+    // The scope suffix lets package.json menus target project and global notes separately.
     this.contextValue =
       entry.scope === "project" ? "noteProject" : "noteGlobal";
 
@@ -118,6 +131,8 @@ export class NoteTreeItem extends vscode.TreeItem {
   }
 }
 
+// Short "5 minutes ago" style age for a row's description. Rounds down, and switches
+// unit at 1 minute, 1 hour and 1 day, so a fresh note reads "just now".
 function formatRelativeTime(mtime: number): string {
   const delta = Date.now() - mtime;
   const minutes = Math.floor(delta / 60_000);

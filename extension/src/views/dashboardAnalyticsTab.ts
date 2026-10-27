@@ -12,6 +12,48 @@ import { relativeTime } from "./dashboardTrendsTab";
 // rather than unbounded.
 const TOP_SHORTCUTS = 10;
 
+/** The top few shortcuts by lifetime run count, as rows for the Analytics tab. */
+function mostRunRows(
+  store: ShortcutStore,
+  counts: Record<string, number>
+): { name: string; sub: string }[] {
+  return Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, TOP_SHORTCUTS)
+    .map(([shortcutId, n]) => ({
+      name: nameFor(store, shortcutId),
+      sub: l10n("analytics.runsLabel", { count: n }),
+    }));
+}
+
+/** This session's finished runs, newest first, each flagged as success or failure. */
+function sessionRows(
+  store: ShortcutStore
+): { name: string; detail: string; ok: boolean }[] {
+  return runStatusRegistry
+    .entries()
+    .sort(([, a], [, b]) => b.endedAt - a.endedAt)
+    .map(([shortcutId, result]) => ({
+      name: nameFor(store, shortcutId),
+      detail: sessionLabel(result),
+      ok: result.outcome === "success",
+    }));
+}
+
+/** The most recent runs from telemetry, with a relative time and a source tag. */
+function recentRows(
+  store: ShortcutStore,
+  recent: ReturnType<typeof telemetry.recent>
+): { name: string; ago: string; tag: string }[] {
+  const now = Date.now();
+  return recent.map((record) => ({
+    name: nameFor(store, record.pinId), // pinId: serialized telemetry-record field — wire token, keep literal
+    ago: relativeTime(now, record.at),
+    tag: recentTag(record),
+  }));
+}
+
 // Build the run-analytics summary from the on-device telemetry store and the
 // in-memory session run-status registry — display-ready strings only (l10n is
 // host-side), so the webview script renders text without re-localizing. Mirrors the
@@ -39,31 +81,9 @@ export async function loadAnalyticsTab(webview: vscode.Webview, store: ShortcutS
     return;
   }
 
-  const mostRun = Object.entries(counts)
-    .filter(([, n]) => n > 0)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, TOP_SHORTCUTS)
-    .map(([shortcutId, n]) => ({
-      name: nameFor(store, shortcutId),
-      sub: l10n("analytics.runsLabel", { count: n }),
-    }));
-
-  const session = runStatusRegistry
-    .entries()
-    .sort(([, a], [, b]) => b.endedAt - a.endedAt)
-    .map(([shortcutId, result]) => ({
-      name: nameFor(store, shortcutId),
-      detail: sessionLabel(result),
-      ok: result.outcome === "success",
-    }));
-
-  const now = Date.now();
-  const recentList = recent.map((record) => ({
-    name: nameFor(store, record.pinId), // pinId: serialized telemetry-record field — wire token, keep literal
-
-    ago: relativeTime(now, record.at),
-    tag: recentTag(record),
-  }));
+  const mostRun = mostRunRows(store, counts);
+  const session = sessionRows(store);
+  const recentList = recentRows(store, recent);
 
   void webview.postMessage({
     type: "analytics",

@@ -2,6 +2,7 @@
 // adbCommandCatalog.ts to keep each file small.
 import { AdbCommandEntry, entry } from "./adbCatalogTypes";
 
+/** Catalog rows for input, permissions, power, deep links, shell and the remaining device groups. */
 export const ADB_CATALOG_DEVICE: AdbCommandEntry[] = [
   // --- Input / UI ----------------------------------------------------------
   entry({

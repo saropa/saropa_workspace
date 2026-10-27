@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 // The byte formatter is centralized (BUG-012); this file used to carry its own copy,
 // byte-identical to projectStats.ts's.
 import { formatBytes } from "../utils/formatBytes";
-import { sampleOnce, normalizeName } from "./processSample";
+import { sampleOnce, normalizeName, RawProc } from "./processSample";
 
 // Process-poll helper for the developer process monitor (recipe book section G,
 // #60-62). It answers the one question the OS Task Manager buries under hundreds of
@@ -146,6 +146,50 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Returns a function that maps a pid to its tool definition: by the process's own
+ * name, else by walking up the parent chain (a node child of Code, a dart process
+ * under the analysis server). Capped hops and a visited set guard against a cycle
+ * or an orphaned ppid.
+ */
+function makeDefResolver(
+  defs: readonly ToolDef[],
+  procs: Map<number, RawProc>
+): (pid: number) => ToolDef | undefined {
+  // name -> tool def, for direct attribution and the parent-walk.
+  const nameToDef = new Map<string, ToolDef>();
+  for (const def of defs) {
+    for (const name of def.names) {
+      nameToDef.set(name, def);
+    }
+  }
+  return (pid) => {
+    let current: number | undefined = pid;
+    const seen = new Set<number>();
+    for (let hop = 0; hop < 12 && current !== undefined && !seen.has(current); hop++) {
+      seen.add(current);
+      const proc = procs.get(current);
+      if (!proc) {
+        return undefined;
+      }
+      const def = nameToDef.get(normalizeName(proc.name));
+      if (def) {
+        return def;
+      }
+      current = proc.ppid === current ? undefined : proc.ppid;
+    }
+    return undefined;
+  };
+}
+
+/** Sorts each group's PIDs (worst first) and the groups themselves by load. */
+function sortGroups(groups: ToolGroup[]): ToolGroup[] {
+  for (const group of groups) {
+    group.procs.sort((x, y) => y.cpuPercent - x.cpuPercent || y.rssBytes - x.rssBytes);
+  }
+  return groups.sort((x, y) => y.cpuPercent - x.cpuPercent || y.rssBytes - x.rssBytes);
+}
+
 // Sample twice, ~intervalMs apart, compute each process's live CPU %, attribute
 // every process to its detected toolchain group (walking the parent-PID chain so a
 // helper inherits its launcher's tool), and roll up per group. Processes that match
@@ -160,34 +204,7 @@ export async function pollProcesses(intervalMs = 1000): Promise<PollResult> {
   const elapsed = Math.max(1, Date.now() - startedAt);
   const cores = os.cpus().length || 1;
 
-  // name -> tool def, for direct attribution and the parent-walk.
-  const nameToDef = new Map<string, ToolDef>();
-  for (const def of defs) {
-    for (const name of def.names) {
-      nameToDef.set(name, def);
-    }
-  }
-
-  // Resolve a process to its tool def: by its own name, else by walking up the
-  // parent chain (a node child of Code, a dart process under the analysis server).
-  // Capped hops and a visited set guard against a cycle or an orphaned ppid.
-  const resolveDef = (pid: number): ToolDef | undefined => {
-    let current: number | undefined = pid;
-    const seen = new Set<number>();
-    for (let hop = 0; hop < 12 && current !== undefined && !seen.has(current); hop++) {
-      seen.add(current);
-      const proc = second.get(current);
-      if (!proc) {
-        return undefined;
-      }
-      const def = nameToDef.get(normalizeName(proc.name));
-      if (def) {
-        return def;
-      }
-      current = proc.ppid === current ? undefined : proc.ppid;
-    }
-    return undefined;
-  };
+  const resolveDef = makeDefResolver(defs, second);
 
   const groups = new Map<string, ToolGroup>();
   for (const [pid, b] of second) {
@@ -213,12 +230,7 @@ export async function pollProcesses(intervalMs = 1000): Promise<PollResult> {
     group.procs.push(sample);
   }
 
-  // Sort each group's PIDs (worst first) and the groups themselves by load.
-  const ordered = [...groups.values()];
-  for (const group of ordered) {
-    group.procs.sort((x, y) => y.cpuPercent - x.cpuPercent || y.rssBytes - x.rssBytes);
-  }
-  ordered.sort((x, y) => y.cpuPercent - x.cpuPercent || y.rssBytes - x.rssBytes);
+  const ordered = sortGroups([...groups.values()]);
 
   return {
     cores,

@@ -98,6 +98,7 @@ export function isNativelyExecutable(ext: string, platform: NodeJS.Platform): bo
 // webview host.
 export type DefaultHintKind = "prefix" | "native" | "none";
 
+/** Picks the hint for an empty command box: a resolved prefix, a natively executable file, or no way to run. */
 export function defaultHintKind(
   resolvedPrefix: string,
   ext: string,

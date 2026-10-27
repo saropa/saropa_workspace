@@ -18,6 +18,7 @@ export interface BriefMember {
   readonly reportPath?: string;
 }
 
+/** The structured result of a routine run: verdict, how many members need attention, and one row per member. */
 export interface RoutineBrief {
   readonly routineName: string;
   readonly generatedAt: string;
@@ -107,6 +108,7 @@ export function buildRoutineBrief(
   };
 }
 
+/** Reads every member report once, keyed by path; an unreadable file maps to undefined. */
 export async function readMemberReports(
   fsp: typeof import("fs/promises"),
   outcomes: MemberOutcome[]
@@ -120,6 +122,10 @@ export async function readMemberReports(
   return contents;
 }
 
+/**
+ * Appends the verdict heading and the problem, attention and informational lines to `parts`.
+ * Returns the attention count (failed or missing members plus findings that need a look).
+ */
 export function buildVerdictSection(
   parts: string[],
   outcomes: MemberOutcome[],
@@ -173,6 +179,10 @@ export function buildVerdictSection(
   return attentionCount;
 }
 
+/**
+ * Appends each member's report as a collapsible section (open when it failed), linked
+ * relative to the summary file. Returns how many reports were readable and merged.
+ */
 export function buildMergedSections(
   parts: string[],
   outcomes: MemberOutcome[],

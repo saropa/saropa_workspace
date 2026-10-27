@@ -16,6 +16,7 @@
 
 import { designTokenRoot } from "./webviewDesignTokens";
 
+/** Stylesheet for the schedule editor form. */
 export const SCHEDULE_EDITOR_STYLE = `
 ${designTokenRoot({
   extra: `  --brand-glow: rgba(249,115,22,.22);

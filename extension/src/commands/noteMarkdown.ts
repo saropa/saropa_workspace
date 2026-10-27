@@ -1,6 +1,134 @@
 // Minimal Markdown to HTML conversion for the note preview/copy commands. Pure.
 // Split out of noteCommands.ts, which re-exports markdownToHtml.
 
+/** Escapes the three characters that would otherwise start markup. */
+function escapeMd(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Escapes a double quote so a value can sit inside a double-quoted HTML attribute. */
+function escapeAttr(s: string): string {
+  return s.replace(/"/g, "&quot;");
+}
+
+/** Only these URL schemes become links or images; anything else (javascript:, data:, a bare path) stays text. */
+const SAFE_URL = /^(?:https?:\/\/|mailto:)/i;
+
+/**
+ * Escapes a line, then turns inline Markdown into tags. Text is escaped for &, < and >
+ * first, so user text cannot open a tag. Link and image targets are the one place text
+ * lands inside an attribute, so they are limited to http, https and mailto URLs and have
+ * double quotes escaped; a target with another scheme is left as plain text. Code spans
+ * go before emphasis so asterisks inside backticks are not treated as bold.
+ */
+function inlineMarkup(line: string): string {
+  let s = escapeMd(line);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt: string, url: string) =>
+    SAFE_URL.test(url) ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}">` : m
+  );
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, text: string, url: string) =>
+    SAFE_URL.test(url) ? `<a href="${escapeAttr(url)}">${text}</a>` : m
+  );
+  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
+  s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  s = s.replace(/_(.+?)_/g, "<em>$1</em>");
+  return s;
+}
+
+/** Which block (if any) the converter is currently inside. */
+interface MdState {
+  readonly out: string[];
+  inCode: boolean;
+  inList: "ul" | "ol" | null;
+  inBlockquote: boolean;
+}
+
+function closeList(st: MdState): void {
+  if (st.inList) {
+    st.out.push(st.inList === "ul" ? "</ul>" : "</ol>");
+    st.inList = null;
+  }
+}
+
+function closeBlockquote(st: MdState): void {
+  if (st.inBlockquote) {
+    st.out.push("</blockquote>");
+    st.inBlockquote = false;
+  }
+}
+
+/** Handles a ``` fence line: opens or closes a code block. */
+function convertFence(st: MdState): void {
+  if (st.inCode) {
+    st.out.push("</code></pre>");
+    st.inCode = false;
+    return;
+  }
+  closeList(st);
+  closeBlockquote(st);
+  st.out.push("<pre><code>");
+  st.inCode = true;
+}
+
+/** Opens a list of `kind` (closing a different open list) and adds one item. */
+function convertListItem(st: MdState, kind: "ul" | "ol", text: string): void {
+  closeBlockquote(st);
+  if (st.inList !== kind) {
+    closeList(st);
+    st.out.push(`<${kind}>`);
+    st.inList = kind;
+  }
+  st.out.push(`<li>${inlineMarkup(text)}</li>`);
+}
+
+/**
+ * Converts one line outside a code block. Block types are tried in a fixed
+ * order (rule, heading, quote, bullet, number); anything else is a paragraph.
+ */
+function convertLine(st: MdState, line: string): void {
+  if (/^---+$|^\*\*\*+$|^___+$/.test(line.trim())) {
+    closeList(st);
+    closeBlockquote(st);
+    st.out.push("<hr>");
+    return;
+  }
+  const headingMatch = line.match(/^(#{1,6})\s+(.*)/);
+  if (headingMatch) {
+    closeList(st);
+    closeBlockquote(st);
+    const level = headingMatch[1].length;
+    st.out.push(`<h${level}>${inlineMarkup(headingMatch[2])}</h${level}>`);
+    return;
+  }
+  const bqMatch = line.match(/^>\s?(.*)/);
+  if (bqMatch) {
+    closeList(st);
+    if (!st.inBlockquote) {
+      st.out.push("<blockquote>");
+      st.inBlockquote = true;
+    }
+    st.out.push(`<p>${inlineMarkup(bqMatch[1])}</p>`);
+    return;
+  }
+  const ulMatch = line.match(/^[\s]*[-*+]\s+(.*)/);
+  if (ulMatch) {
+    convertListItem(st, "ul", ulMatch[1]);
+    return;
+  }
+  const olMatch = line.match(/^[\s]*\d+\.\s+(.*)/);
+  if (olMatch) {
+    convertListItem(st, "ol", olMatch[1]);
+    return;
+  }
+  closeList(st);
+  closeBlockquote(st);
+  if (line.trim()) {
+    st.out.push(`<p>${inlineMarkup(line)}</p>`);
+  }
+}
+
 /**
  * Converts common Markdown constructs to HTML for rich-text clipboard paste.
  * Covers headings, bold, italic, inline code, code blocks, links, images,
@@ -8,125 +136,18 @@
  * Not a full CommonMark parser — intentionally minimal with zero dependencies.
  */
 export function markdownToHtml(md: string): string {
-  const lines = md.split(/\r?\n/);
-  const out: string[] = [];
-  let inCode = false;
-  let inList: "ul" | "ol" | null = null;
-  let inBlockquote = false;
-
-  const esc = (s: string): string =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-  const inlineMarkup = (line: string): string => {
-    let s = esc(line);
-    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
-    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
-    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
-    s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
-    s = s.replace(/_(.+?)_/g, "<em>$1</em>");
-    return s;
-  };
-
-  const closeList = (): void => {
-    if (inList) {
-      out.push(inList === "ul" ? "</ul>" : "</ol>");
-      inList = null;
-    }
-  };
-
-  const closeBlockquote = (): void => {
-    if (inBlockquote) {
-      out.push("</blockquote>");
-      inBlockquote = false;
-    }
-  };
-
-  for (const raw of lines) {
-    const line = raw;
-
+  const st: MdState = { out: [], inCode: false, inList: null, inBlockquote: false };
+  for (const line of md.split(/\r?\n/)) {
     if (/^```/.test(line)) {
-      if (inCode) {
-        out.push("</code></pre>");
-        inCode = false;
-      } else {
-        closeList();
-        closeBlockquote();
-        out.push("<pre><code>");
-        inCode = true;
-      }
-      continue;
+      convertFence(st);
+    } else if (st.inCode) {
+      st.out.push(escapeMd(line));
+    } else {
+      convertLine(st, line);
     }
-    if (inCode) {
-      out.push(esc(line));
-      continue;
-    }
-
-    if (/^---+$|^\*\*\*+$|^___+$/.test(line.trim())) {
-      closeList();
-      closeBlockquote();
-      out.push("<hr>");
-      continue;
-    }
-
-    const headingMatch = line.match(/^(#{1,6})\s+(.*)/);
-    if (headingMatch) {
-      closeList();
-      closeBlockquote();
-      const level = headingMatch[1].length;
-      out.push(`<h${level}>${inlineMarkup(headingMatch[2])}</h${level}>`);
-      continue;
-    }
-
-    const bqMatch = line.match(/^>\s?(.*)/);
-    if (bqMatch) {
-      closeList();
-      if (!inBlockquote) {
-        out.push("<blockquote>");
-        inBlockquote = true;
-      }
-      out.push(`<p>${inlineMarkup(bqMatch[1])}</p>`);
-      continue;
-    }
-
-    const ulMatch = line.match(/^[\s]*[-*+]\s+(.*)/);
-    if (ulMatch) {
-      closeBlockquote();
-      if (inList !== "ul") {
-        closeList();
-        out.push("<ul>");
-        inList = "ul";
-      }
-      out.push(`<li>${inlineMarkup(ulMatch[1])}</li>`);
-      continue;
-    }
-
-    const olMatch = line.match(/^[\s]*\d+\.\s+(.*)/);
-    if (olMatch) {
-      closeBlockquote();
-      if (inList !== "ol") {
-        closeList();
-        out.push("<ol>");
-        inList = "ol";
-      }
-      out.push(`<li>${inlineMarkup(olMatch[1])}</li>`);
-      continue;
-    }
-
-    closeList();
-    closeBlockquote();
-
-    if (!line.trim()) {
-      continue;
-    }
-
-    out.push(`<p>${inlineMarkup(line)}</p>`);
   }
-
-  if (inCode) { out.push("</code></pre>"); }
-  closeList();
-  closeBlockquote();
-
-  return out.join("\n");
+  if (st.inCode) { st.out.push("</code></pre>"); }
+  closeList(st);
+  closeBlockquote(st);
+  return st.out.join("\n");
 }

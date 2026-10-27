@@ -225,6 +225,7 @@ export interface EcosystemMarkers {
   isRust: boolean;
 }
 
+/** Looks for the marker files of each supported ecosystem in a folder: Dart, Flutter, Django, Go and Rust. */
 export async function detectEcosystemMarkers(
   folder: vscode.WorkspaceFolder
 ): Promise<EcosystemMarkers> {

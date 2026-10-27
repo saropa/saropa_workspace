@@ -11,23 +11,9 @@ import { escapeHtml } from "../utils/escapeHtml";
 // the injected style + client script. Kept apart from launcherView.ts's lifecycle/message
 // logic since this is pure markup assembly with no store/watch dependency.
 
-// Build the launcher webview's initial HTML. Paints the project name synchronously so the
-// header is never blank on first render; the version + stats arrive in the first data
-// message (they need the disk scan) and are filled in by the client script's renderHeader.
-export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-  const nonce = crypto.randomBytes(16).toString("base64");
-  const codiconUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(extensionUri, "dist", "codicon.css")
-  );
-  // A folder basename is user-controlled, so it is HTML-escaped before it is interpolated
-  // into the markup (the webview's later update uses textContent and is safe by
-  // construction).
-  const primary = (vscode.workspace.workspaceFolders ?? [])[0];
-  const noProject = !primary && !vscode.workspace.name;
-  const projectName = escapeHtml(
-    primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject")
-  );
-  const csp = [
+/** Strict policy: no network or images; styles, the codicon font and one nonce'd script only. */
+function buildCsp(webview: vscode.Webview, nonce: string): string {
+  return [
     "default-src 'none'",
     "img-src 'none'",
     // The codicon stylesheet loads from the webview's own resource origin; our injected
@@ -36,18 +22,11 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
     `font-src ${webview.cspSource}`,
     `script-src 'nonce-${nonce}'`,
   ].join("; ");
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="${csp}" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${codiconUri}" rel="stylesheet" />
-<title>${l10n("launcher.title")}</title>
-<style>${LAUNCHER_STYLE}</style>
-</head>
-<body>
-<header>
+}
+
+/** The sticky header: project name and meta line, plus the search box. `projectName` is pre-escaped. */
+function headerHtml(projectName: string, noProject: boolean): string {
+  return `<header>
   <div class="head-bar">
     <div class="project">
       <div id="projName" class="project-name${noProject ? " no-project" : ""}">${projectName}</div>
@@ -67,7 +46,38 @@ export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): s
       <span id="count" class="count"></span>
     </div>
   </div>
-</header>
+</header>`;
+}
+
+// Build the launcher webview's initial HTML. Paints the project name synchronously so the
+// header is never blank on first render; the version + stats arrive in the first data
+// message (they need the disk scan) and are filled in by the client script's renderHeader.
+export function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+  const nonce = crypto.randomBytes(16).toString("base64");
+  const codiconUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "dist", "codicon.css")
+  );
+  // A folder basename is user-controlled, so it is HTML-escaped before it is interpolated
+  // into the markup (the webview's later update uses textContent and is safe by
+  // construction).
+  const primary = (vscode.workspace.workspaceFolders ?? [])[0];
+  const noProject = !primary && !vscode.workspace.name;
+  const projectName = escapeHtml(
+    primary?.name ?? vscode.workspace.name ?? l10n("launcher.noProject")
+  );
+  const csp = buildCsp(webview, nonce);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="${csp}" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="${codiconUri}" rel="stylesheet" />
+<title>${l10n("launcher.title")}</title>
+<style>${LAUNCHER_STYLE}</style>
+</head>
+<body>
+${headerHtml(projectName, noProject)}
 <div class="split">
   <div id="leftPanel" class="side-panel left-panel">
     <div class="side-panel-body">${l10n("launcher.leftPanelPlaceholder")}</div>

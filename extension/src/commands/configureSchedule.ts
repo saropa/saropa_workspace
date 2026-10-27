@@ -31,6 +31,39 @@ interface HubItem extends vscode.QuickPickItem {
   id: "atTime" | "days" | "interval" | "cron" | "runOnStartup" | "enabled" | "save";
 }
 
+/**
+ * Runs the edit behind a hub row: opens the field's editor, or flips the toggle
+ * directly for a snappy on/off. Returns true when the user touched the Enabled
+ * toggle, so auto-enable stops overriding a deliberate "keep it switched off".
+ */
+async function applyHubChoice(
+  choice: Exclude<HubItem["id"], "save">,
+  work: WorkSchedule,
+  title: string
+): Promise<boolean> {
+  switch (choice) {
+    case "atTime":
+      await editDailyTime(work, title);
+      break;
+    case "days":
+      await editDays(work, title);
+      break;
+    case "interval":
+      await editInterval(work, title);
+      break;
+    case "cron":
+      await editCron(work, title);
+      break;
+    case "runOnStartup":
+      work.runOnStartup = !work.runOnStartup;
+      break;
+    case "enabled":
+      work.enabled = !work.enabled;
+      return true;
+  }
+  return false;
+}
+
 // "Configure Schedule (Quick)" command entry point — the keyboard-only QuickPick
 // alternative to the richer webview form, sharing the same WorkSchedule model so both
 // normalize and auto-enable identically. Warns and exits for an auto-shortcut (nowhere
@@ -68,28 +101,8 @@ export async function configureSchedule(store: ShortcutStore, shortcut: Shortcut
       break;
     }
     activeId = choice;
-    switch (choice) {
-      case "atTime":
-        await editDailyTime(work, title);
-        break;
-      case "days":
-        await editDays(work, title);
-        break;
-      case "interval":
-        await editInterval(work, title);
-        break;
-      case "cron":
-        await editCron(work, title);
-        break;
-      case "runOnStartup":
-        // Toggle directly from the hub for a snappy on/off.
-        work.runOnStartup = !work.runOnStartup;
-        break;
-      case "enabled":
-        // Toggle directly from the hub for a snappy on/off.
-        work.enabled = !work.enabled;
-        enabledTouched = true;
-        break;
+    if (await applyHubChoice(choice, work, title)) {
+      enabledTouched = true;
     }
     applyAutoEnable(work, enabledTouched);
   }
@@ -124,16 +137,9 @@ function describeDays(days: number[] | undefined): string {
     .join(", ");
 }
 
-// Render the hub as a persistent QuickPick. `activeId`, when given, restores focus
-// to that row so editing a field or flipping a toggle does not reset the selection
-// to the top of the list on every re-render. ignoreFocusOut keeps the menu up when
-// focus shifts (e.g. to a notification), so a stray click no longer discards edits.
-async function showHub(
-  work: WorkSchedule,
-  title: string,
-  activeId?: HubItem["id"]
-): Promise<HubItem["id"] | undefined> {
-  const items: HubItem[] = [
+/** The hub rows: each editable field with its current value, then Save. */
+function buildHubItems(work: WorkSchedule): HubItem[] {
+  return [
     {
       id: "atTime",
       label: l10n("schedule.field.atTime"),
@@ -180,7 +186,18 @@ async function showHub(
       description: l10n("schedule.saveHint"),
     },
   ];
+}
 
+// Render the hub as a persistent QuickPick. `activeId`, when given, restores focus
+// to that row so editing a field or flipping a toggle does not reset the selection
+// to the top of the list on every re-render. ignoreFocusOut keeps the menu up when
+// focus shifts (e.g. to a notification), so a stray click no longer discards edits.
+async function showHub(
+  work: WorkSchedule,
+  title: string,
+  activeId?: HubItem["id"]
+): Promise<HubItem["id"] | undefined> {
+  const items = buildHubItems(work);
   const active = activeId ? items.find((i) => i.id === activeId) : undefined;
   const pick = await showHubQuickPick(items, {
     title,

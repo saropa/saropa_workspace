@@ -44,6 +44,7 @@ const MAX_GIT_BUFFER = 64 * 1024 * 1024;
 // repo finishes well under this.
 const GIT_TIMEOUT_MS = 30_000;
 
+/** File, line and byte totals for one language in the stats report. */
 export interface LangStat {
   language: string;
   files: number;

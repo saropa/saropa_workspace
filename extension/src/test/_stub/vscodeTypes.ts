@@ -152,6 +152,7 @@ export const TextEditorRevealType = {
   InCenterIfOutsideViewport: 2,
   AtTop: 3,
 } as const;
+/** Stub of the overview ruler lane flags (same numeric values as VS Code). */
 export const OverviewRulerLane = {
   Left: 1,
   Center: 2,

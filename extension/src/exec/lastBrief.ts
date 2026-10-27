@@ -9,10 +9,12 @@ import type { RoutineBrief } from "./routineRunner";
 // Wired to onDidRemoveShortcut in extension.ts so every removal path cleans up.
 const lastBriefs = new Map<string, RoutineBrief>();
 
+/** Remembers the brief a routine just produced, replacing any earlier one for that routine. */
 export function recordLastBrief(pinId: string, brief: RoutineBrief): void {
   lastBriefs.set(pinId, brief);
 }
 
+/** The last brief recorded for a routine, or undefined. Reading does not remove it. */
 export function peekLastBrief(pinId: string): RoutineBrief | undefined {
   return lastBriefs.get(pinId);
 }

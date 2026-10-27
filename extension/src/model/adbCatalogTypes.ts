@@ -18,6 +18,7 @@ export const ADB_COMMAND_GROUPS = [
   "shell",
 ] as const;
 
+/** One section of the adb command catalog. */
 export type AdbCommandGroup = (typeof ADB_COMMAND_GROUPS)[number];
 
 // One runnable catalog row.
@@ -59,6 +60,7 @@ export function adbGroupLabelKey(group: AdbCommandGroup): string {
   return `adb.group.${group}.label`;
 }
 
+/** The l10n key for a group's description line. */
 export function adbGroupDescriptionKey(group: AdbCommandGroup): string {
   return `adb.group.${group}.description`;
 }

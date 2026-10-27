@@ -2,6 +2,32 @@ import * as crypto from "crypto";
 import { PLANNER_STYLE, PLANNER_SCRIPT } from "./plannerAssets";
 import { l10n } from "../i18n/l10n";
 
+/** Title bar (hero + refresh) and the toolbar with the Day/Week/Workflow tabs, density toggle and legend. */
+function toolbarHtml(): string {
+  return `<div class="hero">
+  <div class="glyph">&#x1F5D3;</div>
+  <div>
+    <h1>${l10n("planner.title")}</h1>
+    <div class="sub">${l10n("planner.subtitle")}</div>
+  </div>
+  <div class="spacer"></div>
+  <button id="refresh" class="btn icon" title="${l10n("schedulePanel.refresh")}">&#x21BB;</button>
+</div>
+<div class="toolbar">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-v="day">&#x1F551; ${l10n("planner.tab.day")}</button>
+    <button class="tab" role="tab" data-v="week">&#x1F4C5; ${l10n("planner.tab.week")}</button>
+    <button class="tab" role="tab" data-v="workflow">&#x1F517; ${l10n("planner.tab.workflow")}</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="density" class="btn" title="${l10n("planner.density.toggleTitle")}">&#x2261; ${l10n("planner.density.compact")}</button>
+  <div class="legend">
+    <span class="dot"><span class="sw" style="background:var(--brand)"></span>${l10n("planner.legend.scheduled")}</span>
+    <span class="dot"><span class="sw" style="background:var(--ok)"></span>${l10n("planner.legend.lastRunOk")}</span>
+  </div>
+</div>`;
+}
+
 // Builds the planner webview's static HTML shell (hero band, tab toolbar, stage +
 // detail panes) under a strict CSP with a per-load nonce. Pure string builder — no
 // panel state — so PlannerPanel just assigns the result to `webview.html`.
@@ -28,28 +54,7 @@ export function renderShell(): string {
 <style>${PLANNER_STYLE}</style>
 </head>
 <body>
-<div class="hero">
-  <div class="glyph">&#x1F5D3;</div>
-  <div>
-    <h1>${l10n("planner.title")}</h1>
-    <div class="sub">${l10n("planner.subtitle")}</div>
-  </div>
-  <div class="spacer"></div>
-  <button id="refresh" class="btn icon" title="${l10n("schedulePanel.refresh")}">&#x21BB;</button>
-</div>
-<div class="toolbar">
-  <div class="tabs" role="tablist">
-    <button class="tab" role="tab" data-v="day">&#x1F551; ${l10n("planner.tab.day")}</button>
-    <button class="tab" role="tab" data-v="week">&#x1F4C5; ${l10n("planner.tab.week")}</button>
-    <button class="tab" role="tab" data-v="workflow">&#x1F517; ${l10n("planner.tab.workflow")}</button>
-  </div>
-  <div class="spacer"></div>
-  <button id="density" class="btn" title="${l10n("planner.density.toggleTitle")}">&#x2261; ${l10n("planner.density.compact")}</button>
-  <div class="legend">
-    <span class="dot"><span class="sw" style="background:var(--brand)"></span>${l10n("planner.legend.scheduled")}</span>
-    <span class="dot"><span class="sw" style="background:var(--ok)"></span>${l10n("planner.legend.lastRunOk")}</span>
-  </div>
-</div>
+${toolbarHtml()}
 <div class="workarea">
   <div id="stage" class="stage"></div>
   <div id="detail" class="detail" role="complementary" aria-label="${l10n("planner.detail.label")}">
@@ -61,6 +66,43 @@ export function renderShell(): string {
 ${PLANNER_SCRIPT}</script>
 </body>
 </html>`;
+}
+
+/** Strings for the workflow tab: toolbox, how-to steps, drop hints, plug labels and the shelf. */
+function workflowStrings(): Record<string, string> {
+  return {
+    toolboxTitle: l10n("planner.workflow.toolboxTitle"),
+    eventBuild: l10n("planner.event.build"),
+    eventPublish: l10n("planner.event.publish"),
+    eventGitCommit: l10n("planner.event.gitCommit"),
+    eventGitPush: l10n("planner.event.gitPush"),
+    toolboxHint: l10n("planner.workflow.toolboxHint"),
+    toolboxResizeTitle: l10n("planner.workflow.toolboxResizeTitle"),
+    // #32: planner.howto.step1/2/3 in en.json are intentionally HTML-bearing (each
+    // wraps its key phrase in <b>) rather than plain text — plannerScriptWorkflow.ts
+    // splices them straight into an innerHTML template (see the howtoStep1/2/3 usages
+    // there), NOT textContent. A future edit to those catalog values must keep them
+    // safe, trusted, developer-authored markup — never interpolate user/webview input
+    // into them, and do not "fix" them by HTML-escaping the <b> tags.
+    howtoStep1: l10n("planner.howto.step1"),
+    howtoStep2: l10n("planner.howto.step2"),
+    howtoStep3: l10n("planner.howto.step3"),
+    howtoAddLinkTitle: l10n("planner.howto.addLinkTitle"),
+    howtoAddLink: l10n("planner.howto.addLink"),
+    howtoAutoArrangeTitle: l10n("planner.howto.autoArrangeTitle"),
+    howtoAutoArrange: l10n("planner.howto.autoArrange"),
+    dropEventHint: l10n("planner.workflow.dropEventHint"),
+    dropShortcutHint: l10n("planner.workflow.dropShortcutHint"),
+    workflowEmptyTitle: l10n("planner.workflow.emptyTitle"),
+    workflowEmptyDetail: l10n("planner.workflow.emptyDetail"),
+    plugTitle: l10n("planner.workflow.plugTitle"),
+    eventBadge: l10n("planner.workflow.eventBadge"),
+    shelfTitle: l10n("planner.shelf.title"),
+    shelfHint: l10n("planner.shelf.hint"),
+    shelfNoMatch: l10n("planner.shelf.noMatch"),
+    shelfAllWired: l10n("planner.shelf.allWired"),
+    shelfFilterPlaceholder: l10n("planner.shelf.filterPlaceholder"),
+  };
 }
 
 // The localized strings the client script renders. Kept out of the inlined JS so the
@@ -112,36 +154,6 @@ function uiStrings(): Record<string, string | string[]> {
     linkPlaceholderTarget: l10n("planner.link.placeholderTarget"),
     linkPlaceholderSearch: l10n("planner.link.placeholderSearch"),
     linkNoMatch: l10n("planner.link.noMatch"),
-    toolboxTitle: l10n("planner.workflow.toolboxTitle"),
-    eventBuild: l10n("planner.event.build"),
-    eventPublish: l10n("planner.event.publish"),
-    eventGitCommit: l10n("planner.event.gitCommit"),
-    eventGitPush: l10n("planner.event.gitPush"),
-    toolboxHint: l10n("planner.workflow.toolboxHint"),
-    toolboxResizeTitle: l10n("planner.workflow.toolboxResizeTitle"),
-    // #32: planner.howto.step1/2/3 in en.json are intentionally HTML-bearing (each
-    // wraps its key phrase in <b>) rather than plain text — plannerScriptWorkflow.ts
-    // splices them straight into an innerHTML template (see the howtoStep1/2/3 usages
-    // there), NOT textContent. A future edit to those catalog values must keep them
-    // safe, trusted, developer-authored markup — never interpolate user/webview input
-    // into them, and do not "fix" them by HTML-escaping the <b> tags.
-    howtoStep1: l10n("planner.howto.step1"),
-    howtoStep2: l10n("planner.howto.step2"),
-    howtoStep3: l10n("planner.howto.step3"),
-    howtoAddLinkTitle: l10n("planner.howto.addLinkTitle"),
-    howtoAddLink: l10n("planner.howto.addLink"),
-    howtoAutoArrangeTitle: l10n("planner.howto.autoArrangeTitle"),
-    howtoAutoArrange: l10n("planner.howto.autoArrange"),
-    dropEventHint: l10n("planner.workflow.dropEventHint"),
-    dropShortcutHint: l10n("planner.workflow.dropShortcutHint"),
-    workflowEmptyTitle: l10n("planner.workflow.emptyTitle"),
-    workflowEmptyDetail: l10n("planner.workflow.emptyDetail"),
-    plugTitle: l10n("planner.workflow.plugTitle"),
-    eventBadge: l10n("planner.workflow.eventBadge"),
-    shelfTitle: l10n("planner.shelf.title"),
-    shelfHint: l10n("planner.shelf.hint"),
-    shelfNoMatch: l10n("planner.shelf.noMatch"),
-    shelfAllWired: l10n("planner.shelf.allWired"),
-    shelfFilterPlaceholder: l10n("planner.shelf.filterPlaceholder"),
+    ...workflowStrings(),
   };
 }

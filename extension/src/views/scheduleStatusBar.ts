@@ -86,6 +86,40 @@ export class ScheduleStatusBar {
     return this.currentNextRunAt;
   }
 
+  // The enabled scheduled shortcut that fired most recently within the flash window.
+  private findJustRan(now: number): { shortcut: Shortcut; ranAt: number } | undefined {
+    let justRan: { shortcut: Shortcut; ranAt: number } | undefined;
+    for (const shortcut of [...this.store.getProjectShortcuts(), ...this.store.getGlobalShortcuts()]) {
+      if (!shortcut.schedule?.enabled) {
+        continue;
+      }
+      if (isJustRan(shortcut.schedule.lastRun, now)) {
+        if (!justRan || shortcut.schedule.lastRun! > justRan.ranAt) {
+          justRan = { shortcut, ranAt: shortcut.schedule.lastRun! };
+        }
+      }
+    }
+    return justRan;
+  }
+
+  // The enabled scheduled shortcut with the nearest upcoming run, if any.
+  private findSoonest(now: number): { shortcut: Shortcut; at: number } | undefined {
+    let soonest: { shortcut: Shortcut; at: number } | undefined;
+    for (const shortcut of [...this.store.getProjectShortcuts(), ...this.store.getGlobalShortcuts()]) {
+      if (!shortcut.schedule?.enabled) {
+        continue;
+      }
+      const at = nextOccurrence(shortcut.schedule, now);
+      if (at === undefined) {
+        continue;
+      }
+      if (!soonest || at < soonest.at) {
+        soonest = { shortcut, at };
+      }
+    }
+    return soonest;
+  }
+
   private recompute(): void {
     // Hidden by setting: still track nothing, so a later un-hide recomputes cleanly.
     const config = vscode.workspace.getConfiguration("saropaWorkspace");
@@ -103,18 +137,7 @@ export class ScheduleStatusBar {
     // Check for a shortcut that just ran (within the flash window). The most
     // recently fired shortcut wins — show "ran at {time}" so the user can click
     // through to its report without hunting for it.
-    let justRan: { shortcut: Shortcut; ranAt: number } | undefined;
-    for (const shortcut of [...this.store.getProjectShortcuts(), ...this.store.getGlobalShortcuts()]) {
-      if (!shortcut.schedule?.enabled) {
-        continue;
-      }
-      if (isJustRan(shortcut.schedule.lastRun, now)) {
-        if (!justRan || shortcut.schedule.lastRun! > justRan.ranAt) {
-          justRan = { shortcut, ranAt: shortcut.schedule.lastRun! };
-        }
-      }
-    }
-
+    const justRan = this.findJustRan(now);
     if (justRan) {
       const name = shortcutDisplayName(justRan.shortcut);
       const time = formatWhen(justRan.ranAt);
@@ -128,19 +151,7 @@ export class ScheduleStatusBar {
     }
 
     // No recent run — look for the soonest upcoming one within the lead window.
-    let soonest: { shortcut: Shortcut; at: number } | undefined;
-    for (const shortcut of [...this.store.getProjectShortcuts(), ...this.store.getGlobalShortcuts()]) {
-      if (!shortcut.schedule?.enabled) {
-        continue;
-      }
-      const at = nextOccurrence(shortcut.schedule, now);
-      if (at === undefined) {
-        continue;
-      }
-      if (!soonest || at < soonest.at) {
-        soonest = { shortcut, at };
-      }
-    }
+    const soonest = this.findSoonest(now);
 
     if (!soonest || !shouldShowIndicator(soonest.at, now, windowMs)) {
       this.currentShortcutId = undefined;

@@ -130,6 +130,7 @@ export interface RemoteControlPayload {
   strings: RemoteControlStrings;
 }
 
+/** Inputs for building the Remote Control payload; every field is optional and passed as data so the builder stays pure. */
 export interface RemoteControlPayloadOptions {
   // Defaults to the shipped catalog; injectable so a test (and, later, a
   // profile-filtered caller) can pass its own list.

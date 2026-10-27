@@ -186,6 +186,17 @@ function registerPinFileCommands(
     }
   });
 
+  registerPinToggleCommands(context, store);
+}
+
+// The four add/remove-by-scope commands behind the Explorer submenu, the Shortcuts
+// view row submenu and the Project Files inline toggle.
+function registerPinToggleCommands(
+  context: vscode.ExtensionContext,
+  store: ShortcutStore
+): void {
+  const { reg } = shortcutCommandRegistrar(context);
+
   // Add/remove a file to/from each scope. One set of four commands backs the
   // Explorer "Workspace Pin" submenu, the Shortcuts view row submenu, and the Project
   // Files inline toggle. The target file is resolved from whatever the surface
@@ -278,63 +289,73 @@ function registerRecipeRestoreCommands(
   // Quick-setup wizard for the Daily Routines category: a multi-select QuickPick that
   // lets the user choose which detected routines to enable in one batch, rather than
   // promoting and enabling each one individually.
-  reg("saropaWorkspace.setupDailyRoutines", async () => {
-    const SCHEDULED_GROUP_ID = "recipes-scheduled";
-    const routines = store
-      .getRecipeShortcuts()
-      .filter((s) => s.groupId === SCHEDULED_GROUP_ID && s.schedule);
-    if (routines.length === 0) {
-      vscode.window.showInformationMessage(l10n("dailyRoutines.noneDetected"));
-      return;
-    }
-    interface RoutinePickItem extends vscode.QuickPickItem {
-      shortcutId: string;
-    }
-    const items: RoutinePickItem[] = routines.map((r) => ({
-      label: shortcutDisplayName(r),
-      description: r.schedule?.atTime
-        ? l10n("dailyRoutines.at", { time: r.schedule.atTime })
-        : undefined,
-      detail: r.description,
-      shortcutId: r.id,
-      picked: false,
-    }));
-    const picker = vscode.window.createQuickPick<RoutinePickItem>();
-    picker.title = l10n("dailyRoutines.title");
-    picker.placeholder = l10n("dailyRoutines.placeholder");
-    picker.items = items;
-    picker.canSelectMany = true;
-    picker.ignoreFocusOut = true;
-    const selected = await new Promise<
-      readonly RoutinePickItem[] | undefined
-    >((resolve) => {
-      picker.onDidAccept(() => {
-        resolve(picker.selectedItems);
-        picker.dispose();
-      });
-      picker.onDidHide(() => {
-        resolve(undefined);
-        picker.dispose();
-      });
-      picker.show();
+  reg("saropaWorkspace.setupDailyRoutines", () => setupDailyRoutines(store));
+}
+
+/** One row of the Daily Routines picker; carries the id to look the shortcut up again. */
+interface RoutinePickItem extends vscode.QuickPickItem {
+  shortcutId: string;
+}
+
+/** Shows the multi-select picker and resolves with the ticked rows (undefined if dismissed). */
+function pickRoutines(
+  items: RoutinePickItem[]
+): Promise<readonly RoutinePickItem[] | undefined> {
+  const picker = vscode.window.createQuickPick<RoutinePickItem>();
+  picker.title = l10n("dailyRoutines.title");
+  picker.placeholder = l10n("dailyRoutines.placeholder");
+  picker.items = items;
+  picker.canSelectMany = true;
+  picker.ignoreFocusOut = true;
+  return new Promise((resolve) => {
+    picker.onDidAccept(() => {
+      resolve(picker.selectedItems);
+      picker.dispose();
     });
-    if (!selected || selected.length === 0) {
-      return;
-    }
-    let enabled = 0;
-    for (const item of selected) {
-      const shortcut = store.findShortcut(item.shortcutId);
-      if (shortcut) {
-        const ok = await store.enableScheduledRecipe(shortcut);
-        if (ok) {
-          enabled++;
-        }
-      }
-    }
-    if (enabled > 0) {
-      vscode.window.showInformationMessage(
-        l10n("dailyRoutines.enabled", { count: enabled })
-      );
-    }
+    picker.onDidHide(() => {
+      resolve(undefined);
+      picker.dispose();
+    });
+    picker.show();
   });
+}
+
+/**
+ * Lists the detected scheduled routines, lets the user tick some, then promotes
+ * and enables each ticked one. Reports how many were enabled.
+ */
+async function setupDailyRoutines(store: ShortcutStore): Promise<void> {
+  const SCHEDULED_GROUP_ID = "recipes-scheduled";
+  const routines = store
+    .getRecipeShortcuts()
+    .filter((s) => s.groupId === SCHEDULED_GROUP_ID && s.schedule);
+  if (routines.length === 0) {
+    vscode.window.showInformationMessage(l10n("dailyRoutines.noneDetected"));
+    return;
+  }
+  const items: RoutinePickItem[] = routines.map((r) => ({
+    label: shortcutDisplayName(r),
+    description: r.schedule?.atTime
+      ? l10n("dailyRoutines.at", { time: r.schedule.atTime })
+      : undefined,
+    detail: r.description,
+    shortcutId: r.id,
+    picked: false,
+  }));
+  const selected = await pickRoutines(items);
+  if (!selected || selected.length === 0) {
+    return;
+  }
+  let enabled = 0;
+  for (const item of selected) {
+    const shortcut = store.findShortcut(item.shortcutId);
+    if (shortcut && (await store.enableScheduledRecipe(shortcut))) {
+      enabled++;
+    }
+  }
+  if (enabled > 0) {
+    vscode.window.showInformationMessage(
+      l10n("dailyRoutines.enabled", { count: enabled })
+    );
+  }
 }

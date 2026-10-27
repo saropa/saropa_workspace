@@ -78,6 +78,48 @@ function replaceAllCases(
   return out;
 }
 
+/**
+ * Writes the renamed copy next to the source file and opens it. Returns the new
+ * file name, or undefined when a file of that name already exists (never
+ * overwritten).
+ */
+async function writeTemplateCopy(
+  uri: vscode.Uri,
+  sourceBase: string,
+  sourceWords: string[],
+  targetWords: string[]
+): Promise<string | undefined> {
+  const ext = path.extname(uri.fsPath);
+  const newBase = renderCase(targetWords, detectFileNameStyle(sourceBase));
+  const newName = newBase + ext;
+  const dir = vscode.Uri.joinPath(uri, "..");
+  const targetUri = vscode.Uri.joinPath(dir, newName);
+
+  // Never overwrite: a clobbered file is unrecoverable from here. Stat-then-abort.
+  try {
+    await vscode.workspace.fs.stat(targetUri);
+    vscode.window.showWarningMessage(l10n("template.exists", { name: newName }));
+    return undefined;
+  } catch {
+    // Does not exist — the expected path for a fresh copy.
+  }
+
+  // Read as UTF-8 text and rewrite identifiers. A template is by definition a source
+  // file; a binary would not carry meaningful identifiers to rename.
+  const bytes = await vscode.workspace.fs.readFile(uri);
+  const transformed = replaceAllCases(
+    Buffer.from(bytes).toString("utf8"),
+    sourceWords,
+    targetWords
+  );
+  await vscode.workspace.fs.writeFile(
+    targetUri,
+    Buffer.from(transformed, "utf8")
+  );
+  await vscode.window.showTextDocument(targetUri, { preview: false });
+  return newName;
+}
+
 // Command handler for "Use as Template". Resolves the shortcut's target file, asks for
 // a new identifier, and refuses early (warning toast, no changes) when the shortcut is
 // not a file shortcut, its target no longer resolves, the input is blank, or a file
@@ -111,33 +153,10 @@ export async function useAsTemplate(store: ShortcutStore, shortcut: Shortcut): P
     return;
   }
 
-  const newBase = renderCase(targetWords, detectFileNameStyle(sourceBase));
-  const newName = newBase + ext;
-  const dir = vscode.Uri.joinPath(uri, "..");
-  const targetUri = vscode.Uri.joinPath(dir, newName);
-
-  // Never overwrite: a clobbered file is unrecoverable from here. Stat-then-abort.
-  try {
-    await vscode.workspace.fs.stat(targetUri);
-    vscode.window.showWarningMessage(l10n("template.exists", { name: newName }));
+  const newName = await writeTemplateCopy(uri, sourceBase, sourceWords, targetWords);
+  if (!newName) {
     return;
-  } catch {
-    // Does not exist — the expected path for a fresh copy.
   }
-
-  // Read as UTF-8 text and rewrite identifiers. A template is by definition a source
-  // file; a binary would not carry meaningful identifiers to rename.
-  const bytes = await vscode.workspace.fs.readFile(uri);
-  const transformed = replaceAllCases(
-    Buffer.from(bytes).toString("utf8"),
-    sourceWords,
-    targetWords
-  );
-  await vscode.workspace.fs.writeFile(
-    targetUri,
-    Buffer.from(transformed, "utf8")
-  );
-  await vscode.window.showTextDocument(targetUri, { preview: false });
   vscode.window.showInformationMessage(
     l10n("template.created", { name: newName, source: sourceBase + ext })
   );

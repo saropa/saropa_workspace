@@ -21,6 +21,7 @@ import { emptyPage, liveInput, pathSettings, sittingsInput, tidyInput } from "./
 // Least time between two looks at the Problems panel.
 export const LIVE_GAP_MS = 4000;
 
+/** State and rendering shared by the board panel: the current model, paths and run, and the render counter that ignores stale page messages. */
 export abstract class BoardPanelCore {
   protected model: BoardModel | undefined;
   // One Path to GO per project, in the order of model.projects: what the page shows, so a

@@ -28,6 +28,7 @@ export interface FakeWebviewPanel {
   readonly disposed: boolean;
 }
 
+/** Creates a fake webview panel and records it so a test can read it back. */
 export function fakeWebviewPanel(viewType: string, title: string): FakeWebviewPanel {
   let receiveHandler: ((message: unknown) => void) | undefined;
   let disposeHandler: (() => void) | undefined;
@@ -78,9 +79,11 @@ export function fakeWebviewPanel(viewType: string, title: string): FakeWebviewPa
 // most recent one back (createWebviewPanel's real return type carries no such
 // list; this is a test-only convenience) via __lastWebviewPanel().
 export const createdPanels: FakeWebviewPanel[] = [];
+/** Test hook: the most recently created fake panel, or undefined. */
 export function __lastWebviewPanel(): FakeWebviewPanel | undefined {
   return createdPanels[createdPanels.length - 1];
 }
+/** Test hook: disposes and forgets every fake panel. */
 export function __resetWebviewPanels(): void {
   for (const p of createdPanels) {
     p.dispose();

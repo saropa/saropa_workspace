@@ -11,17 +11,25 @@ import { l10n } from "../i18n/l10n";
 
 const execFile = promisify(execFileCb);
 
+// Git is slow on huge repos: stop waiting after 30 s and cap captured output.
 const GIT_TIMEOUT_MS = 30_000;
 const MAX_GIT_BUFFER = 64 * 1024 * 1024;
 
+// How far back the digest looks (passed to `git log --since`).
 const WINDOW = "24 hours ago";
 
+// A "chore" commit touching more than this many lines is treated as generated
+// churn (translations, lockfiles) and folded out of the hand-work counts.
 const CHURN_LINE_THRESHOLD = 10_000;
 
+// Subjects that mark a commit as generated churn regardless of its size.
 const CHURN_SUBJECT_RE = /machine-translation|auto-generated|regenerated?/i;
+// Words that promote a commit to the "Security" section (and the headline).
 const SECURITY_RE = /security|auth|token|credential|vulnerab/i;
+// Conventional-commit subject: type, optional (scope), optional ! (breaking), text.
 const CONVENTIONAL_RE = /^(\w+)(?:\(([^)]*)\))?(!)?:\s*(.*)$/;
 
+/** One commit from `git log --shortstat`, with its conventional-commit parts split out. */
 export interface CommitEntry {
   sha: string;
   subject: string;
@@ -34,17 +42,20 @@ export interface CommitEntry {
   description: string;
 }
 
+/** Fix commits that share a scope, folded into one line of the report. */
 export interface FixGroup {
   scope: string;
   count: number;
   latestSubject: string;
 }
 
+/** Count of commits of one other type (docs, refactor, ...) with no section of their own. */
 export interface OtherGroup {
   type: string;
   count: number;
 }
 
+/** The classified last-24-hours picture that the Markdown report is built from. */
 export interface StandupDigest {
   total: number;
   churn: { commits: number; insertions: number; deletions: number };
@@ -57,6 +68,7 @@ export interface StandupDigest {
   latestCommitIso?: string;
 }
 
+/** Runs git in `root`; any failure (not a repo, timeout) yields an empty string. */
 async function git(root: string, args: string[]): Promise<string> {
   try {
     const { stdout } = await execFile("git", args, {
@@ -70,7 +82,8 @@ async function git(root: string, args: string[]): Promise<string> {
   }
 }
 
-// Exported for tests.
+// Splits "feat(scope)!: text" into its parts; a non-conventional subject keeps
+// the whole line as the description. Exported for tests.
 export function parseConventionalCommit(subject: string): {
   type: string | undefined;
   scope: string | undefined;
@@ -89,7 +102,9 @@ export function parseConventionalCommit(subject: string): {
   };
 }
 
-// Parse tab-separated git log output into commit entries. Exported for tests.
+// Parse tab-separated git log output into commit entries. A line starting with
+// "<hex sha><TAB>" opens a commit; the following "N files changed" line (from
+// --shortstat) fills in that commit's size. Exported for tests.
 export function parseGitLog(raw: string): CommitEntry[] {
   if (!raw) {
     return [];
@@ -134,7 +149,61 @@ export function parseGitLog(raw: string): CommitEntry[] {
   return entries;
 }
 
-// Pure classification. Exported for tests.
+/** True for a generated-churn commit: a huge "chore", or a churn-marker subject. */
+function isChurnCommit(e: CommitEntry): boolean {
+  const byLines =
+    e.type === "chore" && e.insertions + e.deletions > CHURN_LINE_THRESHOLD;
+  return byLines || CHURN_SUBJECT_RE.test(e.subject);
+}
+
+/** True when the scope, text or type mentions security, or the commit is breaking. */
+function isSecurityCommit(e: CommitEntry): boolean {
+  return (
+    SECURITY_RE.test(e.scope ?? "") ||
+    SECURITY_RE.test(e.description) ||
+    SECURITY_RE.test(e.type ?? "") ||
+    e.breaking
+  );
+}
+
+/** Adds a fix commit to its scope group; the last commit seen becomes "latest". */
+function addToFixGroup(
+  fixMap: Map<string, { count: number; latestSubject: string }>,
+  e: CommitEntry
+): void {
+  const scope = e.scope ?? "(unscoped)";
+  const existing = fixMap.get(scope);
+  if (existing) {
+    existing.count++;
+    existing.latestSubject = e.subject;
+  } else {
+    fixMap.set(scope, { count: 1, latestSubject: e.subject });
+  }
+}
+
+/**
+ * Adds churn commits to the digest's churn totals and the rest to its line
+ * totals. Returns the non-churn ("notable") commits for bucketing.
+ */
+function foldChurn(digest: StandupDigest, entries: readonly CommitEntry[]): CommitEntry[] {
+  const notable: CommitEntry[] = [];
+  for (const e of entries) {
+    if (isChurnCommit(e)) {
+      digest.churn.commits++;
+      digest.churn.insertions += e.insertions;
+      digest.churn.deletions += e.deletions;
+    } else {
+      notable.push(e);
+      digest.insertions += e.insertions;
+      digest.deletions += e.deletions;
+    }
+  }
+  return notable;
+}
+
+// Pure classification. Churn is split off first and excluded from the line
+// totals; the rest goes to the first matching bucket: security, feature, fix
+// group, or a per-type count. Exported for tests.
 export function classifyCommits(entries: readonly CommitEntry[]): StandupDigest {
   const digest: StandupDigest = {
     total: entries.length,
@@ -147,58 +216,21 @@ export function classifyCommits(entries: readonly CommitEntry[]): StandupDigest 
     deletions: 0,
   };
 
-  const notable: CommitEntry[] = [];
-
-  for (const e of entries) {
-    const isChurnByLines =
-      e.type === "chore" && e.insertions + e.deletions > CHURN_LINE_THRESHOLD;
-    const isChurnBySubject = CHURN_SUBJECT_RE.test(e.subject);
-
-    if (isChurnByLines || isChurnBySubject) {
-      digest.churn.commits++;
-      digest.churn.insertions += e.insertions;
-      digest.churn.deletions += e.deletions;
-    } else {
-      notable.push(e);
-      digest.insertions += e.insertions;
-      digest.deletions += e.deletions;
-    }
-  }
+  const notable = foldChurn(digest, entries);
 
   const fixMap = new Map<string, { count: number; latestSubject: string }>();
   const otherMap = new Map<string, number>();
-
   for (const e of notable) {
-    const isSecurity =
-      SECURITY_RE.test(e.scope ?? "") ||
-      SECURITY_RE.test(e.description) ||
-      SECURITY_RE.test(e.type ?? "") ||
-      e.breaking;
-
-    if (isSecurity) {
+    if (isSecurityCommit(e)) {
       digest.security.push(e);
-      continue;
-    }
-
-    if (e.type === "feat") {
+    } else if (e.type === "feat") {
       digest.features.push(e);
-      continue;
+    } else if (e.type === "fix" || e.type === "harden") {
+      addToFixGroup(fixMap, e);
+    } else {
+      const typeKey = e.type ?? "other";
+      otherMap.set(typeKey, (otherMap.get(typeKey) ?? 0) + 1);
     }
-
-    if (e.type === "fix" || e.type === "harden") {
-      const scope = e.scope ?? "(unscoped)";
-      const existing = fixMap.get(scope);
-      if (existing) {
-        existing.count++;
-        existing.latestSubject = e.subject;
-      } else {
-        fixMap.set(scope, { count: 1, latestSubject: e.subject });
-      }
-      continue;
-    }
-
-    const typeKey = e.type ?? "other";
-    otherMap.set(typeKey, (otherMap.get(typeKey) ?? 0) + 1);
   }
 
   digest.fixGroups = [...fixMap.entries()].map(([scope, { count, latestSubject }]) => ({
@@ -210,10 +242,13 @@ export function classifyCommits(entries: readonly CommitEntry[]): StandupDigest 
     type,
     count,
   }));
-
   return digest;
 }
 
+/**
+ * Reads the last 24 hours of git history and classifies it. Also returns the
+ * plain log text for the report's collapsible "Full commit log" block.
+ */
 export async function collectStandupDigest(
   root: string
 ): Promise<{ digest: StandupDigest; rawLog: string }> {
@@ -243,11 +278,83 @@ export async function collectStandupDigest(
   return { digest, rawLog };
 }
 
+/** "±1,234 lines": total churn size without signs, easy to scan. */
 function formatPlusMinus(ins: number, del: number): string {
   return `±${(ins + del).toLocaleString()} lines`;
 }
 
-// Exported for tests.
+/** Adds "s" (or the given plural) unless the count is exactly one. */
+function plural(n: number, suffix = "s"): string {
+  return n === 1 ? "" : suffix;
+}
+
+/** One-line summary: hand-written commits (with feature/fix detail) plus folded churn. */
+function buildHeadline(digest: StandupDigest): string {
+  const handWork = digest.total - digest.churn.commits;
+  const parts: string[] = [];
+  if (handWork > 0) {
+    const details: string[] = [];
+    if (digest.features.length > 0) {
+      details.push(`${digest.features.length} feature${plural(digest.features.length)}`);
+    }
+    for (const fg of digest.fixGroups) {
+      details.push(`${fg.count} ${fg.scope} fix${plural(fg.count, "es")}`);
+    }
+    const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
+    parts.push(`${handWork} commit${plural(handWork)} by hand${detailStr}`);
+  }
+  if (digest.churn.commits > 0) {
+    const size = formatPlusMinus(digest.churn.insertions, digest.churn.deletions);
+    parts.push(
+      `${digest.churn.commits} generated-churn commit${plural(digest.churn.commits)} folded (${size})`
+    );
+  }
+  return parts.join(" · ");
+}
+
+/** The Security, Features, Fixes and Generated churn sections, each only when non-empty. */
+function buildSections(digest: StandupDigest): string[] {
+  const lines: string[] = [];
+  if (digest.security.length > 0) {
+    lines.push("### Security", "");
+    for (const e of digest.security) {
+      lines.push(`- \`${e.sha}\` ${e.subject}`);
+    }
+    lines.push("");
+  }
+  if (digest.features.length > 0) {
+    lines.push("### Features", "");
+    for (const e of digest.features.slice(0, 10)) {
+      lines.push(`- \`${e.sha}\` ${e.subject}`);
+    }
+    if (digest.features.length > 10) {
+      lines.push(`- _…and ${digest.features.length - 10} more_`);
+    }
+    lines.push("");
+  }
+  if (digest.fixGroups.length > 0) {
+    lines.push("### Fixes by area", "");
+    for (const fg of digest.fixGroups) {
+      lines.push(
+        `- ${fg.scope} — ${fg.count} commit${plural(fg.count)}, latest: ${fg.latestSubject}`
+      );
+    }
+    lines.push("");
+  }
+  if (digest.churn.commits > 0) {
+    const size = formatPlusMinus(digest.churn.insertions, digest.churn.deletions);
+    lines.push(
+      "### Generated churn",
+      "",
+      `${digest.churn.commits} commit${plural(digest.churn.commits)} folded (${size})`,
+      ""
+    );
+  }
+  return lines;
+}
+
+// Renders the report. A quiet day gets a one-line headline; a security-relevant
+// commit replaces the headline with an Attention line. Exported for tests.
 export function buildStandupMarkdown(
   digest: StandupDigest,
   rawLog: string
@@ -266,80 +373,15 @@ export function buildStandupMarkdown(
     return lines.join("\n");
   }
 
-  const handWork = digest.total - digest.churn.commits;
-  const headlineParts: string[] = [];
-  if (handWork > 0) {
-    const details: string[] = [];
-    if (digest.features.length > 0) {
-      details.push(
-        `${digest.features.length} feature${digest.features.length === 1 ? "" : "s"}`
-      );
-    }
-    for (const fg of digest.fixGroups) {
-      details.push(
-        `${fg.count} ${fg.scope} fix${fg.count === 1 ? "" : "es"}`
-      );
-    }
-    const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
-    headlineParts.push(
-      `${handWork} commit${handWork === 1 ? "" : "s"} by hand${detailStr}`
-    );
-  }
-  if (digest.churn.commits > 0) {
-    headlineParts.push(
-      `${digest.churn.commits} generated-churn commit${digest.churn.commits === 1 ? "" : "s"} folded (${formatPlusMinus(digest.churn.insertions, digest.churn.deletions)})`
-    );
-  }
-
   if (digest.security.length > 0) {
     lines.push(
       `**Attention:** Security-relevant commit landed: ${digest.security[0]!.subject}`
     );
   } else {
-    lines.push(`**Headline:** ${headlineParts.join(" · ")}`);
+    lines.push(`**Headline:** ${buildHeadline(digest)}`);
   }
   lines.push("");
-
-  if (digest.security.length > 0) {
-    lines.push("### Security");
-    lines.push("");
-    for (const e of digest.security) {
-      lines.push(`- \`${e.sha}\` ${e.subject}`);
-    }
-    lines.push("");
-  }
-
-  if (digest.features.length > 0) {
-    lines.push("### Features");
-    lines.push("");
-    for (const e of digest.features.slice(0, 10)) {
-      lines.push(`- \`${e.sha}\` ${e.subject}`);
-    }
-    if (digest.features.length > 10) {
-      lines.push(`- _…and ${digest.features.length - 10} more_`);
-    }
-    lines.push("");
-  }
-
-  if (digest.fixGroups.length > 0) {
-    lines.push("### Fixes by area");
-    lines.push("");
-    for (const fg of digest.fixGroups) {
-      lines.push(
-        `- ${fg.scope} — ${fg.count} commit${fg.count === 1 ? "" : "s"}, latest: ${fg.latestSubject}`
-      );
-    }
-    lines.push("");
-  }
-
-  if (digest.churn.commits > 0) {
-    lines.push("### Generated churn");
-    lines.push("");
-    lines.push(
-      `${digest.churn.commits} commit${digest.churn.commits === 1 ? "" : "s"} folded (${formatPlusMinus(digest.churn.insertions, digest.churn.deletions)})`
-    );
-    lines.push("");
-  }
+  lines.push(...buildSections(digest));
 
   lines.push("<details>");
   lines.push("<summary>Full commit log</summary>");
@@ -352,6 +394,7 @@ export function buildStandupMarkdown(
   return lines.join("\n");
 }
 
+/** Registers the standup-digest recipe command (optionally given a folder path). */
 export function registerStandupDigestCommand(
   context: vscode.ExtensionContext
 ): void {
@@ -363,6 +406,9 @@ export function registerStandupDigestCommand(
   );
 }
 
+// Collects the digest for the given (or first workspace) folder, writes the
+// report file under the recipe report folder and opens it. Returns the path,
+// or undefined when there is no folder or the write failed.
 async function runStandupDigest(
   folderPath?: unknown
 ): Promise<string | undefined> {

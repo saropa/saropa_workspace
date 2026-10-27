@@ -22,18 +22,47 @@ import { l10n } from "../i18n/l10n";
 // across ~8 host-side webview shells).
 import { escapeHtml as esc } from "../utils/escapeHtml";
 
+/** Locks the page down: no network, no images, inline styles and the one nonce'd script only. */
+function buildCsp(nonce: string): string {
+  return [
+    "default-src 'none'",
+    "img-src 'none'",
+    "style-src 'unsafe-inline'",
+    `script-src 'nonce-${nonce}'`,
+  ].join("; ");
+}
+
+/** Bottom bar: live command preview plus the Cancel and Save buttons. */
+function footerHtml(): string {
+  return `<div class="footer">
+  <div class="pv">
+    <span class="pl">${esc(l10n("configureRun.footer.command"))}</span>
+    <span class="pvv" id="commandPreview"></span>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn" id="cancel">${esc(l10n("configureRun.cancel"))}</button>
+  <button class="btn primary" id="save">${esc(l10n("configureRun.save"))}</button>
+</div>`;
+}
+
+/** Cloned by the page script for each environment-variable row the user adds. */
+function envRowTemplate(): string {
+  return `<template id="envRowTpl"><div class="envrow"><input type="text" class="envKey" placeholder="${esc(
+    l10n("configureRun.env.keyPlaceholder")
+  )}" /><input type="text" class="envVal" placeholder="${esc(
+    l10n("configureRun.env.valuePlaceholder")
+  )}" /><button class="iconbtn envDel" type="button" title="${esc(
+    l10n("configureRun.env.remove")
+  )}" aria-label="${esc(l10n("configureRun.env.remove"))}">&#x2715;</button></div></template>`;
+}
+
 // Build the full webview HTML document for one shortcut's Configure Run form: the CSP
 // shell, the hero header, and the six form cards assembled in order, plus the env-row
 // <template> the client clones for each new environment variable. Rebuilt from scratch on
 // every open/repoint since a panel only ever shows one shortcut's config at a time.
 export function renderConfigureRunHtml(store: ShortcutStore, shortcut: Shortcut): string {
   const nonce = crypto.randomBytes(16).toString("base64");
-  const csp = [
-    "default-src 'none'",
-    "img-src 'none'",
-    "style-src 'unsafe-inline'",
-    `script-src 'nonce-${nonce}'`,
-  ].join("; ");
+  const csp = buildCsp(nonce);
   const name = shortcutDisplayName(shortcut);
   const title = l10n("configureRun.title", { name });
 
@@ -62,23 +91,9 @@ ${locationCard()}
 ${outputCard(store, shortcut)}
 ${behaviorCard()}
 
-<div class="footer">
-  <div class="pv">
-    <span class="pl">${esc(l10n("configureRun.footer.command"))}</span>
-    <span class="pvv" id="commandPreview"></span>
-  </div>
-  <div class="spacer"></div>
-  <button class="btn" id="cancel">${esc(l10n("configureRun.cancel"))}</button>
-  <button class="btn primary" id="save">${esc(l10n("configureRun.save"))}</button>
-</div>
+${footerHtml()}
 
-<template id="envRowTpl"><div class="envrow"><input type="text" class="envKey" placeholder="${esc(
-    l10n("configureRun.env.keyPlaceholder")
-  )}" /><input type="text" class="envVal" placeholder="${esc(
-    l10n("configureRun.env.valuePlaceholder")
-  )}" /><button class="iconbtn envDel" type="button" title="${esc(
-    l10n("configureRun.env.remove")
-  )}" aria-label="${esc(l10n("configureRun.env.remove"))}">&#x2715;</button></div></template>
+${envRowTemplate()}
 
 <script nonce="${nonce}">${CONFIGURE_RUN_SCRIPT}</script>
 </body>

@@ -110,26 +110,9 @@ export class ShortcutTreeItem extends vscode.TreeItem {
   readonly shortcut: Shortcut;
 
   constructor(opts: ShortcutTreeItemOptions) {
-    const {
-      shortcut,
-      resolvedUri,
-      isRunning = false,
-      lastRun,
-      isStopping = false,
-      recentInfo,
-      missing = false,
-      runCount = 0,
-      lockedBy,
-      sweepBadge,
-      previousBadge,
-      metricBadge,
-      untapped = false,
-      shadowsAuto = false,
-      owningFolder,
-    } = opts;
+    const { shortcut, resolvedUri, recentInfo, untapped = false } = opts;
     const kind = shortcutKind(shortcut);
     const isFile = kind === "file";
-    const basename = shortcut.path.split("/").pop() ?? shortcut.path;
     // Masked / vault shortcut (WOW #26): the row must reveal nothing about the target,
     // so it shows a generic localized label (never the filename/alias) and, below,
     // hides the path from the detail/hover and shows a lock glyph. Computed before
@@ -167,100 +150,150 @@ export class ShortcutTreeItem extends vscode.TreeItem {
       return;
     }
 
-    // Badge + description assembly (leading state badge, identity detail, live
-    // metric) — extracted so this constructor stays a short sequence of builder
-    // calls; see shortcutRowDescription.ts for the phase's own reasoning.
-    const { description, metricText } = buildShortcutRowDescription({
-      shortcut,
-      masked,
-      isFile,
-      isRunning,
-      isStopping,
-      lastRun,
-      lockedBy,
-      sweepBadge,
-      previousBadge,
-      metricBadge,
-      recentInfo,
-      owningFolder,
-    });
-    this.description = description;
-
-    // contextValue gates the menus; see shortcutRowContext.ts for the exact suffix
-    // rules each menu clause depends on.
-    this.contextValue = buildShortcutContextValue(shortcut, isRunning, isStopping);
-
-    // BUG-009: without accessibilityInformation a screen reader gets only the raw
-    // label, so live state (running/stopping/locked/paused) and the untapped/missing
-    // facts that sighted users read from the icon and badge are invisible to AT
-    // users. role is left unset — VS Code's default "treeitem" role already fits;
-    // only the separator row (below) needs an explicit role override.
-    this.accessibilityInformation = {
-      label: buildAccessibilityLabel({
-        name: baseLabel,
-        isRunning,
-        isStopping,
-        paused: Boolean(shortcut.paused),
-        lockedBy,
-        missing,
-        untapped,
-      }),
-    };
-
-    // Hover lines (target, live state, notices, last run, sweep/metric summaries,
-    // gesture footer); see shortcutRowTooltip.ts for the phase's own reasoning.
-    this.tooltip = buildShortcutTooltipLines({
-      shortcut,
-      masked,
-      isFile,
-      resolvedUri,
-      isRunning,
-      isStopping,
-      missing,
-      lockedBy,
-      lastRun,
-      sweepBadge,
-      previousBadge,
-      runCount,
-      metricBadge,
-      metricText,
-      untapped,
-      customColor: shortcut.color,
-      shadowsAuto,
-      owningFolder,
-    }).join("\n");
-
-    // Row glyph + tint: the priority chain and every codicon/color token live in
-    // the shared token map (UI plan, Phase 4), so the visual language is consistent
-    // and learnable. The call site only states the inputs; the resolver owns which
-    // state wins and what it looks like.
-    this.iconPath = resolveShortcutRowIcon({
-      isRunning,
-      isStopping,
-      isFile,
-      hasResolvedUri: resolvedUri !== undefined,
-      missing,
-      locked: Boolean(lockedBy),
-      masked,
-      paused: Boolean(shortcut.paused),
-      metricOver: Boolean(metricBadge?.over),
-      lastRunOutcome: lastRun?.outcome,
-      customIcon: shortcut.icon,
-      customColor: shortcut.color,
-      hasExpiry: Boolean(shortcut.expires),
-      isAuto: Boolean(shortcut.isAuto),
-      shadowsAuto,
-      kind,
-      fileName: isFile ? basename : undefined,
-    });
-
-    // Single command for click; the dispatcher reads timing to choose open/run.
-    this.command = {
-      command: "saropaWorkspace.activatePin",
-      title: "Activate",
-      arguments: [shortcut],
-    };
+    applyShortcutRow(this, opts, { baseLabel, masked, isFile, kind });
   }
+}
+
+/** Values the constructor already derived and the row builders reuse. */
+interface RowContext {
+  readonly baseLabel: string;
+  readonly masked: boolean;
+  readonly isFile: boolean;
+  readonly kind: ReturnType<typeof shortcutKind>;
+}
+
+/**
+ * Fills in everything a normal (non-annotation) row shows: description,
+ * context menu value, screen-reader label, hover text, icon and click command.
+ * Split out of the constructor so each phase reads as one builder call.
+ */
+function applyShortcutRow(
+  item: vscode.TreeItem,
+  opts: ShortcutTreeItemOptions,
+  ctx: RowContext
+): void {
+  const { shortcut, isRunning = false, isStopping = false } = opts;
+
+  // Badge + description assembly (leading state badge, identity detail, live
+  // metric); see shortcutRowDescription.ts for the phase's own reasoning.
+  const { description, metricText } = buildRowDescription(opts, ctx);
+  item.description = description;
+
+  // contextValue gates the menus; see shortcutRowContext.ts for the exact suffix
+  // rules each menu clause depends on.
+  item.contextValue = buildShortcutContextValue(shortcut, isRunning, isStopping);
+
+  // BUG-009: without accessibilityInformation a screen reader gets only the raw
+  // label, so live state (running/stopping/locked/paused) and the untapped/missing
+  // facts that sighted users read from the icon and badge are invisible to AT
+  // users. role is left unset — VS Code's default "treeitem" role already fits;
+  // only the separator row (below) needs an explicit role override.
+  item.accessibilityInformation = {
+    label: buildAccessibilityLabel({
+      name: ctx.baseLabel,
+      isRunning,
+      isStopping,
+      paused: Boolean(shortcut.paused),
+      lockedBy: opts.lockedBy,
+      missing: opts.missing ?? false,
+      untapped: opts.untapped ?? false,
+    }),
+  };
+
+  item.tooltip = buildRowTooltip(opts, ctx, metricText);
+  item.iconPath = buildRowIcon(opts, ctx);
+
+  // Single command for click; the dispatcher reads timing to choose open/run.
+  item.command = {
+    command: "saropaWorkspace.activatePin",
+    title: "Activate",
+    arguments: [shortcut],
+  };
+}
+
+/** Description text (state badge, identity detail, live metric) for a normal row. */
+function buildRowDescription(
+  opts: ShortcutTreeItemOptions,
+  ctx: RowContext
+): ReturnType<typeof buildShortcutRowDescription> {
+  return buildShortcutRowDescription({
+    shortcut: opts.shortcut,
+    masked: ctx.masked,
+    isFile: ctx.isFile,
+    isRunning: opts.isRunning ?? false,
+    isStopping: opts.isStopping ?? false,
+    lastRun: opts.lastRun,
+    lockedBy: opts.lockedBy,
+    sweepBadge: opts.sweepBadge,
+    previousBadge: opts.previousBadge,
+    metricBadge: opts.metricBadge,
+    recentInfo: opts.recentInfo,
+    owningFolder: opts.owningFolder,
+  });
+}
+
+/**
+ * Hover text: target, live state, notices, last run, sweep/metric summaries and
+ * the gesture footer; see shortcutRowTooltip.ts for the phase's own reasoning.
+ */
+function buildRowTooltip(
+  opts: ShortcutTreeItemOptions,
+  ctx: RowContext,
+  metricText: string | undefined
+): string {
+  return buildShortcutTooltipLines({
+    shortcut: opts.shortcut,
+    masked: ctx.masked,
+    isFile: ctx.isFile,
+    resolvedUri: opts.resolvedUri,
+    isRunning: opts.isRunning ?? false,
+    isStopping: opts.isStopping ?? false,
+    missing: opts.missing ?? false,
+    lockedBy: opts.lockedBy,
+    lastRun: opts.lastRun,
+    sweepBadge: opts.sweepBadge,
+    previousBadge: opts.previousBadge,
+    runCount: opts.runCount ?? 0,
+    metricBadge: opts.metricBadge,
+    metricText,
+    untapped: opts.untapped ?? false,
+    customColor: opts.shortcut.color,
+    shadowsAuto: opts.shadowsAuto ?? false,
+    owningFolder: opts.owningFolder,
+  }).join("\n");
+}
+
+/**
+ * Row glyph + tint: the priority chain and every codicon/color token live in
+ * the shared token map (UI plan, Phase 4), so the visual language is consistent
+ * and learnable. This only states the inputs; the resolver owns which state
+ * wins and what it looks like.
+ */
+function buildRowIcon(
+  opts: ShortcutTreeItemOptions,
+  ctx: RowContext
+): ReturnType<typeof resolveShortcutRowIcon> {
+  const { shortcut } = opts;
+  const basename = shortcut.path.split("/").pop() ?? shortcut.path;
+  return resolveShortcutRowIcon({
+    isRunning: opts.isRunning ?? false,
+    isStopping: opts.isStopping ?? false,
+    isFile: ctx.isFile,
+    hasResolvedUri: opts.resolvedUri !== undefined,
+    missing: opts.missing ?? false,
+    locked: Boolean(opts.lockedBy),
+    masked: ctx.masked,
+    paused: Boolean(shortcut.paused),
+    metricOver: Boolean(opts.metricBadge?.over),
+    lastRunOutcome: opts.lastRun?.outcome,
+    customIcon: shortcut.icon,
+    customColor: shortcut.color,
+    hasExpiry: Boolean(shortcut.expires),
+    isAuto: Boolean(shortcut.isAuto),
+    shadowsAuto: opts.shadowsAuto ?? false,
+    kind: ctx.kind,
+    fileName: ctx.isFile ? basename : undefined,
+  });
 }
 
 // Inert annotation row (comment or separator). No command — a click does nothing.

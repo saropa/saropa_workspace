@@ -140,6 +140,24 @@ const REMOTE_CONTROL_STYLE = `
 `;
 
 
+/** Search box, project and device chips, and the hidden notice banner above the command groups. */
+function controlsHtml(placeholder: string): string {
+  return `<div class="head">
+  <div class="search">
+    <input type="text" id="q" autocomplete="off" spellcheck="false"
+      placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}" />
+    <span class="count" id="count"></span>
+  </div>
+  <div class="chips" id="project"></div>
+  <div class="chips" id="adb"></div>
+</div>
+
+<div class="notice hidden" id="notice">
+  <div class="notice-title" id="notice-title"></div>
+  <div class="notice-body" id="notice-body"></div>
+</div>`;
+}
+
 // Build the panel's full HTML document: CSP shell, hero band, sticky search header, and
 // the empty containers the client fills from the posted catalog. Static — no per-open
 // data is embedded, so it is built once per panel open and never rebuilt on a search.
@@ -172,20 +190,7 @@ export function renderRemoteControlHtml(): string {
   </div>
 </div>
 
-<div class="head">
-  <div class="search">
-    <input type="text" id="q" autocomplete="off" spellcheck="false"
-      placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}" />
-    <span class="count" id="count"></span>
-  </div>
-  <div class="chips" id="project"></div>
-  <div class="chips" id="adb"></div>
-</div>
-
-<div class="notice hidden" id="notice">
-  <div class="notice-title" id="notice-title"></div>
-  <div class="notice-body" id="notice-body"></div>
-</div>
+${controlsHtml(placeholder)}
 
 <div id="groups"></div>
 <div class="empty hidden" id="empty"></div>

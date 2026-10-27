@@ -9,17 +9,12 @@ import type { DetectedFavorites, ImportResult, KdcroFavoriteEntry } from "./favo
 // marks). Both parse defensively — a malformed file imports nothing and is logged —
 // and add PROJECT shortcuts to the store; the store owns folder-relative storage + dedup.
 
-// kdcro101 `.favorites.json`: a flat JSON array of typed entries. File entries
-// become shortcuts; a "Group" entry becomes a shortcut group, and any File whose
-// parent_id points at that group is imported into it (created on first use, reused by
-// name so re-import stays idempotent). "Directory" entries are folder favorites with
-// no folder-shortcut equivalent and are reported as skips, as are path-less entries.
-export async function importKdcro(
+/** Parses the favorites file; a malformed file is logged and yields undefined. */
+function parseKdcroEntries(
   text: string,
   fileName: string,
-  store: ShortcutStore,
   channel: vscode.OutputChannel
-): Promise<ImportResult> {
+): KdcroFavoriteEntry[] | undefined {
   let entries: KdcroFavoriteEntry[];
   try {
     const parsed: unknown = JSON.parse(text);
@@ -32,18 +27,43 @@ export async function importKdcro(
         error: err instanceof Error ? err.message : String(err),
       })
     );
-    return { added: 0, skipped: 0 };
+    return undefined;
   }
+  return entries;
+}
 
-  // First pass: index every Group container by id so the file pass can resolve a
-  // File's parent_id to a group name. Only "Group" entries are shortcut-group
-  // containers; a Directory is a folder favorite, not a container of shortcuts.
+/**
+ * Indexes every Group container by id so a File's parent_id resolves to a group
+ * name. Only "Group" entries are shortcut-group containers; a Directory is a
+ * folder favorite, not a container of shortcuts.
+ */
+function indexGroupNames(entries: readonly KdcroFavoriteEntry[]): Map<string, string> {
   const groupNameById = new Map<string, string>();
   for (const entry of entries) {
     if (entry.type === "Group" && entry.id) {
       groupNameById.set(entry.id, (entry.label ?? entry.name ?? "?").trim() || "?");
     }
   }
+  return groupNameById;
+}
+
+// kdcro101 `.favorites.json`: a flat JSON array of typed entries. File entries
+// become shortcuts; a "Group" entry becomes a shortcut group, and any File whose
+// parent_id points at that group is imported into it (created on first use, reused by
+// name so re-import stays idempotent). "Directory" entries are folder favorites with
+// no folder-shortcut equivalent and are reported as skips, as are path-less entries.
+export async function importKdcro(
+  text: string,
+  fileName: string,
+  store: ShortcutStore,
+  channel: vscode.OutputChannel
+): Promise<ImportResult> {
+  const entries = parseKdcroEntries(text, fileName, channel);
+  if (!entries) {
+    return { added: 0, skipped: 0 };
+  }
+
+  const groupNameById = indexGroupNames(entries);
 
   let added = 0;
   let skipped = 0;
@@ -131,6 +151,62 @@ function resolveBookmarkUri(
     : vscode.Uri.joinPath(folder.uri, p);
 }
 
+/** Parses the bookmarks file; a malformed file is logged and yields undefined. */
+function parseBookmarksDoc(
+  text: string,
+  detected: DetectedFavorites,
+  channel: vscode.OutputChannel
+): BookmarksDocument | undefined {
+  let doc: BookmarksDocument;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    doc = parsed && typeof parsed === "object" ? (parsed as BookmarksDocument) : {};
+  } catch (err) {
+    channel.appendLine(
+      l10n("import.log.malformed", {
+        file: detected.fileName,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+    return undefined;
+  }
+
+  return doc;
+}
+
+/** What happened to one bookmark: stored, skipped with a log line, or already present. */
+type MarkOutcome = "added" | "skipped" | "present";
+
+/** Imports one bookmark as a line shortcut; `seen` dedups within and across runs. */
+async function importMark(
+  mark: BookmarkEntry,
+  uri: vscode.Uri,
+  seen: Set<string>,
+  store: ShortcutStore,
+  channel: vscode.OutputChannel,
+  detected: DetectedFavorites
+): Promise<MarkOutcome> {
+  if (typeof mark.line !== "number") {
+    channel.appendLine(l10n("import.log.skipNoPath", { file: detected.fileName }));
+    return "skipped";
+  }
+  // Stored line is 0-based; the shortcut model is 1-based.
+  const shortcutLine = mark.line + 1;
+  const key = `${uri.toString()}#${shortcutLine}`;
+  if (seen.has(key)) {
+    return "present"; // Already imported — idempotent, not a reportable skip.
+  }
+  const label =
+    mark.label && mark.label.trim().length > 0
+      ? mark.label.trim()
+      : l10n("linePin.label", { name: path.basename(uri.fsPath), line: shortcutLine });
+  if (await store.addLineShortcut(uri, "project", shortcutLine, label)) {
+    seen.add(key);
+    return "added";
+  }
+  return "present";
+}
+
 // alefragnani "Bookmarks": a JSON document of files, each with line-level marks.
 // Each mark becomes a LINE shortcut (the shortcut model has a `line` field), so opening
 // the shortcut jumps back to that line. Re-import is idempotent: a line shortcut for the
@@ -145,17 +221,8 @@ export async function importBookmarks(
   store: ShortcutStore,
   channel: vscode.OutputChannel
 ): Promise<ImportResult> {
-  let doc: BookmarksDocument;
-  try {
-    const parsed: unknown = JSON.parse(text);
-    doc = parsed && typeof parsed === "object" ? (parsed as BookmarksDocument) : {};
-  } catch (err) {
-    channel.appendLine(
-      l10n("import.log.malformed", {
-        file: detected.fileName,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    );
+  const doc = parseBookmarksDoc(text, detected, channel);
+  if (!doc) {
     return { added: 0, skipped: 0 };
   }
 
@@ -189,24 +256,11 @@ export async function importBookmarks(
       continue;
     }
     for (const mark of file.bookmarks ?? []) {
-      if (typeof mark.line !== "number") {
-        channel.appendLine(l10n("import.log.skipNoPath", { file: detected.fileName }));
-        skipped++;
-        continue;
-      }
-      // Stored line is 0-based; the shortcut model is 1-based.
-      const shortcutLine = mark.line + 1;
-      const key = `${uri.toString()}#${shortcutLine}`;
-      if (seen.has(key)) {
-        continue; // Already imported — idempotent, not a reportable skip.
-      }
-      const label =
-        mark.label && mark.label.trim().length > 0
-          ? mark.label.trim()
-          : l10n("linePin.label", { name: path.basename(uri.fsPath), line: shortcutLine });
-      if (await store.addLineShortcut(uri, "project", shortcutLine, label)) {
-        seen.add(key);
+      const outcome = await importMark(mark, uri, seen, store, channel, detected);
+      if (outcome === "added") {
         added++;
+      } else if (outcome === "skipped") {
+        skipped++;
       }
     }
   }

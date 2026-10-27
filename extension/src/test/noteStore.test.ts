@@ -140,3 +140,23 @@ test("markdownToHtml converts horizontal rules", () => {
   assert.equal(markdownToHtml("***"), "<hr>");
 });
 
+
+test("markdownToHtml links http, https and mailto targets", () => {
+  assert.equal(markdownToHtml("[a](https://x.test/p?q=1)"), '<p><a href="https://x.test/p?q=1">a</a></p>');
+  assert.equal(markdownToHtml("[m](mailto:me@x.test)"), '<p><a href="mailto:me@x.test">m</a></p>');
+  assert.equal(markdownToHtml("![i](http://x.test/i.png)"), '<p><img src="http://x.test/i.png" alt="i"></p>');
+});
+
+test("markdownToHtml leaves non-web link targets as plain text", () => {
+  const html = markdownToHtml("[x](javascript:alert(1)) [y](notes/a.md) [z](data:text/html,hi)");
+  assert.ok(!html.includes("<a "));
+  assert.ok(html.includes("[y](notes/a.md)"));
+});
+
+test("markdownToHtml cannot break out of the href attribute with a quote", () => {
+  const html = markdownToHtml('[x](https://x.test/" onmouseover="alert(2))');
+  assert.ok(!html.includes('" onmouseover="'));
+  assert.ok(html.includes("&quot; onmouseover=&quot;"));
+  const img = markdownToHtml('![a" onerror="x](https://x.test/i.png)');
+  assert.ok(!img.includes('" onerror="'));
+});

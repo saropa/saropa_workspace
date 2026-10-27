@@ -19,6 +19,48 @@ function urlOf(shortcut: Shortcut): string | undefined {
   return action?.kind === "url" && typeof action.url === "string" ? action.url : undefined;
 }
 
+type CandidateItem = vscode.QuickPickItem & { candidate: UrlCandidate };
+
+/** Multi-select picker over the discovered URLs; every row starts checked. */
+function pickCandidates(
+  candidates: UrlCandidate[]
+): Thenable<CandidateItem[] | undefined> {
+  const items: CandidateItem[] = candidates.map((candidate) => ({
+    // The curated set is high-value by construction, so every row is pre-checked —
+    // the user confirms with Enter, or unchecks the few they do not want.
+    label: candidate.icon ? `$(${candidate.icon}) ${candidate.label}` : candidate.label,
+    description: candidate.url,
+    detail: candidate.description,
+    candidate,
+    picked: true,
+  }));
+
+  return vscode.window.showQuickPick(items, {
+    title: l10n("scanUrls.title"),
+    placeHolder: l10n("scanUrls.placeholder"),
+    canPickMany: true,
+    matchOnDescription: true,
+    matchOnDetail: true,
+  });
+}
+
+/** Adds each picked URL to the project scope; returns how many were stored. */
+async function addPickedUrls(
+  store: ShortcutStore,
+  picks: readonly CandidateItem[]
+): Promise<number> {
+  // Add each picked URL in pick order. No anchor: this is a bulk discovery action from
+  // the view title, so entries append to the project scope's top level.
+  let added = 0;
+  for (const pick of picks) {
+    const ok = await store.addUrlShortcut(pick.candidate.url, "project", pick.candidate.label);
+    if (ok) {
+      added += 1;
+    }
+  }
+  return added;
+}
+
 // Run the URL scan, drop candidates already pinned in either scope, and let the user
 // multi-select which of what remains to add as project-scoped url shortcuts. Distinguishes
 // "nothing discoverable" from "already added everything" so an empty result never
@@ -44,39 +86,13 @@ export async function scanProjectUrls(store: ShortcutStore): Promise<void> {
     return;
   }
 
-  type CandidateItem = vscode.QuickPickItem & { candidate: UrlCandidate };
-  const items: CandidateItem[] = candidates.map((candidate) => ({
-    // The curated set is high-value by construction, so every row is pre-checked —
-    // the user confirms with Enter, or unchecks the few they do not want.
-    label: candidate.icon ? `$(${candidate.icon}) ${candidate.label}` : candidate.label,
-    description: candidate.url,
-    detail: candidate.description,
-    candidate,
-    picked: true,
-  }));
-
-  const picks = await vscode.window.showQuickPick(items, {
-    title: l10n("scanUrls.title"),
-    placeHolder: l10n("scanUrls.placeholder"),
-    canPickMany: true,
-    matchOnDescription: true,
-    matchOnDetail: true,
-  });
+  const picks = await pickCandidates(candidates);
   // Esc (undefined) or confirming with nothing checked adds nothing.
   if (!picks || picks.length === 0) {
     return;
   }
 
-  // Add each picked URL in pick order. No anchor: this is a bulk discovery action from
-  // the view title, so entries append to the project scope's top level.
-  let added = 0;
-  for (const pick of picks) {
-    const ok = await store.addUrlShortcut(pick.candidate.url, "project", pick.candidate.label);
-    if (ok) {
-      added += 1;
-    }
-  }
-
+  const added = await addPickedUrls(store, picks);
   if (added === 0) {
     // The one failure path for project scope is no workspace folder open — which cannot
     // happen here (candidates require a folder), but the guard keeps the toast honest.

@@ -267,25 +267,9 @@ export function ciHeadline(status: CiStatus): { text: string; attention: boolean
   };
 }
 
-/** Renders a full Markdown CI status report from a {@link CiStatus} object. */
-export function buildCiMarkdown(status: CiStatus): string {
-  const headline = ciHeadline(status);
-  const lines: string[] = [
-    "# Build status",
-    "",
-    `**Generated** ${new Date().toLocaleString()}`,
-    "",
-    `**${headline.attention ? "Attention" : "Headline"}:** ${headline.text}`,
-    "",
-  ];
-  if (status.unavailable) {
-    lines.push(
-      "_`gh` is not installed, not authenticated, or this folder has no GitHub remote. Run `gh auth status` to check._",
-      ""
-    );
-    return lines.join("\n");
-  }
-
+/** The "When it broke" section: how long the branch has been red and the commit that did it. */
+function brokeLines(status: CiStatus): string[] {
+  const lines: string[] = [];
   // Where it broke, before why: the commit that turned the branch red is the single
   // most useful pointer a red-CI report can give, and it costs no extra call — the
   // run list was already fetched deep enough to find it.
@@ -311,7 +295,12 @@ export function buildCiMarkdown(status: CiStatus): string {
       }
     }
   }
+  return lines;
+}
 
+/** The "Why it failed" section: one bullet per failure annotation. */
+function annotationLines(status: CiStatus): string[] {
+  const lines: string[] = [];
   // The annotations are the point of this report: a run list says the build is red,
   // an annotation says which file and which line made it red.
   if (status.annotations.length > 0) {
@@ -322,7 +311,12 @@ export function buildCiMarkdown(status: CiStatus): string {
     }
     lines.push("");
   }
+  return lines;
+}
 
+/** The "Recent runs" table of the newest few runs, with a note when older ones were read. */
+function recentRunLines(status: CiStatus): string[] {
+  const lines: string[] = [];
   if (status.runs.length > 0) {
     // Only the newest few are tabulated. The rest were fetched to locate the break
     // above, and listing 100 rows would rebuild the wall of output this report
@@ -340,6 +334,31 @@ export function buildCiMarkdown(status: CiStatus): string {
       lines.push(`_${status.runs.length - shown.length} older runs were read to locate the break, and are not listed._`, "");
     }
   }
+  return lines;
+}
+
+/** Renders a full Markdown CI status report from a {@link CiStatus} object. */
+export function buildCiMarkdown(status: CiStatus): string {
+  const headline = ciHeadline(status);
+  const lines: string[] = [
+    "# Build status",
+    "",
+    `**Generated** ${new Date().toLocaleString()}`,
+    "",
+    `**${headline.attention ? "Attention" : "Headline"}:** ${headline.text}`,
+    "",
+  ];
+  if (status.unavailable) {
+    lines.push(
+      "_`gh` is not installed, not authenticated, or this folder has no GitHub remote. Run `gh auth status` to check._",
+      ""
+    );
+    return lines.join("\n");
+  }
+
+  lines.push(...brokeLines(status));
+  lines.push(...annotationLines(status));
+  lines.push(...recentRunLines(status));
   return lines.join("\n");
 }
 

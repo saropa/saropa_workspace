@@ -216,6 +216,7 @@ export function buildProjectWire(
   };
 }
 
+/** The localized UI strings the Remote Control webview needs. */
 export function remoteControlStrings(): RemoteControlStrings {
   return {
     run: l10n("remoteControl.run"),

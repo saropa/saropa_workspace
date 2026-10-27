@@ -1,4 +1,5 @@
 import {
+  Shortcut,
   ShortcutKind,
   shortcutKind,
   ShortcutSchedule,
@@ -49,6 +50,27 @@ export interface PlannerData {
   edges: PlannerEdge[];
 }
 
+/** The graph node for one shortcut: identity, schedule, emitted events and last outcome. */
+function shortcutNode(store: ShortcutStore, shortcut: Shortcut): PlannerNode {
+  const result = runStatusRegistry.get(shortcut.id);
+  const uri =
+    shortcutKind(shortcut) === "file" ? store.resolveUri(shortcut) : undefined;
+  return {
+    id: shortcut.id,
+    kind: "pin",
+    label: shortcutDisplayName(shortcut),
+    scope: shortcut.scope,
+    shortcutKind: shortcutKind(shortcut),
+    description: shortcut.description,
+    schedule: shortcut.schedule,
+    emits: shortcut.emits,
+    runnable:
+      shortcutKind(shortcut) !== "file" ||
+      (uri ? isRunnable(shortcut, uri.fsPath) : false),
+    lastOutcome: result?.outcome,
+  };
+}
+
 // Translate the stored shortcuts into the planner graph. Auto-shortcuts are excluded
 // (they cannot carry a schedule or triggers). Event nodes are synthesized for every
 // system event that some shortcut triggers on, so the graph can draw the source.
@@ -63,23 +85,7 @@ export function buildData(store: ShortcutStore): PlannerData {
   const eventsUsed = new Set<SystemEventName>();
 
   for (const shortcut of shortcuts) {
-    const result = runStatusRegistry.get(shortcut.id);
-    const uri =
-      shortcutKind(shortcut) === "file" ? store.resolveUri(shortcut) : undefined;
-    nodes.push({
-      id: shortcut.id,
-      kind: "pin",
-      label: shortcutDisplayName(shortcut),
-      scope: shortcut.scope,
-      shortcutKind: shortcutKind(shortcut),
-      description: shortcut.description,
-      schedule: shortcut.schedule,
-      emits: shortcut.emits,
-      runnable:
-        shortcutKind(shortcut) !== "file" ||
-        (uri ? isRunnable(shortcut, uri.fsPath) : false),
-      lastOutcome: result?.outcome,
-    });
+    nodes.push(shortcutNode(store, shortcut));
 
     for (const trigger of shortcut.triggers ?? []) {
       if (trigger.kind === "pin") {

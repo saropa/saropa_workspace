@@ -1,9 +1,12 @@
 // Inlined CSS + client script for the Morning Brief webview panel. All colors
 // bind to --vscode-* theme variables — zero raw hex. The script receives brief
-// data via postMessage and renders cards; the only outbound message is
-// "openReport" with a path the host re-validates before opening.
+// data via postMessage and renders cards. It posts back "ready" on mount, "openReport"
+// with a path the host re-validates before opening, and the toolbar actions
+// "copyMarkdown", "openInBrowser" and "saveHtml" (no data; the host rebuilds the output
+// from the brief it already holds).
 import { escapeHtmlJs } from "../webviewClientUtils";
 
+/** Stylesheet for the Morning Brief panel; colors come from the VS Code theme. */
 export const BRIEF_STYLE = `
 :root { color-scheme: light dark; }
 body {
@@ -121,6 +124,7 @@ button.secondary:hover { background: var(--vscode-button-secondaryHoverBackgroun
 .empty { color: var(--vscode-descriptionForeground); padding: 24px 0; text-align: center; }
 `;
 
+/** Client script for the Morning Brief panel: renders the brief the host sends and posts back ready, openReport (path re-validated by the host) and the toolbar actions. */
 export const BRIEF_SCRIPT = `
 (function() {
   const vscode = acquireVsCodeApi();

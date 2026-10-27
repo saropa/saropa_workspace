@@ -30,6 +30,7 @@ export function compositeGroupId(scope: ShortcutScope, groupId: string): string 
   return `${scope}:${groupId}`;
 }
 
+/** Splits a `scope:groupId` id back into its parts; the group id is undefined for a bare scope. Returns undefined for an unknown scope. */
 export function parseCompositeGroupId(
   composite: string
 ): { scope: ShortcutScope; groupId: string | undefined } | undefined {

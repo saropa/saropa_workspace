@@ -32,6 +32,7 @@ const PROBE_TIMEOUT_MS = 4000;
  */
 export type AdbDeviceState = "ready" | "unauthorized" | "offline";
 
+/** One device row from `adb devices`: its serial and whether it can run commands. */
 export interface AdbDevice {
   serial: string;
   state: AdbDeviceState;

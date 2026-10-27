@@ -41,6 +41,7 @@ import { asShortcut } from "./shortcutArgResolution";
 // same double-invocation symptom. A `force` re-run (Stop-and-re-run / Run anyway,
 // chosen from a dialog the user just closed) always bypasses it.
 const lastRunAtByShortcutId = new Map<string, number>();
+/** A second run of the same shortcut inside this many milliseconds is dropped as a stray double trigger. */
 export const REPEAT_INVOCATION_GUARD_MS = 500;
 
 // Drop a removed shortcut's repeat-invocation timestamp. Without this,
@@ -61,6 +62,12 @@ export function isRepeatInvocation(shortcutId: string, now: number = Date.now())
   return lastRunAt !== undefined && now - lastRunAt < REPEAT_INVOCATION_GUARD_MS;
 }
 
+/**
+ * The single entry point for running a shortcut. Skips annotation rows and
+ * repeat triggers, enforces the single-instance guard and prerequisite, then
+ * dispatches by kind. `force` bypasses the guards after the user chose to
+ * overlap or has just stopped the earlier run.
+ */
 export async function runShortcutCommand(
   store: ShortcutStore,
   shortcut: Shortcut,
@@ -330,12 +337,11 @@ export function createRoutineHooks(store: ShortcutStore): RoutineHooks {
   };
 }
 
-// "New routine from selection": compose the multi-selected shortcuts into one routine
-// shortcut that runs them in sequence. Members reference each shortcut by recipeId
-// (preferred — it survives promote/reload) or shortcut id (a non-recipe stored shortcut),
-// skipping routines (no nesting) and de-duping. The auto-offered Morning routine is the
-// convenient default; this lets any set of recipe shortcuts be hand-composed.
-export async function newRoutineFromSelection(store: ShortcutStore, arg: unknown, args: unknown[]): Promise<void> {
+/**
+ * Turns the selected tree rows into routine members, in selection order.
+ * Duplicates, nested routines and comment/separator rows are dropped.
+ */
+function collectRoutineMembers(arg: unknown, args: unknown[]): RoutineMember[] {
   // A view/item context-menu command receives (clickedItem, allSelectedItems[]). Fall
   // back to the single clicked item when no multi-selection array is passed.
   const rawItems = Array.isArray(args) && args.length > 0 ? args : arg !== undefined ? [arg] : [];
@@ -362,7 +368,16 @@ export async function newRoutineFromSelection(store: ShortcutStore, arg: unknown
         : { pinId: shortcut.id, label: shortcut.label }
     );
   }
+  return members;
+}
 
+// "New routine from selection": compose the multi-selected shortcuts into one routine
+// shortcut that runs them in sequence. Members reference each shortcut by recipeId
+// (preferred — it survives promote/reload) or shortcut id (a non-recipe stored shortcut),
+// skipping routines (no nesting) and de-duping. The auto-offered Morning routine is the
+// convenient default; this lets any set of recipe shortcuts be hand-composed.
+export async function newRoutineFromSelection(store: ShortcutStore, arg: unknown, args: unknown[]): Promise<void> {
+  const members = collectRoutineMembers(arg, args);
   if (members.length < 2) {
     vscode.window.showWarningMessage(l10n("routine.new.needTwo"));
     return;

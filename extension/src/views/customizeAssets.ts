@@ -16,6 +16,7 @@
 
 import { designTokenRoot } from "./webviewDesignTokens";
 
+/** Stylesheet for the Customize panel (name, icon, color and tags). */
 export const CUSTOMIZE_STYLE = `
 ${designTokenRoot({ durationMs: 140 })}
 * { box-sizing: border-box; }
