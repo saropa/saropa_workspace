@@ -346,9 +346,7 @@ export abstract class ShortcutStoreBase {
       // location so the seed shortcut stays accurate. A corrupt legacy file
       // must not crash activation (BUG-001) — treat it like "no legacy file
       // here" and keep checking the remaining known locations.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches
-      // the implicit `any` every other JSON.parse site in this file uses.
-      let parsed: any;
+      let parsed: ProjectShortcutsFile;
       try {
         parsed = JSON.parse(Buffer.from(legacyBytes).toString("utf8"));
       } catch (err) {
