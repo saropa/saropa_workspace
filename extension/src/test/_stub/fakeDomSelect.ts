@@ -19,8 +19,10 @@ type Simple =
   | { kind: "class"; name: string }
   | { kind: "attr"; name: string; value: string | null }
   | { kind: "not"; inner: Simple[] };
+/** One link of a chain: a compound and how it relates to the one before it. */
 export interface Part { compound: Simple[]; combinator: " " | ">" }
 
+/** Splits on separators that sit outside brackets, parentheses and quotes. */
 function splitTopLevel(src: string, isSep: (ch: string) => boolean): string[] {
   const out: string[] = [];
   let depth = 0;
@@ -49,6 +51,7 @@ function splitTopLevel(src: string, isSep: (ch: string) => boolean): string[] {
   return out;
 }
 
+/** Parses one compound selector (no combinators) into its simple parts. */
 function parseCompound(src: string): Simple[] {
   const out: Simple[] = [];
   let i = 0;
@@ -98,6 +101,7 @@ function parseCompound(src: string): Simple[] {
   return out;
 }
 
+/** Parses a chain of compounds joined by descendant or child combinators. */
 function parseComplex(src: string): Part[] {
   const parts: Part[] = [];
   let combinator: " " | ">" = " ";
@@ -115,10 +119,12 @@ function parseComplex(src: string): Part[] {
   return parts;
 }
 
+/** Parses a comma-separated selector list into chains. */
 export function parseSelectorList(selector: string): Part[][] {
   return splitTopLevel(selector, (c) => c === ",").map((s) => parseComplex(s));
 }
 
+/** True when the element satisfies every simple part. */
 function matchesCompound(el: SelectableElement, compound: Simple[]): boolean {
   return compound.every((s) => {
     switch (s.kind) {
@@ -131,6 +137,7 @@ function matchesCompound(el: SelectableElement, compound: Simple[]): boolean {
   });
 }
 
+/** True when the element ends the chain, checking ancestors right to left. */
 export function matchesComplex(el: SelectableElement, parts: Part[], at = parts.length - 1): boolean {
   if (at < 0 || !matchesCompound(el, parts[at].compound)) {
     return false;

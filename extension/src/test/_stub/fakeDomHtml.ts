@@ -10,12 +10,14 @@ export interface HtmlFactory {
   createTextNode(data: string): FakeText;
 }
 
+/** Elements that never have children or an end tag. */
 export const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
 const RAW_TEXT_TAGS = new Set(["script", "style"]);
 
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
+/** Decodes the named and numeric character references a page would. */
 export function decodeEntities(s: string): string {
   return s.replace(/&(?:(amp|lt|gt|quot|apos|nbsp)|#(\d+)|#x([0-9a-fA-F]+));/g, (_m, name?: string, dec?: string, hex?: string) =>
     name ? ENTITIES[name] : String.fromCodePoint(dec ? parseInt(dec, 10) : parseInt(hex!, 16)));
@@ -24,6 +26,7 @@ export function decodeEntities(s: string): string {
 const escText = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escAttr = (s: string): string => escText(s).replace(/"/g, "&quot;");
 
+/** Markup for a node, with text and attribute values escaped. */
 export function serializeNode(n: FakeNode): string {
   if (n.nodeType === 3) {
     return escText((n as FakeText).data);
@@ -75,22 +78,41 @@ function skipDeclaration(html: string, at: number): number {
   return -1;
 }
 
+/** Adds a parsed start tag to the open element; returns where parsing resumes (after raw text for script and style). */
+function placeElement(html: string, from: number, el: FakeElement, selfClose: boolean, stack: FakeElement[]): number {
+  stack[stack.length - 1].appendChild(el);
+  if (RAW_TEXT_TAGS.has(el.tag) && !selfClose) {
+    const end = html.toLowerCase().indexOf(`</${el.tag}`, from);
+    const stop = end < 0 ? html.length : end;
+    el.appendChild(el.ownerDocument.createTextNode(html.slice(from, stop)));
+    const gt = html.indexOf(">", stop);
+    return gt < 0 ? html.length : gt + 1;
+  }
+  if (!VOID_TAGS.has(el.tag) && !selfClose) {
+    stack.push(el);
+  }
+  return from;
+}
+
+/** Appends decoded text to `into`, merging with a text node already at its end. */
+function appendText(into: FakeElement, raw: string, doc: HtmlFactory): void {
+  if (raw === "") {
+    return;
+  }
+  const text = decodeEntities(raw);
+  const last = into.childNodes[into.childNodes.length - 1];
+  if (last && last.nodeType === 3) {
+    (last as FakeText).data += text;
+  } else {
+    into.appendChild(doc.createTextNode(text));
+  }
+}
+
 /** Parses markup into `parent`. Tolerant like a browser: stray end tags are ignored. */
 export function parseHtml(html: string, parent: FakeElement, doc: HtmlFactory): void {
   const stack: FakeElement[] = [parent];
   const top = (): FakeElement => stack[stack.length - 1];
-  const addText = (raw: string): void => {
-    if (raw === "") {
-      return;
-    }
-    const text = decodeEntities(raw);
-    const last = top().childNodes[top().childNodes.length - 1];
-    if (last && last.nodeType === 3) {
-      (last as FakeText).data += text;
-    } else {
-      top().appendChild(doc.createTextNode(text));
-    }
-  };
+  const addText = (raw: string): void => appendText(top(), raw, doc);
   const close = /<\/([a-zA-Z][\w:-]*)\s*>/y;
   const open = /<([a-zA-Z][\w:-]*)/y;
   let i = 0;
@@ -127,15 +149,6 @@ export function parseHtml(html: string, parent: FakeElement, doc: HtmlFactory): 
     const el = doc.createElement(openMatch[1]);
     const tag = readAttributes(html, i + openMatch[0].length, el);
     i = tag.end;
-    top().appendChild(el);
-    if (RAW_TEXT_TAGS.has(el.tag) && !tag.selfClose) {
-      const end = html.toLowerCase().indexOf(`</${el.tag}`, i);
-      const stop = end < 0 ? html.length : end;
-      el.appendChild(doc.createTextNode(html.slice(i, stop)));
-      const gt = html.indexOf(">", stop);
-      i = gt < 0 ? html.length : gt + 1;
-    } else if (!VOID_TAGS.has(el.tag) && !tag.selfClose) {
-      stack.push(el);
-    }
+    i = placeElement(html, i, el, tag.selfClose, stack);
   }
 }

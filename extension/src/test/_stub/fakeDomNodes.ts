@@ -9,6 +9,7 @@ import { matchesComplex, parseSelectorList } from "./fakeDomSelect";
 export { FakeDataTransfer, FakeEvent, FakeEventTarget, type Listener } from "./fakeDomEvents";
 export { decodeEntities, parseHtml, serializeNode } from "./fakeDomHtml";
 
+/** Anything in the tree: has a parent and text content. */
 export abstract class FakeNode extends FakeEventTarget {
   parentNode: FakeElement | null = null;
   abstract readonly nodeType: number;
@@ -18,6 +19,7 @@ export abstract class FakeNode extends FakeEventTarget {
   }
 }
 
+/** A run of text between elements. */
 export class FakeText extends FakeNode {
   readonly nodeType = 3;
   constructor(public data: string) {
@@ -75,8 +77,10 @@ export class RecordingContext {
   }
 }
 
+/** The box getBoundingClientRect reports; tests assign element.rect to simulate layout. */
 export interface Rect { left: number; top: number; right: number; bottom: number; width: number; height: number }
 
+/** An element with attributes, classes, data-* values, children, queries and markup editing. */
 export class FakeElement extends FakeNode {
   readonly nodeType = 1;
   readonly tag: string;
@@ -156,6 +160,7 @@ export class FakeElement extends FakeNode {
     };
   }
 
+  // data-* values live in the attribute map, so dataset and getAttribute always agree.
   get dataset(): Record<string, string | undefined> {
     const key = (prop: string): string => "data-" + prop.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
     const unkey = (attr: string): string => attr.slice(5).replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase());
@@ -186,6 +191,7 @@ export class FakeElement extends FakeNode {
     return this.attrs.has(name);
   }
 
+  // A select reports its selected option (or the first); other controls hold a plain value.
   get value(): string {
     if (this.tag === "select") {
       const options = this.querySelectorAll("option");
@@ -204,6 +210,7 @@ export class FakeElement extends FakeNode {
     this.rawValue = String(v);
   }
 
+  // Setting textContent replaces the children with one text node, never parsed as markup.
   get textContent(): string {
     return this.childNodes.map((n) => n.textContent).join("");
   }
@@ -216,6 +223,7 @@ export class FakeElement extends FakeNode {
   get innerHTML(): string {
     return this.childNodes.map((n) => serializeNode(n)).join("");
   }
+  // Setting innerHTML parses the markup into real elements, as a browser does.
   set innerHTML(html: string) {
     this.clear();
     parseHtml(String(html), this, this.ownerDocument);
@@ -256,6 +264,7 @@ export class FakeElement extends FakeNode {
     }
     return false;
   }
+  // Walks up from this element (inclusive) to the first one matching the selector.
   closest(selector: string): FakeElement | null {
     const parsed = parseSelectorList(selector);
     for (let n: FakeElement | null = this; n; n = n.parentNode) {
@@ -286,6 +295,7 @@ export class FakeElement extends FakeNode {
     return this.querySelectorAll(selector)[0] ?? null;
   }
 
+  // Layout is virtual: tests assign `rect` to decide what the script measures.
   getBoundingClientRect(): Rect {
     return { ...this.rect };
   }
@@ -296,9 +306,11 @@ export class FakeElement extends FakeNode {
     this.ctx = this.ctx ?? new RecordingContext();
     return this.ctx;
   }
+  // Focus only records the element on the document; there are no focus events.
   focus(): void {
     this.ownerDocument.activeElement = this;
   }
+  // Like a browser, a disabled control ignores click().
   click(): void {
     if (!this.disabled) {
       dispatchEvent(this, new FakeEvent("click"));
