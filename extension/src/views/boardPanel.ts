@@ -4,6 +4,7 @@ import { l10n } from "../i18n/l10n";
 import { moveToArchive } from "../commands/boardTidy";
 import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
+import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
 import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
@@ -20,6 +21,7 @@ import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldVa
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
+const PLACEMENT_KEY = "saropaWorkspace.releaseBoard.column";
 
 class BoardPanel extends BoardPanelWiring {
   // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
@@ -338,19 +340,38 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
     if (background) {
       return;
     }
+    // No column is passed, so the tab stays in the group it is in now.
     current.reveal();
     if (current.needsRefresh()) {
       await current.refresh();
     }
     return;
   }
+  const column = chooseColumn({
+    setting: parsePlacement(vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get("placement")),
+    stored: context.workspaceState.get(PLACEMENT_KEY),
+    groupCount: vscode.window.tabGroups.all.length,
+    // The active group, also when a webview or settings tab is active; undefined when nothing is open.
+    activeColumn: vscode.window.tabGroups.all.some((g) => g.tabs.length > 0) ? vscode.window.tabGroups.activeTabGroup.viewColumn : undefined,
+    background
+  });
   const panel = vscode.window.createWebviewPanel(
     "saropaWorkspace.releaseBoard",
     l10n("releaseBoard.panel.title"),
-    // Background: beside the active editor, so no open file is covered and focus stays put.
-    { viewColumn: background ? (vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active) : (vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One), preserveFocus: background },
+    { viewColumn: column, preserveFocus: background },
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
+  // Remember where the tab is, also after the user drags it to another group.
+  let lastColumn = panel.viewColumn;
+  const remember = (): void => {
+    if (panel.viewColumn !== undefined) {
+      lastColumn = panel.viewColumn;
+      void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
+    }
+  };
+  remember();
+  panel.onDidChangeViewState(remember);
+  panel.onDidDispose(() => void context.workspaceState.update(PLACEMENT_KEY, lastColumn));
   current = new BoardPanel(context, panel);
   const fresh = background ? currentBoard() : undefined;
   if (fresh) {
