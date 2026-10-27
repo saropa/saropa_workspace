@@ -77,16 +77,22 @@ test("activation registers every declared command, and no command twice", () => 
 test("the commands registered beyond the declared ones are the internal ones that recipes, links and drops run by id", () => {
   const declared = new Set(declaredCommandIds());
   assert.deepEqual(ids.filter((id) => !declared.has(id)).sort(), [
+    "saropaWorkspace.recipe.branchAge",
+    "saropaWorkspace.recipe.brokenLinks",
+    "saropaWorkspace.recipe.changelogCheck",
     "saropaWorkspace.recipe.ciStatus",
     "saropaWorkspace.recipe.guardProject",
+    "saropaWorkspace.recipe.largeNewFiles",
     "saropaWorkspace.recipe.overnightDelta",
     "saropaWorkspace.recipe.projectStats",
     "saropaWorkspace.recipe.pruneVscodeTest",
     "saropaWorkspace.recipe.pubspecOutdated",
+    "saropaWorkspace.recipe.releaseReadiness",
     "saropaWorkspace.recipe.runBloatScan",
     "saropaWorkspace.recipe.runSavedHygieneScan",
     "saropaWorkspace.recipe.standupDigest",
     "saropaWorkspace.recipe.suiteDailyReport",
+    "saropaWorkspace.recipe.versionCheck",
     "saropaWorkspace.releaseBoard.editorLinks.openDocument",
     "saropaWorkspace.releaseBoard.editorLinks.pick",
     "saropaWorkspace.runPinOnFile",
