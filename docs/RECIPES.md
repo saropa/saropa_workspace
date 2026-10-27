@@ -173,3 +173,21 @@ path; **Open report** buttons resolve the file on your machine.
 | Branch hygiene | Tidy entry: merged branches |
 | Workspace bloat scan | Tidy entry |
 | Standup digest, Since yesterday | A line in "Since you last looked" |
+
+## Correct a status or severity on the Release Board
+
+The board guesses a document's status from its rules and its severity from a phrase list. When a guess is wrong, fix it for that document:
+
+1. Click the small kebab button (three dots) on the document's row.
+2. **Change status** picks another status. **Change severity** picks extreme, critical, high, medium or low.
+3. Confirm. The choice is written to `.saropa/release-board.json`: a rule for the exact path (status) or an entry under `severityOverrides` (severity), both for that project only.
+
+A document changed this way shows a **Set** mark, and its tooltips say "Set by hand in the rules file. Back to automatic in the row menu." A line under the intro counts the severities set by hand and how many were lowered below a level that stops the release.
+
+To undo, open the row menu and choose **Back to automatic**. It takes away your severity and your status for that document.
+
+A lower severity can turn a blocker green, so the confirmation says so. A pinned document keeps stopping the release. A document whose text could not be read keeps its unverified light whatever you choose.
+
+```json
+{ "severityOverrides": [{ "project": "app", "path": "docs/PLAN_x.md", "severity": "low" }] }
+```

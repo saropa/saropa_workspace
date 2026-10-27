@@ -10,7 +10,7 @@ import { applySuggestion, handToChat, openDocument, openExternalLink, openSittin
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { assignFolderRule, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
+import { assignFolderRule, backToAutomatic, changeDocSeverity, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
@@ -291,7 +291,7 @@ class BoardPanel extends BoardPanelWiring {
       await handToChat(this.model, this.paths, run, { k: "item", i: id });
     } else if (act === "rules") {
       await openRulesFile({ project: item.project, folder });
-    } else if (act === "status" || act === "assign") {
+    } else if (act === "status" || act === "assign" || act === "severity" || act === "auto") {
       const busy = this.busyReason();
       if (busy) {
         void vscode.window.showInformationMessage(l10n(busy));
@@ -299,7 +299,14 @@ class BoardPanel extends BoardPanelWiring {
       }
       this.assigning = true;
       try {
-        const wrote = act === "status" ? await changeDocStatus(run, item) : await assignFolderRule(run, { project: item.project, folder, count: 1 }, true);
+        const wrote =
+          act === "status"
+            ? await changeDocStatus(run, item)
+            : act === "severity"
+              ? await changeDocSeverity(run, item)
+              : act === "auto"
+                ? await backToAutomatic(run, item)
+                : await assignFolderRule(run, { project: item.project, folder, count: 1 }, true);
         if (wrote) {
           this.dirty = true;
           await this.refresh();

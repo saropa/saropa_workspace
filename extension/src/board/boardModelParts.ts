@@ -7,6 +7,7 @@ import { BoardConfig, BoardStatus, Classified, SkippedProject, StatusCounts } fr
 import { OutsideGroup, Outside } from "./outside";
 import { ProjectHealth } from "./health";
 import { Audience, Profile, Severity } from "./severity";
+import { docStatusKeys, overrideKey, severityOverrides } from "./ruleAssign";
 import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
@@ -54,6 +55,10 @@ export interface BoardItem {
   live?: LiveMark;
   // From the phrase dictionary (absent when the text was not read) and the pin list.
   severity?: Severity;
+  // The severity was chosen by the user for this document (it replaces the computed one).
+  severityByUser?: boolean;
+  // The status was chosen by the user for this document (a rule written from the board decided it).
+  statusByUser?: boolean;
   audience?: Audience;
   pinned: boolean;
   // The item stops a release under the chosen profile.
@@ -87,6 +92,8 @@ export interface BoardProject {
   blocked: number;
   // How many of those collapsed documents would stop a release under the profile.
   blockedStopping: number;
+  // Documents of this project whose severity the user lowered below a level that stops the release.
+  loweredByUser?: number;
   counts: StatusCounts;
   dependsOn: string[];
   health?: ProjectHealth;
@@ -151,6 +158,9 @@ export interface BoardModel {
   skipped?: SkippedProject[];
   // How many chosen projects the "open project only" scope hides. Absent when none.
   hidden?: number;
+  // Open documents whose severity the user set: how many, and how many of those the user lowered
+  // below a level that stops the release under the profile. Absent when none.
+  byUser?: { count: number; lowered: number };
 }
 
 // Optional inputs to buildBoard. Each is absent when its feature is off or has nothing to add.
@@ -254,6 +264,7 @@ export function sittingsView(
   opt: NonNullable<BoardExtra["sittings"]>
 ): SittingsView {
   const dict = mergeNeeds(cfg.needs);
+  const over = userSeverities(cfg);
   const names = new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id]));
   const docs: SittingDoc[] = [];
   for (const r of rows) {
@@ -272,7 +283,7 @@ export function sittingsView(
       projectName: names.get(r.project) ?? r.project,
       path: r.path,
       title: facts.title || titleFromPath(r.path),
-      severity: facts.severity,
+      severity: effectiveSeverity(over, r.project, r.path, facts).severity ?? facts.severity,
       blocksCount: item?.blocksCount ?? 0,
       steps: facts.steps,
       cut: facts.stepsCut ?? 0,
@@ -295,3 +306,19 @@ export function sittingsView(
     untaggedMore: res.untaggedMore,
   };
 }
+
+// The severity a document counts with: the one the user chose, else the computed one. A document
+// whose text was not read has no facts, so a chosen severity cannot make it "read": it stays unknown.
+export function effectiveSeverity(over: Map<string, Severity>, project: string, path: string, facts: DocFacts | undefined): { severity?: Severity; auto?: Severity; byUser: boolean } {
+  const chosen = facts ? over.get(overrideKey(project, path)) : undefined;
+  return chosen ? { severity: chosen, auto: facts?.severity, byUser: true } : { severity: facts?.severity, byUser: false };
+}
+
+// The severities the user chose, from the rules file content.
+export const userSeverities = (cfg: BoardConfig): Map<string, Severity> => severityOverrides(cfg);
+
+// The documents that have a status chosen from the board (see docStatusKeys).
+export const userStatuses = (cfg: BoardConfig): Set<string> => docStatusKeys(cfg);
+
+// True when a rule the board wrote for exactly this document and project decided its state.
+export const statusChosen = (keys: Set<string>, r: Classified): boolean => r.rule !== undefined && r.rule.startsWith("status-") && keys.has(overrideKey(r.project, r.path));

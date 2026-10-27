@@ -222,18 +222,18 @@ test("every releaseBoard setting is in the README table with its default, and th
   }
 });
 
-test("the row menu has Open document, Change status, Assign rule, Hand to chat and the rules file, each with a tooltip", () => {
+test("the row menu has Open document, Change status, Change severity, Back to automatic, Assign rule, Hand to chat and the rules file, each with a tooltip", () => {
   const html = rowMenu(t);
   const acts = [...html.matchAll(/<button type="button" class="mi" role="menuitem" data-act="(\w+)" title="([^"]+)">([^<]+)<\/button>/g)];
-  assert.deepEqual(acts.map((m) => m[1]), ["open", "status", "assign", "hand", "rules"]);
-  assert.deepEqual(acts.map((m) => m[3]), ["menuOpen", "menuStatus", "menuAssign", "[handToChat]", "[ptgOpenRules]"]);
+  assert.deepEqual(acts.map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "hand", "rules"]);
+  assert.deepEqual(acts.map((m) => m[3]), ["menuOpen", "menuStatus", "menuSeverity", "menuAuto", "menuAssign", "[handToChat]", "[ptgOpenRules]"]);
   assert.ok(acts.every((m) => m[2].length > 0));
   assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden aria-label='));
 });
 
 test("the row menu leaves out Hand to chat when that feature is off", () => {
   const off = new Proxy(t, { get: (o, k: string) => (k === "handToChat" ? "" : o[k as keyof BoardStrings]) });
-  assert.deepEqual([...rowMenu(off).matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["open", "status", "assign", "rules"]);
+  assert.deepEqual([...rowMenu(off).matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "rules"]);
 });
 
 test("the options menu opens the rules file, the project chooser and the settings", () => {

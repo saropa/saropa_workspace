@@ -85,7 +85,7 @@ export function itemTarget(model: BoardModel, it: BoardItem): HandTarget {
     evidence.push(`It stops the release because ${why(it)}`);
   }
   if (it.severity) {
-    evidence.push(`Severity: ${it.severity}`);
+    evidence.push(`Severity: ${it.severity}${it.severityByUser ? " (set by hand in the rules file, not computed)" : ""}`);
   }
   if (it.blocksCount > 0) {
     evidence.push(`${waitPhrase(it.blocksCount)} it`);
