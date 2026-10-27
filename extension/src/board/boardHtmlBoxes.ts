@@ -2,8 +2,7 @@ import { BoardModel } from "./boardModel";
 import { SittingLine } from "./sittings";
 import { Train, trainRows } from "./train";
 import { SinceView } from "./sinceLast";
-import { BoardStrings } from "./boardStrings";
-import { escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
+import { BoardStrings, escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
 
 // The boxes around the project rows: sittings, tidy, unnamed crashes, trains, linked
 // documents, outside sources and the strip of changes since the board was last seen.

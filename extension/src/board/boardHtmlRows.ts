@@ -1,8 +1,7 @@
 import { BoardItem, ItemMarks, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
-import { BoardStrings } from "./boardStrings";
-import { escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
+import { BoardStrings, escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
 
 // The project rows and the item lists of the board page.
 

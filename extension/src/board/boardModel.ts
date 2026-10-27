@@ -11,7 +11,7 @@ import { ScanSnapshot } from "./scanner";
 import { buildTidy } from "./tidy";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
-import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelTypes";
+import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
 import { OPEN, factsFor, itemKey, linkSummary, marksOf, sittingsView, titleFromPath } from "./boardModelParts";
 
 // The board's view model: what the first screen shows, built from classified rows.
@@ -24,7 +24,7 @@ import { OPEN, factsFor, itemKey, linkSummary, marksOf, sittingsView, titleFromP
 
 // Existing import paths keep working: the shapes and the title helper live in their own
 // modules and are re-exported here.
-export type { Light, UnverifiedReason, BoardItem, ItemMarks, BoardProject, ChainStep, SittingsView, BoardModel, BoardExtra } from "./boardModelTypes";
+export type { Light, UnverifiedReason, BoardItem, ItemMarks, BoardProject, ChainStep, SittingsView, BoardModel, BoardExtra } from "./boardModelParts";
 export { titleFromPath } from "./boardModelParts";
 
 const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };

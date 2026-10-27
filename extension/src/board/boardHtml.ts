@@ -2,8 +2,7 @@ import { BoardItem, BoardModel } from "./boardModel";
 import { PathToGo } from "./pathToGo";
 import { Train } from "./train";
 import { SinceView } from "./sinceLast";
-import { BoardStrings } from "./boardStrings";
-import { escapeHtml } from "./boardHtmlUtil";
+import { BoardStrings, escapeHtml } from "./boardHtmlUtil";
 import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock } from "./boardHtmlRows";
 import { chains, needsRule, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
@@ -14,8 +13,7 @@ import { chains, needsRule, outsideBoxes, profilePicker, sinceBox, sittingsBox, 
 
 // Existing import paths keep working: the text table and the escape helper live in their
 // own modules and are re-exported here.
-export { BoardStrings } from "./boardStrings";
-export { escapeHtml } from "./boardHtmlUtil";
+export { BoardStrings, escapeHtml } from "./boardHtmlUtil";
 
 // The page shown at once, before any result exists: grey placeholder rows that shimmer.
 export function renderSkeleton(t: BoardStrings, nonce: string): string {
