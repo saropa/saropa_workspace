@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mapLimit } from "../../board/pool";
-import { FileSource, completeFacts, scanAll } from "../../board/scanner";
+import { FileSource, completeFacts, scanAll, snapshotFingerprint } from "../../board/scanner";
 import { renderSkeleton } from "../../board/boardHtml";
 import { BoardConfig, ScanFile } from "../../board/types";
 
@@ -68,4 +68,31 @@ test("the loading page shows placeholders under a strict script policy", () => {
   assert.ok(html.includes('class="sk'));
   assert.ok(html.includes("script-src 'nonce-nonce1'"));
   assert.ok(html.includes("prefers-reduced-motion"));
+});
+
+test("rows come out in path order whatever order the source lists them", async () => {
+  const files: ScanFile[] = ["bugs/c.md", "bugs/a.md", "bugs/b.md"].map((path) => ({ path, size: 1, mtimeMs: 1 }));
+  const r = await scanAll(cfg, source(files, []), undefined, 1, "all");
+  assert.deepEqual(r.rows.map((x) => x.path), ["bugs/a.md", "bugs/b.md", "bugs/c.md"]);
+});
+
+test("the fingerprint changes when a folder is renamed even if the counts stay", async () => {
+  const cfg2 = { ...cfg, ruleSets: { s: { rules: [{ id: "live", when: { path: "**/*.md" }, set: { status: "red" } }] } } } as unknown as BoardConfig;
+  const roots = { ...cfg2.projects[0], roots: ["bugs", "docs"] };
+  const withRoots = { ...cfg2, projects: [roots] } as BoardConfig;
+  const a = await scanAll(withRoots, source([{ path: "bugs/x/a.md", size: 1, mtimeMs: 1 }], []), undefined, 1, "all");
+  const b = await scanAll(withRoots, source([{ path: "bugs/y/a.md", size: 1, mtimeMs: 1 }], []), undefined, 1, "all");
+  assert.deepEqual(a.snapshot.projects.p.counts, b.snapshot.projects.p.counts);
+  assert.notEqual(snapshotFingerprint(a.snapshot), snapshotFingerprint(b.snapshot));
+});
+
+test("the loading page has no Accept button and the page announces busy state", async () => {
+  const { renderBoard } = await import("../../board/boardHtml");
+  const { buildBoard } = await import("../../board/boardModel");
+  const t = new Proxy({}, { get: (_o, k: string) => `[${k}]` }) as never;
+  const model = buildBoard(cfg, [], { baseline: true, findings: [], clean: false }, false);
+  assert.ok(renderBoard(model, t, "n", 1, {}).includes('id="accept"'));
+  const loading = renderBoard(model, t, "n", 1, { loading: true });
+  assert.ok(!loading.includes('id="accept"'));
+  assert.ok(loading.includes('aria-busy="true"') && loading.includes('role="status"'));
 });

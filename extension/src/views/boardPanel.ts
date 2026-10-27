@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { onDidRecordHealth } from "../commands/boardHealth";
-import { BoardRun, acceptBoardRun, openRulesFile, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { BoardRun, acceptBoardRun, hasOutsideProject, openRulesFile, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
@@ -73,6 +73,8 @@ class BoardPanel {
   private timer: ReturnType<typeof setTimeout> | undefined;
   // A document changed since the last scan; reopening or showing the tab then rescans.
   private dirty = true;
+  // What is on screen is the stored last result, not a fresh scan.
+  private cached = false;
   private lastScanAt = 0;
   private lastKey = "";
   private readonly disposables: vscode.Disposable[] = [];
@@ -90,7 +92,12 @@ class BoardPanel {
       this.disposables
     );
     // Documents change on disk: rescan while the tab is showing, else only remember it.
+    const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board.json");
     const watcher = vscode.workspace.createFileSystemWatcher("**/*.{md,sql}");
+    rules.onDidChange(() => this.schedule(300), null, this.disposables);
+    rules.onDidCreate(() => this.schedule(300), null, this.disposables);
+    rules.onDidDelete(() => this.schedule(300), null, this.disposables);
+    this.disposables.push(rules);
     const changed = (uri: vscode.Uri): void => {
       if (/[\\/](?:node_modules|\.git)[\\/]/.test(uri.path)) {
         return;
@@ -116,7 +123,7 @@ class BoardPanel {
 
   // Rescan when something changed or the result is old; otherwise just show it.
   needsRefresh(): boolean {
-    return this.dirty || Date.now() - this.lastScanAt > 5 * 60 * 1000;
+    return this.dirty || (this.run !== undefined && hasOutsideProject(this.run.cfg)) || Date.now() - this.lastScanAt > 60 * 1000;
   }
 
   private schedule(ms: number): void {
@@ -129,6 +136,7 @@ class BoardPanel {
     const last = await readLastRun(this.context).catch(() => undefined);
     if (last && !this.run) {
       this.run = last;
+      this.cached = true;
       this.render({ stale: true });
     }
   }
@@ -146,6 +154,10 @@ class BoardPanel {
         await this.scanOnce(quiet);
       } while (this.again);
     } catch (e) {
+      // Whatever half-finished state is on screen is settled, and the next open rescans.
+      this.dirty = true;
+      this.lastKey = "";
+      this.render(this.cached ? { stale: true } : {});
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.scanning = false;
@@ -158,9 +170,11 @@ class BoardPanel {
     const run = await runBoardScan(this.context, quiet, (first) => {
       // Documents are sorted; their text is still being read for marks and severity.
       this.run = first;
+      this.cached = false;
       this.render({ loading: true });
     });
     this.run = run;
+    this.cached = false;
     this.lastScanAt = Date.now();
     if (!run) {
       this.model = undefined;
@@ -204,7 +218,7 @@ class BoardPanel {
       await vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").update("profile", msg.value, vscode.ConfigurationTarget.Workspace);
     } else if (msg.type === "rules") {
       await openRulesFile();
-    } else if (msg.type === "accept" && this.run && (this.model?.baseline || this.model?.safetyHold)) {
+    } else if (msg.type === "accept" && this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold)) {
       if (await acceptBoardRun(this.run)) {
         this.lastKey = "";
         this.render();

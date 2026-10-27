@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
 import defaultRules from "../board/defaultRules.json";
-import { FileSource, ScanResult, ScanSnapshot, completeFacts, scanAll } from "../board/scanner";
+import { FileSource, ScanResult, ScanSnapshot, completeFacts, scanAll, snapshotFingerprint } from "../board/scanner";
 import { SafetyResult, checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
 import { mapLimit } from "../board/pool";
@@ -195,6 +195,7 @@ function ready(quiet = false): boolean {
 }
 
 const LAST_FILE = "release-board-last.json";
+let lastFingerprint = "";
 
 // What the board last showed, kept so the next open paints at once while a fresh scan runs.
 interface LastRun {
@@ -237,11 +238,6 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
   }
 }
 
-// A short fingerprint of what a scan found, to skip rewriting the baseline when nothing changed.
-function fingerprint(snap: ScanSnapshot): string {
-  return JSON.stringify(Object.entries(snap.projects).map(([id, p]) => [id, p.counts, Object.keys(p.files).length, Object.keys(p.facts).length]));
-}
-
 // Scan, run the safety check against the last accepted scan, and store the scan as the
 // new baseline only when the check found nothing. `onFirst` gets the board as soon as the
 // documents are sorted, before their text is read for marks and severity.
@@ -258,21 +254,28 @@ export async function runBoardScan(
   const dir = context.storageUri ?? context.globalStorageUri;
   const accepted = await readAccepted(dir);
   const source = workspaceFileSource();
-  const [result, health] = await Promise.all([
-    scanAll(cfg, source, accepted, Date.now(), onFirst ? "cached" : "all"),
-    boardStore ? collectHealth(context, boardStore, cfg) : Promise.resolve({} as Record<string, ProjectHealth>),
-  ]);
+  const work = (): Promise<[ScanResult, Record<string, ProjectHealth>]> =>
+    Promise.all([
+      scanAll(cfg, source, accepted, Date.now(), onFirst ? "cached" : "all"),
+      boardStore ? collectHealth(context, boardStore, cfg) : Promise.resolve({} as Record<string, ProjectHealth>),
+    ]);
+  // The board tab has its own progress bar; the commands show one in the status bar.
+  const [result, health] = onFirst
+    ? await work()
+    : await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: l10n("releaseBoard.scanning") }, work);
   const safety = checkScan(accepted, result.snapshot);
   const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health };
   if (onFirst && result.pending.length > 0) {
     onFirst(run);
     await completeFacts(cfg, source, result);
   }
-  const changed = !accepted || fingerprint(accepted) !== fingerprint(result.snapshot) || result.stats.headReads + result.stats.factReads > 0;
-  if (safety.clean && changed) {
+  const baselineChanged = !accepted || snapshotFingerprint(accepted) !== snapshotFingerprint(result.snapshot) || result.stats.headReads + result.stats.factReads > 0;
+  if (safety.clean && baselineChanged) {
     await writeAccepted(dir, result.snapshot);
   }
-  if (changed) {
+  // The stored last result also holds the health marks and the accepted state.
+  if (baselineChanged || snapshotFingerprint(result.snapshot, health) !== lastFingerprint) {
+    lastFingerprint = snapshotFingerprint(result.snapshot, health);
     await writeLast(dir, run).catch(() => undefined);
   }
   out().appendLine(`Release Board scan: ${result.stats.files} files, ${result.stats.headReads} heads and ${result.stats.factReads} documents read, ${result.stats.ms} ms`);
@@ -381,6 +384,13 @@ async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
 
 // The shortcut store, for resolving the shortcuts a project names as its test and lint runs.
 let boardStore: ShortcutStore | undefined;
+
+// True when a project lives outside the open workspace folders, where no file watcher sees
+// changes: the board then rescans on every open.
+export function hasOutsideProject(cfg: BoardConfig): boolean {
+  const roots = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.toString());
+  return cfg.projects.some((p) => !roots.some((r) => p.path === r || p.path.startsWith(r + "/")));
+}
 
 export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
   boardStore = store;

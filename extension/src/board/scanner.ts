@@ -167,6 +167,8 @@ export async function scanProject(
       files.push(f);
     }
   }
+  // The same order whatever order the file source listed them in.
+  files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
   // 2. Status words: cached by size and modified time, the rest read in parallel.
   const words = new Array<string | undefined>(files.length);
@@ -235,12 +237,18 @@ export async function scanProject(
 
 // One unreadable document gives no marks; it must not abort the scan.
 async function readPending(project: ProjectDef, source: FileSource, snap: ProjectSnapshot, opt: FactsOptions, todo: PendingFacts[]): Promise<void> {
-  await mapLimit(todo, READ_PARALLEL, async (p) => {
+  const read = await mapLimit(todo, READ_PARALLEL, async (p): Promise<CachedFacts | undefined> => {
     try {
       const text = await source.readText!(project.path, p.path);
-      snap.facts[p.path] = { size: p.size, mtimeMs: p.mtimeMs, facts: readFacts(text, p.path, opt) };
+      return { size: p.size, mtimeMs: p.mtimeMs, facts: readFacts(text, p.path, opt) };
     } catch {
-      // no facts for this file
+      return undefined; // no facts for this file
+    }
+  });
+  // Stored in file order, not completion order, so the saved JSON is the same every run.
+  todo.forEach((p, i) => {
+    if (read[i]) {
+      snap.facts[p.path] = read[i]!;
     }
   });
 }
@@ -299,4 +307,13 @@ export async function completeFacts(cfg: BoardConfig, source: FileSource, result
   }
   result.pending = [];
   result.stats.ms += Date.now() - started;
+}
+
+// A fingerprint of what a scan found, to skip rewriting stored files when nothing changed:
+// the counts, the folder and rule tallies the safety check compares, and the health marks.
+export function snapshotFingerprint(snap: ScanSnapshot, extra?: unknown): string {
+  return JSON.stringify([
+    Object.entries(snap.projects).map(([id, p]) => [id, p.counts, p.folders, p.ruleCounts, p.greyFolders, Object.keys(p.files).length, Object.keys(p.facts).length]),
+    extra ?? null,
+  ]);
 }
