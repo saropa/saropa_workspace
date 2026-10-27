@@ -82,6 +82,13 @@ The Release Board opens in its own tab group beside your files and remembers whe
 - **Release Board: opens beside your files.** The board tab used to open among the files; it now opens in its own editor group next to the files instead of among them. Opening it again shows the existing tab where it is, and it remembers the group you moved it to, per workspace. If that group is gone it opens beside again. The tab that opens at window start uses the same place and still does not take focus. Setting: `releaseBoard.placement` (`beside` or `sameGroup`, default `beside`).
 - In a chosen project the board's file scan no longer follows links to folders or files (a linked folder could loop or lead outside the project). Open workspace folders are scanned as before.
 
+### Fixed
+
+- **Configure Run: the preview for a file that cannot be run.** For a document such as a text or Markdown file with no run command, the preview used to show the file's path as if it would be run. It now says the file is opened, which is what Run does.
+- **Customize: saving a cleared name.** When you cleared a shortcut's name and saved, the confirmation still showed the old name. It now shows the name the shortcut has after saving. A malformed save from the page can no longer stop the save.
+- **Settings editor: values that do not fit.** The Settings editor now refuses a value of the wrong kind, a choice that is not offered, or a number outside the allowed range, instead of writing it to your settings.
+- **Planner: links, times and layout.** Retiming ignores a time that is not a real HH:mm time or a weekday that is not 0 to 6. A link from a shortcut that no longer exists is refused. Removing a link can no longer remove an idle trigger. Saved layout positions that are not numbers are dropped. The confirmation names an unlabeled shortcut by its file name instead of its id.
+
 ---
 
 ## [2.2.0]

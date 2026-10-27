@@ -118,9 +118,28 @@ const SECTIONS: readonly SettingSection[] = [
   },
 ];
 
-const KNOWN_KEYS = new Set(
-  SECTIONS.flatMap((s) => s.settings.map((d) => d.key))
+const SETTING_DEFS = new Map<string, SettingDef>(
+  SECTIONS.flatMap((s) => s.settings.map((d): [string, SettingDef] => [d.key, d]))
 );
+
+/** Whether `value` is something the page can send for this setting: its type, a listed option, or a number inside the manifest's bounds (the page floors numbers at 0 when the manifest gives no minimum). */
+function fitsSetting(def: SettingDef, value: unknown, bounds?: { min?: number; max?: number }): boolean {
+  switch (def.type) {
+    case "boolean":
+      return typeof value === "boolean";
+    case "string":
+      return typeof value === "string";
+    case "select":
+      return typeof value === "string" && (def.options ?? []).includes(value);
+    case "number":
+      return (
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        value >= (bounds?.min ?? 0) &&
+        (bounds?.max === undefined || value <= bounds.max)
+      );
+  }
+}
 
 /** The single Settings webview that lists every extension setting with an info tooltip and a matching control. */
 export class SettingsPanel {
@@ -193,7 +212,19 @@ export class SettingsPanel {
   }
 
   private async applySetting(key: string, value: unknown): Promise<void> {
-    if (!KNOWN_KEYS.has(key)) {
+    // The payload comes from the page: only a listed setting, with a value of the right
+    // kind, is written to the user's settings.
+    const def = SETTING_DEFS.get(key);
+    if (!def) {
+      return;
+    }
+    if (!fitsSetting(def, value, this.loadSchemaMeta()[`saropaWorkspace.${key}`])) {
+      // The page may already show the refused value; put the stored one back.
+      await this.panel.webview.postMessage({
+        type: "revertSetting",
+        key,
+        value: vscode.workspace.getConfiguration("saropaWorkspace").get(key),
+      });
       return;
     }
     const cfg = vscode.workspace.getConfiguration("saropaWorkspace");
