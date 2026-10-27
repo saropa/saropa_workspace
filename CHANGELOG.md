@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.2.0]
 
-The Release Board now shows the steps between each project and GO, lets you say what is in your hand and get one list of steps to do now, and shows which board documents name the file you are editing.
+The Release Board is now always in view: a sidebar section, a status bar light and a tab that opens at window start, plus a list of what to do next, a strip of what changed since you last looked, tidy-up suggestions, one-click prompts for a chat, live error marks, a release train row and an optional overnight proof run. [log](https://github.com/saropa/saropa-workspace/blob/v2.2.0/CHANGELOG.md)
 
 ### Added
 
