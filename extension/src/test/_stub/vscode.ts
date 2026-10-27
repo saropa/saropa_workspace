@@ -55,7 +55,9 @@ export class Uri {
   // never contains a double slash.
   static joinPath(base: Uri, ...segments: string[]): Uri {
     const head = base.fsPath.replace(/[\\/]+$/, "");
-    const joined = [head, ...segments].join("/");
+    // Resolve "." and ".." like the real vscode.Uri.joinPath does; without this a
+    // ".." segment leaves a path such as "a/package.json/../x" that the OS rejects.
+    const joined = nodePath.posix.normalize([head, ...segments].join("/"));
     return new Uri("file", joined, joined);
   }
 
