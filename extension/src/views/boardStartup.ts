@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { asStartupMode } from "../board/sidebar";
-import { checkboxValue, isStartupOn, modeForCheckbox, modeToRemember } from "../board/startupToggle";
+import { checkboxValue, isStartupOn, modeToRemember, planStartupWrite } from "../board/startupToggle";
 
 // The "Open this board at start-up" checkbox: reads and writes openOnStartup. The page sends
 // a boolean only; the mode written is worked out here.
@@ -23,21 +23,23 @@ export function startupOn(context: vscode.ExtensionContext): boolean {
   return isStartupOn(asStartupMode(raw));
 }
 
-// Writes the setting for a checkbox value from the page. A value that is not a boolean is ignored.
-export async function setStartup(context: vscode.ExtensionContext, value: unknown): Promise<void> {
+// Writes the setting for a checkbox value from the page. Returns false, writing nothing, when the
+// value is not a boolean.
+export async function setStartup(context: vscode.ExtensionContext, value: unknown): Promise<boolean> {
   const checked = checkboxValue(value);
   if (checked === undefined) {
-    return;
+    return false;
   }
-  const keep = modeToRemember(currentMode());
-  if (keep) {
-    await context.workspaceState.update(REMEMBER_KEY, keep);
-  }
-  const mode = modeForCheckbox(checked, context.workspaceState.get(REMEMBER_KEY));
   const config = vscode.workspace.getConfiguration(SETTINGS);
-  await config.update("openOnStartup", mode, vscode.ConfigurationTarget.Global);
-  // A value set for this workspace would win over the user value; keep the box honest.
-  if (config.inspect("openOnStartup")?.workspaceValue !== undefined) {
-    await config.update("openOnStartup", mode, vscode.ConfigurationTarget.Workspace);
+  const inspected = config.inspect("openOnStartup");
+  const plan = planStartupWrite(checked, currentMode(), context.workspaceState.get(REMEMBER_KEY), inspected?.globalValue);
+  if (plan.remember) {
+    await context.workspaceState.update(REMEMBER_KEY, plan.remember);
   }
+  await config.update("openOnStartup", plan.mode, vscode.ConfigurationTarget.Global);
+  // A value set for this workspace would win over the user value; keep the box honest.
+  if (inspected?.workspaceValue !== undefined) {
+    await config.update("openOnStartup", plan.mode, vscode.ConfigurationTarget.Workspace);
+  }
+  return true;
 }

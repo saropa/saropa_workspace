@@ -34,3 +34,22 @@ export function modeToRemember(raw: unknown): Exclude<StartupMode, "never"> | un
 export function checkboxValue(v: unknown): boolean | undefined {
   return typeof v === "boolean" ? v : undefined;
 }
+
+// What to write for a checkbox change. `remembered` is the stored last opening mode, `globalValue`
+// the user-scope value of the setting, `current` the effective value. Checking with nothing
+// remembered prefers a user-scope value that is not "never", so an "always" is never lowered.
+export interface StartupPlan {
+  // The opening mode to store before the write, or undefined to store nothing.
+  remember: Exclude<StartupMode, "never"> | undefined;
+  mode: StartupMode;
+}
+
+export function planStartupWrite(checked: boolean, current: unknown, remembered: unknown, globalValue: unknown): StartupPlan {
+  const remember = modeToRemember(current);
+  if (!checked) {
+    return { remember, mode: "never" };
+  }
+  const kept = remember ?? (remembered === "always" || remembered === "whenProjectsFound" ? remembered : undefined);
+  const fromUser = globalValue === "always" || globalValue === "whenProjectsFound" ? globalValue : undefined;
+  return { remember, mode: kept ?? fromUser ?? DEFAULT_STARTUP_MODE };
+}

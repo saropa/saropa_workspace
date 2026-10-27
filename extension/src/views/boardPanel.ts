@@ -125,16 +125,19 @@ class BoardPanel extends BoardPanelWiring {
     }
   }
 
-  // The start-up checkbox: the page sent a boolean. The setting change repaints the board; the
-  // paint is forced anyway so a refused write puts the box back.
+  // The start-up checkbox: the page sent a boolean. On success the setting change repaints the
+  // board; only a refused value or a failed write paints it again, to put the box back.
   private async startup(value: unknown): Promise<void> {
+    let ok = false;
     try {
-      await setStartup(this.context, value);
+      ok = await setStartup(this.context, value);
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     }
-    this.lastKey = "";
-    this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+    if (!ok) {
+      this.lastKey = "";
+      this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+    }
   }
 
   // The listed document and its project folder for an index the page sent; the index is

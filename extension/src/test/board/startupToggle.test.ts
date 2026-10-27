@@ -4,7 +4,7 @@ import { BoardStrings, renderBoard } from "../../board/boardHtml";
 import { startupToggle } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { strings } from "../../views/boardStrings";
-import { DEFAULT_STARTUP_MODE, checkboxValue, isStartupOn, modeForCheckbox, modeToRemember, rememberedMode } from "../../board/startupToggle";
+import { DEFAULT_STARTUP_MODE, checkboxValue, isStartupOn, modeForCheckbox, modeToRemember, planStartupWrite, rememberedMode } from "../../board/startupToggle";
 
 const t = { projectLabels: { startup: "Open this board at start-up", startupTip: "When off, the board only opens from the sidebar or the command." } } as unknown as BoardStrings;
 
@@ -61,4 +61,24 @@ test("the checkbox is the last control of the top bar and sends only a boolean",
   assert.ok(top.endsWith("</label>"));
   assert.ok(html.includes("type:'startup',value:b.checked===true,rev:REV"));
   assert.ok(!renderBoard(m, real, "n", 3).includes("<label class=\"stup\""));
+});
+
+test("a user's always is never lowered when the box is checked again", () => {
+  // Nothing remembered, effective never, user value never: the default.
+  assert.deepEqual(planStartupWrite(true, "never", undefined, "never"), { remember: undefined, mode: "whenProjectsFound" });
+  // Nothing remembered, effective never (a workspace value), user value always: keep always.
+  assert.deepEqual(planStartupWrite(true, "never", undefined, "always"), { remember: undefined, mode: "always" });
+  // A remembered mode wins over the user value.
+  assert.equal(planStartupWrite(true, "never", "whenProjectsFound", "always").mode, "whenProjectsFound");
+  // Unset user value.
+  assert.equal(planStartupWrite(true, "never", "junk", undefined).mode, "whenProjectsFound");
+});
+
+test("the mode in force is saved before never is written", () => {
+  assert.deepEqual(planStartupWrite(false, "always", undefined, "always"), { remember: "always", mode: "never" });
+  assert.deepEqual(planStartupWrite(false, undefined, undefined, undefined), { remember: "whenProjectsFound", mode: "never" });
+  // Already never: nothing new to remember, never is written again.
+  assert.deepEqual(planStartupWrite(false, "never", "always", "never"), { remember: undefined, mode: "never" });
+  // Checking with the setting on keeps it.
+  assert.equal(planStartupWrite(true, "always", undefined, "never").mode, "always");
 });

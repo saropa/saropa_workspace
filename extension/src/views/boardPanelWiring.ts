@@ -101,6 +101,9 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
       (e) => {
         if (["enabled", "profile", "projects", "projectScope", ...REPORT_SETTINGS].some((k) => e.affectsConfiguration(`saropaWorkspace.releaseBoard.${k}`))) {
           this.poke(300);
+        } else if (this.onlyStartupChanged(e)) {
+          // Only the start-up checkbox changed: draw the stored scan again, nothing else.
+          this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
         } else if (e.affectsConfiguration("saropaWorkspace.releaseBoard")) {
           // Display-only settings: draw the stored scan again, no rescan.
           this.lastKey = "";
@@ -114,6 +117,18 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
       null,
       this.disposables
     );
+  }
+
+  // True when the change touched the start-up setting and no other Release Board setting.
+  private onlyStartupChanged(e: vscode.ConfigurationChangeEvent): boolean {
+    const prefix = "saropaWorkspace.releaseBoard.";
+    if (!e.affectsConfiguration(prefix + "openOnStartup")) {
+      return false;
+    }
+    const props = (this.context.extension.packageJSON as { contributes?: { configuration?: unknown } }).contributes?.configuration;
+    const blocks = Array.isArray(props) ? props : props ? [props] : [];
+    const keys = blocks.flatMap((b) => Object.keys((b as { properties?: Record<string, unknown> }).properties ?? {}));
+    return !keys.some((k) => k.startsWith(prefix) && k !== prefix + "openOnStartup" && e.affectsConfiguration(k));
   }
 
   protected watchDocuments(): void {

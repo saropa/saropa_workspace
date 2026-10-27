@@ -9,8 +9,8 @@ import { BoardStrings, escapeHtml, fillT, pill, tip, titleAttr } from "./boardHt
 export const PROJECTS_STYLE = `
 .hint{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}.hint .f{flex:1;min-width:12em;white-space:normal}
 .roll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}.roll .go{font-size:12px;padding:0 8px}.roll .go.zero{opacity:.45}
-.stup{display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:4px;font-size:12px;color:var(--mute);cursor:pointer}.stup input{margin:0;cursor:pointer;accent-color:var(--blue)}.top .kb+.stup{margin-left:0}
-@media (max-width:480px){.top>.stup{flex:1 1 100%;justify-content:flex-end;min-height:32px;margin-left:0}}
+.stup{display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:auto;font-size:12px;color:var(--mute);cursor:pointer}.stup input{margin:0;cursor:pointer;accent-color:var(--blue)}.top .kb:has(+.stup){margin-left:0}
+@media (max-width:480px){.top>.stup{min-height:32px}}
 .otag{color:var(--blue);border-color:var(--blue)}.vd.skip{border-style:dashed;opacity:.85}.go.skipped{background:rgba(128,128,128,.25);color:var(--mute)}`;
 
 // The page script for these controls, appended to the main page script: it uses that
