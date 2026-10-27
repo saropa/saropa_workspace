@@ -141,6 +141,22 @@ export class ThemeIcon {
   constructor(public readonly id: string) {}
 }
 
+// vscode.MarkdownString: rich tooltips. Keeps the text and the flags the rows set; appends build the text.
+export class MarkdownString {
+  supportThemeIcons = false;
+  isTrusted?: boolean;
+  supportHtml = false;
+  constructor(public value: string = "") {}
+  appendMarkdown(text: string): this {
+    this.value += text;
+    return this;
+  }
+  appendText(text: string): this {
+    this.value += text;
+    return this;
+  }
+}
+
 // vscode.TreeItem / TreeItemCollapsibleState: the tree-row classes extend TreeItem, so any
 // bundle that imports one needs the base class to exist at load. Only the fields the
 // rows assign and the unit tests read are modeled.
