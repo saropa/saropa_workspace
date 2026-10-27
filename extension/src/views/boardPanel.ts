@@ -158,8 +158,8 @@ class BoardPanel {
     markPanelOpened();
     setPanelVisible(panel.visible);
     panel.onDidChangeViewState(() => setPanelVisible(panel.visible), null, this.disposables);
-    onDidAskRefresh(() => this.schedule(0), null, this.disposables);
-    onDidRecordHealth(() => this.schedule(300), null, this.disposables);
+    onDidAskRefresh(() => this.poke(0), null, this.disposables);
+    onDidRecordHealth(() => this.poke(300), null, this.disposables);
     // A mark changes only what is drawn, so the stored scan is shown again, not redone.
     onDidChangeMarks(
       () =>
@@ -173,18 +173,27 @@ class BoardPanel {
       this.disposables
     );
     onDidChangeProviders(() => void this.refreshOutside(), null, this.disposables);
-    vscode.workspace.onDidChangeWorkspaceFolders(() => this.schedule(300), null, this.disposables);
+    vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
-      (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && this.schedule(300),
+      (e) => {
+        if (e.affectsConfiguration("saropaWorkspace.releaseBoard.enabled") || e.affectsConfiguration("saropaWorkspace.releaseBoard.profile")) {
+          this.poke(300);
+        } else if (e.affectsConfiguration("saropaWorkspace.releaseBoard")) {
+          // Display-only settings: draw the stored scan again, no rescan.
+          this.lastKey = "";
+          this.render(this.cached ? { stale: true } : {});
+          void this.refreshOutside();
+        }
+      },
       null,
       this.disposables
     );
     // Documents change on disk: rescan while the tab is showing, else only remember it.
     const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board*.json");
     const watcher = vscode.workspace.createFileSystemWatcher("**/*.{md,sql}");
-    rules.onDidChange(() => this.schedule(300), null, this.disposables);
-    rules.onDidCreate(() => this.schedule(300), null, this.disposables);
-    rules.onDidDelete(() => this.schedule(300), null, this.disposables);
+    rules.onDidChange(() => this.poke(300), null, this.disposables);
+    rules.onDidCreate(() => this.poke(300), null, this.disposables);
+    rules.onDidDelete(() => this.poke(300), null, this.disposables);
     this.disposables.push(rules);
     const changed = (uri: vscode.Uri): void => {
       if (/[\\/](?:node_modules|\.git)[\\/]/.test(uri.path)) {
@@ -212,6 +221,16 @@ class BoardPanel {
   // Rescan when something changed or the result is old; otherwise just show it.
   needsRefresh(): boolean {
     return this.dirty || (this.run !== undefined && hasOutsideProject(this.run.cfg)) || Date.now() - this.lastScanAt > 60 * 1000;
+  }
+
+  // A trigger from outside the page: scan now while the tab is showing, else just remember it
+  // (the background scan keeps the sidebar current, and the tab rescans when shown).
+  private poke(ms: number): void {
+    if (this.panel.visible) {
+      this.schedule(ms);
+    } else {
+      this.dirty = true;
+    }
   }
 
   private schedule(ms: number): void {
@@ -550,7 +569,7 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
     "saropaWorkspace.releaseBoard",
     l10n("releaseBoard.panel.title"),
     // Background: beside the active editor, so no open file is covered and focus stays put.
-    { viewColumn: background ? vscode.ViewColumn.Beside : (vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One), preserveFocus: background },
+    { viewColumn: background ? (vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active) : (vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One), preserveFocus: background },
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
   current = new BoardPanel(context, panel);

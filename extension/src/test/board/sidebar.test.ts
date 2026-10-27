@@ -131,3 +131,10 @@ test("the sidebar shows rows for a clean project but not for an empty one", () =
   assert.equal(hasDocuments({ projects: [empty] }), false);
   assert.equal(hasDocuments({ projects: [{ ...empty, counts: { ...emptyCounts(), green: 3 } }] }), true);
 });
+
+test("a stale note is added to the description and the tooltip", () => {
+  const row = buildSidebarRows({ projects: [project("no-go", [item(0, "a", "red")])] }, { ...opts, staleNote: "updating…" }, labels)[0];
+  assert.equal(row.description, "NO-GO · 1 blocker (updating…)");
+  assert.equal(row.tooltip[row.tooltip.length - 1], "updating…");
+  assert.equal(buildSidebarRows({ projects: [project("go", [])] }, opts, labels)[0].description, "GO");
+});

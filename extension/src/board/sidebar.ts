@@ -105,10 +105,14 @@ export interface SidebarRow {
 export interface SidebarOptions {
   blockersPerProject: number;
   expandProjects: ExpandMode;
+  // Set when the data may be old ("last scan failed", "updating..."): shown on every row.
+  staleNote?: string;
 }
 
 // An open document that holds the release back: anything in a red folder, or past the profile.
 export const isBlocker = (it: BoardItem): boolean => it.status === "red" || it.stopping;
+
+const suffix = (note: string | undefined, text: string): string => (note ? `${text} (${note})` : text);
 
 export function buildSidebarRows(model: Pick<BoardModel, "projects">, opts: SidebarOptions, labels: SidebarLabels): SidebarRow[] {
   return model.projects.map((p) => {
@@ -144,12 +148,15 @@ export function buildSidebarRows(model: Pick<BoardModel, "projects">, opts: Side
         tooltip.push(labels.reasons[r].split("{count}").join(String(p.counts.grey)));
       }
     }
+    if (opts.staleNote) {
+      tooltip.push(opts.staleNote);
+    }
     const blockers = all.slice(0, Math.max(0, opts.blockersPerProject)).map((it) => ({ id: it.id, title: it.title, status: it.status }));
     return {
       projectId: p.id,
       name: p.name,
       light: p.light,
-      description: count > 0 ? `${word} · ${countText}` : p.light === "no-go" && causes.length > 0 ? `${word} · ${causes[0]}` : word,
+      description: suffix(opts.staleNote, count > 0 ? `${word} · ${countText}` : p.light === "no-go" && causes.length > 0 ? `${word} · ${causes[0]}` : word),
       tooltip,
       blockers,
       expand: blockers.length > 0 && shouldExpand(opts.expandProjects, p.light),

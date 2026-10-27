@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BoardModel } from "../board/boardModel";
+import { l10n } from "../i18n/l10n";
 import type { BoardRun } from "../commands/releaseBoardCommands";
 
 // One small publisher for the Release Board model. Whoever scans (the board tab while it
@@ -23,6 +24,8 @@ let panelOpened = false;
 let firstScanDone = false;
 // The last scan failed; the previous board, if any, stays on screen.
 let failed = false;
+// What is on screen is the stored result from an earlier session, not a scan of this one.
+let storedOnly = false;
 const changed = new vscode.EventEmitter<void>();
 const refreshAsked = new vscode.EventEmitter<void>();
 const visibility = new vscode.EventEmitter<boolean>();
@@ -39,9 +42,20 @@ export const isFirstScanDone = (): boolean => firstScanDone;
 // True only while the board tab is showing: it then owns the scan.
 export const isPanelVisible = (): boolean => panelVisible;
 export const hasPanelOpened = (): boolean => panelOpened;
+export const isStoredOnly = (): boolean => storedOnly;
 export const hasFailed = (): boolean => failed;
 
-export function setBoard(model: BoardModel | undefined, run: BoardRun | undefined): void {
+// What to tell the user when the data may be old, or undefined when it is current.
+export function staleNote(): string | undefined {
+  if (failed) {
+    return l10n("releaseBoard.sidebar.scanFailed");
+  }
+  return storedOnly ? l10n(scanning ? "releaseBoard.sidebar.updating" : "releaseBoard.sidebar.lastResult") : undefined;
+}
+
+// `stored` marks a result read from disk that no scan of this window has confirmed.
+export function setBoard(model: BoardModel | undefined, run: BoardRun | undefined, stored = false): void {
+  storedOnly = stored && model !== undefined;
   board = model && run ? { stamp: ++stamp, model, run } : undefined;
   changed.fire();
 }

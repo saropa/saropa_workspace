@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { Light } from "../board/boardModel";
 import { ExpandMode, SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, blockerColor, buildSidebarRows, clampBlockers, hasDocuments, lightLook } from "../board/sidebar";
 import { l10n } from "../i18n/l10n";
-import { askRefresh, currentBoard, hasFailed, isFirstScanDone, isScanning, onDidChangeBoard } from "./boardFeed";
+import { askRefresh, currentBoard, hasFailed, isFirstScanDone, staleNote, isScanning, onDidChangeBoard } from "./boardFeed";
 
 // The Release Board section at the top of the sidebar: one row per project with its light,
 // its first blockers underneath. It only reads the published model; it never scans. A click
@@ -53,7 +53,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     this.rows = board
       ? buildSidebarRows(
           board.model,
-          { blockersPerProject: clampBlockers(cfg.get("sidebar.blockersPerProject", 3)), expandProjects: this.expandMode },
+          { blockersPerProject: clampBlockers(cfg.get("sidebar.blockersPerProject", 3)), expandProjects: this.expandMode, staleNote: staleNote() },
           labels()
         )
       : [];

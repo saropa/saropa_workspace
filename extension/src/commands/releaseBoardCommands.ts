@@ -15,6 +15,7 @@ import { Profile, asProfile } from "../board/severity";
 import { globToRegExp } from "../board/glob";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
+import { withTimeout } from "../board/timeout";
 import { bindStatusLight } from "./boardStatusLight";
 
 // Release Board, VS Code layer: scan the open workspace folders with the
@@ -27,7 +28,7 @@ const OUTPUT_NAME = "Saropa Release Board";
 const CACHE_FILE = "release-board-accepted.json";
 const RULES_FILE = ".saropa/release-board.json";
 // Folders a project may keep its documents in; only the ones that exist are scanned.
-const DEFAULT_ROOTS = ["bugs", "docs", "plans", "reports", "db-access"];
+export const DEFAULT_ROOTS = ["bugs", "docs", "plans", "reports", "db-access"];
 const DEFAULT_SETS = ["folder-states", "reference-docs", "doc-kinds", "live-folders", "status-line"];
 
 let channel: vscode.OutputChannel | undefined;
@@ -256,13 +257,23 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
 // Every scan (the tab, the background scan, the Scan command, the pattern preview) goes
 // through one chain, so two never run or write the baseline and last-result files at once.
 let scanChain: Promise<unknown> = Promise.resolve();
+// A scan that takes longer is abandoned so the queue moves on; it reports a failure.
+const SCAN_TIMEOUT_MS = 120 * 1000;
+
+// Set when a scan is abandoned: it must not call back or write files afterwards.
+interface Abandon {
+  gone: boolean;
+}
 
 export function runBoardScan(
   context: vscode.ExtensionContext,
   quiet = false,
   onFirst?: (run: BoardRun) => void
 ): Promise<BoardRun | undefined> {
-  const next = scanChain.then(() => scanNow(context, quiet, onFirst));
+  const next = scanChain.then(() => {
+    const token: Abandon = { gone: false };
+    return withTimeout(scanNow(context, quiet, onFirst, token), SCAN_TIMEOUT_MS, () => (token.gone = true));
+  });
   scanChain = next.catch(() => undefined);
   return next;
 }
@@ -270,7 +281,8 @@ export function runBoardScan(
 async function scanNow(
   context: vscode.ExtensionContext,
   quiet: boolean,
-  onFirst?: (run: BoardRun) => void
+  onFirst: ((run: BoardRun) => void) | undefined,
+  token: Abandon
 ): Promise<BoardRun | undefined> {
   if (!ready(quiet)) {
     return undefined;
@@ -292,8 +304,13 @@ async function scanNow(
   const safety = checkScan(accepted, result.snapshot);
   const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health, marks: await readMarks(context) };
   if (onFirst && result.pending.length > 0) {
-    onFirst(run);
+    if (!token.gone) {
+      onFirst(run);
+    }
     await completeFacts(cfg, source, result);
+  }
+  if (token.gone) {
+    throw new Error("scan abandoned");
   }
   const baselineChanged = !accepted || snapshotFingerprint(accepted) !== snapshotFingerprint(result.snapshot) || result.stats.headReads + result.stats.factReads > 0;
   if (safety.clean && baselineChanged) {
@@ -310,7 +327,13 @@ async function scanNow(
 
 // Stores the scan as the baseline. Refused (false) when the stored baseline is no longer
 // the one this scan was compared with: the user must look at a fresh scan first.
-export async function acceptBoardRun(run: BoardRun): Promise<boolean> {
+export function acceptBoardRun(run: BoardRun): Promise<boolean> {
+  const next = scanChain.then(() => acceptNow(run));
+  scanChain = next.catch(() => undefined);
+  return next;
+}
+
+async function acceptNow(run: BoardRun): Promise<boolean> {
   const stored = await readAccepted(run.dir);
   if ((stored?.takenAt ?? 0) !== (run.previous?.takenAt ?? 0)) {
     return false;
@@ -351,8 +374,13 @@ async function scan(context: vscode.ExtensionContext): Promise<void> {
     safety.baseline ? l10n("releaseBoard.acceptBaseline") : l10n("releaseBoard.held", { count: safety.findings.length }),
     accept
   );
-  if (pick === accept && !(await acceptBoardRun(run))) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
+  if (pick === accept) {
+    if (await acceptBoardRun(run)) {
+      // The sidebar, status light and editor lines pick the accepted baseline up.
+      void vscode.commands.executeCommand("saropaWorkspace.releaseBoard.sidebar.refresh");
+    } else {
+      void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
+    }
   }
 }
 

@@ -1928,5 +1928,8 @@
   "releaseBoard.sidebar.causeLint": "lint is failing",
   "releaseBoard.sidebar.causeTests": "tests are failing",
   "releaseBoard.sidebar.causeBlocked": "{count} stopping documents in blocked folders",
-  "releaseBoard.sidebar.causeHeld": "held: the last accepted scan had red work"
+  "releaseBoard.sidebar.causeHeld": "held: the last accepted scan had red work",
+  "releaseBoard.sidebar.scanFailed": "last scan failed",
+  "releaseBoard.sidebar.updating": "updating…",
+  "releaseBoard.sidebar.lastResult": "last result, not refreshed yet"
 }

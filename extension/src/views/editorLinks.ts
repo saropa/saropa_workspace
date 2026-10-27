@@ -32,8 +32,8 @@ let stamp = 0;
 const changed = new vscode.EventEmitter<void>();
 
 // Called by the board tab after each paint (undefined when the board has nothing to show).
-export function publishBoard(model: BoardModel | undefined, run: BoardRun | undefined): void {
-  setBoard(model, run);
+export function publishBoard(model: BoardModel | undefined, run: BoardRun | undefined, stored = false): void {
+  setBoard(model, run, stored);
   if (!model || !run) {
     state = undefined;
   } else {
@@ -187,7 +187,7 @@ async function loadStored(context: vscode.ExtensionContext): Promise<void> {
     rejected: run.marks.rejected,
     pins: pinnedKeys(run.marks),
   });
-  publishBoard(model, run);
+  publishBoard(model, run, true);
 }
 
 export function registerEditorLinks(context: vscode.ExtensionContext): void {
