@@ -9,6 +9,7 @@ import { SettingsPanel } from "../views/settingsPanel";
 import { registerSimulationPreview } from "../commands/simulateRun";
 import { registerRunAnalytics } from "../commands/runAnalytics";
 import { registerDailyReport } from "../commands/dailyReport";
+import { registerReleaseBoard } from "../commands/releaseBoardCommands";
 import { registerRunOutputDiff } from "../commands/diffRuns";
 import { registerShortcutCommands, createRoutineHooks } from "../commands/shortcutCommands";
 import { registerSetCommands } from "../commands/setCommands";
@@ -42,6 +43,7 @@ export function registerCommandModules(
   registerSimulationPreview(context);
   registerRunAnalytics(context);
   registerDailyReport(context, store);
+  registerReleaseBoard(context);
   registerRunOutputDiff(context);
   // treeView is threaded through only for runSelectedShortcut (#26, moved here from
   // wiringStatusBars.ts) — it needs the live tree selection, which no other command

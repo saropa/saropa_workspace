@@ -1516,7 +1516,6 @@
   "scripts.dependencyReport.label": "Flutter dependency report",
   "scripts.dependencyReport.description": "Generate a dependency health report for a Flutter project.\n\nDefault mode is read-only: shows project info (Flutter/Dart versions, platform targets), the full dependency tree, outdated packages with current vs. latest versions, and any dependency overrides. Results are written to a timestamped log file.\n\nOptional flags via Set Params: --interactive (prompt y/n before each upgrade step for Kotlin, Firebase, packages), --upgrade (auto-upgrade all packages), --verbose (show blocked packages and debug output).\n\nRequires Flutter on PATH and the PyYAML Python package (pip install PyYAML). The tqdm progress bar package is used if available but not required.",
   "scripts.syncDrift": "{count} bundled script(s) differ from their canonical source: {names}. Run the sync to update them.",
-
   "go.title": "Go",
   "go.placeholder": "Search everything - type {categories} to narrow to one section",
   "go.sectionRecent": "Recent",
@@ -1527,7 +1526,6 @@
   "go.sectionWatches": "Watches",
   "go.sectionAdb": "Mobile Remote Control",
   "go.scopeProject": "Project Notes",
-
   "notes.globalRoot": "Global Notes",
   "notes.open": "Open",
   "notes.timeJustNow": "just now",
@@ -1560,7 +1558,6 @@
   "notes.copyTooLarge": "{name} is too large to copy ({size}). Open it instead.",
   "notes.copyBinary": "{name} does not appear to be a text file.",
   "notes.fileMissing": "{name} no longer exists.",
-
   "settings.title": "Saropa Settings",
   "settings.subtitle": "Customize how Saropa Workspace works",
   "settings.section.general": "General",
@@ -1808,5 +1805,14 @@
   "remoteControl.adb.unauthorized": "{n} unauthorized (accept the debugging prompt on the device)",
   "remoteControl.adb.offline": "{n} offline",
   "remoteControl.adb.refresh": "Refresh",
-  "remoteControl.adb.refreshTitle": "Check again for adb and connected devices."
+  "remoteControl.adb.refreshTitle": "Check again for adb and connected devices.",
+  "releaseBoard.disabled": "Release Board is off. Turn on the setting saropaWorkspace.releaseBoard.enabled to use it.",
+  "releaseBoard.noFolder": "Open a folder first. The Release Board scans the open workspace folders.",
+  "releaseBoard.scanning": "Release Board: scanning…",
+  "releaseBoard.heading": "Release Board scan, {time}",
+  "releaseBoard.needsRule": "Needs a rule: {folder} ({count} documents no rule placed)",
+  "releaseBoard.baseline": "First scan: nothing to compare with yet. Accept it to use it as the baseline.",
+  "releaseBoard.accept": "Accept",
+  "releaseBoard.acceptBaseline": "Release Board: accept this first scan as the baseline?",
+  "releaseBoard.held": "Release Board: {count} change(s) need your check before the board updates. See the Saropa Release Board output."
 }

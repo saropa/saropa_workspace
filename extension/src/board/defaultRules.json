@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "$comment": "Default rule file shipped with the extension. Nothing in the engine knows a folder name; every name here is a setting a project can override.",
+  "colors": {
+    "red": "Address now",
+    "amber": "Review next",
+    "purple": "In progress",
+    "blue": "Deferred on purpose",
+    "green": "Done",
+    "grey": "No rule matched"
+  },
+  "ignore": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/mocks/**"
+  ],
+  "ruleSets": {
+    "folder-states": {
+      "description": "A folder name says what state its documents are in.",
+      "params": {
+        "doneFolders": [
+          "history",
+          "done"
+        ],
+        "deferredFolders": [
+          "deferred",
+          "declined"
+        ],
+        "blockedFolders": [
+          "blocked"
+        ],
+        "ownerFolders": [
+          "human"
+        ]
+      },
+      "rules": [
+        {
+          "id": "done",
+          "when": {
+            "path": "**/{$doneFolders}/**"
+          },
+          "set": {
+            "status": "green"
+          }
+        },
+        {
+          "id": "deferred",
+          "when": {
+            "path": "**/{$deferredFolders}/**"
+          },
+          "set": {
+            "status": "blue"
+          }
+        },
+        {
+          "id": "blocked",
+          "when": {
+            "path": "**/{$blockedFolders}/**"
+          },
+          "set": {
+            "status": "amber",
+            "note": "blocked"
+          }
+        },
+        {
+          "id": "owner",
+          "when": {
+            "path": "**/{$ownerFolders}/**"
+          },
+          "set": {
+            "status": "red",
+            "kind": "owner action"
+          }
+        }
+      ]
+    },
+    "reference-docs": {
+      "description": "Guides, specs and notes that are read, not done.",
+      "params": {
+        "referenceFolders": [
+          "guides",
+          "components",
+          "testing",
+          "reference"
+        ]
+      },
+      "rules": [
+        {
+          "id": "reference",
+          "when": {
+            "path": "**/{$referenceFolders}/**"
+          },
+          "set": {
+            "status": "reference"
+          }
+        },
+        {
+          "id": "guide-file",
+          "when": {
+            "name": "ISSUE_*GUIDE.md"
+          },
+          "set": {
+            "status": "reference"
+          }
+        }
+      ]
+    },
+    "doc-kinds": {
+      "description": "File name prefix says what kind of work item it is.",
+      "params": {
+        "bugPrefix": [
+          "BUG_"
+        ],
+        "planPrefix": [
+          "PLAN_"
+        ]
+      },
+      "rules": [
+        {
+          "id": "bug",
+          "when": {
+            "name": "{$bugPrefix}*"
+          },
+          "set": {
+            "status": "red",
+            "kind": "bug"
+          }
+        },
+        {
+          "id": "plan",
+          "when": {
+            "name": "{$planPrefix}*"
+          },
+          "set": {
+            "status": "amber",
+            "kind": "plan"
+          }
+        },
+        {
+          "id": "research",
+          "when": {
+            "name": "*research*"
+          },
+          "set": {
+            "status": "amber",
+            "kind": "research"
+          }
+        }
+      ]
+    },
+    "live-folders": {
+      "description": "Folders where the files themselves are the open work.",
+      "params": {
+        "liveBugFolder": "bugs",
+        "livePlanFolder": "plans"
+      },
+      "rules": [
+        {
+          "id": "live-bugs",
+          "when": {
+            "path": "{$liveBugFolder}/*.md"
+          },
+          "set": {
+            "status": "red",
+            "kind": "bug report"
+          }
+        },
+        {
+          "id": "live-plans",
+          "when": {
+            "path": "{$livePlanFolder}/*.md"
+          },
+          "set": {
+            "status": "amber",
+            "kind": "plan"
+          }
+        }
+      ]
+    },
+    "pending-sql": {
+      "description": "SQL files that are waiting to be run.",
+      "params": {
+        "pendingSqlFolder": "db-access",
+        "reusableFolder": "reusable"
+      },
+      "rules": [
+        {
+          "id": "reusable-sql",
+          "when": {
+            "path": "{$pendingSqlFolder}/{$reusableFolder}/**"
+          },
+          "set": {
+            "status": "reference"
+          }
+        },
+        {
+          "id": "pending-sql",
+          "when": {
+            "path": "{$pendingSqlFolder}/**"
+          },
+          "set": {
+            "status": "red",
+            "kind": "sql waiting to run"
+          }
+        }
+      ]
+    },
+    "status-line": {
+      "description": "A Status line in the first 20 lines can move a live item to green or purple.",
+      "statusLine": {
+        "appliesTo": [
+          "red",
+          "amber"
+        ],
+        "words": {
+          "wip": "purple",
+          "built": "green",
+          "implemented": "green",
+          "fixed": "green",
+          "merged": "green",
+          "done": "green",
+          "closed": "green"
+        }
+      }
+    },
+    "inside-documents": {
+      "description": "Work items that live inside a document, not as a file of their own. NOT run by the prototype engine yet.",
+      "params": {
+        "statusColumns": [
+          "Status",
+          "Owner decision",
+          "Prod"
+        ],
+        "openHeadings": [
+          "Open",
+          "Still to do"
+        ],
+        "doneHeadings": [
+          "Done"
+        ]
+      },
+      "itemSources": [
+        {
+          "id": "boxes",
+          "kind": "checkbox",
+          "open": "- [ ]",
+          "done": "- [x]"
+        },
+        {
+          "id": "status-table",
+          "kind": "table-row",
+          "column": "{$statusColumns}",
+          "words": {
+            "Done": "green",
+            "Applied": "green",
+            "Pending": "amber",
+            "Partial": "amber",
+            "Open": "red",
+            "Not recommended": "blue",
+            "Withdrawn": "blue"
+          }
+        },
+        {
+          "id": "open-section",
+          "kind": "heading",
+          "under": "{$openHeadings}",
+          "each": "subheading",
+          "status": "amber"
+        }
+      ]
+    },
+    "index-documents": {
+      "description": "A document whose table lists other documents and their state. NOT run by the prototype engine yet.",
+      "params": {
+        "indexNames": [
+          "INDEX_*",
+          "*_index.md",
+          "*-index.md"
+        ]
+      },
+      "rules": [
+        {
+          "id": "index-doc",
+          "when": {
+            "name": "{$indexNames}"
+          },
+          "set": {
+            "status": "reference",
+            "kind": "index",
+            "readsLinks": true,
+            "onDisagree": "flag"
+          }
+        }
+      ]
+    }
+  },
+  "projects": []
+}

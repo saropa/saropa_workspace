@@ -46,6 +46,21 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Release Board begins to arrive: an experimental, off-by-default scan that reads your bugs, docs and plans documents and tells you what state each one is in.
+
+### Added
+
+- **Release Board: Scan** command (turn on `saropaWorkspace.releaseBoard.enabled` first). It scans every open workspace folder, sorts each document into red, amber, purple, blue, green or reference by the folder it sits in, and prints the counts for the open states in the "Saropa Release Board" output. Rules are a JSON file you can override with `.saropa/release-board.json`; folder names are settings, not code.
+- A safety check holds the board when a folder is renamed or a rule stops matching, instead of silently recoloring documents. The first scan asks you to accept it as the baseline.
+
+### Fixed
+
+- Two unit tests for package-manager detection failed on Linux because the test stub did not resolve `..` in paths.
+
+---
+
 ## [1.11.0]
 
 The Launcher panel has been restructured from six competing panes fighting for space into one flexible, resizable layout, with Mobile Remote Control folded in as a category alongside your shortcuts, recipes, watches, files, scripts, and notes. [log](https://github.com/saropa/saropa-workspace/blob/v1.11.0/CHANGELOG.md)
