@@ -1,7 +1,6 @@
 // Unit tests for the adb discovery / connection-health probe (MOBILE_REMOTE_CONTROL_PLAN
-// section 5). Only the pure halves are exercised: `adb devices` output in, counted
-// summary out. The probe itself is run against a stand-in adb script on a temporary PATH,
-// so CI needs neither adb nor a phone.
+// section 5). Pure halves: `adb devices` output in, counted summary out. The probe itself is
+// run against a stand-in adb script on a temporary PATH, so CI needs neither adb nor a phone.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
