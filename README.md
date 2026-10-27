@@ -122,6 +122,10 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.enabled` | `true` | Shows the Release Board button and commands. |
 | `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
 | `releaseBoard.reviewRequests` | `false` | Lists pull requests waiting for your review on the board. |
+| `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |
+| `releaseBoard.editorLinks.codeLens` | `true` | Shows the line at the top of a file that lists those documents. |
+| `releaseBoard.editorLinks.statusBar` | `true` | Shows a status bar count, colored by the worst document. |
+| `releaseBoard.editorLinks.minSeverity` | `any` | Only shows documents at least this severe: `any`, `medium`, `high` or `critical`. |
 
 ```json
 {
