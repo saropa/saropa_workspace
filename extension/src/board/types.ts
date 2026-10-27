@@ -1,5 +1,6 @@
 import { HealthConfig } from "./health";
 import { Profile, SeverityDict } from "./severity";
+import { NeedsDict } from "./needs";
 // Release Board: shared types. The board core (this folder) never imports "vscode"
 // (a unit test enforces it) so it runs under the plain node test runner and works the
 // same for local, remote and test file sources.
@@ -94,6 +95,14 @@ export interface BoardConfig {
   ungrouped?: string[];
   // Parts of the severity dictionary a team replaces (phrases, weights, negation ...).
   severity?: Partial<SeverityDict>;
+  // Parts of the needs dictionary a team replaces (contexts and phrases; see needs-dictionary.json).
+  needs?: Partial<NeedsDict>;
+  // Which documents are the owner's own checks, for the Sittings list: documents whose
+  // rule kind is one of these (default "owner action"), or that sit under a folder with one
+  // of these names (default none; the shipped owner rule already names its folders by the
+  // `ownerFolders` rule parameter).
+  ownerKinds?: string[];
+  ownerFolders?: string[];
   // What stops a release: rush (extreme, critical), deliberate (adds high), zero (adds medium).
   profile?: Profile;
   // Documents pinned as critical, as "project/path" globs. They stay on the first screen.

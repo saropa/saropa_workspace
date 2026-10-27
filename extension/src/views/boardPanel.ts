@@ -10,6 +10,8 @@ import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } fr
 import { l10n } from "../i18n/l10n";
 import { Outside, emptyOutside, safeUrl } from "../board/outside";
 import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
+import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
+import { asTimeBox } from "../board/sittings";
 import { publishBoard } from "./editorLinks";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
@@ -88,6 +90,18 @@ function strings(): BoardStrings {
     ptgRunTests: l10n("releaseBoard.panel.ptgRunTests"),
     ptgOpenRules: l10n("releaseBoard.panel.ptgOpenRules"),
     ptgAcceptBtn: l10n("releaseBoard.panel.ptgAcceptBtn"),
+    sittingsButton: l10n("releaseBoard.sittings.button"),
+    sittingsHeading: l10n("releaseBoard.sittings.heading"),
+    sittingsPick: l10n("releaseBoard.sittings.pick"),
+    sittingsNone: l10n("releaseBoard.sittings.none"),
+    sittingsMore: l10n("releaseBoard.sittings.more", { count: "{count}" }),
+    sittingsNeedOther: l10n("releaseBoard.sittings.needOther", { count: "{count}" }),
+    sittingsTooLong: l10n("releaseBoard.sittings.tooLong", { count: "{count}" }),
+    sittingsUntagged: l10n("releaseBoard.sittings.untagged", { count: "{count}" }),
+    sittingsUntaggedNote: l10n("releaseBoard.sittings.untaggedNote"),
+    timeAny: l10n("releaseBoard.sittings.timeAny"),
+    timeMinutes: l10n("releaseBoard.sittings.timeMinutes", { count: "{count}" }),
+    stepMinutes: l10n("releaseBoard.sittings.stepMinutes", { count: "{count}" }),
   };
 }
 
@@ -298,7 +312,7 @@ class BoardPanel {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: this.sittings() }
     );
     const model = this.model;
     const settings = pathSettings();
@@ -323,6 +337,17 @@ class BoardPanel {
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths);
+  }
+
+  // The Sittings choice (remembered per machine, else the settings' defaults) with the
+  // settings' limits; undefined when the feature is off.
+  private sittings(): { selection: { have: string[]; timeBox: ReturnType<typeof asTimeBox>; maxSteps: number }; onlyOwner: boolean } | undefined {
+    const s = readSittingsSettings();
+    if (!s.enabled) {
+      return undefined;
+    }
+    const choice = readSittingsChoice(this.context) ?? { have: s.defaultHave, timeBox: s.defaultTimeBox };
+    return { selection: { have: choice.have, timeBox: choice.timeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
   }
 
   private async onMessage(message: unknown): Promise<void> {
@@ -358,6 +383,27 @@ class BoardPanel {
       const url = safeUrl(this.model?.outside[m.g]?.items[m.i]?.url);
       if (url) {
         await vscode.env.openExternal(vscode.Uri.parse(url));
+      }
+    } else if (msg.type === "sitting") {
+      // Only toggles the page was shown can be chosen; the remembered choice repaints the board.
+      const m = message as { have?: unknown; box?: unknown };
+      const known = new Set(this.model?.sittings?.contexts.map((c) => c.id));
+      const have = Array.isArray(m.have) ? m.have.filter((x): x is string => typeof x === "string" && known.has(x)) : [];
+      await saveSittingsChoice(this.context, { have, timeBox: asTimeBox(m.box) });
+      this.lastKey = "";
+      this.render(this.cached ? { stale: true } : {});
+    } else if (msg.type === "step" && typeof (message as { i?: unknown }).i === "number") {
+      // A line the page was shown opens its document at the step's line.
+      const line = this.model?.sittings?.lines[(message as { i: number }).i];
+      const project = this.run?.cfg.projects.find((p) => p.id === line?.project);
+      if (line && project) {
+        const uri = vscode.Uri.joinPath(vscode.Uri.parse(project.path), line.path);
+        const pos = new vscode.Position(Math.max(0, line.line - 1), 0);
+        try {
+          await vscode.window.showTextDocument(uri, { preview: true, selection: new vscode.Range(pos, pos) });
+        } catch (e) {
+          void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+        }
       }
     } else if (msg.type === "rules") {
       await openRulesFile();

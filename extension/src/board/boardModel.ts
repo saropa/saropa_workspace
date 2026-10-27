@@ -8,6 +8,8 @@ import { buildGroups } from "./groups";
 import { Link, LinkState, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { ScanSnapshot } from "./scanner";
+import { mergeNeeds } from "./needs";
+import { SittingDoc, SittingLine, SittingSelection, buildSittings } from "./sittings";
 import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCounts } from "./types";
 
 // The board's view model: what the first screen shows, built from classified rows.
@@ -99,6 +101,22 @@ export interface ChainStep {
   done: boolean;
 }
 
+// The Sittings panel: what can be toggled, what is chosen, and the answer.
+export interface SittingsView {
+  contexts: Array<{ id: string; label: string }>;
+  have: string[];
+  timeBox: string;
+  // Steps that can be done now, then the untagged steps, in one list: the page opens a
+  // line by its index here and never names a path.
+  lines: SittingLine[];
+  doable: number;
+  more: number;
+  tooLong: number;
+  needOther: number;
+  untagged: number;
+  untaggedMore: number;
+}
+
 export interface BoardModel {
   projects: BoardProject[];
   chains: ChainStep[][];
@@ -116,6 +134,8 @@ export interface BoardModel {
   needsRule: Array<{ project: string; folder: string; count: number }>;
   // Review requests and groups from other extensions. They never change a light.
   outside: OutsideGroup[];
+  // Absent when Sittings is switched off.
+  sittings?: SittingsView;
 }
 
 const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
@@ -169,6 +189,66 @@ export function titleFromPath(path: string): string {
   return base.replace(/\.[A-Za-z0-9]+$/, "");
 }
 
+function isOwnerDoc(cfg: BoardConfig, r: Classified): boolean {
+  // A rules file may hold anything; only arrays of strings count.
+  const strings = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+  const kinds = strings(cfg.ownerKinds) ?? ["owner action"];
+  if (kinds.includes(r.kind)) {
+    return true;
+  }
+  const dirs = (strings(cfg.ownerFolders) ?? []).map((d) => d.toLowerCase());
+  return r.path.toLowerCase().split("/").slice(0, -1).some((seg) => dirs.includes(seg));
+}
+
+// Open steps of open, unblocked documents across all projects, answered for the selection.
+function sittingsView(
+  cfg: BoardConfig,
+  rows: Classified[],
+  snapshot: ScanSnapshot | undefined,
+  byKey: Map<string, BoardItem>,
+  opt: { selection: SittingSelection; onlyOwner: boolean }
+): SittingsView {
+  const dict = mergeNeeds(cfg.needs);
+  const names = new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id]));
+  const docs: SittingDoc[] = [];
+  for (const r of rows) {
+    // A waiting (blocked) document cannot be worked on yet.
+    // A document waiting on an open Needs link cannot be worked on yet either.
+    if (!OPEN.has(r.status) || r.note === "blocked" || byKey.get(r.project + "\t" + r.path)?.link?.state === "open" || (opt.onlyOwner && !isOwnerDoc(cfg, r))) {
+      continue;
+    }
+    const facts = snapshot?.projects[r.project]?.facts[r.path]?.facts;
+    if (!facts?.steps?.length) {
+      continue;
+    }
+    docs.push({
+      project: r.project,
+      projectName: names.get(r.project) ?? r.project,
+      path: r.path,
+      title: facts.title || titleFromPath(r.path),
+      severity: facts.severity,
+      blocksCount: byKey.get(r.project + "\t" + r.path)?.blocksCount ?? 0,
+      steps: facts.steps,
+      cut: facts.stepsCut ?? 0,
+    });
+  }
+  const known = new Set(dict.contexts.map((c) => c.id));
+  const selection = { ...opt.selection, have: opt.selection.have.filter((id) => known.has(id)) };
+  const res = buildSittings(docs, dict, selection);
+  return {
+    contexts: dict.contexts.map((c) => ({ id: c.id, label: c.label })),
+    have: selection.have,
+    timeBox: selection.timeBox,
+    lines: [...res.lines, ...res.untagged],
+    doable: res.lines.length,
+    more: res.more,
+    tooLong: res.tooLong,
+    needOther: res.needOther,
+    untagged: res.untagged.length,
+    untaggedMore: res.untaggedMore,
+  };
+}
+
 export function buildBoard(
   cfg: BoardConfig,
   rows: Classified[],
@@ -178,7 +258,7 @@ export function buildBoard(
   previous?: ScanSnapshot,
   health?: Record<string, ProjectHealth>,
   // Links the user accepted (waiting document "project/path" -> targets) and suggestions turned down.
-  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[]; outside?: Outside }
+  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[]; outside?: Outside; sittings?: { selection: SittingSelection; onlyOwner: boolean } }
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
@@ -350,6 +430,7 @@ export function buildBoard(
     }
   }
   return {
+    sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
     chains,
     flags,

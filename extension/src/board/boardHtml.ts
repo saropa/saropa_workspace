@@ -1,3 +1,4 @@
+import { SittingLine } from "./sittings";
 import { BoardItem, ItemMarks, BoardModel, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 
@@ -74,6 +75,24 @@ export interface BoardStrings {
   ptgRunTests: string;
   ptgOpenRules: string;
   ptgAcceptBtn: string;
+  sittingsButton: string;
+  sittingsHeading: string;
+  sittingsPick: string;
+  sittingsNone: string;
+  // "{count}" steps cut by the cap.
+  sittingsMore: string;
+  // "{count}" steps that need longer than the time box.
+  sittingsTooLong: string;
+  // "{count}" steps whose contexts are not in hand.
+  sittingsNeedOther: string;
+  // "{count}" steps with no context found.
+  sittingsUntagged: string;
+  sittingsUntaggedNote: string;
+  timeAny: string;
+  // "{count}" minutes.
+  timeMinutes: string;
+  // "{count}" minutes a step is thought to take.
+  stepMinutes: string;
 }
 
 const LIST_CAP = 30;
@@ -238,6 +257,34 @@ function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: boolean):
   return `<ol class="ptg" hidden data-live="${canAct ? 1 : 0}" data-all="${escapeHtml(JSON.stringify(path.allKeys))}">${none}${items}${more}</ol>`;
 }
 
+// The Sittings box: toggles for what the owner has in hand, a time box, and one list of
+// steps. Hidden until the "I have..." button opens it. Lines carry only an index; the host
+// resolves it against the model it rendered.
+function sittingsBox(model: BoardModel, t: BoardStrings): string {
+  const v = model.sittings;
+  if (!v) {
+    return "";
+  }
+  const toggle = (id: string, label: string): string => `<button data-have="${escapeHtml(id)}" aria-pressed="${v.have.includes(id)}" class="${v.have.includes(id) ? "on" : ""}">${escapeHtml(label)}</button>`;
+  const boxes: Array<[string, string]> = [["any", t.timeAny], ...["15", "30", "60"].map((n): [string, string] => [n, t.timeMinutes.replace("{count}", n)])];
+  const time = boxes.map(([n, label]) => `<button data-box="${n}" aria-pressed="${v.timeBox === n}" class="${v.timeBox === n ? "on" : ""}">${escapeHtml(label)}</button>`).join("");
+  const line = (l: SittingLine, i: number): string =>
+    `<div class="row" tabindex="0" role="button" data-step="${i}" title="${escapeHtml(l.docTitle + " - " + t.stepMinutes.replace("{count}", String(l.minutes)))}"><span class="tag">${escapeHtml(l.projectName)}</span><span class="f">${escapeHtml(l.text || l.heading || l.docTitle)}</span><span class="k">${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k">${escapeHtml(l.needs.join(" + "))}</span>` : ""}<span class="k">${l.minutes}</span></div>`;
+  const doable = v.lines.slice(0, v.doable).map((l, i) => line(l, i)).join("");
+  const rest = [
+    v.more > 0 ? `<p class="note">${escapeHtml(t.sittingsMore.replace("{count}", String(v.more)))}</p>` : "",
+    v.needOther > 0 ? `<p class="note">${escapeHtml(t.sittingsNeedOther.replace("{count}", String(v.needOther)))}</p>` : "",
+    v.tooLong > 0 ? `<p class="note">${escapeHtml(t.sittingsTooLong.replace("{count}", String(v.tooLong)))}</p>` : "",
+  ].join("");
+  const body = v.have.length === 0 ? `<p class="note">${escapeHtml(t.sittingsPick)}</p>` : v.doable === 0 ? `<p class="note">${escapeHtml(t.sittingsNone)}</p>` : doable;
+  const shownUntagged = v.lines.slice(v.doable).map((l, i) => line(l, v.doable + i)).join("");
+  const untagged =
+    v.untagged > 0
+      ? `<details class="untag" id="sit-untag"><summary>${escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore)))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
+      : "";
+  return `<section class="box" id="sit-panel" hidden><h2>${escapeHtml(t.sittingsHeading)}</h2><div class="seg" role="group">${v.contexts.map((c) => toggle(c.id, c.label)).join("")}</div> <div class="seg" role="group">${time}</div>${body}${rest}${untagged}</section>`;
+}
+
 const STYLE = `
 :root{--bg:var(--vscode-editor-background,#16191d);--fg:var(--vscode-editor-foreground,#d6dbe1);--mute:var(--vscode-descriptionForeground,#8b949e);--line:var(--vscode-panel-border,#2b3138);--panel:var(--vscode-sideBar-background,#1c2026);--red:#e5484d;--amber:#d9a441;--purple:#a78bfa;--blue:#5aa0ff;--green:#3fb27f}
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:13px/1.45 var(--vscode-font-family,system-ui,sans-serif)}
@@ -267,6 +314,7 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .pin{width:8px;height:8px;border-radius:50%;border:2px solid var(--red);display:inline-block}.seg{display:inline-flex}.seg button{border-radius:0}.seg button.on{background:var(--vscode-button-background,#0e639c);color:var(--vscode-button-foreground,#fff)}
 .code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
 .ptgrow{cursor:pointer}.ptgrow:focus{outline:1px solid var(--blue)}.ptg{margin:0 0 6px;padding:6px 12px 6px 34px;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;background:var(--panel)}.ptg li{margin:4px 0}.ptg .st{margin-right:8px}.ptg li.done .st{text-decoration:line-through;color:var(--mute)}.ptg li.done::before{content:"\\2713 ";color:var(--green)}.ptg li.note{list-style:none;margin-left:-18px}.ptgb{margin-right:4px}
+.seg{flex-wrap:wrap;margin:4px 0}.untag{margin-top:8px}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
 // The page shown at once, before any result exists: grey placeholder rows that shimmer.
@@ -279,7 +327,17 @@ export function renderSkeleton(t: BoardStrings, nonce: string): string {
 <div class="top"><h1>${escapeHtml(t.title)}</h1></div><p class="note">${escapeHtml(t.loading)}</p>${rows}${box}${box}</body></html>`;
 }
 
-const script = (rev: number, label: string, profile: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const PROFILE=${JSON.stringify(profile).replace(/</g, "\\u003c")};const LABEL=${JSON.stringify(label).replace(/</g, "\\u003c")};
+const script = (rev: number, label: string, profile: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const PROFILE=${JSON.stringify(profile).replace(/</g, "\\u003c")};
+const saved=vscode.getState()||{};const sit=document.getElementById('sit-panel');
+if(sit&&saved.open){sit.hidden=false;}if(saved.y){window.scrollTo(0,saved.y);}
+const ut=document.getElementById('sit-untag');if(ut&&saved.untag){ut.open=true;}
+const keep=()=>vscode.setState({...(vscode.getState()||{}),y:window.scrollY,open:!!sit&&!sit.hidden,untag:!!ut&&ut.open});
+let st;window.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(keep,150);},{passive:true});if(ut){ut.addEventListener('toggle',keep);}
+const sb=document.getElementById('sit-open');if(sb){sb.addEventListener('click',()=>{sit.hidden=!sit.hidden;sb.setAttribute('aria-expanded',String(!sit.hidden));keep();});sb.setAttribute('aria-expanded',String(!!sit&&!sit.hidden));}
+let ct;const choose=()=>{clearTimeout(ct);ct=setTimeout(()=>{keep();vscode.postMessage({type:'sitting',have:[...document.querySelectorAll('[data-have][aria-pressed=true]')].map(b=>b.dataset.have),box:(document.querySelector('[data-box][aria-pressed=true]')||{dataset:{box:'any'}}).dataset.box,rev:REV});},250);};
+document.querySelectorAll('[data-have]').forEach(b=>b.addEventListener('click',()=>{b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));choose();}));
+document.querySelectorAll('[data-box]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-box]').forEach(o=>o.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose();}));
+document.querySelectorAll('[data-step]').forEach(r=>{const go=()=>vscode.postMessage({type:'step',i:Number(r.dataset.step),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});const LABEL=${JSON.stringify(label).replace(/</g, "\\u003c")};
 document.getElementById('refresh').addEventListener('click',()=>vscode.postMessage({type:'refresh',rev:REV}));
 document.querySelectorAll('[data-suggest]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'suggest',key:b.dataset.suggest,value:b.dataset.decision,rev:REV})));
 document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'profile',value:b.dataset.profile,rev:REV})));
@@ -287,7 +345,7 @@ document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessag
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
 document.querySelectorAll('.ext').forEach(r=>{const go=()=>vscode.postMessage({type:'external',g:Number(r.dataset.g),i:Number(r.dataset.i),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
-const ST=(vscode.getState()||{});const OPEN=new Set(ST.open||[]);const SEEN=ST.profile===PROFILE?(ST.seen||{}):{};const NOW=Date.now();const save=()=>vscode.setState({open:[...OPEN],seen:SEEN,profile:PROFILE});
+const ST=(vscode.getState()||{}).ptg||{};const OPEN=new Set(ST.open||[]);const SEEN=ST.profile===PROFILE?(ST.seen||{}):{};const NOW=Date.now();const save=()=>vscode.setState({...(vscode.getState()||{}),ptg:{open:[...OPEN],seen:SEEN,profile:PROFILE}});
 document.querySelectorAll('.pj').forEach(pj=>{const pid=pj.dataset.pid,row=pj.querySelector('.ptgrow'),ol=pj.querySelector('.ptg');
 const set=on=>{ol.hidden=!on;row.setAttribute('aria-expanded',on?'true':'false');if(on){OPEN.add(pid);}else{OPEN.delete(pid);}save();};
 let all=[];try{all=JSON.parse(ol.dataset.all||'[]');}catch(e){}
@@ -298,7 +356,7 @@ const done=(SEEN[pid]||[]).filter(d=>!all.includes(d.k)&&NOW-(d.at||NOW)<600000&
 if(live){SEEN[pid]=[...cur,...done];}set(OPEN.has(pid));
 const tog=()=>set(ol.hidden);row.addEventListener('click',tog);row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tog();}});});
 document.querySelectorAll('.ptgb').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.run){b.disabled=true;setTimeout(()=>{b.disabled=false;},5000);}vscode.postMessage({type:'path',p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV});}));
-document.querySelectorAll('.row,.click:not(.rulefix):not(.ext)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
+document.querySelectorAll('.row[data-id],.click:not(.rulefix):not(.ext)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
 
 function profilePicker(model: BoardModel, t: BoardStrings): string {
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
@@ -383,8 +441,9 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-<div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}</div>
+<div class="top"><h1>${escapeHtml(t.title)}</h1><button id="refresh">${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${model.sittings ? `<button id="sit-open" aria-controls="sit-panel">${escapeHtml(t.sittingsButton)}</button>` : ""}</div>
 <p class="note">${escapeHtml(t.intro)}</p>${banner}
+${sittingsBox(model, t)}
 ${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading))).join("")}
 ${list(t.resolveNow, by("red"), names, t)}
 ${list(t.inProgress, by("purple"), names, t)}
