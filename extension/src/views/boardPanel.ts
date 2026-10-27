@@ -5,6 +5,7 @@ import { onDidChangeMarks, readMarks, updateLocalMarks } from "../commands/board
 import { applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, acceptBoardRun, canRunHealth, hasOutsideProject, openRulesFile, readLastRun, runBoardScan, runHealthNow } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
+import { onDidChangeTrainVersions, trainsFor } from "./boardTrain";
 import { PathToGo, clampMaxSteps, pathToGo } from "../board/pathToGo";
 import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
@@ -114,6 +115,10 @@ function strings(): BoardStrings {
     tidyDetail: l10n("releaseBoard.tidy.detail", { count: "{count}", days: "{days}" }),
     tidyTitle: l10n("releaseBoard.tidy.title", { count: "{count}" }),
     tidyMove: l10n("releaseBoard.tidy.move"),
+    trainTitle: l10n("releaseBoard.train.title", { name: "{name}" }),
+    trainHeldBy: l10n("releaseBoard.train.heldBy", { names: "{names}" }),
+    trainCycle: l10n("releaseBoard.train.cycle"),
+    trainOrder: l10n("releaseBoard.train.order"),
     tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
   };
 }
@@ -188,6 +193,8 @@ class BoardPanel {
       this.disposables
     );
     onDidChangeProviders(() => void this.refreshOutside(), null, this.disposables);
+    // A project version was read: draw the train name again.
+    onDidChangeTrainVersions(() => !this.scanning && !this.cached && this.render(), null, this.disposables);
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => {
@@ -385,7 +392,8 @@ class BoardPanel {
         )
       : undefined;
     // The same board in the same state is not painted again: no flicker, no lost scroll.
-    const key = JSON.stringify([this.model, state, this.paths, readHandSettings().enabled]);
+    const trains = trainsFor(model, cfg);
+    const key = JSON.stringify([this.model, state, this.paths, readHandSettings().enabled, trains]);
     if (key === this.lastKey) {
       return;
     }
@@ -397,7 +405,7 @@ class BoardPanel {
     }
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
-    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths);
+    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, trains);
   }
 
   // The Sittings choice (remembered per machine, else the settings' defaults) with the

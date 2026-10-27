@@ -1947,5 +1947,9 @@
   "releaseBoard.sidebar.causeHeld": "held: the last accepted scan had red work",
   "releaseBoard.sidebar.scanFailed": "last scan failed",
   "releaseBoard.sidebar.updating": "updating…",
-  "releaseBoard.sidebar.lastResult": "last result, not refreshed yet"
+  "releaseBoard.sidebar.lastResult": "last result, not refreshed yet",
+  "releaseBoard.train.title": "Release train: {name}",
+  "releaseBoard.train.heldBy": "Held back by {names}",
+  "releaseBoard.train.cycle": "These projects depend on each other in a circle, so the order is only the order of the board.",
+  "releaseBoard.train.order": "Ship in this order"
 }
