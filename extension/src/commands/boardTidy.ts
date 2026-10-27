@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
+import { pathExists } from "./boardFileSource";
 import { DEFAULT_AFTER_DAYS, DEFAULT_ARCHIVE_FOLDER, TidyCandidate, TidyOptions, cleanArchiveFolder, clampAfterDays } from "../board/tidy";
 
 // Release Board, Tidy sweep: the settings and the one move. The sweep lists candidates;
@@ -18,13 +19,44 @@ export function readTidySettings(): Pick<TidyOptions, "afterDays" | "archiveFold
   };
 }
 
-async function exists(uri: vscode.Uri): Promise<boolean> {
+// Whether the listed source is still the file the sweep saw: missing, or changed since
+// the scan (its modified time moved), or fine (undefined).
+export async function sourceProblem(from: vscode.Uri, c: TidyCandidate): Promise<"gone" | "changed" | undefined> {
   try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
+    const mtime = (await vscode.workspace.fs.stat(from)).mtime;
+    return Math.abs(mtime - c.mtimeMs) > 2 ? "changed" : undefined;
   } catch {
+    return "gone";
+  }
+}
+
+// Tells the owner why the move was refused.
+function warnSource(problem: "gone" | "changed", path: string): void {
+  void vscode.window.showWarningMessage(problem === "gone" ? l10n("releaseBoard.tidy.gone", { path }) : l10n("releaseBoard.tidy.changed", { path }));
+}
+
+// True when the document is open with unsaved edits.
+function isDirty(uri: vscode.Uri): boolean {
+  return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
+}
+
+// The checks before the confirmation: the source is unchanged, the target is free and the
+// document has no unsaved edits. Warns and returns false on the first that fails.
+async function mayAsk(from: vscode.Uri, to: vscode.Uri, c: TidyCandidate): Promise<boolean> {
+  const problem = await sourceProblem(from, c);
+  if (problem) {
+    warnSource(problem, c.path);
     return false;
   }
+  if (await pathExists(to)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.targetExists", { path: c.to }));
+    return false;
+  }
+  if (isDirty(from)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.dirty", { path: c.path }));
+    return false;
+  }
+  return true;
 }
 
 // Moves one listed document into the archive folder. Returns true when it moved.
@@ -32,23 +64,7 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 export async function moveToArchive(projectRoot: vscode.Uri, c: TidyCandidate): Promise<boolean> {
   const from = vscode.Uri.joinPath(projectRoot, c.path);
   const to = vscode.Uri.joinPath(projectRoot, c.to);
-  let mtime: number;
-  try {
-    mtime = (await vscode.workspace.fs.stat(from)).mtime;
-  } catch {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.gone", { path: c.path }));
-    return false;
-  }
-  if (Math.abs(mtime - c.mtimeMs) > 2) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.changed", { path: c.path }));
-    return false;
-  }
-  if (await exists(to)) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.targetExists", { path: c.to }));
-    return false;
-  }
-  if (isDirty(from)) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.dirty", { path: c.path }));
+  if (!(await mayAsk(from, to, c))) {
     return false;
   }
   const move = l10n("releaseBoard.tidy.move");
@@ -57,17 +73,13 @@ export async function moveToArchive(projectRoot: vscode.Uri, c: TidyCandidate): 
     return false;
   }
   // The dialog can stay open for a while: check again right before the move.
-  try {
-    if (Math.abs((await vscode.workspace.fs.stat(from)).mtime - c.mtimeMs) > 2) {
-      void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.changed", { path: c.path }));
-      return false;
-    }
-  } catch {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.gone", { path: c.path }));
+  const again = await sourceProblem(from, c);
+  if (again) {
+    warnSource(again, c.path);
     return false;
   }
-  if (isDirty(from) || (await exists(to))) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.changed", { path: c.path }));
+  if (isDirty(from) || (await pathExists(to))) {
+    warnSource("changed", c.path);
     return false;
   }
   try {
@@ -76,7 +88,7 @@ export async function moveToArchive(projectRoot: vscode.Uri, c: TidyCandidate): 
     const edit = new vscode.WorkspaceEdit();
     edit.renameFile(from, to, { overwrite: false });
     if (!(await vscode.workspace.applyEdit(edit))) {
-      void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.changed", { path: c.path }));
+      warnSource("changed", c.path);
       return false;
     }
   } catch (e) {
@@ -84,8 +96,4 @@ export async function moveToArchive(projectRoot: vscode.Uri, c: TidyCandidate): 
     return false;
   }
   return true;
-}
-
-function isDirty(uri: vscode.Uri): boolean {
-  return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
 }

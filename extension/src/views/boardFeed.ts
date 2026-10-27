@@ -30,19 +30,27 @@ const changed = new vscode.EventEmitter<void>();
 const refreshAsked = new vscode.EventEmitter<void>();
 const visibility = new vscode.EventEmitter<boolean>();
 
+// Fires on any change of the published board or its state.
 export const onDidChangeBoard = changed.event;
 // "Scan now" asked from the sidebar; the board tab answers it when open, else the background scan does.
 export const onDidAskRefresh = refreshAsked.event;
 
+// Fires when the board tab is shown or hidden.
 export const onDidChangePanelVisible = visibility.event;
 
+// The board last published, if any.
 export const currentBoard = (): BoardSnapshot | undefined => board;
+// True while a scan is running.
 export const isScanning = (): boolean => scanning;
+// True once any scan has ended.
 export const isFirstScanDone = (): boolean => firstScanDone;
 // True only while the board tab is showing: it then owns the scan.
 export const isPanelVisible = (): boolean => panelVisible;
+// True once a board tab was opened in this window.
 export const hasPanelOpened = (): boolean => panelOpened;
+// True while only a stored result from an earlier session is on screen.
 export const isStoredOnly = (): boolean => storedOnly;
+// True when the last scan failed.
 export const hasFailed = (): boolean => failed;
 
 // What to tell the user when the data may be old, or undefined when it is current.
@@ -64,6 +72,7 @@ export function setBoard(model: BoardModel | undefined, run: BoardRun | undefine
   changed.fire();
 }
 
+// Marks a scan as running or ended; the first end completes the loading state.
 export function setScanning(on: boolean): void {
   scanning = on;
   if (!on) {
@@ -78,6 +87,7 @@ export function markScanDone(): void {
   changed.fire();
 }
 
+// Marks the last scan as failed or recovered.
 export function setFailed(on: boolean): void {
   if (failed !== on) {
     failed = on;
@@ -85,6 +95,7 @@ export function setFailed(on: boolean): void {
   }
 }
 
+// Records that the board tab is showing or hidden.
 export function setPanelVisible(visible: boolean): void {
   panelOpened = panelOpened || visible;
   if (panelVisible !== visible) {
@@ -98,10 +109,12 @@ export function markPanelOpened(): void {
   panelOpened = true;
 }
 
+// Asks whoever owns the scan (the tab when open, else the background scan) to rescan.
 export function askRefresh(): void {
   refreshAsked.fire();
 }
 
+// Releases the emitters.
 export function disposeFeed(): void {
   changed.dispose();
   refreshAsked.dispose();

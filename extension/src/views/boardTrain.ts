@@ -21,6 +21,7 @@ export function readTrainSettings(): { naming: TrainNaming } | undefined {
 const cache = new Map<string, { version?: string; at: number }>();
 const loading = new Set<string>();
 const changed = new vscode.EventEmitter<void>();
+// Fires when a project version was read and differs from the cached one.
 export const onDidChangeTrainVersions = changed.event;
 
 async function readVersion(dir: vscode.Uri): Promise<string | undefined> {
@@ -55,7 +56,8 @@ async function load(path: string): Promise<void> {
   }
 }
 
-function folderOf(path: string): string {
+// The last folder name of a project path, used to name a train after its folder.
+export function folderOf(path: string): string {
   const parts = vscode.Uri.parse(path).path.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? path;
 }
@@ -86,6 +88,7 @@ export function trainsFor(model: BoardModel, cfg: BoardConfig): Train[] {
   return buildTrains(input, s.naming);
 }
 
+// Releases the emitter.
 export function disposeTrain(): void {
   changed.dispose();
 }
