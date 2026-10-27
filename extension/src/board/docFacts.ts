@@ -23,6 +23,7 @@ export interface DocStep {
 const MAX_STEPS = 200;
 const STEP_TEXT = 160;
 
+// The facts read from one document's text.
 export interface DocFacts {
   title: string;
   headings: number;
@@ -56,6 +57,7 @@ export interface DocFacts {
   audience: Audience;
 }
 
+// Settings that change how facts are read.
 export interface FactsOptions {
   // Project id to regex source, matched case-insensitively against the body.
   mentions?: Record<string, string>;
@@ -119,10 +121,8 @@ export function parseNeeds(body: string): string[] {
   return out;
 }
 
-export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
-  const isSql = path.toLowerCase().endsWith(".sql");
-  // Opening fences carry the language tag; closing fences have none.
-  const fenceLines = [...text.matchAll(/^```(\w*)/gm)];
+// Counts the code blocks by language tag. Opening fences carry the tag; closing fences have none.
+function countLangs(fenceLines: RegExpMatchArray[]): Record<string, number> {
   const langs: Record<string, number> = {};
   for (const m of fenceLines) {
     if (m[1]) {
@@ -130,74 +130,13 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
       langs[k] = (langs[k] ?? 0) + 1;
     }
   }
-  const codeBlocks = isSql ? 0 : Math.floor(fenceLines.length / 2);
-  // A fenced block leaves its line breaks behind, so line numbers still match the file.
-  const body = isSql ? text : text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
+  return langs;
+}
 
-  const stepsOpen = (body.match(/^\s*[-*] \[ \]/gm) ?? []).length;
-  const stepsDone = (body.match(/^\s*[-*] \[[xX]\]/gm) ?? []).length;
-  let rowsAll = 0;
-  let rowsDone = 0;
-  const steps: DocStep[] = [];
-  let stepsCut = 0;
-  if (!isSql) {
-    const lines = body.split(/\r?\n/);
-    let heading = "";
-    // The header cells of the table the loop is inside, when its second line is a divider.
-    let header: string[] | undefined;
-    const addStep = (step: DocStep): void => {
-      if (steps.length < MAX_STEPS) {
-        steps.push(step);
-      } else {
-        stepsCut += 1;
-      }
-    };
-    lines.forEach((l, i) => {
-      const h = /^#{1,6}[ \t]+(.+?)[ \t#]*$/.exec(l);
-      if (h) {
-        heading = h[1].trim().slice(0, STEP_TEXT);
-      }
-      const box = /^\s*[-*] \[ \]\s*(.*)$/.exec(l);
-      if (box) {
-        addStep({ line: i + 1, heading, text: box[1].trim().slice(0, STEP_TEXT) });
-      }
-      if (!l.startsWith("|")) {
-        header = undefined;
-        return;
-      }
-      if (/^\|[\s:|-]+\|$/.test(l)) {
-        return;
-      }
-      const raw = l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-      if (/^\|[\s:|-]+\|$/.test(lines[i + 1] ?? "")) {
-        header = raw.map((c) => c.toLowerCase());
-      }
-      const cells = raw.map((c) => c.toLowerCase());
-      if (cells.some((c) => ["status", "item", "dev", "prod"].includes(c))) {
-        return;
-      }
-      const tail = cells.slice(-3);
-      const isDone = tail.some((c) => DONE_WORDS.includes(c.split(" ")[0]));
-      const isOpen = tail.some((c) => OPEN_WORDS.includes(c));
-      if (isDone || isOpen) {
-        rowsAll += 1;
-        if (isDone) {
-          rowsDone += 1;
-        } else {
-          const col = header ? header.indexOf("needs") : -1;
-          const text = raw.filter((c, k) => c && k !== col && !OPEN_WORDS.includes(c.toLowerCase())).slice(0, 2).join(" - ");
-          addStep({ line: i + 1, heading, text: text.slice(0, STEP_TEXT), needsCell: col >= 0 ? raw[col].slice(0, STEP_TEXT) : undefined });
-        }
-      }
-    });
-  }
-  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})[ \t]+(.+)$/gm)];
-  const title = isSql ? sqlTitle(text) : (heads[0]?.[2] ?? "").trim().slice(0, 80);
-
-  const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
-  const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
+// The ids of the projects whose pattern matches the text.
+function findMentions(body: string, patterns: Record<string, string>): string[] {
   const mentions: string[] = [];
-  for (const [id, pattern] of Object.entries(opt.mentions ?? {})) {
+  for (const [id, pattern] of Object.entries(patterns)) {
     try {
       if (new RegExp(pattern, "i").test(body)) {
         mentions.push(id);
@@ -206,6 +145,102 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
       // A bad pattern in a user rule file mentions nothing.
     }
   }
+  return mentions.sort();
+}
+
+// The text of an open checklist box on this line, or undefined when the line has none.
+function checkboxText(line: string): string | undefined {
+  const box = /^\s*[-*] \[ \]\s*(.*)$/.exec(line);
+  return box ? box[1].trim().slice(0, STEP_TEXT) : undefined;
+}
+
+// A table row that names columns (status, item, dev, prod) rather than holding a step.
+function isHeaderRow(cells: string[]): boolean {
+  return cells.some((c) => ["status", "item", "dev", "prod"].includes(c));
+}
+
+// Whether the last three cells of a table row hold a done word or an open word.
+function rowState(cells: string[]): { isDone: boolean; isOpen: boolean } {
+  const tail = cells.slice(-3);
+  return { isDone: tail.some((c) => DONE_WORDS.includes(c.split(" ")[0])), isOpen: tail.some((c) => OPEN_WORDS.includes(c)) };
+}
+
+// The text of an open table row: its first two cells that are not the Needs column or a state word.
+function openRowText(raw: string[], needsCol: number): string {
+  const text = raw.filter((c, k) => c && k !== needsCol && !OPEN_WORDS.includes(c.toLowerCase())).slice(0, 2).join(" - ");
+  return text.slice(0, STEP_TEXT);
+}
+
+// The open steps (checklist boxes and table rows in an open state) and the state-word row counts.
+function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: DocStep[]; stepsCut: number } {
+  const res = { rowsAll: 0, rowsDone: 0, steps: [] as DocStep[], stepsCut: 0 };
+  const lines = body.split(/\r?\n/);
+  let heading = "";
+  // The header cells of the table the loop is inside, when its second line is a divider.
+  let header: string[] | undefined;
+  const addStep = (step: DocStep): void => {
+    if (res.steps.length < MAX_STEPS) {
+      res.steps.push(step);
+    } else {
+      res.stepsCut += 1;
+    }
+  };
+  lines.forEach((l, i) => {
+    const h = /^#{1,6}[ \t]+(.+?)[ \t#]*$/.exec(l);
+    if (h) {
+      heading = h[1].trim().slice(0, STEP_TEXT);
+    }
+    const box = checkboxText(l);
+    if (box !== undefined) {
+      addStep({ line: i + 1, heading, text: box });
+    }
+    if (!l.startsWith("|")) {
+      header = undefined;
+      return;
+    }
+    if (/^\|[\s:|-]+\|$/.test(l)) {
+      return;
+    }
+    const raw = l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+    if (/^\|[\s:|-]+\|$/.test(lines[i + 1] ?? "")) {
+      header = raw.map((c) => c.toLowerCase());
+    }
+    const cells = raw.map((c) => c.toLowerCase());
+    if (isHeaderRow(cells)) {
+      return;
+    }
+    const { isDone, isOpen } = rowState(cells);
+    if (isDone || isOpen) {
+      res.rowsAll += 1;
+      if (isDone) {
+        res.rowsDone += 1;
+      } else {
+        const col = header ? header.indexOf("needs") : -1;
+        addStep({ line: i + 1, heading, text: openRowText(raw, col), needsCell: col >= 0 ? raw[col].slice(0, STEP_TEXT) : undefined });
+      }
+    }
+  });
+  return res;
+}
+
+// Reads the facts of one document from its text. `path` decides how the text is read (SQL or Markdown).
+export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
+  const isSql = path.toLowerCase().endsWith(".sql");
+  const fenceLines = [...text.matchAll(/^```(\w*)/gm)];
+  const langs = countLangs(fenceLines);
+  const codeBlocks = isSql ? 0 : Math.floor(fenceLines.length / 2);
+  // A fenced block leaves its line breaks behind, so line numbers still match the file.
+  const body = isSql ? text : text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
+
+  const stepsOpen = (body.match(/^\s*[-*] \[ \]/gm) ?? []).length;
+  const stepsDone = (body.match(/^\s*[-*] \[[xX]\]/gm) ?? []).length;
+  const { rowsAll, rowsDone, steps, stepsCut } = isSql ? { rowsAll: 0, rowsDone: 0, steps: [] as DocStep[], stepsCut: 0 } : scanSteps(body);
+  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})[ \t]+(.+)$/gm)];
+  const title = isSql ? sqlTitle(text) : (heads[0]?.[2] ?? "").trim().slice(0, 80);
+
+  const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
+  const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
+  const mentions = findMentions(body, opt.mentions ?? {});
   return {
     title,
     headings: heads.length,
@@ -226,7 +261,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     needs: isSql ? [] : parseNeeds(body),
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
-    mentions: mentions.sort(),
+    mentions,
     ...scoreDocument(text, path, opt.severity),
   };
 }

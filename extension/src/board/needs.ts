@@ -14,6 +14,7 @@ export interface NeedsContext {
   minutes?: number;
 }
 
+// The phrase dictionary that maps words in a step to the contexts it needs.
 export interface NeedsDict {
   version: number;
   defaultMinutes: number;
@@ -22,6 +23,7 @@ export interface NeedsDict {
   phrases: Record<string, string[]>;
 }
 
+// The dictionary shipped with the extension.
 export const DEFAULT_NEEDS: NeedsDict = defaultDict as unknown as NeedsDict;
 
 // A team's dictionary may add or replace contexts (by id) and phrases (by phrase).
