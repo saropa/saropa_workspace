@@ -158,6 +158,9 @@ export interface BoardModel {
   skipped?: SkippedProject[];
   // How many chosen projects the "open project only" scope hides. Absent when none.
   hidden?: number;
+  // The parts of the severity dictionary the user's rules file changes ("threshold", "weights",
+  // "negation", "phrases.high" ...). Absent when the board uses the shipped keywords.
+  severityCustom?: string[];
   // Open documents whose severity the user set: how many, and how many of those the user lowered
   // below a level that stops the release under the profile. Absent when none.
   byUser?: { count: number; lowered: number };

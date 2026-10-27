@@ -6,6 +6,9 @@ export interface BoardStrings {
   // Labels of the Projects and Settings buttons, the hint, the roll-up and the grey rows,
   // keyed by name (see boardHtmlProjects.ts). Optional: a plain-browser check may omit them.
   projectLabels?: Record<string, string>;
+  // Text of the keyword line and the options menu entry (see keywordMark.ts). `edit` is empty
+  // when the keyword editor is switched off.
+  keywordLabels?: Record<string, string>;
   title: string;
   intro: string;
   noGo: string;

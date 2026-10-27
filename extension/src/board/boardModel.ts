@@ -3,6 +3,7 @@ import { globToRegExp } from "./glob";
 import { Outside } from "./outside";
 import { ProjectHealth } from "./health";
 import { Profile, Severity, asProfile, stops } from "./severity";
+import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
 import { Link, buildChains, resolveLinks } from "./links";
@@ -350,6 +351,7 @@ export function buildBoard(
   const suggestions = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
   attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
+  const customParts = customizedParts(cfg.severity);
   return {
     tidy: extra?.tidy ? buildTidyView(all, ctx, extra.tidy) : undefined,
     inProgress: extra?.inProgress ? pickInProgress(all, new Set(extra.inProgress.edited), extra.inProgress.max) : undefined,
@@ -358,6 +360,7 @@ export function buildBoard(
     projects,
     ...(cfg.skipped && cfg.skipped.length > 0 ? { skipped: cfg.skipped } : {}),
     ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),
+    ...(customParts.length > 0 ? { severityCustom: customParts } : {}),
     chains: buildChainSteps(links, byKey, ctx.names),
     flags: linkFlags(links, ctx.names),
     items: all,

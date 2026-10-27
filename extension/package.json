@@ -2614,6 +2614,20 @@
             "scope": "machine",
             "description": "%config.releaseBoard.handToChat.autoOpen.description%"
           },
+          "saropaWorkspace.releaseBoard.keywordEditor.enabled": {
+            "type": "boolean",
+            "default": true,
+            "scope": "machine",
+            "description": "%config.releaseBoard.keywordEditor.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.keywordEditor.previewMaxDocuments": {
+            "type": "number",
+            "default": 300,
+            "minimum": 20,
+            "maximum": 2000,
+            "scope": "machine",
+            "description": "%config.releaseBoard.keywordEditor.previewMaxDocuments.description%"
+          },
           "saropaWorkspace.releaseBoard.liveEvidence.enabled": {
             "type": "boolean",
             "default": true,

@@ -16,6 +16,9 @@ import { Train } from "../../board/train";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 import { POLISH_KEYS, strings } from "../../views/boardStrings";
 import { STYLE, script } from "../../board/boardHtmlAssets";
+import { renderKeywordEditor } from "../../board/keywordEditorHtml";
+import { defaultDraft } from "../../board/severityEdit";
+import { keywordLabels } from "../../views/keywordStrings";
 
 // One opening tag of the page with the attributes the walk needs.
 interface Tag {
@@ -112,6 +115,8 @@ function missing(html: string): string[] {
 const cfg: BoardConfig = {
   version: 1,
   ignore: [],
+  // A customized dictionary: the board draws its "keywords customized by you" line.
+  severity: { threshold: 4 },
   ruleSets: {
     kinds: { rules: [{ id: "bug", when: { name: "BUG_*" }, set: { status: "red", kind: "bug" } }] },
   },
@@ -206,13 +211,14 @@ function pages(): Array<[string, string]> {
   const m = fullModel();
   const paths = m.projects.map((p) => pathToGo(m, p, { maxSteps: 8, canRun: () => true }));
   const since = { heading: "Since you last looked", lines: [{ text: "App: 1 new blocker", details: ["+ Crash on start"] }] };
-  const empty = buildBoard(cfg, [], undefined, true);
+  const empty = buildBoard({ ...cfg, severity: undefined }, [], undefined, true);
   return [
     ["full", renderBoard(m, t, "n", 1, { startup: true }, paths, since, [train], future(true))],
     ["stale", renderBoard(m, t, "n", 1, { stale: true, startup: false }, paths, undefined, [train], future(false))],
     ["loading", renderBoard(m, t, "n", 1, { loading: true }, paths)],
     ["empty", renderBoard(empty, t, "n", 1)],
     ["skeleton", renderSkeleton(t, "n")],
+    ["keyword editor", renderKeywordEditor(keywordLabels(), "n", { ...defaultDraft(), threshold: 4 }, defaultDraft())],
   ];
 }
 
@@ -232,6 +238,8 @@ test("the walk sees the elements it is meant to check", () => {
   assert.equal(count((t) => t.name === "select") >= 10, true);
   assert.ok(count((t) => t.name === "input") >= 3);
   assert.ok(count((t) => t.name === "summary") >= 3);
+  assert.ok(count((t) => t.attrs["data-kw"] === "edit") === 1 && count((t) => t.attrs["data-kw"] === "restore") === 1, "the keyword line has its two buttons");
+  assert.ok(count((t) => t.attrs["data-act"] === "keywords") === 1, "the options menu has the keyword editor entry");
   assert.ok(count((t) => /^h[1-6]$/.test(t.name)) >= 8);
   assert.ok(count((t) => t.name === "i" && (t.attrs.class ?? "").startsWith("sq")) >= 4);
 });

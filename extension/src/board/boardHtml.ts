@@ -9,6 +9,7 @@ import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, hiddenNote, openBadge, projectsButtons, rollupBar, skippedBlock, startupToggle } from "./boardHtmlProjects";
 import { kebab, optsMenu, rowMenu } from "./boardHtmlMenus";
+import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
 import { chains, noRuleBox, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
@@ -84,13 +85,13 @@ export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, r
       ? `<div class="box"><p>${escapeHtml(t.safetyHold)} ${accept}</p></div>`
       : "";
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${KEYWORD_LINE_STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="top"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1><button id="refresh" class="sec" ${tip(t, "refresh")}>${escapeHtml(t.refresh)}</button>${profilePicker(model, t)}${projectsButtons(t)}${kebab(t, "opts")}${startupToggle(state.startup, t)}</div>
 ${hintBar(state.hint, t)}
 ${futureTabs(future, t)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}"><p class="note">${escapeHtml(t.intro)}</p>${byUserNote(model, t)}${banner}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}"><p class="note">${escapeHtml(t.intro)}</p>${byUserNote(model, t)}${keywordLine(model, t)}${banner}
 ${sinceBox(since, t)}
 ${state.stale || state.loading ? "" : tidyBox(model, t)}
 ${sittingsBox(model, t)}
@@ -111,5 +112,6 @@ ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyH
 ${futurePanel(future, t)}
 ${rowMenu(t)}${optsMenu(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
-${PROJECTS_SCRIPT}</script></body></html>`;
+${PROJECTS_SCRIPT}
+${KEYWORD_LINE_SCRIPT}</script></body></html>`;
 }

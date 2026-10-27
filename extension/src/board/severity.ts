@@ -53,9 +53,13 @@ function negationRes(negation: string[]): RegExp[] {
 
 // A phrase must start at a word boundary ("rating" is not in "generating"); it may end
 // inside a word so stems such as "overwrit" still match.
-function count(text: string, phrase: string, negation: RegExp[]): number {
-  const t = text.toLowerCase();
+// `t` is already lower case.
+function count(t: string, phrase: string, negation: RegExp[]): number {
   const p = phrase.toLowerCase();
+  // An empty phrase would match everywhere, and indexOf("") never moves on.
+  if (p === "") {
+    return 0;
+  }
   let n = 0;
   for (let i = t.indexOf(p); i >= 0; i = t.indexOf(p, i + p.length)) {
     if (i > 0 && /[a-z0-9]/.test(t[i - 1])) {
@@ -75,9 +79,10 @@ export function scoreDocument(text: string, path: string, dict: SeverityDict = D
   // Front matter and blank lines are not the title.
   const lines = stripped.replace(/^\uFEFF?(?:---\r?\n[\s\S]*?\r?\n---\r?\n)?/, "").replace(/^(?:\s*\r?\n)+/, "").split(/\r?\n/);
   const name = path.slice(path.lastIndexOf("/") + 1);
-  const title = name.replace(/[_-]/g, " ") + " " + (lines[0] ?? "");
-  const head = lines.slice(1, 20).join("\n");
-  const body = lines.slice(20).join("\n");
+  // Lower case once: every phrase is looked for in the same three texts.
+  const title = (name.replace(/[_-]/g, " ") + " " + (lines[0] ?? "")).toLowerCase();
+  const head = lines.slice(1, 20).join("\n").toLowerCase();
+  const body = lines.slice(20).join("\n").toLowerCase();
   const words = Math.max(1, stripped.split(/\s+/).filter(Boolean).length);
   const w = dict.weights;
   const neg = negationRes(dict.negation);
