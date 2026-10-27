@@ -59,7 +59,8 @@ export interface TidyOptions {
   archiveFolder: string;
 }
 
-// Keeps the idle days between 1 and 365; anything else means the default.
+// Keeps the idle days between 1 and 365: a number out of range is clamped. A value that is not
+// a number gives the default; null, "" and true are read as numbers first (0, 0, 1), then clamped to 1.
 export function clampAfterDays(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(365, Math.max(1, Math.round(n))) : DEFAULT_AFTER_DAYS;
