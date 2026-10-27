@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { asOvernight, dayKey, dueDay, openWindowDay, parseClock, planSteps, showOffer } from "../../board/overnight";
+import { StepFacts, asOvernight, stepSkipReason, dayKey, dueDay, openWindowDay, parseClock, planSteps, showOffer } from "../../board/overnight";
 
 const at = (y: number, mo: number, d: number, h: number, mi = 0): Date => new Date(y, mo - 1, d, h, mi);
 
@@ -74,4 +74,18 @@ test("the offer shows only while off and not dismissed", () => {
 
 test("day key is the local date", () => {
   assert.equal(dayKey(at(2026, 1, 5, 0, 1)), "2026-01-05");
+});
+
+const clean: StepFacts = { blocked: false, pendingDependency: false, interactive: false, fileMissing: false, notRunnable: false };
+
+test("a clean step may start", () => {
+  assert.equal(stepSkipReason(clean), undefined);
+});
+
+test("every kind of prompt or block skips the step", () => {
+  assert.equal(stepSkipReason({ ...clean, blocked: true }), "blocked");
+  assert.equal(stepSkipReason({ ...clean, pendingDependency: true }), "dependency");
+  assert.equal(stepSkipReason({ ...clean, interactive: true }), "interactive");
+  assert.equal(stepSkipReason({ ...clean, fileMissing: true }), "missing");
+  assert.equal(stepSkipReason({ ...clean, notRunnable: true }), "notRunnable");
 });

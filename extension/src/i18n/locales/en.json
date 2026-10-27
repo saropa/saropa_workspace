@@ -1949,7 +1949,7 @@
   "releaseBoard.sidebar.updating": "updating…",
   "releaseBoard.sidebar.lastResult": "last result, not refreshed yet",
   "releaseBoard.overnight.offer": "Prove overnight: run lint and tests at night",
-  "releaseBoard.overnight.offerTip": "Click to turn on. At the set time each night, with VS Code open, the board runs each project's own lint and test shortcuts, one at a time, and records fresh evidence. It never edits files. Use the x to hide this line.",
+  "releaseBoard.overnight.offerTip": "Click to turn on. Each night inside the window, with VS Code open (the first check is 1 minute after VS Code opens), the board runs each project's own lint and test shortcuts, one at a time, and records fresh evidence. It never edits files. Use the x to hide this line.",
   "releaseBoard.overnight.noShortcuts": "Release Board: no project names a lint or test shortcut yet, so an overnight run has nothing to do. Add them under health in the rules file.",
   "releaseBoard.overnight.enabledMsg": "Overnight proof is on. It runs from {start} for up to {hours} hours.",
   "releaseBoard.sinceLast.title": "Since you last looked",

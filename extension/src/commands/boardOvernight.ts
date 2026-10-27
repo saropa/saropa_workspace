@@ -1,7 +1,11 @@
 import * as vscode from "vscode";
-import { OvernightConfig, asOvernight, dueDay, openWindowDay, planSteps, showOffer } from "../board/overnight";
+import { OvernightConfig, START_WITHIN_MS, SkipReason, asOvernight, dueDay, openWindowDay, planSteps, showOffer, stepSkipReason } from "../board/overnight";
 import { withTimeout } from "../board/timeout";
 import { BoardConfig, ProjectDef } from "../board/types";
+import { hasInteractiveTokens } from "../exec/promptTokens";
+import { dependencyState } from "../exec/dependencies";
+import { isRunnable, runBlockReason } from "../exec/runPlanning";
+import { Shortcut, shortcutKind } from "../model/shortcut";
 import { toBackground } from "../exec/chainRunner";
 import { processRegistry } from "../exec/processRegistry";
 import { runStatusRegistry } from "../exec/runStatus";
@@ -43,26 +47,69 @@ export function overnightOfferVisible(context: vscode.ExtensionContext): boolean
   return boardOn && showOffer(readConfig(), context.globalState.get<boolean>(DISMISSED_KEY, false));
 }
 
-// Waits until the shortcut's background run ends, or gives up after `ms` and stops it.
-// Subscribes before the caller starts the run, so a fast run is never missed.
+// Whether the shortcut may start unattended; anything that would show a prompt or a
+// message is a skip.
+async function skipReason(store: ShortcutStore, shortcut: Shortcut): Promise<SkipReason | undefined> {
+  const isFile = shortcutKind(shortcut) === "file";
+  const uri = isFile ? store.resolveUri(shortcut) : undefined;
+  let fileMissing = isFile && !uri;
+  if (uri) {
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
+      fileMissing = true;
+    }
+  }
+  return stepSkipReason({
+    blocked: runBlockReason(shortcut) !== undefined,
+    pendingDependency: dependencyState(shortcut, (id) => store.findShortcut(id)).pendingDependencyId !== undefined,
+    interactive: hasInteractiveTokens(shortcut),
+    fileMissing,
+    notRunnable: isFile && uri !== undefined && !fileMissing && !isRunnable(shortcut, uri.fsPath),
+  });
+}
+
+// Waits until the shortcut's background run ends. Gives up (and stops the run) after `ms`,
+// or when the setting is turned off; gives up without waiting when no run shows itself
+// within a minute. Subscribes before the caller starts the run, so a fast run is never missed.
 function waitForEnd(pinId: string, since: number, ms: number): { done: Promise<void>; cancel: () => void } {
-  let sub: vscode.Disposable | undefined;
+  const subs: vscode.Disposable[] = [];
   const ended = (): boolean => (runStatusRegistry.get(pinId)?.endedAt ?? 0) >= since;
-  const job = new Promise<void>((resolve) => {
-    sub = runStatusRegistry.onDidChange(() => ended() && resolve());
+  let started = false;
+  let startTimer: NodeJS.Timeout | undefined;
+  const job = new Promise<void>((resolve, reject) => {
+    subs.push(
+      runStatusRegistry.onDidChange(() => ended() && resolve()),
+      processRegistry.onDidChange(() => {
+        started = started || processRegistry.isRunning(pinId);
+      }),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration(`${SETTINGS}.overnight`) && !readConfig().enabled) {
+          reject(new Error("turned off"));
+        }
+      })
+    );
+    startTimer = setTimeout(() => !started && !ended() && resolve(), START_WITHIN_MS);
   });
   const done = withTimeout(job, ms, () => processRegistry.stop(pinId)).then(
     () => undefined,
-    () => undefined
+    () => {
+      // Turned off mid-step: stop the run this feature started.
+      processRegistry.stop(pinId);
+    }
   );
-  return { done: done.finally(() => sub?.dispose()), cancel: () => sub?.dispose() };
+  const cleanup = (): void => {
+    clearTimeout(startTimer);
+    subs.forEach((d) => d.dispose());
+  };
+  return { done: done.finally(cleanup), cancel: cleanup };
 }
 
-// Runs one step. Skips when the shortcut is already running (it is the owner's run) or
-// is gone.
+// Runs one step. Skips (never prompts) when the shortcut is the owner's own running job, is
+// gone, or would ask for anything.
 async function runStep(store: ShortcutStore, project: ProjectDef, kind: "lint" | "tests", ms: number): Promise<void> {
   const shortcut = findHealthShortcut(store, project, kind);
-  if (!shortcut || processRegistry.isRunning(shortcut.id)) {
+  if (!shortcut || (await skipReason(store, shortcut)) !== undefined) {
     return;
   }
   const wait = waitForEnd(shortcut.id, Date.now(), ms);
@@ -78,15 +125,19 @@ async function runStep(store: ShortcutStore, project: ProjectDef, kind: "lint" |
 let busy = false;
 
 async function tonight(context: vscode.ExtensionContext, store: ShortcutStore, loadConfig: () => Promise<BoardConfig>): Promise<void> {
+  // The same check as the offer: with the board off, nothing runs.
+  if (!vscode.workspace.getConfiguration(SETTINGS).get<boolean>("enabled", true)) {
+    return;
+  }
   const cfg = readConfig();
-  const day = dueDay(new Date(), cfg, context.globalState.get<string>(LAST_DAY_KEY));
+  const day = dueDay(new Date(), cfg, context.workspaceState.get<string>(LAST_DAY_KEY));
   if (!day || busy) {
     return;
   }
   busy = true;
   try {
     // Marked first: a crash or a reload mid-run does not start a second run the same night.
-    await context.globalState.update(LAST_DAY_KEY, day);
+    await context.workspaceState.update(LAST_DAY_KEY, day);
     const board = await loadConfig();
     const steps = planSteps(
       board.projects.map((p) => ({ id: p.id, canLint: findHealthShortcut(store, p, "lint") !== undefined, canTests: findHealthShortcut(store, p, "tests") !== undefined }))
@@ -127,6 +178,7 @@ export function registerBoardOvernight(context: vscode.ExtensionContext, store: 
   const first = setTimeout(check, FIRST_CHECK_MS);
   const timer = setInterval(check, CHECK_EVERY_MS);
   context.subscriptions.push(
+    changed,
     { dispose: () => (clearTimeout(first), clearInterval(timer)) },
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(`${SETTINGS}.overnight`) && changed.fire()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.overnight.enable", () => turnOn(context, store, loadConfig)),

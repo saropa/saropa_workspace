@@ -99,3 +99,40 @@ export function planSteps(projects: OvernightProject[]): OvernightStep[] {
 export function showOffer(cfg: Pick<OvernightConfig, "enabled">, dismissed: boolean): boolean {
   return !cfg.enabled && !dismissed;
 }
+
+// Facts the host reads about one shortcut before an unattended start.
+export interface StepFacts {
+  // Already running, or its cross-process lock is held.
+  blocked: boolean;
+  // A prerequisite shortcut has not succeeded this session.
+  pendingDependency: boolean;
+  // The run would ask for input.
+  interactive: boolean;
+  // A file shortcut whose file is gone.
+  fileMissing: boolean;
+  // A file shortcut with no way to execute.
+  notRunnable: boolean;
+}
+
+export type SkipReason = "blocked" | "dependency" | "interactive" | "missing" | "notRunnable";
+
+// Why a step must be skipped, or undefined when it may start. Anything that would show a
+// prompt or a message to a person who is asleep is a skip.
+export function stepSkipReason(f: StepFacts): SkipReason | undefined {
+  if (f.blocked) {
+    return "blocked";
+  }
+  if (f.pendingDependency) {
+    return "dependency";
+  }
+  if (f.interactive) {
+    return "interactive";
+  }
+  if (f.fileMissing) {
+    return "missing";
+  }
+  return f.notRunnable ? "notRunnable" : undefined;
+}
+
+// A started run must show itself within this long, else the step counts as skipped.
+export const START_WITHIN_MS = 60000;
