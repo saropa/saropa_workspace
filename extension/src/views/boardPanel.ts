@@ -75,6 +75,7 @@ function strings(): BoardStrings {
     ptgUnblocks: l10n("releaseBoard.panel.ptgUnblocks"),
     ptgWaiter: l10n("releaseBoard.panel.ptgWaiter"),
     ptgItemFirst: l10n("releaseBoard.panel.ptgItemFirst"),
+    ptgItemFirstAny: l10n("releaseBoard.panel.ptgItemFirstAny"),
     ptgBlocked: l10n("releaseBoard.panel.ptgBlocked"),
     ptgLintMissing: l10n("releaseBoard.panel.ptgLintMissing"),
     ptgLintFailing: l10n("releaseBoard.panel.ptgLintFailing"),

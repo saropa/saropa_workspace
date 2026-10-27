@@ -133,7 +133,7 @@ test("a stopper is acted on through its own prerequisites, once", () => {
   const items = pathOf(m).steps.filter((x) => x.kind === "item");
   assert.equal(items.length, 1);
   assert.equal(items[0].title, "FIRST");
-  assert.equal(items[0].waiter, "SECOND");
+  assert.equal(items[0].waiter, undefined, "THIRD waits through SECOND, so no single waiter is named");
 });
 
 test("two unrelated stoppers in one group stay two steps", () => {
@@ -262,4 +262,53 @@ test("html: the page script is valid", () => {
   const html = renderBoard(m, t, "N", 1, {}, m.projects.map((p) => pathToGo(m, p, opts)));
   const code = /<script nonce="N">([\s\S]*)<\/script>/.exec(html)![1];
   assert.doesNotThrow(() => new vm.Script(code));
+});
+
+test("waitsOn is filled from real Needs links, and the path follows them", () => {
+  const rows = [
+    row("app", "bugs/A.md", "red"),
+    row("app", "bugs/B.md", "red"),
+    row("db", "bugs/D.md", "red"),
+    row("db", "bugs/E.md", "red"),
+    row("app", "bugs/DONE.md", "green"),
+    row("app", "docs/blocked/W.md", "amber", { note: "blocked" }),
+    row("app", "bugs/L1.md", "red"),
+    row("app", "bugs/L2.md", "red"),
+    row("app", "bugs/L3.md", "red"),
+  ];
+  const m = buildBoard(cfg, rows, undefined, true, undefined, undefined, { app: goodHealth, db: goodHealth }, {
+    needs: {
+      "app/bugs/A.md": ["db:bugs/D.md"],
+      "db/bugs/D.md": ["bugs/E.md"],
+      "app/bugs/B.md": ["bugs/DONE.md", "docs/blocked/W.md"],
+      "app/bugs/L1.md": ["bugs/L2.md"],
+      "app/bugs/L2.md": ["bugs/L3.md"],
+      "app/bugs/L3.md": ["bugs/L1.md"],
+    },
+  });
+  const id = (p: string): number => m.items.find((i) => i.path === p)!.id;
+  const waitsOf = (p: string): number[] => m.items[id(p)].waitsOn;
+  assert.deepEqual(waitsOf("bugs/A.md"), [id("bugs/D.md")], "a link to another project");
+  assert.deepEqual(waitsOf("bugs/D.md"), [id("bugs/E.md")], "a two-step chain across projects");
+  assert.deepEqual(waitsOf("bugs/B.md"), [], "a finished target and a collapsed blocked one are not prerequisites");
+  assert.deepEqual(waitsOf("bugs/L1.md"), [id("bugs/L2.md")]);
+  const app = pathOf(m, "app");
+  const heads = app.steps.filter((x) => x.kind === "item").map((x) => x.title).sort();
+  assert.ok(heads.includes("E"), "A is cleared through E, in the other project");
+  assert.ok(!heads.includes("A") && !heads.includes("D"));
+  const e = app.steps.find((x) => x.title === "E")!;
+  assert.equal(e.project, "Db", "the other project is named");
+  assert.equal(e.waiter, undefined, "A waits on E only through D");
+  assert.ok(heads.includes("B"), "B has no open prerequisite");
+  const loop = heads.filter((x) => x === "L1" || x === "L2" || x === "L3");
+  assert.ok(loop.length >= 1 && loop.length <= 3, "a three-document loop ends and names a document");
+});
+
+test("html: a head in another project is named, and a distant waiter is not named", () => {
+  const m = board([row("app", "bugs/A.md", "red"), row("db", "bugs/E.md", "red")], true, { app: goodHealth });
+  const A = m.items.find((i) => i.title === "A")!;
+  const E = m.items.find((i) => i.title === "E")!;
+  A.waitsOn = [E.id];
+  const html = renderBoard(m, t, "N", 1, {}, m.projects.map((p) => pathToGo(m, p, opts)));
+  assert.ok(html.includes("E (Db)"));
 });

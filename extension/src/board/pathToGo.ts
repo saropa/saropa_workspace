@@ -28,12 +28,15 @@ export interface PathStep {
   // item: the document to act on (an index into the model's items).
   itemId?: number;
   title?: string;
+  // item: the name of the head document's project, only when it is not this project.
+  project?: string;
   // item: why it stops the release. Absent when the document does not stop it itself.
   why?: "red" | "pinned" | "severity";
   severity?: string;
   // item: how many open documents wait on it.
   unblocks?: number;
-  // item: a stopping document that waits on this one first.
+  // item: the one stopping document that waits directly on this one. Absent when several do,
+  // or when the wait is through other documents, so the wording stays true.
   waiter?: string;
   // lint, tests: the evidence is missing or old, or failing.
   evidence?: "missing" | "failing";
@@ -107,6 +110,7 @@ function firstPrerequisite(model: BoardModel, it: BoardItem): BoardItem {
 // of prerequisites. Stoppers that reach the same document share its one step; stoppers that
 // reach different documents never merge, even when the board draws them in one group.
 function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
+  const names = new Map(model.projects.map((p) => [p.id, p.name]));
   const stoppers = project.items.filter((i) => i.status === "red" || i.stopping);
   const byHead = new Map<number, { head: BoardItem; waiting: BoardItem[] }>();
   for (const it of stoppers) {
@@ -139,7 +143,8 @@ function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
         why: stops ? whyStops(head) : undefined,
         severity: stops ? head.severity : undefined,
         unblocks: head.blocksCount,
-        waiter: waiting[0]?.title,
+        project: head.project === project.id ? undefined : names.get(head.project) ?? head.project,
+        waiter: waiting.length === 1 && waiting[0].waitsOn.includes(head.id) ? waiting[0].title : undefined,
       };
     });
 }

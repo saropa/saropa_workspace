@@ -60,6 +60,7 @@ export interface BoardStrings {
   ptgUnblocks: string;
   ptgWaiter: string;
   ptgItemFirst: string;
+  ptgItemFirstAny: string;
   ptgBlocked: string;
   ptgLintMissing: string;
   ptgLintFailing: string;
@@ -211,14 +212,15 @@ function fill(tmpl: string, vars: Record<string, string | number | undefined>): 
 function stepText(s: PathStep, t: BoardStrings): string {
   switch (s.kind) {
     case "item": {
+      const named = s.project ? `${s.title ?? ""} (${s.project})` : s.title;
       const unblocks = s.unblocks ? " " + fill(t.ptgUnblocks, { count: s.unblocks }) : "";
       if (s.why === undefined) {
         // The document does not stop the release itself: the one that waits on it does.
-        return fill(t.ptgItemFirst, { title: s.title, waiter: s.waiter ?? "" }) + unblocks;
+        return fill(s.waiter ? t.ptgItemFirst : t.ptgItemFirstAny, { title: named, waiter: s.waiter ?? "" }) + unblocks;
       }
       const base = s.why === "red" ? t.ptgItemRed : s.why === "pinned" ? t.ptgItemPinned : t.ptgItemSeverity;
       const waiter = s.waiter ? " " + fill(t.ptgWaiter, { title: s.waiter }) : "";
-      return fill(base, { title: s.title, severity: s.severity ?? "" }) + unblocks + waiter;
+      return fill(base, { title: named, severity: s.severity ?? "" }) + unblocks + waiter;
     }
     case "blocked":
       return fill(t.ptgBlocked, { count: s.count });
@@ -329,7 +331,7 @@ export function renderSkeleton(t: BoardStrings, nonce: string): string {
 
 const script = (rev: number, label: string, profile: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const PROFILE=${JSON.stringify(profile).replace(/</g, "\\u003c")};
 const saved=vscode.getState()||{};const sit=document.getElementById('sit-panel');
-if(sit&&saved.open){sit.hidden=false;}if(saved.y){window.scrollTo(0,saved.y);}
+if(sit&&saved.open){sit.hidden=false;}
 const ut=document.getElementById('sit-untag');if(ut&&saved.untag){ut.open=true;}
 const keep=()=>vscode.setState({...(vscode.getState()||{}),y:window.scrollY,open:!!sit&&!sit.hidden,untag:!!ut&&ut.open});
 let st;window.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(keep,150);},{passive:true});if(ut){ut.addEventListener('toggle',keep);}
@@ -355,6 +357,7 @@ const done=(SEEN[pid]||[]).filter(d=>!all.includes(d.k)&&NOW-(d.at||NOW)<600000&
 [...done].reverse().forEach(d=>{const li=document.createElement('li');li.className='done';const sp=document.createElement('span');sp.className='st';sp.textContent=d.t;li.appendChild(sp);ol.insertBefore(li,ol.firstChild);});
 if(live){SEEN[pid]=[...cur,...done];}set(OPEN.has(pid));
 const tog=()=>set(ol.hidden);row.addEventListener('click',tog);row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tog();}});});
+if(saved.y){window.scrollTo(0,saved.y);}
 document.querySelectorAll('.ptgb').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.run){b.disabled=true;setTimeout(()=>{b.disabled=false;},5000);}vscode.postMessage({type:'path',p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV});}));
 document.querySelectorAll('.row[data-id],.click:not(.rulefix):not(.ext)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
 
