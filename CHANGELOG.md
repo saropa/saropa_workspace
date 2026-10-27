@@ -81,6 +81,10 @@ The Release Board opens in its own tab group beside your files and remembers whe
 - **Release Board: opens beside your files.** The board tab used to open among the files; it now opens in its own editor group next to the files instead of among them. Opening it again shows the existing tab where it is, and it remembers the group you moved it to, per workspace. If that group is gone it opens beside again. The tab that opens at window start uses the same place and still does not take focus. Setting: `releaseBoard.placement` (`beside` or `sameGroup`, default `beside`).
 - In a chosen project the board's file scan no longer follows links to folders or files (a linked folder could loop or lead outside the project). Open workspace folders are scanned as before.
 
+### Fixed
+
+- **Planner: no empty menu on event nodes.** Right-clicking an event node in the Workflow tab that nothing is linked to used to open a small empty box; now it opens nothing.
+
 ---
 
 ## [2.2.0]
