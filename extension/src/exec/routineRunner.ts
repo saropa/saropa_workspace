@@ -11,17 +11,23 @@ import { getOutputChannel } from "./terminalRunner";
 // The escaping algorithm itself is centralized (BUG-012); imported directly since this
 // file already calls it `escapeHtml`.
 import { escapeHtml } from "../utils/escapeHtml";
-import {
-  expandRecipeTokens,
-  fenceBlock,
-  firstWorkspacePath,
-  reportRelativePath,
-} from "./actionRunner";
+import { expandRecipeTokens, firstWorkspacePath, reportRelativePath } from "./actionRunner";
 import { recordLastReport, peekLastReport, clearLastReport } from "./lastReport";
 import { recordLastBrief } from "./lastBrief";
 import { openReport, withReportOpenSuppressed } from "./reportOpen";
 import { BriefPanel } from "../views/briefPanel";
+import { MemberOutcome, embedMemberReport } from "./routineText";
+import {
+  readMemberReports,
+  buildVerdictSection,
+  buildMergedSections,
+  buildRoutineBrief,
+} from "./routineBrief";
 
+// Re-exported so existing import paths keep working.
+export { embedMemberReport };
+export { extractHeadline, buildRoutineBrief } from "./routineBrief";
+export type { BriefMember, RoutineBrief } from "./routineBrief";
 // The routine engine: run a "recipe of recipes" — its member shortcuts strictly in
 // sequence, continue-on-failure — then write a one-row-per-member summary report and
 // badge the routine shortcut with the worst member outcome. Split out of actionRunner so
@@ -53,39 +59,6 @@ let routineHooks: RoutineHooks | undefined;
 // path without routineRunner importing the store/command layer, which would cycle.
 export function setRoutineHooks(hooks: RoutineHooks): void {
   routineHooks = hooks;
-}
-
-// The outcome of one member within a routine run, for the summary report row.
-interface MemberOutcome {
-  label: string;
-  status: "ok" | "failed" | "skipped" | "missing" | "dispatched";
-  durationMs?: number;
-  detail?: string;
-  // Absolute path of the report this member wrote, when it wrote one (the report
-  // rituals and project-stats do; a terminal / url member does not). The summary
-  // turns it into a relative link so it is the one index over the day's sub-reports.
-  reportPath?: string;
-}
-
-// The structured brief — a projection of data writeRoutineSummary already has,
-// shaped for the webview panel. No new computation; this packages outcomes,
-// headlines, and problems into a form the brief panel can render directly.
-export interface BriefMember {
-  readonly label: string;
-  readonly status: MemberOutcome["status"];
-  readonly headline?: string;
-  readonly attention: boolean;
-  readonly durationMs?: number;
-  readonly reportPath?: string;
-}
-
-export interface RoutineBrief {
-  readonly routineName: string;
-  readonly generatedAt: string;
-  readonly verdict: "clear" | "attention";
-  readonly attentionCount: number;
-  readonly members: readonly BriefMember[];
-  readonly summaryPath: string;
 }
 
 // Run one routine member to completion and report its outcome. Pulled out of the
@@ -307,53 +280,6 @@ export async function runRoutine(
   await writeRoutineSummary(shortcut.id, name, outcomes, anyFailed, source);
 }
 
-// Read a member report, or undefined when it cannot be read. A torn-down temp file
-// must degrade to the source link, never lose the rest of the document.
-async function readOrUndefined(
-  fsp: typeof import("fs/promises"),
-  file: string
-): Promise<string | undefined> {
-  try {
-    return await fsp.readFile(file, "utf8");
-  } catch {
-    return undefined;
-  }
-}
-
-// Pull a member report's one-line finding: `**Attention:** …` when it needs action,
-// `**Headline:** …` when it only informs. The convention is written by whichever
-// generator produced the report, so the summary needs no per-member knowledge of what
-// its members do. Attention is checked first — a report carrying both is asking for
-// something, and the weaker line must not mask that. Exported for tests.
-export function extractHeadline(
-  content: string | undefined
-): { text: string; attention: boolean } | undefined {
-  if (!content) {
-    return undefined;
-  }
-  const header = reportHeader(content);
-  // The capture must START on a non-space: a lazy `.+?` would otherwise match the
-  // padding of a blank "**Headline:** " line and lift a single space as the headline.
-  const attention = /^\*\*Attention:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(header)?.[1];
-  if (attention) {
-    return { text: attention, attention: true };
-  }
-  const headline = /^\*\*Headline:\*\*[ \t]*(\S.*?)[ \t]*$/m.exec(header)?.[1];
-  return headline ? { text: headline, attention: false } : undefined;
-}
-
-// The part of a report that may declare a headline: everything before its first
-// fenced block. Captured output is UNTRUSTED as report structure — a commit subject,
-// a lint message, or a log line beginning with `**Attention:**` would otherwise be
-// lifted into the routine's verdict and silently misattributed to the member that
-// merely quoted it. Every generator writes its headline above its output, so bounding
-// the scan to the header costs nothing and makes that ordering enforced rather than
-// merely conventional.
-function reportHeader(content: string): string {
-  const fence = /^\s*(```|~~~)/m.exec(content);
-  return fence ? content.slice(0, fence.index) : content;
-}
-
 // Sum a member's badge counts into the routine aggregate. Undefined member badge
 // (a non-lint / non-test member) contributes nothing.
 function mergeBadge(into: ShortcutBadge, from: ShortcutBadge | undefined): void {
@@ -456,232 +382,3 @@ async function writeRoutineSummary(
   }
 }
 
-// Project the data writeRoutineSummary already computed into a RoutineBrief for
-// the webview. Exported for unit tests. Attention members sort first.
-export function buildRoutineBrief(
-  routineName: string,
-  outcomes: readonly MemberOutcome[],
-  contents: Map<string, string | undefined>,
-  attentionCount: number,
-  summaryPath: string
-): RoutineBrief {
-  const members: BriefMember[] = outcomes.map((o) => {
-    const finding = o.reportPath ? extractHeadline(contents.get(o.reportPath)) : undefined;
-    const isAttention =
-      o.status === "failed" || o.status === "missing" || (finding?.attention ?? false);
-    return {
-      label: o.label,
-      status: o.status,
-      headline: finding?.text,
-      attention: isAttention,
-      durationMs: o.durationMs,
-      reportPath: o.reportPath,
-    };
-  });
-  members.sort((a, b) => (a.attention === b.attention ? 0 : a.attention ? -1 : 1));
-  return {
-    routineName,
-    generatedAt: new Date().toISOString(),
-    verdict: attentionCount > 0 ? "attention" : "clear",
-    attentionCount,
-    members,
-    summaryPath,
-  };
-}
-
-async function readMemberReports(
-  fsp: typeof import("fs/promises"),
-  outcomes: MemberOutcome[]
-): Promise<Map<string, string | undefined>> {
-  const contents = new Map<string, string | undefined>();
-  for (const o of outcomes) {
-    if (o.reportPath) {
-      contents.set(o.reportPath, await readOrUndefined(fsp, o.reportPath));
-    }
-  }
-  return contents;
-}
-
-function buildVerdictSection(
-  parts: string[],
-  outcomes: MemberOutcome[],
-  contents: Map<string, string | undefined>
-): number {
-  const problems = outcomes.filter((o) => o.status === "failed" || o.status === "missing");
-  const headlines = outcomes
-    .map((o) => ({
-      label: o.label,
-      finding: o.reportPath ? extractHeadline(contents.get(o.reportPath)) : undefined,
-    }))
-    .filter(
-      (h): h is { label: string; finding: { text: string; attention: boolean } } =>
-        h.finding !== undefined
-    );
-
-  const needsAttention = headlines.filter((h) => h.finding.attention);
-  const attentionCount = needsAttention.length + problems.length;
-  parts.push(
-    attentionCount > 0
-      ? `## ${l10n("routine.summary.needsAttention", { count: String(attentionCount) })}`
-      : `## ${l10n("routine.summary.allClear")}`,
-    ""
-  );
-
-  for (const o of problems) {
-    const note = sanitizeDetail(o.detail ?? defaultNote(o.status));
-    parts.push(`> **${statusLabel(o.status)}** — ${o.label}${note ? `: ${note}` : ""}`);
-  }
-  if (problems.length > 0) {
-    parts.push("");
-  }
-
-  for (const h of needsAttention) {
-    parts.push(`- **${h.label}** — ${h.finding.text}`);
-  }
-  if (needsAttention.length > 0) {
-    parts.push("");
-  }
-
-  const informational = headlines.filter((h) => !h.finding.attention);
-  if (informational.length > 0) {
-    if (attentionCount > 0) {
-      parts.push(`### ${l10n("routine.summary.alsoRan")}`, "");
-    }
-    for (const h of informational) {
-      parts.push(`- **${h.label}** — ${h.finding.text}`);
-    }
-    parts.push("");
-  }
-  return attentionCount;
-}
-
-function buildMergedSections(
-  parts: string[],
-  outcomes: MemberOutcome[],
-  contents: Map<string, string | undefined>,
-  summaryDir: string
-): number {
-  let merged = 0;
-  for (const o of outcomes) {
-    if (!o.reportPath) {
-      continue;
-    }
-    parts.push(
-      `<details${o.status === "failed" ? " open" : ""}>`,
-      `<summary><strong>${escapeHtml(o.label)}</strong></summary>`,
-      ""
-    );
-    const rel = path.relative(summaryDir, o.reportPath).split(path.sep).join("/");
-    parts.push(`_[${path.basename(o.reportPath)}](${rel})_`, "");
-    const content = contents.get(o.reportPath);
-    if (content !== undefined) {
-      const isMarkdown = /\.(md|markdown)$/i.test(o.reportPath);
-      parts.push(isMarkdown ? embedMemberReport(content) : fenceBlock(content), "");
-      merged++;
-    } else {
-      parts.push(`_${l10n("routine.summary.readFailed")}_`, "");
-    }
-    parts.push("</details>", "");
-  }
-  return merged;
-}
-
-// Human-readable status word for an attention line, from the catalog. The raw enum
-// values ("missing", "failed") are code identifiers, not user copy.
-const STATUS_KEYS: Record<MemberOutcome["status"], string> = {
-  ok: "routine.status.ok",
-  failed: "routine.status.failed",
-  skipped: "routine.status.skipped",
-  missing: "routine.status.missing",
-  dispatched: "routine.status.dispatched",
-};
-
-function statusLabel(status: MemberOutcome["status"]): string {
-  return l10n(STATUS_KEYS[status]);
-}
-
-// Explanation for statuses whose meaning is not self-evident: what happened and
-// what the user can do. Failed members carry their own error detail instead.
-function defaultNote(status: MemberOutcome["status"]): string {
-  if (status === "missing") {
-    return l10n("routine.note.missing");
-  }
-  return "";
-}
-
-// How much of a member's error detail the attention line carries. A spawn error
-// can be a full stack trace; the attention line is a one-line pointer, not the
-// error's home (the output channel keeps the full text).
-const DETAIL_MAX_CHARS = 200;
-
-// Flatten a detail to one line and bound its length so a raw multi-line error
-// message cannot break out of the attention blockquote or dominate the document.
-function sanitizeDetail(detail: string): string {
-  const oneLine = detail.replace(/\s*\n\s*/g, " ").trim();
-  return oneLine.length > DETAIL_MAX_CHARS
-    ? `${oneLine.slice(0, DETAIL_MAX_CHARS)}…`
-    : oneLine;
-}
-
-// Prepare one member report's body for inline embedding under its `## <member>`
-// section heading: drop the report's own H1 (the section heading already names it —
-// keeping both renders a duplicate title), then demote every remaining heading two
-// levels so the member's internal structure nests under the section instead of
-// competing with the summary's own hierarchy. Heading syntax inside fenced code
-// blocks (captured command output is fenced per the report conventions) is left
-// untouched — a `# comment` in captured shell output is content, not structure.
-// ATX headings only (`# Title`); Setext headings (`Title` over `===`) are not
-// recognized — no report writer in this codebase emits them, and a future one must
-// not without extending this.
-// Exported for unit tests: the fence tracking and demotion edge cases are pure
-// string transforms, assertable without running a routine.
-export function embedMemberReport(markdown: string): string {
-  const lines = markdown.split("\n");
-
-  // Drop the leading H1 (first non-empty line only — an H1 later in the body is a
-  // real section and gets demoted like the rest).
-  const firstContent = lines.findIndex((line) => line.trim() !== "");
-  if (firstContent >= 0 && /^# /.test(lines[firstContent] ?? "")) {
-    lines.splice(firstContent, 1);
-  }
-
-  // Fence tracking pairs the CHARACTER and LENGTH of the opening fence, matching
-  // CommonMark: a fence closes only on the same character with at least the opening
-  // run's length. This matters because buildCommandReport deliberately widens its
-  // fence to (longest inner run + 1) so captured output containing ``` stays inside
-  // the block — a naive any-3+-run toggle would flip state on that inner run and
-  // then mangle the rest of the document as if it were outside the fence.
-  let openFence: { char: string; length: number } | undefined;
-  const out = lines.map((line) => {
-    // A fence opener/closer may be indented at most 3 spaces (CommonMark): 4+
-    // spaces is an indented code block, and a backtick run inside one (e.g. inside
-    // a list item's code) is content, not a fence toggle.
-    const run = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (run) {
-      const char = (run[1] ?? "")[0] ?? "`";
-      const length = (run[1] ?? "").length;
-      if (!openFence) {
-        openFence = { char, length };
-      } else if (char === openFence.char && length >= openFence.length) {
-        openFence = undefined;
-      }
-      // A shorter or different-character run inside an open fence is content —
-      // fall through as a plain line (no state change, and headings can't match a
-      // fence line anyway).
-      return line;
-    }
-    if (openFence) {
-      return line;
-    }
-    // Demote headings outside fences, clamped at H6 (Markdown's deepest level —
-    // more # characters would render as literal text). An H5/H6 therefore lands on
-    // H6 alongside a demoted H4; a flattened tail beats un-renderable syntax.
-    const heading = /^(#{1,6}) /.exec(line);
-    if (!heading) {
-      return line;
-    }
-    const depth = Math.min(6, (heading[1] ?? "").length + 2);
-    return `${"#".repeat(depth)} ${line.slice((heading[1] ?? "").length + 1)}`;
-  });
-  return out.join("\n").trim();
-}
