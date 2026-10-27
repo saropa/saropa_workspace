@@ -236,7 +236,7 @@ test("a preview shows the counts, the light warning and the examples as text", (
   assert.ok(text.includes("3 of 30 open documents would change level: 2 lower, 1 higher."), text);
   assert.ok(text.includes("2 would stop the release no longer."));
   assert.ok(text.includes("1 would start to stop the release."));
-  assert.ok(text.includes("Only the first 30 of 40"));
+  assert.ok(text.includes("Only 30 of 40"));
   const items = page.all("#pv-list li").map((li) => li.textContent);
   assert.deepEqual(items, [`${evil} (App): Extreme to Medium - stops the release no longer`, "Typo (Db): Low to Critical - starts to stop the release", "and 1 more"]);
   assert.equal(page.all("#pv-list img").length, 0);

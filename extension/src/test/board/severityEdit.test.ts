@@ -283,3 +283,57 @@ test("the parts where the editor drops or replaces a value are named", () => {
   assert.deepEqual(r.draft.phrases.low, ["ok"]);
   assert.equal(r.draft.threshold, 3);
 });
+
+// The scorer lower-cases phrases and audience words and trims negation words (case-sensitive);
+// the mark must call a change exactly when the scorer would read a different dictionary.
+const shipped = (): Record<string, unknown> => JSON.parse(JSON.stringify({ threshold: DEFAULT_SEVERITY.threshold, negation: DEFAULT_SEVERITY.negation, phrases: DEFAULT_SEVERITY.phrases, audience: DEFAULT_SEVERITY.audience }));
+
+test("a spelling the scorer reads differently is a customized part", () => {
+  const withPhrase = (level: "extreme" | "low", from: string, to: string): unknown => {
+    const o = shipped() as { phrases: Record<string, string[]> };
+    o.phrases[level] = o.phrases[level].map((x) => (x === from ? to : x));
+    return o;
+  };
+  assert.deepEqual(customizedParts(withPhrase("extreme", "app store", "app\tstore")), ["phrases.extreme"]);
+  assert.deepEqual(customizedParts(withPhrase("extreme", "app store", "app  store")), ["phrases.extreme"]);
+  assert.deepEqual(customizedParts(withPhrase("extreme", "app store", " app store")), ["phrases.extreme"]);
+  assert.deepEqual(customizedParts(withPhrase("low", "nit ", "nit")), ["phrases.low"]);
+  assert.deepEqual(customizedParts(withPhrase("extreme", "app store", "APP STORE")), [], "the scorer lower-cases phrases");
+  const neg = shipped() as { negation: string[]; audience: { pro: string[] } };
+  neg.negation = neg.negation.map((x) => x.toUpperCase());
+  assert.deepEqual(customizedParts(neg), ["negation"], "negation words are case-sensitive");
+  const tab = shipped() as { negation: string[] };
+  tab.negation = tab.negation.map((x) => (x === "no " ? "no\t" : x));
+  assert.deepEqual(customizedParts(tab), [], "negation words are trimmed, so a different space is the same word");
+  const aud = shipped() as { audience: { pro: string[] } };
+  aud.audience.pro = aud.audience.pro.map((x) => (x === "pro tier" ? "pro  tier" : x));
+  assert.deepEqual(customizedParts(aud), ["audience"]);
+  const audUpper = shipped() as { audience: { pro: string[] } };
+  audUpper.audience.pro = audUpper.audience.pro.map((x) => x.toUpperCase());
+  assert.deepEqual(customizedParts(audUpper), []);
+});
+
+test("a repeated shipped phrase or an extra empty one is a change; the shipped lists are not", () => {
+  assert.deepEqual(customizedParts(shipped()), []);
+  const dup = shipped() as { phrases: Record<string, string[]> };
+  dup.phrases.high = [...dup.phrases.high, dup.phrases.high[0]];
+  assert.deepEqual(customizedParts(dup), ["phrases.high"]);
+});
+
+test("the editor names a spelling it would change when it writes a list back", () => {
+  const sp = (f: (o: Record<string, Record<string, string[]> | string[]>) => void): string[] => {
+    const o = shipped() as unknown as Record<string, Record<string, string[]> | string[]>;
+    f(o);
+    return draftFromDictChecked(dictOfSeverity(o)).replaced;
+  };
+  assert.deepEqual(sp((o) => ((o.phrases as Record<string, string[]>).low = ["nit"])), ["phrases.low"]);
+  assert.deepEqual(sp((o) => ((o.phrases as Record<string, string[]>).extreme = ["app\tstore"])), ["phrases.extreme"]);
+  assert.deepEqual(sp((o) => (o.negation = ["NO "])), ["negation"]);
+  assert.deepEqual(sp((o) => ((o.phrases as Record<string, string[]>).extreme = ["PAYMENT"])), [], "lower-casing a phrase changes nothing for the scorer");
+  assert.deepEqual(sp(() => undefined), []);
+});
+
+test("an empty phrase never matches and never hangs the scorer", () => {
+  const dict = { ...DEFAULT_SEVERITY, phrases: { ...DEFAULT_SEVERITY.phrases, low: ["", ...DEFAULT_SEVERITY.phrases.low!] } };
+  assert.deepEqual(scoreDocument("# Some plain title\n\nbody\n", "docs/a.md", dict), scoreDocument("# Some plain title\n\nbody\n", "docs/a.md"));
+});

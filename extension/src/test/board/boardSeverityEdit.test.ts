@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { DEFAULT_SEVERITY, scoreDocument } from "../../board/severity";
-import { PreviewResult, SeverityDraft, defaultDraft } from "../../board/severityEdit";
+import { PreviewResult, SeverityDraft, defaultDraft, dictOfSeverity } from "../../board/severityEdit";
 import { BoardItem } from "../../board/boardModel";
 import { BoardConfig } from "../../board/types";
 import { impactText, saveSeverity } from "../../commands/boardSeverityEdit";
@@ -284,9 +284,9 @@ async function settleUntil(f: () => boolean): Promise<void> {
   assert.ok(f(), "the condition became true");
 }
 
-function open(dir: string, onSaved: () => Promise<void> = async () => {}, severity?: BoardConfig["severity"]): void {
+async function open(dir: string, onSaved: () => Promise<void> = async () => {}, severity?: BoardConfig["severity"]): Promise<void> {
   const items = docsIn(dir);
-  openKeywordEditor({
+  await openKeywordEditor({
     cfg: { version: 1, ignore: [], ruleSets: {}, projects: [project(dir)], severity },
     items,
     projectNames: new Map([["app", "App"]]),
@@ -295,11 +295,12 @@ function open(dir: string, onSaved: () => Promise<void> = async () => {}, severi
   });
 }
 
-test("the editor opens one panel, shows the saved draft, and a second open shows the same one", () => {
-  const { dir } = setup();
-  open(dir, async () => {}, { threshold: 5 });
+test("the editor opens one panel, shows the saved draft, and a second open shows the same one", async () => {
+  const { dir, file } = setup();
+  put(file, '{"version":1,"severity":{"threshold":5}}');
+  await open(dir, async () => {});
   const first = panel();
-  open(dir);
+  await open(dir);
   assert.equal(__lastWebviewPanel(), first);
   assert.ok(first.webview.html.includes('id="n-threshold" step="1" min="1" max="30" value="5"'));
   assert.ok(first.webview.html.includes("script-src 'nonce-"));
@@ -307,7 +308,7 @@ test("the editor opens one panel, shows the saved draft, and a second open shows
 
 test("a preview request is checked, scored against the board's documents and answered with counts and titles", async () => {
   const { dir } = setup();
-  open(dir);
+  await open(dir);
   send({ type: "preview", seq: 4, draft: draftWith((d) => (d.phrases.extreme = d.phrases.extreme.filter((p) => p !== "price" && p !== "pricing"))) });
   await settleUntil(() => posted("preview").length === 1);
   const m = posted("preview")[0] as { seq: number; total: number; result: PreviewResult };
@@ -322,7 +323,7 @@ test("a preview request is checked, scored against the board's documents and ans
 
 test("a draft the host does not accept gets no scoring and no write", async () => {
   const { dir, file } = setup();
-  open(dir);
+  await open(dir);
   send({ type: "preview", seq: 1, draft: { threshold: 99 } });
   await settleUntil(() => posted("invalid").length === 1);
   assert.equal(posted("preview").length, 0);
@@ -335,7 +336,7 @@ test("a draft the host does not accept gets no scoring and no write", async () =
 
 test("a newer request stops an older one", async () => {
   const { dir } = setup();
-  open(dir);
+  await open(dir);
   send({ type: "preview", seq: 1, draft: defaultDraft() });
   send({ type: "preview", seq: 2, draft: defaultDraft() });
   await settleUntil(() => posted("preview").some((m) => m.seq === 2));
@@ -345,7 +346,7 @@ test("a newer request stops an older one", async () => {
 test("Save checks the draft again, asks with the effect on the open documents counted now, writes, closes and tells the board", async () => {
   const { dir, file } = setup();
   let saved = 0;
-  open(dir, async () => void (saved += 1));
+  await open(dir, async () => void (saved += 1));
   confirm("Save keywords");
   send({ type: "save", draft: draftWith((d) => (d.phrases.extreme = d.phrases.extreme.filter((p) => p !== "price" && p !== "pricing"))) });
   await settleUntil(() => saved === 1);
@@ -359,7 +360,7 @@ test("Save checks the draft again, asks with the effect on the open documents co
 test("a declined save keeps the editor open and the board unchanged", async () => {
   const { dir, file } = setup();
   let saved = 0;
-  open(dir, async () => void (saved += 1));
+  await open(dir, async () => void (saved += 1));
   stub.__setWarningAnswer(() => undefined);
   send({ type: "save", draft: lower });
   await settleUntil(() => stub.__warningMessages().length === 1);
@@ -371,7 +372,7 @@ test("a declined save keeps the editor open and the board unchanged", async () =
 
 test("Cancel closes the editor and a message of the wrong shape is ignored", async () => {
   const { dir } = setup();
-  open(dir);
+  await open(dir);
   send(null);
   send("x");
   send({ type: "preview", seq: "1" });
@@ -379,7 +380,7 @@ test("Cancel closes the editor and a message of the wrong shape is ignored", asy
   assert.equal(panel().disposed, false);
   send({ type: "cancel" });
   assert.equal(panel().disposed, true);
-  open(dir);
+  await open(dir);
   assert.equal(panel().disposed, false, "a closed editor can be opened again");
 });
 
@@ -396,10 +397,11 @@ test("the confirmation says when the check was partial and what the editor will 
   const impact: PreviewResult = { checked: 300, changed: 2, lowered: 2, raised: 0, eased: 1, tightened: 0, examples: [] };
   const text = impactText(impact, 800, "threshold, High phrases");
   assert.ok(text.includes("2 of 300 open documents would change level"));
-  assert.ok(text.includes("Only the first 300 of 800 open documents were checked."));
+  assert.ok(text.includes("Only 300 of 800 open documents were checked"));
   assert.ok(text.includes("dropped or replaced by the shipped ones: threshold, High phrases."));
-  assert.equal(impactText(impact, 300).includes("Only the first"), false);
-  assert.equal(impactText(undefined, 5, ""), "");
+  assert.equal(impactText(impact, 300).includes("Only"), false);
+  assert.ok(impactText(undefined, 5, "").startsWith("None of the 5"));
+  assert.equal(impactText(undefined, 0, ""), "");
 });
 
 test("a save confirmation carries the partial check and the dropped values", async () => {
@@ -408,14 +410,14 @@ test("a save confirmation carries the partial check and the dropped values", asy
   const impact: PreviewResult = { checked: 20, changed: 0, lowered: 0, raised: 0, eased: 0, tightened: 0, examples: [] };
   await saveSeverity({ kind: "draft", draft: lower, impact, total: 50, lossy: "weights" });
   const ask = stub.__warningMessages()[0];
-  assert.ok(ask.includes("Only the first 20 of 50") && ask.includes("weights"), ask);
+  assert.ok(ask.includes("Only 20 of 50") && ask.includes("weights"), ask);
 });
 
 test("an editor opened on odd values names what a save drops, on the page and in the confirmation", async () => {
   const { dir, file } = setup();
   let saved = 0;
-  open(dir, async () => void (saved += 1), { threshold: 100, phrases: { low: ["ok", "a\tb"] } } as never);
   put(file, JSON.stringify({ version: 1, severity: { threshold: 100, phrases: { low: ["ok", "a\tb"] } } }));
+  await open(dir, async () => void (saved += 1));
   assert.ok(panel().webview.html.includes("will be dropped or replaced by the shipped ones when you save: Low phrases, threshold."));
   confirm("Save keywords");
   send({ type: "save", draft: draftWith((d) => (d.threshold = 4)) });
@@ -426,7 +428,8 @@ test("an editor opened on odd values names what a save drops, on the page and in
 test("a file that changed since the editor opened is not written over a stale check", async () => {
   const { dir, file } = setup();
   let saved = 0;
-  open(dir, async () => void (saved += 1), { threshold: 5 });
+  put(file, '{"version":1,"severity":{"threshold":5}}');
+  await open(dir, async () => void (saved += 1));
   put(file, '{"version":1}');
   confirm("Save keywords");
   send({ type: "save", draft: lower });
@@ -437,4 +440,46 @@ test("a file that changed since the editor opened is not written over a stale ch
   assert.equal(saved, 0);
   assert.equal(fs.readFileSync(file, "utf8"), '{"version":1}');
   assert.equal(panel().disposed, false);
+});
+
+test("the check is made on the text the write is built from, not before the preview", async () => {
+  const { file } = setup();
+  put(file, '{"version":1,"severity":{"threshold":5}}');
+  const expected = dictOfSeverity({ threshold: 5 });
+  stub.__setWarningAnswer((_m, items) => items.find((i) => i === "Save keywords"));
+  // The file differs from the dictionary the editor was opened on: refused before any dialog.
+  assert.equal(await saveSeverity({ kind: "draft", draft: lower, expected: dictOfSeverity({ threshold: 6 }) }), "refused");
+  assert.equal(stub.__warningMessages().length, 1);
+  assert.ok(stub.__warningMessages()[0].includes("changed since the editor was opened"));
+  assert.equal(fs.readFileSync(file, "utf8"), '{"version":1,"severity":{"threshold":5}}');
+  stub.__resetWarnings();
+  stub.__setWarningAnswer((_m, items) => items.find((i) => i === "Save keywords"));
+  assert.equal(await saveSeverity({ kind: "draft", draft: draftWith((d) => (d.threshold = 7)), expected }), "saved");
+});
+
+test("an editor opens on the file's keywords, not the last scan's, and starts from it", async () => {
+  const { dir, file } = setup();
+  put(file, '{"version":1,"severity":{"threshold":8}}');
+  await open(dir, async () => {}, { threshold: 5 });
+  assert.ok(panel().webview.html.includes('value="8"'));
+});
+
+test("when none or only some of the open documents were checked the confirmation says the effect on the rest is unknown", () => {
+  const none: PreviewResult = { checked: 0, changed: 0, lowered: 0, raised: 0, eased: 0, tightened: 0, examples: [] };
+  const text = impactText(none, 12);
+  assert.ok(text.includes("None of the 12 open documents could be checked"), text);
+  assert.equal(text.includes("No open document would change level"), false);
+  assert.ok(impactText(undefined, 12).includes("None of the 12"));
+  assert.ok(impactText({ ...none, checked: 5 }, 12).includes("Only 5 of 12 open documents were checked"));
+  assert.equal(impactText(none, 0), "");
+  assert.equal(impactText(undefined, undefined), "");
+});
+
+test("when the documents cannot be read the editor still counts the documents the keywords can change", async () => {
+  const { dir } = setup();
+  const items = docsIn(dir);
+  const bad = [item(0, "docs/gone-a.md", "A"), item(1, "docs/gone-b.md", "B", { pinned: true }), items[1]];
+  const { docs, total } = await loadPreviewDocs(bad, [project(dir)], new Map(), DEFAULT_SEVERITY, 300);
+  assert.equal(total, 2);
+  assert.equal(docs.length, 1);
 });

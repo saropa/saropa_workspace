@@ -377,7 +377,7 @@ class BoardPanel extends BoardPanelWiring {
       await this.refresh();
     };
     if (!restore) {
-      openKeywordEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
+      await openKeywordEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
       return;
     }
     this.assigning = true;

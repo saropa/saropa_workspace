@@ -56,6 +56,10 @@ function negationRes(negation: string[]): RegExp[] {
 // `t` is already lower case.
 function count(t: string, phrase: string, negation: RegExp[]): number {
   const p = phrase.toLowerCase();
+  // An empty phrase would match everywhere, and indexOf("") never moves on.
+  if (p === "") {
+    return 0;
+  }
   let n = 0;
   for (let i = t.indexOf(p); i >= 0; i = t.indexOf(p, i + p.length)) {
     if (i > 0 && /[a-z0-9]/.test(t[i - 1])) {

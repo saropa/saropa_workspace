@@ -7,7 +7,7 @@ import { readKeywordSettings } from "../commands/boardKeywordSettings";
 
 export const KEYWORD_LABEL_KEYS = [
   "title", "intro", "warn", "previewTitle", "previewTitleTip", "previewWait", "previewInvalid", "previewNone", "previewSummary", "previewEase", "previewTighten",
-  "previewPartial", "previewExample", "previewEaseMark", "previewTightenMark", "previewMore", "previewListTip", "sev_extreme", "sev_critical",
+  "previewPartial", "previewUnchecked", "previewExample", "previewEaseMark", "previewTightenMark", "previewMore", "previewListTip", "sev_extreme", "sev_critical",
   "sev_high", "sev_medium", "sev_low", "help_extreme", "help_critical", "help_high", "help_low", "mediumNote", "levelTip", "phrasesHint", "chipTip",
   "removeTip", "addPlaceholder", "inputTip", "addButton", "addTip", "restoreLevel", "restoreLevelTip", "restoreAll", "restoreAllTip",
   "changedMark", "changedTip", "scoringTitle", "scoringTip", "thresholdLabel", "thresholdHelp", "wTitleLabel", "wTitleHelp", "wHeadLabel",

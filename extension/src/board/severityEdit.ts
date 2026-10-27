@@ -143,7 +143,7 @@ export function draftFromDictChecked(dict: SeverityDict): { draft: SeverityDraft
   const d = DEFAULT_SEVERITY;
   const replaced: string[] = [];
   const num = (v: unknown, fallback: number, r: { min: number; max: number }): { n: number; ok: boolean } => (isWhole(v, r) ? { n: v, ok: true } : { n: fallback, ok: false });
-  const list = (v: unknown, shipped: readonly string[], max: number, chars: number, part: string): string[] => {
+  const list = (v: unknown, shipped: readonly string[], max: number, chars: number, part: string, read: (x: string) => string = (x) => x.toLowerCase()): string[] => {
     if (!Array.isArray(v)) {
       replaced.push(part);
       return [...shipped];
@@ -156,6 +156,11 @@ export function draftFromDictChecked(dict: SeverityDict): { draft: SeverityDraft
         continue;
       }
       const n = normalizeText(x);
+      // A spelling the editor would change when it writes the list back (white space folded, a
+      // shipped trailing space put back, a negation word lower-cased) is replaced too.
+      if (n !== "" && read(x) !== read(canonical(n, shipped))) {
+        replaced.push(part);
+      }
       if (n !== "" && !seen.has(n)) {
         seen.add(n);
         out.push(x);
@@ -182,7 +187,7 @@ export function draftFromDictChecked(dict: SeverityDict): { draft: SeverityDraft
   const draft: SeverityDraft = {
     threshold: t.n,
     weights: { title: wt.title.n, head: wt.head.n, body: wt.body.n, perPhraseCap: wt.perPhraseCap.n },
-    negation: list(dict.negation, d.negation, LIMITS.negation, LIMITS.negationChars, "negation"),
+    negation: list(dict.negation, d.negation, LIMITS.negation, LIMITS.negationChars, "negation", (x) => x.trim()),
     phrases,
   };
   return { draft, replaced: [...new Set(replaced)] };
@@ -198,6 +203,13 @@ export const defaultDraft = (): SeverityDraft => draftFromDict(DEFAULT_SEVERITY)
 export function dictFromDraft(draft: SeverityDraft, base: SeverityDict = DEFAULT_SEVERITY): SeverityDict {
   return { ...base, threshold: draft.threshold, weights: { ...draft.weights }, negation: [...draft.negation], phrases: { ...base.phrases, ...draft.phrases } };
 }
+
+// The same strings, in any order, exactly.
+const sameExact = (a: readonly string[], b: readonly string[]): boolean => {
+  const x = [...a].sort();
+  const y = [...b].sort();
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+};
 
 const sameList = (a: readonly string[], b: readonly string[]): boolean => {
   const x = a.map(normalizeText).sort();
@@ -238,8 +250,12 @@ export function customizedParts(over: unknown): string[] {
   const d = DEFAULT_SEVERITY;
   const out: string[] = [];
   const has = (o: Record<string, unknown>, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
-  // A list is the shipped one when it holds the same strings in any order.
-  const isShipped = (v: unknown, shipped: readonly string[]): boolean => Array.isArray(v) && v.every((x) => typeof x === "string") && sameList(v as string[], shipped);
+  // A list is the shipped one when it holds the same strings in any order, as the scorer reads
+  // them: phrases and audience words lower-cased and otherwise exact (a tab, a double space or a
+  // trailing space is a change), negation words trimmed and case-sensitive.
+  const lower = (x: string): string => x.toLowerCase();
+  const isShipped = (v: unknown, shipped: readonly string[], read: (x: string) => string = lower): boolean =>
+    Array.isArray(v) && v.every((x) => typeof x === "string") && sameExact((v as string[]).map(read), shipped.map(read));
   // mergeDict ignores a null or missing section and spreads anything else.
   const section = (k: string): Record<string, unknown> | "bad" | undefined => {
     const v = over[k];
@@ -252,7 +268,7 @@ export function customizedParts(over: unknown): string[] {
   if (w === "bad" || (w && (Object.keys(d.weights) as Array<keyof typeof d.weights>).some((k) => has(w, k) && w[k] !== d.weights[k]))) {
     out.push("weights");
   }
-  if (has(over, "negation") && !isShipped(over.negation, d.negation)) {
+  if (has(over, "negation") && !isShipped(over.negation, d.negation, (x) => x.trim())) {
     out.push("negation");
   }
   const p = section("phrases");

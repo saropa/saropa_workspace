@@ -98,10 +98,12 @@ function add(k){
 function showPreview(m){
   const r=m.result,p=$('#pv-text'),ul=$('#pv-list');ul.textContent='';
   $('#pv-count').textContent=String(r.changed);
-  const parts=[r.changed===0?T.previewNone:fill(T.previewSummary,{changed:r.changed,checked:r.checked,lowered:r.lowered,raised:r.raised})];
+  const parts=[];
+  if(r.checked>0){parts.push(r.changed===0?T.previewNone:fill(T.previewSummary,{changed:r.changed,checked:r.checked,lowered:r.lowered,raised:r.raised}));}
+  else if(m.total===0){parts.push(T.previewNone);}
   if(r.eased>0){parts.push(fill(T.previewEase,{count:r.eased}));}
   if(r.tightened>0){parts.push(fill(T.previewTighten,{count:r.tightened}));}
-  if(m.total>r.checked){parts.push(fill(T.previewPartial,{checked:r.checked,total:m.total}));}
+  if(m.total>r.checked){parts.push(r.checked===0?fill(T.previewUnchecked,{total:m.total}):fill(T.previewPartial,{checked:r.checked,total:m.total}));}
   p.textContent=parts.join(' ');
   r.examples.forEach(e=>{
     const li=document.createElement('li');

@@ -19,8 +19,11 @@ const SCORE_CHUNK = 20;
 // document that cannot be read is left out. A document whose severity was set by hand, or that is
 // pinned, cannot change with the keywords and is not read. Resolves with the documents and how
 // many documents the keywords can change.
+// The open documents the keywords can change: not set by hand, not pinned.
+export const eligibleItems = (items: readonly BoardItem[]): BoardItem[] => items.filter((it) => !it.severityByUser && !it.pinned);
+
 export async function loadPreviewDocs(items: readonly BoardItem[], projects: readonly ProjectDef[], names: ReadonlyMap<string, string>, current: SeverityDict, max: number): Promise<{ docs: PreviewDoc[]; total: number }> {
-  const eligible = items.filter((it) => !it.severityByUser && !it.pinned);
+  const eligible = eligibleItems(items);
   const read = await mapLimit(eligible.slice(0, max), READ_PARALLEL, async (it): Promise<PreviewDoc | undefined> => {
     const def = projects.find((p) => p.id === it.project);
     if (!def) {

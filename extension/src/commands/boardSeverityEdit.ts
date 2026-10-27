@@ -32,6 +32,9 @@ export type SeverityChange =
       total?: number;
       // The parts of the file whose unusable values the save drops or replaces, in words.
       lossy?: string;
+      // The dictionary the editor was opened on. When the file holds another one at the moment
+      // of the write, nothing is written.
+      expected?: SeverityDict;
     }
   | { kind: "restore" };
 
@@ -40,16 +43,31 @@ export type SaveOutcome = "saved" | "unchanged" | "declined" | "refused";
 // The words about what the change does to the open documents.
 export function impactText(impact: PreviewResult | undefined, total?: number, lossy?: string): string {
   const bits: string[] = [];
-  if (impact && impact.checked > 0) {
-    bits.push(impact.changed === 0 ? l10n("releaseBoard.keywords.msg.impactNone") : l10n("releaseBoard.keywords.msg.impact", { changed: impact.changed, checked: impact.checked, eased: impact.eased }));
-    if (total !== undefined && total > impact.checked) {
-      bits.push(l10n("releaseBoard.keywords.msg.impactPartial", { checked: impact.checked, total }));
-    }
+  const checked = impact?.checked ?? 0;
+  if (impact && checked > 0) {
+    bits.push(impact.changed === 0 ? l10n("releaseBoard.keywords.msg.impactNone") : l10n("releaseBoard.keywords.msg.impact", { changed: impact.changed, checked, eased: impact.eased }));
+  }
+  // Some or all of the open documents were not checked: the effect on them is unknown.
+  if (total !== undefined && total > checked) {
+    bits.push(checked === 0 ? l10n("releaseBoard.keywords.msg.impactUnchecked", { total }) : l10n("releaseBoard.keywords.msg.impactPartial", { checked, total }));
   }
   if (lossy) {
     bits.push(l10n("releaseBoard.keywords.msg.lossyConfirm", { parts: lossy }));
   }
   return bits.join(" ");
+}
+
+// The dictionary a rules file text holds; undefined when the text does not parse.
+export function dictOfText(text: string | undefined): SeverityDict | undefined {
+  if (text === undefined || text.trim() === "") {
+    return dictOfSeverity(undefined);
+  }
+  try {
+    const doc: unknown = JSON.parse(text);
+    return dictOfSeverity(typeof doc === "object" && doc !== null ? (doc as Record<string, unknown>).severity : undefined);
+  } catch {
+    return undefined;
+  }
 }
 
 // The dictionary the rules file holds now, or undefined when the file cannot be read as one.
@@ -59,18 +77,7 @@ export async function currentSeverityDict(): Promise<SeverityDict | undefined> {
     return undefined;
   }
   const read = await readRules(vscode.Uri.joinPath(root.uri, RULES_FILE));
-  if (read.kind === "none") {
-    return dictOfSeverity(undefined);
-  }
-  if (read.kind === "encoding") {
-    return undefined;
-  }
-  try {
-    const doc: unknown = JSON.parse(read.text);
-    return dictOfSeverity(typeof doc === "object" && doc !== null ? (doc as Record<string, unknown>).severity : undefined);
-  } catch {
-    return undefined;
-  }
+  return read.kind === "encoding" ? undefined : dictOfText(read.kind === "text" ? read.text : undefined);
 }
 
 // Saves the change after the user confirmed. Returns "saved" when the file was written, so the
@@ -97,6 +104,12 @@ export async function saveSeverity(change: SeverityChange): Promise<SaveOutcome>
     return "refused";
   }
   const text = before.kind === "text" ? before.text : undefined;
+  // The check the user saw ran against the dictionary the editor was opened on. The text the
+  // write is built from must still hold that dictionary.
+  if (change.kind === "draft" && change.expected && JSON.stringify(dictOfText(text)) !== JSON.stringify(change.expected)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.keywords.msg.changedSinceOpen", { file: RULES_FILE }));
+    return "refused";
+  }
   const result: EditResult = change.kind === "draft" ? applyDraft(text, change.draft) : removeSeverity(text);
   if (!result.ok) {
     refuse(result.reason);
