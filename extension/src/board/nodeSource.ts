@@ -7,7 +7,7 @@ import { ScanFile } from "./types";
 // script. Not the VS Code layer's source (that one uses workspace.fs for remote).
 export function nodeFileSource(base: string): FileSource {
   return {
-    async list(projectDir: string, root: string): Promise<ScanFile[]> {
+    async list(projectDir: string, root: string, accept?: (path: string) => boolean): Promise<ScanFile[]> {
       const dir = path.join(base, projectDir);
       const out: ScanFile[] = [];
       const walk = (abs: string): void => {
@@ -15,7 +15,7 @@ export function nodeFileSource(base: string): FileSource {
           const full = path.join(abs, e.name);
           if (e.isDirectory()) {
             walk(full);
-          } else if (e.isFile()) {
+          } else if (e.isFile() && (!accept || accept(path.relative(dir, full).split(path.sep).join("/")))) {
             const st = fs.statSync(full);
             out.push({
               path: path.relative(dir, full).split(path.sep).join("/"),
