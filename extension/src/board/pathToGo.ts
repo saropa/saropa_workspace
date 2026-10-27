@@ -28,12 +28,12 @@ export interface PathStep {
   // item: the document to act on (an index into the model's items).
   itemId?: number;
   title?: string;
-  // item: why it stops the release.
+  // item: why it stops the release. Absent when the document does not stop it itself.
   why?: "red" | "pinned" | "severity";
   severity?: string;
   // item: how many open documents wait on it.
   unblocks?: number;
-  // item: another stopping document that waits on this one first (the chain case).
+  // item: a stopping document that waits on this one first.
   waiter?: string;
   // lint, tests: the evidence is missing or old, or failing.
   evidence?: "missing" | "failing";
@@ -76,16 +76,42 @@ function whyStops(it: BoardItem): "red" | "pinned" | "severity" {
   return it.status === "red" ? "red" : it.pinned ? "pinned" : "severity";
 }
 
-// A stopping document that waits on another is acted on through the first document of its
-// chain, not the waiting one. Several waiting documents share that one step.
+// Short stable hash, so a step key never carries a path.
+function hash(text: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+// Follows the document's own open prerequisites to one with none of its own. When a
+// document has several, the one listed first is followed. A loop stops the walk.
+function firstPrerequisite(model: BoardModel, it: BoardItem): BoardItem {
+  const seen = new Set<number>([it.id]);
+  let cur = it;
+  for (;;) {
+    const next = cur.waitsOn
+      .map((id) => model.items[id])
+      .filter((x): x is BoardItem => x !== undefined && !seen.has(x.id))
+      .sort((x, y) => x.id - y.id)[0];
+    if (!next) {
+      return cur;
+    }
+    seen.add(next.id);
+    cur = next;
+  }
+}
+
+// A stopping document that waits on another is acted on through the end of its own chain
+// of prerequisites. Stoppers that reach the same document share its one step; stoppers that
+// reach different documents never merge, even when the board draws them in one group.
 function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
   const stoppers = project.items.filter((i) => i.status === "red" || i.stopping);
-  const byHead = new Map<number, { head: BoardItem; waiting: BoardItem[]; why: BoardItem }>();
+  const byHead = new Map<number, { head: BoardItem; waiting: BoardItem[] }>();
   for (const it of stoppers) {
-    const chain = model.chains.find((c) => c.some((n) => n.id === it.id));
-    const headId = chain?.find((n) => n.id !== undefined)?.id ?? it.id;
-    const head = model.items[headId] ?? it;
-    const entry = byHead.get(head.id) ?? { head, waiting: [], why: it };
+    const head = firstPrerequisite(model, it);
+    const entry = byHead.get(head.id) ?? { head, waiting: [] };
     if (it.id !== head.id) {
       entry.waiting.push(it);
     }
@@ -101,16 +127,17 @@ function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
         a.head.title.localeCompare(b.head.title) ||
         a.head.id - b.head.id
     )
-    .map(({ head, waiting, why }) => {
+    .map(({ head, waiting }) => {
       const stops = head.status === "red" || head.stopping;
       return {
         kind: "item" as const,
-        key: `item:${head.project}:${head.title}`,
+        key: `item:${head.project}:${hash(head.path)}`,
         itemId: head.id,
         title: head.title,
-        // A head that does not stop the release itself is named for the document that waits on it.
-        why: stops ? whyStops(head) : whyStops(why),
-        severity: head.severity,
+        // Only a document that stops the release itself carries a reason and a severity;
+        // otherwise the step is worded by the document that waits on it.
+        why: stops ? whyStops(head) : undefined,
+        severity: stops ? head.severity : undefined,
         unblocks: head.blocksCount,
         waiter: waiting[0]?.title,
       };
@@ -133,6 +160,7 @@ function evidenceStep(kind: "lint" | "tests", project: BoardProject, opts: PathO
 
 export function pathToGo(model: BoardModel, project: BoardProject, opts: PathOptions): PathToGo {
   const steps: PathStep[] = itemSteps(model, project);
+  const extra: string[] = [];
   if (project.blockedStopping > 0) {
     steps.push({ kind: "blocked", key: "blocked", count: project.blockedStopping });
   }
@@ -149,6 +177,8 @@ export function pathToGo(model: BoardModel, project: BoardProject, opts: PathOpt
     }
     for (const f of folders) {
       steps.push({ kind: "rules", key: `rules:${f.folder}`, folder: f.folder, count: f.count });
+      // The one-step form of the same work, so switching between the two forms is not a finish.
+      extra.push("rules:");
     }
   }
   if (project.reasons.includes("unread")) {
@@ -158,5 +188,5 @@ export function pathToGo(model: BoardModel, project: BoardProject, opts: PathOpt
     steps.push({ kind: "accept", key: "accept" });
   }
   const max = clampMaxSteps(opts.maxSteps);
-  return { steps: steps.slice(0, max), allKeys: steps.map((s) => s.key), hidden: Math.max(0, steps.length - max) };
+  return { steps: steps.slice(0, max), allKeys: [...steps.map((s) => s.key), ...extra], hidden: Math.max(0, steps.length - max) };
 }

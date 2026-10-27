@@ -5,7 +5,7 @@ import { DocFacts } from "../../board/docFacts";
 import { asMinSeverity, buildFileIndex, linksForFile, relativeTo, worstColor } from "../../board/editorLinks";
 
 function item(id: number, project: string, title: string, status: BoardItem["status"], severity?: BoardItem["severity"]): BoardItem {
-  return { id, project, path: `bugs/${title}.md`, title, status, kind: "", hub: false, blocksCount: 0, pinned: false, stopping: false, severity };
+  return { id, project, path: `bugs/${title}.md`, title, status, kind: "", hub: false, blocksCount: 0, waitsOn: [], pinned: false, stopping: false, severity };
 }
 
 function facts(sourceFiles: string[], sourceRefs = sourceFiles.length): DocFacts {

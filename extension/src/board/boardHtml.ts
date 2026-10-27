@@ -58,6 +58,7 @@ export interface BoardStrings {
   ptgItemSeverity: string;
   ptgUnblocks: string;
   ptgWaiter: string;
+  ptgItemFirst: string;
   ptgBlocked: string;
   ptgLintMissing: string;
   ptgLintFailing: string;
@@ -191,8 +192,12 @@ function fill(tmpl: string, vars: Record<string, string | number | undefined>): 
 function stepText(s: PathStep, t: BoardStrings): string {
   switch (s.kind) {
     case "item": {
-      const base = s.why === "red" ? t.ptgItemRed : s.why === "pinned" ? t.ptgItemPinned : t.ptgItemSeverity;
       const unblocks = s.unblocks ? " " + fill(t.ptgUnblocks, { count: s.unblocks }) : "";
+      if (s.why === undefined) {
+        // The document does not stop the release itself: the one that waits on it does.
+        return fill(t.ptgItemFirst, { title: s.title, waiter: s.waiter ?? "" }) + unblocks;
+      }
+      const base = s.why === "red" ? t.ptgItemRed : s.why === "pinned" ? t.ptgItemPinned : t.ptgItemSeverity;
       const waiter = s.waiter ? " " + fill(t.ptgWaiter, { title: s.waiter }) : "";
       return fill(base, { title: s.title, severity: s.severity ?? "" }) + unblocks + waiter;
     }
@@ -214,9 +219,12 @@ function stepText(s: PathStep, t: BoardStrings): string {
 // The button of a step, or nothing when the step has no action the board can take. The page
 // sends only the project and step index; the host resolves them.
 function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct: boolean): string {
-  const label =
-    s.kind === "item" ? t.ptgOpen : s.kind === "rules" ? t.ptgOpenRules : s.kind === "accept" ? (canAct ? t.ptgAcceptBtn : "") : (s.kind === "lint" || s.kind === "tests") && s.run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
-  return label ? `<button class="ptgb" data-p="${pi}" data-s="${si}">${escapeHtml(label)}</button>` : "";
+  if (!canAct) {
+    return "";
+  }
+  const run = (s.kind === "lint" || s.kind === "tests") && s.run;
+  const label = s.kind === "item" ? t.ptgOpen : s.kind === "rules" ? t.ptgOpenRules : s.kind === "accept" ? t.ptgAcceptBtn : run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
+  return label ? `<button class="ptgb" data-p="${pi}" data-s="${si}"${run ? ' data-run="1"' : ""}>${escapeHtml(label)}</button>` : "";
 }
 
 // One project's steps, hidden until its row is clicked. A step that is no longer listed is
@@ -227,7 +235,7 @@ function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: boolean):
     .join("");
   const more = path.hidden > 0 ? `<li class="note" data-more="1">${fill(t.ptgMore, { count: path.hidden })}</li>` : "";
   const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";
-  return `<ol class="ptg" hidden data-all="${escapeHtml(JSON.stringify(path.allKeys))}">${none}${items}${more}</ol>`;
+  return `<ol class="ptg" hidden data-live="${canAct ? 1 : 0}" data-all="${escapeHtml(JSON.stringify(path.allKeys))}">${none}${items}${more}</ol>`;
 }
 
 const STYLE = `
@@ -271,7 +279,7 @@ export function renderSkeleton(t: BoardStrings, nonce: string): string {
 <div class="top"><h1>${escapeHtml(t.title)}</h1></div><p class="note">${escapeHtml(t.loading)}</p>${rows}${box}${box}</body></html>`;
 }
 
-const script = (rev: number, label: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const LABEL=${JSON.stringify(label).replace(/</g, "\\u003c")};
+const script = (rev: number, label: string, profile: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const PROFILE=${JSON.stringify(profile).replace(/</g, "\\u003c")};const LABEL=${JSON.stringify(label).replace(/</g, "\\u003c")};
 document.getElementById('refresh').addEventListener('click',()=>vscode.postMessage({type:'refresh',rev:REV}));
 document.querySelectorAll('[data-suggest]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'suggest',key:b.dataset.suggest,value:b.dataset.decision,rev:REV})));
 document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'profile',value:b.dataset.profile,rev:REV})));
@@ -279,16 +287,17 @@ document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessag
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
 const acc=document.getElementById('accept');if(acc){acc.addEventListener('click',()=>vscode.postMessage({type:'accept',rev:REV}));}
 document.querySelectorAll('.ext').forEach(r=>{const go=()=>vscode.postMessage({type:'external',g:Number(r.dataset.g),i:Number(r.dataset.i),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
-const ST=(vscode.getState()||{});const OPEN=new Set(ST.open||[]);const SEEN=ST.seen||{};const NOW=Date.now();
+const ST=(vscode.getState()||{});const OPEN=new Set(ST.open||[]);const SEEN=ST.profile===PROFILE?(ST.seen||{}):{};const NOW=Date.now();const save=()=>vscode.setState({open:[...OPEN],seen:SEEN,profile:PROFILE});
 document.querySelectorAll('.pj').forEach(pj=>{const pid=pj.dataset.pid,row=pj.querySelector('.ptgrow'),ol=pj.querySelector('.ptg');
-const set=on=>{ol.hidden=!on;row.setAttribute('aria-expanded',on?'true':'false');if(on){OPEN.add(pid);}else{OPEN.delete(pid);}vscode.setState({open:[...OPEN],seen:SEEN});};
+const set=on=>{ol.hidden=!on;row.setAttribute('aria-expanded',on?'true':'false');if(on){OPEN.add(pid);}else{OPEN.delete(pid);}save();};
 let all=[];try{all=JSON.parse(ol.dataset.all||'[]');}catch(e){}
+const live=ol.dataset.live==='1';
 const cur=[...ol.querySelectorAll('li[data-k]')].map(l=>({k:l.dataset.k,t:l.querySelector('.st').textContent}));
-const done=(SEEN[pid]||[]).filter(d=>!all.includes(d.k)&&NOW-(d.at||NOW)<600000).slice(0,10).map(d=>({k:d.k,t:d.t,at:d.at||NOW}));
+const done=(SEEN[pid]||[]).filter(d=>!all.includes(d.k)&&NOW-(d.at||NOW)<600000&&(live||d.at)).slice(0,10).map(d=>({k:d.k,t:d.t,at:d.at||NOW}));
 [...done].reverse().forEach(d=>{const li=document.createElement('li');li.className='done';const sp=document.createElement('span');sp.className='st';sp.textContent=d.t;li.appendChild(sp);ol.insertBefore(li,ol.firstChild);});
-SEEN[pid]=[...cur,...done];set(OPEN.has(pid));
+if(live){SEEN[pid]=[...cur,...done];}set(OPEN.has(pid));
 const tog=()=>set(ol.hidden);row.addEventListener('click',tog);row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tog();}});});
-document.querySelectorAll('.ptgb').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'path',p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV})));
+document.querySelectorAll('.ptgb').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.run){b.disabled=true;setTimeout(()=>{b.disabled=false;},5000);}vscode.postMessage({type:'path',p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV});}));
 document.querySelectorAll('.row,.click:not(.rulefix):not(.ext)').forEach(r=>{const go=()=>vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});`;
 
 function profilePicker(model: BoardModel, t: BoardStrings): string {
@@ -385,5 +394,5 @@ ${outsideBoxes(model)}
 ${needsRule(model, t, names)}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber"></i></p>` : ""}
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
-<script nonce="${nonce}">${script(rev, t.refreshing)}</script></body></html>`;
+<script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}</script></body></html>`;
 }

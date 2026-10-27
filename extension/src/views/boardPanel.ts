@@ -72,6 +72,7 @@ function strings(): BoardStrings {
     ptgItemSeverity: l10n("releaseBoard.panel.ptgItemSeverity"),
     ptgUnblocks: l10n("releaseBoard.panel.ptgUnblocks"),
     ptgWaiter: l10n("releaseBoard.panel.ptgWaiter"),
+    ptgItemFirst: l10n("releaseBoard.panel.ptgItemFirst"),
     ptgBlocked: l10n("releaseBoard.panel.ptgBlocked"),
     ptgLintMissing: l10n("releaseBoard.panel.ptgLintMissing"),
     ptgLintFailing: l10n("releaseBoard.panel.ptgLintFailing"),
@@ -108,6 +109,9 @@ class BoardPanel {
   // One Path to GO per project, in the order of model.projects: what the page shows, so a
   // click's indexes are resolved against exactly this.
   private paths: PathToGo[] | undefined;
+  // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
+  private readonly starting = new Set<string>();
+  private reviewing = false;
   private run: BoardRun | undefined;
   // Bumped on every render; messages from an older page are ignored.
   private rev = 0;
@@ -405,8 +409,17 @@ class BoardPanel {
     if (step.kind === "item" && step.itemId !== undefined) {
       await this.openItem(step.itemId);
     } else if ((step.kind === "lint" || step.kind === "tests") && step.run) {
-      if (!(await runHealthNow(def, step.kind))) {
-        void vscode.window.showInformationMessage(l10n("releaseBoard.noRunShortcut"));
+      const flight = `${def.id}:${step.kind}`;
+      if (this.starting.has(flight)) {
+        return;
+      }
+      this.starting.add(flight);
+      try {
+        if (!(await runHealthNow(def, step.kind))) {
+          void vscode.window.showInformationMessage(l10n("releaseBoard.noRunShortcut"));
+        }
+      } finally {
+        this.starting.delete(flight);
       }
     } else if (step.kind === "rules") {
       await openRulesFile({ project: def.id, folder: step.folder ?? "" });
@@ -417,14 +430,27 @@ class BoardPanel {
 
   // Asks first, saying what the scan holds, then accepts through the same path as the banner.
   private async reviewAndAccept(): Promise<void> {
-    if (!this.run || !(this.model?.baseline || this.model?.safetyHold)) {
+    if (this.reviewing || !this.run || !(this.model?.baseline || this.model?.safetyHold)) {
       return;
     }
+    // The scan being reviewed: if the board repaints while the dialog is open, it is another scan.
+    const run = this.run;
+    const rev = this.rev;
     const accept = l10n("releaseBoard.accept");
-    const text = this.run.safety.baseline ? l10n("releaseBoard.acceptBaseline") : l10n("releaseBoard.held", { count: this.run.safety.findings.length });
-    if ((await vscode.window.showWarningMessage(text, accept)) === accept) {
-      await this.accept();
+    const text = run.safety.baseline ? l10n("releaseBoard.acceptBaseline") : l10n("releaseBoard.held", { count: run.safety.findings.length });
+    this.reviewing = true;
+    try {
+      if ((await vscode.window.showWarningMessage(text, accept)) !== accept) {
+        return;
+      }
+    } finally {
+      this.reviewing = false;
     }
+    if (this.run !== run || this.rev !== rev) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.changedDuringReview"));
+      return;
+    }
+    await this.accept();
   }
 
   private dispose(): void {

@@ -1879,6 +1879,8 @@
   "releaseBoard.panel.ptgItemSeverity": "Finish {title}: {severity} severity stops this release.",
   "releaseBoard.panel.ptgUnblocks": "Clears {count} waiting items.",
   "releaseBoard.panel.ptgWaiter": "{title} waits on it.",
+  "releaseBoard.panel.ptgItemFirst": "Finish {title} first: {waiter} waits on it and stops this release.",
+  "releaseBoard.changedDuringReview": "Release Board: the board changed while you were reviewing. Nothing was accepted. Review the new scan.",
   "releaseBoard.panel.ptgBlocked": "{count} documents in a blocked folder would stop this release. Finish what they wait on.",
   "releaseBoard.panel.ptgLintMissing": "Lint evidence is missing or old.",
   "releaseBoard.panel.ptgLintFailing": "Lint is failing. Fix it, then run lint again.",

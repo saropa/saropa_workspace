@@ -120,19 +120,85 @@ test("order: most waiting documents freed first, then red, then severity; eviden
   assert.deepEqual(p.steps.slice(0, 3).map((s) => s.why), ["red", "red", "pinned"]);
 });
 
-test("a chain points at its first document, once", () => {
+function waits(m: BoardModel, from: string, ...to: string[]): void {
+  const id = (t: string): number => m.items.find((i) => i.title === t)!.id;
+  m.items[id(from)].waitsOn = to.map(id);
+}
+
+test("a stopper is acted on through its own prerequisites, once", () => {
   const rows = [row("app", "bugs/FIRST.md", "red"), row("app", "bugs/SECOND.md", "red"), row("app", "bugs/THIRD.md", "red")];
   const m = board(rows, true, { app: goodHealth });
-  const id = (t: string): number => m.items.find((i) => i.title === t)!.id;
-  m.chains = [[
-    { project: "App", title: "FIRST", path: "bugs/FIRST.md", id: id("FIRST"), done: false },
-    { project: "App", title: "SECOND", path: "bugs/SECOND.md", id: id("SECOND"), done: false },
-    { project: "App", title: "THIRD", path: "bugs/THIRD.md", id: id("THIRD"), done: false },
-  ]];
-  const p = pathOf(m);
-  assert.deepEqual(p.steps.filter((x) => x.kind === "item").length, 1);
-  assert.equal(p.steps[0].itemId, id("FIRST"));
-  assert.equal(p.steps[0].waiter, "SECOND");
+  waits(m, "SECOND", "FIRST");
+  waits(m, "THIRD", "SECOND");
+  const items = pathOf(m).steps.filter((x) => x.kind === "item");
+  assert.equal(items.length, 1);
+  assert.equal(items[0].title, "FIRST");
+  assert.equal(items[0].waiter, "SECOND");
+});
+
+test("two unrelated stoppers in one group stay two steps", () => {
+  // ROOT is waited on by LEFT and RIGHT's chain; LEFT and RIGHT do not wait on each other.
+  const rows = ["ROOT", "LEFT", "RIGHT", "BASE"].map((n) => row("app", `bugs/${n}.md`, "red"));
+  const m = board(rows, true, { app: goodHealth });
+  waits(m, "LEFT", "ROOT");
+  waits(m, "RIGHT", "BASE");
+  m.chains = [m.items.map((i) => ({ project: "App", title: i.title, path: i.path, id: i.id, done: false }))];
+  const titles = pathOf(m).steps.filter((x) => x.kind === "item").map((x) => x.title).sort();
+  assert.deepEqual(titles, ["BASE", "ROOT"], "each stopper is cleared through its own prerequisite");
+});
+
+test("a prerequisite loop does not hang", () => {
+  const m = board([row("app", "bugs/A.md", "red"), row("app", "bugs/B.md", "red")], true, { app: goodHealth });
+  waits(m, "A", "B");
+  waits(m, "B", "A");
+  const n = pathOf(m).steps.filter((x) => x.kind === "item").length;
+  assert.ok(n >= 1 && n <= 2, "ends, and names a document");
+});
+
+test("a head that does not stop the release is worded by the document that waits on it", () => {
+  const m = board([row("app", "docs/LOW.md", "amber"), row("app", "bugs/RED.md", "red")], true, { app: goodHealth });
+  waits(m, "RED", "LOW");
+  const step = pathOf(m).steps.find((x) => x.kind === "item")!;
+  assert.equal(step.title, "LOW");
+  assert.equal(step.why, undefined);
+  assert.equal(step.severity, undefined);
+  assert.equal(step.waiter, "RED");
+  const html = renderBoard(m, t, "N", 1, {}, m.projects.map((p) => pathToGo(m, p, opts)));
+  assert.ok(html.includes("[ptgItemFirst]"));
+  assert.ok(!html.includes("[ptgItemRed]") || m.items.length > 1);
+});
+
+test("item keys follow the document path, and carry no path", () => {
+  const m = board([row("app", "bugs/X.md", "red")], true, { app: goodHealth });
+  const m2 = board([row("app", "docs/X.md", "red")], true, { app: goodHealth });
+  const k = pathOf(m).steps[0].key;
+  assert.notEqual(k, pathOf(m2).steps[0].key, "same title in another folder is another step");
+  assert.ok(!k.includes("bugs") && !k.includes(".md"));
+  assert.equal(k, pathOf(board([row("app", "bugs/X.md", "red")], true, { app: goodHealth })).steps[0].key, "stable");
+});
+
+test("the one-step and per-folder rules forms share a key", () => {
+  const m = board([row("app", "docs/G.md", "grey")], true, { app: goodHealth });
+  m.needsRule = [{ project: "app", folder: "docs", count: 1 }];
+  assert.ok(pathOf(m).allKeys.includes("rules:"));
+  m.needsRule = [];
+  assert.deepEqual(pathOf(m).allKeys, ["rules:"]);
+});
+
+test("html: a stale or loading paint has no buttons and is not live; the profile is kept for the page memory", () => {
+  const m = board([row("app", "bugs/A.md", "red")], false, {});
+  const paths = m.projects.map((p) => pathToGo(m, p, opts));
+  const live = renderBoard(m, t, "N", 1, {}, paths);
+  assert.ok(live.includes('data-live="1"') && live.includes("ptgb"));
+  assert.ok(live.includes('const PROFILE="deliberate"'));
+  for (const state of [{ stale: true }, { loading: true }]) {
+    const html = renderBoard(m, t, "N", 1, state, paths);
+    assert.ok(html.includes('data-live="0"'));
+    assert.ok(!html.includes('class="ptgb"'), "no step buttons while the board cannot act");
+  }
+  const ev = board([], true, { app: noHealth });
+  const evHtml = renderBoard(ev, t, "N", 1, {}, ev.projects.map((p) => pathToGo(ev, p, opts)));
+  assert.ok(/class="ptgb" data-p="0" data-s="0" data-run="1"/.test(evHtml), "run buttons are marked so the page can disable them");
 });
 
 test("collapsed blocked documents that would stop the release have their own step", () => {
