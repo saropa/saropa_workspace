@@ -12,6 +12,7 @@ import { Outside, emptyOutside, safeUrl } from "../board/outside";
 import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
 import { asTimeBox } from "../board/sittings";
+import { moveToArchive, readTidySettings } from "../commands/boardTidy";
 import { publishBoard } from "./editorLinks";
 import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
 import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
@@ -20,7 +21,7 @@ import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>" and "path <project, step>" and "hand <kind, index>", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>" and "hand <kind, index>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -108,6 +109,12 @@ function strings(): BoardStrings {
     stepMinutes: l10n("releaseBoard.sittings.stepMinutes", { count: "{count}" }),
     handToChat: readHandSettings().enabled ? l10n("releaseBoard.handToChat.button") : "",
     handToChatTip: l10n("releaseBoard.handToChat.tip"),
+    tidyHeading: l10n("releaseBoard.tidy.heading"),
+    tidyNote: l10n("releaseBoard.tidy.note", { days: "{days}" }),
+    tidyDetail: l10n("releaseBoard.tidy.detail", { count: "{count}", days: "{days}" }),
+    tidyTitle: l10n("releaseBoard.tidy.title", { count: "{count}" }),
+    tidyMove: l10n("releaseBoard.tidy.move"),
+    tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
   };
 }
 
@@ -132,6 +139,8 @@ class BoardPanel {
   // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
   private readonly starting = new Set<string>();
   private reviewing = false;
+  // A tidy move (with its confirmation) is under way: a second click is ignored.
+  private moving = false;
   private run: BoardRun | undefined;
   // Bumped on every render; messages from an older page are ignored.
   private rev = 0;
@@ -360,7 +369,7 @@ class BoardPanel {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: this.sittings() }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: this.sittings(), tidy: this.tidy() }
     );
     const model = this.model;
     const settings = pathSettings();
@@ -400,6 +409,12 @@ class BoardPanel {
     }
     const choice = readSittingsChoice(this.context) ?? { have: s.defaultHave, timeBox: s.defaultTimeBox };
     return { selection: { have: choice.have, timeBox: choice.timeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
+  }
+
+  // The Tidy sweep's settings with the time now; undefined when the sweep is off.
+  private tidy(): { now: number; afterDays: number; archiveFolder: string } | undefined {
+    const s = readTidySettings();
+    return s ? { now: Date.now(), ...s } : undefined;
   }
 
   private async onMessage(message: unknown): Promise<void> {
@@ -459,6 +474,8 @@ class BoardPanel {
       }
     } else if (msg.type === "hand") {
       await this.hand(message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
+    } else if (msg.type === "tidy" && typeof (message as { i?: unknown }).i === "number") {
+      await this.tidyMove((message as { i: number }).i);
     } else if (msg.type === "rules") {
       await openRulesFile();
     } else if (msg.type === "accept") {
@@ -507,6 +524,25 @@ class BoardPanel {
       await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat, file?.chats);
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    }
+  }
+
+  // One click, one document. The index is resolved against the list this panel rendered;
+  // the move asks first, naming the exact source and destination.
+  private async tidyMove(i: number): Promise<void> {
+    const c = this.model?.tidy?.candidates[i];
+    const project = this.run?.cfg.projects.find((p) => p.id === c?.project);
+    if (!c || !project || this.scanning || this.cached || this.moving) {
+      return;
+    }
+    this.moving = true;
+    try {
+      if (await moveToArchive(vscode.Uri.parse(project.path), c)) {
+        this.dirty = true;
+        await this.refresh();
+      }
+    } finally {
+      this.moving = false;
     }
   }
 

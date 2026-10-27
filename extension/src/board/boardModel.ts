@@ -9,6 +9,7 @@ import { Link, LinkState, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { ScanSnapshot } from "./scanner";
 import { mergeNeeds } from "./needs";
+import { TidyOptions, TidyView, buildTidy } from "./tidy";
 import { SittingDoc, SittingLine, SittingSelection, buildSittings } from "./sittings";
 import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCounts } from "./types";
 
@@ -136,6 +137,8 @@ export interface BoardModel {
   outside: OutsideGroup[];
   // Absent when Sittings is switched off.
   sittings?: SittingsView;
+  // Absent when the Tidy sweep is switched off.
+  tidy?: TidyView;
 }
 
 const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
@@ -258,7 +261,7 @@ export function buildBoard(
   previous?: ScanSnapshot,
   health?: Record<string, ProjectHealth>,
   // Links the user accepted (waiting document "project/path" -> targets) and suggestions turned down.
-  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[]; outside?: Outside; sittings?: { selection: SittingSelection; onlyOwner: boolean } }
+  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[]; outside?: Outside; sittings?: { selection: SittingSelection; onlyOwner: boolean }; tidy?: TidyOptions }
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
@@ -429,7 +432,31 @@ export function buildBoard(
       it.chats = n;
     }
   }
+  const tidy = extra?.tidy
+    ? buildTidy(
+        all.map((it) => {
+          const t = it.marks ?? { done: 0, total: 0 };
+          const snap = snapshot?.projects[it.project];
+          return {
+            id: it.id,
+            project: it.project,
+            projectName: names.get(it.project) ?? it.project,
+            path: it.path,
+            title: it.title,
+            stepsDone: t.done,
+            stepsTotal: t.total,
+            mtimeMs: snap?.files[it.path]?.mtimeMs,
+            pinned: it.pinned,
+            waiting: it.link?.state === "open",
+            status: it.status,
+            stopping: it.stopping,
+          };
+        }),
+        extra.tidy
+      )
+    : undefined;
   return {
+    tidy,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
     chains,
