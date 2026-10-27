@@ -2,11 +2,11 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
-import type {
-  DetectedFavorites,
-  ImportResult,
-  KdcroFavoriteEntry,
-} from "./favoritesImport";
+import type { DetectedFavorites, ImportResult, KdcroFavoriteEntry } from "./favoritesImport";
+
+
+
+
 
 // The two JSON file-format importers: kdcro101 `.favorites.json` (a typed array of
 // path entries) and alefragnani "Bookmarks" `.vscode/bookmarks.json` (line-level
