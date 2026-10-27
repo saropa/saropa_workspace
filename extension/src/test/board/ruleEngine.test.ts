@@ -28,12 +28,28 @@ test("glob: braces, globstar and single segment", () => {
   assert.ok(globToRegExp("{BUG_}*").test("BUG_x.md"));
   assert.ok(globToRegExp("a?.md").test("ab.md"));
   assert.ok(!globToRegExp("a.md").test("axmd"));
+  assert.ok(globToRegExp("a\\b.md").test("a\\b.md"), "a backslash is literal");
+  assert.ok(!globToRegExp("a[b].md").test("ab.md"), "brackets are literal");
 });
 
 test("status line: word is lower-cased and stripped", () => {
   assert.equal(findStatusWord("# Title\n\n**Status:** WIP\n"), "wip");
   assert.equal(findStatusWord("Status: Done."), "done");
+  assert.equal(findStatusWord("> **Status**: Fixed"), "fixed");
   assert.equal(findStatusWord("# no status here"), undefined);
+});
+
+test("status line: table rows, prose and questions are not Status lines", () => {
+  assert.equal(findStatusWord("| Status | Fixed |"), undefined);
+  assert.equal(findStatusWord("Status — done when the check passes"), undefined);
+  assert.equal(findStatusWord("Status: fixed? no"), undefined);
+});
+
+test("glob: wildcards work inside braces", () => {
+  const re = globToRegExp("{INDEX_*,*_index.md}");
+  assert.ok(re.test("INDEX_A.md"));
+  assert.ok(re.test("docs_index.md"));
+  assert.ok(!re.test("other.md"));
 });
 
 function config(): BoardConfig {

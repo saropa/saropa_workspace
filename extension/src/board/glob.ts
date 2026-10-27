@@ -2,25 +2,44 @@
 // literal characters, and the rules need "{a,b}" alternation, so the board has its own.
 // Supports "**/" (zero or more folders), "**" (anything), "*" (one segment), "?" (one
 // character) and "{a,b}" alternation. Mirrors the prototype engine so the golden test
-// matches it exactly.
+// matches it exactly. Alternatives may hold wildcards; braces do not nest. Every other
+// character, backslash included, is matched literally.
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRe = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|/-]/g, "\\$&");
+
+function translate(g: string): string {
+  let out = "";
+  for (let i = 0; i < g.length; i++) {
+    const c = g[i];
+    if (c === "*") {
+      if (g[i + 1] === "*") {
+        if (g[i + 2] === "/") {
+          out += "(?:.*/)?";
+          i += 2;
+        } else {
+          out += ".*";
+          i += 1;
+        }
+      } else {
+        out += "[^/]*";
+      }
+    } else if (c === "?") {
+      out += "[^/]";
+    } else if (c === "{") {
+      const end = g.indexOf("}", i);
+      if (end > i && !g.slice(i + 1, end).includes("{")) {
+        out += "(?:" + g.slice(i + 1, end).split(",").map(translate).join("|") + ")";
+        i = end;
+      } else {
+        out += escapeRe(c);
+      }
+    } else {
+      out += escapeRe(c);
+    }
+  }
+  return out;
+}
 
 export function globToRegExp(glob: string): RegExp {
-  const alts: string[] = [];
-  // Pull "{a,b}" out first so its commas and the later "." escaping do not collide.
-  let g = glob.replace(/\{([^{}]*)\}/g, (_m, inner: string) => {
-    alts.push("(?:" + inner.split(",").map(escapeRe).join("|") + ")");
-    return "\u0002" + (alts.length - 1) + "\u0002";
-  });
-  g = g
-    .replace(/\./g, "\\.")
-    .replace(/\*\*\//g, "\u0000")
-    .replace(/\*\*/g, "\u0001")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\?/g, "[^/]")
-    .replace(/\u0000/g, "(?:.*/)?")
-    .replace(/\u0001/g, ".*")
-    .replace(/\u0002(\d+)\u0002/g, (_m, i: string) => alts[Number(i)]);
-  return new RegExp("^" + g + "$");
+  return new RegExp("^" + translate(glob) + "$");
 }
