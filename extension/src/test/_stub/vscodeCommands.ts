@@ -20,7 +20,7 @@ export const commands = {
   },
   executeCommand(command: string, ...rest: unknown[]): Promise<undefined> {
     recordedCommands.push({ command, args: rest });
-    return Promise.resolve(undefined);
+    return failingCommands.has(command) ? Promise.reject(new Error(`command '${command}' not found`)) : Promise.resolve(undefined);
   },
   // Every registered id plus the ids a test added with __setKnownCommands.
   getCommands(_filterInternal?: boolean): Promise<string[]> {
@@ -28,11 +28,20 @@ export const commands = {
   },
 };
 
+// Command ids whose executeCommand rejects, like a command nobody registered.
+const failingCommands = new Set<string>();
+// Test-control hook: sets the ids executeCommand rejects for.
+export function __failCommands(ids: string[]): void {
+  failingCommands.clear();
+  ids.forEach((i) => failingCommands.add(i));
+}
+
 // Command ids that getCommands reports besides the registered ones (other extensions' commands).
 const knownCommands: string[] = [];
 // Test-control hook: sets the extra command ids getCommands reports.
 export function __setKnownCommands(ids: string[]): void {
   knownCommands.length = 0;
+  failingCommands.clear();
   knownCommands.push(...ids);
 }
 

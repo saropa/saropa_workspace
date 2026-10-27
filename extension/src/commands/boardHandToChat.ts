@@ -68,7 +68,9 @@ async function hasChats(file: string): Promise<boolean> {
 export async function openAgent(agent: HandAgent, customCommand: string): Promise<boolean> {
   try {
     const known = new Set(await vscode.commands.getCommands(true));
-    const id = pickCommand(agentCommands(agent, customCommand), known);
+    const candidates = agentCommands(agent, customCommand);
+    // A command of an extension that has not started yet is missing from the list; try the first id anyway.
+    const id = pickCommand(candidates, known) ?? candidates[0];
     if (!id) {
       return false;
     }
@@ -98,11 +100,11 @@ export async function copyHandPrompt(text: string, doc: vscode.Uri | undefined, 
   const copied = what ? l10n("releaseBoard.handToChat.copiedTopic", { topic: what }) : l10n("releaseBoard.handToChat.copied");
   let agentButton = agent !== "none" ? l10n("releaseBoard.handToChat.openAgent", { agent: agentLabel(agent) }) : "";
   if (agentButton && autoOpen) {
-    if (!(await openAgent(agent, customCommand))) {
+    if (await openAgent(agent, customCommand)) {
+      agentButton = "";
+    } else {
       void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.agentMissing", { agent: agentLabel(agent) }));
-      return;
     }
-    agentButton = "";
   }
   const offerChats = openChat === "offer" && doc !== undefined && (knownChats !== undefined ? knownChats > 0 : await hasChats(doc.fsPath));
   const chatsButton = offerChats ? l10n("releaseBoard.handToChat.openChats") : "";

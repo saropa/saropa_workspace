@@ -2010,6 +2010,8 @@
   "releaseBoard.handToChat.copied": "Prompt copied to the clipboard.",
   "releaseBoard.handToChat.copiedTopic": "Prompt copied to the clipboard, ready to paste: {topic}",
   "releaseBoard.handToChat.chatsTouched": "Chats touched this document.",
+  "releaseBoard.handToChat.nothing": "Nothing to hand over: that row is no longer on the board.",
+  "releaseBoard.handToChat.stale": "The board changed. Press Hand to chat again.",
   "releaseBoard.handToChat.openAgent": "Open {agent}",
   "releaseBoard.handToChat.agentCustom": "your chat",
   "releaseBoard.handToChat.agentMissing": "The command to open {agent} was not found. The prompt is still on the clipboard.",

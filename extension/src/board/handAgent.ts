@@ -10,8 +10,9 @@ export type HandAgent = (typeof HAND_AGENTS)[number];
 // Command ids tried in order; the first one VS Code knows is run. Add an id here to support
 // another build of a tool.
 const AGENT_COMMANDS: Record<Exclude<HandAgent, "none" | "custom">, readonly string[]> = {
-  claudeCode: ["claude-vscode.focus", "claude-vscode.sidebar.open", "claude-vscode.editor.open"],
+  claudeCode: ["claude-vscode.focus", "claude-vscode.sidebar.open"],
   copilotChat: ["workbench.action.chat.open", "workbench.panel.chat.view.copilot.focus"],
+  // The Cursor ids are the least certain; the custom choice covers a build that differs.
   cursor: ["aichat.newchataction", "composer.newAgentChat"],
 };
 
@@ -50,6 +51,7 @@ export function pickCommand(candidates: readonly string[], known: ReadonlySet<st
 
 // One line of a document title or headline for a toast: whitespace folded, cut at `max`.
 export function toastTopic(text: string, max = 80): string {
-  const one = text.replace(/\s+/g, " ").trim();
+  // Brackets and parentheses are dropped so a title cannot render as a link in the message.
+  const one = text.replace(/[[\]()]/g, "").replace(/\s+/g, " ").trim();
   return one.length > max ? `${one.slice(0, max - 1).trimEnd()}…` : one;
 }

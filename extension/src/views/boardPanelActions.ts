@@ -114,7 +114,11 @@ export async function openSittingsLine(model: BoardModel | undefined, run: Board
 // built from the model the panel rendered and copied to the clipboard.
 export async function handToChat(model: BoardModel | undefined, paths: PathToGo[] | undefined, run: BoardRun | undefined, m: { k?: unknown; i?: unknown; p?: unknown; s?: unknown }): Promise<void> {
   const settings = readHandSettings();
-  if (!settings.enabled || !model) {
+  if (!settings.enabled) {
+    return;
+  }
+  if (!model) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.nothing"));
     return;
   }
   let target: HandTarget | undefined;
@@ -137,6 +141,7 @@ export async function handToChat(model: BoardModel | undefined, paths: PathToGo[
     }
   }
   if (!target) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.nothing"));
     return;
   }
   const def = run?.cfg.projects.find((p) => p.id === file?.project);

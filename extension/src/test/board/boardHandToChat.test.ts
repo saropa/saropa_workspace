@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { copyHandPrompt, openAgent, readHandSettings } from "../../commands/boardHandToChat";
 import * as vscode from "vscode";
 import { l10n } from "../../i18n/l10n";
+import { handToChat } from "../../views/boardPanelActions";
+import type { BoardModel } from "../../board/boardModel";
 import { stub } from "./hostHelpers";
 
 const SECTION = "saropaWorkspace.releaseBoard.handToChat";
@@ -75,13 +77,14 @@ test("agent set: toast has an Open button; pressing it runs the first known comm
 
 test("agent missing: pressing Open shows a plain toast and the prompt stays copied", async () => {
   stub.__setConfig(SECTION, "agent", "cursor");
+  stub.__failCommands(["aichat.newchataction"]);
   info.__setInfoAnswer((_m, b) => b[0]);
   await copyHandPrompt("P2", undefined, "never", undefined, false, "T");
   await settle();
   const calls = info.__infoCalls();
   assert.equal(calls[1].message, l10n("releaseBoard.handToChat.agentMissing", { agent: "Cursor chat" }));
   assert.equal(await vscode.env.clipboard.readText(), "P2");
-  assert.deepEqual(stub.__recordedCommands(), []);
+  assert.deepEqual(stub.__recordedCommands().map((c) => c.command), ["aichat.newchataction"]);
 });
 
 test("autoOpen: runs the command at once and the toast has no Open button", async () => {
@@ -98,10 +101,31 @@ test("autoOpen with a missing command: one plain not-found toast", async () => {
   stub.__setConfig(SECTION, "agent", "custom");
   stub.__setConfig(SECTION, "customCommand", "nope.cmd");
   stub.__setConfig(SECTION, "autoOpen", true);
-  await copyHandPrompt("P4", undefined, "never", undefined, false, "T");
+  stub.__failCommands(["nope.cmd"]);
+  await copyHandPrompt("P4", vscode.Uri.file("/tmp/x.md"), "offer", 1, false, "Topic T");
   const calls = info.__infoCalls();
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
   assert.equal(calls[0].message, l10n("releaseBoard.handToChat.agentMissing", { agent: l10n("releaseBoard.handToChat.agentCustom") }));
+  // The topic message and the chats offer still follow.
+  assert.ok(calls[1].message.startsWith(l10n("releaseBoard.handToChat.copiedTopic", { topic: "Topic T" })));
+  assert.ok(calls[1].buttons.includes(l10n("releaseBoard.handToChat.openChats")));
+});
+
+test("a command not in the list (extension not started) is still tried", async () => {
+  stub.__setConfig(SECTION, "agent", "claudeCode");
+  assert.equal(await openAgent("claudeCode", ""), true);
+  assert.deepEqual(stub.__recordedCommands().map((c) => c.command), ["claude-vscode.focus"]);
+  stub.__failCommands(["claude-vscode.focus"]);
+  assert.equal(await openAgent("claudeCode", ""), false);
+});
+
+test("hand click with no board or an unknown row ends in a visible message", async () => {
+  await handToChat(undefined, undefined, undefined, { k: "item", i: 0 });
+  assert.deepEqual(info.__infoCalls().map((c) => c.message), [l10n("releaseBoard.handToChat.nothing")]);
+  info.__resetInfo();
+  const model = { items: [], projects: [] } as unknown as BoardModel;
+  await handToChat(model, undefined, undefined, { k: "item", i: 5 });
+  assert.deepEqual(info.__infoCalls().map((c) => c.message), [l10n("releaseBoard.handToChat.nothing")]);
 });
 
 test("openAgent: none and empty custom find nothing", async () => {

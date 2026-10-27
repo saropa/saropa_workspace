@@ -49,3 +49,12 @@ test("toastTopic: folds whitespace and cuts long text", () => {
   assert.equal(cut.length, 20);
   assert.ok(cut.endsWith("…"));
 });
+
+test("toastTopic: brackets and parentheses are removed so no link can form", () => {
+  assert.equal(toastTopic("Fix [the docs](https://x.example) now"), "Fix the docshttps://x.example now");
+  assert.ok(!/[[\]()]/.test(toastTopic("a [b] (c)")));
+});
+
+test("claudeCode list has no command that opens a new tab", () => {
+  assert.ok(!agentCommands("claudeCode", "").includes("claude-vscode.editor.open"));
+});

@@ -2596,17 +2596,22 @@
           "saropaWorkspace.releaseBoard.handToChat.agent": {
             "type": "string",
             "enum": ["none", "claudeCode", "copilotChat", "cursor", "custom"],
+            "enumItemLabels": ["None", "Claude Code", "Copilot Chat", "Cursor", "Custom command"],
+            "enumDescriptions": ["%config.releaseBoard.handToChat.agent.none%", "%config.releaseBoard.handToChat.agent.claudeCode%", "%config.releaseBoard.handToChat.agent.copilotChat%", "%config.releaseBoard.handToChat.agent.cursor%", "%config.releaseBoard.handToChat.agent.custom%"],
             "default": "none",
+            "scope": "machine",
             "description": "%config.releaseBoard.handToChat.agent.description%"
           },
           "saropaWorkspace.releaseBoard.handToChat.customCommand": {
             "type": "string",
             "default": "",
+            "scope": "machine",
             "description": "%config.releaseBoard.handToChat.customCommand.description%"
           },
           "saropaWorkspace.releaseBoard.handToChat.autoOpen": {
             "type": "boolean",
             "default": false,
+            "scope": "machine",
             "description": "%config.releaseBoard.handToChat.autoOpen.description%"
           },
           "saropaWorkspace.releaseBoard.liveEvidence.enabled": {

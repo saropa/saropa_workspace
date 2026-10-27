@@ -38,6 +38,7 @@ export const stub = vscode as unknown as {
   __resetConfig(): void;
   __setWorkspaceFolders(f: Array<{ uri: vscode.Uri; name: string; index: number }> | undefined): void;
   __resetRecordedCommands(): void;
+  __failCommands(ids: string[]): void;
   __setKnownCommands(ids: string[]): void;
   __recordedCommands(): ReadonlyArray<{ command: string; args: unknown[] }>;
   __setInstalledExtensions(ids: string[]): void;
