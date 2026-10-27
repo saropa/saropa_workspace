@@ -94,6 +94,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
           this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
           void this.refreshOutside();
           void this.refreshLive();
+          void this.refreshFuture();
         }
       },
       null,

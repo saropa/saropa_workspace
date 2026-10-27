@@ -80,3 +80,13 @@ test("catch-up order is build, lint, tests, dependencies; other jobs keep their 
 test("only the full test run and dependencies are heavy", () => {
   assert.deepEqual(FEEDS.filter((f) => f.heavy).map((f) => f.feed), ["tests", "deps"]);
 });
+
+test("a tests run that ran no tests is unknown, never a pass", () => {
+  assert.deepEqual(summarizeShellRun("tests", 0, "# tests 0\n# pass 0\n# fail 0\n", T), { recipe: "ritual.tests", time: T, result: "unknown", count: 0 });
+});
+
+test("a count of more than nine digits is not read", () => {
+  const big = `<!-- saropa-summary recipe=ritual.ci time=2026-10-27T05:30:12.000Z result=fail count=${"9".repeat(400)} -->`;
+  assert.equal(parseSummaryLine(big), undefined);
+  assert.equal(parseSummaryLine(big.replace("9".repeat(400), "999999999"))?.count, 999999999);
+});

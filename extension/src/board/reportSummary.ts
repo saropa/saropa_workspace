@@ -64,7 +64,7 @@ export interface ReportSummary {
 }
 
 const MARK = "saropa-summary";
-const LINE = new RegExp(`^<!-- ${MARK} recipe=(\\S+) time=(\\S+) result=(pass|fail|unknown)(?: count=(\\d+))? -->$`);
+const LINE = new RegExp(`^<!-- ${MARK} recipe=(\\S+) time=(\\S+) result=(pass|fail|unknown)(?: count=(\\d{1,9}))? -->$`);
 
 // The summary line, as written at the top of a report. One line, no trailing newline.
 export function formatSummaryLine(s: ReportSummary): string {
@@ -119,7 +119,8 @@ export function summarizeShellRun(feed: FeedKind, code: number | null, output: s
   }
   const tally = feed === "tests" ? parseTestTally(output) : undefined;
   const count = feed === "tests" ? tally?.failed : parseLintCount(output);
-  const result: SummaryResult = code === null ? "unknown" : code === 0 && (feed !== "tests" || (tally?.failed ?? 0) === 0) ? "pass" : "fail";
+  // A summary that ran no tests is no evidence, as with a recorded run that ran none.
+  const result: SummaryResult = code === null || tally?.run === 0 ? "unknown" : code === 0 && (feed !== "tests" || (tally?.failed ?? 0) === 0) ? "pass" : "fail";
   return { recipe: info.recipeId, time, result, count };
 }
 

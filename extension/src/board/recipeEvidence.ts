@@ -39,6 +39,9 @@ function oldText(ageMs: number): string {
 
 function agoText(ageMs: number): string {
   const d = Math.floor(ageMs / DAY);
+  if (ageMs < HOUR) {
+    return "just now";
+  }
   return d >= 1 ? `${d} d ago` : `${Math.max(1, Math.floor(ageMs / HOUR))} h ago`;
 }
 
@@ -56,6 +59,10 @@ export function readFeedReport(feed: EvidenceFeed, file: ReportFile | undefined,
   const summary = parseSummaryLine(file.text);
   if (!summary || summary.recipe !== feedInfo(feed).recipeId) {
     return grey(feed, "unreadable", "The report has no summary line");
+  }
+  // Only lint may pass with findings (warnings). A passing tests or build summary with a count is contradictory.
+  if (feed !== "lint" && summary.result === "pass" && (summary.count ?? 0) > 0) {
+    return grey(feed, "unreadable", "The report contradicts itself");
   }
   const at = Math.min(summary.time, file.mtimeMs);
   if (at > now + DAY) {

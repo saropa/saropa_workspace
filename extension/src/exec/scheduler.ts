@@ -169,6 +169,13 @@ export class Scheduler implements vscode.Disposable {
       if (this.disposed) {
         return;
       }
+      // The wait can be long: the job's own daily timer may have run it meanwhile. Run it only
+      // while its slot is still missed.
+      const current = this.store.findShortcut(shortcut.id);
+      if (!current?.schedule?.enabled || current.paused || !isMissed(current.schedule, Date.now())) {
+        feedJobs.clear(shortcut.id);
+        continue;
+      }
       if (info) {
         feedJobs.set(shortcut.id, { state: "running" });
       }
@@ -367,7 +374,7 @@ export class Scheduler implements vscode.Disposable {
         reportRelPath: undefined,
       });
       void surfaceRunResult(name, "failure");
-      return { started: false, reason: error };
+      return { started: false, reason: plainReason(error) };
     }
     await this.recordFireResult(shortcut, name, startedAt);
     return { started: true };
@@ -429,6 +436,12 @@ export class Scheduler implements vscode.Disposable {
     }
     this.sleepers.clear();
   }
+}
+
+// A start failure as one short line for the board: file paths shrink to the file name.
+function plainReason(message: string): string {
+  const short = message.split("\n")[0].replace(/(?:[A-Za-z]:)?[\\/](?:[^\s'"\\/]+[\\/])+([^\s'"\\/]+)/g, "$1").trim();
+  return short.length > 0 ? short.slice(0, 120) : l10n("schedule.reason.unknown");
 }
 
 // Display name for a scheduled shortcut, matching the scheduler's log lines and the

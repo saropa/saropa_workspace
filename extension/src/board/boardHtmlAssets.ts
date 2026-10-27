@@ -35,6 +35,9 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .row.tidy{cursor:default}.row.tidy .f{cursor:pointer}.row.tidy button{flex:none}
 .seg{flex-wrap:wrap;margin:4px 0}.untag{margin-top:8px}
 .vd.train{border-style:dashed}.vd.train .pn{width:auto;min-width:110px}.ord{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.ord .f{flex:none}.ord .go{font-size:11px;padding:0 6px}
+.tabs{display:flex;gap:4px;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:4px 12px}.tabs button[aria-selected=true]{border-bottom-color:var(--blue);font-weight:600}
+.fg h3{margin:16px 0 6px}.fut{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:8px 12px;margin:6px 0}.fut.ro{padding:4px 12px}.fl{display:flex;gap:8px;align-items:center}.fc{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}.fcl{display:inline-flex;gap:4px;align-items:center}.fb{margin-top:6px}.fsort{margin:6px 0}
+.fut select{background:var(--vscode-dropdown-background,var(--bg));color:var(--vscode-dropdown-foreground,var(--fg));border:1px solid var(--line);border-radius:4px;padding:1px 4px}.fut select.guess{border-style:dashed;border-color:var(--amber)}.click-f{cursor:pointer}.click-f:hover{text-decoration:underline}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
 // The page script. It posts messages that carry only indexes, never paths or URLs.
@@ -68,6 +71,13 @@ const done=(SEEN[pid]||[]).filter(d=>!all.includes(d.k)&&NOW-(d.at||NOW)<600000&
 [...done].reverse().forEach(d=>{const li=document.createElement('li');li.className='done';const sp=document.createElement('span');sp.className='st';sp.textContent=d.t;li.appendChild(sp);ol.insertBefore(li,ol.firstChild);});
 if(live){SEEN[pid]=[...cur,...done];}set(OPEN.has(pid));
 const tog=()=>set(ol.hidden);row.addEventListener('click',tog);row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tog();}});});
+const tabs=[...document.querySelectorAll('[data-tab]')];const showTab=n=>{if(!tabs.some(b=>b.dataset.tab===n)){n='board';}tabs.forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===n)));const tb=document.getElementById('tab-board'),tf=document.getElementById('tab-future');if(tb){tb.hidden=n!=='board';}if(tf){tf.hidden=n!=='future';}vscode.setState({...(vscode.getState()||{}),tab:n});};
+tabs.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));if(tabs.length){showTab(saved.tab||'board');}
+document.querySelectorAll('[data-ff]').forEach(s=>s.addEventListener('change',()=>{s.disabled=true;setTimeout(()=>{s.disabled=false;},4000);vscode.postMessage({type:'futureSet',i:Number(s.dataset.fi),field:s.dataset.ff,value:s.value,rev:REV});}));
+document.querySelectorAll('[data-faccept]').forEach(b=>b.addEventListener('click',()=>{b.disabled=true;setTimeout(()=>{b.disabled=false;},4000);vscode.postMessage({type:'futureSet',i:Number(b.dataset.faccept),field:'importance',value:b.dataset.fv,rev:REV});}));
+document.querySelectorAll('[data-fblock]').forEach(b=>b.addEventListener('click',()=>{b.disabled=true;setTimeout(()=>{b.disabled=false;},4000);vscode.postMessage({type:'futureBlocker',i:Number(b.dataset.fblock),rev:REV});}));
+const fs=document.querySelector('[data-fsort]');if(fs){fs.addEventListener('change',()=>vscode.postMessage({type:'futureSort',value:fs.value,rev:REV}));}
+document.querySelectorAll('[data-fopen],[data-fopen-o]').forEach(r=>{const go=()=>vscode.postMessage(r.dataset.fopen!==undefined?{type:'futureOpen',i:Number(r.dataset.fopen),rev:REV}:{type:'futureOpen',o:Number(r.dataset.fopenO),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 if(saved.y){window.scrollTo(0,saved.y);}
 document.querySelectorAll('.hb').forEach(b=>{const stop=e=>e.stopPropagation();b.addEventListener('keydown',stop);b.addEventListener('click',e=>{e.stopPropagation();vscode.postMessage({type:'hand',k:b.dataset.hk,i:Number(b.dataset.i),p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV});});});
 document.querySelectorAll('.ptgb').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.run){b.disabled=true;setTimeout(()=>{b.disabled=false;},5000);}vscode.postMessage({type:'path',p:Number(b.dataset.p),s:Number(b.dataset.s),rev:REV});}));

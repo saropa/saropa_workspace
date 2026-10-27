@@ -229,3 +229,37 @@ test("disposing while a heavy job waits for quiet ends the pass without running 
   await flush();
   assert.deepEqual(launched, []);
 });
+
+test("a heavy job whose own timer ran it during the wait is not run again", async () => {
+  const launched: string[] = [];
+  let idle = 0;
+  const tests = job("tests");
+  const scheduler = new Scheduler(fakeStore([tests]), { launch: async (s) => void launched.push(s.id), idleMs: () => idle });
+  try {
+    await startUp(scheduler);
+    assert.deepEqual(launched, []);
+    // The daily slot fired meanwhile and advanced lastRun.
+    tests.schedule = { ...tests.schedule!, lastRun: Date.now() };
+    idle = 120_000;
+    mock.timers.tick(15_000);
+    await flush();
+    assert.deepEqual(launched, []);
+    assert.equal(feedJobs.get("tests"), undefined);
+  } finally {
+    scheduler.dispose();
+  }
+});
+
+test("a start failure reason names files, not folders", async () => {
+  const scheduler = new Scheduler(fakeStore([job("build")]), {
+    launch: async () => {
+      throw new Error("spawn /home/me/secret/project/bin/gh ENOENT");
+    },
+  });
+  try {
+    await startUp(scheduler);
+    assert.deepEqual(feedJobs.get("build"), { state: "failed", reason: "spawn gh ENOENT" });
+  } finally {
+    scheduler.dispose();
+  }
+});

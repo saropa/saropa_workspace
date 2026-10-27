@@ -191,13 +191,19 @@ function html(h: ProjectHealth): string {
   return renderBoard(m, t, "N", 1, {}, m.projects.map((p) => pathToGo(m, p, opts)));
 }
 
-test("html: the off note reads 'Turn on the daily test report' with one Turn on button, no path in the page", () => {
+test("html: the off note reads 'Turn on the daily test report' with Turn on and the earlier run button, no path in the page", () => {
   const out = html({ ...evaluateHealth({ lintApplies: false }, undefined, undefined, NOW), feeds: { tests: { state: "off" } } });
   assert.ok(out.includes("Turn on the daily test report"));
   const buttons = out.match(/<button class="ptgb"[^>]*>[^<]*<\/button>/g) ?? [];
-  assert.equal(buttons.length, 1);
+  assert.equal(buttons.length, 2);
   assert.ok(/data-p="0" data-s="0" data-run="1">Turn on</.test(buttons[0]));
+  assert.ok(/data-p="0" data-s="0" data-run="1">\[ptgRunTests\]/.test(buttons[1]), buttons[1]);
   assert.ok(!out.includes("reports/"));
+});
+
+test("html: while a job checks or waits there is no run button", () => {
+  const out = html({ ...evaluateHealth({ lintApplies: false }, undefined, undefined, NOW), feeds: { tests: { state: "checking" } } });
+  assert.equal((out.match(/<button class="ptgb"/g) ?? []).length, 0);
 });
 
 test("html: a running job shows 'Checking the build now.' on the row and in the list", () => {

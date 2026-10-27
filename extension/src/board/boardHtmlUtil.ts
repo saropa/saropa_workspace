@@ -129,6 +129,8 @@ export interface BoardStrings {
   trainHeldBy: string;
   trainCycle: string;
   trainOrder: string;
+  // Future tab: every label and phrase, keyed (see views/boardStrings.ts).
+  futureLabels: Record<string, string>;
 }
 
 // Small helpers shared by every part of the page: escaping, placeholder filling and the

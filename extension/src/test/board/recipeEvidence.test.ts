@@ -100,3 +100,17 @@ test("a row's job note: off only when the recipe exists, its schedule is off and
   assert.equal(deriveFeedNote({ ...base, hasShortcut: false, scheduleOn: false, fresh: false }), undefined);
   assert.equal(deriveFeedNote({ ...base, job: { state: "running" }, hasShortcut: false, scheduleOn: false, fresh: false }), undefined);
 });
+
+test("a passing tests or build summary with a count contradicts itself; lint may pass with findings", () => {
+  const t = readFeedReport("tests", file("ritual.tests", HOUR, "pass", 2), NOW, LIMIT);
+  assert.deepEqual(t, { ok: false, feed: "tests", why: "unreadable", detail: "The report contradicts itself", ageMs: undefined });
+  const b = readFeedReport("build", file("ritual.ci", HOUR, "pass", 1), NOW, LIMIT);
+  assert.ok(!b.ok && b.why === "unreadable");
+  const l = readFeedReport("lint", file("ritual.lint", HOUR, "pass", 5), NOW, LIMIT);
+  assert.ok(l.ok && l.result === "pass" && l.count === 5);
+});
+
+test("a report under an hour old says 'just now'", () => {
+  const r = readFeedReport("lint", file("ritual.lint", 20 * 60000, "pass", 0), NOW, LIMIT);
+  assert.ok(r.ok && r.detail === "Lint report: passing (just now)");
+});

@@ -21,11 +21,11 @@ function reasonText(r: UnverifiedReason, p: BoardProject, t: BoardStrings): stri
   }
 }
 
-// The sentence for what a row's daily report job is doing. Plain text; callers escape it.
+// The sentence for what a row's daily report job is doing. Already escaped.
 function feedSentence(kind: "build" | "lint" | "tests", note: FeedNote, t: BoardStrings): string {
   const what = kind === "build" ? t.feedWhatBuild : kind === "lint" ? t.feedWhatLint : t.feedWhatTests;
   const tmpl = note.state === "off" ? t.ptgFeedOff : note.state === "checking" ? t.ptgFeedChecking : note.state === "waiting" ? t.ptgFeedWaiting : t.ptgFeedFailed;
-  return tmpl.replace("{what}", what).replace("{reason}", note.reason ?? "");
+  return fill(tmpl, { what, reason: note.reason ?? "" });
 }
 
 // Two small marks: lint and tests, and a third for the build once a daily build report was
@@ -57,7 +57,7 @@ function feedLine(p: BoardProject, t: BoardStrings): string {
       lines.push(feedSentence(kind, note, t));
     }
   }
-  return lines.length > 0 ? `<span class="fn">${escapeHtml(lines.join(" "))}</span>` : "";
+  return lines.length > 0 ? `<span class="fn">${lines.join(" ")}</span>` : "";
 }
 
 // One project's verdict row: name, light, link mark, health marks and the item squares.
@@ -198,9 +198,11 @@ function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct
   }
   const evidenceKind = s.kind === "lint" || s.kind === "tests" || s.kind === "build";
   const enable = evidenceKind && s.enable === true;
-  const run = (s.kind === "lint" || s.kind === "tests") && s.run && (s.feed === undefined || s.feed === "failed");
-  const label = enable ? t.ptgEnable : s.kind === "item" ? t.ptgOpen : s.kind === "rules" ? t.ptgOpenRules : s.kind === "accept" ? t.ptgAcceptBtn : run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
-  return label ? `<button class="ptgb" data-p="${pi}" data-s="${si}"${run || enable ? ' data-run="1"' : ""}>${escapeHtml(label)}</button>` : "";
+  const run = (s.kind === "lint" || s.kind === "tests") && s.run && s.feed !== "checking" && s.feed !== "waiting";
+  const label = s.kind === "item" ? t.ptgOpen : s.kind === "rules" ? t.ptgOpenRules : s.kind === "accept" ? t.ptgAcceptBtn : run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
+  const button = (text: string, debounce: boolean): string => `<button class="ptgb" data-p="${pi}" data-s="${si}"${debounce ? ' data-run="1"' : ""}>${escapeHtml(text)}</button>`;
+  // A row whose daily report is off offers both: turn the report on, and the run it had before.
+  return (enable ? button(t.ptgEnable, true) : "") + (label ? button(label, Boolean(run)) : "");
 }
 
 // One project's steps, hidden until its row is clicked. A step that is no longer listed is
