@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter, FileType, Location, MarkdownString, Position, QuickPickItemKind, RelativePattern, TabInputText, ThemeColor, ThemeIcon, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
+import { DataTransfer, DataTransferItem, EventEmitter, FileType, Location, MarkdownString, Position, QuickPickItemKind, RelativePattern, TabInputText, ThemeColor, ThemeIcon, TreeItem, TreeItemCollapsibleState, Uri } from "./vscodeTypes";
 
 test("Uri.file echoes the path as fsPath and in toString", () => {
   const u = Uri.file("/p/a.ts");
@@ -112,4 +112,16 @@ test("MarkdownString starts with its text and appends in order", () => {
 test("ThemeIcon keeps its id and optional tint", () => {
   assert.equal(new ThemeIcon("eye").color, undefined);
   assert.deepEqual([new ThemeIcon("globe", new ThemeColor("charts.blue")).id, new ThemeIcon("globe", new ThemeColor("charts.blue")).color?.id], ["globe", "charts.blue"]);
+});
+
+test("DataTransfer stores items by MIME type and reads them back", async () => {
+  const transfer = new DataTransfer();
+  assert.equal(transfer.get("a/b"), undefined);
+  transfer.set("a/b", new DataTransferItem('["x"]'));
+  transfer.set("c/d", new DataTransferItem(7));
+  assert.equal(await transfer.get("a/b")!.asString(), '["x"]');
+  assert.equal(await transfer.get("c/d")!.asString(), "7");
+  const seen: string[] = [];
+  transfer.forEach((_item, mime) => seen.push(mime));
+  assert.deepEqual(seen, ["a/b", "c/d"]);
 });

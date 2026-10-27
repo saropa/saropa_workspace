@@ -157,6 +157,28 @@ export class MarkdownString {
   }
 }
 
+// vscode.DataTransferItem / DataTransfer: the payload of a tree drag. Items keep their value;
+// the transfer is a MIME-keyed map with the same get / set / forEach the tree controllers use.
+export class DataTransferItem {
+  constructor(public readonly value: unknown) {}
+  asString(): Promise<string> {
+    return Promise.resolve(typeof this.value === "string" ? this.value : String(this.value));
+  }
+}
+/** Stub of vscode.DataTransfer: a map from MIME type to item. */
+export class DataTransfer {
+  private readonly items = new Map<string, DataTransferItem>();
+  get(mimeType: string): DataTransferItem | undefined {
+    return this.items.get(mimeType);
+  }
+  set(mimeType: string, item: DataTransferItem): void {
+    this.items.set(mimeType, item);
+  }
+  forEach(callback: (item: DataTransferItem, mimeType: string) => void): void {
+    this.items.forEach(callback);
+  }
+}
+
 // vscode.TreeItem / TreeItemCollapsibleState: the tree-row classes extend TreeItem, so any
 // bundle that imports one needs the base class to exist at load. Only the fields the
 // rows assign and the unit tests read are modeled.
