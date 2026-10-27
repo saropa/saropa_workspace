@@ -40,6 +40,7 @@ function translate(g: string): string {
   return out;
 }
 
+// Turns a board glob into a regular expression that must match the whole text.
 export function globToRegExp(glob: string): RegExp {
   return new RegExp("^" + translate(glob) + "$");
 }

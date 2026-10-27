@@ -21,6 +21,7 @@ import { BoardItem, BoardModel, BoardProject } from "./boardModel";
 
 export type PathStepKind = "item" | "blocked" | "lint" | "tests" | "rules" | "unread" | "accept";
 
+// One step on the way to GO. Only the fields of its kind are set.
 export interface PathStep {
   kind: PathStepKind;
   // Stable across rescans, so the page can show a step as done once it disappears.
@@ -49,6 +50,7 @@ export interface PathStep {
   count?: number;
 }
 
+// The ordered steps for one project, and which were cut.
 export interface PathToGo {
   steps: PathStep[];
   // The key of every step, shown or not, so a step pushed out by the limit is not taken for a finished one.
@@ -57,6 +59,7 @@ export interface PathToGo {
   hidden: number;
 }
 
+// Settings for building a Path to GO.
 export interface PathOptions {
   // Most steps shown; the rest are counted in `hidden`.
   maxSteps: number;
@@ -64,10 +67,14 @@ export interface PathOptions {
   canRun: (kind: "lint" | "tests") => boolean;
 }
 
+// Fewest steps the setting may ask for.
 export const MIN_STEPS = 3;
+// Most steps the setting may ask for.
 export const MAX_STEPS = 20;
+// Steps shown when the setting is missing or not a number.
 export const DEFAULT_STEPS = 8;
 
+// Keeps the step limit between the smallest and largest allowed value.
 export function clampMaxSteps(v: unknown): number {
   const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : DEFAULT_STEPS;
   return Math.min(MAX_STEPS, Math.max(MIN_STEPS, n));
@@ -163,6 +170,7 @@ function evidenceStep(kind: "lint" | "tests", project: BoardProject, opts: PathO
   };
 }
 
+// Lists what stands between a project and GO, most urgent first, cut at the step limit.
 export function pathToGo(model: BoardModel, project: BoardProject, opts: PathOptions): PathToGo {
   const steps: PathStep[] = itemSteps(model, project);
   const extra: string[] = [];
