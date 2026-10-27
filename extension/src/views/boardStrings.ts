@@ -1,6 +1,7 @@
 import { BoardStrings } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
 import { readHandSettings } from "../commands/boardHandToChat";
+import { keywordBoardLabels } from "./keywordStrings";
 
 // The localized strings the board page is drawn with.
 // Headings, buttons and the light.
@@ -411,5 +412,6 @@ export function strings(): BoardStrings {
     ...futureStrings(),
     ...polishStrings(),
     ...projectStrings(),
+    keywordLabels: keywordBoardLabels(),
   };
 }

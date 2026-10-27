@@ -13,13 +13,16 @@ import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { assignFolderRule, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
+import { openKeywordEditor } from "./keywordEditorPanel";
+import { readKeywordSettings } from "../commands/boardKeywordSettings";
+import { saveSeverity } from "../commands/boardSeverityEdit";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "assign <index>" and "preview <index>", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "assign <index>", "preview <index>", "keywords" and "keywordsRestore", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -100,6 +103,8 @@ class BoardPanel extends BoardPanelWiring {
       await this.rowMenu(message.act, message.id);
     } else if (message.type === "optsMenu" && typeof message.act === "string") {
       await this.optsMenu(message.act);
+    } else if (message.type === "keywords" || message.type === "keywordsRestore") {
+      await this.keywords(message.type === "keywordsRestore");
     } else if (message.type === "rules") {
       await openRulesFile();
     } else if (message.type === "accept") {
@@ -316,8 +321,49 @@ class BoardPanel extends BoardPanelWiring {
   private async optsMenu(act: string): Promise<void> {
     if (act === "rules") {
       await openRulesFile();
+    } else if (act === "keywords") {
+      await this.keywords(false);
     } else if (act === "projects" || act === "settings") {
       await this.projectsMessage(act === "settings" ? "boardSettings" : "projects");
+    }
+  }
+
+  // The keyword editor, or Restore defaults. Both change what every document's severity is, and so
+  // possibly the light, so each asks first (the editor on Save). The editor gets the model this
+  // panel painted; nothing the page names is trusted.
+  private async keywords(restore: boolean): Promise<void> {
+    const run = this.run;
+    const model = this.model;
+    if (!readKeywordSettings().enabled) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.keywords.msg.disabled"));
+      return;
+    }
+    if (!run || !model) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.keywords.msg.noBoard"));
+      return;
+    }
+    const busy = this.busyReason();
+    if (busy) {
+      void vscode.window.showInformationMessage(l10n(busy));
+      return;
+    }
+    const onSaved = async (): Promise<void> => {
+      this.dirty = true;
+      await this.refresh();
+    };
+    if (!restore) {
+      openKeywordEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
+      return;
+    }
+    this.assigning = true;
+    try {
+      if ((await saveSeverity({ kind: "restore" })) === "saved") {
+        await onSaved();
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.assigning = false;
     }
   }
 

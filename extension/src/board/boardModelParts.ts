@@ -151,6 +151,9 @@ export interface BoardModel {
   skipped?: SkippedProject[];
   // How many chosen projects the "open project only" scope hides. Absent when none.
   hidden?: number;
+  // The parts of the severity dictionary the user's rules file changes ("threshold", "weights",
+  // "negation", "phrases.high" ...). Absent when the board uses the shipped keywords.
+  severityCustom?: string[];
 }
 
 // Optional inputs to buildBoard. Each is absent when its feature is off or has nothing to add.

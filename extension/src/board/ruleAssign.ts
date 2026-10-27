@@ -94,10 +94,10 @@ function slug(folder: string): string {
   return s || "root";
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 // The indent of a JSON text: its first indented line, else two spaces.
-function indentOf(text: string): string {
+export function indentOf(text: string): string {
   const m = /^([ \t]+)\S/m.exec(text);
   return m ? m[1] : "  ";
 }

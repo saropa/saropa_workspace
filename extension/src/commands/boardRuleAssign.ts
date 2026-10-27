@@ -19,9 +19,9 @@ export interface NoRuleFolder {
 }
 
 // What reading the rules file found: no file, its text, or a file that is not plain UTF-8.
-type RulesRead = { kind: "none" } | { kind: "text"; text: string } | { kind: "encoding" };
+export type RulesRead = { kind: "none" } | { kind: "text"; text: string } | { kind: "encoding" };
 
-async function readRules(uri: vscode.Uri): Promise<RulesRead> {
+export async function readRules(uri: vscode.Uri): Promise<RulesRead> {
   if (!(await pathExists(uri))) {
     return { kind: "none" };
   }
@@ -29,10 +29,10 @@ async function readRules(uri: vscode.Uri): Promise<RulesRead> {
   return text === undefined ? { kind: "encoding" } : { kind: "text", text };
 }
 
-const sameRead = (a: RulesRead, b: RulesRead): boolean => a.kind === b.kind && (a.kind !== "text" || a.text === (b as { text: string }).text);
+export const sameRead = (a: RulesRead, b: RulesRead): boolean => a.kind === b.kind && (a.kind !== "text" || a.text === (b as { text: string }).text);
 
 // True when the path is a symbolic link (the rules file or its folder): a write would go through it.
-async function isLink(uri: vscode.Uri): Promise<boolean> {
+export async function isLink(uri: vscode.Uri): Promise<boolean> {
   try {
     return ((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.SymbolicLink) !== 0;
   } catch {
@@ -41,7 +41,7 @@ async function isLink(uri: vscode.Uri): Promise<boolean> {
 }
 
 // True when the rules file is open in an editor with unsaved edits: the write would drop them.
-function hasUnsavedCopy(uri: vscode.Uri): boolean {
+export function hasUnsavedCopy(uri: vscode.Uri): boolean {
   return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
 }
 
