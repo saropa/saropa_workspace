@@ -23,6 +23,7 @@ const labels: SidebarLabels = {
   reasons: { baseline: "scan not accepted", grey: "{count} unplaced", health: "no lint or test result", unread: "unread" },
   causeLint: "lint failing",
   causeBuild: "build failing",
+  causeDeps: "dependencies vulnerable",
   causeTests: "tests failing",
   causeBlocked: "{count} in blocked folders",
   causeHeld: "held: red in the last accepted scan",

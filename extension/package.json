@@ -2534,6 +2534,11 @@
             "maximum": 60,
             "description": "%config.releaseBoard.recipeEvidence.idleMinutes.description%"
           },
+          "saropaWorkspace.releaseBoard.recipeEvidence.rowNotes": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.recipeEvidence.rowNotes.description%"
+          },
           "saropaWorkspace.releaseBoard.handToChat.enabled": {
             "type": "boolean",
             "default": true,
@@ -2679,6 +2684,11 @@
             "maximum": 20,
             "description": "%config.releaseBoard.sinceLast.maxListed.description%"
           },
+          "saropaWorkspace.releaseBoard.sinceLast.reports": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.sinceLast.reports.description%"
+          },
           "saropaWorkspace.releaseBoard.sittings.enabled": {
             "type": "boolean",
             "default": true,
@@ -2726,6 +2736,11 @@
             "type": "string",
             "default": "docs/history",
             "description": "%config.releaseBoard.tidy.archiveFolder.description%"
+          },
+          "saropaWorkspace.releaseBoard.tidy.reports": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.tidy.reports.description%"
           },
           "saropaWorkspace.releaseBoard.future.enabled": {
             "type": "boolean",
@@ -2830,6 +2845,25 @@
             "type": "boolean",
             "default": true,
             "description": "%config.recipes.enabled.description%"
+          },
+          "saropaWorkspace.recipes.staleBranchDays": {
+            "type": "number",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 365,
+            "description": "%config.recipes.staleBranchDays.description%"
+          },
+          "saropaWorkspace.recipes.largeNewFileKB": {
+            "type": "number",
+            "default": 1024,
+            "minimum": 10,
+            "maximum": 1048576,
+            "description": "%config.recipes.largeNewFileKB.description%"
+          },
+          "saropaWorkspace.recipes.changelogFile": {
+            "type": "string",
+            "default": "CHANGELOG.md",
+            "description": "%config.recipes.changelogFile.description%"
           },
           "saropaWorkspace.recommend.aggressive": {
             "type": "boolean",

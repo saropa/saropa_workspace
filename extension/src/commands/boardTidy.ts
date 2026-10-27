@@ -8,7 +8,7 @@ import { DEFAULT_AFTER_DAYS, DEFAULT_ARCHIVE_FOLDER, TidyCandidate, TidyOptions,
 // source and destination. Nothing is edited inside a document.
 
 // Undefined when the sweep is switched off.
-export function readTidySettings(): Pick<TidyOptions, "afterDays" | "archiveFolder"> | undefined {
+export function readTidySettings(): Pick<TidyOptions, "afterDays" | "archiveFolder" | "reports"> | undefined {
   const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard.tidy");
   if (!c.get<boolean>("enabled", true)) {
     return undefined;
@@ -16,6 +16,7 @@ export function readTidySettings(): Pick<TidyOptions, "afterDays" | "archiveFold
   return {
     afterDays: clampAfterDays(c.get<number>("afterDays", DEFAULT_AFTER_DAYS)),
     archiveFolder: cleanArchiveFolder(c.get<string>("archiveFolder", DEFAULT_ARCHIVE_FOLDER)),
+    reports: c.get<boolean>("reports", true),
   };
 }
 

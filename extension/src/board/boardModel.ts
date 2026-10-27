@@ -8,7 +8,7 @@ import { buildGroups } from "./groups";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { ScanSnapshot } from "./scanner";
-import { buildTidy } from "./tidy";
+import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
 import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
@@ -126,7 +126,8 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     (!ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
     h?.lint === "failing" ||
     h?.tests === "failing" ||
-    h?.build === "failing";
+    h?.build === "failing" ||
+    h?.deps === "failing";
   return {
     id: def.id,
     name: def.name ?? def.id,
@@ -230,7 +231,7 @@ function attachLive(all: BoardItem[], ctx: BuildContext, lv: NonNullable<BoardEx
 
 // The Tidy list: documents with every step done that nobody has touched for a while.
 function buildTidyView(all: BoardItem[], ctx: BuildContext, opts: NonNullable<BoardExtra["tidy"]>): BoardModel["tidy"] {
-  return buildTidy(
+  const view = buildTidy(
     all.map((it) => {
       const t = it.marks ?? { done: 0, total: 0 };
       return {
@@ -250,6 +251,11 @@ function buildTidyView(all: BoardItem[], ctx: BuildContext, opts: NonNullable<Bo
     }),
     opts
   );
+  if (opts.reports === false) {
+    return view;
+  }
+  const sources = ctx.cfg.projects.map((p) => ({ project: p.id, projectName: p.name ?? p.id, signals: ctx.health?.[p.id]?.signals ?? [] }));
+  return { ...view, reports: buildTidyReports(sources).slice(0, TIDY_LIST_CAP) };
 }
 
 // Folders where documents no rule placed sit, for the "needs a rule" list.

@@ -3,7 +3,8 @@
 // a result that is stale, partial, from a run with no exit code, or absent counts as
 // missing, and a missing result keeps the light at UNVERIFIED.
 
-import type { EvidenceRead, FeedNote } from "./recipeEvidence";
+import type { EvidenceFeed, EvidenceRead, FeedNote } from "./recipeEvidence";
+import { Signal, signalsOf } from "./reportSignals";
 
 export interface HealthConfig {
   // Shortcuts (id or name) whose background run is the project's test run, and its lint run.
@@ -168,12 +169,19 @@ export interface ProjectHealth {
   // (failing) and is never required for GO.
   build?: Evidence;
   buildDetail?: string;
+  // Dependency evidence from the daily dependency report, set only when one was found. Like
+  // build, it can make the row worse (vulnerable or discontinued packages) and is never required for GO.
+  deps?: Evidence;
+  depsDetail?: string;
+  // Notes from the other daily reports (review queue, uncommitted files, checks, Tidy and
+  // since-you-looked feeds). They never change a light.
+  signals?: Signal[];
   // What the daily report job for each row is doing, set by the host.
   feeds?: Partial<Record<"build" | "lint" | "tests", FeedNote>>;
 }
 
 // The newest daily report read for each row; absent when there is none to read.
-export type FeedReports = Partial<Record<"build" | "lint" | "tests", EvidenceRead>>;
+export type FeedReports = Partial<Record<EvidenceFeed, EvidenceRead>>;
 
 // Failing first when two pieces of evidence share a time, so a tie is never read as a pass.
 function newestFirst(x: { at: number; e: Evidence }, y: { at: number; e: Evidence }): number {
@@ -251,24 +259,31 @@ function testsEvidence(cfg: HealthConfig | undefined, runs: RecordedRuns | undef
   return newest ? { tests: newest.e, testsDetail: newest.detail } : { tests: "missing", testsDetail };
 }
 
-// The build verdict from the daily build report alone. Nothing is said when no report was found.
-function buildEvidence(report: EvidenceRead | undefined): { build: Evidence; buildDetail: string } | undefined {
+// The verdict of one daily report alone (build, dependencies). Nothing is said when no report was found.
+function reportEvidence(report: EvidenceRead | undefined): { e: Evidence; detail: string } | undefined {
   if (!report || (!report.ok && report.why === "none")) {
     return undefined;
   }
-  return report.ok ? { build: report.result === "fail" ? "failing" : "passing", buildDetail: report.detail } : { build: "missing", buildDetail: report.detail };
+  return report.ok ? { e: report.result === "fail" ? "failing" : "passing", detail: report.detail } : { e: "missing", detail: report.detail };
 }
 
 // Weighs the lint and test evidence against the age limit. Only fresh, clean evidence of both kinds is clean.
 // The daily reports can add evidence: a fresh pass counts like any other fresh pass, a fresh
 // failure makes the row worse, and a stale or missing report changes nothing. A failing build
-// stops GO; a missing build never does.
+// or a dependency report with vulnerable packages stops GO; a missing one never does.
 export function evaluateHealth(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number, reports?: FeedReports): ProjectHealth {
   const staleMs = (cfg?.staleDays ?? DEFAULT_STALE_DAYS) * 86400000;
   const { lint, lintDetail } = lintEvidence(cfg, runs, lintFile, now, staleMs, reports?.lint);
   const { tests, testsDetail } = testsEvidence(cfg, runs, now, staleMs, reports?.tests);
-  const b = buildEvidence(reports?.build);
+  const b = reportEvidence(reports?.build);
+  const d = reportEvidence(reports?.deps);
   const ok = (e: Evidence): boolean => e === "passing" || e === "na";
-  const health: ProjectHealth = { lint, tests, lintDetail, testsDetail, clean: ok(lint) && ok(tests) && b?.build !== "failing" };
-  return b ? { ...health, ...b } : health;
+  const health: ProjectHealth = { lint, tests, lintDetail, testsDetail, clean: ok(lint) && ok(tests) && b?.e !== "failing" && d?.e !== "failing" };
+  const signals = signalsOf(reports);
+  return {
+    ...health,
+    ...(b ? { build: b.e, buildDetail: b.detail } : {}),
+    ...(d ? { deps: d.e, depsDetail: d.detail } : {}),
+    ...(signals.length > 0 ? { signals } : {}),
+  };
 }

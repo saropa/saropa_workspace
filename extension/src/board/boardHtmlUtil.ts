@@ -25,6 +25,7 @@ export interface BoardStrings {
   healthLint: string;
   healthTests: string;
   healthBuild: string;
+  healthDeps: string;
   allClear: string;
   dependsOn: string;
   linkedHeading: string;
@@ -64,6 +65,7 @@ export interface BoardStrings {
   ptgTestsMissing: string;
   ptgTestsFailing: string;
   ptgBuildFailing: string;
+  ptgDepsFailing: string;
   // Daily report job notes. "{what}" is the word below, "{reason}" why a job did not start.
   ptgFeedOff: string;
   ptgFeedChecking: string;
@@ -114,6 +116,27 @@ export interface BoardStrings {
   tidyTitle: string;
   // "{count}" more documents not listed.
   tidyMore: string;
+  // Read-only report candidates in the Tidy box. "{count}" is what the report counted.
+  tidyReportsNote: string;
+  tidyOpenReport: string;
+  tidyRepDebt: string;
+  // "{count}" markers, "{trend}" one of the three words below.
+  tidyRepDebtTrend: string;
+  tidyTrendUp: string;
+  tidyTrendDown: string;
+  tidyTrendSame: string;
+  tidyRepBranches: string;
+  tidyRepBloat: string;
+  tidyRepBigFiles: string;
+  // Notes on a project row from the daily reports. "{count}" is what the report counted.
+  sigPrs: string;
+  sigUncommitted: string;
+  sigStaleBranches: string;
+  sigChangelog: string;
+  sigVersion: string;
+  sigLinks: string;
+  sigReadyPass: string;
+  sigReadyFail: string;
   // Live evidence. Heading of the mark's tooltip; then one line per source with "{errors}",
   // "{warnings}" and "{crashes}"; "{count}" more files.
   liveHead: string;

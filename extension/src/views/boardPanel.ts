@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
 import { moveToArchive } from "../commands/boardTidy";
+import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { currentBoard } from "./boardFeed";
 import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
@@ -65,6 +66,8 @@ class BoardPanel extends BoardPanelWiring {
   private async onActionMessage(message: Record<string, unknown>): Promise<void> {
     if (message.type === "tidy" && typeof message.i === "number") {
       await this.tidyMove(message.i);
+    } else if (message.type === "tidyReport" && typeof message.i === "number") {
+      await this.tidyReport(message.i);
     } else if (message.type === "liveBug" && typeof message.i === "number") {
       await this.liveBug(message.i);
     } else if (message.type === "futureSet" || message.type === "futureBlocker") {
@@ -164,6 +167,20 @@ class BoardPanel extends BoardPanelWiring {
       }
     } finally {
       this.moving = false;
+    }
+  }
+
+  // Opens the newest report behind a read-only Tidy row. The index is resolved against the list
+  // this panel rendered; the report is found again in that project's reports folder.
+  private async tidyReport(i: number): Promise<void> {
+    const r = this.model?.tidy?.reports[i];
+    const project = this.run?.cfg.projects.find((p) => p.id === r?.project);
+    if (!r || !project) {
+      return;
+    }
+    const uri = await findNewestReportUri(vscode.Uri.parse(project.path), r.kind);
+    if (uri) {
+      await openDocument(uri);
     }
   }
 

@@ -28,6 +28,7 @@ function coreStrings() {
     healthLint: l10n("releaseBoard.panel.healthLint"),
     healthTests: l10n("releaseBoard.panel.healthTests"),
     healthBuild: l10n("releaseBoard.panel.healthBuild"),
+    healthDeps: l10n("releaseBoard.panel.healthDeps"),
     allClear: l10n("releaseBoard.panel.allClear"),
   };
 }
@@ -77,6 +78,7 @@ function pathStrings() {
     ptgTestsMissing: l10n("releaseBoard.panel.ptgTestsMissing"),
     ptgTestsFailing: l10n("releaseBoard.panel.ptgTestsFailing"),
     ptgBuildFailing: l10n("releaseBoard.panel.ptgBuildFailing"),
+    ptgDepsFailing: l10n("releaseBoard.panel.ptgDepsFailing"),
     ptgFeedOff: l10n("releaseBoard.panel.ptgFeedOff", { what: "{what}" }),
     ptgFeedChecking: l10n("releaseBoard.panel.ptgFeedChecking", { what: "{what}" }),
     ptgFeedWaiting: l10n("releaseBoard.panel.ptgFeedWaiting", { what: "{what}" }),
@@ -131,6 +133,24 @@ function toolStrings() {
     trainCycle: l10n("releaseBoard.train.cycle"),
     trainOrder: l10n("releaseBoard.train.order"),
     tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
+    tidyReportsNote: l10n("releaseBoard.tidy.reportsNote"),
+    tidyOpenReport: l10n("releaseBoard.tidy.openReport"),
+    tidyRepDebt: l10n("releaseBoard.tidy.repDebt", { count: "{count}" }),
+    tidyRepDebtTrend: l10n("releaseBoard.tidy.repDebtTrend", { count: "{count}", trend: "{trend}" }),
+    tidyTrendUp: l10n("releaseBoard.tidy.trendUp"),
+    tidyTrendDown: l10n("releaseBoard.tidy.trendDown"),
+    tidyTrendSame: l10n("releaseBoard.tidy.trendSame"),
+    tidyRepBranches: l10n("releaseBoard.tidy.repBranches", { count: "{count}" }),
+    tidyRepBloat: l10n("releaseBoard.tidy.repBloat", { count: "{count}" }),
+    tidyRepBigFiles: l10n("releaseBoard.tidy.repBigFiles", { count: "{count}" }),
+    sigPrs: l10n("releaseBoard.signal.prs", { count: "{count}" }),
+    sigUncommitted: l10n("releaseBoard.signal.uncommitted", { count: "{count}" }),
+    sigStaleBranches: l10n("releaseBoard.signal.staleBranches", { count: "{count}" }),
+    sigChangelog: l10n("releaseBoard.signal.changelog"),
+    sigVersion: l10n("releaseBoard.signal.version"),
+    sigLinks: l10n("releaseBoard.signal.links", { count: "{count}" }),
+    sigReadyPass: l10n("releaseBoard.signal.readyPass"),
+    sigReadyFail: l10n("releaseBoard.signal.readyFail", { count: "{count}" }),
   };
 }
 
