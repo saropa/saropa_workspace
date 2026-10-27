@@ -260,5 +260,9 @@
   "command.releaseBoard.exportMarks.title": "Release Board: Export Marks to the Repository",
   "config.releaseBoard.pathToGo.enabled.description": "Show a Path to GO under each project on the Release Board: a short ordered list of what stands between the project and a green light. Click a project row to open it.",
   "config.releaseBoard.pathToGo.maxSteps.description": "Most steps listed in a Path to GO (3 to 20). Steps beyond the limit are counted, not listed.",
-  "config.releaseBoard.pathToGo.showRunButtons.description": "Show the Run lint now and Run tests now buttons in a Path to GO. They start the shortcut the project names for that run, in the background. Turn off if the board should never start a run."
+  "config.releaseBoard.pathToGo.showRunButtons.description": "Show the Run lint now and Run tests now buttons in a Path to GO. They start the shortcut the project names for that run, in the background. Turn off if the board should never start a run.",
+  "config.releaseBoard.editorLinks.enabled.description": "Show, in the editor, which open Release Board documents name the current file. Needs the Release Board to be on. Reads the last board result and never starts a scan.",
+  "config.releaseBoard.editorLinks.codeLens.description": "Show a line at the top of a file listing the open Release Board documents that name it. Click a name to open the document.",
+  "config.releaseBoard.editorLinks.statusBar.description": "Show a status bar item with the number of open documents naming the current file, in the color of the worst one.",
+  "config.releaseBoard.editorLinks.minSeverity.description": "Only show documents of at least this severity in the editor: any, medium, high or critical. Documents whose text was not read are left out when this is not any. Documents waiting on another document are collapsed on the board and never listed. Raise it if the editor lines feel noisy."
 }

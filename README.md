@@ -126,6 +126,10 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.pathToGo.enabled` | `true` | Shows a Path to GO under each project on the board: click a project row to see the few steps between it and GO. |
 | `releaseBoard.pathToGo.maxSteps` | `8` | Most steps listed in a Path to GO (3 to 20). |
 | `releaseBoard.pathToGo.showRunButtons` | `true` | Shows the Run lint now and Run tests now buttons in a Path to GO. Turn off if the board should never start a run. |
+| `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |
+| `releaseBoard.editorLinks.codeLens` | `true` | Shows the line at the top of a file that lists those documents. |
+| `releaseBoard.editorLinks.statusBar` | `true` | Shows a status bar count, colored by the worst document. |
+| `releaseBoard.editorLinks.minSeverity` | `any` | Only shows documents at least this severe: `any`, `medium`, `high` or `critical`. |
 
 ```json
 {

@@ -2431,6 +2431,27 @@
             "default": true,
             "description": "%config.releaseBoard.pathToGo.showRunButtons.description%"
           },
+          "saropaWorkspace.releaseBoard.editorLinks.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.editorLinks.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.editorLinks.codeLens": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.editorLinks.codeLens.description%"
+          },
+          "saropaWorkspace.releaseBoard.editorLinks.statusBar": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.editorLinks.statusBar.description%"
+          },
+          "saropaWorkspace.releaseBoard.editorLinks.minSeverity": {
+            "type": "string",
+            "enum": ["any", "medium", "high", "critical"],
+            "default": "any",
+            "description": "%config.releaseBoard.editorLinks.minSeverity.description%"
+          },
           "saropaWorkspace.releaseBoard.reviewRequests": {
             "type": "boolean",
             "default": false,
