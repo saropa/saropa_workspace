@@ -2414,6 +2414,23 @@
             "default": "deliberate",
             "description": "%config.releaseBoard.profile.description%"
           },
+          "saropaWorkspace.releaseBoard.pathToGo.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.pathToGo.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.pathToGo.maxSteps": {
+            "type": "number",
+            "default": 8,
+            "minimum": 3,
+            "maximum": 20,
+            "description": "%config.releaseBoard.pathToGo.maxSteps.description%"
+          },
+          "saropaWorkspace.releaseBoard.pathToGo.showRunButtons": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.pathToGo.showRunButtons.description%"
+          },
           "saropaWorkspace.releaseBoard.editorLinks.enabled": {
             "type": "boolean",
             "default": true,

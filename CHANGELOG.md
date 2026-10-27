@@ -48,7 +48,7 @@ cspell:disable
 
 ## [Unreleased]
 
-The Release Board gains an "I have..." button: say what is in your hand and how long you have, and get one list of the open steps you can do now.
+The Release Board now shows the steps between each project and GO, lets you say what is in your hand and get one list of steps to do now, and shows which board documents name the file you are editing.
 
 ### Added
 
@@ -56,6 +56,8 @@ The Release Board gains an "I have..." button: say what is in your hand and how 
 - **Steps are tagged from a readable word list**, `needs-dictionary.json` (for example "TestFlight" means iPhone or Mac, "SQL Editor" means the Supabase SQL Editor). A table column named "Needs" is read directly. Add or change words under `needs` in `.saropa/release-board.json`. A step with no match is never hidden: an "untagged steps" line lists them.
 - **Settings:** `releaseBoard.sittings.enabled`, `.defaultHave`, `.defaultTimeBox`, `.maxSteps` and `.onlyOwnerDocuments`. By default only owner-action documents (the `human` folder) are listed; `ownerKinds` and `ownerFolders` in the rules file name others.
 - **Release Board: the board in the editor.** Open a source file that an open board document names and a line appears at the top: "Named by 2 open documents", followed by the document titles and their colors. Click a title to open the document. A small status bar item shows how many documents name the file, in the color of the worst one. It uses the last board result and never starts a scan; nothing shows when the board is off or has not been scanned yet. A document keeps only the first 40 source files it names, and the tooltip says so when a document names more. Four new settings: `releaseBoard.editorLinks.enabled`, `.codeLens`, `.statusBar` and `.minSeverity` (any, medium, high or critical) to narrow it down if it feels noisy. Documents that are waiting on another document are collapsed on the board and are not listed here, and documents whose text was not read are left out when a minimum severity is set.
+- **Release Board: Path to GO.** Click a project row to open a numbered list of what stands between that project and a green light, in the order that clears it fastest: the documents that stop the release (the one that frees the most waiting documents first; for a document that waits on others, the document at the end of its own line of prerequisites), then missing or failing lint and test evidence, then folders with no rule, then documents that could not be read, then accepting the scan. A project with no steps is GO, and a GO project has no steps; the list is worked out from the same facts as the light, so it never disagrees with it. A step that is done ticks off and stays struck through for a few minutes. Buttons: **Open** a document, **Run lint now** and **Run tests now** (start the shortcut the project names, in the background only, and the result is recorded as before), **Open the rules file** at a folder with no rule, and **Review and accept** for an unaccepted scan.
+- Settings for Path to GO: `saropaWorkspace.releaseBoard.pathToGo.enabled` (on), `saropaWorkspace.releaseBoard.pathToGo.maxSteps` (8, from 3 to 20) and `saropaWorkspace.releaseBoard.pathToGo.showRunButtons` (on; turn off if the board should never start a run).
 
 ---
 

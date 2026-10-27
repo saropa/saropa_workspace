@@ -69,6 +69,7 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 * **One Screen For "Can We Ship?":** Click **Release Board** in the status bar (or the checklist button in the Shortcuts view title bar, or run **Release Board: Open**). It reads your bugs, docs and plans folders across projects and shows what blocks a release in red, amber and purple.
 * **Honest Light:** NO-GO, UNVERIFIED or GO per project. GO needs an accepted baseline, nothing blocking, every open document read, and fresh, clean lint and test results.
 * **Linked Work:** `Needs:` lines in documents draw chains between documents and projects; related documents cluster into groups; the board suggests links you can accept or reject.
+* **Path to GO:** Click a project row to see the few steps between it and GO, fastest first, with buttons to open a document, run lint or tests in the background, open the rules file or accept the scan. Steps tick off as they are done.
 * **Release Profiles:** Rush, Deliberate or Zero defects decide which severities stop a release.
 * **Optional Links:** Saropa Lints results, Claude sessions per document (Chat Explorer) and the pull requests waiting for your review.
 
@@ -122,6 +123,9 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.enabled` | `true` | Shows the Release Board button and commands. |
 | `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
 | `releaseBoard.reviewRequests` | `false` | Lists pull requests waiting for your review on the board. |
+| `releaseBoard.pathToGo.enabled` | `true` | Shows a Path to GO under each project on the board: click a project row to see the few steps between it and GO. |
+| `releaseBoard.pathToGo.maxSteps` | `8` | Most steps listed in a Path to GO (3 to 20). |
+| `releaseBoard.pathToGo.showRunButtons` | `true` | Shows the Run lint now and Run tests now buttons in a Path to GO. Turn off if the board should never start a run. |
 | `releaseBoard.sittings.enabled` | `true` | Shows the "I have..." button: pick what you have in hand and the time, get one list of steps you can do now. |
 | `releaseBoard.sittings.defaultHave` | `[]` | Context ids switched on only until you first choose on the board (for example `["iphone","mac"]`); after that your remembered choice wins. Empty remembers your last choice on this machine. |
 | `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30` or `60` minutes. |

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { DEFAULT_LINT_FILE, HealthFile, LintRead, ProjectHealth, RecordedRuns, RunRecord, evaluateHealth, parseLintsFile, parseTestTally } from "../board/health";
-import { BoardConfig } from "../board/types";
+import { BoardConfig, ProjectDef } from "../board/types";
+import { Shortcut } from "../model/shortcut";
 import { runOutputs } from "../exec/runOutputs";
 import { runStatusRegistry } from "../exec/runStatus";
 import { ShortcutStore } from "../model/shortcutStore";
@@ -43,6 +44,17 @@ function nameCounts(store: ShortcutStore): Map<string, number> {
 function matches(list: string[] | undefined, id: string, name: string, counts: Map<string, number>): boolean {
   const n = name.toLowerCase();
   return (list ?? []).some((x) => x === id || (x.toLowerCase() === n && counts.get(n) === 1));
+}
+
+// The shortcut a project names as its lint or test run, or undefined when it names none
+// (or only an ambiguous name). Used by the board's "Run now" buttons.
+export function findHealthShortcut(store: ShortcutStore, project: ProjectDef, kind: "lint" | "tests"): Shortcut | undefined {
+  const list = kind === "lint" ? project.health?.lint : project.health?.tests;
+  if (!list || list.length === 0) {
+    return undefined;
+  }
+  const counts = nameCounts(store);
+  return [...store.getProjectShortcuts(), ...store.getGlobalShortcuts()].find((s) => matches(list, s.id, shortcutDisplayName(s), counts));
 }
 
 // Fires after a run was recorded, so an open board can rescan.

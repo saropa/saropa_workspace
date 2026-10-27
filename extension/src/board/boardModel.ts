@@ -49,6 +49,8 @@ export interface BoardItem {
   link?: { state: "open" | "done" | "flag"; detail: string };
   // How many open items wait on this one.
   blocksCount: number;
+  // Ids of the open, listed items this one waits on (its own prerequisites).
+  waitsOn: number[];
   // Claude sessions that read or edited this document (absent when none, or Chat Explorer is not installed).
   chats?: number;
   // From the phrase dictionary (absent when the text was not read) and the pin list.
@@ -82,6 +84,8 @@ export interface BoardProject {
   items: BoardItem[];
   // Amber documents in a "blocked" folder, shown as one line, not one row each.
   blocked: number;
+  // How many of those collapsed documents would stop a release under the profile.
+  blockedStopping: number;
   counts: StatusCounts;
   dependsOn: string[];
   health?: ProjectHealth;
@@ -300,6 +304,7 @@ export function buildBoard(
         marks: facts ? marksOf(facts, names) : undefined,
         hub: false,
         blocksCount: 0,
+        waitsOn: [],
         severity: facts?.severity,
         audience: facts?.audience,
         pinned,
@@ -348,6 +353,7 @@ export function buildBoard(
       reasons,
       items,
       blocked,
+      blockedStopping: blockedStop,
       counts,
       dependsOn: def.dependsOn ?? [],
     });
@@ -389,8 +395,12 @@ export function buildBoard(
   for (const l of links) {
     if (l.state === "open" && l.toProject && l.toPath) {
       const t = byKey.get(l.toProject + "\t" + l.toPath);
+      const from = byKey.get(l.fromProject + "\t" + l.fromPath);
       if (t) {
         t.blocksCount += 1;
+        if (from && !from.waitsOn.includes(t.id)) {
+          from.waitsOn.push(t.id);
+        }
       }
     }
   }
