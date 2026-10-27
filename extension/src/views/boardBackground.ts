@@ -4,18 +4,23 @@ import { applyMarks, pinnedKeys } from "../board/marks";
 import { asStartupMode, projectsFound, shouldOpenOnStartup } from "../board/sidebar";
 import { onDidRecordHealth } from "../commands/boardHealth";
 import { onDidChangeMarks, readMarks } from "../commands/boardMarks";
-import { BoardRun, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
-import { currentBoard, isFirstScanDone, isPanelOpen, isScanning, onDidAskRefresh, onDidChangeBoard, setScanning } from "./boardFeed";
+import { BoardRun, logBoardError, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { currentBoard, disposeFeed, hasPanelOpened, isPanelVisible, onDidAskRefresh, onDidChangePanelVisible, setFailed, setScanning } from "./boardFeed";
 import { openBoard } from "./boardPanel";
 import { publishBoard } from "./editorLinks";
 
 // The quiet scan behind the sidebar, the status bar light and the editor lines, so they are
-// live without the board tab open. While the tab is open it owns the scan and this stays
-// out of the way. Scans never overlap: a request during a scan only asks for one more pass.
+// live without the board tab open. While the tab is showing it owns the scan and this stays
+// out of the way; a tab that is hidden or closed does not. Scans never overlap: a request
+// during a scan only asks for one more pass (the scan itself is also serialized in
+// runBoardScan, with the tab's and the commands').
 
 const SETTINGS = "saropaWorkspace.releaseBoard";
 // Same short delay the editor lines use, so startup is never in the way.
 const START_DELAY_MS = 3000;
+// Settings that change what a scan finds. Everything else only changes how it is drawn.
+const SCAN_SETTINGS = ["enabled", "profile"].map((k) => `${SETTINGS}.${k}`);
+const IGNORED = /[\\/](?:node_modules|\.git|build|\.dart_tool|Pods|vendor)[\\/]/;
 
 function boardOn(): boolean {
   return vscode.workspace.getConfiguration(SETTINGS).get<boolean>("enabled", true) && (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
@@ -29,20 +34,61 @@ function modelOf(run: BoardRun): BoardModel {
   });
 }
 
+// True when the file sits inside a document folder of a scanned project.
+function inScannedRoot(uri: vscode.Uri): boolean {
+  const projects = currentBoard()?.run.cfg.projects;
+  const at = uri.toString();
+  return projects?.some((p) => p.roots.some((r) => at.startsWith(`${p.path}/${r}/`))) ?? false;
+}
+
 export function registerBoardBackground(context: vscode.ExtensionContext): void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let scanning = false;
   let again = false;
+  // A request came in while the tab was showing; run it once the tab is hidden or closed.
+  let skipped = false;
+  // The startup tab is decided once per window, after the first pass, and never later.
   let startupDecided = false;
 
-  const scanOnce = async (): Promise<void> => {
-    // An empty first callback keeps the scan quiet: no progress item, text read in one go.
-    const run = await runBoardScan(context, true, () => undefined).catch(() => undefined);
-    publishBoard(run ? modelOf(run) : undefined, run);
+  const decideStartup = (ok: boolean): void => {
+    if (startupDecided) {
+      return;
+    }
+    startupDecided = true;
+    const board = currentBoard();
+    if (!ok || !board || hasPanelOpened()) {
+      return;
+    }
+    const mode = asStartupMode(vscode.workspace.getConfiguration(SETTINGS).get<string>("openOnStartup", "whenProjectsFound"));
+    if (shouldOpenOnStartup(mode, projectsFound(board.model), boardOn())) {
+      void openBoard(context, true);
+    }
+  };
+
+  // One pass. Returns false when it failed; the previous board stays on screen.
+  const scanOnce = async (): Promise<boolean> => {
+    try {
+      // An empty first callback keeps the scan quiet: no progress item, text read in one go.
+      const run = await runBoardScan(context, true, () => undefined);
+      // The tab became visible during the pass: it scans for itself and publishes.
+      if (isPanelVisible()) {
+        return true;
+      }
+      publishBoard(run ? modelOf(run) : undefined, run);
+      setFailed(false);
+      return true;
+    } catch (e) {
+      logBoardError(e);
+      setFailed(true);
+      return false;
+    }
   };
 
   const scan = async (): Promise<void> => {
-    if (isPanelOpen() || !boardOn()) {
+    if (isPanelVisible()) {
+      skipped = true;
+      // A tab opened by hand before the first pass counts as the startup tab.
+      startupDecided = true;
       return;
     }
     if (scanning) {
@@ -50,36 +96,28 @@ export function registerBoardBackground(context: vscode.ExtensionContext): void 
       return;
     }
     scanning = true;
-    setScanning(true);
+    let ok = true;
     try {
+      if (!boardOn()) {
+        publishBoard(undefined, undefined);
+        return;
+      }
+      setScanning(true);
+      skipped = false;
       do {
         again = false;
-        await scanOnce();
-      } while (again && !isPanelOpen());
+        ok = await scanOnce();
+      } while (again && !isPanelVisible());
     } finally {
       scanning = false;
       setScanning(false);
+      decideStartup(ok && boardOn());
     }
   };
 
   const request = (ms: number): void => {
     clearTimeout(timer);
     timer = setTimeout(() => void scan(), ms);
-  };
-
-  // Opens the board tab once per window, in the background, when the setting and the result allow it.
-  const maybeOpenOnStartup = (): void => {
-    const board = currentBoard();
-    // Only after the first real scan, so the tab opens on a fresh result.
-    if (startupDecided || !board || !isFirstScanDone() || isScanning()) {
-      return;
-    }
-    const mode = asStartupMode(vscode.workspace.getConfiguration(SETTINGS).get<string>("openOnStartup", "whenProjectsFound"));
-    const found = projectsFound(board.model);
-    startupDecided = true;
-    if (shouldOpenOnStartup(mode, found, boardOn())) {
-      void openBoard(context, true);
-    }
   };
 
   const paintStored = async (): Promise<void> => {
@@ -92,22 +130,22 @@ export function registerBoardBackground(context: vscode.ExtensionContext): void 
     }
   };
 
-  const underProject = (uri: vscode.Uri): boolean => {
-    const projects = currentBoard()?.run.cfg.projects;
-    return !projects || projects.some((p) => uri.toString().startsWith(p.path));
-  };
+  // Only documents in a project's own document folders trigger a scan.
   const changedFile = (uri: vscode.Uri): void => {
-    if (!/[\\/](?:node_modules|\.git)[\\/]/.test(uri.path) && underProject(uri)) {
+    if (!IGNORED.test(uri.path) && inScannedRoot(uri)) {
       request(1500);
     }
   };
+  // The rules file changes which projects and folders exist, wherever it sits.
+  const rulesChanged = (): void => request(1500);
   const docs = vscode.workspace.createFileSystemWatcher("**/*.{md,sql}");
   const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board*.json");
-  for (const w of [docs, rules]) {
-    w.onDidChange(changedFile);
-    w.onDidCreate(changedFile);
-    w.onDidDelete(changedFile);
-  }
+  docs.onDidChange(changedFile);
+  docs.onDidCreate(changedFile);
+  docs.onDidDelete(changedFile);
+  rules.onDidChange(rulesChanged);
+  rules.onDidCreate(rulesChanged);
+  rules.onDidDelete(rulesChanged);
 
   context.subscriptions.push(
     docs,
@@ -115,20 +153,21 @@ export function registerBoardBackground(context: vscode.ExtensionContext): void 
     { dispose: () => clearTimeout(timer) },
     onDidRecordHealth(() => request(300)),
     onDidAskRefresh(() => request(0)),
+    onDidChangePanelVisible((visible) => !visible && skipped && request(500)),
     vscode.workspace.onDidChangeWorkspaceFolders(() => request(300)),
-    vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(SETTINGS) && request(300)),
+    // Display-only settings (sidebar, status bar light, startup, editor lines) repaint on their own.
+    vscode.workspace.onDidChangeConfiguration((e) => SCAN_SETTINGS.some((k) => e.affectsConfiguration(k)) && request(300)),
     // A mark changes only what is drawn: the stored scan is shown again, not redone.
     onDidChangeMarks(() => {
       const board = currentBoard();
-      if (board && !isPanelOpen()) {
+      if (board && !isPanelVisible()) {
         void readMarks(context).then((marks) => {
           board.run.marks = marks;
           publishBoard(modelOf(board.run), board.run);
         });
       }
-    }),
-    onDidChangeBoard(maybeOpenOnStartup)
+    })
   );
   const start = setTimeout(() => void paintStored().then(() => scan()), START_DELAY_MS);
-  context.subscriptions.push({ dispose: () => clearTimeout(start) });
+  context.subscriptions.push({ dispose: () => clearTimeout(start) }, { dispose: disposeFeed });
 }

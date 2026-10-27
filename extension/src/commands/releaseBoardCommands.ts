@@ -37,6 +37,11 @@ function out(): vscode.OutputChannel {
   return channel;
 }
 
+// A quiet scan that fails says so here; nothing pops up.
+export function logBoardError(e: unknown): void {
+  out().appendLine(`Release Board scan failed: ${e instanceof Error ? e.message : String(e)}`);
+}
+
 // FileSource over workspace.fs. Walks a root recursively; a missing root throws and the
 // scanner treats it as empty.
 export function workspaceFileSource(): FileSource {
@@ -238,7 +243,8 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
       return undefined;
     }
     const result: ScanResult = { rows: last.rows, snapshot: last.snapshot, pending: [], stats: { files: last.rows.length, headReads: 0, factReads: 0, ms: 0 } };
-    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, health: last.health, marks: await readMarks(context) };
+    // The accepted scan the result was compared with, so a stored paint is never greener than the real one.
+    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, previous: await readAccepted(dir), health: last.health, marks: await readMarks(context) };
   } catch {
     return undefined;
   }
@@ -247,9 +253,23 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
 // Scan, run the safety check against the last accepted scan, and store the scan as the
 // new baseline only when the check found nothing. `onFirst` gets the board as soon as the
 // documents are sorted, before their text is read for marks and severity.
-export async function runBoardScan(
+// Every scan (the tab, the background scan, the Scan command, the pattern preview) goes
+// through one chain, so two never run or write the baseline and last-result files at once.
+let scanChain: Promise<unknown> = Promise.resolve();
+
+export function runBoardScan(
   context: vscode.ExtensionContext,
   quiet = false,
+  onFirst?: (run: BoardRun) => void
+): Promise<BoardRun | undefined> {
+  const next = scanChain.then(() => scanNow(context, quiet, onFirst));
+  scanChain = next.catch(() => undefined);
+  return next;
+}
+
+async function scanNow(
+  context: vscode.ExtensionContext,
+  quiet: boolean,
   onFirst?: (run: BoardRun) => void
 ): Promise<BoardRun | undefined> {
   if (!ready(quiet)) {

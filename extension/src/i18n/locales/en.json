@@ -1924,5 +1924,9 @@
   "editorLinks.status.purple": "purple",
   "releaseBoard.sidebar.blockerOne": "1 blocker",
   "releaseBoard.sidebar.blockerMany": "{count} blockers",
-  "releaseBoard.sidebar.openBlocker": "Open this document"
+  "releaseBoard.sidebar.openBlocker": "Open this document",
+  "releaseBoard.sidebar.causeLint": "lint is failing",
+  "releaseBoard.sidebar.causeTests": "tests are failing",
+  "releaseBoard.sidebar.causeBlocked": "{count} stopping documents in blocked folders",
+  "releaseBoard.sidebar.causeHeld": "held: the last accepted scan had red work"
 }

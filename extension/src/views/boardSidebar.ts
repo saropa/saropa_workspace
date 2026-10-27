@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import { Light } from "../board/boardModel";
-import { SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, blockerColor, buildSidebarRows, clampBlockers, lightLook, projectsFound } from "../board/sidebar";
+import { ExpandMode, SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, blockerColor, buildSidebarRows, clampBlockers, hasDocuments, lightLook } from "../board/sidebar";
 import { l10n } from "../i18n/l10n";
-import { askRefresh, currentBoard, isFirstScanDone, isScanning, onDidChangeBoard } from "./boardFeed";
+import { askRefresh, currentBoard, hasFailed, isFirstScanDone, isScanning, onDidChangeBoard } from "./boardFeed";
 
 // The Release Board section at the top of the sidebar: one row per project with its light,
 // its first blockers underneath. It only reads the published model; it never scans. A click
@@ -19,6 +19,10 @@ function labels(): SidebarLabels {
     light: { "no-go": l10n("releaseBoard.panel.noGo"), unverified: l10n("releaseBoard.panel.unverified"), go: l10n("releaseBoard.panel.go") },
     blockerOne: l10n("releaseBoard.sidebar.blockerOne"),
     blockerMany: l10n("releaseBoard.sidebar.blockerMany", { count: "{count}" }),
+    causeLint: l10n("releaseBoard.sidebar.causeLint"),
+    causeTests: l10n("releaseBoard.sidebar.causeTests"),
+    causeBlocked: l10n("releaseBoard.sidebar.causeBlocked", { count: "{count}" }),
+    causeHeld: l10n("releaseBoard.sidebar.causeHeld"),
     reasons: {
       baseline: l10n("releaseBoard.panel.reasonBaseline"),
       grey: l10n("releaseBoard.panel.reasonGrey", { count: "{count}" }),
@@ -39,21 +43,25 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
   readonly onDidChangeTreeData = this.emitter.event;
   private rows: SidebarRow[] = [];
   private stamp = 0;
+  // Part of each project row's id: a change of the expand setting then takes effect at once.
+  private expandMode: ExpandMode = "whenNoGo";
 
   refresh(): void {
     const board = currentBoard();
     const cfg = vscode.workspace.getConfiguration(SETTINGS);
+    this.expandMode = asExpandMode(cfg.get("sidebar.expandProjects", "whenNoGo"));
     this.rows = board
       ? buildSidebarRows(
           board.model,
-          { blockersPerProject: clampBlockers(cfg.get("sidebar.blockersPerProject", 3)), expandProjects: asExpandMode(cfg.get("sidebar.expandProjects", "whenNoGo")) },
+          { blockersPerProject: clampBlockers(cfg.get("sidebar.blockersPerProject", 3)), expandProjects: this.expandMode },
           labels()
         )
       : [];
     this.stamp = board?.stamp ?? 0;
     // The welcome text under the title depends on this: loading, empty, or rows.
-    const found = board !== undefined && projectsFound(board.model);
-    const state = found ? "ready" : !isFirstScanDone() || isScanning() ? "loading" : "empty";
+    const on = cfg.get<boolean>("enabled", true) && (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+    const found = on && board !== undefined && hasDocuments(board.model);
+    const state = found ? "ready" : !on ? "empty" : hasFailed() && !board ? "failed" : !isFirstScanDone() || isScanning() ? "loading" : "empty";
     if (!found) {
       this.rows = [];
     }
@@ -72,7 +80,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     const row = node.row;
     const state = row.blockers.length === 0 ? vscode.TreeItemCollapsibleState.None : row.expand ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed;
     const item = new vscode.TreeItem(row.name, state);
-    item.id = `project/${row.projectId}`;
+    item.id = `project/${row.projectId}/${this.expandMode}`;
     item.description = row.description;
     item.tooltip = row.tooltip.join("\n");
     const look = lightLook(row.light as Light);
@@ -118,7 +126,8 @@ export function registerBoardSidebar(context: vscode.ExtensionContext): void {
     provider,
     vscode.window.registerTreeDataProvider(VIEW, provider),
     onDidChangeBoard(refresh),
-    vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(SETTINGS + ".sidebar") && refresh()),
+    vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(SETTINGS) && refresh()),
+    vscode.workspace.onDidChangeWorkspaceFolders(refresh),
     vscode.commands.registerCommand(OPEN_BLOCKER, (id: unknown, stamp: unknown) => openBlocker(id, stamp)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.sidebar.refresh", () => askRefresh())
   );

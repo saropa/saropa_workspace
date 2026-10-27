@@ -52,8 +52,15 @@ export function shouldExpand(mode: ExpandMode, light: Light): boolean {
   return mode === "always" || (mode === "whenNoGo" && light === "no-go");
 }
 
-// True when at least one project holds a document the board counts.
+// True when at least one project holds an open document (red, amber or purple). A folder
+// with only finished or reference documents stays quiet.
 export function projectsFound(model: Pick<BoardModel, "projects">): boolean {
+  return model.projects.some((p) => p.counts.red + p.counts.amber + p.counts.purple > 0);
+}
+
+// True when any project holds a document the board counts, open or finished: the sidebar
+// then shows rows, even if every project is clean.
+export function hasDocuments(model: Pick<BoardModel, "projects">): boolean {
   return model.projects.some((p) => Object.values(p.counts).some((n) => n > 0));
 }
 
@@ -70,6 +77,12 @@ export interface SidebarLabels {
   // Contains {count}.
   blockerMany: string;
   reasons: Record<UnverifiedReason, string>;
+  // Why a project is NO-GO when no listed document says so.
+  causeLint: string;
+  causeTests: string;
+  // Contains {count}.
+  causeBlocked: string;
+  causeHeld: string;
 }
 
 export interface SidebarBlocker {
@@ -101,12 +114,30 @@ export function buildSidebarRows(model: Pick<BoardModel, "projects">, opts: Side
   return model.projects.map((p) => {
     // The model already lists items red first, pinned first, most severe first.
     const all = p.items.filter(isBlocker);
-    const count = all.length;
+    // Documents in a blocked folder stop the release too; they are counted, not listed.
+    const count = all.length + (p.blockedStopping ?? 0);
+    const causes: string[] = [];
+    if (p.health?.lint === "failing") {
+      causes.push(labels.causeLint);
+    }
+    if (p.health?.tests === "failing") {
+      causes.push(labels.causeTests);
+    }
+    if ((p.blockedStopping ?? 0) > 0) {
+      causes.push(labels.causeBlocked.split("{count}").join(String(p.blockedStopping)));
+    }
+    // A NO-GO nothing above explains is the previous accepted scan's red, held back.
+    if (p.light === "no-go" && all.length === 0 && causes.length === 0) {
+      causes.push(labels.causeHeld);
+    }
     const word = labels.light[p.light];
     const countText = count === 1 ? labels.blockerOne : labels.blockerMany.split("{count}").join(String(count));
     const tooltip = [`${p.name}: ${word}`];
     if (count > 0) {
       tooltip.push(countText);
+    }
+    if (p.light === "no-go") {
+      tooltip.push(...causes);
     }
     if (p.light !== "go") {
       for (const r of p.reasons) {
@@ -118,7 +149,7 @@ export function buildSidebarRows(model: Pick<BoardModel, "projects">, opts: Side
       projectId: p.id,
       name: p.name,
       light: p.light,
-      description: count > 0 ? `${word} · ${countText}` : word,
+      description: count > 0 ? `${word} · ${countText}` : p.light === "no-go" && causes.length > 0 ? `${word} · ${causes[0]}` : word,
       tooltip,
       blockers,
       expand: blockers.length > 0 && shouldExpand(opts.expandProjects, p.light),

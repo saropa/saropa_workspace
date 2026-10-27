@@ -7,6 +7,7 @@ import {
   asExpandMode,
   asStartupMode,
   buildSidebarRows,
+  hasDocuments,
   clampBlockers,
   lightLook,
   projectsFound,
@@ -20,6 +21,10 @@ const labels: SidebarLabels = {
   blockerOne: "1 blocker",
   blockerMany: "{count} blockers",
   reasons: { baseline: "scan not accepted", grey: "{count} unplaced", health: "no lint or test result", unread: "unread" },
+  causeLint: "lint failing",
+  causeTests: "tests failing",
+  causeBlocked: "{count} in blocked folders",
+  causeHeld: "held: red in the last accepted scan",
 };
 
 function item(id: number, title: string, status: BoardItem["status"], stopping = false): BoardItem {
@@ -97,9 +102,32 @@ test("startup opening", () => {
   assert.equal(shouldOpenOnStartup("always", true, false), false);
 });
 
-test("projects found needs at least one counted document", () => {
+test("projects found needs at least one open document", () => {
   const empty: BoardProject = { ...project("go", []), counts: emptyCounts() };
   assert.equal(projectsFound({ projects: [empty] }), false);
-  assert.equal(projectsFound({ projects: [empty, project("go", [])] }), true);
+  assert.equal(projectsFound({ projects: [empty, project("go", [])] }), false, "grey alone is not an open document");
+  const open: BoardProject = { ...empty, counts: { ...emptyCounts(), amber: 1 } };
+  assert.equal(projectsFound({ projects: [empty, open] }), true);
+  assert.equal(projectsFound({ projects: [{ ...empty, counts: { ...emptyCounts(), green: 4, reference: 2 } }] }), false);
   assert.equal(projectsFound({ projects: [] }), false);
+});
+
+test("a NO-GO is always explained: blocked folders, failing evidence, held red", () => {
+  const blocked = { ...project("no-go", []), blockedStopping: 2 };
+  const a = buildSidebarRows({ projects: [blocked] }, opts, labels)[0];
+  assert.equal(a.description, "NO-GO · 2 blockers");
+  assert.ok(a.tooltip.includes("2 in blocked folders"));
+  const lint = { ...project("no-go", []), health: { lint: "failing", tests: "failing", lintDetail: "", testsDetail: "", clean: false } } as BoardProject;
+  const b = buildSidebarRows({ projects: [lint] }, opts, labels)[0];
+  assert.equal(b.description, "NO-GO · lint failing");
+  assert.deepEqual(b.tooltip.slice(1, 3), ["lint failing", "tests failing"]);
+  const held = buildSidebarRows({ projects: [project("no-go", [])] }, opts, labels)[0];
+  assert.equal(held.description, "NO-GO · held: red in the last accepted scan");
+  assert.equal(buildSidebarRows({ projects: [project("unverified", [])] }, opts, labels)[0].description, "UNVERIFIED");
+});
+
+test("the sidebar shows rows for a clean project but not for an empty one", () => {
+  const empty: BoardProject = { ...project("go", []), counts: emptyCounts() };
+  assert.equal(hasDocuments({ projects: [empty] }), false);
+  assert.equal(hasDocuments({ projects: [{ ...empty, counts: { ...emptyCounts(), green: 3 } }] }), true);
 });

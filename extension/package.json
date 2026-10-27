@@ -53,7 +53,7 @@
         {
           "id": "saropaWorkspace.releaseBoard",
           "name": "%views.releaseBoard.name%",
-          "when": "config.saropaWorkspace.releaseBoard.enabled && config.saropaWorkspace.releaseBoard.sidebar.enabled"
+          "when": "workbenchState != empty && config.saropaWorkspace.releaseBoard.enabled && config.saropaWorkspace.releaseBoard.sidebar.enabled"
         },
         {
           "id": "saropaWorkspace.pins",
@@ -105,8 +105,13 @@
       },
       {
         "view": "saropaWorkspace.releaseBoard",
+        "contents": "%viewsWelcome.releaseBoard.failed%",
+        "when": "saropaWorkspace.releaseBoard.sidebarState == 'failed'"
+      },
+      {
+        "view": "saropaWorkspace.releaseBoard",
         "contents": "%viewsWelcome.releaseBoard.empty%",
-        "when": "saropaWorkspace.releaseBoard.sidebarState != 'loading'"
+        "when": "saropaWorkspace.releaseBoard.sidebarState != 'loading' && saropaWorkspace.releaseBoard.sidebarState != 'failed'"
       },
       {
         "view": "saropaWorkspace.pins",
@@ -2502,7 +2507,7 @@
             "description": "%config.releaseBoard.sidebar.enabled.description%"
           },
           "saropaWorkspace.releaseBoard.sidebar.blockersPerProject": {
-            "type": "number",
+            "type": "integer",
             "default": 3,
             "minimum": 0,
             "maximum": 10,

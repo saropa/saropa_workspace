@@ -4,7 +4,7 @@ import { FileIndex, FileLink, MinSeverity, asMinSeverity, buildFileIndex, linksF
 import { applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, readLastRun } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
-import { setBoard } from "./boardFeed";
+import { currentBoard, setBoard } from "./boardFeed";
 
 // The board in the editor, VS Code layer: a CodeLens at the top of a file and a status bar
 // item, both listing the open board documents that name the current file. They read the
@@ -174,11 +174,12 @@ function updateBar(bar: vscode.StatusBarItem): void {
 
 // Builds the board from the stored last result when the board tab has not published yet.
 async function loadStored(context: vscode.ExtensionContext): Promise<void> {
-  if (state || !settings().on) {
+  // A board already published (by a scan) is newer than the stored one.
+  if (state || currentBoard() || !settings().on) {
     return;
   }
   const run = await readLastRun(context).catch(() => undefined);
-  if (!run || state) {
+  if (!run || state || currentBoard()) {
     return;
   }
   const model = buildBoard(run.cfg, applyMarks(run.result.rows, run.marks), run.safety, run.accepted, run.result.snapshot, run.previous, run.health, {
@@ -204,11 +205,7 @@ export function registerEditorLinks(context: vscode.ExtensionContext): void {
     vscode.window.onDidChangeActiveTextEditor(refresh),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(SETTINGS)) {
-        // A change to anything but these four settings may change the projects: drop the
-        // cached board so the stored result is read again (the board tab publishes anew).
-        if (!e.affectsConfiguration(SETTINGS + ".editorLinks")) {
-          state = undefined;
-        }
+        // The scans publish a fresh board when the projects change; this only repaints.
         void loadStored(context).then(() => {
           changed.fire();
         });

@@ -13,7 +13,7 @@ import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
 import { asTimeBox } from "../board/sittings";
 import { publishBoard } from "./editorLinks";
-import { currentBoard, onDidAskRefresh, setPanelOpen } from "./boardFeed";
+import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setPanelVisible } from "./boardFeed";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
@@ -154,8 +154,10 @@ class BoardPanel {
     private readonly panel: vscode.WebviewPanel
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
-    // While the tab is open it owns the scan: the sidebar's refresh button asks it.
-    setPanelOpen(true);
+    // While the tab is showing it owns the scan: the sidebar's refresh button asks it.
+    markPanelOpened();
+    setPanelVisible(panel.visible);
+    panel.onDidChangeViewState(() => setPanelVisible(panel.visible), null, this.disposables);
     onDidAskRefresh(() => this.schedule(0), null, this.disposables);
     onDidRecordHealth(() => this.schedule(300), null, this.disposables);
     // A mark changes only what is drawn, so the stored scan is shown again, not redone.
@@ -257,6 +259,7 @@ class BoardPanel {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.scanning = false;
+      markScanDone();
       if (this.outsidePending && !this.cached) {
         this.outsidePending = false;
         this.render();
@@ -348,7 +351,11 @@ class BoardPanel {
       return;
     }
     this.lastKey = key;
-    publishBoard(this.model, this.run);
+    // Only a finished scan shown on a visible tab is published: a loading, stale or hidden
+    // paint must never replace a newer board.
+    if (!state.loading && !state.stale && this.panel.visible) {
+      publishBoard(this.model, this.run);
+    }
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths);
@@ -516,7 +523,7 @@ class BoardPanel {
 
   private dispose(): void {
     current = undefined;
-    setPanelOpen(false);
+    setPanelVisible(false);
     this.disposed = true;
     this.outsideToken++;
     clearTimeout(this.timer);
@@ -542,7 +549,8 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
   const panel = vscode.window.createWebviewPanel(
     "saropaWorkspace.releaseBoard",
     l10n("releaseBoard.panel.title"),
-    { viewColumn: vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One, preserveFocus: background },
+    // Background: beside the active editor, so no open file is covered and focus stays put.
+    { viewColumn: background ? vscode.ViewColumn.Beside : (vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One), preserveFocus: background },
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
   current = new BoardPanel(context, panel);
