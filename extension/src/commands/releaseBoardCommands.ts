@@ -316,6 +316,9 @@ async function scanNow(
   if (safety.clean && baselineChanged) {
     await writeAccepted(dir, result.snapshot);
   }
+  if (token.gone) {
+    throw new Error("scan abandoned");
+  }
   // The stored last result also holds the health marks and the accepted state.
   if (baselineChanged || snapshotFingerprint(result.snapshot, health) !== lastFingerprint) {
     lastFingerprint = snapshotFingerprint(result.snapshot, health);
@@ -328,7 +331,7 @@ async function scanNow(
 // Stores the scan as the baseline. Refused (false) when the stored baseline is no longer
 // the one this scan was compared with: the user must look at a fresh scan first.
 export function acceptBoardRun(run: BoardRun): Promise<boolean> {
-  const next = scanChain.then(() => acceptNow(run));
+  const next = scanChain.then(() => withTimeout(acceptNow(run), SCAN_TIMEOUT_MS));
   scanChain = next.catch(() => undefined);
   return next;
 }

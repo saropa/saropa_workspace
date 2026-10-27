@@ -5,7 +5,7 @@ import { asStartupMode, projectsFound, shouldOpenOnStartup } from "../board/side
 import { onDidRecordHealth } from "../commands/boardHealth";
 import { onDidChangeMarks, readMarks } from "../commands/boardMarks";
 import { BoardRun, DEFAULT_ROOTS, logBoardError, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
-import { currentBoard, disposeFeed, hasPanelOpened, isPanelVisible, isStoredOnly, onDidAskRefresh, onDidChangePanelVisible, setFailed, setScanning } from "./boardFeed";
+import { askRefresh, currentBoard, disposeFeed, hasPanelOpened, isPanelVisible, isStoredOnly, onDidAskRefresh, onDidChangePanelVisible, setFailed, setScanning } from "./boardFeed";
 import { openBoard } from "./boardPanel";
 import { publishBoard } from "./editorLinks";
 
@@ -153,9 +153,10 @@ export function registerBoardBackground(context: vscode.ExtensionContext): void 
       request(1500);
     }
   };
+  // Asks both the background scan and the tab (which remembers it while hidden).
   const rootChanged = (uri: vscode.Uri): void => {
     if (isRootFolder(uri)) {
-      request(1500);
+      askRefresh();
     }
   };
   // The rules file changes which projects and folders exist, wherever it sits.

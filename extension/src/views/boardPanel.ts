@@ -13,7 +13,7 @@ import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
 import { asTimeBox } from "../board/sittings";
 import { publishBoard } from "./editorLinks";
-import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setPanelVisible } from "./boardFeed";
+import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed, setPanelVisible } from "./boardFeed";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
@@ -141,6 +141,8 @@ class BoardPanel {
   // What is on screen is the stored last result, not a fresh scan.
   private cached = false;
   private lastScanAt = 0;
+  // The page shows a board whose documents are still being read; a scan that dies now leaves it so.
+  private partial = false;
   private lastKey = "";
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
   private outside: Outside = emptyOutside();
@@ -181,7 +183,7 @@ class BoardPanel {
         } else if (e.affectsConfiguration("saropaWorkspace.releaseBoard")) {
           // Display-only settings: draw the stored scan again, no rescan.
           this.lastKey = "";
-          this.render(this.cached ? { stale: true } : {});
+          this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
           void this.refreshOutside();
         }
       },
@@ -274,7 +276,9 @@ class BoardPanel {
       // Whatever half-finished state is on screen is settled, and the next open rescans.
       this.dirty = true;
       this.lastKey = "";
-      this.render(this.cached ? { stale: true } : {});
+      // A half-read board is never shown as final, and the sidebar and status bar say the scan failed.
+      this.render(this.cached || this.partial ? { stale: true } : {});
+      setFailed(true);
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.scanning = false;
@@ -293,10 +297,13 @@ class BoardPanel {
       // Documents are sorted; their text is still being read for marks and severity.
       this.run = first;
       this.cached = false;
+      this.partial = true;
       this.render({ loading: true });
     });
     this.run = run;
     this.cached = false;
+    this.partial = false;
+    setFailed(false);
     this.lastScanAt = Date.now();
     if (!run) {
       this.model = undefined;
@@ -462,7 +469,7 @@ class BoardPanel {
     if (!(this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold))) {
       return;
     }
-    if (await acceptBoardRun(this.run)) {
+    if (await acceptBoardRun(this.run).catch(() => false)) {
       this.lastKey = "";
       this.render();
     } else {

@@ -56,6 +56,10 @@ export function staleNote(): string | undefined {
 // `stored` marks a result read from disk that no scan of this window has confirmed.
 export function setBoard(model: BoardModel | undefined, run: BoardRun | undefined, stored = false): void {
   storedOnly = stored && model !== undefined;
+  // A fresh result ends an earlier failure.
+  if (!stored && model !== undefined) {
+    failed = false;
+  }
   board = model && run ? { stamp: ++stamp, model, run } : undefined;
   changed.fire();
 }
