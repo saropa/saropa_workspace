@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildBoard } from "../../board/boardModel";
 import { BoardStrings } from "../../board/boardHtmlUtil";
-import { chains, needsRule, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "../../board/boardHtmlBoxes";
+import { chains, noRuleBox, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "../../board/boardHtmlBoxes";
 import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
 import { Train } from "../../board/train";
@@ -36,19 +36,41 @@ function snapshotOf(files: Record<string, string>, mtimeMs = 1, grey: Record<str
 test("the profile picker marks the chosen profile as pressed", () => {
   const m = buildBoard({ ...cfg, profile: "rush" }, [], undefined, true);
   const html = profilePicker(m, t);
-  assert.ok(html.includes('data-profile="rush" class="on" aria-pressed="true"'));
-  assert.ok(html.includes('data-profile="zero" aria-pressed="false"'));
+  assert.ok(html.includes('class="sec" data-profile="rush" aria-pressed="true" title="profile.rush"'));
+  assert.ok(html.includes('class="sec" data-profile="zero" aria-pressed="false" title="profile.zero"'));
 });
 
-test("the needs-a-rule box is empty without grey folders and lists each folder with a button-like row", () => {
+test("the no-rule section always shows: a sentence when empty, a titled list with counts when not", () => {
   const empty = buildBoard(cfg, [], undefined, true);
-  assert.equal(needsRule(empty, t, new Map()), "");
+  const none = noRuleBox(empty, t, new Map(), true);
+  assert.ok(none.startsWith('<section class="box" id="norule-box"><h2 title="noRuleHeading">[needsRuleHeading] <span class="n" title="count">0</span></h2>'));
+  assert.ok(none.includes('<p class="note">noRuleEmpty</p>'), "one sentence instead of a bare icon");
+  assert.ok(!none.includes("<details") && !none.includes("<summary"), "no hidden panel");
   const m = buildBoard(cfg, [], undefined, true, snapshotOf({}, 1, { "docs/<odd>": 4, "": 1 }));
-  const html = needsRule(m, t, new Map([["app", "App"]]));
+  const html = noRuleBox(m, t, new Map([["app", "App"]]), true);
+  assert.ok(html.includes('<span class="n" title="count">5</span>'), "the heading counts all documents");
   assert.ok(html.includes("docs/&#60;odd&#62;"));
-  assert.ok(html.includes('title="4"'));
-  assert.ok(html.includes("<span class=\"f\">/</span>"), "the project root shows as a slash");
-  assert.equal(html.match(/class="cn rulefix click"/g)?.length, 2);
+  assert.ok(html.includes('<span class="f" title="/">/</span>'), "the project root shows as a slash");
+  assert.equal(html.match(/data-assign="/g)?.length, 2);
+  assert.equal(html.match(/data-preview="/g)?.length, 2);
+  assert.ok(html.includes('data-rules="1"') && html.includes('title=".saropa/release-board.json"'), "the rules file is a link with its path");
+  assert.ok(html.includes("[needsRuleNote]"));
+});
+
+test("the no-rule section offers no buttons while the board is stale", () => {
+  const m = buildBoard(cfg, [], undefined, true, snapshotOf({}, 1, { docs: 2 }));
+  const html = noRuleBox(m, t, new Map(), false);
+  assert.equal(html.includes("data-assign"), false);
+  assert.equal(html.includes("data-preview"), false);
+  assert.ok(html.includes("data-rules"));
+});
+
+test("the no-rule section lists at most 30 folders and counts the rest", () => {
+  const grey = Object.fromEntries(Array.from({ length: 33 }, (_x, i) => [`docs/f${i}`, 1]));
+  const m = buildBoard(cfg, [], undefined, true, snapshotOf({}, 1, grey));
+  const html = noRuleBox(m, t, new Map(), true);
+  assert.equal(html.match(/data-assign="/g)?.length, 30);
+  assert.ok(html.includes("[more]"));
 });
 
 test("linked documents: chains, flags and suggestions, with indexes only", () => {
@@ -67,7 +89,8 @@ test("linked documents: chains, flags and suggestions, with indexes only", () =>
   assert.ok(html.includes('data-decision="accept"') && html.includes('data-decision="reject"'));
   assert.ok(html.includes("C &#60;i&#62;"));
   assert.ok(!html.includes("<i>"), "a title cannot add markup");
-  assert.ok(!html.includes("docs/b.md\""), "no path is a data attribute");
+  assert.ok(![...html.matchAll(/data-(?!suggest)[\w-]+="([^"]*)"/g)].some((m) => m[1].includes("docs/")), "no path is a data attribute (a suggestion carries its model key)");
+  assert.ok(html.includes('<a class="doc" href="#" data-id="1" title="docs/b.md">B</a>'), "a document is a link whose tooltip is its path");
 });
 
 test("without links, flags or suggestions the box is not drawn", () => {
@@ -82,27 +105,27 @@ test("outside groups: an item with a link carries group and item indexes, not th
       groups: [{ id: "g", label: "Reviews <3>", items: [{ title: "Fix it", detail: "repo#1", url: "https://example.com/pull/1" }, { title: "No link" }] }],
     },
   });
-  const html = outsideBoxes(m);
+  const html = outsideBoxes(m, t);
   assert.ok(html.includes("Reviews &#60;3&#62;"));
   assert.ok(html.includes('data-g="0" data-i="0"'));
   const attrs = [...html.matchAll(/="([^"]*)"/g)].map((m) => m[1]);
   assert.ok(attrs.every((a) => a !== "https://example.com/pull/1"), "no attribute holds the link");
-  assert.equal(/\bhref\s*=/i.test(html), false, "the page has no href");
+  assert.equal(/\bhref\s*=\s*"(?!#")/i.test(html), false, "the page has no href but the in-page #");
   assert.equal(html.match(/click ext/g)?.length, 1, "only the item with a link is clickable");
 });
 
 test("no outside groups, no markup", () => {
-  assert.equal(outsideBoxes(buildBoard(cfg, [], undefined, true)), "");
+  assert.equal(outsideBoxes(buildBoard(cfg, [], undefined, true), t), "");
 });
 
 test("the since strip lists each line with its details, escaped", () => {
-  const html = sinceBox({ heading: "Since <1h>", lines: [{ text: "App: 1 new blocker", details: ["+ Fix <x>", "- Old"] }, { text: "Db: light changed", details: [] }] });
+  const html = sinceBox({ heading: "Since <1h>", lines: [{ text: "App: 1 new blocker", details: ["+ Fix <x>", "- Old"] }, { text: "Db: light changed", details: [] }] }, t);
   assert.ok(html.includes('role="status"'));
   assert.ok(html.includes("Since &#60;1h&#62;"));
   assert.ok(html.includes("+ Fix &#60;x&#62;"));
   assert.equal(html.match(/<ul class="sd">/g)?.length, 1);
-  assert.equal(sinceBox(undefined), "");
-  assert.equal(sinceBox({ heading: "h", lines: [] }), "");
+  assert.equal(sinceBox(undefined, t), "");
+  assert.equal(sinceBox({ heading: "h", lines: [] }, t), "");
 });
 
 test("a train row shows its name, light, order and a warning for a cycle", () => {
@@ -127,22 +150,45 @@ test("a train row shows its name, light, order and a warning for a cycle", () =>
   assert.equal(trainBox(undefined, t), "");
 });
 
-test("the sittings box offers what the owner can have in hand and lists the steps that fit", () => {
+test("the sittings box is always visible: the time filter and the chips on top, the steps that fit below", () => {
   const snap = snapshotOf({ "docs/a.md": "# A\n\n- [ ] Upload the build with Xcode\n- [ ] Write the notes\n" });
   const m = buildBoard(cfg, [row("docs/a.md")], undefined, true, snap, undefined, undefined, {
     sittings: { selection: { have: ["mac"], timeBox: "any", maxSteps: 10 }, onlyOwner: false },
   });
   const html = sittingsBox(m, t);
-  assert.ok(html.includes('id="sit-panel" hidden'));
+  assert.ok(html.startsWith('<section class="box" id="sit-panel"><h2 title="sittingsHeading">[sittingsHeading]</h2><div class="filter">'));
+  assert.equal(html.includes("hidden"), false, "nothing is hidden behind a button");
   assert.ok(html.includes('data-have="mac" aria-pressed="true"'));
   assert.ok(html.includes('data-have="iphone" aria-pressed="false"'));
+  assert.ok(html.includes('data-haveall="1" aria-pressed="false"'));
   assert.ok(html.includes('data-box="any" aria-pressed="true"'));
+  for (const box of ["15", "30", "60", "240"]) {
+    assert.ok(html.includes(`data-box="${box}" aria-pressed="false"`), `time box ${box}`);
+  }
   assert.equal(html.match(/data-step="/g)?.length, 2, "one step that fits and one with no context");
+  assert.ok(html.includes('<details class="steps" id="sit-steps" open>'));
   assert.ok(html.includes('id="sit-untag"'));
-  assert.ok(!html.includes("docs/a.md"));
+  assert.ok(html.includes('<a class="doc" href="#" data-step="0" title="docs/a.md">'), "a step is a link whose tooltip is the document path");
+  assert.equal(html.includes('data-path'), false);
+  assert.equal(html.includes("sit-open"), false, "the mystery button is gone");
 });
 
-test("with nothing in hand the box asks to pick, and with no sittings it is not drawn", () => {
+test("by default every context is in hand and any time fits, so nothing is hidden", () => {
+  const snap = snapshotOf({ "docs/a.md": "# A\n\n- [ ] Upload the build with Xcode\n- [ ] Install the APK with adb\n" });
+  const m = buildBoard(cfg, [row("docs/a.md")], undefined, true, snap, undefined, undefined, {
+    sittings: { selection: { timeBox: "any", maxSteps: 10 }, onlyOwner: false },
+  });
+  const v = m.sittings;
+  assert.ok(v);
+  assert.deepEqual(v.have, v.contexts.map((c) => c.id));
+  assert.equal(v.doable, 2);
+  assert.equal(v.needOther, 0);
+  const html = sittingsBox(m, t);
+  assert.equal(html.match(/data-have="[a-z]+" aria-pressed="true"/g)?.length, v.contexts.length);
+  assert.ok(html.includes('data-haveall="1" aria-pressed="true"'));
+});
+
+test("with nothing in hand the box says so, and with no sittings it is not drawn", () => {
   const snap = snapshotOf({ "docs/a.md": "# A\n\n- [ ] Upload with Xcode\n" });
   const m = buildBoard(cfg, [row("docs/a.md")], undefined, true, snap, undefined, undefined, {
     sittings: { selection: { have: [], timeBox: "any", maxSteps: 10 }, onlyOwner: false },

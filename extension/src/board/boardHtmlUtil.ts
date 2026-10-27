@@ -80,12 +80,10 @@ export interface BoardStrings {
   ptgUnread: string;
   ptgAccept: string;
   ptgMore: string;
-  ptgOpen: string;
   ptgRunLint: string;
   ptgRunTests: string;
   ptgOpenRules: string;
   ptgAcceptBtn: string;
-  sittingsButton: string;
   sittingsHeading: string;
   sittingsPick: string;
   sittingsNone: string;
@@ -98,9 +96,6 @@ export interface BoardStrings {
   // "{count}" steps with no context found.
   sittingsUntagged: string;
   sittingsUntaggedNote: string;
-  timeAny: string;
-  // "{count}" minutes.
-  timeMinutes: string;
   // "{count}" minutes a step is thought to take.
   stepMinutes: string;
   // Label of the Hand to chat button; empty when the feature is off (no button is drawn).
@@ -154,6 +149,8 @@ export interface BoardStrings {
   trainOrder: string;
   // Future tab: every label and phrase, keyed (see views/boardStrings.ts).
   futureLabels: Record<string, string>;
+  // Tooltips and the labels of the controls added with them, keyed (see views/boardStrings.ts).
+  polish: Record<string, string>;
 }
 
 // Small helpers shared by every part of the page: escaping, placeholder filling and the
@@ -174,10 +171,35 @@ export function liveLine(f: LiveFile, t: BoardStrings): string {
 
 // The Hand to chat button. It carries only indexes; the host builds the prompt from the model it rendered.
 export function handButton(t: BoardStrings, attrs: string): string {
-  return t.handToChat ? `<button class="hb" ${attrs} title="${escapeHtml(t.handToChatTip)}">${escapeHtml(t.handToChat)}</button>` : "";
+  return t.handToChat ? `<button class="hb sec" ${attrs} title="${escapeHtml(t.handToChatTip)}">${escapeHtml(t.handToChat)}</button>` : "";
 }
 
-// Fills {name} placeholders after escaping, so a document title can never add markup.
-export function fill(tmpl: string, vars: Record<string, string | number | undefined>): string {
-  return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] === undefined ? m : escapeHtml(String(vars[k]))));
+// One word or sentence of the control and tooltip table, with {name} placeholders filled in.
+// The key itself when the table has no entry, so a missing entry is visible, never empty.
+export function pl(t: BoardStrings, key: string, vars: Record<string, string | number> = {}): string {
+  const table = t.polish as Record<string, string> | undefined;
+  const text = table && typeof table === "object" ? (table[key] ?? key) : key;
+  return text.replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] === undefined ? m : String(vars[k])));
+}
+
+// A title attribute from the table, escaped. Every element on the page carries one.
+export function tip(t: BoardStrings, key: string, vars: Record<string, string | number> = {}): string {
+  return `title="${escapeHtml(pl(t, key, vars))}"`;
+}
+
+// A title attribute from plain text, escaped.
+export function titleAttr(text: string): string {
+  return `title="${escapeHtml(text)}"`;
+}
+
+// A document the page can open: an underlined link whose tooltip is the document's path inside
+// its project. It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
+export function docLink(text: string, path: string, attr: string): string {
+  return `<a class="doc" href="#" ${attr} ${titleAttr(path)}>${escapeHtml(text)}</a>`;
+}
+
+// Fills {name} placeholders after escaping, so a document title can never add markup. Values in
+// `html` are already-built markup (a link, say) and go in as they are.
+export function fill(tmpl: string, vars: Record<string, string | number | undefined>, html: Record<string, string> = {}): string {
+  return escapeHtml(tmpl).replace(/\{(\w+)\}/g, (m, k: string) => (html[k] !== undefined ? html[k] : vars[k] === undefined ? m : escapeHtml(String(vars[k]))));
 }

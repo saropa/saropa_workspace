@@ -9,13 +9,14 @@ import { applySuggestion, handToChat, openDocument, openExternalLink, openSittin
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
+import { assignFolderRule, previewFolder } from "../commands/boardRuleAssign";
 import { researchQueue } from "../board/futureResearch";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>" and "futureSort <value>", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "assign <index>" and "preview <index>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -28,6 +29,8 @@ class BoardPanel extends BoardPanelWiring {
   private editing = false;
   // A tidy move (with its confirmation) is under way: a second click is ignored.
   private moving = false;
+  // A rule is being assigned to a folder (with its dialogs): a second click is ignored.
+  private assigning = false;
 
   protected onClosed(): void {
     current = undefined;
@@ -82,6 +85,8 @@ class BoardPanel extends BoardPanelWiring {
       this.futureSort = message.value as FutureSort;
       this.lastKey = "";
       this.render(this.cached ? { stale: true } : {});
+    } else if ((message.type === "assign" || message.type === "preview") && typeof message.i === "number") {
+      await this.noRule(message.type, message.i);
     } else if (message.type === "rules") {
       await openRulesFile();
     } else if (message.type === "accept") {
@@ -209,6 +214,32 @@ class BoardPanel extends BoardPanelWiring {
       }
     } finally {
       this.moving = false;
+    }
+  }
+
+  // A folder row of "Documents with no rule". The index is resolved against the list this panel
+  // rendered. Assigning asks for a category and a confirmation before the rules file is written,
+  // then scans again; a preview only reports.
+  private async noRule(kind: "assign" | "preview", i: number): Promise<void> {
+    const entry = this.model?.needsRule[i];
+    const run = this.run;
+    if (!entry || !run || this.scanning || this.cached || this.assigning) {
+      return;
+    }
+    if (kind === "preview") {
+      previewFolder(run, entry);
+      return;
+    }
+    this.assigning = true;
+    try {
+      if (await assignFolderRule(run, entry)) {
+        this.dirty = true;
+        await this.refresh();
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.assigning = false;
     }
   }
 

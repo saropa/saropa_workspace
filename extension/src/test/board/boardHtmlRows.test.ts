@@ -114,7 +114,7 @@ test("the list is capped at 30 rows and says how many are left out", () => {
 test("an empty list says there is nothing here", () => {
   const html = list("Resolve", [], new Map(), t);
   assert.ok(html.includes("[nothingHere]"));
-  assert.ok(html.includes('title="0"'));
+  assert.ok(html.includes('<h2 title="list">Resolve <span class="n" title="count">0</span></h2>'));
 });
 
 test("related items sit under a group heading, indented", () => {
@@ -134,7 +134,7 @@ test("related items sit under a group heading, indented", () => {
 test("a row shows the Hand to chat button for a blocker only", () => {
   const m = buildBoard(cfg, [row("app", "bugs/a.md", "red"), row("app", "docs/b.md", "amber")], undefined, true);
   const html = list("All", m.items, new Map(), t);
-  assert.equal(html.match(/class="hb"/g)?.length, 1);
+  assert.equal(html.match(/class="hb sec"/g)?.length, 1);
   assert.ok(html.includes('data-hk="item" data-i="0"'));
 });
 
@@ -143,7 +143,7 @@ test("marks: a ring and size bars from the facts, a pin, and a hub label", () =>
   const m = buildBoard({ ...cfg, pinned: ["app/docs/a.md"] }, [row("app", "docs/a.md", "amber")], undefined, true, snap);
   const html = list("Work", m.items, new Map(), t);
   assert.ok(html.includes('class="ring part"'), "one of two steps done");
-  assert.ok(html.includes("<b class=\"code\">S</b>"), "the first code language letter");
+  assert.ok(html.includes("<b class=\"code\" title=\"codeLang\">S</b>"), "the first code language letter");
   assert.ok(html.includes('class="pin"'));
 });
 

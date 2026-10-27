@@ -30,6 +30,8 @@ export interface PathStep {
   // item: the document to act on (an index into the model's items).
   itemId?: number;
   title?: string;
+  // item: the document's path inside its project, for the link's tooltip.
+  docPath?: string;
   // item: the name of the head document's project, only when it is not this project.
   project?: string;
   // item: why it stops the release. Absent when the document does not stop it itself.
@@ -152,6 +154,7 @@ function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
         key: `item:${head.project}:${hash(head.path)}`,
         itemId: head.id,
         title: head.title,
+        docPath: head.path,
         // Only a document that stops the release itself carries a reason and a severity;
         // otherwise the step is worded by the document that waits on it.
         why: stops ? whyStops(head) : undefined,

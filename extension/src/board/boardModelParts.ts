@@ -9,6 +9,7 @@ import { ProjectHealth } from "./health";
 import { Audience, Profile, Severity } from "./severity";
 import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
+import type { InProgressView } from "./inProgress";
 
 // The shapes of the board's view model (what the first screen shows), and the helpers that
 // turn one document or one link into the pieces of the model. buildBoard puts them together.
@@ -139,6 +140,9 @@ export interface BoardModel {
   sittings?: SittingsView;
   // Absent when the Tidy sweep is switched off.
   tidy?: TidyView;
+  // The In progress list: documents being edited in this window, then documents marked in
+  // progress. Absent when the feature is switched off (the list is then every purple item).
+  inProgress?: InProgressView;
   // Crash signals in files no open document names. Empty when there are none.
   liveUnnamed?: LiveUnnamed[];
 }
@@ -153,8 +157,11 @@ export interface BoardExtra {
   pins?: string[];
   // Review requests, groups and session counts from other extensions.
   outside?: Outside;
-  sittings?: { selection: SittingSelection; onlyOwner: boolean };
+  // `have` absent means every context is in hand.
+  sittings?: { selection: Omit<SittingSelection, "have"> & { have?: string[] }; onlyOwner: boolean };
   tidy?: TidyOptions;
+  // Documents open and being edited in this window, as "project/path", and the list limit.
+  inProgress?: { edited: string[]; max: number };
   live?: { signals: LiveSignals; includeWarnings: boolean; fold: boolean; unnamedBox: boolean };
 }
 
@@ -238,7 +245,7 @@ export function sittingsView(
   rows: Classified[],
   snapshot: ScanSnapshot | undefined,
   byKey: Map<string, BoardItem>,
-  opt: { selection: SittingSelection; onlyOwner: boolean }
+  opt: NonNullable<BoardExtra["sittings"]>
 ): SittingsView {
   const dict = mergeNeeds(cfg.needs);
   const names = new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id]));
@@ -266,7 +273,8 @@ export function sittingsView(
     });
   }
   const known = new Set(dict.contexts.map((c) => c.id));
-  const selection = { ...opt.selection, have: opt.selection.have.filter((id) => known.has(id)) };
+  // No choice made yet: everything is in hand, so nothing is hidden.
+  const selection = { ...opt.selection, have: (opt.selection.have ?? [...known]).filter((id) => known.has(id)) };
   const res = buildSittings(docs, dict, selection);
   return {
     contexts: dict.contexts.map((c) => ({ id: c.id, label: c.label })),

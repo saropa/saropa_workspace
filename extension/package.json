@@ -2704,7 +2704,7 @@
           },
           "saropaWorkspace.releaseBoard.sittings.defaultTimeBox": {
             "type": "string",
-            "enum": ["any", "15", "30", "60"],
+            "enum": ["any", "15", "30", "60", "240"],
             "default": "any",
             "description": "%config.releaseBoard.sittings.defaultTimeBox.description%"
           },
@@ -2719,6 +2719,18 @@
             "type": "boolean",
             "default": true,
             "description": "%config.releaseBoard.sittings.onlyOwnerDocuments.description%"
+          },
+          "saropaWorkspace.releaseBoard.inProgress.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.inProgress.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.inProgress.max": {
+            "type": "number",
+            "default": 15,
+            "minimum": 1,
+            "maximum": 50,
+            "description": "%config.releaseBoard.inProgress.max.description%"
           },
           "saropaWorkspace.releaseBoard.tidy.enabled": {
             "type": "boolean",

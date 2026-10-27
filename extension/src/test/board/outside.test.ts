@@ -66,5 +66,5 @@ test("the page shows the session count and the outside group, escaped, with link
   assert.ok(html.includes('data-g="0" data-i="0"'));
   const attrs = [...html.matchAll(/="([^"]*)"/g)].map((m) => m[1]);
   assert.ok(attrs.every((a) => a !== "https://github.com/a/b/pull/1"), "the page never carries the link");
-  assert.equal(/\bhref\s*=/i.test(html), false, "the page has no href");
+  assert.equal(/\bhref\s*=\s*"(?!#")/i.test(html), false, "the page has no href but the in-page #");
 });

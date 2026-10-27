@@ -5,12 +5,13 @@ import { Profile, asProfile } from "../board/severity";
 import { BoardConfig, ProjectDef } from "../board/types";
 import { l10n } from "../i18n/l10n";
 import { pathExists } from "./boardFileSource";
+import { RULES_PATH, USER_RULE_SET } from "../board/ruleAssign";
 
 // Release Board, loading the rule file. The user's own `.saropa/release-board.json` in the
 // first folder wins over the rules shipped with the extension; a missing section falls back
 // to the shipped one.
 
-export const RULES_FILE = ".saropa/release-board.json";
+export const RULES_FILE = RULES_PATH;
 // Folders a project may keep its documents in; only the ones that exist are scanned.
 export const DEFAULT_ROOTS = ["bugs", "docs", "plans", "reports", "db-access"];
 const DEFAULT_SETS = ["folder-states", "reference-docs", "doc-kinds", "live-folders", "status-line"];
@@ -74,7 +75,8 @@ async function readRules(folders: readonly vscode.WorkspaceFolder[]): Promise<Bo
 }
 
 // One project per workspace folder, scanning the document folders it actually has.
-async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[]): Promise<ProjectDef[]> {
+// A rule added from the board (the "my-rules" rule set) applies to these projects too.
+async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[], userRules: boolean): Promise<ProjectDef[]> {
   const projects: ProjectDef[] = [];
   const used = new Set<string>();
   for (const f of folders) {
@@ -85,7 +87,7 @@ async function foldersAsProjects(folders: readonly vscode.WorkspaceFolder[]): Pr
       }
     }
     const id = uniqueProjectId(f.name, used);
-    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: DEFAULT_SETS });
+    projects.push({ id, name: f.name, path: f.uri.toString(), roots, ruleSets: userRules ? [...DEFAULT_SETS, USER_RULE_SET] : DEFAULT_SETS });
   }
   return projects;
 }
@@ -109,5 +111,5 @@ export async function loadConfig(): Promise<BoardConfig> {
     }));
     return { ...cfg, projects };
   }
-  return { ...cfg, projects: await foldersAsProjects(folders) };
+  return { ...cfg, projects: await foldersAsProjects(folders, USER_RULE_SET in cfg.ruleSets) };
 }

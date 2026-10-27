@@ -1,7 +1,8 @@
 import { BoardItem, ItemMarks, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
-import { BoardStrings, escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
+import { BoardStrings, docLink, escapeHtml, fill, handButton, liveLine, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { RULES_PATH } from "./ruleAssign";
 import type { FeedNote } from "./recipeEvidence";
 import { Signal, showsOnRow } from "./reportSignals";
 
@@ -59,7 +60,7 @@ function feedLine(p: BoardProject, t: BoardStrings): string {
       lines.push(feedSentence(kind, note, t));
     }
   }
-  return lines.length > 0 ? `<span class="fn">${lines.join(" ")}</span>` : "";
+  return lines.length > 0 ? `<span class="fn" ${tip(t, "feedLine")}>${lines.join(" ")}</span>` : "";
 }
 
 // The words for one note from a daily report, and whether it is a warning. Already escaped.
@@ -99,27 +100,29 @@ function signalLine(p: BoardProject, t: BoardStrings): string {
 export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
   const why = p.light !== "unverified" ? "" : p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
+  const lightTip = why || pl(t, p.light === "go" ? "light.go" : p.light === "no-go" ? "light.noGo" : "light.unverified");
   const squares = p.items
     .slice(0, 14)
-    .map((i) => `<i class="sq ${i.status}"></i>`)
+    .map((i) => `<i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: i.title })}></i>`)
     .join("");
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<span class="link ${waiting ? "wait" : "ok"}" title="${escapeHtml(t.dependsOn)} ${escapeHtml(p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", "))}"></span>` : "";
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""}><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar">${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
+  const rowTip = toggles ? tip(t, "projectRow", { name: p.name }) : tip(t, "projectRowPlain", { name: p.name });
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${escapeHtml(p.name)}</b><span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar" ${tip(t, "squares", { count: p.items.length })}>${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
 }
 
 // The small marks on a row: a progress ring, size bars, a code letter and one dot per
 // other project mentioned. The exact figures are in the tooltip, not on the screen.
-function marks(m: ItemMarks | undefined): string {
+function marks(m: ItemMarks | undefined, t: BoardStrings): string {
   if (!m) {
     return "";
   }
   const pct = m.total > 0 ? Math.round((m.done / m.total) * 100) : 0;
   const ring = m.total === 0 ? "none" : m.done === m.total ? "ok" : m.done > 0 ? "part" : "none";
   const bars = [1, 2, 3, 4].map((n) => `<u${n <= m.size ? ' class="on"' : ""}></u>`).join("");
-  const code = m.code === undefined ? "" : `<b class="code">${escapeHtml(m.code ? m.code.charAt(0).toUpperCase() : "{}")}</b>`;
-  const dots = m.mentions.map((n) => `<i class="pd" title="${escapeHtml(n)}"></i>`).join("");
+  const code = m.code === undefined ? "" : `<b class="code" ${m.code ? tip(t, "codeLang", { lang: m.code }) : tip(t, "codeNoLang")}>${escapeHtml(m.code ? m.code.charAt(0).toUpperCase() : "{}")}</b>`;
+  const dots = m.mentions.map((n) => `<i class="pd" ${tip(t, "mentions", { name: n })}></i>`).join("");
   return `<span class="marks" title="${escapeHtml(m.detail)}"><i class="ring ${ring}" style="--p:${pct}"></i><i class="bars">${bars}</i>${code}${dots}</span>`;
 }
 
@@ -141,10 +144,10 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
     parts.push(`<i class="link ${i.link.state}" title="${escapeHtml(i.link.detail)}"></i>`);
   }
   if (i.blocksCount > 0) {
-    parts.push(`<i class="link blocks" title="${i.blocksCount}"></i>`);
+    parts.push(`<i class="link blocks" ${tip(t, "blocks", { count: i.blocksCount })}></i>`);
   }
   if (i.severity) {
-    parts.push(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" title="${escapeHtml(i.severity)}"></i>`);
+    parts.push(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" ${tip(t, i.stopping ? "severityStops" : "severity", { severity: i.severity })}></i>`);
   }
   if (i.audience === "pro") {
     parts.push(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`);
@@ -162,30 +165,45 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
   return shown.length > 0 ? `<span class="marks">${shown.join("")}</span>` : "";
 }
 
+// One open document: the title is the link that opens it (its tooltip is the path inside the
+// project); a click anywhere else on the row opens it too.
 function row(i: BoardItem, name: string, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" tabindex="0" role="button" data-id="${i.id}" title="${escapeHtml(i.path)}"><i class="sq ${i.status}"></i><span class="tag">${escapeHtml(name)}</span><span class="f">${escapeHtml(i.title)}</span>${marks(i.marks)}${linkMark(i, t)}<span class="k">${escapeHtml(i.kind)}</span>${i.status === "red" || i.stopping ? handButton(t, `data-hk="item" data-i="${i.id}"`) : ""}</div>`;
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${tip(t, "row", { kind: i.kind || "-" })}><i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: i.title })}></i><span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span><span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${marks(i.marks, t)}${linkMark(i, t)}<span class="k" ${tip(t, "kind", { kind: i.kind || "-" })}>${escapeHtml(i.kind)}</span>${i.status === "red" || i.stopping ? handButton(t, `data-hk="item" data-i="${i.id}"`) : ""}</div>`;
+}
+
+// What a list adds to the plain item list: its tooltip key, an explanation line, how many more
+// items the caller left out, and its own cap.
+export interface ListOptions {
+  tip?: string;
+  note?: string;
+  more?: number;
+  cap?: number;
 }
 
 // One list of items under a heading, grouped items together, capped at a fixed length.
-export function list(title: string, items: BoardItem[], names: Map<string, string>, t: BoardStrings): string {
+export function list(title: string, items: BoardItem[], names: Map<string, string>, t: BoardStrings, opt: ListOptions = {}): string {
+  const cap = opt.cap ?? LIST_CAP;
   // Items of one group sit together under its heading; the rest follow, alone.
   const size = new Map<string, number>();
   items.forEach((i) => i.group && size.set(i.group.id, (size.get(i.group.id) ?? 0) + 1));
   const grouped = (i: BoardItem): BoardItem["group"] => (i.group && (size.get(i.group.id) ?? 0) > 1 ? i.group : undefined);
-  const ordered = [...items].sort((a, b) => (grouped(b) ? 1 : 0) - (grouped(a) ? 1 : 0) || (grouped(a)?.name ?? "").localeCompare(grouped(b)?.name ?? "") || (grouped(a)?.id ?? "").localeCompare(grouped(b)?.id ?? ""));
+  const ordered = opt.cap === undefined ? [...items].sort((a, b) => (grouped(b) ? 1 : 0) - (grouped(a) ? 1 : 0) || (grouped(a)?.name ?? "").localeCompare(grouped(b)?.name ?? "") || (grouped(a)?.id ?? "").localeCompare(grouped(b)?.id ?? "")) : items;
   let last: string | undefined;
   const shown = ordered
-    .slice(0, LIST_CAP)
+    .slice(0, cap)
     .map((i) => {
-      const g = grouped(i);
-      const head = g && g.id !== last ? `<div class="grp"><i class="sq ${i.status}"></i><b title="${size.get(g.id)}">${escapeHtml(g.name)}</b></div>` : "";
+      const g = opt.cap === undefined ? grouped(i) : undefined;
+      const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b></div>` : "";
       last = g?.id;
       return head + row(i, names.get(i.project) ?? i.project, t, g !== undefined);
     })
     .join("");
-  const more = items.length > LIST_CAP ? `<p class="note" title="${escapeHtml(t.more.replace("{count}", String(items.length - LIST_CAP)))}">…</p>` : "";
+  const left = items.length > cap ? items.length - cap : 0;
+  const hidden = left + (opt.more ?? 0);
+  const more = hidden > 0 ? `<p class="note" ${titleAttr(t.more.replace("{count}", String(hidden)))}>${escapeHtml(t.more.replace("{count}", String(hidden)))}</p>` : "";
   const body = items.length === 0 ? `<p class="note">${escapeHtml(t.nothingHere)}</p>` : shown + more;
-  return `<section class="box"><h2 title="${items.length}">${escapeHtml(title)}</h2>${body}</section>`;
+  const note = opt.note ? `<p class="note">${escapeHtml(opt.note)}</p>` : "";
+  return `<section class="box"><h2 ${tip(t, opt.tip ?? "list", { title, count: items.length + (opt.more ?? 0) })}>${escapeHtml(title)} <span class="n" ${tip(t, "count", { count: items.length + (opt.more ?? 0) })}>${items.length + (opt.more ?? 0)}</span></h2>${note}${body}</section>`;
 }
 
 // The step line for a row whose daily report job has something to say. Escaped.
@@ -198,15 +216,17 @@ function feedStepText(kind: "build" | "lint" | "tests", s: PathStep, t: BoardStr
 function stepText(s: PathStep, t: BoardStrings): string {
   switch (s.kind) {
     case "item": {
-      const named = s.project ? `${s.title ?? ""} (${s.project})` : s.title;
+      // The document's title is a link to it; the project name, when shown, stays plain text.
+      const link = s.itemId !== undefined ? docLink(s.title ?? "", s.docPath ?? "", `data-id="${s.itemId}"`) : escapeHtml(s.title ?? "");
+      const named = s.project ? `${link} (${escapeHtml(s.project)})` : link;
       const unblocks = s.unblocks ? " " + fill(t.ptgUnblocks, { count: s.unblocks }) : "";
       if (s.why === undefined) {
         // The document does not stop the release itself: the one that waits on it does.
-        return fill(s.waiter ? t.ptgItemFirst : t.ptgItemFirstAny, { title: named, waiter: s.waiter ?? "" }) + unblocks;
+        return fill(s.waiter ? t.ptgItemFirst : t.ptgItemFirstAny, { waiter: s.waiter ?? "" }, { title: named }) + unblocks;
       }
       const base = s.why === "red" ? t.ptgItemRed : s.why === "pinned" ? t.ptgItemPinned : t.ptgItemSeverity;
       const waiter = s.waiter ? " " + fill(t.ptgWaiter, { title: s.waiter }) : "";
-      return fill(base, { title: named, severity: s.severity ?? "" }) + unblocks + waiter;
+      return fill(base, { severity: s.severity ?? "" }, { title: named }) + unblocks + waiter;
     }
     case "blocked":
       return fill(t.ptgBlocked, { count: s.count });
@@ -227,8 +247,9 @@ function stepText(s: PathStep, t: BoardStrings): string {
   }
 }
 
-// The button of a step, or nothing when the step has no action the board can take. The page
-// sends only the project and step index; the host resolves them.
+// The action of a step, or nothing when the step has no action the board can take. A step that
+// opens a document (the rules file) is an underlined link with the file's path as its tooltip;
+// the rest are buttons. The page sends only the project and step index; the host resolves them.
 function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct: boolean): string {
   if (!canAct) {
     return "";
@@ -236,10 +257,12 @@ function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct
   const evidenceKind = s.kind === "lint" || s.kind === "tests" || s.kind === "build";
   const enable = evidenceKind && s.enable === true;
   const run = (s.kind === "lint" || s.kind === "tests") && s.run && s.feed !== "checking" && s.feed !== "waiting";
-  const label = s.kind === "item" ? t.ptgOpen : s.kind === "rules" ? t.ptgOpenRules : s.kind === "accept" ? t.ptgAcceptBtn : run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
-  const button = (text: string, debounce: boolean): string => `<button class="ptgb" data-p="${pi}" data-s="${si}"${debounce ? ' data-run="1"' : ""}>${escapeHtml(text)}</button>`;
+  const label = s.kind === "accept" ? t.ptgAcceptBtn : run ? (s.kind === "lint" ? t.ptgRunLint : t.ptgRunTests) : "";
+  const button = (text: string, tipKey: string, debounce: boolean): string => `<button class="ptgb" data-p="${pi}" data-s="${si}"${debounce ? ' data-run="1"' : ""} ${tip(t, tipKey)}>${escapeHtml(text)}</button>`;
+  const tipKey = s.kind === "accept" ? "ptgAccept" : s.kind === "lint" ? "ptgRunLint" : "ptgRunTests";
+  const rules = s.kind === "rules" ? `<a class="doc ptgl" href="#" data-p="${pi}" data-s="${si}" ${titleAttr(RULES_PATH)}>${escapeHtml(t.ptgOpenRules)}</a>` : "";
   // A row whose daily report is off offers both: turn the report on, and the run it had before.
-  return (enable ? button(t.ptgEnable, true) : "") + (label ? button(label, Boolean(run)) : "");
+  return (enable ? button(t.ptgEnable, "ptgEnable", true) : "") + (label ? button(label, tipKey, Boolean(run)) : "") + rules;
 }
 
 // One project's steps, hidden until its row is clicked. A step that is no longer listed is

@@ -9,6 +9,7 @@ import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { ScanSnapshot } from "./scanner";
 import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
+import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
 import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
@@ -329,6 +330,7 @@ export function buildBoard(
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   return {
     tidy: extra?.tidy ? buildTidyView(all, ctx, extra.tidy) : undefined,
+    inProgress: extra?.inProgress ? pickInProgress(all, new Set(extra.inProgress.edited), extra.inProgress.max) : undefined,
     liveUnnamed,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,

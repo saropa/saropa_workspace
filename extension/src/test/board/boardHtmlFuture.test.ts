@@ -152,7 +152,7 @@ const withResearch = (states: Array<[string, string[]]>, over: Partial<FutureVie
 
 test("a document with no research state shows the toggle off, the state list and an empty question", () => {
   const html = futurePanel(withResearch([["A", []]]), t);
-  assert.ok(html.includes('<input type="checkbox" data-frt="0">'));
+  assert.ok(html.includes('<input type="checkbox" data-frt="0" title="researchToggle">'));
   assert.ok(html.includes('data-ff="research" data-fi="0"'));
   assert.ok(html.includes('<option value="none" selected>~research.none~</option>'));
   for (const v of ["needed", "in-progress", "ready", "reviewed"]) {
@@ -165,10 +165,10 @@ test("a document with no research state shows the toggle off, the state list and
 
 test("a needed document shows the toggle on, its question and the summary with the hand-off button", () => {
   const html = futurePanel(withResearch([["A", ["Research: needed", "Research question: Is it still possible?"]]]), t);
-  assert.ok(html.includes('<input type="checkbox" data-frt="0" checked>'));
+  assert.ok(html.includes('<input type="checkbox" data-frt="0" checked title="researchToggle">'));
   assert.ok(html.includes('value="Is it still possible?"'));
   assert.ok(html.includes('<option value="needed" selected>'));
-  assert.ok(html.includes("<span>~waiting~</span>"));
+  assert.ok(html.includes('<span title="researchCounts">~waiting~</span>'));
   assert.ok(html.includes("~handAll~"));
   assert.ok(html.includes("<button data-fhand "));
 });
@@ -181,7 +181,7 @@ test("the summary counts each state and uses the fixed count wording", () => {
         : `[${k}]`,
   });
   const html = futurePanel(withResearch([["A", ["Research: needed"]], ["B", ["Research: needed"]], ["C", ["Research: in-progress"]], ["D", ["Research: ready"]], ["E", ["Research: reviewed"]]]), t2);
-  assert.ok(html.includes("<span>2 waiting \u00b7 1 running \u00b7 1 ready, not reviewed</span>"));
+  assert.ok(html.includes('<span title="researchCounts">2 waiting \u00b7 1 running \u00b7 1 ready, not reviewed</span>'));
   assert.ok(html.includes(">Hand all (2)</button>"));
 });
 
@@ -208,7 +208,7 @@ test("the hand-off button is disabled when the tab cannot edit or Hand to chat i
 test("research ready shows the not-reviewed label and the review button; other states do not", () => {
   const ready = futurePanel(withResearch([["A", ["Research: ready"]]]), t);
   assert.ok(ready.includes("~readyNotReviewed~"));
-  assert.ok(ready.includes('<button data-frev="0">~markReviewed~</button>'));
+  assert.ok(ready.includes('<button data-frev="0" title="markReviewed">~markReviewed~</button>'));
   for (const state of ["none", "needed", "in-progress", "reviewed"]) {
     const html = futurePanel(withResearch([["A", [`Research: ${state}`]]]), t);
     assert.ok(!html.includes("data-frev") && !html.includes("~readyNotReviewed~"), state);
@@ -218,7 +218,7 @@ test("research ready shows the not-reviewed label and the review button; other s
 test("the toggle is locked while research is under way, ready or reviewed", () => {
   for (const state of ["in-progress", "ready", "reviewed"]) {
     const html = futurePanel(withResearch([["A", [`Research: ${state}`]]]), t);
-    assert.ok(html.includes('<input type="checkbox" data-frt="0" disabled>'), state);
+    assert.ok(html.includes('<input type="checkbox" data-frt="0" disabled title="researchToggle">'), state);
   }
 });
 
@@ -227,7 +227,7 @@ test("a tab that cannot edit disables every research control", () => {
   assert.ok(html.includes('data-frt="0" disabled'));
   assert.ok(html.includes('data-ff="research" data-fi="0"') && /<select data-ff="research"[^>]*disabled>/.test(html));
   assert.ok(/<input type="text"[^>]*data-fq="0"[^>]* disabled>/.test(html));
-  assert.ok(html.includes('<button data-frev="0" disabled>'));
+  assert.ok(html.includes('<button data-frev="0" disabled title="markReviewed">'));
 });
 
 test("the question is escaped and the page carries only indexes for research", () => {

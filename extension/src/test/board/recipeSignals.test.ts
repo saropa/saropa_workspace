@@ -271,8 +271,8 @@ test("html: the Tidy box lists report candidates read-only, by index, with no pa
     branches: read("branches", HOUR, "pass", 3),
   });
   const out = page(h, { tidy: tidyOn });
-  assert.ok(out.includes('<span class="f">Debt: 12, unchanged</span><button data-tidyrep="0">Open report</button>'));
-  assert.ok(out.includes('<span class="f">Merged branches: 3</span><button data-tidyrep="1">Open report</button>'));
+  assert.ok(out.includes('<span class="f">Debt: 12, unchanged</span><button class="sec" data-tidyrep="0" title="tidyReport">Open report</button>'));
+  assert.ok(out.includes('<span class="f">Merged branches: 3</span><button class="sec" data-tidyrep="1" title="tidyReport">Open report</button>'));
   assert.ok(out.includes("From the daily reports."));
   assert.ok(!out.includes("data-tidy="), "no document move button");
   assert.ok(!out.includes("Idle 7 days"), "the document note is left out when no document is listed");

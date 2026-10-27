@@ -123,7 +123,7 @@ test("the page draws a button only for stopping rows, and only indexes", () => {
   const m = model();
   const paths: PathToGo[] = m.projects.map((p) => pathToGo(m, p, { maxSteps: 20, canRun: () => false }));
   const html = renderBoard(m, t, "n", 1, {}, paths);
-  assert.match(html, /class="hb" data-hk="item" data-i="\d+"/);
+  assert.match(html, /class="hb sec" data-hk="item" data-i="\d+"/);
   assert.match(html, /data-hk="step" data-p="0" data-s="\d+"/);
   assert.ok(!html.includes("/abs/app"));
   const amber = m.items.find((i) => i.status === "amber");

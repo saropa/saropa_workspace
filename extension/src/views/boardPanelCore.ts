@@ -19,7 +19,8 @@ import { strings } from "./boardStrings";
 import { FutureData, emptyFuture, loadFuture, readFutureSettings } from "../commands/boardFuture";
 import { FutureView } from "../board/boardHtmlFuture";
 import { FutureItem, FutureOutside, FutureSort } from "../board/futureList";
-import { emptyPage, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
+import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
+import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
 
 // Least time between two looks at the Problems panel.
 export const LIVE_GAP_MS = 4000;
@@ -66,6 +67,12 @@ export abstract class BoardPanelCore {
   // What the page was last painted with, so a click's index is resolved against exactly this.
   protected futureShown: FutureItem[] = [];
   protected futureOutsideShown: FutureOutside[] = [];
+  // Documents open in this window that have unsaved edits or are changed in git, as "project/path"
+  // keys (sorted), for the In progress list; looked up off the scan's path.
+  protected edited: string[] = [];
+  protected editedToken = 0;
+  protected editedStale = false;
+  protected editedTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -111,6 +118,7 @@ export abstract class BoardPanelCore {
     void this.refreshOutside();
     void this.refreshLive();
     void this.refreshFuture();
+    void this.refreshEdited();
   }
 
   // Paints the previous result at once, dimmed, while the scan runs.
@@ -180,6 +188,39 @@ export abstract class BoardPanelCore {
     void this.refreshOutside();
     void this.refreshLive();
     void this.refreshFuture();
+    void this.refreshEdited();
+  }
+
+  // Looks up which board documents are being edited in this window and paints the In progress
+  // list when the answer changed; a newer call wins. Never part of a scan.
+  protected async refreshEdited(): Promise<void> {
+    const run = this.run;
+    if (!run || this.disposed) {
+      return;
+    }
+    const token = ++this.editedToken;
+    const next = readInProgressSettings().enabled ? (await collectEdited(run.cfg).catch(() => [])).sort() : [];
+    if (token !== this.editedToken || this.disposed || next.join("\0") === this.edited.join("\0")) {
+      return;
+    }
+    this.edited = next;
+    if (!this.scanning && !this.cached) {
+      this.render();
+    } else {
+      this.outsidePending = true;
+    }
+  }
+
+  // A document was opened, edited, saved or closed: look again after a quiet moment. Typing
+  // fires this on every key, so only the last call in a second does the work, and a hidden tab
+  // only remembers that it should.
+  protected scheduleEdited(): void {
+    if (!this.panel.visible) {
+      this.editedStale = true;
+      return;
+    }
+    clearTimeout(this.editedTimer);
+    this.editedTimer = setTimeout(() => void this.refreshEdited(), 1000);
   }
 
   // Reads the deferred and blocked documents off the scan's path and paints the Future tab
@@ -263,7 +304,7 @@ export abstract class BoardPanelCore {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live) }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited) }
     );
     const model = this.model;
     const settings = pathSettings();
@@ -314,6 +355,8 @@ export abstract class BoardPanelCore {
     this.liveToken++;
     clearTimeout(this.timer);
     clearTimeout(this.liveTimer);
+    clearTimeout(this.editedTimer);
+    this.editedToken++;
     this.panel.dispose();
     for (const d of this.disposables) {
       d.dispose();
