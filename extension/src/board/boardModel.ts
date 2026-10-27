@@ -1,4 +1,6 @@
+import { DocFacts, sizeClass, stepTotals } from "./docFacts";
 import { SafetyResult } from "./safety";
+import { ScanSnapshot } from "./scanner";
 import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCounts } from "./types";
 
 // The board's view model: what the first screen shows, built from classified rows.
@@ -24,6 +26,22 @@ export interface BoardItem {
   title: string;
   status: "red" | "amber" | "purple";
   kind: string;
+  // Marks, rolled up from the document's facts (absent when its text was not read).
+  marks?: ItemMarks;
+}
+
+export interface ItemMarks {
+  // Steps done and total; total 0 means no checklist.
+  done: number;
+  total: number;
+  // 1 small to 4 very large.
+  size: 1 | 2 | 3 | 4;
+  // First code language tag, or "" for code with no tag, or undefined for no code.
+  code?: string;
+  // Names of other projects the document mentions.
+  mentions: string[];
+  // The exact figures, for the tooltip.
+  detail: string;
 }
 
 export interface BoardProject {
@@ -52,6 +70,31 @@ const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
 const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };
 const IMPORTANCE: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
+function marksOf(f: DocFacts, names: Map<string, string>): ItemMarks {
+  const { done, total } = stepTotals(f);
+  const langs = Object.entries(f.langs).sort((a, b) => b[1] - a[1]);
+  const code = langs.length > 0 ? langs[0][0] : f.codeBlocks > 0 ? "" : undefined;
+  const detail = [
+    total > 0 ? `${done} of ${total} steps done` : "no checklist",
+    `${f.words.toLocaleString("en-US")} words, ${f.headings} headings`,
+    f.codeBlocks > 0 || langs.length > 0 ? `code: ${langs.map(([k, n]) => `${n} ${k}`).join(", ") || f.codeBlocks + " blocks"}` : "",
+    f.sourceRefs > 0 ? `${f.sourceRefs} source files named` : "",
+    f.docRefs > 0 ? `${f.docRefs} other documents` : "",
+    f.prs > 0 ? `${f.prs} pull requests` : "",
+    f.urls > 0 ? `${f.urls} links` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+  return {
+    done,
+    total,
+    size: sizeClass(f.words),
+    code,
+    mentions: f.mentions.map((id) => names.get(id) ?? id),
+    detail,
+  };
+}
+
 export function titleFromPath(path: string): string {
   const base = path.slice(path.lastIndexOf("/") + 1);
   return base.replace(/\.[A-Za-z0-9]+$/, "");
@@ -61,10 +104,12 @@ export function buildBoard(
   cfg: BoardConfig,
   rows: Classified[],
   safety: SafetyResult | undefined,
-  accepted: boolean
+  accepted: boolean,
+  snapshot?: ScanSnapshot
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
+  const names = new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id]));
   const defs: ProjectDef[] = [...cfg.projects].sort(
     (a, b) => (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1)
   );
@@ -84,13 +129,15 @@ export function buildBoard(
         blocked += 1;
         continue;
       }
+      const facts = snapshot?.projects[def.id]?.facts[r.path]?.facts;
       items.push({
         id: -1,
         project: def.id,
         path: r.path,
-        title: titleFromPath(r.path),
+        title: facts?.title || titleFromPath(r.path),
         status: r.status as "red" | "amber" | "purple",
         kind: r.kind,
+        marks: facts ? marksOf(facts, names) : undefined,
       });
     }
     items.sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.path.localeCompare(b.path));

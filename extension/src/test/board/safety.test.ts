@@ -25,6 +25,7 @@ function project(
     ruleCounts,
     greyFolders: {},
     files: {},
+    facts: {},
   };
 }
 

@@ -66,7 +66,7 @@ class BoardPanel {
     if (!this.run) {
       return;
     }
-    this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted);
+    this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted, this.run.result.snapshot);
     const nonce = crypto.randomBytes(16).toString("base64");
     this.panel.webview.html = renderBoard(this.model, strings(), nonce);
   }

@@ -353,6 +353,10 @@
       "kind": "plan"
      }
     }
+   ],
+   "mentions": [
+    "contacts app",
+    "the app\\b"
    ]
   },
   {
@@ -385,6 +389,9 @@
       "kind": "plan"
      }
     }
+   ],
+   "mentions": [
+    "supabase"
    ]
   },
   {
@@ -406,6 +413,10 @@
     "doc-kinds",
     "live-folders",
     "status-line"
+   ],
+   "mentions": [
+    "web\\.app",
+    "website"
    ]
   },
   {
@@ -424,6 +435,9 @@
     "doc-kinds",
     "live-folders",
     "status-line"
+   ],
+   "mentions": [
+    "saropa[_ -]lints"
    ]
   },
   {
@@ -442,6 +456,9 @@
     "doc-kinds",
     "live-folders",
     "status-line"
+   ],
+   "mentions": [
+    "drift advisor"
    ]
   },
   {
@@ -460,6 +477,9 @@
     "doc-kinds",
     "live-folders",
     "status-line"
+   ],
+   "mentions": [
+    "log capture"
    ]
   },
   {
@@ -478,6 +498,9 @@
     "doc-kinds",
     "live-folders",
     "status-line"
+   ],
+   "mentions": [
+    "saropa workspace"
    ]
   },
   {
@@ -501,7 +524,10 @@
     "doneFolders": [
      "done"
     ]
-   }
+   },
+   "mentions": [
+    "chat explorer"
+   ]
   }
  ]
 }
