@@ -13,7 +13,7 @@ import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
 import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
-import { OPEN, effectiveSeverity, factsFor, itemKey, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities } from "./boardModelParts";
+import { OPEN, effectiveSeverity, factsFor, itemKey, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
 
 // The board's view model: what the first screen shows, built from classified rows.
 // Pure, so the rules for the light are unit-tested without a webview.
@@ -46,6 +46,7 @@ interface BuildContext {
   pinGlobs: RegExp[];
   // Severities chosen by the user, and a count of the ones applied to open documents.
   overrides: Map<string, Severity>;
+  statusKeys: Set<string>;
   byUser: { count: number; lowered: number };
 }
 
@@ -95,7 +96,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       waitsOn: [],
       severity: sev.severity,
       ...(sev.byUser ? { severityByUser: true } : {}),
-      ...(statusChosen(r) ? { statusByUser: true } : {}),
+      ...(statusChosen(ctx.statusKeys, r) ? { statusByUser: true } : {}),
       audience: facts?.audience,
       pinned,
       stopping: pinned || (sev.severity !== undefined && stops(ctx.profile, sev.severity)),
@@ -113,7 +114,9 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
 
 // Builds one project's row and adds its items to `all`, giving each the next id.
 function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): BoardProject {
+  const lowBefore = ctx.byUser.lowered;
   const { items, counts, blocked, blockedStop } = collectItems(def, ctx);
+  const lowered = ctx.byUser.lowered - lowBefore;
   for (const it of items) {
     it.id = all.length;
     all.push(it);
@@ -152,6 +155,7 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     items,
     blocked,
     blockedStopping: blockedStop,
+    ...(lowered > 0 ? { loweredByUser: lowered } : {}),
     counts,
     dependsOn: def.dependsOn ?? [],
     ...(def.extra ? { extra: true } : {}),
@@ -324,6 +328,7 @@ export function buildBoard(
     // Hand pins are exact documents; the rules file's pins are globs.
     exactPins: new Set(extra?.pins ?? []),
     overrides: userSeverities(cfg),
+    statusKeys: userStatuses(cfg),
     byUser: { count: 0, lowered: 0 },
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };

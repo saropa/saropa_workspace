@@ -332,8 +332,8 @@ export interface SeverityOverride {
   severity: Severity;
 }
 
-// The key of a document in the lookup maps: project, "/", path.
-export const overrideKey = (project: string, path: string): string => `${project}/${path}`;
+// The key of a document in the lookup maps: project, tab, path (a tab cannot be part of an id).
+export const overrideKey = (project: string, path: string): string => `${project}\t${path}`;
 
 // The severities chosen by hand, from a rules file's parsed content. An entry of the wrong shape,
 // with an unknown level or with a wildcard in its path is ignored; the first entry of a document wins.
@@ -389,6 +389,48 @@ export function setDocSeverity(text: string | undefined, a: { project: string; p
   return { ok: true, text: serialize(parsed) };
 }
 
+// True when a rule is one the board wrote for a single document's status: an id that starts with
+// "status-", a final rule, and an exact path with a project. With `project` and `path` it must name them.
+function isDocStatusRule(r: unknown, project?: string, path?: string): r is { id: string; when: { path: string; project: string } } {
+  if (!isObject(r) || typeof r.id !== "string" || !r.id.startsWith("status-") || !isObject(r.when) || !isObject(r.set) || r.set.final !== true) {
+    return false;
+  }
+  const w = r.when;
+  return typeof w.path === "string" && typeof w.project === "string" && docGlob(w.path) !== undefined && (project === undefined || w.project === project) && (path === undefined || w.path === path);
+}
+
+// The rule lists the board writes status rules into: the rules of the project (every project when
+// none is named) and the "my-overrides" rule set.
+function statusRuleLists(doc: { projects?: unknown; ruleSets?: unknown }, project?: string): unknown[][] {
+  const lists: unknown[][] = [];
+  if (Array.isArray(doc.projects)) {
+    for (const p of doc.projects) {
+      if (isObject(p) && (project === undefined || p.id === project) && Array.isArray(p.rules)) {
+        lists.push(p.rules);
+      }
+    }
+  }
+  const set = isObject(doc.ruleSets) ? doc.ruleSets[OVERRIDE_RULE_SET] : undefined;
+  if (isObject(set) && Array.isArray(set.rules)) {
+    lists.push(set.rules);
+  }
+  return lists;
+}
+
+// The documents (as overrideKey) that have a status chosen from the board, from the rules file's
+// parsed content. The same test as the one Back to automatic uses to take them away.
+export function docStatusKeys(cfg: { projects?: unknown; ruleSets?: unknown }): Set<string> {
+  const out = new Set<string>();
+  for (const rules of statusRuleLists(cfg)) {
+    for (const r of rules) {
+      if (isDocStatusRule(r)) {
+        out.add(overrideKey(r.when.project, r.when.path));
+      }
+    }
+  }
+  return out;
+}
+
 // Takes away the status chosen by hand for one document: the rules the board wrote for its exact
 // path (ids that start with "status-", in the project's own rules or in the "my-overrides" set).
 export function clearDocStatus(text: string | undefined, a: { project: string; path: string }): SeverityResult {
@@ -400,24 +442,10 @@ export function clearDocStatus(text: string | undefined, a: { project: string; p
   if (!parsed.ok) {
     return parsed;
   }
-  const doc = parsed.doc;
-  const lists: unknown[][] = [];
-  if (Array.isArray(doc.projects)) {
-    for (const p of doc.projects) {
-      if (isObject(p) && p.id === a.project && Array.isArray(p.rules)) {
-        lists.push(p.rules);
-      }
-    }
-  }
-  const set = isObject(doc.ruleSets) ? doc.ruleSets[OVERRIDE_RULE_SET] : undefined;
-  if (isObject(set) && Array.isArray(set.rules)) {
-    lists.push(set.rules);
-  }
   let removed = 0;
-  for (const rules of lists) {
+  for (const rules of statusRuleLists(parsed.doc, a.project)) {
     for (let i = rules.length - 1; i >= 0; i--) {
-      const r = rules[i];
-      if (isObject(r) && typeof r.id === "string" && r.id.startsWith("status-") && isObject(r.when) && r.when.path === glob && r.when.project === a.project) {
+      if (isDocStatusRule(rules[i], a.project, glob)) {
         rules.splice(i, 1);
         removed += 1;
       }

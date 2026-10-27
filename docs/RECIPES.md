@@ -182,7 +182,7 @@ The board guesses a document's status from its rules and its severity from a phr
 2. **Change status** picks another status. **Change severity** picks extreme, critical, high, medium or low.
 3. Confirm. The choice is written to `.saropa/release-board.json`: a rule for the exact path (status) or an entry under `severityOverrides` (severity), both for that project only.
 
-A document you changed shows a **You** mark, and its tooltips say "Set by you. Back to automatic in the row menu." A line under the intro counts the severities you set and how many you lowered below a level that stops the release.
+A document changed this way shows a **Set** mark, and its tooltips say "Set by hand in the rules file. Back to automatic in the row menu." A line under the intro counts the severities set by hand and how many were lowered below a level that stops the release.
 
 To undo, open the row menu and choose **Back to automatic**. It takes away your severity and your status for that document.
 

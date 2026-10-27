@@ -101,6 +101,8 @@ export interface SidebarLabels {
   // Contains {count}.
   causeBlocked: string;
   causeHeld: string;
+  // Contains {count}: severities set by hand below a level that stops the release. Optional.
+  loweredByUser?: string;
   // Words for the umbrella view; absent where there are no chosen projects.
   umbrella?: {
     skipped: Record<SkipReason, string>;
@@ -210,6 +212,9 @@ function projectRows(model: Pick<BoardModel, "projects">, opts: SidebarOptions, 
       for (const r of p.reasons) {
         tooltip.push(labels.reasons[r].split("{count}").join(String(p.counts.grey)));
       }
+    }
+    if ((p.loweredByUser ?? 0) > 0 && labels.loweredByUser) {
+      tooltip.push(labels.loweredByUser.split("{count}").join(String(p.loweredByUser)));
     }
     if (opts.staleNote) {
       tooltip.push(opts.staleNote);

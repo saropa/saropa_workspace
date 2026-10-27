@@ -301,8 +301,8 @@ test("every glyph says what it looks like and what it means, and no title only r
 
 test("what the user set is marked with a tooltip, counted in the summary, and its menu entries have tooltips", () => {
   const html = pages()[0][1];
-  assert.ok(html.includes("Set by you. Back to automatic in the row menu."));
-  assert.ok(walk(html).some((t) => t.name === "b" && t.text === "You" && (t.attrs.title ?? "").startsWith("Set by you")));
+  assert.ok(html.includes("Set by hand in the rules file. Back to automatic in the row menu."));
+  assert.ok(walk(html).some((t) => t.name === "b" && t.text === "Set" && (t.attrs.title ?? "").startsWith("Set by hand")));
   assert.ok(walk(html).some((t) => (t.attrs.class ?? "").includes("byuser") && (t.attrs.title ?? "") !== ""));
   assert.ok(walk(html).some((t) => t.attrs["data-act"] === "severity" && (t.attrs.title ?? "") !== ""));
   assert.ok(walk(html).some((t) => t.attrs["data-act"] === "auto" && (t.attrs.title ?? "") !== ""));

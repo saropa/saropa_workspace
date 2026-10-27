@@ -7,7 +7,7 @@ import { BoardConfig, BoardStatus, Classified, SkippedProject, StatusCounts } fr
 import { OutsideGroup, Outside } from "./outside";
 import { ProjectHealth } from "./health";
 import { Audience, Profile, Severity } from "./severity";
-import { overrideKey, severityOverrides } from "./ruleAssign";
+import { docStatusKeys, overrideKey, severityOverrides } from "./ruleAssign";
 import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
@@ -92,6 +92,8 @@ export interface BoardProject {
   blocked: number;
   // How many of those collapsed documents would stop a release under the profile.
   blockedStopping: number;
+  // Documents of this project whose severity the user lowered below a level that stops the release.
+  loweredByUser?: number;
   counts: StatusCounts;
   dependsOn: string[];
   health?: ProjectHealth;
@@ -315,5 +317,8 @@ export function effectiveSeverity(over: Map<string, Severity>, project: string, 
 // The severities the user chose, from the rules file content.
 export const userSeverities = (cfg: BoardConfig): Map<string, Severity> => severityOverrides(cfg);
 
-// True when a rule written from the board for one document decided its state.
-export const statusChosen = (r: Classified): boolean => r.rule !== undefined && r.rule.startsWith("status-") && r.rule !== "status-table";
+// The documents that have a status chosen from the board (see docStatusKeys).
+export const userStatuses = (cfg: BoardConfig): Set<string> => docStatusKeys(cfg);
+
+// True when a rule the board wrote for exactly this document and project decided its state.
+export const statusChosen = (keys: Set<string>, r: Classified): boolean => r.rule !== undefined && r.rule.startsWith("status-") && keys.has(overrideKey(r.project, r.path));

@@ -48,6 +48,10 @@ function hasUnsavedCopy(uri: vscode.Uri): boolean {
 
 // Tells the user why the file was left alone.
 function refuse(reason: AssignRefusal, folder: string): void {
+  if (reason === "none") {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.autoNothing", { glob: folder }));
+    return;
+  }
   const key =
     reason === "parse"
       ? "releaseBoard.noRule.badJson"
@@ -57,9 +61,7 @@ function refuse(reason: AssignRefusal, folder: string): void {
           ? "releaseBoard.noRule.badEncoding"
           : reason === "lossy"
             ? "releaseBoard.noRule.badLossy"
-            : reason === "none"
-              ? "releaseBoard.rowMenu.autoNothing"
-              : "releaseBoard.noRule.badShape";
+            : "releaseBoard.noRule.badShape";
   void vscode.window.showWarningMessage(l10n(key, { file: RULES_FILE, folder }));
 }
 
@@ -278,7 +280,7 @@ export async function changeDocSeverity(run: BoardRun, doc: { project: string; p
       return r.ok ? { ok: true, text: r.text, vars: {} } : r;
     },
     confirm: () => l10n(level ? "releaseBoard.rowMenu.severityConfirm" : "releaseBoard.rowMenu.severityAutoConfirm", { file: RULES_FILE, glob: doc.path, project, level: level ?? "" }),
-    button: l10n("releaseBoard.noRule.add"),
+    button: l10n(level ? "releaseBoard.rowMenu.severitySetButton" : "releaseBoard.rowMenu.severityRemoveButton"),
     done: () => l10n(level ? "releaseBoard.rowMenu.severitySet" : "releaseBoard.rowMenu.severityCleared", { glob: doc.path, level: level ?? "", file: RULES_FILE }),
     refusal: refuse,
   });
@@ -303,14 +305,15 @@ export async function backToAutomatic(run: BoardRun, doc: { project: string; pat
       const afterSev = sev.ok ? sev.text : before;
       const st = clearDocStatus(afterSev, { project: doc.project, path: doc.path });
       if (sev.ok || st.ok) {
-        return { ok: true, text: st.ok ? st.text : (afterSev as string), vars: {} };
+        const what = sev.ok && st.ok ? "Both" : sev.ok ? "Severity" : "Status";
+        return { ok: true, text: st.ok ? st.text : (afterSev as string), vars: { what } };
       }
       // Both found nothing to take away, or the file could not be read as rules.
       return sev.reason === "none" && st.reason === "none" ? { ok: false, reason: "none" } : st.reason === "none" ? sev : st;
     },
-    confirm: () => l10n("releaseBoard.rowMenu.autoConfirm", { file: RULES_FILE, glob: doc.path, project, what: l10n("releaseBoard.rowMenu.autoWhat") }),
+    confirm: (vars) => l10n("releaseBoard.rowMenu.autoConfirm", { file: RULES_FILE, glob: doc.path, project, what: l10n("releaseBoard.rowMenu.autoWhat" + vars.what) }),
     button: l10n("releaseBoard.rowMenu.autoButton"),
     done: () => l10n("releaseBoard.rowMenu.autoDone", { glob: doc.path, file: RULES_FILE }),
-    refusal: (reason, folder) => (reason === "none" ? void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.autoNothing", { glob: folder })) : refuse(reason, folder)),
+    refusal: refuse,
   });
 }

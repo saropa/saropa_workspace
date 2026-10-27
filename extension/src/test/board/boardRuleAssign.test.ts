@@ -287,6 +287,7 @@ test("a link made while the dialogs were open is caught by the check just before
   assert.ok(stub.__warningMessages().some((m) => m.includes("symbolic link")));
 });
 
+const confirmWith = (button: string): void => stub.__setWarningAnswer((_m, items) => items.find((i) => i === button));
 const pickLevel = (label: string) => async (items: readonly unknown[]): Promise<unknown> => (items as Array<{ label: string }>).find((i) => i.label === label);
 
 test("Change severity offers the five levels and Back to automatic", async () => {
@@ -303,12 +304,12 @@ test("Change severity offers the five levels and Back to automatic", async () =>
 test("a severity chosen for one document is written after a confirmation that says the light can change", async () => {
   const { file, run } = setup();
   vs.__setPickHandler(pickLevel("low"));
-  confirmAdd();
+  confirmWith("Set severity");
   assert.equal(await changeDocSeverity(run, doc), true);
   assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), { version: 1, severityOverrides: [{ project: "app", path: "docs/loose/a.md", severity: "low" }] });
   assert.equal(stub.__warningMessages().length, 1);
   const ask = stub.__warningMessages()[0];
-  assert.ok(ask.includes("release light") && ask.includes("greener") && ask.includes("docs/loose/a.md") && ask.includes("low"));
+  assert.ok(ask.includes("release light") && ask.includes("turn a blocker green") && ask.includes("docs/loose/a.md") && ask.includes("low"));
 });
 
 test("a declined severity pick or confirmation writes nothing", async () => {
@@ -324,12 +325,13 @@ test("a declined severity pick or confirmation writes nothing", async () => {
 test("Back to automatic in the severity pick removes the entry; with none it only tells", async () => {
   const { file, run } = setup();
   vs.__setPickHandler(pickLevel("Back to automatic"));
-  confirmAdd();
+  confirmWith("Remove");
   assert.equal(await changeDocSeverity(run, doc), false);
   assert.equal(fs.existsSync(file), false, "nothing to remove, nothing written");
+  assert.deepEqual(vs.__infoMessages(), ["Release Board: nothing was set by hand for docs/loose/a.md, so nothing was changed."], "the message names the document, no raw placeholder");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify({ version: 1, severityOverrides: [{ project: "app", path: "docs/loose/a.md", severity: "low" }] }));
-  stub.__setWarningAnswer((_m, items) => items.find((i) => i === "Add rule"));
+  confirmWith("Remove");
   assert.equal(await changeDocSeverity(run, doc), true);
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).severityOverrides, undefined);
 });
@@ -337,7 +339,7 @@ test("Back to automatic in the severity pick removes the entry; with none it onl
 test("the severity change refuses a wildcard path, a non-UTF-8 file, unsaved edits, a link and a duplicate key", async () => {
   const { dir, file, run } = setup();
   vs.__setPickHandler(pickLevel("low"));
-  confirmAdd();
+  confirmWith("Set severity");
   assert.equal(await changeDocSeverity(run, { ...doc, path: "docs/a*.md" }), false);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, Buffer.from([0x7b, 0xff, 0x7d]));
@@ -368,7 +370,7 @@ test("the file changing while the severity dialogs were open stops the write", a
   vs.__setPickHandler(pickLevel("low"));
   stub.__setWarningAnswer((_m, items) => {
     fs.writeFileSync(file, '{"version":1}\n');
-    return items.find((i) => i === "Add rule");
+    return items.find((i) => i === "Set severity");
   });
   assert.equal(await changeDocSeverity(run, doc), false);
   assert.equal(fs.readFileSync(file, "utf8"), '{"version":1}\n');
@@ -379,7 +381,7 @@ test("a project whose id was made unique gets no severity entry", async () => {
   const base = run.cfg.projects[0];
   const made = { ...run, cfg: { ...run.cfg, projects: [{ ...base, id: "lib-2", idMadeUnique: true }] } } as BoardRun;
   vs.__setPickHandler(pickLevel("low"));
-  confirmAdd();
+  confirmWith("Set severity");
   assert.equal(await changeDocSeverity(made, { ...doc, project: "lib-2" }), false);
   assert.equal(fs.existsSync(file), false);
 });
@@ -401,6 +403,41 @@ test("Back to automatic takes away the severity and the status rule of one docum
   assert.deepEqual(out.severityOverrides, [{ project: "app", path: "docs/other.md", severity: "high" }]);
   assert.deepEqual(out.ruleSets["my-overrides"].rules.map((r: { id: string }) => r.id), ["keep"]);
   assert.ok(stub.__warningMessages()[0].includes("make the release light worse"));
+  assert.ok(stub.__warningMessages()[0].includes("the severity and the status"), "both were set");
+});
+
+test("the Back to automatic confirmation names only what is set", async () => {
+  const { file, run } = setup();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ version: 1, severityOverrides: [{ project: "app", path: "docs/loose/a.md", severity: "low" }] }));
+  stub.__setWarningAnswer((_m, items) => items.find((i) => i === "Back to automatic"));
+  assert.equal(await backToAutomatic(run, doc), true);
+  assert.ok(stub.__warningMessages()[0].includes("the severity set by hand") && !stub.__warningMessages()[0].includes("status"));
+  stub.__resetWarnings();
+  stub.__setWarningAnswer((_m, items) => items.find((i) => i === "Back to automatic"));
+  fs.writeFileSync(file, JSON.stringify({ version: 1, ruleSets: { "my-overrides": { rules: [{ id: "status-x", when: { path: "docs/loose/a.md", project: "app" }, set: { status: "green", final: true } }] } } }));
+  assert.equal(await backToAutomatic(run, doc), true);
+  assert.ok(stub.__warningMessages()[0].includes("the status set by hand") && !stub.__warningMessages()[0].includes("severity"));
+});
+
+test("the severity confirmation uses its own buttons and does not claim that nothing else turns a light greener", async () => {
+  const { run } = setup();
+  vs.__setPickHandler(pickLevel("low"));
+  let buttons: string[] = [];
+  stub.__setWarningAnswer((_m, items) => {
+    buttons = [...items];
+    return undefined;
+  });
+  await changeDocSeverity(run, doc);
+  assert.deepEqual(buttons, ["Set severity"]);
+  assert.equal(stub.__warningMessages()[0].includes("Nothing else"), false);
+  assert.ok(stub.__warningMessages()[0].includes("release light"));
+  vs.__setPickHandler(pickLevel("Back to automatic"));
+  const { file } = setup();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ severityOverrides: [{ project: "app", path: "docs/loose/a.md", severity: "low" }] }));
+  await changeDocSeverity(run, doc);
+  assert.deepEqual(buttons, ["Remove"]);
 });
 
 test("Back to automatic with nothing set writes nothing and says so", async () => {
@@ -411,5 +448,5 @@ test("Back to automatic with nothing set writes nothing and says so", async () =
   assert.equal(await backToAutomatic(run, doc), false);
   assert.equal(fs.readFileSync(file, "utf8"), "{}\n");
   assert.equal(stub.__warningMessages().length, 0, "no confirmation for nothing");
-  assert.ok(vs.__infoMessages().some((m) => m.includes("nothing was set by you")));
+  assert.deepEqual(vs.__infoMessages(), ["Release Board: nothing was set by hand for docs/loose/a.md, so nothing was changed."]);
 });

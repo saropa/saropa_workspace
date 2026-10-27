@@ -3,7 +3,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SEVERITY_KEY, clearDocStatus, setDocSeverity, severityOverrides } from "../../board/ruleAssign";
+import { SEVERITY_KEY, clearDocStatus, docStatusKeys, setDocSeverity, severityOverrides } from "../../board/ruleAssign";
+import { buildSidebarRows } from "../../board/sidebar";
+import { itemTarget } from "../../board/handToChat";
+import { umbrellaLines } from "../../commands/boardStatusLight";
 import { buildBoard } from "../../board/boardModel";
 import { renderBoard } from "../../board/boardHtml";
 import { readFacts } from "../../board/docFacts";
@@ -64,7 +67,7 @@ test("only well-formed entries with a known level count, the first of a document
       null,
     ],
   });
-  assert.deepEqual([...m], [["app/docs/A.md", "low"]]);
+  assert.deepEqual([...m], [["app\tdocs/A.md", "low"]]);
   assert.equal(severityOverrides({ severityOverrides: "x" }).size, 0);
   assert.equal(severityOverrides({}).size, 0);
 });
@@ -106,7 +109,7 @@ const snap = (docs: Record<string, string>): ScanSnapshot => ({
   projects: { app: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: Object.fromEntries(Object.entries(docs).map(([p, t]) => [p, { size: 1, mtimeMs: 1, facts: readFacts(t, p) }])) } },
 });
 const BLOCKER = "# Refund and billing bug\n";
-const CALM = "# Colour tweak\n";
+const CALM = "# Color tweak\n";
 
 test("a user severity wins over the computed one, in the item, the light and the sort", () => {
   const rows = [row("docs/A.md"), row("docs/B.md")];
@@ -168,20 +171,64 @@ test("a severity for another project or another path changes nothing", () => {
   assert.equal(m.byUser, undefined);
 });
 
-test("a status chosen from the board is marked; the shipped table rule is not", () => {
-  const rows = [row("docs/A.md", "amber", "status-docs-a-md"), row("docs/B.md", "amber", "status-table"), row("docs/C.md", "amber", "assigned-docs")];
-  const m = buildBoard(cfg(undefined), rows, undefined, true, snap({}));
-  assert.deepEqual(m.items.map((i) => [i.path, i.statusByUser === true]), [["docs/A.md", true], ["docs/B.md", false], ["docs/C.md", false]]);
+const statusRule = (id: string, path: string, project = "app", final = true) => ({ id, when: { path, project }, set: { status: "green" as const, ...(final ? { final: true } : {}) } });
+
+test("a status is marked only when a board-written rule names exactly that project and path", () => {
+  const rows = [row("docs/A.md", "amber", "status-docs-a-md"), row("docs/B.md", "amber", "status-table"), row("docs/C.md", "amber", "assigned-docs"), row("docs/D.md", "amber", "status-docs-d-md"), row("docs/E.md", "amber", "status-docs-e-md")];
+  const c: BoardConfig = {
+    ...cfg(undefined),
+    ruleSets: {
+      "my-overrides": { rules: [statusRule("status-docs-a-md", "docs/A.md"), statusRule("status-docs-d-md", "docs/D.md", "other"), statusRule("status-docs-e-md", "docs/E.md", "app", false)] },
+      "doc-kinds": { rules: [{ id: "status-table", when: { path: "docs/B.md", project: "app" }, set: { status: "amber", final: true } }] },
+    },
+  };
+  const m = buildBoard(c, rows, undefined, true, snap({}));
+  assert.deepEqual(m.items.map((i) => [i.path, i.statusByUser === true]), [["docs/A.md", true], ["docs/B.md", false], ["docs/C.md", false], ["docs/D.md", false], ["docs/E.md", false]]);
+});
+
+test("the mark and Back to automatic agree: what docStatusKeys finds, clearDocStatus removes", () => {
+  const c = { ruleSets: { "my-overrides": { rules: [statusRule("status-a", "docs/A.md"), statusRule("status-b", "docs/B.md", "other"), statusRule("status-c", "docs/C.md", "app", false)] } } };
+  assert.deepEqual([...docStatusKeys(c)].sort(), ["app\tdocs/A.md", "other\tdocs/B.md"]);
+  assert.equal(clearDocStatus(JSON.stringify(c), { project: "app", path: "docs/C.md" }).ok, false, "a rule that is not final is not the board's");
+  assert.equal(clearDocStatus(JSON.stringify(c), { project: "app", path: "docs/A.md" }).ok, true);
+  assert.equal(clearDocStatus(JSON.stringify(c), { project: "app", path: "docs/B.md" }).ok, false, "another project's rule is not removed");
+});
+
+test("a project and path that would join into the same text do not collide", () => {
+  const m = severityOverrides({ severityOverrides: [{ project: "a", path: "b/c.md", severity: "low" }, { project: "a/b", path: "c.md", severity: "high" }] });
+  assert.equal(m.size, 2);
+});
+
+test("a lowered blocker is counted per project, in the sidebar tooltip and in the status bar tooltip", () => {
+  const rows = [row("docs/A.md")];
+  const m = buildBoard(cfg([{ project: "app", path: "docs/A.md", severity: "low" }]), rows, undefined, true, snap({ "docs/A.md": BLOCKER }));
+  assert.equal(m.projects[0].loweredByUser, 1);
+  const labels = { light: { "no-go": "NO-GO", unverified: "UNVERIFIED", go: "GO" }, blockerOne: "1 blocker", blockerMany: "{count} blockers", causeLint: "l", causeBuild: "b", causeDeps: "d", causeTests: "t", causeBlocked: "{count}", causeHeld: "h", loweredByUser: "{count} lowered by hand", reasons: { baseline: "x", grey: "{count}", health: "h", unread: "u" } };
+  const row0 = buildSidebarRows(m, { blockersPerProject: 3, expandProjects: "never" } as never, labels as never)[0];
+  assert.ok(row0.tooltip.includes("1 lowered by hand"));
+  const plain = buildBoard(cfg(undefined), rows, undefined, true, snap({ "docs/A.md": BLOCKER }));
+  assert.equal(plain.projects[0].loweredByUser, undefined);
+  assert.equal(buildSidebarRows(plain, { blockersPerProject: 3, expandProjects: "never" } as never, labels as never)[0].tooltip.some((x) => x.includes("lowered")), false);
+  assert.ok(umbrellaLines(undefined, undefined, 2).some((x) => x.includes("2 severities set by hand are below a level that stops the release")));
+  assert.deepEqual(umbrellaLines(undefined, undefined, 0), []);
+});
+
+test("Hand to chat says when the severity was set by hand", () => {
+  const m = buildBoard(cfg([{ project: "app", path: "docs/A.md", severity: "extreme" }]), [row("docs/A.md")], undefined, true, snap({ "docs/A.md": CALM }));
+  const t = itemTarget(m, m.items[0]);
+  assert.ok(t.evidence.some((e) => e.startsWith("Severity: extreme (set by hand in the rules file")));
+  const plain = buildBoard(cfg(undefined), [row("docs/A.md")], undefined, true, snap({ "docs/A.md": BLOCKER }));
+  assert.ok(itemTarget(plain, plain.items[0]).evidence.includes("Severity: extreme"));
 });
 
 test("the page marks what the user set, says so in the tooltip and counts lowered severities in the summary", () => {
   const rows = [row("docs/A.md", "red", "status-docs-a-md"), row("docs/B.md")];
   const m = buildBoard(cfg([{ project: "app", path: "docs/A.md", severity: "low" }]), rows, undefined, true, snap({ "docs/A.md": BLOCKER, "docs/B.md": CALM }));
   const html = renderBoard(m, strings(), "n");
-  assert.ok(html.includes("Set by you. Back to automatic in the row menu."));
-  assert.ok(/class="note byuser"[^>]*>[^]*<span class="pill"[^>]*>1<\/span> severities set by you, <span class="pill"[^>]*>1<\/span> of them lowered below a level that stops the release/.test(html));
+  assert.ok(html.includes("Set by hand in the rules file. Back to automatic in the row menu."));
+  assert.ok(/class="note byuser"[^>]*>[^]*<span class="pill"[^>]*>1<\/span> severities set by hand in the rules file, <span class="pill"[^>]*>1<\/span> of them lowered below a level that stops the release/.test(html));
   assert.ok(html.includes("Change severity") && html.includes("Back to automatic"));
   const none = renderBoard(buildBoard(cfg(undefined), [row("docs/A.md")], undefined, true, snap({ "docs/A.md": BLOCKER })), strings(), "n");
   assert.equal(none.includes("byuser"), false);
-  assert.equal(none.includes("Set by you"), false);
+  assert.equal(none.includes("Set by hand"), false);
 });
