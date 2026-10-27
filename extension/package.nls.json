@@ -269,5 +269,22 @@
   "config.releaseBoard.editorLinks.enabled.description": "Show, in the editor, which open Release Board documents name the current file. Needs the Release Board to be on. Reads the last board result and never starts a scan.",
   "config.releaseBoard.editorLinks.codeLens.description": "Show a line at the top of a file listing the open Release Board documents that name it. Click a name to open the document.",
   "config.releaseBoard.editorLinks.statusBar.description": "Show a status bar item with the number of open documents naming the current file, in the color of the worst one.",
-  "config.releaseBoard.editorLinks.minSeverity.description": "Only show documents of at least this severity in the editor: any, medium, high or critical. Documents whose text was not read are left out when this is not any. Documents waiting on another document are collapsed on the board and never listed. Raise it if the editor lines feel noisy."
+  "config.releaseBoard.editorLinks.minSeverity.description": "Only show documents of at least this severity in the editor: any, medium, high or critical. Documents whose text was not read are left out when this is not any. Documents waiting on another document are collapsed on the board and never listed. Raise it if the editor lines feel noisy.",
+  "views.releaseBoard.name": "Release Board",
+  "viewsWelcome.releaseBoard.loading": "Reading the project folders...",
+  "viewsWelcome.releaseBoard.empty": "No projects found.\n[Open the rules file](command:saropaWorkspace.releaseBoard.openRules)",
+  "command.releaseBoard.sidebar.refresh.title": "Release Board: Refresh the Sidebar",
+  "command.releaseBoard.sidebar.openBlocker.title": "Release Board: Open a Blocker",
+  "config.releaseBoard.sidebar.enabled.description": "Show the Release Board at the top of the Saropa Workspace sidebar: one row per project with its light (NO-GO, UNVERIFIED or GO) and its first blockers. Needs the Release Board to be on. It reads the last result and a quiet background scan, and never opens a window.",
+  "config.releaseBoard.sidebar.blockersPerProject.description": "Most blockers listed under each project in the sidebar (0 to 10). 0 shows project rows only.",
+  "config.releaseBoard.sidebar.expandProjects.description": "Which projects start open in the sidebar, showing their blockers.",
+  "config.releaseBoard.sidebar.expandProjects.never": "No project starts open.",
+  "config.releaseBoard.sidebar.expandProjects.whenNoGo": "Projects that are NO-GO start open.",
+  "config.releaseBoard.sidebar.expandProjects.always": "Every project starts open.",
+  "config.releaseBoard.openOnStartup.description": "Open the Release Board as an editor tab when a window starts, in a group beside the active editor and without taking focus, and only once per window start. It is not opened again after you close it.",
+  "config.releaseBoard.openOnStartup.never": "Never open the board at startup.",
+  "config.releaseBoard.openOnStartup.whenProjectsFound": "Open it when the first scan finds open documents (red, amber or purple) in at least one project.",
+  "config.releaseBoard.openOnStartup.always": "Open it whenever a folder is open.",
+  "config.releaseBoard.statusBar.showLight.description": "Tint the Release Board status bar button with the worst light of all projects (red for NO-GO, amber for UNVERIFIED, green for GO) and name it in the tooltip.",
+  "viewsWelcome.releaseBoard.failed": "The scan failed, so there is nothing to show yet. Check the Saropa Release Board output.\n[Retry](command:saropaWorkspace.releaseBoard.sidebar.refresh)\n[Open the rules file](command:saropaWorkspace.releaseBoard.openRules)"
 }

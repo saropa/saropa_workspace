@@ -51,6 +51,11 @@
     "views": {
       "saropaWorkspace": [
         {
+          "id": "saropaWorkspace.releaseBoard",
+          "name": "%views.releaseBoard.name%",
+          "when": "workbenchState != empty && config.saropaWorkspace.releaseBoard.enabled && config.saropaWorkspace.releaseBoard.sidebar.enabled"
+        },
+        {
           "id": "saropaWorkspace.pins",
           "name": "%views.pins.name%"
         },
@@ -93,6 +98,21 @@
       ]
     },
     "viewsWelcome": [
+      {
+        "view": "saropaWorkspace.releaseBoard",
+        "contents": "%viewsWelcome.releaseBoard.loading%",
+        "when": "saropaWorkspace.releaseBoard.sidebarState == 'loading'"
+      },
+      {
+        "view": "saropaWorkspace.releaseBoard",
+        "contents": "%viewsWelcome.releaseBoard.failed%",
+        "when": "saropaWorkspace.releaseBoard.sidebarState == 'failed'"
+      },
+      {
+        "view": "saropaWorkspace.releaseBoard",
+        "contents": "%viewsWelcome.releaseBoard.empty%",
+        "when": "saropaWorkspace.releaseBoard.sidebarState != 'loading' && saropaWorkspace.releaseBoard.sidebarState != 'failed'"
+      },
       {
         "view": "saropaWorkspace.pins",
         "contents": "%viewsWelcome.pins.contents%"
@@ -740,6 +760,17 @@
         "title": "%command.releaseBoard.open.title%",
         "category": "%extension.displayName%",
         "icon": "$(checklist)"
+      },
+      {
+        "command": "saropaWorkspace.releaseBoard.sidebar.refresh",
+        "title": "%command.releaseBoard.sidebar.refresh.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "saropaWorkspace.releaseBoard.sidebar.openBlocker",
+        "title": "%command.releaseBoard.sidebar.openBlocker.title%",
+        "category": "%extension.displayName%"
       },
       {
         "command": "saropaWorkspace.releaseBoard.scan",
@@ -1592,6 +1623,16 @@
       ],
       "view/title": [
         {
+          "command": "saropaWorkspace.releaseBoard.sidebar.refresh",
+          "when": "view == saropaWorkspace.releaseBoard",
+          "group": "navigation@0"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.open",
+          "when": "view == saropaWorkspace.releaseBoard",
+          "group": "navigation@1"
+        },
+        {
           "command": "saropaWorkspace.releaseBoard.open",
           "when": "view == saropaWorkspace.pins && config.saropaWorkspace.releaseBoard.enabled",
           "group": "navigation@9"
@@ -2034,6 +2075,14 @@
       ],
       "commandPalette": [
         {
+          "command": "saropaWorkspace.releaseBoard.sidebar.openBlocker",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.sidebar.refresh",
+          "when": "config.saropaWorkspace.releaseBoard.enabled && config.saropaWorkspace.releaseBoard.sidebar.enabled"
+        },
+        {
           "command": "saropaWorkspace.releaseBoard.scan",
           "when": "config.saropaWorkspace.releaseBoard.enabled"
         },
@@ -2451,6 +2500,45 @@
             "enum": ["any", "medium", "high", "critical"],
             "default": "any",
             "description": "%config.releaseBoard.editorLinks.minSeverity.description%"
+          },
+          "saropaWorkspace.releaseBoard.sidebar.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.sidebar.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.sidebar.blockersPerProject": {
+            "type": "integer",
+            "default": 3,
+            "minimum": 0,
+            "maximum": 10,
+            "description": "%config.releaseBoard.sidebar.blockersPerProject.description%"
+          },
+          "saropaWorkspace.releaseBoard.sidebar.expandProjects": {
+            "type": "string",
+            "enum": ["never", "whenNoGo", "always"],
+            "default": "whenNoGo",
+            "enumDescriptions": [
+              "%config.releaseBoard.sidebar.expandProjects.never%",
+              "%config.releaseBoard.sidebar.expandProjects.whenNoGo%",
+              "%config.releaseBoard.sidebar.expandProjects.always%"
+            ],
+            "description": "%config.releaseBoard.sidebar.expandProjects.description%"
+          },
+          "saropaWorkspace.releaseBoard.openOnStartup": {
+            "type": "string",
+            "enum": ["never", "whenProjectsFound", "always"],
+            "default": "whenProjectsFound",
+            "enumDescriptions": [
+              "%config.releaseBoard.openOnStartup.never%",
+              "%config.releaseBoard.openOnStartup.whenProjectsFound%",
+              "%config.releaseBoard.openOnStartup.always%"
+            ],
+            "description": "%config.releaseBoard.openOnStartup.description%"
+          },
+          "saropaWorkspace.releaseBoard.statusBar.showLight": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.statusBar.showLight.description%"
           },
           "saropaWorkspace.releaseBoard.reviewRequests": {
             "type": "boolean",

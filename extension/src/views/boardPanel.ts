@@ -13,6 +13,7 @@ import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
 import { asTimeBox } from "../board/sittings";
 import { publishBoard } from "./editorLinks";
+import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed, setPanelVisible } from "./boardFeed";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
@@ -140,6 +141,8 @@ class BoardPanel {
   // What is on screen is the stored last result, not a fresh scan.
   private cached = false;
   private lastScanAt = 0;
+  // The page shows a board whose documents are still being read; a scan that dies now leaves it so.
+  private partial = false;
   private lastKey = "";
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
   private outside: Outside = emptyOutside();
@@ -153,7 +156,12 @@ class BoardPanel {
     private readonly panel: vscode.WebviewPanel
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
-    onDidRecordHealth(() => this.schedule(300), null, this.disposables);
+    // While the tab is showing it owns the scan: the sidebar's refresh button asks it.
+    markPanelOpened();
+    setPanelVisible(panel.visible);
+    panel.onDidChangeViewState(() => setPanelVisible(panel.visible), null, this.disposables);
+    onDidAskRefresh(() => this.poke(0), null, this.disposables);
+    onDidRecordHealth(() => this.poke(300), null, this.disposables);
     // A mark changes only what is drawn, so the stored scan is shown again, not redone.
     onDidChangeMarks(
       () =>
@@ -167,18 +175,27 @@ class BoardPanel {
       this.disposables
     );
     onDidChangeProviders(() => void this.refreshOutside(), null, this.disposables);
-    vscode.workspace.onDidChangeWorkspaceFolders(() => this.schedule(300), null, this.disposables);
+    vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
-      (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && this.schedule(300),
+      (e) => {
+        if (e.affectsConfiguration("saropaWorkspace.releaseBoard.enabled") || e.affectsConfiguration("saropaWorkspace.releaseBoard.profile")) {
+          this.poke(300);
+        } else if (e.affectsConfiguration("saropaWorkspace.releaseBoard")) {
+          // Display-only settings: draw the stored scan again, no rescan.
+          this.lastKey = "";
+          this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+          void this.refreshOutside();
+        }
+      },
       null,
       this.disposables
     );
     // Documents change on disk: rescan while the tab is showing, else only remember it.
     const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board*.json");
     const watcher = vscode.workspace.createFileSystemWatcher("**/*.{md,sql}");
-    rules.onDidChange(() => this.schedule(300), null, this.disposables);
-    rules.onDidCreate(() => this.schedule(300), null, this.disposables);
-    rules.onDidDelete(() => this.schedule(300), null, this.disposables);
+    rules.onDidChange(() => this.poke(300), null, this.disposables);
+    rules.onDidCreate(() => this.poke(300), null, this.disposables);
+    rules.onDidDelete(() => this.poke(300), null, this.disposables);
     this.disposables.push(rules);
     const changed = (uri: vscode.Uri): void => {
       if (/[\\/](?:node_modules|\.git)[\\/]/.test(uri.path)) {
@@ -208,9 +225,29 @@ class BoardPanel {
     return this.dirty || (this.run !== undefined && hasOutsideProject(this.run.cfg)) || Date.now() - this.lastScanAt > 60 * 1000;
   }
 
+  // A trigger from outside the page: scan now while the tab is showing, else just remember it
+  // (the background scan keeps the sidebar current, and the tab rescans when shown).
+  private poke(ms: number): void {
+    if (this.panel.visible) {
+      this.schedule(ms);
+    } else {
+      this.dirty = true;
+    }
+  }
+
   private schedule(ms: number): void {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.refresh(true), ms);
+  }
+
+  // Starts from a result the background scan just made, so a tab opened at startup does not scan again.
+  seed(run: BoardRun): void {
+    this.run = run;
+    this.cached = false;
+    this.dirty = false;
+    this.lastScanAt = Date.now();
+    this.render();
+    void this.refreshOutside();
   }
 
   // Paints the previous result at once, dimmed, while the scan runs.
@@ -239,10 +276,13 @@ class BoardPanel {
       // Whatever half-finished state is on screen is settled, and the next open rescans.
       this.dirty = true;
       this.lastKey = "";
-      this.render(this.cached ? { stale: true } : {});
+      // A half-read board is never shown as final, and the sidebar and status bar say the scan failed.
+      this.render(this.cached || this.partial ? { stale: true } : {});
+      setFailed(true);
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.scanning = false;
+      markScanDone();
       if (this.outsidePending && !this.cached) {
         this.outsidePending = false;
         this.render();
@@ -257,10 +297,13 @@ class BoardPanel {
       // Documents are sorted; their text is still being read for marks and severity.
       this.run = first;
       this.cached = false;
+      this.partial = true;
       this.render({ loading: true });
     });
     this.run = run;
     this.cached = false;
+    this.partial = false;
+    setFailed(false);
     this.lastScanAt = Date.now();
     if (!run) {
       this.model = undefined;
@@ -334,7 +377,11 @@ class BoardPanel {
       return;
     }
     this.lastKey = key;
-    publishBoard(this.model, this.run);
+    // Only a finished scan shown on a visible tab is published: a loading, stale or hidden
+    // paint must never replace a newer board.
+    if (!state.loading && !state.stale && this.panel.visible) {
+      publishBoard(this.model, this.run);
+    }
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths);
@@ -422,7 +469,7 @@ class BoardPanel {
     if (!(this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold))) {
       return;
     }
-    if (await acceptBoardRun(this.run)) {
+    if (await acceptBoardRun(this.run).catch(() => false)) {
       this.lastKey = "";
       this.render();
     } else {
@@ -502,6 +549,7 @@ class BoardPanel {
 
   private dispose(): void {
     current = undefined;
+    setPanelVisible(false);
     this.disposed = true;
     this.outsideToken++;
     clearTimeout(this.timer);
@@ -512,8 +560,12 @@ class BoardPanel {
   }
 }
 
-export async function openBoard(context: vscode.ExtensionContext): Promise<void> {
+// `background` opens the tab without taking focus (the window start does this).
+export async function openBoard(context: vscode.ExtensionContext, background = false): Promise<void> {
   if (current) {
+    if (background) {
+      return;
+    }
     current.reveal();
     if (current.needsRefresh()) {
       await current.refresh();
@@ -523,10 +575,16 @@ export async function openBoard(context: vscode.ExtensionContext): Promise<void>
   const panel = vscode.window.createWebviewPanel(
     "saropaWorkspace.releaseBoard",
     l10n("releaseBoard.panel.title"),
-    vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One,
+    // Background: beside the active editor, so no open file is covered and focus stays put.
+    { viewColumn: background ? (vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active) : (vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One), preserveFocus: background },
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
   current = new BoardPanel(context, panel);
+  const fresh = background ? currentBoard() : undefined;
+  if (fresh) {
+    current.seed(fresh.run);
+    return;
+  }
   await current.showCached();
   await current.refresh();
 }

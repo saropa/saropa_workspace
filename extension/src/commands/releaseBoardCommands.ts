@@ -15,6 +15,8 @@ import { Profile, asProfile } from "../board/severity";
 import { globToRegExp } from "../board/glob";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
+import { withTimeout } from "../board/timeout";
+import { bindStatusLight } from "./boardStatusLight";
 
 // Release Board, VS Code layer: scan the open workspace folders with the
 // board's rule engine, run the safety check against the last accepted scan, and print
@@ -26,7 +28,7 @@ const OUTPUT_NAME = "Saropa Release Board";
 const CACHE_FILE = "release-board-accepted.json";
 const RULES_FILE = ".saropa/release-board.json";
 // Folders a project may keep its documents in; only the ones that exist are scanned.
-const DEFAULT_ROOTS = ["bugs", "docs", "plans", "reports", "db-access"];
+export const DEFAULT_ROOTS = ["bugs", "docs", "plans", "reports", "db-access"];
 const DEFAULT_SETS = ["folder-states", "reference-docs", "doc-kinds", "live-folders", "status-line"];
 
 let channel: vscode.OutputChannel | undefined;
@@ -34,6 +36,11 @@ let channel: vscode.OutputChannel | undefined;
 function out(): vscode.OutputChannel {
   channel ??= vscode.window.createOutputChannel(OUTPUT_NAME);
   return channel;
+}
+
+// A quiet scan that fails says so here; nothing pops up.
+export function logBoardError(e: unknown): void {
+  out().appendLine(`Release Board scan failed: ${e instanceof Error ? e.message : String(e)}`);
 }
 
 // FileSource over workspace.fs. Walks a root recursively; a missing root throws and the
@@ -237,7 +244,8 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
       return undefined;
     }
     const result: ScanResult = { rows: last.rows, snapshot: last.snapshot, pending: [], stats: { files: last.rows.length, headReads: 0, factReads: 0, ms: 0 } };
-    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, health: last.health, marks: await readMarks(context) };
+    // The accepted scan the result was compared with, so a stored paint is never greener than the real one.
+    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, previous: await readAccepted(dir), health: last.health, marks: await readMarks(context) };
   } catch {
     return undefined;
   }
@@ -246,10 +254,35 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
 // Scan, run the safety check against the last accepted scan, and store the scan as the
 // new baseline only when the check found nothing. `onFirst` gets the board as soon as the
 // documents are sorted, before their text is read for marks and severity.
-export async function runBoardScan(
+// Every scan (the tab, the background scan, the Scan command, the pattern preview) goes
+// through one chain, so two never run or write the baseline and last-result files at once.
+let scanChain: Promise<unknown> = Promise.resolve();
+// A scan that takes longer is abandoned so the queue moves on; it reports a failure.
+const SCAN_TIMEOUT_MS = 120 * 1000;
+
+// Set when a scan is abandoned: it must not call back or write files afterwards.
+interface Abandon {
+  gone: boolean;
+}
+
+export function runBoardScan(
   context: vscode.ExtensionContext,
   quiet = false,
   onFirst?: (run: BoardRun) => void
+): Promise<BoardRun | undefined> {
+  const next = scanChain.then(() => {
+    const token: Abandon = { gone: false };
+    return withTimeout(scanNow(context, quiet, onFirst, token), SCAN_TIMEOUT_MS, () => (token.gone = true));
+  });
+  scanChain = next.catch(() => undefined);
+  return next;
+}
+
+async function scanNow(
+  context: vscode.ExtensionContext,
+  quiet: boolean,
+  onFirst: ((run: BoardRun) => void) | undefined,
+  token: Abandon
 ): Promise<BoardRun | undefined> {
   if (!ready(quiet)) {
     return undefined;
@@ -271,12 +304,20 @@ export async function runBoardScan(
   const safety = checkScan(accepted, result.snapshot);
   const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health, marks: await readMarks(context) };
   if (onFirst && result.pending.length > 0) {
-    onFirst(run);
+    if (!token.gone) {
+      onFirst(run);
+    }
     await completeFacts(cfg, source, result);
+  }
+  if (token.gone) {
+    throw new Error("scan abandoned");
   }
   const baselineChanged = !accepted || snapshotFingerprint(accepted) !== snapshotFingerprint(result.snapshot) || result.stats.headReads + result.stats.factReads > 0;
   if (safety.clean && baselineChanged) {
     await writeAccepted(dir, result.snapshot);
+  }
+  if (token.gone) {
+    throw new Error("scan abandoned");
   }
   // The stored last result also holds the health marks and the accepted state.
   if (baselineChanged || snapshotFingerprint(result.snapshot, health) !== lastFingerprint) {
@@ -289,7 +330,13 @@ export async function runBoardScan(
 
 // Stores the scan as the baseline. Refused (false) when the stored baseline is no longer
 // the one this scan was compared with: the user must look at a fresh scan first.
-export async function acceptBoardRun(run: BoardRun): Promise<boolean> {
+export function acceptBoardRun(run: BoardRun): Promise<boolean> {
+  const next = scanChain.then(() => withTimeout(acceptNow(run), SCAN_TIMEOUT_MS));
+  scanChain = next.catch(() => undefined);
+  return next;
+}
+
+async function acceptNow(run: BoardRun): Promise<boolean> {
   const stored = await readAccepted(run.dir);
   if ((stored?.takenAt ?? 0) !== (run.previous?.takenAt ?? 0)) {
     return false;
@@ -330,8 +377,13 @@ async function scan(context: vscode.ExtensionContext): Promise<void> {
     safety.baseline ? l10n("releaseBoard.acceptBaseline") : l10n("releaseBoard.held", { count: safety.findings.length }),
     accept
   );
-  if (pick === accept && !(await acceptBoardRun(run))) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
+  if (pick === accept) {
+    if (await acceptBoardRun(run)) {
+      // The sidebar, status light and editor lines pick the accepted baseline up.
+      void vscode.commands.executeCommand("saropaWorkspace.releaseBoard.sidebar.refresh");
+    } else {
+      void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
+    }
   }
 }
 
@@ -445,6 +497,7 @@ export function registerReleaseBoard(context: vscode.ExtensionContext, store: Sh
   showButton();
   context.subscriptions.push(
     button,
+    bindStatusLight(button),
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration("saropaWorkspace.releaseBoard.enabled") && showButton()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context)),

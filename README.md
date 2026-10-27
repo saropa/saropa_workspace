@@ -122,6 +122,11 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `configDir` | `.saropa` | The folder holding the project shortcut file. |
 | `releaseBoard.enabled` | `true` | Shows the Release Board button and commands. |
 | `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
+| `releaseBoard.sidebar.enabled` | `true` | Shows the Release Board at the top of the sidebar: one row per project with its light and first blockers. |
+| `releaseBoard.sidebar.blockersPerProject` | `3` | Most blockers listed under each project in the sidebar (0 to 10). |
+| `releaseBoard.sidebar.expandProjects` | `whenNoGo` | Which projects start open in the sidebar: `never`, `whenNoGo` or `always`. |
+| `releaseBoard.openOnStartup` | `whenProjectsFound` | Opens the board as a background tab once when a window starts: `never`, `whenProjectsFound` or `always`. |
+| `releaseBoard.statusBar.showLight` | `true` | Tints the Release Board status bar button with the worst light and names it in the tooltip. |
 | `releaseBoard.reviewRequests` | `false` | Lists pull requests waiting for your review on the board. |
 | `releaseBoard.pathToGo.enabled` | `true` | Shows a Path to GO under each project on the board: click a project row to see the few steps between it and GO. |
 | `releaseBoard.pathToGo.maxSteps` | `8` | Most steps listed in a Path to GO (3 to 20). |
