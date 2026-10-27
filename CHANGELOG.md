@@ -53,6 +53,7 @@ The Release Board begins to arrive: an experimental, off-by-default scan that re
 ### Added
 
 - **Release Board: Scan** command (turn on `saropaWorkspace.releaseBoard.enabled` first). It scans every open workspace folder, sorts each document into red, amber, purple, blue, green or reference by the folder it sits in, and prints the counts for the open states in the "Saropa Release Board" output. Rules are a JSON file you can override with `.saropa/release-board.json`; folder names are settings, not code.
+- **Release Board: Open** shows the first screen in an editor tab: one light per project (NO-GO when anything sits in a red folder, otherwise UNVERIFIED with the reason, never GO until lint and test evidence exists), then what to resolve now, what is in progress and what to work on. Click a row to open the document. Finished, deferred and reference documents are never listed or counted.
 - A safety check holds the board when a folder is renamed or a rule stops matching, instead of silently recoloring documents. The first scan asks you to accept it as the baseline, and the baseline is kept per workspace.
 
 ### Fixed
