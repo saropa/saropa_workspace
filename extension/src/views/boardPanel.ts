@@ -13,13 +13,14 @@ import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { assignFolderRule, backToAutomatic, changeDocSeverity, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
+import { setStartup } from "./boardStartup";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "assign <index>" and "preview <index>", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "assign <index>" and "preview <index>", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -100,6 +101,8 @@ class BoardPanel extends BoardPanelWiring {
       await this.rowMenu(message.act, message.id);
     } else if (message.type === "optsMenu" && typeof message.act === "string") {
       await this.optsMenu(message.act);
+    } else if (message.type === "startup") {
+      await this.startup(message.value);
     } else if (message.type === "rules") {
       await openRulesFile(undefined, documentColumn());
     } else if (message.type === "accept") {
@@ -119,6 +122,21 @@ class BoardPanel extends BoardPanelWiring {
       await openBoardSettings();
     } else {
       await this.dismissHint();
+    }
+  }
+
+  // The start-up checkbox: the page sent a boolean. On success the setting change repaints the
+  // board; only a refused value or a failed write paints it again, to put the box back.
+  private async startup(value: unknown): Promise<void> {
+    let ok = false;
+    try {
+      ok = await setStartup(this.context, value);
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    }
+    if (!ok) {
+      this.lastKey = "";
+      this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
     }
   }
 

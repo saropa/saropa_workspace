@@ -9,12 +9,15 @@ import { BoardStrings, escapeHtml, fillT, pill, tip, titleAttr } from "./boardHt
 export const PROJECTS_STYLE = `
 .hint{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}.hint .f{flex:1;min-width:12em;white-space:normal}
 .roll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}.roll .go{font-size:12px;padding:0 8px}.roll .go.zero{opacity:.45}
+.stup{display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:auto;font-size:12px;color:var(--mute);cursor:pointer}.stup input{margin:0;cursor:pointer;accent-color:var(--blue)}.top .kb:has(+.stup){margin-left:0}
+@media (max-width:480px){.top>.stup{min-height:32px}}
 .otag{color:var(--blue);border-color:var(--blue)}.vd.skip{border-style:dashed;opacity:.85}.go.skipped{background:rgba(128,128,128,.25);color:var(--mute)}`;
 
 // The page script for these controls, appended to the main page script: it uses that
 // script's `vscode` and `REV` and sends only the kind of request.
 export const PROJECTS_SCRIPT = `document.querySelectorAll('[data-projects]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'projects',rev:REV})));
 document.querySelectorAll('[data-settings]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'boardSettings',rev:REV})));
+document.querySelectorAll('[data-startup]').forEach(b=>b.addEventListener('change',()=>vscode.postMessage({type:'startup',value:b.checked===true,rev:REV})));
 document.querySelectorAll('[data-hint-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'hintDismiss',rev:REV})));`;
 
 // The text of one label; the key itself when the table has none (a plain-browser layout check).
@@ -27,6 +30,16 @@ export function label(t: BoardStrings, key: string): string {
 export function projectsButtons(t: BoardStrings): string {
   const btn = (attr: string, text: string, tip: string): string => `<button ${attr} title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}">${escapeHtml(text)}</button>`;
   return btn("data-projects", label(t, "projects"), label(t, "projectsTip")) + btn("data-settings", label(t, "settings"), label(t, "settingsTip"));
+}
+
+// The checkbox in the top right corner of the top bar. Left out when the state is unknown (a
+// plain-browser layout check). The page sends the boolean only; the host writes the setting.
+export function startupToggle(on: boolean | undefined, t: BoardStrings): string {
+  if (on === undefined) {
+    return "";
+  }
+  const text = escapeHtml(label(t, "startupTip"));
+  return `<label class="stup" title="${text}"><input type="checkbox" data-startup${on ? " checked" : ""} title="${text}" aria-label="${escapeHtml(label(t, "startup"))}"><span>${escapeHtml(label(t, "startup"))}</span></label>`;
 }
 
 // The one-line hint shown while no extra project is chosen and it has not been dismissed.

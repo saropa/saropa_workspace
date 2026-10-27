@@ -147,7 +147,7 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.sidebar.enabled` | `true` | Shows the Release Board at the top of the sidebar: one row per project with its light and first blockers. |
 | `releaseBoard.sidebar.blockersPerProject` | `3` | Most blockers listed under each project in the sidebar (0 to 10). |
 | `releaseBoard.sidebar.expandProjects` | `whenNoGo` | Which projects start open in the sidebar: `never`, `whenNoGo` or `always`. |
-| `releaseBoard.openOnStartup` | `whenProjectsFound` | Opens the board as a background tab once when a window starts: `never`, `whenProjectsFound` or `always`. |
+| `releaseBoard.openOnStartup` | `whenProjectsFound` | Opens the board as a background tab once when a window starts: `never`, `whenProjectsFound` or `always`. The board's own **Open this board at start-up** checkbox sets it (unchecked is `never`). |
 | `releaseBoard.placement` | `beside` | Where the board tab opens: `beside` (its own editor group next to your files) or `sameGroup`. The board is always one tab, and it remembers the group you moved it to. |
 | `releaseBoard.openBeside` | `true` | Opens documents from the board in another editor group, side by side with the board. Ignored when `placement` is `sameGroup`. |
 | `releaseBoard.statusBar.showLight` | `true` | Tints the Release Board status bar button with the worst light and names it in the tooltip. |

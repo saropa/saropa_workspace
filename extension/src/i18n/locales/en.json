@@ -1849,6 +1849,8 @@
   "releaseBoard.projects.label.projectsTip": "Choose which projects the board includes: add folders, add every project inside a parent folder, remove chosen ones, or show only the open project.",
   "releaseBoard.projects.label.settings": "Settings",
   "releaseBoard.projects.label.settingsTip": "Open the Release Board settings.",
+  "releaseBoard.projects.label.startup": "Open this board at start-up",
+  "releaseBoard.projects.label.startupTip": "Open this board when the window starts. When off, the board only opens from the sidebar or the command.",
   "releaseBoard.projects.label.hintText": "Only this project is shown.",
   "releaseBoard.projects.label.hintAdd": "Add more projects",
   "releaseBoard.projects.label.hintDismiss": "Dismiss",
