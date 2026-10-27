@@ -39,7 +39,7 @@ test("evidence: stale and missing results are never a pass; failures are failure
 });
 
 const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
-const good = evaluateHealth({ testsApply: false }, undefined, parseLintsFile(lintJson({ filesAnalyzed: 10 }), NOW - DAY), NOW);
+const good = evaluateHealth({ testsApply: false }, undefined, parseLintsFile(lintJson({ filesAnalyzed: 10, byImpact: { error: 0 } }), NOW - DAY), NOW);
 
 test("GO only with an accepted baseline, no blocker, no grey and clean health", () => {
   assert.equal(buildBoard(cfg, [], undefined, true, undefined, undefined, { app: good }).projects[0].light, "go");
@@ -49,4 +49,29 @@ test("GO only with an accepted baseline, no blocker, no grey and clean health", 
   assert.equal(buildBoard(cfg, grey, undefined, true, undefined, undefined, { app: good }).projects[0].light, "unverified");
   const bad = evaluateHealth({ testsApply: false }, undefined, parseLintsFile(lintJson({ filesAnalyzed: 10, byImpact: { error: 1 } }), NOW - DAY), NOW);
   assert.equal(buildBoard(cfg, [], undefined, true, undefined, undefined, { app: bad }).projects[0].light, "no-go");
+});
+
+test("a run that ran zero tests is not a pass; a newer failing lint run beats an older clean file", () => {
+  const run = { name: "t", outcome: "success" as const, exitCode: 0, endedAt: NOW - DAY, run: 0, failed: 0 };
+  assert.equal(evaluateHealth(undefined, { tests: run }, undefined, NOW).tests, "missing");
+  const file = parseLintsFile(lintJson({ filesAnalyzed: 10, byImpact: { error: 0 } }), NOW - 3 * DAY);
+  const lintRun = { name: "l", outcome: "failure" as const, exitCode: 1, endedAt: NOW - DAY };
+  assert.equal(evaluateHealth(undefined, { lint: lintRun }, file, NOW).lint, "failing");
+});
+
+test("a Lints file with no error count or a future date is not evidence", () => {
+  assert.deepEqual(parseLintsFile(lintJson({ filesAnalyzed: 10 }), 0), { ok: false, why: "unreadable" });
+  const future = parseLintsFile(lintJson({ filesAnalyzed: 10, byImpact: { error: 0 } }), NOW + 30 * DAY);
+  assert.equal(evaluateHealth(undefined, undefined, future, NOW).lint, "missing");
+});
+
+test("tally parsing ignores diff-like lines and counts pytest errors", () => {
+  assert.equal(parseTestTally("diff +3: added line\nhello\n"), undefined);
+  assert.deepEqual(parseTestTally("=== 2 passed, 3 errors in 0.5s ===\n"), { run: 5, failed: 3 });
+  assert.deepEqual(parseTestTally("ℹ tests 12\nℹ pass 11\nℹ fail 1\n"), { run: 12, failed: 1 });
+});
+
+test("a failing test run is NO-GO even when everything else is clean", () => {
+  const fail = evaluateHealth({ lintApplies: false }, { tests: { name: "t", outcome: "failure", exitCode: 1, endedAt: NOW - DAY } }, undefined, NOW);
+  assert.equal(buildBoard(cfg, [], undefined, true, undefined, undefined, { app: fail }).projects[0].light, "no-go");
 });

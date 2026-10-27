@@ -202,7 +202,7 @@ export async function runBoardScan(context: vscode.ExtensionContext, quiet = fal
   if (safety.clean) {
     await writeAccepted(dir, result.snapshot);
   }
-  const health = await collectHealth(context, cfg);
+  const health = boardStore ? await collectHealth(context, boardStore, cfg) : {};
   return { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health };
 }
 
@@ -305,7 +305,11 @@ async function previewGlob(context: vscode.ExtensionContext): Promise<void> {
   );
 }
 
+// The shortcut store, for resolving the shortcuts a project names as its test and lint runs.
+let boardStore: ShortcutStore | undefined;
+
 export function registerReleaseBoard(context: vscode.ExtensionContext, store: ShortcutStore): void {
+  boardStore = store;
   startHealthRecorder(context, store, loadConfig);
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),

@@ -1,5 +1,6 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
+import { onDidRecordHealth } from "../commands/boardHealth";
 import { BoardRun, acceptBoardRun, openRulesFile, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { BoardStrings, escapeHtml, renderBoard } from "../board/boardHtml";
@@ -72,6 +73,7 @@ class BoardPanel {
     private readonly panel: vscode.WebviewPanel
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
+    onDidRecordHealth(() => void this.refresh(true), null, this.disposables);
     vscode.workspace.onDidChangeWorkspaceFolders(() => void this.refresh(true), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && void this.refresh(true),

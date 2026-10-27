@@ -24,6 +24,8 @@ const MIN_COVERAGE = 0.15;
 
 // One recorded background run of a configured shortcut.
 export interface RunRecord {
+  // Shortcut that produced the run; a record whose shortcut is no longer configured is ignored.
+  pinId?: string;
   name: string;
   outcome: "success" | "failure";
   exitCode: number | null;
@@ -91,6 +93,10 @@ export function parseLintsFile(text: string, mtimeMs: number): LintRead {
     return { ok: false, why: "partial" };
   }
   const counts = ((s.byImpact ?? s.bySeverity ?? {}) as Record<string, unknown>) ?? {};
+  // Without an error count the file says nothing about errors: not a pass.
+  if (typeof counts.error !== "number") {
+    return { ok: false, why: "unreadable" };
+  }
   return {
     ok: true,
     result: {
@@ -107,7 +113,7 @@ export function parseLintsFile(text: string, mtimeMs: number): LintRead {
 export function parseTestTally(output: string): { run: number; failed: number } | undefined {
   const text = output.replace(/\x1b\[[0-9;]*m/g, "");
   // node:test
-  const nt = /^# tests (\d+)[\s\S]*?^# fail (\d+)/m.exec(text);
+  const nt = /^(?:# |ℹ )tests (\d+)[\s\S]*?^(?:# |ℹ )fail (\d+)/m.exec(text);
   if (nt) {
     return { run: Number(nt[1]), failed: Number(nt[2]) };
   }
@@ -115,19 +121,21 @@ export function parseTestTally(output: string): { run: number; failed: number } 
   const jest = /^Tests:\s+(.*?)(\d+) total/m.exec(text);
   if (jest) {
     const failed = /(\d+) failed/.exec(jest[1]);
-    return { run: Number(jest[2]), failed: failed ? Number(failed[1]) : 0 };
+    const skipped = /(\d+) skipped/.exec(jest[1]);
+    return { run: Number(jest[2]) - Number(skipped?.[1] ?? 0), failed: failed ? Number(failed[1]) : 0 };
   }
   // Dart and Flutter: the last "+N -M" progress line
-  const dart = [...text.matchAll(/\+(\d+)(?: ~\d+)?(?: -(\d+))?: /g)].pop();
+  const dart = [...text.matchAll(/^(?:\d+:\d+ )?\+(\d+)(?: ~\d+)?(?: -(\d+))?: /gm)].pop();
   if (dart) {
     const failed = Number(dart[2] ?? 0);
     return { run: Number(dart[1]) + failed, failed };
   }
   // pytest
-  const py = /=+ (?:(\d+) failed)?,? ?(?:(\d+) passed)?.* in [\d.]+s/.exec(text);
-  if (py && (py[1] || py[2])) {
-    const failed = Number(py[1] ?? 0);
-    return { run: failed + Number(py[2] ?? 0), failed };
+  const py = /^=+ (.*) in [\d.]+s/m.exec(text);
+  if (py && /\b(?:passed|failed|errors?)\b/.test(py[1])) {
+    const n = (w: string): number => Number(new RegExp(`(\\d+) ${w}`).exec(py[1])?.[1] ?? 0);
+    const failed = n("failed") + n("errors?");
+    return { run: failed + n("passed"), failed };
   }
   // mocha
   const passing = /(\d+) passing/.exec(text);
@@ -156,28 +164,39 @@ function ago(ms: number): string {
 
 export function evaluateHealth(cfg: HealthConfig | undefined, runs: RecordedRuns | undefined, lintFile: LintRead | undefined, now: number): ProjectHealth {
   const staleMs = (cfg?.staleDays ?? DEFAULT_STALE_DAYS) * 86400000;
+  // Lint evidence: the Lints file and the lint shortcut's last run. The newer fresh one
+  // decides; a file dated in the future is not evidence.
   let lint: Evidence = "missing";
   let lintDetail = "No trusted lint result";
   if (cfg?.lintApplies === false) {
     lint = "na";
     lintDetail = "No lint for this project";
-  } else if (lintFile?.ok) {
-    const r = lintFile.result;
-    if (now - r.takenAt > staleMs) {
-      lintDetail = `Lints file is stale (${ago(now - r.takenAt)})`;
-    } else {
-      lint = r.errors > 0 ? "failing" : "passing";
-      lintDetail = `${r.errors} errors, ${r.warnings} warnings, ${r.info} info (${ago(now - r.takenAt)})`;
+  } else {
+    const cands: Array<{ at: number; e: Evidence; detail: string }> = [];
+    if (lintFile?.ok) {
+      const r = lintFile.result;
+      if (r.takenAt > now + 86400000) {
+        lintDetail = "Lints file is dated in the future";
+      } else if (now - r.takenAt > staleMs) {
+        lintDetail = `Lints file is stale (${ago(now - r.takenAt)})`;
+      } else {
+        cands.push({ at: r.takenAt, e: r.errors > 0 ? "failing" : "passing", detail: `${r.errors} errors, ${r.warnings} warnings, ${r.info} info (${ago(now - r.takenAt)})` });
+      }
+    } else if (lintFile && !lintFile.ok) {
+      lintDetail = `Lints file not trusted: ${lintFile.why}`;
     }
-  } else if (lintFile && !lintFile.ok) {
-    lintDetail = `Lints file not trusted: ${lintFile.why}`;
-  } else if (runs?.lint) {
-    const r = runs.lint;
-    if (now - r.endedAt > staleMs) {
-      lintDetail = `Lint run is stale (${ago(now - r.endedAt)})`;
-    } else {
-      lint = r.outcome === "failure" ? "failing" : "passing";
-      lintDetail = `${r.name}: exit ${r.exitCode} (${ago(now - r.endedAt)})`;
+    if (runs?.lint) {
+      const r = runs.lint;
+      if (now - r.endedAt > staleMs) {
+        lintDetail = `Lint run is stale (${ago(now - r.endedAt)})`;
+      } else {
+        cands.push({ at: r.endedAt, e: r.outcome === "failure" ? "failing" : "passing", detail: `${r.name}: exit ${r.exitCode} (${ago(now - r.endedAt)})` });
+      }
+    }
+    const newest = cands.sort((x, y) => y.at - x.at)[0];
+    if (newest) {
+      lint = newest.e;
+      lintDetail = newest.detail;
     }
   }
   let tests: Evidence = "missing";
@@ -191,7 +210,8 @@ export function evaluateHealth(cfg: HealthConfig | undefined, runs: RecordedRuns
       testsDetail = `Test run is stale (${ago(now - r.endedAt)})`;
     } else {
       const tally = r.run !== undefined ? `${r.run} tests run, ${r.failed ?? 0} failed` : `exit code ${r.exitCode}`;
-      tests = r.outcome === "failure" || (r.failed ?? 0) > 0 ? "failing" : "passing";
+      // A run that ran no tests is no evidence (a filter that matched nothing).
+      tests = r.outcome === "failure" || (r.failed ?? 0) > 0 ? "failing" : r.run === 0 ? "missing" : "passing";
       testsDetail = `${r.name}: ${tally} (${ago(now - r.endedAt)})`;
     }
   }
