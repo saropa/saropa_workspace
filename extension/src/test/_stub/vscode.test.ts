@@ -198,3 +198,11 @@ test("the quick pick handler also receives the options", async () => {
   assert.deepEqual(seen, { placeHolder: "Pick one" });
   __resetHandlers();
 });
+
+test("asRelativePath is relative to the owning folder, can add the folder name, and leaves outside paths alone", () => {
+  __setWorkspaceFolders([{ uri: Uri.file("/proj/"), name: "proj", index: 0 }]);
+  assert.equal(workspace.asRelativePath(Uri.file("/proj/src/a.ts")), "src/a.ts");
+  assert.equal(workspace.asRelativePath("/proj/src/a.ts", true), "proj/src/a.ts");
+  assert.equal(workspace.asRelativePath(Uri.file("/elsewhere/b.ts")), "/elsewhere/b.ts");
+  __setWorkspaceFolders(undefined);
+});

@@ -185,6 +185,18 @@ export const workspace = {
   getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined {
     return ownerFolder(uri);
   },
+  // Path relative to the owning folder with forward slashes (prefixed by the folder name when
+  // asked); a path outside every folder comes back unchanged.
+  asRelativePath(target: Uri | string, includeWorkspaceFolder?: boolean): string {
+    const uri = typeof target === "string" ? Uri.file(target) : target;
+    const owner = ownerFolder(uri);
+    if (!owner) {
+      return uri.fsPath;
+    }
+    const base = owner.uri.fsPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    const rel = uri.fsPath.replace(/\\/g, "/").slice(base.length).replace(/^\//, "");
+    return includeWorkspaceFolder ? `${owner.name}/${rel}` : rel;
+  },
   // Empty unless a test pushes a document (for example a dirty one).
   textDocuments: [] as Array<{ isDirty: boolean; uri: Uri }>,
   applyEdit,
