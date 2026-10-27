@@ -68,6 +68,13 @@ export function trainsFor(model: BoardModel, cfg: BoardConfig): Train[] {
     return [];
   }
   const defs = new Map(cfg.projects.map((p) => [p.id, p]));
+  // Forget versions of projects that are gone.
+  const paths = new Set(cfg.projects.map((p) => p.path));
+  for (const k of [...cache.keys()]) {
+    if (!paths.has(k)) {
+      cache.delete(k);
+    }
+  }
   const input = model.projects.map((p) => {
     const def = defs.get(p.id);
     const hit = def ? cache.get(def.path) : undefined;
@@ -77,4 +84,8 @@ export function trainsFor(model: BoardModel, cfg: BoardConfig): Train[] {
     return { id: p.id, name: p.name, light: p.light, dependsOn: p.dependsOn, folder: def ? folderOf(def.path) : p.id, version: hit?.version };
   });
   return buildTrains(input, s.naming);
+}
+
+export function disposeTrain(): void {
+  changed.dispose();
 }

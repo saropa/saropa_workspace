@@ -6,9 +6,11 @@ import { worstLight } from "./sidebar";
 //
 // Which projects ship together: a project and the projects it depends on (the rule file's
 // `dependsOn`), followed in both directions. When no project declares a dependency, every
-// project of the workspace counts as one train. The light is the worst light of the members,
+// project of the workspace counts as one train. A `dependsOn` entry names a project by id,
+// else by display name or folder name (case does not matter). The light is the worst light of the members,
 // so it is never greener than any of them. The order puts a project after the projects it
-// depends on; a circular dependency is flagged and those projects keep the board's order.
+// depends on; a circular dependency is flagged and only the projects inside the circle keep
+// the board's order among themselves.
 
 export type TrainNaming = "version" | "folder";
 
@@ -36,6 +38,8 @@ export interface TrainMember {
 }
 
 export interface Train {
+  // Unique among trains (a project is in one train): the member ids joined.
+  key: string;
   // Label of the member that ships last.
   name: string;
   light: Light;
@@ -66,6 +70,27 @@ export function parseVersion(fileName: string, text: string): string | undefined
   return VERSION.test(v) ? v : undefined;
 }
 
+// The same projects with every `dependsOn` entry turned into a project id; entries that
+// match no project are dropped.
+function resolveDeps(projects: TrainProject[]): TrainProject[] {
+  const byId = new Map(projects.map((p) => [p.id, p.id]));
+  const byText = new Map<string, string>();
+  for (const p of projects) {
+    for (const t of [p.name, p.folder]) {
+      if (!byText.has(t.toLowerCase())) {
+        byText.set(t.toLowerCase(), p.id);
+      }
+    }
+  }
+  return projects.map((p) => ({
+    ...p,
+    dependsOn: p.dependsOn.flatMap((d) => {
+      const id = byId.get(d) ?? byText.get(d.toLowerCase());
+      return id === undefined ? [] : [id];
+    }),
+  }));
+}
+
 function components(projects: TrainProject[]): TrainProject[][] {
   const ids = new Set(projects.map((p) => p.id));
   const parent = new Map(projects.map((p) => [p.id, p.id]));
@@ -94,21 +119,45 @@ function components(projects: TrainProject[]): TrainProject[][] {
   return [...groups.values()].filter((g) => g.length >= 2);
 }
 
-// Dependencies first; ties and circles keep the input order.
+// Dependencies first; ties keep the input order. When the rest is stuck in a circle, the
+// projects of the first circle (in input order) are placed together in input order, then
+// ordering goes on, so projects before and after the circle still sit correctly.
 function shipOrder(group: TrainProject[]): { order: TrainProject[]; cycle: boolean } {
   const ids = new Set(group.map((p) => p.id));
+  const deps = new Map(group.map((p) => [p.id, p.dependsOn.filter((d) => ids.has(d) && d !== p.id)]));
+  const reach = (from: string): Set<string> => {
+    const seen = new Set<string>();
+    const stack = [...deps.get(from)!];
+    while (stack.length > 0) {
+      const k = stack.pop()!;
+      if (!seen.has(k)) {
+        seen.add(k);
+        stack.push(...deps.get(k)!);
+      }
+    }
+    return seen;
+  };
   const done = new Set<string>();
   const order: TrainProject[] = [];
+  let cycle = false;
   while (order.length < group.length) {
-    const next = group.find((p) => !done.has(p.id) && p.dependsOn.every((d) => !ids.has(d) || d === p.id || done.has(d)));
-    if (!next) {
-      const rest = group.filter((p) => !done.has(p.id));
-      return { order: [...order, ...rest], cycle: true };
+    const next = group.find((p) => !done.has(p.id) && deps.get(p.id)!.every((d) => done.has(d)));
+    if (next) {
+      done.add(next.id);
+      order.push(next);
+      continue;
     }
-    done.add(next.id);
-    order.push(next);
+    cycle = true;
+    const left = group.filter((p) => !done.has(p.id));
+    const seed = left.find((p) => reach(p.id).has(p.id)) ?? left[0];
+    const circle = new Set([seed.id, ...reach(seed.id)].filter((k) => !done.has(k) && reach(k).has(seed.id) && reach(seed.id).has(k)));
+    circle.add(seed.id);
+    for (const p of group.filter((q) => circle.has(q.id))) {
+      done.add(p.id);
+      order.push(p);
+    }
   }
-  return { order, cycle: false };
+  return { order, cycle };
 }
 
 // The trains of a board. Nothing is returned for fewer than two projects.
@@ -116,7 +165,7 @@ export function buildTrains(projects: TrainProject[], naming: TrainNaming): Trai
   if (projects.length < 2) {
     return [];
   }
-  return components(projects).map((group) => {
+  return components(resolveDeps(projects)).map((group) => {
     const { order, cycle } = shipOrder(group);
     const members: TrainMember[] = order.map((p) => ({
       id: p.id,
@@ -127,6 +176,7 @@ export function buildTrains(projects: TrainProject[], naming: TrainNaming): Trai
     const light = worstLight(members.map((m) => m.light)) ?? "unverified";
     const last = order[order.length - 1];
     return {
+      key: members.map((m) => m.id).join("+"),
       name: naming === "version" && last.version ? `${last.name} ${last.version}` : last.folder,
       light,
       members,
@@ -146,6 +196,8 @@ export interface TrainLabels {
 }
 
 export interface TrainRow {
+  // Unique among trains, for a tree row id.
+  key: string;
   name: string;
   light: Light;
   // Short line: the light word and the order.
@@ -165,6 +217,6 @@ export function trainRows(trains: Train[], labels: TrainLabels): TrainRow[] {
     if (t.cycle) {
       tooltip.push(labels.cycle);
     }
-    return { name: fill(labels.title, "{name}", t.name), light: t.light, description: `${labels.light[t.light]} · ${order}`, tooltip };
+    return { key: t.key, name: fill(labels.title, "{name}", t.name), light: t.light, description: `${labels.light[t.light]} · ${order}`, tooltip };
   });
 }

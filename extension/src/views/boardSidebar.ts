@@ -110,7 +110,7 @@ class BoardSidebar implements vscode.TreeDataProvider<Node> {
     }
     if (node.kind === "train") {
       const item = new vscode.TreeItem(node.row.name, vscode.TreeItemCollapsibleState.None);
-      item.id = `train/${node.row.name}`;
+      item.id = `train/${node.row.key}`;
       item.description = node.row.description;
       item.tooltip = node.row.tooltip.join("\n");
       const look = lightLook(node.row.light);

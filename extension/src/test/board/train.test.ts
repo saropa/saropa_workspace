@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Light } from "../../board/boardModel";
+import { buildBoard } from "../../board/boardModel";
+import { BoardStrings, renderBoard } from "../../board/boardHtml";
 import { TrainProject, buildTrains, parseVersion, trainRows } from "../../board/train";
 
 const p = (id: string, light: Light, dependsOn: string[] = [], version?: string): TrainProject => ({ id, name: id.toUpperCase(), light, dependsOn, folder: `dir_${id}`, version });
@@ -78,4 +80,43 @@ test("rows carry the light word, the order and the held-back note", () => {
   assert.strictEqual(row.name, "Train dir_app");
   assert.strictEqual(row.description, "NO-GO · DB > APP");
   assert.ok(row.tooltip.includes("Held by DB"));
+});
+
+test("a circle keeps its place: projects before and after it are ordered", () => {
+  const t = buildTrains(
+    [p("web", "go", ["a"]), p("a", "go", ["b", "base"]), p("b", "go", ["a"]), p("base", "go")],
+    "folder"
+  )[0];
+  assert.strictEqual(t.cycle, true);
+  assert.deepStrictEqual(t.members.map((m) => m.id), ["base", "a", "b", "web"]);
+});
+
+test("dependsOn may name a project by display name or folder name", () => {
+  const t = buildTrains([p("app", "go", ["DB"]), p("db", "go"), p("x", "go", ["dir_app"])], "folder");
+  assert.strictEqual(t.length, 1);
+  assert.deepStrictEqual(t[0].members.map((m) => m.id), ["db", "app", "x"]);
+  const none = buildTrains([p("a", "go", ["nothing"]), p("b", "go")], "folder");
+  assert.deepStrictEqual(none[0].members.map((m) => m.id), ["a", "b"]);
+});
+
+test("trains with the same name get different keys", () => {
+  const same = (id: string): TrainProject => ({ ...p(id, "go"), folder: "same" });
+  const trains = buildTrains([same("a"), { ...same("b"), dependsOn: ["a"] }, same("c"), { ...same("d"), dependsOn: ["c"] }], "folder");
+  assert.strictEqual(trains.length, 2);
+  assert.strictEqual(trains[0].name, trains[1].name);
+  assert.notStrictEqual(trains[0].key, trains[1].key);
+  const rows = trainRows(trains, { title: "{name}", light: { "no-go": "N", unverified: "U", go: "G" }, heldBy: "", cycle: "" });
+  assert.notStrictEqual(rows[0].key, rows[1].key);
+});
+
+test("a hostile project name is escaped in the rendered train row", () => {
+  const evil = '<img src=x onerror=alert(1)>"';
+  const cfg = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "a", name: evil, path: "a", roots: [], ruleSets: [] }, { id: "b", name: "B", path: "b", roots: [], ruleSets: [] }] };
+  const model = buildBoard(cfg, [], undefined, true);
+  const trains = buildTrains([{ ...p("a", "go"), name: evil, version: "1.0.0" }, p("b", "go")], "version");
+  const strings = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "trainTitle" ? "Train {name}" : `[${k}]`) });
+  const html = renderBoard(model, strings, "n", 0, {}, undefined, undefined, trains);
+  assert.ok(html.includes("vd train"));
+  assert.ok(!html.includes("<img src=x"));
+  assert.ok(html.includes("&#60;img"));
 });
