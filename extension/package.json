@@ -2699,6 +2699,16 @@
             ],
             "description": "%config.releaseBoard.openOnStartup.description%"
           },
+          "saropaWorkspace.releaseBoard.placement": {
+            "type": "string",
+            "enum": ["beside", "sameGroup"],
+            "default": "beside",
+            "enumDescriptions": [
+              "%config.releaseBoard.placement.beside%",
+              "%config.releaseBoard.placement.sameGroup%"
+            ],
+            "description": "%config.releaseBoard.placement.description%"
+          },
           "saropaWorkspace.releaseBoard.statusBar.showLight": {
             "type": "boolean",
             "default": true,
