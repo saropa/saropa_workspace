@@ -1895,5 +1895,8 @@
   "editorLinks.capped": "{title} names more than 40 source files. Only the first 40 are matched, so this list may be incomplete.",
   "editorLinks.status.red": "red",
   "editorLinks.status.amber": "amber",
-  "editorLinks.status.purple": "purple"
+  "editorLinks.status.purple": "purple",
+  "releaseBoard.sidebar.blockerOne": "1 blocker",
+  "releaseBoard.sidebar.blockerMany": "{count} blockers",
+  "releaseBoard.sidebar.openBlocker": "Open this document"
 }

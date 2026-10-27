@@ -12,6 +12,7 @@ import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
 import { asTimeBox } from "../board/sittings";
 import { publishBoard } from "./editorLinks";
+import { currentBoard, onDidAskRefresh, setPanelOpen } from "./boardFeed";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
@@ -114,6 +115,9 @@ class BoardPanel {
     private readonly panel: vscode.WebviewPanel
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
+    // While the tab is open it owns the scan: the sidebar's refresh button asks it.
+    setPanelOpen(true);
+    onDidAskRefresh(() => this.schedule(0), null, this.disposables);
     onDidRecordHealth(() => this.schedule(300), null, this.disposables);
     // A mark changes only what is drawn, so the stored scan is shown again, not redone.
     onDidChangeMarks(
@@ -172,6 +176,16 @@ class BoardPanel {
   private schedule(ms: number): void {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.refresh(true), ms);
+  }
+
+  // Starts from a result the background scan just made, so a tab opened at startup does not scan again.
+  seed(run: BoardRun): void {
+    this.run = run;
+    this.cached = false;
+    this.dirty = false;
+    this.lastScanAt = Date.now();
+    this.render();
+    void this.refreshOutside();
   }
 
   // Paints the previous result at once, dimmed, while the scan runs.
@@ -380,6 +394,7 @@ class BoardPanel {
 
   private dispose(): void {
     current = undefined;
+    setPanelOpen(false);
     this.disposed = true;
     this.outsideToken++;
     clearTimeout(this.timer);
@@ -390,8 +405,12 @@ class BoardPanel {
   }
 }
 
-export async function openBoard(context: vscode.ExtensionContext): Promise<void> {
+// `background` opens the tab without taking focus (the window start does this).
+export async function openBoard(context: vscode.ExtensionContext, background = false): Promise<void> {
   if (current) {
+    if (background) {
+      return;
+    }
     current.reveal();
     if (current.needsRefresh()) {
       await current.refresh();
@@ -401,10 +420,15 @@ export async function openBoard(context: vscode.ExtensionContext): Promise<void>
   const panel = vscode.window.createWebviewPanel(
     "saropaWorkspace.releaseBoard",
     l10n("releaseBoard.panel.title"),
-    vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One,
+    { viewColumn: vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One, preserveFocus: background },
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
   current = new BoardPanel(context, panel);
+  const fresh = background ? currentBoard() : undefined;
+  if (fresh) {
+    current.seed(fresh.run);
+    return;
+  }
   await current.showCached();
   await current.refresh();
 }

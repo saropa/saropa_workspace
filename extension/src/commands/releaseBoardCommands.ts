@@ -14,6 +14,7 @@ import { Profile, asProfile } from "../board/severity";
 import { globToRegExp } from "../board/glob";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
+import { bindStatusLight } from "./boardStatusLight";
 
 // Release Board, VS Code layer: scan the open workspace folders with the
 // board's rule engine, run the safety check against the last accepted scan, and print
@@ -415,6 +416,7 @@ export function registerReleaseBoard(context: vscode.ExtensionContext, store: Sh
   showButton();
   context.subscriptions.push(
     button,
+    bindStatusLight(button),
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration("saropaWorkspace.releaseBoard.enabled") && showButton()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context)),

@@ -1,0 +1,126 @@
+import * as vscode from "vscode";
+import { Light } from "../board/boardModel";
+import { SidebarBlocker, SidebarLabels, SidebarRow, asExpandMode, blockerColor, buildSidebarRows, clampBlockers, lightLook, projectsFound } from "../board/sidebar";
+import { l10n } from "../i18n/l10n";
+import { askRefresh, currentBoard, isFirstScanDone, isScanning, onDidChangeBoard } from "./boardFeed";
+
+// The Release Board section at the top of the sidebar: one row per project with its light,
+// its first blockers underneath. It only reads the published model; it never scans. A click
+// on a blocker names an index into the model it was built from, and the host resolves it
+// there, never from text.
+
+const SETTINGS = "saropaWorkspace.releaseBoard";
+const VIEW = "saropaWorkspace.releaseBoard";
+const STATE_KEY = "saropaWorkspace.releaseBoard.sidebarState";
+const OPEN_BLOCKER = "saropaWorkspace.releaseBoard.sidebar.openBlocker";
+
+function labels(): SidebarLabels {
+  return {
+    light: { "no-go": l10n("releaseBoard.panel.noGo"), unverified: l10n("releaseBoard.panel.unverified"), go: l10n("releaseBoard.panel.go") },
+    blockerOne: l10n("releaseBoard.sidebar.blockerOne"),
+    blockerMany: l10n("releaseBoard.sidebar.blockerMany", { count: "{count}" }),
+    reasons: {
+      baseline: l10n("releaseBoard.panel.reasonBaseline"),
+      grey: l10n("releaseBoard.panel.reasonGrey", { count: "{count}" }),
+      health: l10n("releaseBoard.panel.reasonHealth"),
+      unread: l10n("releaseBoard.panel.reasonUnread"),
+    },
+  };
+}
+
+type Node = { kind: "project"; row: SidebarRow } | { kind: "blocker"; project: SidebarRow; blocker: SidebarBlocker; stamp: number };
+
+function themed(icon: string, color: string): vscode.ThemeIcon {
+  return new vscode.ThemeIcon(icon, new vscode.ThemeColor(color));
+}
+
+class BoardSidebar implements vscode.TreeDataProvider<Node> {
+  private readonly emitter = new vscode.EventEmitter<Node | undefined>();
+  readonly onDidChangeTreeData = this.emitter.event;
+  private rows: SidebarRow[] = [];
+  private stamp = 0;
+
+  refresh(): void {
+    const board = currentBoard();
+    const cfg = vscode.workspace.getConfiguration(SETTINGS);
+    this.rows = board
+      ? buildSidebarRows(
+          board.model,
+          { blockersPerProject: clampBlockers(cfg.get("sidebar.blockersPerProject", 3)), expandProjects: asExpandMode(cfg.get("sidebar.expandProjects", "whenNoGo")) },
+          labels()
+        )
+      : [];
+    this.stamp = board?.stamp ?? 0;
+    // The welcome text under the title depends on this: loading, empty, or rows.
+    const found = board !== undefined && projectsFound(board.model);
+    const state = found ? "ready" : !isFirstScanDone() || isScanning() ? "loading" : "empty";
+    if (!found) {
+      this.rows = [];
+    }
+    void vscode.commands.executeCommand("setContext", STATE_KEY, state);
+    this.emitter.fire(undefined);
+  }
+
+  getTreeItem(node: Node): vscode.TreeItem {
+    if (node.kind === "blocker") {
+      const item = new vscode.TreeItem(node.blocker.title, vscode.TreeItemCollapsibleState.None);
+      item.id = `${node.project.projectId}/${node.blocker.id}/${node.stamp}`;
+      item.iconPath = themed("circle-filled", blockerColor(node.blocker.status));
+      item.command = { command: OPEN_BLOCKER, title: l10n("releaseBoard.sidebar.openBlocker"), arguments: [node.blocker.id, node.stamp] };
+      return item;
+    }
+    const row = node.row;
+    const state = row.blockers.length === 0 ? vscode.TreeItemCollapsibleState.None : row.expand ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed;
+    const item = new vscode.TreeItem(row.name, state);
+    item.id = `project/${row.projectId}`;
+    item.description = row.description;
+    item.tooltip = row.tooltip.join("\n");
+    const look = lightLook(row.light as Light);
+    item.iconPath = themed(look.icon, look.color);
+    item.command = { command: "saropaWorkspace.releaseBoard.open", title: l10n("releaseBoard.statusBarText") };
+    return item;
+  }
+
+  getChildren(node?: Node): Node[] {
+    if (!node) {
+      return this.rows.map((row) => ({ kind: "project", row }));
+    }
+    return node.kind === "project" ? node.row.blockers.map((blocker) => ({ kind: "blocker", project: node.row, blocker, stamp: this.stamp })) : [];
+  }
+
+  dispose(): void {
+    this.emitter.dispose();
+  }
+}
+
+// Opens the document behind a row, if the row still belongs to the board on screen.
+async function openBlocker(id: unknown, stamp: unknown): Promise<void> {
+  const board = currentBoard();
+  if (!board || typeof id !== "number" || stamp !== board.stamp) {
+    return;
+  }
+  const item = board.model.items[id];
+  const project = board.run.cfg.projects.find((p) => p.id === item?.project);
+  if (!item || !project) {
+    return;
+  }
+  try {
+    await vscode.window.showTextDocument(vscode.Uri.joinPath(vscode.Uri.parse(project.path), item.path), { preview: true });
+  } catch (e) {
+    void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+  }
+}
+
+export function registerBoardSidebar(context: vscode.ExtensionContext): void {
+  const provider = new BoardSidebar();
+  const refresh = (): void => provider.refresh();
+  context.subscriptions.push(
+    provider,
+    vscode.window.registerTreeDataProvider(VIEW, provider),
+    onDidChangeBoard(refresh),
+    vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration(SETTINGS + ".sidebar") && refresh()),
+    vscode.commands.registerCommand(OPEN_BLOCKER, (id: unknown, stamp: unknown) => openBlocker(id, stamp)),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.sidebar.refresh", () => askRefresh())
+  );
+  refresh();
+}

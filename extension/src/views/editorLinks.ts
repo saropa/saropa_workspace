@@ -4,6 +4,7 @@ import { FileIndex, FileLink, MinSeverity, asMinSeverity, buildFileIndex, linksF
 import { applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, readLastRun } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
+import { setBoard } from "./boardFeed";
 
 // The board in the editor, VS Code layer: a CodeLens at the top of a file and a status bar
 // item, both listing the open board documents that name the current file. They read the
@@ -32,6 +33,7 @@ const changed = new vscode.EventEmitter<void>();
 
 // Called by the board tab after each paint (undefined when the board has nothing to show).
 export function publishBoard(model: BoardModel | undefined, run: BoardRun | undefined): void {
+  setBoard(model, run);
   if (!model || !run) {
     state = undefined;
   } else {
