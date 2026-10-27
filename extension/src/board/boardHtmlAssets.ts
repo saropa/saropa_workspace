@@ -44,8 +44,18 @@ a.doc{color:var(--vscode-textLink-foreground,#3794ff);text-decoration:underline;
 .vd.train{border-style:dashed}.vd.train .pn{width:auto;min-width:110px}.ord{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.ord .f{flex:none}.ord .go{font-size:11px;padding:0 6px}
 .tabs{display:flex;gap:4px;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs button,.tabs button:hover:not(:disabled){background:transparent;color:var(--fg);border:0;border-bottom:2px solid transparent;border-radius:0;padding:4px 12px}.tabs button:hover:not(:disabled){background:rgba(128,128,128,.15)}.tabs button[aria-selected=true]{border-bottom-color:var(--blue);font-weight:600}
 .fg h3{margin:16px 0 6px}.fut{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:8px 12px;margin:6px 0}.fut.ro{padding:4px 12px}.fl{display:flex;gap:8px;align-items:center}.fc{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}.fcl{display:inline-flex;gap:4px;align-items:center}.fb{margin-top:6px}.fsort{margin:6px 0}
-.fut select{background:var(--vscode-dropdown-background,var(--bg));color:var(--vscode-dropdown-foreground,var(--fg));border:1px solid var(--line);border-radius:4px;padding:1px 4px}.fresearch{margin:8px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.fq{min-width:16em;max-width:100%;background:var(--vscode-input-background,var(--bg));color:var(--vscode-input-foreground,var(--fg));border:1px solid var(--line);border-radius:4px;padding:1px 4px}.fut select.guess{border-style:dashed;border-color:var(--amber)}
-@media (max-width:560px){.pn{width:auto}.k{display:none}}`;
+.fut select{background:var(--vscode-dropdown-background,var(--bg));color:var(--vscode-dropdown-foreground,var(--fg));border:1px solid var(--line);border-radius:4px;padding:1px 4px}.fresearch{margin:8px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.fq{min-width:min(16em,100%);max-width:100%;background:var(--vscode-input-background,var(--bg));color:var(--vscode-input-foreground,var(--fg));border:1px solid var(--line);border-radius:4px;padding:1px 4px}.fut select.guess{border-style:dashed;border-color:var(--amber)}
+.pn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}body{overflow-wrap:break-word}.tabs{flex-wrap:wrap}
+@media (max-width:560px){.pn{width:auto}.k{display:none}.filter .k{display:inline}.top{gap:8px}}
+@media (max-width:480px){body{padding:8px}.box{padding:8px 10px;margin:8px 0}.ptg{padding-left:26px}.row.in{margin-left:6px}
+button,.fut select,.filter select,.top select{min-height:32px}summary{min-height:32px;padding:6px 0}summary.sh{align-items:center;padding:0}.tabs button{min-height:32px}
+.top{display:flex;flex-wrap:wrap;gap:6px}.top>button,.top>select,.top>.seg{flex:1 1 auto}.top>.seg button{flex:1 1 auto}
+.vd{gap:6px 8px;padding:8px}.vd .pn{flex:1 1 100%;min-width:0}.vd .bar,.vd .marks{flex-wrap:wrap}.roll{gap:6px}
+.row{flex-wrap:wrap;gap:4px 8px;padding:6px 0;min-height:32px}.row .f{flex:1 1 100%;white-space:normal;overflow:visible;text-overflow:clip}.row .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row button{flex:1 1 auto}
+.cn{flex-wrap:wrap}.cn .f{flex:1 1 100%;white-space:normal}.fl{flex-wrap:wrap}.fl .f{flex:1 1 100%;white-space:normal}.fc{gap:6px}.fcl{flex:1 1 100%}.fcl select{flex:1}.fq{min-width:0;width:100%}
+.seg{width:100%}.seg button{flex:1 1 auto;min-height:32px}.filter{gap:4px 8px}.hint .f{min-width:0;flex-basis:100%}.hint button{flex:1 1 auto}.ptgb{min-height:32px}
+.grp{flex-wrap:wrap}.chain{margin-left:2px;padding-left:8px}}
+@media (max-width:320px){body{padding:6px;font-size:12px}.box{padding:6px 8px}h2{font-size:13px}.vd .go{order:2}.vd .bar{order:3;flex:1 1 100%}.top>button{flex:1 1 40%}.pill{padding:0 4px;min-width:1.5em}.ptg{padding-left:22px}}`;
 
 // The page script. It posts messages that carry only indexes, never paths or URLs.
 export const script = (rev: number, label: string, profile: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const PROFILE=${JSON.stringify(profile).replace(/</g, "\\u003c")};

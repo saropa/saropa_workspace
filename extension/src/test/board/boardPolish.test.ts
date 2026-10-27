@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BoardStrings, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { STYLE } from "../../board/boardHtmlAssets";
+import { PROJECTS_STYLE } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { evaluateHealth } from "../../board/health";
 import { pathToGo } from "../../board/pathToGo";
@@ -162,5 +163,28 @@ test("every literal key the page code uses is in the tooltip table", () => {
   // Keys built from a value at run time.
   for (const k of ["profile.rush", "profile.deliberate", "profile.zero", "square.red", "square.amber", "square.purple", "light.go", "light.noGo", "light.unverified", "time15", "time30", "timeHour", "timeHalfDay", "timeAny", "ptgAccept", "ptgRunLint", "ptgRunTests", "ptgEnable", "severity", "severityStops", "outsideLink", "outsideItem", "timeAnyTip", "timeTip", "list"]) {
     assert.ok(known.has(k), k);
+  }
+});
+
+// Narrow panels: the page stays usable down to about 280 pixels wide.
+test("the style sheet has the narrow rules: wrapping top bar, stacked project rows, reflowing list rows, 32 pixel targets", () => {
+  const narrow = /@media \(max-width:480px\)\{([\s\S]*?)\n@media/.exec(STYLE);
+  assert.ok(narrow, "a max-width 480 block exists");
+  const css = narrow[1];
+  assert.ok(css.includes(".top{display:flex;flex-wrap:wrap"));
+  assert.ok(css.includes(".vd .pn{flex:1 1 100%"), "the project name takes its own line");
+  assert.ok(css.includes(".row{flex-wrap:wrap"), "list rows wrap so the buttons go under the text");
+  assert.ok(css.includes(".row .f{flex:1 1 100%;white-space:normal"));
+  assert.ok(/button,[^{]*select[^{]*\{min-height:32px\}/.test(css), "buttons and selects are at least 32px high");
+  assert.ok(css.includes("summary{min-height:32px"));
+  assert.ok(STYLE.includes("@media (max-width:320px)"), "an extra block for the narrowest panels");
+  assert.ok(STYLE.includes(".pn{overflow:hidden;text-overflow:ellipsis"), "clipped project names get an ellipsis");
+});
+
+test("no layout container is given a fixed width above 280 pixels", () => {
+  for (const [name, css] of [["STYLE", STYLE], ["PROJECTS_STYLE", PROJECTS_STYLE]] as const) {
+    for (const m of css.matchAll(/(?:^|[;{}])\s*((?:min-|max-)?width):\s*(\d+(?:\.\d+)?)px/g)) {
+      assert.ok(Number(m[2]) <= 280, `${name}: ${m[1]}:${m[2]}px is wider than 280`);
+    }
   }
 });
