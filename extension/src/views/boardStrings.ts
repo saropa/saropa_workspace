@@ -387,7 +387,7 @@ export const POLISH_KEYS = [
 
 // Tooltips and the labels of the controls added with them.
 function polishStrings() {
-  return { polish: Object.fromEntries(POLISH_KEYS.map((k) => [k, l10n("releaseBoard.polish." + k)])) as Record<string, string> };
+  return { polish: Object.fromEntries(POLISH_KEYS.map((k) => [k, l10n(`releaseBoard.polish.${k}`)])) as Record<string, string> };
 }
 
 // Every key of the umbrella view's label table, in en.json as "releaseBoard.projects.label.<key>".
@@ -396,7 +396,7 @@ export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "setti
 // Labels of the umbrella view: the Projects and Settings buttons, the hint, the roll-up and the grey rows.
 function projectStrings() {
   const keys = PROJECT_LABEL_KEYS;
-  return { projectLabels: Object.fromEntries(keys.map((k) => [k, l10n("releaseBoard.projects.label." + k, { count: "{count}", max: "{max}" })])) };
+  return { projectLabels: Object.fromEntries(keys.map((k) => [k, l10n(`releaseBoard.projects.label.${k}`, { count: "{count}", max: "{max}" })])) };
 }
 
 // All page strings, merged from the groups above.
