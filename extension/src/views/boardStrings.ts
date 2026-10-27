@@ -3,7 +3,8 @@ import { l10n } from "../i18n/l10n";
 import { readHandSettings } from "../commands/boardHandToChat";
 
 // The localized strings the board page is drawn with.
-export function strings(): BoardStrings {
+// Headings, buttons and the light.
+function coreStrings(): Partial<BoardStrings> {
   return {
     title: l10n("releaseBoard.panel.title"),
     intro: l10n("releaseBoard.panel.intro"),
@@ -27,6 +28,12 @@ export function strings(): BoardStrings {
     healthLint: l10n("releaseBoard.panel.healthLint"),
     healthTests: l10n("releaseBoard.panel.healthTests"),
     allClear: l10n("releaseBoard.panel.allClear"),
+  };
+}
+
+// Profiles, suggestions, flags and loading text.
+function sectionStrings(): Partial<BoardStrings> {
+  return {
     dependsOn: l10n("releaseBoard.panel.dependsOn"),
     linkedHeading: l10n("releaseBoard.panel.linkedHeading"),
     linkedNote: l10n("releaseBoard.panel.linkedNote"),
@@ -49,6 +56,12 @@ export function strings(): BoardStrings {
     loading: l10n("releaseBoard.panel.loading"),
     refreshing: l10n("releaseBoard.panel.refreshing"),
     chatsTitle: l10n("releaseBoard.panel.chatsTitle", { count: "{count}" }),
+  };
+}
+
+// Path to GO lines and buttons.
+function pathStrings(): Partial<BoardStrings> {
+  return {
     ptgNone: l10n("releaseBoard.panel.ptgNone"),
     ptgItemRed: l10n("releaseBoard.panel.ptgItemRed"),
     ptgItemPinned: l10n("releaseBoard.panel.ptgItemPinned"),
@@ -72,6 +85,12 @@ export function strings(): BoardStrings {
     ptgRunTests: l10n("releaseBoard.panel.ptgRunTests"),
     ptgOpenRules: l10n("releaseBoard.panel.ptgOpenRules"),
     ptgAcceptBtn: l10n("releaseBoard.panel.ptgAcceptBtn"),
+  };
+}
+
+// Sittings picker and its step times.
+function sittingsStrings(): Partial<BoardStrings> {
+  return {
     sittingsButton: l10n("releaseBoard.sittings.button"),
     sittingsHeading: l10n("releaseBoard.sittings.heading"),
     sittingsPick: l10n("releaseBoard.sittings.pick"),
@@ -84,6 +103,12 @@ export function strings(): BoardStrings {
     timeAny: l10n("releaseBoard.sittings.timeAny"),
     timeMinutes: l10n("releaseBoard.sittings.timeMinutes", { count: "{count}" }),
     stepMinutes: l10n("releaseBoard.sittings.stepMinutes", { count: "{count}" }),
+  };
+}
+
+// Hand to chat, Tidy and train text.
+function toolStrings(): Partial<BoardStrings> {
+  return {
     handToChat: readHandSettings().enabled ? l10n("releaseBoard.handToChat.button") : "",
     handToChatTip: l10n("releaseBoard.handToChat.tip"),
     tidyHeading: l10n("releaseBoard.tidy.heading"),
@@ -96,6 +121,12 @@ export function strings(): BoardStrings {
     trainCycle: l10n("releaseBoard.train.cycle"),
     trainOrder: l10n("releaseBoard.train.order"),
     tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
+  };
+}
+
+// Live evidence text.
+function liveStrings(): Partial<BoardStrings> {
+  return {
     liveHead: l10n("releaseBoard.live.head"),
     liveProblems: l10n("releaseBoard.live.problems", { errors: "{errors}", warnings: "{warnings}" }),
     liveLints: l10n("releaseBoard.live.lints", { errors: "{errors}", warnings: "{warnings}" }),
@@ -105,4 +136,16 @@ export function strings(): BoardStrings {
     liveUnnamedNote: l10n("releaseBoard.live.unnamedNote"),
     liveUnnamedStart: l10n("releaseBoard.live.start"),
   };
+}
+
+// All page strings, merged from the groups above.
+export function strings(): BoardStrings {
+  return {
+    ...coreStrings(),
+    ...sectionStrings(),
+    ...pathStrings(),
+    ...sittingsStrings(),
+    ...toolStrings(),
+    ...liveStrings(),
+  } as BoardStrings;
 }

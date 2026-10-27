@@ -115,6 +115,18 @@ class BoardPanel {
       null,
       this.disposables
     );
+    this.listenForChanges();
+    this.watchDocuments();
+    panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
+    // Problems changed while the tab was hidden: look again when it is shown.
+    panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
+    panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
+    // Something is on screen at once: placeholders, then the last result, then the scan.
+    panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
+  }
+
+  // Marks, providers, Problems, trains, folders and settings: each draws again or asks for a scan.
+  private listenForChanges(): void {
     onDidChangeProviders(() => void this.refreshOutside(), null, this.disposables);
     // The Problems panel changes often while typing: look again at most every few seconds.
     vscode.languages.onDidChangeDiagnostics(
@@ -148,6 +160,9 @@ class BoardPanel {
       null,
       this.disposables
     );
+  }
+
+  private watchDocuments(): void {
     // Documents change on disk: rescan while the tab is showing, else only remember it.
     const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board*.json");
     const watcher = vscode.workspace.createFileSystemWatcher("**/*.{md,sql}");
@@ -168,12 +183,6 @@ class BoardPanel {
     watcher.onDidCreate(changed, null, this.disposables);
     watcher.onDidDelete(changed, null, this.disposables);
     this.disposables.push(watcher);
-    panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
-    // Problems changed while the tab was hidden: look again when it is shown.
-    panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
-    panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
-    // Something is on screen at once: placeholders, then the last result, then the scan.
-    panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
   }
 
   reveal(): void {
@@ -407,31 +416,40 @@ class BoardPanel {
       await openSittingsLine(this.model, this.run, (message as { i: number }).i);
     } else if (msg.type === "hand") {
       await handToChat(this.model, this.paths, this.run, message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
-    } else if (msg.type === "tidy" && typeof (message as { i?: unknown }).i === "number") {
-      await this.tidyMove((message as { i: number }).i);
-    } else if (msg.type === "liveBug" && typeof (message as { i?: unknown }).i === "number") {
-      // The index is resolved against the list this panel rendered, never a path from the page.
-      const u = this.model?.liveUnnamed?.[(message as { i: number }).i];
-      const project = this.run?.cfg.projects.find((p) => p.id === u?.project);
-      if (u && project && !this.scanning && !this.cached) {
-        try {
-          if (await startBugDocument(vscode.Uri.parse(project.path), u, this.liveDays)) {
-            this.dirty = true;
-            await this.refresh(true);
-          }
-        } catch (e) {
-          void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-        }
-      }
+    } else {
+      await this.onActionMessage(msg, message as Record<string, unknown>);
+    }
+  }
+
+  private async onActionMessage(msg: { type?: string; id?: number }, message: Record<string, unknown>): Promise<void> {
+    if (msg.type === "tidy" && typeof message.i === "number") {
+      await this.tidyMove(message.i);
+    } else if (msg.type === "liveBug" && typeof message.i === "number") {
+      await this.liveBug(message.i);
     } else if (msg.type === "rules") {
       await openRulesFile();
     } else if (msg.type === "accept") {
       await this.accept();
     } else if (msg.type === "open" && typeof msg.id === "number") {
       await this.openItem(msg.id);
-    } else if (msg.type === "path" && typeof (message as { p?: unknown }).p === "number" && typeof (message as { s?: unknown }).s === "number") {
-      const m = message as { p: number; s: number };
-      await this.pathAction(m.p, m.s);
+    } else if (msg.type === "path" && typeof message.p === "number" && typeof message.s === "number") {
+      await this.pathAction(message.p, message.s);
+    }
+  }
+
+  // The index is resolved against the list this panel rendered, never a path from the page.
+  private async liveBug(i: number): Promise<void> {
+    const u = this.model?.liveUnnamed?.[i];
+    const project = this.run?.cfg.projects.find((p) => p.id === u?.project);
+    if (u && project && !this.scanning && !this.cached) {
+      try {
+        if (await startBugDocument(vscode.Uri.parse(project.path), u, this.liveDays)) {
+          this.dirty = true;
+          await this.refresh(true);
+        }
+      } catch (e) {
+        void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      }
     }
   }
 
