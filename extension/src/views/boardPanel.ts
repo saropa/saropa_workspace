@@ -351,7 +351,8 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
     setting: parsePlacement(vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get("placement")),
     stored: context.workspaceState.get(PLACEMENT_KEY),
     groupCount: vscode.window.tabGroups.all.length,
-    activeColumn: vscode.window.activeTextEditor?.viewColumn,
+    // The active group, also when a webview or settings tab is active; undefined when nothing is open.
+    activeColumn: vscode.window.tabGroups.all.some((g) => g.tabs.length > 0) ? vscode.window.tabGroups.activeTabGroup.viewColumn : undefined,
     background
   });
   const panel = vscode.window.createWebviewPanel(
@@ -368,6 +369,7 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
       void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
     }
   };
+  remember();
   panel.onDidChangeViewState(remember);
   panel.onDidDispose(() => void context.workspaceState.update(PLACEMENT_KEY, lastColumn));
   current = new BoardPanel(context, panel);

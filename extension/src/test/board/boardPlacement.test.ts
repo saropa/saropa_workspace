@@ -36,13 +36,26 @@ test("a stored value that is not a column is ignored", () => {
   }
 });
 
-test("sameGroup uses the active editor group and ignores the stored column", () => {
+test("sameGroup in the foreground uses the active group and ignores the stored column", () => {
   assert.equal(chooseColumn({ ...base, setting: "sameGroup", stored: 3, groupCount: 3, activeColumn: 2 }), 2);
+  assert.equal(chooseColumn({ ...base, setting: "sameGroup", activeColumn: undefined }), 1);
 });
 
-test("sameGroup without an active editor: column one, or the active group in the background", () => {
-  assert.equal(chooseColumn({ ...base, setting: "sameGroup", activeColumn: undefined }), 1);
-  assert.equal(chooseColumn({ ...base, setting: "sameGroup", activeColumn: undefined, background: true }), COLUMN_ACTIVE);
+test("sameGroup at window start keeps the old rule: beside when something is open, else active", () => {
+  assert.equal(chooseColumn({ ...base, setting: "sameGroup", background: true }), COLUMN_BESIDE);
+  assert.equal(chooseColumn({ ...base, setting: "sameGroup", background: true, activeColumn: undefined }), COLUMN_ACTIVE);
+});
+
+test("window start with nothing open and one group ignores a stored column", () => {
+  assert.equal(chooseColumn({ ...base, background: true, activeColumn: undefined, stored: 2, groupCount: 1 }), COLUMN_ACTIVE);
+});
+
+test("window start with nothing open but several groups still reuses the stored column", () => {
+  assert.equal(chooseColumn({ ...base, background: true, activeColumn: undefined, stored: 2, groupCount: 2 }), 2);
+});
+
+test("window start with a file open and one group reuses the stored column", () => {
+  assert.equal(chooseColumn({ ...base, background: true, stored: 2, groupCount: 1 }), 2);
 });
 
 test("parsePlacement accepts the two values and defaults to beside", () => {
