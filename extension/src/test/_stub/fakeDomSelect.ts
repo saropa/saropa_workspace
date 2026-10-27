@@ -84,12 +84,15 @@ function parseCompound(src: string): Simple[] {
       const body = src.slice(i + 1, end);
       i = end + 1;
       const eq = body.indexOf("=");
+      if (eq > 0 && "^*~|$".includes(body[eq - 1])) {
+        throw new Error(`fakeDom: unsupported selector "${src}" (attribute operator ${body[eq - 1]}=)`);
+      }
       const unquote = (v: string): string => v.trim().replace(/^(["'])([\s\S]*)\1$/, "$2").replace(/\\([\s\S])/g, "$1");
       out.push(eq < 0
         ? { kind: "attr", name: body.trim(), value: null }
         : { kind: "attr", name: body.slice(0, eq).trim(), value: unquote(body.slice(eq + 1)) });
     } else if (src.startsWith(":not(", i)) {
-      const end = src.indexOf(")", i);
+      const end = closingParen(src, i + 4);
       out.push({ kind: "not", inner: parseCompound(src.slice(i + 5, end)) });
       i = end + 1;
     } else if (/[A-Za-z]/.test(ch)) {
@@ -101,11 +104,68 @@ function parseCompound(src: string): Simple[] {
   return out;
 }
 
+/** Index of the ")" that closes the "(" at `open`, skipping quoted text and nested parentheses. */
+function closingParen(src: string, open: number): number {
+  let depth = 0;
+  let quote = "";
+  let escaped = false;
+  for (let i = open; i < src.length; i++) {
+    const c = src[i];
+    if (quote) {
+      quote = !escaped && c === quote ? "" : quote;
+      escaped = !escaped && c === "\\";
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === "(") {
+      depth++;
+    } else if (c === ")" && --depth === 0) {
+      return i;
+    }
+  }
+  throw new Error(`fakeDom: unsupported selector "${src}" (unclosed parenthesis)`);
+}
+
+/** Splits a chain into compounds and ">" tokens; spaces or ">" inside quotes, brackets or parentheses do not split. */
+function chainPieces(src: string): string[] {
+  const pieces: string[] = [];
+  let cur = "";
+  let depth = 0;
+  let quote = "";
+  let escaped = false;
+  const flush = (): void => {
+    if (cur !== "") {
+      pieces.push(cur);
+    }
+    cur = "";
+  };
+  for (const c of src.trim()) {
+    if (quote) {
+      quote = !escaped && c === quote ? "" : quote;
+      escaped = !escaped && c === "\\";
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === "[" || c === "(") {
+      depth++;
+    } else if (c === "]" || c === ")") {
+      depth--;
+    } else if (depth === 0 && (c === ">" || /\s/.test(c))) {
+      flush();
+      if (c === ">") {
+        pieces.push(">");
+      }
+      continue;
+    }
+    cur += c;
+  }
+  flush();
+  return pieces;
+}
+
 /** Parses a chain of compounds joined by descendant or child combinators. */
 function parseComplex(src: string): Part[] {
   const parts: Part[] = [];
   let combinator: " " | ">" = " ";
-  for (const piece of splitTopLevel(src.trim().replace(/\s*>\s*/g, " > "), (c) => /\s/.test(c))) {
+  for (const piece of chainPieces(src)) {
     if (piece === "") {
       continue;
     }

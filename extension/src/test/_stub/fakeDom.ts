@@ -138,6 +138,8 @@ export interface PageOptions {
   state?: unknown;
   innerWidth?: number;
   innerHeight?: number;
+  /** Fixed value (ms since epoch) for `new Date()` and `Date.now()` inside the page. */
+  now?: number;
   /** Values getComputedStyle(...).getPropertyValue returns, by property name. */
   computedStyle?: Record<string, string>;
 }
@@ -240,11 +242,20 @@ export function runPage(html: string, options: PageOptions = {}): Page {
     },
   });
   // The window is also the document's event root, so bubbling events reach it.
+  // node:vm is not a security sandbox; it only runs this project's own page code.
   const context = vm.createContext(window);
 
   const run = (script: string, filename = "webview.js"): void => {
     new vm.Script(script, { filename }).runInContext(context);
   };
+  if (options.now !== undefined) {
+    run(`(function () {
+  var Real = Date, fixed = ${Number(options.now)};
+  function Fake() { return arguments.length ? new (Function.prototype.bind.apply(Real, [null].concat([].slice.call(arguments))))() : new Real(fixed); }
+  Fake.prototype = Real.prototype; Fake.now = function () { return fixed; }; Fake.UTC = Real.UTC; Fake.parse = Real.parse;
+  Date = Fake;
+})();`, "fixed-date.js");
+  }
   scripts.forEach((s, i) => run(s, `inline-script-${i + 1}.js`));
 
   const fire: Page["fire"] = (target, type, init) => dispatchEvent(target, new FakeEvent(type, init));

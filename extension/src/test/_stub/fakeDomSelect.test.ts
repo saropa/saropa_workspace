@@ -45,3 +45,15 @@ test("quoted attribute values may hold escaped quotes, backslashes and brackets"
   page.document.body.appendChild(odd);
   assert.equal(page.document.querySelector('[data-id="a\\"b\\\\c]d e"]'), odd);
 });
+
+test("attribute operators other than = are refused", () => {
+  for (const op of ["^=", "*=", "~=", "|=", "$="]) {
+    assert.throws(() => parseSelectorList(`[a${op}b]`), /attribute operator/);
+  }
+});
+
+test("a > or ) inside quoted text does not split the chain or end :not early", () => {
+  const [chain] = parseSelectorList('[title="a > b"] > i:not([title="x)y"])');
+  assert.deepEqual(chain.map((p) => p.combinator + p.compound.length), [" 1", ">2"]);
+  assert.throws(() => parseSelectorList("a:not(.b"), /unclosed parenthesis/);
+});

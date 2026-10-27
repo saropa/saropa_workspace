@@ -62,3 +62,9 @@ test("canvas contexts record calls and assignments; rects and hit tests are test
   page.document.hitTest = () => go;
   assert.equal(page.document.elementFromPoint(0, 0), go);
 });
+
+test("a fixed now makes new Date() and Date.now() constant inside the page, while explicit dates still work", () => {
+  const at = new Date(2026, 0, 7, 23, 59).getTime();
+  const page = runPage(PAGE("var a = new Date().getTime(); var b = Date.now(); var c = new Date(2020, 0, 1).getFullYear(); var d = new Date(0) instanceof Date;"), { now: at });
+  assert.deepEqual(page.evalJson("[a, b, c, d]"), [at, at, 2020, true]);
+});

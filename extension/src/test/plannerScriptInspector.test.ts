@@ -114,7 +114,7 @@ test("a shortcut with incoming links lists a row to remove each, and the row pos
   assert.deepEqual(page.takePosted(), [{ type: "removeTrigger", to: "b", from: "a" }]);
 });
 
-test("an event node's menu offers only the removal rows", () => {
+test("right-clicking an event node with no incoming links opens no menu", () => {
   const page = openWith("workflow", { nodes: [event("ev", "build", "Build"), pin("b", "Target")], edges: [{ from: "ev", to: "b", kind: "event" }] });
   rightClick(page, page.one('.node[data-id="ev"]'));
   assert.equal(menu(page), null);

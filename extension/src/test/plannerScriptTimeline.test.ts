@@ -27,9 +27,9 @@ test("a block sits at its time, shows label and time, and a paused one is dimmed
 });
 
 test("only today's column carries the now line, placed at the current minute", () => {
-  const page = openWith("week", SCHEDULED);
+  const page = openWith("week", SCHEDULED, { now: new Date(2026, 0, 7, 23, 59).getTime() });
   const today = page.all(".daycol.today");
-  assert.deepEqual(today.map((c) => c.dataset.day), [String(new Date().getDay())]);
+  assert.deepEqual(today.map((c) => c.dataset.day), ["3"]);
   assert.equal(page.all(".nowline").length, 1);
   assert.equal(style(today[0].querySelector(".nowline")!).top, "300px");
   assert.equal(page.all(".col-head.today").length, 1);

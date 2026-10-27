@@ -16,7 +16,7 @@ const testDir = path.join(__dirname, "src", "test");
 const outDir = path.join(__dirname, "out", "test");
 const stub = path.join(testDir, "_stub", "vscode.ts");
 
-// Recursively collect *.test.ts under src/test (the _stub folder carries no tests).
+// Recursively collect *.test.ts under src/test (the _stub folder holds test doubles and their own tests).
 function collectTests(dir) {
   const found = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
