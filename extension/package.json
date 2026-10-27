@@ -773,6 +773,12 @@
         "category": "%extension.displayName%"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.sinceLast.markSeen",
+        "title": "%command.releaseBoard.sinceLast.markSeen.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(check)"
+      },
+      {
         "command": "saropaWorkspace.releaseBoard.scan",
         "title": "%command.releaseBoard.scan.title%",
         "category": "%extension.displayName%",
@@ -1790,6 +1796,11 @@
       ],
       "view/item/context": [
         {
+          "command": "saropaWorkspace.releaseBoard.sinceLast.markSeen",
+          "when": "view == saropaWorkspace.releaseBoard && viewItem == releaseBoardSince",
+          "group": "inline@0"
+        },
+        {
           "command": "saropaWorkspace.runScript",
           "when": "view == saropaWorkspace.scripts && viewItem == libraryScript",
           "group": "inline"
@@ -2077,6 +2088,10 @@
         {
           "command": "saropaWorkspace.releaseBoard.sidebar.openBlocker",
           "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.sinceLast.markSeen",
+          "when": "config.saropaWorkspace.releaseBoard.enabled && config.saropaWorkspace.releaseBoard.sinceLast.enabled"
         },
         {
           "command": "saropaWorkspace.releaseBoard.sidebar.refresh",
@@ -2583,6 +2598,18 @@
             "type": "boolean",
             "default": false,
             "description": "%config.releaseBoard.reviewRequests.description%"
+          },
+          "saropaWorkspace.releaseBoard.sinceLast.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.sinceLast.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.sinceLast.maxListed": {
+            "type": "number",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 20,
+            "description": "%config.releaseBoard.sinceLast.maxListed.description%"
           },
           "saropaWorkspace.releaseBoard.sittings.enabled": {
             "type": "boolean",

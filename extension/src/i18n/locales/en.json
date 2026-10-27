@@ -1956,5 +1956,14 @@
   "releaseBoard.live.unnamedHeading": "Errors with no document",
   "releaseBoard.live.unnamedNote": "Crash signals from recent debug runs in files that no open document names. Starting a document writes one new file in the project's bugs folder and opens it for you to finish.",
   "releaseBoard.live.start": "Start a bug document",
-  "releaseBoard.live.exists": "Release Board: {path} and its numbered copies already exist, so no document was written."
+  "releaseBoard.live.exists": "Release Board: {path} and its numbered copies already exist, so no document was written.",
+  "releaseBoard.sinceLast.title": "Since you last looked",
+  "releaseBoard.sinceLast.heading": "Since you last looked ({time})",
+  "releaseBoard.sinceLast.tooltip": "What changed on the board since it was last shown. Click to open the board. The small check button marks it as seen.",
+  "releaseBoard.sinceLast.newOne": "1 new blocker",
+  "releaseBoard.sinceLast.newMany": "{count} new blockers",
+  "releaseBoard.sinceLast.clearedOne": "1 blocker cleared",
+  "releaseBoard.sinceLast.clearedMany": "{count} blockers cleared",
+  "releaseBoard.sinceLast.lightMoved": "went from {from} to {to}",
+  "releaseBoard.sinceLast.more": "and {count} more"
 }

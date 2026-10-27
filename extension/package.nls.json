@@ -296,5 +296,8 @@
   "config.releaseBoard.liveEvidence.enabled.description": "Show a small flame on a Release Board row when the source files that document names have errors or warnings (from the Problems panel, the Saropa Lints file and, when installed, Log Capture). The mark is information only: it never changes a light.",
   "config.releaseBoard.liveEvidence.includeWarnings.description": "Count warnings as well as errors and crashes. Off: a row is marked only for errors and crashes.",
   "config.releaseBoard.liveEvidence.lookbackDays.description": "How many days of debug runs Log Capture is asked about (1 to 30). Ignored when Log Capture is not installed.",
-  "config.releaseBoard.liveEvidence.unnamedBox.description": "List crash signals from debug runs in files that no open document names, with a button that starts a bug document. Needs Log Capture; shows nothing without it."
+  "config.releaseBoard.liveEvidence.unnamedBox.description": "List crash signals from debug runs in files that no open document names, with a button that starts a bug document. Needs Log Capture; shows nothing without it.",
+  "command.releaseBoard.sinceLast.markSeen.title": "Release Board: Mark Changes as Seen",
+  "config.releaseBoard.sinceLast.enabled.description": "Show what changed on the Release Board since it was last seen: new blockers, cleared blockers and lights that moved. Shown at the top of the board, in the sidebar and in the status bar tooltip, and only when something changed. It clears itself after the board tab has been on screen for 8 seconds. Reads and compares only; it never changes a light and never writes into your documents.",
+  "config.releaseBoard.sinceLast.maxListed.description": "Most document titles listed under each project in the \"Since you last looked\" strip (1 to 20). Further titles are counted on one line."
 }
