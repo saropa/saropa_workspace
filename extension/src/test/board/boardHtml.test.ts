@@ -63,7 +63,9 @@ test("the page carries no file path or URL outside the row tooltips", () => {
     outside: { chats: {}, groups: [{ id: "g", label: "L", items: [{ title: "T", url: "https://example.com/x" }] }] },
   });
   const html = renderBoard(m, t, "n");
-  assert.ok(!html.includes("example.com"));
+  const attrs = [...html.matchAll(/="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(attrs.every((a) => a !== "https://example.com/x"), "no attribute holds the link");
+  assert.equal(/\bhref\s*=/i.test(html), false, "the page has no href");
   const withoutTooltips = html.replace(/title="[^"]*"/g, "");
   assert.ok(!withoutTooltips.includes("secret/place"));
 });
