@@ -23,6 +23,13 @@ function daily(atTime: string): ShortcutSchedule {
   return { atTime, enabled: false };
 }
 
+// The recipes that feed the Release Board seed with catch-up on, so a machine that was off at
+// the scheduled time runs the missed report once at the next start. The user can turn it off in
+// the schedule editor; a stored copy of a recipe keeps whatever it was saved with.
+function feeding(atTime: string): ShortcutSchedule {
+  return { atTime, enabled: false, catchUp: true };
+}
+
 // A shell recipe that captures output to a dated report and (optionally) opens it.
 function report(
   folder: vscode.WorkspaceFolder,
@@ -160,7 +167,7 @@ async function pushLintSweepRitual(
       description: "Scheduled (daily, default 05:00): runs the project's linter unattended into a background channel and writes a dated report under reports/, so the project's health is known before the day starts. Seeds disabled — enable it by promoting the recipe to a stored shortcut. Detected from the analyzer/linter config for the ecosystem.",
       icon: "checklist",
       color: "charts.yellow",
-      schedule: daily("05:00"),
+      schedule: feeding("05:00"),
       action: report(folder, linter, reportRelativePath("lint", "txt"), false),
     });
   }
@@ -306,7 +313,7 @@ async function pushTestTrendRitual(
       label: "Test trend tracker",
       description: "Scheduled (daily, default 05:30): runs the test suite unattended into a channel and writes a dated report under reports/. Seeds disabled. Detected from the project's test runner.",
       icon: "beaker",
-      schedule: daily("05:30"),
+      schedule: feeding("05:30"),
       action: report(folder, test, reportRelativePath("tests", "txt"), false),
     });
   }
@@ -342,7 +349,7 @@ async function pushPrReviewRitual(
       description: "Scheduled (daily, default 08:45): writes a dated report of the most recent CI runs on the default branch, so a build that broke overnight is the first thing you see. Requires the gh CLI. Seeds disabled. Detected from a GitHub remote.",
       icon: "pulse",
       color: "charts.red",
-      schedule: daily("08:45"),
+      schedule: feeding("08:45"),
       // A command, not a captured shell line: the report needs the run list AND the
       // failure annotations from a second API call, and it must tell "gh could not
       // answer" apart from "gh answered, nothing is failing" — a distinction a

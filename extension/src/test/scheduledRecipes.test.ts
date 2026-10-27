@@ -174,3 +174,21 @@ test("the standup digest is a command-kind recipe driven by standupDigest", asyn
   assert.equal(standup!.action?.kind, "command");
   assert.equal(standup!.action?.commandId, "saropaWorkspace.recipe.standupDigest");
 });
+
+test("the build, lint and test recipes seed with catch-up on; the other rituals do not", async () => {
+  makeGitRepo();
+  write(".git/config", '[remote "origin"]\n\turl = git@github.com:acme/widget.git\n');
+  write("package.json", '{"scripts":{"test":"node --test"}}');
+  write("eslint.config.js", "export default [];");
+  const out = await detectScheduledRecipes(asFolder(folder));
+  const catchUp = Object.fromEntries(out.map((r) => [r.recipeId, r.schedule?.catchUp]));
+  assert.equal(catchUp["ritual.ci"], true);
+  assert.equal(catchUp["ritual.lint"], true);
+  assert.equal(catchUp["ritual.tests"], true);
+  for (const id of ["ritual.deps", "ritual.prs", "ritual.eod", "ritual.debt", "ritual.branches", "ritual.journal", "ritual.stats", "ritual.delta", "ritual.standup", "ritual.suite"]) {
+    assert.equal(catchUp[id], undefined, id);
+  }
+  for (const id of ["ritual.ci", "ritual.lint", "ritual.tests"]) {
+    assert.equal(out.find((r) => r.recipeId === id)?.schedule?.enabled, false, `${id} still seeds disabled`);
+  }
+});
