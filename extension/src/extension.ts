@@ -229,10 +229,6 @@ async function runPostLoadTasks(
   void initFocusMode(context);
 }
 
-// Entry point: constructs the shortcut store, the on-device stores, the tree view,
-// folder/file watches, all command modules, status bars, and the background engines
-// (scheduler, chain runner, git/idle/expiry watchers), then runs the post-load tail
-// once the shortcut set has finished loading.
 // Public API for other extensions (extension.exports).
 export interface WorkspaceApi {
   apiVersion: 1;
@@ -240,6 +236,10 @@ export interface WorkspaceApi {
   addBoardGroup(provider: BoardGroupProvider): vscode.Disposable;
 }
 
+// Entry point: constructs the shortcut store, the on-device stores, the tree view,
+// folder/file watches, all command modules, status bars, and the background engines
+// (scheduler, chain runner, git/idle/expiry watchers), then runs the post-load tail
+// once the shortcut set has finished loading.
 export async function activate(context: vscode.ExtensionContext): Promise<WorkspaceApi> {
   const store = new ShortcutStore(context);
   // Disposes the store's onDidChange / onDidRemoveShortcut EventEmitters. The store

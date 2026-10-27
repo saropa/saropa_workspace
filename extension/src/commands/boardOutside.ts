@@ -7,7 +7,8 @@ import { l10n } from "../i18n/l10n";
 // turns on only when its source is there, fails quietly, and never changes a light.
 
 const CHAT_EXTENSION = "saropa.claude-chat-explorer";
-const CHAT_LIMIT = 60;
+const CHAT_LIMIT = 200;
+const REVIEW_MS = 2 * 60 * 1000;
 const PROVIDER_MS = 5000;
 
 interface ChatApi {
@@ -72,44 +73,70 @@ async function loadChats(files: Array<[string, string]>): Promise<Record<string,
   return out;
 }
 
+// The sign-in a user already has may carry other scopes than "repo", so a few common sets
+// are tried silently, in order.
+const SCOPE_SETS = [["repo"], ["read:user", "user:email", "repo"], ["user:email"]];
+
+async function silentSession(): Promise<vscode.AuthenticationSession | undefined> {
+  for (const scopes of SCOPE_SETS) {
+    const s = await vscode.authentication.getSession("github", scopes, { silent: true });
+    if (s) {
+      return s;
+    }
+  }
+  return undefined;
+}
+
+// The last good answer is kept for two minutes and survives a failed call, so a burst of
+// saves does not hit GitHub's search limit and a hiccup does not blank the box.
+let reviewCache: { at: number; group: OutsideGroup | undefined } | undefined;
+
 async function loadReviewRequests(): Promise<OutsideGroup | undefined> {
   if (!vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("reviewRequests", false)) {
+    reviewCache = undefined;
     return undefined;
+  }
+  if (reviewCache && Date.now() - reviewCache.at < REVIEW_MS) {
+    return reviewCache.group;
   }
   try {
     // Silent: the board never opens a sign-in prompt by itself.
-    const session = await vscode.authentication.getSession("github", ["repo"], { silent: true });
+    const session = await silentSession();
     if (!session) {
-      return undefined;
+      return reviewCache?.group;
     }
     const res = await fetch("https://api.github.com/search/issues?q=" + encodeURIComponent("is:pr is:open archived:false review-requested:@me") + "&per_page=20", {
       headers: { Authorization: `Bearer ${session.accessToken}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) {
-      return undefined;
+      return reviewCache?.group;
     }
     const items = parseReviewRequests(await res.json());
-    return items.length > 0 ? { id: "github-review", label: l10n("releaseBoard.panel.reviewRequests"), items } : undefined;
+    const group = items.length > 0 ? { id: "github-review", label: l10n("releaseBoard.panel.reviewRequests"), items } : undefined;
+    reviewCache = { at: Date.now(), group };
+    return group;
   } catch {
-    return undefined;
+    return reviewCache?.group;
   }
 }
 
 async function loadProviders(): Promise<OutsideGroup[]> {
-  const out: OutsideGroup[] = [];
-  for (const p of [...providers.values()].slice(0, MAX_GROUPS)) {
+  const one = async (p: BoardGroupProvider): Promise<OutsideGroup | undefined> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const items = await Promise.race([Promise.resolve(p.items()), new Promise<never>((_, no) => setTimeout(() => no(new Error("timeout")), PROVIDER_MS))]);
+      const items = await Promise.race([Promise.resolve(p.items()), new Promise<never>((_, no) => (timer = setTimeout(() => no(new Error("timeout")), PROVIDER_MS)))]);
       const g = cleanGroup(p.id, p.label, cleanItems(items));
-      if (g) {
-        out.push({ ...g, id: "ext:" + g.id });
-      }
+      return g ? { ...g, id: "ext:" + g.id } : undefined;
     } catch {
       // A broken provider is skipped.
+      return undefined;
+    } finally {
+      clearTimeout(timer);
     }
-  }
-  return out;
+  };
+  const groups = await Promise.all([...providers.values()].slice(0, MAX_GROUPS).map(one));
+  return groups.filter((g): g is OutsideGroup => g !== undefined);
 }
 
 // Everything outside the scan for the open documents, fetched in parallel.

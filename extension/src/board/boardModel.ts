@@ -13,8 +13,10 @@ import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCo
 // The board's view model: what the first screen shows, built from classified rows.
 // Pure, so the rules for the light are unit-tested without a webview.
 //
-// The light is honest. NO-GO when anything is in a red folder. Never GO yet: GO needs
-// lint and test evidence (step 6). With no blocker it reads UNVERIFIED, and says why.
+// The light is honest. NO-GO when anything is in a red folder or an open document stops
+// the release under the profile. GO needs an accepted baseline, no grey document, every
+// open document read, and fresh, clean lint and test evidence. Otherwise it reads
+// UNVERIFIED, and says why.
 
 export type Light = "no-go" | "unverified" | "go";
 
@@ -23,7 +25,7 @@ export type UnverifiedReason =
   | "baseline"
   // Documents that no rule placed.
   | "grey"
-  // No lint or test result exists for the project (until step 6).
+  // No fresh, clean lint and test result exists for the project.
   | "health"
   // Open documents whose text was not read, so their severity is unknown.
   | "unread";

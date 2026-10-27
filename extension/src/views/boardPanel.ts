@@ -12,8 +12,9 @@ import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
-// are "refresh", "accept" and "open <id>", and the host resolves the id against the model
-// it rendered, so the page can never name an arbitrary path.
+// are "refresh", "accept", "profile", "suggest", "rules", "open <id>" and "external <group,
+// item>", and the host resolves each id or index against the model it rendered, so the page
+// can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
 
@@ -89,6 +90,8 @@ class BoardPanel {
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
   private outside: Outside = emptyOutside();
   private outsideToken = 0;
+  private disposed = false;
+  private outsidePending = false;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -186,6 +189,10 @@ class BoardPanel {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.scanning = false;
+      if (this.outsidePending && !this.cached) {
+        this.outsidePending = false;
+        this.render();
+      }
       void this.panel.webview.postMessage({ type: "busy", on: false });
     }
   }
@@ -226,14 +233,19 @@ class BoardPanel {
       }
     }
     const next = await loadOutside(files).catch(() => emptyOutside());
-    if (token === this.outsideToken) {
+    if (token === this.outsideToken && !this.disposed) {
       this.outside = next;
-      this.render();
+      // While a scan runs or the stored result is on screen, the next paint carries it.
+      if (!this.scanning && !this.cached) {
+        this.render();
+      } else {
+        this.outsidePending = true;
+      }
     }
   }
 
   private render(state: RenderState = {}): void {
-    if (!this.run) {
+    if (!this.run || this.disposed) {
       return;
     }
     const { cfg, marks } = this.run;
@@ -319,6 +331,8 @@ class BoardPanel {
 
   private dispose(): void {
     current = undefined;
+    this.disposed = true;
+    this.outsideToken++;
     clearTimeout(this.timer);
     this.panel.dispose();
     for (const d of this.disposables) {
