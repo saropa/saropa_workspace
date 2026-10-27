@@ -1,3 +1,4 @@
+import { Profile, SeverityDict } from "./severity";
 // Release Board: shared types. The board core (this folder) never imports "vscode"
 // (a unit test enforces it) so it runs under the plain node test runner and works the
 // same for local, remote and test file sources.
@@ -88,6 +89,12 @@ export interface BoardConfig {
   groups?: Array<{ name: string; match: string[] }>;
   // Globs of "project/path" that are never grouped.
   ungrouped?: string[];
+  // Parts of the severity dictionary a team replaces (phrases, weights, negation ...).
+  severity?: Partial<SeverityDict>;
+  // What stops a release: rush (extreme, critical), deliberate (adds high), zero (adds medium).
+  profile?: Profile;
+  // Documents pinned as critical, as "project/path" globs. They stay on the first screen.
+  pinned?: string[];
 }
 
 // One file as seen by a scan.

@@ -4,7 +4,9 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 1;
+export const FACTS_VERSION = 2;
+
+import { Audience, Severity, SeverityDict, scoreDocument } from "./severity";
 
 export interface DocFacts {
   title: string;
@@ -29,6 +31,8 @@ export interface DocFacts {
   urls: number;
   // Ids of other projects the text mentions (see ProjectDef.mentions).
   mentions: string[];
+  severity: Severity;
+  audience: Audience;
 }
 
 export interface FactsOptions {
@@ -36,6 +40,8 @@ export interface FactsOptions {
   mentions?: Record<string, string>;
   // Folders whose files count as "source files named", e.g. ["lib", "src"].
   sourceDirs?: string[];
+  // Phrase dictionary for severity; the shipped one when absent.
+  severity?: SeverityDict;
 }
 
 const DONE_WORDS = ["done", "applied", "merged", "fixed", "built", "implemented", "closed", "yes", "verified"];
@@ -155,6 +161,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
     mentions: mentions.sort(),
+    ...scoreDocument(text, path, opt.severity),
   };
 }
 

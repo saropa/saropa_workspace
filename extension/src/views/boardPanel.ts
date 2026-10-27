@@ -1,6 +1,6 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
-import { BoardRun, acceptBoardRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { BoardRun, acceptBoardRun, openRulesFile, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { BoardStrings, escapeHtml, renderBoard } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
@@ -38,6 +38,15 @@ function strings(): BoardStrings {
     flagsHeading: l10n("releaseBoard.panel.flagsHeading"),
     flagsNote: l10n("releaseBoard.panel.flagsNote"),
     hub: l10n("releaseBoard.panel.hub"),
+    profileLabel: l10n("releaseBoard.panel.profileLabel"),
+    profileRush: l10n("releaseBoard.panel.profileRush"),
+    profileDeliberate: l10n("releaseBoard.panel.profileDeliberate"),
+    profileZero: l10n("releaseBoard.panel.profileZero"),
+    severityNames: l10n("releaseBoard.panel.severityNames"),
+    proOnly: l10n("releaseBoard.panel.proOnly"),
+    pinned: l10n("releaseBoard.panel.pinned"),
+    needsRuleHeading: l10n("releaseBoard.panel.needsRuleHeading"),
+    needsRuleNote: l10n("releaseBoard.panel.needsRuleNote"),
   };
 }
 
@@ -106,12 +115,17 @@ class BoardPanel {
     if (typeof message !== "object" || message === null) {
       return;
     }
-    const msg = message as { type?: string; id?: number; rev?: number };
+    const msg = message as { type?: string; id?: number; rev?: number; value?: string };
     if (msg.rev !== this.rev) {
       return;
     }
     if (msg.type === "refresh") {
       await this.refresh();
+    } else if (msg.type === "profile" && (msg.value === "rush" || msg.value === "deliberate" || msg.value === "zero")) {
+      // The setting change refreshes the board through the configuration listener.
+      await vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").update("profile", msg.value, vscode.ConfigurationTarget.Workspace);
+    } else if (msg.type === "rules") {
+      await openRulesFile();
     } else if (msg.type === "accept" && this.run && (this.model?.baseline || this.model?.safetyHold)) {
       if (await acceptBoardRun(this.run)) {
         this.render();

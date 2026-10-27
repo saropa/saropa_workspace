@@ -1,4 +1,6 @@
 import { DocFacts, sizeClass, stepTotals } from "./docFacts";
+import { globToRegExp } from "./glob";
+import { Audience, Profile, Severity, asProfile, stops } from "./severity";
 import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
 import { Link, LinkState, buildChains, resolveLinks } from "./links";
@@ -38,6 +40,12 @@ export interface BoardItem {
   link?: { state: "open" | "done" | "flag"; detail: string };
   // How many open items wait on this one.
   blocksCount: number;
+  // From the phrase dictionary (absent when the text was not read) and the pin list.
+  severity?: Severity;
+  audience?: Audience;
+  pinned: boolean;
+  // The item stops a release under the chosen profile.
+  stopping: boolean;
 }
 
 export interface ItemMarks {
@@ -87,10 +95,14 @@ export interface BoardModel {
   items: BoardItem[];
   safetyHold: boolean;
   baseline: boolean;
+  profile: Profile;
+  // Folders where documents no rule placed sit, for the "needs a rule" list.
+  needsRule: Array<{ project: string; folder: string; count: number }>;
 }
 
 const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
 const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };
+const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
 const IMPORTANCE: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
 function linkSummary(mine: Link[], byKey: Map<string, BoardItem>): { state: "open" | "done" | "flag"; detail: string } {
@@ -149,6 +161,8 @@ export function buildBoard(
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
+  const profile: Profile = asProfile(cfg.profile);
+  const pins = (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp);
   const names = new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id]));
   const defs: ProjectDef[] = [...cfg.projects].sort(
     (a, b) => (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1)
@@ -157,6 +171,7 @@ export function buildBoard(
     const counts = emptyCounts();
     const items: BoardItem[] = [];
     let blocked = 0;
+    let blockedStop = 0;
     for (const r of rows) {
       if (r.project !== def.id) {
         continue;
@@ -165,11 +180,17 @@ export function buildBoard(
       if (!OPEN.has(r.status)) {
         continue;
       }
-      if (r.status === "amber" && r.note === "blocked") {
+      const facts = snapshot?.projects[def.id]?.facts[r.path]?.facts;
+      const pinned = pins.some((re) => re.test(def.id + "/" + r.path));
+      if (r.status === "amber" && r.note === "blocked" && !pinned) {
+        // A waiting document is collapsed into one mark, but one that would stop a
+        // release under the profile still counts toward NO-GO.
         blocked += 1;
+        if (facts !== undefined && stops(profile, facts.severity)) {
+          blockedStop += 1;
+        }
         continue;
       }
-      const facts = snapshot?.projects[def.id]?.facts[r.path]?.facts;
       items.push({
         id: -1,
         project: def.id,
@@ -180,9 +201,19 @@ export function buildBoard(
         marks: facts ? marksOf(facts, names) : undefined,
         hub: false,
         blocksCount: 0,
+        severity: facts?.severity,
+        audience: facts?.audience,
+        pinned,
+        stopping: pinned || (facts !== undefined && stops(profile, facts.severity)),
       });
     }
-    items.sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.path.localeCompare(b.path));
+    items.sort(
+      (a, b) =>
+        ORDER[a.status] - ORDER[b.status] ||
+        Number(b.pinned) - Number(a.pinned) ||
+        (SEV_ORDER[a.severity ?? "medium"] ?? 3) - (SEV_ORDER[b.severity ?? "medium"] ?? 3) ||
+        a.path.localeCompare(b.path)
+    );
     for (const it of items) {
       it.id = all.length;
       all.push(it);
@@ -199,7 +230,7 @@ export function buildBoard(
       id: def.id,
       name: def.name ?? def.id,
       // A scan held by the safety check must never hide red work the accepted scan had.
-      light: counts.red > 0 || (!accepted && (previous?.projects[def.id]?.counts.red ?? 0) > 0) ? "no-go" : "unverified",
+      light: counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0 || (!accepted && (previous?.projects[def.id]?.counts.red ?? 0) > 0) ? "no-go" : "unverified",
       reasons,
       items,
       blocked,
@@ -261,5 +292,11 @@ export function buildBoard(
     // Once the user accepts (or the scan was clean) neither banner shows.
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,
     baseline: !accepted && (safety?.baseline ?? false),
+    profile,
+    needsRule: cfg.projects.flatMap((p) =>
+      Object.entries(snapshot?.projects[p.id]?.greyFolders ?? {})
+        .map(([folder, count]) => ({ project: p.id, folder, count }))
+        .sort((a, b) => b.count - a.count)
+    ),
   };
 }

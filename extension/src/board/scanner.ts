@@ -5,6 +5,7 @@ import {
   findStatusWord,
   needsStatusWord,
 } from "./ruleEngine";
+import { mergeDict } from "./severity";
 import { DocFacts, FACTS_VERSION, FactsOptions, readFacts } from "./docFacts";
 import {
   BoardConfig,
@@ -110,6 +111,7 @@ export async function scanProject(
   };
   const factsOpt: FactsOptions = {
     sourceDirs: cfg.sourceDirs,
+    severity: mergeDict(cfg.severity),
     mentions: Object.fromEntries(
       cfg.projects.filter((p) => p.mentions?.length && p.id !== project.id).map((p) => [p.id, p.mentions!.join("|")])
     ),
