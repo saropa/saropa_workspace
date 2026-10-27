@@ -48,7 +48,7 @@ cspell:disable
 
 ## [Unreleased]
 
-The Release Board has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes. [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md)
+The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes. [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md)
 
 ### Added
 
@@ -78,6 +78,7 @@ The Release Board has a Future tab for deferred and blocked work, its Build, Lin
 
 ### Changed
 
+- **Release Board: opens beside your files.** The board tab used to open among the files; it now opens in its own editor group next to the files instead of among them. Opening it again shows the existing tab where it is, and it remembers the group you moved it to, per workspace. If that group is gone it opens beside again. The tab that opens at window start uses the same place and still does not take focus. Setting: `releaseBoard.placement` (`beside` or `sameGroup`, default `beside`).
 - In a chosen project the board's file scan no longer follows links to folders or files (a linked folder could loop or lead outside the project). Open workspace folders are scanned as before.
 
 ---
