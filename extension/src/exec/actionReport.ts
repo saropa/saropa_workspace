@@ -28,7 +28,9 @@ export function fenceBlock(body: string): string {
 export function buildCommandReport(name: string, commandLine: string, body: string): string {
   const trimmed = body.trim();
   const output = trimmed.length > 0 ? fenceBlock(body) : "_No output._";
-  const headline = summarizeReportBody(trimmed);
+  // Only the end is trimmed for the headline: a status line such as " M a.ts" starts with
+  // a space that is part of its two-column code.
+  const headline = summarizeReportBody(body.trimEnd());
   // Two conventions, not one: **Attention:** marks a finding that needs the reader to
   // DO something, **Headline:** one that merely informs. The routine summary sorts on
   // this to decide its verdict, so the distinction has to be made by whoever

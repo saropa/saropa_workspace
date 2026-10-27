@@ -24,6 +24,7 @@ import { FakeWebviewPanel, fakeWebviewPanel, createdPanels } from "./vscodeWebvi
 // Value types live in vscodeTypes.ts; re-exported so `./_stub/vscode` stays the one entry point.
 export * from "./vscodeTypes";
 export * from "./vscodeWebview";
+export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
 
 export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, languages } from "./vscodeExtras";
 
