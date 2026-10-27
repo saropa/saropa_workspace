@@ -16,6 +16,7 @@ import {
   findBreak,
   ciHeadline,
   buildCiMarkdown,
+  ciSummaryLine,
   type CiRun,
   type CiStatus,
 } from "../exec/ciStatus";
@@ -216,4 +217,20 @@ test("the run table shows only the newest runs and says how many were read", () 
   const rows = md.split("\n").filter((l) => l.startsWith("| completed") || l.startsWith("| failure"));
   assert.equal(rows.length, 10, "only the newest ten are tabulated");
   assert.ok(md.includes("20 older runs were read to locate the break"));
+});
+
+test("the build report's summary line: red only when the newest completed run failed", () => {
+  const T = Date.parse("2026-10-27T08:45:00.000Z");
+  const red = status({ broke: { firstFailure: run(), failingSince: 3, noPassingRun: false } });
+  assert.equal(ciSummaryLine(red, T), "<!-- saropa-summary recipe=ritual.ci time=2026-10-27T08:45:00.000Z result=fail count=3 -->");
+  const healedRuns = [run({ conclusion: "success", headSha: "bbbbbbbbb2" }), run()];
+  const healed = status({ runs: healedRuns, failing: [healedRuns[1]], broke: undefined });
+  assert.equal(ciSummaryLine(healed, T), "<!-- saropa-summary recipe=ritual.ci time=2026-10-27T08:45:00.000Z result=pass count=0 -->");
+});
+
+test("the build report's summary line is unknown, never a pass, when gh did not answer or no runs exist", () => {
+  const T = Date.parse("2026-10-27T08:45:00.000Z");
+  const unknown = "<!-- saropa-summary recipe=ritual.ci time=2026-10-27T08:45:00.000Z result=unknown -->";
+  assert.equal(ciSummaryLine(status({ runs: [], failing: [], unavailable: true }), T), unknown);
+  assert.equal(ciSummaryLine(status({ runs: [], failing: [], unavailable: false }), T), unknown);
 });

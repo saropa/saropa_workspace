@@ -7,7 +7,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildCommandReport } from "../exec/actionRunner";
+import { buildCommandReport, feedSummaryLine } from "../exec/actionRunner";
 
 test("command output is wrapped in a fenced code block under a clean header", () => {
   const md = buildCommandReport("Standup digest", 'git log --oneline', "abc123 fix\ndef456 feat");
@@ -33,4 +33,25 @@ test("a body containing a fence cannot break out of the block", () => {
   // The chosen fence is four backticks (one longer than the 3-run in the body).
   assert.match(md, /````text\n/);
   assert.match(md, /\n````\n/);
+});
+
+test("a summary line goes first and the rest of the report is unchanged", () => {
+  const line = "<!-- saropa-summary recipe=ritual.tests time=2026-10-27T05:30:12.000Z result=pass count=0 -->";
+  // The generated time can differ by a second between two calls, so it is masked.
+  const mask = (md: string): string => md.replace(/\*\*Generated\*\* [^\n]*/, "**Generated** TIME");
+  const plain = mask(buildCommandReport("Test trend", "npm test", "ok"));
+  const withLine = mask(buildCommandReport("Test trend", "npm test", "ok", line));
+  assert.equal(withLine, `${line}\n${plain}`);
+  assert.ok(!plain.includes("saropa-summary"));
+});
+
+test("only lint and test reports get a summary line, with the verdict from the exit code and output", () => {
+  const file = (suffix: string): string => `reports/2026.10.27_workspace/2026.10.27_workspace_053012_${suffix}`;
+  const tests = feedSummaryLine(file("tests.txt"), 1, "# tests 10\n# pass 8\n# fail 2\n");
+  assert.match(tests ?? "", /^<!-- saropa-summary recipe=ritual\.tests time=\d{4}-\d\d-\d\dT[\d:.]+Z result=fail count=2 -->$/);
+  const lint = feedSummaryLine(file("lint.txt"), 0, "No issues found!\n");
+  assert.match(lint ?? "", /recipe=ritual\.lint time=\S+ result=pass count=0 -->$/);
+  // Output that is not the expected listing cannot be counted: unknown, never a pass.
+  assert.match(feedSummaryLine(file("debt.md"), 0, "TODO") ?? "", /recipe=ritual\.debt time=\S+ result=unknown -->$/);
+  assert.equal(feedSummaryLine(file("journal.md"), 0, "abc"), undefined);
 });

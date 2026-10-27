@@ -1,5 +1,6 @@
 import { BoardModel, Light } from "./boardModel";
 import { isBlocker } from "./sidebar";
+import { isSinceReport } from "./reportSignals";
 
 // "Since you last looked": what changed on the board since it was last seen. The board keeps
 // one small record of what it showed (per project: the light and the blockers), and a change
@@ -24,12 +25,35 @@ export function clampListed(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(MAX_LISTED, Math.max(1, Math.round(v))) : DEFAULT_LISTED;
 }
 
+// The reports that feed the strip: the standup digest and the since-yesterday report.
+export type SinceReportKind = "standup" | "delta";
+const REPORT_KINDS: readonly string[] = ["standup", "delta"];
+
+// A report shown in the strip: when it was written and the one count it carries.
+export interface SeenReport {
+  at: number;
+  count: number;
+}
+
 // What was shown for one project the last time the board was seen.
 export interface SeenProject {
   name: string;
   light: Light;
   // "project/path" -> title, for the open documents that held the release back.
   blockers: Record<string, string>;
+  // The newest standup and since-yesterday report seen. Absent in records from before they were read.
+  reports?: Partial<Record<SinceReportKind, SeenReport>>;
+}
+
+// The strip's reports of one project, from its fresh daily reports.
+function reportsOf(p: Pick<BoardModel["projects"][number], "health">): Partial<Record<SinceReportKind, SeenReport>> {
+  const out: Partial<Record<SinceReportKind, SeenReport>> = {};
+  for (const s of p.health?.signals ?? []) {
+    if (isSinceReport(s)) {
+      out[s.kind as SinceReportKind] = { at: s.at, count: s.count ?? 0 };
+    }
+  }
+  return out;
 }
 
 // The record of what the board showed the last time it was seen.
@@ -64,10 +88,15 @@ export function digestOf(model: Pick<BoardModel, "projects">, at: number, previo
         n += 1;
       }
     }
-    projects[p.id] = { name: p.name, light: p.light, blockers };
+    // A report that cannot be read this time stays in the record, so it comes back as seen, not as new.
+    const reports = { ...previous?.projects[p.id]?.reports, ...reportsOf(p) };
+    projects[p.id] = { name: p.name, light: p.light, blockers, ...(Object.keys(reports).length > 0 ? { reports } : {}) };
   }
   return { version: 1, at, projects };
 }
+
+const sameReports = (a: SeenProject["reports"], b: SeenProject["reports"]): boolean =>
+  REPORT_KINDS.every((k) => a?.[k as SinceReportKind]?.at === b?.[k as SinceReportKind]?.at && a?.[k as SinceReportKind]?.count === b?.[k as SinceReportKind]?.count);
 
 // True when two records hold the same lights and blockers (the time and names are ignored).
 export function sameRecord(a: SeenRecord, b: SeenRecord): boolean {
@@ -82,7 +111,7 @@ export function sameRecord(a: SeenRecord, b: SeenRecord): boolean {
       return false;
     }
     const kx = Object.keys(x.blockers);
-    return kx.length === Object.keys(y.blockers).length && kx.every((k) => k in y.blockers);
+    return kx.length === Object.keys(y.blockers).length && kx.every((k) => k in y.blockers) && sameReports(x.reports, y.reports);
   });
 }
 
@@ -103,7 +132,14 @@ export function readSeen(v: unknown): SeenRecord | undefined {
         blockers[k.slice(0, KEY_MAX)] = t.slice(0, TITLE_MAX);
       }
     }
-    projects[id] = { name: p.name, light: p.light, blockers };
+    const reports: Partial<Record<SinceReportKind, SeenReport>> = {};
+    for (const k of REPORT_KINDS) {
+      const e = (p.reports as Record<string, Partial<SeenReport> | undefined> | undefined)?.[k];
+      if (e && typeof e.at === "number" && Number.isFinite(e.at) && typeof e.count === "number" && Number.isFinite(e.count)) {
+        reports[k as SinceReportKind] = { at: e.at, count: e.count };
+      }
+    }
+    projects[id] = { name: p.name, light: p.light, blockers, ...(Object.keys(reports).length > 0 ? { reports } : {}) };
   }
   return { version: 1, at: r.at, projects };
 }
@@ -118,6 +154,8 @@ export interface ProjectChange {
   // Set only when the light moved.
   lightFrom?: Light;
   lightTo?: Light;
+  // Reports written since the board was seen. Read-only summaries; they never touch a light.
+  reports: Array<{ kind: SinceReportKind; count: number }>;
 }
 
 // All changes since the board was last seen.
@@ -161,8 +199,13 @@ export function diffSeen(seen: SeenRecord | undefined, now: SeenRecord): SinceLa
       Object.keys(old.blockers).filter((k) => !(k in cur.blockers)).map((k) => old.blockers[k])
     );
     const moved = old.light !== cur.light;
-    if (added.length > 0 || cleared.length > 0 || moved) {
-      changes.push({ id, name: cur.name, added, cleared, ...(moved ? { lightFrom: old.light, lightTo: cur.light } : {}) });
+    const reports = REPORT_KINDS.flatMap((k) => {
+      const now_ = cur.reports?.[k as SinceReportKind];
+      const was = old.reports?.[k as SinceReportKind];
+      return now_ && (!was || was.at < now_.at) ? [{ kind: k as SinceReportKind, count: now_.count }] : [];
+    });
+    if (added.length > 0 || cleared.length > 0 || moved || reports.length > 0) {
+      changes.push({ id, name: cur.name, added, cleared, reports, ...(moved ? { lightFrom: old.light, lightTo: cur.light } : {}) });
     }
   }
   return changes.length > 0 ? { since: seen.at, changes } : undefined;
@@ -180,6 +223,9 @@ export interface SinceLabels {
   lightMoved: string;
   // Contains {count}.
   more: string;
+  // The standup digest and the since-yesterday report. Contain {count}.
+  reportStandup: string;
+  reportDelta: string;
   light: Record<Light, string>;
 }
 
@@ -214,6 +260,9 @@ export function sinceLines(change: SinceLast, labels: SinceLabels, maxListed: nu
     }
     if (c.lightFrom && c.lightTo) {
       parts.push(fill(labels.lightMoved, { from: labels.light[c.lightFrom], to: labels.light[c.lightTo] }));
+    }
+    for (const r of c.reports) {
+      parts.push(fill(r.kind === "standup" ? labels.reportStandup : labels.reportDelta, { count: String(r.count) }));
     }
     return { text: `${c.name}: ${parts.join(", ")}`, details: [...listed("+", c.added, maxListed, labels.more), ...listed("-", c.cleared, maxListed, labels.more)] };
   });

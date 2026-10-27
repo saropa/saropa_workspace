@@ -2,6 +2,7 @@ import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { onDidRecordHealth } from "../commands/boardHealth";
 import { onDidChangeMarks, readMarks } from "../commands/boardMarks";
+import { REPORT_SETTINGS } from "../commands/boardRecipeEvidence";
 import { onDidChangeTrainVersions } from "./boardTrain";
 import { renderSkeleton } from "../board/boardHtml";
 import { onDidChangeProviders } from "../commands/boardOutside";
@@ -86,7 +87,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => {
-        if (e.affectsConfiguration("saropaWorkspace.releaseBoard.enabled") || e.affectsConfiguration("saropaWorkspace.releaseBoard.profile")) {
+        if (["enabled", "profile", ...REPORT_SETTINGS].some((k) => e.affectsConfiguration(`saropaWorkspace.releaseBoard.${k}`))) {
           this.poke(300);
         } else if (e.affectsConfiguration("saropaWorkspace.releaseBoard")) {
           // Display-only settings: draw the stored scan again, no rescan.
@@ -94,6 +95,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
           this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
           void this.refreshOutside();
           void this.refreshLive();
+          void this.refreshFuture();
         }
       },
       null,

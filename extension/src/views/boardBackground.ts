@@ -4,6 +4,7 @@ import { applyMarks, pinnedKeys } from "../board/marks";
 import { asStartupMode, projectsFound, shouldOpenOnStartup } from "../board/sidebar";
 import { onDidRecordHealth } from "../commands/boardHealth";
 import { onDidChangeMarks, readMarks } from "../commands/boardMarks";
+import { REPORT_SETTINGS } from "../commands/boardRecipeEvidence";
 import { BoardRun, DEFAULT_ROOTS, logBoardError, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { disposeTrain } from "./boardTrain";
 import { askRefresh, currentBoard, disposeFeed, hasPanelOpened, isPanelVisible, isStoredOnly, onDidAskRefresh, onDidChangePanelVisible, setFailed, setScanning } from "./boardFeed";
@@ -20,7 +21,7 @@ const SETTINGS = "saropaWorkspace.releaseBoard";
 // Same short delay the editor lines use, so startup is never in the way.
 const START_DELAY_MS = 3000;
 // Settings that change what a scan finds. Everything else only changes how it is drawn.
-const SCAN_SETTINGS = ["enabled", "profile"].map((k) => `${SETTINGS}.${k}`);
+const SCAN_SETTINGS = ["enabled", "profile", ...REPORT_SETTINGS].map((k) => `${SETTINGS}.${k}`);
 const IGNORED = /[\\/](?:node_modules|\.git|build|\.dart_tool|Pods|vendor)[\\/]/;
 
 function boardOn(): boolean {

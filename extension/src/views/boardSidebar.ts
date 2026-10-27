@@ -36,6 +36,8 @@ function labels(): SidebarLabels {
     blockerOne: l10n("releaseBoard.sidebar.blockerOne"),
     blockerMany: l10n("releaseBoard.sidebar.blockerMany", { count: "{count}" }),
     causeLint: l10n("releaseBoard.sidebar.causeLint"),
+    causeBuild: l10n("releaseBoard.sidebar.causeBuild"),
+    causeDeps: l10n("releaseBoard.sidebar.causeDeps"),
     causeTests: l10n("releaseBoard.sidebar.causeTests"),
     causeBlocked: l10n("releaseBoard.sidebar.causeBlocked", { count: "{count}" }),
     causeHeld: l10n("releaseBoard.sidebar.causeHeld"),

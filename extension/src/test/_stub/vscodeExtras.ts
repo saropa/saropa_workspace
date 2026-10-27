@@ -54,15 +54,34 @@ export function __warningMessages(): readonly string[] {
 export function __setWarningAnswer(next: Answer): void {
   answer = next;
 }
-// Test-control hook: clears the recorded warnings and restores the dismiss-everything answer.
+// Test-control hook: clears the recorded warnings, information messages and clipboard
+// writes, and restores the dismiss-everything answers.
 export function __resetWarnings(): void {
   warnings = [];
   answer = () => undefined;
+  __resetInfo();
+  clipboard = [];
 }
 // window.showWarningMessage: options objects are skipped, labels are passed to the handler.
 export function recordWarning(message: string, rest: unknown[]): Promise<string | undefined> {
   warnings.push(message);
   return Promise.resolve(answer(message, rest.filter((x): x is string => typeof x === "string")));
+}
+
+// Every text written to the clipboard since the last reset, oldest first. vscode.env (in
+// vscodeEnv.ts) records its writes here, so one reset clears them with the toasts.
+let clipboard: string[] = [];
+// Every text written to the clipboard since the last reset, oldest first.
+export function __clipboardWrites(): readonly string[] {
+  return clipboard;
+}
+// Called by env.clipboard.writeText.
+export function recordClipboardWrite(text: string): void {
+  clipboard.push(text);
+}
+// Test-control hook: forgets the recorded clipboard writes.
+export function clearClipboardWrites(): void {
+  clipboard = [];
 }
 
 // Information toasts: recorded like warnings, answered by a replaceable handler (default: dismissed).

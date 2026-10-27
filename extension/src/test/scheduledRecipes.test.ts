@@ -174,3 +174,66 @@ test("the standup digest is a command-kind recipe driven by standupDigest", asyn
   assert.equal(standup!.action?.kind, "command");
   assert.equal(standup!.action?.commandId, "saropaWorkspace.recipe.standupDigest");
 });
+
+test("the build, lint, test and dependency recipes seed with catch-up on; the other rituals do not", async () => {
+  makeGitRepo();
+  write(".git/config", '[remote "origin"]\n\turl = git@github.com:acme/widget.git\n');
+  write("package.json", '{"scripts":{"test":"node --test"}}');
+  write("eslint.config.js", "export default [];");
+  const out = await detectScheduledRecipes(asFolder(folder));
+  const catchUp = Object.fromEntries(out.map((r) => [r.recipeId, r.schedule?.catchUp]));
+  assert.equal(catchUp["ritual.ci"], true);
+  assert.equal(catchUp["ritual.lint"], true);
+  assert.equal(catchUp["ritual.tests"], true);
+  assert.equal(catchUp["ritual.deps"], true);
+  for (const id of ["ritual.prs", "ritual.eod", "ritual.debt", "ritual.branches", "ritual.journal", "ritual.stats", "ritual.delta", "ritual.standup", "ritual.suite"]) {
+    assert.equal(catchUp[id], undefined, id);
+  }
+  for (const id of ["ritual.ci", "ritual.lint", "ritual.tests", "ritual.deps"]) {
+    assert.equal(out.find((r) => r.recipeId === id)?.schedule?.enabled, false, `${id} still seeds disabled`);
+  }
+});
+
+test("the report checks are offered only where their input exists", async () => {
+  write("package.json", '{"name":"w","version":"1.0.0"}');
+  assert.deepEqual(ids(await detectScheduledRecipes(asFolder(folder))).filter((i) => ["ritual.readiness", "ritual.changelog", "ritual.version", "ritual.branchAge", "ritual.bigFiles", "ritual.links"].includes(i)), []);
+  write("CHANGELOG.md", "## [1.0.0]\n");
+  write("README.md", "# W\n");
+  const manifestOnly = ids(await detectScheduledRecipes(asFolder(folder)));
+  assert.ok(manifestOnly.includes("ritual.changelog"));
+  assert.ok(manifestOnly.includes("ritual.version"), "a README gives the version check something to compare");
+  assert.ok(!manifestOnly.includes("ritual.branchAge") && !manifestOnly.includes("ritual.links"), "git-only checks need a git repository");
+  assert.ok(!manifestOnly.includes("ritual.readiness"), "readiness needs a test runner or linter");
+  write("eslint.config.js", "export default [];");
+  makeGitRepo();
+  const all = ids(await detectScheduledRecipes(asFolder(folder)));
+  for (const id of ["ritual.readiness", "ritual.changelog", "ritual.version", "ritual.branchAge", "ritual.bigFiles", "ritual.links"]) {
+    assert.ok(all.includes(id), id);
+  }
+});
+
+test("the report checks seed disabled, in the scheduled group, running the read-only command for the folder", async () => {
+  write("package.json", '{"name":"w","version":"1.0.0"}');
+  write("CHANGELOG.md", "## [1.0.0]\n");
+  write("README.md", "# W\n");
+  write("eslint.config.js", "export default [];");
+  makeGitRepo();
+  const out = await detectScheduledRecipes(asFolder(folder));
+  const expected: Record<string, string> = {
+    "ritual.readiness": "saropaWorkspace.recipe.releaseReadiness",
+    "ritual.changelog": "saropaWorkspace.recipe.changelogCheck",
+    "ritual.version": "saropaWorkspace.recipe.versionCheck",
+    "ritual.branchAge": "saropaWorkspace.recipe.branchAge",
+    "ritual.bigFiles": "saropaWorkspace.recipe.largeNewFiles",
+    "ritual.links": "saropaWorkspace.recipe.brokenLinks",
+  };
+  for (const [id, command] of Object.entries(expected)) {
+    const r = out.find((x) => x.recipeId === id);
+    assert.equal(r?.group, "scheduled", id);
+    assert.equal(r?.schedule?.enabled, false, id);
+    assert.equal(r?.schedule?.catchUp, undefined, `${id} does not catch up`);
+    assert.equal(r?.action?.kind, "command", id);
+    assert.equal(r?.action?.commandId, command, id);
+    assert.deepEqual(r?.action?.commandArgs, [tmpDir], id);
+  }
+});

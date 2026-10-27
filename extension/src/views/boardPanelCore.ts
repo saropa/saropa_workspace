@@ -16,6 +16,9 @@ import { panelLeft, panelShowed, viewFor } from "./boardSinceLast";
 import { readHandSettings } from "../commands/boardHandToChat";
 import { markScanDone, setFailed, setPanelVisible } from "./boardFeed";
 import { strings } from "./boardStrings";
+import { FutureData, emptyFuture, loadFuture, readFutureSettings } from "../commands/boardFuture";
+import { FutureView } from "../board/boardHtmlFuture";
+import { FutureItem, FutureOutside, FutureSort } from "../board/futureList";
 import { emptyPage, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
 
 // Least time between two looks at the Problems panel.
@@ -55,6 +58,14 @@ export abstract class BoardPanelCore {
   protected liveAt = 0;
   // The lookback in force when the signals were gathered; a bug document uses the same one.
   protected liveDays = 1;
+  // Deferred and blocked documents for the Future tab; loaded after the scan, never awaited by it.
+  protected future: FutureData = emptyFuture();
+  protected futureToken = 0;
+  // The sort chosen on the page; the setting's default until then.
+  protected futureSort: FutureSort | undefined;
+  // What the page was last painted with, so a click's index is resolved against exactly this.
+  protected futureShown: FutureItem[] = [];
+  protected futureOutsideShown: FutureOutside[] = [];
   protected readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -99,6 +110,7 @@ export abstract class BoardPanelCore {
     this.render();
     void this.refreshOutside();
     void this.refreshLive();
+    void this.refreshFuture();
   }
 
   // Paints the previous result at once, dimmed, while the scan runs.
@@ -167,6 +179,26 @@ export abstract class BoardPanelCore {
     this.render();
     void this.refreshOutside();
     void this.refreshLive();
+    void this.refreshFuture();
+  }
+
+  // Reads the deferred and blocked documents off the scan's path and paints the Future tab
+  // when they arrive; a newer call wins.
+  protected async refreshFuture(): Promise<void> {
+    const run = this.run;
+    if (!run || this.disposed) {
+      return;
+    }
+    const token = ++this.futureToken;
+    const next = readFutureSettings().enabled ? await loadFuture(run) : emptyFuture();
+    if (token === this.futureToken && !this.disposed) {
+      this.future = next;
+      if (!this.scanning && !this.cached) {
+        this.render();
+      } else {
+        this.outsidePending = true;
+      }
+    }
   }
 
   // Counts the errors and warnings in the files open documents name, off the scan's path,
@@ -255,7 +287,11 @@ export abstract class BoardPanelCore {
     }
     // The same board in the same state is not painted again: no flicker, no lost scroll.
     const trains = trainsFor(model, cfg);
-    const key = JSON.stringify([this.model, state, this.paths, since, readHandSettings().enabled, trains]);
+    const fset = readFutureSettings();
+    const future: FutureView | undefined = fset.enabled ? { items: this.future.items, outside: this.future.outside, sort: this.futureSort ?? fset.defaultSort, canEdit: !state.stale && !state.loading, researchParallel: fset.researchParallel, handEnabled: readHandSettings().enabled } : undefined;
+    this.futureShown = future?.items ?? [];
+    this.futureOutsideShown = future?.outside ?? [];
+    const key = JSON.stringify([this.model, state, this.paths, since, readHandSettings().enabled, trains, future]);
     if (key === this.lastKey) {
       return;
     }
@@ -267,7 +303,7 @@ export abstract class BoardPanelCore {
     }
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
-    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since, trains);
+    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since, trains, future);
   }
   protected dispose(): void {
     this.onClosed();

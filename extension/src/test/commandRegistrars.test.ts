@@ -1,4 +1,5 @@
-// Contract test for the command registrars: every command id a registrar passes to
+// Contract test for the command registrars (those that register commands; the ones that only
+// register providers are covered by their own tests): every command id a registrar passes to
 // commands.registerCommand must be declared in package.json, and no id may be registered
 // twice (within one registrar or across registrars). A typo in an id, or a command left
 // out of package.json, shows up here instead of as a dead menu entry.
@@ -28,20 +29,14 @@ import { registerProcessMonitorCommands } from "../exec/processMonitorCommands";
 import { registerHygieneCommands } from "../exec/hygieneCommands";
 import { registerRecipeCommands } from "../recipes/recipeCommands";
 import { registerMorningBriefCommand } from "../commands/morningBrief";
-import { registerRunAnalytics } from "../commands/runAnalytics";
-import { registerSimulationPreview } from "../commands/simulateRun";
-import { registerRunOutputDiff } from "../commands/diffRuns";
-import { registerTailFollow } from "../commands/shortcutTailFollow";
 import { registerSetCommands } from "../commands/setCommands";
 import { registerReleaseBoard } from "../commands/releaseBoardCommands";
 import { registerDailyReport } from "../commands/dailyReport";
-import { registerFavoritesImportCommands } from "../commands/favoritesImportCommands";
 import { registerPinConfigCommands } from "../commands/shortcutConfigCommands";
 import { registerPinManagementCommands } from "../commands/shortcutManagementCommands";
 import { registerRemoteControlCommands } from "../commands/remoteControlCommands";
 import { registerNoteCommands } from "../commands/noteCommands";
 import { registerEditorLinks } from "../views/editorLinks";
-import { registerBoardBackground } from "../views/boardBackground";
 import { registerBoardSidebar } from "../views/boardSidebar";
 import { registerSinceLast } from "../views/boardSinceLast";
 
@@ -64,6 +59,26 @@ after(() => {
   nodeFs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+// Commands that are registered but deliberately not in package.json: they are run by id from
+// code (a recipe shortcut, the launcher card, a tree drop), never from the palette or a menu.
+const INTERNAL_IDS: ReadonlySet<string> = new Set([
+  "saropaWorkspace.runPinOnFile",
+  "saropaWorkspace.scheduleRecipe",
+  "saropaWorkspace.recipe.ciStatus",
+  "saropaWorkspace.recipe.guardProject",
+  "saropaWorkspace.recipe.overnightDelta",
+  "saropaWorkspace.recipe.projectStats",
+  "saropaWorkspace.recipe.pruneVscodeTest",
+  "saropaWorkspace.recipe.pubspecOutdated",
+  "saropaWorkspace.recipe.runBloatScan",
+  "saropaWorkspace.recipe.runSavedHygieneScan",
+  "saropaWorkspace.recipe.standupDigest",
+  "saropaWorkspace.recipe.suiteDailyReport",
+  "saropaWorkspace.releaseBoard.editorLinks.openDocument",
+  "saropaWorkspace.releaseBoard.editorLinks.pick",
+]);
+const undeclared = (ids: readonly string[]): string[] => undeclaredIds(ids).filter((id) => !INTERNAL_IDS.has(id));
+
 type Registrar = (ctx: ReturnType<typeof registrarContext>) => void;
 
 // Each registrar, with the arguments it takes, keyed by the module it lives in.
@@ -78,20 +93,14 @@ const registrars: Record<string, Registrar> = {
   "exec/hygieneCommands": (c) => registerHygieneCommands(c as never, store),
   "recipes/recipeCommands": (c) => registerRecipeCommands(c as never),
   "commands/morningBrief": (c) => registerMorningBriefCommand(c as never),
-  "commands/runAnalytics": (c) => registerRunAnalytics(c as never),
-  "commands/simulateRun": (c) => registerSimulationPreview(c as never),
-  "commands/diffRuns": (c) => registerRunOutputDiff(c as never),
-  "commands/shortcutTailFollow": (c) => registerTailFollow(c as never),
   "commands/setCommands": (c) => registerSetCommands(c as never, store),
   "commands/releaseBoardCommands": (c) => registerReleaseBoard(c as never, store),
   "commands/dailyReport": (c) => registerDailyReport(c as never, store),
-  "commands/favoritesImportCommands": (c) => registerFavoritesImportCommands(c as never, store),
   "commands/shortcutConfigCommands": (c) => registerPinConfigCommands(c as never, store),
   "commands/shortcutManagementCommands": (c) => registerPinManagementCommands(c as never, store),
   "commands/remoteControlCommands": (c) => registerRemoteControlCommands(c as never, store),
   "commands/noteCommands": (c) => registerNoteCommands(c as never, new NoteStore(c as never)),
   "views/editorLinks": (c) => registerEditorLinks(c as never),
-  "views/boardBackground": (c) => registerBoardBackground(c as never),
   "views/boardSidebar": (c) => registerBoardSidebar(c as never),
   "views/boardSinceLast": (c) => registerSinceLast(c as never),
 };
@@ -102,13 +111,22 @@ for (const [name, run] of Object.entries(registrars)) {
     const ids = captureRegistrations(() => run(ctx));
     all.push(...ids);
     assert.ok(ids.length > 0, "registers at least one command");
-    assert.deepEqual(undeclaredIds(ids), []);
+    assert.deepEqual(undeclared(ids), []);
     assert.deepEqual(duplicateIds(ids), []);
-    assert.equal(ctx.subscriptions.length, ids.length, "every registration is kept for disposal");
+    assert.ok(ctx.subscriptions.length >= ids.length, "every registration is kept for disposal");
     ctx.subscriptions.forEach((d) => d.dispose());
   });
 }
 
 test("no command id is registered by two registrars", () => {
   assert.deepEqual(duplicateIds(all), []);
+});
+
+test("every internal command id is registered by some registrar and is not declared", () => {
+  const registered = new Set(all);
+  const declared = new Set(undeclaredIds([...INTERNAL_IDS]));
+  for (const id of INTERNAL_IDS) {
+    assert.ok(declared.has(id), `${id} is declared in package.json, so it is not internal`);
+  }
+  assert.deepEqual([...INTERNAL_IDS].filter((id) => !registered.has(id)), []);
 });

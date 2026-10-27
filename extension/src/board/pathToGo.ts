@@ -1,4 +1,5 @@
 import { BoardItem, BoardModel, BoardProject } from "./boardModel";
+import type { FeedState } from "./recipeEvidence";
 
 // Path to GO: the short, ordered list of what stands between one project and a green light.
 // Pure. It reads the same facts that set the light (items that stop a release, the
@@ -14,12 +15,12 @@ import { BoardItem, BoardModel, BoardProject } from "./boardModel";
 //   1. documents that stop the release, the one that frees the most waiting items first,
 //      then red folders before other stoppers, then by severity;
 //   2. collapsed blocked documents that stop the release;
-//   3. lint evidence, then test evidence;
+//   3. build evidence, then dependency evidence (only when failing), then lint evidence, then test evidence;
 //   4. documents no rule placed, one step per folder;
 //   5. documents whose text could not be read;
 //   6. accepting the scan.
 
-export type PathStepKind = "item" | "blocked" | "lint" | "tests" | "rules" | "unread" | "accept";
+export type PathStepKind = "item" | "blocked" | "build" | "deps" | "lint" | "tests" | "rules" | "unread" | "accept";
 
 // One step on the way to GO. Only the fields of its kind are set.
 export interface PathStep {
@@ -39,11 +40,17 @@ export interface PathStep {
   // item: the one stopping document that waits directly on this one. Absent when several do,
   // or when the wait is through other documents, so the wording stays true.
   waiter?: string;
-  // lint, tests: the evidence is missing or old, or failing.
+  // build, lint, tests: the evidence is missing or old, or failing.
   evidence?: "missing" | "failing";
-  // lint, tests: the board can start the shortcut the project names.
+  // build, lint, tests: what the daily report job is doing, when the evidence is missing.
+  feed?: FeedState;
+  // feed "failed": why the job did not start.
+  reason?: string;
+  // feed "off": the step has a button that turns the daily report on.
+  enable?: boolean;
+  // build, lint, tests: the board can start the shortcut the project names.
   run?: boolean;
-  // lint, tests: the health detail line.
+  // build, lint, tests: the health detail line.
   detail?: string;
   // rules: the folder and how many documents sit in it. blocked, unread: how many documents.
   folder?: string;
@@ -156,6 +163,13 @@ function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
     });
 }
 
+// The part of a step that says what the daily report job is doing. Only for missing evidence:
+// a failing result is worded as failing whatever the job is doing.
+function feedPart(project: BoardProject, kind: "build" | "lint" | "tests", e: "missing" | "failing"): Pick<PathStep, "feed" | "reason" | "enable"> {
+  const note = e === "missing" ? project.health?.feeds?.[kind] : undefined;
+  return note ? { feed: note.state, reason: note.reason, enable: note.state === "off" ? true : undefined } : {};
+}
+
 function evidenceStep(kind: "lint" | "tests", project: BoardProject, opts: PathOptions): PathStep | undefined {
   const e = project.health?.[kind] ?? "missing";
   if (e !== "missing" && e !== "failing") {
@@ -167,7 +181,21 @@ function evidenceStep(kind: "lint" | "tests", project: BoardProject, opts: PathO
     evidence: e,
     run: opts.canRun(kind),
     detail: kind === "lint" ? project.health?.lintDetail : project.health?.testsDetail,
+    ...feedPart(project, kind, e),
   };
+}
+
+// The build step. A failing build is a cause of NO-GO. Otherwise it appears only to say what the
+// daily build report is doing, and only while the project is not GO, so a GO project keeps an empty path.
+function buildStep(project: BoardProject): PathStep | undefined {
+  const h = project.health;
+  if (h?.build === "failing") {
+    return { kind: "build", key: "build", evidence: "failing", detail: h.buildDetail };
+  }
+  if (h?.feeds?.build && project.light !== "go" && h.build !== "passing") {
+    return { kind: "build", key: "build", evidence: "missing", detail: h.buildDetail, ...feedPart(project, "build", "missing") };
+  }
+  return undefined;
 }
 
 // Lists what stands between a project and GO, most urgent first, cut at the step limit.
@@ -176,6 +204,13 @@ export function pathToGo(model: BoardModel, project: BoardProject, opts: PathOpt
   const extra: string[] = [];
   if (project.blockedStopping > 0) {
     steps.push({ kind: "blocked", key: "blocked", count: project.blockedStopping });
+  }
+  const build = buildStep(project);
+  if (build) {
+    steps.push(build);
+  }
+  if (project.health?.deps === "failing") {
+    steps.push({ kind: "deps", key: "deps", evidence: "failing", detail: project.health.depsDetail });
   }
   for (const kind of ["lint", "tests"] as const) {
     const s = evidenceStep(kind, project, opts);

@@ -5,6 +5,8 @@ import { Shortcut } from "../model/shortcut";
 import { runOutputs } from "../exec/runOutputs";
 import { runStatusRegistry } from "../exec/runStatus";
 import { ShortcutStore } from "../model/shortcutStore";
+import { feedJobs } from "../exec/feedJobs";
+import { collectFeedNotes, collectFeedReports, readEvidenceSettings } from "./boardRecipeEvidence";
 import { shortcutDisplayName } from "../model/shortcutDisplayName";
 
 // Release Board code health, VS Code layer. Two sources of evidence, both optional:
@@ -125,6 +127,8 @@ export function startHealthRecorder(context: vscode.ExtensionContext, store: Sho
   context.subscriptions.push(runStatusRegistry.onDidChange(() => {
       chain = chain.then(() => record(context, store, loadConfig)).catch(() => undefined);
     }),
+    // A catch-up job started, ended or failed to start: the row should say so.
+    feedJobs.onDidChange(() => recorded.fire()),
     recorded);
 }
 
@@ -143,6 +147,7 @@ async function readLints(root: string, rel: string): Promise<LintRead | undefine
 export async function collectHealth(context: vscode.ExtensionContext, store: ShortcutStore, cfg: BoardConfig, now = Date.now()): Promise<Record<string, ProjectHealth>> {
   const file = await readHealthFile(context.storageUri ?? context.globalStorageUri);
   const out: Record<string, ProjectHealth> = {};
+  const evidence = readEvidenceSettings();
   for (const p of cfg.projects) {
     const lints = await readLints(p.path, p.health?.lintFile ?? DEFAULT_LINT_FILE);
     // A record counts only while its shortcut is still the one the project names.
@@ -153,7 +158,13 @@ export async function collectHealth(context: vscode.ExtensionContext, store: Sho
     };
     const recorded = file.projects[p.id];
     const runs: RecordedRuns = { tests: configured(p.health?.tests, recorded?.tests), lint: configured(p.health?.lint, recorded?.lint) };
-    out[p.id] = evaluateHealth(p.health, runs, lints, now);
+    // The daily reports add evidence when they are fresh; with none, the result is what it was.
+    const reports = await collectFeedReports(vscode.Uri.parse(p.path), evidence, now);
+    out[p.id] = evaluateHealth(p.health, runs, lints, now, reports);
+    const feeds = evidence.enabled ? collectFeedNotes(store, p, reports) : {};
+    if (Object.keys(feeds).length > 0) {
+      out[p.id].feeds = feeds;
+    }
   }
   return out;
 }

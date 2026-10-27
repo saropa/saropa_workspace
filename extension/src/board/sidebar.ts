@@ -88,6 +88,8 @@ export interface SidebarLabels {
   reasons: Record<UnverifiedReason, string>;
   // Why a project is NO-GO when no listed document says so.
   causeLint: string;
+  causeBuild: string;
+  causeDeps: string;
   causeTests: string;
   // Contains {count}.
   causeBlocked: string;
@@ -134,6 +136,12 @@ export function buildSidebarRows(model: Pick<BoardModel, "projects">, opts: Side
     // Documents in a blocked folder stop the release too; they are counted, not listed.
     const count = all.length + (p.blockedStopping ?? 0);
     const causes: string[] = [];
+    if (p.health?.build === "failing") {
+      causes.push(labels.causeBuild);
+    }
+    if (p.health?.deps === "failing") {
+      causes.push(labels.causeDeps);
+    }
     if (p.health?.lint === "failing") {
       causes.push(labels.causeLint);
     }

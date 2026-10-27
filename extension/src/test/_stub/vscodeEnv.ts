@@ -2,18 +2,19 @@
 // can assert what was copied or opened. Split out of vscode.ts to keep that file small.
 
 import type { Uri } from "./vscodeTypes";
+import { __clipboardWrites, clearClipboardWrites, recordClipboardWrite } from "./vscodeExtras";
 
-let clipboardText = "";
 const externalOpens: string[] = [];
 
 /** Stub of `vscode.env`: only the clipboard and openExternal the extension uses. */
 export const env = {
   clipboard: {
     async writeText(value: string): Promise<void> {
-      clipboardText = value;
+      recordClipboardWrite(value);
     },
     async readText(): Promise<string> {
-      return clipboardText;
+      const writes = __clipboardWrites();
+      return writes[writes.length - 1] ?? "";
     },
   },
   async openExternal(target: Uri): Promise<boolean> {
@@ -29,6 +30,6 @@ export function __externalOpens(): readonly string[] {
 
 /** Test hook: empties the clipboard and the opened-URL log. */
 export function __resetEnv(): void {
-  clipboardText = "";
+  clearClipboardWrites();
   externalOpens.length = 0;
 }

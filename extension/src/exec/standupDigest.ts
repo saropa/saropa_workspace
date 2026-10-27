@@ -8,6 +8,7 @@ import { openReport } from "./reportOpen";
 import { parseShortstat } from "./overnightDelta";
 import { buildStandupMarkdown } from "./standupDigestMarkdown";
 import { l10n } from "../i18n/l10n";
+import { standupSummaryLine } from "../board/recipeSummaries";
 
 const execFile = promisify(execFileCb);
 
@@ -317,7 +318,8 @@ async function runStandupDigest(
   const file = path.join(root, ...relative.split("/"));
   try {
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, buildStandupMarkdown(digest, rawLog), "utf8");
+    // The first line is the summary the Release Board reads.
+    await fs.writeFile(file, `${standupSummaryLine(digest.total, Date.now())}\n${buildStandupMarkdown(digest, rawLog)}`, "utf8");
   } catch (err) {
     vscode.window.showErrorMessage(
       l10n("standup.failed", { error: err instanceof Error ? err.message : String(err) })

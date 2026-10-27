@@ -6,10 +6,10 @@ import { execFile as execFileCb } from "child_process";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { openReport } from "./reportOpen";
 import { l10n } from "../i18n/l10n";
-import { buildCiMarkdown, ciHeadline } from "./ciStatusMarkdown";
+import { buildCiMarkdown, ciHeadline, ciSummaryLine } from "./ciStatusMarkdown";
 
 // Re-exported so callers (and tests) keep importing the renderers from here.
-export { buildCiMarkdown, ciHeadline };
+export { buildCiMarkdown, ciHeadline, ciSummaryLine };
 
 const execFile = promisify(execFileCb);
 
@@ -257,7 +257,7 @@ async function runCiStatus(folderPath?: unknown): Promise<string | undefined> {
   const file = path.join(root, ...relative.split("/"));
   try {
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, buildCiMarkdown(status), "utf8");
+    await fs.writeFile(file, `${ciSummaryLine(status, Date.now())}\n${buildCiMarkdown(status)}`, "utf8");
   } catch (err) {
     vscode.window.showErrorMessage(
       l10n("ci.failed", { error: err instanceof Error ? err.message : String(err) })

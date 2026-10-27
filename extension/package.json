@@ -2515,6 +2515,30 @@
             "default": true,
             "description": "%config.releaseBoard.pathToGo.showRunButtons.description%"
           },
+          "saropaWorkspace.releaseBoard.recipeEvidence.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.recipeEvidence.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.recipeEvidence.maxAgeHours": {
+            "type": "number",
+            "default": 36,
+            "minimum": 1,
+            "maximum": 720,
+            "description": "%config.releaseBoard.recipeEvidence.maxAgeHours.description%"
+          },
+          "saropaWorkspace.releaseBoard.recipeEvidence.idleMinutes": {
+            "type": "number",
+            "default": 2,
+            "minimum": 0,
+            "maximum": 60,
+            "description": "%config.releaseBoard.recipeEvidence.idleMinutes.description%"
+          },
+          "saropaWorkspace.releaseBoard.recipeEvidence.rowNotes": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.recipeEvidence.rowNotes.description%"
+          },
           "saropaWorkspace.releaseBoard.handToChat.enabled": {
             "type": "boolean",
             "default": true,
@@ -2660,6 +2684,11 @@
             "maximum": 20,
             "description": "%config.releaseBoard.sinceLast.maxListed.description%"
           },
+          "saropaWorkspace.releaseBoard.sinceLast.reports": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.sinceLast.reports.description%"
+          },
           "saropaWorkspace.releaseBoard.sittings.enabled": {
             "type": "boolean",
             "default": true,
@@ -2707,6 +2736,36 @@
             "type": "string",
             "default": "docs/history",
             "description": "%config.releaseBoard.tidy.archiveFolder.description%"
+          },
+          "saropaWorkspace.releaseBoard.tidy.reports": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.tidy.reports.description%"
+          },
+          "saropaWorkspace.releaseBoard.future.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.future.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.future.defaultSort": {
+            "type": "string",
+            "enum": ["score", "wow", "effort", "risk", "reach"],
+            "default": "score",
+            "enumDescriptions": [
+              "%config.releaseBoard.future.defaultSort.score%",
+              "%config.releaseBoard.future.defaultSort.wow%",
+              "%config.releaseBoard.future.defaultSort.effort%",
+              "%config.releaseBoard.future.defaultSort.risk%",
+              "%config.releaseBoard.future.defaultSort.reach%"
+            ],
+            "description": "%config.releaseBoard.future.defaultSort.description%"
+          },
+          "saropaWorkspace.releaseBoard.future.researchParallel": {
+            "type": "integer",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 10,
+            "description": "%config.releaseBoard.future.researchParallel.description%"
           },
           "saropaWorkspace.releaseBoard.train.enabled": {
             "type": "boolean",
@@ -2793,6 +2852,25 @@
             "type": "boolean",
             "default": true,
             "description": "%config.recipes.enabled.description%"
+          },
+          "saropaWorkspace.recipes.staleBranchDays": {
+            "type": "number",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 365,
+            "description": "%config.recipes.staleBranchDays.description%"
+          },
+          "saropaWorkspace.recipes.largeNewFileKB": {
+            "type": "number",
+            "default": 1024,
+            "minimum": 10,
+            "maximum": 1048576,
+            "description": "%config.recipes.largeNewFileKB.description%"
+          },
+          "saropaWorkspace.recipes.changelogFile": {
+            "type": "string",
+            "default": "CHANGELOG.md",
+            "description": "%config.recipes.changelogFile.description%"
           },
           "saropaWorkspace.recommend.aggressive": {
             "type": "boolean",

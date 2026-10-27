@@ -5,6 +5,7 @@ import { checkScan } from "../board/safety";
 import { openBoard } from "../views/boardPanel";
 import { ProjectHealth } from "../board/health";
 import { collectHealth, findHealthShortcut, startHealthRecorder } from "./boardHealth";
+import { enableFeedSchedule } from "./boardRecipeEvidence";
 import { registerBoardOvernight } from "./boardOvernight";
 import { toBackground } from "../exec/chainRunner";
 import { exportMarksCommand, markCommand, readMarks } from "./boardMarks";
@@ -214,6 +215,12 @@ export async function runHealthNow(project: ProjectDef, kind: "lint" | "tests"):
   }
   await vscode.commands.executeCommand("saropaWorkspace.runPin", toBackground(shortcut));
   return true;
+}
+
+// Turns on the daily report of the recipe that feeds a row. The page names only the project and
+// the row; the recipe is found here. Returns false when the project has no such recipe.
+export async function enableDailyReport(project: ProjectDef, feed: "build" | "lint" | "tests"): Promise<boolean> {
+  return boardStore ? enableFeedSchedule(boardStore, project, feed) : false;
 }
 
 // True when a project lives outside the open workspace folders, where no file watcher sees

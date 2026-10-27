@@ -16,6 +16,7 @@ import { recordLastReport } from "./lastReport";
 import { openReport } from "./reportOpen";
 import { runRoutine } from "./routineRunner";
 import { fenceBlock, buildCommandReport, summarizeReportBody } from "./actionReport";
+import { feedOfAction, formatSummaryLine, summarizeShellRun } from "../board/reportSummary";
 import { firstWorkspacePath, expandRecipeTokens, reportRelativePath } from "./actionTokens";
 
 // Re-exported so existing import paths keep working.
@@ -214,6 +215,14 @@ interface ReportRun {
   readonly autoOpen: boolean;
 }
 
+// The summary line for a lint or test report, which the Release Board reads. Other reports
+// carry none. The feed comes from the report file name, so a stored copy of the recipe works too.
+export function feedSummaryLine(reportPath: string, code: number | null, body: string): string | undefined {
+  const info = feedOfAction({ reportFile: reportPath });
+  const summary = info ? summarizeShellRun(info.feed, code, body, Date.now()) : undefined;
+  return summary ? formatSummaryLine(summary) : undefined;
+}
+
 /**
  * Writes the captured output as a report file, then records the run: last-report
  * link, status, finish cue, chain event, badge, and the optional auto-open.
@@ -225,7 +234,7 @@ async function writeReportAndRecord(run: ReportRun): Promise<void> {
   const nodePath = await import("path");
     const fs = await import("fs/promises");
     await fs.mkdir(nodePath.dirname(reportPath), { recursive: true });
-    await fs.writeFile(reportPath, buildCommandReport(name, commandLine, body), "utf8");
+    await fs.writeFile(reportPath, buildCommandReport(name, commandLine, body, feedSummaryLine(reportPath, code, body)), "utf8");
     channel.appendLine(l10n("report.wrote", { name, path: reportPath }));
     // Hand the written report path to the scheduler so a scheduled fire can
     // persist a durable "Open report" link for this shortcut (see lastReport.ts).

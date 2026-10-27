@@ -2,6 +2,7 @@ import { BoardModel } from "./boardModel";
 import { SittingLine } from "./sittings";
 import { Train, trainRows } from "./train";
 import { SinceView } from "./sinceLast";
+import { TidyReport } from "./tidy";
 import { BoardStrings, escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
 
 // The boxes around the project rows: sittings, tidy, unnamed crashes, trains, linked
@@ -35,12 +36,30 @@ export function sittingsBox(model: BoardModel, t: BoardStrings): string {
   return `<section class="box" id="sit-panel" hidden><h2>${escapeHtml(t.sittingsHeading)}</h2><div class="seg" role="group">${v.contexts.map((c) => toggle(c.id, c.label)).join("")}</div> <div class="seg" role="group">${time}</div>${body}${rest}${untagged}</section>`;
 }
 
-// The Tidy box: documents with every step done that nobody has touched for a while. Open
-// by default when there is something to list. The button carries only an index; the host
-// resolves it against the list it rendered and asks before it moves anything.
+// The words for one report candidate in the Tidy box. Already escaped.
+function reportText(r: TidyReport, t: BoardStrings): string {
+  switch (r.kind) {
+    case "debt": {
+      const word = r.trend === "up" ? t.tidyTrendUp : r.trend === "down" ? t.tidyTrendDown : r.trend === "same" ? t.tidyTrendSame : undefined;
+      return word === undefined ? fill(t.tidyRepDebt, { count: r.count }) : fill(t.tidyRepDebtTrend, { count: r.count, trend: word });
+    }
+    case "branches":
+      return fill(t.tidyRepBranches, { count: r.count });
+    case "bloat":
+      return fill(t.tidyRepBloat, { count: r.count });
+    default:
+      return fill(t.tidyRepBigFiles, { count: r.count });
+  }
+}
+
+// The Tidy box: documents with every step done that nobody has touched for a while, then the
+// reports of the tech-debt, branch and bloat recipes. Open by default when there is something
+// to list. Buttons carry only an index; the host resolves it against the list it rendered. A
+// document move asks first; a report row only opens the report and changes nothing.
 export function tidyBox(model: BoardModel, t: BoardStrings): string {
   const v = model.tidy;
-  if (!v || v.candidates.length === 0) {
+  const reports = v?.reports ?? [];
+  if (!v || (v.candidates.length === 0 && reports.length === 0)) {
     return "";
   }
   const rows = v.candidates
@@ -50,7 +69,12 @@ export function tidyBox(model: BoardModel, t: BoardStrings): string {
     })
     .join("");
   const more = v.more > 0 ? `<p class="note">${escapeHtml(t.tidyMore.replace("{count}", String(v.more)))}</p>` : "";
-  return `<section class="box" id="tidy-box"><h2 title="${escapeHtml(t.tidyTitle.replace("{count}", String(v.candidates.length + v.more)))}">${escapeHtml(t.tidyHeading)}</h2><p class="note">${escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays)))}</p>${rows}${more}</section>`;
+  const repRows = reports
+    .map((r, i) => `<div class="row tidy"><span class="tag">${escapeHtml(r.projectName)}</span><span class="f">${reportText(r, t)}</span><button data-tidyrep="${i}">${escapeHtml(t.tidyOpenReport)}</button></div>`)
+    .join("");
+  const repNote = reports.length > 0 ? `<p class="note">${escapeHtml(t.tidyReportsNote)}</p>` : "";
+  const note = v.candidates.length > 0 ? `<p class="note">${escapeHtml(t.tidyNote.replace("{days}", String(v.afterDays)))}</p>` : "";
+  return `<section class="box" id="tidy-box"><h2 title="${escapeHtml(t.tidyTitle.replace("{count}", String(v.candidates.length + v.more + reports.length)))}">${escapeHtml(t.tidyHeading)}</h2>${note}${rows}${more}${repNote}${repRows}</section>`;
 }
 
 // Crash signals from debug runs in files that no open document names. The button carries only

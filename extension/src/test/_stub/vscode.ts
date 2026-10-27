@@ -40,7 +40,7 @@ export type { FakeInputBox, FakeTerminal } from "./vscodeShell";
 export type { FakeTextEditor } from "./vscodeEditor";
 export { StatusBarAlignment, ProgressLocation, __progressRuns, __providerRegistrations, __fireHostEvent, __fileWatchers, __treeViews, __statusBarItems, __quickPicks, __setQuickPickDriver, __setTabGroups, __resetHosts } from "./vscodeHosts";
 
-export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __infoCalls, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
+export { DiagnosticSeverity, Disposable, WorkspaceEdit, __clipboardWrites, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, __infoMessages, __infoCalls, __setInfoAnswer, __resetInfo } from "./vscodeExtras";
 
 // that path); a test installs folders pointing at its temp directory.
 let folders: WorkspaceFolder[] | undefined;

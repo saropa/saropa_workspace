@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from enum import Enum
 from pathlib import Path
 
@@ -311,12 +312,27 @@ def show_logo() -> None:
 # --------------------------------------------------------------------------- #
 
 
+# Seconds before any child process is killed unless the caller passes its own.
+DEFAULT_TIMEOUT = 900
+
+# Tell every child tool never to wait on a human: git never asks for credentials
+# or opens an editor, gh never prompts. Combined with stdin=DEVNULL, a tool that
+# wants input fails with an error instead of hanging.
+_NON_INTERACTIVE_ENV = {
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_EDITOR": "true",
+    "GH_PROMPT_DISABLED": "1",
+}
+
+
 def run(
     args: list[str],
     cwd: Path,
     *,
     check: bool = True,
     capture: bool = False,
+    timeout: float | None = DEFAULT_TIMEOUT,
+    label: str | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a command and return the completed process.
 
@@ -332,19 +348,60 @@ def run(
     shutil.which to get an executable path subprocess can launch directly.
     Output is forced to UTF-8 with replacement so a stray byte never crashes the
     run on a Windows cp1252 console.
+
+    stdin is closed (DEVNULL) so a tool that wants to ask a question (for example
+    npx's "Ok to proceed?" install prompt) gets EOF and fails fast instead of
+    waiting forever on input the operator cannot see. *timeout* (seconds) kills a
+    command that hangs; the result then has returncode 124. When *label* is set
+    and the terminal is interactive, a live elapsed-time line is shown while a
+    captured command runs.
     """
     # --json mode captures all subprocess output so only the JSON line hits stdout.
     effective_capture = capture or _JSON_OUTPUT
     exe = shutil.which(args[0]) or args[0]
-    return subprocess.run(
-        [exe, *args[1:]],
+    cmd = [exe, *args[1:]]
+    kwargs = dict(
         cwd=str(cwd),
-        check=check,
         text=True,
-        capture_output=effective_capture,
         encoding="utf-8",
         errors="replace",
+        stdin=subprocess.DEVNULL,
+        env={**os.environ, **_NON_INTERACTIVE_ENV},
     )
+    if effective_capture:
+        kwargs["stdout"] = subprocess.PIPE
+        kwargs["stderr"] = subprocess.PIPE
+    show_progress = bool(label) and effective_capture and not _QUIET and sys.stdout.isatty()
+    proc = subprocess.Popen(cmd, **kwargs)
+    start = time.monotonic()
+    out = err = ""
+    timed_out = False
+    # communicate() in short slices so the elapsed ticker can refresh and the
+    # timeout is enforced without a second thread.
+    while True:
+        try:
+            out, err = proc.communicate(timeout=1.0)
+            break
+        except subprocess.TimeoutExpired:
+            elapsed = time.monotonic() - start
+            if timeout is not None and elapsed >= timeout:
+                proc.kill()
+                out, err = proc.communicate()
+                timed_out = True
+                break
+            if show_progress:
+                sys.stdout.write(f"\r  ... {label} ({int(elapsed)}s)")
+                sys.stdout.flush()
+    if show_progress:
+        sys.stdout.write("\r" + " " * (len(label or "") + 20) + "\r")
+        sys.stdout.flush()
+    returncode = 124 if timed_out else proc.returncode
+    if timed_out:
+        err = (err or "") + f"\nTimed out after {int(timeout or 0)}s."
+    result = subprocess.CompletedProcess(cmd, returncode, out, err)
+    if check and returncode != 0:
+        raise subprocess.CalledProcessError(returncode, cmd, out, err)
+    return result
 
 
 def print_failure_tail(result: subprocess.CompletedProcess, *, limit: int = 12) -> None:
