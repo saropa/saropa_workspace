@@ -37,6 +37,12 @@ class RunOutputs {
     return [list[0], list[1]];
   }
 
+  // The most recent captured run, or undefined when none.
+  latest(pinId: string): CapturedRun | undefined {
+    const list = this.byShortcut.get(pinId);
+    return list && list.length > 0 ? list[list.length - 1] : undefined;
+  }
+
   // Drop a shortcut's captured runs (called on remove so they do not linger).
   clear(pinId: string): void {
     this.byShortcut.delete(pinId);

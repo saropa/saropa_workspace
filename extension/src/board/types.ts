@@ -1,3 +1,4 @@
+import { HealthConfig } from "./health";
 import { Profile, SeverityDict } from "./severity";
 // Release Board: shared types. The board core (this folder) never imports "vscode"
 // (a unit test enforces it) so it runs under the plain node test runner and works the
@@ -74,6 +75,8 @@ export interface ProjectDef {
   mentions?: string[];
   params?: Record<string, ParamValue>;
   rules?: Rule[];
+  // Where lint and test evidence comes from (see health.ts).
+  health?: HealthConfig;
 }
 
 export interface BoardConfig {

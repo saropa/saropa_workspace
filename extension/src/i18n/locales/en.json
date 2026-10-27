@@ -1852,5 +1852,9 @@
   "releaseBoard.rulesCreated": "Release Board: created {file}. Add rules, pinned documents or groups here.",
   "releaseBoard.previewPrompt": "Glob to preview (matched against paths inside each project, e.g. docs/**/PLAN_*.md)",
   "releaseBoard.previewResult": "{count} document(s) match {glob}. First: {sample}",
-  "releaseBoard.previewNone": "No document matches {glob}."
+  "releaseBoard.previewNone": "No document matches {glob}.",
+  "releaseBoard.panel.reasonUnread": "Some open documents could not be read, so their severity is unknown",
+  "releaseBoard.panel.go": "GO",
+  "releaseBoard.panel.healthLint": "Lint",
+  "releaseBoard.panel.healthTests": "Tests"
 }
