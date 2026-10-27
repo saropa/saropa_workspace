@@ -1,5 +1,7 @@
 import { DocFacts, sizeClass, stepTotals } from "./docFacts";
 import { SafetyResult } from "./safety";
+import { buildGroups } from "./groups";
+import { Link, LinkState, buildChains, resolveLinks } from "./links";
 import { ScanSnapshot } from "./scanner";
 import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCounts } from "./types";
 
@@ -28,6 +30,14 @@ export interface BoardItem {
   kind: string;
   // Marks, rolled up from the document's facts (absent when its text was not read).
   marks?: ItemMarks;
+  // Group heading this item sits under (two or more related documents), if any.
+  group?: { id: string; name: string };
+  // A very large or heavily cross-referencing document: it links to groups, never merges them.
+  hub: boolean;
+  // Needs lines: what this item waits on. "open" waits, "done" is satisfied, "flag" needs a look.
+  link?: { state: "open" | "done" | "flag"; detail: string };
+  // How many open items wait on this one.
+  blocksCount: number;
 }
 
 export interface ItemMarks {
@@ -57,8 +67,21 @@ export interface BoardProject {
   dependsOn: string[];
 }
 
+// One step of a chain, in the order things must be finished.
+export interface ChainStep {
+  project: string;
+  title: string;
+  path: string;
+  // Open items can be clicked; a finished or non-listed target cannot.
+  id?: number;
+  done: boolean;
+}
+
 export interface BoardModel {
   projects: BoardProject[];
+  chains: ChainStep[][];
+  // Needs lines that point nowhere, at several documents, or at finished work.
+  flags: string[];
   // Every item, flat, with its id: the host resolves a click by id and never trusts a path
   // sent by the page.
   items: BoardItem[];
@@ -69,6 +92,22 @@ export interface BoardModel {
 const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
 const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };
 const IMPORTANCE: Record<string, number> = { high: 0, normal: 1, low: 2 };
+
+function linkSummary(mine: Link[], byKey: Map<string, BoardItem>): { state: "open" | "done" | "flag"; detail: string } {
+  const flagged = mine.filter((l) => l.state === "missing" || l.state === "ambiguous");
+  const open = mine.filter((l) => l.state === "open");
+  const label = (l: Link): string => {
+    const t = l.toProject && l.toPath ? byKey.get(l.toProject + "\t" + l.toPath) : undefined;
+    return t?.title ?? (l.toPath ? titleFromPath(l.toPath) : l.target);
+  };
+  if (flagged.length > 0) {
+    return { state: "flag", detail: flagged.map((l) => `${l.target}: ${l.state as LinkState}`).join("; ") };
+  }
+  if (open.length > 0) {
+    return { state: "open", detail: "Waits on " + open.map(label).join(", ") };
+  }
+  return { state: "done", detail: "Needs " + mine.map(label).join(", ") + " (finished: remove the Needs line)" };
+}
 
 function marksOf(f: DocFacts, names: Map<string, string>): ItemMarks {
   const { done, total } = stepTotals(f);
@@ -138,6 +177,8 @@ export function buildBoard(
         status: r.status as "red" | "amber" | "purple",
         kind: r.kind,
         marks: facts ? marksOf(facts, names) : undefined,
+        hub: false,
+        blocksCount: 0,
       });
     }
     items.sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.path.localeCompare(b.path));
@@ -164,8 +205,55 @@ export function buildBoard(
       dependsOn: def.dependsOn ?? [],
     });
   }
+  // Groups, linkages and chains need every open item, so they are computed once all
+  // projects are built.
+  const factsOf = (it: BoardItem) => snapshot?.projects[it.project]?.facts[it.path]?.facts;
+  const keyOf = (it: BoardItem): string => it.project + "\t" + it.path;
+  const grouping = buildGroups(
+    all.map((it) => {
+      const f = factsOf(it);
+      return { key: keyOf(it), project: it.project, path: it.path, words: f?.words ?? 0, docRefs: f?.docRefs ?? 0, sourceFiles: f?.sourceFiles ?? [] };
+    }),
+    { manual: cfg.groups, ungrouped: cfg.ungrouped }
+  );
+  const needs = new Map<string, string[]>();
+  for (const it of all) {
+    const n = factsOf(it)?.needs;
+    if (n && n.length > 0) {
+      needs.set(keyOf(it), n);
+    }
+  }
+  const links = resolveLinks(rows, needs, cfg.projects);
+  const byKey = new Map(all.map((it) => [keyOf(it), it]));
+  for (const it of all) {
+    it.group = grouping.groupOf.get(keyOf(it));
+    it.hub = grouping.hubs.has(keyOf(it));
+    const mine = links.filter((l) => l.fromProject === it.project && l.fromPath === it.path);
+    if (mine.length > 0) {
+      it.link = linkSummary(mine, byKey);
+    }
+  }
+  for (const l of links) {
+    if (l.state === "open" && l.toProject && l.toPath) {
+      const t = byKey.get(l.toProject + "\t" + l.toPath);
+      if (t) {
+        t.blocksCount += 1;
+      }
+    }
+  }
+  const flags = links
+    .filter((l) => l.state !== "open")
+    .map((l) => `${names.get(l.fromProject) ?? l.fromProject}: ${titleFromPath(l.fromPath)} — ${l.target}: ${l.state}`);
+  const chains = buildChains(links).map((c) =>
+    c.map((n) => {
+      const it = byKey.get(n.project + "\t" + n.path);
+      return { project: names.get(n.project) ?? n.project, title: it?.title ?? titleFromPath(n.path), path: n.path, id: it?.id, done: false };
+    })
+  );
   return {
     projects,
+    chains,
+    flags,
     items: all,
     // Once the user accepts (or the scan was clean) neither banner shows.
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,

@@ -1833,5 +1833,10 @@
   "releaseBoard.panel.reasonGrey": "{count} documents no rule placed",
   "releaseBoard.panel.reasonHealth": "no lint or test result yet",
   "releaseBoard.panel.allClear": "Nothing open.",
-  "releaseBoard.panel.dependsOn": "Depends on"
+  "releaseBoard.panel.dependsOn": "Depends on",
+  "releaseBoard.panel.linkedHeading": "Waiting on something else",
+  "releaseBoard.panel.linkedNote": "Read top to bottom: each step waits on the one above. Comes from a Needs: line in the document.",
+  "releaseBoard.panel.flagsHeading": "Needs lines to check",
+  "releaseBoard.panel.flagsNote": "A Needs: line that points nowhere, at several documents, or at work that is already finished.",
+  "releaseBoard.panel.hub": "Names files from several groups, so it links to them instead of joining them"
 }

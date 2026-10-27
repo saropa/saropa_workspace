@@ -18,6 +18,10 @@ export interface DocFacts {
   langs: Record<string, number>;
   docRefs: number;
   sourceRefs: number;
+  // The source files named (first 40), for grouping documents that touch the same files.
+  sourceFiles: string[];
+  // Targets of "Needs:" lines: what must be done before this document's work can finish.
+  needs: string[];
   prs: number;
   urls: number;
   // Ids of other projects the text mentions (see ProjectDef.mentions).
@@ -59,6 +63,22 @@ function sqlTitle(text: string): string {
     }
   }
   return "";
+}
+
+// "Needs: docs/PLAN_A.md, [Other](../x/PLAN_B.md); supabase:db-access/run.sql" gives the
+// three targets. A target is a path, a file name, a Markdown link, or "project:path".
+export function parseNeeds(body: string): string[] {
+  const out: string[] = [];
+  for (const m of body.matchAll(/^[\s>*_-]*\**needs\**\s*:\s*\**\s*(.+)$/gim)) {
+    for (const part of m[1].split(/[;,]|\s+and\s+/)) {
+      const link = /\]\(([^)\s]+)\)/.exec(part);
+      const t = (link ? link[1] : part).trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "");
+      if (t && !out.includes(t)) {
+        out.push(t);
+      }
+    }
+  }
+  return out;
 }
 
 export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
@@ -126,6 +146,8 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     langs: isSql ? { sql: 1 } : langs,
     docRefs: unique(body.matchAll(/[\w./-]+\.md/g)),
     sourceRefs: unique(text.matchAll(srcRe)),
+    sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
+    needs: isSql ? [] : parseNeeds(body),
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
     mentions: mentions.sort(),

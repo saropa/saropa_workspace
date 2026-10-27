@@ -33,6 +33,11 @@ function strings(): BoardStrings {
     reasonHealth: l10n("releaseBoard.panel.reasonHealth"),
     allClear: l10n("releaseBoard.panel.allClear"),
     dependsOn: l10n("releaseBoard.panel.dependsOn"),
+    linkedHeading: l10n("releaseBoard.panel.linkedHeading"),
+    linkedNote: l10n("releaseBoard.panel.linkedNote"),
+    flagsHeading: l10n("releaseBoard.panel.flagsHeading"),
+    flagsNote: l10n("releaseBoard.panel.flagsNote"),
+    hub: l10n("releaseBoard.panel.hub"),
   };
 }
 
