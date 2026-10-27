@@ -144,7 +144,8 @@ export function buildBoard(
   rows: Classified[],
   safety: SafetyResult | undefined,
   accepted: boolean,
-  snapshot?: ScanSnapshot
+  snapshot?: ScanSnapshot,
+  previous?: ScanSnapshot
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
@@ -197,7 +198,8 @@ export function buildBoard(
     projects.push({
       id: def.id,
       name: def.name ?? def.id,
-      light: counts.red > 0 ? "no-go" : "unverified",
+      // A scan held by the safety check must never hide red work the accepted scan had.
+      light: counts.red > 0 || (!accepted && (previous?.projects[def.id]?.counts.red ?? 0) > 0) ? "no-go" : "unverified",
       reasons,
       items,
       blocked,

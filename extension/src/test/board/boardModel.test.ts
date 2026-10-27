@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildBoard } from "../../board/boardModel";
 import { BoardStrings, escapeHtml, renderBoard } from "../../board/boardHtml";
-import { BoardConfig, BoardStatus, Classified } from "../../board/types";
+import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 
 const cfg: BoardConfig = {
   version: 1,
@@ -81,4 +81,20 @@ test("html: titles are escaped, the list is capped, accept shows only for an una
   const accepted = buildBoard(cfg, rows, { baseline: true, findings: [], clean: false }, true);
   assert.ok(!renderBoard(accepted, t, "N").includes('id="accept"'));
   assert.equal(escapeHtml(`a&b"'<`), "a&#38;b&#34;&#39;&#60;");
+});
+
+test("a held scan keeps NO-GO when the accepted scan had red work", () => {
+  const counts = (red: number) => ({ ...emptyCounts(), red });
+  const prev = { version: 1 as const, takenAt: 1, projects: { app: { counts: counts(3), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: {} } } };
+  const held = buildBoard(cfg, [], undefined, false, undefined, prev);
+  assert.equal(held.projects.find((p) => p.id === "app")!.light, "no-go");
+  const accepted = buildBoard(cfg, [], undefined, true, undefined, prev);
+  assert.equal(accepted.projects.find((p) => p.id === "app")!.light, "unverified");
+});
+
+test("the first screen carries no counts or sentences in visible text", () => {
+  const m = buildBoard(cfg, [row("app", "bugs/A.md", "red")], undefined, true);
+  const html = renderBoard(m, t, "n", 7);
+  assert.ok(!/<span class="n">/.test(html));
+  assert.ok(html.includes("const REV=7"));
 });

@@ -5,7 +5,7 @@ import {
   findStatusWord,
   needsStatusWord,
 } from "./ruleEngine";
-import { DocFacts, FactsOptions, readFacts } from "./docFacts";
+import { DocFacts, FACTS_VERSION, FactsOptions, readFacts } from "./docFacts";
 import {
   BoardConfig,
   Classified,
@@ -57,6 +57,8 @@ export interface ProjectSnapshot {
   files: Record<string, CachedFile>;
   // Facts of the open documents only (red, amber, purple).
   facts: Record<string, CachedFacts>;
+  // The reader version and options the cached facts were taken with; a mismatch drops them.
+  factsKey?: string;
 }
 
 export interface ScanSnapshot {
@@ -72,6 +74,8 @@ export interface ScanResult {
 
 const DEFAULT_EXTENSIONS = [".md", ".sql"];
 const STATUS_LINES = 20;
+// Documents above this size get no facts: reading them costs more than the marks are worth.
+const MAX_FACTS_BYTES = 2_000_000;
 const OPEN: ReadonlySet<string> = new Set(["red", "amber", "purple"]);
 
 function folderOf(path: string): string {
@@ -110,6 +114,8 @@ export async function scanProject(
       cfg.projects.filter((p) => p.mentions?.length && p.id !== project.id).map((p) => [p.id, p.mentions!.join("|")])
     ),
   };
+  snap.factsKey = FACTS_VERSION + ":" + JSON.stringify(factsOpt);
+  const prevFacts = previous?.factsKey === snap.factsKey ? previous.facts : undefined;
   const seen = new Set<string>();
   for (const root of project.roots) {
     let files: ScanFile[];
@@ -145,13 +151,18 @@ export async function scanProject(
       }
       const row = classifyFile(cp, f, word || undefined);
       rows.push(row);
-      if (source.readText && OPEN.has(row.status) && row.note !== "blocked") {
-        const hit = previous?.facts?.[f.path];
+      if (source.readText && OPEN.has(row.status) && row.note !== "blocked" && f.size <= MAX_FACTS_BYTES) {
+        const hit = prevFacts?.[f.path];
         if (hit && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
           snap.facts[f.path] = hit;
         } else {
-          const text = await source.readText(project.path, f.path);
-          snap.facts[f.path] = { size: f.size, mtimeMs: f.mtimeMs, facts: readFacts(text, f.path, factsOpt) };
+          // One unreadable document gives no marks; it must not abort the scan.
+          try {
+            const text = await source.readText(project.path, f.path);
+            snap.facts[f.path] = { size: f.size, mtimeMs: f.mtimeMs, facts: readFacts(text, f.path, factsOpt) };
+          } catch {
+            // no facts for this file
+          }
         }
       }
       snap.counts[row.status] += 1;

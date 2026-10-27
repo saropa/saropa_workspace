@@ -3,6 +3,9 @@
 // pull requests, links and other projects. Pure and cheap; cached by size and modified
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
+// Bump when the way facts are read changes, so cached facts from an older reader are dropped.
+export const FACTS_VERSION = 1;
+
 export interface DocFacts {
   title: string;
   headings: number;
@@ -118,7 +121,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
       }
     }
   }
-  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})\s+(.+)$/gm)];
+  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})[ \t]+(.+)$/gm)];
   const title = isSql ? sqlTitle(text) : (heads[0]?.[2] ?? "").trim().slice(0, 80);
 
   const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
@@ -144,7 +147,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     rowsDone,
     codeBlocks,
     langs: isSql ? { sql: 1 } : langs,
-    docRefs: unique(body.matchAll(/[\w./-]+\.md/g)),
+    docRefs: unique(body.matchAll(/[\w./-]{1,200}\.md/g)),
     sourceRefs: unique(text.matchAll(srcRe)),
     sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
     needs: isSql ? [] : parseNeeds(body),
