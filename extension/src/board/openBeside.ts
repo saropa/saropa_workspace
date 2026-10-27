@@ -21,6 +21,10 @@ export function chooseDocumentColumn(input: OpenBesideInput): number | undefined
   if (!input.openBeside || input.placement === "sameGroup" || input.boardColumn === undefined) {
     return undefined;
   }
+  // A board column that is not an open group is stale: do not guess, open beside.
+  if (!input.groupColumns.includes(input.boardColumn)) {
+    return COLUMN_BESIDE;
+  }
   const others = input.groupColumns.filter((c) => c !== input.boardColumn);
   if (input.activeColumn !== undefined && others.includes(input.activeColumn)) {
     return input.activeColumn;

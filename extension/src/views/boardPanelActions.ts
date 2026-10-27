@@ -81,7 +81,7 @@ export function setBoardColumnSource(source: () => number | undefined): void {
 }
 
 // The group a document opens in, or undefined to leave it to the editor.
-function documentColumn(): number | undefined {
+export function documentColumn(): number | undefined {
   const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard");
   const groups = vscode.window.tabGroups;
   return chooseDocumentColumn({
@@ -89,7 +89,7 @@ function documentColumn(): number | undefined {
     placement: parsePlacement(c.get("placement")),
     boardColumn: boardColumn(),
     groupColumns: groups.all.map((g) => g.viewColumn),
-    activeColumn: groups.activeTabGroup.viewColumn
+    activeColumn: groups.activeTabGroup?.viewColumn
   });
 }
 

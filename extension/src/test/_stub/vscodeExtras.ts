@@ -126,12 +126,26 @@ export class WorkspaceEdit {
   renameFile(from: { fsPath: string }, to: { fsPath: string }, _options?: unknown): void {
     this.renames.push({ from, to });
   }
+  readonly creates: Array<{ fsPath: string; text: string }> = [];
+  createFile(target: { fsPath: string }, _options?: unknown): void {
+    this.creates.push({ fsPath: target.fsPath, text: "" });
+  }
+  insert(target: { fsPath: string }, _at: unknown, text: string): void {
+    const c = this.creates.find((x) => x.fsPath === target.fsPath);
+    if (c) {
+      c.text += text;
+    }
+  }
 }
 // workspace.applyEdit: renames on disk; refuses (false) when a destination already exists.
 export function applyEdit(edit: WorkspaceEdit): Promise<boolean> {
   if (edit.renames.some((r) => nodeFs.existsSync(r.to.fsPath))) {
     return Promise.resolve(false);
   }
+  if (edit.creates.some((c) => nodeFs.existsSync(c.fsPath))) {
+    return Promise.resolve(false);
+  }
+  edit.creates.forEach((c) => nodeFs.writeFileSync(c.fsPath, c.text));
   edit.renames.forEach((r) => nodeFs.renameSync(r.from.fsPath, r.to.fsPath));
   return Promise.resolve(true);
 }

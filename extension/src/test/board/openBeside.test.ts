@@ -40,3 +40,11 @@ test("only false turns the setting off", () => {
   assert.equal(parseOpenBeside(true), true);
   assert.equal(parseOpenBeside(undefined), true);
 });
+
+test("a stale board column opens beside", () => {
+  assert.equal(chooseDocumentColumn({ ...base, boardColumn: 5, groupColumns: [1, 2] }), COLUMN_BESIDE);
+});
+
+test("no active group uses the first other group", () => {
+  assert.equal(chooseDocumentColumn({ ...base, boardColumn: 1, groupColumns: [1, 3, 2], activeColumn: undefined }), 2);
+});
