@@ -27,12 +27,37 @@ interface Tag {
   ancestorTitled: boolean;
 }
 
+// ASCII lower case with the same length as the text, so an index in one is an index in the other.
+function asciiLower(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    out += c >= 65 && c <= 90 ? String.fromCharCode(c + 32) : text[i];
+  }
+  return out;
+}
+
+// The HTML without its script and style elements, in any letter case, found with indexOf: from
+// each opening tag to the end of the next matching close tag, repeated until none is left.
+// Nothing is removed by a pattern.
+function withoutBlocks(html: string): string {
+  let text = html;
+  for (const name of ["script", "style"]) {
+    for (let from = asciiLower(text).indexOf(`<${name}`); from >= 0; from = asciiLower(text).indexOf(`<${name}`)) {
+      const close = asciiLower(text).indexOf(`</${name}`, from);
+      const end = close < 0 ? -1 : text.indexOf(">", close);
+      text = text.slice(0, from) + (end < 0 ? "" : text.slice(end + 1));
+    }
+  }
+  return text;
+}
+
 const VOID = new Set(["meta", "input", "br", "hr", "img", "link"]);
 
 // Reads the opening tags of an HTML text in order. Script and style text is skipped. Every
 // attribute value on this page is escaped, so a value never holds a quote.
 function walk(html: string): Tag[] {
-  const text = html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<style[\s\S]*?<\/style>/g, "");
+  const text = withoutBlocks(html);
   const out: Tag[] = [];
   const open: Array<{ name: string; titled: boolean }> = [];
   for (const m of text.matchAll(/<(\/?)([a-zA-Z][\w-]*)((?:\s+[\w:-]+(?:="[^"]*")?)*)\s*\/?>/g)) {
@@ -320,9 +345,7 @@ test("every number the page counts is a pill, a small rounded badge in the edito
   assert.ok(pills.every((p) => /^\d+$/.test(p.text)), "a pill holds only a number");
   // Visible text with the pills, the document links, the headings and the hidden parts taken out:
   // no bare number may remain, apart from version labels and list numbering.
-  const bare = html
-    .replace(/<script[\s\S]*?<\/script>/g, "")
-    .replace(/<style[\s\S]*?<\/style>/g, "")
+  const bare = withoutBlocks(html)
     .replace(/<span class="pill"[^>]*>\d+<\/span>/g, "")
     .replace(/<a class="doc"[^>]*>[^<]*<\/a>/g, "")
     .replace(/<h1[^>]*>[^<]*<\/h1>/g, "")
@@ -332,4 +355,10 @@ test("every number the page counts is a pill, a small rounded badge in the edito
     .map((x) => decode(x).trim())
     .filter((x) => /\b\d+\b/.test(x));
   assert.deepEqual(bare, ["15 min", "30 min", "1 hour", "1", "1.0.0", "2", "2.0.0", "repo#1"], "time labels, train numbering and versions, and a review reference are not counts");
+});
+
+test("withoutBlocks drops every script and style element in any letter case and leaves the rest", () => {
+  assert.equal(withoutBlocks("a<script>x</script>b<SCRIPT>y</SCRIPT >c<Style>z</STYLE>d<style>w</style>e"), "abcde");
+  assert.equal(withoutBlocks("<p>no blocks</p>"), "<p>no blocks</p>");
+  assert.equal(withoutBlocks("a<script>never closed"), "a");
 });
