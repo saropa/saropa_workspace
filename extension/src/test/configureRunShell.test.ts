@@ -35,7 +35,9 @@ test("the policy allows no network or images, inline styles and only the nonce'd
   const html = page(sc({ id: "a" }));
   const nonce = nonceOf(html);
   assert.match(nonce, /^[A-Za-z0-9+/]{22}==$/);
-  assert.match(html, new RegExp(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce.replace(/[+/]/g, "\\$&")}'" />`));
+  assert.ok(html.includes(
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'" />`
+  ));
   assert.equal((html.match(/<script/g) ?? []).length, 1);
 });
 
