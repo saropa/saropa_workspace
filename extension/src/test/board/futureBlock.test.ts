@@ -7,7 +7,7 @@ import { parseBlock, parseValue, setBlockFields } from "../../board/futureBlock"
 
 test("a full block under the title is read field by field", () => {
   const text = "# Title\n\nImportance: build-next\nResearch: needed\nWow: 4\nReach: daily\nEffort: M\nRisk: low\nBlocker: none yet\n\nBody\n";
-  assert.deepEqual(parseBlock(text), { importance: "build-next", wow: 4, reach: "daily", effort: "M", risk: "low", blocker: "none yet", invalid: [] });
+  assert.deepEqual(parseBlock(text), { importance: "build-next", research: "needed", wow: 4, reach: "daily", effort: "M", risk: "low", blocker: "none yet", invalid: [] });
 });
 
 test("a block on the first line, with or without front matter, is read", () => {
@@ -202,4 +202,110 @@ test("a blocker may be any text and a Research line must be a known state", () =
   assert.equal(setBlockFields("# T\n\nResearch: soonish\nWow: 2\n\nBody\n", { Wow: "3" }), "# T\n\nWow: 3\n\nResearch: soonish\nWow: 2\n\nBody\n");
   assert.equal(parseValue("Research", "In Progress"), "in-progress");
   assert.equal(parseValue("Research", "soonish"), undefined);
+});
+
+test("research state and question are read; the two keys never swallow each other", () => {
+  const b = parseBlock("# T\n\nResearch: in progress\nResearch question: Does it still work on v2?\n");
+  assert.equal(b.research, "in-progress");
+  assert.equal(b.researchQuestion, "Does it still work on v2?");
+  assert.deepEqual(b.invalid, []);
+  const c = parseBlock("# T\n\nRESEARCH   QUESTION :   How much?  \nresearch: READY\n");
+  assert.equal(c.researchQuestion, "How much?");
+  assert.equal(c.research, "ready");
+});
+
+test("an unknown research state is invalid; an empty question is invalid; the rest still reads", () => {
+  assert.deepEqual(parseBlock("# T\n\nResearch: done\nResearch question:\nWow: 2\n"), { wow: 2, invalid: ["Research", "Research question"] });
+});
+
+test("a long research question is cut to 300 characters", () => {
+  assert.equal(parseBlock(`# T\n\nResearch question: ${"q".repeat(500)}\n`).researchQuestion?.length, 300);
+});
+
+test("writing the research state edits its line and adds missing lines after the others", () => {
+  assert.equal(setBlockFields("# T\n\nResearch: needed\nWow: 2\n\nBody\n", { Research: "in-progress" }), "# T\n\nResearch: in-progress\nWow: 2\n\nBody\n");
+  assert.equal(setBlockFields("# T\n\nWow: 2\n\nBody\n", { Research: "needed", "Research question": "Is it still possible?" }), "# T\n\nWow: 2\nResearch: needed\nResearch question: Is it still possible?\n\nBody\n");
+  assert.equal(setBlockFields("# T\n\nBody\n", { Research: "needed", "Research question": "Cost?" }), "# T\n\nResearch: needed\nResearch question: Cost?\n\nBody\n");
+});
+
+test("the question keeps the spelling of its key and replaces only its own line", () => {
+  assert.equal(setBlockFields("# T\n\nresearch  QUESTION: old\nResearch: needed\n\nBody\n", { "Research question": "new" }), "# T\n\nresearch  QUESTION: new\nResearch: needed\n\nBody\n");
+});
+
+test("an empty question, or null, removes the question line and nothing else", () => {
+  const text = "# T\n\nResearch: needed\nResearch question: old\nWow: 3\n\nBody\n";
+  assert.equal(setBlockFields(text, { "Research question": "" }), "# T\n\nResearch: needed\nWow: 3\n\nBody\n");
+  assert.equal(setBlockFields(text, { "Research question": "  \n\t " }), "# T\n\nResearch: needed\nWow: 3\n\nBody\n");
+  assert.equal(setBlockFields(text, { "Research question": null }), "# T\n\nResearch: needed\nWow: 3\n\nBody\n");
+  assert.equal(setBlockFields("# T\n\nBody\n", { "Research question": "" }), "# T\n\nBody\n", "nothing to remove, nothing written");
+});
+
+test("a question with line breaks or control characters is written as one line", () => {
+  const out = setBlockFields("# T\n\nBody\n", { "Research question": "first\nImportance: build-next\r\nsecond\u0000\u2028third" })!;
+  assert.equal(out, "# T\n\nResearch question: first Importance: build-next second third\n\nBody\n");
+  assert.deepEqual(parseBlock(out), { researchQuestion: "first Importance: build-next second third", invalid: [] });
+});
+
+test("a long question is cut to 300 characters and never inside a surrogate pair", () => {
+  const out = setBlockFields("# T\n\nBody\n", { "Research question": "a".repeat(299) + "😀" + "tail" })!;
+  assert.equal(out, `# T\n\nResearch question: ${"a".repeat(299)}\n\nBody\n`);
+  assert.equal(setBlockFields("# T\n\nBody\n", { "Research question": "b".repeat(400) }), `# T\n\nResearch question: ${"b".repeat(300)}\n\nBody\n`);
+});
+
+test("a paragraph that starts with the question key is prose: a new block goes above it", () => {
+  const text = "# T\n\nResearch question: nobody has asked this yet\nso it goes on for a second line.\n";
+  assert.equal(setBlockFields(text, { Research: "needed" }), "# T\n\nResearch: needed\n\nResearch question: nobody has asked this yet\nso it goes on for a second line.\n");
+});
+
+test("a block with an invalid research state is not edited: a new block goes above, old lines stay", () => {
+  assert.equal(setBlockFields("# T\n\nResearch: soon\n\nBody\n", { Research: "needed" }), "# T\n\nResearch: needed\n\nResearch: soon\n\nBody\n");
+});
+
+test("research writes keep line endings, a byte order mark and the last line without an ending", () => {
+  assert.equal(setBlockFields("﻿# T\r\n\r\nBody\r\n", { Research: "needed", "Research question": "Why?" }), "﻿# T\r\n\r\nResearch: needed\r\nResearch question: Why?\r\n\r\nBody\r\n");
+  assert.equal(setBlockFields("# T\n\nResearch: needed", { Research: "ready" }), "# T\n\nResearch: ready");
+});
+
+test("front matter that never closes refuses a research write", () => {
+  assert.equal(setBlockFields("---\ntitle: x\n# T\n", { Research: "needed" }), undefined);
+  assert.equal(setBlockFields("---\ntitle: x\n# T\n", { "Research question": "Why?" }), undefined);
+});
+
+test("a research write under closed front matter leaves the front matter alone", () => {
+  assert.equal(setBlockFields("---\ntitle: x\n---\n# T\n\nBody\n", { Research: "needed" }), "---\ntitle: x\n---\n# T\n\nResearch: needed\n\nBody\n");
+});
+
+test("what a research write puts in is what the reader gets back", () => {
+  const out = setBlockFields("# T\n\nImportance: marketable\n\nBody\n", { Research: "in-progress", "Research question": "Does the host API allow it?" })!;
+  assert.deepEqual(parseBlock(out), { importance: "marketable", research: "in-progress", researchQuestion: "Does the host API allow it?", invalid: [] });
+});
+
+test("a very long run of spaces is read quickly and the value is still trimmed", () => {
+  const started = Date.now();
+  const b = parseBlock(`# T\n\nBlocker: kept${" ".repeat(60000)}x${" ".repeat(60000)}\nWow: 2\n`);
+  assert.equal(b.blocker?.length, 300);
+  assert.equal(b.wow, 2);
+  assert.equal(parseBlock(`# T\n\nWow:${" ".repeat(60000)}3${" ".repeat(60000)}\n`).wow, 3);
+  assert.equal(setBlockFields(`# T\n\nBlocker:${" ".repeat(60000)}\n`, { Wow: "2" })?.startsWith("# T"), true);
+  assert.ok(Date.now() - started < 2000, "linear time");
+});
+
+test("a value cut at 300 characters on read never splits a surrogate pair", () => {
+  const b = parseBlock(`# T\n\nBlocker: ${"a".repeat(299)}😀tail\nResearch question: ${"b".repeat(299)}😀tail\n`);
+  assert.equal(b.blocker, "a".repeat(299));
+  assert.equal(b.researchQuestion, "b".repeat(299));
+});
+
+test("a blocker over 300 characters is written cut to 300", () => {
+  assert.equal(setBlockFields("# T\n\nBody\n", { Blocker: "c".repeat(450) }), `# T\n\nBlocker: ${"c".repeat(300)}\n\nBody\n`);
+  assert.equal(setBlockFields("# T\n\nBlocker: old\n\nBody\n", { Blocker: "d".repeat(450) }), `# T\n\nBlocker: ${"d".repeat(300)}\n\nBody\n`);
+});
+
+test("a whitespace-only blocker removes the blocker line", () => {
+  assert.equal(setBlockFields("# T\n\nImportance: not-feasible\nBlocker: old\n\nBody\n", { Blocker: " \t\n " }), "# T\n\nImportance: not-feasible\n\nBody\n");
+  assert.equal(setBlockFields("# T\n\nBody\n", { Blocker: "   " }), "# T\n\nBody\n");
+});
+
+test("direction overrides and zero-width characters are dropped from a written value", () => {
+  assert.equal(setBlockFields("# T\n\nBody\n", { Blocker: "no\u202e\u200bAPI\ufeff" }), "# T\n\nBlocker: noAPI\n\nBody\n");
 });

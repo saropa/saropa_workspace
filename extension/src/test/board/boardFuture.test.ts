@@ -49,13 +49,13 @@ const run = (root: string, paths: string[], extraProjects: Array<{ id: string }>
   }) as unknown as BoardRun;
 
 test("settings default to on and the score order", () => {
-  assert.deepEqual(readFutureSettings(), { enabled: true, defaultSort: "score" });
+  assert.deepEqual(readFutureSettings(), { enabled: true, defaultSort: "score", researchParallel: 3 });
 });
 
 test("settings read the chosen sort; an unknown one falls back to the score", () => {
   stub.__setConfig("saropaWorkspace.releaseBoard.future", "defaultSort", "risk");
   stub.__setConfig("saropaWorkspace.releaseBoard.future", "enabled", false);
-  assert.deepEqual(readFutureSettings(), { enabled: false, defaultSort: "risk" });
+  assert.deepEqual(readFutureSettings(), { enabled: false, defaultSort: "risk", researchParallel: 3 });
   stub.__setConfig("saropaWorkspace.releaseBoard.future", "defaultSort", "nonsense");
   assert.equal(readFutureSettings().defaultSort, "score");
 });

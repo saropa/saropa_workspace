@@ -72,6 +72,7 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 * **Path to GO:** Click a project row to see the few steps between it and GO, fastest first, with buttons to open a document, run lint or tests in the background, open the rules file or accept the scan. Steps tick off as they are done.
 * **Release Profiles:** Rush, Deliberate or Zero defects decide which severities stop a release.
 * **Optional Links:** Saropa Lints results, Claude sessions per document (Chat Explorer) and the pull requests waiting for your review.
+* **Future Tab And Research:** Deferred and blocked documents are listed under an importance flag, never as problems. Each can carry a research state in its header block (`Research: none | needed | in-progress | ready | reviewed`) and a one-line `Research question:`. **Hand all to chat** copies one research prompt per flagged document, one after another (Hand to chat copies a single prompt at a time): paste each into a chat, confirm, and the document becomes `in-progress`. A document with `ready` research shows **Research ready, not reviewed** until you press **Mark reviewed**.
 
 ### 🎨 Customize
 * **Name, Icon, Color, Tags — One Screen:** Rename any shortcut, pick from a searchable codicon grid, tint it with a theme-aware color, and tag it, all from a single panel with a live preview.
@@ -157,6 +158,7 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.liveEvidence.unnamedBox` | `true` | Lists crash signals in files no open document names, with a Start a bug document button. Needs Log Capture. |
 | `releaseBoard.future.enabled` | `true` | Shows a Future tab on the board whenever the project has deferred or blocked documents (`plans/deferred`, `plans/blocked`, `docs/deferred`, `docs/blocked`): each under its importance flag with wow, reach, effort and risk. Lists only; it never counts as a problem and never changes a light. Setting a flag writes a short header block at the top of that document and nothing else; a document moves between `deferred` and `blocked` only after you confirm. |
 | `releaseBoard.future.defaultSort` | `score` | Order inside each flag: `score` (wow and reach over effort, lower risk on a tie), `wow`, `effort`, `risk` or `reach`. You can also change it on the tab. |
+| `releaseBoard.future.researchParallel` | `3` | Most documents **Hand all to chat** hands over in one go (1 to 10). The rest stay queued and the button says how many remain. |
 | `releaseBoard.train.enabled` | `true` | Shows a Release train row on the board and in the sidebar when more than one project is found: one light (the worst of the projects that ship together) and the order to ship them in. Read-only. |
 | `releaseBoard.train.naming` | `version` | Names the train by the version of the project that ships last (from `package.json` or `pubspec.yaml`), or by its folder name (`folder`). |
 | `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |

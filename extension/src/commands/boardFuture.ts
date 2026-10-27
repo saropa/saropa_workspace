@@ -2,8 +2,9 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { mapLimit } from "../board/pool";
 import { withTimeout } from "../board/timeout";
-import { BlockChanges, BlockKey, setBlockFields } from "../board/futureBlock";
+import { BlockChanges, BlockKey, FutureBlock, MAX_FREE_TEXT, parseBlock, setBlockFields } from "../board/futureBlock";
 import { FutureFolders, FutureInput, FutureItem, FutureOutside, FutureSort, MAX_FUTURE_BYTES, MAX_FUTURE_ITEMS, asFutureSort, buildFuture, findOutside, foldersFor, futureSource, moveTarget } from "../board/futureList";
+import { asResearchParallel } from "../board/futureResearch";
 import { BoardRun } from "./boardScanStore";
 import { pathExists } from "./boardFileSource";
 
@@ -23,11 +24,13 @@ export const emptyFuture = (): FutureData => ({ items: [], outside: [] });
 export interface FutureSettings {
   enabled: boolean;
   defaultSort: FutureSort;
+  // Most documents handed to a chat at once.
+  researchParallel: number;
 }
 
 export function readFutureSettings(): FutureSettings {
   const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard.future");
-  return { enabled: c.get<boolean>("enabled", true), defaultSort: asFutureSort(c.get<string>("defaultSort", "score")) };
+  return { enabled: c.get<boolean>("enabled", true), defaultSort: asFutureSort(c.get<string>("defaultSort", "score")), researchParallel: asResearchParallel(c.get<number>("researchParallel", 3)) };
 }
 
 // Documents outside a deferred folder that list later work, per project.
@@ -98,8 +101,9 @@ export async function commitIfUnchanged(uri: vscode.Uri, original: Uint8Array, n
 
 // Writes the block changes into one document. Refuses a document with unsaved edits, one
 // that is not plain UTF-8 (rewriting it would change other bytes), one whose front matter
-// never closes, and one that changed since it was read.
-export async function writeBlock(uri: vscode.Uri, path: string, changes: BlockChanges): Promise<WriteResult> {
+// never closes, one that changed since it was read, and, when `requires` is given, one whose
+// block no longer satisfies it (the state the page showed is out of date).
+export async function writeBlock(uri: vscode.Uri, path: string, changes: BlockChanges, requires?: (block: FutureBlock) => boolean): Promise<WriteResult> {
   if (isDirty(uri)) {
     warn("releaseBoard.future.dirty", path);
     return "refused";
@@ -109,6 +113,10 @@ export async function writeBlock(uri: vscode.Uri, path: string, changes: BlockCh
     const text = Buffer.from(bytes).toString("utf8");
     if (Buffer.compare(Buffer.from(text, "utf8"), Buffer.from(bytes)) !== 0) {
       warn("releaseBoard.future.notUtf8", path);
+      return "refused";
+    }
+    if (requires && !requires(parseBlock(text))) {
+      warn("releaseBoard.future.stateChanged", path);
       return "refused";
     }
     const next = setBlockFields(text, changes);
@@ -151,7 +159,11 @@ export async function setFutureField(root: vscode.Uri, item: FutureItem, key: Bl
 
 // Asks for the blocker line and writes it. An empty answer removes the line.
 export async function editBlocker(root: vscode.Uri, item: FutureItem): Promise<boolean> {
-  const answer = await vscode.window.showInputBox({ prompt: l10n("releaseBoard.future.blockerPrompt"), value: item.blocker ?? "" });
+  const answer = await vscode.window.showInputBox({
+    prompt: l10n("releaseBoard.future.blockerPrompt"),
+    value: item.blocker ?? "",
+    validateInput: (v) => (v.trim().length > MAX_FREE_TEXT ? l10n("releaseBoard.future.tooLong", { max: MAX_FREE_TEXT }) : undefined),
+  });
   if (answer === undefined) {
     return false;
   }
@@ -195,4 +207,13 @@ async function offerMove(root: vscode.Uri, from: string, to: string): Promise<bo
     void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     return false;
   }
+}
+
+// Writes the research question from the page's text field. The writer cuts it to one line
+// of at most 300 characters; an empty text removes the line.
+export async function setResearchQuestion(root: vscode.Uri, item: FutureItem, value: string): Promise<boolean> {
+  if (value.trim().length > MAX_FREE_TEXT) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.future.cutAt", { max: MAX_FREE_TEXT, path: item.path }));
+  }
+  return (await writeBlock(vscode.Uri.joinPath(root, item.path), item.path, { "Research question": value })) === "written";
 }
