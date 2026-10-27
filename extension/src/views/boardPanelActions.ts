@@ -142,7 +142,7 @@ export async function handToChat(model: BoardModel | undefined, paths: PathToGo[
   const def = run?.cfg.projects.find((p) => p.id === file?.project);
   const doc = def && file ? vscode.Uri.joinPath(vscode.Uri.parse(def.path), file.path) : undefined;
   try {
-    await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat, file?.chats);
+    await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat, file?.chats, false, target.headline);
   } catch (e) {
     showFailed(e);
   }

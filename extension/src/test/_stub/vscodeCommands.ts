@@ -22,7 +22,19 @@ export const commands = {
     recordedCommands.push({ command, args: rest });
     return Promise.resolve(undefined);
   },
+  // Every registered id plus the ids a test added with __setKnownCommands.
+  getCommands(_filterInternal?: boolean): Promise<string[]> {
+    return Promise.resolve([...new Set([...registeredCommands.keys(), ...knownCommands])]);
+  },
 };
+
+// Command ids that getCommands reports besides the registered ones (other extensions' commands).
+const knownCommands: string[] = [];
+// Test-control hook: sets the extra command ids getCommands reports.
+export function __setKnownCommands(ids: string[]): void {
+  knownCommands.length = 0;
+  knownCommands.push(...ids);
+}
 
 // Handlers added by commands.registerCommand, by command id.
 const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
@@ -42,5 +54,6 @@ export function __recordedCommands(): ReadonlyArray<{
 // Test-control hook: clears the recorded executeCommand call log between tests.
 export function __resetRecordedCommands(): void {
   recordedCommands.length = 0;
+  knownCommands.length = 0;
 }
 
