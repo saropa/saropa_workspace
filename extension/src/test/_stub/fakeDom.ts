@@ -47,6 +47,9 @@ export class FakeDocument extends FakeElement implements FakeDocumentLike {
   createElement(tag: string): FakeElement {
     return new FakeElement(tag, this);
   }
+  createTextNode(data: string): FakeText {
+    return new FakeText(data);
+  }
   createElementNS(_ns: string, tag: string): FakeElement {
     return this.createElement(tag);
   }
