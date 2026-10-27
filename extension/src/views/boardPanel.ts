@@ -6,7 +6,7 @@ import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
-import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
+import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
@@ -471,7 +471,11 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
   };
   remember();
   panel.onDidChangeViewState(remember);
-  panel.onDidDispose(() => void context.workspaceState.update(PLACEMENT_KEY, lastColumn));
+  setBoardColumnSource(() => panel.viewColumn);
+  panel.onDidDispose(() => {
+    setBoardColumnSource(() => undefined);
+    void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
+  });
   current = new BoardPanel(context, panel);
   const fresh = background ? currentBoard() : undefined;
   if (fresh) {

@@ -2730,6 +2730,12 @@
             ],
             "description": "%config.releaseBoard.placement.description%"
           },
+          "saropaWorkspace.releaseBoard.openBeside": {
+            "type": "boolean",
+            "default": true,
+            "scope": "machine",
+            "description": "%config.releaseBoard.openBeside.description%"
+          },
           "saropaWorkspace.releaseBoard.statusBar.showLight": {
             "type": "boolean",
             "default": true,

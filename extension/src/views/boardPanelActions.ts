@@ -15,6 +15,8 @@ import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
 import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
 import { updateLocalMarks } from "../commands/boardMarks";
 import { readInProgressSettings } from "../commands/boardInProgress";
+import { chooseDocumentColumn, parseOpenBeside } from "../board/openBeside";
+import { parsePlacement } from "../board/placement";
 
 // Helpers for the Release Board panel: the settings it reads, the page for a disabled
 // board, and the handlers for the page's messages. Each handler resolves the page's
@@ -71,10 +73,31 @@ function showFailed(e: unknown): void {
   void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
 }
 
-// Opens a document the page was shown, optionally at a line.
+// Where the board tab is now; the panel sets this so the actions need no import of the panel.
+let boardColumn: () => number | undefined = () => undefined;
+
+export function setBoardColumnSource(source: () => number | undefined): void {
+  boardColumn = source;
+}
+
+// The group a document opens in, or undefined to leave it to the editor.
+function documentColumn(): number | undefined {
+  const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard");
+  const groups = vscode.window.tabGroups;
+  return chooseDocumentColumn({
+    openBeside: parseOpenBeside(c.get("openBeside")),
+    placement: parsePlacement(c.get("placement")),
+    boardColumn: boardColumn(),
+    groupColumns: groups.all.map((g) => g.viewColumn),
+    activeColumn: groups.activeTabGroup.viewColumn
+  });
+}
+
+// Opens a document the page was shown, optionally at a line, in a group beside the board.
 export async function openDocument(uri: vscode.Uri, selection?: vscode.Range): Promise<void> {
   try {
-    await vscode.window.showTextDocument(uri, selection ? { preview: true, selection } : { preview: true });
+    const viewColumn = documentColumn();
+    await vscode.window.showTextDocument(uri, { preview: true, ...(selection ? { selection } : {}), ...(viewColumn !== undefined ? { viewColumn } : {}) });
   } catch (e) {
     showFailed(e);
   }
