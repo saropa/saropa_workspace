@@ -736,6 +736,12 @@
         "icon": "$(graph)"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.open",
+        "title": "%command.releaseBoard.open.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "saropaWorkspace.releaseBoard.scan",
         "title": "%command.releaseBoard.scan.title%",
         "category": "%extension.displayName%",
@@ -2000,6 +2006,10 @@
       "commandPalette": [
         {
           "command": "saropaWorkspace.releaseBoard.scan",
+          "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.open",
           "when": "config.saropaWorkspace.releaseBoard.enabled"
         },
         {

@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
 import defaultRules from "../board/defaultRules.json";
-import { FileSource, ScanSnapshot, scanAll } from "../board/scanner";
-import { checkScan } from "../board/safety";
+import { FileSource, ScanResult, ScanSnapshot, scanAll } from "../board/scanner";
+import { SafetyResult, checkScan } from "../board/safety";
+import { openBoard } from "../views/boardPanel";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
 
@@ -137,17 +138,37 @@ function countsLine(c: StatusCounts): string {
   return `red ${c.red} · amber ${c.amber} · purple ${c.purple} · grey ${c.grey}`;
 }
 
-async function scan(context: vscode.ExtensionContext): Promise<void> {
+export interface BoardRun {
+  cfg: BoardConfig;
+  result: ScanResult;
+  safety: SafetyResult;
+  dir: vscode.Uri;
+  // The scan is the accepted baseline (clean, or the user accepted it).
+  accepted: boolean;
+}
+
+// Gate shared by every board command. Returns false (after telling the user why) when
+// the board is off or there is nothing to scan.
+function ready(): boolean {
   const enabled = vscode.workspace
     .getConfiguration("saropaWorkspace.releaseBoard")
     .get<boolean>("enabled", false);
   if (!enabled) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.disabled"));
-    return;
+    return false;
   }
   if (!vscode.workspace.workspaceFolders?.length) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
-    return;
+    return false;
+  }
+  return true;
+}
+
+// Scan, run the safety check against the last accepted scan, and store the scan as the
+// new baseline only when the check found nothing.
+export async function runBoardScan(context: vscode.ExtensionContext): Promise<BoardRun | undefined> {
+  if (!ready()) {
+    return undefined;
   }
   const cfg = await loadConfig();
   // Per workspace: another workspace must never see or overwrite this baseline.
@@ -158,13 +179,29 @@ async function scan(context: vscode.ExtensionContext): Promise<void> {
     () => scanAll(cfg, workspaceFileSource(), accepted)
   );
   const safety = checkScan(accepted, result.snapshot);
+  if (safety.clean) {
+    await writeAccepted(dir, result.snapshot);
+  }
+  return { cfg, result, safety, dir, accepted: safety.clean };
+}
+
+export async function acceptBoardRun(run: BoardRun): Promise<void> {
+  await writeAccepted(run.dir, run.result.snapshot);
+  run.accepted = true;
+}
+
+async function scan(context: vscode.ExtensionContext): Promise<void> {
+  const run = await runBoardScan(context);
+  if (!run) {
+    return;
+  }
+  const { cfg, result, safety } = run;
   const o = out();
   o.clear();
   o.appendLine(l10n("releaseBoard.heading", { time: new Date(result.snapshot.takenAt).toLocaleString() }));
   for (const p of cfg.projects) {
     o.appendLine(`${p.name ?? p.id}: ${countsLine(result.snapshot.projects[p.id].counts)}`);
-    const grey = Object.entries(result.snapshot.projects[p.id].greyFolders);
-    for (const [folder, n] of grey) {
+    for (const [folder, n] of Object.entries(result.snapshot.projects[p.id].greyFolders)) {
       o.appendLine(`  ${l10n("releaseBoard.needsRule", { folder: folder || path.sep, count: n })}`);
     }
   }
@@ -175,8 +212,7 @@ async function scan(context: vscode.ExtensionContext): Promise<void> {
     o.appendLine(`${f.project}: ${f.text}`);
   }
   o.show(true);
-  if (safety.clean) {
-    await writeAccepted(dir, result.snapshot);
+  if (run.accepted) {
     return;
   }
   const accept = l10n("releaseBoard.accept");
@@ -185,7 +221,7 @@ async function scan(context: vscode.ExtensionContext): Promise<void> {
     accept
   );
   if (pick === accept) {
-    await writeAccepted(dir, result.snapshot);
+    await acceptBoardRun(run);
   }
 }
 
@@ -199,6 +235,7 @@ async function scanCommand(context: vscode.ExtensionContext): Promise<void> {
 
 export function registerReleaseBoard(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context))
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context))
   );
 }
