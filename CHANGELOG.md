@@ -99,6 +99,7 @@ The Release Board opens in its own tab group beside your files and remembers whe
 
 ### Fixed
 
+- **Planner: no empty menu on event nodes.** Right-clicking an event node in the Workflow tab that nothing is linked to used to open a small empty box; now it opens nothing.
 - **Configure Run: the preview for a file that cannot be run.** For a document such as a text or Markdown file with no run command, the preview used to show the file's path as if it would be run. It now says the file is opened, which is what Run does.
 - **Customize: saving a cleared name.** When you cleared a shortcut's name and saved, the confirmation still showed the old name. It now shows the name the shortcut has after saving. A malformed save from the page can no longer stop the save.
 - **Settings editor: values that do not fit.** The Settings editor now refuses a value of the wrong kind, a choice that is not offered, or a number outside the allowed range, instead of writing it to your settings.

@@ -87,6 +87,7 @@ function openNodeMenu(e, n){
   if(ins.length){ items.push(['head',STRINGS.removeTriggerHeading]); ins.forEach(ed => {
     const src = shortcut(ed.from); items.push(['\\u2716 '+(ed.kind==='event'?tpl(STRINGS.detailAfter,{name:(EVENT_ICON[src?.event]||'')+' '+(src?.label||ed.from)}):tpl(STRINGS.detailAfter,{name:src?.label||ed.from})),'rm:'+ed.from]);
   }); }
+  if(!items.length) return; // an event node with no incoming links has nothing to offer
   items.forEach(it => {
     if(it[0]==='sep'){ m.appendChild(el('div','msep')); return; }
     if(it[0]==='head'){ const h=el('div','mhead'); h.textContent=it[1]; m.appendChild(h); return; }
