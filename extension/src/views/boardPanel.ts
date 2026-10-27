@@ -5,6 +5,7 @@ import { onDidChangeMarks, readMarks, updateLocalMarks } from "../commands/board
 import { applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, acceptBoardRun, canRunHealth, hasOutsideProject, openRulesFile, readLastRun, runBoardScan, runHealthNow } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
+import { onDidChangeTrainVersions, trainsFor } from "./boardTrain";
 import { PathToGo, clampMaxSteps, pathToGo } from "../board/pathToGo";
 import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
@@ -28,6 +29,9 @@ import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
+
+// Least time between two looks at the Problems panel.
+const LIVE_GAP_MS = 4000;
 
 function strings(): BoardStrings {
   return {
@@ -117,6 +121,10 @@ function strings(): BoardStrings {
     tidyDetail: l10n("releaseBoard.tidy.detail", { count: "{count}", days: "{days}" }),
     tidyTitle: l10n("releaseBoard.tidy.title", { count: "{count}" }),
     tidyMove: l10n("releaseBoard.tidy.move"),
+    trainTitle: l10n("releaseBoard.train.title", { name: "{name}" }),
+    trainHeldBy: l10n("releaseBoard.train.heldBy", { names: "{names}" }),
+    trainCycle: l10n("releaseBoard.train.cycle"),
+    trainOrder: l10n("releaseBoard.train.order"),
     tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
     liveHead: l10n("releaseBoard.live.head"),
     liveProblems: l10n("releaseBoard.live.problems", { errors: "{errors}", warnings: "{warnings}" }),
@@ -177,6 +185,9 @@ class BoardPanel {
   private live: LiveSignals = {};
   private liveToken = 0;
   private liveTimer: ReturnType<typeof setTimeout> | undefined;
+  private liveAt = 0;
+  // The lookback in force when the signals were gathered; a bug document uses the same one.
+  private liveDays = 1;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -226,14 +237,19 @@ class BoardPanel {
     // The Problems panel changes often while typing: look again at most every few seconds.
     vscode.languages.onDidChangeDiagnostics(
       () => {
-        if (this.panel.visible && readLiveSettings().enabled) {
-          clearTimeout(this.liveTimer);
-          this.liveTimer = setTimeout(() => void this.refreshLive(), 4000);
+        // A true throttle: at most one look every 4 s, the last change always gets one.
+        if (this.panel.visible && !this.liveTimer && readLiveSettings().enabled) {
+          this.liveTimer = setTimeout(() => {
+            this.liveTimer = undefined;
+            void this.refreshLive();
+          }, Math.max(0, this.liveAt + LIVE_GAP_MS - Date.now()));
         }
       },
       null,
       this.disposables
     );
+    // A project version was read: draw the train name again.
+    onDidChangeTrainVersions(() => !this.scanning && !this.cached && this.render(), null, this.disposables);
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => {
@@ -271,6 +287,8 @@ class BoardPanel {
     watcher.onDidDelete(changed, null, this.disposables);
     this.disposables.push(watcher);
     panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
+    // Problems changed while the tab was hidden: look again when it is shown.
+    panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
     panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
     // Something is on screen at once: placeholders, then the last result, then the scan.
     panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
@@ -388,7 +406,9 @@ class BoardPanel {
       return;
     }
     const token = ++this.liveToken;
+    this.liveAt = Date.now();
     const s = readLiveSettings();
+    this.liveDays = s.lookbackDays;
     const next = s.enabled ? await loadLiveSignals(run, model.items, s) : {};
     if (token === this.liveToken && !this.disposed) {
       this.live = next;
@@ -462,7 +482,8 @@ class BoardPanel {
       panelShowed(model);
     }
     // The same board in the same state is not painted again: no flicker, no lost scroll.
-    const key = JSON.stringify([this.model, state, this.paths, since, readHandSettings().enabled]);
+    const trains = trainsFor(model, cfg);
+    const key = JSON.stringify([this.model, state, this.paths, since, readHandSettings().enabled, trains]);
     if (key === this.lastKey) {
       return;
     }
@@ -474,7 +495,7 @@ class BoardPanel {
     }
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
-    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since);
+    this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since, trains);
   }
 
   // The Sittings choice (remembered per machine, else the settings' defaults) with the
@@ -564,7 +585,7 @@ class BoardPanel {
       const project = this.run?.cfg.projects.find((p) => p.id === u?.project);
       if (u && project && !this.scanning && !this.cached) {
         try {
-          if (await startBugDocument(vscode.Uri.parse(project.path), u, readLiveSettings().lookbackDays)) {
+          if (await startBugDocument(vscode.Uri.parse(project.path), u, this.liveDays)) {
             this.dirty = true;
             await this.refresh(true);
           }

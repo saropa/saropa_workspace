@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildBoard } from "../../board/boardModel";
 import { BoardStrings, renderBoard } from "../../board/boardHtml";
-import { readFacts } from "../../board/docFacts";
+import { isNameableSource, readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
 import { BoardConfig, Classified } from "../../board/types";
 import { ProjectHealth } from "../../board/health";
@@ -16,6 +16,8 @@ import {
   bugsFolderOf,
   clampLookbackDays,
   markFor,
+  pathKey,
+  PathLookup,
   parseLintViolations,
   readApiSignals,
   unnamedFiles,
@@ -91,16 +93,17 @@ test("the optional API is used only when it is version 1 or newer and has the me
 });
 
 test("an API reply is cleaned: unknown paths, bad numbers and empty answers are dropped", () => {
-  const lookup = new Map([["/p/lib/a.dart", { project: "app", rel: "lib/a.dart" }], ["/p/lib/b.dart", { project: "app", rel: "lib/b.dart" }]]);
+  const lookup: PathLookup = new Map([["/p/lib/a.dart", [{ project: "app", rel: "lib/a.dart" }]], ["/p/lib/b.dart", [{ project: "app", rel: "lib/b.dart" }]]]);
   const rows = readApiSignals(
     { files: [{ path: "/p/lib/a.dart", errors: 3.9, crashes: 1, warnings: -4, last: 5, title: "Boom\nnow" }, { path: "/etc/passwd", errors: 9 }, { path: "/p/lib/b.dart", errors: 0 }, 7, null] },
-    lookup
+    lookup,
+    false
   );
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0].logs, { errors: 3, warnings: 0, crashes: 1, last: 5, title: "Boom now" });
-  assert.deepEqual(readApiSignals("nope", lookup), []);
-  assert.deepEqual(readApiSignals(undefined, lookup), []);
-  assert.equal(readApiSignals([{ path: "/p/lib/a.dart", crashes: 2 }], lookup).length, 1);
+  assert.deepEqual(readApiSignals("nope", lookup, false), []);
+  assert.deepEqual(readApiSignals(undefined, lookup, false), []);
+  assert.equal(readApiSignals([{ path: "/p/lib/a.dart", crashes: 2 }], lookup, false).length, 1);
 });
 
 test("the lookback setting stays between 1 and 30 days", () => {
@@ -205,7 +208,7 @@ test("the page shows a flame with a tooltip, escapes file names, and offers the 
   const evil: LiveSignals = {
     app: {
       "lib/a.dart": { logs: { errors: 1, warnings: 0, crashes: 1 } },
-      "lib/lone<img>.dart": { logs: { errors: 0, warnings: 0, crashes: 1 } },
+      "lib/lone.dart": { logs: { errors: 0, warnings: 0, crashes: 1 } },
     },
   };
   const snap2 = JSON.parse(JSON.stringify(snapshot)) as ScanSnapshot;
@@ -213,10 +216,59 @@ test("the page shows a flame with a tooltip, escapes file names, and offers the 
   const html = renderBoard(m, t, "n");
   assert.match(html, /class="flame hot"/);
   assert.match(html, /1 errors, 1 crashes in debug runs/);
-  assert.ok(!html.includes("lone<img>"), "file names are escaped");
+  assert.match(html, /lib\/lone\.dart: 0 errors, 1 crashes/);
   assert.match(html, /data-bug="0"/);
   assert.ok(!html.includes("data-bug=\"0\" data-path"), "no path in the button");
   const plain = renderBoard(buildBoard(cfg, rows, undefined, true, snap2, undefined, healthy), t, "n");
   assert.ok(!plain.includes('class="flame'));
   assert.ok(!plain.includes("data-bug="));
+});
+
+test("both sides of the Log Capture lookup use one path key: slashes, drive letter, case", () => {
+  assert.equal(pathKey("C:\\Dev\\App\\lib\\a.dart", true), pathKey("c:/dev/app/lib/a.dart", true));
+  assert.equal(pathKey("C:\\Dev\\App\\lib\\a.dart", false), "c:/Dev/App/lib/a.dart");
+  assert.notEqual(pathKey("/p/Lib/a.dart", false), pathKey("/p/lib/a.dart", false));
+  const lookup: PathLookup = new Map([[pathKey("C:\\Dev\\App\\lib\\Sync.dart", true), [{ project: "app", rel: "lib/Sync.dart" }]]]);
+  const rows = readApiSignals([{ path: "c:/dev/app/lib/sync.dart", errors: 2 }], lookup, true);
+  assert.equal(rows[0]?.rel, "lib/Sync.dart", "the display name keeps its own case");
+  const exact: PathLookup = new Map([[pathKey("/p/lib/Sync.dart", false), [{ project: "app", rel: "lib/Sync.dart" }]]]);
+  assert.equal(readApiSignals([{ path: "/p/lib/sync.dart", errors: 2 }], exact, false).length, 0, "no folding where case matters");
+});
+
+test("one path asked for by two nested projects answers for both", () => {
+  const lookup: PathLookup = new Map([["/p/sub/lib/a.dart", [{ project: "parent", rel: "sub/lib/a.dart" }, { project: "child", rel: "lib/a.dart" }]]]);
+  assert.deepEqual(readApiSignals([{ path: "/p/sub/lib/a.dart", crashes: 1 }], lookup, false).map((r) => r.project), ["parent", "child"]);
+});
+
+test("lint keys keep the file's own case", () => {
+  const text = JSON.stringify({ violations: [{ file: "/Dev/App/lib/Sync.dart", severity: "error" }] });
+  assert.deepEqual([...parseLintViolations(text, "/dev/app", true).keys()], ["lib/Sync.dart"]);
+});
+
+test("only files a document can name are listed, so a written document ends the listing", () => {
+  assert.equal(isNameableSource("lib/a_b.dart"), true);
+  assert.equal(isNameableSource("android/app/Main.kt"), false);
+  assert.equal(isNameableSource("lib/odd name.dart"), false);
+  assert.equal(isNameableSource("src/x.ts", ["lib"]), false);
+  const sig: LiveSignals = { app: { "lib/a.dart": { logs: { errors: 1, warnings: 0, crashes: 1 } }, "build/gen.dart": { logs: { errors: 1, warnings: 0, crashes: 1 } } } };
+  const nameable = (r: string): boolean => isNameableSource(r);
+  assert.deepEqual(unnamedFiles(sig, new Map(), [{ id: "app", name: "App" }], false, nameable).map((u) => u.file), ["lib/a.dart"]);
+  // The document the board writes names the file in the way the scanner reads it.
+  const d = bugDocument({ project: "app", projectName: "App", file: "lib/a.dart", logs: { errors: 1, warnings: 0, crashes: 1 } }, 0, 1);
+  assert.ok(readFacts(d.text, "bugs/BUG_A.md").sourceFiles.includes("lib/a.dart"));
+});
+
+test("a bugs folder must stay inside the project", () => {
+  assert.equal(bugsFolderOf(["../bugs"]), undefined);
+  assert.equal(bugsFolderOf(["docs/../../bugs"]), undefined);
+  assert.equal(bugsFolderOf(["/abs/bugs"]), undefined);
+  assert.equal(bugsFolderOf(["C:/x/bugs"]), undefined);
+  assert.equal(bugsFolderOf(["../bugs", "docs/bugs"]), "docs/bugs");
+});
+
+test("a crash-only signal gets a crash title and backticks in a name cannot break the document", () => {
+  const d = bugDocument({ project: "app", projectName: "App", file: "lib/a`b.dart", logs: { errors: 0, warnings: 0, crashes: 2 } }, 0, 1);
+  assert.match(d.text, /^# Crashes in a`b\.dart/);
+  assert.ok(!d.text.includes("`b.dart`"));
+  assert.match(d.text, /File: `lib\/a'b\.dart`/);
 });

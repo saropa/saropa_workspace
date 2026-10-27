@@ -1,5 +1,5 @@
 import { Outside, OutsideGroup } from "./outside";
-import { DocFacts, sizeClass, stepTotals } from "./docFacts";
+import { DocFacts, isNameableSource, sizeClass, stepTotals } from "./docFacts";
 import { globToRegExp } from "./glob";
 import { ProjectHealth } from "./health";
 import { Audience, Profile, Severity, asProfile, stops } from "./severity";
@@ -453,7 +453,7 @@ export function buildBoard(
           named.set(r.project, new Set([...(named.get(r.project) ?? []), ...files]));
         }
       }
-      liveUnnamed = unnamedFiles(lv.signals, named, cfg.projects.map((p) => ({ id: p.id, name: p.name ?? p.id, bugsFolder: bugsFolderOf(p.roots) })), lv.fold);
+      liveUnnamed = unnamedFiles(lv.signals, named, cfg.projects.map((p) => ({ id: p.id, name: p.name ?? p.id, bugsFolder: bugsFolderOf(p.roots) })), lv.fold, (rel) => isNameableSource(rel, cfg.sourceDirs));
     }
   }
   const tidy = extra?.tidy

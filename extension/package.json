@@ -773,6 +773,17 @@
         "category": "%extension.displayName%"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.overnight.enable",
+        "title": "%command.releaseBoard.overnight.enable.title%",
+        "category": "%extension.displayName%"
+      },
+      {
+        "command": "saropaWorkspace.releaseBoard.overnight.dismissOffer",
+        "title": "%command.releaseBoard.overnight.dismissOffer.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(close)"
+      },
+      {
         "command": "saropaWorkspace.releaseBoard.sinceLast.markSeen",
         "title": "%command.releaseBoard.sinceLast.markSeen.title%",
         "category": "%extension.displayName%",
@@ -1796,6 +1807,11 @@
       ],
       "view/item/context": [
         {
+          "command": "saropaWorkspace.releaseBoard.overnight.dismissOffer",
+          "when": "view == saropaWorkspace.releaseBoard && viewItem == releaseBoardOvernightOffer",
+          "group": "inline"
+        },
+        {
           "command": "saropaWorkspace.releaseBoard.sinceLast.markSeen",
           "when": "view == saropaWorkspace.releaseBoard && viewItem == releaseBoardSince",
           "group": "inline@0"
@@ -2087,6 +2103,10 @@
       "commandPalette": [
         {
           "command": "saropaWorkspace.releaseBoard.sidebar.openBlocker",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.overnight.dismissOffer",
           "when": "false"
         },
         {
@@ -2578,6 +2598,35 @@
             ],
             "description": "%config.releaseBoard.sidebar.expandProjects.description%"
           },
+          "saropaWorkspace.releaseBoard.overnight.enabled": {
+            "scope": "application",
+            "type": "boolean",
+            "default": false,
+            "description": "%config.releaseBoard.overnight.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.overnight.startTime": {
+            "scope": "application",
+            "type": "string",
+            "default": "02:00",
+            "pattern": "^([01]?\\d|2[0-3]):[0-5]\\d$",
+            "description": "%config.releaseBoard.overnight.startTime.description%"
+          },
+          "saropaWorkspace.releaseBoard.overnight.windowHours": {
+            "scope": "application",
+            "type": "integer",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 6,
+            "description": "%config.releaseBoard.overnight.windowHours.description%"
+          },
+          "saropaWorkspace.releaseBoard.overnight.stepTimeoutMinutes": {
+            "scope": "application",
+            "type": "integer",
+            "default": 30,
+            "minimum": 5,
+            "maximum": 120,
+            "description": "%config.releaseBoard.overnight.stepTimeoutMinutes.description%"
+          },
           "saropaWorkspace.releaseBoard.openOnStartup": {
             "type": "string",
             "enum": ["never", "whenProjectsFound", "always"],
@@ -2658,6 +2707,21 @@
             "type": "string",
             "default": "docs/history",
             "description": "%config.releaseBoard.tidy.archiveFolder.description%"
+          },
+          "saropaWorkspace.releaseBoard.train.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.train.enabled.description%"
+          },
+          "saropaWorkspace.releaseBoard.train.naming": {
+            "type": "string",
+            "enum": ["version", "folder"],
+            "default": "version",
+            "enumDescriptions": [
+              "%config.releaseBoard.train.naming.version%",
+              "%config.releaseBoard.train.naming.folder%"
+            ],
+            "description": "%config.releaseBoard.train.naming.description%"
           },
           "saropaWorkspace.previewMode.enabled": {
             "type": "boolean",

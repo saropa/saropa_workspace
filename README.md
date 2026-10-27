@@ -131,6 +131,10 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.handToChat.enabled` | `true` | Shows a Hand to chat button on each release blocker, Path to GO step and Sittings step. It copies a ready prompt to the clipboard; nothing is sent. |
 | `releaseBoard.handToChat.detail` | `standard` | How much the copied prompt says: `short` (blocker and file), `standard` (adds the evidence) or `full` (adds what it waits on, its group, and lint and test evidence). |
 | `releaseBoard.handToChat.openChat` | `never` | `offer` shows an Open chats button after copying, when Chat Explorer is installed and knows chats for the document. `never` only copies. |
+| `releaseBoard.overnight.enabled` | `false` | Runs each project's own lint and test shortcuts once a night while VS Code is open, one project at a time, and records fresh evidence. Never edits files. Off by default; while off, the sidebar shows one hideable line offering to turn it on. |
+| `releaseBoard.overnight.startTime` | `02:00` | Local time (HH:MM) when the overnight window opens. |
+| `releaseBoard.overnight.windowHours` | `3` | Hours the window stays open (1 to 6). No step starts after it closes. |
+| `releaseBoard.overnight.stepTimeoutMinutes` | `30` | Longest one lint or test run may take (5 to 120) before it is stopped. |
 | `releaseBoard.pathToGo.enabled` | `true` | Shows a Path to GO under each project on the board: click a project row to see the few steps between it and GO. |
 | `releaseBoard.pathToGo.maxSteps` | `8` | Most steps listed in a Path to GO (3 to 20). |
 | `releaseBoard.pathToGo.showRunButtons` | `true` | Shows the Run lint now and Run tests now buttons in a Path to GO. Turn off if the board should never start a run. |
@@ -148,6 +152,8 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.liveEvidence.includeWarnings` | `true` | Counts warnings as well as errors and crashes. Off: only errors and crashes mark a row. |
 | `releaseBoard.liveEvidence.lookbackDays` | `1` | Days of debug runs Log Capture is asked about (1 to 30). |
 | `releaseBoard.liveEvidence.unnamedBox` | `true` | Lists crash signals in files no open document names, with a Start a bug document button. Needs Log Capture. |
+| `releaseBoard.train.enabled` | `true` | Shows a Release train row on the board and in the sidebar when more than one project is found: one light (the worst of the projects that ship together) and the order to ship them in. Read-only. |
+| `releaseBoard.train.naming` | `version` | Names the train by the version of the project that ships last (from `package.json` or `pubspec.yaml`), or by its folder name (`folder`). |
 | `releaseBoard.editorLinks.enabled` | `true` | Shows which open board documents name the file you are editing. |
 | `releaseBoard.editorLinks.codeLens` | `true` | Shows the line at the top of a file that lists those documents. |
 | `releaseBoard.editorLinks.statusBar` | `true` | Shows a status bar count, colored by the worst document. |

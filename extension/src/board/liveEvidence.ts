@@ -71,6 +71,13 @@ export function normRel(p: string, fold: boolean): string {
   return fold ? s.toLowerCase() : s;
 }
 
+// A key for an absolute path that both sides of the Log Capture lookup build the same way:
+// "/" separators, a lower-case drive letter, and no case where the file system ignores it.
+export function pathKey(p: string, fold: boolean): string {
+  const s = p.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_m, d: string) => d.toLowerCase() + ":").replace(/\/{2,}/g, "/");
+  return fold ? s.toLowerCase() : s;
+}
+
 export function clampLookbackDays(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(30, Math.max(1, Math.round(v))) : 1;
 }
@@ -94,8 +101,9 @@ export function parseLintViolations(text: string, base: string | undefined, fold
     if (!raw || (sev !== "error" && sev !== "warning")) {
       continue;
     }
-    let rel = normRel(raw, fold);
-    if (root && rel.startsWith(root)) {
+    // The key keeps the file's own case for display; matching folds it where needed.
+    let rel = normRel(raw, false);
+    if (root && normRel(rel, fold).startsWith(root)) {
       rel = rel.slice(root.length);
     }
     if (rel.startsWith("/") || /^[a-z]:\//i.test(rel) || rel.split("/").includes("..")) {
@@ -128,13 +136,15 @@ export function apiUsable(api: SignalsApi | undefined): boolean {
 // The reply of `signalsForFiles(paths, sinceDate)`: an array, or an object with a `files`
 // array, of { path, errors, warnings, crashes, last, title }. `lookup` maps each path that was
 // asked for to its project and relative file; an answer for any other path is dropped.
-export function readApiSignals(reply: unknown, lookup: Map<string, { project: string; rel: string }>): Array<{ project: string; rel: string; logs: LogCounts }> {
+export type PathLookup = Map<string, Array<{ project: string; rel: string }>>;
+
+export function readApiSignals(reply: unknown, lookup: PathLookup, fold: boolean): Array<{ project: string; rel: string; logs: LogCounts }> {
   const list = Array.isArray(reply) ? reply : Array.isArray((reply as { files?: unknown } | null)?.files) ? (reply as { files: unknown[] }).files : [];
   const out: Array<{ project: string; rel: string; logs: LogCounts }> = [];
   for (const r of list.slice(0, 1000)) {
     const o = (typeof r === "object" && r !== null ? r : {}) as Record<string, unknown>;
-    const hit = typeof o.path === "string" ? lookup.get(o.path) : undefined;
-    if (!hit) {
+    const hit = typeof o.path === "string" ? lookup.get(pathKey(o.path, fold)) : undefined;
+    if (!hit || hit.length === 0) {
       continue;
     }
     const logs: LogCounts = { errors: posInt(o.errors), warnings: posInt(o.warnings), crashes: posInt(o.crashes) };
@@ -147,7 +157,9 @@ export function readApiSignals(reply: unknown, lookup: Map<string, { project: st
     if (typeof o.title === "string" && o.title.trim() !== "") {
       logs.title = o.title.replace(/[\r\n\t]+/g, " ").trim().slice(0, MAX_TITLE);
     }
-    out.push({ ...hit, logs });
+    for (const h of hit) {
+      out.push({ ...h, logs });
+    }
   }
   return out;
 }
@@ -218,13 +230,15 @@ export function unnamedFiles(
   signals: LiveSignals,
   named: Map<string, Set<string>>,
   projects: Array<{ id: string; name: string; bugsFolder?: string }>,
-  fold: boolean
+  fold: boolean,
+  // Only a file a document can name is listed, so a written document makes it "named".
+  nameable: (rel: string) => boolean = () => true
 ): LiveUnnamed[] {
   const out: LiveUnnamed[] = [];
   for (const p of projects) {
     const have = new Set([...(named.get(p.id) ?? [])].map((f) => normRel(f, fold)));
     for (const [file, sig] of Object.entries(signals[p.id] ?? {})) {
-      if (sig.logs && sig.logs.crashes + sig.logs.errors > 0 && !have.has(normRel(file, fold))) {
+      if (sig.logs && sig.logs.crashes + sig.logs.errors > 0 && nameable(file) && !have.has(normRel(file, fold))) {
         out.push({ project: p.id, projectName: p.name, file, logs: sig.logs, folder: p.bugsFolder });
       }
     }
@@ -235,8 +249,11 @@ export function unnamedFiles(
 }
 
 // The project's bugs folder: the first document root whose last segment is "bugs".
+// A root that is absolute or climbs out of the project is never used.
 export function bugsFolderOf(roots: string[]): string | undefined {
-  return roots.map((r) => r.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "")).find((r) => r.split("/").pop()?.toLowerCase() === "bugs");
+  return roots
+    .map((r) => r.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, ""))
+    .find((r) => r !== "" && !r.startsWith("/") && !/^[A-Za-z]:/.test(r) && !r.split("/").some((seg) => seg === ".." || seg === ".") && r.split("/").pop()?.toLowerCase() === "bugs");
 }
 
 const pad = (n: number): string => String(n).padStart(2, "0");
@@ -252,17 +269,18 @@ export function bugDocument(u: LiveUnnamed, now: number, sinceDays: number): { n
   const slug = base.replace(/\.[A-Za-z0-9]+$/, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase() || "FILE";
   const parts = [u.logs.crashes > 0 ? `${u.logs.crashes} ${u.logs.crashes === 1 ? "crash" : "crashes"}` : "", u.logs.errors > 0 ? `${u.logs.errors} ${u.logs.errors === 1 ? "error" : "errors"}` : ""].filter(Boolean);
   const signal = `${parts.join(", ")} in debug runs since ${dateOf(now - sinceDays * 86400000)}`;
-  const title = u.logs.title ?? `Errors in ${base}`;
+  const title = u.logs.title ?? (u.logs.crashes > 0 ? `Crashes in ${base}` : `Errors in ${base}`);
+  const file = u.file.replace(/`/g, "'");
   const text = [
     `# ${title}`,
     "",
     `Date: ${dateOf(now)}`,
-    `File: \`${u.file}\``,
+    `File: \`${file}\``,
     `Signal: ${signal}.`,
     "",
     "## Steps",
     "",
-    `- [ ] Find the cause in \`${u.file}\`.`,
+    `- [ ] Find the cause in \`${file}\`.`,
     "- [ ] Fix it and add a test.",
     "",
   ].join("\n");

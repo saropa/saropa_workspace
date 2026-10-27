@@ -79,6 +79,13 @@ function unique(matches: IterableIterator<RegExpMatchArray>, group = 0): number 
 
 const escapeRe = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|/-]/g, "\\$&");
 
+// True when a project-relative path is one a document can name, so that the scanner would
+// list it in `sourceFiles` (same folders and extensions as the reader below).
+export function isNameableSource(rel: string, sourceDirs?: string[]): boolean {
+  const dirs = (sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
+  return new RegExp(`^(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)$`).test(rel);
+}
+
 // The first comment line of a SQL file that says what it does (not a date, a file name,
 // a "Why:" label or a spell-check pragma).
 function sqlTitle(text: string): string {
