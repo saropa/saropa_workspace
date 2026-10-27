@@ -1,6 +1,8 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { onDidRecordHealth } from "../commands/boardHealth";
+import { onDidChangeMarks, readLocalMarks, writeLocalMarks } from "../commands/boardMarks";
+import { applyMarks, pinnedKeys, splitKey } from "../board/marks";
 import { BoardRun, acceptBoardRun, hasOutsideProject, openRulesFile, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
@@ -51,6 +53,10 @@ function strings(): BoardStrings {
     proOnly: l10n("releaseBoard.panel.proOnly"),
     pinned: l10n("releaseBoard.panel.pinned"),
     needsRuleHeading: l10n("releaseBoard.panel.needsRuleHeading"),
+    suggestHeading: l10n("releaseBoard.panel.suggestHeading"),
+    suggestNote: l10n("releaseBoard.panel.suggestNote"),
+    suggestAccept: l10n("releaseBoard.panel.suggestAccept"),
+    suggestReject: l10n("releaseBoard.panel.suggestReject"),
     needsRuleNote: l10n("releaseBoard.panel.needsRuleNote"),
     loading: l10n("releaseBoard.panel.loading"),
     refreshing: l10n("releaseBoard.panel.refreshing"),
@@ -85,6 +91,7 @@ class BoardPanel {
   ) {
     panel.onDidDispose(() => this.dispose(), null, this.disposables);
     onDidRecordHealth(() => this.schedule(300), null, this.disposables);
+    onDidChangeMarks(() => this.schedule(0), null, this.disposables);
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.schedule(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && this.schedule(300),
@@ -92,7 +99,7 @@ class BoardPanel {
       this.disposables
     );
     // Documents change on disk: rescan while the tab is showing, else only remember it.
-    const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board.json");
+    const rules = vscode.workspace.createFileSystemWatcher("**/.saropa/release-board*.json");
     const watcher = vscode.workspace.createFileSystemWatcher("**/*.{md,sql}");
     rules.onDidChange(() => this.schedule(300), null, this.disposables);
     rules.onDidCreate(() => this.schedule(300), null, this.disposables);
@@ -190,7 +197,18 @@ class BoardPanel {
     if (!this.run) {
       return;
     }
-    this.model = buildBoard(this.run.cfg, this.run.result.rows, this.run.safety, this.run.accepted, this.run.result.snapshot, this.run.previous, this.run.health);
+    const { cfg, marks } = this.run;
+    // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
+    this.model = buildBoard(
+      { ...cfg, pinned: [...(Array.isArray(cfg.pinned) ? cfg.pinned : []), ...pinnedKeys(marks)] },
+      applyMarks(this.run.result.rows, marks),
+      this.run.safety,
+      this.run.accepted,
+      this.run.result.snapshot,
+      this.run.previous,
+      this.run.health,
+      { needs: marks.needs, rejected: marks.rejected }
+    );
     // The same board in the same state is not painted again: no flicker, no lost scroll.
     const key = JSON.stringify([this.model, state]);
     if (key === this.lastKey) {
@@ -206,7 +224,7 @@ class BoardPanel {
     if (typeof message !== "object" || message === null) {
       return;
     }
-    const msg = message as { type?: string; id?: number; rev?: number; value?: string };
+    const msg = message as { type?: string; id?: number; rev?: number; value?: string; key?: string };
     if (msg.rev !== this.rev) {
       return;
     }
@@ -216,6 +234,20 @@ class BoardPanel {
     } else if (msg.type === "profile" && (msg.value === "rush" || msg.value === "deliberate" || msg.value === "zero")) {
       // The setting change refreshes the board through the configuration listener.
       await vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").update("profile", msg.value, vscode.ConfigurationTarget.Workspace);
+    } else if (msg.type === "suggest" && typeof msg.key === "string" && (msg.value === "accept" || msg.value === "reject")) {
+      // Only a suggestion the page was actually shown can be acted on.
+      const shown = this.model?.suggestions.some((s) => s.key === msg.key);
+      const [from, to] = msg.key.split("->");
+      if (shown && from && to) {
+        const local = await readLocalMarks(this.context);
+        if (msg.value === "reject") {
+          local.rejected = [...new Set([...local.rejected, msg.key])];
+        } else {
+          const t = splitKey(to);
+          local.needs[from] = [...new Set([...(local.needs[from] ?? []), `${t.project}:${t.path}`])];
+        }
+        await writeLocalMarks(this.context, local);
+      }
     } else if (msg.type === "rules") {
       await openRulesFile();
     } else if (msg.type === "accept" && this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold)) {

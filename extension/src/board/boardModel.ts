@@ -5,6 +5,7 @@ import { Audience, Profile, Severity, asProfile, stops } from "./severity";
 import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
 import { Link, LinkState, buildChains, resolveLinks } from "./links";
+import { inferLinks } from "./inferred";
 import { ScanSnapshot } from "./scanner";
 import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCounts } from "./types";
 
@@ -100,6 +101,8 @@ export interface BoardModel {
   safetyHold: boolean;
   baseline: boolean;
   profile: Profile;
+  // Links the board guesses from documents naming each other; the user accepts or rejects.
+  suggestions: Array<{ key: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
   // Folders where documents no rule placed sit, for the "needs a rule" list.
   needsRule: Array<{ project: string; folder: string; count: number }>;
 }
@@ -162,7 +165,9 @@ export function buildBoard(
   accepted: boolean,
   snapshot?: ScanSnapshot,
   previous?: ScanSnapshot,
-  health?: Record<string, ProjectHealth>
+  health?: Record<string, ProjectHealth>,
+  // Links the user accepted (waiting document "project/path" -> targets) and suggestions turned down.
+  extra?: { needs?: Record<string, string[]>; rejected?: string[] }
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
@@ -277,6 +282,11 @@ export function buildBoard(
       needs.set(r.project + "\t" + r.path, n);
     }
   }
+  for (const [k, targets] of Object.entries(extra?.needs ?? {})) {
+    const i = k.indexOf("/");
+    const key = k.slice(0, i) + "\t" + k.slice(i + 1);
+    needs.set(key, [...new Set([...(needs.get(key) ?? []), ...targets])]);
+  }
   const links = resolveLinks(rows, needs, cfg.projects);
   const byKey = new Map(all.map((it) => [keyOf(it), it]));
   for (const it of all) {
@@ -295,6 +305,16 @@ export function buildBoard(
       }
     }
   }
+  const linked = new Set(links.filter((l) => l.toProject && l.toPath).map((l) => `${l.fromProject}/${l.fromPath}->${l.toProject}/${l.toPath}`));
+  const suggestions = inferLinks(
+    all.map((it) => ({ project: it.project, path: it.path, refs: factsOf(it)?.docRefNames ?? [] })),
+    linked,
+    new Set(extra?.rejected ?? [])
+  ).flatMap((s) => {
+    const a = byKey.get(s.fromProject + "\t" + s.fromPath);
+    const b = byKey.get(s.fromProject + "\t" + s.toPath);
+    return a && b ? [{ key: s.key, from: { project: names.get(a.project) ?? a.project, title: a.title, id: a.id }, to: { project: names.get(b.project) ?? b.project, title: b.title, id: b.id } }] : [];
+  });
   const flags = links
     .filter((l) => l.state !== "open")
     .map((l) => `${names.get(l.fromProject) ?? l.fromProject}: ${titleFromPath(l.fromPath)} — ${l.target}: ${l.state}`);
@@ -313,6 +333,7 @@ export function buildBoard(
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,
     baseline: !accepted && (safety?.baseline ?? false),
     profile,
+    suggestions,
     needsRule: cfg.projects.flatMap((p) =>
       Object.entries(snapshot?.projects[p.id]?.greyFolders ?? {})
         .map(([folder, count]) => ({ project: p.id, folder, count }))

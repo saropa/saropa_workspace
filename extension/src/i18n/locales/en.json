@@ -1858,5 +1858,14 @@
   "releaseBoard.panel.healthLint": "Lint",
   "releaseBoard.panel.healthTests": "Tests",
   "releaseBoard.panel.loading": "Reading the project folders…",
-  "releaseBoard.panel.refreshing": "Refreshing"
+  "releaseBoard.panel.refreshing": "Refreshing",
+  "releaseBoard.panel.suggestHeading": "Documents that probably belong together",
+  "releaseBoard.panel.suggestNote": "Each document on the left names the one on the right. Accept to treat it as waiting on that document; reject to stop suggesting it.",
+  "releaseBoard.panel.suggestAccept": "Accept",
+  "releaseBoard.panel.suggestReject": "Reject",
+  "releaseBoard.markNone": "Release Board: the open file is not in a project the board reads.",
+  "releaseBoard.markProgress": "Mark in progress",
+  "releaseBoard.markPin": "Pin as critical",
+  "releaseBoard.markClear": "Clear my marks",
+  "releaseBoard.marksExported": "Release Board: marks written to {file}. Commit it to share them."
 }
