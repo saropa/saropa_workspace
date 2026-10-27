@@ -15,6 +15,9 @@
 
 import * as nodeFs from "node:fs";
 import * as nodePath from "node:path";
+import { Disposable, applyEdit, recordWarning } from "./vscodeExtras";
+
+export { DiagnosticSeverity, Disposable, WorkspaceEdit, __resetWarnings, __setDiagnostics, __setWarningAnswer, __warningMessages, languages } from "./vscodeExtras";
 
 // vscode.FileType: the store reads `.type` from a stat to tell a file from a
 // directory (the auto-shortcut literal-path branch). Only File/Directory are exercised.
@@ -38,6 +41,16 @@ export class Uri {
     public readonly fsPath: string,
     private readonly raw: string
   ) {}
+
+  // The path part of a "scheme://authority/path" string, as vscode.Uri.path.
+  get path(): string {
+    return this.fsPath.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]*/, "");
+  }
+
+  // The authority part of a "scheme://authority/path" string; empty when there is none.
+  get authority(): string {
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^/]*)/.exec(this.fsPath)?.[1] ?? "";
+  }
 
   static file(p: string): Uri {
     return new Uri("file", p, p);
@@ -109,6 +122,13 @@ function ownerFolder(uri: Uri): WorkspaceFolder | undefined {
 // before store IO existed). A test sets recipes.enabled=false to skip the recipe
 // detection graph, or autoShortcuts.patterns to drive seeding.
 const configValues = new Map<string, unknown>();
+// Values set at workspace and folder scope; only inspect() sees them, get() reads the global map.
+const workspaceValues = new Map<string, unknown>();
+const folderValues = new Map<string, unknown>();
+// Test-control hook: sets a value at workspace or folder scope for inspect().
+export function __setConfigAt(scope: "workspace" | "folder", section: string, key: string, value: unknown): void {
+  (scope === "workspace" ? workspaceValues : folderValues).set(`${section}.${key}`, value);
+}
 // Test-control hook: seeds a single "section.key" value, read back by
 // getConfiguration().get() in place of the caller's supplied default.
 export function __setConfig(section: string, key: string, value: unknown): void {
@@ -118,6 +138,8 @@ export function __setConfig(section: string, key: string, value: unknown): void 
 // does not leak from one test into the next.
 export function __resetConfig(): void {
   configValues.clear();
+  workspaceValues.clear();
+  folderValues.clear();
   installedExtensions.clear();
 }
 
@@ -131,12 +153,21 @@ export const ConfigurationTarget = {
 
 function getConfiguration(section?: string): {
   get<T>(key: string, defaultValue: T): T;
+  inspect<T>(key: string): { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined;
   update(key: string, value: unknown, target?: number): Promise<void>;
 } {
   return {
     get<T>(key: string, defaultValue: T): T {
       const full = section ? `${section}.${key}` : key;
       return (configValues.has(full) ? configValues.get(full) : defaultValue) as T;
+    },
+    // __setConfig sets the user (global) value; __setConfigAt sets a workspace or folder one.
+    inspect<T>(key: string): { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined {
+      const full = section ? `${section}.${key}` : key;
+      const found = [configValues, workspaceValues, folderValues].some((m) => m.has(full));
+      return found
+        ? { globalValue: configValues.get(full) as T, workspaceValue: workspaceValues.get(full) as T, workspaceFolderValue: folderValues.get(full) as T }
+        : undefined;
     },
     // Writes into the same map get() reads, so a test asserts the effect of a
     // settings-writing action by reading the value back through __getConfig.
@@ -235,6 +266,12 @@ const fsApi = {
       mtime: Math.trunc(s.mtimeMs),
     };
   },
+  // Lists a directory as [name, type] pairs, like workspace.fs.readDirectory.
+  async readDirectory(uri: Uri): Promise<Array<[string, number]>> {
+    return nodeFs
+      .readdirSync(uri.fsPath, { withFileTypes: true })
+      .map((e): [string, number] => [e.name, e.isDirectory() ? FileType.Directory : FileType.File]);
+  },
   async readFile(uri: Uri): Promise<Uint8Array> {
     return nodeFs.readFileSync(uri.fsPath);
   },
@@ -288,6 +325,11 @@ export const workspace = {
   getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined {
     return ownerFolder(uri);
   },
+  // Empty unless a test pushes a document (for example a dirty one).
+  textDocuments: [] as Array<{ isDirty: boolean; uri: Uri }>,
+  applyEdit,
+  // Configuration changes never fire in the stub; tests read settings directly.
+  onDidChangeConfiguration: (_listener: (e: { affectsConfiguration(section: string): boolean }) => void): { dispose(): void } => ({ dispose: (): void => undefined }),
   fs: fsApi,
   findFiles,
 };
@@ -551,11 +593,9 @@ export const window = {
   ): Promise<string | undefined> {
     return Promise.resolve(undefined);
   },
-  showWarningMessage(
-    _message: string,
-    ..._items: string[]
-  ): Promise<string | undefined> {
-    return Promise.resolve(undefined);
+  // Recorded and answered by the handler in vscodeExtras (default: dismissed).
+  showWarningMessage(message: string, ...rest: unknown[]): Promise<string | undefined> {
+    return recordWarning(message, rest);
   },
   // Records the message so a test can assert which diagnostic surfaced (e.g. a
   // script's missing-requirement toast), then resolves inert like the other toasts.
@@ -565,8 +605,9 @@ export const window = {
   },
   // Records which document was raised, so the report-open suppression tests can
   // assert on the number and identity of windows a run produced.
-  async showTextDocument(doc: { uri: Uri }): Promise<void> {
-    openedDocuments.push(doc.uri.fsPath);
+  async showTextDocument(doc: { uri: Uri } | Uri): Promise<void> {
+    // A document, or a bare Uri as the real call also accepts.
+    openedDocuments.push(("uri" in doc ? doc.uri : doc).fsPath);
   },
   createOutputChannel,
   // Paired with ThemeColor above: shortcutOpen creates its peek-highlight decoration type at
@@ -604,11 +645,23 @@ const recordedCommands: Array<{ command: string; args: unknown[] }> = [];
 // vscode.commands stand-in: executeCommand is an inert no-op that records the
 // call, so a test that cares which command ran can assert against it afterward.
 export const commands = {
+  // Keeps the handler so a test can call it through __registeredCommands.
+  registerCommand(command: string, handler: (...args: unknown[]) => unknown): Disposable {
+    registeredCommands.set(command, handler);
+    return new Disposable(() => registeredCommands.delete(command));
+  },
   executeCommand(command: string, ...rest: unknown[]): Promise<undefined> {
     recordedCommands.push({ command, args: rest });
     return Promise.resolve(undefined);
   },
 };
+
+// Handlers added by commands.registerCommand, by command id.
+const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
+// The handlers registered with commands.registerCommand, by command id.
+export function __registeredCommands(): ReadonlyMap<string, (...args: unknown[]) => unknown> {
+  return registeredCommands;
+}
 
 // The commands executeCommand was called with since the last reset, for tests that
 // assert a side-effecting command fired (e.g. saropaWorkspace.runPin).

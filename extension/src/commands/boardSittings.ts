@@ -6,6 +6,7 @@ import { TimeBox, asTimeBox } from "../board/sittings";
 
 const KEY = "releaseBoard.sittings.choice";
 
+// The Sittings settings, already clamped.
 export interface SittingsSettings {
   enabled: boolean;
   defaultHave: string[];
@@ -14,11 +15,13 @@ export interface SittingsSettings {
   onlyOwnerDocuments: boolean;
 }
 
+// What the owner last chose on the board: what is in hand and the time box.
 export interface SittingsChoice {
   have: string[];
   timeBox: TimeBox;
 }
 
+// Reads the Sittings settings; a bad value falls back to its default.
 export function readSittingsSettings(): SittingsSettings {
   const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard.sittings");
   const have = c.get<unknown>("defaultHave", []);
@@ -41,6 +44,7 @@ export function readSittingsChoice(context: vscode.ExtensionContext): SittingsCh
   return { have: v.have.filter((x): x is string => typeof x === "string"), timeBox: asTimeBox(v.timeBox) };
 }
 
+// Remembers the choice on this machine.
 export async function saveSittingsChoice(context: vscode.ExtensionContext, choice: SittingsChoice): Promise<void> {
   await context.globalState.update(KEY, choice);
 }

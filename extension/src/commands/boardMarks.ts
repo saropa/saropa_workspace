@@ -8,9 +8,11 @@ import { l10n } from "../i18n/l10n";
 // is read under them, so a team that commits it sees the same marks.
 
 const LOCAL_FILE = "release-board-marks.json";
+// The shared marks file, relative to the first workspace folder.
 export const SHARED_FILE = ".saropa/release-board-marks.json";
 
 const changed = new vscode.EventEmitter<void>();
+// Fires after the local marks were written.
 export const onDidChangeMarks = changed.event;
 
 function storageDir(context: vscode.ExtensionContext): vscode.Uri {
@@ -25,6 +27,7 @@ async function readText(uri: vscode.Uri): Promise<string | undefined> {
   }
 }
 
+// The marks kept in the board's own storage for this workspace.
 export async function readLocalMarks(context: vscode.ExtensionContext): Promise<MarksFile> {
   return parseMarks(await readText(vscode.Uri.joinPath(storageDir(context), LOCAL_FILE)));
 }
@@ -42,12 +45,14 @@ export async function readMarks(context: vscode.ExtensionContext): Promise<Marks
 // One change at a time: two quick clicks must not both read the file before either writes.
 let writing: Promise<unknown> = Promise.resolve();
 
+// Applies one change to the local marks, after any change still being written.
 export function updateLocalMarks(context: vscode.ExtensionContext, change: (f: MarksFile) => MarksFile): Promise<void> {
   const next = writing.then(async () => writeLocalMarks(context, change(await readLocalMarks(context))));
   writing = next.catch(() => undefined);
   return next;
 }
 
+// Replaces the local marks file and tells listeners.
 export async function writeLocalMarks(context: vscode.ExtensionContext, f: MarksFile): Promise<void> {
   const dir = storageDir(context);
   await vscode.workspace.fs.createDirectory(dir);
@@ -56,7 +61,7 @@ export async function writeLocalMarks(context: vscode.ExtensionContext, f: Marks
 }
 
 // Which project and path a file belongs to, by its place under a project's folder.
-function locate(cfg: BoardConfig, uri: vscode.Uri): { project: string; path: string } | undefined {
+export function locate(cfg: BoardConfig, uri: vscode.Uri): { project: string; path: string } | undefined {
   const target = uri.toString();
   // Drive letters and folders differ in case on Windows; compare file paths that way.
   const fold = (s: string): string => (uri.scheme === "file" ? s.toLowerCase() : s);

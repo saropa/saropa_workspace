@@ -6,8 +6,10 @@ import defaultDict from "./severity.json";
 // prototype (scripts/release-board/score.py), which the golden test compares against.
 
 export type Severity = "extreme" | "critical" | "high" | "medium" | "low";
+// Who a document is for: paying users only, or everyone.
 export type Audience = "pro" | "all";
 
+// The phrase dictionary and weights that decide a document's severity.
 export interface SeverityDict {
   threshold: number;
   weights: { title: number; head: number; body: number; perPhraseCap: number };
@@ -17,6 +19,7 @@ export interface SeverityDict {
   audience: { pro: string[] };
 }
 
+// The dictionary shipped with the extension.
 export const DEFAULT_SEVERITY: SeverityDict = defaultDict as unknown as SeverityDict;
 
 // A user dictionary may replace any section; the rest stays as shipped.
@@ -33,6 +36,7 @@ export function mergeDict(over?: Partial<SeverityDict>): SeverityDict {
   };
 }
 
+// Plain setting value to a profile; anything unknown means deliberate.
 export function asProfile(v: unknown): Profile {
   return v === "rush" || v === "deliberate" || v === "zero" ? v : "deliberate";
 }
@@ -65,6 +69,7 @@ function count(text: string, phrase: string, negation: RegExp[]): number {
   return n;
 }
 
+// Scores a document's text and name against the dictionary: its severity and its audience.
 export function scoreDocument(text: string, path: string, dict: SeverityDict = DEFAULT_SEVERITY): { severity: Severity; audience: Audience } {
   const stripped = text.replace(/```[\s\S]*?```/g, "");
   // Front matter and blank lines are not the title.
@@ -107,6 +112,7 @@ const STOPS: Record<Profile, ReadonlySet<Severity>> = {
   zero: new Set<Severity>(["extreme", "critical", "high", "medium"]),
 };
 
+// True when a severity stops a release under the profile.
 export function stops(profile: Profile, level: Severity): boolean {
   return (STOPS[asProfile(profile)]).has(level);
 }

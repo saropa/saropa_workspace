@@ -14,10 +14,12 @@ import { worstLight } from "./sidebar";
 
 export type TrainNaming = "version" | "folder";
 
+// Plain setting value to a naming mode; anything but folder means version.
 export function asTrainNaming(v: unknown): TrainNaming {
   return v === "folder" ? "folder" : "version";
 }
 
+// What the train build needs to know about one project.
 export interface TrainProject {
   id: string;
   name: string;
@@ -29,6 +31,7 @@ export interface TrainProject {
   version?: string;
 }
 
+// One project in a train, in shipping order.
 export interface TrainMember {
   id: string;
   name: string;
@@ -37,6 +40,7 @@ export interface TrainMember {
   label: string;
 }
 
+// Projects that ship together, with one light, the order and what holds the light back.
 export interface Train {
   // Unique among trains (a project is in one train): the member ids joined.
   key: string;
@@ -186,6 +190,7 @@ export function buildTrains(projects: TrainProject[], naming: TrainNaming): Trai
   });
 }
 
+// The text a train row is made from.
 export interface TrainLabels {
   // Contains {name}.
   title: string;
@@ -195,6 +200,7 @@ export interface TrainLabels {
   cycle: string;
 }
 
+// A train as one row of text.
 export interface TrainRow {
   // Unique among trains, for a tree row id.
   key: string;
@@ -207,6 +213,7 @@ export interface TrainRow {
 
 const fill = (s: string, k: string, v: string): string => s.split(k).join(v);
 
+// Turns trains into rows with a short description and a tooltip.
 export function trainRows(trains: Train[], labels: TrainLabels): TrainRow[] {
   return trains.map((t) => {
     const order = t.members.map((m) => m.name).join(" > ");

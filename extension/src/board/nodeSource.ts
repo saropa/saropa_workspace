@@ -10,6 +10,7 @@ export function nodeFileSource(base: string): FileSource {
     async list(projectDir: string, root: string, accept?: (path: string) => boolean): Promise<ScanFile[]> {
       const dir = path.join(base, projectDir);
       const out: ScanFile[] = [];
+      // Walks the tree depth first; paths are made relative to the project folder with "/".
       const walk = (abs: string): void => {
         for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
           const full = path.join(abs, e.name);
@@ -28,10 +29,12 @@ export function nodeFileSource(base: string): FileSource {
       walk(path.join(dir, root));
       return out;
     },
+    // Only the first lines are needed to find a Status line.
     async readHead(projectDir: string, p: string, lines: number): Promise<string> {
       const text = fs.readFileSync(path.join(base, projectDir, p), "utf8");
       return text.split(/\r?\n/).slice(0, lines).join("\n");
     },
+    // The whole file, read for open documents only.
     async readText(projectDir: string, p: string): Promise<string> {
       return fs.readFileSync(path.join(base, projectDir, p), "utf8");
     },

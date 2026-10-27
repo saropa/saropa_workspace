@@ -6,7 +6,8 @@ import { isNameableSource } from "../board/docFacts";
 import { Counts, LiveSignals, LiveUnnamed, PathLookup, SignalsApi, apiUsable, bugDocument, clampLookbackDays, normRel, parseLintViolations, pathKey, readApiSignals } from "../board/liveEvidence";
 import { withTimeout } from "../board/timeout";
 import { l10n } from "../i18n/l10n";
-import { BoardRun } from "./releaseBoardCommands";
+import { BoardRun } from "./boardScanStore";
+import { pathExists } from "./boardFileSource";
 
 // Release Board, live evidence, VS Code layer. Three sources, all local and all optional:
 // the Problems panel (VS Code diagnostics), the Saropa Lints violations file the board
@@ -24,6 +25,7 @@ const MAX_PATHS = 300;
 const MAX_LINT_BYTES = 16 * 1024 * 1024;
 const FOLD = process.platform === "win32" || process.platform === "darwin";
 
+// The live evidence settings, already clamped.
 export interface LiveSettings {
   enabled: boolean;
   includeWarnings: boolean;
@@ -31,6 +33,7 @@ export interface LiveSettings {
   unnamedBox: boolean;
 }
 
+// Reads the live evidence settings. The board switch turns the whole feature off.
 export function readLiveSettings(): LiveSettings {
   const c = vscode.workspace.getConfiguration(SETTINGS);
   const board = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard");
@@ -42,6 +45,7 @@ export function readLiveSettings(): LiveSettings {
   };
 }
 
+// True when file paths compare without regard to case (Windows and macOS).
 export const liveFold = FOLD;
 
 function add(out: LiveSignals, project: string, rel: string): NonNullable<LiveSignals[string][string]> {
@@ -50,7 +54,7 @@ function add(out: LiveSignals, project: string, rel: string): NonNullable<LiveSi
 }
 
 // Errors and warnings the editor already holds for a file.
-function problemCounts(diags: readonly vscode.Diagnostic[] | undefined): Counts | undefined {
+export function problemCounts(diags: readonly vscode.Diagnostic[] | undefined): Counts | undefined {
   let errors = 0;
   let warnings = 0;
   for (const d of diags ?? []) {
@@ -123,7 +127,7 @@ async function logSignals(paths: string[], lookup: PathLookup, sinceDays: number
 }
 
 // The deepest project that holds a file, so a file in a nested project is counted once.
-function owner(projects: Array<{ id: string; root: vscode.Uri }>, uri: vscode.Uri): { id: string; rel: string } | undefined {
+export function owner(projects: Array<{ id: string; root: vscode.Uri }>, uri: vscode.Uri): { id: string; rel: string } | undefined {
   let best: { id: string; rel: string; len: number } | undefined;
   for (const p of projects) {
     const rel = p.root.scheme === uri.scheme && p.root.authority === uri.authority ? relativeTo(p.root.path, uri.path, FOLD) : undefined;
@@ -132,6 +136,83 @@ function owner(projects: Array<{ id: string; root: vscode.Uri }>, uri: vscode.Ur
     }
   }
   return best;
+}
+
+// Files with an error in the Problems panel, per project id, as paths inside the project.
+export function erroringFiles(all: ReadonlyArray<[vscode.Uri, readonly vscode.Diagnostic[]]>, projects: Array<{ id: string; root: vscode.Uri }>): Map<string, string[]> {
+  const erroring = new Map<string, string[]>();
+  for (const [uri, diags] of all) {
+    if (uri.scheme !== "file" || !diags.some((d) => d.severity === vscode.DiagnosticSeverity.Error)) {
+      continue;
+    }
+    const o = owner(projects, uri);
+    if (o) {
+      erroring.set(o.id, [...(erroring.get(o.id) ?? []), o.rel]);
+    }
+  }
+  return erroring;
+}
+
+// The source files the project's open documents name, keyed by their comparison form.
+export function namedFiles(run: BoardRun, items: BoardItem[], projectId: string): Map<string, string> {
+  const named = new Map<string, string>();
+  for (const it of items) {
+    if (it.project !== projectId) {
+      continue;
+    }
+    for (const f of run.result.snapshot.projects[projectId]?.facts[it.path]?.facts.sourceFiles ?? []) {
+      named.set(normRel(f, FOLD), f);
+    }
+  }
+  return named;
+}
+
+// The files to ask Log Capture about: the named ones first, then files with an error now
+// that a document could name. At most MAX_PATHS.
+export function filesToAsk(named: Map<string, string>, lintErrors: string[], problemErrors: string[], sourceDirs: string[] | undefined): string[] {
+  const want = new Map(named);
+  for (const f of [...lintErrors, ...problemErrors]) {
+    if (isNameableSource(normRel(f, false), sourceDirs) && !want.has(normRel(f, FOLD))) {
+      want.set(normRel(f, FOLD), normRel(f, false));
+    }
+  }
+  return [...want.values()].slice(0, MAX_PATHS);
+}
+
+// Collects the Problems and lint counts for one project's named files into `out`, and
+// registers the files to ask Log Capture about.
+async function collectProject(
+  out: LiveSignals,
+  run: BoardRun,
+  items: BoardItem[],
+  p: BoardRun["cfg"]["projects"][number],
+  byUri: Map<string, readonly vscode.Diagnostic[]>,
+  erroring: string[],
+  ask: (project: string, root: vscode.Uri, rel: string) => void
+): Promise<void> {
+  const root = vscode.Uri.parse(p.path);
+  const named = namedFiles(run, items, p.id);
+  const staleMs = (p.health?.staleDays ?? 7) * 86400000;
+  const lints = await lintCounts(root, p.health?.lintFile ?? DEFAULT_LINT_FILE, staleMs);
+  const lintKeys = new Map([...lints].map(([k, v]) => [normRel(k, FOLD), v]));
+  for (const [k, f] of named) {
+    const pc = problemCounts(byUri.get(vscode.Uri.joinPath(root, f).toString()));
+    const lc = lintKeys.get(k);
+    if (pc) {
+      add(out, p.id, f).problems = pc;
+    }
+    if (lc) {
+      add(out, p.id, f).lints = lc;
+    }
+  }
+  if (root.scheme !== "file") {
+    return;
+  }
+  const lintErrors = [...lints].filter(([, c]) => c.errors > 0).map(([k]) => k);
+  // The budget is per project.
+  for (const f of filesToAsk(named, lintErrors, erroring, run.cfg.sourceDirs)) {
+    ask(p.id, root, f);
+  }
 }
 
 // The signals for the files the open documents name. Files with an error now (Problems or
@@ -143,16 +224,7 @@ export async function loadLiveSignals(run: BoardRun, items: BoardItem[], s: Live
     const all = vscode.languages.getDiagnostics();
     const byUri = new Map(all.map(([u, d]) => [u.toString(), d]));
     const projects = run.cfg.projects.map((p) => ({ id: p.id, root: vscode.Uri.parse(p.path) }));
-    const erroring = new Map<string, string[]>();
-    for (const [uri, diags] of all) {
-      if (uri.scheme !== "file" || !diags.some((d) => d.severity === vscode.DiagnosticSeverity.Error)) {
-        continue;
-      }
-      const o = owner(projects, uri);
-      if (o) {
-        erroring.set(o.id, [...(erroring.get(o.id) ?? []), o.rel]);
-      }
-    }
+    const erroring = erroringFiles(all, projects);
     const lookup: PathLookup = new Map();
     const paths: string[] = [];
     const ask = (project: string, root: vscode.Uri, rel: string): void => {
@@ -167,42 +239,7 @@ export async function loadLiveSignals(run: BoardRun, items: BoardItem[], s: Live
       }
     };
     for (const p of run.cfg.projects) {
-      const root = vscode.Uri.parse(p.path);
-      const named = new Map<string, string>();
-      for (const it of items) {
-        if (it.project === p.id) {
-          for (const f of run.result.snapshot.projects[p.id]?.facts[it.path]?.facts.sourceFiles ?? []) {
-            named.set(normRel(f, FOLD), f);
-          }
-        }
-      }
-      const staleMs = (p.health?.staleDays ?? 7) * 86400000;
-      const lints = await lintCounts(root, p.health?.lintFile ?? DEFAULT_LINT_FILE, staleMs);
-      const lintKeys = new Map([...lints].map(([k, v]) => [normRel(k, FOLD), v]));
-      for (const [k, f] of named) {
-        const pc = problemCounts(byUri.get(vscode.Uri.joinPath(root, f).toString()));
-        const lc = lintKeys.get(k);
-        if (pc) {
-          add(out, p.id, f).problems = pc;
-        }
-        if (lc) {
-          add(out, p.id, f).lints = lc;
-        }
-      }
-      if (root.scheme !== "file") {
-        continue;
-      }
-      // Files to ask Log Capture about: the named ones first, then files with an error now
-      // that a document could name. The budget is per project.
-      const want = new Map(named);
-      for (const f of [...[...lints].filter(([, c]) => c.errors > 0).map(([k]) => k), ...(erroring.get(p.id) ?? [])]) {
-        if (isNameableSource(normRel(f, false), run.cfg.sourceDirs) && !want.has(normRel(f, FOLD))) {
-          want.set(normRel(f, FOLD), normRel(f, false));
-        }
-      }
-      for (const f of [...want.values()].slice(0, MAX_PATHS)) {
-        ask(p.id, root, f);
-      }
+      await collectProject(out, run, items, p, byUri, erroring.get(p.id) ?? [], ask);
     }
     for (const r of await logSignals(paths, lookup, s.lookbackDays)) {
       add(out, r.project, r.rel).logs = r.logs;
@@ -211,15 +248,6 @@ export async function loadLiveSignals(run: BoardRun, items: BoardItem[], s: Live
     // Whatever was gathered so far is still true; the rest is simply absent.
   }
   return out;
-}
-
-async function exists(uri: vscode.Uri): Promise<boolean> {
-  try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // Writes one new bug document for a listed signal and opens it. Never overwrites: the file is
@@ -237,7 +265,7 @@ export async function startBugDocument(projectRoot: vscode.Uri, u: LiveUnnamed, 
   await vscode.workspace.fs.createDirectory(dir);
   for (let n = 1; n < 20; n++) {
     const target = vscode.Uri.joinPath(dir, n === 1 ? doc.name : doc.name.replace(/\.md$/, `_${n}.md`));
-    if (relativeTo(projectRoot.path, target.path, FOLD) === undefined || (await exists(target))) {
+    if (relativeTo(projectRoot.path, target.path, FOLD) === undefined || (await pathExists(target))) {
       continue;
     }
     const edit = new vscode.WorkspaceEdit();
