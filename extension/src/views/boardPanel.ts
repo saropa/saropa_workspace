@@ -1,26 +1,25 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { onDidRecordHealth } from "../commands/boardHealth";
-import { onDidChangeMarks, readMarks, updateLocalMarks } from "../commands/boardMarks";
+import { onDidChangeMarks, readMarks } from "../commands/boardMarks";
 import { applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, acceptBoardRun, canRunHealth, hasOutsideProject, openRulesFile, readLastRun, runBoardScan, runHealthNow } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { onDidChangeTrainVersions, trainsFor } from "./boardTrain";
-import { PathToGo, clampMaxSteps, pathToGo } from "../board/pathToGo";
-import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
+import { PathToGo, pathToGo } from "../board/pathToGo";
+import { RenderState, renderBoard, renderSkeleton } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
-import { Outside, emptyOutside, safeUrl } from "../board/outside";
+import { Outside, emptyOutside } from "../board/outside";
 import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
-import { readSittingsSettings, readSittingsChoice, saveSittingsChoice } from "../commands/boardSittings";
-import { asTimeBox } from "../board/sittings";
-import { moveToArchive, readTidySettings } from "../commands/boardTidy";
+import { moveToArchive } from "../commands/boardTidy";
 import { publishBoard } from "./editorLinks";
-import { LiveSettings, liveFold, loadLiveSignals, readLiveSettings, startBugDocument } from "../commands/boardLive";
+import { loadLiveSignals, readLiveSettings, startBugDocument } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
 import { onDidChangeSinceLast, panelLeft, panelShowed, viewFor } from "./boardSinceLast";
-import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
-import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
+import { readHandSettings } from "../commands/boardHandToChat";
 import { currentBoard, markPanelOpened, markScanDone, onDidAskRefresh, setFailed, setPanelVisible } from "./boardFeed";
+import { strings } from "./boardStrings";
+import { applySuggestion, emptyPage, handToChat, liveInput, openDocument, openExternalLink, openSittingsLine, pathSettings, saveSitting, sittingsInput, tidyInput } from "./boardPanelActions";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
@@ -32,123 +31,6 @@ let current: BoardPanel | undefined;
 
 // Least time between two looks at the Problems panel.
 const LIVE_GAP_MS = 4000;
-
-function strings(): BoardStrings {
-  return {
-    title: l10n("releaseBoard.panel.title"),
-    intro: l10n("releaseBoard.panel.intro"),
-    noGo: l10n("releaseBoard.panel.noGo"),
-    unverified: l10n("releaseBoard.panel.unverified"),
-    resolveNow: l10n("releaseBoard.panel.resolveNow"),
-    workOn: l10n("releaseBoard.panel.workOn"),
-    inProgress: l10n("releaseBoard.panel.inProgress"),
-    nothingHere: l10n("releaseBoard.panel.nothingHere"),
-    more: l10n("releaseBoard.panel.more", { count: "{count}" }),
-    blocked: l10n("releaseBoard.panel.blocked", { count: "{count}" }),
-    refresh: l10n("releaseBoard.panel.refresh"),
-    accept: l10n("releaseBoard.accept"),
-    safetyHold: l10n("releaseBoard.panel.safetyHold"),
-    baseline: l10n("releaseBoard.panel.baseline"),
-    reasonBaseline: l10n("releaseBoard.panel.reasonBaseline"),
-    reasonGrey: l10n("releaseBoard.panel.reasonGrey", { count: "{count}" }),
-    reasonHealth: l10n("releaseBoard.panel.reasonHealth"),
-    reasonUnread: l10n("releaseBoard.panel.reasonUnread"),
-    go: l10n("releaseBoard.panel.go"),
-    healthLint: l10n("releaseBoard.panel.healthLint"),
-    healthTests: l10n("releaseBoard.panel.healthTests"),
-    allClear: l10n("releaseBoard.panel.allClear"),
-    dependsOn: l10n("releaseBoard.panel.dependsOn"),
-    linkedHeading: l10n("releaseBoard.panel.linkedHeading"),
-    linkedNote: l10n("releaseBoard.panel.linkedNote"),
-    flagsHeading: l10n("releaseBoard.panel.flagsHeading"),
-    flagsNote: l10n("releaseBoard.panel.flagsNote"),
-    hub: l10n("releaseBoard.panel.hub"),
-    profileLabel: l10n("releaseBoard.panel.profileLabel"),
-    profileRush: l10n("releaseBoard.panel.profileRush"),
-    profileDeliberate: l10n("releaseBoard.panel.profileDeliberate"),
-    profileZero: l10n("releaseBoard.panel.profileZero"),
-    severityNames: l10n("releaseBoard.panel.severityNames"),
-    proOnly: l10n("releaseBoard.panel.proOnly"),
-    pinned: l10n("releaseBoard.panel.pinned"),
-    needsRuleHeading: l10n("releaseBoard.panel.needsRuleHeading"),
-    suggestHeading: l10n("releaseBoard.panel.suggestHeading"),
-    suggestNote: l10n("releaseBoard.panel.suggestNote"),
-    suggestAccept: l10n("releaseBoard.panel.suggestAccept"),
-    suggestReject: l10n("releaseBoard.panel.suggestReject"),
-    needsRuleNote: l10n("releaseBoard.panel.needsRuleNote"),
-    loading: l10n("releaseBoard.panel.loading"),
-    refreshing: l10n("releaseBoard.panel.refreshing"),
-    chatsTitle: l10n("releaseBoard.panel.chatsTitle", { count: "{count}" }),
-    ptgNone: l10n("releaseBoard.panel.ptgNone"),
-    ptgItemRed: l10n("releaseBoard.panel.ptgItemRed"),
-    ptgItemPinned: l10n("releaseBoard.panel.ptgItemPinned"),
-    ptgItemSeverity: l10n("releaseBoard.panel.ptgItemSeverity"),
-    ptgUnblocks: l10n("releaseBoard.panel.ptgUnblocks"),
-    ptgWaiter: l10n("releaseBoard.panel.ptgWaiter"),
-    ptgItemFirst: l10n("releaseBoard.panel.ptgItemFirst"),
-    ptgItemFirstAny: l10n("releaseBoard.panel.ptgItemFirstAny"),
-    ptgBlocked: l10n("releaseBoard.panel.ptgBlocked"),
-    ptgLintMissing: l10n("releaseBoard.panel.ptgLintMissing"),
-    ptgLintFailing: l10n("releaseBoard.panel.ptgLintFailing"),
-    ptgTestsMissing: l10n("releaseBoard.panel.ptgTestsMissing"),
-    ptgTestsFailing: l10n("releaseBoard.panel.ptgTestsFailing"),
-    ptgRules: l10n("releaseBoard.panel.ptgRules"),
-    ptgRulesAny: l10n("releaseBoard.panel.ptgRulesAny"),
-    ptgUnread: l10n("releaseBoard.panel.ptgUnread"),
-    ptgAccept: l10n("releaseBoard.panel.ptgAccept"),
-    ptgMore: l10n("releaseBoard.panel.ptgMore"),
-    ptgOpen: l10n("releaseBoard.panel.ptgOpen"),
-    ptgRunLint: l10n("releaseBoard.panel.ptgRunLint"),
-    ptgRunTests: l10n("releaseBoard.panel.ptgRunTests"),
-    ptgOpenRules: l10n("releaseBoard.panel.ptgOpenRules"),
-    ptgAcceptBtn: l10n("releaseBoard.panel.ptgAcceptBtn"),
-    sittingsButton: l10n("releaseBoard.sittings.button"),
-    sittingsHeading: l10n("releaseBoard.sittings.heading"),
-    sittingsPick: l10n("releaseBoard.sittings.pick"),
-    sittingsNone: l10n("releaseBoard.sittings.none"),
-    sittingsMore: l10n("releaseBoard.sittings.more", { count: "{count}" }),
-    sittingsNeedOther: l10n("releaseBoard.sittings.needOther", { count: "{count}" }),
-    sittingsTooLong: l10n("releaseBoard.sittings.tooLong", { count: "{count}" }),
-    sittingsUntagged: l10n("releaseBoard.sittings.untagged", { count: "{count}" }),
-    sittingsUntaggedNote: l10n("releaseBoard.sittings.untaggedNote"),
-    timeAny: l10n("releaseBoard.sittings.timeAny"),
-    timeMinutes: l10n("releaseBoard.sittings.timeMinutes", { count: "{count}" }),
-    stepMinutes: l10n("releaseBoard.sittings.stepMinutes", { count: "{count}" }),
-    handToChat: readHandSettings().enabled ? l10n("releaseBoard.handToChat.button") : "",
-    handToChatTip: l10n("releaseBoard.handToChat.tip"),
-    tidyHeading: l10n("releaseBoard.tidy.heading"),
-    tidyNote: l10n("releaseBoard.tidy.note", { days: "{days}" }),
-    tidyDetail: l10n("releaseBoard.tidy.detail", { count: "{count}", days: "{days}" }),
-    tidyTitle: l10n("releaseBoard.tidy.title", { count: "{count}" }),
-    tidyMove: l10n("releaseBoard.tidy.move"),
-    trainTitle: l10n("releaseBoard.train.title", { name: "{name}" }),
-    trainHeldBy: l10n("releaseBoard.train.heldBy", { names: "{names}" }),
-    trainCycle: l10n("releaseBoard.train.cycle"),
-    trainOrder: l10n("releaseBoard.train.order"),
-    tidyMore: l10n("releaseBoard.tidy.more", { count: "{count}" }),
-    liveHead: l10n("releaseBoard.live.head"),
-    liveProblems: l10n("releaseBoard.live.problems", { errors: "{errors}", warnings: "{warnings}" }),
-    liveLints: l10n("releaseBoard.live.lints", { errors: "{errors}", warnings: "{warnings}" }),
-    liveLogs: l10n("releaseBoard.live.logs", { errors: "{errors}", crashes: "{crashes}" }),
-    liveMore: l10n("releaseBoard.live.more", { count: "{count}" }),
-    liveUnnamedHeading: l10n("releaseBoard.live.unnamedHeading"),
-    liveUnnamedNote: l10n("releaseBoard.live.unnamedNote"),
-    liveUnnamedStart: l10n("releaseBoard.live.start"),
-  };
-}
-
-// Path to GO settings, read from the editor settings. Undefined when the feature is off.
-function pathSettings(): { maxSteps: number; showRunButtons: boolean } | undefined {
-  const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard.pathToGo");
-  if (!c.get<boolean>("enabled", true)) {
-    return undefined;
-  }
-  return { maxSteps: clampMaxSteps(c.get<number>("maxSteps", 8)), showRunButtons: c.get<boolean>("showRunButtons", true) };
-}
-
-function emptyPage(text: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"></head><body style="font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:16px"><p>${escapeHtml(text)}</p></body></html>`;
-}
 
 class BoardPanel {
   private model: BoardModel | undefined;
@@ -459,7 +341,7 @@ class BoardPanel {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: this.sittings(), tidy: this.tidy(), live: this.liveInput() }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live) }
     );
     const model = this.model;
     const settings = pathSettings();
@@ -498,28 +380,6 @@ class BoardPanel {
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since, trains);
   }
 
-  // The Sittings choice (remembered per machine, else the settings' defaults) with the
-  // settings' limits; undefined when the feature is off.
-  private sittings(): { selection: { have: string[]; timeBox: ReturnType<typeof asTimeBox>; maxSteps: number }; onlyOwner: boolean } | undefined {
-    const s = readSittingsSettings();
-    if (!s.enabled) {
-      return undefined;
-    }
-    const choice = readSittingsChoice(this.context) ?? { have: s.defaultHave, timeBox: s.defaultTimeBox };
-    return { selection: { have: choice.have, timeBox: choice.timeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
-  }
-
-  private liveInput(): { signals: LiveSignals; includeWarnings: boolean; fold: boolean; unnamedBox: boolean } | undefined {
-    const s: LiveSettings = readLiveSettings();
-    return s.enabled ? { signals: this.live, includeWarnings: s.includeWarnings, fold: liveFold, unnamedBox: s.unnamedBox } : undefined;
-  }
-
-  // The Tidy sweep's settings with the time now; undefined when the sweep is off.
-  private tidy(): { now: number; afterDays: number; archiveFolder: string } | undefined {
-    const s = readTidySettings();
-    return s ? { now: Date.now(), ...s } : undefined;
-  }
-
   private async onMessage(message: unknown): Promise<void> {
     if (typeof message !== "object" || message === null) {
       return;
@@ -535,48 +395,18 @@ class BoardPanel {
       // The setting change refreshes the board through the configuration listener.
       await vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").update("profile", msg.value, vscode.ConfigurationTarget.Workspace);
     } else if (msg.type === "suggest" && typeof msg.key === "string" && (msg.value === "accept" || msg.value === "reject")) {
-      // Only a suggestion the page was actually shown can be acted on.
-      const shown = this.model?.suggestions.find((s) => s.key === msg.key);
-      if (shown) {
-        await updateLocalMarks(this.context, (local) => {
-          if (msg.value === "reject") {
-            local.rejected = [...new Set([...local.rejected, shown.key])];
-          } else {
-            local.needs[shown.fromKey] = [...new Set([...(local.needs[shown.fromKey] ?? []), `${shown.toProject}:${shown.toPath}`])];
-          }
-          return local;
-        });
-      }
+      await applySuggestion(this.context, this.model, msg.key, msg.value);
     } else if (msg.type === "external" && typeof (message as { g?: unknown }).g === "number" && typeof (message as { i?: unknown }).i === "number") {
-      // Only a link the page was actually shown can be opened, and only over https.
       const m = message as { g: number; i: number };
-      const url = safeUrl(this.model?.outside[m.g]?.items[m.i]?.url);
-      if (url) {
-        await vscode.env.openExternal(vscode.Uri.parse(url));
-      }
+      await openExternalLink(this.model, m.g, m.i);
     } else if (msg.type === "sitting") {
-      // Only toggles the page was shown can be chosen; the remembered choice repaints the board.
-      const m = message as { have?: unknown; box?: unknown };
-      const known = new Set(this.model?.sittings?.contexts.map((c) => c.id));
-      const have = Array.isArray(m.have) ? m.have.filter((x): x is string => typeof x === "string" && known.has(x)) : [];
-      await saveSittingsChoice(this.context, { have, timeBox: asTimeBox(m.box) });
+      await saveSitting(this.context, this.model, message as { have?: unknown; box?: unknown });
       this.lastKey = "";
       this.render(this.cached ? { stale: true } : {});
     } else if (msg.type === "step" && typeof (message as { i?: unknown }).i === "number") {
-      // A line the page was shown opens its document at the step's line.
-      const line = this.model?.sittings?.lines[(message as { i: number }).i];
-      const project = this.run?.cfg.projects.find((p) => p.id === line?.project);
-      if (line && project) {
-        const uri = vscode.Uri.joinPath(vscode.Uri.parse(project.path), line.path);
-        const pos = new vscode.Position(Math.max(0, line.line - 1), 0);
-        try {
-          await vscode.window.showTextDocument(uri, { preview: true, selection: new vscode.Range(pos, pos) });
-        } catch (e) {
-          void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-        }
-      }
+      await openSittingsLine(this.model, this.run, (message as { i: number }).i);
     } else if (msg.type === "hand") {
-      await this.hand(message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
+      await handToChat(this.model, this.paths, this.run, message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
     } else if (msg.type === "tidy" && typeof (message as { i?: unknown }).i === "number") {
       await this.tidyMove((message as { i: number }).i);
     } else if (msg.type === "liveBug" && typeof (message as { i?: unknown }).i === "number") {
@@ -602,45 +432,6 @@ class BoardPanel {
     } else if (msg.type === "path" && typeof (message as { p?: unknown }).p === "number" && typeof (message as { s?: unknown }).s === "number") {
       const m = message as { p: number; s: number };
       await this.pathAction(m.p, m.s);
-    }
-  }
-
-  // Hand to chat: the page names an item, a step or a Sittings line by index; the prompt is
-  // built from the model this panel rendered and copied to the clipboard.
-  private async hand(m: { k?: unknown; i?: unknown; p?: unknown; s?: unknown }): Promise<void> {
-    const settings = readHandSettings();
-    const model = this.model;
-    if (!settings.enabled || !model) {
-      return;
-    }
-    let target: HandTarget | undefined;
-    let file: { project: string; path: string; chats?: number } | undefined;
-    if (m.k === "item" && typeof m.i === "number" && model.items[m.i]) {
-      const it = model.items[m.i];
-      target = itemTarget(model, it);
-      file = it;
-    } else if (m.k === "line" && typeof m.i === "number" && model.sittings?.lines[m.i]) {
-      const l = model.sittings.lines[m.i];
-      target = lineTarget(model, l);
-      file = l;
-    } else if (m.k === "step" && typeof m.p === "number" && typeof m.s === "number") {
-      const project = model.projects[m.p];
-      const step = this.paths?.[m.p]?.steps[m.s];
-      if (project && step) {
-        target = stepTarget(model, project, step);
-        const item = step.kind === "item" && step.itemId !== undefined ? model.items[step.itemId] : undefined;
-        file = item;
-      }
-    }
-    if (!target) {
-      return;
-    }
-    const def = this.run?.cfg.projects.find((p) => p.id === file?.project);
-    const doc = def && file ? vscode.Uri.joinPath(vscode.Uri.parse(def.path), file.path) : undefined;
-    try {
-      await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat, file?.chats);
-    } catch (e) {
-      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     }
   }
 
@@ -680,12 +471,7 @@ class BoardPanel {
     const item = this.model?.items[id];
     const project = this.run?.cfg.projects.find((p) => p.id === item?.project);
     if (item && project) {
-      const uri = vscode.Uri.joinPath(vscode.Uri.parse(project.path), item.path);
-      try {
-        await vscode.window.showTextDocument(uri, { preview: true });
-      } catch (e) {
-        void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-      }
+      await openDocument(vscode.Uri.joinPath(vscode.Uri.parse(project.path), item.path));
     }
   }
 
