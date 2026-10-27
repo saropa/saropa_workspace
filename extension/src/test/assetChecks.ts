@@ -39,3 +39,9 @@ export function assertSingleApiHandle(name: string, source: string): void {
   const count = (source.match(/acquireVsCodeApi\(\)/g) ?? []).length;
   assert.equal(count, 1, `${name} must acquire the VS Code API exactly once`);
 }
+
+// Every opening <script ...> tag in an HTML document, matched case-insensitively
+// with any attributes or whitespace.
+export function scriptOpenTags(html: string): string[] {
+  return html.match(/<script(?=[\s>/])[^>]*>/gi) ?? [];
+}

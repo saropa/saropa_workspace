@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderScheduleEditorHtml } from "../views/scheduleEditorShell";
 import type { Shortcut } from "../model/shortcut";
+import { scriptOpenTags } from "./assetChecks";
 
 const shortcut = (label: string): Shortcut => ({ id: "s", path: "a.sh", label, scope: "project" }) as Shortcut;
 
@@ -16,7 +17,7 @@ test("the CSP forbids everything except inline styles and the nonce'd script", (
   assert.ok(csp.includes("img-src 'none'"));
   assert.ok(!csp.includes("unsafe-eval"));
   assert.ok(html.includes(`<script nonce="${nonce}">`));
-  assert.equal((html.match(/<script/g) ?? []).length, 1);
+  assert.equal(scriptOpenTags(html).length, 1);
 });
 
 test("each render uses a fresh nonce", () => {

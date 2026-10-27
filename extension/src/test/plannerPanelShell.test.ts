@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderShell } from "../views/plannerPanelShell";
+import { scriptOpenTags } from "./assetChecks";
 
 test("the CSP is strict and its nonce matches the single inline script", () => {
   const html = renderShell();
@@ -11,8 +12,8 @@ test("the CSP is strict and its nonce matches the single inline script", () => {
   assert.ok(csp.includes("default-src 'none'"));
   assert.ok(!csp.includes("unsafe-eval"));
   assert.ok(html.includes(`nonce="${nonce}"`));
-  assert.ok((html.match(/<script/g) ?? []).length >= 1);
-  for (const tag of html.match(/<script[^>]*>/g) ?? []) {
+  assert.ok(scriptOpenTags(html).length >= 1);
+  for (const tag of scriptOpenTags(html)) {
     assert.ok(tag.includes(`nonce="${nonce}"`), `script tag without the nonce: ${tag}`);
   }
 });

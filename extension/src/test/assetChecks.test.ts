@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertScriptParses, assertCssBalanced, assertNoRemoteLoads, assertSingleApiHandle } from "./assetChecks";
+import { assertScriptParses, assertCssBalanced, assertNoRemoteLoads, assertSingleApiHandle, scriptOpenTags } from "./assetChecks";
 
 test("assertScriptParses accepts valid JavaScript and rejects a syntax error or empty input", () => {
   assert.doesNotThrow(() => assertScriptParses("ok", "const a = () => 1; a();"));
@@ -36,4 +36,10 @@ test("assertSingleApiHandle requires exactly one acquireVsCodeApi call", () => {
   assert.doesNotThrow(() => assertSingleApiHandle("one", "const v = acquireVsCodeApi();"));
   assert.throws(() => assertSingleApiHandle("none", "const v = 1;"));
   assert.throws(() => assertSingleApiHandle("two", "acquireVsCodeApi(); acquireVsCodeApi();"));
+});
+
+test("scriptOpenTags finds script tags in any case, with attributes", () => {
+  const html = `<SCRIPT nonce="a">x</SCRIPT ><script>y</script><scripts></scripts><Script\n src="z">`;
+  assert.deepEqual(scriptOpenTags(html), [`<SCRIPT nonce="a">`, "<script>", `<Script\n src="z">`]);
+  assert.deepEqual(scriptOpenTags("<div></div>"), []);
 });
