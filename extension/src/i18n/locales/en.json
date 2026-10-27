@@ -1857,6 +1857,8 @@
   "releaseBoard.panel.go": "GO",
   "releaseBoard.panel.healthLint": "Lint",
   "releaseBoard.panel.healthTests": "Tests",
+  "releaseBoard.panel.chatsTitle": "Claude sessions that read or edited this document: {count}",
+  "releaseBoard.panel.reviewRequests": "Pull requests waiting for your review",
   "releaseBoard.panel.loading": "Reading the project folders…",
   "releaseBoard.panel.refreshing": "Refreshing",
   "releaseBoard.panel.suggestHeading": "Documents that probably belong together",

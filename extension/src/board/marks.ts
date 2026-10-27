@@ -97,9 +97,3 @@ export function applyMarks(rows: Classified[], f: MarksFile): Classified[] {
 export function pinnedKeys(f: MarksFile): string[] {
   return Object.entries(f.marks).filter(([, v]) => v.pinned).map(([k]) => k);
 }
-
-// "project/path" to its two parts (a project id holds no slash).
-export function splitKey(key: string): { project: string; path: string } {
-  const i = key.indexOf("/");
-  return { project: key.slice(0, i), path: key.slice(i + 1) };
-}

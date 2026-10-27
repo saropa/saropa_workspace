@@ -2,7 +2,7 @@
   "name": "saropa-workspace",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "1.11.0",
+  "version": "2.0.0",
   "publisher": "saropa",
   "license": "MIT",
   "repository": {
@@ -2408,6 +2408,11 @@
             "enum": ["rush", "deliberate", "zero"],
             "default": "deliberate",
             "description": "%config.releaseBoard.profile.description%"
+          },
+          "saropaWorkspace.releaseBoard.reviewRequests": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.releaseBoard.reviewRequests.description%"
           },
           "saropaWorkspace.previewMode.enabled": {
             "type": "boolean",

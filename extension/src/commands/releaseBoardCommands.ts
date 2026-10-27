@@ -15,7 +15,7 @@ import { globToRegExp } from "../board/glob";
 import { BoardConfig, ProjectDef, ScanFile, StatusCounts } from "../board/types";
 import { l10n } from "../i18n/l10n";
 
-// Release Board, VS Code layer for step 1: scan the open workspace folders with the
+// Release Board, VS Code layer: scan the open workspace folders with the
 // board's rule engine, run the safety check against the last accepted scan, and print
 // the result. The board core (src/board) has no VS Code imports; this file supplies the
 // file source (workspace.fs, so remote workspaces work), the cache location and the

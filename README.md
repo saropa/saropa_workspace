@@ -65,6 +65,13 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 * **Hygiene Tools:** Includes built-in sweeps like a `Workspace bloat scan` to clear directory conflicts and layout freezes.
 * **Editable Promotion:** Keep scripts hidden, toggle entire recipe domains off, or choose `Promote to Shortcut` to customize a macro permanently.
 
+### 🚦 Release Board (off by default)
+* **One Screen For "Can We Ship?":** Turn on `saropaWorkspace.releaseBoard.enabled`, then run **Release Board: Open**. It reads your bugs, docs and plans folders across projects and shows what blocks a release in red, amber and purple.
+* **Honest Light:** NO-GO, UNVERIFIED or GO per project. GO needs an accepted baseline, nothing blocking, every open document read, and fresh, clean lint and test results.
+* **Linked Work:** `Needs:` lines in documents draw chains between documents and projects; related documents cluster into groups; the board suggests links you can accept or reject.
+* **Release Profiles:** Rush, Deliberate or Zero defects decide which severities stop a release.
+* **Optional Links:** Saropa Lints results, Claude sessions per document (Chat Explorer) and the pull requests waiting for your review.
+
 ### 🎨 Customize
 * **Name, Icon, Color, Tags — One Screen:** Rename any shortcut, pick from a searchable codicon grid, tint it with a theme-aware color, and tag it, all from a single panel with a live preview.
 * **Theme-Tuned Palette:** Each color swatch is pre-tuned for light, dark, and high-contrast themes, so a chosen tint always stays legible.
@@ -112,6 +119,9 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `defaultUseIntegratedTerminal` | `true` | Routes output to the integrated terminal instead of background logs. |
 | `recipes.enabled` | `true` | Enables auto-parsing of manifests to stand up default macros. |
 | `configDir` | `.saropa` | The folder holding the project shortcut file. |
+| `releaseBoard.enabled` | `false` | Turns on the Release Board commands and screen. |
+| `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
+| `releaseBoard.reviewRequests` | `false` | Lists pull requests waiting for your review on the board. |
 
 ```json
 {

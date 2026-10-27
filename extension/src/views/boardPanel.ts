@@ -7,11 +7,14 @@ import { BoardRun, acceptBoardRun, hasOutsideProject, openRulesFile, readLastRun
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { BoardStrings, RenderState, escapeHtml, renderBoard, renderSkeleton } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
+import { Outside, emptyOutside, safeUrl } from "../board/outside";
+import { loadOutside, onDidChangeProviders } from "../commands/boardOutside";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
-// are "refresh", "accept" and "open <id>", and the host resolves the id against the model
-// it rendered, so the page can never name an arbitrary path.
+// are "refresh", "accept", "profile", "suggest", "rules", "open <id>" and "external <group,
+// item>", and the host resolves each id or index against the model it rendered, so the page
+// can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
 
@@ -60,6 +63,7 @@ function strings(): BoardStrings {
     needsRuleNote: l10n("releaseBoard.panel.needsRuleNote"),
     loading: l10n("releaseBoard.panel.loading"),
     refreshing: l10n("releaseBoard.panel.refreshing"),
+    chatsTitle: l10n("releaseBoard.panel.chatsTitle", { count: "{count}" }),
   };
 }
 
@@ -83,6 +87,11 @@ class BoardPanel {
   private cached = false;
   private lastScanAt = 0;
   private lastKey = "";
+  // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
+  private outside: Outside = emptyOutside();
+  private outsideToken = 0;
+  private disposed = false;
+  private outsidePending = false;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -103,6 +112,7 @@ class BoardPanel {
       null,
       this.disposables
     );
+    onDidChangeProviders(() => void this.refreshOutside(), null, this.disposables);
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.schedule(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => e.affectsConfiguration("saropaWorkspace.releaseBoard") && this.schedule(300),
@@ -179,6 +189,10 @@ class BoardPanel {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.scanning = false;
+      if (this.outsidePending && !this.cached) {
+        this.outsidePending = false;
+        this.render();
+      }
       void this.panel.webview.postMessage({ type: "busy", on: false });
     }
   }
@@ -202,10 +216,36 @@ class BoardPanel {
       return;
     }
     this.render();
+    void this.refreshOutside();
+  }
+
+  // Fetches what lives outside the scan and paints it when it arrives; a newer call wins.
+  private async refreshOutside(): Promise<void> {
+    if (!this.run || !this.model) {
+      return;
+    }
+    const token = ++this.outsideToken;
+    const files: Array<[string, string]> = [];
+    for (const it of this.model.items) {
+      const project = this.run.cfg.projects.find((p) => p.id === it.project);
+      if (project) {
+        files.push([`${it.project}/${it.path}`, vscode.Uri.joinPath(vscode.Uri.parse(project.path), it.path).fsPath]);
+      }
+    }
+    const next = await loadOutside(files).catch(() => emptyOutside());
+    if (token === this.outsideToken && !this.disposed) {
+      this.outside = next;
+      // While a scan runs or the stored result is on screen, the next paint carries it.
+      if (!this.scanning && !this.cached) {
+        this.render();
+      } else {
+        this.outsidePending = true;
+      }
+    }
   }
 
   private render(state: RenderState = {}): void {
-    if (!this.run) {
+    if (!this.run || this.disposed) {
       return;
     }
     const { cfg, marks } = this.run;
@@ -218,7 +258,7 @@ class BoardPanel {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks) }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside }
     );
     // The same board in the same state is not painted again: no flicker, no lost scroll.
     const key = JSON.stringify([this.model, state]);
@@ -258,6 +298,13 @@ class BoardPanel {
           return local;
         });
       }
+    } else if (msg.type === "external" && typeof (message as { g?: unknown }).g === "number" && typeof (message as { i?: unknown }).i === "number") {
+      // Only a link the page was actually shown can be opened, and only over https.
+      const m = message as { g: number; i: number };
+      const url = safeUrl(this.model?.outside[m.g]?.items[m.i]?.url);
+      if (url) {
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+      }
     } else if (msg.type === "rules") {
       await openRulesFile();
     } else if (msg.type === "accept" && this.run && !this.scanning && !this.cached && (this.model?.baseline || this.model?.safetyHold)) {
@@ -284,6 +331,8 @@ class BoardPanel {
 
   private dispose(): void {
     current = undefined;
+    this.disposed = true;
+    this.outsideToken++;
     clearTimeout(this.timer);
     this.panel.dispose();
     for (const d of this.disposables) {

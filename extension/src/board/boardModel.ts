@@ -1,3 +1,4 @@
+import { Outside, OutsideGroup } from "./outside";
 import { DocFacts, sizeClass, stepTotals } from "./docFacts";
 import { globToRegExp } from "./glob";
 import { ProjectHealth } from "./health";
@@ -12,8 +13,10 @@ import { BoardConfig, BoardStatus, Classified, ProjectDef, StatusCounts, emptyCo
 // The board's view model: what the first screen shows, built from classified rows.
 // Pure, so the rules for the light are unit-tested without a webview.
 //
-// The light is honest. NO-GO when anything is in a red folder. Never GO yet: GO needs
-// lint and test evidence (step 6). With no blocker it reads UNVERIFIED, and says why.
+// The light is honest. NO-GO when anything is in a red folder or an open document stops
+// the release under the profile. GO needs an accepted baseline, no grey document, every
+// open document read, and fresh, clean lint and test evidence. Otherwise it reads
+// UNVERIFIED, and says why.
 
 export type Light = "no-go" | "unverified" | "go";
 
@@ -22,7 +25,7 @@ export type UnverifiedReason =
   | "baseline"
   // Documents that no rule placed.
   | "grey"
-  // No lint or test result exists for the project (until step 6).
+  // No fresh, clean lint and test result exists for the project.
   | "health"
   // Open documents whose text was not read, so their severity is unknown.
   | "unread";
@@ -44,6 +47,8 @@ export interface BoardItem {
   link?: { state: "open" | "done" | "flag"; detail: string };
   // How many open items wait on this one.
   blocksCount: number;
+  // Claude sessions that read or edited this document (absent when none, or Chat Explorer is not installed).
+  chats?: number;
   // From the phrase dictionary (absent when the text was not read) and the pin list.
   severity?: Severity;
   audience?: Audience;
@@ -105,6 +110,8 @@ export interface BoardModel {
   suggestions: Array<{ key: string; fromKey: string; toProject: string; toPath: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
   // Folders where documents no rule placed sit, for the "needs a rule" list.
   needsRule: Array<{ project: string; folder: string; count: number }>;
+  // Review requests and groups from other extensions. They never change a light.
+  outside: OutsideGroup[];
 }
 
 const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
@@ -167,7 +174,7 @@ export function buildBoard(
   previous?: ScanSnapshot,
   health?: Record<string, ProjectHealth>,
   // Links the user accepted (waiting document "project/path" -> targets) and suggestions turned down.
-  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[] }
+  extra?: { needs?: Record<string, string[]>; rejected?: string[]; pins?: string[]; outside?: Outside }
 ): BoardModel {
   const projects: BoardProject[] = [];
   const all: BoardItem[] = [];
@@ -326,6 +333,12 @@ export function buildBoard(
       return { project: names.get(n.project) ?? n.project, title: it?.title ?? titleFromPath(n.path), path: n.path, id: it?.id, done: false };
     })
   );
+  for (const it of all) {
+    const n = extra?.outside?.chats[`${it.project}/${it.path}`];
+    if (n !== undefined) {
+      it.chats = n;
+    }
+  }
   return {
     projects,
     chains,
@@ -336,6 +349,7 @@ export function buildBoard(
     baseline: !accepted && (safety?.baseline ?? false),
     profile,
     suggestions,
+    outside: extra?.outside?.groups ?? [],
     needsRule: cfg.projects.flatMap((p) =>
       Object.entries(snapshot?.projects[p.id]?.greyFolders ?? {})
         .map(([folder, count]) => ({ project: p.id, folder, count }))
