@@ -1,21 +1,9 @@
-// Behavior tests for the Planner webview's Workflow tab: node layout, dragging, linking,
-// the toolbox, the shelf and the edge drawing.
+// Tests for the Planner webview's Workflow tab: layout, dragging, linking, toolbox and shelf.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FakeDataTransfer, type FakeElement, type Page } from "./_stub/fakeDom";
-import { daily, dataMessage, event, openWith, pin, strings, tpl, type Data, type Edge } from "./plannerWebviewFixture";
-
-const style = (el: FakeElement): Record<string, string> => el.style as unknown as Record<string, string>;
-const lastState = (page: Page): Record<string, unknown> => page.states[page.states.length - 1] as Record<string, unknown>;
-const node = (page: Page, id: string): FakeElement => page.one(`.node[data-id="${id.replace(/["\\]/g, "\\$&")}"]`);
-const at = (page: Page, id: string): string => `${style(node(page, id)).left},${style(node(page, id)).top}`;
-
-const A_TO_B: Edge[] = [{ from: "a", to: "b", kind: "pin" }, { from: "ev", to: "b", kind: "event" }];
-const WIRED: Data = {
-  nodes: [pin("a", "Alpha"), pin("b", "Beta"), event("ev", "build", "Build finished"), pin("c", "Gamma")],
-  edges: A_TO_B,
-};
+import { FakeDataTransfer } from "./_stub/fakeDom";
+import { pin, event, daily, dataMessage, openWith, strings, tpl, style, lastState, press, node, at, A_TO_B, WIRED, dropOn } from "./plannerWebviewFixture";
 
 test("only linked shortcuts and used events become nodes, laid out in columns by how far they sit from a start", () => {
   const page = openWith("workflow", WIRED);
@@ -86,11 +74,6 @@ test("an edge whose node is not on the canvas is skipped", () => {
   assert.equal(page.all(".edges > path").length, 1);
 });
 
-function press(page: Page, el: FakeElement): void {
-  page.fire(el, "mousedown", { button: 0, clientX: 10, clientY: 10 });
-  page.fire(page.document, "mouseup", { clientX: 10, clientY: 10 });
-}
-
 test("dragging a node moves it live and saves every position on release", () => {
   const page = openWith("workflow", WIRED);
   page.fire(node(page, "a"), "mousedown", { button: 0, clientX: 100, clientY: 100 });
@@ -154,17 +137,6 @@ test("releasing a plug drag over itself, an event node or nothing links nothing"
   assert.deepEqual(page.takePosted(), []);
 });
 
-// ---- toolbox and drops -----------------------------------------------------
-
-function dropOn(page: Page, target: FakeElement | null, dataTransfer: FakeDataTransfer): void {
-  page.document.hitTest = () => target;
-  const wrap = page.one(".canvas-wrap");
-  page.fire(wrap, "dragover", { dataTransfer });
-  assert.equal(wrap.classList.contains("droptarget"), true);
-  page.fire(wrap, "drop", { dataTransfer, clientX: 50, clientY: 50 });
-  assert.equal(wrap.classList.contains("droptarget"), false);
-}
-
 test("the toolbox offers the four events as draggable tools", () => {
   const page = openWith("workflow", WIRED);
   const tools = page.all(".tool");
@@ -223,8 +195,6 @@ test("leaving the canvas clears the drop highlight", () => {
   assert.equal(wrap.classList.contains("droptarget"), false);
 });
 
-// ---- link search from the canvas and the how-to band -----------------------
-
 test("right-clicking empty canvas opens a link search; right-clicking a node does not", () => {
   const page = openWith("workflow", WIRED);
   const onNode = page.fire(page.one(".nt"), "contextmenu", { clientX: 5, clientY: 5 });
@@ -262,8 +232,6 @@ test("auto-arrange recomputes the layout of the workflow nodes, keeps other save
   assert.deepEqual(page.takePosted(), [{ type: "savePositions", positions: { c: { x: 7, y: 8 }, a: { x: 24, y: 24 }, b: { x: 244, y: 24 }, ev: { x: 24, y: 120 } } }]);
   assert.equal(at(page, "a"), "24px,24px");
 });
-
-// ---- shelf and toolbox sizing ----------------------------------------------
 
 test("the shelf lists unlinked shortcuts by name with a count, and selecting one shows its details", () => {
   const page = openWith("workflow", { nodes: [pin("z", "Zulu", { schedule: daily("07:00") }), pin("m", "mike"), pin("a", "Alpha")] });
