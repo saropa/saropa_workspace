@@ -171,19 +171,16 @@ function openRowText(raw: string[], needsCol: number): string {
 
 // The open steps (checklist boxes and table rows in an open state) and the state-word row counts.
 function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: DocStep[]; stepsCut: number } {
-  let rowsAll = 0;
-  let rowsDone = 0;
-  const steps: DocStep[] = [];
-  let stepsCut = 0;
+  const res = { rowsAll: 0, rowsDone: 0, steps: [] as DocStep[], stepsCut: 0 };
   const lines = body.split(/\r?\n/);
   let heading = "";
   // The header cells of the table the loop is inside, when its second line is a divider.
   let header: string[] | undefined;
   const addStep = (step: DocStep): void => {
-    if (steps.length < MAX_STEPS) {
-      steps.push(step);
+    if (res.steps.length < MAX_STEPS) {
+      res.steps.push(step);
     } else {
-      stepsCut += 1;
+      res.stepsCut += 1;
     }
   };
   lines.forEach((l, i) => {
@@ -212,16 +209,16 @@ function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: Do
     }
     const { isDone, isOpen } = rowState(cells);
     if (isDone || isOpen) {
-      rowsAll += 1;
+      res.rowsAll += 1;
       if (isDone) {
-        rowsDone += 1;
+        res.rowsDone += 1;
       } else {
         const col = header ? header.indexOf("needs") : -1;
         addStep({ line: i + 1, heading, text: openRowText(raw, col), needsCell: col >= 0 ? raw[col].slice(0, STEP_TEXT) : undefined });
       }
     }
   });
-  return { rowsAll, rowsDone, steps, stepsCut };
+  return res;
 }
 
 // Reads the facts of one document from its text. `path` decides how the text is read (SQL or Markdown).
