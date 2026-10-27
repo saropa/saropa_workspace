@@ -5,6 +5,7 @@ import {
   findStatusWord,
   needsStatusWord,
 } from "./ruleEngine";
+import { DocFacts, FactsOptions, readFacts } from "./docFacts";
 import {
   BoardConfig,
   Classified,
@@ -24,6 +25,9 @@ export interface FileSource {
   // The first `lines` lines of a file (only called for Markdown that may carry a
   // Status line).
   readHead(projectDir: string, path: string, lines: number): Promise<string>;
+  // The whole text of a file; read only for open documents, to take their facts. A source
+  // without it simply yields no facts.
+  readText?(projectDir: string, path: string): Promise<string>;
 }
 
 // Cache entry per file: the size and modified time the cached Status word belongs to.
@@ -32,6 +36,13 @@ export interface CachedFile {
   mtimeMs: number;
   // The Status-line word found in the file, "" when the file has none.
   word: string;
+}
+
+// Facts cached with the size and modified time they were read at.
+export interface CachedFacts {
+  size: number;
+  mtimeMs: number;
+  facts: DocFacts;
 }
 
 export interface ProjectSnapshot {
@@ -44,6 +55,8 @@ export interface ProjectSnapshot {
   // Folder of each state-defining match, for the "needs a rule" list: grey files per folder.
   greyFolders: Record<string, number>;
   files: Record<string, CachedFile>;
+  // Facts of the open documents only (red, amber, purple).
+  facts: Record<string, CachedFacts>;
 }
 
 export interface ScanSnapshot {
@@ -59,6 +72,7 @@ export interface ScanResult {
 
 const DEFAULT_EXTENSIONS = [".md", ".sql"];
 const STATUS_LINES = 20;
+const OPEN: ReadonlySet<string> = new Set(["red", "amber", "purple"]);
 
 function folderOf(path: string): string {
   const i = path.lastIndexOf("/");
@@ -88,6 +102,13 @@ export async function scanProject(
     ruleCounts: {},
     greyFolders: {},
     files: {},
+    facts: {},
+  };
+  const factsOpt: FactsOptions = {
+    sourceDirs: cfg.sourceDirs,
+    mentions: Object.fromEntries(
+      cfg.projects.filter((p) => p.mentions?.length && p.id !== project.id).map((p) => [p.id, p.mentions!.join("|")])
+    ),
   };
   const seen = new Set<string>();
   for (const root of project.roots) {
@@ -124,6 +145,15 @@ export async function scanProject(
       }
       const row = classifyFile(cp, f, word || undefined);
       rows.push(row);
+      if (source.readText && OPEN.has(row.status) && row.note !== "blocked") {
+        const hit = previous?.facts?.[f.path];
+        if (hit && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
+          snap.facts[f.path] = hit;
+        } else {
+          const text = await source.readText(project.path, f.path);
+          snap.facts[f.path] = { size: f.size, mtimeMs: f.mtimeMs, facts: readFacts(text, f.path, factsOpt) };
+        }
+      }
       snap.counts[row.status] += 1;
       const dir = folderOf(f.path);
       for (let d = dir; d !== ""; d = folderOf(d)) {

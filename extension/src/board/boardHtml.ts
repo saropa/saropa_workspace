@@ -1,4 +1,4 @@
-import { BoardItem, BoardModel, BoardProject, UnverifiedReason } from "./boardModel";
+import { BoardItem, ItemMarks, BoardModel, BoardProject, UnverifiedReason } from "./boardModel";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
 // as a table so the core stays free of VS Code and of the l10n catalog, and the page can
@@ -54,8 +54,22 @@ function verdict(p: BoardProject, t: BoardStrings): string {
   return `<div class="vd"><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}<span class="bar">${squares}</span><span class="why">${escapeHtml(why)}</span></div>`;
 }
 
+// The small marks on a row: a progress ring, size bars, a code letter and one dot per
+// other project mentioned. The exact figures are in the tooltip, not on the screen.
+function marks(m: ItemMarks | undefined): string {
+  if (!m) {
+    return "";
+  }
+  const pct = m.total > 0 ? Math.round((m.done / m.total) * 100) : 0;
+  const ring = m.total === 0 ? "none" : m.done === m.total ? "ok" : m.done > 0 ? "part" : "none";
+  const bars = [1, 2, 3, 4].map((n) => `<u${n <= m.size ? ' class="on"' : ""}></u>`).join("");
+  const code = m.code === undefined ? "" : `<b class="code">${escapeHtml(m.code ? m.code.charAt(0).toUpperCase() : "{}")}</b>`;
+  const dots = m.mentions.map((n) => `<i class="pd" title="${escapeHtml(n)}"></i>`).join("");
+  return `<span class="marks" title="${escapeHtml(m.detail)}"><i class="ring ${ring}" style="--p:${pct}"></i><i class="bars">${bars}</i>${code}${dots}</span>`;
+}
+
 function row(i: BoardItem, name: string): string {
-  return `<div class="row" tabindex="0" role="button" data-id="${i.id}"><i class="sq ${i.status}"></i><span class="tag">${escapeHtml(name)}</span><span class="f">${escapeHtml(i.title)}</span><span class="k">${escapeHtml(i.kind)}</span></div>`;
+  return `<div class="row" tabindex="0" role="button" data-id="${i.id}" title="${escapeHtml(i.path)}"><i class="sq ${i.status}"></i><span class="tag">${escapeHtml(name)}</span><span class="f">${escapeHtml(i.title)}</span>${marks(i.marks)}<span class="k">${escapeHtml(i.kind)}</span></div>`;
 }
 
 function list(title: string, items: BoardItem[], names: Map<string, string>, t: BoardStrings): string {
@@ -80,6 +94,9 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .row{display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line);cursor:pointer}.row:first-of-type{border-top:0}.row:hover,.row:focus{background:rgba(128,128,128,.12);outline:0}
 .tag{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;border:1px solid var(--line);border-radius:3px;padding:0 4px;color:var(--mute);flex:none}
 .f{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.k{color:var(--mute);font-size:12px;flex:none}
+.marks{display:inline-flex;gap:6px;align-items:center;flex:none}.ring{width:14px;height:14px;border-radius:50%;display:inline-block;background:conic-gradient(var(--rc,var(--mute)) calc(var(--p)*1%),rgba(128,128,128,.25) 0)}.ring.part{--rc:var(--amber)}.ring.ok{--rc:var(--green)}
+.bars{display:inline-flex;gap:1px;align-items:flex-end;height:12px}.bars u{display:block;width:3px;background:rgba(128,128,128,.3)}.bars u:nth-child(1){height:4px}.bars u:nth-child(2){height:7px}.bars u:nth-child(3){height:10px}.bars u:nth-child(4){height:12px}.bars u.on{background:var(--blue)}
+.code{font-size:11px;color:var(--mute)}.pd{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--mute)}
 @media (max-width:560px){.pn{width:auto}.k{display:none}}`;
 
 const SCRIPT = `const vscode=acquireVsCodeApi();

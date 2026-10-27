@@ -68,6 +68,9 @@ export interface ProjectDef {
   importance?: "high" | "normal" | "low";
   dependsOn?: string[];
   ruleSets: string[];
+  // Regex sources (case-insensitive) that say a document mentions this project, e.g.
+  // "supabase". Used for the "also mentions" mark on documents of other projects.
+  mentions?: string[];
   params?: Record<string, ParamValue>;
   rules?: Rule[];
 }
@@ -79,6 +82,8 @@ export interface BoardConfig {
   projects: ProjectDef[];
   // File extensions that are scanned (lower-case, with the dot).
   extensions?: string[];
+  // Folders whose files count as "source files named" in a document.
+  sourceDirs?: string[];
 }
 
 // One file as seen by a scan.

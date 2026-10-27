@@ -53,6 +53,10 @@ export function workspaceFileSource(): FileSource {
       const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
       return Buffer.from(bytes).toString("utf8").split(/\r?\n/).slice(0, lines).join("\n");
     },
+    async readText(projectDir: string, p: string): Promise<string> {
+      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
+      return Buffer.from(bytes).toString("utf8");
+    },
   };
 }
 

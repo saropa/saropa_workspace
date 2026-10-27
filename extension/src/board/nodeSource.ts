@@ -32,5 +32,8 @@ export function nodeFileSource(base: string): FileSource {
       const text = fs.readFileSync(path.join(base, projectDir, p), "utf8");
       return text.split(/\r?\n/).slice(0, lines).join("\n");
     },
+    async readText(projectDir: string, p: string): Promise<string> {
+      return fs.readFileSync(path.join(base, projectDir, p), "utf8");
+    },
   };
 }
