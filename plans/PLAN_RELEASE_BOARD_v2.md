@@ -1,27 +1,76 @@
 # Plan: Release Board — Saropa Workspace 2.0
 
-Status: planned. Target: next major version (2.0.0).
+Status: planned. Target: next major version (2.0.0). Revised after an Opus review.
 Mockup (dark by default, three tabs): https://claude.ai/artifact/3EtrV21zFQnUvKQFdkikrn
 
 ## The story
 
 A person who runs several related projects opens the Workspace dashboard and sees one screen: **can we ship, and what do we do next.**
 
-- Each project shows GO or NO-GO for the release profile they chose.
+- Each project shows one light: GO, NO-GO or UNVERIFIED.
 - Below it: what to resolve now, what to work on, what to track. Each line names the project and the file.
-- Each line carries facts read from the document: "3 of 5 steps done, 4 SQL blocks, 7 source files named, 2,942 words, also mentions Supabase and Website."
-- Lines that wait on another document say so, across projects.
-- Nothing is a count of hundreds. Finished and deferred work is not displayed as a count.
+- Each line is a row of icons and colors. Numbers and text appear only on hover or when the row is opened.
+- Lines that wait on another document show the link, across projects.
+- Finished and deferred work is never shown as a count.
 
 No AI is involved. Every light comes from a coded rule the user can read and edit.
 
+## Two display rules (apply to every screen)
+
+### Roll up into color and icons
+
+- The first screen shows no raw statistics and no sentences of metadata.
+- Each row carries at most six small marks. Each mark is an icon with a color. The exact figures appear in a tooltip and in the opened row.
+- The marks:
+
+| Mark | Meaning | Colors |
+|---|---|---|
+| Progress ring | Steps done of total | Grey none, amber partial, green all |
+| Size | Small, medium, large, very large document | One to four bars |
+| Code | Has code, with a letter for the main language | Neutral |
+| Link | Waits on, or is waited on by, another item | Amber if the other item is not done, green if done |
+| Other project | Mentions another project | One small dot per project |
+| Chats | Active or saved chats are linked (2.x) | Purple if active |
+
+- A project row shows its one light, plus a small bar of its open items by color. No counts of done or deferred work.
+- Words and numbers appear after a click, never on the first screen.
+
+### Always show linkages
+
+- A linked item is never shown alone. Its row shows the link mark. Opening the row shows the chain, drawn as a short vertical path across projects:
+  `Supabase SQL script → waits on → App build (pull request 1923) → waits on → two-phone device check`
+- A project row shows a link mark when any of its items waits on another project.
+- A blocked item sorts under the item that blocks it, and its color is amber until the first item is done.
+- Linkages come from, in this order:
+  1. A `Needs:` line in a document (explicit).
+  2. A shared pull request number or document file name mentioned in both documents (inferred, shown with a dashed link so the user can accept or reject it).
+  3. A project dependency set in Settings (whole project waits on another).
+- A `Needs:` line that points to a document that no longer exists, or that is already in `history/`, is flagged as stale.
+- Status lines inside documents stay untrusted, but `Needs:` is an explicit statement of a dependency, not a status. A stale target is flagged so it cannot mislead.
+
 ## Why Workspace and not a new extension
 
-- It already has the bottom-panel launcher and the editor-tab dashboard.
-- It already signs in to GitHub (`githubClient.ts`) and watches repos (`FolderWatchEngine`).
-- It already has a multi-project precedent (`hygiene.roots`).
+- It already has the bottom-panel launcher and the editor-tab dashboard (`views/dashboardPanel.ts`).
+- It already signs in to GitHub (`github/githubClient.ts`) and watches repos (`exec/folderWatchEngine.ts`).
+- It already has a multi-root setting (`hygiene.roots`). Today only the bloat scan reads it, so 2.0 must add root-aware scanning.
+- It already calls the sibling extensions' daily summary (`commands/dailyReport.ts`).
 - Its shortcuts and recipes already run builds, tests and deploys.
-- Today it reads one project at a time. 2.0 reads several.
+
+## Honest light: GO, NO-GO, UNVERIFIED
+
+A GO light requires evidence. Missing evidence is never GO.
+
+- **NO-GO** when any of these holds under the chosen profile:
+  - An open item of a stopping severity (see profiles).
+  - Any item in a red folder, whatever its severity score. A red folder blocks in every profile.
+  - A lint error or a failing test from a trusted result.
+  - A `Needs:` chain whose first item is not done.
+- **UNVERIFIED** when no blocker is found but evidence is missing:
+  - Documents that no rule placed (grey).
+  - No trusted lint or test result for the project, or the result is older than the staleness limit.
+  - The safety check below has stopped the last scan.
+- **GO** only when no blocker exists and every evidence source is present and fresh.
+- Until code health exists (build step 6), the first screen can show only NO-GO or UNVERIFIED, never GO.
 
 ## Core ideas
 
@@ -29,7 +78,6 @@ No AI is involved. Every light comes from a coded rule the user can read and edi
 
 - A document's status comes from the folder it sits in, not from a Status line inside it.
 - Example: `history/` is done, `deferred/` is blue, `bugs/human/` is red.
-- Status lines inside documents are stale too often to trust.
 
 ### 2. Rule sets, no folder names in the engine
 
@@ -38,6 +86,7 @@ No AI is involved. Every light comes from a coded rule the user can read and edi
 - Shipped sets: folder-states, reference-docs, doc-kinds, live-folders, pending-sql, status-line. Planned: inside-documents, index-documents.
 - Renaming a folder is a parameter edit.
 - Reusable outside Saropa: a team with `docs/backlog` and `docs/shipped` edits two folder lists.
+- The `bugs/` folder holds handover and tracker files that the prototype labels as bugs. Needs a doc-kinds rule.
 
 ### 3. Colors
 
@@ -48,73 +97,81 @@ No AI is involved. Every light comes from a coded rule the user can read and edi
 | Purple | In progress. A manual mark, cannot be derived |
 | Blue | Needs consideration (deferred). Never counted on screen |
 | Green | Done. Never counted on screen |
-| Grey | No rule placed it. Listed under "Needs a rule" with one click to the rule editor |
+| Grey | No rule placed it. Makes the light UNVERIFIED. Listed under "Needs a rule" with one click to the rule editor |
 
-Users can mark any document by hand. Marks live in the local cache. Open question: also write a header into the document.
+Users mark any document by hand. Marks are stored in the local cache and can be exported to a shared file in the repo so a team sees them (open: the file name and format).
 
 ### 4. Severity and release profiles
 
 - A phrase dictionary scores each document: extreme (payments, commercial), critical (data loss, security, privacy), high (user uptake), medium, low (cosmetic).
 - Weights: title 3, first 20 lines 2, body 1 only at 3 or more hits per 1,000 words. Per-phrase cap 3. Negation skipped. Code fences stripped. File-name separators read as spaces.
 - Audience tag: Pro or all users.
-- Profiles decide what stops a release:
+- Profiles decide what stops a release by severity:
   - Rush to market: extreme and critical.
   - Deliberate: adds high.
   - Zero defects: adds medium.
+- A red folder and a lint error or failing test stop a release in every profile (see Honest light).
 - Users can pin a document as critical. It stays on the first screen in every profile.
 
 ### 5. Document facts (no AI)
 
-Read from each markdown document and cached:
+Read from each markdown document and cached, shown as the marks above:
 
-- Title and headings.
+- Title and headings (shown when the row is opened).
 - Checklist boxes and table rows done versus total.
-- Word and character count. Used as a size signal: small, medium, large, very large.
+- Word and character count, used as a size hint. Not yet verified that size predicts effort.
 - Code blocks and their languages (Dart, Python, SQL, other).
 - Source files named, other documents named, pull requests, links.
 - Other projects mentioned.
 
-Size is a hint, not a promise of effort. Not yet verified that size predicts effort.
-
-### 6. Dependencies
-
-- A document may carry a `Needs:` line naming another document, in this or another project.
-- The board draws the chain: "SQL script waits on the app build, which waits on pull request 1923."
-- The first chain to support is the share-keys rollout (Supabase waits on the app release, the website waits on the app release day).
-
-### 7. Code health
+### 6. Code health
 
 - Lint: errors, warnings, info. Tests: pass or fail, with last-run time.
-- An error or a failing test makes a project NO-GO in every profile. Warnings and info never do.
-- Tests run only the files that open plans name. Never the whole suite (about 70 minutes for the app).
-- Results come from Workspace shortcuts and recipes: when a shortcut that builds, tests or analyzes finishes, Workspace writes the result to the local cache.
-- No change to the app's own runners is needed.
+- A lint error or a failing test makes a project NO-GO in every profile. Warnings and info never do.
+- **Sources of results:**
+  - Only background-mode shortcuts give a trusted pass or fail. Terminal, external-window, command and macro runs report only "dispatched" (`exec/shortcutEvents.ts`) and VS Code 1.74 exposes no terminal exit code. Their result is "unknown", never a pass.
+  - Results are stored in the local cache. Today they are held in memory and lost on reload (`exec/runStatus.ts`).
+  - Lint results can also come from the Saropa Lints file `reports/.saropa_lints/violations.json`.
+- **Trust checks on a lint file:** reuse Workspace's existing coverage gate (`exec/lintsHealth.ts`, refuses a score below 15 percent of files analyzed). Check `filesAnalyzed` and the file's `timestamp`. A file older than the staleness limit, or from a partial run, counts as missing.
+- **Tests:** run only the test files that open plans name, never the whole suite (about 70 minutes for the app). The result reads "N tests run, M failed", never "tests pass". A project with no test run is UNVERIFIED.
+- **Other roots:** each root's results are stored per root. A sibling extension reports only its own window's workspace, so a root outside the open window gets health from its own result file, written by that root's shortcuts. Open: how a root outside the window runs shortcuts.
 
-### 8. Cache
+### 7. Cache and speed
 
 - Stored in extension storage, outside every repo. No index files in repos.
-- Incremental scan by file size and modified time. A cold read of about 9.8 MB took about 3 seconds in the prototype.
+- Incremental scan by file size and modified time.
+- The prototype is Python (`engine.py`, `score.py`, `meta.py`) and must be ported to TypeScript. The 3-second figure for a cold read of about 9.8 MB is a Python figure and must be re-measured in the port.
 
-### 9. Safety against silent mislabeling
+### 8. Safety against silent mislabeling (built first)
 
-- After a scan the board compares state counts with the last scan.
-- A change of 20 percent or more in any state stops the update and asks.
-- Folders no rule matches and rules that match nothing are listed.
-- Prototype case: renaming `docs/deferred` to `docs/parked` would have turned 444 deferred into red and amber with no error.
+- Built in the first step with the rule engine, before any light is shown.
+- After each scan, compare with the last scan. Stop the update and ask when any of these holds:
+  - A folder that matched a rule last scan now matches none.
+  - A rule that matched documents last scan now matches zero.
+  - The count in any state changes by 20 percent or more AND by at least 5 documents. The absolute floor stops small counts from firing on every change.
+  - A bulk move is recognized when the documents reappear in `history/`. It is shown as a summary the user accepts, not as an error.
+- The first scan has no baseline. It is shown as UNVERIFIED until the user accepts it.
+- Prototype case: renaming `docs/deferred` to `docs/parked` would have turned 444 deferred into red and amber with no error. The first two checks catch that case even though it is 2 percent of some folders.
 
 ## Optional integrations
 
 Each link turns on only if that extension is installed. The board works fully without them.
 
-| Extension | Today | Change needed |
+| Extension | Today | Use in the board |
 |---|---|---|
-| Saropa Lints | Writes `reports/.saropa_lints/violations.json` after every run (counts by severity, file, rule) | None |
-| Saropa Drift Advisor | `getSessionSnapshot()` returns slow queries, anomalies, schema, health | None |
-| Saropa Log Capture | No public hook found | One call returning the latest session's error and warning counts |
-| Claude Chat Explorer | Lists chats that touched a file | Reverse lookup: document, branch or pull request to active and saved chats. Matching method not yet read |
-| GitHub | Issues and pull requests via VS Code sign-in | Add "review requested" pull requests |
+| Saropa Lints | Writes `reports/.saropa_lints/violations.json` after every run | Read it with the trust checks above |
+| Saropa Log Capture | Already exports `SaropaLogCaptureApi` with `getDailySummary` (error and warning counts); Workspace already calls it in `commands/dailyReport.ts` | Reuse the existing call. No change needed |
+| Claude Chat Explorer | No public API (`activate` returns nothing). Matches chats to files by exact path and sibling worktrees. Chats record branches and pull requests | 2.x. Needs a new exported API and a branch and pull-request index |
+| Saropa Drift Advisor | `getSessionSnapshot()` returns null unless a debug server is connected, and covers only the open window | Not used in 2.0 |
+| GitHub | Issues and pull requests via VS Code sign-in | 2.x: add "review requested" pull requests |
 
 Community extensions appear as a separate group. They never change a core project's light.
+
+## Scope
+
+**2.0 contains:** the rule engine and safety check, folder status, severity and profiles, the honest light, the roll-up marks, the `Needs:` linkages and the first screen. Document facts shown as marks. Code health from background shortcuts and the Lints file.
+
+**2.x contains:** the Chat Explorer lookup, the GitHub review-requested list, the community-extension group, inferred (dashed) linkages, shared marks export.
 
 ## Settings
 
@@ -123,18 +180,18 @@ Community extensions appear as a separate group. They never change a core projec
 - Ignored projects, folders and files.
 - Local package and folder detection.
 - Release profile per release (open: per project or per release).
+- Staleness limit for lint and test results.
 
 ## Build order
 
-1. Scanner, cache and rule engine over several roots. Prototype: `engine.py`, `score.py`, `meta.py`.
-2. First screen: profile, GO/NO-GO, resolve / work on / track lists.
-3. Document facts line.
-4. Marks, pins, `Needs:` dependencies.
-5. Repo details tab and Settings tab (rule editor with preview).
-6. Shortcut results into Code health.
-7. Lints and Drift Advisor links.
-8. GitHub review-requested list.
-9. Chat Explorer lookup and Log Capture call.
+1. Scanner, cache, rule engine over several roots, **and the safety check**. Port the prototype to TypeScript.
+2. Roll-up marks and the first screen. Lights are NO-GO or UNVERIFIED only.
+3. Document facts as marks.
+4. `Needs:` linkages and the chain view, marks, pins.
+5. Severity, profiles, and the repo details and settings tabs (rule editor with preview).
+6. Code health from background shortcuts and the Lints file. GO light is allowed from this step.
+7. Shared marks export, inferred linkages.
+8. 2.x items: Chat Explorer lookup, GitHub review-requested list, community group.
 
 ## Not built or not verified
 
@@ -142,8 +199,8 @@ Community extensions appear as a separate group. They never change a core projec
 - Whether the 29 Drift Advisor bug files are really open.
 - Whether size predicts effort.
 - The prototype's commit-hash count over-counts. Leave it out.
-- Folder `bugs/` holds handover and tracker files that the prototype labels as bugs. Needs a rule.
-- Where user marks live: local cache only, or also a header in the document.
+- Whether the GitHub `repo` scope covers a review-requested search. Likely yes, not tested.
+- Whether a sibling extension can be read from another window. Not checked.
 
 ## Version
 
