@@ -7,7 +7,7 @@ import { currentBoard } from "./boardFeed";
 import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, setFutureField } from "../commands/boardFuture";
-import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, isFieldValue } from "../board/futureList";
+import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
@@ -108,7 +108,7 @@ class BoardPanel extends BoardPanelWiring {
       if (message.type === "futureBlocker") {
         await editBlocker(target.root, target.item);
       } else if (key && isFieldValue(field, message.value)) {
-        await setFutureField(target.root, target.item, key, message.value);
+        await setFutureField(target.root, target.item, key, message.value, this.run ? foldersFor(this.run.cfg, target.item.project) : undefined);
       }
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));

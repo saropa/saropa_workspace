@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { editBlocker, loadFuture, readFutureSettings, setFutureField, writeBlock } from "../../commands/boardFuture";
+import { commitIfUnchanged, editBlocker, loadFuture, readFutureSettings, setFutureField, writeBlock } from "../../commands/boardFuture";
 import type { BoardRun } from "../../commands/boardScanStore";
 import { MAX_FUTURE_BYTES } from "../../board/futureList";
 import { l10n } from "../../i18n/l10n";
@@ -101,16 +101,16 @@ test("a write changes only the header block and keeps every other byte", async (
   const root = tmp();
   const body = "# Größe ✨\r\n\r\nText ünï\r\n- item\r\n";
   const file = put(root, "plans/deferred/A.md", "﻿" + body);
-  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Importance: "marketable", Wow: "4" }), true);
+  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Importance: "marketable", Wow: "4" }), "written");
   assert.equal(read(root, "plans/deferred/A.md"), "﻿# Größe ✨\r\n\r\nImportance: marketable\r\nWow: 4\r\n\r\nText ünï\r\n- item\r\n");
-  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Importance: "marketable", Wow: "4" }), false, "no change, no write");
+  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Importance: "marketable", Wow: "4" }), "unchanged", "no change, no write");
 });
 
 test("a document with unsaved edits is not written", async () => {
   const root = tmp();
   const file = put(root, "plans/deferred/A.md", "# A\n");
   docs.push({ isDirty: true, uri: vscode.Uri.file(file) });
-  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Wow: "2" }), false);
+  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Wow: "2" }), "refused");
   assert.equal(read(root, "plans/deferred/A.md"), "# A\n");
   assert.deepEqual(stub.__warningMessages(), [l10n("releaseBoard.future.dirty", { path: "plans/deferred/A.md" })]);
 });
@@ -119,9 +119,67 @@ test("a file that is not plain UTF-8 is not rewritten", async () => {
   const root = tmp();
   const bytes = Buffer.from([0x23, 0x20, 0x41, 0x0a, 0xff, 0xfe, 0x0a]);
   const file = put(root, "plans/deferred/A.md", bytes);
-  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Wow: "2" }), false);
+  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Wow: "2" }), "refused");
   assert.deepEqual(fs.readFileSync(file), bytes);
   assert.deepEqual(stub.__warningMessages(), [l10n("releaseBoard.future.notUtf8", { path: "plans/deferred/A.md" })]);
+});
+
+test("front matter that never closes is refused with a warning and the file is untouched", async () => {
+  const root = tmp();
+  const file = put(root, "plans/deferred/A.md", "---\nBody\n");
+  assert.equal(await writeBlock(vscode.Uri.file(file), "plans/deferred/A.md", { Wow: "2" }), "refused");
+  assert.equal(read(root, "plans/deferred/A.md"), "---\nBody\n");
+  assert.deepEqual(stub.__warningMessages(), [l10n("releaseBoard.future.frontMatter", { path: "plans/deferred/A.md" })]);
+});
+
+test("a file that changed after it was read is not overwritten", async () => {
+  const root = tmp();
+  const file = put(root, "plans/deferred/A.md", "# A\n\nedited elsewhere\n");
+  const uri = vscode.Uri.file(file);
+  assert.equal(await commitIfUnchanged(uri, Buffer.from("# A\n\nold text\n"), "# A\n\nWow: 2\n"), false);
+  assert.equal(read(root, "plans/deferred/A.md"), "# A\n\nedited elsewhere\n");
+  assert.equal(await commitIfUnchanged(uri, Buffer.from("# A\n\nedited elsewhere\n"), "# A\n\nWow: 2\n"), true);
+  assert.equal(read(root, "plans/deferred/A.md"), "# A\n\nWow: 2\n");
+});
+
+test("a refused write offers no move: one warning, flag and file untouched", async () => {
+  const root = tmp();
+  const file = put(root, "plans/deferred/A.md", "# A\n\nBody\n");
+  const item = (await loadFuture(run(root, ["plans/deferred/A.md"]))).items[0];
+  docs.push({ isDirty: true, uri: vscode.Uri.file(file) });
+  stub.__setWarningAnswer((_m, items) => items[0]);
+  assert.equal(await setFutureField(vscode.Uri.file(root), item, "Importance", "not-feasible"), false);
+  assert.deepEqual(stub.__warningMessages(), [l10n("releaseBoard.future.dirty", { path: "plans/deferred/A.md" })]);
+  assert.equal(read(root, "plans/deferred/A.md"), "# A\n\nBody\n");
+  assert.equal(fs.existsSync(path.join(root, "plans/blocked/A.md")), false);
+});
+
+test("edits that appear while the move dialog is open are reported as unsaved edits, not as an existing destination", async () => {
+  const root = tmp();
+  const file = put(root, "plans/deferred/A.md", "# A\n\nBody\n");
+  const item = (await loadFuture(run(root, ["plans/deferred/A.md"]))).items[0];
+  stub.__setWarningAnswer((_m, items) => {
+    docs.push({ isDirty: true, uri: vscode.Uri.file(file) });
+    return items[0];
+  });
+  await setFutureField(vscode.Uri.file(root), item, "Importance", "not-feasible");
+  assert.deepEqual(stub.__warningMessages().slice(1), [l10n("releaseBoard.future.dirty", { path: "plans/deferred/A.md" })]);
+  assert.ok(fs.existsSync(file));
+  assert.equal(fs.existsSync(path.join(root, "plans/blocked/A.md")), false);
+});
+
+test("a renamed deferred folder from the rules is listed and its move goes to the renamed blocked folder", async () => {
+  const root = tmp();
+  put(root, "plans/later/A.md", "# A\n");
+  put(root, "plans/deferred/B.md", "# B\n");
+  const base = run(root, ["plans/later/A.md", "plans/deferred/B.md"]);
+  (base.cfg as unknown as { ruleSets: unknown }).ruleSets = { states: { params: { deferredFolders: ["later"], blockedFolders: ["stuck"] } } };
+  (base.cfg.projects[0] as unknown as { ruleSets: string[] }).ruleSets = ["states"];
+  const items = (await loadFuture(base)).items;
+  assert.deepEqual(items.map((i) => i.path), ["plans/later/A.md"]);
+  stub.__setWarningAnswer((_m, i) => i[0]);
+  await setFutureField(vscode.Uri.file(root), items[0], "Importance", "not-feasible", { deferred: ["later"], blocked: ["stuck"] });
+  assert.equal(read(root, "plans/stuck/A.md"), "# A\n\nImportance: not-feasible\n");
 });
 
 test("a characteristic changes with no dialog and no move", async () => {

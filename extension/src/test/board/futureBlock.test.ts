@@ -108,17 +108,20 @@ test("front matter stays first; the block follows the title or the front matter"
   assert.equal(setBlockFields("---\ntitle: a\n---\n# T\n\nBody\n", { Wow: "1" }), "---\ntitle: a\n---\n# T\n\nWow: 1\n\nBody\n");
 });
 
-test("a front matter fence with no closing line is plain text", () => {
-  assert.equal(setBlockFields("---\nBody\n", { Wow: "1" }), "Wow: 1\n\n---\nBody\n");
+test("front matter that never closes is not written to", () => {
+  assert.equal(setBlockFields("---\nBody\n", { Wow: "1" }), undefined);
+  assert.equal(setBlockFields("---\r\ntitle: a\r\n# T\r\n", { Importance: "marketable" }), undefined);
+  assert.equal(setBlockFields("---\nBody\n", {}), "---\nBody\n", "nothing to change is still fine");
+  assert.equal(setBlockFields("---\nBody\n", { Wow: null }), undefined, "a removal is a write too");
 });
 
 test("CRLF documents get CRLF lines and keep every existing line ending", () => {
   assert.equal(setBlockFields("# T\r\n\r\nBody\r\n", { Importance: "marketable", Wow: "3" }), "# T\r\n\r\nImportance: marketable\r\nWow: 3\r\n\r\nBody\r\n");
-  assert.equal(setBlockFields("# T\r\n\r\nWow: 2\r\nBody\r\n", { Wow: "5", Reach: "rare" }), "# T\r\n\r\nWow: 5\r\nReach: rare\r\nBody\r\n");
+  assert.equal(setBlockFields("# T\r\n\r\nWow: 2\r\n\r\nBody\r\n", { Wow: "5", Reach: "rare" }), "# T\r\n\r\nWow: 5\r\nReach: rare\r\n\r\nBody\r\n");
 });
 
 test("mixed line endings outside the block are untouched", () => {
-  assert.equal(setBlockFields("# T\n\nWow: 2\nBody\r\nmore\r", { Wow: "5" }), "# T\n\nWow: 5\nBody\r\nmore\r");
+  assert.equal(setBlockFields("# T\n\nWow: 2\n\nBody\r\nmore\r", { Wow: "5" }), "# T\n\nWow: 5\n\nBody\r\nmore\r");
 });
 
 test("a document without a final line ending keeps none", () => {
@@ -157,12 +160,12 @@ test("nothing to change, or only removals on a missing block, returns the same t
 
 test("writing the same change twice equals writing it once", () => {
   const once = setBlockFields("# T\n\nBody\n", { Importance: "marketable", Wow: "4" });
-  assert.equal(setBlockFields(once, { Importance: "marketable", Wow: "4" }), once);
+  assert.equal(setBlockFields(once!, { Importance: "marketable", Wow: "4" }), once);
 });
 
 test("a written block reads back as written", () => {
   const next = setBlockFields("# T\n\nBody\n", { Importance: "needs-decision", Wow: "5", Reach: "weekly", Effort: "XL", Risk: "medium" });
-  assert.deepEqual(parseBlock(next), { importance: "needs-decision", wow: 5, reach: "weekly", effort: "XL", risk: "medium", invalid: [] });
+  assert.deepEqual(parseBlock(next!), { importance: "needs-decision", wow: 5, reach: "weekly", effort: "XL", risk: "medium", invalid: [] });
 });
 
 test("a Research line is kept as it is while other keys change", () => {
@@ -170,6 +173,33 @@ test("a Research line is kept as it is while other keys change", () => {
   assert.equal(setBlockFields(text, { Wow: "3" }), "# T\n\nResearch: needed\nWow: 3\n");
 });
 
-test("a malformed value is repaired by writing the key", () => {
-  assert.equal(setBlockFields("# T\n\nWow: lots\n", { Wow: "4" }), "# T\n\nWow: 4\n");
+test("a line with an invalid value is never overwritten: a new block goes above it", () => {
+  assert.equal(setBlockFields("# T\n\nWow: lots\n", { Wow: "4" }), "# T\n\nWow: 4\n\nWow: lots\n");
+  assert.equal(setBlockFields("# T\n\nImportance: marketable\nWow: 9\n\nBody\n", { Wow: "4" }), "# T\n\nWow: 4\n\nImportance: marketable\nWow: 9\n\nBody\n");
+});
+
+test("probe: a prose line that starts with a key is not overwritten", () => {
+  const text = "# T\n\nRisk: the main risk here is data loss.\n";
+  const next = setBlockFields(text, { Risk: "low" });
+  assert.equal(next, "# T\n\nRisk: low\n\nRisk: the main risk here is data loss.\n");
+  assert.equal(parseBlock(next!).risk, "low");
+  assert.equal(setBlockFields(next!, { Risk: "high" }), "# T\n\nRisk: high\n\nRisk: the main risk here is data loss.\n");
+});
+
+test("probe: a paragraph that starts with a key line is not split by a new key", () => {
+  const text = "# T\n\nWow: 2\nthis paragraph continues here.\n";
+  assert.equal(setBlockFields(text, { Reach: "daily" }), "# T\n\nReach: daily\n\nWow: 2\nthis paragraph continues here.\n");
+  assert.equal(setBlockFields("Effort: M\nmore prose\n", { Wow: "3" }), "Wow: 3\n\nEffort: M\nmore prose\n");
+});
+
+test("a valid run only counts as the block when a blank line or the end follows it", () => {
+  assert.equal(setBlockFields("# T\n\nWow: 2\nBody\n", { Wow: "5" }), "# T\n\nWow: 5\n\nWow: 2\nBody\n");
+  assert.equal(setBlockFields("# T\n\nWow: 2\n\nBody\n", { Wow: "5" }), "# T\n\nWow: 5\n\nBody\n");
+});
+
+test("a blocker may be any text and a Research line must be a known state", () => {
+  assert.equal(setBlockFields("# T\n\nImportance: not-feasible\nBlocker: anything: at all (really)\n\nBody\n", { Blocker: "x" }), "# T\n\nImportance: not-feasible\nBlocker: x\n\nBody\n");
+  assert.equal(setBlockFields("# T\n\nResearch: soonish\nWow: 2\n\nBody\n", { Wow: "3" }), "# T\n\nWow: 3\n\nResearch: soonish\nWow: 2\n\nBody\n");
+  assert.equal(parseValue("Research", "In Progress"), "in-progress");
+  assert.equal(parseValue("Research", "soonish"), undefined);
 });

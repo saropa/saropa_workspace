@@ -2019,5 +2019,7 @@
   "releaseBoard.future.targetExists": "Release Board: {path} already exists, so nothing was moved.",
   "releaseBoard.future.blockerPrompt": "What blocks this item? One line. Leave empty to remove the line.",
   "releaseBoard.future.move": "Move",
-  "releaseBoard.future.confirmMove": "The flag changed. Move this document to match?\n\nFrom: {from}\nTo: {to}\n\nLinks to it from other documents are not updated."
+  "releaseBoard.future.confirmMove": "The flag changed. Move this document to match?\n\nFrom: {from}\nTo: {to}\n\nLinks to it from other documents are not updated.",
+  "releaseBoard.future.frontMatter": "Release Board: {path} starts with a --- line that is never closed, so it was not changed. Close the front matter first.",
+  "releaseBoard.future.changed": "Release Board: {path} changed while it was being written, so it was not changed. Try again."
 }

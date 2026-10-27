@@ -1,5 +1,6 @@
 import { BlockKey, Effort, FutureBlock, Importance, Reach, Risk, parseBlock, parseValue } from "./futureBlock";
 import { titleFromPath } from "./boardModelParts";
+import { BoardConfig, ParamValue } from "./types";
 
 // Future tab: finds the deferred and blocked documents, fills in what their header block
 // leaves out (marked "guessed"), scores them and orders them. Pure. None of this counts as
@@ -31,6 +32,8 @@ export interface FutureInput {
   // Project-relative path with "/".
   path: string;
   text: string;
+  // Folder names from the rules; the defaults when left out.
+  folders?: FutureFolders;
 }
 
 // One deferred or blocked document, ready to show.
@@ -77,30 +80,75 @@ export const MAX_FUTURE_BYTES = 512_000;
 // Most documents listed.
 export const MAX_FUTURE_ITEMS = 200;
 
-const FUTURE_PATH = /^(?:plans\/(deferred|blocked)|docs\/(deferred|blocked))\/.+\.md$/i;
+// The folder names that mean deferred and blocked work, from the rules (the
+// "deferredFolders" and "blockedFolders" parameters), so a renamed folder still works.
+export interface FutureFolders {
+  deferred: string[];
+  blocked: string[];
+}
+
+export const DEFAULT_FOLDERS: FutureFolders = { deferred: ["deferred"], blocked: ["blocked"] };
+
+// A folder name from the rules: one plain segment, nothing that climbs or nests.
+const folderName = (v: unknown): v is string => typeof v === "string" && v !== "" && !/[\\/]/.test(v) && v !== "." && v !== "..";
+
+function namesOf(v: ParamValue | undefined): string[] {
+  return (Array.isArray(v) ? v : v === undefined ? [] : [v]).filter(folderName);
+}
+
+// The folder names for one project: its own parameters first, then those of its rule sets
+// in order, then the defaults.
+export function foldersFor(cfg: BoardConfig, projectId: string): FutureFolders {
+  const project = cfg.projects.find((p) => p.id === projectId);
+  const sources = [project?.params, ...(project?.ruleSets ?? []).map((n) => cfg.ruleSets[n]?.params)];
+  const pick = (key: "deferredFolders" | "blockedFolders", fallback: string[]): string[] => {
+    for (const src of sources) {
+      const names = namesOf(src?.[key]);
+      if (names.length > 0) {
+        return names;
+      }
+    }
+    return fallback;
+  };
+  return { deferred: pick("deferredFolders", DEFAULT_FOLDERS.deferred), blocked: pick("blockedFolders", DEFAULT_FOLDERS.blocked) };
+}
+
+const escapeRe = (n: string): string => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Splits a path under plans/ or docs/ into root, folder kind and the rest; undefined for
+// any other path or one with a ".." segment.
+function splitFuture(path: string, f: FutureFolders): { root: "plans" | "docs"; source: FutureSource; rest: string } | undefined {
+  if (path.split("/").some((seg) => seg === ".." || seg === "." || seg === "")) {
+    return undefined;
+  }
+  for (const source of ["deferred", "blocked"] as const) {
+    const names = f[source].map(escapeRe).join("|");
+    const m = names ? new RegExp(`^(plans|docs)/(?:${names})/(.+\\.md)$`, "i").exec(path) : null;
+    if (m) {
+      return { root: m[1].toLowerCase() as "plans" | "docs", source, rest: m[2] };
+    }
+  }
+  return undefined;
+}
 
 // "deferred" or "blocked" when the project-relative path is a document in one of the folders
 // the Future tab reads (plans/deferred, plans/blocked, docs/deferred/<area>, docs/blocked).
-export function futureSource(path: string): FutureSource | undefined {
-  const m = FUTURE_PATH.exec(path);
-  return m ? ((m[1] ?? m[2]).toLowerCase() as FutureSource) : undefined;
+export function futureSource(path: string, folders: FutureFolders = DEFAULT_FOLDERS): FutureSource | undefined {
+  return splitFuture(path, folders)?.source;
 }
 
 // Where a document goes when its flag moves it between the two folders; undefined when it
-// is not in one of them or already is where it should be. Documents in docs/ leave their
-// area folder on the way to blocked/ and come back to the top of docs/deferred/.
-export function moveTarget(path: string, toBlocked: boolean): string | undefined {
-  const m = /^(plans|docs)\/(deferred|blocked)\/(.+\.md)$/i.exec(path);
-  if (!m || (m[2].toLowerCase() === "blocked") === toBlocked) {
+// is not in one of them, already is where it should be, or the path has a ".." segment.
+// Documents in docs/ leave their area folder on the way to blocked/ and come back to the top
+// of docs/deferred/.
+export function moveTarget(path: string, toBlocked: boolean, folders: FutureFolders = DEFAULT_FOLDERS): string | undefined {
+  const at = splitFuture(path, folders);
+  if (!at || (at.source === "blocked") === toBlocked) {
     return undefined;
   }
-  const file = m[3];
-  const name = file.slice(file.lastIndexOf("/") + 1);
-  const root = m[1].toLowerCase();
-  if (root === "plans") {
-    return `plans/${toBlocked ? "blocked" : "deferred"}/${file}`;
-  }
-  return `docs/${toBlocked ? "blocked" : "deferred"}/${name}`;
+  const dir = (toBlocked ? folders.blocked : folders.deferred)[0];
+  const name = at.rest.slice(at.rest.lastIndexOf("/") + 1);
+  return `${at.root}/${dir}/${at.root === "plans" ? at.rest : name}`;
 }
 
 // Guesses for what a document does not say. Importance: the folder, else a request for a
@@ -171,7 +219,7 @@ export function buildItem(input: FutureInput, source: FutureSource): FutureItem 
 export function buildFuture(inputs: FutureInput[]): FutureItem[] {
   const items: FutureItem[] = [];
   for (const input of inputs) {
-    const source = futureSource(input.path);
+    const source = futureSource(input.path, input.folders);
     if (source) {
       items.push(buildItem(input, source));
     }

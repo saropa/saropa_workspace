@@ -32,6 +32,8 @@ export interface FutureBlock {
   invalid: BlockKey[];
 }
 
+export const RESEARCH_STATES = ["none", "needed", "in-progress", "ready", "reviewed"] as const;
+
 const BOM = "﻿";
 const LINE = /^(importance|research|wow|reach|effort|risk|blocker)[ \t]*:[ \t]*(.*?)[ \t]*$/i;
 const H1 = /^#[ \t]+\S/;
@@ -72,12 +74,30 @@ function afterFrontMatter(lines: Line[]): number {
   return 0;
 }
 
-function blockAt(lines: Line[], from: number): { start: number; end: number } | undefined {
+// A run of key lines starting at `from`. A strict run (what a write may touch) must also
+// have a valid value on every line (a blocker may be any text) and end at a blank line or
+// the end of the file, so a paragraph that merely starts with a key word is never taken
+// for the block.
+function blockAt(lines: Line[], from: number, strict: boolean): { start: number; end: number } | undefined {
   let end = from;
   while (end < lines.length && LINE.test(lines[end].text)) {
     end += 1;
   }
-  return end > from ? { start: from, end } : undefined;
+  if (end === from) {
+    return undefined;
+  }
+  if (strict) {
+    const closed = end === lines.length || lines[end].text.trim() === "";
+    const valid = lines.slice(from, end).every((l) => {
+      const m = LINE.exec(l.text)!;
+      const key = canonicalKey(m[1]);
+      return key === "Blocker" || parseValue(key, m[2]) !== undefined;
+    });
+    if (!closed || !valid) {
+      return undefined;
+    }
+  }
+  return { start: from, end };
 }
 
 interface Place {
@@ -87,9 +107,9 @@ interface Place {
   insertAt: number;
 }
 
-function locate(lines: Line[]): Place {
+function locate(lines: Line[], strict: boolean): Place {
   const top = afterFrontMatter(lines);
-  const direct = blockAt(lines, top);
+  const direct = blockAt(lines, top, strict);
   if (direct) {
     return { block: direct, insertAt: top };
   }
@@ -102,7 +122,7 @@ function locate(lines: Line[]): Place {
     while (k < lines.length && lines[k].text.trim() === "") {
       k += 1;
     }
-    const below = blockAt(lines, k);
+    const below = blockAt(lines, k, strict);
     return below ? { block: below, insertAt: j + 1 } : { insertAt: j + 1 };
   }
   return { insertAt: top };
@@ -127,7 +147,7 @@ export function parseValue(key: BlockKey, raw: string): Importance | number | Re
     case "Blocker":
       return v === "" ? undefined : v.slice(0, MAX_BLOCKER);
     default:
-      return v === "" ? undefined : v;
+      return RESEARCH_STATES.find((x) => x === nameKey(v));
   }
 }
 
@@ -136,7 +156,7 @@ export function parseValue(key: BlockKey, raw: string): Importance | number | Re
 export function parseBlock(text: string): FutureBlock {
   const lines = splitLines(text.startsWith(BOM) ? text.slice(1) : text);
   const out: FutureBlock = { invalid: [] };
-  const { block } = locate(lines);
+  const { block } = locate(lines, false);
   if (!block) {
     return out;
   }
@@ -173,10 +193,18 @@ export type BlockChanges = Partial<Record<BlockKey, string | null>>;
 
 const oneLine = (v: string): string => v.replace(/[\r\n]+/g, " ").trim();
 
+// True when the first line opens front matter that is never closed.
+function unclosedFrontMatter(lines: Line[]): boolean {
+  return lines[0]?.text.trimEnd() === "---" && afterFrontMatter(lines) === 0;
+}
+
 // Applies the changes to the block and returns the new document text; the same text when
-// nothing changes. Creates the block when the document has none: right after the first
+// nothing changes; undefined when the document cannot be written safely (front matter that
+// never closes). Only a valid block (every value valid, followed by a blank line or the end
+// of the file) is edited; otherwise a new block is written above and the old lines stay.
+// Creates the block when the document has none: right after the first
 // "# Title" line, else at the top (after front matter). Only block lines are touched.
-export function setBlockFields(text: string, changes: BlockChanges): string {
+export function setBlockFields(text: string, changes: BlockChanges): string | undefined {
   const bom = text.startsWith(BOM) ? BOM : "";
   const lines = splitLines(bom ? text.slice(1) : text);
   const eol = lines.find((l) => l.eol !== "")?.eol ?? "\n";
@@ -185,7 +213,10 @@ export function setBlockFields(text: string, changes: BlockChanges): string {
   if (keys.length === 0) {
     return text;
   }
-  const place = locate(lines);
+  if (unclosedFrontMatter(lines)) {
+    return undefined;
+  }
+  const place = locate(lines, true);
   const next = place.block ? rewrite(lines, place.block, keys, changes, eol) : create(lines, place.insertAt, keys, changes, eol);
   if (next === undefined) {
     return text;

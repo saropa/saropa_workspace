@@ -2,8 +2,9 @@
 // the sort choices, plus the read-only items found outside deferred folders.
 
 import { test } from "node:test";
+import { BoardConfig } from "../../board/types";
 import assert from "node:assert/strict";
-import { FutureInput, FutureItem, asFutureSort, blockKeyOf, buildFuture, buildItem, findOutside, futureSource, groupItems, guessFields, isFieldValue, moveTarget, scoreOf, compareItems } from "../../board/futureList";
+import { FutureFolders, FutureInput, FutureItem, asFutureSort, blockKeyOf, buildFuture, buildItem, findOutside, foldersFor, futureSource, groupItems, guessFields, isFieldValue, moveTarget, scoreOf, compareItems } from "../../board/futureList";
 
 const input = (path: string, block: string[] = [], title = "T", body = "Body\n"): FutureInput => ({
   project: "app",
@@ -31,6 +32,56 @@ test("a flag that crosses folders names the new path", () => {
   assert.equal(moveTarget("plans/blocked/X.md", true), undefined);
   assert.equal(moveTarget("plans/deferred/X.md", false), undefined);
   assert.equal(moveTarget("plans/A.md", true), undefined);
+});
+
+test("a path with a .. segment never counts and never gets a move target", () => {
+  assert.equal(futureSource("plans/deferred/../../x.md"), undefined);
+  assert.equal(futureSource("plans/deferred/a/../b.md"), undefined);
+  assert.equal(moveTarget("plans/deferred/../../etc/x.md", true), undefined);
+  assert.equal(moveTarget("docs/deferred/ux/../../../x.md", true), undefined);
+  assert.equal(futureSource("plans/deferred//x.md"), undefined);
+});
+
+const renamed: FutureFolders = { deferred: ["later", "parked"], blocked: ["stuck"] };
+
+test("renamed folders from the rules are read, and the old names stop counting", () => {
+  assert.equal(futureSource("plans/later/A.md", renamed), "deferred");
+  assert.equal(futureSource("docs/parked/ux/A.md", renamed), "deferred");
+  assert.equal(futureSource("docs/stuck/A.md", renamed), "blocked");
+  assert.equal(futureSource("plans/deferred/A.md", renamed), undefined);
+  assert.equal(moveTarget("plans/later/A.md", true, renamed), "plans/stuck/A.md");
+  assert.equal(moveTarget("docs/stuck/A.md", false, renamed), "docs/later/A.md");
+  assert.equal(moveTarget("docs/parked/ux/A.md", true, renamed), "docs/stuck/A.md");
+  assert.equal(futureSource("plans/a.b/A.md", { deferred: ["a.b"], blocked: [] }), "deferred");
+  assert.equal(futureSource("plans/aXb/A.md", { deferred: ["a.b"], blocked: [] }), undefined);
+});
+
+test("buildFuture uses the folders each input carries", () => {
+  const items = buildFuture([{ ...input("plans/later/A.md"), folders: renamed }, { ...input("plans/deferred/B.md"), folders: renamed }, input("plans/deferred/C.md")]);
+  assert.deepEqual(items.map((i) => [i.path, i.source]), [["plans/deferred/C.md", "deferred"], ["plans/later/A.md", "deferred"]]);
+});
+
+test("folder names come from the project, then its rule sets, then the defaults", () => {
+  const cfg: BoardConfig = {
+    version: 1,
+    ignore: [],
+    ruleSets: {
+      states: { params: { deferredFolders: ["deferred", "declined"], blockedFolders: ["blocked"] } },
+      mine: { params: { deferredFolders: "later" } },
+      other: {},
+    },
+    projects: [
+      { id: "a", path: "a", roots: [], ruleSets: ["other", "states"] },
+      { id: "b", path: "b", roots: [], ruleSets: ["mine", "states"] },
+      { id: "c", path: "c", roots: [], ruleSets: ["states"], params: { blockedFolders: ["stuck", "../bad", "x/y", ""] } },
+      { id: "d", path: "d", roots: [], ruleSets: [] },
+    ],
+  };
+  assert.deepEqual(foldersFor(cfg, "a"), { deferred: ["deferred", "declined"], blocked: ["blocked"] });
+  assert.deepEqual(foldersFor(cfg, "b"), { deferred: ["later"], blocked: ["blocked"] });
+  assert.deepEqual(foldersFor(cfg, "c"), { deferred: ["deferred", "declined"], blocked: ["stuck"] });
+  assert.deepEqual(foldersFor(cfg, "d"), { deferred: ["deferred"], blocked: ["blocked"] });
+  assert.deepEqual(foldersFor(cfg, "missing"), { deferred: ["deferred"], blocked: ["blocked"] });
 });
 
 test("guesses: importance from the folder and the text, effort from the length, risk from the words", () => {

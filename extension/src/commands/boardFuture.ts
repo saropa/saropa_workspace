@@ -3,7 +3,7 @@ import { l10n } from "../i18n/l10n";
 import { mapLimit } from "../board/pool";
 import { withTimeout } from "../board/timeout";
 import { BlockChanges, BlockKey, setBlockFields } from "../board/futureBlock";
-import { FutureInput, FutureItem, FutureOutside, FutureSort, MAX_FUTURE_BYTES, MAX_FUTURE_ITEMS, asFutureSort, buildFuture, findOutside, futureSource, moveTarget } from "../board/futureList";
+import { FutureFolders, FutureInput, FutureItem, FutureOutside, FutureSort, MAX_FUTURE_BYTES, MAX_FUTURE_ITEMS, asFutureSort, buildFuture, findOutside, foldersFor, futureSource, moveTarget } from "../board/futureList";
 import { BoardRun } from "./boardScanStore";
 import { pathExists } from "./boardFileSource";
 
@@ -50,11 +50,12 @@ async function readCapped(uri: vscode.Uri): Promise<string | undefined> {
 
 async function load(run: BoardRun): Promise<FutureData> {
   const defs = new Map(run.cfg.projects.map((p) => [p.id, p]));
-  const picks = run.result.rows.filter((r) => futureSource(r.path) !== undefined && defs.has(r.project)).slice(0, MAX_FUTURE_ITEMS);
+  const folders = new Map(run.cfg.projects.map((p) => [p.id, foldersFor(run.cfg, p.id)]));
+  const picks = run.result.rows.filter((r) => defs.has(r.project) && futureSource(r.path, folders.get(r.project)) !== undefined).slice(0, MAX_FUTURE_ITEMS);
   const read = await mapLimit(picks, READ_PARALLEL, async (r): Promise<FutureInput | undefined> => {
     const def = defs.get(r.project)!;
     const text = await readCapped(vscode.Uri.joinPath(vscode.Uri.parse(def.path), r.path));
-    return text === undefined ? undefined : { project: def.id, projectName: def.name ?? def.id, path: r.path, text };
+    return text === undefined ? undefined : { project: def.id, projectName: def.name ?? def.id, path: r.path, text, folders: folders.get(def.id) };
   });
   const outside: FutureOutside[] = [];
   for (const def of run.cfg.projects) {
@@ -81,45 +82,71 @@ function warn(key: string, path: string): void {
   void vscode.window.showWarningMessage(l10n(key, { path }));
 }
 
-// Writes the block changes into one document. Refuses a document with unsaved edits or one
-// that is not plain UTF-8 (rewriting it would change other bytes). True when the file changed.
-export async function writeBlock(uri: vscode.Uri, path: string, changes: BlockChanges): Promise<boolean> {
+// What a write did: changed the file, found nothing to change, or refused (a warning was shown).
+export type WriteResult = "written" | "unchanged" | "refused";
+
+// Writes `next` only if the file still holds exactly the bytes it was read with, so an edit
+// made in between is never overwritten. False when it changed (or cannot be read).
+export async function commitIfUnchanged(uri: vscode.Uri, original: Uint8Array, next: string): Promise<boolean> {
+  const now = await vscode.workspace.fs.readFile(uri);
+  if (Buffer.compare(Buffer.from(now), Buffer.from(original)) !== 0) {
+    return false;
+  }
+  await vscode.workspace.fs.writeFile(uri, Buffer.from(next, "utf8"));
+  return true;
+}
+
+// Writes the block changes into one document. Refuses a document with unsaved edits, one
+// that is not plain UTF-8 (rewriting it would change other bytes), one whose front matter
+// never closes, and one that changed since it was read.
+export async function writeBlock(uri: vscode.Uri, path: string, changes: BlockChanges): Promise<WriteResult> {
   if (isDirty(uri)) {
     warn("releaseBoard.future.dirty", path);
-    return false;
+    return "refused";
   }
   try {
     const bytes = await vscode.workspace.fs.readFile(uri);
     const text = Buffer.from(bytes).toString("utf8");
     if (Buffer.compare(Buffer.from(text, "utf8"), Buffer.from(bytes)) !== 0) {
       warn("releaseBoard.future.notUtf8", path);
-      return false;
+      return "refused";
     }
     const next = setBlockFields(text, changes);
-    if (next === text) {
-      return false;
+    if (next === undefined) {
+      warn("releaseBoard.future.frontMatter", path);
+      return "refused";
     }
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(next, "utf8"));
-    return true;
+    if (next === text) {
+      return "unchanged";
+    }
+    if (!(await commitIfUnchanged(uri, bytes, next))) {
+      warn("releaseBoard.future.changed", path);
+      return "refused";
+    }
+    return "written";
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-    return false;
+    return "refused";
   }
 }
 
 // Sets one characteristic or the flag of a listed document. A flag that moves it between
-// "deferred" and "blocked" offers the move afterwards; nothing moves without a yes.
-export async function setFutureField(root: vscode.Uri, item: FutureItem, key: BlockKey, value: string): Promise<boolean> {
+// "deferred" and "blocked" offers the move afterwards, but only when the write did not
+// fail; nothing moves without a yes.
+export async function setFutureField(root: vscode.Uri, item: FutureItem, key: BlockKey, value: string, folders?: FutureFolders): Promise<boolean> {
   const uri = vscode.Uri.joinPath(root, item.path);
-  const changed = await writeBlock(uri, item.path, { [key]: value });
+  const result = await writeBlock(uri, item.path, { [key]: value });
+  if (result === "refused") {
+    return false;
+  }
   if (key === "Importance") {
     const toBlocked = value === "not-feasible";
-    const to = (toBlocked && item.source === "deferred") || (!toBlocked && item.source === "blocked") ? moveTarget(item.path, toBlocked) : undefined;
+    const to = (toBlocked && item.source === "deferred") || (!toBlocked && item.source === "blocked") ? moveTarget(item.path, toBlocked, folders) : undefined;
     if (to) {
-      return (await offerMove(root, item.path, to)) || changed;
+      return (await offerMove(root, item.path, to)) || result === "written";
     }
   }
-  return changed;
+  return result === "written";
 }
 
 // Asks for the blocker line and writes it. An empty answer removes the line.
@@ -129,7 +156,7 @@ export async function editBlocker(root: vscode.Uri, item: FutureItem): Promise<b
     return false;
   }
   const line = answer.trim();
-  return writeBlock(vscode.Uri.joinPath(root, item.path), item.path, { Blocker: line === "" ? null : line });
+  return (await writeBlock(vscode.Uri.joinPath(root, item.path), item.path, { Blocker: line === "" ? null : line })) === "written";
 }
 
 // Moves one document after a confirmation that names the source and destination. Refuses
@@ -151,7 +178,11 @@ async function offerMove(root: vscode.Uri, from: string, to: string): Promise<bo
     return false;
   }
   // The dialog can stay open: check again right before the move.
-  if (isDirty(src) || (await pathExists(dst))) {
+  if (isDirty(src)) {
+    warn("releaseBoard.future.dirty", from);
+    return false;
+  }
+  if (await pathExists(dst)) {
     warn("releaseBoard.future.targetExists", to);
     return false;
   }
