@@ -2,7 +2,7 @@ import { isNameableSource } from "./docFacts";
 import { globToRegExp } from "./glob";
 import { Outside } from "./outside";
 import { ProjectHealth } from "./health";
-import { Profile, asProfile, stops } from "./severity";
+import { Profile, Severity, asProfile, stops } from "./severity";
 import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
@@ -14,7 +14,7 @@ import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
 import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
-import { OPEN, factsFor, itemKey, linkSummary, marksOf, sittingsView, titleFromPath } from "./boardModelParts";
+import { OPEN, effectiveSeverity, factsFor, itemKey, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
 
 // The board's view model: what the first screen shows, built from classified rows.
 // Pure, so the rules for the light are unit-tested without a webview.
@@ -45,6 +45,10 @@ interface BuildContext {
   names: Map<string, string>;
   exactPins: Set<string>;
   pinGlobs: RegExp[];
+  // Severities chosen by the user, and a count of the ones applied to open documents.
+  overrides: Map<string, Severity>;
+  statusKeys: Set<string>;
+  byUser: { count: number; lowered: number };
 }
 
 // The open items of one project, sorted, with its counts and its collapsed blocked documents.
@@ -63,11 +67,19 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
     }
     const facts = factsFor(ctx.snapshot, def.id, r.path);
     const pinned = ctx.exactPins.has(def.id + "/" + r.path) || ctx.pinGlobs.some((re) => re.test(def.id + "/" + r.path));
+    const sev = effectiveSeverity(ctx.overrides, def.id, r.path, facts);
+    if (sev.byUser) {
+      ctx.byUser.count += 1;
+      // A severity the user lowered below a level that stops the release is counted and shown.
+      if (!pinned && sev.auto !== undefined && stops(ctx.profile, sev.auto) && !stops(ctx.profile, sev.severity as Severity)) {
+        ctx.byUser.lowered += 1;
+      }
+    }
     if (r.status === "amber" && r.note === "blocked" && !pinned) {
       // A waiting document is collapsed into one mark, but one that would stop a
       // release under the profile still counts toward NO-GO.
       blocked += 1;
-      if (facts !== undefined && stops(ctx.profile, facts.severity)) {
+      if (sev.severity !== undefined && stops(ctx.profile, sev.severity)) {
         blockedStop += 1;
       }
       continue;
@@ -83,10 +95,12 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       hub: false,
       blocksCount: 0,
       waitsOn: [],
-      severity: facts?.severity,
+      severity: sev.severity,
+      ...(sev.byUser ? { severityByUser: true } : {}),
+      ...(statusChosen(ctx.statusKeys, r) ? { statusByUser: true } : {}),
       audience: facts?.audience,
       pinned,
-      stopping: pinned || (facts !== undefined && stops(ctx.profile, facts.severity)),
+      stopping: pinned || (sev.severity !== undefined && stops(ctx.profile, sev.severity)),
     });
   }
   items.sort(
@@ -101,7 +115,9 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
 
 // Builds one project's row and adds its items to `all`, giving each the next id.
 function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): BoardProject {
+  const lowBefore = ctx.byUser.lowered;
   const { items, counts, blocked, blockedStop } = collectItems(def, ctx);
+  const lowered = ctx.byUser.lowered - lowBefore;
   for (const it of items) {
     it.id = all.length;
     all.push(it);
@@ -140,6 +156,7 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     items,
     blocked,
     blockedStopping: blockedStop,
+    ...(lowered > 0 ? { loweredByUser: lowered } : {}),
     counts,
     dependsOn: def.dependsOn ?? [],
     ...(def.extra ? { extra: true } : {}),
@@ -311,6 +328,9 @@ export function buildBoard(
     names: new Map(cfg.projects.map((p) => [p.id, p.name ?? p.id])),
     // Hand pins are exact documents; the rules file's pins are globs.
     exactPins: new Set(extra?.pins ?? []),
+    overrides: userSeverities(cfg),
+    statusKeys: userStatuses(cfg),
+    byUser: { count: 0, lowered: 0 },
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };
   // The open workspace's projects first, then the extra ones; importance orders within each.
@@ -351,5 +371,6 @@ export function buildBoard(
     suggestions,
     outside: extra?.outside?.groups ?? [],
     needsRule: needsRuleFolders(cfg, snapshot),
+    ...(ctx.byUser.count > 0 ? { byUser: ctx.byUser } : {}),
   };
 }

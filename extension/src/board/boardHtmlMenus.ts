@@ -15,11 +15,11 @@ export function kebab(t: BoardStrings, menu: "row" | "opts", id?: number, title 
 
 const item = (act: string, text: string, tipText: string): string => `<button type="button" class="mi" role="menuitem" data-act="${act}" title="${escapeHtml(tipText)}">${escapeHtml(text)}</button>`;
 
-// The row menu: open the document, change its status, add a rule for its folder, hand it to chat,
+// The row menu: open the document, change its status or severity, set both back to automatic, add a rule for its folder, hand it to chat,
 // open the rules file. The Hand to chat entry is left out when that feature is off.
 export function rowMenu(t: BoardStrings): string {
   const hand = t.handToChat ? item("hand", t.handToChat, t.handToChatTip) : "";
-  return `<div class="menu" id="menu-row" role="menu" hidden aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${item("status", pl(t, "menuStatus"), pl(t, "menuStatusTip"))}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
+  return `<div class="menu" id="menu-row" role="menu" hidden aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${item("status", pl(t, "menuStatus"), pl(t, "menuStatusTip"))}${item("severity", pl(t, "menuSeverity"), pl(t, "menuSeverityTip"))}${item("auto", pl(t, "menuAuto"), pl(t, "menuAutoTip"))}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
 }
 
 // The board options menu: the rules file is opened only from here and from the row menu.

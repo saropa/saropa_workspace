@@ -165,9 +165,12 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
     add(`<i class="link blocks" ${glyphTip(t, "g.amberDiamondFilled", text)}></i>`, 60, text);
   }
   if (i.severity) {
-    const text = pl(t, i.stopping ? "severityStops" : "severity", { severity: i.severity });
+    const text = pl(t, i.stopping ? "severityStops" : "severity", { severity: i.severity }) + (i.severityByUser ? " " + pl(t, "byYou") : "");
     const red = i.severity === "extreme" || i.severity === "critical";
     add(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" ${glyphTip(t, red ? "g.redTriangle" : i.severity === "high" ? "g.amberTriangle" : "g.greyTriangle", text)}></i>`, (i.stopping ? 100 : red ? 95 : i.severity === "high" ? 80 : 20), text);
+  }
+  if (i.severityByUser || i.statusByUser) {
+    add(`<b class="code" ${tip(t, "byYou")}>${escapeHtml(pl(t, "byYouMark"))}</b>`, 40, pl(t, "byYou"));
   }
   if (i.audience === "pro") {
     add(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`, 30, t.proOnly);
@@ -193,7 +196,7 @@ function linkMark(i: BoardItem, t: BoardStrings): string {
 // One open document: the title is the link that opens it (its tooltip is the path inside the
 // project); a click anywhere else on the row opens it too.
 function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${tip(t, "row", { kind: i.kind || "-" })}><i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: i.title })}></i>${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${marks(i.marks, t)}${linkMark(i, t)}<span class="k" ${tip(t, "kind", { kind: i.kind || "-" })}>${escapeHtml(i.kind)}</span>${i.status === "red" || i.stopping ? handButton(t, `data-hk="item" data-i="${i.id}"`) : ""}${kebab(t, "row", i.id, i.title)}</div>`;
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${tip(t, "row", { kind: i.kind || "-" })}><i class="sq ${i.status}" ${i.statusByUser ? titleAttr(`${pl(t, "square." + i.status, { title: i.title })} ${pl(t, "byYou")}`) : tip(t, "square." + i.status, { title: i.title })}></i>${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${marks(i.marks, t)}${linkMark(i, t)}<span class="k" ${tip(t, "kind", { kind: i.kind || "-" })}>${escapeHtml(i.kind)}</span>${i.status === "red" || i.stopping ? handButton(t, `data-hk="item" data-i="${i.id}"`) : ""}${kebab(t, "row", i.id, i.title)}</div>`;
 }
 
 // What a list adds to the plain item list: its tooltip key, an explanation line, how many more

@@ -42,6 +42,7 @@ function labels(): SidebarLabels {
     causeTests: l10n("releaseBoard.sidebar.causeTests"),
     causeBlocked: l10n("releaseBoard.sidebar.causeBlocked", { count: "{count}" }),
     causeHeld: l10n("releaseBoard.sidebar.causeHeld"),
+    loweredByUser: l10n("releaseBoard.sidebar.loweredByUser", { count: "{count}" }),
     umbrella: {
       skipped: {
         missing: l10n("releaseBoard.projects.label.skip_missing"),

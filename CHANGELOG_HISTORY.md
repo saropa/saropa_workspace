@@ -4,6 +4,129 @@ This archive is for older versions. For current changes see [CHANGELOG.md](./CHA
 
 ---
 
+## [1.6.1]
+
+The bottom-panel tab is now called "Saropa Workspace" to match the extension, complete with a new subtitle and a command palette entry so you can still easily find it by searching for "launcher". [log](https://github.com/saropa/saropa-workspace/blob/v1.6.1/CHANGELOG.md)
+
+### Changed
+
+- The bottom-panel tab is now titled "Saropa Workspace" instead of "Saropa Launcher", matching the extension name
+- The panel view now shows a subtitle ("Search and launch shortcuts from the Panel") to distinguish it from the sidebar
+
+### Added
+
+- "Show Launcher Panel" command in the command palette, so users who search for "launcher" still find the bottom-panel shortcut surface after the tab rename
+
+---
+
+## [1.6.0]
+
+**Overview** — The project config moves from `.vscode` to `.saropa` (migrated automatically), collapsed launcher sections fold into a draggable pill strip, daily routines can be enabled in one batch from a new quick-setup wizard, and the right-click menu is reorganized into submenus so it fits on screen. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.0/CHANGELOG.md)
+
+### Added
+
+- "Set Up Daily Routines" quick-setup wizard — an inline button on the Daily Routines folder header opens a multi-select picker listing every detected routine with its scheduled time, so multiple routines can be enabled in one batch instead of promoting and enabling each one individually
+- Drag a card onto a folded section's pill in the Saropa Launcher to file it there: drop a recipe or a project file on **My shortcuts** to adopt it, or any file-backed card on **Watches** to start watching that file. Eligible pills light up the moment the drag starts, so there is no need to hover each one to find out which accept. Sections that are detected or scanned rather than curated (Recipes, Project Files, Scripts) accept nothing
+- Drag a folded section's pill onto another to rearrange the strip; the arrangement is remembered across reloads
+- A manual shortcut whose path matches an auto-pin pattern now shows a distinct filled-pin icon (yellow tint) and a tooltip explaining that removing the manual shortcut will bring back the auto-seeded one — makes the auto-pin deduplication visible instead of silent
+
+### Fixed
+
+- Auto-shortcuts (e.g. `pubspec.yaml` from autoPins patterns) no longer duplicate a manually added shortcut that targets the same file — the auto-shortcut is suppressed when an explicit shortcut with the same path already exists
+
+### Changed
+
+- New `saropaWorkspace.configDir` setting controls which directory holds the project config file (`saropa-workspace.json`). Defaults to `.saropa`; change to `.vscode` for the pre-1.6 location or any other directory for monorepos where `.saropa` collides with a package. Existing config migrates automatically on activation
+- The "Edit Shortcuts Config (JSON)" command now checks all known legacy locations before creating a fresh config, preventing a race where an empty file could shadow un-migrated data
+- Concurrent refresh calls (e.g. from migration write+delete triggering the file watcher) are now coalesced by a re-entrancy guard instead of running in parallel
+- Renamed the "Scheduled" recipe category to "Daily Routines" — the old name implied the user had scheduled 13 items, when they are auto-detected suggestions that seed disabled
+- Daily Routines recipes no longer duplicate onto the Recommended shelf, since they are already visible in their own category group
+- Collapsed sections in the Saropa Launcher panel (Recipes, Watches, Project Files, Scripts) now gather into a strip of compact pills instead of leaving cut-off section headers with stray underlines scattered in the empty space beside the open section. Each pill keeps its section icon and count, states what it opens on hover, and reopens the section on click; on a narrow panel the pills stack onto their own lines. A search still reveals a folded section's matching cards at full width
+- Tree row description for file shortcuts now shows only the parent directory (e.g. `lib/l10n`) instead of the full path including the filename, since the filename is already the row label. Shortcuts with a custom label still show the full path. Root-level files with no parent directory show no path detail
+- Reorganized shortcut right-click context menu: most actions now live inside submenus (Output & Logs, Configure & Schedule, Appearance & Tags, File Actions, Manage & Create) instead of as a flat list, so the menu fits in the window. Only Open, Run, Stop, and Copy Path remain at the top level alongside the submenu entries. The Manage & Create submenu also appears on annotation rows (comments and separators) so Add Comment and Add Separator remain reachable from those rows
+- The publish audit now warns when the overview line mentions fewer clauses than the section has subsections, catching a stale summary before it ships
+
+---
+
+## [1.5.27]
+
+**Overview** — Sweep runs now show green and red trend deltas so you can immediately see if your codebase is getting cleaner or messier, multi-root workspaces clearly label which folder owns each shortcut, and external terminals now default to modern PowerShell 7+. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.27/CHANGELOG.md)
+
+### Added
+
+- Multi-root workspace attribution: project shortcuts now show which workspace folder owns them (in the row description and hover tooltip) when two or more folders are open, so it is clear which `.vscode/saropa-workspace.json` each shortcut lives in
+- Sweep trend direction: after a second lint or test run, the row description and hover tooltip both show a ▲/▼ delta so it is visible whether the codebase is getting cleaner or messier without hovering or opening a full history
+- `ShortcutTreeItem` constructor now takes a named options object (`ShortcutTreeItemOptions`) instead of 14 positional parameters, making call sites self-documenting and future fields safe to add
+- Color-coded sweep delta: file shortcuts whose lint or test issues improved since the last run are tinted green; those that worsened are tinted red — visible in the tree row label, the Explorer, and open editors via a `FileDecorationProvider`. Decoration refreshes are debounced (200 ms trailing edge) so a routine running several scripts coalesces into one repaint
+
+### Fixed
+
+- External terminal windows now open in PowerShell 7+ (pwsh) when installed, instead of always using the legacy Windows PowerShell 5.1 blue console. The resolved shell is cached for the session, the outer spawn uses the absolute path, and package-manager `.cmd` shims are rejected so only a directly-spawnable `.exe` is accepted. The output channel log line now shows which PowerShell edition was used (e.g. `[external, pwsh.exe]`)
+
+---
+
+## [1.5.26]
+
+**Overview** — The number badge on the sidebar icon is gone for good. It could show a count of shortcuts you had not opened yet, or of new files across your watches, but on the icon it was just a bare number with nothing saying what it counted — and clicking the icon never cleared it, because opening the sidebar does not open a shortcut or read a changed file. Counts now live on the row that names them ("Deploy 1"), where they mean something, and a shortcut you have not used yet still carries a dot until you open or run it. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.26/CHANGELOG.md)
+
+### Removed
+
+- Both activity-bar count badges on the Saropa Workspace icon: the untapped-shortcuts count and the unseen-watched-files total. VS Code merges every view's badge onto the one container icon, so the number lost the view that gave it meaning, and clicking the icon only opens the sidebar — it never consumed what was counted, so the badge outlived the gesture that looked like it should clear it. Counts remain per-row in the Watches view and the tree groups, and unused shortcuts keep their leading dot.
+
+---
+
+## [1.5.25]
+
+**Overview** — Your morning report now tells you whether it needs you. It opens with a verdict — all clear, or the things that need attention — followed by one line per check, and the raw output moves out of the way instead of filling the page. A new Build status check leads it off, so a build that broke overnight is the first thing you see. Each check states its finding in one line at the top — commits, changed files, uncommitted work — and the raw output moves out of the way instead of filling the page. And a routine that can no longer find one of its steps now says so, instead of quietly reporting a clean morning.  [log](https://github.com/saropa/saropa-workspace/blob/v1.5.25/CHANGELOG.md)
+
+### Added
+
+- Five new **bundled scripts** in the Scripts sidebar — each with a detailed description visible on hover and in the Launcher card drawer, so users can see exactly what a script does before running it:
+  - **Clean leaked Dart processes** — enumerates every dart-family process on Windows, classifies each as a live service (language-server, tooling-daemon, devtools) or a leaked host (orphaned flutter_tools, dartvm, flutter_tester), reports the split, and terminates only the leaked set. Runs with --yes by default; use Set Params for --dry-run or --include-dds.
+  - **Run Flutter tests (safe)** — kills orphaned flutter_tester.exe processes that keep native-asset DLLs locked (the recurring "flutter test always times out on Windows" problem), then runs flutter test --no-pub. Defaults to the whole test/ directory when no paths are specified, so it is schedulable.
+  - **Daily Git change report** — generates a structured JSON report of recent changes to Dart, JSON, YAML, asset, and localization files, including per-file diffs, widget info, dependency changes, code-analysis hints, and related test files. Requires PyYAML.
+  - **Repair Flutter SDK** — comprehensive repair: terminates locked processes, deletes the SDK cache, clears analyzer plugin and VS Code extension caches, cleans the pub cache, rebuilds via flutter doctor, and restores dependencies.
+  - **Flutter dependency report** — read-only dependency health report showing project info, the full dependency tree, outdated packages, and overrides. Optional --interactive or --upgrade flags via Set Params. Requires PyYAML.
+- New **Build status** morning check: the most recent CI runs, so a build that broke overnight is the first thing the report tells you. It leads the Morning routine — whether the code currently builds outranks every measurement below it. Requires the `gh` CLI and a GitHub remote. It answers three questions rather than one:
+  - **When it broke** — it names the commit CI went red at and the last one that passed ("CI red since `f78f7d8a0` (4 runs)"), found by walking back through the run history it already fetched. A project where nothing in that history ever passed is reported as its own state, since that points at the pipeline rather than at a change that broke it.
+  - **Why it failed** — GitHub's failure annotations, so the report gives the file and line rather than only the verdict.
+  - **Whether it could look at all** — a missing or signed-out `gh` is an attention item naming `gh auth status`. It never reports "no failures" when the truth is "could not check".
+- New **Since yesterday** morning check: commits in the last day (and how many were someone else's), files changed, lines added and removed, and the change in TODO/FIXME markers. It reports the *change*, not the level — a number that reads the same every morning tells you nothing. Nothing is remembered between runs: the comparison is made against the commit that was current a day ago, so the baseline is exact, needs no stored state, and still works on a fresh clone or a new machine. As with Build status, a folder where git cannot answer says so as an attention item rather than reading as a quiet day.
+- The **routine summary now opens with a verdict** — `Needs attention (2)` or `All clear` — followed by what needs action, then everything that merely informs under an "Also ran" heading. A quiet morning produces a short document; a bad morning grows to fit the problem. The report no longer renders the same whether or not something is wrong, which was the reason it stopped being worth opening.
+- Reports now distinguish a finding that **needs action** from one that only informs, and the routine summary sorts and counts on that: failing CI and uncommitted work ask for attention, while commit history and project size simply report.
+- Reports now open with a **headline** — one line stating what the report found, above the detail. A git digest reads "12 commits · 47 files changed · +5,102 / -2,761"; uncommitted work reads "7 uncommitted files"; an empty result says "Nothing to report" rather than leaving you to infer it from a blank block. The headline is derived from the captured output, so a hand-written shortcut that captures the same kind of output gets one too, and no per-report configuration can drift out of date.
+- A **routine summary now leads with every member's headline**, as a list above the collapsed member sections. The one document a routine opens states all of its answers on the first screen; the full output stays one click away in the section below.
+- New **Set Params…** editor for any shortcut or bundled script that asks a run question (`${prompt:}`/`${pick:}`/`${pickFolder:}`). Since these values are now set up once and reused silently on rerun, the only way to change one was to run it again and answer differently, or clear extension storage by hand. Set Params opens a small form listing every question with its current answer, editable and saved without running anything — reachable from a shortcut's context menu, a Scripts-view row, or a Launcher card. A row with nothing to configure gets a named "nothing to set" message instead of an empty form. Each answered field also has a **Reset to unanswered** action, so the next run asks fresh instead of reusing a value you want to reconsider — distinct from editing it to a new fixed answer.
+
+### Fixed
+
+- **Bundled script hardening** — five reliability fixes across the newly bundled scripts:
+  - `run-test` no longer passes an empty string arg when the user leaves the prompt blank — it strips empty tokens and falls back to the whole `test/` directory as intended.
+  - `flutter-sdk-repair` temp directory now derives from the workspace drive, not the extension install drive — prevents creating temp files on the wrong volume when the extension is installed on a different drive than the project.
+  - `daily-report` catches a missing PyYAML with a clear error message and exits cleanly instead of crashing with an ImportError.
+  - All scripts that import `saropa_branding` now degrade gracefully when the shared module is absent (no-op fallbacks for logo, ANSI helpers, and color printers).
+  - `__pycache__` and `.pyc` files excluded from the VSIX package.
+- **Script sync drift detection** — each library script now declares a `syncFrom` path pointing to its canonical upstream source. The Refresh Scripts command compares bundled copies against those sources and shows a warning toast naming every script that has diverged, so upstream changes are not silently lost.
+
+### Changed
+
+- The **Standup digest** no longer prints a full diffstat for every commit. A single day with a large generated change (a translation sweep, a lockfile refresh) produced hundreds of file rows per commit and buried the day's actual work. It now lists each commit's subject with one summary line of files changed and insertions/deletions.
+- **Sunrise project stats** reports only what a line-count table can say. Zero-line files (images, fonts, archives, binaries) no longer take a row each — they collapse into one line giving their file count and total size. The table shows the ten largest source languages, ranked by lines, and states how many further languages were folded into the total rather than dropping them silently.
+- **Sunrise project stats** no longer repeats the last 30 commit subjects. The Standup digest reports the same history, and in the Morning routine the two sections sat directly on top of each other.
+- The stats **contributor shortlog** appears only when more than one author committed in the window, and empty git sections are omitted rather than rendered as an empty code block with a "(none)" placeholder.
+
+### Fixed
+
+- A morning check's finding is now read only from the top of its report, not from anywhere in the file. Captured output that happened to contain a line shaped like a finding — a commit subject or a lint message — could previously be lifted into the routine's verdict and credited to the check that merely quoted it.
+- **Since yesterday** now says how long it has been quiet ("Nothing changed in the last day — latest commit 3 days ago"). A fixed one-day window reported a normal Monday morning as a bare "nothing changed", which reads like a check that failed to run. It also counts a commit as yours when either the configured email *or* name matches, so a GitHub noreply address or a second machine no longer inflates the "by others" count, and a repository with no commits yet is reported as new rather than as a broken tool.
+
+- Removing a shortcut now unlinks it from every routine that ran it. A removed recipe stays suppressed by its recipe id, so a routine still listing it could never resolve that member again — it reported "Shortcut not found" on every run, with no way back to a working state except editing the project JSON by hand. Routines already broken this way repair themselves on the next load: a member naming a recipe that is currently suppressed is unresolvable by definition, so it is dropped rather than failing forever.
+
+- A routine whose member shortcut has been removed or renamed now **fails** rather than reporting success. The member was already listed as "Missing" in the summary, but because it did not count against the run, the routine scored a clean success, painted a green badge, and never opened the summary — so the "Shortcut not found — edit the routine to re-link or remove this member" note sat unread in a file there was no reason to open. The routine now badges red, opens its summary, and surfaces a failure notification naming it. The member still reads as "Missing", not "Failed", so the report distinguishes a broken link from a step that ran and failed.
+- **Organize output folder** now opens a folder-browse dialog for the target folder instead of a bare text box, defaulting to the workspace root — the prior free-text prompt gave no clue what shape of path was expected, which was itself part of why the folder was easy to misconfigure. The folder is now also set up once: the dialog opens on the first run, and every run after that silently reuses the same folder instead of asking again, matching how a bundled script is meant to be used. Backed by a new general-purpose interactive run token, `${pickFolder:Label}`, alongside the existing `${prompt:...}` and `${pick:...}`, and by resolving bundled-script tokens from memory by default (a user shortcut still gets a fresh prompt each run unless "Run with Last Parameters" is used).
+
+---
+
 ## [1.5.24]
 
 Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.24/CHANGELOG.md)

@@ -119,4 +119,4 @@ Each step: Opus reviews the design, Sonnet builds, Opus reviews the diff. Tests 
 
 ## 9. Forward list
 
-Designed in `bugs/20261027_future_tab_deferred_work.md`.
+Designed in `plans/history/2026.10/20261027_future_tab_deferred_work.md`.

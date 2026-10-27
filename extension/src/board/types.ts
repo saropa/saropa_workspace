@@ -123,6 +123,9 @@ export interface BoardConfig {
   ungrouped?: string[];
   // Parts of the severity dictionary a team replaces (phrases, weights, negation ...).
   severity?: Partial<SeverityDict>;
+  // Severities chosen by hand for single documents (written from the row menu). They win over the
+  // computed severity. The path is exact.
+  severityOverrides?: Array<{ project: string; path: string; severity: string }>;
   // Parts of the needs dictionary a team replaces (contexts and phrases; see needs-dictionary.json).
   needs?: Partial<NeedsDict>;
   // Which documents are the owner's own checks, for the Sittings list: documents whose

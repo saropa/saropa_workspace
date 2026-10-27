@@ -20,8 +20,9 @@ export function lightTooltip(worst: Light | undefined, note: string | undefined,
 
 // Lines for the umbrella view: each chosen folder that could not be read, and how many
 // chosen projects are hidden.
-export function umbrellaLines(skipped: readonly SkippedProject[] | undefined, hidden: number | undefined): string[] {
+export function umbrellaLines(skipped: readonly SkippedProject[] | undefined, hidden: number | undefined, lowered?: number): string[] {
   return [
+    ...(lowered && lowered > 0 ? [l10n("releaseBoard.sidebar.loweredByUser", { count: lowered })] : []),
     ...(skipped ?? []).map((s) => l10n("releaseBoard.statusBarNotRead", { name: s.name, reason: l10n(`releaseBoard.projects.label.skip_${s.reason}`, { max: MAX_EXTRA_PROJECTS }) })),
     ...(hidden && hidden > 0 ? [l10n("releaseBoard.projects.label.hidden", { count: hidden })] : []),
   ];
@@ -39,7 +40,7 @@ export function bindStatusLight(button: vscode.StatusBarItem): vscode.Disposable
     // What changed since the board was last seen, one line per project.
     const change = worst ? currentChange() : undefined;
     const since = change ? [l10n("releaseBoard.sinceLast.heading", { time: whenText(change.since) }), ...sidebarLines(change).map((l) => l.text)] : [];
-    button.tooltip = lightTooltip(worst, worst ? staleNote() : undefined, since, l10n("releaseBoard.statusBarTooltip"), worst ? umbrellaLines(model?.skipped, model?.hidden) : []);
+    button.tooltip = lightTooltip(worst, worst ? staleNote() : undefined, since, l10n("releaseBoard.statusBarTooltip"), worst ? umbrellaLines(model?.skipped, model?.hidden, model?.byUser?.lowered) : []);
   };
   apply();
   return vscode.Disposable.from(
