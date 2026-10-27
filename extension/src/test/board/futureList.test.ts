@@ -77,9 +77,9 @@ test("folder names come from the project, then its rule sets, then the defaults"
       { id: "d", path: "d", roots: [], ruleSets: [] },
     ],
   };
-  assert.deepEqual(foldersFor(cfg, "a"), { deferred: ["deferred", "declined"], blocked: ["blocked"] });
+  assert.deepEqual(foldersFor(cfg, "a"), { deferred: ["deferred"], blocked: ["blocked"] });
   assert.deepEqual(foldersFor(cfg, "b"), { deferred: ["later"], blocked: ["blocked"] });
-  assert.deepEqual(foldersFor(cfg, "c"), { deferred: ["deferred", "declined"], blocked: ["stuck"] });
+  assert.deepEqual(foldersFor(cfg, "c"), { deferred: ["deferred"], blocked: ["stuck"] });
   assert.deepEqual(foldersFor(cfg, "d"), { deferred: ["deferred"], blocked: ["blocked"] });
   assert.deepEqual(foldersFor(cfg, "missing"), { deferred: ["deferred"], blocked: ["blocked"] });
 });
