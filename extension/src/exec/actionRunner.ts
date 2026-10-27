@@ -1,19 +1,33 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { MacroStep, Shortcut, RoutineMember } from "../model/shortcut";
+import { MacroStep, Shortcut } from "../model/shortcut";
 import { telemetry, RunSource } from "./telemetry";
-import { runStatusRegistry, formatDuration } from "./runStatus";
+import { runStatusRegistry } from "./runStatus";
 import { playCue } from "./soundCue";
 import { shortcutEvents } from "./shortcutEvents";
-import { ShortcutBadge, shortcutBadges, parseRunBadge } from "./shortcutBadges";
+import { shortcutBadges, parseRunBadge } from "./shortcutBadges";
 import { processRegistry } from "./processRegistry";
 import * as runLock from "./runLock";
-import { hasInteractiveTokens } from "./promptTokens";
+
 import { l10n } from "../i18n/l10n";
 import { getOutputChannel, runInTerminal, createNamedTerminal } from "./terminalRunner";
 import { runInBackground } from "./backgroundRunner";
 import { recordLastReport } from "./lastReport";
 import { openReport } from "./reportOpen";
+import { runRoutine } from "./routineRunner";
+import { fenceBlock, buildCommandReport, summarizeReportBody } from "./actionReport";
+import { firstWorkspacePath, expandRecipeTokens, reportRelativePath } from "./actionTokens";
+
+// Re-exported so existing import paths keep working.
+export { firstWorkspacePath, expandRecipeTokens, reportRelativePath } from "./actionTokens";
+
+// Re-exported so existing import paths keep working.
+export { fenceBlock, buildCommandReport, summarizeReportBody } from "./actionReport";
+export type { ReportHeadline } from "./actionReport";
+
+// The routine engine lives in routineRunner; re-exported so the runner facade and
+// extension.ts keep importing the hooks from the action layer.
+export { setRoutineHooks, RoutineHooks } from "./routineRunner";
 
 // The non-file shortcut kinds (recipes): url / command / shell, plus the multi-step
 // orchestrators (macro and routine). The file kind is handled by runShortcut in
@@ -188,138 +202,6 @@ export async function runShellAction(
   }
 }
 
-// Wrap raw command output in a Markdown fenced code block so a Markdown preview
-// renders it as monospace preformatted text instead of mangling it as prose — a
-// `git log --stat` / `git status` dump read as Markdown is the "unreadable slop"
-// the report bug called out. The fence length is one backtick longer than the
-// longest backtick run in the body, so output that itself contains a ``` fence
-// (rare, but e.g. a grep over Markdown) can never break out of the block.
-// Exported: routineRunner reuses this to fence a non-Markdown member report when
-// merging it into the routine summary (single source for the widened-fence rule).
-export function fenceBlock(body: string): string {
-  const runs = body.match(/`+/g);
-  const longest = runs ? Math.max(...runs.map((r) => r.length)) : 0;
-  const fence = "`".repeat(Math.max(3, longest + 1));
-  return `${fence}text\n${body.replace(/\n+$/, "")}\n${fence}`;
-}
-
-// Build a captured-command report as clean Markdown: an H1 heading, a metadata
-// block (generation time + the exact command, code-formatted so it is copy-paste
-// safe), and the command's combined output fenced as a code block. An empty result
-// is stated plainly rather than left as a blank fence, so "no output" reads as a
-// deliberate outcome. Single source for every scheduled shell ritual's report shape.
-// Exported for the unit test (report-bug items 1 and 2: no more unfenced slop).
-export function buildCommandReport(name: string, commandLine: string, body: string): string {
-  const trimmed = body.trim();
-  const output = trimmed.length > 0 ? fenceBlock(body) : "_No output._";
-  const headline = summarizeReportBody(trimmed);
-  // Two conventions, not one: **Attention:** marks a finding that needs the reader to
-  // DO something, **Headline:** one that merely informs. The routine summary sorts on
-  // this to decide its verdict, so the distinction has to be made by whoever
-  // understands the output — the summarizer — not guessed at later from wording.
-  const label = headline?.attention ? "Attention" : "Headline";
-  return (
-    `# ${name}\n\n` +
-    `**Generated** ${new Date().toLocaleString()}\n\n` +
-    (headline ? `**${label}:** ${headline.text}\n\n` : "") +
-    `**Command** \`${commandLine}\`\n\n` +
-    `${output}\n`
-  );
-}
-
-// A report's one-line finding, and whether it is something to act on.
-export interface ReportHeadline {
-  text: string;
-  attention: boolean;
-}
-
-// One line stating what the captured output amounts to, or undefined when the output
-// has no shape worth summarizing (a headline of "412 lines" is noise, not a headline).
-// Keyed off the OUTPUT, never the command line: the same digest is reachable through a
-// hand-written shortcut, and a command-string match would silently stop working the
-// first time a flag order changed.
-export function summarizeReportBody(body: string): ReportHeadline | undefined {
-  if (body.length === 0) {
-    return { text: "Nothing to report.", attention: false };
-  }
-  const lines = body.split("\n");
-
-  // `gh run list` — tab-separated, leading with the run's status and conclusion.
-  // Checked before the commit shape because a run row also carries a commit sha.
-  const runs = lines.filter((l) => /^(completed|in_progress|queued|requested)\t/.test(l));
-  if (runs.length > 0) {
-    // `cancell?ed` matches either spelling: the GitHub API's conclusion value carries
-    // the double-l form, which this repo's American-English rule forbids writing out.
-    const failed = runs.filter((l) => /^completed\t(failure|timed_out|cancell?ed)\t/.test(l));
-    if (failed.length > 0) {
-      // Name the workflow of the newest failure: "2 runs failing" sends the reader
-      // hunting, "2 runs failing (Flutter CI)" tells them where to look. Column 3 is
-      // the workflow; gh's column order is
-      // status, conclusion, title, workflow, branch, event, id, duration, timestamp
-      // (verified against gh 2.76.2 — an earlier guess of column 4 named the BRANCH).
-      const workflow = failed[0]?.split("\t")[3]?.trim();
-      return {
-        text: `${failed.length} of the last ${runs.length} CI runs failing${workflow ? ` (${workflow})` : ""}`,
-        attention: true,
-      };
-    }
-    const running = runs.filter((l) => !l.startsWith("completed\t")).length;
-    return {
-      text: running > 0 ? `CI green, ${running} still running` : "CI green",
-      attention: false,
-    };
-  }
-
-  // `<sha> <subject>` — the shape of --oneline / --pretty=format:"%h %s".
-  const commits = lines.filter((l) => /^[0-9a-f]{7,40} \S/.test(l)).length;
-  if (commits > 0) {
-    const totals = sumShortstat(lines);
-    const parts = [`${commits} commit${commits === 1 ? "" : "s"}`];
-    if (totals) {
-      parts.push(
-        `${totals.files} file${totals.files === 1 ? "" : "s"} changed`,
-        `+${totals.insertions.toLocaleString()} / -${totals.deletions.toLocaleString()}`
-      );
-    }
-    // History is a record, not a task: it informs, it does not ask for anything.
-    return { text: parts.join(" · "), attention: false };
-  }
-
-  // `XY path` — git status --porcelain, the shape the uncommitted-work guard captures.
-  const dirty = lines.filter((l) => /^[ MADRCU?!]{2} \S/.test(l)).length;
-  if (dirty > 0) {
-    // Work left outside a commit is the one finding here that can be lost, so it
-    // asks for action rather than merely reporting a count.
-    return {
-      text: `${dirty} uncommitted file${dirty === 1 ? "" : "s"}`,
-      attention: true,
-    };
-  }
-  return undefined;
-}
-
-// Total the `N files changed, N insertions(+), N deletions(-)` lines --shortstat emits
-// after each commit. Any of the three clauses may be absent (a commit that only added
-// files has no deletions clause), so each is matched independently.
-function sumShortstat(lines: readonly string[]):
-  | { files: number; insertions: number; deletions: number }
-  | undefined {
-  let files = 0;
-  let insertions = 0;
-  let deletions = 0;
-  let seen = false;
-  for (const line of lines) {
-    if (!/^\s*\d+ files? changed/.test(line)) {
-      continue;
-    }
-    seen = true;
-    files += Number(/(\d+) files? changed/.exec(line)?.[1] ?? 0);
-    insertions += Number(/(\d+) insertions?\(\+\)/.exec(line)?.[1] ?? 0);
-    deletions += Number(/(\d+) deletions?\(-\)/.exec(line)?.[1] ?? 0);
-  }
-  return seen ? { files, insertions, deletions } : undefined;
-}
-
 // Run a command, capture its combined output to a dated report file (created with
 // its parent directory), and optionally open it. Used by scheduled report recipes.
 async function runShellToReport(
@@ -477,55 +359,4 @@ async function runMacroStep(
       return shellTerminal;
     }
   }
-}
-
-import { runRoutine } from "./routineRunner";
-
-// The routine engine lives in routineRunner; re-exported so the runner facade and
-// extension.ts keep importing the hooks from the action layer.
-export { setRoutineHooks, RoutineHooks } from "./routineRunner";
-
-
-// The primary workspace folder's absolute path, or undefined with no folder open. The
-// cwd fallback for a shell/macro action that carries no explicit cwd of its own.
-export function firstWorkspacePath(): string | undefined {
-  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-}
-
-// Expand recipe-time tokens that are not file-scoped: $workspaceRoot, plus the
-// date stamps used by report paths. $stamp is filesystem-safe (YYYY.MM.DD_HHmmss)
-// for report file names; $date is YYYY-MM-DD for headings; $datedir is the dotted
-// calendar date (YYYY.MM.DD) used as a per-day report folder; $time is HHmmss.
-// Exported so the dry-run audit (simulateRun) resolves a recipe's shell/cwd the same
-// way an actual run does, from this single source of truth rather than a second copy.
-export function expandRecipeTokens(value: string): string {
-  const root = firstWorkspacePath() ?? "";
-  const now = new Date();
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  const datedir = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
-  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  const stamp = `${datedir}_${time}`;
-  // $datedir must be replaced before $date — "$date" is a prefix of "$datedir", so the
-  // narrower token would otherwise consume the "$date" inside "$datedir".
-  return value
-    .split("$workspaceRoot").join(root)
-    .split("$datedir").join(datedir)
-    .split("$stamp").join(stamp)
-    .split("$date").join(date)
-    .split("$time").join(time);
-}
-
-// The per-day report folder and the report file's name prefix. "workspace" tags
-// these as Saropa Workspace's own reports — identifiable when several Suite tools
-// share one reports/ folder — and sits right after the calendar date in both the
-// folder name and the file name. $datedir/$time expand at run time.
-const REPORT_DAY = "$datedir_workspace";
-
-// Build a dated report's path relative to the workspace root, from a single
-// definition so every recipe and in-process report writer agrees on the layout:
-//   reports/<date>_workspace/<date>_workspace_<time>_<suffix>.<ext>
-// e.g. reports/2026.06.29_workspace/2026.06.29_workspace_100046_standup.md
-export function reportRelativePath(suffix: string, ext = "md"): string {
-  return `reports/${REPORT_DAY}/${REPORT_DAY}_$time_${suffix}.${ext}`;
 }
