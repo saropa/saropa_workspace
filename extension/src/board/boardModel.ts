@@ -108,6 +108,7 @@ export interface SittingsView {
   doable: number;
   more: number;
   tooLong: number;
+  needOther: number;
   untagged: number;
   untaggedMore: number;
 }
@@ -185,11 +186,13 @@ export function titleFromPath(path: string): string {
 }
 
 function isOwnerDoc(cfg: BoardConfig, r: Classified): boolean {
-  const kinds = cfg.ownerKinds ?? ["owner action"];
+  // A rules file may hold anything; only arrays of strings count.
+  const strings = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+  const kinds = strings(cfg.ownerKinds) ?? ["owner action"];
   if (kinds.includes(r.kind)) {
     return true;
   }
-  const dirs = (cfg.ownerFolders ?? []).map((d) => d.toLowerCase());
+  const dirs = (strings(cfg.ownerFolders) ?? []).map((d) => d.toLowerCase());
   return r.path.toLowerCase().split("/").slice(0, -1).some((seg) => dirs.includes(seg));
 }
 
@@ -206,7 +209,8 @@ function sittingsView(
   const docs: SittingDoc[] = [];
   for (const r of rows) {
     // A waiting (blocked) document cannot be worked on yet.
-    if (!OPEN.has(r.status) || r.note === "blocked" || (opt.onlyOwner && !isOwnerDoc(cfg, r))) {
+    // A document waiting on an open Needs link cannot be worked on yet either.
+    if (!OPEN.has(r.status) || r.note === "blocked" || byKey.get(r.project + "\t" + r.path)?.link?.state === "open" || (opt.onlyOwner && !isOwnerDoc(cfg, r))) {
       continue;
     }
     const facts = snapshot?.projects[r.project]?.facts[r.path]?.facts;
@@ -221,6 +225,7 @@ function sittingsView(
       severity: facts.severity,
       blocksCount: byKey.get(r.project + "\t" + r.path)?.blocksCount ?? 0,
       steps: facts.steps,
+      cut: facts.stepsCut ?? 0,
     });
   }
   const known = new Set(dict.contexts.map((c) => c.id));
@@ -234,6 +239,7 @@ function sittingsView(
     doable: res.lines.length,
     more: res.more,
     tooLong: res.tooLong,
+    needOther: res.needOther,
     untagged: res.untagged.length,
     untaggedMore: res.untaggedMore,
   };

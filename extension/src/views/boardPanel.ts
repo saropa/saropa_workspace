@@ -71,6 +71,7 @@ function strings(): BoardStrings {
     sittingsPick: l10n("releaseBoard.sittings.pick"),
     sittingsNone: l10n("releaseBoard.sittings.none"),
     sittingsMore: l10n("releaseBoard.sittings.more", { count: "{count}" }),
+    sittingsNeedOther: l10n("releaseBoard.sittings.needOther", { count: "{count}" }),
     sittingsTooLong: l10n("releaseBoard.sittings.tooLong", { count: "{count}" }),
     sittingsUntagged: l10n("releaseBoard.sittings.untagged", { count: "{count}" }),
     sittingsUntaggedNote: l10n("releaseBoard.sittings.untaggedNote"),
@@ -336,7 +337,7 @@ class BoardPanel {
       const have = Array.isArray(m.have) ? m.have.filter((x): x is string => typeof x === "string" && known.has(x)) : [];
       await saveSittingsChoice(this.context, { have, timeBox: asTimeBox(m.box) });
       this.lastKey = "";
-      this.render();
+      this.render(this.cached ? { stale: true } : {});
     } else if (msg.type === "step" && typeof (message as { i?: unknown }).i === "number") {
       // A line the page was shown opens its document at the step's line.
       const line = this.model?.sittings?.lines[(message as { i: number }).i];

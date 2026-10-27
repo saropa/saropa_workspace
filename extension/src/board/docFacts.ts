@@ -32,6 +32,8 @@ export interface DocFacts {
   stepsDone: number;
   // The open steps themselves (first 200), for lists that pick steps across documents.
   steps: DocStep[];
+  // Open steps past the limit, not kept.
+  stepsCut: number;
   // Table rows that carry a state word (done, applied, pending ...), counted as steps too.
   rowsAll: number;
   rowsDone: number;
@@ -130,6 +132,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
   let rowsAll = 0;
   let rowsDone = 0;
   const steps: DocStep[] = [];
+  let stepsCut = 0;
   if (!isSql) {
     const lines = body.split(/\r?\n/);
     let heading = "";
@@ -138,6 +141,8 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     const addStep = (step: DocStep): void => {
       if (steps.length < MAX_STEPS) {
         steps.push(step);
+      } else {
+        stepsCut += 1;
       }
     };
     lines.forEach((l, i) => {
@@ -174,7 +179,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
         } else {
           const col = header ? header.indexOf("needs") : -1;
           const text = raw.filter((c, k) => c && k !== col && !OPEN_WORDS.includes(c.toLowerCase())).slice(0, 2).join(" - ");
-          addStep({ line: i + 1, heading, text: text.slice(0, STEP_TEXT), needsCell: col >= 0 ? raw[col] : undefined });
+          addStep({ line: i + 1, heading, text: text.slice(0, STEP_TEXT), needsCell: col >= 0 ? raw[col].slice(0, STEP_TEXT) : undefined });
         }
       }
     });
@@ -202,6 +207,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     stepsOpen,
     stepsDone,
     steps,
+    stepsCut,
     rowsAll,
     rowsDone,
     codeBlocks,

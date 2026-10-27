@@ -59,6 +59,8 @@ export interface BoardStrings {
   sittingsMore: string;
   // "{count}" steps that need longer than the time box.
   sittingsTooLong: string;
+  // "{count}" steps whose contexts are not in hand.
+  sittingsNeedOther: string;
   // "{count}" steps with no context found.
   sittingsUntagged: string;
   sittingsUntaggedNote: string;
@@ -193,13 +195,14 @@ function sittingsBox(model: BoardModel, t: BoardStrings): string {
   const doable = v.lines.slice(0, v.doable).map((l, i) => line(l, i)).join("");
   const rest = [
     v.more > 0 ? `<p class="note">${escapeHtml(t.sittingsMore.replace("{count}", String(v.more)))}</p>` : "",
+    v.needOther > 0 ? `<p class="note">${escapeHtml(t.sittingsNeedOther.replace("{count}", String(v.needOther)))}</p>` : "",
     v.tooLong > 0 ? `<p class="note">${escapeHtml(t.sittingsTooLong.replace("{count}", String(v.tooLong)))}</p>` : "",
   ].join("");
   const body = v.have.length === 0 ? `<p class="note">${escapeHtml(t.sittingsPick)}</p>` : v.doable === 0 ? `<p class="note">${escapeHtml(t.sittingsNone)}</p>` : doable;
   const shownUntagged = v.lines.slice(v.doable).map((l, i) => line(l, v.doable + i)).join("");
   const untagged =
     v.untagged > 0
-      ? `<details class="untag"><summary>${escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore)))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
+      ? `<details class="untag" id="sit-untag"><summary>${escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore)))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
       : "";
   return `<section class="box" id="sit-panel" hidden><h2>${escapeHtml(t.sittingsHeading)}</h2><div class="seg" role="group">${v.contexts.map((c) => toggle(c.id, c.label)).join("")}</div> <div class="seg" role="group">${time}</div>${body}${rest}${untagged}</section>`;
 }
@@ -248,9 +251,11 @@ export function renderSkeleton(t: BoardStrings, nonce: string): string {
 const script = (rev: number, label: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};
 const saved=vscode.getState()||{};const sit=document.getElementById('sit-panel');
 if(sit&&saved.open){sit.hidden=false;}if(saved.y){window.scrollTo(0,saved.y);}
-const keep=()=>vscode.setState({y:window.scrollY,open:!!sit&&!sit.hidden});
+const ut=document.getElementById('sit-untag');if(ut&&saved.untag){ut.open=true;}
+const keep=()=>vscode.setState({y:window.scrollY,open:!!sit&&!sit.hidden,untag:!!ut&&ut.open});
+let st;window.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(keep,150);},{passive:true});if(ut){ut.addEventListener('toggle',keep);}
 const sb=document.getElementById('sit-open');if(sb){sb.addEventListener('click',()=>{sit.hidden=!sit.hidden;sb.setAttribute('aria-expanded',String(!sit.hidden));keep();});sb.setAttribute('aria-expanded',String(!!sit&&!sit.hidden));}
-const choose=()=>{keep();vscode.postMessage({type:'sitting',have:[...document.querySelectorAll('[data-have][aria-pressed=true]')].map(b=>b.dataset.have),box:(document.querySelector('[data-box][aria-pressed=true]')||{dataset:{box:'any'}}).dataset.box,rev:REV});};
+let ct;const choose=()=>{clearTimeout(ct);ct=setTimeout(()=>{keep();vscode.postMessage({type:'sitting',have:[...document.querySelectorAll('[data-have][aria-pressed=true]')].map(b=>b.dataset.have),box:(document.querySelector('[data-box][aria-pressed=true]')||{dataset:{box:'any'}}).dataset.box,rev:REV});},250);};
 document.querySelectorAll('[data-have]').forEach(b=>b.addEventListener('click',()=>{b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));choose();}));
 document.querySelectorAll('[data-box]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-box]').forEach(o=>o.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose();}));
 document.querySelectorAll('[data-step]').forEach(r=>{const go=()=>vscode.postMessage({type:'step',i:Number(r.dataset.step),rev:REV});r.addEventListener('click',go);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});const LABEL=${JSON.stringify(label).replace(/</g, "\\u003c")};

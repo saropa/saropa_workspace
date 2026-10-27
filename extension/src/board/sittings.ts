@@ -23,6 +23,8 @@ export interface SittingDoc {
   // How many open items wait on this document.
   blocksCount: number;
   steps: DocStep[];
+  // Steps of this document the reader did not keep (over its per-document limit).
+  cut?: number;
 }
 
 export interface SittingLine {
@@ -53,6 +55,8 @@ export interface SittingResult {
   more: number;
   // Steps whose contexts are in hand but that take longer than the time box.
   tooLong: number;
+  // Steps with a context found, none of which is in hand (counted, never listed).
+  needOther: number;
   // Steps with no context found. Never filtered out.
   untagged: SittingLine[];
   // Untagged steps cut by the cap.
@@ -80,7 +84,10 @@ export function buildSittings(docs: SittingDoc[], dict: NeedsDict, sel: SittingS
   const fit: SittingLine[] = [];
   const untagged: SittingLine[] = [];
   let tooLong = 0;
+  let needOther = 0;
+  let cut = 0;
   for (const d of docs) {
+    cut += d.cut ?? 0;
     for (const s of d.steps) {
       const groups: NeedGroup[] = stepNeeds(s, dict);
       const minutes = stepMinutes(s.text, groups, dict);
@@ -99,7 +106,9 @@ export function buildSittings(docs: SittingDoc[], dict: NeedsDict, sel: SittingS
       };
       if (groups.length === 0) {
         untagged.push(line);
-      } else if (canDo(groups, have)) {
+      } else if (!canDo(groups, have)) {
+        needOther += 1;
+      } else {
         if (minutes > limit) {
           tooLong += 1;
         } else {
@@ -110,5 +119,5 @@ export function buildSittings(docs: SittingDoc[], dict: NeedsDict, sel: SittingS
   }
   fit.sort(compareLines);
   untagged.sort(compareLines);
-  return { lines: fit.slice(0, sel.maxSteps), more: Math.max(0, fit.length - sel.maxSteps), tooLong, untagged: untagged.slice(0, sel.maxSteps), untaggedMore: Math.max(0, untagged.length - sel.maxSteps) };
+  return { lines: fit.slice(0, sel.maxSteps), more: Math.max(0, fit.length - sel.maxSteps) + cut, tooLong, needOther, untagged: untagged.slice(0, sel.maxSteps), untaggedMore: Math.max(0, untagged.length - sel.maxSteps) };
 }

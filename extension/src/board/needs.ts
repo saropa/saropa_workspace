@@ -32,12 +32,13 @@ export function mergeNeeds(over?: Partial<NeedsDict>): NeedsDict {
   const byId = new Map(DEFAULT_NEEDS.contexts.map((c) => [c.id, c]));
   for (const c of Array.isArray(over.contexts) ? over.contexts : []) {
     if (c && typeof c.id === "string" && typeof c.label === "string") {
-      byId.set(c.id, { ...byId.get(c.id), ...c });
+      const minutes = typeof c.minutes === "number" && Number.isFinite(c.minutes) && c.minutes > 0 ? c.minutes : undefined;
+      byId.set(c.id, { ...byId.get(c.id), id: c.id, label: c.label, minutes: minutes ?? byId.get(c.id)?.minutes });
     }
   }
   const phrases: Record<string, string[]> = { ...DEFAULT_NEEDS.phrases };
   for (const [p, ids] of Object.entries(over.phrases && typeof over.phrases === "object" ? over.phrases : {})) {
-    if (Array.isArray(ids)) {
+    if (p.trim() !== "" && Array.isArray(ids)) {
       phrases[p.toLowerCase()] = ids.filter((x): x is string => typeof x === "string");
     }
   }
@@ -48,16 +49,21 @@ export function mergeNeeds(over?: Partial<NeedsDict>): NeedsDict {
 // One group: the contexts of which at least one must be in hand.
 export type NeedGroup = string[];
 
-const isWordChar = (c: string | undefined): boolean => c !== undefined && /[a-z0-9]/.test(c);
+// A hyphen joins words ("pixel-perfect"), so it is part of a word.
+const isWordChar = (c: string | undefined): boolean => c !== undefined && /[a-z0-9-]/.test(c);
 
-// True when the phrase stands as whole words in the text ("mac" is not in "machine").
-function hasPhrase(text: string, phrase: string): boolean {
+// Where the phrase stands as whole words in the text ("mac" is not in "machine").
+function findPhrase(text: string, phrase: string): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  if (phrase === "") {
+    return out;
+  }
   for (let i = text.indexOf(phrase); i >= 0; i = text.indexOf(phrase, i + 1)) {
     if (!isWordChar(text[i - 1]) && !isWordChar(text[i + phrase.length])) {
-      return true;
+      out.push([i, i + phrase.length]);
     }
   }
-  return false;
+  return out;
 }
 
 // Drops a group when another group is a subset of it: satisfying the smaller one already
@@ -68,16 +74,30 @@ function reduce(groups: NeedGroup[]): NeedGroup[] {
   return all.filter((g) => !all.some((o) => o !== g && o.every((x) => g.includes(x))));
 }
 
-// The groups a text needs. Only context ids the dictionary knows are kept.
+// The groups a text needs. Only context ids the dictionary knows are kept. Phrases joined
+// by "or" or "/" ("iPhone or Android") form one group: either one will do.
 export function matchNeeds(text: string, dict: NeedsDict = DEFAULT_NEEDS): NeedGroup[] {
   const t = text.toLowerCase();
   const known = new Set(dict.contexts.map((c) => c.id));
-  const groups: NeedGroup[] = [];
+  const found: Array<{ start: number; end: number; ids: string[] }> = [];
   for (const [phrase, ids] of Object.entries(dict.phrases)) {
     const g = ids.filter((id) => known.has(id));
-    if (g.length > 0 && hasPhrase(t, phrase.toLowerCase())) {
-      groups.push(g);
+    if (g.length > 0) {
+      for (const [start, end] of findPhrase(t, phrase.trim().toLowerCase())) {
+        found.push({ start, end, ids: g });
+      }
     }
+  }
+  found.sort((a, b) => a.start - b.start || a.end - b.end);
+  const groups: NeedGroup[] = [];
+  let prev: { end: number } | undefined;
+  for (const f of found) {
+    if (prev && groups.length > 0 && /^\s*(?:or|\/)\s*$/.test(t.slice(prev.end, Math.max(prev.end, f.start))) && f.start >= prev.end) {
+      groups[groups.length - 1] = [...new Set([...groups[groups.length - 1], ...f.ids])];
+    } else {
+      groups.push([...f.ids]);
+    }
+    prev = f;
   }
   return reduce(groups);
 }

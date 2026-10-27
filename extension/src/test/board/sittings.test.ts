@@ -154,3 +154,65 @@ test("owner documents only, unless switched off; blocked documents are skipped",
   // Switched off: no view at all.
   assert.equal(buildBoard(cfg, rows, undefined, true, snap).sittings, undefined);
 });
+
+test("a blank phrase in a team dictionary cannot hang the matcher", () => {
+  const d = mergeNeeds({ phrases: { "": ["iphone"], "   ": ["mac"] } as Record<string, string[]> });
+  assert.equal(d.phrases[""], undefined);
+  assert.deepEqual(matchNeeds("Open the iPhone", d), [["iphone"]]);
+  // Even a dictionary built by hand with a blank key terminates.
+  assert.deepEqual(matchNeeds("anything", { ...DEFAULT_NEEDS, phrases: { "": ["iphone"] } }), []);
+});
+
+test("minutes from an override are checked", () => {
+  const d = mergeNeeds({ contexts: [{ id: "mac", label: "Mac", minutes: "soon" as unknown as number }, { id: "x", label: "X", minutes: -3 }] });
+  assert.equal(d.contexts.find((c) => c.id === "mac")?.minutes, 15);
+  assert.equal(d.contexts.find((c) => c.id === "x")?.minutes, undefined);
+});
+
+test("'iPhone or Android' is one either-or group", () => {
+  assert.deepEqual(matchNeeds("Check on iPhone or Android"), [["android", "iphone"]]);
+  assert.deepEqual(matchNeeds("Check on iPhone/Android"), [["android", "iphone"]]);
+  assert.deepEqual(matchNeeds("Check on iPhone and Android"), [["iphone"], ["android"]]);
+  const r = buildSittings([doc({ steps: [step("Check on iPhone or Android")] })], DEFAULT_NEEDS, sel(["android"]));
+  assert.equal(r.lines.length, 1);
+});
+
+test("tagged steps that need something not in hand are counted", () => {
+  const d = doc({ steps: [step("Build on Windows PC"), step("Mac check"), step("Run in Supabase SQL Editor", { heading: "x" })] });
+  const r = buildSittings([d], DEFAULT_NEEDS, sel(["mac"]));
+  assert.equal(r.needOther, 2);
+  assert.equal(r.lines.length, 1);
+});
+
+test("hyphenated and plain words do not tag", () => {
+  assert.deepEqual(matchNeeds("A pixel-perfect layout"), []);
+  assert.deepEqual(matchNeeds("Close the windows and the tab"), []);
+  assert.deepEqual(matchNeeds("On the Pixel phone"), [["android"]]);
+});
+
+test("steps past the per-document limit are counted and added to the more line", () => {
+  const body = Array.from({ length: 205 }, () => "- [ ] Mac check").join("\n");
+  const f = readFacts(body, "bugs/human/BIG.md");
+  assert.equal(f.steps.length, 200);
+  assert.equal(f.stepsCut, 5);
+  assert.equal(readFacts("| T | Needs | Status |\n|---|---|---|\n| a | " + "x".repeat(500) + " | Pending |", "a.md").steps[0].needsCell?.length, 160);
+  const r = buildSittings([doc({ steps: [step("Mac check")], cut: 5 })], DEFAULT_NEEDS, sel(["mac"]));
+  assert.equal(r.more, 5);
+});
+
+test("ownerKinds and ownerFolders of the wrong type fall back to the defaults", () => {
+  const cfg = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }], ownerKinds: "bug", ownerFolders: [5, "human"] } as unknown as BoardConfig;
+  const rows: Classified[] = [{ project: "app", path: "bugs/human/C.md", status: "red", kind: "owner action", note: "" }, { project: "app", path: "bugs/B.md", status: "red", kind: "bug", note: "" }];
+  const snap = { version: 1, takenAt: 1, projects: { app: { counts: {} as never, folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: Object.fromEntries(rows.map((r) => [r.path, { size: 1, mtimeMs: 1, facts: readFacts("# T\n- [ ] Mac check\n", r.path) }])) } } } as ScanSnapshot;
+  const v = buildBoard(cfg, rows, undefined, true, snap, undefined, undefined, { sittings: { selection: sel(["mac"]), onlyOwner: true } }).sittings!;
+  assert.deepEqual(v.lines.map((l) => l.path), ["bugs/human/C.md"]);
+});
+
+test("a document waiting on an open Needs link lists no steps", () => {
+  const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
+  const rows: Classified[] = ["bugs/human/WAITS.md", "bugs/human/FIRST.md"].map((path) => ({ project: "app", path, status: "red", kind: "owner action", note: "" }));
+  const text = (p: string) => (p.includes("WAITS") ? "# Waits\nNeeds: FIRST.md\n- [ ] Mac check\n" : "# First\n- [ ] Mac check\n");
+  const snap = { version: 1, takenAt: 1, projects: { app: { counts: {} as never, folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: Object.fromEntries(rows.map((r) => [r.path, { size: 1, mtimeMs: 1, facts: readFacts(text(r.path), r.path) }])) } } } as ScanSnapshot;
+  const v = buildBoard(cfg, rows, undefined, true, snap, undefined, undefined, { sittings: { selection: sel(["mac"]), onlyOwner: true } }).sittings!;
+  assert.deepEqual(v.lines.map((l) => l.path), ["bugs/human/FIRST.md"]);
+});
