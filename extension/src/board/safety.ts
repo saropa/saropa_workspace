@@ -61,15 +61,9 @@ function topmost(dirs: string[]): string[] {
   });
 }
 
-function compareProject(
-  id: string,
-  prev: ProjectSnapshot,
-  next: ProjectSnapshot,
-  opt: SafetyOptions
-): SafetyFinding[] {
+// 1. A rule that matched documents last time and matches none now.
+function ruleFindings(id: string, prev: ProjectSnapshot, next: ProjectSnapshot, opt: SafetyOptions): SafetyFinding[] {
   const out: SafetyFinding[] = [];
-
-  // 1. A rule that matched documents last time and matches none now.
   for (const [key, was] of Object.entries(prev.ruleCounts)) {
     if (was >= opt.minStructureFiles && !(next.ruleCounts[key] > 0)) {
       out.push({
@@ -79,10 +73,14 @@ function compareProject(
       });
     }
   }
+  return out;
+}
 
-  // 2. A folder (at any depth) that held documents is gone. If new folders hold the
-  //    documents and every one of them is green, it is a move to a finished folder; if
-  //    not, it may be a rename that recolors the documents.
+// 2. A folder (at any depth) that held documents is gone. If new folders hold the
+//    documents and every one of them is green, it is a move to a finished folder; if
+//    not, it may be a rename that recolors the documents.
+function folderFindings(id: string, prev: ProjectSnapshot, next: ProjectSnapshot, opt: SafetyOptions): { out: SafetyFinding[]; movedToDone: boolean; goneN: number } {
+  const out: SafetyFinding[] = [];
   const gone = topmost(
     Object.entries(prev.folders)
       .filter(([d, v]) => v.n >= opt.minStructureFiles && !(next.folders[d]?.n > 0))
@@ -119,9 +117,13 @@ function compareProject(
       text: `Folder ${gone.join(", ")} had ${goneN} documents and has none now.`,
     });
   }
+  return { out, movedToDone, goneN };
+}
 
-  // 3. A state's count moved a lot. A bulk archive explains green gaining and other
-  //    states losing up to the number of documents that moved; anything else is a finding.
+// 3. A state's count moved a lot. A bulk archive explains green gaining and other
+//    states losing up to the number of documents that moved; anything else is a finding.
+function countFindings(id: string, prev: ProjectSnapshot, next: ProjectSnapshot, opt: SafetyOptions, movedToDone: boolean, goneN: number): SafetyFinding[] {
+  const out: SafetyFinding[] = [];
   for (const s of ALL_STATUSES as readonly BoardStatus[]) {
     const a = prev.counts[s];
     const b = next.counts[s];
@@ -136,6 +138,18 @@ function compareProject(
   return out;
 }
 
+// Compares one project's new scan with its accepted scan and lists what looks wrong.
+function compareProject(
+  id: string,
+  prev: ProjectSnapshot,
+  next: ProjectSnapshot,
+  opt: SafetyOptions
+): SafetyFinding[] {
+  const folders = folderFindings(id, prev, next, opt);
+  return [...ruleFindings(id, prev, next, opt), ...folders.out, ...countFindings(id, prev, next, opt, folders.movedToDone, folders.goneN)];
+}
+
+// Compares a new scan with the last accepted one. Any finding holds the update until the user accepts it.
 export function checkScan(
   accepted: ScanSnapshot | undefined,
   next: ScanSnapshot,

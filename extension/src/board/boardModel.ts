@@ -1,5 +1,6 @@
 import { isNameableSource } from "./docFacts";
 import { globToRegExp } from "./glob";
+import { Outside } from "./outside";
 import { ProjectHealth } from "./health";
 import { Profile, asProfile, stops } from "./severity";
 import { SafetyResult } from "./safety";
@@ -259,6 +260,23 @@ function needsRuleFolders(cfg: BoardConfig, snapshot: ScanSnapshot | undefined):
   );
 }
 
+// One line for every Needs link that points nowhere, at several documents, at itself or at finished work.
+function linkFlags(links: Link[], names: Map<string, string>): string[] {
+  return links
+    .filter((l) => l.state !== "open")
+    .map((l) => `${names.get(l.fromProject) ?? l.fromProject}: ${titleFromPath(l.fromPath)} — ${l.target}: ${l.state}`);
+}
+
+// Writes the number of sessions that touched each document, from the outside sources.
+function attachChats(all: BoardItem[], outside: Outside | undefined): void {
+  for (const it of all) {
+    const n = outside?.chats[`${it.project}/${it.path}`];
+    if (n !== undefined) {
+      it.chats = n;
+    }
+  }
+}
+
 // Builds the board model from the classified rows, the safety verdict, the accepted flag and the optional evidence.
 export function buildBoard(
   cfg: BoardConfig,
@@ -300,24 +318,15 @@ export function buildBoard(
   const byKey = new Map(all.map((it) => [itemKey(it.project, it.path), it]));
   attachLinks(all, links, grouping, byKey);
   const suggestions = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
-  const flags = links
-    .filter((l) => l.state !== "open")
-    .map((l) => `${ctx.names.get(l.fromProject) ?? l.fromProject}: ${titleFromPath(l.fromPath)} — ${l.target}: ${l.state}`);
-  const chains = buildChainSteps(links, byKey, ctx.names);
-  for (const it of all) {
-    const n = extra?.outside?.chats[`${it.project}/${it.path}`];
-    if (n !== undefined) {
-      it.chats = n;
-    }
-  }
+  attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   return {
     tidy: extra?.tidy ? buildTidyView(all, ctx, extra.tidy) : undefined,
     liveUnnamed,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
-    chains,
-    flags,
+    chains: buildChainSteps(links, byKey, ctx.names),
+    flags: linkFlags(links, ctx.names),
     items: all,
     // Once the user accepts (or the scan was clean) neither banner shows.
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,

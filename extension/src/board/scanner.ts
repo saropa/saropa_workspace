@@ -2,6 +2,7 @@ import {
   classifyFile,
   compileIgnore,
   compileProject,
+  CompiledProject,
   findStatusWord,
   needsStatusWord,
 } from "./ruleEngine";
@@ -121,31 +122,9 @@ export interface ScanStats {
 // rest as pending, so the first paint does not wait on reading document bodies.
 export type FactsMode = "all" | "cached";
 
-export async function scanProject(
-  cfg: BoardConfig,
-  project: ProjectDef,
-  source: FileSource,
-  previous?: ProjectSnapshot,
-  factsMode: FactsMode = "all"
-): Promise<{ rows: Classified[]; snapshot: ProjectSnapshot; pending: PendingFacts[]; headReads: number; factReads: number }> {
-  const cp = compileProject(cfg, project);
-  const ignore = compileIgnore(cfg);
-  const exts = cfg.extensions ?? DEFAULT_EXTENSIONS;
-  const rows: Classified[] = [];
-  const snap: ProjectSnapshot = {
-    counts: emptyCounts(),
-    folders: {},
-    ruleCounts: {},
-    greyFolders: {},
-    files: {},
-    facts: {},
-  };
-  const factsOpt = factsOptions(cfg, project);
-  snap.factsKey = factsKeyOf(factsOpt);
-  const prevFacts = previous?.factsKey === snap.factsKey ? previous.facts : undefined;
-
-  const wanted = (p: string): boolean => exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
-  // 1. List every root at once; a missing root is empty, any other error surfaces.
+// Lists every root at once, drops duplicates and files the scan does not want, and sorts by path.
+// A missing root is empty; any other error surfaces.
+async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: string) => boolean): Promise<ScanFile[]> {
   const listings = await mapLimit(project.roots, PROJECT_PARALLEL, async (root) => {
     try {
       return await source.list(project.path, root, wanted);
@@ -160,7 +139,7 @@ export async function scanProject(
   const files: ScanFile[] = [];
   for (const list of listings) {
     for (const f of list) {
-      if (seen.has(f.path) || !exts.some((e) => f.path.toLowerCase().endsWith(e)) || ignore.some((g) => g.test(f.path))) {
+      if (seen.has(f.path) || !wanted(f.path)) {
         continue;
       }
       seen.add(f.path);
@@ -169,8 +148,12 @@ export async function scanProject(
   }
   // The same order whatever order the file source listed them in.
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return files;
+}
 
-  // 2. Status words: cached by size and modified time, the rest read in parallel.
+// Status words: cached by size and modified time, the rest read in parallel. Returns the
+// word of each file (undefined when the file needs none) and how many heads were read.
+async function readStatusWords(project: ProjectDef, source: FileSource, cp: CompiledProject, files: ScanFile[], previous: ProjectSnapshot | undefined): Promise<{ words: Array<string | undefined>; headReads: number }> {
   const words = new Array<string | undefined>(files.length);
   const toRead: number[] = [];
   files.forEach((f, i) => {
@@ -188,8 +171,12 @@ export async function scanProject(
     const head = await source.readHead(project.path, files[i].path, STATUS_LINES);
     words[i] = findStatusWord(head) ?? "";
   });
+  return { words, headReads: toRead.length };
+}
 
-  // 3. Classify, in file order, and count.
+// Classifies every file in file order and tallies the counts, folders, rules and grey folders.
+function classifyAll(cp: CompiledProject, files: ScanFile[], words: Array<string | undefined>, snap: ProjectSnapshot): Classified[] {
+  const rows: Classified[] = [];
   files.forEach((f, i) => {
     if (words[i] !== undefined) {
       snap.files[f.path] = { size: f.size, mtimeMs: f.mtimeMs, word: words[i]! };
@@ -213,26 +200,61 @@ export async function scanProject(
       snap.greyFolders[dir] = (snap.greyFolders[dir] ?? 0) + 1;
     }
   });
+  return rows;
+}
 
-  // 4. Facts of open documents: cached ones reused; the rest read now or left pending.
+// Facts of open documents: cached ones go into the snapshot; the rest are returned as pending.
+function reuseFacts(project: ProjectDef, files: ScanFile[], rows: Classified[], prevFacts: Record<string, CachedFacts> | undefined, snap: ProjectSnapshot): PendingFacts[] {
   const pending: PendingFacts[] = [];
-  if (source.readText) {
-    files.forEach((f, i) => {
-      const row = rows[i];
-      if (!OPEN.has(row.status) || f.size > MAX_FACTS_BYTES) {
-        return;
-      }
-      const hit = prevFacts?.[f.path];
-      if (hit && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
-        snap.facts[f.path] = hit;
-      } else {
-        pending.push({ project: project.id, path: f.path, size: f.size, mtimeMs: f.mtimeMs });
-      }
-    });
-  }
+  files.forEach((f, i) => {
+    if (!OPEN.has(rows[i].status) || f.size > MAX_FACTS_BYTES) {
+      return;
+    }
+    const hit = prevFacts?.[f.path];
+    if (hit && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
+      snap.facts[f.path] = hit;
+    } else {
+      pending.push({ project: project.id, path: f.path, size: f.size, mtimeMs: f.mtimeMs });
+    }
+  });
+  return pending;
+}
+
+// Scans one project: lists its files, classifies them and reads the facts of the open ones.
+export async function scanProject(
+  cfg: BoardConfig,
+  project: ProjectDef,
+  source: FileSource,
+  previous?: ProjectSnapshot,
+  factsMode: FactsMode = "all"
+): Promise<{ rows: Classified[]; snapshot: ProjectSnapshot; pending: PendingFacts[]; headReads: number; factReads: number }> {
+  const cp = compileProject(cfg, project);
+  const ignore = compileIgnore(cfg);
+  const exts = cfg.extensions ?? DEFAULT_EXTENSIONS;
+  const snap: ProjectSnapshot = {
+    counts: emptyCounts(),
+    folders: {},
+    ruleCounts: {},
+    greyFolders: {},
+    files: {},
+    facts: {},
+  };
+  const factsOpt = factsOptions(cfg, project);
+  snap.factsKey = factsKeyOf(factsOpt);
+  const prevFacts = previous?.factsKey === snap.factsKey ? previous.facts : undefined;
+
+  const wanted = (p: string): boolean => exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
+  // 1. List every root at once.
+  const files = await listFiles(project, source, wanted);
+  // 2. Status words.
+  const { words, headReads } = await readStatusWords(project, source, cp, files, previous);
+  // 3. Classify, in file order, and count.
+  const rows = classifyAll(cp, files, words, snap);
+  // 4. Facts of open documents: cached ones reused; the rest read now or left pending.
+  const pending = source.readText ? reuseFacts(project, files, rows, prevFacts, snap) : [];
   const todo = factsMode === "all" ? pending.splice(0) : [];
   await readPending(project, source, snap, factsOpt, todo);
-  return { rows, snapshot: snap, pending, headReads: toRead.length, factReads: todo.length };
+  return { rows, snapshot: snap, pending, headReads, factReads: todo.length };
 }
 
 // One unreadable document gives no marks; it must not abort the scan.
