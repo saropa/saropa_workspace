@@ -43,6 +43,10 @@ export interface BoardStrings {
   needsRuleHeading: string;
   needsRuleNote: string;
   loading: string;
+  suggestHeading: string;
+  suggestNote: string;
+  suggestAccept: string;
+  suggestReject: string;
   refreshing: string;
 }
 
@@ -168,7 +172,7 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:0 0 8px}.note{color:va
 .go.no-go{background:var(--red);color:#fff}.go.unverified{background:rgba(217,164,65,.18);color:var(--amber);border:1px solid var(--amber)}
 .info{width:14px;height:14px;border-radius:50%;border:1px solid var(--mute);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-style:normal;color:var(--mute)}.info::before{content:"i"}.bar{display:inline-flex;gap:3px}.sq{width:10px;height:10px;border-radius:2px;display:inline-block;background:var(--mute);flex:none}
 .sq.red{background:var(--red)}.sq.amber{background:var(--amber)}.sq.purple{background:var(--purple)}
-.link{width:11px;height:11px;border:2px solid var(--amber);border-radius:3px;transform:rotate(45deg);display:inline-block;flex:none}.link.ok,.link.done{border-color:var(--green)}.link.flag{border-color:var(--red);border-style:dashed}.link.blocks{background:var(--amber)}
+.link{width:11px;height:11px;border:2px solid var(--amber);border-radius:3px;transform:rotate(45deg);display:inline-block;flex:none}.link.ok,.link.done{border-color:var(--green)}.link.suggest{border-style:dashed;border-color:var(--mute)}.sug button{flex:none}.link.flag{border-color:var(--red);border-style:dashed}.link.blocks{background:var(--amber)}
 .row.in{margin-left:14px;border-left:2px solid var(--line);padding-left:8px}.grp{display:flex;gap:8px;align-items:center;margin-top:8px;padding:4px 0;border-bottom:1px solid var(--line)}h3{font-size:13px;margin:12px 0 4px}
 .chain{border-left:2px solid var(--amber);margin:8px 0 8px 6px;padding-left:12px;display:flex;flex-direction:column;gap:6px}.cn{display:flex;gap:8px;align-items:center}.click{cursor:pointer}.click:hover{text-decoration:underline}
 .row{display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line);cursor:pointer}.row:first-of-type{border-top:0}.row:hover,.row:focus{background:rgba(128,128,128,.12);outline:0}
@@ -193,6 +197,7 @@ export function renderSkeleton(t: BoardStrings, nonce: string): string {
 
 const script = (rev: number, label: string): string => `const vscode=acquireVsCodeApi();const REV=${rev};const LABEL=${JSON.stringify(label).replace(/</g, "\\u003c")};
 document.getElementById('refresh').addEventListener('click',()=>vscode.postMessage({type:'refresh',rev:REV}));
+document.querySelectorAll('[data-suggest]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'suggest',key:b.dataset.suggest,value:b.dataset.decision,rev:REV})));
 document.querySelectorAll('[data-profile]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'profile',value:b.dataset.profile,rev:REV})));
 document.querySelectorAll('.rulefix').forEach(b=>{const go=()=>vscode.postMessage({type:'rules',rev:REV});b.addEventListener('click',go);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='busy'){const on=!!e.data.on;document.body.classList.toggle('busy',on);if(on){document.body.setAttribute('aria-busy','true');}else{document.body.removeAttribute('aria-busy');}document.getElementById('live').textContent=on?LABEL:'';}});
@@ -215,15 +220,24 @@ function needsRule(model: BoardModel, t: BoardStrings, names: Map<string, string
 }
 
 function chains(model: BoardModel, t: BoardStrings): string {
-  if (model.chains.length === 0 && model.flags.length === 0) {
+  if (model.chains.length === 0 && model.flags.length === 0 && model.suggestions.length === 0) {
     return "";
   }
   const node = (n: BoardModel["chains"][number][number]): string =>
     `<div class="cn"><span class="tag">${escapeHtml(n.project)}</span>${n.id !== undefined ? `<span class="f click" tabindex="0" role="button" data-id="${n.id}">${escapeHtml(n.title)}</span>` : `<span class="f">${escapeHtml(n.title)}</span>`}</div>`;
   const chain = model.chains.map((c) => `<div class="chain">${c.map(node).join("")}</div>`).join("");
   const flags = model.flags.length > 0 ? `<h3>${escapeHtml(t.flagsHeading)}</h3><p class="note">${escapeHtml(t.flagsNote)}</p>${model.flags.map((f) => `<div class="cn">${escapeHtml(f)}</div>`).join("")}` : "";
+  const suggest =
+    model.suggestions.length > 0
+      ? `<h3>${escapeHtml(t.suggestHeading)}</h3><p class="note">${escapeHtml(t.suggestNote)}</p>${model.suggestions
+          .map(
+            (s) =>
+              `<div class="cn sug"><i class="link suggest"></i><span class="tag">${escapeHtml(s.from.project)}</span><span class="f click" tabindex="0" role="button" data-id="${s.from.id}">${escapeHtml(s.from.title)}</span><span class="n">&rarr;</span><span class="f click" tabindex="0" role="button" data-id="${s.to.id}">${escapeHtml(s.to.title)}</span><button data-suggest="${escapeHtml(s.key)}" data-decision="accept">${escapeHtml(t.suggestAccept)}</button><button data-suggest="${escapeHtml(s.key)}" data-decision="reject">${escapeHtml(t.suggestReject)}</button></div>`
+          )
+          .join("")}`
+      : "";
   const head = model.chains.length > 0 ? `<h2>${escapeHtml(t.linkedHeading)}</h2><p class="note">${escapeHtml(t.linkedNote)}</p>${chain}` : "";
-  return `<details class="box"><summary><i class="link open" aria-label="${escapeHtml(t.linkedHeading)}" title="${escapeHtml(t.linkedHeading)}"></i></summary>${head}${flags}</details>`;
+  return `<details class="box"><summary><i class="link open" aria-label="${escapeHtml(t.linkedHeading)}" title="${escapeHtml(t.linkedHeading)}"></i></summary>${head}${flags}${suggest}</details>`;
 }
 
 // Page state while a scan is running: `stale` is the previous result shown again, `loading`

@@ -4,7 +4,7 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 2;
+export const FACTS_VERSION = 3;
 
 import { Audience, Severity, SeverityDict, scoreDocument } from "./severity";
 
@@ -22,6 +22,8 @@ export interface DocFacts {
   // Language tag to number of blocks, e.g. { sql: 4, dart: 2 }.
   langs: Record<string, number>;
   docRefs: number;
+  // The Markdown files named (first 60), for suggesting links between documents.
+  docRefNames: string[];
   sourceRefs: number;
   // The source files named (first 40), for grouping documents that touch the same files.
   sourceFiles: string[];
@@ -155,6 +157,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     codeBlocks,
     langs: isSql ? { sql: 1 } : langs,
     docRefs: unique(body.matchAll(/[\w./-]{1,200}\.md/g)),
+    docRefNames: [...new Set([...body.matchAll(/[\w./-]{1,200}\.md/g)].map((m) => m[0]))].sort().slice(0, 60),
     sourceRefs: unique(text.matchAll(srcRe)),
     sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
     needs: isSql ? [] : parseNeeds(body),

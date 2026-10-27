@@ -7,6 +7,8 @@ import { openBoard } from "../views/boardPanel";
 import { mapLimit } from "../board/pool";
 import { ProjectHealth } from "../board/health";
 import { collectHealth, startHealthRecorder } from "./boardHealth";
+import { exportMarksCommand, markCommand, readMarks } from "./boardMarks";
+import { MarksFile } from "../board/marks";
 import { ShortcutStore } from "../model/shortcutStore";
 import { Profile, asProfile } from "../board/severity";
 import { globToRegExp } from "../board/glob";
@@ -171,6 +173,8 @@ export interface BoardRun {
   // The last accepted scan this run was compared with.
   previous?: ScanSnapshot;
   health: Record<string, ProjectHealth>;
+  // Hand marks, shared file under local ones.
+  marks: MarksFile;
 }
 
 // Gate shared by every board command. Returns false (after telling the user why) when
@@ -232,7 +236,7 @@ export async function readLastRun(context: vscode.ExtensionContext): Promise<Boa
       return undefined;
     }
     const result: ScanResult = { rows: last.rows, snapshot: last.snapshot, pending: [], stats: { files: last.rows.length, headReads: 0, factReads: 0, ms: 0 } };
-    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, health: last.health };
+    return { cfg, result, safety: last.safety, dir, accepted: last.accepted, health: last.health, marks: await readMarks(context) };
   } catch {
     return undefined;
   }
@@ -264,7 +268,7 @@ export async function runBoardScan(
     ? await work()
     : await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: l10n("releaseBoard.scanning") }, work);
   const safety = checkScan(accepted, result.snapshot);
-  const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health };
+  const run: BoardRun = { cfg, result, safety, dir, accepted: safety.clean, previous: accepted, health, marks: await readMarks(context) };
   if (onFirst && result.pending.length > 0) {
     onFirst(run);
     await completeFacts(cfg, source, result);
@@ -398,6 +402,8 @@ export function registerReleaseBoard(context: vscode.ExtensionContext, store: Sh
   context.subscriptions.push(
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context)),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.mark", () => markCommand(context, loadConfig)),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.exportMarks", () => exportMarksCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openRules", () => openRulesFile()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.previewGlob", () => previewGlob(context))
   );

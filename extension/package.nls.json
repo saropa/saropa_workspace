@@ -254,5 +254,7 @@
   "command.releaseBoard.open.title": "Release Board: Open",
   "command.releaseBoard.openRules.title": "Release Board: Open Rules File",
   "command.releaseBoard.previewGlob.title": "Release Board: Preview a Rule Pattern",
-  "config.releaseBoard.profile.description": "What stops a release on the Release Board: Rush (extreme and critical), Deliberate (adds high), Zero defects (adds medium). A red folder always stops a release."
+  "config.releaseBoard.profile.description": "What stops a release on the Release Board: Rush (extreme and critical), Deliberate (adds high), Zero defects (adds medium). A red folder always stops a release.",
+  "command.releaseBoard.mark.title": "Release Board: Mark This Document",
+  "command.releaseBoard.exportMarks.title": "Release Board: Export Marks to the Repository"
 }

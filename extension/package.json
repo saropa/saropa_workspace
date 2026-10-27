@@ -754,6 +754,18 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.mark",
+        "title": "%command.releaseBoard.mark.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "saropaWorkspace.releaseBoard.exportMarks",
+        "title": "%command.releaseBoard.exportMarks.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "saropaWorkspace.releaseBoard.previewGlob",
         "title": "%command.releaseBoard.previewGlob.title%",
         "category": "%extension.displayName%",
@@ -2022,6 +2034,14 @@
         },
         {
           "command": "saropaWorkspace.releaseBoard.openRules",
+          "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.mark",
+          "when": "config.saropaWorkspace.releaseBoard.enabled && editorLangId == markdown"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.exportMarks",
           "when": "config.saropaWorkspace.releaseBoard.enabled"
         },
         {
