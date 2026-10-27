@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FEEDS, catchUpOrder, feedOfAction, formatSummaryLine, parseLintCount, parseSummaryLine, summarizeShellRun } from "../../board/reportSummary";
+import { FEEDS, catchUpOrder, feedOfAction, feedSuffixes, formatSummaryLine, parseLintCount, parseSummaryLine, summarizeShellRun } from "../../board/reportSummary";
 
 const T = Date.parse("2026-10-27T05:30:12.000Z");
 
@@ -56,9 +56,29 @@ test("a tests run passes only with exit 0 and no failed test", () => {
   assert.deepEqual(summarizeShellRun("tests", 0, "no summary\n", T), { recipe: "ritual.tests", time: T, result: "pass", count: undefined });
 });
 
-test("only lint and tests runs are summarized from shell output", () => {
+test("a build report is never summarized from shell output; an unreadable dependency run is unknown", () => {
   assert.equal(summarizeShellRun("build", 0, "", T), undefined);
-  assert.equal(summarizeShellRun("deps", 0, "", T), undefined);
+  assert.equal(summarizeShellRun("standup", 0, "", T), undefined);
+  assert.deepEqual(summarizeShellRun("deps", 0, "", T), { recipe: "ritual.deps", time: T, result: "unknown", count: undefined });
+});
+
+test("shell reports of the other feeds are read from their output", () => {
+  assert.deepEqual(summarizeShellRun("uncommitted", 0, "## main\n M a.ts\n?? b.ts\n", T), { recipe: "ritual.eod", time: T, result: "fail", count: 2 });
+  assert.deepEqual(summarizeShellRun("prs", 0, "12\tFix\tbranch\tOPEN\n", T), { recipe: "ritual.prs", time: T, result: "pass", count: 1 });
+  assert.deepEqual(summarizeShellRun("debt", 1, "", T), { recipe: "ritual.debt", time: T, result: "pass", count: 0 });
+  assert.deepEqual(summarizeShellRun("branches", 0, "* main\n  old\n  main abc1234 msg\n* feat  def5678 msg\n", T), { recipe: "ritual.branches", time: T, result: "pass", count: 1 });
+});
+
+test("no feed report ending is the ending of another, so a file name matches one feed", () => {
+  const all = FEEDS.flatMap((f) => feedSuffixes(f.feed).map((s) => ({ feed: f.feed, s })));
+  for (const a of all) {
+    for (const b of all) {
+      if (a !== b) {
+        assert.equal(a.s.endsWith(b.s), false, `${a.s} ends with ${b.s}`);
+      }
+    }
+  }
+  assert.equal(new Set(FEEDS.map((f) => f.recipeId)).size, FEEDS.length);
 });
 
 test("the feed of a recipe action comes from its command or its report file name", () => {
@@ -66,8 +86,12 @@ test("the feed of a recipe action comes from its command or its report file name
   assert.equal(feedOfAction({ commandId: "saropaWorkspace.recipe.pubspecOutdated" })?.feed, "deps");
   assert.equal(feedOfAction({ reportFile: "reports/2026.10.27_workspace/2026.10.27_workspace_053012_tests.txt" })?.feed, "tests");
   assert.equal(feedOfAction({ reportFile: "reports/x/x_lint.txt" })?.feed, "lint");
-  assert.equal(feedOfAction({ reportFile: "reports/x/x_debt.md" }), undefined);
-  assert.equal(feedOfAction({ commandId: "saropaWorkspace.recipe.overnightDelta" }), undefined);
+  assert.equal(feedOfAction({ reportFile: "reports/x/x_debt.md" })?.feed, "debt");
+  assert.equal(feedOfAction({ reportFile: "reports/x/x_branch_age.md" })?.feed, "staleBranches");
+  assert.equal(feedOfAction({ reportFile: "reports/x/x_pubspec_outdated.md" })?.feed, "deps");
+  assert.equal(feedOfAction({ reportFile: "reports/x/x_journal.md" }), undefined);
+  assert.equal(feedOfAction({ commandId: "saropaWorkspace.recipe.overnightDelta" })?.feed, "delta");
+  assert.equal(feedOfAction({ commandId: "saropaWorkspace.recipe.brokenLinks" })?.feed, "links");
   assert.equal(feedOfAction(undefined), undefined);
 });
 
@@ -77,8 +101,8 @@ test("catch-up order is build, lint, tests, dependencies; other jobs keep their 
   assert.deepEqual(catchUpOrder(items, info), ["x1", "x2", "ci", "lint", "tests", "deps"]);
 });
 
-test("only the full test run and dependencies are heavy", () => {
-  assert.deepEqual(FEEDS.filter((f) => f.heavy).map((f) => f.feed), ["tests", "deps"]);
+test("only the full test run, dependencies and the two folder scans are heavy", () => {
+  assert.deepEqual(FEEDS.filter((f) => f.heavy).map((f) => f.feed), ["tests", "deps", "bloat", "links"]);
 });
 
 test("a tests run that ran no tests is unknown, never a pass", () => {

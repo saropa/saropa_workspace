@@ -1,6 +1,10 @@
 // Tidy sweep: open documents whose steps are all done and that nobody has touched for a
 // while. The board only lists them; moving one is the owner's click, one document at a
-// time. Pure, so the rule is unit-tested without a webview.
+// time. It also lists reports of the tech-debt, branch and bloat recipes as read-only
+// candidates: they only open the report and never move or delete anything. Pure, so the
+// rule is unit-tested without a webview.
+
+import { Signal, SignalKind, Trend, isTidyReport, trendOf } from "./reportSignals";
 
 export const DEFAULT_ARCHIVE_FOLDER = "docs/history";
 // Days without a change before a finished document is offered by default.
@@ -44,12 +48,26 @@ export interface TidyCandidate {
   to: string;
 }
 
+// A recipe report offered as a read-only candidate: what it counted, never a path.
+export interface TidyReport {
+  project: string;
+  projectName: string;
+  kind: Extract<SignalKind, "debt" | "branches" | "bloat" | "bigFiles">;
+  count: number;
+  // Tech debt only: whether the count rose or fell since the report before.
+  trend?: Trend;
+  // When the report was written (ms since the epoch).
+  at: number;
+}
+
 // The Tidy list: candidates, how many more there are, and the idle days used.
 export interface TidyView {
   candidates: TidyCandidate[];
   // Candidates past the list cap.
   more: number;
   afterDays: number;
+  // Read-only report candidates, one per project and recipe, largest count first.
+  reports: TidyReport[];
 }
 
 // The time, the idle days and the archive folder for a Tidy sweep.
@@ -57,6 +75,38 @@ export interface TidyOptions {
   now: number;
   afterDays: number;
   archiveFolder: string;
+  // Offer the recipe reports as candidates. On when absent.
+  reports?: boolean;
+}
+
+// One project's signals, as the board holds them.
+export interface TidySource {
+  project: string;
+  projectName: string;
+  signals: readonly Signal[];
+}
+
+// The read-only report candidates: a tech-debt, merged-branch, bloat or large-new-file report
+// that found something. A clean or missing report offers nothing. Largest count first, then
+// by project and kind, so the order is the same on every paint.
+export function buildTidyReports(sources: readonly TidySource[]): TidyReport[] {
+  const out: TidyReport[] = [];
+  for (const src of sources) {
+    for (const s of src.signals) {
+      if (!isTidyReport(s)) {
+        continue;
+      }
+      out.push({
+        project: src.project,
+        projectName: src.projectName,
+        kind: s.kind as TidyReport["kind"],
+        count: s.count ?? 0,
+        ...(s.kind === "debt" && trendOf(s.count, s.previousCount) ? { trend: trendOf(s.count, s.previousCount) } : {}),
+        at: s.at,
+      });
+    }
+  }
+  return out.sort((a, b) => b.count - a.count || a.project.localeCompare(b.project) || a.kind.localeCompare(b.kind));
 }
 
 // Keeps the idle days between 1 and 365: a number out of range is clamped. A value that is not
@@ -123,5 +173,5 @@ export function buildTidy(docs: TidyDoc[], opt: TidyOptions): TidyView {
     });
   }
   found.sort((a, b) => b.idleDays - a.idleDays || a.project.localeCompare(b.project) || a.path.localeCompare(b.path));
-  return { candidates: found.slice(0, TIDY_LIST_CAP), more: Math.max(0, found.length - TIDY_LIST_CAP), afterDays };
+  return { candidates: found.slice(0, TIDY_LIST_CAP), more: Math.max(0, found.length - TIDY_LIST_CAP), afterDays, reports: [] };
 }

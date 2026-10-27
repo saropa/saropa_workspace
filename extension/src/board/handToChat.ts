@@ -69,6 +69,9 @@ function projectFacts(p: BoardProject | undefined): string[] {
     if (p.health.build !== undefined) {
       out.push(`Build evidence: ${p.health.build} - ${p.health.buildDetail ?? ""}`);
     }
+    if (p.health.deps !== undefined) {
+      out.push(`Dependency evidence: ${p.health.deps} - ${p.health.depsDetail ?? ""}`);
+    }
   }
   return out;
 }
@@ -121,9 +124,10 @@ export function stepTarget(model: BoardModel, project: BoardProject, step: PathS
   const base = { project: project.name, evidence: [] as string[], extra: projectFacts(project) };
   switch (step.kind) {
     case "build":
+    case "deps":
     case "lint":
     case "tests": {
-      const label = step.kind === "build" ? "Build" : step.kind === "lint" ? "Lint" : "Test";
+      const label = step.kind === "build" ? "Build" : step.kind === "deps" ? "Dependency" : step.kind === "lint" ? "Lint" : "Test";
       return { ...base, headline: `${label} evidence is ${step.evidence ?? "missing"}`, evidence: step.detail ? [step.detail] : [] };
     }
     case "blocked":

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { collectFeedNotes, collectFeedReports, enableFeedSchedule, feedShortcuts, findNewestReport, readEvidenceSettings } from "../../commands/boardRecipeEvidence";
+import { collectFeedNotes, collectFeedReports, enableFeedSchedule, feedShortcuts, findNewestReport, findNewestReportUri, readEvidenceSettings } from "../../commands/boardRecipeEvidence";
 import { feedJobs } from "../../exec/feedJobs";
 import { formatSummaryLine } from "../../board/reportSummary";
 import { ProjectDef } from "../../board/types";
@@ -174,4 +174,93 @@ test("turning on does nothing when already on, and says so when the project has 
   assert.equal(await enableFeedSchedule(store, project(), "tests"), true);
   assert.equal(await enableFeedSchedule(store, project(), "build"), false);
   assert.deepEqual(calls, []);
+});
+
+// ---- the other reports: signals, lookback, settings ----
+
+
+const sum = (recipe: string, ageMs: number, result: "pass" | "fail" | "unknown", count?: number): string => `${formatSummaryLine({ recipe, time: NOW - ageMs, result, count })}\n# Report\n`;
+
+test("the new settings default on and are read from their own sections", () => {
+  assert.deepEqual(readEvidenceSettings(), { enabled: true, maxAgeMs: 36 * HOUR, rowNotes: true, tidyReports: true, sinceReports: true });
+  stub.__setConfig("saropaWorkspace.releaseBoard.recipeEvidence", "rowNotes", false);
+  stub.__setConfig("saropaWorkspace.releaseBoard", "tidy.reports", false);
+  stub.__setConfig("saropaWorkspace.releaseBoard", "sinceLast.enabled", false);
+  assert.deepEqual(readEvidenceSettings(), { enabled: true, maxAgeMs: 36 * HOUR, rowNotes: false, tidyReports: false, sinceReports: false });
+});
+
+test("signal reports are read when found; a feed with no report adds nothing to the result", async () => {
+  writeReport("2026.10.27", "2026.10.27_workspace_090000_prs.md", sum("ritual.prs", 3 * HOUR, "pass", 2), NOW - 3 * HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_180000_uncommitted.md", sum("ritual.eod", 2 * HOUR, "fail", 4), NOW - 2 * HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_081500_since_yesterday.md", sum("ritual.delta", 4 * HOUR, "pass", 3), NOW - 4 * HOUR);
+  const reads = await collectFeedReports(vscode.Uri.file(root), readEvidenceSettings(), NOW);
+  assert.deepEqual(Object.keys(reads).sort(), ["build", "delta", "deps", "lint", "prs", "tests", "uncommitted"]);
+  assert.equal(reads.prs?.ok && reads.prs.count, 2);
+  assert.equal(reads.uncommitted?.ok && reads.uncommitted.result, "fail");
+  assert.equal(reads.delta?.ok && reads.delta.detail, "Since-yesterday report: 3 commits (4 h ago)");
+});
+
+test("a stale signal report is read as grey and gives no signal", async () => {
+  writeReport("2026.10.27", "2026.10.27_workspace_090000_prs.md", sum("ritual.prs", 40 * HOUR, "pass", 2), NOW - 40 * HOUR);
+  const reads = await collectFeedReports(vscode.Uri.file(root), readEvidenceSettings(), NOW);
+  assert.equal(reads.prs?.ok, false);
+  assert.equal(reads.prs && !reads.prs.ok && reads.prs.why, "stale");
+});
+
+test("each place's setting turns its reports off, and the dependency report is always read", async () => {
+  writeReport("2026.10.27", "2026.10.27_workspace_090000_prs.md", sum("ritual.prs", HOUR, "pass", 2), NOW - HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_090000_debt.md", sum("ritual.debt", HOUR, "pass", 9), NOW - HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_090000_standup.md", sum("ritual.standup", HOUR, "pass", 5), NOW - HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_070000_pubspec_outdated.md", sum("ritual.deps", 5 * HOUR, "fail", 1), NOW - 5 * HOUR);
+  const root_ = vscode.Uri.file(root);
+  stub.__setConfig("saropaWorkspace.releaseBoard.recipeEvidence", "rowNotes", false);
+  assert.deepEqual(Object.keys(await collectFeedReports(root_, readEvidenceSettings(), NOW)).sort(), ["build", "debt", "deps", "lint", "standup", "tests"]);
+  stub.__setConfig("saropaWorkspace.releaseBoard", "tidy.reports", false);
+  stub.__setConfig("saropaWorkspace.releaseBoard", "sinceLast.reports", false);
+  const core = await collectFeedReports(root_, readEvidenceSettings(), NOW);
+  assert.deepEqual(Object.keys(core).sort(), ["build", "deps", "lint", "tests"]);
+  assert.equal(core.deps?.ok && core.deps.result, "fail", "the pubspec report file name is the dependency report");
+});
+
+test("signal reports are looked for only a few day folders back; the core reports go further", async () => {
+  for (const day of ["2026.10.20", "2026.10.21", "2026.10.22", "2026.10.27"]) {
+    writeReport(day, `${day}_workspace_050000_lint.txt`, sum("ritual.lint", HOUR, "pass", 0), NOW - HOUR);
+  }
+  writeReport("2026.10.20", "2026.10.20_workspace_090000_broken_links.md", sum("ritual.links", HOUR, "fail", 3), NOW - HOUR);
+  writeReport("2026.10.20", "2026.10.20_workspace_053000_tests.txt", sum("ritual.tests", HOUR, "pass", 0), NOW - HOUR);
+  const reads = await collectFeedReports(vscode.Uri.file(root), readEvidenceSettings(), NOW);
+  assert.equal(reads.links, undefined, "the link report is four folders back");
+  assert.equal(reads.tests?.ok, true, "the test report is found there");
+  stub.__setConfig("saropaWorkspace.releaseBoard.recipeEvidence", "maxAgeHours", 120);
+  const wide = await collectFeedReports(vscode.Uri.file(root), readEvidenceSettings(), NOW);
+  assert.equal(wide.links?.ok, true);
+});
+
+test("the tech-debt read carries the count of the report before it", async () => {
+  writeReport("2026.10.26", "2026.10.26_workspace_160000_debt.md", sum("ritual.debt", 20 * HOUR, "pass", 8), NOW - 20 * HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_160000_debt.md", sum("ritual.debt", HOUR, "pass", 12), NOW - HOUR);
+  const debt = (await collectFeedReports(vscode.Uri.file(root), readEvidenceSettings(), NOW)).debt;
+  assert.equal(debt?.ok && debt.count, 12);
+  assert.equal(debt?.ok && debt.previousCount, 8);
+});
+
+test("two debt reports on one day: the newer is read and the older is the one before", async () => {
+  writeReport("2026.10.27", "2026.10.27_workspace_100000_debt.md", sum("ritual.debt", 3 * HOUR, "pass", 5), NOW - 3 * HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_160000_debt.md", sum("ritual.debt", HOUR, "pass", 6), NOW - HOUR);
+  const debt = (await collectFeedReports(vscode.Uri.file(root), readEvidenceSettings(), NOW)).debt;
+  assert.deepEqual(debt?.ok && [debt.count, debt.previousCount], [6, 5]);
+});
+
+test("a debt report before an unreadable one gives no earlier count", async () => {
+  writeReport("2026.10.26", "2026.10.26_workspace_160000_debt.md", "no summary here\n", NOW - 20 * HOUR);
+  writeReport("2026.10.27", "2026.10.27_workspace_160000_debt.md", sum("ritual.debt", HOUR, "pass", 12), NOW - HOUR);
+  const debt = (await collectFeedReports(vscode.Uri.file(root), readEvidenceSettings(), NOW)).debt;
+  assert.equal(debt?.ok && debt.previousCount, undefined);
+});
+
+test("the file behind a report is found again for opening, and a missing one is undefined", async () => {
+  const file = writeReport("2026.10.27", "2026.10.27_workspace_090000_branches.md", sum("ritual.branches", HOUR, "pass", 2), NOW - HOUR);
+  const uri = await findNewestReportUri(vscode.Uri.file(root), "branches");
+  assert.equal(uri?.fsPath, file);
+  assert.equal(await findNewestReportUri(vscode.Uri.file(root), "debt"), undefined);
 });

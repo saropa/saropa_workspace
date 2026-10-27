@@ -50,7 +50,7 @@ export function liveInput(live: LiveSignals): { signals: LiveSignals; includeWar
 }
 
 // The Tidy sweep's settings with the time now; undefined when the sweep is off.
-export function tidyInput(): { now: number; afterDays: number; archiveFolder: string } | undefined {
+export function tidyInput(): { now: number; afterDays: number; archiveFolder: string; reports?: boolean } | undefined {
   const s = readTidySettings();
   return s ? { now: Date.now(), ...s } : undefined;
 }

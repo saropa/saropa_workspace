@@ -51,5 +51,7 @@ test("only lint and test reports get a summary line, with the verdict from the e
   assert.match(tests ?? "", /^<!-- saropa-summary recipe=ritual\.tests time=\d{4}-\d\d-\d\dT[\d:.]+Z result=fail count=2 -->$/);
   const lint = feedSummaryLine(file("lint.txt"), 0, "No issues found!\n");
   assert.match(lint ?? "", /recipe=ritual\.lint time=\S+ result=pass count=0 -->$/);
-  assert.equal(feedSummaryLine(file("debt.md"), 0, "TODO"), undefined);
+  // Output that is not the expected listing cannot be counted: unknown, never a pass.
+  assert.match(feedSummaryLine(file("debt.md"), 0, "TODO") ?? "", /recipe=ritual\.debt time=\S+ result=unknown -->$/);
+  assert.equal(feedSummaryLine(file("journal.md"), 0, "abc"), undefined);
 });

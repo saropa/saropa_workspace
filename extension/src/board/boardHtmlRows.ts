@@ -3,6 +3,7 @@ import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { BoardStrings, escapeHtml, fill, handButton, liveLine } from "./boardHtmlUtil";
 import type { FeedNote } from "./recipeEvidence";
+import { Signal, showsOnRow } from "./reportSignals";
 
 // The project rows and the item lists of the board page.
 
@@ -39,7 +40,8 @@ function healthMarks(p: BoardProject, t: BoardStrings): string {
   const one = (label: string, e: string, detail: string): string =>
     `<i class="hl ${e}" title="${escapeHtml(label + ": " + detail)}" aria-label="${escapeHtml(label + ": " + detail)}"></i>`;
   const build = h.build !== undefined ? one(t.healthBuild, h.build, h.buildDetail ?? "") : "";
-  return `<span class="marks">${build}${one(t.healthLint, h.lint, h.lintDetail)}${one(t.healthTests, h.tests, h.testsDetail)}</span>`;
+  const deps = h.deps !== undefined ? one(t.healthDeps, h.deps, h.depsDetail ?? "") : "";
+  return `<span class="marks">${build}${deps}${one(t.healthLint, h.lint, h.lintDetail)}${one(t.healthTests, h.tests, h.testsDetail)}</span>`;
 }
 
 // A short line on the row while a daily report job runs, waits or failed to start. Only for
@@ -60,6 +62,39 @@ function feedLine(p: BoardProject, t: BoardStrings): string {
   return lines.length > 0 ? `<span class="fn">${lines.join(" ")}</span>` : "";
 }
 
+// The words for one note from a daily report, and whether it is a warning. Already escaped.
+function signalText(s: Signal, t: BoardStrings): { text: string; warn: boolean } {
+  const count = s.count ?? 0;
+  switch (s.kind) {
+    case "prs":
+      return { text: fill(t.sigPrs, { count }), warn: false };
+    case "uncommitted":
+      return { text: fill(t.sigUncommitted, { count }), warn: true };
+    case "staleBranches":
+      return { text: fill(t.sigStaleBranches, { count }), warn: true };
+    case "changelog":
+      return { text: fill(t.sigChangelog, {}), warn: true };
+    case "version":
+      return { text: fill(t.sigVersion, {}), warn: true };
+    case "links":
+      return { text: fill(t.sigLinks, { count }), warn: true };
+    default:
+      return s.result === "pass" ? { text: fill(t.sigReadyPass, {}), warn: false } : { text: fill(t.sigReadyFail, { count }), warn: true };
+  }
+}
+
+// Short notes on the row from the other daily reports (review queue, uncommitted files, the
+// checks). They are information: they never change the light. The tooltip has the report's own figures.
+function signalLine(p: BoardProject, t: BoardStrings): string {
+  return (p.health?.signals ?? [])
+    .filter(showsOnRow)
+    .map((s) => {
+      const { text, warn } = signalText(s, t);
+      return `<span class="fn${warn ? " warn" : ""}" title="${escapeHtml(s.detail)}">${text}</span>`;
+    })
+    .join("");
+}
+
 // One project's verdict row: name, light, link mark, health marks and the item squares.
 export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
@@ -71,7 +106,7 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<span class="link ${waiting ? "wait" : "ok"}" title="${escapeHtml(t.dependsOn)} ${escapeHtml(p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", "))}"></span>` : "";
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""}><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}<span class="bar">${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""}><b class="pn">${escapeHtml(p.name)}</b><span class="go ${p.light}" title="${escapeHtml(why)}">${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar">${squares}</span>${why ? `<i class="info" title="${escapeHtml(why)}" aria-label="${escapeHtml(why)}"></i>` : ""}</div>`;
 }
 
 // The small marks on a row: a progress ring, size bars, a code letter and one dot per
@@ -177,6 +212,8 @@ function stepText(s: PathStep, t: BoardStrings): string {
       return fill(t.ptgBlocked, { count: s.count });
     case "build":
       return s.evidence === "failing" ? fill(t.ptgBuildFailing, {}) : feedStepText("build", s, t);
+    case "deps":
+      return fill(t.ptgDepsFailing, {});
     case "lint":
       return s.evidence === "failing" ? fill(t.ptgLintFailing, {}) : s.feed ? feedStepText("lint", s, t) : fill(t.ptgLintMissing, {});
     case "tests":
@@ -209,7 +246,7 @@ function stepButton(s: PathStep, t: BoardStrings, pi: number, si: number, canAct
 // shown ticked by the page script, for a few minutes.
 export function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: boolean): string {
   const items = path.steps
-    .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" || s.kind === "build" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}${handButton(t, `data-hk="step" data-p="${pi}" data-s="${si}"`)}</li>`)
+    .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" || s.kind === "build" || s.kind === "deps" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}${handButton(t, `data-hk="step" data-p="${pi}" data-s="${si}"`)}</li>`)
     .join("");
   const more = path.hidden > 0 ? `<li class="note" data-more="1">${fill(t.ptgMore, { count: path.hidden })}</li>` : "";
   const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";

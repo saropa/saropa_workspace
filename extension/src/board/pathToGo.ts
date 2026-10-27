@@ -15,12 +15,12 @@ import type { FeedState } from "./recipeEvidence";
 //   1. documents that stop the release, the one that frees the most waiting items first,
 //      then red folders before other stoppers, then by severity;
 //   2. collapsed blocked documents that stop the release;
-//   3. build evidence, then lint evidence, then test evidence;
+//   3. build evidence, then dependency evidence (only when failing), then lint evidence, then test evidence;
 //   4. documents no rule placed, one step per folder;
 //   5. documents whose text could not be read;
 //   6. accepting the scan.
 
-export type PathStepKind = "item" | "blocked" | "build" | "lint" | "tests" | "rules" | "unread" | "accept";
+export type PathStepKind = "item" | "blocked" | "build" | "deps" | "lint" | "tests" | "rules" | "unread" | "accept";
 
 // One step on the way to GO. Only the fields of its kind are set.
 export interface PathStep {
@@ -208,6 +208,9 @@ export function pathToGo(model: BoardModel, project: BoardProject, opts: PathOpt
   const build = buildStep(project);
   if (build) {
     steps.push(build);
+  }
+  if (project.health?.deps === "failing") {
+    steps.push({ kind: "deps", key: "deps", evidence: "failing", detail: project.health.depsDetail });
   }
   for (const kind of ["lint", "tests"] as const) {
     const s = evidenceStep(kind, project, opts);

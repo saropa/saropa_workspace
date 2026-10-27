@@ -120,6 +120,9 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `doubleClickMs` | `400` | Window in milliseconds to capture run commands vs open events. |
 | `defaultUseIntegratedTerminal` | `true` | Routes output to the integrated terminal instead of background logs. |
 | `recipes.enabled` | `true` | Enables auto-parsing of manifests to stand up default macros. |
+| `recipes.staleBranchDays` | `30` | Days without a commit before the Stale branch age recipe lists an unmerged local branch (1 to 365). |
+| `recipes.largeNewFileKB` | `1024` | Size in kilobytes above which the Large new file watch recipe lists a file added in the last 7 days (10 to 1048576). |
+| `recipes.changelogFile` | `CHANGELOG.md` | Changelog file the Changelog check recipe reads, relative to the project folder. |
 | `configDir` | `.saropa` | The folder holding the project shortcut file. |
 | `releaseBoard.enabled` | `true` | Shows the Release Board button and commands. |
 | `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
@@ -132,6 +135,7 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.recipeEvidence.enabled` | `true` | Reads the newest daily report of the Build status, Test trend tracker and Dawn lint sweep recipes as board evidence: a fresh failing report makes the row worse, a missing or old report changes nothing, and rows say when a report is being checked or its daily schedule is off. |
 | `releaseBoard.recipeEvidence.maxAgeHours` | `36` | A daily report older than this (1 to 720 hours) is not used as evidence. |
 | `releaseBoard.recipeEvidence.idleMinutes` | `2` | Minutes of quiet before a heavy missed report (the full test run) starts at VS Code start (0 to 60). 0 starts it at once. |
+| `releaseBoard.recipeEvidence.rowNotes` | `true` | Shows short notes on a project's row from the other daily reports: pull requests waiting for review, files not committed, a changelog or version mismatch, old unmerged branches, broken links and the release readiness summary. Information only: they never change a light. The Dependencies mark is separate: a fresh report with vulnerable or discontinued packages makes the row worse, and a missing or old report changes nothing. |
 | `releaseBoard.handToChat.enabled` | `true` | Shows a Hand to chat button on each release blocker, Path to GO step and Sittings step. It copies a ready prompt to the clipboard; nothing is sent. |
 | `releaseBoard.handToChat.detail` | `standard` | How much the copied prompt says: `short` (blocker and file), `standard` (adds the evidence) or `full` (adds what it waits on, its group, and lint and test evidence). |
 | `releaseBoard.handToChat.openChat` | `never` | `offer` shows an Open chats button after copying, when Chat Explorer is installed and knows chats for the document. `never` only copies. |
@@ -144,6 +148,7 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.pathToGo.showRunButtons` | `true` | Shows the Run lint now and Run tests now buttons in a Path to GO. Turn off if the board should never start a run. |
 | `releaseBoard.sinceLast.enabled` | `true` | Shows what changed since the board was last seen (new blockers, cleared blockers, lights that moved) at the top of the board, in the sidebar and in the status bar tooltip. Only shown when something changed. |
 | `releaseBoard.sinceLast.maxListed` | `5` | Most document titles listed per project in that strip (1 to 20). |
+| `releaseBoard.sinceLast.reports` | `true` | Adds a line to "Since you last looked" when a new standup digest or since-yesterday report was written. Read-only. |
 | `releaseBoard.sittings.enabled` | `true` | Shows the "I have..." button: pick what you have in hand and the time, get one list of steps you can do now. |
 | `releaseBoard.sittings.defaultHave` | `[]` | Context ids switched on only until you first choose on the board (for example `["iphone","mac"]`); after that your remembered choice wins. Empty remembers your last choice on this machine. |
 | `releaseBoard.sittings.defaultTimeBox` | `any` | Time box until you choose: `any`, `15`, `30` or `60` minutes. |
@@ -152,6 +157,7 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.tidy.enabled` | `true` | Shows a "Ready to tidy" box on the board: documents with every step done that have not changed for a while. It only lists them; a document moves only after you click its button and confirm. |
 | `releaseBoard.tidy.afterDays` | `7` | Days a finished document must stay unchanged before it is listed (1 to 365). |
 | `releaseBoard.tidy.archiveFolder` | `docs/history` | Folder inside the project that tidied documents move to, under a year/month/day sub-folder. |
+| `releaseBoard.tidy.reports` | `true` | Also lists the tech-debt, merged-branch, workspace bloat and large-new-file reports in the Tidy box. Each row only opens the report; nothing is changed or deleted. |
 | `releaseBoard.liveEvidence.enabled` | `true` | Shows a small flame on a board row when the source files that document names have errors or warnings (Problems panel, Saropa Lints file, and Log Capture when installed). Information only: it never changes a light. |
 | `releaseBoard.liveEvidence.includeWarnings` | `true` | Counts warnings as well as errors and crashes. Off: only errors and crashes mark a row. |
 | `releaseBoard.liveEvidence.lookbackDays` | `1` | Days of debug runs Log Capture is asked about (1 to 30). |

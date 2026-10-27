@@ -12,6 +12,7 @@ import {
 } from "./bloatScan";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { l10n } from "../i18n/l10n";
+import { bloatSummaryLine } from "../board/recipeSummaries";
 
 // Commands for the workspace bloat scan (recipe book #63). The scan measures the
 // directories VS Code crawls on folder-open and the test-downloader watcher guard,
@@ -106,7 +107,8 @@ async function writeReport(report: BloatReport): Promise<vscode.Uri | undefined>
   try {
     const fs = await import("fs/promises");
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, renderBloatReport(report, new Date().toLocaleString()), "utf8");
+    // The first line is the summary the Release Board reads.
+    await fs.writeFile(file, `${bloatSummaryLine(report.findings.length, report.perRoot.length, Date.now())}\n${renderBloatReport(report, new Date().toLocaleString())}`, "utf8");
     return vscode.Uri.file(file);
   } catch (err) {
     vscode.window.showErrorMessage(

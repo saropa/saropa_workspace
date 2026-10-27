@@ -47,6 +47,8 @@ function labels(): SinceLabels {
     clearedMany: l10n("releaseBoard.sinceLast.clearedMany", { count: "{count}" }),
     lightMoved: l10n("releaseBoard.sinceLast.lightMoved", { from: "{from}", to: "{to}" }),
     more: l10n("releaseBoard.sinceLast.more", { count: "{count}" }),
+    reportStandup: l10n("releaseBoard.sinceLast.reportStandup", { count: "{count}" }),
+    reportDelta: l10n("releaseBoard.sinceLast.reportDelta", { count: "{count}" }),
     light: { "no-go": l10n("releaseBoard.panel.noGo"), unverified: l10n("releaseBoard.panel.unverified"), go: l10n("releaseBoard.panel.go") },
   };
 }

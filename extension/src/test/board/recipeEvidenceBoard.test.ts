@@ -117,6 +117,7 @@ test("the sidebar names a failing build as the cause", () => {
     reasons: { baseline: "scan not accepted", grey: "{count} unplaced", health: "no lint or test result", unread: "unread" },
     causeLint: "lint failing",
     causeBuild: "build failing",
+    causeDeps: "dependencies vulnerable",
     causeTests: "tests failing",
     causeBlocked: "{count} in blocked folders",
     causeHeld: "held",

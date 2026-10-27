@@ -6,6 +6,7 @@ import { execFile as execFileCb } from "child_process";
 import { expandRecipeTokens, reportRelativePath } from "./runner";
 import { openReport } from "./reportOpen";
 import { l10n } from "../i18n/l10n";
+import { deltaSummaryLine } from "../board/recipeSummaries";
 
 const execFile = promisify(execFileCb);
 
@@ -276,7 +277,8 @@ async function runOvernightDelta(folderPath?: unknown): Promise<string | undefin
   const file = path.join(root, ...relative.split("/"));
   try {
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, buildDeltaMarkdown(delta), "utf8");
+    // The first line is the summary the Release Board reads.
+    await fs.writeFile(file, `${deltaSummaryLine(delta, Date.now())}\n${buildDeltaMarkdown(delta)}`, "utf8");
   } catch (err) {
     vscode.window.showErrorMessage(
       l10n("delta.failed", { error: err instanceof Error ? err.message : String(err) })

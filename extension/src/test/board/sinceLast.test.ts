@@ -12,6 +12,8 @@ const labels: SinceLabels = {
   clearedMany: "{count} blockers cleared",
   lightMoved: "went from {from} to {to}",
   more: "and {count} more",
+  reportStandup: "standup digest: {count} commits",
+  reportDelta: "since yesterday: {count} commits",
   light: { "no-go": "NO-GO", unverified: "UNVERIFIED", go: "GO" },
 };
 
@@ -164,4 +166,56 @@ test("projects, paths and titles are capped in the record and when reading it ba
   const back = readSeen(raw)!;
   assert.equal(Object.keys(back.projects).length, MAX_PROJECTS);
   assert.ok(Object.keys(back.projects.p0.blockers).every((k) => k.length <= 200));
+});
+
+// ---- standup and since-yesterday reports ----
+
+function withReports(light: BoardProject["light"], signals: Array<{ kind: "standup" | "delta"; count: number; at: number }>): BoardProject {
+  const p = project(light, []);
+  p.health = { lint: "missing", tests: "missing", lintDetail: "", testsDetail: "", clean: false, signals: signals.map((s) => ({ kind: s.kind, result: "pass" as const, count: s.count, at: s.at, detail: "" })) };
+  return p;
+}
+
+test("a new standup report is a change, worded with its count", () => {
+  const seen = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 100 }])), 150);
+  const now = digestOf(board(withReports("go", [{ kind: "standup", count: 7, at: 200 }, { kind: "delta", count: 4, at: 210 }])), 300, seen);
+  const d = diffSeen(seen, now);
+  assert.deepEqual(d?.changes[0].reports, [{ kind: "standup", count: 7 }, { kind: "delta", count: 4 }]);
+  assert.deepEqual(d?.changes[0].added, []);
+  assert.deepEqual(sinceLines(d!, labels, 5), [{ text: "App: standup digest: 7 commits, since yesterday: 4 commits", details: [] }]);
+});
+
+test("the same report seen again is not new, and an older one never is", () => {
+  const seen = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 200 }])), 250);
+  assert.equal(diffSeen(seen, digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 200 }])), 300, seen)), undefined);
+  assert.equal(diffSeen(seen, digestOf(board(withReports("go", [{ kind: "standup", count: 9, at: 100 }])), 300, seen)), undefined);
+});
+
+test("a report that cannot be read this time is kept in the record, so it comes back as seen", () => {
+  const seen = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 200 }])), 250);
+  const gone = digestOf(board(withReports("go", [])), 260, seen);
+  assert.deepEqual(gone.projects.app.reports, { standup: { at: 200, count: 3 } });
+  assert.equal(diffSeen(gone, digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 200 }])), 270, gone)), undefined);
+});
+
+test("a report with no commits, and a record from before reports were read, work", () => {
+  const empty = digestOf(board(withReports("go", [{ kind: "standup", count: 0, at: 100 }])), 150);
+  assert.equal(empty.projects.app.reports, undefined);
+  const old = readSeen({ version: 1, at: 5, projects: { app: { name: "App", light: "go", blockers: {} } } });
+  assert.ok(old);
+  assert.equal(old.projects.app.reports, undefined);
+  assert.equal(diffSeen(old, digestOf(board(withReports("go", [{ kind: "delta", count: 2, at: 100 }])), 300))?.changes[0].reports[0].count, 2);
+});
+
+test("records with reports compare by their times and counts, and survive a round trip", () => {
+  const a = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 100 }])), 1);
+  const b = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 100 }])), 2);
+  const c = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 101 }])), 2);
+  assert.equal(sameRecord(a, b), true);
+  assert.equal(sameRecord(a, c), false);
+  assert.deepEqual(readSeen(JSON.parse(JSON.stringify(a))), a);
+  const broken = JSON.parse(JSON.stringify(a));
+  broken.projects.app.reports.standup.count = "x";
+  broken.projects.app.reports.other = { at: 1, count: 1 };
+  assert.equal(readSeen(broken)?.projects.app.reports, undefined);
 });
