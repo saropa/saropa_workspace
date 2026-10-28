@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.4.0]
 
-The Release Board is tidier: icons on the Future controls, one fold style everywhere, and an icon before every section heading.
+The Release Board is tidier: icons on the Future controls, one fold style everywhere, and an icon before every section heading. [log](https://github.com/saropa/saropa-workspace/blob/v2.4.0/CHANGELOG.md)
 
 ### Changed
 - **Release Board: Future tab declutter.** Wow, Reach, Effort and Risk show as small icons (hover for the full name). The Research question only appears once a research state is set, in its own multi-line box. The "Research needed" checkbox is gone; use the Research dropdown. A guessed value is now shown in italic with the normal dropdown border.
