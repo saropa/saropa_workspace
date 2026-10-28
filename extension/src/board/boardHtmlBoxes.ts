@@ -37,9 +37,9 @@ export function sittingsBox(model: BoardModel, t: BoardStrings): string {
   const shownUntagged = v.lines.slice(v.doable).map((l, i) => line(l, v.doable + i)).join("");
   const untagged =
     v.untagged > 0
-      ? `<details class="box untag" id="sit-untag" data-sec="sittings-untagged" open><summary class="sh" ${tip(t, "untagged")}>${sectionIcon(t, "sittings-untagged")}${pillify(t, escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore))))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
+      ? `<details class="untag" id="sit-untag" data-sec="sittings-untagged" open><summary class="sh" ${tip(t, "untagged")}>${sectionIcon(t, "sittings-untagged")}${pillify(t, escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore))))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
       : "";
-  const fit = `<details class="box steps" id="sit-steps" data-sec="sittings-steps" open><summary class="sh" ${tip(t, "stepsSummary")}>${sectionIcon(t, "sittings-steps")}${pillify(t, escapeHtml(pl(t, "stepsFit", { count: v.doable })))}</summary>${body}${rest}${untagged}</details>`;
+  const fit = `<details class="steps" id="sit-steps" data-sec="sittings-steps" open><summary class="sh" ${tip(t, "stepsSummary")}>${sectionIcon(t, "sittings-steps")}${pillify(t, escapeHtml(pl(t, "stepsFit", { count: v.doable })))}</summary>${body}${rest}${untagged}</details>`;
   const filter = `<div class="filter"><span class="k" ${tip(t, "timeLabelTip")}>${escapeHtml(pl(t, "timeLabel"))}</span><span class="seg" role="group" aria-label="${escapeHtml(pl(t, "timeLabel"))}" ${tip(t, "timeGroup")}>${time}</span><span class="k" ${tip(t, "haveLabelTip")}>${escapeHtml(pl(t, "haveLabel"))}</span><span class="seg" role="group" aria-label="${escapeHtml(pl(t, "haveLabel"))}" ${tip(t, "haveGroup")}>${all}${v.contexts.map((c) => chip(c.id, c.label)).join("")}</span></div>`;
   return collapsible({ t, id: "sittings", domId: "sit-panel", tipAttr: tip(t, "sittingsHeading"), head: escapeHtml(t.sittingsHeading), body: filter + fit });
 }

@@ -167,7 +167,7 @@ test("the sittings box is always visible: the time filter and the chips on top, 
     assert.ok(html.includes(`data-box="${box}" aria-pressed="false"`), `time box ${box}`);
   }
   assert.equal(html.match(/data-step="/g)?.length, 2, "one step that fits and one with no context");
-  assert.ok(html.includes('<details class="box steps" id="sit-steps" data-sec="sittings-steps" open>'));
+  assert.ok(html.includes('<details class="steps" id="sit-steps" data-sec="sittings-steps" open>'));
   assert.ok(html.includes('id="sit-untag"'));
   assert.ok(html.includes('<a class="doc" href="#" data-step="0" title="docs/a.md">'), "a step is a link whose tooltip is the document path");
   assert.equal(html.includes('data-path'), false);
