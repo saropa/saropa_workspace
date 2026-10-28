@@ -197,13 +197,34 @@ export function ciUrl(r: GitRemote): string {
 
 // The first name in the list that exists at the folder root, or undefined if none
 // do — used to pick among several equivalent config filenames (e.g. eslint's many
-// config file spellings) without checking them all every time.
+// config file spellings) without checking them all every time. Returns the name as
+// spelled on disk, which may differ in case from the requested one: the
+// case-insensitive fallback applies on every platform, not just case-insensitive file
+// systems. A dangling symlink does not count as existing.
 export async function firstExisting(
   folder: vscode.WorkspaceFolder,
   names: string[]
 ): Promise<string | undefined> {
+  // Match against the real directory listing so the result is the name as spelled on disk:
+  // a case-insensitive file system (macOS, Windows) would otherwise report "README.md" as
+  // existing when the file is "readme.md". Falls back to a stat probe when the folder
+  // cannot be listed.
+  let entries: string[] | undefined;
+  try {
+    entries = (await vscode.workspace.fs.readDirectory(folder.uri)).map(([entry]) => entry);
+  } catch {
+    entries = undefined;
+  }
   for (const name of names) {
-    if (await exists(folder, name)) {
+    if (entries) {
+      // Exact spelling wins; otherwise a case-insensitive match returns the on-disk name.
+      const hit = entries.includes(name)
+        ? name
+        : entries.find((entry) => entry.toLowerCase() === name.toLowerCase());
+      if (hit && (await exists(folder, hit))) {
+        return hit;
+      }
+    } else if (await exists(folder, name)) {
       return name;
     }
   }
