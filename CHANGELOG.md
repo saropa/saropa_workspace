@@ -46,6 +46,21 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Release Board is tidier: icons on the Future controls, one fold style everywhere, and an icon before every section heading.
+
+### Changed
+- **Release Board: Future tab declutter.** Wow, Reach, Effort and Risk show as small icons (hover for the full name). The Research question only appears once a research state is set, in its own multi-line box. The "Research needed" checkbox is gone; use the Research dropdown. A guessed value is now shown in italic with the normal dropdown border.
+- **Release Board: one fold style.** Every folding section uses the same box, with the arrow at the far right, shown on hover or focus.
+- **Release Board: section icons.** Each section heading starts with a colored icon. Turn them off with the setting `saropaWorkspace.releaseBoard.sectionIcons`.
+
+### Fixed
+- **Process sampling on macOS.** The process list was empty on macOS because CPU times with fractions of a second were dropped.
+- **Doc shortcuts on macOS.** A README is now offered under its real file name spelling.
+
+---
+
 ## [2.3.0]
 
 The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes, and a document's severity can be corrected from its row menu (Change severity, Back to automatic). [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md)
