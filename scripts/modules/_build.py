@@ -43,11 +43,14 @@ def sync_extension_docs() -> None:
     but the repo authors a single source for each at the root. Copying here (not
     hand-maintaining two files) guarantees the packaged .vsix always matches the
     root docs. The copies are git-ignored, so overwriting them never dirties the
-    working tree.
+    working tree. The copies are left read-only so a hand edit fails instead of drifting.
     """
     header("SYNC DOCS")
     for src, dst in GENERATED_DOC_PAIRS:
+        if dst.exists():
+            dst.chmod(0o644)  # copies are read-only between syncs; unlock to overwrite
         shutil.copyfile(src, dst)
+        dst.chmod(0o444)  # read-only so nothing hand-edits the generated copy
         success(f"Synced extension/{dst.name} <- {src.name}")
 
 
