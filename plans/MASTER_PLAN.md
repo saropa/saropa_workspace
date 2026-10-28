@@ -1,6 +1,6 @@
 # Master plan — Saropa Workspace usability overhaul
 
-_Generated 2026-09-02 from a full extension audit covering 250+ source files, 18 active plans, 10 competitor analyses, and all documentation._
+_Generated 2026-09-02, status refreshed 2026-10-27, from a full extension audit covering 250+ source files, 18 active plans, 10 competitor analyses, and all documentation._
 
 ## Executive summary
 
@@ -129,7 +129,7 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 - ~~Update config path.~~ Done — changed from `.vscode/saropa-workspace.json` to `.saropa/saropa-workspace.json`.
 - ~~Refresh backlog summary to reflect current active plans (remove references to completed work like branch-aware sets and the dashboard webview).~~ Done — removed branch-aware sets and dashboard webview from backlog description.
 
-### 4.7 Plans directory cleanup
+### 4.7 Plans directory cleanup — done
 
 _Every plan file was read in full and its claims verified against the live
 codebase (2026-09-03), not just skimmed. Disposition below; remaining
@@ -388,16 +388,41 @@ section 4.7 for the full per-file disposition._
 
 ---
 
+## Phase 7 — Release Board and test coverage (shipped since 2026-09-04)
+
+_Status checked 2026-10-27 against `git log` and the tree. Extension version 2.3.0._
+
+### 7.1 Release Board (2.0 → 2.3.0) ✅
+
+- **Plan:** `PLAN_RELEASE_BOARD_v2.md` (its header still says "planned"; the board is built and released).
+- **Shipped:** per-project GO / NO-GO / UNVERIFIED light; Future tab for deferred and blocked work with research flag and hand-off to chat; dependencies, tidy and since-last feeds; six read-only checks; build/test/lint marks read from the daily reports; chosen project folders and a Settings button; own tab group with remembered position; Hand to chat names the prompt and can open the chat tool you choose; layout rework (row menus, folds, narrow layout, no-rule section, In progress); open documents beside the board; severity set by hand with Back to automatic; checkbox to stop opening at start-up; editable severity keywords and phrases.
+- **Open:** `plans/deferred/20261027_release_board_leftovers.md` (needs a real VS Code window check, Cursor chat command names, "Hand to chat opens a new Claude Code" report).
+- **Design filed, not built:** `plans/deferred/20261027_board_phone_access_design.md` (read-only board on a phone over the local network).
+- **Archived designs:** `plans/history/2026.10/` (Future tab, recipes/scripts/dashboard integration).
+
+### 7.2 Test and code-quality pass ✅
+
+- **Shipped:** unit-test harness exists (358 files under `extension/src/test/`); tests added for the launcher, run, customize, schedule, settings and planner panels, tree-view wiring, annotations, templates, history suggestions, 109 more modules, and the webview scripts (fake DOM). Five long modules split; long functions shortened; HTML-filter regexps in tests replaced after code scanning.
+- **Effect on Phase 6:** the "wait for the 4.1 harness" test debt in 6.1 is unblocked.
+
+### 7.3 Publish tooling ✅
+
+- **Shipped:** publish script is self-sufficient and no longer hangs at the type check; Marketplace verify picks the highest version; release-board translation keys built so the publish check sees them.
+- **Docs housekeeping:** remote branch cleanup list archived; Release Board leftovers listed.
+
+---
+
 ## Work schedule
 
 | Phase | Items | Status |
 |-------|-------|--------|
-| Phase 1 | 2 UX improvements | **Complete** (both shipped) |
-| Phase 2 | 3 robustness items | 2 of 3 done; 2.1 (lazy activation) remains |
-| Phase 3 | 5 code quality items | 3.1 partially done; 3.2–3.5 not started |
-| Phase 4 | 7 doc updates | 4.1 partially done; 4.5 partially done; rest not started |
-| Phase 5 | 6 wow items | 5.1 (drag-and-drop) done; rest not started |
-| Phase 6 | 11 carried-forward feature plans | Not started; 6.7 blocked on user design decisions, 6.3/6.4 need explicit go-ahead given destructive-git risk |
+| Phase 1 | 2 UX improvements | **Complete** |
+| Phase 2 | 3 robustness items | 2.2, 2.3 done; 2.1 (lazy activation) open — `onStartupFinished` still in `activationEvents` |
+| Phase 3 | 5 code quality items | 3.1 partial (`launcher.pin: "Pin"` and "auto-pins" still in `en.json`); 3.2–3.5 not started (`readdirSync` still used in `src`) |
+| Phase 4 | 7 doc updates | **Complete** (4.1–4.7 done) |
+| Phase 5 | 6 wow items | 5.1 done; 5.2–5.6 not started (no onboarding wizard, no `externalTerminal` setting) |
+| Phase 6 | 11 carried-forward feature plans | Not started; 6.7 blocked on user design decisions, 6.3/6.4 need explicit go-ahead given destructive-git risk; 6.11 still 7 of 26 scripts in `library.json` |
+| Phase 7 | Release Board, tests, publish tooling | **Shipped** (2.3.0); leftovers in `plans/deferred/` |
 
 ---
 
