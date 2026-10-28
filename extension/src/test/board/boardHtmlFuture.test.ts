@@ -150,23 +150,23 @@ test("the page script sends only indexes and values, never a path", () => {
 const withResearch = (states: Array<[string, string[]]>, over: Partial<FutureView> = {}): FutureView =>
   view({ items: buildFuture(states.map(([name, lines]) => doc(`plans/deferred/${name}.md`, ["Importance: nice-to-have", ...lines], name))), ...over });
 
-test("a document with no research state shows the toggle off, the state list and an empty question", () => {
+test("a document with no research state shows the state list and no question", () => {
   const html = futurePanel(withResearch([["A", []]]), t);
-  assert.ok(html.includes('<input type="checkbox" data-frt="0" title="researchToggle">'));
+  assert.ok(!html.includes("data-frt"), "the research checkbox is gone");
   assert.ok(html.includes('data-ff="research" data-fi="0"'));
   assert.ok(html.includes('<option value="none" selected>~research.none~</option>'));
   for (const v of ["needed", "in-progress", "ready", "reviewed"]) {
     assert.ok(html.includes(`<option value="${v}">~research.${v}~</option>`), v);
   }
-  assert.ok(html.includes('data-fq="0" maxlength="300" value=""'));
+  assert.ok(!html.includes("data-fq"), "no question while the state is none");
   assert.ok(!html.includes("data-fhand"), "no button without a flagged document");
   assert.ok(!html.includes('class="fresearch"'), "no summary without a research state");
 });
 
-test("a needed document shows the toggle on, its question and the summary with the hand-off button", () => {
+test("a needed document shows its question in a textarea on its own row and the summary with the hand-off button", () => {
   const html = futurePanel(withResearch([["A", ["Research: needed", "Research question: Is it still possible?"]]]), t);
-  assert.ok(html.includes('<input type="checkbox" data-frt="0" checked title="researchToggle">'));
-  assert.ok(html.includes('value="Is it still possible?"'));
+  assert.ok(/<div class="fc fqrow"><label[^>]*><span[^>]*>[^<]*<\/span><textarea class="fq" rows="2" data-fq="0" maxlength="300"/.test(html));
+  assert.ok(html.includes('>Is it still possible?</textarea>'));
   assert.ok(html.includes('<option value="needed" selected>'));
   assert.ok(html.includes('<span title="researchCounts">~waiting~</span>'));
   assert.ok(html.includes("~handAll~"));
@@ -215,25 +215,35 @@ test("research ready shows the not-reviewed label and the review button; other s
   }
 });
 
-test("the toggle is locked while research is under way, ready or reviewed", () => {
-  for (const state of ["in-progress", "ready", "reviewed"]) {
-    const html = futurePanel(withResearch([["A", [`Research: ${state}`]]]), t);
-    assert.ok(html.includes('<input type="checkbox" data-frt="0" disabled title="researchToggle">'), state);
+test("the controls show icons for wow, reach, effort and risk with the full name in the tooltip", () => {
+  const html = futurePanel(view(), t);
+  for (const icon of ["\u2728", "\u{1F465}", "\u23F1\uFE0F", "\u26A0\uFE0F"]) {
+    assert.ok(html.includes(`aria-hidden="true">${icon}</span>`), icon);
   }
+  assert.ok(/<select data-ff="wow"[^>]*title="~wow~" aria-label="~wow~"/.test(html));
 });
 
 test("a tab that cannot edit disables every research control", () => {
   const html = futurePanel(withResearch([["A", ["Research: ready"]]], { canEdit: false }), t);
-  assert.ok(html.includes('data-frt="0" disabled'));
   assert.ok(html.includes('data-ff="research" data-fi="0"') && /<select data-ff="research"[^>]*disabled>/.test(html));
-  assert.ok(/<input type="text"[^>]*data-fq="0"[^>]* disabled>/.test(html));
+  assert.ok(/<textarea[^>]*data-fq="0"[^>]* disabled>/.test(html));
   assert.ok(html.includes('<button data-frev="0" disabled title="markReviewed">'));
 });
 
 test("the question is escaped and the page carries only indexes for research", () => {
   const html = futurePanel(withResearch([["A", ["Research: needed", 'Research question: "><script>alert(1)</script> & <b>']]]), t);
   assert.ok(!html.includes("<script>"));
-  assert.ok(html.includes('value="&#34;&#62;&#60;script&#62;alert(1)&#60;/script&#62; &#38; &#60;b&#62;"'));
-  const attrs = html.match(/data-(frt|fq|frev|fhand)="?[^ >]*/g) ?? [];
-  assert.ok(attrs.every((a) => /^data-(frt|fq|frev)="\d+"$/.test(a) || a === "data-fhand"), attrs.join(" "));
+  assert.ok(html.includes('>&#34;&#62;&#60;script&#62;alert(1)&#60;/script&#62; &#38; &#60;b&#62;</textarea>'));
+  const attrs = html.match(/data-(fq|frev|fhand)="?[^ >]*/g) ?? [];
+  assert.ok(attrs.every((a) => /^data-(fq|frev)="\d+"$/.test(a) || a === "data-fhand"), attrs.join(" "));
+});
+
+test("section headings carry an icon from one helper, and the setting turns every one off", () => {
+  const model = buildBoard({ projects: [{ id: "app", name: "App", path: "." }] } as unknown as BoardConfig, [], undefined, true, undefined);
+  const on = renderBoard(model, t, "n", 1, {}, undefined, undefined, undefined, view());
+  const off = renderBoard(model, t, "n", 1, { sectionIcons: false }, undefined, undefined, undefined, view());
+  assert.ok(on.includes('class="si"'), "icons on by default");
+  assert.ok(!off.includes('class="si"'), "no icon when the setting is off");
+  assert.ok(!on.includes("summary.sh::before") && on.includes("summary.sh::after"), "chevron sits at the right of the summary");
+  assert.ok(!/<summary(?![^>]*class="sh")/.test(on), "every summary uses the shared style");
 });

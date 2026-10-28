@@ -9,6 +9,8 @@ export interface BoardStrings {
   // Text of the keyword line and the options menu entry (see keywordMark.ts). `edit` is empty
   // when the keyword editor is switched off.
   keywordLabels?: Record<string, string>;
+  // False turns the colored icons before section headings off; anything else leaves them on.
+  sectionIcons?: boolean;
   title: string;
   intro: string;
   noGo: string;
@@ -254,12 +256,51 @@ export function pillify(t: BoardStrings, escaped: string): string {
   return out;
 }
 
+// The colored icon that stands before a section heading, by section id (the longest matching
+// prefix wins). The one place icons are made, so the setting turns them all off at once.
+const SECTION_ICONS: Record<string, string> = {
+  sittings: "\u23F1\uFE0F",
+  "sittings-steps": "\u{1FA9C}",
+  "sittings-untagged": "\u{1F3F7}\uFE0F",
+  tidy: "\u{1F9F9}",
+  live: "\u{1F4E1}",
+  norule: "\u{1F4CF}",
+  since: "\u{1F554}",
+  linked: "\u{1F517}",
+  flags: "\u{1F6A9}",
+  suggest: "\u{1F4A1}",
+  "list.resolveNow": "\u{1F6A8}",
+  "list.inProgress": "\u{1F6A7}",
+  "list.workOn": "\u{1F6E0}\uFE0F",
+  "list:": "\u{1F4CB}",
+  "outside:": "\u{1F4C2}",
+  "future:outside": "\u{1F4C2}",
+  "future:not-feasible": "\u26D4",
+  "future:": "\u{1F516}",
+  future: "\u{1F52E}",
+  project: "\u{1F4C1}",
+  train: "\u{1F686}",
+};
+
+export function sectionIcon(t: BoardStrings, id: string): string {
+  if (t.sectionIcons === false) {
+    return "";
+  }
+  let best = "";
+  for (const k of Object.keys(SECTION_ICONS)) {
+    if ((id === k || (k.endsWith(":") && id.startsWith(k))) && k.length > best.length) {
+      best = k;
+    }
+  }
+  return best ? `<span class="si" aria-hidden="true">${SECTION_ICONS[best]}</span> ` : "";
+}
+
 // A section the reader can fold: a details element whose summary holds the heading. Native
 // details gives keyboard support and the expanded state; the page script remembers it per
 // viewer under `id`. Expanded unless `open` is false.
-export function collapsible(o: { id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string }): string {
+export function collapsible(o: { t: BoardStrings; id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string }): string {
   const h = o.level === 3 ? "h3" : "h2";
-  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${o.head}</${h}></summary>${o.body}</details>`;
+  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${sectionIcon(o.t, o.id)}${o.head}</${h}></summary>${o.body}</details>`;
 }
 
 // Like fill, for page text: a number among the values goes in as a pill.

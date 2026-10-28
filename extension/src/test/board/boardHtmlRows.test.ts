@@ -115,7 +115,7 @@ test("the list is capped at 30 rows and says how many are left out", () => {
 test("an empty list says there is nothing here", () => {
   const html = list("Resolve", [], new Map(), t);
   assert.ok(html.includes("[nothingHere]"));
-  assert.ok(html.includes('<summary class="sh" title="list"><h2 title="list">Resolve <span class="pill" title="count">0</span></h2></summary>'));
+  assert.ok(html.includes('<summary class="sh" title="list"><h2 title="list"><span class="si" aria-hidden="true">📋</span> Resolve <span class="pill" title="count">0</span></h2></summary>'));
 });
 
 test("related items sit under a group heading, indented", () => {

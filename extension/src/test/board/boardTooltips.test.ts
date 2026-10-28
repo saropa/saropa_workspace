@@ -99,7 +99,7 @@ function missing(html: string): string[] {
   for (const t of walk(html)) {
     const own = (t.attrs.title ?? t.attrs["aria-label"] ?? "").trim() !== "";
     const classes = (t.attrs.class ?? "").split(/\s+/);
-    const interactive = ["button", "a", "input", "select", "summary", "h1", "h2", "h3", "h4", "h5", "h6"].includes(t.name) || t.attrs.role !== undefined || t.attrs.tabindex !== undefined;
+    const interactive = ["button", "a", "input", "textarea", "select", "summary", "h1", "h2", "h3", "h4", "h5", "h6"].includes(t.name) || t.attrs.role !== undefined || t.attrs.tabindex !== undefined;
     const marked = GLYPHS.has(t.name) || t.name === "b" || classes.some((c) => CLASSES_NEEDING_TITLE.includes(c));
     if (!interactive && !marked) {
       assert.ok(TEXT_CONTAINERS.includes(t.name) || GLYPHS.has(t.name), `unexpected element <${t.name}> is not covered by the rule`);
@@ -236,7 +236,7 @@ test("the walk sees the elements it is meant to check", () => {
   assert.ok(count((t) => t.name === "a" && t.attrs.class === "doc") >= 8);
   assert.equal(count((t) => t.attrs.role === "tab"), 2);
   assert.equal(count((t) => t.name === "select") >= 10, true);
-  assert.ok(count((t) => t.name === "input") >= 3);
+  assert.ok(count((t) => t.name === "input" || t.name === "textarea") >= 3);
   assert.ok(count((t) => t.name === "summary") >= 3);
   assert.ok(count((t) => t.attrs["data-kw"] === "edit") === 1 && count((t) => t.attrs["data-kw"] === "restore") === 1, "the keyword line has its two buttons");
   assert.ok(count((t) => t.attrs["data-act"] === "keywords") === 1, "the options menu has the keyword editor entry");

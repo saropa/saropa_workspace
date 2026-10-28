@@ -43,7 +43,7 @@ test("the profile picker marks the chosen profile as pressed", () => {
 test("the no-rule section always shows: a sentence when empty, a titled list with counts when not", () => {
   const empty = buildBoard(cfg, [], undefined, true);
   const none = noRuleBox(empty, t, new Map(), true);
-  assert.ok(none.startsWith('<details class="box" id="norule-box" data-sec="norule" open><summary class="sh" title="noRuleHeading"><h2 title="noRuleHeading">[needsRuleHeading] <span class="pill" title="count">0</span></h2></summary>'));
+  assert.ok(none.startsWith('<details class="box" id="norule-box" data-sec="norule" open><summary class="sh" title="noRuleHeading"><h2 title="noRuleHeading"><span class="si" aria-hidden="true">📏</span> [needsRuleHeading] <span class="pill" title="count">0</span></h2></summary>'));
   assert.ok(none.includes('<p class="note">noRuleEmpty</p>'), "one sentence instead of a bare icon");
   assert.equal(none.match(/<details/g)?.length, 1, "one section, open, with nothing hidden inside");
   const m = buildBoard(cfg, [], undefined, true, snapshotOf({}, 1, { "docs/<odd>": 4, "": 1 }));
@@ -157,8 +157,8 @@ test("the sittings box is always visible: the time filter and the chips on top, 
     sittings: { selection: { have: ["mac"], timeBox: "any", maxSteps: 10 }, onlyOwner: false },
   });
   const html = sittingsBox(m, t);
-  assert.ok(html.startsWith('<details class="box" id="sit-panel" data-sec="sittings" open><summary class="sh" title="sittingsHeading"><h2 title="sittingsHeading">[sittingsHeading]</h2></summary><div class="filter">'));
-  assert.equal(html.includes("hidden"), false, "nothing is hidden behind a button");
+  assert.ok(html.startsWith('<details class="box" id="sit-panel" data-sec="sittings" open><summary class="sh" title="sittingsHeading"><h2 title="sittingsHeading"><span class="si" aria-hidden="true">⏱️</span> [sittingsHeading]</h2></summary><div class="filter">'));
+  assert.equal(/\shidden[\s>]/.test(html), false, "nothing is hidden behind a button");
   assert.ok(html.includes('data-have="mac" aria-pressed="true"'));
   assert.ok(html.includes('data-have="iphone" aria-pressed="false"'));
   assert.ok(html.includes('data-haveall="1" aria-pressed="false"'));
@@ -167,7 +167,7 @@ test("the sittings box is always visible: the time filter and the chips on top, 
     assert.ok(html.includes(`data-box="${box}" aria-pressed="false"`), `time box ${box}`);
   }
   assert.equal(html.match(/data-step="/g)?.length, 2, "one step that fits and one with no context");
-  assert.ok(html.includes('<details class="steps" id="sit-steps" data-sec="sittings-steps" open>'));
+  assert.ok(html.includes('<details class="box steps" id="sit-steps" data-sec="sittings-steps" open>'));
   assert.ok(html.includes('id="sit-untag"'));
   assert.ok(html.includes('<a class="doc" href="#" data-step="0" title="docs/a.md">'), "a step is a link whose tooltip is the document path");
   assert.equal(html.includes('data-path'), false);

@@ -332,6 +332,7 @@
   "config.releaseBoard.sidebar.expandProjects.never": "No project starts open.",
   "config.releaseBoard.sidebar.expandProjects.whenNoGo": "Projects that are NO-GO start open.",
   "config.releaseBoard.sidebar.expandProjects.always": "Every project starts open.",
+  "config.releaseBoard.sectionIcons.description": "Show a colored icon before each section heading on the Release Board. Turn off for plain headings.",
   "config.releaseBoard.openOnStartup.description": "Open the Release Board as an editor tab when a window starts, in a group beside the active editor and without taking focus, and only once per window start. It is not opened again after you close it.",
   "config.releaseBoard.openOnStartup.never": "Never open the board at startup.",
   "config.releaseBoard.openOnStartup.whenProjectsFound": "Open it when the first scan finds open documents (red, amber or purple) in at least one project.",

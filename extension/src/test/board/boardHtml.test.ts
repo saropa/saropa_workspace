@@ -127,7 +127,7 @@ test("the since strip and the train row appear above the projects", () => {
     { key: "k", name: "Train", light: "go", members: [{ id: "app", name: "App", light: "go", label: "1" }], heldBy: [], cycle: false },
   ]);
   const at = (s: string): number => html.indexOf(s);
-  assert.ok(at("Since then") > 0 && at("Since then") < at('class="vd train"') && at('class="vd train"') < at('>App</b>'));
+  assert.ok(at("Since then") > 0 && at("Since then") < at('class="vd train"') && at('class="vd train"') < at('App</b>'));
 });
 
 test("the sittings filter shows when the model has a sittings view, and no button hides it", () => {

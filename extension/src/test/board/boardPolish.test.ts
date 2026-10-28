@@ -107,7 +107,7 @@ test("In progress lists the documents being edited first, cut at the limit with 
   const m = buildBoard(cfg, rows, undefined, true, undefined, undefined, undefined, { inProgress: { edited, max: 15 } });
   assert.deepEqual(m.inProgress, { ids: Array.from({ length: 15 }, (_x, i) => i), more: 6, editing: 15 });
   const html = renderBoard(m, t, "n");
-  const box = html.slice(html.indexOf("<h2", html.indexOf("[inProgress]") - 40), html.indexOf("</section>", html.indexOf("[inProgress]")));
+  const box = html.slice(html.indexOf("<h2", html.indexOf("[inProgress]") - 120), html.indexOf("</section>", html.indexOf("[inProgress]")));
   assert.equal(box.match(/class="row"/g)?.length, 15);
   assert.ok(box.includes('<p class="note" title="+ 6 more">+ <span class="pill" title="pillTip">6</span> more</p>'));
   assert.ok(box.includes('<span class="pill" title="count">21</span>'), "the heading counts all of them");
