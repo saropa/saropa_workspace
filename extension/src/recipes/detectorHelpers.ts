@@ -197,7 +197,10 @@ export function ciUrl(r: GitRemote): string {
 
 // The first name in the list that exists at the folder root, or undefined if none
 // do — used to pick among several equivalent config filenames (e.g. eslint's many
-// config file spellings) without checking them all every time.
+// config file spellings) without checking them all every time. Returns the name as
+// spelled on disk, which may differ in case from the requested one: the
+// case-insensitive fallback applies on every platform, not just case-insensitive file
+// systems. A dangling symlink does not count as existing.
 export async function firstExisting(
   folder: vscode.WorkspaceFolder,
   names: string[]
@@ -218,7 +221,7 @@ export async function firstExisting(
       const hit = entries.includes(name)
         ? name
         : entries.find((entry) => entry.toLowerCase() === name.toLowerCase());
-      if (hit) {
+      if (hit && (await exists(folder, hit))) {
         return hit;
       }
     } else if (await exists(folder, name)) {
