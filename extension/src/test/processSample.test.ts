@@ -105,3 +105,10 @@ test("unparseable Windows output gives an empty sample", async () => {
   fakeExec("not json");
   assert.equal((await sampleOnce()).size, 0);
 });
+
+test("ps output with fractional CPU seconds (macOS) is parsed", async () => {
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  fakeExec("  334     1  6944  39:40.72 /usr/libexec/logd\n");
+  const sample = await sampleOnce();
+  assert.equal(sample.get(334)?.cpuMs, (39 * 60 + 40.72) * 1000);
+});

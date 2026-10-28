@@ -112,7 +112,8 @@ function samplePosix(): Promise<Map<number, RawProc>> {
 
 function parsePosix(stdout: string): Map<number, RawProc> {
   const out = new Map<number, RawProc>();
-  const line = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+([\d:-]+)\s+(.*\S)\s*$/;
+  // The time column may carry fractional seconds on macOS ("59:01.91"), hence the dot.
+  const line = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+([\d:.-]+)\s+(.*\S)\s*$/;
   for (const raw of stdout.split("\n")) {
     const m = line.exec(raw);
     if (!m) {
