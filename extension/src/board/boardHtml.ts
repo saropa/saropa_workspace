@@ -38,6 +38,8 @@ export interface RenderState {
   loading?: boolean;
   // Show the one-line hint about adding more projects.
   hint?: boolean;
+  // False hides the colored icons before section headings (the sectionIcons setting); undefined leaves them on.
+  sectionIcons?: boolean;
   // Whether the board opens at start-up (the setting is not "never"); undefined leaves the checkbox out.
   startup?: boolean;
 }
@@ -66,7 +68,8 @@ function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardS
 
 // Renders the whole board page. `paths` holds one Path to GO per project, in the order of
 // model.projects; leave it out to show no paths.
-export function renderBoard(model: BoardModel, t: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[], future?: FutureView): string {
+export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[], future?: FutureView): string {
+  const t: BoardStrings = state.sectionIcons === false ? Object.assign(Object.create(strings) as BoardStrings, { sectionIcons: false }) : strings;
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
   // With one project in focus the project name on each row says nothing.
   const single = model.projects.length <= 1 && (model.skipped?.length ?? 0) === 0;

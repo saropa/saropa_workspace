@@ -2723,6 +2723,11 @@
             "maximum": 120,
             "description": "%config.releaseBoard.overnight.stepTimeoutMinutes.description%"
           },
+          "saropaWorkspace.releaseBoard.sectionIcons": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.sectionIcons.description%"
+          },
           "saropaWorkspace.releaseBoard.openOnStartup": {
             "type": "string",
             "enum": ["never", "whenProjectsFound", "always"],
