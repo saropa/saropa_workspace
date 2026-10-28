@@ -47,6 +47,8 @@ def sync_extension_docs() -> None:
     """
     header("SYNC DOCS")
     for src, dst in GENERATED_DOC_PAIRS:
+        # Unlink first: a read-only stale copy makes copyfile raise PermissionError.
+        dst.unlink(missing_ok=True)
         shutil.copyfile(src, dst)
         success(f"Synced extension/{dst.name} <- {src.name}")
 
