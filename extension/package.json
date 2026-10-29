@@ -2,7 +2,7 @@
   "name": "saropa-workspace",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "publisher": "saropa",
   "license": "MIT",
   "repository": {
@@ -2526,6 +2526,16 @@
             "uniqueItems": true,
             "scope": "machine",
             "description": "%config.releaseBoard.projects.description%"
+          },
+          "saropaWorkspace.releaseBoard.exclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "reports/**"
+            ],
+            "description": "%config.releaseBoard.exclude.description%"
           },
           "saropaWorkspace.releaseBoard.projectScope": {
             "type": "string",

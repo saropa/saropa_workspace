@@ -256,6 +256,7 @@
   "command.releaseBoard.openSettings.title": "Release Board: Settings",
   "command.releaseBoard.projects.title": "Release Board: Choose Projects",
   "config.releaseBoard.projects.description": "Folders the Release Board includes in addition to the folders open in the window, one absolute path each. The open folders are always included and listed first. Empty (the default) shows only the open folders. Set it from the Projects button on the board. This is a user setting: a workspace cannot change it. Each folder is read like a workspace folder, with its own .saropa/release-board.json when it has one.",
+  "config.releaseBoard.exclude.description": "Release Board: globs for files and folders to leave out of the board, matched against each path relative to its project, e.g. \"reports/**\" or \"**/generated/**\". Added to the ignore list of the rules file. Default leaves out the reports folder.",
   "config.releaseBoard.projectScope.description": "Which projects the board shows once folders are chosen: all chosen projects, or only the open project. The chosen list is kept either way.",
   "config.releaseBoard.projectScope.openOnly": "Only the folders open in this window.",
   "config.releaseBoard.projectScope.all": "The open folders and every chosen project.",

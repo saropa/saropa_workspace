@@ -46,6 +46,15 @@ cspell:disable
 
 ---
 
+## [2.5.0]
+
+You can now choose which files and folders the Release Board leaves out. [log](https://github.com/saropa/saropa-workspace/blob/v2.5.0/CHANGELOG.md)
+
+### Added
+- **Release Board: exclude files and folders.** New setting `saropaWorkspace.releaseBoard.exclude`, a list of globs matched against each path in a project. The default is `reports/**`, so generated reports no longer show on the board.
+
+---
+
 ## [2.4.0]
 
 The Release Board is tidier: icons on the Future controls, one fold style everywhere, and an icon before every section heading. [log](https://github.com/saropa/saropa-workspace/blob/v2.4.0/CHANGELOG.md)
