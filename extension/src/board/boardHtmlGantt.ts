@@ -33,7 +33,9 @@ export const GANTT_STYLE = `
 .bar.purple{border-color:color-mix(in srgb,var(--purple) 50%,transparent);background:color-mix(in srgb,var(--purple) 14%,transparent)}
 .bar.green{border-color:color-mix(in srgb,var(--green) 40%,transparent);background:color-mix(in srgb,var(--green) 10%,transparent)}
 .bar.est{border-style:dashed}.gr.rel .bar{box-shadow:0 0 0 1px var(--amber)}
-.gf{display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px dashed var(--line)}
+.gf{display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px dashed var(--line)}.gf .go.gtl.no-go{background:none;color:var(--mute);border-color:var(--line)}
+.bar.est{width:3.5em;min-width:3.5em}
+@media (max-width:480px){.gaxis,.gr{grid-template-columns:minmax(0,1fr) 84px}.gl .tt{white-space:normal;overflow-wrap:anywhere}.gaxis .ticks{margin:0 4px}.gt{margin:0 6px}}
 `;
 
 // Arrows for the hovered or selected row, a click or Enter on a row to keep it selected. Row
@@ -59,7 +61,7 @@ function minutesLabel(m: number): string {
   return m < 60 ? `${m}m` : m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "✓" };
+const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "■" };
 
 function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): string {
   const word = pl(t, r.status === "green" ? "ganttDoneWord" : "st." + r.status);
