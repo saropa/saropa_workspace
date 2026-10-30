@@ -11,7 +11,8 @@ import { applySuggestion, openDocument, openExternalLink, openSittingsLine, save
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, undoRulesWrite } from "../commands/boardRuleAssign";
+import { DocChange, assignFolderRule, changeDoc, previewFolder } from "../commands/boardRuleAssign";
+import { BatchSnapshot, applyRows, undoBatch } from "../commands/boardPatch";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
@@ -130,6 +131,15 @@ class BoardPanel extends BoardPanelWiring {
       await this.optsMenu(message.act);
     } else if (message.type === "keywords" || message.type === "keywordsRestore") {
       await this.keywords(message.type === "keywordsRestore");
+    } else if (message.type === "patchRead" && typeof message.text === "string") {
+      this.patches.read(message.text, "paste");
+    } else if (message.type === "patchOpen") {
+      this.patches.open();
+    } else if (message.type === "patchApply" && Array.isArray(message.ids)) {
+      await this.patchApply(message.ids.filter((x): x is number => Number.isInteger(x)));
+    } else if (message.type === "patchReject") {
+      this.patches.clear();
+      this.post({ type: "patchDone", applied: 0, skipped: 0 });
     } else if (message.type === "undo") {
       await this.undoChange();
     } else if (message.type === "startup") {
@@ -411,7 +421,7 @@ class BoardPanel extends BoardPanelWiring {
             : change.kind === "severity"
               ? l10n("releaseBoard.undo.severity", { title: item.title, level: change.level })
               : l10n("releaseBoard.undo.auto", { title: item.title });
-        this.offerUndo(label, snapshot);
+        this.offerUndo(label, { docs: [], rules: snapshot });
         this.dirty = true;
         await this.refresh();
       } else {
@@ -427,7 +437,7 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   // Keeps what the last change replaced for ten seconds; the page's bar is taken away when it ends.
-  private offerUndo(label: string, snapshot: RulesSnapshot): void {
+  private offerUndo(label: string, snapshot: BatchSnapshot): void {
     clearTimeout(this.undo?.timer);
     const timer = setTimeout(() => {
       this.undo = undefined;
@@ -451,7 +461,7 @@ class BoardPanel extends BoardPanelWiring {
     this.assigning = true;
     let done = false;
     try {
-      done = await undoRulesWrite(undo.snapshot);
+      done = await undoBatch(undo.snapshot);
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
@@ -468,12 +478,47 @@ class BoardPanel extends BoardPanelWiring {
     await this.refresh();
   }
 
+  // Writes the rows the owner ticked in one step and offers one Undo for all of them. Rows the board
+  // no longer offers are left out and counted as skipped.
+  private async patchApply(ids: number[]): Promise<void> {
+    const picked = this.patches.pick(ids);
+    const run = this.run;
+    const model = this.model;
+    const busy = this.busyReason();
+    if (!picked || !run || !model || busy) {
+      void vscode.window.showInformationMessage(l10n(busy ?? "releaseBoard.patch.nothing"));
+      this.post({ type: "patchDone", applied: 0, skipped: ids.length });
+      return;
+    }
+    this.assigning = true;
+    try {
+      const out = await applyRows(run, model, picked.rows);
+      const skipped = ids.length - out.applied;
+      if (out.applied > 0) {
+        this.offerUndo(l10n("releaseBoard.patch.undo", { count: out.applied, id: picked.name }), out.snapshot);
+        this.patches.clear();
+        this.dirty = true;
+        await this.refresh();
+      }
+      this.post({ type: "patchDone", applied: out.applied, skipped });
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      this.post({ type: "patchDone", applied: 0, skipped: ids.length });
+    } finally {
+      this.assigning = false;
+    }
+  }
+
   // An entry of the board options menu.
   private async optsMenu(act: string): Promise<void> {
     if (act === "rules") {
       await openRulesFile(undefined, documentColumn());
     } else if (act === "handBoard") {
       this.post(openMessage("board"));
+    } else if (act === "organize") {
+      this.post({ ...openMessage("board"), task: "organize" });
+    } else if (act === "bringBack") {
+      this.post({ type: "handoffBack" });
     } else if (act === "keywords") {
       await this.keywords(false);
     } else if (act === "projects" || act === "settings") {

@@ -222,3 +222,11 @@ test("staleHandoffFiles keeps the newest 20 ids and counts only hand-off files",
   assert.deepEqual(stale.sort(), ids.slice(0, 5).flatMap((id) => [`${id}.md`, `${id}.json`]).sort());
   assert.deepEqual(staleHandoffFiles(names.slice(0, 11)), []);
 });
+
+test("the organize task asks for a patch only, changes no file, and asks for the item's rev", () => {
+  const md = buildHandoff(input({ task: "organize" }, [item({ rev: "100-10" })])).markdown;
+  assert.match(md, /Change no file\. Read every listed document/);
+  assert.match(md, /Reply with the patch only\./);
+  assert.match(md, /copies the item's `rev` as `rev`/);
+  assert.match(buildHandoff(input({ task: "organize" }, [item()])).json, /"reply"/);
+});

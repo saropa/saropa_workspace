@@ -245,6 +245,33 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
   return true;
 }
 
+// Changes the rules file text once for several documents at once, with every check of a single
+// change: `make` turns the current text into the new one. Returns what the file held before
+// (for Undo), or undefined when nothing was written.
+export async function changeRules(run: BoardRun, projects: string[], make: (before: string | undefined) => { ok: true; text: string } | { ok: false; reason: AssignRefusal }): Promise<RulesSnapshot | undefined> {
+  let root: vscode.WorkspaceFolder | undefined;
+  for (const id of projects) {
+    root = rulesRoot(run, id);
+    if (!root) {
+      return undefined;
+    }
+  }
+  if (!root) {
+    return undefined;
+  }
+  let snapshot: RulesSnapshot | undefined;
+  await applyTextChange(root, {
+    folder: "",
+    make: (before) => {
+      const r = make(before);
+      return r.ok ? { ok: true, text: r.text, vars: {} } : r;
+    },
+    saved: (s) => (snapshot = s),
+    refusal: refuse,
+  });
+  return snapshot;
+}
+
 // Gives every document of a folder a category by adding a rule for the folder.
 // `winning` puts the rule ahead of the shipped rules, so it also moves documents a rule already
 // placed (a row's Assign rule); without it the rule only places documents no rule matched.
