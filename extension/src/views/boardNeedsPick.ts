@@ -45,8 +45,15 @@ export async function pickNeeds(run: BoardRun, model: BoardModel, item: BoardIte
       return { label: l10n("releaseBoard.needs.remove", { name: o?.title ?? link.target }), description: link.state === "open" ? "" : l10n("releaseBoard.needs.state." + link.state), link };
     });
   const projects = new Map(model.projects.map((p) => [p.id, p.name]));
-  for (const i of model.items.filter((x) => x.id !== item.id && !linked.has(x.id) && (dir === "waits" || readsNeeds(x.path))).sort((a, b) => a.project.localeCompare(b.project) || a.title.localeCompare(b.title))) {
-    picks.push({ label: `${SHAPES[i.status] ?? "○"} ${i.title}`, description: projects.get(i.project) ?? i.project, detail: i.path, item: i });
+  // Proposed links for this document come first, with the reason as the detail line.
+  const me = `${item.project}:${item.path}`;
+  const proposed = new Map(model.proposals.filter((p) => (dir === "waits" ? p.item : p.on) === me).map((p) => [dir === "waits" ? p.on : p.item, p]));
+  const rank = (x: BoardItem): number => (proposed.has(`${x.project}:${x.path}`) ? 0 : 1);
+  for (const i of model.items.filter((x) => x.id !== item.id && !linked.has(x.id) && (dir === "waits" || readsNeeds(x.path))).sort((a, b) => rank(a) - rank(b) || a.project.localeCompare(b.project) || a.title.localeCompare(b.title))) {
+    const p = proposed.get(`${i.project}:${i.path}`);
+    picks.push(p
+      ? { label: `${SHAPES[i.status] ?? "○"} ${i.title}`, description: l10n("releaseBoard.needs.proposed", { confidence: l10n(`releaseBoard.linkConfidence.${p.confidence}`) }) + " · " + (projects.get(i.project) ?? i.project), detail: p.why, item: i }
+      : { label: `${SHAPES[i.status] ?? "○"} ${i.title}`, description: projects.get(i.project) ?? i.project, detail: i.path, item: i });
   }
   const chosen = await vscode.window.showQuickPick(picks, { title: l10n(dir === "waits" ? "releaseBoard.needs.titleWaits" : "releaseBoard.needs.titleBlocks", { title: item.title }), placeHolder: l10n("releaseBoard.needs.search"), matchOnDescription: true, matchOnDetail: true });
   if (!chosen) {

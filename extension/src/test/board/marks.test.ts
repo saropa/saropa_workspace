@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyMarks, emptyMarks, markKey, mergeMarks, parseMarks, pinnedKeys, setMark } from "../../board/marks";
+import { MAX_BYTES, MAX_REJECTED, type MarksFile, addRejected, applyMarks, emptyMarks, fitMarks, markKey, mergeMarks, parseMarks, pinnedKeys, setMark } from "../../board/marks";
 import { inferLinks } from "../../board/inferred";
 import { buildBoard } from "../../board/boardModel";
 import { readFacts } from "../../board/docFacts";
@@ -102,4 +102,49 @@ test("a path containing an arrow still yields the right target", () => {
   const m = buildBoard(cfg, [row("docs/a.md"), row("docs/x->y/c.md")], undefined, true, snap);
   assert.equal(m.suggestions[0]?.toPath, "docs/x->y/c.md");
   assert.equal(m.suggestions[0]?.fromKey, "app/docs/a.md");
+});
+
+test("a key rejected locally again is the newest in the merge, and a full list drops older keys instead", () => {
+  const shared = { ...emptyMarks(), rejected: Array.from({ length: MAX_REJECTED }, (_v, k) => `s${k}`) };
+  const local = { ...emptyMarks(), rejected: ["s0"] };
+  const m = mergeMarks(shared, local);
+  assert.equal(m.rejected.length, MAX_REJECTED);
+  assert.equal(m.rejected[m.rejected.length - 1], "s0", "moved to the newest end");
+  assert.ok(m.rejected.includes("s0") && m.rejected.includes("s1"), "s0 is kept, not dropped as oldest");
+  assert.equal(m.sharedRejected, MAX_REJECTED);
+});
+
+test("a written marks file never passes the cap: the oldest rejected keys go first, and nothing is dropped when it fits", () => {
+  const key = (k: number): string => `project-${k}/docs/some/long/path/name_${k}.md->project-${k}/docs/another/long/path/other_${k}.md`.padEnd(150, "x");
+  const small = { ...emptyMarks(), rejected: ["a", "b"] };
+  assert.equal(fitMarks(small), small);
+  const full = { ...emptyMarks(), rejected: Array.from({ length: MAX_REJECTED }, (_v, k) => key(k)) };
+  assert.ok(Buffer.byteLength(JSON.stringify(full)) < MAX_BYTES, "5000 keys of about 150 characters fit on their own");
+  // Heavy pins and needs leave less room: the oldest rejected keys are trimmed, the pins and needs are kept.
+  const marks: MarksFile["marks"] = {};
+  const needs: MarksFile["needs"] = {};
+  for (let k = 0; k < 1500; k++) {
+    marks[`app/${"d".repeat(150)}${k}.md`] = { pinned: true };
+    needs[`app/${"n".repeat(150)}${k}.md`] = [`app:${"t".repeat(100)}${k}.md`];
+  }
+  const heavy = { ...full, marks, needs };
+  assert.ok(Buffer.byteLength(JSON.stringify(heavy)) > MAX_BYTES);
+  const fit = fitMarks(heavy)!;
+  assert.ok(Buffer.byteLength(JSON.stringify(fit)) <= MAX_BYTES);
+  assert.ok(fit.rejected.length > 0 && fit.rejected.length < full.rejected.length);
+  assert.deepEqual(fit.rejected, full.rejected.slice(full.rejected.length - fit.rejected.length), "the newest keys stay");
+  assert.equal(Object.keys(fit.marks).length, 1500);
+  // Pins and needs alone past the cap: refused, never a silent empty file.
+  const hopeless = { ...emptyMarks(), marks: Object.fromEntries(Array.from({ length: 20000 }, (_v, k) => [`app/${"p".repeat(100)}${k}`, { pinned: true }])) };
+  assert.equal(fitMarks(hopeless), undefined);
+});
+
+test("a big marks file keeps what parses, and addRejected keeps the newest", () => {
+  const rejected = Array.from({ length: 6000 }, (_v, k) => `k${k}`.padEnd(250, "x"));
+  const text = JSON.stringify({ version: 1, marks: { "app/a.md": { pinned: true } }, rejected });
+  assert.ok(text.length > MAX_BYTES);
+  const read = parseMarks(text);
+  assert.deepEqual(Object.keys(read.marks), ["app/a.md"]);
+  assert.equal(read.rejected.length, MAX_REJECTED);
+  assert.deepEqual(addRejected(["a", "b"], ["b", "c"]), ["a", "b", "c"]);
 });

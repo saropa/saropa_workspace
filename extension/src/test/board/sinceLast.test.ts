@@ -110,7 +110,7 @@ test("listed limit is a whole number from 1 to 20", () => {
 });
 
 test("the page escapes the strip and shows it only with lines", () => {
-  const model = { sittings: undefined, projects: [], chains: [], flags: [], items: [], safetyHold: false, baseline: false, profile: "deliberate", suggestions: [], outside: [], needsRule: [] } as never;
+  const model = { sittings: undefined, projects: [], chains: [], flags: [], items: [], safetyHold: false, baseline: false, profile: "deliberate", suggestions: [], proposals: [], outside: [], needsRule: [] } as never;
   const t = new Proxy({}, { get: (_t, k) => String(k) }) as never;
   const html = renderBoard(model, t, "n", 1, {}, undefined, { heading: "Since <b>", marked: [], lines: [{ text: "App: <script>x</script>", details: ["+ <img>"] }] });
   assert.ok(html.includes("Since &#60;b&#62;"));

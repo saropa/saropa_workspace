@@ -7,6 +7,7 @@ import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
 import { orderLists } from "./boardOrder";
 import { buildOrg } from "./boardOrg";
+import { buildProposals } from "./boardProposals";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { OrgSettings, settingsOf } from "./org/settings";
@@ -360,7 +361,11 @@ export function buildBoard(
   }
   const byKey = new Map(all.map((it) => [itemKey(it.project, it.path), it]));
   attachLinks(all, links, grouping, byKey);
-  const suggestions = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
+  const dashed = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
+  const proposals = buildProposals(all, snapshot, cfg, links, extra?.rejected, new Set(dashed.map((s) => s.key)));
+  // A pair shown as a proposal is not shown again as a dashed suggestion.
+  const proposed = new Set(proposals.map((p) => p.key));
+  const suggestions = dashed.filter((s) => !proposed.has(s.key));
   attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   const customParts = customizedParts(cfg.severity);
@@ -387,6 +392,9 @@ export function buildBoard(
     baseline: !accepted && (safety?.baseline ?? false),
     profile,
     suggestions,
+    proposals,
+    rejectedCount: extra?.rejected?.length ?? 0,
+    sharedRejectedCount: extra?.sharedRejected ?? 0,
     outside: extra?.outside?.groups ?? [],
     needsRule: needsRuleFolders(cfg, snapshot),
     ...(ctx.byUser.count > 0 ? { byUser: ctx.byUser } : {}),

@@ -13,6 +13,7 @@ import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
 import type { FinishedDoc } from "./ganttModel";
 import type { OrgPrevious } from "./boardOrg";
+import type { ProposalView } from "./boardProposals";
 import type { Layout } from "./org/layout";
 
 // The shapes of the board's view model (what the first screen shows), and the helpers that
@@ -176,6 +177,12 @@ export interface BoardModel {
   profile: Profile;
   // Links the board guesses from documents naming each other; the user accepts or rejects.
   suggestions: Array<{ key: string; fromKey: string; toProject: string; toPath: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
+  // Links the engine proposes from names and wording; the person ticks which to accept.
+  proposals: ProposalView[];
+  // How many rejected links are remembered (the Undo reject entry of the review list shows it).
+  rejectedCount: number;
+  // How many of them come from the shared file in the repository (cleared only by an explicit choice).
+  sharedRejectedCount: number;
   // Folders where documents no rule placed sit, for the "needs a rule" list.
   needsRule: Array<{ project: string; folder: string; count: number }>;
   // Review requests and groups from other extensions. They never change a light.
@@ -209,6 +216,8 @@ export interface BoardExtra {
   needs?: Record<string, string[]>;
   // Suggested links the user turned down.
   rejected?: string[];
+  // How many of `rejected` come from the shared file.
+  sharedRejected?: number;
   // Documents pinned by hand, as "project/path".
   pins?: string[];
   // Review requests, groups and session counts from other extensions.

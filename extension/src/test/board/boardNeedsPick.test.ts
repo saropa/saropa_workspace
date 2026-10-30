@@ -31,7 +31,7 @@ const items = rows.map((r, id) => ({ id, project: r.project, path: r.path, title
 // A waits on B; the picker is opened on each.
 function setup(needs: Array<[string, string[]]>): { run: BoardRun; model: BoardModel } {
   const links = resolveLinks(rows, new Map(needs.map(([k, v]) => ["app\t" + k, v])), projects);
-  return { run: { cfg: { projects }, result: { rows } } as unknown as BoardRun, model: { items, links, projects: [{ id: "app", name: "App" }] } as unknown as BoardModel };
+  return { run: { cfg: { projects }, result: { rows } } as unknown as BoardRun, model: { items, links, proposals: [], projects: [{ id: "app", name: "App" }] } as unknown as BoardModel };
 }
 
 const choose = (label: RegExp) => async (list: readonly unknown[]): Promise<unknown> => (list as Array<{ label: string }>).find((i) => label.test(i.label));
@@ -101,4 +101,20 @@ test("a link held only by an accepted mark has no remove entry", async () => {
   });
   await pickNeeds(run, model, items[0], "waits");
   assert.deepEqual(seen.map((i) => i.label), ["◆ Doc C"]);
+});
+
+test("proposed links for the document come first, with the reason as the detail", async () => {
+  const { run, model } = setup([]);
+  const withProposal = { ...model, proposals: [{ key: "app/docs/A.md->app/docs/C.md", item: "app:docs/A.md", on: "app:docs/C.md", confidence: "high", why: "Phase order." }] } as unknown as BoardModel;
+  let seen: Array<{ label: string; description: string; detail: string }> = [];
+  vs.__setPickHandler(async (list) => {
+    seen = list as typeof seen;
+    return undefined;
+  });
+  await pickNeeds(run, withProposal, items[0], "waits");
+  assert.deepEqual(seen.map((i) => i.label), ["◆ Doc C", "◆ Doc B"]);
+  assert.deepEqual([seen[0].description.startsWith("Proposed (Likely)"), seen[0].detail], [true, "Phase order."]);
+  // Seen from C, the same proposal is offered under Blocks.
+  await pickNeeds(run, withProposal, items[2], "blocks");
+  assert.equal(seen[0].label, "◆ Doc A");
 });

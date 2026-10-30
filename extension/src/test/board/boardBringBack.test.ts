@@ -109,7 +109,7 @@ test("an error shows as an alert with an empty list; Reject all posts patchRejec
   assert.equal((page.all("#boList input") as El[]).length, 0);
   page.receive(REVIEW);
   page.click(by(page, "boReject"));
-  assert.deepEqual(page.takePosted(), [{ type: "patchReject", rev: 7 }]);
+  assert.deepEqual(page.takePosted(), [{ type: "patchReject", ids: [0, 2], rev: 7 }]);
   assert.equal((page.all("#boList input") as El[]).length, 0);
   page.receive({ type: "patchDone", applied: 2, skipped: 1 });
   assert.equal(by(page, "boMsg").textContent, "Applied 2");
@@ -150,4 +150,94 @@ test("every item of the review list, refused pills included, sits in a list item
   assert.equal(page.all("#boList [role=listitem]").length, 4, "the open list is left alone");
   page.receive({ type: "patchPill", count: 0 });
   assert.equal((page.one("[data-patchopen]") as El).hidden, true);
+});
+
+const LINKS = {
+  type: "patchReview",
+  source: "links",
+  links: { low: 3, lowOn: false, undo: 5, shared: 2 },
+  rows: [
+    { i: 0, op: "Waits on", item: "A", before: "", after: "B", reason: "why", stale: false, key: "k1", conf: "Likely" },
+    { i: 1, op: "Waits on", item: "C", before: "", after: "D", reason: "why", stale: false, key: "k2", conf: "Possible" },
+  ],
+  refused: [{ n: 0, text: "E waiting on F: the link would make a circle" }],
+};
+
+test("the proposed links list offers Not this one, a Low toggle and Undo reject with its count", () => {
+  const page = open();
+  page.receive(LINKS);
+  assert.equal(by(page, "boLow").hidden, false);
+  assert.equal(by(page, "boLow").textContent, "Low 3");
+  assert.equal(by(page, "boUnrej").hidden, false);
+  assert.equal(by(page, "boUnrejN").textContent, "5");
+  assert.equal(by(page, "boShared").hidden, false);
+  assert.equal(by(page, "boShared").textContent, "Rejected 2 shared");
+  assert.equal(by(page, "boReject").textContent, "Reject unticked", "in links mode the button says what it does");
+  assert.equal(by(page, "boApply").disabled, true, "nothing is ticked at first");
+  assert.ok(by(page, "boList").textContent.includes("circle"));
+  const nots = (page.all("#boList button") as El[]);
+  assert.equal(nots.length, 2);
+  assert.ok(nots.every((b) => (b.getAttribute("aria-label") ?? "").includes("Not this one")));
+  page.click(nots[1]);
+  assert.deepEqual(page.takePosted(), [{ type: "linksNot", i: 1, rev: 7 }]);
+  assert.equal((page.all("#boList input") as El[]).length, 1, "the row is gone at once");
+  page.click(by(page, "boLow"));
+  assert.deepEqual(page.takePosted(), [{ type: "linksOpen", low: true, rev: 7 }]);
+  page.click(by(page, "boUnrej"));
+  assert.deepEqual(page.takePosted(), [{ type: "linksUnreject", rev: 7 }]);
+  // Reject sends the ticked rows, which the host keeps proposed.
+  const box = (page.all("#boList input") as El[])[0];
+  box.checked = true;
+  page.fire(box, "change");
+  page.click(by(page, "boReject"));
+  assert.deepEqual(page.takePosted(), [{ type: "patchReject", ids: [0], rev: 7 }]);
+  // A review of another kind hides the links controls.
+  page.receive(REVIEW);
+  assert.equal(by(page, "boLow").hidden, true);
+  assert.equal(by(page, "boUnrej").hidden, true);
+  assert.equal(by(page, "boShared").hidden, true);
+  assert.equal(by(page, "boReject").textContent, "Reject all");
+  assert.equal((page.all("#boList button") as El[]).length, 0);
+});
+
+test("ticks survive a repaint of the same list by key, and Not this one removes only its row", () => {
+  const page = open();
+  page.receive(LINKS);
+  const first = (page.all("#boList input") as El[]);
+  first[1].checked = true;
+  page.fire(first[1], "change");
+  // The host draws the same list again (a mark changed): the tick on the second row stays, the first stays off.
+  page.receive(LINKS);
+  const again = (page.all("#boList input") as El[]);
+  assert.deepEqual(again.map((c) => c.checked), [false, true]);
+  assert.equal(by(page, "boApply").disabled, false);
+  // Rejecting the unticked first row alone leaves the ticked one ticked after the repaint without it.
+  page.click((page.all("#boList button") as El[])[0]);
+  page.receive({ ...LINKS, rows: [LINKS.rows[1]] });
+  assert.deepEqual((page.all("#boList input") as El[]).map((c) => c.checked), [true]);
+  // After a Reject the list starts unticked again.
+  page.receive({ type: "patchDone", applied: 0, skipped: 0 });
+  page.receive(LINKS);
+  assert.deepEqual((page.all("#boList input") as El[]).map((c) => c.checked), [false, false]);
+});
+
+test("the shared rejections button asks the host, and the help pill is a real button while the note is not focusable", () => {
+  const page = open();
+  page.receive(LINKS);
+  page.click(by(page, "boShared"));
+  assert.deepEqual(page.takePosted(), [{ type: "linksClearShared", rev: 7 }]);
+  const d = handoffDrawer(t);
+  assert.ok(!/role="note"[^>]*tabindex|tabindex="0"[^>]*role="note"/.test(d));
+  assert.ok(/<button type="button" class="ho-pill"[^>]*>\?<\/button>/.test(d));
+});
+
+test("the Low toggle shows as pressed once the weak guesses are on, and is left out when there are none", () => {
+  const page = open();
+  page.receive({ ...LINKS, links: { low: 2, lowOn: true, undo: 0, shared: 0 } });
+  assert.equal(by(page, "boLow").getAttribute("aria-pressed"), "true");
+  assert.equal(by(page, "boUnrej").hidden, true);
+  page.click(by(page, "boLow"));
+  assert.deepEqual(page.takePosted(), [{ type: "linksOpen", low: false, rev: 7 }]);
+  page.receive({ ...LINKS, links: { low: 0, lowOn: false, undo: 0, shared: 0 } });
+  assert.equal(by(page, "boLow").hidden, true);
 });

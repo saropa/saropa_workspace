@@ -3,6 +3,8 @@ import * as vscode from "vscode";
 import { BoardModel } from "../board/boardModel";
 import { MAX_PATCH_CHARS, PatchCheck, PatchRow, checkPatch, extractPatch, targetsOf } from "../board/patch";
 import { ruleCategories } from "../board/ruleAssign";
+import { proposalRows } from "../board/boardProposals";
+import { proposalCounts } from "../board/boardHtmlHandoff";
 import { BoardRun } from "../commands/boardScanStore";
 import { watchResults } from "../commands/boardPatch";
 import { l10n } from "../i18n/l10n";
@@ -15,9 +17,12 @@ import { l10n } from "../i18n/l10n";
 // The reply under review, as the page was told about it.
 interface Review {
   text: string;
-  source: "paste" | "file";
+  source: "paste" | "file" | "links";
   name?: string;
   rows: PatchRow[];
+  // links only: the proposal key of each row, and whether the Low ones were shown.
+  keys?: string[];
+  low?: boolean;
   // The result file this review was read from (path and time); none for a pasted reply.
   file?: { path: string; mtime: number };
 }
@@ -46,6 +51,8 @@ export class BoardPatches {
   private readonly answered: Set<string>;
   private watcher: ReturnType<typeof watchResults> | undefined;
   private scanned = false;
+  // The keys the last Reject added to the local marks, for "Undo reject" to take back.
+  lastRejected: string[] = [];
 
   constructor(
     private readonly state: () => { model: BoardModel; run: BoardRun } | undefined,
@@ -125,6 +132,63 @@ export class BoardPatches {
     }
   }
 
+  // The proposed links, as a list for the page. Nothing is ticked: the owner chooses what to accept.
+  // High and Medium show; Low ones only when `low` is on (the "Low N" toggle of the list).
+  readLinks(low = false): void {
+    const s = this.state();
+    if (!s) {
+      return;
+    }
+    const targets = targetsOf(s.model);
+    const counts = proposalCounts(s.model.proposals);
+    const shown = s.model.proposals.filter((p) => low || p.confidence !== "low");
+    const { rows, skipped } = proposalRows(shown, targets);
+    const by = new Map(shown.map((p) => [p.item + "\t" + p.on, p]));
+    const keys = rows.map((r) => by.get(r.change.item + "\t" + r.change.on)?.key ?? "");
+    this.review = { text: "", source: "links", name: l10n("releaseBoard.patch.links"), rows, keys, low };
+    this.post({
+      type: "patchReview",
+      source: "links",
+      links: { low: counts.low, lowOn: low, undo: this.lastRejected.length, shared: s.model.sharedRejectedCount },
+      rows: rows.map((r, i) => ({
+        i,
+        op: l10n("releaseBoard.patch.op.addNeeds"),
+        item: targets.get(r.change.item)?.title ?? r.change.item,
+        before: r.before,
+        after: r.after,
+        reason: r.change.reason,
+        stale: false,
+        key: keys[i],
+        conf: l10n(`releaseBoard.linkConfidence.${by.get(r.change.item + "\t" + r.change.on)?.confidence ?? "low"}`),
+      })),
+      refused: skipped.map((x) => ({ n: 0, text: x.text })),
+    });
+  }
+
+  // The links list again after the board changed under it (a rejection was remembered, a mark changed).
+  reshowLinks(): void {
+    if (this.review?.source === "links") {
+      this.readLinks(this.review.low === true);
+    }
+  }
+
+  // The keys of the rows of the links list that were not ticked: these are the ones to remember as
+  // rejected. Ticked rows stay proposed. None when something else is under review.
+  rejectedKeys(ticked: number[]): string[] {
+    const r = this.review;
+    if (r?.source !== "links" || !r.keys) {
+      return [];
+    }
+    const keep = new Set(ticked);
+    return r.keys.filter((k, i) => k !== "" && !keep.has(i));
+  }
+
+  // The key of one row of the links list, to be remembered as rejected on its own.
+  rejectedKey(i: number): string | undefined {
+    const r = this.review;
+    return r?.source === "links" && r.keys?.[i] ? r.keys[i] : undefined;
+  }
+
   // The pasted text, or the waiting result file, as a list for the page.
   read(text: string, source: "paste" | "file", name?: string, file?: { path: string; mtime: number }): void {
     const c = this.check(text);
@@ -165,15 +229,17 @@ export class BoardPatches {
 
   // The ticked rows, as they stand against the board now: a row the board no longer offers, or
   // one whose document changed, is left out. Undefined when nothing is under review.
-  pick(ids: number[]): { rows: PatchRow[]; dropped: number; name: string; source: "paste" | "file"; text: string } | undefined {
+  pick(ids: number[]): { rows: PatchRow[]; dropped: number; name: string; source: "paste" | "file" | "links"; text: string } | undefined {
     const review = this.review;
-    const now = review ? this.check(review.text) : undefined;
-    if (!review || !now?.check.ok) {
+    const state = this.state();
+    const now = review && review.source !== "links" ? this.check(review.text) : undefined;
+    if (!review || !state || (review.source !== "links" && !now?.check.ok)) {
       return undefined;
     }
     // A row is the same only when its change and the value it replaces are both still what the board shows.
     const sig = (r: PatchRow): string => JSON.stringify([r.change, r.before]);
-    const fresh = new Set(now.check.rows.filter((r) => !r.stale).map(sig));
+    const current = review.source === "links" ? proposalRows(state.model.proposals, targetsOf(state.model)).rows : now?.check.ok ? now.check.rows.filter((r) => !r.stale) : [];
+    const fresh = new Set(current.map(sig));
     const wanted = [...new Set(ids)].map((i) => review.rows[i]).filter((r): r is PatchRow => r !== undefined && !r.stale);
     const rows = wanted.filter((r) => fresh.has(sig(r)));
     return { rows, dropped: wanted.length - rows.length, name: review.name ? path.posix.basename(review.name, ".result.json") : l10n("releaseBoard.patch.pasted"), source: review.source, text: review.text };
