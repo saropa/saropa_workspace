@@ -14,6 +14,7 @@ h1{font-size:1.35em;margin:0 0 8px;font-weight:600}
 ul.rows{list-style:none;margin:0;padding:0}
 li.row{border:1px solid var(--vscode-panel-border,rgba(127,127,127,.35));border-radius:4px;margin:0 0 8px;padding:6px 8px}
 li.row.off{opacity:.55}
+.acts{display:inline-flex;flex-wrap:nowrap;gap:2px;align-items:center}
 .line{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0}
 input[type=text],select{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,rgba(127,127,127,.5));padding:3px 6px;font:inherit;border-radius:2px;min-width:0}
 input.emoji{width:3.6em}
@@ -157,12 +158,14 @@ function rowEl(r,i){
   if(shipped){a.appendChild(el('span',{'class':'pill',title:T.defaultTip},T.defaultPill));}
   a.appendChild(swatch(r.colour));a.appendChild(sel);
   if(!named){a.appendChild(el('input',{type:'text','class':'hex',value:r.colour,maxlength:'7',title:T.hexTip,'aria-label':T.hexTip,'data-f':'colour','data-i':String(i)}));}
-  a.appendChild(btn('↑',T.up,{act:'up',i:i}));a.appendChild(btn('↓',T.down,{act:'down',i:i}));
-  a.appendChild(btn(r.off?T.turnOn:T.turnOff,r.off?T.turnOnTip:T.turnOffTip,{act:'off',i:i},!r.off));
-  a.appendChild(btn('⧉',T.duplicateTag,{act:'dup',i:i}));
-  a.appendChild(btn('✎',T.rename,{act:'ren',i:i}));
-  if(shipped){const b=btn('↺',T.resetTag,{act:'rst',i:i});if(JSON.stringify(Object.assign({},r,{off:false}))===JSON.stringify(defRow(r.id))){b.disabled=true;}a.appendChild(b);}
-  else{a.appendChild(btn('×',T.remove,{act:'rm',i:i}));}
+  const g=el('span',{'class':'acts'});
+  g.appendChild(btn('↑',T.up,{act:'up',i:i}));g.appendChild(btn('↓',T.down,{act:'down',i:i}));
+  g.appendChild(btn(r.off?T.turnOn:T.turnOff,r.off?T.turnOnTip:T.turnOffTip,{act:'off',i:i},!r.off));
+  g.appendChild(btn('⧉',T.duplicateTag,{act:'dup',i:i}));
+  g.appendChild(btn('✎',T.rename,{act:'ren',i:i}));
+  if(shipped){const b=btn('↺',T.resetTag,{act:'rst',i:i});if(JSON.stringify(Object.assign({},r,{off:false}))===JSON.stringify(defRow(r.id))){b.disabled=true;}g.appendChild(b);}
+  else{g.appendChild(btn('×',T.remove,{act:'rm',i:i}));}
+  a.appendChild(g);
   li.appendChild(a);
   const p=el('div',{'class':'chips',role:'group','aria-label':T.patternsTip,title:T.patternsTip});
   pillBox(p,r.patterns,'patterns',i,T.patternsTip);

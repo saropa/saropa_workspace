@@ -63,3 +63,19 @@ when such a file is found, and is also available on demand.
 ## How do I bind a keyboard shortcut to a shortcut?
 
 See [KEYBINDINGS.md](KEYBINDINGS.md).
+
+## Does the Release Board send my documents to an AI?
+
+No. **Hand off** only writes a document to `.saropa/handoff/` in the project (Markdown and JSON) and, if you click **Run in terminal**, runs the command in `saropaWorkspace.releaseBoard.handoff.terminalCommand` in a terminal you can see. What an agent does with the file is up to the tool you run. The extension writes a .gitignore with `*` inside .saropa/handoff/, so these files are never committed.
+
+## Where does the board save my changes?
+
+In the project's rules file, `.saropa/release-board.json`: status rules, `severityOverrides`, groups, and tags, link words and naming under the `organize` key. Every change from the board has an **Undo** bar for ten seconds.
+
+## How do I bring an AI agent's answer back?
+
+Open **Project actions > Bring back AI result...**, paste the reply, press **Read reply**, tick the changes you want and press **Apply chosen**. Nothing changes until you do.
+
+## What does the Active now pill need?
+
+Saropa Chat Explorer installed. Without it the pill does not appear. Turn the look off with `saropaWorkspace.releaseBoard.chatActivity`.

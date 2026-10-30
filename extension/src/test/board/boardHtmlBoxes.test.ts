@@ -34,9 +34,14 @@ function snapshotOf(files: Record<string, string>, mtimeMs = 1, grey: Record<str
   return { version: 1, takenAt: 1, projects: { app: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: grey, files: cached, facts } } };
 }
 
+test("the view menu draws no literal check mark: the style sheet draws the one tick", () => {
+  const html = viewMenu(t, "rush");
+  assert.equal(html.includes("\u2713"), false);
+});
+
 test("the view menu ticks the chosen profile and sends it by name", () => {
   const html = viewMenu(t, "rush");
-  assert.ok(html.includes('data-act="profile:rush" aria-checked="true" title="profile.rush">\u2713 [profileRush]</button>'));
+  assert.ok(html.includes('data-act="profile:rush" aria-checked="true" title="profile.rush">[profileRush]</button>'));
   assert.ok(html.includes('data-act="profile:zero" aria-checked="false" title="profile.zero">[profileZero]</button>'));
 });
 

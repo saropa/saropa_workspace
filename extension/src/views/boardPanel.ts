@@ -26,7 +26,7 @@ import { pl } from "../board/boardHtmlUtil";
 import { strings } from "./boardStrings";
 import type { BoardItem, BoardModel } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
-import { busyReason } from "./boardBusy";
+import { busyMessage, busyReason } from "./boardBusy";
 import { TagsEditorInput, openTagsEditor } from "./tagsEditorPanel";
 import { matchedTagIds, settingsOf } from "../board/org/settings";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
@@ -373,7 +373,7 @@ class BoardPanel extends BoardPanelWiring {
     }
     const busy = this.busyReason();
     if (busy) {
-      void vscode.window.showInformationMessage(l10n(busy));
+      void vscode.window.showInformationMessage(this.busyText(busy));
       return;
     }
     if (kind === "preview") {
@@ -391,6 +391,11 @@ class BoardPanel extends BoardPanelWiring {
     } finally {
       this.assigning = false;
     }
+  }
+
+  // The words for a busy key; a pending Undo names its Dismiss button and how many files remain.
+  private busyText(key: string): string {
+    return busyMessage(key, this.undo?.remaining?.() ?? []);
   }
 
   private busyReason(): string | undefined {
@@ -436,7 +441,7 @@ class BoardPanel extends BoardPanelWiring {
     } else if (act === "assign") {
       const busy = this.busyReason();
       if (busy) {
-        void vscode.window.showInformationMessage(l10n(busy));
+        void vscode.window.showInformationMessage(this.busyText(busy));
         return;
       }
       this.assigning = true;
@@ -466,7 +471,7 @@ class BoardPanel extends BoardPanelWiring {
   private async needsChange(dir: NeedsDirection, item: BoardItem, run: BoardRun): Promise<void> {
     const busy = this.busyReason();
     if (busy || !this.model) {
-      void vscode.window.showInformationMessage(l10n(busy ?? "releaseBoard.failed"));
+      void vscode.window.showInformationMessage(this.busyText(busy ?? "releaseBoard.failed"));
       return;
     }
     this.assigning = true;
@@ -513,7 +518,7 @@ class BoardPanel extends BoardPanelWiring {
     }
     const busy = this.busyReason();
     if (busy) {
-      void vscode.window.showInformationMessage(l10n(busy === "releaseBoard.rowMenu.busyDialog" ? "releaseBoard.drop.busy" : busy));
+      void vscode.window.showInformationMessage(busy === "releaseBoard.rowMenu.busyDialog" ? l10n("releaseBoard.drop.busy") : this.busyText(busy));
       return;
     }
     if (plan.kind === "waits") {
@@ -553,7 +558,7 @@ class BoardPanel extends BoardPanelWiring {
   private async inlineChange(run: BoardRun, item: BoardItem, change: DocChange, id: number, focusCtl?: number): Promise<void> {
     const busy = this.busyReason();
     if (busy) {
-      void vscode.window.showInformationMessage(l10n(busy));
+      void vscode.window.showInformationMessage(this.busyText(busy));
       this.post({ type: "clearPending", id });
       return;
     }
@@ -760,7 +765,7 @@ class BoardPanel extends BoardPanelWiring {
     }
     const busy = this.busyReason();
     if (busy) {
-      void vscode.window.showInformationMessage(l10n(busy));
+      void vscode.window.showInformationMessage(this.busyText(busy));
       return;
     }
     if (!restore) {

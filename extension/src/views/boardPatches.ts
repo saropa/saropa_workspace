@@ -123,10 +123,10 @@ export class BoardPatches {
     }
     const c = this.check(text);
     const count = c?.check.ok ? c.check.rows.filter((r) => !r.stale).length : 0;
-    if (count > 0 && (this.ready?.name !== name || this.ready.count !== count || this.ready.mtime !== mtime)) {
+    if (count > 0 && (this.ready?.file !== file || this.ready.count !== count || this.ready.mtime !== mtime)) {
       this.ready = { text, name, file, count, mtime };
       this.pillChanged();
-    } else if (count === 0 && this.ready?.name === name && c) {
+    } else if (count === 0 && this.ready?.file === file && c) {
       this.ready = undefined;
       this.pillChanged();
     }
