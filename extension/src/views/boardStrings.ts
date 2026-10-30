@@ -256,7 +256,6 @@ export const POLISH_KEYS = [
   "dropGroup",
   "dropUngroup",
   "dropGap",
-  "reorderMoved",
   "dropWaits",
   "dropStart",
   "dropLabel",

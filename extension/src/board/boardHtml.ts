@@ -64,6 +64,8 @@ export interface RenderState {
   chat?: { active: readonly string[]; paused: boolean };
   // A brief notice drawn in a bar at the top, which hides itself.
   notice?: string;
+  // A keyboard move just saved: the row to focus again, the control used (its place among the row's links and buttons) and the words announced.
+  moved?: { project: string; path: string; ctl: number; say: string };
 }
 
 // The line that says how many severities the user set by hand, and how many of those were lowered
@@ -105,6 +107,11 @@ function cardLists(model: BoardModel, p: BoardProject, names: Map<string, string
 
 // Renders the whole board page. `paths` holds one Path to GO per project, in the order of
 // model.projects; leave it out to show no paths.
+function movedAttrs(model: BoardModel, m: RenderState["moved"]): string {
+  const id = m ? model.items.find((i) => i.project === m.project && i.path === m.path)?.id : undefined;
+  return m && id !== undefined ? ` data-focus="${id}" data-ctl="${m.ctl}" data-say="${escapeHtml(m.say)}"` : "";
+}
+
 export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[], future?: FutureView): string {
   const t: BoardStrings = state.sectionIcons === false ? Object.assign(Object.create(strings) as BoardStrings, { sectionIcons: false }) : strings;
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
@@ -145,7 +152,7 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
   ], t);
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${GANTT_STYLE}${DRAG_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
-<div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(pl(t, "dropLabel"))}" data-moved="${escapeHtml(pl(t, "reorderMoved", { title: "{title}" }))}"></div>
+<div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(pl(t, "dropLabel"))}" ${movedAttrs(model, state.moved)}></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 ${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}

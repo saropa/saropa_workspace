@@ -44,8 +44,8 @@ export function cardsFor(model: BoardModel, by: GroupBy, t: BoardStrings): Card[
   }
   const all = [...cards.values()];
   if (by === "group") {
-    // Rows with a set place come first inside a group; the documents in no group keep the automatic order.
-    all.forEach((c) => (c.items = c.id === "" ? c.items : applyOrder(c.items, model.order)));
+    // Rows with a set place come first inside a group of one project (ranks of different projects do not compare); the documents in no group keep the automatic order.
+    all.forEach((c) => (c.items = c.id === "" || new Set(c.items.map((i) => i.project)).size > 1 ? c.items : applyOrder(c.items, model.order)));
     // Groups with a blocker first, then by name; the documents in no group last.
     const rank = (c: Card): number => (c.id === "" ? 2 : c.items.some(blocksNow) ? 0 : 1);
     return all.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));

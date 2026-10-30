@@ -7,8 +7,8 @@ import { BoardStrings, escapeHtml, pl } from "./boardHtmlUtil";
 // (the words announced while the pointer is over it). The page sends the ids only and changes
 // nothing itself: a refused drop leaves the row where it was, and a saved one paints the board
 // again. The row menu does everything a drop does, for the keyboard; a row in a group that keeps
-// its order also moves a place with Alt+Up and Alt+Down, and the moved row is focused again and
-// announced after the board is painted.
+// its order also moves a place with Alt+Up and Alt+Down, and the moved row is focused again (on the control used) and
+// announced once the host has saved the move and painted the board.
 
 export const DRAG_STYLE = `
 .sbands{display:none;position:fixed;top:0;left:0;right:0;z-index:20;flex-wrap:wrap;gap:6px;padding:6px 16px;background:var(--bg);border-bottom:1px solid var(--line)}
@@ -29,8 +29,9 @@ document.addEventListener('dragstart',e=>{const r=e.target.closest&&e.target.clo
 document.addEventListener('dragend',()=>{if(drag){drag.classList.remove('dragging');}drag=null;document.body.classList.remove('dragging');clear();if(live){live.textContent='';}});
 document.addEventListener('dragover',e=>{if(!drag){return;}const z=zoneOf(e);if(!z||(z.dataset.drop==='waits'&&z.dataset.to===drag.dataset.drag)){return;}e.preventDefault();if(!z.classList.contains('over')){clear();z.classList.add('over');say(z.dataset.say||'');}});
 document.addEventListener('drop',e=>{if(!drag){return;}const z=zoneOf(e);if(!z){return;}e.preventDefault();const to=z.dataset.drop==='waits'?Number(z.dataset.to):z.dataset.to;vscode.postMessage({type:'drop',zone:z.dataset.drop,id:Number(drag.dataset.drag),to,at:Number(z.dataset.at),rev:REV});});
-document.addEventListener('keydown',e=>{if(!e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||(e.key!=='ArrowUp'&&e.key!=='ArrowDown')){return;}const r=e.target.closest&&e.target.closest('.row[data-drag]'),c=r&&r.closest('details');if(!c||!c.querySelector('.gap')){return;}e.preventDefault();const f=r.querySelector('.f'),id=Number(r.dataset.drag),st=()=>vscode.getState()||{};vscode.setState({...st(),kb:{id,say:live.dataset.moved.replace('{title}',(f||r).textContent.trim())}});setTimeout(()=>vscode.setState({...st(),kb:null}),5000);vscode.postMessage({type:'drop',zone:'move',id,to:e.key==='ArrowUp'?-1:1,rev:REV});});
-const kb=(vscode.getState()||{}).kb;if(kb){vscode.setState({...vscode.getState(),kb:null});const r=document.querySelector('.row[data-drag="'+kb.id+'"]'),a=r&&r.querySelector('.f a');if(a){a.focus();}say(kb.say);}
+document.addEventListener('keydown',e=>{if(!e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||(e.key!=='ArrowUp'&&e.key!=='ArrowDown')){return;}const r=e.target.closest&&e.target.closest('.row[data-drag]'),c=r&&r.closest('details');if(!c||!c.querySelector('.gap')||r.querySelector('.kb[aria-expanded=true]')||document.querySelector('.menu:not([hidden])')){return;}e.preventDefault();const ctl=[...r.querySelectorAll('a,button')].indexOf(e.target.closest('a,button'));vscode.postMessage({type:'drop',zone:'move',id:Number(r.dataset.drag),to:e.key==='ArrowUp'?-1:1,ctl:Math.max(ctl,0),rev:REV});});
+window.addEventListener('message',e=>{if(e.data&&e.data.type==='say'&&typeof e.data.text==='string'){say(e.data.text);}});
+const lv=live&&live.dataset;if(lv&&lv.focus){const r=document.querySelector('.row[data-drag="'+lv.focus+'"]');if(r){const h=r.closest('[hidden]');if(h){h.hidden=false;const b=h.previousElementSibling;if(b&&b.hasAttribute('data-show-more')){b.remove();}}const f=r.querySelectorAll('a,button'),t=f[Number(lv.ctl)]||f[0];if(t){t.focus();}}say(lv.say||'');}
 })();`;
 
 // The strip of status bands, shown only while a row is dragged: one per status the rules can set,

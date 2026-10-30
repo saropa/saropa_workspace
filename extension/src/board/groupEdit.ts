@@ -1,4 +1,4 @@
-import { MAX_ORDER } from "./boardOrder";
+import { MAX_ORDER, orderLists } from "./boardOrder";
 import { manualGroupOf, tidyGroupName } from "./groups";
 import { SeverityResult, docGlob, isObject, parseForEdit, serialize } from "./ruleAssign";
 
@@ -108,12 +108,14 @@ export function setDocGroup(text: string | undefined, a: { project: string; path
 }
 
 // Sets the order of one group's rows in the project's order list: `paths` are the rows in their new
-// order. The list keeps its other paths ahead of them; a path that is no longer a document (not in
-// `known`) is dropped and a path is listed once. A list that comes out as it was is refused as
-// "same" and nothing is written.
-export function setProjectOrder(text: string | undefined, a: { project: string; paths: string[]; known: Set<string> }): SeverityResult {
+// order. The list keeps its other paths ahead of them, untouched, except a path in `gone` (checked
+// missing on disk by the caller, never merely absent from a scan); a path is listed once. The old
+// list is read as the board reads it (text paths, once each, the first MAX_ORDER). A list that would
+// pass MAX_ORDER is refused as "full" (nothing is discarded to make room), one that comes out as it
+// was as "same"; nothing is written then.
+export function setProjectOrder(text: string | undefined, a: { project: string; paths: string[]; gone: Set<string> }): SeverityResult {
   if (a.paths.length > MAX_ORDER || a.paths.some((p) => docGlob(p) === undefined)) {
-    return { ok: false, reason: a.paths.length > MAX_ORDER ? "shape" : "glob" };
+    return { ok: false, reason: a.paths.length > MAX_ORDER ? "full" : "glob" };
   }
   const parsed = parseForEdit(text);
   if (!parsed.ok) {
@@ -129,8 +131,11 @@ export function setProjectOrder(text: string | undefined, a: { project: string; 
   }
   const before = (Array.isArray(order[a.project]) ? order[a.project] : []) as unknown[];
   const moved = new Set(a.paths);
-  const kept = before.filter((p): p is string => typeof p === "string" && !moved.has(p) && a.known.has(p));
-  const next = [...new Set([...kept, ...a.paths])].slice(-MAX_ORDER);
+  const kept = (orderLists({ list: before }).list ?? []).filter((p) => !moved.has(p) && !a.gone.has(p));
+  const next = [...new Set([...kept, ...a.paths])];
+  if (next.length > MAX_ORDER) {
+    return { ok: false, reason: "full" };
+  }
   if (next.length === before.length && next.every((p, i) => p === before[i])) {
     return { ok: false, reason: "same" };
   }

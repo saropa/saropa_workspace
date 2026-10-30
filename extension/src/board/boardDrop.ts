@@ -1,5 +1,5 @@
 import type { BoardItem, BoardModel } from "./boardModel";
-import { applyOrder } from "./boardOrder";
+import { MAX_ORDER, applyOrder } from "./boardOrder";
 import { globToRegExp } from "./glob";
 import { tidyGroupName } from "./groups";
 import { needTarget, wouldCircle } from "./links";
@@ -28,7 +28,7 @@ export type DropPlan =
   | { ok: true; kind: "status"; item: BoardItem; category: RuleCategory }
   | { ok: true; kind: "group"; item: BoardItem; name: string | undefined }
   | { ok: true; kind: "waits"; from: BoardItem; onto: BoardItem; target: string }
-  | { ok: true; kind: "order"; item: BoardItem; paths: string[]; known: Set<string> }
+  | { ok: true; kind: "order"; item: BoardItem; paths: string[] }
   | { ok: false; key: string; vars: Record<string, string> };
 
 const no = (key: string, vars: Record<string, string> = {}): DropPlan => ({ ok: false, key, vars });
@@ -44,11 +44,14 @@ function itemAt(model: BoardModel, id: unknown): BoardItem | undefined {
 // order inside a group listed by hand, in one project, that no pattern claims.
 function planReorder(item: BoardItem, model: BoardModel, ctx: DropContext, to: unknown, at: number | undefined, step: number | undefined): DropPlan {
   const group = item.group;
-  if (typeof to === "string" && !model.items.some((i) => i.group?.id === to)) {
+  if (to !== undefined && (typeof to !== "string" || !model.items.some((i) => i.group?.id === to))) {
     return no("releaseBoard.drop.gone");
   }
-  if (!group || (typeof to === "string" && group.id !== to)) {
+  if (!group) {
     return no("releaseBoard.reorder.noGroup", { title: item.title });
+  }
+  if (to !== undefined && group.id !== to) {
+    return no("releaseBoard.reorder.otherGroup", { title: item.title });
   }
   if (!group.byUser) {
     return no("releaseBoard.reorder.autoGroup", { title: item.title, name: group.name });
@@ -66,15 +69,19 @@ function planReorder(item: BoardItem, model: BoardModel, ctx: DropContext, to: u
   const from = rows.indexOf(item);
   const gap = step === undefined ? at : from + (step < 0 ? -1 : 2);
   if (gap === undefined || !Number.isInteger(gap) || gap < 0 || gap > rows.length) {
-    return step === undefined ? no("releaseBoard.drop.gone") : no("");
+    // The first or last row pressed further out: said aloud, not saved.
+    return step === undefined || gap === undefined || !Number.isInteger(gap) ? no("releaseBoard.drop.gone") : no(step < 0 ? "releaseBoard.reorder.firstSay" : "releaseBoard.reorder.lastSay", { title: item.title });
   }
   const place = gap > from ? gap - 1 : gap;
   if (place === from) {
     return no("");
   }
+  if (rows.length > MAX_ORDER) {
+    return no("releaseBoard.reorder.full");
+  }
   const next = rows.filter((i) => i !== item);
   next.splice(place, 0, item);
-  return { ok: true, kind: "order", item, paths: next.map((i) => i.path), known: new Set(ctx.rows.filter((r) => r.project === item.project).map((r) => r.path)) };
+  return { ok: true, kind: "order", item, paths: next.map((i) => i.path) };
 }
 
 // A row dropped on a status band (`to` is the status), on a group (`to` is the group id, empty for
