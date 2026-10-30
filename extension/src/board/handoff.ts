@@ -339,6 +339,15 @@ export function buildHandoff(input: HandoffInput): { markdown: string; json: str
   return { markdown: markdown(inp), json: JSON.stringify(json, null, 2) + "\n" };
 }
 
+// The text of several per-project documents as one: Markdown documents follow one another; JSON
+// documents become one valid document, {"projects": [...]}. One document stays as it is.
+export function joinHandoffs(docs: ReadonlyArray<{ markdown: string; json: string }>, format: HandoffFormat): string {
+  if (format !== "json") {
+    return docs.map((d) => d.markdown).join("\n");
+  }
+  return docs.length === 1 ? docs[0].json : JSON.stringify({ projects: docs.map((d) => JSON.parse(d.json) as unknown) }, null, 2) + "\n";
+}
+
 // About one token per four characters; rough on purpose.
 export const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
 

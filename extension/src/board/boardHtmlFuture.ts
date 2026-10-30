@@ -2,6 +2,7 @@ import { EFFORTS, Importance, IMPORTANCES, MAX_FREE_TEXT, REACHES, RESEARCH_STAT
 import { FUTURE_SORTS, FutureGroup, FutureItem, FutureOutside, FutureSort, groupItems, scoreOf } from "./futureList";
 import { researchCounts, researchQueue } from "./futureResearch";
 import { BoardStrings, collapsible, docLink, sectionIcon, escapeHtml, fillT, pill, pillify, tip, titleAttr } from "./boardHtmlUtil";
+import { ganttTab } from "./boardHtmlGantt";
 
 // The Future tab of the board page: deferred and blocked documents under their flag, with
 // the characteristics and the controls that set them. Every control carries only an index;
@@ -29,13 +30,12 @@ export function hasFuture(view: FutureView | undefined): view is FutureView {
   return view !== undefined && view.items.length > 0;
 }
 
-// The two tab buttons; empty when the Future tab has nothing to list.
-export function futureTabs(view: FutureView | undefined, t: BoardStrings): string {
-  if (!hasFuture(view)) {
-    return "";
-  }
-  const tabLabel = ft(t, "tab").replace("{count}", () => String(view.items.length));
-  return `<div class="tabs" role="tablist" ${tip(t, "tabs")}><button role="tab" id="tb-board" data-tab="board" aria-selected="true" aria-controls="tab-board" ${tip(t, "tabBoard")}>${escapeHtml(ft(t, "tabBoard"))}</button><button role="tab" id="tb-future" data-tab="future" aria-selected="false" aria-controls="tab-future" ${tip(t, "tabFuture")}>${pillify(t, escapeHtml(tabLabel))}</button></div>`;
+// The tab buttons: Gantt first (the default view), Board, and Future when it has something to list.
+export function viewTabs(view: FutureView | undefined, t: BoardStrings): string {
+  const future = hasFuture(view)
+    ? `<button role="tab" id="tb-future" data-tab="future" aria-selected="false" aria-controls="tab-future" ${tip(t, "tabFuture")}>${pillify(t, escapeHtml(ft(t, "tab").replace("{count}", () => String(view.items.length))))}</button>`
+    : "";
+  return `<div class="tabs" role="tablist" ${tip(t, "tabs")}>${ganttTab(true, t)}<button role="tab" id="tb-board" data-tab="board" aria-selected="false" aria-controls="tab-board" ${tip(t, "tabBoard")}>${escapeHtml(ft(t, "tabBoard"))}</button>${future}</div>`;
 }
 
 function options(values: readonly string[], current: string, label: (v: string) => string): string {

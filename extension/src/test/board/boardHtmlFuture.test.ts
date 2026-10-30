@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings, renderBoard } from "../../board/boardHtml";
-import { FutureView, futurePanel, futureTabs, hasFuture } from "../../board/boardHtmlFuture";
+import { FutureView, futurePanel, hasFuture, viewTabs } from "../../board/boardHtmlFuture";
 import { buildFuture } from "../../board/futureList";
 import { buildBoard } from "../../board/boardModel";
 import { BoardConfig } from "../../board/types";
@@ -31,17 +31,19 @@ const view = (over: Partial<FutureView> = {}): FutureView => ({
 });
 
 test("no view, or a view with no items, draws nothing", () => {
-  assert.equal(futureTabs(undefined, t), "");
+  assert.ok(!viewTabs(undefined, t).includes('data-tab="future"'));
   assert.equal(futurePanel(undefined, t), "");
-  assert.equal(futureTabs(view({ items: [] }), t), "");
+  assert.ok(!viewTabs(view({ items: [] }), t).includes('data-tab="future"'));
   assert.equal(futurePanel(view({ items: [] }), t), "");
   assert.equal(hasFuture(view({ items: [], outside: [{ project: "app", projectName: "App", path: "ROADMAP.md", title: "x", line: 1, why: "later" }] })), false);
 });
 
-test("the tab bar names the count and starts on the board", () => {
-  const html = futureTabs(view(), t);
+test("the tab bar names the count and starts on the Gantt", () => {
+  const html = viewTabs(view(), t);
   assert.ok(html.includes('role="tablist"'));
-  assert.ok(html.includes('data-tab="board" aria-selected="true"'));
+  assert.ok(html.includes('data-tab="gantt" aria-selected="true"'));
+  assert.ok(html.includes('data-tab="board" aria-selected="false"'));
+  assert.ok(html.indexOf('data-tab="gantt"') < html.indexOf('data-tab="board"'));
   assert.ok(html.includes('data-tab="future" aria-selected="false"'));
   assert.ok(html.includes("~tab~"), "the label comes from the text table");
 });
@@ -132,7 +134,7 @@ test("the board page wraps its content in the Board tab and adds the Future tab 
   assert.ok(html.indexOf('id="tab-future"') < html.indexOf("<script"));
   const plain = renderBoard(model, t, "n", 1, {}, undefined, undefined, undefined, undefined);
   assert.ok(!plain.includes('id="tab-future"'));
-  assert.ok(!plain.includes('role="tablist"'));
+  assert.ok(plain.includes('role="tablist"') && plain.includes('id="tab-gantt"'), "the Gantt and Board tabs are always there");
 });
 
 test("the page script sends only indexes and values, never a path", () => {
