@@ -95,7 +95,7 @@ export function applyRuleRow(text: string | undefined, row: PatchRow, target: Pa
 }
 
 // The lead-in class has no newline and no second `*` run, so a line of only `*` costs linear time.
-const NEEDS_LINE = /^([ \t>*_-]*needs\**\s*:\s*\**\s*)(.+)$/i;
+const NEEDS_LINE = /^([ \t>*_-]*needs\**[ \t]*:[ \t]*\**[ \t]*)(.+)$/i;
 // Lines longer than this are never read as a Needs line (keeps the match cheap on hostile text).
 const MAX_LINE = 2000;
 

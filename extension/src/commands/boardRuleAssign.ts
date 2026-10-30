@@ -1,3 +1,4 @@
+import { promises as fsp } from "node:fs";
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
@@ -44,6 +45,29 @@ export async function isLink(uri: vscode.Uri): Promise<boolean> {
 // True when the rules file is open in an editor with unsaved edits: the write would drop them.
 export function hasUnsavedCopy(uri: vscode.Uri): boolean {
   return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
+}
+
+// True when a document open in an editor has unsaved edits and is this file, by its real path or by
+// the path the workspace uses (`shown`), compared without regard to letter case so a case-insensitive
+// disk cannot hide an open copy. A false positive only leaves the file alone.
+export async function hasUnsavedEdits(real: string, shown: vscode.Uri | undefined): Promise<boolean> {
+  const names = [real, shown?.fsPath].filter((x): x is string => x !== undefined).map((x) => x.toLowerCase());
+  for (const d of vscode.workspace.textDocuments) {
+    if (!d.isDirty || d.uri.scheme !== "file") {
+      continue;
+    }
+    if (names.includes(d.uri.fsPath.toLowerCase())) {
+      return true;
+    }
+    try {
+      if (names.includes((await fsp.realpath(d.uri.fsPath)).toLowerCase())) {
+        return true;
+      }
+    } catch {
+      // A document with no file on disk is not this one.
+    }
+  }
+  return false;
 }
 
 // Tells the user why the file was left alone.
@@ -219,7 +243,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
     return false;
   }
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri)) {
+  if (hasUnsavedCopy(uri) || (await hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri))) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
     return false;
   }

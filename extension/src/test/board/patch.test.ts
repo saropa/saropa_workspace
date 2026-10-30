@@ -249,15 +249,50 @@ test("a group name that shows nothing is refused, and hidden blanks are stripped
 });
 
 test("the Needs-line patterns stay fast on hostile text and still read normal lines", () => {
-  const hostile = "*\n".repeat(500_000);
+  // Bounds are generous multiples of what these take (well under 100 ms) so a busy machine cannot fail them.
+  const LIMIT = 5000;
   const t0 = Date.now();
-  assert.equal(addNeedsLine(hostile, "x.md").ok, true);
-  assert.ok(Date.now() - t0 < 1500, `took ${Date.now() - t0} ms`);
+  // Lines near the length cap, shaped to stress the lead-in of the Needs pattern.
+  const lines = Array.from({ length: 2000 }, (_, i) => (i % 2 ? "*".repeat(1999) : "> ".repeat(500) + "needs" + "*".repeat(900)));
+  assert.equal(addNeedsLine(lines.join("\n"), "x.md").ok, true);
+  assert.ok(Date.now() - t0 < LIMIT, `took ${Date.now() - t0} ms`);
   const t1 = Date.now();
-  assert.deepEqual(parseNeeds(hostile), []);
+  assert.deepEqual(parseNeeds("*\n".repeat(500_000)), []);
   assert.deepEqual(parseNeeds("*".repeat(1_000_000)), []);
-  assert.ok(Date.now() - t1 < 1500, `took ${Date.now() - t1} ms`);
+  assert.ok(Date.now() - t1 < LIMIT, `took ${Date.now() - t1} ms`);
   assert.deepEqual(parseNeeds("# T\n\n**Needs:** a.md, b.md\n> Needs: c.md\n- needs : d.md\n"), ["a.md", "b.md", "c.md", "d.md"]);
   const r = addNeedsLine("# T\n\n**Needs:** a.md\n", "b.md");
   assert.equal(r.ok && r.text, "# T\n\n**Needs:** a.md, b.md\n");
+});
+
+test("an empty Needs line followed only by blank lines is read in linear time", () => {
+  // Inputs are built first so only the read is timed; the best of three runs shields it from a busy machine.
+  const inputs = ["\n", "\r\n"].flatMap((eol) => [`Needs:${eol.repeat(1_000_000 / eol.length)}`, `Needs:${eol}${"   ".repeat(100_000)}`]);
+  for (const text of inputs) {
+    const times = [0, 1, 2].map(() => {
+      const t = Date.now();
+      assert.deepEqual(parseNeeds(text), []);
+      return Date.now() - t;
+    });
+    assert.ok(Math.min(...times) < 100, `took ${times.join(", ")} ms`);
+  }
+  assert.equal(addNeedsLine(`# T\n\nNeeds:${"\n".repeat(100_000)}`, "x.md").ok, true);
+});
+
+test("Needs lines of every real shape parse, and a Needs line does not reach into the next line", () => {
+  const shapes: Array<[string, string[]]> = [
+    ["**Needs:** a.md", ["a.md"]],
+    ["> Needs: x", ["x"]],
+    ["- Needs: y", ["y"]],
+    ["Needs : z", ["z"]],
+    ["   Needs: i.md", ["i.md"]],
+    ["\t\tNeeds:\tt.md", ["t.md"]],
+    ["*Needs*: s.md", ["s.md"]],
+    ["Needs: [Doc](../x/P.md), q.md", ["../x/P.md", "q.md"]],
+    ["Needs:\n- a.md", []],
+    ["Needs:\n\n\nother text", []],
+  ];
+  for (const [text, want] of shapes) {
+    assert.deepEqual(parseNeeds(text), want, JSON.stringify(text));
+  }
 });

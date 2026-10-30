@@ -18,6 +18,8 @@ interface Review {
   source: "paste" | "file";
   name?: string;
   rows: PatchRow[];
+  // The result file this review was read from (path and time); none for a pasted reply.
+  file?: { path: string; mtime: number };
 }
 
 // A result file the watcher found and checked: a reply with at least one change to offer.
@@ -59,7 +61,7 @@ export class BoardPatches {
     this.watcher = watchResults(
       () => this.state()?.run.cfg.projects.map((p) => vscode.Uri.parse(p.path)) ?? [],
       (text, name, mtime, file) => this.found(text, name, mtime, file),
-      (name) => this.gone(name)
+      (file) => this.gone(file)
     );
     return this.watcher;
   }
@@ -82,8 +84,8 @@ export class BoardPatches {
     }
   }
 
-  private gone(name: string): void {
-    if (this.ready?.name === name) {
+  private gone(file: string): void {
+    if (this.ready?.file === file) {
       this.ready = undefined;
       this.pillChanged();
     }
@@ -124,7 +126,7 @@ export class BoardPatches {
   }
 
   // The pasted text, or the waiting result file, as a list for the page.
-  read(text: string, source: "paste" | "file", name?: string): void {
+  read(text: string, source: "paste" | "file", name?: string, file?: { path: string; mtime: number }): void {
     const c = this.check(text);
     if (!c) {
       return;
@@ -135,7 +137,7 @@ export class BoardPatches {
       return;
     }
     const s = c.check;
-    this.review = { text, source, ...(name ? { name } : {}), rows: s.rows };
+    this.review = { text, source, ...(name ? { name } : {}), ...(file ? { file } : {}), rows: s.rows };
     const targets = targetsOf(this.state()!.model);
     this.post({
       type: "patchReview",
@@ -157,7 +159,7 @@ export class BoardPatches {
   // The Bring back view for the waiting result file.
   open(): void {
     if (this.ready) {
-      this.read(this.ready.text, "file", this.ready.name);
+      this.read(this.ready.text, "file", this.ready.name, { path: this.ready.file, mtime: this.ready.mtime });
     }
   }
 
@@ -177,18 +179,24 @@ export class BoardPatches {
     return { rows, dropped: wanted.length - rows.length, name: review.name ? path.posix.basename(review.name, ".result.json") : l10n("releaseBoard.patch.pasted"), source: review.source, text: review.text };
   }
 
-  // Forgets the reply and the waiting file (applied, or rejected).
+  // Forgets the reply under review. Only the result file that was reviewed is marked answered, and
+  // the waiting file is dropped only when it is that same file: a pasted reply, or a newer file that
+  // arrived during the review, leaves the waiting file offered.
   clear(): void {
-    const had = this.ready !== undefined;
-    if (this.ready) {
-      this.answered.add(`${this.ready.file}\t${this.ready.mtime}`);
+    const reviewed = this.review?.file;
+    let had = false;
+    if (reviewed) {
+      this.answered.add(`${reviewed.path}\t${reviewed.mtime}`);
       if (this.answered.size > MAX_REMEMBERED) {
         this.answered.delete(this.answered.values().next().value as string);
       }
       void this.memory?.().update(ANSWERED_KEY, [...this.answered]);
+      if (this.ready?.file === reviewed.path && this.ready.mtime === reviewed.mtime) {
+        this.ready = undefined;
+        had = true;
+      }
     }
     this.review = undefined;
-    this.ready = undefined;
     if (had) {
       this.changed();
     }

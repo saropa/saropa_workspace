@@ -338,6 +338,11 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   private busyReason(): string | undefined {
+    return this.baseBusy() ?? (this.undo && this.undo.timer === undefined ? "releaseBoard.undo.pending" : undefined);
+  }
+
+  // Busy for a reason other than a half-finished Undo (which only Undo itself may continue).
+  private baseBusy(): string | undefined {
     return busyReason({ assigning: this.assigning, scanning: this.scanning, cached: this.cached });
   }
 
@@ -457,10 +462,13 @@ class BoardPanel extends BoardPanelWiring {
     if (!undo) {
       return;
     }
-    if (this.busyReason()) {
+    if (this.baseBusy()) {
       this.post({ type: "undoOn" });
       return;
     }
+    // The 10-second expiry must not take the bar away while this Undo runs.
+    clearTimeout(undo.timer);
+    delete undo.timer;
     // The Undo stays available until it succeeds, so a refused one can be tried again.
     this.assigning = true;
     let done = false;
@@ -474,8 +482,6 @@ class BoardPanel extends BoardPanelWiring {
     if (!done) {
       // Part of the batch is still in place: the bar stays (no expiry) until all of it is back or the
       // owner dismisses the bar, and the owner is told exactly which files remain.
-      clearTimeout(undo.timer);
-      delete undo.timer;
       void vscode.window.showWarningMessage(l10n("releaseBoard.undo.remaining", { list: remainingFiles(undo.snapshot).join(", ") }));
       this.post({ type: "undoOn" });
       this.dirty = true;

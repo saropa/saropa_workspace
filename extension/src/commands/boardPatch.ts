@@ -9,7 +9,7 @@ import { addNeedsLine, applyRuleRow, needsSpellings, needsWrite, removeNeedsLine
 import { decodeRules, ruleCategories } from "../board/ruleAssign";
 import { pathExists } from "./boardFileSource";
 import { RULES_FILE } from "./boardConfigLoad";
-import { RulesSnapshot, changeRules, isLink, undoRulesWrite } from "./boardRuleAssign";
+import { RulesSnapshot, changeRules, hasUnsavedEdits, isLink, undoRulesWrite } from "./boardRuleAssign";
 import { BoardRun } from "./boardScanStore";
 
 // Release Board, bring back an AI reply: writes the changes the owner ticked and takes them
@@ -69,28 +69,7 @@ export async function realInside(rootFs: string, rel: string): Promise<string | 
   }
 }
 
-// True when a document open in an editor has unsaved edits and is this file, by its real path or by
-// the path the workspace uses (`shown`), compared without regard to letter case so a case-insensitive
-// disk cannot hide an open copy. A false positive only leaves the file alone.
-export async function hasUnsavedEdits(real: string, shown: vscode.Uri | undefined): Promise<boolean> {
-  const names = [real, shown?.fsPath].filter((x): x is string => x !== undefined).map((x) => x.toLowerCase());
-  for (const d of vscode.workspace.textDocuments) {
-    if (!d.isDirty || d.uri.scheme !== "file") {
-      continue;
-    }
-    if (names.includes(d.uri.fsPath.toLowerCase())) {
-      return true;
-    }
-    try {
-      if (names.includes((await fsp.realpath(d.uri.fsPath)).toLowerCase())) {
-        return true;
-      }
-    } catch {
-      // A document with no file on disk is not this one.
-    }
-  }
-  return false;
-}
+export { hasUnsavedEdits };
 
 // Writes the rows: status, severity and group changes in one write of the rules file, Needs
 // changes one write per document. A row that cannot be written is counted as skipped, and a failure
@@ -116,7 +95,7 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
             text = e.text;
             done++;
           } else {
-            problems.push(`${t.path}: ${e.reason}`);
+            problems.push(l10n(`releaseBoard.patch.rule.${e.reason}`, { file: t.path }));
           }
         }
         return done > 0 ? { ok: true, text: text as string } : { ok: false, reason: "shape" };
@@ -325,7 +304,7 @@ const START_SCAN = 20;
 
 // Watches the hand-off folders for result files and passes the text of each readable one on, with its
 // modified time. `onGone` hears of a deleted one. `scan` looks once at the newest files already there.
-export function watchResults(roots: () => vscode.Uri[], onResult: (text: string, name: string, mtime: number, file: string) => void, onGone?: (name: string) => void): vscode.Disposable & { scan(): void } {
+export function watchResults(roots: () => vscode.Uri[], onResult: (text: string, name: string, mtime: number, file: string) => void, onGone?: (file: string) => void): vscode.Disposable & { scan(): void } {
   const watcher = vscode.workspace.createFileSystemWatcher(`**/${HANDOFF_DIR}/*.result.json`);
   const seen = async (uri: vscode.Uri, mtime?: number): Promise<void> => {
     try {
@@ -362,6 +341,6 @@ export function watchResults(roots: () => vscode.Uri[], onResult: (text: string,
   };
   watcher.onDidCreate((u) => void seen(u));
   watcher.onDidChange((u) => void seen(u));
-  watcher.onDidDelete((u) => onGone?.(path.posix.basename(u.path)));
+  watcher.onDidDelete((u) => onGone?.(u.fsPath));
   return { dispose: () => watcher.dispose(), scan };
 }

@@ -243,6 +243,7 @@ test("the board keeps a result file only when it offers a change, and ignores ju
   w.created.fire(put(dir, "good.result.json", patchText([ALL[0], ALL[1], { op: "setGroup", item: "app:a.md", group: "Z", reason: "stale", rev: "1-1" }])));
   await wait(60);
   assert.deepEqual([patches.view(), changed], [{ patchReady: 2 }, 1], "the stale change is not counted");
+  patches.open();
   patches.clear();
   assert.deepEqual([patches.view(), changed], [{}, 2]);
 });
@@ -316,6 +317,7 @@ test("the watcher looks at the newest twenty result files at start, drops a dele
   assert.equal(changed, 1, "no new paint while a list is open");
   assert.ok(posted.some((m) => (m as { type?: string; count?: number }).type === "patchPill" && (m as { count: number }).count === 2));
   // Rejected: the same file, unchanged, is not offered again by the next event.
+  patches.open();
   patches.clear();
   assert.deepEqual(patches.view(), {});
   fw.changed.fire(u);
@@ -491,6 +493,7 @@ test("the start scan hands over the newest reply last, and an answered reply sta
   first.scan();
   await wait(200);
   assert.deepEqual(first.view(), { patchReady: 2 }, "the newest file is on the pill");
+  first.open();
   first.clear();
   assert.ok(b);
   const second = new BoardPatches(() => ({ model, run }), () => undefined, () => undefined, () => memory);
@@ -498,4 +501,51 @@ test("the start scan hands over the newest reply last, and an answered reply sta
   second.scan();
   await wait(200);
   assert.deepEqual(second.view(), { patchReady: 1 }, "only the unanswered older reply is offered");
+});
+
+test("a pasted reply applied while a result file waits leaves the waiting file offered", async () => {
+  const { dir, run, model } = setup();
+  const patches = new BoardPatches(() => ({ model, run }), () => undefined, () => undefined);
+  patches.watch();
+  const w = vs.__fileWatchers()[0];
+  w.created.fire(put(dir, "wait.result.json", patchText([ALL[0]])));
+  await wait(60);
+  assert.deepEqual(patches.view(), { patchReady: 1 });
+  patches.read(patchText([ALL[1]]), "paste");
+  patches.clear();
+  assert.deepEqual(patches.view(), { patchReady: 1 }, "the waiting file is not the one reviewed");
+});
+
+test("a file reviewed while a newer one arrives is marked answered, and the newer one stays offered", async () => {
+  const { dir, run, model } = setup();
+  const patches = new BoardPatches(() => ({ model, run }), () => undefined, () => undefined);
+  patches.watch();
+  const w = vs.__fileWatchers()[0];
+  const x = put(dir, "x.result.json", patchText([ALL[0]]));
+  w.created.fire(x);
+  await wait(60);
+  patches.open();
+  const y = put(dir, "y.result.json", patchText([ALL[0], ALL[1]]));
+  w.created.fire(y);
+  await wait(60);
+  assert.deepEqual(patches.view(), { patchReady: 2 });
+  patches.clear();
+  assert.deepEqual(patches.view(), { patchReady: 2 }, "Y stays offered");
+  w.changed.fire(x);
+  await wait(60);
+  assert.deepEqual(patches.view(), { patchReady: 2 }, "X is not offered again");
+});
+
+test("a deleted file is matched by full path, not by name", async () => {
+  const { dir, run, model } = setup();
+  const patches = new BoardPatches(() => ({ model, run }), () => undefined, () => undefined);
+  patches.watch();
+  const fw = vs.__fileWatchers()[0] as unknown as { created: { fire(u: unknown): void }; deleted: { fire(u: unknown): void } };
+  const same = put(dir, "same.result.json", patchText([ALL[0]]));
+  fw.created.fire(same);
+  await wait(60);
+  fw.deleted.fire(vscode.Uri.file(path.join(dir, "other", "same.result.json")));
+  assert.deepEqual(patches.view(), { patchReady: 1 });
+  fw.deleted.fire(same);
+  assert.deepEqual(patches.view(), {});
 });
