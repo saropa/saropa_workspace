@@ -132,22 +132,30 @@ export async function applySuggestion(context: vscode.ExtensionContext, model: B
   }
 }
 
-// Remembers proposed links the person turned down, so they are not proposed again.
-export async function rejectProposals(context: vscode.ExtensionContext, keys: string[]): Promise<void> {
+// Remembers proposed links the person turned down, so they are not proposed again. Returns the keys
+// this call newly added to the local marks (what an Undo reject takes back).
+export async function rejectProposals(context: vscode.ExtensionContext, keys: string[]): Promise<string[]> {
+  const added: string[] = [];
   if (keys.length > 0) {
     await updateLocalMarks(context, (local) => {
+      const had = new Set(local.rejected);
+      added.push(...new Set(keys.filter((k) => !had.has(k))));
       local.rejected = addRejected(local.rejected, keys);
       return local;
     });
   }
+  return added;
 }
 
-// Forgets every rejected link of the local marks, so the proposals and suggestions turned down come back.
-export async function clearRejected(context: vscode.ExtensionContext): Promise<void> {
-  await updateLocalMarks(context, (local) => {
-    local.rejected = [];
-    return local;
-  });
+// Takes back exactly the keys the last reject added to the local marks; rejections from the shared file stay.
+export async function undoRejected(context: vscode.ExtensionContext, keys: readonly string[]): Promise<void> {
+  if (keys.length > 0) {
+    const drop = new Set(keys);
+    await updateLocalMarks(context, (local) => {
+      local.rejected = local.rejected.filter((k) => !drop.has(k));
+      return local;
+    });
+  }
 }
 
 // Only a link the page was actually shown can be opened, and only over https.

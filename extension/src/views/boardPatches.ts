@@ -51,6 +51,8 @@ export class BoardPatches {
   private readonly answered: Set<string>;
   private watcher: ReturnType<typeof watchResults> | undefined;
   private scanned = false;
+  // The keys the last Reject added to the local marks, for "Undo reject" to take back.
+  lastRejected: string[] = [];
 
   constructor(
     private readonly state: () => { model: BoardModel; run: BoardRun } | undefined,
@@ -147,7 +149,7 @@ export class BoardPatches {
     this.post({
       type: "patchReview",
       source: "links",
-      links: { low: counts.low, lowOn: low, rejected: s.model.rejectedCount },
+      links: { low: counts.low, lowOn: low, undo: this.lastRejected.length, shared: s.model.sharedRejectedCount },
       rows: rows.map((r, i) => ({
         i,
         op: l10n("releaseBoard.patch.op.addNeeds"),
@@ -156,7 +158,7 @@ export class BoardPatches {
         after: r.after,
         reason: r.change.reason,
         stale: false,
-        unticked: true,
+        key: keys[i],
         conf: l10n(`releaseBoard.linkConfidence.${by.get(r.change.item + "\t" + r.change.on)?.confidence ?? "low"}`),
       })),
       refused: skipped.map((x) => ({ n: 0, text: x.text })),

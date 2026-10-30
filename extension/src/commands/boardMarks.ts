@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { MarksFile, emptyMarks, markKey, mergeMarks, parseMarks, setMark } from "../board/marks";
+import { MAX_READ, MarksFile, emptyMarks, fitMarks, markKey, mergeMarks, parseMarks, setMark } from "../board/marks";
 import { BoardConfig } from "../board/types";
 import { l10n } from "../i18n/l10n";
 
@@ -47,13 +47,27 @@ let writing: Promise<unknown> = Promise.resolve();
 
 // Applies one change to the local marks, after any change still being written.
 export function updateLocalMarks(context: vscode.ExtensionContext, change: (f: MarksFile) => MarksFile): Promise<void> {
-  const next = writing.then(async () => writeLocalMarks(context, change(await readLocalMarks(context))));
+  const next = writing.then(async () => {
+    const text = await readText(vscode.Uri.joinPath(storageDir(context), LOCAL_FILE));
+    if (text !== undefined && text.length > MAX_READ) {
+      // Too big to be the board's own file: say so and leave it alone rather than write over it.
+      void vscode.window.showWarningMessage(l10n("releaseBoard.marksTooBig", { file: LOCAL_FILE }));
+      return;
+    }
+    await writeLocalMarks(context, change(parseMarks(text)));
+  });
   writing = next.catch(() => undefined);
   return next;
 }
 
 // Replaces the local marks file and tells listeners.
-export async function writeLocalMarks(context: vscode.ExtensionContext, f: MarksFile): Promise<void> {
+export async function writeLocalMarks(context: vscode.ExtensionContext, marks: MarksFile): Promise<void> {
+  // The file never grows past its cap: the oldest rejected keys go first; if it still does not fit, nothing is written.
+  const f = fitMarks(marks);
+  if (!f) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.marksTooBig", { file: LOCAL_FILE }));
+    return;
+  }
   const dir = storageDir(context);
   await vscode.workspace.fs.createDirectory(dir);
   await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, LOCAL_FILE), Buffer.from(JSON.stringify(f), "utf8"));
@@ -115,4 +129,24 @@ export async function exportMarksCommand(context: vscode.ExtensionContext): Prom
   await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, ".saropa"));
   await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder.uri, SHARED_FILE), Buffer.from(JSON.stringify(merged, null, 2) + "\n", "utf8"));
   void vscode.window.showInformationMessage(l10n("releaseBoard.marksExported", { file: SHARED_FILE }));
+}
+
+// Empties the rejected list of the shared file in the repository (the only place the board edits it), after the caller confirmed.
+export async function clearSharedRejected(): Promise<void> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) {
+    return;
+  }
+  const uri = vscode.Uri.joinPath(folder.uri, SHARED_FILE);
+  try {
+    const data = JSON.parse((await readText(uri)) ?? "") as Record<string, unknown>;
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new Error("not an object");
+    }
+    data.rejected = [];
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(data, null, 2) + "\n", "utf8"));
+    changed.fire();
+  } catch {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.sharedRejectedFailed", { file: SHARED_FILE }));
+  }
 }

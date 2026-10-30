@@ -1,13 +1,14 @@
 import * as vscode from "vscode";
 import { BoardRun, acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
+import { SHARED_FILE, clearSharedRejected } from "../commands/boardMarks";
 import { moveToArchive } from "../commands/boardTidy";
 import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
 import { markSeenNow } from "./boardSinceLast";
-import { applySuggestion, clearRejected, rejectProposals, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
+import { applySuggestion, rejectProposals, undoRejected, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
@@ -172,17 +173,26 @@ class BoardPanel extends BoardPanelWiring {
       // One proposal turned down; the list is drawn again from the board once the mark is saved.
       const key = this.patches.rejectedKey(message.i as number);
       if (key) {
-        await rejectProposals(this.context, [key]);
+        this.patches.lastRejected = await rejectProposals(this.context, [key]);
       }
     } else if (message.type === "linksUnreject") {
-      await clearRejected(this.context);
+      // Only what the last Reject added; the shared file's rejections are cleared on their own, with a confirmation.
+      const keys = this.patches.lastRejected;
+      this.patches.lastRejected = [];
+      await undoRejected(this.context, keys);
+      this.patches.reshowLinks();
+    } else if (message.type === "linksClearShared") {
+      const yes = l10n("releaseBoard.sharedRejectedYes");
+      if ((await vscode.window.showWarningMessage(l10n("releaseBoard.sharedRejectedConfirm", { file: SHARED_FILE }), { modal: true }, yes)) === yes) {
+        await clearSharedRejected();
+      }
     } else if (message.type === "patchReject") {
       // For the proposed links the unticked rows are remembered as rejected; the ticked ones stay proposed.
       const keys = this.patches.rejectedKeys(Array.isArray(message.ids) ? message.ids.filter((x): x is number => Number.isInteger(x)) : []);
       this.patches.clear();
       this.post({ type: "patchDone", applied: 0, skipped: 0 });
       if (keys.length > 0) {
-        await rejectProposals(this.context, keys);
+        this.patches.lastRejected = await rejectProposals(this.context, keys);
         this.dirty = true;
         await this.refresh();
       }

@@ -76,12 +76,12 @@ test("a rejected proposal, an existing link and a loop are not proposed", () => 
 
 test("the review list shows proposals unticked, and a tick writes a Needs line with one Undo", async () => {
   const { dir, run, model } = setup();
-  const posted: Array<{ type: string; rows: Array<{ i: number; unticked: boolean; conf: string; reason: string; item: string }> }> = [];
+  const posted: Array<{ type: string; rows: Array<{ i: number; key: string; conf: string; reason: string; item: string }> }> = [];
   const patches = new BoardPatches(() => ({ model, run }), (m) => posted.push(m as never), () => undefined);
   patches.readLinks();
   assert.equal(posted[0].type, "patchReview");
   assert.equal(posted[0].rows.length, 2);
-  assert.ok(posted[0].rows.every((r) => r.unticked && r.conf && r.reason));
+  assert.ok(posted[0].rows.every((r) => r.key && r.conf && r.reason));
   const before = fs.readFileSync(path.join(dir, "docs/launch.md"), "utf8");
   const i = posted[0].rows.find((r) => r.item === "Launch")!.i;
   const picked = patches.pick([i, i, 99]);
@@ -123,6 +123,21 @@ test("the rejected list drops the oldest keys at the cap, never the newest", () 
   const read = parseMarks(JSON.stringify({ version: 1, rejected: [...old, "app/new.md->app/other.md"] }));
   assert.equal(read.rejected.length, MAX_REJECTED);
   assert.equal(read.rejected[read.rejected.length - 1], "app/new.md->app/other.md");
+});
+
+test("a same-length edit of a document changes the proposals (the cache is keyed by content, not length)", () => {
+  const cfg = { ...(defaultRules as unknown as BoardConfig), projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] } as BoardConfig;
+  const build = (texts: Record<string, string>) => {
+    const { model } = setup();
+    return { items: model.items, snap: snapshotOf(texts) };
+  };
+  const a = build({ ...TEXT, "docs/launch.md": "# Launch\n\nBlocked by docs/plan_phase2.md." });
+  const b = build({ ...TEXT, "docs/launch.md": "# Launch\n\nBlocked by docs/plan_phase1.md." });
+  resetProposalCache();
+  const first = buildProposals(a.items, a.snap, cfg, [], undefined, new Set()).filter((p) => p.item.endsWith("launch.md")).map((p) => p.on);
+  const second = buildProposals(b.items, b.snap, cfg, [], undefined, new Set()).filter((p) => p.item.endsWith("launch.md")).map((p) => p.on);
+  assert.notDeepEqual(first, second, "PLAN_A to PLAN_B with the same length gives different proposals");
+  assert.ok(first.some((o) => o.endsWith("plan_phase2.md")) && second.some((o) => o.endsWith("plan_phase1.md")));
 });
 
 test("a proposal the board no longer offers is dropped at apply time", () => {
@@ -180,13 +195,15 @@ test("only High and Medium are counted; Low ones sit behind a toggle, default hi
   assert.deepEqual(proposalCounts([{ confidence: "low" }]), { main: 0, low: 1 });
   const { run, model } = setup();
   const lows = { ...model, proposals: [...model.proposals, { key: "app/docs/launch.md->app/docs/plan_phase1.md", item: "app:docs/launch.md", on: "app:docs/plan_phase1.md", confidence: "low", why: "Weak." }], rejectedCount: 3 } as BoardModel;
-  const posted: Array<{ rows: unknown[]; links: { low: number; lowOn: boolean; rejected: number } }> = [];
+  const posted: Array<{ rows: unknown[]; links: { low: number; lowOn: boolean; undo: number; shared: number } }> = [];
   const patches = new BoardPatches(() => ({ model: lows, run }), (m) => posted.push(m as never), () => undefined);
   patches.readLinks();
-  assert.deepEqual([posted[0].rows.length, posted[0].links], [2, { low: 1, lowOn: false, rejected: 3 }]);
+  assert.deepEqual([posted[0].rows.length, posted[0].links], [2, { low: 1, lowOn: false, undo: 0, shared: 0 }]);
   patches.readLinks(true);
   assert.deepEqual([posted[1].rows.length, posted[1].links.lowOn], [3, true]);
+  patches.lastRejected = ["a", "b"];
   patches.reshowLinks();
+  assert.equal(posted[2].links.undo, 2, "Undo reject counts only what the last Reject added");
   assert.equal(posted[2].rows.length, 3, "a list redrawn after a repaint keeps its Low setting");
 });
 

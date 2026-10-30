@@ -18,6 +18,8 @@ export interface MarksFile {
   needs: Record<string, string[]>;
   // Suggested links the user turned down, as "from->to" keys.
   rejected: string[];
+  // Set only on the merged marks: how many of `rejected` come from the shared file (read only here).
+  sharedRejected?: number;
 }
 
 // The key a document's mark is stored under: project id and path.
@@ -31,7 +33,10 @@ export function emptyMarks(): MarksFile {
 const MAX_ENTRIES = 5000;
 // The rejected list keeps this many keys; past it the oldest are dropped, so a new rejection always holds.
 export const MAX_REJECTED = 5000;
-const MAX_BYTES = 1_000_000;
+// The most a marks file written by the board may hold. Rejected keys are trimmed (oldest first) to fit.
+export const MAX_BYTES = 1_000_000;
+// A file bigger than this is not read at all (it did not come from the board); below it, what parses is kept.
+export const MAX_READ = 8_000_000;
 
 // The rejected keys with `add` appended as the newest; a key already there moves to the newest end.
 // Over the limit the oldest keys are dropped.
@@ -40,10 +45,28 @@ export function addRejected(list: readonly string[], add: readonly string[]): st
   return [...list.filter((k) => !fresh.has(k)), ...fresh].slice(-MAX_REJECTED);
 }
 
+// The marks with the oldest rejected keys dropped until the file written for them is within MAX_BYTES.
+// Undefined when it still does not fit with no rejected keys left: the caller must not write it then.
+export function fitMarks(f: MarksFile): MarksFile | undefined {
+  const size = (g: MarksFile): number => Buffer.byteLength(JSON.stringify(g), "utf8");
+  let over = size(f) - MAX_BYTES;
+  if (over <= 0) {
+    return f;
+  }
+  let drop = 0;
+  while (over > 0 && drop < f.rejected.length) {
+    // The key's quoted form plus its comma, exact for the JSON written.
+    over -= Buffer.byteLength(JSON.stringify(f.rejected[drop]), "utf8") + 1;
+    drop++;
+  }
+  const next = { ...f, rejected: f.rejected.slice(drop) };
+  return size(next) <= MAX_BYTES ? next : undefined;
+}
+
 // Reads a marks file, tolerating a missing or damaged one: bad parts are dropped.
 export function parseMarks(text: string | undefined): MarksFile {
   const out = emptyMarks();
-  if (!text || text.length > MAX_BYTES) {
+  if (!text || text.length > MAX_READ) {
     return out;
   }
   let data: Partial<MarksFile>;
@@ -79,7 +102,9 @@ export function mergeMarks(shared: MarksFile, local: MarksFile): MarksFile {
     version: 1,
     marks: { ...shared.marks, ...local.marks },
     needs,
-    rejected: [...new Set([...shared.rejected, ...local.rejected])].slice(-MAX_REJECTED),
+    // A key rejected locally again counts as the newest, whatever place it has in the shared file.
+    rejected: addRejected(shared.rejected, local.rejected),
+    sharedRejected: shared.rejected.length,
   };
 }
 

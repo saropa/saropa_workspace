@@ -340,7 +340,7 @@ export abstract class BoardPanelCore {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited), orgPrevious: orgPreviousInput(this.context) }
+      { needs: marks.needs, rejected: marks.rejected, sharedRejected: marks.sharedRejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited), orgPrevious: orgPreviousInput(this.context) }
     );
     saveOrgLayouts(this.context, this.model);
     const model = this.model;

@@ -394,6 +394,7 @@ export function buildBoard(
     suggestions,
     proposals,
     rejectedCount: extra?.rejected?.length ?? 0,
+    sharedRejectedCount: extra?.sharedRejected ?? 0,
     outside: extra?.outside?.groups ?? [],
     needsRule: needsRuleFolders(cfg, snapshot),
     ...(ctx.byUser.count > 0 ? { byUser: ctx.byUser } : {}),

@@ -32,7 +32,7 @@ export function resetProposalCache(): void {
   last = undefined;
 }
 
-// A short fingerprint of many strings (two 32-bit sums), so a change key costs one pass and no big string.
+// A short content hash of many strings (two 32-bit mixes over every character), so a change key costs one pass and no big string.
 function fingerprint(parts: Iterable<string>): string {
   let a = 0x9e3779b9;
   let b = 0x85ebca6b;
@@ -62,7 +62,7 @@ export function buildProposals(all: BoardItem[], snapshot: ScanSnapshot | undefi
     });
   const existing = links.filter((l) => l.toProject && l.toPath);
   const key = fingerprint([
-    ...docs.map((d) => `${d.project}\t${d.path}\t${d.title}\t${d.text.length}\t${d.early ?? 0}`),
+    ...docs.map((d) => `${d.project}\t${d.path}\t${d.title}\t${d.text}\t${d.early ?? 0}`),
     "|links",
     ...existing.map((l) => `${l.fromProject}/${l.fromPath}->${l.toProject}/${l.toPath}`),
     "|rejected",
