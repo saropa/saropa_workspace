@@ -1,6 +1,6 @@
 # Plan: code quality after the Release Board redesign
 
-Status: draft for owner review. Nothing here is decided. No source was changed to write it.
+Status: owner decided D1 option 1 (Phase 0 only) and D2 (extractions A and B as two commits). Phase 0 implemented on branch worktree-agent-a9f56a040ca52c643: A = 0bfd071 (boardPanelEdits.ts), B = b297dab (boardPanelFuture.ts); boardPanel.ts is now 479 lines. Phases 1-3 remain undecided drafts. Smoke checklist not yet run in a development host.
 Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 `bugs/` holds only `ISSUE_REPORT_GUIDE.md` (no plan-file convention), so this uses the fallback name.
