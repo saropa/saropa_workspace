@@ -5,6 +5,7 @@ import { decodeRules } from "../board/ruleAssign";
 import { BoardRun } from "./boardScanStore";
 import { pathExists } from "./boardFileSource";
 import { hasUnsavedCopy, isLink } from "./boardRuleAssign";
+import { withWriteLock, writeFileSafe } from "./boardWrite";
 
 // Release Board, Waits on: adds a "Needs:" line to a document, or takes one out, and puts the
 // document back byte for byte on Undo. The page never names a path: the caller resolves the
@@ -53,7 +54,7 @@ async function linked(root: vscode.Uri, path: string): Promise<boolean> {
 
 // Reads the document, or says why it was left alone.
 async function readDoc(uri: vscode.Uri, root: vscode.Uri, name: string): Promise<{ bytes: Uint8Array; text: string } | undefined> {
-  if (hasUnsavedCopy(uri)) {
+  if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.needs.unsaved", { file: name }));
     return undefined;
   }
@@ -83,6 +84,10 @@ export async function changeNeeds(run: BoardRun, doc: DocRef, change: NeedsChang
   if (!uri || !def) {
     return undefined;
   }
+  return withWriteLock(uri, () => changeNeedsNow(run, doc, change, uri, def));
+}
+
+async function changeNeedsNow(run: BoardRun, doc: DocRef, change: NeedsChange, uri: vscode.Uri, def: { path: string }): Promise<DocSnapshot | undefined> {
   const root = vscode.Uri.parse(def.path);
   const first = await readDoc(uri, root, doc.path);
   if (!first) {
@@ -110,7 +115,7 @@ export async function changeNeeds(run: BoardRun, doc: DocRef, change: NeedsChang
   }
   const after = Buffer.from(edit.text, "utf8");
   try {
-    await vscode.workspace.fs.writeFile(uri, after);
+    await writeFileSafe(uri, after);
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.needs.failed", { file: doc.path, error: e instanceof Error ? e.message : String(e) }));
     return undefined;
@@ -120,9 +125,13 @@ export async function changeNeeds(run: BoardRun, doc: DocRef, change: NeedsChang
 
 // Puts a document back to what the change replaced, only while it still holds exactly what that
 // change wrote, with the same checks as a write.
-export async function undoDocWrite(s: DocSnapshot): Promise<boolean> {
+export function undoDocWrite(s: DocSnapshot): Promise<boolean> {
+  return withWriteLock(s.uri, () => undoDocNow(s));
+}
+
+async function undoDocNow(s: DocSnapshot): Promise<boolean> {
   const name = s.uri.path.slice(s.uri.path.lastIndexOf("/") + 1);
-  if (hasUnsavedCopy(s.uri)) {
+  if (await hasUnsavedCopy(s.uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.needs.unsaved", { file: name }));
     return false;
   }
@@ -135,7 +144,7 @@ export async function undoDocWrite(s: DocSnapshot): Promise<boolean> {
     return false;
   }
   try {
-    await vscode.workspace.fs.writeFile(s.uri, s.before);
+    await writeFileSafe(s.uri, s.before);
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.needs.failed", { file: name, error: e instanceof Error ? e.message : String(e) }));
     return false;

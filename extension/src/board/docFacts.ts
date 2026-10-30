@@ -75,6 +75,13 @@ const DONE_WORDS = ["done", "applied", "merged", "fixed", "built", "implemented"
 const OPEN_WORDS = ["pending", "open", "partial", "not started", "in progress"];
 const DEFAULT_SOURCE_DIRS = ["lib", "test", "scripts", "supabase", "extension/src", "src"];
 
+// Hostile-text limits: facts read at most this many characters of a document, and a "Needs:" line
+// longer than MAX_LINE is not read as one. Every pattern below is linear within these.
+export const MAX_FACTS_CHARS = 2_000_000;
+export const MAX_LINE = 2000;
+
+const isWs = (c: string | undefined): boolean => c !== undefined && /\s/.test(c);
+
 function unique(matches: IterableIterator<RegExpMatchArray>, group = 0): number {
   const set = new Set<string>();
   for (const m of matches) {
@@ -108,12 +115,66 @@ function sqlTitle(text: string): string {
   return "";
 }
 
+// One Needs line split into its label (with the markers before it) and the text after it, or
+// undefined when the line is not one. Same shape as /^([ \t>*_-]*needs\**[ \t]*:[ \t]*\**[ \t]*)(.+)$/i,
+// read left to right so a run of spaces or `*` costs linear time.
+export function needsLineParts(line: string): { label: string; rest: string } | undefined {
+  if (line.length > MAX_LINE) {
+    return undefined;
+  }
+  let i = 0;
+  while (i < line.length && " \t>*_-".includes(line[i])) {
+    i++;
+  }
+  if (line.slice(i, i + 5).toLowerCase() !== "needs") {
+    return undefined;
+  }
+  i += 5;
+  while (line[i] === "*") {
+    i++;
+  }
+  while (line[i] === " " || line[i] === "\t") {
+    i++;
+  }
+  if (line[i] !== ":") {
+    return undefined;
+  }
+  const start = ++i;
+  while (line[i] === " " || line[i] === "\t") {
+    i++;
+  }
+  while (line[i] === "*") {
+    i++;
+  }
+  while (line[i] === " " || line[i] === "\t") {
+    i++;
+  }
+  // The text after the label cannot be empty: give back the last label character when it is.
+  if (i >= line.length) {
+    if (i === start) {
+      return undefined;
+    }
+    i--;
+  }
+  const rest = line.slice(i);
+  return /[\r\u2028\u2029]/.test(rest) ? undefined : { label: line.slice(0, i), rest };
+}
+
 // "Needs: docs/PLAN_A.md, [Other](../x/PLAN_B.md); supabase:db-access/run.sql" gives the
 // three targets. A target is a path, a file name, a Markdown link, or "project:path".
 export function parseNeeds(body: string): string[] {
   const out: string[] = [];
-  for (const m of body.matchAll(/^[ \t>*_-]*needs\**[ \t]*:[ \t]*\**[ \t]*(.+)$/gim)) {
-    for (const t of needsTargets(m[1])) {
+  for (const raw of body.split(/\r?\n/)) {
+    if (raw.length > MAX_LINE) {
+      continue;
+    }
+    // A lone carriage return or Unicode line break ends a line for the old reader too.
+    const line = raw.split(/[\r\u2028\u2029]/)[0];
+    const m = needsLineParts(line);
+    if (!m) {
+      continue;
+    }
+    for (const t of needsTargets(m.rest)) {
       if (!out.includes(t)) {
         out.push(t);
       }
@@ -122,11 +183,99 @@ export function parseNeeds(body: string): string[] {
   return out;
 }
 
+// Calls `f(whole, target)` for each Markdown link "[text](target)" and puts its result in place of
+// the link. Linear: every "](" is looked at once.
+export function mapLinks(text: string, f: (whole: string, target: string) => string): string {
+  let out = "";
+  let copied = 0;
+  let failUntil = -1;
+  let j = text.indexOf("](");
+  while (j >= 0) {
+    const from = Math.max(text.lastIndexOf("]", j - 1) + 1, copied);
+    const open = j >= from ? text.indexOf("[", from) : -1;
+    if (open >= 0 && open < j && j + 2 > failUntil) {
+      let q = j + 2;
+      while (q < text.length && text[q] !== ")" && !isWs(text[q])) {
+        q++;
+      }
+      if (text[q] === ")" && q > j + 2) {
+        out += text.slice(copied, open) + f(text.slice(open, q + 1), text.slice(j + 2, q));
+        copied = q + 1;
+        j = text.indexOf("](", copied);
+        continue;
+      }
+      // Every "](" before q reaches the same stop, so none of them is a link.
+      failUntil = q;
+    }
+    j = text.indexOf("](", j + 1);
+  }
+  return out + text.slice(copied);
+}
+
+// The separators in a Needs line: ";" and "," and " and " (with spaces around). With `wide`, a
+// ";" or "," takes the spaces around it too. Linear: each space run is looked at once.
+export function needsSeparators(s: string, wide: boolean): Array<{ index: number; len: number }> {
+  const out: Array<{ index: number; len: number }> = [];
+  const isSep = (c: string | undefined): boolean => c === ";" || c === ",";
+  let i = 0;
+  while (i < s.length) {
+    if (!wide && isSep(s[i])) {
+      out.push({ index: i, len: 1 });
+      i++;
+      continue;
+    }
+    if (!isWs(s[i]) && !(wide && isSep(s[i]))) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (isWs(s[j])) {
+      j++;
+    }
+    const isAnd = j > i && s.startsWith("and", j) && isWs(s[j + 3]);
+    if ((wide && isSep(s[j])) || isAnd) {
+      let k = j + (isAnd ? 3 : 1);
+      while (isWs(s[k])) {
+        k++;
+      }
+      out.push({ index: i, len: k - i });
+      i = k;
+    } else {
+      i = j;
+    }
+  }
+  return out;
+}
+
+const WRAP_LEAD = "`*_\"'<(";
+const WRAP_TAIL = "`*_\"'>).";
+
 // The targets one Needs line names, after its "Needs:" label.
 export function needsTargets(rest: string): string[] {
   // A Markdown link stands for its target, so a comma in the link text splits nothing.
-  const line = rest.replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
-  return line.split(/[;,]|\s+and\s+/).map((part) => part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "")).filter((t) => t !== "");
+  const line = mapLinks(rest.slice(0, MAX_LINE), (_, target) => target);
+  const parts: string[] = [];
+  let from = 0;
+  for (const sep of needsSeparators(line, false)) {
+    parts.push(line.slice(from, sep.index));
+    from = sep.index + sep.len;
+  }
+  parts.push(line.slice(from));
+  return parts.map(stripWrap).filter((t) => t !== "");
+}
+
+// Trims a part and takes the quotes, backticks, brackets and full stop around it off.
+function stripWrap(part: string): string {
+  const t = part.trim();
+  let a = 0;
+  while (a < t.length && WRAP_LEAD.includes(t[a])) {
+    a++;
+  }
+  let b = t.length;
+  while (b > a && WRAP_TAIL.includes(t[b - 1])) {
+    b--;
+  }
+  return t.slice(a, b);
 }
 
 // Counts the code blocks by language tag. Opening fences carry the tag; closing fences have none.
@@ -154,6 +303,46 @@ function findMentions(body: string, patterns: Record<string, string>): string[] 
     }
   }
   return mentions.sort();
+}
+
+// The text of a Markdown heading line ("#" to "######" and a space), or undefined when the line is
+// not one. `lazy` also takes the closing "#" marks and spaces off the end. Read left to right,
+// where the patterns it replaces took quadratic time on a long run of spaces.
+function headingText(line: string, maxHashes: number, lazy: boolean): string | undefined {
+  let n = 0;
+  while (line[n] === "#") {
+    n++;
+  }
+  if (n < 1 || n > maxHashes) {
+    return undefined;
+  }
+  let e = n;
+  while (line[e] === " " || line[e] === "\t") {
+    e++;
+  }
+  if (e === n) {
+    return undefined;
+  }
+  let rest = line.slice(e);
+  const term = rest.search(/[\r\u2028\u2029]/);
+  if (term >= 0) {
+    if (lazy) {
+      return undefined;
+    }
+    rest = rest.slice(0, term);
+  }
+  if (rest === "") {
+    // Two or more spaces leave the last one as the heading text.
+    return e - n >= 2 ? " " : undefined;
+  }
+  if (lazy) {
+    let end = rest.length;
+    while (end > 1 && " \t#".includes(rest[end - 1])) {
+      end--;
+    }
+    return rest.slice(0, end);
+  }
+  return rest;
 }
 
 // The text of an open checklist box on this line, or undefined when the line has none.
@@ -194,9 +383,9 @@ function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: Do
     }
   };
   lines.forEach((l, i) => {
-    const h = /^#{1,6}[ \t]+(.+?)[ \t#]*$/.exec(l);
-    if (h) {
-      heading = h[1].trim().slice(0, STEP_TEXT);
+    const h = headingText(l, 6, true);
+    if (h !== undefined) {
+      heading = h.trim().slice(0, STEP_TEXT);
     }
     const box = checkboxText(l);
     if (box !== undefined) {
@@ -234,8 +423,44 @@ function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: Do
 // True when the board reads Needs lines in this kind of document (SQL files have none).
 export const readsNeeds = (path: string): boolean => !path.toLowerCase().endsWith(".sql");
 
+// The Markdown file names in the text, in order: what /[\w./-]{1,200}\.md/g finds, without its
+// quadratic cost on a long run of name characters (such as an inline base64 image).
+function findDocRefs(body: string): string[] {
+  const out: string[] = [];
+  for (const run of body.matchAll(/[\w./-]+/g)) {
+    const r = run[0];
+    const at: number[] = [];
+    for (let p = r.indexOf(".md"); p >= 0; p = r.indexOf(".md", p + 1)) {
+      at.push(p);
+    }
+    let s = 0;
+    let k = 0;
+    while (at.length > 0 && s < r.length) {
+      // The last ".md" that starts 1 to 200 characters after s.
+      while (k < at.length && at[k] <= s) {
+        k++;
+      }
+      let last = -1;
+      for (let m = k; m < at.length && at[m] <= s + 200; m++) {
+        last = at[m];
+      }
+      if (last >= 0) {
+        out.push(r.slice(s, last + 3));
+        s = last + 3;
+      } else if (k < at.length) {
+        s = at[k] - 200;
+      } else {
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 // Reads the facts of one document from its text. `path` decides how the text is read (SQL or Markdown).
-export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
+export function readFacts(fullText: string, path: string, opt: FactsOptions = {}): DocFacts {
+  // Facts read a bounded part of a document, so a huge one cannot stall the board.
+  const text = fullText.length > MAX_FACTS_CHARS ? fullText.slice(0, MAX_FACTS_CHARS) : fullText;
   const isSql = path.toLowerCase().endsWith(".sql");
   const fenceLines = [...text.matchAll(/^```(\w*)/gm)];
   const langs = countLangs(fenceLines);
@@ -243,21 +468,24 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
   // A fenced block leaves its line breaks behind, so line numbers still match the file.
   const body = isSql ? text : text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
 
-  const stepsOpen = (body.match(/^\s*[-*] \[ \]/gm) ?? []).length;
-  const stepsDone = (body.match(/^\s*[-*] \[[xX]\]/gm) ?? []).length;
+  // Line by line, so a long run of blank lines or spaces costs linear time.
+  const lines = body.split(/\r\n|[\n\r\u2028\u2029]/);
+  const stepsOpen = lines.filter((l) => /^\s*[-*] \[ \]/.test(l)).length;
+  const stepsDone = lines.filter((l) => /^\s*[-*] \[[xX]\]/.test(l)).length;
   const { rowsAll, rowsDone, steps, stepsCut } = isSql ? { rowsAll: 0, rowsDone: 0, steps: [] as DocStep[], stepsCut: 0 } : scanSteps(body);
-  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})[ \t]+(.+)$/gm)];
-  const title = isSql ? sqlTitle(text) : (heads[0]?.[2] ?? "").trim().slice(0, 80);
+  const heads = isSql ? [] : lines.map((l) => headingText(l, 3, false)).filter((h): h is string => h !== undefined);
+  const title = isSql ? sqlTitle(text) : (heads[0] ?? "").trim().slice(0, 80);
 
   const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
   const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
   const mentions = findMentions(body, opt.mentions ?? {});
+  const docRefs = findDocRefs(body);
   const front = isSql ? undefined : readFrontMatter(text);
   return {
     title,
     headings: heads.length,
     words: body.split(/\s+/).filter(Boolean).length,
-    chars: text.length,
+    chars: fullText.length,
     stepsOpen,
     stepsDone,
     steps,
@@ -266,8 +494,8 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     rowsDone,
     codeBlocks,
     langs: isSql ? { sql: 1 } : langs,
-    docRefs: unique(body.matchAll(/[\w./-]{1,200}\.md/g)),
-    docRefNames: [...new Set([...body.matchAll(/[\w./-]{1,200}\.md/g)].map((m) => m[0]))].sort().slice(0, 60),
+    docRefs: new Set(docRefs).size,
+    docRefNames: [...new Set(docRefs)].sort().slice(0, 60),
     sourceRefs: unique(text.matchAll(srcRe)),
     sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
     needs: readsNeeds(path) ? parseNeeds(body) : [],

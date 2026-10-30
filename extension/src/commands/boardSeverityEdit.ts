@@ -3,6 +3,7 @@ import { l10n } from "../i18n/l10n";
 import { SeverityDict } from "../board/severity";
 import { EditRefusal, EditResult, PreviewResult, SeverityDraft, applyDraft, dictOfSeverity, removeSeverity } from "../board/severityEdit";
 import { RULES_FILE } from "./boardConfigLoad";
+import { withWriteLock, writeFileSafe } from "./boardWrite";
 import { RulesSnapshot, hasUnsavedCopy, isLink, plainWriteError, readRules, sameRead } from "./boardRuleAssign";
 
 // Release Board, saving the keyword editor into the `severity` key of the rules file. The same
@@ -94,8 +95,12 @@ export async function saveSeverity(change: SeverityChange, opts: SaveOptions = {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
     return "refused";
   }
+  return withWriteLock(vscode.Uri.joinPath(root.uri, RULES_FILE), () => saveSeverityNow(change, opts, root));
+}
+
+async function saveSeverityNow(change: SeverityChange, opts: SaveOptions, root: vscode.WorkspaceFolder): Promise<SaveOutcome> {
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri)) {
+  if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
     return "refused";
   }
@@ -131,7 +136,7 @@ export async function saveSeverity(change: SeverityChange, opts: SaveOptions = {
     return "declined";
   }
   // The file is read again just before the write: a change made while the dialog was open wins.
-  if (hasUnsavedCopy(uri) || !sameRead(await readRules(uri), before)) {
+  if ((await hasUnsavedCopy(uri)) || !sameRead(await readRules(uri), before)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.changed", { file: RULES_FILE }));
     return "refused";
   }
@@ -148,13 +153,13 @@ export async function saveSeverity(change: SeverityChange, opts: SaveOptions = {
       madeDir = true;
     }
     await vscode.workspace.fs.createDirectory(dir);
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
+    await writeFileSafe(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
     void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     return "refused";
   }
   if (opts.onSnapshot && change.kind === "draft") {
-    opts.onSnapshot({ before: text, after: result.text, ...(madeDir ? { madeDir } : {}) });
+    opts.onSnapshot({ before: text, after: result.text, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
   } else {
     void vscode.window.showInformationMessage(l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saved" : "releaseBoard.keywords.msg.restored", { file: RULES_FILE }));
   }

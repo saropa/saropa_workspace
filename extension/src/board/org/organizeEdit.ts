@@ -453,13 +453,26 @@ function editOrganize(text: string | undefined, change: (org: Record<string, unk
 
 const PART_KEYS = ["tags", "linkWords", "naming"] as const;
 
-// Replaces the tags, link words and naming of the file with the state; the other `organize` keys stay.
+// The keys each part holds that the editor owns; any other key inside a part (from a newer version) stays on a save.
+const OWN_KEYS: Record<(typeof PART_KEYS)[number], readonly string[]> = {
+  tags: ["add", "replace", "off", "order"],
+  linkWords: ["off", "add"],
+  naming: ["dates", "prefixes", "acronyms"],
+};
+
+// Sets the tags, link words and naming of the file from the state; the other `organize` keys stay, and so do
+// keys inside each part that the editor does not know (merged, never replaced).
 export function applyState(text: string | undefined, state: EditorState): EditOutcome {
   const parts = organizeFromState(state);
   return editOrganize(text, (org) => {
     for (const k of PART_KEYS) {
-      if (parts[k]) {
-        org[k] = parts[k];
+      const kept: Record<string, unknown> = isObject(org[k]) ? { ...(org[k] as Record<string, unknown>) } : {};
+      for (const own of OWN_KEYS[k]) {
+        delete kept[own];
+      }
+      const next = { ...kept, ...((parts[k] as Record<string, unknown> | undefined) ?? {}) };
+      if (Object.keys(next).length) {
+        org[k] = next;
       } else {
         delete org[k];
       }

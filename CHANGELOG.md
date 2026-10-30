@@ -75,6 +75,9 @@ The Release Board is calmer: red only for what really blocks a release, a one-li
 - **Release Board: Hand to chat is replaced by Hand off.** The row, Path to GO and Sittings buttons and the six `releaseBoard.handToChat.*` settings are gone. The Future tab's **Hand all** now saves one research hand-off for the flagged documents and asks for one confirmation.
 - **Release Board: Path to GO steps and Sittings lines cannot be handed off yet.** Hand off covers documents, groups, projects, chosen items and the whole board; a hand-off over several projects now writes one document in each project's own folder and copies one line naming all of them.
 
+### Fixed
+- **Release Board: safer saving.** Saves to the rules file and to documents now wait their turn instead of overwriting each other, replace the file whole (a failed save leaves the old file as it was), and refuse a folder that cannot be written. Undo in the Tags editor goes back to the folder you saved in, saving the Tags editor keeps settings it does not know, and a hand-off no longer follows links, overwrites your own `.gitignore` or runs a sibling folder name as a command. Very large or hostile documents no longer freeze the editor while the board reads them.
+
 ---
 
 ## [2.5.0]

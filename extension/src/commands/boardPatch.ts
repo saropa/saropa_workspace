@@ -9,6 +9,7 @@ import { addNeedsLine, applyRuleRow, needsSpellings, needsWrite, removeNeedsLine
 import { decodeRules, ruleCategories } from "../board/ruleAssign";
 import { pathExists } from "./boardFileSource";
 import { RULES_FILE } from "./boardConfigLoad";
+import { withWriteLock, writeFileSafe } from "./boardWrite";
 import { RulesSnapshot, changeRules, hasUnsavedEdits, isLink, plainWriteError, undoRulesWrite } from "./boardRuleAssign";
 import { BoardRun } from "./boardScanStore";
 
@@ -149,54 +150,56 @@ async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, 
     return skip("path");
   }
   const uri = vscode.Uri.file(real);
-  if (await hasUnsavedEdits(real, shown)) {
-    return skip("unsaved");
-  }
-  if (await isLink(uri)) {
-    return skip("link");
-  }
-  if (!(await pathExists(uri))) {
-    return skip("missing");
-  }
-  if ((await vscode.workspace.fs.stat(uri)).size > MAX_DOC_BYTES) {
-    return skip("large");
-  }
-  const before = decodeRules(await vscode.workspace.fs.readFile(uri));
-  if (before === undefined) {
-    return skip("encoding");
-  }
-  let text = before;
-  let done = 0;
-  for (const r of rows) {
-    const other = targets.get(r.change.on ?? "");
-    if (!other) {
-      continue;
+  return withWriteLock(uri, async () => {
+    if (await hasUnsavedEdits(real, shown)) {
+      return skip("unsaved");
     }
-    const e = r.change.op === "addNeeds" ? addNeedsLine(text, needsWrite(me, other)) : removeNeedsLine(text, needsSpellings(me, other));
-    if (e.ok) {
-      text = e.text;
-      done++;
+    if (await isLink(uri)) {
+      return skip("link");
     }
-  }
-  if (done === 0) {
-    return skip("nochange");
-  }
-  if ((await hasUnsavedEdits(real, shown)) || decodeRules(await vscode.workspace.fs.readFile(uri)) !== before) {
-    return skip("changed");
-  }
-  try {
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(text, "utf8"));
-  } catch (e) {
-    void vscode.window.showErrorMessage(plainWriteError(e, me.path));
-    // A write that failed late may still have landed; keep it undoable when it did.
-    if (decodeRules(await vscode.workspace.fs.readFile(uri).then((b) => b, () => new Uint8Array())) === text) {
-      snapshot.docs.push({ uri, shown, before, after: text });
-      return done;
+    if (!(await pathExists(uri))) {
+      return skip("missing");
     }
-    return skip("failed");
-  }
-  snapshot.docs.push({ uri, shown, before, after: text });
-  return done;
+    if ((await vscode.workspace.fs.stat(uri)).size > MAX_DOC_BYTES) {
+      return skip("large");
+    }
+    const before = decodeRules(await vscode.workspace.fs.readFile(uri));
+    if (before === undefined) {
+      return skip("encoding");
+    }
+    let text = before;
+    let done = 0;
+    for (const r of rows) {
+      const other = targets.get(r.change.on ?? "");
+      if (!other) {
+        continue;
+      }
+      const e = r.change.op === "addNeeds" ? addNeedsLine(text, needsWrite(me, other)) : removeNeedsLine(text, needsSpellings(me, other));
+      if (e.ok) {
+        text = e.text;
+        done++;
+      }
+    }
+    if (done === 0) {
+      return skip("nochange");
+    }
+    if ((await hasUnsavedEdits(real, shown)) || decodeRules(await vscode.workspace.fs.readFile(uri)) !== before) {
+      return skip("changed");
+    }
+    try {
+      await writeFileSafe(uri, Buffer.from(text, "utf8"));
+    } catch (e) {
+      void vscode.window.showErrorMessage(plainWriteError(e, me.path));
+      // A write that failed late may still have landed; keep it undoable when it did.
+      if (decodeRules(await vscode.workspace.fs.readFile(uri).then((b) => b, () => new Uint8Array())) === text) {
+        snapshot.docs.push({ uri, shown, before, after: text });
+        return done;
+      }
+      return skip("failed");
+    }
+    snapshot.docs.push({ uri, shown, before, after: text });
+    return done;
+  });
 }
 
 const PASTED_COPY = /^pasted-[\w.-]+\.patch\.json$/;
@@ -240,21 +243,26 @@ export async function undoBatch(s: BatchSnapshot): Promise<boolean> {
   for (const d of [...s.docs]) {
     const file = path.posix.basename(d.uri.path);
     try {
-      if (await hasUnsavedEdits(d.uri.fsPath, d.shown)) {
-        void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file }));
-        ok = false;
-        continue;
-      }
-      const now = (await isLink(d.uri)) || !(await pathExists(d.uri)) ? undefined : decodeRules(await vscode.workspace.fs.readFile(d.uri));
-      if (now !== d.before) {
-        if (now !== d.after) {
-          void vscode.window.showWarningMessage(l10n("releaseBoard.undo.changed", { file }));
-          ok = false;
-          continue;
+      const done = await withWriteLock(d.uri, async (): Promise<boolean> => {
+        if (await hasUnsavedEdits(d.uri.fsPath, d.shown)) {
+          void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file }));
+          return false;
         }
-        await vscode.workspace.fs.writeFile(d.uri, Buffer.from(d.before, "utf8"));
+        const now = (await isLink(d.uri)) || !(await pathExists(d.uri)) ? undefined : decodeRules(await vscode.workspace.fs.readFile(d.uri));
+        if (now !== d.before) {
+          if (now !== d.after) {
+            void vscode.window.showWarningMessage(l10n("releaseBoard.undo.changed", { file }));
+            return false;
+          }
+          await writeFileSafe(d.uri, Buffer.from(d.before, "utf8"));
+        }
+        return true;
+      });
+      if (done) {
+        s.docs.splice(s.docs.indexOf(d), 1);
+      } else {
+        ok = false;
       }
-      s.docs.splice(s.docs.indexOf(d), 1);
     } catch (e) {
       ok = false;
       void vscode.window.showErrorMessage(plainWriteError(e, file));

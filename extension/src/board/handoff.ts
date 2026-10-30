@@ -385,7 +385,8 @@ export function referralLine(files: string | string[]): string {
 // project), the default file path in the template is replaced by all of them.
 export function terminalCommand(template: string, id: string, files?: string[]): string {
   const one = `${HANDOFF_DIR}/{id}.md`;
-  const t = files && files.length > 1 && template.includes(one) ? template.replace(one, files.join(" and ")).replace(/action it\b/, "action them") : template;
+  // A function replacer, so "$&" and similar in a folder name are never read as replacement patterns.
+  const t = files && files.length > 1 && template.includes(one) ? template.replace(one, () => files.join(" and ")).replace(/action it\b/, "action them") : template;
   return t.replace(/\{id\}/g, id);
 }
 
@@ -401,3 +402,11 @@ export function staleHandoffFiles(names: string[], keep = KEEP_HANDOFFS): string
   const drop = new Set(ids.slice(keep));
   return names.filter((n) => drop.has(idOf(n) ?? ""));
 }
+
+// Letters, digits, spaces and . _ / @ + = : , ~ - only. The paths of other projects are put inside the user's own
+// command (which may be quoted or not, in any shell), so anything a shell reads as more than text (dollar, backtick,
+// quotes, backslash, ; & | < > ( ) { } * ? ! # % ^ or a line break) is not allowed; such a folder is never put into a command.
+const SAFE_COMMAND_PATH = /^[\p{L}\p{N} ._/@+=:,~-]+$/u;
+
+// The first path that cannot be put into a terminal command safely, or undefined when all can.
+export const unsafeCommandPath = (paths: readonly string[]): string | undefined => paths.find((p) => !SAFE_COMMAND_PATH.test(p));
