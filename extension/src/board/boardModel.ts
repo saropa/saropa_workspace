@@ -352,6 +352,12 @@ export function buildBoard(
     { manual: cfg.groups, ungrouped: cfg.ungrouped }
   );
   const links = resolveLinks(rows, collectNeeds(rows, snapshot, extra?.needs), cfg.projects);
+  const inText = collectNeeds(rows, snapshot, undefined);
+  for (const l of links) {
+    if (!inText.get(itemKey(l.fromProject, l.fromPath))?.includes(l.target)) {
+      l.markOnly = true;
+    }
+  }
   const byKey = new Map(all.map((it) => [itemKey(it.project, it.path), it]));
   attachLinks(all, links, grouping, byKey);
   const suggestions = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);

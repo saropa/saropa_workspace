@@ -21,6 +21,9 @@ export type NeedsChange = { kind: "add"; target: string; to: DocRef } | { kind: 
 // What a write replaced, as bytes: Undo puts `before` back, and only while the file still holds `after`.
 export interface DocSnapshot {
   uri: vscode.Uri;
+  // The project folder and the document's path in it, for the symbolic link check on Undo.
+  root: vscode.Uri;
+  path: string;
   before: Uint8Array;
   after: Uint8Array;
 }
@@ -92,7 +95,7 @@ export async function changeNeeds(run: BoardRun, doc: DocRef, change: NeedsChang
       return undefined;
     }
   }
-  const edit = change.kind === "add" ? addNeed(first.text, change.target) : removeNeed(first.text, change.target);
+  const edit = change.kind === "add" ? addNeed(first.text, change.target, doc.path) : removeNeed(first.text, change.target, doc.path);
   if (!edit.ok) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.needs." + edit.reason, { file: doc.path, target: change.target }));
     return undefined;
@@ -112,7 +115,7 @@ export async function changeNeeds(run: BoardRun, doc: DocRef, change: NeedsChang
     void vscode.window.showErrorMessage(l10n("releaseBoard.needs.failed", { file: doc.path, error: e instanceof Error ? e.message : String(e) }));
     return undefined;
   }
-  return { uri, before: first.bytes, after };
+  return { uri, root, path: doc.path, before: first.bytes, after };
 }
 
 // Puts a document back to what the change replaced, only while it still holds exactly what that
@@ -123,7 +126,7 @@ export async function undoDocWrite(s: DocSnapshot): Promise<boolean> {
     void vscode.window.showWarningMessage(l10n("releaseBoard.needs.unsaved", { file: name }));
     return false;
   }
-  if (await isLink(s.uri)) {
+  if (await linked(s.root, s.path)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.needs.symlink", { file: name }));
     return false;
   }

@@ -227,6 +227,9 @@ function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: Do
   return res;
 }
 
+// True when the board reads Needs lines in this kind of document (SQL files have none).
+export const readsNeeds = (path: string): boolean => !path.toLowerCase().endsWith(".sql");
+
 // Reads the facts of one document from its text. `path` decides how the text is read (SQL or Markdown).
 export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
   const isSql = path.toLowerCase().endsWith(".sql");
@@ -262,7 +265,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     docRefNames: [...new Set([...body.matchAll(/[\w./-]{1,200}\.md/g)].map((m) => m[0]))].sort().slice(0, 60),
     sourceRefs: unique(text.matchAll(srcRe)),
     sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
-    needs: isSql ? [] : parseNeeds(body),
+    needs: readsNeeds(path) ? parseNeeds(body) : [],
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
     mentions,

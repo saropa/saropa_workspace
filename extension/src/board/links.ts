@@ -25,6 +25,8 @@ export interface Link {
   state: LinkState;
   toProject?: string;
   toPath?: string;
+  // Held only by a link the user accepted: the document has no Needs line for it.
+  markOnly?: boolean;
 }
 
 const key = (project: string, path: string): string => project + "\t" + path;

@@ -90,3 +90,15 @@ test("cancelling the picker changes nothing", async () => {
   assert.equal(await pickNeeds(run, model, items[0], "waits"), undefined);
   assert.deepEqual(stub.__warningMessages(), []);
 });
+
+test("a link held only by an accepted mark has no remove entry", async () => {
+  const { run, model } = setup([["docs/A.md", ["docs/B.md"]]]);
+  model.links[0].markOnly = true;
+  let seen: Array<{ label: string }> = [];
+  vs.__setPickHandler(async (list) => {
+    seen = list as Array<{ label: string }>;
+    return undefined;
+  });
+  await pickNeeds(run, model, items[0], "waits");
+  assert.deepEqual(seen.map((i) => i.label), ["◆ Doc C"]);
+});

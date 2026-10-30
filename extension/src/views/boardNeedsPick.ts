@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import type { BoardItem, BoardModel } from "../board/boardModel";
 import { Link, needTarget, wouldCircle } from "../board/links";
+import { readsNeeds } from "../board/docFacts";
 import { BoardRun } from "../commands/boardScanStore";
 import { DocRef, NeedsChange } from "../commands/boardNeeds";
 
@@ -36,12 +37,15 @@ export async function pickNeeds(run: BoardRun, model: BoardModel, item: BoardIte
   const mine = model.links.filter((l) => (dir === "waits" ? l.fromProject === item.project && l.fromPath === item.path : l.toProject === item.project && l.toPath === item.path));
   const other = (l: Link): BoardItem | undefined => (dir === "waits" ? (l.toProject && l.toPath ? at(l.toProject, l.toPath) : undefined) : at(l.fromProject, l.fromPath));
   const linked = new Set(mine.map((l) => other(l)?.id));
-  const picks: Pick[] = mine.map((link) => {
-    const o = other(link);
-    return { label: l10n("releaseBoard.needs.remove", { name: o?.title ?? link.target }), description: link.state === "open" ? "" : link.state, link };
-  });
+  // Only a link a Needs line holds can be removed here: an accepted link has no line to take out.
+  const picks: Pick[] = mine
+    .filter((l) => !l.markOnly && readsNeeds(l.fromPath))
+    .map((link) => {
+      const o = other(link);
+      return { label: l10n("releaseBoard.needs.remove", { name: o?.title ?? link.target }), description: link.state === "open" ? "" : l10n("releaseBoard.needs.state." + link.state), link };
+    });
   const projects = new Map(model.projects.map((p) => [p.id, p.name]));
-  for (const i of model.items.filter((x) => x.id !== item.id && !linked.has(x.id)).sort((a, b) => a.project.localeCompare(b.project) || a.title.localeCompare(b.title))) {
+  for (const i of model.items.filter((x) => x.id !== item.id && !linked.has(x.id) && (dir === "waits" || readsNeeds(x.path))).sort((a, b) => a.project.localeCompare(b.project) || a.title.localeCompare(b.title))) {
     picks.push({ label: `${SHAPES[i.status] ?? "○"} ${i.title}`, description: projects.get(i.project) ?? i.project, detail: i.path, item: i });
   }
   const chosen = await vscode.window.showQuickPick(picks, { title: l10n(dir === "waits" ? "releaseBoard.needs.titleWaits" : "releaseBoard.needs.titleBlocks", { title: item.title }), placeHolder: l10n("releaseBoard.needs.search"), matchOnDescription: true, matchOnDetail: true });

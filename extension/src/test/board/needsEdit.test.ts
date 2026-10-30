@@ -46,7 +46,7 @@ test("a target already named, or one a line cannot read back, is refused", () =>
 });
 
 test("removing a target drops its line, or just the target from a shared line", () => {
-  assert.equal(ok(removeNeed("# T\n\nNeeds: A.md\n\nbody\n", "A.md")), "# T\n\n\nbody\n");
+  assert.equal(ok(removeNeed("# T\n\nNeeds: A.md\n\nbody\n", "A.md")), "# T\n\nbody\n");
   assert.equal(ok(removeNeed("Needs: A.md, [B](../B.md); C.md\nbody", "../B.md")), "Needs: A.md, C.md\nbody");
   assert.equal(ok(removeNeed("# T\r\nNeeds: A.md", "A.md")), "# T");
   assert.equal(ok(removeNeed("Needs: A.md\r\nbody\r\n", "A.md")), "body\r\n");
@@ -78,4 +78,29 @@ test("a circle is found through any length of chain, and a document waiting on i
   assert.equal(wouldCircle(links, n("app", "docs/B.md"), n("app", "docs/A.md")), true);
   assert.equal(wouldCircle(links, n("app", "docs/A.md"), n("db", "x/C.md")), false);
   assert.equal(wouldCircle(links, n("app", "docs/A.md"), n("app", "docs/A.md")), true);
+});
+
+test("a Needs line is not written into a document type the board does not read it in", () => {
+  assert.deepEqual(addNeed("select 1;\n", "A.md", "db/run.sql"), { ok: false, reason: "type" });
+  assert.deepEqual(addNeed("select 1;\n", "A.md", "db/RUN.SQL"), { ok: false, reason: "type" });
+  assert.deepEqual(removeNeed("Needs: A.md\n", "A.md", "db/run.sql"), { ok: false, reason: "type" });
+  assert.equal(ok(addNeed("# T\n", "A.md", "docs/p.md")), "# T\n\nNeeds: A.md\n");
+});
+
+test("a heading inside front matter or a fence is not the heading", () => {
+  assert.equal(ok(addNeed("---\n# generated\ntitle: x\n---\n# Real\n", "A.md")), "---\n# generated\ntitle: x\n---\n# Real\n\nNeeds: A.md\n");
+  assert.equal(ok(addNeed("~~~\n# code\n~~~\n# Real\n", "A.md")), "~~~\n# code\n~~~\n# Real\n\nNeeds: A.md\n");
+  assert.equal(ok(addNeed("---\n# generated\n---\nBody\n", "A.md")), "---\n# generated\n---\n\nNeeds: A.md\n\nBody\n");
+});
+
+test("removing a target cuts only its own part of the line", () => {
+  assert.equal(ok(removeNeed("Needs: [Spec](a.md) and b.md\n", "b.md")), "Needs: [Spec](a.md)\n");
+  assert.equal(ok(removeNeed("Needs: [Spec](a.md) and b.md\n", "a.md")), "Needs: b.md\n");
+  assert.equal(ok(removeNeed("- **Needs:** [S, T](a.md); b.md; c.md\n", "b.md")), "- **Needs:** [S, T](a.md); c.md\n");
+});
+
+test("adding a line and removing it again gives back the same text", () => {
+  for (const text of ["# Plan\n\nBody text\n", "Body\n", "# T\n", "# T", "---\nx: 1\n---\n\nBody\n", "# T\r\n\r\nbody\r\n", ""]) {
+    assert.equal(ok(removeNeed(ok(addNeed(text, "A.md")), "A.md")), text, JSON.stringify(text));
+  }
 });

@@ -125,3 +125,25 @@ test("a project that is not on the board gets no change", async () => {
   const { run } = setup();
   assert.equal(await changeNeeds(run, { project: "nope", path: "docs/A.md" }, add), undefined);
 });
+
+test("a SQL document is never given a Needs line", async () => {
+  const { dir, run } = setup();
+  const sql = path.join(dir, "docs", "run.sql");
+  fs.writeFileSync(sql, "select 1;\n");
+  assert.equal(await changeNeeds(run, { project: "app", path: "docs/run.sql" }, add), undefined);
+  assert.equal(fs.readFileSync(sql, "utf8"), "select 1;\n");
+  assert.ok(stub.__warningMessages().some((m) => m.includes("does not read Needs")));
+});
+
+test("Undo is refused when a folder above the document became a symbolic link", async () => {
+  const { dir, file, run } = setup();
+  const snap = await changeNeeds(run, doc, add);
+  const out = path.join(dir, "outside");
+  fs.mkdirSync(out);
+  const moved = fs.readFileSync(file);
+  fs.writeFileSync(path.join(out, "A.md"), moved);
+  fs.rmSync(path.join(dir, "docs"), { recursive: true });
+  fs.symlinkSync(out, path.join(dir, "docs"));
+  assert.equal(await undoDocWrite(snap!), false);
+  assert.deepEqual(fs.readFileSync(path.join(out, "A.md")), moved);
+});

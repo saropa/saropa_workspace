@@ -4,6 +4,7 @@ import { asProfile, stops } from "./severity";
 import { BoardStrings, escapeHtml, pl, tip } from "./boardHtmlUtil";
 import { label } from "./boardHtmlProjects";
 import { hl } from "./boardHtmlHandoff";
+import { readsNeeds } from "./docFacts";
 
 // The pop-up menus of the board: one for the actions on a document row and one for the board
 // options. Each is drawn once per page; the small kebab button on a row or in the top bar opens
@@ -33,12 +34,13 @@ const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐"
 // What the page script needs to fill the row menu for one document: its status and severity, whether
 // either was set by hand, whether it is pinned, and its project. Only values, never markup.
 export function rowData(i: BoardItem): string {
-  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}" data-pj="${escapeHtml(i.project)}" data-kd="${escapeHtml(i.kind)}"`;
+  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}" data-pj="${escapeHtml(i.project)}" data-kd="${escapeHtml(i.kind)}"${readsNeeds(i.path) ? "" : ' data-nd="1"'}`;
 }
 
 // The row menu: open the document, pick its status, change its severity (raise, lower, one of the
-// five levels, back to automatic) with a line that says what the choice does to the release, pick what it waits on or blocks, add a
-// rule for its folder, hand it off, open the rules file. A choice is saved at once. Status and
+// five levels, back to automatic) with a line that says what the choice does to the release, pick
+// what it waits on or blocks (left out for a document whose Needs lines the board does not read),
+// add a rule for its folder, hand it off, open the rules file. A choice is saved at once. Status and
 // severity entries need the rules' categories and the board's projects; without them (a plain
 // layout check) they are left out.
 export function rowMenu(t: BoardStrings, profile = "deliberate", projects: BoardProject[] = [], statuses: RowStatus[] = []): string {
