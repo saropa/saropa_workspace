@@ -371,6 +371,7 @@ export function buildBoard(
     ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),
     ...(customParts.length > 0 ? { severityCustom: customParts } : {}),
     chains: buildChainSteps(links, byKey, ctx.names),
+    links,
     flags: linkFlags(links, ctx.names),
     items: all,
     // Once the user accepts (or the scan was clean) neither banner shows.

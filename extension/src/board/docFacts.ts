@@ -109,16 +109,20 @@ function sqlTitle(text: string): string {
 export function parseNeeds(body: string): string[] {
   const out: string[] = [];
   for (const m of body.matchAll(/^[\s>*_-]*\**needs\**\s*:\s*\**\s*(.+)$/gim)) {
-    // A Markdown link stands for its target, so a comma in the link text splits nothing.
-    const line = m[1].replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
-    for (const part of line.split(/[;,]|\s+and\s+/)) {
-      const t = part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "");
-      if (t && !out.includes(t)) {
+    for (const t of needsTargets(m[1])) {
+      if (!out.includes(t)) {
         out.push(t);
       }
     }
   }
   return out;
+}
+
+// The targets one Needs line names, after its "Needs:" label.
+export function needsTargets(rest: string): string[] {
+  // A Markdown link stands for its target, so a comma in the link text splits nothing.
+  const line = rest.replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
+  return line.split(/[;,]|\s+and\s+/).map((part) => part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "")).filter((t) => t !== "");
 }
 
 // Counts the code blocks by language tag. Opening fences carry the tag; closing fences have none.

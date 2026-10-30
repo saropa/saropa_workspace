@@ -200,3 +200,38 @@ export function buildChains(links: Link[]): ChainNode[][] {
   }
   return chains;
 }
+
+// True when a new link "from waits on to" would make a circle: `to` is `from`, or already waits
+// on `from` through the links that resolve to a document.
+export function wouldCircle(links: Link[], from: ChainNode, to: ChainNode): boolean {
+  const goal = key(from.project, from.path);
+  const next = new Map<string, string[]>();
+  for (const l of links) {
+    if (l.toProject && l.toPath) {
+      const a = key(l.fromProject, l.fromPath);
+      (next.get(a) ?? next.set(a, []).get(a)!).push(key(l.toProject, l.toPath));
+    }
+  }
+  const seen = new Set<string>();
+  const stack = [key(to.project, to.path)];
+  while (stack.length > 0) {
+    const k = stack.pop()!;
+    if (k === goal) {
+      return true;
+    }
+    if (!seen.has(k)) {
+      seen.add(k);
+      stack.push(...(next.get(k) ?? []));
+    }
+  }
+  return false;
+}
+
+// The text that names `to` in a Needs line of `from`: a project-relative path, or "project:path"
+// for another project. Undefined when a Needs line would not read back as that one document
+// (a comma in the path, or a name that matches several documents).
+export function needTarget(rows: Classified[], projects: ProjectDef[], from: ChainNode, to: ChainNode): string | undefined {
+  const target = from.project === to.project ? to.path : `${to.project}:${to.path}`;
+  const [link] = resolveLinks(rows, new Map([[key(from.project, from.path), [target]]]), projects);
+  return link.state !== "missing" && link.toProject === to.project && link.toPath === to.path ? target : undefined;
+}
