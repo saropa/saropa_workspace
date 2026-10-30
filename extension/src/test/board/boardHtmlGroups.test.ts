@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { buildBoard } from "../../board/boardModel";
 import { renderBoard } from "../../board/boardHtml";
 import { BoardStrings } from "../../board/boardHtmlUtil";
-import { cardsFor } from "../../board/boardHtmlGroups";
+import { cardsFor, groupCards } from "../../board/boardHtmlGroups";
 import { rowMenu } from "../../board/boardHtmlMenus";
 import { BoardConfig, Classified } from "../../board/types";
 
@@ -53,4 +53,12 @@ test("Group by Status draws the three cards, and Project and None draw none of t
 
 test("the row menu offers Move to group", () => {
   assert.ok(rowMenu(t).includes('data-act="group"'));
+});
+
+test("a card holding 200 documents shows five rows and a button that reveals all the rest", () => {
+  const rows = Array.from({ length: 200 }, (_v, n) => row(`docs/d${n}.md`, "amber"));
+  const html = groupCards(buildBoard({ ...cfg, groups: [] }, rows, undefined, true), "status", new Map([["app", "App"]]), t);
+  assert.equal(html.match(/data-show-more/g)?.length, 1);
+  assert.equal(html.match(/class="row/g)?.length, 200);
+  assert.ok(html.includes("<div hidden>"));
 });

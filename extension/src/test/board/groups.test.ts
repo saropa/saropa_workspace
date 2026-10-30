@@ -113,3 +113,13 @@ test("the hub limits can be changed", () => {
   const r = buildGroups([doc("app", "a.md", { words: 50 })], { hubWords: 50 });
   assert.ok(r.hubs.has(key("app", "a.md")));
 });
+
+test("groups of one tidied name are one group, and the first matching group claims a document", async () => {
+  const { buildGroups, manualGroupOf } = await import("../../board/groups");
+  const items = ["a", "b", "c"].map((k) => ({ key: k, project: "p", path: `${k}.md`, words: 1, docRefs: 0, sourceFiles: [] }));
+  const manual = [{ name: "X  y", match: ["p/a.md"] }, { name: "X y", match: ["p/b.md"] }];
+  const r = buildGroups(items, { manual });
+  assert.equal(r.groupOf.get("a")?.id, r.groupOf.get("b")?.id);
+  assert.equal(manualGroupOf([{ name: "One", match: ["p/*"] }, { name: "Two", match: ["p/a.md"] }], [], "p", "a.md"), "One");
+  assert.equal(manualGroupOf([{ name: "One", match: ["p/*"] }], ["p/a.md"], "p", "a.md"), undefined);
+});

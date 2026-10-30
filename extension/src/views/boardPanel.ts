@@ -11,7 +11,7 @@ import { applySuggestion, openDocument, openExternalLink, openSittingsLine, save
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, undoRulesWrite } from "../commands/boardRuleAssign";
+import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import { pickGroup } from "../commands/boardGroupPick";
 import type { BoardItem } from "../board/boardModel";
@@ -352,7 +352,7 @@ class BoardPanel extends BoardPanelWiring {
       await openRulesFile({ project: item.project, folder }, documentColumn());
     } else if (act === "group") {
       // The picker is the host's own dialog: nothing but the entry name comes from the page.
-      const picked = await pickGroup(run.cfg, item);
+      const picked = await pickGroup(await readGroupNames(), item);
       if (!picked.cancelled) {
         await this.inlineChange(run, item, { kind: "group", name: picked.name }, id);
       }

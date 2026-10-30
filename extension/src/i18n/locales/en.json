@@ -2226,6 +2226,8 @@
   "releaseBoard.group.pickCurrent": "current group",
   "releaseBoard.group.namePrompt": "Name of the new group",
   "releaseBoard.group.nameInvalid": "Use 1 to 60 characters, with no control characters.",
+  "releaseBoard.group.already": "Release Board: {glob} is already in that group, so nothing was changed.",
+  "releaseBoard.group.claimed": "Release Board: a pattern in an earlier group or in \"ungrouped\" in the rules file still claims {folder}, so it was not moved. Edit that pattern, then try again.",
   "releaseBoard.group.badName": "Release Board: that group name cannot be used. Use 1 to 60 characters, with no control characters.",
   "releaseBoard.undo.changed": "Release Board: {file} changed after that edit, so Undo left it alone.",
   "releaseBoard.polish.menuAuto": "Back to automatic",

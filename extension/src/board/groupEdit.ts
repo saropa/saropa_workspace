@@ -1,3 +1,4 @@
+import { manualGroupOf, tidyGroupName } from "./groups";
 import { SeverityResult, docGlob, isObject, parseForEdit, serialize } from "./ruleAssign";
 
 // Moving one document into a group, or out of every group, in the text of the user's rules file.
@@ -11,13 +12,13 @@ export const MAX_GROUP_NAME = 60;
 // A group name as typed, tidied: spaces trimmed and collapsed. Undefined when empty, too long or
 // holding a control character.
 export function cleanGroupName(raw: string): string | undefined {
-  const name = raw.replace(/\s+/g, " ").trim();
+  const name = tidyGroupName(raw);
   return name === "" || name.length > MAX_GROUP_NAME || /[\u0000-\u001f\u007f]/.test(name) ? undefined : name;
 }
 
 // The groups listed by hand in a rules file's parsed content, by name.
 export function manualGroupNames(cfg: { groups?: unknown }): string[] {
-  const names = (Array.isArray(cfg.groups) ? cfg.groups : []).map((g) => (isObject(g) && typeof g.name === "string" ? g.name : "")).filter((n) => n !== "");
+  const names = (Array.isArray(cfg.groups) ? cfg.groups : []).map((g) => (isObject(g) && typeof g.name === "string" ? cleanGroupName(g.name) : undefined)).filter((n): n is string => n !== undefined);
   return [...new Set(names)];
 }
 
@@ -49,32 +50,52 @@ export function setDocGroup(text: string | undefined, a: { project: string; path
     return { ok: false, reason: "shape" };
   }
   let changed = false;
-  // Out of every group that lists the document by its exact glob.
+  const nameOf = (g: Entry): string => (typeof g.name === "string" ? tidyGroupName(g.name) : "");
+  // The first group of the chosen name takes the document; a duplicate of the name is left alone.
+  const target = name === undefined ? undefined : groups.find((g) => nameOf(g) === name);
+  // Out of every other group that lists the document by its exact glob.
   for (const g of groups) {
     const kept = (g.match ?? []).filter((m) => m !== glob);
-    if (kept.length !== (g.match ?? []).length) {
+    if (g !== target && kept.length !== (g.match ?? []).length) {
       g.match = kept;
       changed = true;
     }
   }
+  const resolves = (): string | undefined =>
+    manualGroupOf(
+      groups.filter((g) => typeof g.name === "string").map((g) => ({ name: g.name as string, match: (g.match ?? []).filter((m): m is string => typeof m === "string") })),
+      out.filter((m): m is string => typeof m === "string"),
+      a.project,
+      a.path
+    );
   if (name === undefined) {
     if (!out.includes(glob)) {
       out = [...out, glob];
       changed = true;
     }
   } else {
-    out = out.filter((m) => m !== glob);
-    const target = groups.find((g) => g.name === name);
-    if (target) {
-      target.match = [...(target.match ?? []), glob];
-    } else {
-      groups.push({ name, match: [glob] });
+    if (out.includes(glob)) {
+      out = out.filter((m) => m !== glob);
+      changed = true;
     }
-    changed = true;
+    // Already in the group (listed, or claimed by one of its patterns): nothing to add.
+    if (resolves() !== name) {
+      if (target) {
+        target.match = [...(target.match ?? []), glob];
+      } else {
+        groups.push({ name, match: [glob] });
+      }
+      changed = true;
+      // A pattern of an earlier group, or of "ungrouped", still wins: refuse, never claim a move that did nothing.
+      if (resolves() !== name) {
+        return { ok: false, reason: "claimed" };
+      }
+    }
   }
   if (!changed) {
-    return { ok: false, reason: "none" };
+    return { ok: false, reason: name === undefined ? "none" : "same" };
   }
+  // A group left with no document stays: the user named it.
   for (const [key, list] of [["groups", groups], ["ungrouped", out]] as const) {
     if (list.length > 0) {
       doc[key] = list;

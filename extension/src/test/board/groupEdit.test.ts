@@ -67,3 +67,30 @@ test("group names are cleaned and listed once each", () => {
   assert.deepEqual(manualGroupNames({ groups: [{ name: "B" }, { name: "A" }, { name: "B" }, 3, { name: 4 }] }), ["B", "A"]);
   assert.deepEqual(manualGroupNames({ groups: "x" }), []);
 });
+
+test("a move is refused when a pattern of an earlier group or of ungrouped still claims the document", () => {
+  const early = JSON.stringify({ groups: [{ name: "Docs", match: ["app/docs/*"] }, { name: "Two", match: [] }] });
+  assert.deepEqual(setDocGroup(early, { ...a, group: "Two" }), { ok: false, reason: "claimed" });
+  const wild = JSON.stringify({ ungrouped: ["app/docs/*"] });
+  assert.deepEqual(setDocGroup(wild, { ...a, group: "Two" }), { ok: false, reason: "claimed" });
+});
+
+test("a move into a group a wildcard already puts the document in, or the exact group, is reported as the same", () => {
+  const wild = JSON.stringify({ groups: [{ name: "Docs", match: ["app/docs/*"] }] });
+  assert.deepEqual(setDocGroup(wild, { ...a, group: "Docs" }), { ok: false, reason: "same" });
+  const exact = JSON.stringify({ groups: [{ name: "One", match: ["app/docs/a.md"] }] });
+  assert.deepEqual(setDocGroup(exact, { ...a, group: "One" }), { ok: false, reason: "same" });
+});
+
+test("names are compared tidied: no duplicate group is added, and a duplicate name takes it in the first", () => {
+  const spaced = JSON.stringify({ groups: [{ name: "Launch  plan ", match: [] }, { name: "Launch plan", match: [] }] });
+  const out = JSON.parse(text(setDocGroup(spaced, { ...a, group: "Launch plan" })));
+  assert.equal(out.groups.length, 2);
+  assert.deepEqual(out.groups[0].match, ["app/docs/a.md"]);
+  assert.deepEqual(manualGroupNames({ groups: [{ name: "A  b" }, { name: "A b" }, { name: "x".repeat(61) }] }), ["A b"]);
+});
+
+test("the last document leaving a group keeps the entry", () => {
+  const out = JSON.parse(text(setDocGroup(JSON.stringify({ groups: [{ name: "One", match: ["app/docs/a.md"] }] }), { ...a, group: undefined })));
+  assert.deepEqual(out.groups, [{ name: "One", match: [] }]);
+});

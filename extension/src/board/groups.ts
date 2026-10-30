@@ -72,6 +72,36 @@ function makeUnion(keys: string[]): { find: (k: string) => string; union: (a: st
 
 type Union = ReturnType<typeof makeUnion>;
 
+// A group name with spaces trimmed and collapsed: how names are compared.
+export function tidyGroupName(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+// Groups of the same tidied name become one, at the place of the first, with every glob.
+function mergeManual(manual: ManualGroup[]): ManualGroup[] {
+  const byName = new Map<string, ManualGroup>();
+  for (const g of manual) {
+    const name = tidyGroupName(g.name);
+    const have = byName.get(name);
+    if (have) {
+      have.match = [...have.match, ...g.match];
+    } else {
+      byName.set(name, { name, match: [...g.match] });
+    }
+  }
+  return [...byName.values()];
+}
+
+// The name of the group listed by hand that claims "project/path" (the first match wins), or
+// undefined when none does or an "ungrouped" glob excludes it. The same rule buildGroups applies.
+export function manualGroupOf(manual: ManualGroup[], ungrouped: string[], project: string, path: string): string | undefined {
+  const key = project + "/" + path;
+  if (ungrouped.some((g) => globToRegExp(g).test(key))) {
+    return undefined;
+  }
+  return mergeManual(manual).find((g) => g.match.some((m) => globToRegExp(m).test(key)))?.name;
+}
+
 // 1. Manual groups: the first group whose globs match a document claims it. Returns key to group name.
 function joinManual(pool: GroupInput[], manual: Array<{ name: string; res: RegExp[] }>, u: Union): Map<string, string> {
   const manualOf = new Map<string, string>();
@@ -172,7 +202,7 @@ export function buildGroups(items: GroupInput[], opt: GroupOptions = {}): GroupR
   const hubWords = opt.hubWords ?? 20000;
   const hubDocRefs = opt.hubDocRefs ?? 30;
   const ungrouped = (opt.ungrouped ?? []).map(globToRegExp);
-  const manual = (opt.manual ?? []).map((g) => ({ name: g.name, res: g.match.map(globToRegExp) }));
+  const manual = mergeManual(opt.manual ?? []).map((g) => ({ name: g.name, res: g.match.map(globToRegExp) }));
   const pool = items.filter((i) => !ungrouped.some((r) => r.test(i.project + "/" + i.path)));
   const u = makeUnion(pool.map((i) => i.key));
   const hubs = new Set(pool.filter((i) => i.words >= hubWords || i.docRefs >= hubDocRefs).map((i) => i.key));

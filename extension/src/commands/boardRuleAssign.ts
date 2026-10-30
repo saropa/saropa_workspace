@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
 import { Severity } from "../board/severity";
-import { setDocGroup } from "../board/groupEdit";
+import { manualGroupNames, setDocGroup } from "../board/groupEdit";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
@@ -53,7 +53,12 @@ function refuse(reason: AssignRefusal, folder: string): void {
     void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.autoNothing", { glob: folder }));
     return;
   }
-  const keys: Record<Exclude<AssignRefusal, "none">, string> = {
+  if (reason === "same") {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.group.already", { glob: folder }));
+    return;
+  }
+  const keys: Record<Exclude<AssignRefusal, "none" | "same">, string> = {
+    claimed: "releaseBoard.group.claimed",
     parse: "releaseBoard.noRule.badJson",
     glob: "releaseBoard.noRule.badGlob",
     name: "releaseBoard.group.badName",
@@ -277,6 +282,24 @@ export function previewFolder(run: BoardRun, entry: NoRuleFolder): void {
       ? l10n("releaseBoard.previewNone", { glob })
       : l10n("releaseBoard.previewResult", { count: hits.length, glob, sample: hits.slice(0, 5).map((h) => h.path).join(", ") })
   );
+}
+
+// The names of the groups listed by hand, read from the rules file now (not from the last scan).
+export async function readGroupNames(): Promise<string[]> {
+  const root = vscode.workspace.workspaceFolders?.[0];
+  if (!root) {
+    return [];
+  }
+  const read = await readRules(vscode.Uri.joinPath(root.uri, RULES_FILE));
+  if (read.kind !== "text") {
+    return [];
+  }
+  try {
+    const cfg = JSON.parse(read.text) as unknown;
+    return manualGroupNames(typeof cfg === "object" && cfg !== null ? cfg : {});
+  } catch {
+    return [];
+  }
 }
 
 // The first workspace folder, or a message when there is none; and the project's idMadeUnique check.

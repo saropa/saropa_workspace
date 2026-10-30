@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { cleanGroupName, manualGroupNames } from "../board/groupEdit";
+import { cleanGroupName } from "../board/groupEdit";
 
 // Release Board, row menu "Move to group...": asks which group a document goes into. The groups
 // offered are the ones listed by hand in the rules file, then "New group..." (a name typed in an
@@ -15,8 +15,9 @@ interface Pick extends vscode.QuickPickItem {
   fresh?: true;
 }
 
-export async function pickGroup(cfg: { groups?: unknown }, doc: { title: string; group?: { name: string } }): Promise<GroupPick> {
-  const picks: Pick[] = manualGroupNames(cfg).map((name) => ({ label: name, name, ...(doc.group?.name === name ? { description: l10n("releaseBoard.group.pickCurrent") } : {}) }));
+// `names` are the group names read fresh from the rules file.
+export async function pickGroup(names: string[], doc: { title: string; group?: { name: string } }): Promise<GroupPick> {
+  const picks: Pick[] = names.map((name) => ({ label: name, name, ...(doc.group && cleanGroupName(doc.group.name) === name ? { description: l10n("releaseBoard.group.pickCurrent") } : {}) }));
   picks.push({ label: l10n("releaseBoard.group.pickNew"), fresh: true });
   if (doc.group) {
     picks.push({ label: l10n("releaseBoard.group.pickRemove") });

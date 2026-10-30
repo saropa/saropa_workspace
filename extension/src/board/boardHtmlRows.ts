@@ -13,7 +13,7 @@ export const LIST_CAP = 30;
 // A list longer than this starts folded.
 const LONG_LIST = 25;
 // Rows a list shows at first; the rest wait behind a "Show N more" pill.
-const SHOWN_ROWS = 5;
+export const SHOWN_ROWS = 5;
 
 function reasonText(r: UnverifiedReason, p: BoardProject, t: BoardStrings): string {
   switch (r) {
