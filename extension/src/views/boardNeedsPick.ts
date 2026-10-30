@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import type { BoardItem, BoardModel } from "../board/boardModel";
 import { Link, needTarget, wouldCircle } from "../board/links";
+import { NEEDS_STATE_KEYS } from "../board/needsKeys";
 import { readsNeeds } from "../board/docFacts";
 import { BoardRun } from "../commands/boardScanStore";
 import { DocRef, NeedsChange } from "../commands/boardNeeds";
@@ -42,7 +43,7 @@ export async function pickNeeds(run: BoardRun, model: BoardModel, item: BoardIte
     .filter((l) => !l.markOnly && readsNeeds(l.fromPath))
     .map((link) => {
       const o = other(link);
-      return { label: l10n("releaseBoard.needs.remove", { name: o?.title ?? link.target }), description: link.state === "open" ? "" : l10n("releaseBoard.needs.state." + link.state), link };
+      return { label: l10n("releaseBoard.needs.remove", { name: o?.title ?? link.target }), description: link.state === "open" ? "" : l10n(NEEDS_STATE_KEYS[link.state]), link };
     });
   const projects = new Map(model.projects.map((p) => [p.id, p.name]));
   // Proposed links for this document come first, with the reason as the detail line.
