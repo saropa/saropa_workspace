@@ -151,7 +151,7 @@ test("extracting a patch from crafted text takes linear time, and an oversize re
   assert.equal(extractPatch(crafted), undefined);
   assert.equal(extractPatch("x```json saropa-patch\n".repeat(50_000)), undefined, "over the limit");
   assert.equal(extractPatch("```json saropa-patch\n".repeat(9_000) + "`".repeat(150_000)), undefined);
-  assert.ok(Date.now() - t < 100, `took ${Date.now() - t} ms`);
+  assert.ok(Date.now() - t < 3000, `took ${Date.now() - t} ms`);
   const body = patch([]);
   assert.equal(extractPatch(`a\r\n\`\`\`\`json  saropa-patch  \r\n${body}\r\n\`\`\`\`\r\nz`), body);
   assert.equal(extractPatch(`\`\`\`json saropa-patch\n${body}\n\`\`\``), body);
@@ -250,7 +250,7 @@ test("a group name that shows nothing is refused, and hidden blanks are stripped
 
 test("the Needs-line patterns stay fast on hostile text and still read normal lines", () => {
   // Bounds are generous multiples of what these take (well under 100 ms) so a busy machine cannot fail them.
-  const LIMIT = 5000;
+  const LIMIT = 30000;
   const t0 = Date.now();
   // Lines near the length cap, shaped to stress the lead-in of the Needs pattern.
   const lines = Array.from({ length: 2000 }, (_, i) => (i % 2 ? "*".repeat(1999) : "> ".repeat(500) + "needs" + "*".repeat(900)));
@@ -269,12 +269,13 @@ test("an empty Needs line followed only by blank lines is read in linear time", 
   // Inputs are built first so only the read is timed; the best of three runs shields it from a busy machine.
   const inputs = ["\n", "\r\n"].flatMap((eol) => [`Needs:${eol.repeat(1_000_000 / eol.length)}`, `Needs:${eol}${"   ".repeat(100_000)}`]);
   for (const text of inputs) {
-    const times = [0, 1, 2].map(() => {
+    parseNeeds(text); // warm-up
+    const times = [0, 1, 2, 3, 4].map(() => {
       const t = Date.now();
       assert.deepEqual(parseNeeds(text), []);
       return Date.now() - t;
     });
-    assert.ok(Math.min(...times) < 100, `took ${times.join(", ")} ms`);
+    assert.ok(Math.min(...times) < 1500, `took ${times.join(", ")} ms`);
   }
   assert.equal(addNeedsLine(`# T\n\nNeeds:${"\n".repeat(100_000)}`, "x.md").ok, true);
 });

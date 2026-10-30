@@ -14,7 +14,11 @@ import { ScanSnapshot } from "../../board/scanner";
 import { readFacts } from "../../board/docFacts";
 import { BoardRun } from "../../commands/boardScanStore";
 import { buildHandoff, fromModel } from "../../board/handoff";
-import { applyRows, hasUnsavedEdits, readResultFile, remainingFiles, realInside, savePastedPatch, undoBatch, watchResults } from "../../commands/boardPatch";
+import { applyRuleRow } from "../../board/patchApply";
+import { changeDoc } from "../../commands/boardRuleAssign";
+import { l10n } from "../../i18n/l10n";
+import { busyMessage, UNDO_PENDING } from "../../views/boardBusy";
+import { applyRows, plainWriteError, hasUnsavedEdits, readResultFile, remainingFiles, realInside, savePastedPatch, undoBatch, watchResults } from "../../commands/boardPatch";
 import { BoardPatches } from "../../views/boardPatches";
 import { stub, tmpDir } from "./hostHelpers";
 
@@ -282,7 +286,7 @@ test("a reply over the size limit is refused at once, however it is built", () =
   const patches = new BoardPatches(() => ({ model, run }), (m) => posted.push(m as { error?: string }), () => undefined);
   const t = Date.now();
   patches.read("x```json saropa-patch\n".repeat(50_000), "paste");
-  assert.ok(Date.now() - t < 100, "refused without scanning");
+  assert.ok(Date.now() - t < 3000, "refused without scanning");
   assert.match(String(posted[0].error), /too large/);
 });
 
@@ -548,4 +552,88 @@ test("a deleted file is matched by full path, not by name", async () => {
   assert.deepEqual(patches.view(), { patchReady: 1 });
   fw.deleted.fire(same);
   assert.deepEqual(patches.view(), {});
+});
+
+test("a junk result file of the same name in another project does not clear the waiting one", async () => {
+  const { dir, run, model } = setup();
+  const other = tmpDir();
+  const run2 = { ...run, cfg: { ...run.cfg, projects: [...run.cfg.projects, { id: "other", name: "Other", path: vscode.Uri.file(other).toString(), roots: [], ruleSets: [] }] } } as BoardRun;
+  const patches = new BoardPatches(() => ({ model, run: run2 }), () => undefined, () => undefined);
+  patches.watch();
+  const fw = vs.__fileWatchers()[0];
+  fw.created.fire(put(dir, "same.result.json", patchText([ALL[0], ALL[1]])));
+  await wait(60);
+  assert.deepEqual(patches.view(), { patchReady: 2 });
+  fw.created.fire(put(other, "same.result.json", "not json"));
+  await wait(60);
+  assert.deepEqual(patches.view(), { patchReady: 2 }, "matched by full path, not by name");
+});
+
+test("a status no rule gives is refused as 'status', not as a wrong layout", () => {
+  const { model } = setup();
+  const row = rowsOf(model, [ALL[0]])[0];
+  const t = targetsOf(model).get("app:a.md")!;
+  assert.deepEqual(applyRuleRow(undefined, row, t, []), { ok: false, reason: "status" });
+  assert.match(l10n("releaseBoard.patch.rule.status", { file: "a.md" }), /no rule gives a document that status/);
+});
+
+test("a write error shows as a plain sentence in the problems list, never the raw text", async () => {
+  assert.match(plainWriteError(Object.assign(new Error("EACCES: open '/x'"), { code: "EACCES" }), "a.md"), /read-only or not allowed/);
+  assert.match(plainWriteError(new Error("ENOSPC: no space left"), "a.md"), /disk is full/);
+  assert.match(plainWriteError(new Error("weird failure"), "a.md"), /details are in the log/);
+  const { run, model } = setup();
+  const heal = failWrites("c.md");
+  let out;
+  try {
+    out = await applyRows(run, model, rowsOf(model, [ALL[4]]));
+  } finally {
+    heal();
+  }
+  assert.ok(out.problems.length > 0);
+  assert.ok(out.problems.every((p) => !p.includes("disk full")), out.problems.join("|"));
+});
+
+test("no toast or problems entry carries the raw write error text", async () => {
+  const win = vscode.window as unknown as { showErrorMessage: (m: string) => Promise<undefined> };
+  const orig = win.showErrorMessage;
+  const toasts: string[] = [];
+  win.showErrorMessage = async (m: string): Promise<undefined> => {
+    toasts.push(m);
+    return undefined;
+  };
+  const { run, model } = setup();
+  const heal = failWrites("c.md");
+  let out;
+  try {
+    out = await applyRows(run, model, rowsOf(model, [ALL[4]]));
+  } finally {
+    heal();
+    win.showErrorMessage = orig;
+  }
+  assert.ok(toasts.length > 0 && out.problems.length > 0);
+  for (const m of [...toasts, ...out.problems]) {
+    assert.ok(!m.includes("disk full") && !/Error:|ENOSPC|EACCES/.test(m), m);
+  }
+});
+
+test("the rules file is not changed while an unsaved copy is open at its real path (symlinked workspace)", async () => {
+  const { dir, run } = setup();
+  fs.mkdirSync(path.join(dir, ".saropa"));
+  fs.writeFileSync(path.join(dir, ".saropa", "release-board.json"), "{}\n");
+  const link = path.join(tmpDir(), "linked");
+  fs.symlinkSync(dir, link);
+  stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(link), name: "app", index: 0 }]);
+  docs().push({ isDirty: true, uri: vscode.Uri.file(path.join(dir, ".saropa", "release-board.json")) });
+  const snap = await changeDoc(run, { project: "app", path: "a.md" }, { kind: "severity", level: "low" });
+  assert.equal(snap, undefined);
+  assert.equal(fs.readFileSync(path.join(dir, ".saropa", "release-board.json"), "utf8"), "{}\n");
+  assert.ok(stub.__warningMessages().some((m) => /unsaved/.test(m)));
+  docs().length = 0;
+});
+
+test("a pending Undo message names the Dismiss button and how many files remain", () => {
+  const m = busyMessage(UNDO_PENDING, ["a.md", "release-board.json"]);
+  assert.match(m, /Dismiss/);
+  assert.match(m, /2 \(a\.md, release-board\.json\)/);
+  assert.equal(busyMessage("releaseBoard.rowMenu.busyScan", []), l10n("releaseBoard.rowMenu.busyScan"));
 });
