@@ -3,7 +3,7 @@ import { SittingLine } from "./sittings";
 import { Train, trainRows } from "./train";
 import { SinceView } from "./sinceLast";
 import { TidyReport } from "./tidy";
-import { BoardStrings, collapsible, sectionIcon, fillT, docLink, escapeHtml, handButton, glyphTip, liveLine, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { BoardStrings, collapsible, sectionIcon, fillT, docLink, escapeHtml, glyphTip, liveLine, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { RULES_PATH } from "./ruleAssign";
 
 // The boxes around the project rows: sittings, tidy, unnamed crashes, trains, linked
@@ -26,7 +26,7 @@ export function sittingsBox(model: BoardModel, t: BoardStrings): string {
   const all = v.contexts.length > 0 ? `<button class="chip sec" data-haveall="1" aria-pressed="${v.have.length === v.contexts.length}" ${tip(t, "chipAll")}>${escapeHtml(pl(t, "haveAll"))}</button>` : "";
   const time = TIME_LABELS.map(([n, key]) => `<button class="chip sec" data-box="${n}" aria-pressed="${v.timeBox === n}" ${tip(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) })}>${escapeHtml(pl(t, key))}</button>`).join("");
   const line = (l: SittingLine, i: number): string =>
-    `<div class="row" ${tip(t, "step", { minutes: l.minutes })}><span class="tag" ${tip(t, "project", { name: l.projectName })}>${escapeHtml(l.projectName)}</span><span class="f">${docLink(l.text || l.heading || l.docTitle, l.path, `data-step="${i}"`)}</span><span class="k" ${tip(t, "stepDoc", { title: l.docTitle })}>${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k" ${tip(t, "stepNeeds")}>${escapeHtml(l.needs.join(" + "))}</span>` : ""}${pill(t, l.minutes, "stepMinutesPill", { minutes: l.minutes })}${handButton(t, `data-hk="line" data-i="${i}"`)}</div>`;
+    `<div class="row" ${tip(t, "step", { minutes: l.minutes })}><span class="tag" ${tip(t, "project", { name: l.projectName })}>${escapeHtml(l.projectName)}</span><span class="f">${docLink(l.text || l.heading || l.docTitle, l.path, `data-step="${i}"`)}</span><span class="k" ${tip(t, "stepDoc", { title: l.docTitle })}>${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k" ${tip(t, "stepNeeds")}>${escapeHtml(l.needs.join(" + "))}</span>` : ""}${pill(t, l.minutes, "stepMinutesPill", { minutes: l.minutes })}</div>`;
   const doable = v.lines.slice(0, v.doable).map((l, i) => line(l, i)).join("");
   const rest = [
     v.more > 0 ? `<p class="note">${pillify(t, escapeHtml(t.sittingsMore.replace("{count}", String(v.more))))}</p>` : "",

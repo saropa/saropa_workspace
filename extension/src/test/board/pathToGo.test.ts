@@ -235,7 +235,7 @@ test("html: steps are escaped, the page carries indexes and no paths, and no pat
   const paths = m.projects.map((p) => pathToGo(m, p, opts));
   const html = renderBoard(m, t, "N", 3, {}, paths);
   assert.ok(html.includes('class="pj"'));
-  assert.ok(html.includes('data-p="0" data-s="0"'));
+  assert.ok(html.includes('class="ptg"'));
   assert.ok(!html.includes("<script>alert"), "title is escaped");
   assert.ok(!html.includes('data-path'), "no path attribute");
   const plain = renderBoard(m, t, "N", 3, {});

@@ -14,10 +14,8 @@ export interface FutureView {
   sort: FutureSort;
   // False while a scan is running or the stored result is on screen: the controls are off.
   canEdit: boolean;
-  // Most documents handed to a chat at once (the setting, already checked).
+  // Most documents handed off at once (the setting, already checked).
   researchParallel: number;
-  // False when Hand to chat is turned off: the hand-off button stays but cannot be used.
-  handEnabled: boolean;
 }
 
 // One word of the tab's text table; the key itself when the table has no entry.
@@ -115,9 +113,8 @@ function researchBar(view: FutureView, t: BoardStrings): string {
   if (c.needed > 0) {
     const { batch, queued } = researchQueue(view.items, view.sort, view.researchParallel);
     const label = queued > 0 ? ft(t, "handBatch").replace("{batch}", () => String(batch.length)).replace("{queued}", () => String(queued)) : num("handAll", batch.length);
-    const off = view.canEdit && view.handEnabled ? "" : " disabled";
-    const handTip = view.handEnabled ? ft(t, "handTip") : ft(t, "handOffTip");
-    button = ` <button data-fhand title="${escapeHtml(handTip)}"${off}>${pillify(t, escapeHtml(label))}</button>`;
+    const off = view.canEdit ? "" : " disabled";
+    button = ` <button data-fhand title="${escapeHtml(ft(t, "handTip"))}"${off}>${pillify(t, escapeHtml(label))}</button>`;
   }
   return `<div class="fresearch"><span ${tip(t, "researchCounts")}>${pillify(t, escapeHtml(parts.join(" \u00b7 ")))}</span>${button}</div>`;
 }

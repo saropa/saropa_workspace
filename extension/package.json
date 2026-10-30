@@ -2586,43 +2586,18 @@
             "default": true,
             "description": "%config.releaseBoard.recipeEvidence.rowNotes.description%"
           },
-          "saropaWorkspace.releaseBoard.handToChat.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%config.releaseBoard.handToChat.enabled.description%"
-          },
-          "saropaWorkspace.releaseBoard.handToChat.detail": {
+          "saropaWorkspace.releaseBoard.handoff.terminalCommand": {
             "type": "string",
-            "enum": ["short", "standard", "full"],
-            "default": "standard",
-            "description": "%config.releaseBoard.handToChat.detail.description%"
-          },
-          "saropaWorkspace.releaseBoard.handToChat.openChat": {
-            "type": "string",
-            "enum": ["never", "offer"],
-            "default": "never",
-            "description": "%config.releaseBoard.handToChat.openChat.description%"
-          },
-          "saropaWorkspace.releaseBoard.handToChat.agent": {
-            "type": "string",
-            "enum": ["none", "claudeCode", "copilotChat", "cursor", "custom"],
-            "enumItemLabels": ["None", "Claude Code", "Copilot Chat", "Cursor", "Custom command"],
-            "enumDescriptions": ["%config.releaseBoard.handToChat.agent.none%", "%config.releaseBoard.handToChat.agent.claudeCode%", "%config.releaseBoard.handToChat.agent.copilotChat%", "%config.releaseBoard.handToChat.agent.cursor%", "%config.releaseBoard.handToChat.agent.custom%"],
-            "default": "none",
+            "default": "claude \"Read .saropa/handoff/{id}.md and action it.\"",
             "scope": "machine",
-            "description": "%config.releaseBoard.handToChat.agent.description%"
+            "description": "%config.releaseBoard.handoff.terminalCommand.description%"
           },
-          "saropaWorkspace.releaseBoard.handToChat.customCommand": {
+          "saropaWorkspace.releaseBoard.handoff.copyMode": {
             "type": "string",
-            "default": "",
-            "scope": "machine",
-            "description": "%config.releaseBoard.handToChat.customCommand.description%"
-          },
-          "saropaWorkspace.releaseBoard.handToChat.autoOpen": {
-            "type": "boolean",
-            "default": false,
-            "scope": "machine",
-            "description": "%config.releaseBoard.handToChat.autoOpen.description%"
+            "enum": ["referral", "full"],
+            "enumDescriptions": ["%config.releaseBoard.handoff.copyMode.referral%", "%config.releaseBoard.handoff.copyMode.full%"],
+            "default": "referral",
+            "description": "%config.releaseBoard.handoff.copyMode.description%"
           },
           "saropaWorkspace.releaseBoard.keywordEditor.enabled": {
             "type": "boolean",

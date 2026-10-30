@@ -46,6 +46,19 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+You can now hand work from the Release Board to an AI as a saved document.
+
+### Added
+- **Release Board: Hand off.** Choose **Hand off** in a row menu, a group or project menu, or the options menu (whole board), or tick the boxes on several rows and press **Hand off**. A side drawer previews the document as Markdown or JSON for a Fix, Plan, Review or Triage job. **Copy** saves the full document to `.saropa/handoff` in the project (never committed, the last 20 are kept) and copies one short line that tells an agent to read it; **Copy full text** copies the whole document; **Run in terminal** runs your command. New settings `releaseBoard.handoff.terminalCommand` and `releaseBoard.handoff.copyMode`. Keys, tokens and home folders are removed from the text.
+
+### Changed
+- **Release Board: Hand to chat is replaced by Hand off.** The row, Path to GO and Sittings buttons and the six `releaseBoard.handToChat.*` settings are gone. The Future tab's **Hand all** now saves one research hand-off for the flagged documents and asks for one confirmation.
+- **Release Board: Path to GO steps and Sittings lines cannot be handed off yet.** Hand off covers documents, groups, projects, chosen items and the whole board; a hand-off over several projects now writes one document in each project's own folder and copies one line naming all of them.
+
+---
+
 ## [2.5.0]
 
 You can now choose which files and folders the Release Board leaves out. [log](https://github.com/saropa/saropa-workspace/blob/v2.5.0/CHANGELOG.md)

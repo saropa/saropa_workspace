@@ -201,7 +201,7 @@ test("the unnamed box lists a crash in a file no open document names, with the p
 
 const t = new Proxy({} as BoardStrings, {
   get: (_o, k: string) =>
-    k === "liveLogs" ? "{errors} errors, {crashes} crashes in debug runs" : k === "liveProblems" ? "{errors} errors, {warnings} warnings in Problems" : k === "liveLints" ? "{errors} lint errors, {warnings} lint warnings" : k === "handToChat" ? "" : `[${k}] {count}`,
+    k === "liveLogs" ? "{errors} errors, {crashes} crashes in debug runs" : k === "liveProblems" ? "{errors} errors, {warnings} warnings in Problems" : k === "liveLints" ? "{errors} lint errors, {warnings} lint warnings" : `[${k}] {count}`,
 });
 
 test("the page shows a flame with a tooltip, escapes file names, and offers the button by index only", () => {

@@ -6,7 +6,7 @@ import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
-import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
+import { applySuggestion, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
@@ -17,13 +17,14 @@ import { openKeywordEditor } from "./keywordEditorPanel";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
+import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "assign <index>", "preview <index>", "keywords" and "keywordsRestore", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "handoff <scope, indexes, task, format>", "handoffAct <act, scope, indexes, task, format>", "scopeMenu <entry, scope>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "assign <index>", "preview <index>", "keywords" and "keywordsRestore", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -50,8 +51,8 @@ class BoardPanel extends BoardPanelWiring {
     }
     const msg = message as { type?: string; id?: number; rev?: number; value?: string; key?: string };
     if (msg.rev !== this.rev) {
-      if (msg.type === "hand") {
-        void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.stale"));
+      if (msg.type === "handoff" || msg.type === "handoffAct") {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.handoff.stale"));
       }
       return;
     }
@@ -72,8 +73,18 @@ class BoardPanel extends BoardPanelWiring {
       this.render(this.cached ? { stale: true } : {});
     } else if (msg.type === "step" && typeof (message as { i?: unknown }).i === "number") {
       await openSittingsLine(this.model, this.run, (message as { i: number }).i);
-    } else if (msg.type === "hand") {
-      await handToChat(this.model, this.paths, this.run, message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
+    } else if (msg.type === "handoff" || msg.type === "handoffAct") {
+      const req = parseRequest(message as Record<string, unknown>);
+      if (req && msg.type === "handoff") {
+        handoffDoc(this.post, this.model, this.run, req);
+      } else if (req) {
+        await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
+      }
+    } else if (msg.type === "scopeMenu" && (message as { act?: unknown }).act === "hand" && typeof (message as { id?: unknown }).id === "string") {
+      const at = scopeOfMenu((message as { id: string }).id);
+      if (at) {
+        this.post(openMessage(at.scope, at.i));
+      }
     } else {
       await this.onActionMessage(message as Record<string, unknown>);
     }
@@ -299,6 +310,11 @@ class BoardPanel extends BoardPanelWiring {
     return busyReason({ assigning: this.assigning, scanning: this.scanning, cached: this.cached });
   }
 
+  // Sends a message to the page.
+  private readonly post = (m: unknown): void => {
+    void this.panel.webview.postMessage(m);
+  };
+
   // An entry of the menu on a document row. The page sent the entry name and the item's index;
   // the document is the one this panel painted at that index.
   private async rowMenu(act: string, id: number): Promise<void> {
@@ -311,7 +327,7 @@ class BoardPanel extends BoardPanelWiring {
     if (act === "open") {
       await this.openItem(id);
     } else if (act === "hand") {
-      await handToChat(this.model, this.paths, run, { k: "item", i: id });
+      this.post(openMessage("item", id));
     } else if (act === "rules") {
       await openRulesFile({ project: item.project, folder }, documentColumn());
     } else if (act === "status" || act === "assign" || act === "severity" || act === "auto") {
@@ -346,6 +362,8 @@ class BoardPanel extends BoardPanelWiring {
   private async optsMenu(act: string): Promise<void> {
     if (act === "rules") {
       await openRulesFile(undefined, documentColumn());
+    } else if (act === "handBoard") {
+      this.post(openMessage("board"));
     } else if (act === "keywords") {
       await this.keywords(false);
     } else if (act === "projects" || act === "settings") {
