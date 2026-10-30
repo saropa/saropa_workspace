@@ -46,7 +46,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.6.0]
 
 The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. You can now hand work to an AI as a saved document. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.0/CHANGELOG.md)
 
