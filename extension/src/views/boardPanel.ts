@@ -21,6 +21,7 @@ import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
 import { openKeywordEditor } from "./keywordEditorPanel";
+import { openTagsEditor } from "./tagsEditorPanel";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
@@ -558,9 +559,26 @@ class BoardPanel extends BoardPanelWiring {
       this.post(openMessage("board"));
     } else if (act === "keywords") {
       await this.keywords(false);
+    } else if (act === "tagsRules") {
+      await this.tagsRules();
     } else if (act === "projects" || act === "settings") {
       await this.projectsMessage(act === "settings" ? "boardSettings" : "projects");
     }
+  }
+
+  // The Tags and rules editor. It gets the model this panel painted; nothing the page names is trusted.
+  private async tagsRules(): Promise<void> {
+    const run = this.run;
+    const model = this.model;
+    if (!run || !model) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.keywords.msg.noBoard"));
+      return;
+    }
+    const onSaved = async (): Promise<void> => {
+      this.dirty = true;
+      await this.refresh();
+    };
+    await openTagsEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
   }
 
   // The keyword editor, or Restore defaults. Both change what every document's severity is, and so
