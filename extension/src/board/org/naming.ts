@@ -15,13 +15,20 @@ export function isContainerOnly(name: string): boolean {
 
 // Dates, leading order numbers, leading kind words and version or sequence tokens removed; sentence case; acronyms kept.
 export function cleanName(raw: string, acronyms: string[] = ACRONYMS): string {
-  const spaced = raw.replace(DATE, " ").replace(/[[\](){}]/g, " ").replace(/([\p{Ll}\d])(\p{Lu})/gu, "$1 $2").replace(/[_\-.]+/g, " ");
+  const canon = new Map(acronyms.map((a) => [a.toLowerCase(), a]));
+  // A whole word that is a known acronym (iOS) is kept before the camel-case split can break it.
+  const spaced = raw
+    .replace(DATE, " ")
+    .replace(/[[\](){}]/g, " ")
+    .replace(/[_\-.]+/g, " ")
+    .split(/\s+/)
+    .map((w) => (canon.has(w.toLowerCase()) ? w : w.replace(/([\p{Ll}\d])(\p{Lu})/gu, "$1 $2")))
+    .join(" ");
   const stripped = spaced.replace(SEQ, " ").replace(/^\s*\d{1,3}\s+(?=\D)/, "");
   const words = stripped.split(/\s+/).filter(Boolean);
   while (words.length > 1 && KIND.has(words[0].toLowerCase())) {
     words.shift();
   }
-  const canon = new Map(acronyms.map((a) => [a.toLowerCase(), a]));
   const cased = words.map((w, i) => {
     const known = canon.get(w.toLowerCase());
     if (known) {
@@ -33,7 +40,7 @@ export function cleanName(raw: string, acronyms: string[] = ACRONYMS): string {
     const lower = w.toLowerCase();
     return i === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
   });
-  return cased.join(" ") || raw.trim();
+  return cased.join(" ");
 }
 
 export function clipName(s: string, max = MAX_NAME): string {
@@ -80,8 +87,16 @@ export function dedupNames(items: NameItem[]): Map<string, string> {
       }
     }
   }
+  const used = new Set([...out.values()].map((v) => v.toLowerCase()));
   for (const list of clashes()) {
-    list.slice(1).forEach((i, n) => out.set(i.id, `${out.get(i.id)} ${n + 2}`));
+    for (const i of list.slice(1)) {
+      let n = 2;
+      while (used.has(`${out.get(i.id)} ${n}`.toLowerCase())) {
+        n += 1;
+      }
+      out.set(i.id, `${out.get(i.id)} ${n}`);
+      used.add(out.get(i.id)!.toLowerCase());
+    }
   }
   return out;
 }

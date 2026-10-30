@@ -83,6 +83,10 @@ export interface OrgResult {
   // Why a document is where it is, when that is not simply its group's reason.
   docWhy: Map<string, Why>;
   hubs: Set<string>;
+  // Band, MIN and MAX used for each project; pass back as OrgOptions.previous on the next run.
+  layouts: Record<string, { band: number; min: number; max: number }>;
+  // Front matter tags that name no tag in the dictionary.
+  unknownTags: Array<{ key: string; tag: string }>;
   // Overrides that point at nothing.
   stale: Array<{ kind: "assign" | "untag" | "group"; ref: string }>;
 }
@@ -93,6 +97,6 @@ export interface OrgOptions {
   ungrouped?: string[];
   hubWords?: number;
   hubDocRefs?: number;
-  // Band of the previous run, for the 10 percent hysteresis (layout.ts).
-  previousBand?: number;
+  // Band and MAX of each project from the previous run (OrgResult.layouts), for the 10 percent hysteresis (layout.ts).
+  previous?: Record<string, { band: number; max: number }>;
 }

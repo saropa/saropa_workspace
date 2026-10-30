@@ -5,32 +5,14 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as zlib from "node:zlib";
-import { OrgDoc } from "../../../board/org/orgTypes";
-import { checkProperties, doc, lcg, run, shuffled } from "./orgFixtures";
-
-function generated(n: number): OrgDoc[] {
-  const rnd = lcg(7);
-  const words = ["payments", "sync", "login", "release", "theme", "backup", "search", "share", "export", "import", "cache", "alert"];
-  const kinds = ["PLAN", "BUG", "SPEC", "REPORT"];
-  const out: OrgDoc[] = [];
-  for (let i = 0; i < n; i++) {
-    const project = ["app", "web", "db"][i % 3];
-    const area = `area${Math.floor(rnd() * 12)}`;
-    const sub = `sub${Math.floor(rnd() * 8)}`;
-    const status = rnd() < 0.2 ? "/done" : "";
-    const w = words[Math.floor(rnd() * words.length)];
-    const seq = rnd() < 0.2 ? `_phase${1 + Math.floor(rnd() * 4)}` : "";
-    out.push(doc(project, `docs/${area}/${sub}${status}/${kinds[i % 4]}_${w}${i % 50}${seq}_i${i}.md`, { sourceFiles: rnd() < 0.3 ? [`lib/f${Math.floor(rnd() * 40)}.dart`, `lib/g${Math.floor(rnd() * 40)}.dart`] : [], title: `${w} notes ${i}` }));
-  }
-  return out;
-}
+import { checkProperties, doc, generated, run, shuffled } from "./orgFixtures";
 
 test("scale-2000: within the time budget, same result in any order, other ids stay put", () => {
   const input = generated(2000);
   const started = performance.now();
   const r = run(input);
   const ms = performance.now() - started;
-  assert.ok(ms < 500, `took ${ms.toFixed(0)} ms`);
+  assert.ok(ms < 300, `took ${ms.toFixed(0)} ms`);
   checkProperties(r, input);
   assert.ok(r.groups.length > 20);
   const shuffledRun = run(shuffled(input, 3));

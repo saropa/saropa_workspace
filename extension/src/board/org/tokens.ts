@@ -16,9 +16,13 @@ export interface FileTokens {
   seq?: { label: string; n: number };
 }
 
+const plausibleYear = (y: number): boolean => y >= 1990 && y <= 2100;
+
 export function isDateSegment(s: string): boolean {
   const t = s.toLowerCase();
-  return /^\d{4}([-_]\d{2}([-_]\d{2})?)?$/.test(t) || /^\d{8}$/.test(t) || /^\d{4}[-_]?q[1-4]$/.test(t) || MONTHS.test(t);
+  const dated = /^\d{4}([-_]\d{2}([-_]\d{2})?)?$/.test(t) || /^\d{8}$/.test(t) || /^\d{4}[-_]?q[1-4]$/.test(t);
+  // A folder named 1080 or 2048 is not a year.
+  return (dated && plausibleYear(Number(t.slice(0, 4)))) || MONTHS.test(t);
 }
 
 export function isStatusSegment(s: string): boolean {
@@ -46,7 +50,7 @@ export function stemWord(w: string): string {
   }
   if (s.length > 5 && s.endsWith("ing")) {
     s = s.slice(0, -3);
-  } else if (s.length > 5 && s.endsWith("ed")) {
+  } else if (s.length > 4 && s.endsWith("ed")) {
     s = s.slice(0, -2);
   }
   return s;

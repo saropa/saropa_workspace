@@ -50,7 +50,7 @@ export function pickGroupTag(memberMatches: TagMatch[][], nameMatches: TagMatch[
       }
     }
   }
-  const topWord = (id: string): string => [...(words.get(id) ?? [])].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? "";
+  const topWord = (id: string): string => [...(words.get(id) ?? [])].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))[0]?.[0] ?? "";
   const ranked = c.tags.map((t, pos) => ({ t, pos, n: count.get(t.id) ?? 0 })).filter((x) => x.n * 2 >= total && x.n > 0).sort((a, b) => b.n - a.n || a.pos - b.pos);
   if (ranked.length > 0) {
     return { tag: ranked[0].t, count: ranked[0].n, total, word: topWord(ranked[0].t.id) };

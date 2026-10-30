@@ -212,7 +212,7 @@ export function buildGroups(items: GroupInput[], opt: GroupOptions = {}): GroupR
   const filesOf = new Map(pool.map((i) => [i.key, new Set(i.sourceFiles)]));
   const free = pool
     .filter((i) => !hubs.has(i.key) && !manualOf.has(i.key) && u.find(i.key) === i.key && !byPrefix.get(i.project + "\t" + prefixOf(i.path))?.slice(1).length)
-    .sort((a, b) => b.sourceFiles.length - a.sourceFiles.length || a.key.localeCompare(b.key));
+    .sort((a, b) => b.sourceFiles.length - a.sourceFiles.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   joinByFiles(free, filesOf, opt.maxFileGroup ?? 12, u);
   return { groupOf: nameGroups(pool, manualOf, generic, u), hubs };
 }

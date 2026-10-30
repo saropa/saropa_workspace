@@ -33,9 +33,16 @@ export function bandFor(n: number, previous?: number): number {
   return raw;
 }
 
-export function layoutFor(n: number, previousBand?: number): Layout {
+// MAX is kept from the previous run while the new value is within 10 percent (at least 1) of it, so one document
+// more or less never moves a group boundary. MIN follows the band, which has its own hysteresis.
+export function maxFor(n: number, previousMax?: number): number {
+  const raw = Math.min(40, Math.max(8, Math.round(2 * Math.sqrt(n))));
+  return previousMax !== undefined && Math.abs(raw - previousMax) <= Math.max(1, previousMax * 0.1) ? previousMax : raw;
+}
+
+export function layoutFor(n: number, previousBand?: number, previousMax?: number): Layout {
   const band = bandFor(n, previousBand);
-  const max = Math.min(40, Math.max(8, Math.round(2 * Math.sqrt(n))));
+  const max = maxFor(n, previousMax);
   const base = { band, headers: band > 0, min: MIN_BY_BAND[band], max, levels: band >= 3 ? 2 : 1, subGroupsOpen: false };
   const folded = { key: "releaseBoard.org.why.folded", params: { count: n } };
   switch (band) {

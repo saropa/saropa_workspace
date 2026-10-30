@@ -45,6 +45,8 @@ interface Node {
 }
 
 const byKey = (a: OrgDoc, b: OrgDoc): number => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+// The cleaned name, or the raw text when cleaning leaves nothing (a folder named v2).
+const nameOf = (raw: string): string => cleanName(raw) || raw.trim();
 const folderOf = (d: OrgDoc): string => logicalFolders(d.path).join("/");
 const scoped = (ctx: string, k: string): string => (ctx ? `${ctx}/${k}` : k);
 
@@ -70,8 +72,63 @@ function subtree(g: G): OrgDoc[] {
   return [...g.docs, ...g.subs.flatMap(subtree)];
 }
 
-// Steps 3.1 to 3.5: sequence families, shared stem word, tag theme, shared source files, links.
-function nameLayer(env: Env, docs: OrgDoc[], ctx: string): { groups: G[]; rest: OrgDoc[] } {
+// Splits an over-size stem or tag group by child folder, then another stem word, then another tag. The parts become
+// siblings (never a third level). A part under MIN goes back to the loose documents; what no split can cut stays flagged.
+function splitOver(env: Env, g: G, ctx: string): { parts: G[]; released: OrgDoc[] } {
+  const { min, max } = env.layout;
+  const depth = ctx === "" ? 0 : ctx.split("/").length;
+  const key = g.id.slice(`${env.project}:${g.kind}:`.length);
+  const topTag = (d: OrgDoc): string | undefined => env.matches.get(d.key)?.find((m) => m.tagId !== g.tagId && hasEffect(env.tagById.get(m.tagId)!, "group"))?.tagId;
+  const wordAt = (d: OrgDoc): string | undefined => {
+    const w = env.tok.get(d.key)!.words[g.kind === "stem" ? 1 : 0];
+    return w && w.length >= 3 && !KIND.has(w) ? w : undefined;
+  };
+  const signals: Array<{ sep: string; of: (d: OrgDoc) => string | undefined; label: (b: string) => string }> = [
+    { sep: "/", of: (d) => logicalFolders(d.path)[depth], label: nameOf },
+    { sep: "+", of: wordAt, label: nameOf },
+    { sep: "#", of: topTag, label: (b) => env.tagById.get(b)?.label ?? b },
+  ];
+  const flag = (x: G): void => {
+    x.oversize = x.docs.length > max;
+    if (x.oversize) {
+      x.why = why("oversize", { max }, "low");
+    }
+  };
+  for (const sig of signals) {
+    const buckets = new Map<string, OrgDoc[]>();
+    g.docs.forEach((d) => {
+      const b = sig.of(d);
+      if (b) {
+        push(buckets, b, d);
+      }
+    });
+    const big = [...buckets].filter(([, l]) => l.length >= min && l.length < g.docs.length).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    if (big.length === 0) {
+      continue;
+    }
+    const parts = big.map(([b, list]) => {
+      const p = make(g.kind, env, key + sig.sep + b, g.rawName + " " + b, `${g.name} · ${sig.label(b)}`, ctx, list, { ...g.why, params: { ...g.why.params, count: list.length } });
+      p.tagId = g.tagId;
+      flag(p);
+      return p;
+    });
+    const gone = new Set(parts.flatMap((p) => p.docs.map((d) => d.key)));
+    const remainder = g.docs.filter((d) => !gone.has(d.key));
+    if (remainder.length >= min) {
+      g.docs = remainder;
+      g.why = { ...g.why, params: { ...g.why.params, count: remainder.length } };
+      flag(g);
+      return { parts: [g, ...parts], released: [] };
+    }
+    return { parts, released: remainder };
+  }
+  flag(g);
+  return { parts: [g], released: [] };
+}
+
+// Sequence families, shared stem word, tag theme, shared source files, links; then over-size stem and tag groups are split.
+// `prior` are the groups made at lower levels, which a loose document may join through its links.
+function nameLayer(env: Env, docs: OrgDoc[], ctx: string, prior: G[] = []): { groups: G[]; rest: OrgDoc[] } {
   const { min, max } = env.layout;
   const groups: G[] = [];
   const taken = new Set<string>();
@@ -84,7 +141,7 @@ function nameLayer(env: Env, docs: OrgDoc[], ctx: string): { groups: G[]; rest: 
 
   // 1. Sequence family: same folder, same stem, differing only in the sequence token. Two members are enough.
   const fam = new Map<string, OrgDoc[]>();
-  for (const d of docs) {
+  for (const d of loose()) {
     const t = env.tok.get(d.key)!;
     if (t.seq && t.stem) {
       push(fam, folderOf(d) + "\t" + t.stem, d);
@@ -95,11 +152,19 @@ function nameLayer(env: Env, docs: OrgDoc[], ctx: string): { groups: G[]; rest: 
       continue;
     }
     const [folder, stem] = k.split("\t");
-    const plain = docs.filter((d) => !list.includes(d) && !env.tok.get(d.key)!.seq && env.tok.get(d.key)!.stem === stem && folderOf(d) === folder);
-    const ns = list.map((d) => env.tok.get(d.key)!.seq!.n);
-    const name = cleanName(stem.replace(/_/g, " "));
-    const g = make("seq", env, scoped(folder, stem), stem, name, folder, [...list, ...plain], why("sequence", { stem, count: list.length + plain.length }));
-    g.range = { label: env.tok.get(list[0].key)!.seq!.label, from: Math.min(...ns), to: Math.max(...ns) };
+    // The most common label names the family (a tie goes to the label that sorts first); members with another label stay loose.
+    const tally = new Map<string, number>();
+    list.forEach((d) => tally.set(env.tok.get(d.key)!.seq!.label, (tally.get(env.tok.get(d.key)!.seq!.label) ?? 0) + 1));
+    const label = [...tally].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0][0];
+    const same = list.filter((d) => env.tok.get(d.key)!.seq!.label === label);
+    if (same.length < 2) {
+      continue;
+    }
+    const plain = loose().filter((d) => !env.tok.get(d.key)!.seq && env.tok.get(d.key)!.stem === stem && folderOf(d) === folder);
+    const ns = same.map((d) => env.tok.get(d.key)!.seq!.n);
+    const name = nameOf(stem.replace(/_/g, " "));
+    const g = make("seq", env, scoped(folder, stem), stem, name, folder, [...same, ...plain], why("sequence", { stem, count: same.length + plain.length }));
+    g.range = { label, from: Math.min(...ns), to: Math.max(...ns) };
     add(g);
   }
 
@@ -113,7 +178,7 @@ function nameLayer(env: Env, docs: OrgDoc[], ctx: string): { groups: G[]; rest: 
   }
   for (const [w, list] of [...byWord].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     if (list.length >= min) {
-      const g = make("stem", env, scoped(ctx, w), w, cleanName(w), ctx, list, why("stem", { word: w, count: list.length }));
+      const g = make("stem", env, scoped(ctx, w), w, nameOf(w), ctx, list, why("stem", { word: w, count: list.length }));
       g.oversize = list.length > max;
       add(g);
     }
@@ -139,7 +204,7 @@ function nameLayer(env: Env, docs: OrgDoc[], ctx: string): { groups: G[]; rest: 
     }
   }
 
-  // 4. Shared source files (today's rule); hubs never pull documents together.
+  // 4. Shared source files; hubs never pull documents together.
   const withFiles = loose().filter((d) => d.sourceFiles.length > 0).sort((a, b) => b.sourceFiles.length - a.sourceFiles.length || byKey(a, b));
   if (withFiles.length > 1) {
     const u = makeUnion(withFiles.map((d) => d.key));
@@ -149,11 +214,12 @@ function nameLayer(env: Env, docs: OrgDoc[], ctx: string): { groups: G[]; rest: 
     const made: G[] = [];
     for (const list of clusters.values()) {
       if (list.length >= min) {
-        const tally = new Map<string, number>();
-        list.forEach((d) => d.sourceFiles.forEach((f) => tally.set(f, (tally.get(f) ?? 0) + 1)));
-        const top = [...tally].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0][0];
+        const uses = new Map<string, number>();
+        list.forEach((d) => d.sourceFiles.forEach((f) => uses.set(f, (uses.get(f) ?? 0) + 1)));
+        const top = [...uses].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0][0];
         const file = top.slice(top.lastIndexOf("/") + 1);
-        made.push(make("files", env, scoped(ctx, file), file, file, ctx, list, why("files", { count: list.length }, "low")));
+        // The id comes from the cluster's first document, so two clusters whose top file is index.ts never meet.
+        made.push(make("files", env, scoped(ctx, [...list].sort(byKey)[0].path), file, file, ctx, list, why("files", { count: list.length }, "low")));
       }
     }
     made.sort((a, b) => (a.id < b.id ? -1 : 1)).forEach(add);
@@ -161,24 +227,43 @@ function nameLayer(env: Env, docs: OrgDoc[], ctx: string): { groups: G[]; rest: 
 
   // 5. Links: a loose document whose open links all point into one group joins it.
   const groupOf = new Map<string, G>();
-  groups.forEach((g) => g.docs.forEach((d) => groupOf.set(d.key, g)));
-  for (const d of loose()) {
+  const index = (g: G): void => {
+    g.docs.forEach((d) => groupOf.set(d.key, g));
+    g.subs.forEach(index);
+  };
+  [...prior, ...groups].forEach(index);
+  for (const d of loose().sort(byKey)) {
     const targets = new Set((d.needs ?? []).map((k) => groupOf.get(k)));
     if ((d.needs?.length ?? 0) > 0 && targets.size === 1 && !targets.has(undefined)) {
       const g = [...targets][0]!;
       g.docs.push(d);
       g.docs.sort(byKey);
+      if (typeof g.why.params.count === "number") {
+        g.why = { ...g.why, params: { ...g.why.params, count: g.why.params.count + 1 } };
+      }
       groupOf.set(d.key, g);
       taken.add(d.key);
     }
   }
-  return { groups, rest: free() };
+
+  // 6. A stem or tag group over MAX is cut by the next signal.
+  const settled: G[] = [];
+  for (const g of groups) {
+    if ((g.kind === "stem" || g.kind === "tag") && g.docs.length > max) {
+      const cut = splitOver(env, g, ctx);
+      cut.released.forEach((d) => taken.delete(d.key));
+      settled.push(...cut.parts);
+    } else {
+      settled.push(g);
+    }
+  }
+  return { groups: settled, rest: free() };
 }
 
 // The leftovers of an over-size level: one "Other" group once there are more than MAX, else loose rows.
 function other(env: Env, rest: OrgDoc[], folder: string): G {
   const label = folderLabel(folder);
-  const g = make("other", env, folder, label, label === "" ? "" : cleanName(label), folder, rest, why("other", { folder: label }, "low"));
+  const g = make("other", env, folder, label, label === "" ? "" : nameOf(label), folder, rest, why("other", { folder: label }, "low"));
   g.oversize = rest.length > env.layout.max;
   return g;
 }
@@ -218,12 +303,12 @@ function buildTree(env: Env, docs: OrgDoc[]): { groups: G[]; loose: OrgDoc[] } {
       return { groups: [], loose: all(node) };
     }
     const label = folderLabel(folder);
-    const folderGroup = (docsIn: OrgDoc[]): G => make("folder", env, folder, label, cleanName(label), folder, docsIn, why("folder", { folder, count: node.n }));
+    const folderGroup = (docsIn: OrgDoc[]): G => make("folder", env, folder, label, nameOf(label), folder, docsIn, why("folder", { folder, count: node.n }));
     if (node.n <= max) {
       return { groups: [folderGroup(all(node))], loose: [] };
     }
     // Over MAX: its child groups become sub-groups and its own loose documents go through the name layer.
-    const named = nameLayer(env, loose, folder);
+    const named = nameLayer(env, loose, folder, childGroups);
     const subs = [...childGroups, ...named.groups];
     if (subs.length === 0) {
       const g = folderGroup(all(node));
@@ -244,7 +329,7 @@ function buildTree(env: Env, docs: OrgDoc[]): { groups: G[]; loose: OrgDoc[] } {
   };
 
   const top = build(root, true);
-  const named = nameLayer(env, top.loose, "");
+  const named = nameLayer(env, top.loose, "", top.groups);
   const groups = [...top.groups, ...named.groups];
   if (named.rest.length > max) {
     return { groups: [...groups, other(env, named.rest, "")], loose: [] };
@@ -263,24 +348,32 @@ const manualName = (id: string): string => id.slice(id.indexOf(":manual:") + 8);
 export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, cfg: OrganizeConfig = {}): OrgResult {
   const ungrouped = (opt.ungrouped ?? []).map(globToRegExp);
   const manual = (opt.manual ?? []).map((g) => ({ name: g.name, res: g.match.map(globToRegExp) }));
-  const docs = input.filter((d) => !ungrouped.some((r) => r.test(d.project + "/" + d.path))).sort(byKey);
+  // Paths are read with "/" everywhere below, so Windows separators are turned into "/" here (keys stay as given).
+  const slashed = (p: string): string => p.replace(/\\/g, "/");
+  const docs = input
+    .map((d) => (d.path.includes("\\") ? { ...d, path: slashed(d.path) } : d))
+    .filter((d) => !ungrouped.some((r) => r.test(d.project + "/" + d.path)))
+    .sort(byKey);
   const hubWords = opt.hubWords ?? 20000;
   const hubDocRefs = opt.hubDocRefs ?? 30;
   const hubs = new Set(docs.filter((d) => d.words >= hubWords || d.docRefs >= hubDocRefs).map((d) => d.key));
   const compiled: CompiledTags = compileTags(tags);
   const tagById = new Map(tags.map((t) => [t.id, t]));
-  const untag = new Set((cfg.untag ?? []).map((u) => `${u.project}\t${u.path}\t${u.tag.toLowerCase()}`));
+  const untag = new Set((cfg.untag ?? []).map((u) => `${u.project}\t${slashed(u.path)}\t${u.tag.toLowerCase()}`));
+  const known = new Set(tags.flatMap((t) => [t.id.toLowerCase(), t.label.toLowerCase()]));
+  const unknownTags = docs.flatMap((d) => (d.tags ?? []).filter((n) => !known.has(n.toLowerCase())).map((tag) => ({ key: d.key, tag })));
   const tok = new Map(docs.map((d) => [d.key, fileTokens(d.path)]));
   const matches = new Map(
     docs.map((d) => [d.key, matchTags(subjectOf(d.path, d.title), compiled, d.tags).filter((m) => !untag.has(`${d.project}\t${d.path}\t${m.tagId.toLowerCase()}`))]),
   );
-  const result: OrgResult = { groups: [], groupOf: new Map(), tagsOf: matches, docWhy: new Map(), hubs, stale: [] };
-  const assignOf = new Map((cfg.assign ?? []).map((a) => [`${a.project}\t${a.path}`, a.group]));
+  const result: OrgResult = { groups: [], groupOf: new Map(), tagsOf: matches, docWhy: new Map(), hubs, stale: [], layouts: {}, unknownTags };
+  const assignOf = new Map((cfg.assign ?? []).map((a) => [`${a.project}\t${slashed(a.path)}`, a.group]));
   const projects = [...new Set(docs.map((d) => d.project))].sort();
 
   for (const project of projects) {
     const mine = docs.filter((d) => d.project === project);
-    const layout = layoutFor(mine.length, opt.previousBand);
+    const layout = layoutFor(mine.length, opt.previous?.[project]?.band, opt.previous?.[project]?.max);
+    result.layouts[project] = { band: layout.band, min: layout.min, max: layout.max };
     const env: Env = { project, layout, tok, matches, tagById, hubs };
 
     // 1. Explicit layer: a placement by hand, then a rules-file group, then a group named in front matter.
@@ -363,7 +456,7 @@ export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, 
       const tag = t && hasEffect(t.tag, "emoji") ? t : undefined;
       const e = emojiWhy(tag, g.kind === "seq" ? "🔗" : "📁");
       const ov = cfg.groups?.[g.id];
-      const clean = cleanName(g.rawName);
+      const clean = nameOf(g.rawName);
       const changed = ["folder", "other"].includes(g.kind) && clean.toLowerCase() !== g.rawName.toLowerCase().replace(/[_\-.]+/g, " ");
       const nameWhy = g.kind === "manual" ? why("manual", { name: g.name }, "high", g.why.source) : why(`name.${g.kind}${changed ? "Cleaned" : ""}`, { raw: g.rawName }, "medium");
       const col = colours.get(g.id)!;
@@ -398,7 +491,7 @@ export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, 
     }
   }
   for (const u of cfg.untag ?? []) {
-    if (!docs.some((d) => d.project === u.project && d.path === u.path)) {
+    if (!docs.some((d) => d.project === u.project && d.path === slashed(u.path))) {
       result.stale.push({ kind: "untag", ref: u.path });
     }
   }

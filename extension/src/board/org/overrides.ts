@@ -36,7 +36,7 @@ export interface Relocation {
   stale: Array<{ kind: "assign" | "untag" | "group"; ref: string }>;
 }
 
-const fileOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
+const fileOf = (path: string): string => path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
 
 // Share of the old file names a current group still holds, at which a folder group's overrides follow it.
 const FOLDER_FOLLOW = 0.8;

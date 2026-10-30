@@ -77,3 +77,21 @@ export function checkProperties(r: OrgResult, input: OrgDoc[]): void {
   }
 }
 
+
+// Generated documents; `projects` is how many projects they spread over (1 puts all of them in one).
+export function generated(n: number, projects = 3): OrgDoc[] {
+  const rnd = lcg(7);
+  const words = ["payments", "sync", "login", "release", "theme", "backup", "search", "share", "export", "import", "cache", "alert"];
+  const kinds = ["PLAN", "BUG", "SPEC", "REPORT"];
+  const out: OrgDoc[] = [];
+  for (let i = 0; i < n; i++) {
+    const project = ["app", "web", "db"][i % projects];
+    const area = `area${Math.floor(rnd() * 12)}`;
+    const sub = `sub${Math.floor(rnd() * 8)}`;
+    const status = rnd() < 0.2 ? "/done" : "";
+    const w = words[Math.floor(rnd() * words.length)];
+    const seq = rnd() < 0.2 ? `_phase${1 + Math.floor(rnd() * 4)}` : "";
+    out.push(doc(project, `docs/${area}/${sub}${status}/${kinds[i % 4]}_${w}${i % 50}${seq}_i${i}.md`, { sourceFiles: rnd() < 0.3 ? [`lib/f${Math.floor(rnd() * 40)}.dart`, `lib/g${Math.floor(rnd() * 40)}.dart`] : [], title: `${w} notes ${i}` }));
+  }
+  return out;
+}

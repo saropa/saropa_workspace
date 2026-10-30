@@ -46,11 +46,20 @@ function hueOf(hex: string): number | undefined {
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
   const max = Math.max(r, g, b);
   const d = max - Math.min(r, g, b);
-  if (d < 0.25 * max || max === 0) {
+  if (d === 0 || max === 0) {
     return undefined;
   }
   const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return (h * 60 + 360) % 360;
+}
+
+function luminance(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 function refusal(t: TagDef): Refused["reason"] | undefined {
@@ -67,7 +76,12 @@ function refusal(t: TagDef): Refused["reason"] | undefined {
     return "colour";
   }
   const h = hueOf(t.colour);
-  return h !== undefined && (h >= 330 || h <= 20) ? "colour" : undefined;
+  if (h !== undefined && (h >= 330 || h <= 20)) {
+    return "colour";
+  }
+  // Readable on white and on #1e1e1e: luminance between 0.139 and 0.30 gives 3:1 against both.
+  const l = luminance(t.colour);
+  return l < 0.139 || l > 0.3 ? "colour" : undefined;
 }
 
 // Shipped tags with a project's changes applied. Order: the user's `order`, then the user's own tags, then shipped tags.
