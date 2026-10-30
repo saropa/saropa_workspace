@@ -23,6 +23,7 @@ import { readGroupBy, readProjectScope } from "../commands/boardExtraProjects";
 import { hintVisible, dismissHint } from "./boardProjectsHint";
 import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
+import { ChatPoll } from "./boardChats";
 
 // Least time between two looks at the Problems panel.
 export const LIVE_GAP_MS = 4000;
@@ -75,6 +76,12 @@ export abstract class BoardPanelCore {
   protected editedToken = 0;
   protected editedStale = false;
   protected editedTimer: ReturnType<typeof setTimeout> | undefined;
+  // The look at Chat Explorer chats that feeds the "Active now" pill; never part of a scan.
+  protected readonly chats = new ChatPoll(
+    () => this.run?.cfg.projects.map((p) => ({ id: p.id, folder: vscode.Uri.parse(p.path).fsPath })) ?? [],
+    () => this.panel.visible,
+    () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true))
+  );
   protected readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -121,6 +128,7 @@ export abstract class BoardPanelCore {
     void this.refreshLive();
     void this.refreshFuture();
     void this.refreshEdited();
+    this.chats.start();
   }
 
   // Paints the previous result at once, dimmed, while the scan runs.
@@ -191,6 +199,7 @@ export abstract class BoardPanelCore {
     void this.refreshLive();
     void this.refreshFuture();
     void this.refreshEdited();
+    this.chats.start();
   }
 
   // Looks up which board documents are being edited in this window and paints the In progress
@@ -303,7 +312,7 @@ export abstract class BoardPanelCore {
     if (!this.run || this.disposed) {
       return;
     }
-    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}) };
+    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}), ...this.chats.view() };
     const { cfg, marks } = this.run;
     // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
     this.model = buildBoard(
@@ -366,6 +375,7 @@ export abstract class BoardPanelCore {
     clearTimeout(this.liveTimer);
     clearTimeout(this.editedTimer);
     this.editedToken++;
+    this.chats.dispose();
     this.panel.dispose();
     for (const d of this.disposables) {
       d.dispose();
