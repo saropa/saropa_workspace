@@ -71,6 +71,22 @@ export async function realInside(rootFs: string, rel: string): Promise<string | 
 
 export { hasUnsavedEdits };
 
+// A write error as one plain sentence for the problems list. The raw text goes to the log only.
+export function plainWriteError(e: unknown, file: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  console.error(`Release Board: writing ${file} failed: ${raw}`);
+  const code = String((e as { code?: unknown } | null)?.code ?? "");
+  const text = `${code} ${raw}`;
+  const kind = /EACCES|EPERM|EROFS|NoPermissions|permission|read-only/i.test(text)
+    ? "permission"
+    : /ENOSPC|EDQUOT|no space|disk full/i.test(text)
+      ? "space"
+      : /ENOENT|FileNotFound|no such file/i.test(text)
+        ? "missing"
+        : "other";
+  return l10n(`releaseBoard.patch.fail.${kind}`, { file });
+}
+
 // Writes the rows: status, severity and group changes in one write of the rules file, Needs
 // changes one write per document. A row that cannot be written is counted as skipped, and a failure
 // partway never hides what was already written: the snapshot always holds every file written.
@@ -106,7 +122,7 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
         out.applied += done;
       }
     } catch (e) {
-      out.problems.push(e instanceof Error ? e.message : String(e));
+      out.problems.push(plainWriteError(e, RULES_FILE));
     }
   }
   const byDoc = new Map<string, PatchRow[]>();
@@ -118,9 +134,9 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
       out.applied += await writeNeeds(run, targets, id, mine, out.snapshot, out.problems);
     } catch (e) {
       // One document failing never stops the others, and never loses the snapshot of those written.
-      const msg = e instanceof Error ? e.message : String(e);
-      out.problems.push(`${targets.get(id)?.path ?? id}: ${msg}`);
-      void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: targets.get(id)?.path ?? id, error: msg }));
+      const file = targets.get(id)?.path ?? id;
+      out.problems.push(plainWriteError(e, file));
+      void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file, error: e instanceof Error ? e.message : String(e) }));
     }
   }
   out.skipped = rows.length - out.applied;

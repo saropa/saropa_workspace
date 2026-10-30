@@ -6,7 +6,7 @@ import { Severity } from "./severity";
 // Turns accepted patch rows into new file text. Pure: the host reads and writes the files and
 // decides which rows were ticked; each function here takes text and returns text.
 
-type Edit = { ok: true; text: string } | { ok: false; reason: AssignRefusal | "none" | "shadowed" | "lookalike" };
+type Edit = { ok: true; text: string } | { ok: false; reason: AssignRefusal | "none" | "shadowed" | "lookalike" | "status" };
 
 // The name of the manual group a document falls into: the first group, in the file's order, with
 // an entry that matches it (the board joins documents to manual groups the same way).
@@ -91,7 +91,7 @@ export function applyRuleRow(text: string | undefined, row: PatchRow, target: Pa
   // The plainest category of that state: no kind and no note when there is one.
   const same = categories.filter((c) => c.status === change.to);
   const category = same.find((c) => !c.kind && !c.note) ?? same[0];
-  return category ? addDocRule(text, { ...doc, category }) : { ok: false, reason: "shape" };
+  return category ? addDocRule(text, { ...doc, category }) : { ok: false, reason: "status" };
 }
 
 // The lead-in class has no newline and no second `*` run, so a line of only `*` costs linear time.

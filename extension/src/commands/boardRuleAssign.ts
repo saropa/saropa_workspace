@@ -179,12 +179,17 @@ async function linkedRules(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promi
   return (await isLink(vscode.Uri.joinPath(root.uri, ".saropa"))) || (await isLink(uri));
 }
 
+// True when the rules file has unsaved edits open, by the workspace path or the real path.
+async function rulesUnsaved(uri: vscode.Uri): Promise<boolean> {
+  return hasUnsavedCopy(uri) || (await hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri));
+}
+
 // Writes a change to the rules file with every check: no unsaved copy open, no symbolic link,
 // strict UTF-8, a confirmation that names the change (when it has one), and a second read just
 // before the write. Returns true when the file was written, so the caller scans again.
 export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri)) {
+  if (await rulesUnsaved(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
     return false;
   }
@@ -206,7 +211,7 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
     return false;
   }
   // The file is read again just before the write: a change made while the dialogs were open wins.
-  if (hasUnsavedCopy(uri) || !sameRead(await readRules(uri), before)) {
+  if ((await rulesUnsaved(uri)) || !sameRead(await readRules(uri), before)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.changed", { file: RULES_FILE }));
     return false;
   }
@@ -250,7 +255,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
     return false;
   }
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri) || (await hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri))) {
+  if (await rulesUnsaved(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
     return false;
   }
