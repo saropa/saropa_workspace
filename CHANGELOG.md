@@ -46,6 +46,13 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Release Board opens again. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.1/CHANGELOG.md)
+
+### Fixed
+- The Release Board opened with an error (Cannot read properties of undefined) in 2.6.0. A failed open now closes its blank tab and shows one error message, and a saved result that cannot be drawn no longer stops the open.
+
 ## [2.6.0]
 
 The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. You can now hand work to an AI as a saved document. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.0/CHANGELOG.md)
