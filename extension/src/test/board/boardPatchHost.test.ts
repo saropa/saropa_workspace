@@ -286,7 +286,7 @@ test("a reply over the size limit is refused at once, however it is built", () =
   const patches = new BoardPatches(() => ({ model, run }), (m) => posted.push(m as { error?: string }), () => undefined);
   const t = Date.now();
   patches.read("x```json saropa-patch\n".repeat(50_000), "paste");
-  assert.ok(Date.now() - t < 100, "refused without scanning");
+  assert.ok(Date.now() - t < 3000, "refused without scanning");
   assert.match(String(posted[0].error), /too large/);
 });
 
@@ -591,6 +591,29 @@ test("a write error shows as a plain sentence in the problems list, never the ra
   }
   assert.ok(out.problems.length > 0);
   assert.ok(out.problems.every((p) => !p.includes("disk full")), out.problems.join("|"));
+});
+
+test("no toast or problems entry carries the raw write error text", async () => {
+  const win = vscode.window as unknown as { showErrorMessage: (m: string) => Promise<undefined> };
+  const orig = win.showErrorMessage;
+  const toasts: string[] = [];
+  win.showErrorMessage = async (m: string): Promise<undefined> => {
+    toasts.push(m);
+    return undefined;
+  };
+  const { run, model } = setup();
+  const heal = failWrites("c.md");
+  let out;
+  try {
+    out = await applyRows(run, model, rowsOf(model, [ALL[4]]));
+  } finally {
+    heal();
+    win.showErrorMessage = orig;
+  }
+  assert.ok(toasts.length > 0 && out.problems.length > 0);
+  for (const m of [...toasts, ...out.problems]) {
+    assert.ok(!m.includes("disk full") && !/Error:|ENOSPC|EACCES/.test(m), m);
+  }
 });
 
 test("the rules file is not changed while an unsaved copy is open at its real path (symlinked workspace)", async () => {

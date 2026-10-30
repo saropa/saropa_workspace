@@ -9,7 +9,7 @@ import { addNeedsLine, applyRuleRow, needsSpellings, needsWrite, removeNeedsLine
 import { decodeRules, ruleCategories } from "../board/ruleAssign";
 import { pathExists } from "./boardFileSource";
 import { RULES_FILE } from "./boardConfigLoad";
-import { RulesSnapshot, changeRules, hasUnsavedEdits, isLink, undoRulesWrite } from "./boardRuleAssign";
+import { RulesSnapshot, changeRules, hasUnsavedEdits, isLink, plainWriteError, undoRulesWrite } from "./boardRuleAssign";
 import { BoardRun } from "./boardScanStore";
 
 // Release Board, bring back an AI reply: writes the changes the owner ticked and takes them
@@ -69,23 +69,7 @@ export async function realInside(rootFs: string, rel: string): Promise<string | 
   }
 }
 
-export { hasUnsavedEdits };
-
-// A write error as one plain sentence for the problems list. The raw text goes to the log only.
-export function plainWriteError(e: unknown, file: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  console.error(`Release Board: writing ${file} failed: ${raw}`);
-  const code = String((e as { code?: unknown } | null)?.code ?? "");
-  const text = `${code} ${raw}`;
-  const kind = /EACCES|EPERM|EROFS|NoPermissions|permission|read-only/i.test(text)
-    ? "permission"
-    : /ENOSPC|EDQUOT|no space|disk full/i.test(text)
-      ? "space"
-      : /ENOENT|FileNotFound|no such file/i.test(text)
-        ? "missing"
-        : "other";
-  return l10n(`releaseBoard.patch.fail.${kind}`, { file });
-}
+export { hasUnsavedEdits, plainWriteError };
 
 // Writes the rows: status, severity and group changes in one write of the rules file, Needs
 // changes one write per document. A row that cannot be written is counted as skipped, and a failure
@@ -136,7 +120,7 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
       // One document failing never stops the others, and never loses the snapshot of those written.
       const file = targets.get(id)?.path ?? id;
       out.problems.push(plainWriteError(e, file));
-      void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file, error: e instanceof Error ? e.message : String(e) }));
+      void vscode.window.showErrorMessage(plainWriteError(e, file));
     }
   }
   out.skipped = rows.length - out.applied;
@@ -203,8 +187,7 @@ async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, 
   try {
     await vscode.workspace.fs.writeFile(uri, Buffer.from(text, "utf8"));
   } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: me.path, error }));
+    void vscode.window.showErrorMessage(plainWriteError(e, me.path));
     // A write that failed late may still have landed; keep it undoable when it did.
     if (decodeRules(await vscode.workspace.fs.readFile(uri).then((b) => b, () => new Uint8Array())) === text) {
       snapshot.docs.push({ uri, shown, before, after: text });
@@ -274,7 +257,7 @@ export async function undoBatch(s: BatchSnapshot): Promise<boolean> {
       s.docs.splice(s.docs.indexOf(d), 1);
     } catch (e) {
       ok = false;
-      void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file, error: e instanceof Error ? e.message : String(e) }));
+      void vscode.window.showErrorMessage(plainWriteError(e, file));
     }
   }
   if (s.rules) {

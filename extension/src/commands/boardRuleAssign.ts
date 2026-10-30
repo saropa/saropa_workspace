@@ -230,7 +230,7 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
     await vscode.workspace.fs.createDirectory(dir);
     await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     // A write that failed late may still have landed; keep it undoable when it did.
     const now = await readRules(uri).catch((): RulesRead => ({ kind: "none" }));
     if (now.kind === "text" && now.text === result.text) {
@@ -285,7 +285,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(s.before, "utf8"));
     }
   } catch (e) {
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     return false;
   }
   return true;
@@ -449,3 +449,18 @@ export async function changeDoc(run: BoardRun, doc: { project: string; path: str
   return snapshot;
 }
 
+// A write error as one plain sentence for the problems list. The raw text goes to the log only.
+export function plainWriteError(e: unknown, file: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  console.error(`Release Board: writing ${file} failed: ${raw}`);
+  const code = String((e as { code?: unknown } | null)?.code ?? "");
+  const text = `${code} ${raw}`;
+  const kind = /EACCES|EPERM|EROFS|NoPermissions|permission|read-only/i.test(text)
+    ? "permission"
+    : /ENOSPC|EDQUOT|no space|disk full/i.test(text)
+      ? "space"
+      : /ENOENT|FileNotFound|no such file/i.test(text)
+        ? "missing"
+        : "other";
+  return l10n(`releaseBoard.patch.fail.${kind}`, { file });
+}

@@ -2445,7 +2445,6 @@
   "releaseBoard.noRule.added": "Release Board: added rule {id} ({glob}) to {file}. Scanning again.",
   "releaseBoard.noRule.changed": "Release Board: {file} changed while you were choosing, so nothing was written. Try again.",
   "releaseBoard.noRule.openFile": "Open the rules file",
-  "releaseBoard.noRule.failed": "Release Board: could not write {file}: {error}",
   "releaseBoard.keywords.label.title": "Keywords and phrases",
   "releaseBoard.keywords.label.intro": "These words decide how serious a document looks to the board. A document gets the highest level whose phrases score at least the threshold. Change them where the board guesses wrong. Nothing is saved until you press Save and confirm.",
   "releaseBoard.keywords.label.warn": "Careful: taking a phrase out of a higher level, or putting one into Low, can lower the severity of documents. A lower severity can turn a red light green, because the document then no longer stops the release. Read the preview before you save.",
