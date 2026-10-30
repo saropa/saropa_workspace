@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { applyMarks, pinnedKeys } from "../board/marks";
-import { BoardRun, canRunHealth, hasOutsideProject, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { BoardRun, canRunHealth, logBoardError, hasOutsideProject, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { trainsFor } from "./boardTrain";
 import { PathToGo, pathToGo } from "../board/pathToGo";
@@ -87,24 +87,28 @@ export abstract class BoardPanelCore {
   protected editedStale = false;
   protected editedTimer: ReturnType<typeof setTimeout> | undefined;
   // The look at Chat Explorer chats that feeds the "Active now" pill; never part of a scan.
-  protected readonly chats = new ChatPoll(
-    () => this.run?.cfg.projects.map((p) => ({ id: p.id, folder: vscode.Uri.parse(p.path).fsPath })) ?? [],
-    () => this.panel.visible,
-    () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true))
-  );
+  protected readonly chats: ChatPoll;
   // An AI reply being reviewed, and the result file the watcher found; the page shows a pill for the file.
-  protected readonly patches = new BoardPatches(
-    () => (this.run && this.model ? { model: this.model, run: this.run } : undefined),
-    (m) => void this.panel.webview.postMessage(m),
-    () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true)),
-    () => this.context.workspaceState
-  );
+  protected readonly patches: BoardPatches;
   protected readonly disposables: vscode.Disposable[] = [];
 
   constructor(
     protected readonly context: vscode.ExtensionContext,
     protected readonly panel: vscode.WebviewPanel
-  ) {}
+  ) {
+    // Built here, not as field initializers: those run before the parameter properties above are assigned.
+    this.chats = new ChatPoll(
+      () => this.run?.cfg.projects.map((p) => ({ id: p.id, folder: vscode.Uri.parse(p.path).fsPath })) ?? [],
+      () => this.panel.visible,
+      () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true))
+    );
+    this.patches = new BoardPatches(
+      () => (this.run && this.model ? { model: this.model, run: this.run } : undefined),
+      (m) => void this.panel.webview.postMessage(m),
+      () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true)),
+      () => this.context.workspaceState
+    );
+  }
 
   protected abstract onMessage(message: unknown): Promise<void>;
   // The panel is gone: the module drops its reference.
@@ -140,7 +144,7 @@ export abstract class BoardPanelCore {
     this.cached = false;
     this.dirty = false;
     this.lastScanAt = Date.now();
-    this.render();
+    this.renderSafely();
     void this.refreshOutside();
     void this.refreshLive();
     void this.refreshFuture();
@@ -154,7 +158,18 @@ export abstract class BoardPanelCore {
     if (last && !this.run) {
       this.run = last;
       this.cached = true;
-      this.render({ stale: true });
+      this.renderSafely({ stale: true });
+    }
+  }
+
+  // A stored or seeded result that cannot be drawn must not stop the open: the fresh scan still runs.
+  private renderSafely(state: RenderState = {}): void {
+    try {
+      this.render(state);
+    } catch (e) {
+      logBoardError(e);
+      this.run = undefined;
+      this.cached = false;
     }
   }
 

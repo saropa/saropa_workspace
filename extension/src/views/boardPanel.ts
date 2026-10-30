@@ -8,7 +8,7 @@ import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
 import { markSeenNow } from "./boardSinceLast";
-import { applySuggestion, rejectProposals, undoRejected, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
+import { PLACEMENT_KEY, applySuggestion, closeFailedOpen, rememberColumn, rejectProposals, undoRejected, openDocument, openExternalLink, openSittingsLine, saveSitting, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
@@ -47,7 +47,6 @@ import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldVa
 let current: BoardPanel | undefined;
 // How long Undo stays offered after a change.
 const UNDO_MS = 10_000;
-const PLACEMENT_KEY = "saropaWorkspace.releaseBoard.column";
 
 class BoardPanel extends BoardPanelWiring {
   // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
@@ -921,22 +920,15 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
     { viewColumn: column, preserveFocus: background },
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
-  // Remember where the tab is, also after the user drags it to another group.
-  let lastColumn = panel.viewColumn;
-  const remember = (): void => {
-    if (panel.viewColumn !== undefined) {
-      lastColumn = panel.viewColumn;
-      void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
-    }
-  };
-  remember();
-  panel.onDidChangeViewState(remember);
-  setBoardColumnSource(() => panel.viewColumn);
-  panel.onDidDispose(() => {
-    setBoardColumnSource(() => undefined);
-    void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
-  });
-  current = new BoardPanel(context, panel);
+  // Anything that fails while the tab is set up closes it again: no blank tab is left behind.
+  try {
+    rememberColumn(context, panel);
+    current = new BoardPanel(context, panel);
+  } catch (e) {
+    current = undefined;
+    closeFailedOpen(panel, e, background);
+    return;
+  }
   const fresh = background ? currentBoard() : undefined;
   if (fresh) {
     current.seed(fresh.run);

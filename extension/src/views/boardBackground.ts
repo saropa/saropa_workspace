@@ -87,7 +87,7 @@ class BackgroundScan {
     }
     const mode = asStartupMode(vscode.workspace.getConfiguration(SETTINGS).get<string>("openOnStartup", "whenProjectsFound"));
     if (shouldOpenOnStartup(mode, projectsFound(board.model), boardOn())) {
-      void openBoard(this.context, true);
+      openBoard(this.context, true).catch(logBoardError);
     }
   }
 
