@@ -5,6 +5,8 @@ import { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml, glyphTip, pillify, pl, tip } from "./boardHtmlUtil";
 import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock, projectCard } from "./boardHtmlRows";
+import { CARD_GROUP_BYS, groupCards } from "./boardHtmlGroups";
+import type { GroupBy } from "./types";
 import { FutureView, futurePanel, viewTabs } from "./boardHtmlFuture";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
@@ -44,9 +46,10 @@ export interface RenderState {
   hint?: boolean;
   // False hides the colored icons before section headings (the sectionIcons setting); undefined leaves them on.
   sectionIcons?: boolean;
-  // "project" draws one card per project with its lists inside; "none" keeps the merged lists.
+  // "project" draws one card per project with its lists inside; "group", "status" and "severity" draw
+  // one card per group, status or severity; "none" keeps the merged lists.
   // Left undefined (a plain-browser layout check), the merged lists are drawn.
-  groupBy?: "project" | "none";
+  groupBy?: GroupBy;
   // Whether the board opens at start-up (the setting is not "never"); undefined leaves the menu entry out.
   startup?: boolean;
   // Which projects the board shows (the projectScope setting); undefined leaves the scope switch out.
@@ -125,7 +128,9 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
   // One card per project, or the projects as plain rows over the merged lists.
   const projects = state.groupBy === "project"
     ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, badge(p), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("")
-    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, badge(p))).join("")
+    : state.groupBy && CARD_GROUP_BYS.includes(state.groupBy)
+      ? model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, badge(p))).join("") + groupCards(model, state.groupBy, names, t)
+      : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, badge(p))).join("")
       + list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow", single }) + inProgressList(model, names, t, single) + list(t.workOn, by("amber"), names, t, { tip: "list.workOn", single });
   // The side sections wait behind one strip of pills. Changes since the last look opens by itself
   // once, when a document became a blocker.
