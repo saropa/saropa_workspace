@@ -6,7 +6,7 @@ import { BoardStrings, escapeHtml, fillT, pill, tip, titleAttr } from "./boardHt
 // bare message and the host does the rest.
 
 export const PROJECTS_STYLE = `
-.hint{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}.hint .f{flex:1;min-width:12em;white-space:normal}
+.hint{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
 .roll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}.roll .go{font-size:12px;padding:0 8px}.roll .go.zero{opacity:.45}
 .otag{color:var(--blue);border-color:var(--blue)}.vd.skip{border-style:dashed;opacity:.85}.go.skipped{background:rgba(128,128,128,.25);color:var(--mute)}`;
 
@@ -14,7 +14,9 @@ export const PROJECTS_STYLE = `
 // script's `vscode` and `REV` and sends only the kind of request.
 export const PROJECTS_SCRIPT = `document.querySelectorAll('[data-projects]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'projects',rev:REV})));
 document.querySelectorAll('[data-scope]').forEach(b=>b.addEventListener('click',()=>{if(b.getAttribute('aria-pressed')!=='true'){vscode.postMessage({type:'scope',value:b.dataset.scope,rev:REV});}}));
-document.querySelectorAll('[data-fclear]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.fclear,go=s=>{const c=document.querySelector(s);if(c){c.click();}};if(k!=='have'){go('[data-box="any"]');}if(k!=='time'){go('[data-haveall]');}}));
+document.querySelectorAll('[data-fclear]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.fclear;sitSend({...(k!=='have'?{box:'any'}:{}),...(k!=='time'?{have:SIT.all}:{})});}));
+document.querySelectorAll('[data-since-go]').forEach(b=>b.addEventListener('click',()=>{showTab('board');const d=document.getElementById('since-box');if(d){d.open=true;d.scrollIntoView({block:'start'});}}));
+document.querySelectorAll('[data-since-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'sinceDismiss',rev:REV})));
 document.querySelectorAll('[data-hint-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'hintDismiss',rev:REV})));`;
 
 // The text of one label; the key itself when the table has none (a plain-browser layout check).
@@ -23,12 +25,13 @@ export function label(t: BoardStrings, key: string): string {
   return table && typeof table === "object" && typeof table[key] === "string" ? table[key] : key;
 }
 
-// The one-line hint shown while no extra project is chosen and it has not been dismissed.
+// The hint shown while no extra project is chosen and it has not been dismissed: one pill-sized
+// button that opens the project chooser, and a small close. The sentence is its tooltip.
 export function hintBar(show: boolean | undefined, t: BoardStrings): string {
   if (!show) {
     return "";
   }
-  return `<div class="hint" role="note" ${tip(t, "hintBar")}><span class="f" ${tip(t, "hintBar")}>${escapeHtml(label(t, "hintText"))}</span><button data-projects title="${escapeHtml(label(t, "projectsTip"))}">${escapeHtml(label(t, "hintAdd"))}</button><button data-hint-dismiss title="${escapeHtml(label(t, "hintDismissTip"))}" aria-label="${escapeHtml(label(t, "hintDismissTip"))}">${escapeHtml(label(t, "hintDismiss"))}</button></div>`;
+  return `<div class="hint" role="note" ${tip(t, "hintBar")}><button class="sec" data-projects title="${escapeHtml(label(t, "projectsTip"))}">${escapeHtml(label(t, "hintAdd"))}</button><button class="fx sec" data-hint-dismiss title="${escapeHtml(label(t, "hintDismissTip"))}" aria-label="${escapeHtml(label(t, "hintDismissTip"))}">\u2715</button></div>`;
 }
 
 export interface Rollup {

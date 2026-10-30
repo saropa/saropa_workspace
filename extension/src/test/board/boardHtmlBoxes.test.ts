@@ -7,9 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildBoard } from "../../board/boardModel";
 import { BoardStrings } from "../../board/boardHtmlUtil";
-import { chains, noRuleBox, outsideBoxes, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "../../board/boardHtmlBoxes";
-import { readFacts } from "../../board/docFacts";
 import { viewMenu } from "../../board/boardHtmlMenus";
+import { chains, noRuleBox, outsideBoxes, sinceBox, sinceMarks, sittingsBox, tidyBox, trainBox, unnamedBox } from "../../board/boardHtmlBoxes";
+import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
 import { Train } from "../../board/train";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
@@ -120,13 +120,29 @@ test("no outside groups, no markup", () => {
 });
 
 test("the since strip lists each line with its details, escaped", () => {
-  const html = sinceBox({ heading: "Since <1h>", lines: [{ text: "App: 1 new blocker", details: ["+ Fix <x>", "- Old"] }, { text: "Db: light changed", details: [] }] }, t);
+  const html = sinceBox({ heading: "Since <1h>", marked: [], lines: [{ text: "App: 1 new blocker", details: ["+ Fix <x>", "- Old"] }, { text: "Db: light changed", details: [] }] }, t);
   assert.ok(html.includes('role="status"'));
   assert.ok(html.includes("Since &#60;1h&#62;"));
   assert.ok(html.includes("+ Fix &#60;x&#62;"));
   assert.equal(html.match(/<ul class="sd">/g)?.length, 1);
   assert.equal(sinceBox(undefined, t), "");
-  assert.equal(sinceBox({ heading: "h", lines: [] }, t), "");
+  assert.equal(sinceBox({ heading: "h", marked: [], lines: [] }, t), "");
+});
+
+test("the since strip has a Dismiss button and an id the header link can open", () => {
+  const html = sinceBox({ heading: "h", marked: [], lines: [{ text: "App: 1 new blocker", details: [] }] }, t);
+  assert.ok(html.includes('id="since-box"'));
+  assert.ok(html.includes("data-since-dismiss") && html.includes("sinceDismiss"));
+});
+
+test("rows of documents that became blockers get one static dotted blue outline rule, and no animation", () => {
+  const m = buildBoard(cfg, [row("docs/a.md", "red"), row("docs/b.md", "red")], undefined, true);
+  const a = m.items.find((i) => i.path === "docs/a.md")!;
+  const css = sinceMarks(m, { heading: "h", marked: [`${a.project}/${a.path}`], lines: [{ text: "x", details: [] }] });
+  assert.equal(css, `.row[data-id="${a.id}"]{outline:1px dotted var(--blue);outline-offset:-1px}`);
+  assert.equal(/animation|transition/.test(css), false);
+  assert.equal(sinceMarks(m, undefined), "");
+  assert.equal(sinceMarks(m, { heading: "h", marked: [], lines: [] }), "");
 });
 
 test("a train row shows its name, light, order and a warning for a cycle", () => {
@@ -151,21 +167,24 @@ test("a train row shows its name, light, order and a warning for a cycle", () =>
   assert.equal(trainBox(undefined, t), "");
 });
 
-test("the sittings box is always visible: the time filter and the chips on top, the steps that fit below", () => {
+test("the sittings box is always visible: the steps that fit, with the time and device choices in the View options menu", () => {
   const snap = snapshotOf({ "docs/a.md": "# A\n\n- [ ] Upload the build with Xcode\n- [ ] Write the notes\n" });
   const m = buildBoard(cfg, [row("docs/a.md")], undefined, true, snap, undefined, undefined, {
     sittings: { selection: { have: ["mac"], timeBox: "any", maxSteps: 10 }, onlyOwner: false },
   });
   const html = sittingsBox(m, t);
-  assert.ok(html.startsWith('<details class="box" id="sit-panel" data-sec="sittings" open><summary class="sh" title="sittingsHeading"><h2 title="sittingsHeading"><span class="si" aria-hidden="true">⏱️</span> [sittingsHeading]</h2></summary><div class="filter">'));
-  assert.equal(/\shidden[\s>]/.test(html), false, "nothing is hidden behind a button");
-  assert.ok(html.includes('data-have="mac" aria-pressed="true"'));
-  assert.ok(html.includes('data-have="iphone" aria-pressed="false"'));
-  assert.ok(html.includes('data-haveall="1" aria-pressed="false"'));
-  assert.ok(html.includes('data-box="any" aria-pressed="true"'));
+  assert.ok(html.startsWith('<details class="box" id="sit-panel" data-sec="sittings" open><summary class="sh" title="sittingsHeading"><h2 title="sittingsHeading"><span class="si" aria-hidden="true">⏱️</span> [sittingsHeading]</h2></summary><details class="steps"'));
+  assert.equal(html.includes("data-have") || html.includes("data-box"), false, "the chips are gone");
+  const menu = viewMenu(t, "deliberate", m.sittings);
+  assert.ok(menu.includes('data-act="have:mac"') && menu.includes('data-act="have:iphone"'));
+  assert.ok(menu.includes('data-act="have:mac" aria-checked="true"') && menu.includes('data-act="have:iphone" aria-checked="false"'));
+  assert.ok(menu.includes('data-act="haveall"'));
+  assert.ok(menu.includes('data-act="box:any" aria-checked="true"'));
   for (const box of ["15", "30", "60", "240"]) {
-    assert.ok(html.includes(`data-box="${box}" aria-pressed="false"`), `time box ${box}`);
+    assert.ok(menu.includes(`data-act="box:${box}" aria-checked="false"`), `time box ${box}`);
   }
+  assert.ok(menu.includes('data-sit="{&#34;have&#34;:[&#34;mac&#34;]'), "the selection travels on the menu");
+  assert.equal(/\shidden[\s>]/.test(html), false, "nothing is hidden behind a button");
   assert.equal(html.match(/data-step="/g)?.length, 2, "one step that fits and one with no context");
   assert.ok(html.includes('<details class="steps" id="sit-steps" data-sec="sittings-steps" open>'));
   assert.ok(html.includes('id="sit-untag"'));
@@ -185,8 +204,9 @@ test("by default every context is in hand and any time fits, so nothing is hidde
   assert.equal(v.doable, 2);
   assert.equal(v.needOther, 0);
   const html = sittingsBox(m, t);
-  assert.equal(html.match(/data-have="[a-z]+" aria-pressed="true"/g)?.length, v.contexts.length);
-  assert.ok(html.includes('data-haveall="1" aria-pressed="true"'));
+  const menu = viewMenu(t, "deliberate", v);
+  assert.equal(menu.match(/data-act="have:[a-z]+" aria-checked="true"/g)?.length, v.contexts.length);
+  assert.ok(menu.includes('data-act="haveall"'));
 });
 
 test("with nothing in hand the box says so, and with no sittings it is not drawn", () => {

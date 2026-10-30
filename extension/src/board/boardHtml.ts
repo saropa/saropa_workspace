@@ -11,7 +11,7 @@ import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skipped
 import { optsMenu, rowMenu, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
-import { chains, noRuleBox, outsideBoxes, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
+import { chains, noRuleBox, sinceMarks, outsideBoxes, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
 // as a table so the core stays free of VS Code and of the l10n catalog, and the page can
@@ -91,10 +91,10 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
       ? `<div class="box"><p>${escapeHtml(t.safetyHold)} ${accept}</p></div>`
       : "";
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${KEYWORD_LINE_STYLE}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${KEYWORD_LINE_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-${topBar(model, t, state.scope, futureTabs(future, t))}
+${topBar(model, t, state.scope, futureTabs(future, t), since)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}
 <div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}">${byUserNote(model, t)}${keywordLine(model, t)}${banner}
 ${sinceBox(since, t)}
@@ -115,7 +115,7 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
-${rowMenu(t)}${viewMenu(t, model.profile)}${optsMenu(t, state.startup)}
+${rowMenu(t)}${viewMenu(t, model.profile, model.sittings)}${optsMenu(t, state.startup)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}
 ${KEYWORD_LINE_SCRIPT}</script></body></html>`;

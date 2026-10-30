@@ -302,7 +302,6 @@ export const POLISH_KEYS = [
   "haveLabel",
   "haveAll",
   "timeLabelTip",
-  "timeGroup",
   "timeAnyTip",
   "timeTip",
   "timeAny",
@@ -311,7 +310,6 @@ export const POLISH_KEYS = [
   "timeHour",
   "timeHalfDay",
   "haveLabelTip",
-  "haveGroup",
   "chip",
   "chipAll",
   "sittingsHeading",
@@ -413,6 +411,18 @@ export const POLISH_KEYS = [
   "rollupLight",
   "rollupSkipped",
   "skippedRow",
+  "explain",
+  "explainAll",
+  "explainShownAll",
+  "explainShownOne",
+  "explainTip",
+  "modeRule.rush",
+  "modeRule.deliberate",
+  "modeRule.zero",
+  "sinceGo",
+  "sinceGoTip",
+  "sinceDismiss",
+  "sinceDismissTip",
 ] as const;
 
 // Tooltips and the labels of the controls added with them.
@@ -421,7 +431,7 @@ function polishStrings() {
 }
 
 // Every key of the umbrella view's label table, in en.json as "releaseBoard.projects.label.<key>".
-export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintText", "hintAdd", "hintDismiss", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "startup", "startupTip"] as const;
+export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintAdd", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "startup", "startupTip"] as const;
 
 // Labels of the umbrella view: the Projects and Settings buttons, the hint, the roll-up and the grey rows.
 function projectStrings() {

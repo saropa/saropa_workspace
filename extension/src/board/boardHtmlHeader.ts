@@ -1,4 +1,5 @@
 import type { BoardModel } from "./boardModel";
+import type { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml, pill, pl, tip } from "./boardHtmlUtil";
 import { kebab } from "./boardHtmlMenus";
 import { label } from "./boardHtmlProjects";
@@ -22,10 +23,34 @@ export function scopeSwitch(model: BoardModel, scope: Scope | undefined, t: Boar
   return `<span class="seg" role="group" aria-label="${escapeHtml(pl(t, "scopeGroup"))}" ${tip(t, "scopeGroup")}>${btn("openOnly", pl(t, "scopeThis"), pl(t, "scopeThisTip") + hiddenNote)} ${btn("all", pl(t, "scopeAll"), pl(t, "scopeAllTip", { count: total }), " " + pill(t, total))}</span>`;
 }
 
+// The scope and the release mode as one pill, "All 5 · Deliberate". Its tooltip
+// carries the detail: which projects are shown, what the mode blocks, and that red folders and
+// failing checks block in every mode. Left out when the scope is unknown.
+export function explainPill(model: BoardModel, scope: Scope | undefined, t: BoardStrings): string {
+  if (scope === undefined) {
+    return "";
+  }
+  const names = model.projects.map((p) => p.name).join(", ");
+  const count = model.projects.length;
+  const mode = model.profile === "rush" ? t.profileRush : model.profile === "zero" ? t.profileZero : t.profileDeliberate;
+  const shown = scope === "all" ? pl(t, "explainShownAll", { count, names }) : pl(t, "explainShownOne", { names });
+  const tipText = pl(t, "explainTip", { shown, mode, rule: pl(t, "modeRule." + model.profile), count });
+  return `<span class="fp" title="${escapeHtml(tipText)}">\u2699 ${escapeHtml(pl(t, "explain", { scope: scope === "all" ? pl(t, "explainAll", { count }) : pl(t, "scopeThis"), mode }))}</span>`;
+}
+
+// The header entry to the change log: "Changes N", shown only while something changed since the
+// last look. A click opens the "Since you last looked" box (it stays until dismissed).
+export function sinceLink(since: SinceView | undefined, t: BoardStrings): string {
+  if (!since || since.lines.length === 0) {
+    return "";
+  }
+  return `<button class="sec" data-since-go ${tip(t, "sinceGoTip")}>${escapeHtml(pl(t, "sinceGo"))} ${pill(t, since.lines.length)}</button>`;
+}
+
 // The top line: scope switch, the view tabs (already built) and the two kebabs. The intro
 // sentence is the tooltip of the whole line, not text on the page.
-export function topBar(model: BoardModel, t: BoardStrings, scope: Scope | undefined, tabs: string): string {
-  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${scopeSwitch(model, scope, t)}${tabs}<span class="sp"></span>${kebab(t, "view")}${kebab(t, "opts")}</div>`;
+export function topBar(model: BoardModel, t: BoardStrings, scope: Scope | undefined, tabs: string, since?: SinceView): string {
+  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${scopeSwitch(model, scope, t)}${explainPill(model, scope, t)}${tabs}<span class="sp"></span>${sinceLink(since, t)}${kebab(t, "view")}${kebab(t, "opts")}</div>`;
 }
 
 // One removable pill per applied filter, hidden when none is applied; "Clear all" once there are

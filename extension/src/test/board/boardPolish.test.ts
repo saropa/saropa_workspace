@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BoardStrings, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { STYLE, script } from "../../board/boardHtmlAssets";
-import { kebab, optsMenu, rowMenu } from "../../board/boardHtmlMenus";
+import { kebab, optsMenu, rowMenu, viewMenu } from "../../board/boardHtmlMenus";
 import { PROJECTS_STYLE } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { evaluateHealth } from "../../board/health";
@@ -135,9 +135,10 @@ test("the time filter has Any, 15 min, 30 min, 1 hour and Half a day with their 
   const s = strings();
   const m = buildBoard(cfg, [row("docs/p.md", "amber")], undefined, true, snapshot(files), undefined, undefined, { sittings: { selection: { timeBox: "240", maxSteps: 10 }, onlyOwner: false } });
   const html = renderBoard(m, s, "n");
-  const labels = [...html.matchAll(/<button class="chip sec" data-box="(\w+)" aria-pressed="(\w+)" title="[^"]*">([^<]*)<\/button>/g)].map((x) => [x[1], x[2], x[3]]);
+  const menu = viewMenu(s, "deliberate", m.sittings);
+  const labels = [...menu.matchAll(/data-act="box:(\w+)" aria-checked="(\w+)" title="[^"]*">(?:\u2713 )?([^<]*)</g)].map((x) => [x[1], x[2], x[3]]);
   assert.deepEqual(labels, [["any", "false", "Any"], ["15", "false", "15 min"], ["30", "false", "30 min"], ["60", "false", "1 hour"], ["240", "true", "Half a day"]]);
-  assert.ok(html.includes("Time I have:") && html.includes("I have:"));
+  assert.ok(menu.includes("Time I have:") && menu.includes("I have:"));
   assert.equal(html.includes("I have…"), false, "the mystery label is gone");
 });
 
@@ -276,7 +277,7 @@ test("the narrow rules move what no longer fits into the kebab: project name, Ha
 const P = (n: string | number): string => `<span class="pill" title="pillTip">${n}</span>`;
 
 test("project names, paths and file names are never cut into number pills; only the figures are", () => {
-  const since = sinceBox({ heading: "H", lines: [{ text: "Proj 7: 2 new blockers", name: "Proj 7", details: [] }] }, t);
+  const since = sinceBox({ heading: "H", marked: [], lines: [{ text: "Proj 7: 2 new blockers", name: "Proj 7", details: [] }] }, t);
   assert.ok(since.includes(`<li>Proj 7: ${P(2)} new blockers</li>`), since);
   const real = strings();
   const fut = futurePanel(
@@ -303,4 +304,12 @@ test("every key the umbrella controls read is in the label table and in the cata
     assert.ok(typeof real[k] === "string" && real[k] !== "", `label "${k}" has no text`);
     assert.ok(typeof (en as Record<string, string>)["releaseBoard.projects.label." + k] === "string", `label "${k}" is not in en.json`);
   }
+});
+
+test("a device id with a quote is escaped in the menu, and the all entry says whether every device is chosen", () => {
+  const sit = { timeBox: "any", have: ["a"], contexts: [{ id: 'a"b', label: "A" }, { id: "a", label: "B" }], onlyOwner: false } as unknown as Parameters<typeof viewMenu>[2];
+  const menu = viewMenu(strings(), "deliberate", sit);
+  assert.ok(menu.includes('data-act="have:a&#34;b"'));
+  assert.ok(!menu.includes('data-act="have:a"b'));
+  assert.ok(menu.includes('data-act="haveall" aria-checked="false"'));
 });
