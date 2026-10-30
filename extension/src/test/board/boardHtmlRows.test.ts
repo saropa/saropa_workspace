@@ -148,7 +148,7 @@ test("related items sit under a group heading, indented", () => {
   assert.ok(html.indexOf("Owner documents") < html.indexOf("lone.md") || html.indexOf("lone.md") < html.indexOf("Owner documents"));
 });
 
-test("a row has no Hand to chat button: it is in the row menu", () => {
+test("a row has no Hand to chat button: Hand off is in the row menu", () => {
   const m = buildBoard(cfg, [row("app", "bugs/a.md", "red"), row("app", "docs/b.md", "amber")], undefined, true);
   const html = list("All", m.items, new Map(), t);
   assert.equal(html.includes('class="hb'), false);
@@ -186,10 +186,9 @@ const pathFor = (rows: Classified[], canRun: boolean): { path: PathToGo; m: Retu
   return { m, path: pathToGo(m, m.projects[0], { maxSteps: 8, canRun: () => canRun }) };
 };
 
-test("path steps carry the project and step index for the host, and a hidden key list", () => {
+test("path steps carry a hidden key list and no path", () => {
   const { path } = pathFor([row("app", "bugs/a.md", "red")], true);
   const html = pathList(path, t, 3, true);
-  assert.ok(html.includes('data-p="3" data-s="0"'));
   assert.ok(html.includes('data-live="1"'));
   assert.ok(html.includes("data-all="));
   assert.ok(!html.includes("bugs/a.md"), "the title only; the path never reaches the page");

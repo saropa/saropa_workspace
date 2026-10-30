@@ -3,16 +3,18 @@ import { SEVERITY_LEVELS } from "./ruleAssign";
 import { asProfile, stops } from "./severity";
 import { BoardStrings, escapeHtml, pl, tip } from "./boardHtmlUtil";
 import { label } from "./boardHtmlProjects";
+import { hl } from "./boardHtmlHandoff";
 
 // The pop-up menus of the board: one for the actions on a document row and one for the board
 // options. Each is drawn once per page; the small kebab button on a row or in the top bar opens
 // it and the page script moves it next to that button. A row's kebab carries only the item's
 // index. Pure.
 
-// The kebab button of a row (`id` is the item's index) or of the top bar (no id): "view" holds
-// the view options, "opts" the project actions.
-export function kebab(t: BoardStrings, menu: "row" | "opts" | "view", id?: number, title = "", extra = ""): string {
-  const text = menu === "row" ? pl(t, "rowMenu", { title }) : pl(t, menu === "view" ? "viewMenu" : "optsMenu");
+// The kebab button of a row (`id` is the item's index), of a project or group heading (`id` is
+// "project:<index>" or "group:<first item>", `title` its name) or of the top bar (no id): "view"
+// holds the view options, "opts" the project actions.
+export function kebab(t: BoardStrings, menu: "row" | "opts" | "view" | "scope", id?: number | string, title = "", extra = ""): string {
+  const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, menu === "view" ? "viewMenu" : "optsMenu");
   const at = (id === undefined ? "" : ` data-id="${id}"`) + extra;
   return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">⋮</button>`;
 }
@@ -35,11 +37,11 @@ export function rowData(i: BoardItem): string {
 
 // The row menu: open the document, pick its status, change its severity (raise, lower, one of the
 // five levels, back to automatic) with a line that says what the choice does to the release, add a
-// rule for its folder, hand it to chat, open the rules file. A choice is saved at once. Status and
+// rule for its folder, hand it off, open the rules file. A choice is saved at once. Status and
 // severity entries need the rules' categories and the board's projects; without them (a plain
-// layout check) they are left out. The Hand to chat entry is left out when that feature is off.
+// layout check) they are left out.
 export function rowMenu(t: BoardStrings, profile = "deliberate", projects: BoardProject[] = [], statuses: RowStatus[] = []): string {
-  const hand = t.handToChat ? item("hand", t.handToChat, t.handToChatTip) : "";
+  const hand = item("hand", hl(t, "menuItem"), hl(t, "menuItemTip"));
   const radio = (act: string, text: string, tipText: string, extra = ""): string => item(act, text, tipText, extra, "menuitemradio");
   const group = (key: string, body: string): string => `<div class="mh" role="presentation" id="mh-${key}" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div><div role="group" aria-labelledby="mh-${key}" ${tip(t, key + "Tip")}>${body}</div>`;
   const status = statuses.length === 0 ? "" : group("menuStatus", statuses.map((s, n) => radio("status:" + n, `${SHAPES[s.status] ?? "○"} ${s.label}`, pl(t, "menuStatusTip"), ` data-st="${escapeHtml(s.status)}" aria-checked="false"`)).join(""));
@@ -62,6 +64,11 @@ export const blocksNow = (i: BoardItem): boolean => i.status === "red" || i.stop
 // (ten seconds after the write), a newer change, or a click.
 export function undoBar(t: BoardStrings, text: string | undefined): string {
   return text === undefined ? "" : `<div id="undo" role="status"><span>${escapeHtml(text)}</span><button type="button" class="sec" data-undo title="${escapeHtml(pl(t, "undoTip"))}">${escapeHtml(pl(t, "undo"))}</button></div>`;
+}
+
+// The menu of a project or group heading: one entry that hands that scope off.
+export function scopeMenu(t: BoardStrings): string {
+  return `<div class="menu" id="menu-scope" role="menu" hidden aria-label="${escapeHtml(hl(t, "menuItem"))}" title="${escapeHtml(hl(t, "menuItem"))}">${item("hand", hl(t, "menuItem"), hl(t, "menuItemTip"))}</div>`;
 }
 
 // Names of the time boxes the Steps filter offers, with the minutes each means.
@@ -91,5 +98,5 @@ export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel
 export function optsMenu(t: BoardStrings, startup?: boolean): string {
   const kw = t.keywordLabels?.edit ? item("keywords", t.keywordLabels.menu, t.keywordLabels.menuTip) : "";
   const boot = startup === undefined ? "" : item("startup", (startup ? "\u2713 " : "") + label(t, "startup"), label(t, "startupTip"), ` data-on="${startup ? 1 : 0}"`);
-  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
+  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
 }

@@ -48,7 +48,10 @@ cspell:disable
 
 ## [Unreleased]
 
-The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.0/CHANGELOG.md)
+The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. You can now hand work to an AI as a saved document. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.0/CHANGELOG.md)
+
+### Added
+- **Release Board: Hand off.** Choose **Hand off** in a row menu, a group or project menu, or the options menu (whole board), or tick the boxes on several rows and press **Hand off**. A side drawer previews the document as Markdown or JSON for a Fix, Plan, Review or Triage job. **Copy** saves the full document to `.saropa/handoff` in the project (never committed, the last 20 are kept) and copies one short line that tells an agent to read it; **Copy full text** copies the whole document; **Run in terminal** runs your command. New settings `releaseBoard.handoff.terminalCommand` and `releaseBoard.handoff.copyMode`. Keys, tokens and home folders are removed from the text.
 
 ### Changed
 - **Release Board: calmer page.** The NO-GO light is a tinted pill. Red now means only "blocks the release"; errors in named files, a stale `Needs:` line and a waiting link are amber. Each row is a status pill (shape, word and severity), the title and one facts pill; the row menu button shows on hover or focus. Project rows show count pills instead of a row of squares. Counts no longer sit in brackets, and every new pill and mark has a tooltip.
@@ -57,7 +60,12 @@ The Release Board is calmer: red only for what really blocks a release, a one-li
 - **Release Board: "Since you last looked" stays until dismissed.** It no longer clears by itself after a few seconds. A Changes button in the header opens it, Dismiss clears it, and rows of documents that became blockers since your last look get a static dotted blue outline.
 - **Release Board: one card per project.** With Group by Project (the default; Group by None in the view options menu keeps the merged lists) each project is a card that holds its own Path to GO and lists. A card starts closed, except the only card or the open project when it is NO-GO, and its fold state resets when its light changes. New setting `releaseBoard.groupBy`.
 - **Release Board: quieter sections.** Empty sections are not drawn, lists show five rows and a "Show N more" pill, the Steps box starts folded when no step fits, and Since you last looked, Linked, Tidy, No rule, Outside and Unnamed crashes sit behind one More strip. The Since section opens by itself once when a document became a blocker.
+<<<<<<< HEAD
 - **Release Board: change status and severity in place.** Click a row's status pill (or its row menu) to pick a status, raise or lower the severity, choose one of the five levels, or go back to automatic. A line in the menu says what the choice does to the release before you pick it. The change is written to the rules file at once with no dialog, and an Undo bar for ten seconds puts the file back exactly as it was (it leaves the file alone if it changed after your edit). The row shows as pending until the scan confirms it. `+` and `-` raise and lower the severity of the row you are on.
+=======
+- **Release Board: Hand to chat is replaced by Hand off.** The row, Path to GO and Sittings buttons and the six `releaseBoard.handToChat.*` settings are gone. The Future tab's **Hand all** now saves one research hand-off for the flagged documents and asks for one confirmation.
+- **Release Board: Path to GO steps and Sittings lines cannot be handed off yet.** Hand off covers documents, groups, projects, chosen items and the whole board; a hand-off over several projects now writes one document in each project's own folder and copies one line naming all of them.
+>>>>>>> main
 
 ---
 

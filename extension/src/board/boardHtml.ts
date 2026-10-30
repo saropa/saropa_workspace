@@ -8,8 +8,9 @@ import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
-import { RowStatus, optsMenu, rowMenu, undoBar, viewMenu } from "./boardHtmlMenus";
+import { RowStatus, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
+import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer } from "./boardHtmlHandoff";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
 import { chains, chainsName, moreStrip, noRuleBox, sinceMarks, outsideBox, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
@@ -129,12 +130,12 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
     { id: "live", label: t.liveUnnamedHeading, html: live ? unnamedBox(model, t, true) : "", count: model.liveUnnamed?.length ?? 0, warn: true },
   ], t);
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${KEYWORD_LINE_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 ${topBar(model, t, state.scope, futureTabs(future, t), since)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}">${byUserNote(model, t)}${keywordLine(model, t)}${banner}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}">${chosenLine(t)}${byUserNote(model, t)}${keywordLine(model, t)}${banner}
 ${trainBox(trains, t)}
 ${rollupBar(model, t)}
 ${projects}
@@ -145,8 +146,10 @@ ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyH
 </div>
 ${futurePanel(future, t)}
 ${undoBar(t, state.undo)}
-${rowMenu(t, model.profile, model.projects, state.statuses)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
+${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
+${handoffDrawer(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}
-${KEYWORD_LINE_SCRIPT}</script></body></html>`;
+${KEYWORD_LINE_SCRIPT}
+${HANDOFF_SCRIPT}</script></body></html>`;
 }

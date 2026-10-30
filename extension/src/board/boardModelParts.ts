@@ -38,6 +38,8 @@ export interface BoardItem {
   kind: string;
   // Marks, rolled up from the document's facts (absent when its text was not read).
   marks?: ItemMarks;
+  // The first open steps with their lines, for the hand-off (absent when there are none).
+  steps?: Array<{ line: number; text: string }>;
   // Group heading this item sits under (two or more related documents), if any.
   group?: { id: string; name: string };
   // A very large or heavily cross-referencing document: it links to groups, never merges them.
@@ -61,6 +63,8 @@ export interface BoardItem {
   statusByUser?: boolean;
   audience?: Audience;
   pinned: boolean;
+  // File time and size when the facts were read ("seconds-bytes"), for the hand-off; absent when not read.
+  rev?: string;
   // The item stops a release under the chosen profile.
   stopping: boolean;
 }
@@ -191,6 +195,12 @@ export const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]
 
 // The key a document is stored under in the lookup maps: project, tab, path.
 export const itemKey = (project: string, path: string): string => project + "\t" + path;
+
+// File time (seconds) and size of a document when its facts were read; undefined when not read.
+export function revFor(snapshot: ScanSnapshot | undefined, project: string, path: string): string | undefined {
+  const c = snapshot?.projects[project]?.facts[path];
+  return c ? `${Math.floor(c.mtimeMs / 1000)}-${c.size}` : undefined;
+}
 
 // The facts read for one document, or undefined when its text was not read.
 export function factsFor(snapshot: ScanSnapshot | undefined, project: string, path: string): DocFacts | undefined {
