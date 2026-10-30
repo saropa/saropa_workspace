@@ -23,9 +23,9 @@ export function layerUserRules(shipped: BoardConfig, parsed: Partial<BoardConfig
   return {
     ...shipped,
     ...parsed,
-    ignore: parsed.ignore ?? shipped.ignore,
-    ruleSets: { ...shipped.ruleSets, ...(parsed.ruleSets ?? {}) },
-    projects: parsed.projects ?? [],
+    ignore: Array.isArray(parsed.ignore) ? parsed.ignore : shipped.ignore,
+    ruleSets: { ...shipped.ruleSets, ...(parsed.ruleSets && typeof parsed.ruleSets === "object" && !Array.isArray(parsed.ruleSets) ? parsed.ruleSets : {}) },
+    projects: Array.isArray(parsed.projects) ? parsed.projects : [],
   };
 }
 
@@ -62,6 +62,18 @@ export function boardReady(quiet = false): boolean {
   return true;
 }
 
+// The damaged-file warning shows once per session, not on every board refresh.
+let warnedDamaged = false;
+export function resetDamagedRulesWarning(): void {
+  warnedDamaged = false;
+}
+function warnDamagedRules(): void {
+  if (!warnedDamaged) {
+    warnedDamaged = true;
+    void vscode.window.showWarningMessage(l10n("releaseBoard.rulesDamaged", { file: RULES_FILE }));
+  }
+}
+
 // The shipped rules, with the user's file layered over them when one exists.
 async function readRules(folders: readonly vscode.WorkspaceFolder[]): Promise<BoardConfig> {
   const shipped = defaultRules as unknown as BoardConfig;
@@ -73,7 +85,19 @@ async function readRules(folders: readonly vscode.WorkspaceFolder[]): Promise<Bo
     return { ...shipped };
   }
   const bytes = await vscode.workspace.fs.readFile(user);
-  return layerUserRules(shipped, JSON.parse(Buffer.from(bytes).toString("utf8")) as Partial<BoardConfig>);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
+  } catch {
+    // A damaged rules file must not stop the board opening: the shipped rules apply until it is fixed.
+    warnDamagedRules();
+    return { ...shipped };
+  }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    return layerUserRules(shipped, parsed as Partial<BoardConfig>);
+  }
+  warnDamagedRules();
+  return { ...shipped };
 }
 
 // The rule sets every folder project reads: the rules written for one document first, the shipped

@@ -112,6 +112,21 @@ def type_check() -> int:
     return 0
 
 
+def run_unit_tests() -> int:
+    """Run the unit suite (includes the class init-order guard); any failure blocks a full publish."""
+    code = ensure_dependencies()
+    if code:
+        return code
+    header("UNIT TESTS")
+    result = run(["npm", "run", "test:unit"], EXTENSION_DIR, capture=True, check=False,
+                 timeout=NPM_INSTALL_TIMEOUT, label="npm run test:unit")
+    if result.returncode != 0:
+        print_failure_tail(result)
+        return fail("Unit tests failed (npm run test:unit).", 4)
+    success("Unit tests passed.")
+    return 0
+
+
 def build() -> int:
     sync_extension_docs()
     header("BUILD")

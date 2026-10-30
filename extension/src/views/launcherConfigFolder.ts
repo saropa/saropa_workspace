@@ -32,7 +32,8 @@ async function pushRecentConfig(
   globalState: vscode.Memento,
   configFsPath: string,
 ): Promise<void> {
-  const recent = globalState.get<string[]>(RECENT_CONFIGS_KEY, []);
+  const stored = globalState.get<string[]>(RECENT_CONFIGS_KEY, []);
+  const recent = Array.isArray(stored) ? stored : [];
   const filtered = recent.filter((p) => p !== configFsPath);
   filtered.unshift(configFsPath);
   if (filtered.length > MAX_RECENT) {
@@ -74,7 +75,8 @@ async function browseForConfig(ctx: ConfigFolderContext): Promise<void> {
 
 /** Offer the recent config projects (or go straight to browsing when there are none), then open the choice. */
 export async function handleOpenFolder(ctx: ConfigFolderContext): Promise<void> {
-  const recent = ctx.globalState.get<string[]>(RECENT_CONFIGS_KEY, []);
+  const stored = ctx.globalState.get<string[]>(RECENT_CONFIGS_KEY, []);
+  const recent = Array.isArray(stored) ? stored : [];
   if (!recent.length) {
     await browseForConfig(ctx);
     return;

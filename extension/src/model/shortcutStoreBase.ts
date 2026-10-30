@@ -305,7 +305,8 @@ export abstract class ShortcutStoreBase {
   // --- global state IO ---------------------------------------------------
 
   protected readGlobalShortcuts(): Shortcut[] {
-    const shortcuts = this.context.globalState.get<Shortcut[]>(GLOBAL_STATE_KEY, []);
+    const stored = this.context.globalState.get<Shortcut[]>(GLOBAL_STATE_KEY, []);
+    const shortcuts = Array.isArray(stored) ? stored.filter((p) => p !== null && typeof p === "object") : [];
     // Normalize scope in case of older data.
     return shortcuts.map((p) => ({ ...p, scope: "global" as const }));
   }
@@ -315,7 +316,8 @@ export abstract class ShortcutStoreBase {
   }
 
   protected readGlobalGroups(): ShortcutGroup[] {
-    return this.context.globalState.get<ShortcutGroup[]>(GLOBAL_GROUPS_KEY, []);
+    const stored = this.context.globalState.get<ShortcutGroup[]>(GLOBAL_GROUPS_KEY, []);
+    return Array.isArray(stored) ? stored : [];
   }
 
   protected async writeGlobalGroups(groups: ShortcutGroup[]): Promise<void> {

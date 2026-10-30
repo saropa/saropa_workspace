@@ -1818,6 +1818,7 @@
   "releaseBoard.statusBarTooltip": "Open the Release Board: what blocks the release, per project",
   "releaseBoard.statusBarNotRead": "Not read: {name} ({reason})",
   "releaseBoard.disabled": "Release Board is off. Turn on the setting saropaWorkspace.releaseBoard.enabled to use it again.",
+  "releaseBoard.rulesDamaged": "{file} could not be read, so the Release Board is using its built-in rules. Fix or delete the file to use your own rules again. The file was not changed.",
   "releaseBoard.noFolder": "Open a folder first. The Release Board scans the open workspace folders.",
   "releaseBoard.scanning": "Release Board: scanning…",
   "releaseBoard.heading": "Release Board scan, {time}",
