@@ -312,7 +312,7 @@ test("what the user set is marked with a tooltip, counted in the summary, and it
   assert.ok(html.includes("Set by hand in the rules file. Back to automatic in the row menu."));
   assert.ok(walk(html).some((t) => t.name === "span" && t.text === "\u270E" && (t.attrs.title ?? "").startsWith("Set by hand")), "the pen mark carries the tooltip");
   assert.ok(walk(html).some((t) => (t.attrs.class ?? "").includes("byuser") && (t.attrs.title ?? "") !== ""));
-  assert.ok(walk(html).some((t) => t.attrs["data-act"] === "severity" && (t.attrs.title ?? "") !== ""));
+  assert.ok(walk(html).some((t) => t.attrs["data-act"] === "sev:high" && (t.attrs.title ?? "") !== ""));
   assert.ok(walk(html).some((t) => t.attrs["data-act"] === "auto" && (t.attrs.title ?? "") !== ""));
 });
 

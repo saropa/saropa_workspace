@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
+import { BoardRun, acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
 import { moveToArchive } from "../commands/boardTidy";
 import { findNewestReportUri } from "../commands/boardRecipeEvidence";
@@ -11,7 +11,9 @@ import { applySuggestion, openDocument, openExternalLink, openSittingsLine, save
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { assignFolderRule, backToAutomatic, changeDocSeverity, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
+import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, undoRulesWrite } from "../commands/boardRuleAssign";
+import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
+import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
 import { openKeywordEditor } from "./keywordEditorPanel";
@@ -30,6 +32,8 @@ import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldVa
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
+// How long Undo stays offered after a change.
+const UNDO_MS = 10_000;
 const PLACEMENT_KEY = "saropaWorkspace.releaseBoard.column";
 
 class BoardPanel extends BoardPanelWiring {
@@ -126,6 +130,8 @@ class BoardPanel extends BoardPanelWiring {
       await this.optsMenu(message.act);
     } else if (message.type === "keywords" || message.type === "keywordsRestore") {
       await this.keywords(message.type === "keywordsRestore");
+    } else if (message.type === "undo") {
+      await this.undoChange();
     } else if (message.type === "startup") {
       await this.startup(message.value);
     } else if (message.type === "rules") {
@@ -332,6 +338,7 @@ class BoardPanel extends BoardPanelWiring {
     const item = this.model?.items[id];
     const run = this.run;
     if (!item || !run) {
+      this.post({ type: "clearPending", id });
       return;
     }
     const folder = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/")) : "";
@@ -341,7 +348,7 @@ class BoardPanel extends BoardPanelWiring {
       this.post(openMessage("item", id));
     } else if (act === "rules") {
       await openRulesFile({ project: item.project, folder }, documentColumn());
-    } else if (act === "status" || act === "assign" || act === "severity" || act === "auto") {
+    } else if (act === "assign") {
       const busy = this.busyReason();
       if (busy) {
         void vscode.window.showInformationMessage(l10n(busy));
@@ -349,15 +356,7 @@ class BoardPanel extends BoardPanelWiring {
       }
       this.assigning = true;
       try {
-        const wrote =
-          act === "status"
-            ? await changeDocStatus(run, item)
-            : act === "severity"
-              ? await changeDocSeverity(run, item)
-              : act === "auto"
-                ? await backToAutomatic(run, item)
-                : await assignFolderRule(run, { project: item.project, folder, count: 1 }, true);
-        if (wrote) {
+        if (await assignFolderRule(run, { project: item.project, folder, count: 1 }, true)) {
           this.dirty = true;
           await this.refresh();
         }
@@ -366,7 +365,107 @@ class BoardPanel extends BoardPanelWiring {
       } finally {
         this.assigning = false;
       }
+    } else {
+      // A row the page marked as pending is released at once when nothing is written.
+      const change = this.docChange(act, item, run);
+      if (change) {
+        await this.inlineChange(run, item, change, id);
+      } else {
+        this.post({ type: "clearPending", id });
+      }
     }
+  }
+
+  // The change a status or severity entry of the row menu stands for, checked against the model
+  // this panel painted: a status is a category of the rules, a level is one of the five, Raise and
+  // Lower move the document's severity one level. Anything else is not a change.
+  private docChange(act: string, item: BoardItem, run: BoardRun): DocChange | undefined {
+    if (act === "auto") {
+      return { kind: "auto" };
+    }
+    if (/^status:\d{1,3}$/.test(act)) {
+      const category = ruleCategories(run.cfg)[Number(act.slice(7))];
+      return category ? { kind: "status", category } : undefined;
+    }
+    const at = item.severity ? SEVERITY_LEVELS.indexOf(item.severity) : -1;
+    const level = act.startsWith("sev:") ? SEVERITY_LEVELS.find((l) => l === act.slice(4)) : act === "raise" && at > 0 ? SEVERITY_LEVELS[at - 1] : act === "lower" && at >= 0 ? SEVERITY_LEVELS[at + 1] : undefined;
+    return level ? { kind: "severity", level } : undefined;
+  }
+
+  // Saves one status or severity change at once and offers Undo for ten seconds. The page shows the
+  // row as pending until the scan after the write paints it again.
+  private async inlineChange(run: BoardRun, item: BoardItem, change: DocChange, id: number): Promise<void> {
+    const busy = this.busyReason();
+    if (busy) {
+      void vscode.window.showInformationMessage(l10n(busy));
+      this.post({ type: "clearPending", id });
+      return;
+    }
+    this.assigning = true;
+    try {
+      const snapshot = await changeDoc(run, item, change);
+      if (snapshot) {
+        const label =
+          change.kind === "status"
+            ? l10n("releaseBoard.undo.status", { title: item.title, label: change.category.label })
+            : change.kind === "severity"
+              ? l10n("releaseBoard.undo.severity", { title: item.title, level: change.level })
+              : l10n("releaseBoard.undo.auto", { title: item.title });
+        this.offerUndo(label, snapshot);
+        this.dirty = true;
+        await this.refresh();
+      } else {
+        // Refused or not written: changeDoc already said why.
+        this.post({ type: "clearPending", id });
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      this.post({ type: "clearPending", id });
+    } finally {
+      this.assigning = false;
+    }
+  }
+
+  // Keeps what the last change replaced for ten seconds; the page's bar is taken away when it ends.
+  private offerUndo(label: string, snapshot: RulesSnapshot): void {
+    clearTimeout(this.undo?.timer);
+    const timer = setTimeout(() => {
+      this.undo = undefined;
+      void this.panel.webview.postMessage({ type: "undoOff" });
+    }, UNDO_MS);
+    this.undo = { label, snapshot, timer };
+  }
+
+  // The Undo button: puts the rules file back, then scans again. The file is only touched while it
+  // still holds what the change wrote.
+  private async undoChange(): Promise<void> {
+    const undo = this.undo;
+    if (!undo) {
+      return;
+    }
+    if (this.busyReason()) {
+      this.post({ type: "undoOn" });
+      return;
+    }
+    // The Undo stays available until it succeeds, so a refused one can be tried again.
+    this.assigning = true;
+    let done = false;
+    try {
+      done = await undoRulesWrite(undo.snapshot);
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.assigning = false;
+    }
+    if (!done) {
+      this.post({ type: "undoOn" });
+      return;
+    }
+    clearTimeout(undo.timer);
+    this.undo = undefined;
+    this.dirty = true;
+    this.lastKey = "";
+    await this.refresh();
   }
 
   // An entry of the board options menu.

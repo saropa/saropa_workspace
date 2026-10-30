@@ -178,9 +178,9 @@ path; **Open report** buttons resolve the file on your machine.
 
 The board guesses a document's status from its rules and its severity from a phrase list. When a guess is wrong, fix it for that document:
 
-1. Click the small kebab button (three dots) on the document's row.
-2. **Change status** picks another status. **Change severity** picks extreme, critical, high, medium or low.
-3. Confirm. The choice is written to `.saropa/release-board.json`: a rule for the exact path (status) or an entry under `severityOverrides` (severity), both for that project only.
+1. Click the status pill on the document's row (or its kebab button, three dots).
+2. Pick another status, or a severity: Raise, Lower, extreme, critical, high, medium or low. A line in the menu says what the choice would do to the project's light.
+3. The choice is saved at once, with an **Undo** bar for ten seconds. It is written to `.saropa/release-board.json`: a rule for the exact path (status) or an entry under `severityOverrides` (severity), both for that project only.
 
 A document changed this way shows a **Set** mark, and its tooltips say "Set by hand in the rules file. Back to automatic in the row menu." A line under the intro counts the severities set by hand and how many were lowered below a level that stops the release.
 

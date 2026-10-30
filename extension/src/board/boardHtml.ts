@@ -9,7 +9,7 @@ import { FutureView, futurePanel, viewTabs } from "./boardHtmlFuture";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
-import { optsMenu, rowMenu, scopeMenu, viewMenu } from "./boardHtmlMenus";
+import { RowStatus, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
 import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer } from "./boardHtmlHandoff";
@@ -51,6 +51,10 @@ export interface RenderState {
   startup?: boolean;
   // Which projects the board shows (the projectScope setting); undefined leaves the scope switch out.
   scope?: Scope;
+  // The statuses the row menu offers (the categories of the rules); undefined leaves the status entries out.
+  statuses?: RowStatus[];
+  // What the last saved change did, for the Undo bar; undefined shows no bar.
+  undo?: string;
   // Chat activity from Chat Explorer: the projects with a chat working in them now, and whether the
   // 30-second look is paused. Undefined while the integration is off or unavailable.
   chat?: { active: readonly string[]; paused: boolean };
@@ -150,7 +154,8 @@ ${more}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber" ${glyphTip(t, "g.amberSquare", t.blocked.replace("{count}", String(blocked)))}></i> ${pillify(t, escapeHtml(t.blocked.replace("{count}", String(blocked))))}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
-${rowMenu(t)}${scopeMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
+${undoBar(t, state.undo)}
+${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
 ${handoffDrawer(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}
