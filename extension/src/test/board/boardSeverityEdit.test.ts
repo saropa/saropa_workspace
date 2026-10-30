@@ -14,7 +14,7 @@ import { BoardConfig } from "../../board/types";
 import { impactText, saveSeverity } from "../../commands/boardSeverityEdit";
 import { PREVIEW_DOCS, asPreviewMax, readKeywordSettings } from "../../commands/boardKeywordSettings";
 import { loadPreviewDocs, previewAsync } from "../../commands/boardKeywordPreview";
-import { openKeywordEditor } from "../../views/keywordEditorPanel";
+import { openTagsEditor } from "../../views/tagsEditorPanel";
 import { __lastWebviewPanel, __resetWebviewPanels } from "../_stub/vscode";
 import { stub, tmpDir } from "./hostHelpers";
 
@@ -286,7 +286,7 @@ async function settleUntil(f: () => boolean): Promise<void> {
 
 async function open(dir: string, onSaved: () => Promise<void> = async () => {}, severity?: BoardConfig["severity"]): Promise<void> {
   const items = docsIn(dir);
-  await openKeywordEditor({
+  await openTagsEditor({
     cfg: { version: 1, ignore: [], ruleSets: {}, projects: [project(dir)], severity },
     items,
     projectNames: new Map([["app", "App"]]),
@@ -309,9 +309,9 @@ test("the editor opens one panel, shows the saved draft, and a second open shows
 test("a preview request is checked, scored against the board's documents and answered with counts and titles", async () => {
   const { dir } = setup();
   await open(dir);
-  send({ type: "preview", seq: 4, draft: draftWith((d) => (d.phrases.extreme = d.phrases.extreme.filter((p) => p !== "price" && p !== "pricing"))) });
-  await settleUntil(() => posted("preview").length === 1);
-  const m = posted("preview")[0] as { seq: number; total: number; result: PreviewResult };
+  send({ type: "sevPreview", seq: 4, draft: draftWith((d) => (d.phrases.extreme = d.phrases.extreme.filter((p) => p !== "price" && p !== "pricing"))) });
+  await settleUntil(() => posted("sevPreview").length === 1);
+  const m = posted("sevPreview")[0] as { seq: number; total: number; result: PreviewResult };
   assert.equal(m.seq, 4);
   assert.equal(m.total, 3);
   assert.equal(m.result.checked, 2);
@@ -324,11 +324,11 @@ test("a preview request is checked, scored against the board's documents and ans
 test("a draft the host does not accept gets no scoring and no write", async () => {
   const { dir, file } = setup();
   await open(dir);
-  send({ type: "preview", seq: 1, draft: { threshold: 99 } });
-  await settleUntil(() => posted("invalid").length === 1);
-  assert.equal(posted("preview").length, 0);
+  send({ type: "sevPreview", seq: 1, draft: { threshold: 99 } });
+  await settleUntil(() => posted("sevInvalid").length === 1);
+  assert.equal(posted("sevPreview").length, 0);
   confirm("Save keywords");
-  send({ type: "save", draft: draftWith((d) => (d.threshold = 0)) });
+  send({ type: "sevSave", draft: draftWith((d) => (d.threshold = 0)) });
   await settleUntil(() => stub.__warningMessages().length > 0);
   assert.ok(stub.__warningMessages()[0].includes("not saved"));
   assert.equal(fs.existsSync(file), false);
@@ -337,24 +337,25 @@ test("a draft the host does not accept gets no scoring and no write", async () =
 test("a newer request stops an older one", async () => {
   const { dir } = setup();
   await open(dir);
-  send({ type: "preview", seq: 1, draft: defaultDraft() });
-  send({ type: "preview", seq: 2, draft: defaultDraft() });
-  await settleUntil(() => posted("preview").some((m) => m.seq === 2));
-  assert.equal(posted("preview").some((m) => m.seq === 1), false);
+  send({ type: "sevPreview", seq: 1, draft: defaultDraft() });
+  send({ type: "sevPreview", seq: 2, draft: defaultDraft() });
+  await settleUntil(() => posted("sevPreview").some((m) => m.seq === 2));
+  assert.equal(posted("sevPreview").some((m) => m.seq === 1), false);
 });
 
-test("Save checks the draft again, asks with the effect on the open documents counted now, writes, closes and tells the board", async () => {
+test("Save checks the draft again, asks with the effect on the open documents counted now, writes, stays open and tells the board", async () => {
   const { dir, file } = setup();
   let saved = 0;
   await open(dir, async () => void (saved += 1));
   confirm("Save keywords");
-  send({ type: "save", draft: draftWith((d) => (d.phrases.extreme = d.phrases.extreme.filter((p) => p !== "price" && p !== "pricing"))) });
+  send({ type: "sevSave", draft: draftWith((d) => (d.phrases.extreme = d.phrases.extreme.filter((p) => p !== "price" && p !== "pricing"))) });
   await settleUntil(() => saved === 1);
   const ask = stub.__warningMessages()[0];
   assert.ok(ask.includes("1 of 2 open documents would change level, and 1 would stop the release no longer"), ask);
   const written = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.deepEqual(Object.keys(written.severity), ["phrases"]);
-  assert.equal(panel().disposed, true);
+  assert.equal(panel().disposed, false, "a save keeps the editor and the other drafts");
+  await settleUntil(() => posted("sevSaved").length === 1);
 });
 
 test("a declined save keeps the editor open and the board unchanged", async () => {
@@ -362,7 +363,7 @@ test("a declined save keeps the editor open and the board unchanged", async () =
   let saved = 0;
   await open(dir, async () => void (saved += 1));
   stub.__setWarningAnswer(() => undefined);
-  send({ type: "save", draft: lower });
+  send({ type: "sevSave", draft: lower });
   await settleUntil(() => stub.__warningMessages().length === 1);
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(saved, 0);
@@ -375,11 +376,11 @@ test("Cancel closes the editor and a message of the wrong shape is ignored", asy
   await open(dir);
   send(null);
   send("x");
-  send({ type: "preview", seq: "1" });
+  send({ type: "sevPreview", seq: "1" });
   send({ type: "nope" });
   assert.equal(panel().disposed, false);
   send({ type: "cancel" });
-  assert.equal(panel().disposed, true);
+  await settleUntil(() => panel().disposed === true);
   await open(dir);
   assert.equal(panel().disposed, false, "a closed editor can be opened again");
 });
@@ -420,7 +421,7 @@ test("an editor opened on odd values names what a save drops, on the page and in
   await open(dir, async () => void (saved += 1));
   assert.ok(panel().webview.html.includes("will be dropped or replaced by the shipped ones when you save: Low phrases, threshold."));
   confirm("Save keywords");
-  send({ type: "save", draft: draftWith((d) => (d.threshold = 4)) });
+  send({ type: "sevSave", draft: draftWith((d) => (d.threshold = 4)) });
   await settleUntil(() => saved === 1);
   assert.ok(stub.__warningMessages()[0].includes("Low phrases, threshold"));
 });
@@ -432,7 +433,7 @@ test("a file that changed since the editor opened is not written over a stale ch
   await open(dir, async () => void (saved += 1));
   put(file, '{"version":1}');
   confirm("Save keywords");
-  send({ type: "save", draft: lower });
+  send({ type: "sevSave", draft: lower });
   await settleUntil(() => stub.__warningMessages().length > 0);
   await new Promise((r) => setTimeout(r, 20));
   assert.ok(stub.__warningMessages()[0].includes("changed since the editor was opened"));
@@ -482,4 +483,17 @@ test("when the documents cannot be read the editor still counts the documents th
   const { docs, total } = await loadPreviewDocs(bad, [project(dir)], new Map(), DEFAULT_SEVERITY, 300);
   assert.equal(total, 2);
   assert.equal(docs.length, 1);
+});
+
+test("a second Severity save passes the changed-since-open check and offers Undo", async () => {
+  const { dir, file } = setup();
+  await open(dir);
+  confirm("Save keywords");
+  send({ type: "sevSave", draft: draftWith((d) => (d.threshold = 7)) });
+  await settleUntil(() => posted("sevSaved").length === 1);
+  send({ type: "sevSave", draft: draftWith((d) => (d.threshold = 8)) });
+  await settleUntil(() => posted("sevSaved").length === 2);
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).severity.threshold, 8);
+  assert.equal(panel().disposed, false);
+  assert.ok(vs.__infoMessages().some((m) => m.includes("saved to")));
 });

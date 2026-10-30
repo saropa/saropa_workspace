@@ -62,7 +62,7 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function refusal(t: TagDef): Refused["reason"] | undefined {
+export function refusal(t: TagDef): Refused["reason"] | undefined {
   if (!t.id || !t.label || !Array.isArray(t.patterns)) {
     return "invalid";
   }

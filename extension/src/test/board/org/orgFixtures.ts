@@ -107,3 +107,12 @@ export function bestMs(fn: () => void, runs = 3): number {
   }
   return best;
 }
+
+// Generous absolute budget plus the algorithmic property: 4x the documents costs under 8x the time (not quadratic).
+export function assertScales(make: (n: number) => OrgDoc[], go: (input: OrgDoc[]) => void, n = 2000, budgetMs = 500): void {
+  const big = bestMs(() => go(make(n)));
+  const small = bestMs(() => go(make(n / 4)));
+  assert.ok(big < budgetMs, `took ${big.toFixed(0)} ms`);
+  // A floor on the small run keeps the ratio meaningful when it is only a few ms.
+  assert.ok(big < 8 * Math.max(small, 20), `4x documents took ${(big / Math.max(small, 1)).toFixed(1)}x the time`);
+}

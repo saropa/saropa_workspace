@@ -61,7 +61,7 @@ export function rowMenu(t: BoardStrings, profile = "deliberate", projects: Board
   const effect = { stops: pl(t, "effStops"), clears: pl(t, "effClears"), fixed: pl(t, "effFixed"), others: pl(t, "effOthers"), none: pl(t, "effNone"), sOn: pl(t, "effStatusOn"), sOff: pl(t, "effStatusOff"), sSame: pl(t, "effStatusSame"), lGo: pl(t, "effLightGo"), lNoGo: pl(t, "effLightNoGo") };
   const lists = ` data-stops="${escapeHtml(JSON.stringify(SEVERITY_LEVELS.filter((l) => stops(asProfile(profile), l))))}" data-pname="${escapeHtml(profile === "rush" ? t.profileRush : profile === "zero" ? t.profileZero : t.profileDeliberate)}" data-eff="${escapeHtml(JSON.stringify(effect))}" data-proj="${escapeHtml(JSON.stringify(Object.fromEntries(projects.map((p) => [p.id, [p.name, p.items.filter(blocksNow).length + p.blockedStopping]]))))}"`;
   const live = `<div role="group" aria-label="${escapeHtml(pl(t, "effLabel"))}" ${tip(t, "effLabel")}><div class="eff" id="eff" aria-live="polite" ${tip(t, "effLabel")}></div></div>`;
-  return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${item("waits", pl(t, "menuWaits"), pl(t, "menuWaitsTip"))}${item("blocks", pl(t, "menuBlocks"), pl(t, "menuBlocksTip"))}${item("group", pl(t, "menuGroup"), pl(t, "menuGroupTip"))}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
+  return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${item("waits", pl(t, "menuWaits"), pl(t, "menuWaitsTip"))}${item("blocks", pl(t, "menuBlocks"), pl(t, "menuBlocksTip"))}${item("group", pl(t, "menuGroup"), pl(t, "menuGroupTip"))}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${item("tags", pl(t, "menuTags"), pl(t, "menuTagsTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
 }
 
 // True when an open document blocks the release now: a red folder or a stopping severity or pin.
@@ -73,9 +73,9 @@ export function undoBar(t: BoardStrings, text: string | undefined): string {
   return text === undefined ? "" : `<div id="undo" role="status"><span>${escapeHtml(text)}</span><button type="button" class="sec" data-undo title="${escapeHtml(pl(t, "undoTip"))}">${escapeHtml(pl(t, "undo"))}</button><button type="button" class="sec" data-undo-x aria-label="${escapeHtml(pl(t, "undoDismiss"))}" title="${escapeHtml(pl(t, "undoDismiss"))}">\u00d7</button></div>`;
 }
 
-// The menu of a project or group heading: one entry that hands that scope off.
+// The menu of a project or group heading: hand that scope off, or edit the tags that matched in it.
 export function scopeMenu(t: BoardStrings): string {
-  return `<div class="menu" id="menu-scope" role="menu" hidden aria-label="${escapeHtml(hl(t, "menuItem"))}" title="${escapeHtml(hl(t, "menuItem"))}">${item("hand", hl(t, "menuItem"), hl(t, "menuItemTip"))}</div>`;
+  return `<div class="menu" id="menu-scope" role="menu" hidden aria-label="${escapeHtml(hl(t, "menuItem"))}" title="${escapeHtml(hl(t, "menuItem"))}">${item("hand", hl(t, "menuItem"), hl(t, "menuItemTip"))}${item("tags", pl(t, "menuTags"), pl(t, "menuTagsTip"))}</div>`;
 }
 
 // Names of the time boxes the Steps filter offers, with the minutes each means.
@@ -97,7 +97,8 @@ export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel
         : "")
     : "";
   const sit = sittings ? ` data-sit="${escapeHtml(JSON.stringify({ have: sittings.have, box: sittings.timeBox, all: sittings.contexts.map((c) => c.id) }))}"` : "";
-  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, tick(profile === v) + text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${group}${steps}</div>`;
+  const tags = t.projectLabels?.tagsRules ? item("tagsRules", label(t, "tagsRules"), label(t, "tagsRulesTip")) : "";
+  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, tick(profile === v) + text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${group}${steps}${tags}</div>`;
 }
 
 // The project actions menu: scan again, the rules file, projects, keywords, settings and the

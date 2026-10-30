@@ -3,7 +3,7 @@ import { l10n } from "../i18n/l10n";
 import { SeverityDict } from "../board/severity";
 import { EditRefusal, EditResult, PreviewResult, SeverityDraft, applyDraft, dictOfSeverity, removeSeverity } from "../board/severityEdit";
 import { RULES_FILE } from "./boardConfigLoad";
-import { hasUnsavedCopy, isLink, readRules, sameRead } from "./boardRuleAssign";
+import { RulesSnapshot, hasUnsavedCopy, isLink, readRules, sameRead } from "./boardRuleAssign";
 
 // Release Board, saving the keyword editor into the `severity` key of the rules file. The same
 // care as the rule writers: the file is parsed first, a file that is not plain UTF-8, has a key
@@ -18,8 +18,8 @@ const REFUSALS: Record<EditRefusal, string> = {
   encoding: "releaseBoard.noRule.badEncoding",
 };
 
-function refuse(reason: EditRefusal): void {
-  void vscode.window.showWarningMessage(l10n(REFUSALS[reason], { file: RULES_FILE, folder: "" }));
+function refuse(reason: EditRefusal, folder = ""): void {
+  void vscode.window.showWarningMessage(l10n(REFUSALS[reason], { file: RULES_FILE, folder }));
 }
 
 // What is saved: a draft, or the removal of the whole `severity` key.
@@ -71,8 +71,7 @@ export function dictOfText(text: string | undefined): SeverityDict | undefined {
 }
 
 // The dictionary the rules file holds now, or undefined when the file cannot be read as one.
-export async function currentSeverityDict(): Promise<SeverityDict | undefined> {
-  const root = vscode.workspace.workspaceFolders?.[0];
+export async function currentSeverityDict(root: vscode.WorkspaceFolder | undefined = vscode.workspace.workspaceFolders?.[0]): Promise<SeverityDict | undefined> {
   if (!root) {
     return undefined;
   }
@@ -82,8 +81,15 @@ export async function currentSeverityDict(): Promise<SeverityDict | undefined> {
 
 // Saves the change after the user confirmed. Returns "saved" when the file was written, so the
 // caller scans again.
-export async function saveSeverity(change: SeverityChange): Promise<SaveOutcome> {
-  const root = vscode.workspace.workspaceFolders?.[0];
+// Options: `root`, the folder whose rules file is written (default: the first); `onSnapshot`, which receives what
+// the write replaced and then owns the "saved" notice (the editor offers Undo with it).
+export interface SaveOptions {
+  root?: vscode.WorkspaceFolder;
+  onSnapshot?: (snapshot: RulesSnapshot) => void;
+}
+
+export async function saveSeverity(change: SeverityChange, opts: SaveOptions = {}): Promise<SaveOutcome> {
+  const root = opts.root ?? vscode.workspace.workspaceFolders?.[0];
   if (!root) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.noFolder"));
     return "refused";
@@ -100,7 +106,7 @@ export async function saveSeverity(change: SeverityChange): Promise<SaveOutcome>
   }
   const before = await readRules(uri);
   if (before.kind === "encoding") {
-    refuse("encoding");
+    refuse("encoding", root.name);
     return "refused";
   }
   const text = before.kind === "text" ? before.text : undefined;
@@ -112,7 +118,7 @@ export async function saveSeverity(change: SeverityChange): Promise<SaveOutcome>
   }
   const result: EditResult = change.kind === "draft" ? applyDraft(text, change.draft) : removeSeverity(text);
   if (!result.ok) {
-    refuse(result.reason);
+    refuse(result.reason, root.name);
     return "refused";
   }
   if (!result.changed) {
@@ -133,13 +139,24 @@ export async function saveSeverity(change: SeverityChange): Promise<SaveOutcome>
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
     return "refused";
   }
+  let madeDir = false;
   try {
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root.uri, ".saropa"));
+    const dir = vscode.Uri.joinPath(root.uri, ".saropa");
+    try {
+      await vscode.workspace.fs.stat(dir);
+    } catch {
+      madeDir = true;
+    }
+    await vscode.workspace.fs.createDirectory(dir);
     await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
     return "refused";
   }
-  void vscode.window.showInformationMessage(l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saved" : "releaseBoard.keywords.msg.restored", { file: RULES_FILE }));
+  if (opts.onSnapshot && change.kind === "draft") {
+    opts.onSnapshot({ before: text, after: result.text, ...(madeDir ? { madeDir } : {}) });
+  } else {
+    void vscode.window.showInformationMessage(l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saved" : "releaseBoard.keywords.msg.restored", { file: RULES_FILE }));
+  }
   return "saved";
 }

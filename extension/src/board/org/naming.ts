@@ -9,16 +9,24 @@ export const MAX_NAME = 32;
 const DATE = /(?<!\d)(?:\d{4}[-_]\d{2}[-_]\d{2}|\d{8}|(?:19|20)\d{2}(?:[-_]\d{2})?)(?!\d)/g;
 const SEQ = /\b(?:v\d+|m\d+|(?:phase|part|pt|step|stage)\s?(?:\d+|[a-z]))\b/gi;
 
+// The naming settings of a project (`organize.naming`); each part left out keeps the shipped behaviour.
+export interface NameRules {
+  // false: dates in a name are kept.
+  dates?: boolean;
+  // The leading words dropped from a name (default: the kind words).
+  prefixes?: ReadonlySet<string>;
+}
+
 export function isContainerOnly(name: string): boolean {
   return CONTAINER.has(name.trim().toLowerCase());
 }
 
 // Dates, leading order numbers, leading kind words and version or sequence tokens removed; sentence case; acronyms kept.
-export function cleanName(raw: string, acronyms: string[] = ACRONYMS): string {
+export function cleanName(raw: string, acronyms: readonly string[] = ACRONYMS, rules: NameRules = {}): string {
   const canon = new Map(acronyms.map((a) => [a.toLowerCase(), a]));
   // A whole word that is a known acronym (iOS) is kept before the camel-case split can break it.
   const spaced = raw
-    .replace(DATE, " ")
+    .replace(rules.dates === false ? /(?!)/g : DATE, " ")
     .replace(/[[\](){}]/g, " ")
     .replace(/[_\-.]+/g, " ")
     .split(/\s+/)
@@ -26,7 +34,7 @@ export function cleanName(raw: string, acronyms: string[] = ACRONYMS): string {
     .join(" ");
   const stripped = spaced.replace(SEQ, " ").replace(/^\s*\d{1,3}\s+(?=\D)/, "");
   const words = stripped.split(/\s+/).filter(Boolean);
-  while (words.length > 1 && KIND.has(words[0].toLowerCase())) {
+  while (words.length > 1 && (rules.prefixes ?? KIND).has(words[0].toLowerCase())) {
     words.shift();
   }
   const cased = words.map((w, i) => {
@@ -65,7 +73,7 @@ export interface NameItem {
 }
 
 // Equal names inside a project get the nearest differing parent folder after a middle dot, then a number. Never brackets.
-export function dedupNames(items: NameItem[]): Map<string, string> {
+export function dedupNames(items: NameItem[], clean: (raw: string) => string = cleanName): Map<string, string> {
   const out = new Map(items.map((i) => [i.id, i.name]));
   const sig = (i: NameItem): string => `${out.get(i.id)!.toLowerCase()}|${i.kind === "files" || i.kind === "other" ? i.kind : ""}${i.range ? i.range.label + i.range.from + "-" + i.range.to : ""}`;
   const clashes = (): NameItem[][] => {
@@ -78,7 +86,7 @@ export function dedupNames(items: NameItem[]): Map<string, string> {
     for (let k = 1; k <= 6; k++) {
       const pick = (i: NameItem): string => {
         const s = segs(i);
-        return cleanName(s[s.length - k - (i.kind === "folder" ? 1 : 0)] ?? "");
+        return clean(s[s.length - k - (i.kind === "folder" ? 1 : 0)] ?? "");
       };
       const picks = list.map(pick);
       if (picks.some((p) => p !== picks[0])) {

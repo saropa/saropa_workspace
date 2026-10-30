@@ -123,6 +123,8 @@ export interface BoardConfig {
   ungrouped?: string[];
   // Rows put in a set order inside their group, by project: the paths, first to last.
   order?: Record<string, string[]>;
+  // Tags, link words and naming a team changes (the Tags and rules editor writes it; see org/settings.ts).
+  organize?: unknown;
   // Parts of the severity dictionary a team replaces (phrases, weights, negation ...).
   severity?: Partial<SeverityDict>;
   // Severities chosen by hand for single documents (written from the row menu). They win over the
