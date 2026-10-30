@@ -28,6 +28,14 @@ const run = { cfg } as unknown as BoardRun;
 const req = { scope: { kind: "board" as const }, task: "fix" as const, format: "md" as const };
 const dirOf = (root: string): string => path.join(root, ".saropa", "handoff");
 
+test("a two-project JSON preview is one valid document with a document per project", () => {
+  const posts: Array<Record<string, unknown>> = [];
+  handoffDoc((m) => void posts.push(m as Record<string, unknown>), model, run, { ...req, format: "json" as const });
+  const parsed = JSON.parse(String(posts[0].text)) as { projects: Array<{ schema: string }> };
+  assert.equal(parsed.projects.length, 2);
+  assert.ok(parsed.projects.every((p) => p.schema === "saropa.releaseBoard.handoff/1"));
+});
+
 test("a board hand-off writes one document per project, each in its own folder, and copies one line listing both", async () => {
   const posts: Array<Record<string, unknown>> = [];
   const post = (m: unknown): void => void posts.push(m as Record<string, unknown>);
