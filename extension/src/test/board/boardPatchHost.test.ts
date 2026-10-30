@@ -8,12 +8,13 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import defaultRules from "../../board/defaultRules.json";
 import { BoardModel, buildBoard } from "../../board/boardModel";
-import { checkPatch, targetsOf } from "../../board/patch";
+import { checkPatch, extractPatch, targetsOf } from "../../board/patch";
 import { BoardConfig, Classified } from "../../board/types";
 import { ScanSnapshot } from "../../board/scanner";
 import { readFacts } from "../../board/docFacts";
 import { BoardRun } from "../../commands/boardScanStore";
-import { applyRows, readResultFile, realInside, savePastedPatch, undoBatch, watchResults } from "../../commands/boardPatch";
+import { buildHandoff, fromModel } from "../../board/handoff";
+import { applyRows, hasUnsavedEdits, readResultFile, remainingFiles, realInside, savePastedPatch, undoBatch, watchResults } from "../../commands/boardPatch";
 import { BoardPatches } from "../../views/boardPatches";
 import { stub, tmpDir } from "./hostHelpers";
 
@@ -328,4 +329,173 @@ test("the watcher looks at the newest twenty result files at start, drops a dele
   assert.deepEqual(patches.view(), { patchReady: 1 });
   fw.deleted.fire(u);
   assert.deepEqual(patches.view(), {});
+});
+
+// ---- Round two -------------------------------------------------------------------------------
+
+const docs = (): Array<{ isDirty: boolean; uri: vscode.Uri }> => (vscode.workspace as unknown as { textDocuments: Array<{ isDirty: boolean; uri: vscode.Uri }> }).textDocuments;
+
+function handoffOf(model: BoardModel, format: "md" | "json", dropRev?: string) {
+  const { projects, items } = fromModel(model, model.items, { app: "app" });
+  const list = items.map((it) => (it.path === dropRev ? { ...it, rev: undefined } : it));
+  const out = buildHandoff({ id: "2026-10-30T10-04-12-app-fix", task: "fix", date: "2026-10-30", scope: { kind: "board", count: list.length }, projects, items: list, file: "x.md" });
+  return format === "md" ? out.markdown : out.json;
+}
+
+test("round trip: a patch crafted from either hand-off format, copying its rev, parses and applies", async () => {
+  const { dir, run, model } = setup();
+  const md = handoffOf(model, "md");
+  const json = JSON.parse(handoffOf(model, "json")) as { items: Array<{ id: string; rev?: string }> };
+  const fromMd = /Id: app:a\.md\nFile: [^\n]*\nTitle: [^\n]*\nRev: (\S+)/.exec(md)?.[1];
+  const fromJson = json.items.find((i) => i.id === "app:a.md")?.rev;
+  assert.equal(fromMd, REV);
+  assert.equal(fromJson, REV);
+  assert.match(md, /copies the item's `Rev:` value/);
+  for (const rev of [fromMd, fromJson]) {
+    const reply = "Done.\n```json saropa-patch\n" + JSON.stringify({ schema: "saropa.releaseBoard.patch/1", changes: [{ op: "setSeverity", item: "app:a.md", to: "low", rev, reason: "cosmetic" }] }) + "\n```\n";
+    const raw = extractPatch(reply) as string;
+    const c = checkPatch(raw, targetsOf(model), statuses);
+    assert.equal(c.ok && c.rows.length, 1);
+    assert.deepEqual(c.ok && c.refused, []);
+    assert.equal(c.ok && c.rows[0].stale, false);
+    const out = await applyRows(run, model, c.ok ? c.rows : []);
+    assert.equal(out.applied, 1);
+    await undoBatch(out.snapshot);
+  }
+  assert.equal(fs.existsSync(path.join(dir, ".saropa", "release-board.json")), false);
+});
+
+test("an item without a revision is shown as unpatchable in both formats", () => {
+  const { model } = setup();
+  assert.match(handoffOf(model, "md", "c.md"), /Rev: none \(cannot be changed by a patch: no revision\)/);
+  const items = (JSON.parse(handoffOf(model, "json", "c.md")) as { items: Array<{ path: string; noRevision?: string }> }).items;
+  assert.match(items.find((i) => i.path === "c.md")?.noRevision ?? "", /no revision/);
+  assert.equal(items.find((i) => i.path === "a.md")?.noRevision, undefined);
+});
+
+test("a skipped Needs document always gets a reason", async () => {
+  const { dir, run, model } = setup();
+  fs.unlinkSync(path.join(dir, "c.md"));
+  const out = await applyRows(run, model, rowsOf(model, [ALL[4]]));
+  assert.equal(out.applied, 0);
+  assert.ok(out.problems.some((p) => p.includes("c.md")), out.problems.join("|"));
+  fs.writeFileSync(path.join(dir, "c.md"), "x".repeat(2_100_000));
+  const big = await applyRows(run, model, rowsOf(model, [ALL[4]]));
+  assert.ok(big.problems.some((p) => /too large/.test(p)));
+});
+
+test("unsaved edits are found by the real path, the workspace path (symlinked root) and letter case", async () => {
+  const { dir, run, model } = setup();
+  const link = path.join(tmpDir(), "linked");
+  fs.symlinkSync(dir, link);
+  const viaLink: BoardRun = { ...run, cfg: { ...run.cfg, projects: [{ ...run.cfg.projects[0], path: vscode.Uri.file(link).toString() }] } } as BoardRun;
+  const one = rowsOf(model, [ALL[4]]);
+  for (const open of [path.join(link, "c.md"), path.join(dir, "c.md"), path.join(dir, "C.MD")]) {
+    docs().push({ isDirty: true, uri: vscode.Uri.file(open) });
+    const out = await applyRows(viaLink, model, one);
+    assert.equal(out.applied, 0, open);
+    assert.ok(out.problems.some((p) => /unsaved/.test(p)), open);
+    assert.equal(read(dir, "c.md"), "# C\n");
+    docs().length = 0;
+  }
+  docs().push({ isDirty: false, uri: vscode.Uri.file(path.join(link, "c.md")) });
+  assert.equal((await applyRows(viaLink, model, one)).applied, 1, "a saved copy does not block");
+  docs().length = 0;
+  assert.equal(await hasUnsavedEdits(path.join(dir, "zzz.md"), undefined), false);
+});
+
+test("a path that differs from the real one only in letter case is accepted, not skipped silently", async () => {
+  const { dir } = setup();
+  const real = await realInside(dir, "a.md");
+  assert.ok(real);
+  const probe = path.join(dir, "A.MD");
+  if (fs.existsSync(probe)) {
+    assert.equal(await realInside(dir, "A.MD"), real, "case-insensitive disk: same file");
+  }
+});
+
+test("a symlinked project root still writes through the real path", async () => {
+  const { dir, run, model } = setup();
+  const link = path.join(tmpDir(), "linked");
+  fs.symlinkSync(dir, link);
+  const viaLink: BoardRun = { ...run, cfg: { ...run.cfg, projects: [{ ...run.cfg.projects[0], path: vscode.Uri.file(link).toString() }] } } as BoardRun;
+  const out = await applyRows(viaLink, model, rowsOf(model, [ALL[4]]));
+  assert.equal(out.applied, 1);
+  assert.equal(read(dir, "c.md"), "# C\n\nNeeds: a.md\n");
+});
+
+test("Undo with an unsaved copy open says to save or close it, lists what remains, and a retry finishes", async () => {
+  const { dir, run, model } = setup();
+  const out = await applyRows(run, model, rowsOf(model, [ALL[1], ALL[4]]));
+  docs().push({ isDirty: true, uri: vscode.Uri.file(path.join(dir, "c.md")) });
+  assert.equal(await undoBatch(out.snapshot), false);
+  assert.ok(stub.__warningMessages().some((m) => /c\.md has unsaved edits: save or close it, then press Undo again/.test(m)));
+  assert.deepEqual(remainingFiles(out.snapshot), ["c.md"]);
+  docs().length = 0;
+  assert.equal(await undoBatch(out.snapshot), true);
+  assert.deepEqual(remainingFiles(out.snapshot), []);
+  assert.equal(read(dir, "c.md"), "# C\n");
+});
+
+test("pasted-patch copies keep only the newest twenty", async () => {
+  const { dir, run, model } = setup();
+  fs.mkdirSync(handoffDir(dir), { recursive: true });
+  for (let i = 0; i < 25; i++) {
+    fs.writeFileSync(path.join(handoffDir(dir), `pasted-2026-01-${String(i + 1).padStart(2, "0")}T00-00-00-000Z.patch.json`), "{}");
+  }
+  fs.writeFileSync(path.join(handoffDir(dir), "keep.txt"), "x");
+  await savePastedPatch(run, model, rowsOf(model, [ALL[0]]), "NEW");
+  const left = fs.readdirSync(handoffDir(dir)).filter((n) => n.startsWith("pasted-"));
+  assert.equal(left.length, 20);
+  assert.ok(!left.includes("pasted-2026-01-01T00-00-00-000Z.patch.json") && fs.existsSync(path.join(handoffDir(dir), "keep.txt")));
+  assert.ok(left.some((n) => !n.startsWith("pasted-2026-01")), "the new copy stays");
+});
+
+test("a rules-file write that fails after it landed is still undoable", async () => {
+  const { run, model, rules } = setup();
+  const api = vscode.workspace.fs as unknown as { writeFile: (u: vscode.Uri, b: Uint8Array) => Promise<void> };
+  const orig = api.writeFile;
+  api.writeFile = async function (this: unknown, u: vscode.Uri, b: Uint8Array): Promise<void> {
+    await orig.call(this, u, b);
+    if (u.path.endsWith("release-board.json")) {
+      throw new Error("late failure");
+    }
+  };
+  let out;
+  try {
+    out = await applyRows(run, model, rowsOf(model, [ALL[1]]));
+  } finally {
+    api.writeFile = orig;
+  }
+  assert.equal(out.applied, 1);
+  assert.ok(out.snapshot.rules);
+  assert.equal(await undoBatch(out.snapshot), true);
+  assert.equal(fs.existsSync(rules), false);
+});
+
+test("the start scan hands over the newest reply last, and an answered reply stays answered after a restart", async () => {
+  const { dir, run, model } = setup();
+  const a = put(dir, "old.result.json", patchText([ALL[0]]));
+  const b = put(dir, "new.result.json", patchText([ALL[0], ALL[1]]));
+  fs.utimesSync(a.fsPath, new Date(Date.now() - 50_000), new Date(Date.now() - 50_000));
+  const order: string[] = [];
+  const w = watchResults(() => [vscode.Uri.file(dir)], (_t, name) => order.push(name));
+  w.scan();
+  await wait(200);
+  assert.deepEqual(order, ["old.result.json", "new.result.json"]);
+
+  const store = new Map<string, unknown>();
+  const memory = { get: (k: string, d: unknown) => store.get(k) ?? d, update: async (k: string, v: unknown) => void store.set(k, v), keys: () => [...store.keys()] } as unknown as vscode.Memento;
+  const first = new BoardPatches(() => ({ model, run }), () => undefined, () => undefined, () => memory);
+  first.watch();
+  first.scan();
+  await wait(200);
+  assert.deepEqual(first.view(), { patchReady: 2 }, "the newest file is on the pill");
+  first.clear();
+  assert.ok(b);
+  const second = new BoardPatches(() => ({ model, run }), () => undefined, () => undefined, () => memory);
+  second.watch();
+  second.scan();
+  await wait(200);
+  assert.deepEqual(second.view(), { patchReady: 1 }, "only the unanswered older reply is offered");
 });

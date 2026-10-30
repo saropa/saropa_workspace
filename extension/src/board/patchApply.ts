@@ -94,7 +94,8 @@ export function applyRuleRow(text: string | undefined, row: PatchRow, target: Pa
   return category ? addDocRule(text, { ...doc, category }) : { ok: false, reason: "shape" };
 }
 
-const NEEDS_LINE = /^([\s>*_-]*\**needs\**\s*:\s*\**\s*)(.+)$/i;
+// The lead-in class has no newline and no second `*` run, so a line of only `*` costs linear time.
+const NEEDS_LINE = /^([ \t>*_-]*needs\**\s*:\s*\**\s*)(.+)$/i;
 // Lines longer than this are never read as a Needs line (keeps the match cheap on hostile text).
 const MAX_LINE = 2000;
 

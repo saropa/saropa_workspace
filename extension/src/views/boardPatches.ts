@@ -24,34 +24,41 @@ interface Review {
 interface Ready {
   text: string;
   name: string;
+  // The file's full path: two projects may hold a result file of the same name.
+  file: string;
   count: number;
   mtime: number;
 }
 
 // How many answered result files (by name and time) are remembered so they are not offered again.
 const MAX_REMEMBERED = 200;
+const ANSWERED_KEY = "saropaWorkspace.releaseBoard.answeredResults";
 
 const statusLabel = (run: BoardRun, status: string): string => ruleCategories(run.cfg).find((c) => c.status === status)?.label ?? status;
 
 export class BoardPatches {
   private review: Review | undefined;
   private ready: Ready | undefined;
-  // Result files the owner applied or rejected, as "name\ttime"; a file edited later is offered again.
-  private readonly answered = new Set<string>();
+  // Result files the owner applied or rejected, as "path\ttime"; a file edited later is offered again.
+  // Kept in the workspace state, so a restart does not offer a rejected reply again.
+  private readonly answered: Set<string>;
   private watcher: ReturnType<typeof watchResults> | undefined;
   private scanned = false;
 
   constructor(
     private readonly state: () => { model: BoardModel; run: BoardRun } | undefined,
     private readonly post: (m: unknown) => void,
-    private readonly changed: () => void
-  ) {}
+    private readonly changed: () => void,
+    private readonly memory?: () => vscode.Memento
+  ) {
+    this.answered = new Set(this.memory?.().get<string[]>(ANSWERED_KEY, []).filter((x) => typeof x === "string"));
+  }
 
   // Starts watching the hand-off folders; the caller disposes the watcher.
   watch(): vscode.Disposable {
     this.watcher = watchResults(
       () => this.state()?.run.cfg.projects.map((p) => vscode.Uri.parse(p.path)) ?? [],
-      (text, name, mtime) => this.found(text, name, mtime),
+      (text, name, mtime, file) => this.found(text, name, mtime, file),
       (name) => this.gone(name)
     );
     return this.watcher;
@@ -101,14 +108,14 @@ export class BoardPatches {
   }
 
   // A result file was read: it is kept for the owner only when it holds a reply with something to offer.
-  private found(text: string, name: string, mtime: number): void {
-    if (this.answered.has(`${name}\t${mtime}`)) {
+  private found(text: string, name: string, mtime: number, file: string): void {
+    if (this.answered.has(`${file}\t${mtime}`)) {
       return;
     }
     const c = this.check(text);
     const count = c?.check.ok ? c.check.rows.filter((r) => !r.stale).length : 0;
     if (count > 0 && (this.ready?.name !== name || this.ready.count !== count || this.ready.mtime !== mtime)) {
-      this.ready = { text, name, count, mtime };
+      this.ready = { text, name, file, count, mtime };
       this.pillChanged();
     } else if (count === 0 && this.ready?.name === name && c) {
       this.ready = undefined;
@@ -174,10 +181,11 @@ export class BoardPatches {
   clear(): void {
     const had = this.ready !== undefined;
     if (this.ready) {
-      this.answered.add(`${this.ready.name}\t${this.ready.mtime}`);
+      this.answered.add(`${this.ready.file}\t${this.ready.mtime}`);
       if (this.answered.size > MAX_REMEMBERED) {
         this.answered.delete(this.answered.values().next().value as string);
       }
+      void this.memory?.().update(ANSWERED_KEY, [...this.answered]);
     }
     this.review = undefined;
     this.ready = undefined;

@@ -3,12 +3,13 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { BoardModel } from "../board/boardModel";
-import { HANDOFF_DIR } from "../board/handoff";
+import { HANDOFF_DIR, KEEP_HANDOFFS } from "../board/handoff";
 import { MAX_PATCH_CHARS, PatchRow, targetsOf } from "../board/patch";
 import { addNeedsLine, applyRuleRow, needsSpellings, needsWrite, removeNeedsLine } from "../board/patchApply";
 import { decodeRules, ruleCategories } from "../board/ruleAssign";
 import { pathExists } from "./boardFileSource";
-import { RulesSnapshot, changeRules, hasUnsavedCopy, isLink, undoRulesWrite } from "./boardRuleAssign";
+import { RULES_FILE } from "./boardConfigLoad";
+import { RulesSnapshot, changeRules, isLink, undoRulesWrite } from "./boardRuleAssign";
 import { BoardRun } from "./boardScanStore";
 
 // Release Board, bring back an AI reply: writes the changes the owner ticked and takes them
@@ -19,6 +20,9 @@ import { BoardRun } from "./boardScanStore";
 // One document the batch rewrote: its text before and after.
 export interface DocSnapshot {
   uri: vscode.Uri;
+  // The same document by the path the workspace uses (it differs from the real path behind a linked
+  // folder, /var and /private/var on macOS, or letter case), for the unsaved-edits check.
+  shown?: vscode.Uri;
   before: string;
   after: string;
 }
@@ -57,10 +61,35 @@ export async function realInside(rootFs: string, rel: string): Promise<string | 
         return undefined;
       }
     }
-    return (await fsp.realpath(cur)) === cur && cur.startsWith(root + path.sep) ? cur : undefined;
+    // A real path that differs only in letter case is the same file on a case-insensitive disk.
+    const real = await fsp.realpath(cur);
+    return real.toLowerCase() === cur.toLowerCase() && real.startsWith(root + path.sep) ? real : undefined;
   } catch {
     return undefined;
   }
+}
+
+// True when a document open in an editor has unsaved edits and is this file, by its real path or by
+// the path the workspace uses (`shown`), compared without regard to letter case so a case-insensitive
+// disk cannot hide an open copy. A false positive only leaves the file alone.
+export async function hasUnsavedEdits(real: string, shown: vscode.Uri | undefined): Promise<boolean> {
+  const names = [real, shown?.fsPath].filter((x): x is string => x !== undefined).map((x) => x.toLowerCase());
+  for (const d of vscode.workspace.textDocuments) {
+    if (!d.isDirty || d.uri.scheme !== "file") {
+      continue;
+    }
+    if (names.includes(d.uri.fsPath.toLowerCase())) {
+      return true;
+    }
+    try {
+      if (names.includes((await fsp.realpath(d.uri.fsPath)).toLowerCase())) {
+        return true;
+      }
+    } catch {
+      // A document with no file on disk is not this one.
+    }
+  }
+  return false;
 }
 
 // Writes the rows: status, severity and group changes in one write of the rules file, Needs
@@ -107,7 +136,7 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
   }
   for (const [id, mine] of byDoc) {
     try {
-      out.applied += await writeNeeds(run, targets, id, mine, out.snapshot);
+      out.applied += await writeNeeds(run, targets, id, mine, out.snapshot, out.problems);
     } catch (e) {
       // One document failing never stops the others, and never loses the snapshot of those written.
       const msg = e instanceof Error ? e.message : String(e);
@@ -119,25 +148,43 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
   return out;
 }
 
-// Rewrites the Needs lines of one document; returns how many rows were written.
-async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, id: string, rows: PatchRow[], snapshot: BatchSnapshot): Promise<number> {
+// Documents larger than this are never rewritten (the text edits scan every line).
+export const MAX_DOC_BYTES = 2_000_000;
+
+// Rewrites the Needs lines of one document; returns how many rows were written. A document left
+// alone adds its reason to `problems`.
+async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, id: string, rows: PatchRow[], snapshot: BatchSnapshot, problems: string[]): Promise<number> {
   const me = targets.get(id)!;
+  const skip = (why: string): number => {
+    problems.push(l10n(`releaseBoard.patch.skip.${why}`, { file: me.path }));
+    return 0;
+  };
   const def = run.cfg.projects.find((p) => p.id === me.project);
   const rel = inside(me.path);
   if (!def || !rel) {
-    return 0;
+    return skip("path");
   }
+  const shown = vscode.Uri.joinPath(vscode.Uri.parse(def.path), rel);
   const real = await realInside(vscode.Uri.parse(def.path).fsPath, rel);
   if (!real) {
-    return 0;
+    return skip("path");
   }
   const uri = vscode.Uri.file(real);
-  if (hasUnsavedCopy(uri) || (await isLink(uri)) || !(await pathExists(uri))) {
-    return 0;
+  if (await hasUnsavedEdits(real, shown)) {
+    return skip("unsaved");
+  }
+  if (await isLink(uri)) {
+    return skip("link");
+  }
+  if (!(await pathExists(uri))) {
+    return skip("missing");
+  }
+  if ((await vscode.workspace.fs.stat(uri)).size > MAX_DOC_BYTES) {
+    return skip("large");
   }
   const before = decodeRules(await vscode.workspace.fs.readFile(uri));
   if (before === undefined) {
-    return 0;
+    return skip("encoding");
   }
   let text = before;
   let done = 0;
@@ -152,23 +199,29 @@ async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, 
       done++;
     }
   }
-  if (done === 0 || hasUnsavedCopy(uri) || decodeRules(await vscode.workspace.fs.readFile(uri)) !== before) {
-    return 0;
+  if (done === 0) {
+    return skip("nochange");
+  }
+  if ((await hasUnsavedEdits(real, shown)) || decodeRules(await vscode.workspace.fs.readFile(uri)) !== before) {
+    return skip("changed");
   }
   try {
     await vscode.workspace.fs.writeFile(uri, Buffer.from(text, "utf8"));
   } catch (e) {
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: me.path, error: e instanceof Error ? e.message : String(e) }));
+    const error = e instanceof Error ? e.message : String(e);
+    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: me.path, error }));
     // A write that failed late may still have landed; keep it undoable when it did.
     if (decodeRules(await vscode.workspace.fs.readFile(uri).then((b) => b, () => new Uint8Array())) === text) {
-      snapshot.docs.push({ uri, before, after: text });
+      snapshot.docs.push({ uri, shown, before, after: text });
       return done;
     }
-    return 0;
+    return skip("failed");
   }
-  snapshot.docs.push({ uri, before, after: text });
+  snapshot.docs.push({ uri, shown, before, after: text });
   return done;
 }
+
+const PASTED_COPY = /^pasted-[\w.-]+\.patch\.json$/;
 
 // Keeps a copy of a pasted patch in the hand-off folder of the first project it touched (a folder
 // the hand-off already keeps out of git), so the change can be traced and reverted later. Best effort.
@@ -190,6 +243,11 @@ export async function savePastedPatch(run: BoardRun, model: BoardModel, rows: Pa
       await vscode.workspace.fs.writeFile(ignore, Buffer.from("*\n", "utf8"));
     }
     await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, `pasted-${new Date().toISOString().replace(/[:.]/g, "-")}.patch.json`), Buffer.from(text, "utf8"));
+    // The same retention as hand-offs: the newest copies stay (the stamp in the name sorts by age).
+    const old = (await vscode.workspace.fs.readDirectory(dir)).map(([n]) => n).filter((n) => PASTED_COPY.test(n)).sort().reverse().slice(KEEP_HANDOFFS);
+    for (const n of old) {
+      await vscode.workspace.fs.delete(vscode.Uri.joinPath(dir, n));
+    }
   } catch {
     // The apply already happened; a missing copy never undoes it.
   }
@@ -202,11 +260,17 @@ export async function savePastedPatch(run: BoardRun, model: BoardModel, rows: Pa
 export async function undoBatch(s: BatchSnapshot): Promise<boolean> {
   let ok = true;
   for (const d of [...s.docs]) {
+    const file = path.posix.basename(d.uri.path);
     try {
-      const now = hasUnsavedCopy(d.uri) || (await isLink(d.uri)) || !(await pathExists(d.uri)) ? undefined : decodeRules(await vscode.workspace.fs.readFile(d.uri));
+      if (await hasUnsavedEdits(d.uri.fsPath, d.shown)) {
+        void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file }));
+        ok = false;
+        continue;
+      }
+      const now = (await isLink(d.uri)) || !(await pathExists(d.uri)) ? undefined : decodeRules(await vscode.workspace.fs.readFile(d.uri));
       if (now !== d.before) {
         if (now !== d.after) {
-          void vscode.window.showWarningMessage(l10n("releaseBoard.undo.changed", { file: path.posix.basename(d.uri.path) }));
+          void vscode.window.showWarningMessage(l10n("releaseBoard.undo.changed", { file }));
           ok = false;
           continue;
         }
@@ -215,7 +279,7 @@ export async function undoBatch(s: BatchSnapshot): Promise<boolean> {
       s.docs.splice(s.docs.indexOf(d), 1);
     } catch (e) {
       ok = false;
-      void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: path.posix.basename(d.uri.path), error: e instanceof Error ? e.message : String(e) }));
+      void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file, error: e instanceof Error ? e.message : String(e) }));
     }
   }
   if (s.rules) {
@@ -231,6 +295,9 @@ export async function undoBatch(s: BatchSnapshot): Promise<boolean> {
   }
   return ok;
 }
+
+// The files a batch still holds un-restored, by name.
+export const remainingFiles = (s: BatchSnapshot): string[] => [...s.docs.map((d) => path.posix.basename(d.uri.path)), ...(s.rules ? [RULES_FILE] : [])];
 
 // A result file name: a hand-off id (or any safe name) plus ".result.json".
 export const RESULT_FILE = /^[\w.-]{1,160}\.result\.json$/;
@@ -258,14 +325,14 @@ const START_SCAN = 20;
 
 // Watches the hand-off folders for result files and passes the text of each readable one on, with its
 // modified time. `onGone` hears of a deleted one. `scan` looks once at the newest files already there.
-export function watchResults(roots: () => vscode.Uri[], onResult: (text: string, name: string, mtime: number) => void, onGone?: (name: string) => void): vscode.Disposable & { scan(): void } {
+export function watchResults(roots: () => vscode.Uri[], onResult: (text: string, name: string, mtime: number, file: string) => void, onGone?: (name: string) => void): vscode.Disposable & { scan(): void } {
   const watcher = vscode.workspace.createFileSystemWatcher(`**/${HANDOFF_DIR}/*.result.json`);
   const seen = async (uri: vscode.Uri, mtime?: number): Promise<void> => {
     try {
       const time = mtime ?? (await vscode.workspace.fs.stat(uri)).mtime;
       const text = await readResultFile(uri, roots());
       if (text !== undefined) {
-        onResult(text, path.posix.basename(uri.path), time);
+        onResult(text, path.posix.basename(uri.path), time, uri.fsPath);
       }
     } catch {
       // The file went away between the event and the read.
@@ -287,7 +354,8 @@ export function watchResults(roots: () => vscode.Uri[], onResult: (text: string,
           // No hand-off folder in this project.
         }
       }
-      for (const f of found.sort((a, b) => b.mtime - a.mtime).slice(0, START_SCAN)) {
+      // The newest files, handled oldest first, so the newest reply is the one left on the pill.
+      for (const f of found.sort((a, b) => b.mtime - a.mtime).slice(0, START_SCAN).reverse()) {
         await seen(f.uri, f.mtime);
       }
     })();

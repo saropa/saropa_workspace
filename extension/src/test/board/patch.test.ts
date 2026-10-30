@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MAX_CHANGES, MAX_PATCH_CHARS, PatchCheck, PatchTarget, checkPatch, extractPatch } from "../../board/patch";
+import { parseNeeds } from "../../board/docFacts";
 import { addNeedsLine, removeNeedsLine, setDocGroup } from "../../board/patchApply";
 
 const target = (id: string, over: Partial<PatchTarget> = {}): PatchTarget => {
@@ -225,4 +226,38 @@ test("a Needs line inside a code fence is neither changed nor counted", () => {
   const added = addNeedsLine(doc, "b.md") as { ok: true; text: string };
   assert.equal(added.text, "# T\n\nNeeds: b.md\n\n```md\nNeeds: a.md\n```\n\n~~~\nNeeds: a.md\n~~~\n\nBody\n");
   assert.deepEqual(addNeedsLine("# T\n\n```\nNeeds: a.md\n```\n", "a.md").ok, true, "the fenced line does not count as listing it");
+});
+
+test("adding and removing the same pair in one patch is a conflict, in either order", () => {
+  assert.deepEqual(refusals([
+    { op: "addNeeds", item: "app:a.md", on: "lib:c.md", reason: "x" },
+    { op: "removeNeeds", item: "app:a.md", on: "lib:c.md", reason: "x" },
+  ]), ["conflict"]);
+  assert.deepEqual(refusals([
+    { op: "removeNeeds", item: "app:b.md", on: "app:a.md", reason: "x" },
+    { op: "addNeeds", item: "app:b.md", on: "app:a.md", reason: "x" },
+  ]), ["conflict"]);
+});
+
+test("a group name that shows nothing is refused, and hidden blanks are stripped from a real name", () => {
+  const blanks = ["\u2800", "\u2800\u2800", " \u200b ", "\u0301", "\u3164", "\u00a0\u2003"];
+  for (const g of blanks) {
+    assert.deepEqual(refusals([{ op: "setGroup", item: "app:a.md", group: g, reason: "x" }]), ["badValue"], JSON.stringify(g));
+  }
+  const c = ok(checkPatch(patch([{ op: "setGroup", item: "app:a.md", group: "Store\u2800 launch", reason: "x" }]), targets, STATUSES));
+  assert.equal(c.rows[0].change.group, "Store launch");
+});
+
+test("the Needs-line patterns stay fast on hostile text and still read normal lines", () => {
+  const hostile = "*\n".repeat(500_000);
+  const t0 = Date.now();
+  assert.equal(addNeedsLine(hostile, "x.md").ok, true);
+  assert.ok(Date.now() - t0 < 1500, `took ${Date.now() - t0} ms`);
+  const t1 = Date.now();
+  assert.deepEqual(parseNeeds(hostile), []);
+  assert.deepEqual(parseNeeds("*".repeat(1_000_000)), []);
+  assert.ok(Date.now() - t1 < 1500, `took ${Date.now() - t1} ms`);
+  assert.deepEqual(parseNeeds("# T\n\n**Needs:** a.md, b.md\n> Needs: c.md\n- needs : d.md\n"), ["a.md", "b.md", "c.md", "d.md"]);
+  const r = addNeedsLine("# T\n\n**Needs:** a.md\n", "b.md");
+  assert.equal(r.ok && r.text, "# T\n\n**Needs:** a.md, b.md\n");
 });

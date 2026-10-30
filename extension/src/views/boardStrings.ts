@@ -436,6 +436,7 @@ export const POLISH_KEYS = [
   "effLightNoGo",
   "undo",
   "undoTip",
+  "undoDismiss",
   "menuAuto",
   "menuAutoTip",
   "byYou",

@@ -195,6 +195,12 @@ async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Pro
     await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    // A write that failed late may still have landed; keep it undoable when it did.
+    const now = await readRules(uri).catch((): RulesRead => ({ kind: "none" }));
+    if (now.kind === "text" && now.text === result.text) {
+      c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}) });
+      return true;
+    }
     return false;
   }
   if (c.done) {
@@ -214,7 +220,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
   }
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
   if (hasUnsavedCopy(uri)) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
+    void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
     return false;
   }
   if (await linkedRules(root, uri)) {

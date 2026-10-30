@@ -62,9 +62,9 @@ export function rowMenu(t: BoardStrings, profile = "deliberate", projects: Board
 export const blocksNow = (i: BoardItem): boolean => i.status === "red" || i.stopping;
 
 // The bar shown after a save: what changed and Undo. It stays until the host takes it away
-// (ten seconds after the write), a newer change, or a click.
+// (ten seconds after the write; never while an Undo has left files un-restored), a newer change, or Dismiss.
 export function undoBar(t: BoardStrings, text: string | undefined): string {
-  return text === undefined ? "" : `<div id="undo" role="status"><span>${escapeHtml(text)}</span><button type="button" class="sec" data-undo title="${escapeHtml(pl(t, "undoTip"))}">${escapeHtml(pl(t, "undo"))}</button></div>`;
+  return text === undefined ? "" : `<div id="undo" role="status"><span>${escapeHtml(text)}</span><button type="button" class="sec" data-undo title="${escapeHtml(pl(t, "undoTip"))}">${escapeHtml(pl(t, "undo"))}</button><button type="button" class="sec" data-undo-x aria-label="${escapeHtml(pl(t, "undoDismiss"))}" title="${escapeHtml(pl(t, "undoDismiss"))}">\u00d7</button></div>`;
 }
 
 // The menu of a project or group heading: one entry that hands that scope off.

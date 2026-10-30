@@ -12,7 +12,7 @@ import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { DocChange, assignFolderRule, changeDoc, previewFolder } from "../commands/boardRuleAssign";
-import { BatchSnapshot, applyRows, savePastedPatch, undoBatch } from "../commands/boardPatch";
+import { BatchSnapshot, applyRows, remainingFiles, savePastedPatch, undoBatch } from "../commands/boardPatch";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
@@ -140,6 +140,10 @@ class BoardPanel extends BoardPanelWiring {
     } else if (message.type === "patchReject") {
       this.patches.clear();
       this.post({ type: "patchDone", applied: 0, skipped: 0 });
+    } else if (message.type === "undoDismiss") {
+      clearTimeout(this.undo?.timer);
+      this.undo = undefined;
+      this.post({ type: "undoOff" });
     } else if (message.type === "undo") {
       await this.undoChange();
     } else if (message.type === "startup") {
@@ -468,7 +472,15 @@ class BoardPanel extends BoardPanelWiring {
       this.assigning = false;
     }
     if (!done) {
+      // Part of the batch is still in place: the bar stays (no expiry) until all of it is back or the
+      // owner dismisses the bar, and the owner is told exactly which files remain.
+      clearTimeout(undo.timer);
+      delete undo.timer;
+      void vscode.window.showWarningMessage(l10n("releaseBoard.undo.remaining", { list: remainingFiles(undo.snapshot).join(", ") }));
       this.post({ type: "undoOn" });
+      this.dirty = true;
+      this.lastKey = "";
+      await this.refresh();
       return;
     }
     clearTimeout(undo.timer);

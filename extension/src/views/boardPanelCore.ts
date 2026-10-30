@@ -54,7 +54,8 @@ export abstract class BoardPanelCore {
   protected partial = false;
   protected lastKey = "";
   // The last inline change to the rules file, kept ten seconds so Undo can put the file back.
-  protected undo: { label: string; snapshot: BatchSnapshot; timer: ReturnType<typeof setTimeout> } | undefined;
+  // The timer is missing while a partial Undo keeps the bar: it stays until fully undone or dismissed.
+  protected undo: { label: string; snapshot: BatchSnapshot; timer?: ReturnType<typeof setTimeout> } | undefined;
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
   protected outside: Outside = emptyOutside();
   protected outsideToken = 0;
@@ -91,7 +92,8 @@ export abstract class BoardPanelCore {
   protected readonly patches = new BoardPatches(
     () => (this.run && this.model ? { model: this.model, run: this.run } : undefined),
     (m) => void this.panel.webview.postMessage(m),
-    () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true))
+    () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true)),
+    () => this.context.workspaceState
   );
   protected readonly disposables: vscode.Disposable[] = [];
 

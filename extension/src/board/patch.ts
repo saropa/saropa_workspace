@@ -60,7 +60,7 @@ export function targetsOf(model: BoardModel): Map<string, PatchTarget> {
 // Why a whole text was not read as a patch.
 export type PatchError = "empty" | "tooLarge" | "notJson" | "shape" | "schema" | "newer" | "tooMany";
 // Why one change was left out.
-export type Refusal = "shape" | "unknownOp" | "unknownItem" | "unknownTarget" | "badValue" | "same" | "circle" | "linked" | "notLinked" | "tooLong" | "noRevision" | "duplicate" | "lookalike";
+export type Refusal = "shape" | "unknownOp" | "unknownItem" | "unknownTarget" | "badValue" | "same" | "circle" | "linked" | "notLinked" | "tooLong" | "noRevision" | "duplicate" | "lookalike" | "conflict";
 
 // A change that passed: the value now and the one it would become, for the review list.
 export interface PatchRow {
@@ -123,7 +123,9 @@ const CHANGE_KEYS = new Set(["op", "item", "to", "on", "group", "reason", "rev"]
 const PATCH_KEYS = new Set(["schema", "basedOn", "changes"]);
 // Characters that show nothing or reorder text: soft hyphen, fillers, zero-width and format
 // characters, bidi controls, variation selectors, the BOM and the Unicode tag characters.
-const HIDDEN = /[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\uffa0\ufe00-\ufe0f\ufeff\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu;
+const HIDDEN = /[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\u2800\u3164\uffa0\ufe00-\ufe0f\ufeff\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu;
+// A text made only of spaces, format and control characters, bare marks and blank Braille shows nothing.
+const BLANKISH = /^[\p{Zs}\p{Cf}\p{Cc}\p{Mn}\u2800-\u28ff]+$/u;
 const PRINTABLE = /^[\p{L}\p{N}\p{M}\p{P}\p{S} ]+$/u;
 // The text as the board compares it: NFKC, hidden characters gone, spaces collapsed.
 export const cleanText = (v: string): string => v.normalize("NFKC").replace(HIDDEN, "").replace(/ +/g, " ").trim();
@@ -136,7 +138,7 @@ const words = (v: unknown, max: number): string | undefined => {
     return undefined;
   }
   const t = cleanText(v);
-  return t !== "" && t.length <= max && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(t) && PRINTABLE.test(t) ? t : undefined;
+  return t !== "" && t.length <= max && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(t) && PRINTABLE.test(t) && !BLANKISH.test(t) ? t : undefined;
 };
 // A path that can be written into a Needs line without being split or read as markup.
 export const writableNeeds = (p: string): boolean => /^[\w./+@-]+$/.test(p) && posix.normalize(p) === p && !p.startsWith("../") && docGlob(p) !== undefined;
@@ -199,7 +201,14 @@ export function checkPatch(raw: string, targets: Map<string, PatchTarget>, statu
   const rows: PatchRow[] = [];
   const refused: PatchRefusal[] = [];
   const seen = new Set<string>();
+  // The link kind that passed for each pair of items: the opposite kind on the same pair is a conflict.
+  const pairs = new Map<string, string>();
   doc.changes.forEach((c: unknown, i) => {
+    const pair = isObject(c) && (c.op === "addNeeds" || c.op === "removeNeeds") ? `${String(c.item)}\t${String(c.on)}` : undefined;
+    if (pair !== undefined && pairs.has(pair) && pairs.get(pair) !== (c as { op: unknown }).op) {
+      refused.push({ n: i + 1, reason: "conflict" });
+      return;
+    }
     const r = checkChange(c, targets, statuses, needs, groups);
     if (typeof r === "string") {
       refused.push({ n: i + 1, reason: r });
@@ -211,6 +220,9 @@ export function checkPatch(raw: string, targets: Map<string, PatchTarget>, statu
       refused.push({ n: i + 1, reason: "duplicate" });
     } else {
       seen.add(k);
+      if (pair !== undefined) {
+        pairs.set(pair, r.change.op);
+      }
       rows.push(r);
     }
   });
