@@ -13,6 +13,7 @@ import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } 
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, undoRulesWrite } from "../commands/boardRuleAssign";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
+import { pickGroup } from "../commands/boardGroupPick";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
@@ -22,6 +23,7 @@ import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
 import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
 import { writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
+import { GROUP_BYS } from "../board/types";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
@@ -117,9 +119,9 @@ class BoardPanel extends BoardPanelWiring {
       await this.noRule(message.type, message.i);
     } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
       await this.projectsMessage(message.type);
-    } else if (message.type === "groupBy" && (message.value === "project" || message.value === "none")) {
+    } else if (message.type === "groupBy" && GROUP_BYS.some((g) => g === message.value)) {
       // The setting change draws the board again through the configuration listener.
-      await writeGroupBy(message.value);
+      await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
     } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
       await writeProjectScope(message.value);
     } else if (message.type === "chatPoll") {
@@ -348,6 +350,12 @@ class BoardPanel extends BoardPanelWiring {
       this.post(openMessage("item", id));
     } else if (act === "rules") {
       await openRulesFile({ project: item.project, folder }, documentColumn());
+    } else if (act === "group") {
+      // The picker is the host's own dialog: nothing but the entry name comes from the page.
+      const picked = await pickGroup(run.cfg, item);
+      if (!picked.cancelled) {
+        await this.inlineChange(run, item, { kind: "group", name: picked.name }, id);
+      }
     } else if (act === "assign") {
       const busy = this.busyReason();
       if (busy) {
@@ -410,7 +418,9 @@ class BoardPanel extends BoardPanelWiring {
             ? l10n("releaseBoard.undo.status", { title: item.title, label: change.category.label })
             : change.kind === "severity"
               ? l10n("releaseBoard.undo.severity", { title: item.title, level: change.level })
-              : l10n("releaseBoard.undo.auto", { title: item.title });
+              : change.kind === "group"
+                ? l10n(change.name === undefined ? "releaseBoard.undo.groupRemove" : "releaseBoard.undo.group", { title: item.title, name: change.name ?? "" })
+                : l10n("releaseBoard.undo.auto", { title: item.title });
         this.offerUndo(label, snapshot);
         this.dirty = true;
         await this.refresh();

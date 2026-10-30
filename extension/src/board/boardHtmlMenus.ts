@@ -4,6 +4,7 @@ import { asProfile, stops } from "./severity";
 import { BoardStrings, escapeHtml, pl, tip } from "./boardHtmlUtil";
 import { label } from "./boardHtmlProjects";
 import { hl } from "./boardHtmlHandoff";
+import { GROUP_BYS, GroupBy } from "./types";
 
 // The pop-up menus of the board: one for the actions on a document row and one for the board
 // options. Each is drawn once per page; the small kebab button on a row or in the top bar opens
@@ -27,6 +28,9 @@ export interface RowStatus {
   status: string;
   kind?: string;
 }
+
+// The string key of each Group by choice; its tooltip is the key plus "Tip".
+const GROUP_KEYS: Record<GroupBy, string> = { project: "groupProject", group: "groupGroup", status: "groupStatus", severity: "groupSeverity", none: "groupNone" };
 
 const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "✓", reference: "○" };
 
@@ -55,7 +59,7 @@ export function rowMenu(t: BoardStrings, profile = "deliberate", projects: Board
   const effect = { stops: pl(t, "effStops"), clears: pl(t, "effClears"), fixed: pl(t, "effFixed"), others: pl(t, "effOthers"), none: pl(t, "effNone"), sOn: pl(t, "effStatusOn"), sOff: pl(t, "effStatusOff"), sSame: pl(t, "effStatusSame"), lGo: pl(t, "effLightGo"), lNoGo: pl(t, "effLightNoGo") };
   const lists = ` data-stops="${escapeHtml(JSON.stringify(SEVERITY_LEVELS.filter((l) => stops(asProfile(profile), l))))}" data-pname="${escapeHtml(profile === "rush" ? t.profileRush : profile === "zero" ? t.profileZero : t.profileDeliberate)}" data-eff="${escapeHtml(JSON.stringify(effect))}" data-proj="${escapeHtml(JSON.stringify(Object.fromEntries(projects.map((p) => [p.id, [p.name, p.items.filter(blocksNow).length + p.blockedStopping]]))))}"`;
   const live = `<div role="group" aria-label="${escapeHtml(pl(t, "effLabel"))}" ${tip(t, "effLabel")}><div class="eff" id="eff" aria-live="polite" ${tip(t, "effLabel")}></div></div>`;
-  return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
+  return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${item("group", pl(t, "menuGroup"), pl(t, "menuGroupTip"))}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
 }
 
 // True when an open document blocks the release now: a red folder or a stopping severity or pin.
@@ -79,11 +83,11 @@ const TIME_LABELS: Array<[string, string]> = [["any", "timeAny"], ["15", "time15
 // time I have and the devices in hand. The current choice is ticked. The mode applies to every
 // project on the board. The Steps choices travel as JSON on the menu: the page script changes
 // one and sends the whole selection, the same message the old chips sent.
-export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel["sittings"], groupBy?: "project" | "none"): string {
+export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel["sittings"], groupBy?: GroupBy): string {
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
   const tick = (on: boolean): string => (on ? "\u2713 " : "");
   const head = (key: string): string => `<div class="mh" role="presentation" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div>`;
-  const group = groupBy === undefined ? "" : `${head("groupBy")}${(["project", "none"] as const).map((g) => item("group:" + g, tick(groupBy === g) + pl(t, g === "project" ? "groupProject" : "groupNone"), pl(t, g === "project" ? "groupProjectTip" : "groupNoneTip"), ` aria-checked="${groupBy === g}"`, "menuitemradio")).join("")}`;
+  const group = groupBy === undefined ? "" : `${head("groupBy")}${GROUP_BYS.map((g) => item("group:" + g, tick(groupBy === g) + pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), ` aria-checked="${groupBy === g}"`, "menuitemradio")).join("")}`;
   const steps = sittings
     ? `${head("timeLabel")}${TIME_LABELS.map(([n, key]) => item("box:" + n, tick(sittings.timeBox === n) + pl(t, key), pl(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) }), ` aria-checked="${sittings.timeBox === n}"`, "menuitemradio")).join("")}`
       + (sittings.contexts.length > 0

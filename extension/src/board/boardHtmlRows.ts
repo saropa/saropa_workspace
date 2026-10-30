@@ -9,7 +9,7 @@ import { Signal, showsOnRow } from "./reportSignals";
 
 // The project rows and the item lists of the board page.
 
-const LIST_CAP = 30;
+export const LIST_CAP = 30;
 // A list longer than this starts folded.
 const LONG_LIST = 25;
 // Rows a list shows at first; the rest wait behind a "Show N more" pill.
@@ -101,18 +101,20 @@ function signalLine(p: BoardProject, t: BoardStrings): string {
     .join("");
 }
 
-// The summary pills of a project: how many open documents block the release (the only red),
-// how many wait for review and how many are in progress. A zero count is left out.
-function cardCounts(p: BoardProject, t: BoardStrings): string {
+// The summary pills of a set of open items: how many block the release (the only red), how many
+// wait for review and how many are in progress. A zero count is left out.
+export function itemCounts(items: readonly BoardItem[], name: string, t: BoardStrings): string {
   const n = { red: 0, amber: 0, purple: 0 };
-  for (const i of p.items) {
+  for (const i of items) {
     n[blocks(i) ? "red" : i.status] += 1;
   }
   return (["red", "amber", "purple"] as const)
     .filter((k) => n[k] > 0)
-    .map((k) => `<span class="cp ${k}" ${tip(t, "cpTip." + k, { count: n[k], name: p.name })}>${pill(t, n[k], "cpTip." + k, { count: n[k], name: p.name })} ${escapeHtml(pl(t, "cp." + k))}</span>`)
+    .map((k) => `<span class="cp ${k}" ${tip(t, "cpTip." + k, { count: n[k], name })}>${pill(t, n[k], "cpTip." + k, { count: n[k], name })} ${escapeHtml(pl(t, "cp." + k))}</span>`)
     .join("");
 }
+
+const cardCounts = (p: BoardProject, t: BoardStrings): string => itemCounts(p.items, p.name, t);
 
 // One project's verdict row: name, light, link mark, health marks and the count pills.
 export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false, badge = "", index?: number): string {
@@ -230,7 +232,7 @@ function facts(i: BoardItem, t: BoardStrings): string {
 
 // One open document: the title is the link that opens it (its tooltip is the path inside the
 // project); a click anywhere else on the row opens it too. The row menu button shows on hover.
-function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
+export function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
   return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${titleAttr(rowCard(i, t))}>${statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
 }
 

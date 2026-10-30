@@ -311,3 +311,18 @@ test("Undo removes the .saropa folder the change created, but not one that was t
   assert.equal(await undoRulesWrite(kept!), true);
   assert.equal(fs.existsSync(path.join(dir, ".saropa")), true);
 });
+
+test("a group is written for the exact path at once, can be taken out again, and Undo puts back the exact text", async () => {
+  const { file, run } = setup();
+  const original = '{\r\n  "version": 1\r\n}\r\n';
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, original);
+  const snap = await changeDoc(run, doc, { kind: "group", name: "Launch" });
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), { version: 1, groups: [{ name: "Launch", match: ["app/docs/loose/a.md"] }] });
+  assert.ok(fs.readFileSync(file, "utf8").endsWith("}\r\n"));
+  assert.equal(stub.__warningMessages().length, 0, "no confirmation");
+  assert.equal(await undoRulesWrite(snap!), true);
+  assert.equal(fs.readFileSync(file, "utf8"), original);
+  assert.ok(await changeDoc(run, doc, { kind: "group", name: undefined }));
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")).ungrouped, ["app/docs/loose/a.md"]);
+});

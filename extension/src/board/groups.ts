@@ -42,8 +42,9 @@ const DEFAULT_GENERIC = ["PLAN", "BUG", "DOC", "DOCS", "NOTES", "NOTE", "TODO", 
 
 // The groups found and the documents that act as hubs.
 export interface GroupResult {
-  // Item key to its group (a unique id and the heading), for items in a group of two or more.
-  groupOf: Map<string, { id: string; name: string }>;
+  // Item key to its group (a unique id and the heading), for items in a group of two or more, or in a group listed by hand.
+  // `byUser` is set for a group listed by hand.
+  groupOf: Map<string, { id: string; name: string; byUser?: true }>;
   hubs: Set<string>;
 }
 
@@ -139,7 +140,7 @@ function joinByFiles(free: GroupInput[], filesOf: Map<string, Set<string>>, maxF
   }
 }
 
-// Gathers the joined documents into groups of two or more and names each group.
+// Gathers the joined documents into groups of two or more (or one listed by hand) and names each group.
 function nameGroups(pool: GroupInput[], manualOf: Map<string, string>, generic: Set<string>, u: Union): GroupResult["groupOf"] {
   const members = new Map<string, string[]>();
   for (const i of pool) {
@@ -147,12 +148,13 @@ function nameGroups(pool: GroupInput[], manualOf: Map<string, string>, generic: 
     (members.get(r) ?? members.set(r, []).get(r)!).push(i.key);
   }
   const poolByKey = new Map(pool.map((i) => [i.key, i]));
-  const groupOf = new Map<string, { id: string; name: string }>();
+  const groupOf: GroupResult["groupOf"] = new Map();
   for (const [root, keys] of members) {
-    if (keys.length < 2) {
+    const manualName = keys.map((k) => manualOf.get(k)).find(Boolean);
+    // A group listed by hand shows with one document; the others need two.
+    if (keys.length < 2 && !manualName) {
       continue;
     }
-    const manualName = keys.map((k) => manualOf.get(k)).find(Boolean);
     const first = poolByKey.get(keys[0])!;
     const same = keys.every((k) => {
       const i = poolByKey.get(k)!;
@@ -160,7 +162,7 @@ function nameGroups(pool: GroupInput[], manualOf: Map<string, string>, generic: 
     });
     const meaningful = same && !generic.has(prefixOf(first.path));
     const name = manualName ?? (meaningful ? titleCase(prefixOf(first.path)) + " documents" : "Related documents");
-    keys.forEach((k) => groupOf.set(k, { id: root, name }));
+    keys.forEach((k) => groupOf.set(k, { id: root, name, ...(manualName ? { byUser: true as const } : {}) }));
   }
   return groupOf;
 }

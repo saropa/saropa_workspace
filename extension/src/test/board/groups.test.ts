@@ -50,7 +50,8 @@ test("an earlier manual group keeps a document a later one also matches", () => 
     { manual: [{ name: "First", match: ["app/a.md", "app/b.md"] }, { name: "Second", match: ["app/**"] }] }
   );
   assert.equal(r.groupOf.get(key("app", "a.md"))?.name, "First");
-  assert.equal(r.groupOf.get(key("app", "c.md")), undefined, "only c is left for Second, and one is no group");
+  assert.equal(r.groupOf.get(key("app", "c.md"))?.name, "Second", "a group listed by hand shows with one document");
+  assert.equal(r.groupOf.get(key("app", "c.md"))?.byUser, true);
 });
 
 test("two shared source files make a Related documents group; one does not", () => {
