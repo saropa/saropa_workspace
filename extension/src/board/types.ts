@@ -182,3 +182,7 @@ export function emptyCounts(): StatusCounts {
     grey: 0,
   };
 }
+
+// The layouts of the Release Board's Group by menu: one card per project, group, status or severity, or one merged list.
+export const GROUP_BYS = ["project", "group", "status", "severity", "none"] as const;
+export type GroupBy = (typeof GROUP_BYS)[number];

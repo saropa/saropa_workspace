@@ -183,4 +183,7 @@ test("the view menu offers Group by only when the grouping is known, with the cu
   const menu = viewMenu(t, "deliberate", undefined, "none");
   assert.ok(menu.includes('role="menuitemradio" data-act="group:project" aria-checked="false" title="groupProjectTip"'));
   assert.ok(menu.includes('role="menuitemradio" data-act="group:none" aria-checked="true" title="groupNoneTip"'));
+  for (const g of ["group", "status", "severity"]) {
+    assert.ok(menu.includes(`data-act="group:${g}" aria-checked="false"`), g);
+  }
 });

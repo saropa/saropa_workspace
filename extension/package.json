@@ -2520,8 +2520,8 @@
           },
           "saropaWorkspace.releaseBoard.groupBy": {
             "type": "string",
-            "enum": ["project", "none"],
-            "enumDescriptions": ["%config.releaseBoard.groupBy.project%", "%config.releaseBoard.groupBy.none%"],
+            "enum": ["project", "group", "status", "severity", "none"],
+            "enumDescriptions": ["%config.releaseBoard.groupBy.project%", "%config.releaseBoard.groupBy.group%", "%config.releaseBoard.groupBy.status%", "%config.releaseBoard.groupBy.severity%", "%config.releaseBoard.groupBy.none%"],
             "default": "project",
             "description": "%config.releaseBoard.groupBy.description%"
           },
