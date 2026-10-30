@@ -2036,6 +2036,8 @@
   "releaseBoard.drop.stale": "The board changed. Drop the row again.",
   "releaseBoard.drop.gone": "Release Board: that row or group is no longer on the board, so nothing was changed.",
   "releaseBoard.drop.same": "Release Board: {title} already has that status.",
+  "releaseBoard.drop.sameGroup": "Release Board: {title} is already in that group.",
+  "releaseBoard.drop.busy": "Release Board: still saving the last change. Try again in a moment.",
   "releaseBoard.drop.noStatus": "Release Board: the rules file has no rule that sets that status, so {title} was not changed.",
   "releaseBoard.drop.autoGroup": "Release Board: {name} was found by the board, not listed by hand, so {title} was not moved. Use Move to group... for a group of your own.",
   "releaseBoard.drop.self": "Release Board: a document cannot wait on itself.",

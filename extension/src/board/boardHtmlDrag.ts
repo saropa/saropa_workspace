@@ -8,7 +8,7 @@ import { BoardStrings, escapeHtml, pl } from "./boardHtmlUtil";
 // again. The row menu does everything a drop does, for the keyboard.
 
 export const DRAG_STYLE = `
-.sbands{display:none;position:sticky;top:0;z-index:20;flex-wrap:wrap;gap:6px;margin:0 0 8px;padding:6px 0;background:var(--bg)}
+.sbands{display:none;position:fixed;top:0;left:0;right:0;z-index:20;flex-wrap:wrap;gap:6px;padding:6px 16px;background:var(--bg);border-bottom:1px solid var(--line)}
 body.dragging .sbands{display:flex}
 .sband{flex:1;min-width:100px;padding:4px 10px;text-align:center;border:1px dashed var(--vscode-focusBorder,var(--line));border-radius:6px}
 .gslot{margin-left:auto;font-size:10px;line-height:16px;padding:0 6px;border:1px dashed var(--line);border-radius:8px;color:var(--mute);opacity:0}
@@ -22,7 +22,7 @@ export const DRAG_SCRIPT = `
 const say=s=>{if(live){live.textContent=s;}};const clear=()=>document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));
 const zoneOf=e=>e.target.closest&&e.target.closest('[data-drop]');
 document.addEventListener('dragstart',e=>{const r=e.target.closest&&e.target.closest('[data-drag]');if(!r||!e.dataTransfer){return;}drag=r;e.dataTransfer.setData('text/plain',r.dataset.drag);e.dataTransfer.effectAllowed='move';setTimeout(()=>r.classList.add('dragging'),0);document.body.classList.add('dragging');if(bands){say(bands.dataset.start||'');}});
-document.addEventListener('dragend',()=>{if(drag){drag.classList.remove('dragging');}drag=null;document.body.classList.remove('dragging');clear();});
+document.addEventListener('dragend',()=>{if(drag){drag.classList.remove('dragging');}drag=null;document.body.classList.remove('dragging');clear();if(live){live.textContent='';}});
 document.addEventListener('dragover',e=>{if(!drag){return;}const z=zoneOf(e);if(!z||(z.dataset.drop==='waits'&&z.dataset.to===drag.dataset.drag)){return;}e.preventDefault();if(!z.classList.contains('over')){clear();z.classList.add('over');say(z.dataset.say||'');}});
 document.addEventListener('drop',e=>{if(!drag){return;}const z=zoneOf(e);if(!z){return;}e.preventDefault();const to=z.dataset.drop==='waits'?Number(z.dataset.to):z.dataset.to;vscode.postMessage({type:'drop',zone:z.dataset.drop,id:Number(drag.dataset.drag),to,rev:REV});});
 })();`;

@@ -51,11 +51,14 @@ export function planDrop(m: { zone?: unknown; id?: unknown; to?: unknown }, mode
   }
   if (m.zone === "group" && typeof m.to === "string") {
     if (m.to === "") {
-      return { ok: true, kind: "group", item, name: undefined };
+      return item.group === undefined ? no("releaseBoard.drop.sameGroup", { title: item.title }) : { ok: true, kind: "group", item, name: undefined };
     }
     const group = model.items.find((i) => i.group?.id === m.to)?.group;
     if (!group) {
       return no("releaseBoard.drop.gone");
+    }
+    if (item.group?.id === m.to) {
+      return no("releaseBoard.drop.sameGroup", { title: item.title });
     }
     // Only a group listed by hand takes a document: a found group is not a name the rules file holds.
     return group.byUser ? { ok: true, kind: "group", item, name: group.name } : no("releaseBoard.drop.autoGroup", { title: item.title, name: group.name });

@@ -57,6 +57,8 @@ test("a group listed by hand takes the row, the empty id takes it out, a found g
   if (found) {
     assert.equal(refused(planDrop({ zone: "group", id: 2, to: found.id }, auto, ctx)), "releaseBoard.drop.autoGroup");
   }
+  assert.equal(refused(planDrop({ zone: "group", id: id("Alpha"), to: group.id }, model, ctx)), "releaseBoard.drop.sameGroup", "already in that group");
+  assert.equal(refused(planDrop({ zone: "group", id: id("Gamma"), to: "" }, model, ctx)), "releaseBoard.drop.sameGroup", "already in no group");
   assert.equal(refused(planDrop({ zone: "group", id: id("Gamma"), to: "no-such-group" }, model, ctx)), "releaseBoard.drop.gone");
 });
 

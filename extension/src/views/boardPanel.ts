@@ -439,7 +439,7 @@ class BoardPanel extends BoardPanelWiring {
     }
     const busy = this.busyReason();
     if (busy) {
-      void vscode.window.showInformationMessage(l10n(busy));
+      void vscode.window.showInformationMessage(l10n(busy === "releaseBoard.rowMenu.busyDialog" ? "releaseBoard.drop.busy" : busy));
       return;
     }
     if (plan.kind === "waits") {
