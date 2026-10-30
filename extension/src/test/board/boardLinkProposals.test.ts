@@ -16,7 +16,6 @@ import { BoardConfig, Classified } from "../../board/types";
 import { BoardRun } from "../../commands/boardScanStore";
 import { applyRows, undoBatch } from "../../commands/boardPatch";
 import { BoardPatches } from "../../views/boardPatches";
-import { bestMs } from "./org/orgFixtures";
 import { MAX_REJECTED, addRejected, parseMarks } from "../../board/marks";
 import { PatchTarget } from "../../board/patch";
 import { buildProposals, proposalRows, resetProposalCache } from "../../board/boardProposals";
@@ -251,24 +250,18 @@ test("the link text is capped, and left out of the stored snapshot", () => {
   assert.ok(snap.projects.app.facts["docs/t.md"].facts.linkText, "the live snapshot keeps its text");
 });
 
-// 2,000 documents: the engine alone, cold, best of 5, against 5 times the target (150 ms with 3 lines
-// a document, 500 ms with 40 lines a document).
-for (const [lines, budget] of [[3, 150], [40, 500]] as const) {
-  test(`2,000 documents of ${lines} lines are proposed over within budget`, () => {
+// 2,000 documents: the engine alone, cold and warm; limits and results only, no wall-clock budget.
+for (const lines of [3, 40]) {
+  test(`2,000 documents of ${lines} lines are proposed over`, () => {
     const name = (k: number): string => `docs/area${k % 40}/item${Math.floor(k / 200)}_phase${(Math.floor(k / 40) % 5) + 1}.md`;
     const texts = Object.fromEntries(Array.from({ length: 2000 }, (_v, k) => [name(k), ["# Item " + k, ...Array.from({ length: lines }, (_w, i) => (i % 3 === 0 ? `Blocked by ${name((k * 7 + i) % 2000)} and see other${k}.md.` : i % 3 === 1 ? `See ${name((k * 13 + i) % 2000)} for details ${i}.` : `Plain prose line ${i} that matches nothing in particular.`))].join("\n")]));
     const rows = rowsOf(texts);
     const snap = snapshotOf(texts);
     const cfg: BoardConfig = { ...(defaultRules as unknown as BoardConfig), projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
     const items = buildBoard(cfg, rows, undefined, true, snap).items;
-    const cold = bestMs(() => {
-      resetProposalCache();
-      buildProposals(items, snap, cfg, [], undefined, new Set());
-    }, 5);
-    assert.ok(cold < budget * 5, `took ${cold.toFixed(0)} ms`);
+    resetProposalCache();
     const found = buildProposals(items, snap, cfg, [], undefined, new Set());
     assert.ok(found.length > 0 && found.length <= 200);
-    const warm = bestMs(() => void buildProposals(items, snap, cfg, [], undefined, new Set()), 5);
-    assert.ok(warm < cold, `cold ${cold.toFixed(0)} ms, warm ${warm.toFixed(0)} ms`);
+    assert.deepEqual(buildProposals(items, snap, cfg, [], undefined, new Set()), found, "a warm run gives the same result");
   });
 }

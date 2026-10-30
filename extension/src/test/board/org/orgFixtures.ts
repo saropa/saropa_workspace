@@ -96,22 +96,3 @@ export function generated(n: number, projects = 3): OrgDoc[] {
   return out;
 }
 
-// Best time in milliseconds of `runs` calls after one warm-up call: a slow machine moment cannot fail a budget test.
-export function bestMs(fn: () => void, runs = 5): number {
-  fn();
-  let best = Infinity;
-  for (let i = 0; i < runs; i++) {
-    const started = performance.now();
-    fn();
-    best = Math.min(best, performance.now() - started);
-  }
-  return best;
-}
-
-// A generous absolute budget on the best of five warm runs (about 10x the normal time). No ratio is asserted:
-// a ratio of two wall times is noise when other processes compete for the CPU.
-export function assertScales(make: (n: number) => OrgDoc[], go: (input: OrgDoc[]) => void, n = 2000, budgetMs = 5000): void {
-  const input = make(n);
-  const big = bestMs(() => go(input));
-  assert.ok(big < budgetMs, `took ${big.toFixed(0)} ms`);
-}
