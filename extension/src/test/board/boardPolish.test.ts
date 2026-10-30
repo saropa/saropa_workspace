@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BoardStrings, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { STYLE, script } from "../../board/boardHtmlAssets";
-import { kebab, optsMenu, rowMenu, undoBar, viewMenu } from "../../board/boardHtmlMenus";
+import { kebab, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "../../board/boardHtmlMenus";
 import { PROJECTS_STYLE } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { evaluateHealth } from "../../board/health";
@@ -222,10 +222,10 @@ test("every releaseBoard setting is in the README table with its default, and th
   }
 });
 
-test("the row menu has Open, the status radios, Raise, Lower, the five levels, Back to automatic, Waits on, Blocks, Move to group, Assign rule, Hand off and the rules file, each with a tooltip", () => {
+test("the row menu has Open, the status radios, Raise, Lower, the five levels, Back to automatic, Waits on, Blocks, Move to group, Assign rule, Edit tags, Hand off and the rules file, each with a tooltip", () => {
   const html = rowMenu(t, "deliberate", [], [{ label: "Done", status: "green" }, { label: "Review next", status: "amber" }]);
   const acts = [...html.matchAll(/<button type="button" class="mi" role="(menuitem|menuitemradio)" data-act="([\w:]+)"[^>]* title="([^"]+)">([^<]+)<\/button>/g)];
-  assert.deepEqual(acts.map((m) => m[2]), ["open", "status:0", "status:1", "raise", "lower", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low", "auto", "waits", "blocks", "group", "assign", "hand", "rules"]);
+  assert.deepEqual(acts.map((m) => m[2]), ["open", "status:0", "status:1", "raise", "lower", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low", "auto", "waits", "blocks", "group", "assign", "tags", "hand", "rules"]);
   assert.deepEqual(acts.filter((m) => m[1] === "menuitemradio").map((m) => m[2]), ["status:0", "status:1", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low"]);
   assert.ok(acts.every((m) => m[3].length > 0));
   assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden data-stops='));
@@ -338,4 +338,9 @@ test("With Group by Project a project still lists its in-progress documents when
   assert.ok(!m.inProgress?.ids.some((id) => m.items[id].project === "lib"), "the global cap holds only the other project");
   const html = renderBoard(m, t, "n", 0, { groupBy: "project" });
   assert.ok(html.includes("docs/mine.md") || html.includes(">mine</a>"));
+});
+
+test("the row menu and the group menu both offer Edit tags", () => {
+  assert.ok(rowMenu(t).includes('data-act="tags"'));
+  assert.ok(scopeMenu(t).includes('data-act="tags"'));
 });

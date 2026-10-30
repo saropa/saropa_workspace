@@ -22,10 +22,11 @@ import { cardRows } from "../board/boardHtmlGroups";
 import { ganttRows } from "../board/boardHtmlGantt";
 import { pl } from "../board/boardHtmlUtil";
 import { strings } from "./boardStrings";
-import type { BoardItem } from "../board/boardModel";
+import type { BoardItem, BoardModel } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
-import { openKeywordEditor } from "./keywordEditorPanel";
+import { TagsEditorInput, openTagsEditor } from "./tagsEditorPanel";
+import { matchedTagIds, settingsOf } from "../board/org/settings";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
@@ -98,9 +99,11 @@ class BoardPanel extends BoardPanelWiring {
       } else if (req) {
         await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
       }
-    } else if (msg.type === "scopeMenu" && (message as { act?: unknown }).act === "hand" && typeof (message as { id?: unknown }).id === "string") {
+    } else if (msg.type === "scopeMenu" && ["hand", "tags"].includes((message as { act?: unknown }).act as string) && typeof (message as { id?: unknown }).id === "string") {
       const at = scopeOfMenu((message as { id: string }).id);
-      if (at) {
+      if (at && (message as { act?: unknown }).act === "tags") {
+        await this.tagsRules(this.scopeItems(at.scope, at.i));
+      } else if (at) {
         this.post(openMessage(at.scope, at.i));
       }
     } else {
@@ -398,6 +401,8 @@ class BoardPanel extends BoardPanelWiring {
       if (!picked.cancelled) {
         await this.inlineChange(run, item, { kind: "group", name: picked.name }, id);
       }
+    } else if (act === "tags") {
+      await this.tagsRules([item]);
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
     } else if (act === "assign") {
@@ -651,9 +656,42 @@ class BoardPanel extends BoardPanelWiring {
       this.post({ type: "handoffBack" });
     } else if (act === "keywords") {
       await this.keywords(false);
+    } else if (act === "tagsRules") {
+      await this.tagsRules();
     } else if (act === "projects" || act === "settings") {
       await this.projectsMessage(act === "settings" ? "boardSettings" : "projects");
     }
+  }
+
+  // The Tags and rules editor. It gets the model this panel painted; nothing the page names is trusted.
+  // The documents of a project or group heading ("group": the group the item at `i` is in).
+  private scopeItems(scope: string, i: number): BoardItem[] {
+    const items = this.model?.items ?? [];
+    const at = items[i];
+    return !at ? [] : scope === "group" ? items.filter((x) => x.project === at.project && x.group === at.group) : items.filter((x) => x.project === at.project);
+  }
+
+  // `from`: the documents "Edit tags" was chosen on; the tags that match them are highlighted.
+  private async tagsRules(from: readonly BoardItem[] = []): Promise<void> {
+    const run = this.run;
+    const model = this.model;
+    if (!run || !model) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.keywords.msg.noBoard"));
+      return;
+    }
+    await openTagsEditor({ ...this.editorInput(run, model), ...(from.length > 0 ? { focus: matchedTagIds(from, settingsOf(run.cfg.organize).tags) } : {}) });
+  }
+
+  // What the Tags and rules editor needs from this board. `onSaved` scans again and hands back the new documents,
+  // so an editor that stays open after a save keeps previewing against what the board shows now.
+  private editorInput(run: BoardRun, model: BoardModel): TagsEditorInput {
+    const from = (r: BoardRun, m: BoardModel) => ({ cfg: r.cfg, items: m.items, projectNames: new Map(m.projects.map((p) => [p.id, p.name])), profile: m.profile });
+    const onSaved = async (): Promise<ReturnType<typeof from> | undefined> => {
+      this.dirty = true;
+      await this.refresh();
+      return this.run && this.model ? from(this.run, this.model) : undefined;
+    };
+    return { ...from(run, model), onSaved };
   }
 
   // The keyword editor, or Restore defaults. Both change what every document's severity is, and so
@@ -675,14 +713,14 @@ class BoardPanel extends BoardPanelWiring {
       void vscode.window.showInformationMessage(l10n(busy));
       return;
     }
+    if (!restore) {
+      await openTagsEditor({ ...this.editorInput(run, model), tab: "severity" });
+      return;
+    }
     const onSaved = async (): Promise<void> => {
       this.dirty = true;
       await this.refresh();
     };
-    if (!restore) {
-      await openKeywordEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
-      return;
-    }
     this.assigning = true;
     try {
       if ((await saveSeverity({ kind: "restore" })) === "saved") {

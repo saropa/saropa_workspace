@@ -23,6 +23,8 @@ export interface InferOptions {
   perDocument?: number;
   // At most this many proposals in all; by default scaled to the number of documents.
   total?: number;
+  // The "waits on" phrases turned on (settingsOf(...).linkPhrases); default: all shipped.
+  phrases?: readonly string[];
 }
 
 const CONF: Record<Confidence, number> = { high: 0, medium: 1, low: 2 };
@@ -87,7 +89,7 @@ export function inferLinkProposals(docs: LinkDoc[], existing: readonly Link[], r
 
   // One candidate per pair: the strongest.
   const best = new Map<string, Candidate>();
-  for (const c of allSignals(docs)) {
+  for (const c of allSignals(docs, opt.phrases)) {
     const f = docs[c.from];
     const t = docs[c.to];
     const key = proposalKey(f.project, f.path, t.project, t.path);

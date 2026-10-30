@@ -161,7 +161,7 @@ export interface RulesSnapshot {
 
 // One change to the text of the rules file, with the words that go with it. Without `confirm` the
 // change is written at once and `saved` hands the caller what it replaced.
-interface TextChange {
+export interface TextChange {
   folder: string;
   // The new text from the current one, or why it cannot be made; vars are shown in the words.
   make: (before: string | undefined) => { ok: true; text: string; vars: Record<string, string> } | { ok: false; reason: AssignRefusal };
@@ -180,7 +180,7 @@ async function linkedRules(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promi
 // Writes a change to the rules file with every check: no unsaved copy open, no symbolic link,
 // strict UTF-8, a confirmation that names the change (when it has one), and a second read just
 // before the write. Returns true when the file was written, so the caller scans again.
-async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
+export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
   if (hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));

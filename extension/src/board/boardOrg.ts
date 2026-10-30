@@ -9,7 +9,7 @@ import type { OrgResult } from "./org/orgTypes";
 import { COLOUR_HEX } from "./org/appearance";
 import { Layout, layoutFor } from "./org/layout";
 import { clipName, displayName } from "./org/naming";
-import { mergeDictionary } from "./org/tags";
+import { overridesOf, settingsOf } from "./org/settings";
 import type { OrgColour, OrgDoc, OrgGroup, Why } from "./org/orgTypes";
 
 // Wires the auto-organization engine into the board model: the documents go in, and each open
@@ -37,9 +37,12 @@ function whyLines(g: OrgGroup): string {
 let last: { key: string; res: OrgResult } | undefined;
 
 function organizeCached(docs: OrgDoc[], cfg: BoardConfig, previous: OrgPrevious | undefined): OrgResult {
-  const key = JSON.stringify([docs, cfg.groups, previous]);
+  // The settings go in by content (settingsOf builds fresh arrays), so a Save changes the board without a document change.
+  const s = settingsOf(cfg.organize);
+  const overrides = overridesOf(cfg.organize);
+  const key = JSON.stringify([docs, cfg.groups, previous, s.tags, s.naming.dates, [...(s.naming.prefixes ?? [])], s.naming.acronyms, overrides]);
   if (last?.key !== key) {
-    last = { key, res: organize(docs, mergeDictionary().tags, { manual: cfg.groups, previous }) };
+    last = { key, res: organize(docs, s.tags, { manual: cfg.groups, previous, naming: s.naming }, overrides) };
   }
   return last.res;
 }

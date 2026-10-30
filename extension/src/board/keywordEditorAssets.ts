@@ -1,13 +1,11 @@
-// The look and the behavior of the keyword editor page. The script holds the draft in memory,
-// shows each edit at once, asks the host for the preview (which checks the draft again and
-// answers with counts only) and sends the draft back on Save. It builds every piece of text with
-// textContent and setAttribute, never with markup.
+// The look and the behavior of the severity keyword editor, which lives in the Severity tab of the Tags and
+// rules page. The script holds the draft in memory, shows each edit at once, asks the host for the preview
+// (which checks the draft again and answers with counts only) and sends the draft back on Save. It builds every
+// piece of text with textContent and setAttribute, never with markup. Its messages are named sev* so they never
+// meet the tags messages on the same page.
 
-export const KEYWORD_STYLE = `
-*{box-sizing:border-box}
-body{margin:0;padding:12px 16px 64px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size,13px);color:var(--vscode-foreground);background:var(--vscode-editor-background);line-height:1.45}
-main{max-width:780px;margin:0 auto}
-h1{font-size:1.35em;margin:0 0 6px;font-weight:600;overflow-wrap:anywhere}
+// Only the rules the keyword part adds; the page style (body, buttons, tabs) comes from the Tags page.
+export const SEVERITY_STYLE = `
 .note,.help{color:var(--vscode-descriptionForeground);margin:4px 0 8px;overflow-wrap:anywhere}
 .warn{margin:8px 0 12px;padding:6px 10px;border-left:3px solid var(--vscode-editorWarning-foreground,#cca700);background:var(--vscode-textBlockQuote-background,rgba(127,127,127,.1));overflow-wrap:anywhere}
 details.box{border:1px solid var(--vscode-panel-border,rgba(127,127,127,.35));border-radius:4px;margin:0 0 10px;padding:0 10px 8px}
@@ -21,31 +19,24 @@ summary{cursor:pointer;padding:7px 0;font-weight:600;display:flex;flex-wrap:wrap
 .x:hover{background:var(--vscode-toolbar-hoverBackground,rgba(127,127,127,.25))}
 .addrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
 .addrow input[type=text]{flex:1 1 9em;min-width:0}
-input[type=text],input[type=number]{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,rgba(127,127,127,.5));padding:3px 6px;font:inherit;border-radius:2px}
+input[type=number]{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,rgba(127,127,127,.5));padding:3px 6px;font:inherit;border-radius:2px;min-width:0}
 input[type=number]{width:6em}
-input[aria-invalid=true]{border-color:var(--vscode-inputValidation-errorBorder,#be1100)}
-button{font:inherit;cursor:pointer}
-button.primary,button.secondary{border:1px solid var(--vscode-button-border,transparent);padding:4px 12px;border-radius:2px}
-button.primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+summary:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}
 button.primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}
-button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
 button.secondary:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground)}
-button:disabled{opacity:.5;cursor:default}
-button:focus-visible,input:focus-visible,summary:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}
-.fld{margin:8px 0}
-.fld label{display:block;font-weight:600}
 #pv-list{margin:6px 0 0;padding-left:18px}
 #pv-list li{overflow-wrap:anywhere}
-.bar{position:sticky;bottom:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;background:var(--vscode-editor-background);border-top:1px solid var(--vscode-panel-border,rgba(127,127,127,.35))}
-#msg{color:var(--vscode-errorForeground);overflow-wrap:anywhere}
+.sevbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0}
+#sev-msg{color:var(--vscode-errorForeground);overflow-wrap:anywhere}
 `;
 
-// Runs after `const INIT=<data>;` (see keywordEditorHtml.ts).
-export const KEYWORD_SCRIPT = String.raw`
-const vscode=acquireVsCodeApi();
-const T=INIT.t,LEVELS=INIT.levels,LIM=INIT.limits,DEF=INIT.defaults,SAVED=INIT.saved;
+// A function the Tags page script calls with the one acquireVsCodeApi() result and INIT.sev (see tagsEditorHtml.ts).
+export const SEVERITY_SCRIPT = String.raw`
+function startSeverity(vscode,K){
+const T=K.t,LEVELS=K.levels,LIM=K.limits,DEF=K.defaults;
+let SAVED=K.saved;
 const clone=x=>JSON.parse(JSON.stringify(x));
-let D=clone(INIT.draft),seq=0,timer=0;const bad={};
+let D=clone(K.draft),seq=0,timer=0;const bad={};
 const $=(s)=>document.querySelector(s);
 const fill=(s,o)=>{let r=s;for(const k in o){r=r.split('{'+k+'}').join(String(o[k]));}return r;};
 const norm=s=>s.toLowerCase().split(/\s+/).filter(Boolean).join(' ');
@@ -54,7 +45,7 @@ const listOf=(k)=>k==='negation'?D.negation:D.phrases[k];
 const defOf=(k)=>k==='negation'?DEF.negation:DEF.phrases[k];
 const nameOf=(k)=>k==='negation'?T.negTitle:T['sev_'+k];
 const key=(a)=>a.map(norm).sort().join('\n');
-const msg=(text)=>{$('#msg').textContent=text||'';};
+const msg=(text)=>{$('#sev-msg').textContent=text||'';};
 function chip(k,text){
   const neg=k==='negation',s=document.createElement('span');
   s.className='chip';s.setAttribute('title',fill(neg?T.negChipTip:T.chipTip,{phrase:text,level:nameOf(k)}));
@@ -77,11 +68,11 @@ function renderNumbers(){
 }
 function changed(){return JSON.stringify(D)!==JSON.stringify(SAVED);}
 function refresh(){
-  $('#save').disabled=!changed()||Object.keys(bad).length>0;
+  $('#sev-save').disabled=!changed()||Object.keys(bad).length>0;
   clearTimeout(timer);
   if(Object.keys(bad).length>0){return;}
   $('#pv-text').textContent=T.previewWait;
-  timer=setTimeout(()=>{seq+=1;vscode.postMessage({type:'preview',seq:seq,draft:D});},250);
+  timer=setTimeout(()=>{seq+=1;vscode.postMessage({type:'sevPreview',seq:seq,draft:D});},250);
 }
 function edit(){msg('');refresh();}
 function add(k){
@@ -120,27 +111,33 @@ document.addEventListener('click',(ev)=>{
   const addk=el.getAttribute('data-addbtn');if(addk){add(addk);return;}
   const res=el.getAttribute('data-restore');
   if(res){const d=defOf(res);if(res==='negation'){D.negation=clone(d);}else{D.phrases[res]=clone(d);}renderList(res);edit();return;}
-  if(el.id==='restoreAll'){D=clone(DEF);for(const k of LEVELS.concat(['negation'])){renderList(k);}renderNumbers();for(const id in bad){delete bad[id];}document.querySelectorAll('input[type=number]').forEach(i=>i.removeAttribute('aria-invalid'));edit();return;}
-  if(el.id==='save'){vscode.postMessage({type:'save',draft:D});return;}
-  if(el.id==='cancel'){vscode.postMessage({type:'cancel'});}
+  if(el.id==='sev-restoreAll'){D=clone(DEF);for(const k of LEVELS.concat(['negation'])){renderList(k);}renderNumbers();for(const id in bad){delete bad[id];}document.querySelectorAll('input[type=number]').forEach(i=>i.removeAttribute('aria-invalid'));edit();return;}
+  if(el.id==='sev-save'){vscode.postMessage({type:'sevSave',draft:D});}
 });
 document.addEventListener('keydown',(ev)=>{
   const k=ev.target&&ev.target.getAttribute?ev.target.getAttribute('data-add'):null;
   if(k&&ev.key==='Enter'){ev.preventDefault();add(k);}
 });
 document.querySelectorAll('input[type=number]').forEach(inp=>inp.addEventListener('input',()=>{
-  const id=inp.id,v=Number(inp.value),r=INIT.ranges[id];
+  const id=inp.id,v=Number(inp.value),r=K.ranges[id];
   const ok=inp.value.trim()!==''&&Number.isInteger(v)&&v>=r.min&&v<=r.max;
-  if(!ok){bad[id]=true;inp.setAttribute('aria-invalid','true');msg(T.problemNumber);$('#save').disabled=true;return;}
+  if(!ok){bad[id]=true;inp.setAttribute('aria-invalid','true');msg(T.problemNumber);$('#sev-save').disabled=true;return;}
   delete bad[id];inp.removeAttribute('aria-invalid');
   if(id==='n-threshold'){D.threshold=v;}else{D.weights[id.slice(2)]=v;}
   edit();
 }));
 window.addEventListener('message',(ev)=>{
   const m=ev.data;
-  if(m&&m.type==='preview'&&m.seq===seq){showPreview(m);}
-  else if(m&&m.type==='invalid'&&m.seq===seq){$('#pv-text').textContent=T.previewInvalid;$('#pv-list').textContent='';}
+  if(m&&m.type==='sevPreview'&&m.seq===seq){showPreview(m);}
+  else if(m&&m.type==='sevInvalid'&&m.seq===seq){$('#pv-text').textContent=T.previewInvalid;$('#pv-list').textContent='';}
+  else if(m&&m.type==='sevSaved'){
+    // The file holds the draft now: it is the new saved copy, the unusable-values note no longer applies.
+    SAVED=clone(m.draft);D=clone(m.draft);const w=$('#sev-lossy');if(w){w.hidden=true;}
+    LEVELS.concat(['negation']).forEach(renderList);renderNumbers();refresh();
+  }
 });
 LEVELS.concat(['negation']).forEach(renderList);
 refresh();
+return {dirty:changed};
+}
 `;
