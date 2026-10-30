@@ -2616,5 +2616,12 @@
   "releaseBoard.future.research.handedQueued": "Documents marked as being researched: {count}. Still queued: {queued}. Use the button again for the next batch.",
   "releaseBoard.future.tooLong": "At most {max} characters are kept.",
   "releaseBoard.future.cutAt": "Release Board: the question for {path} was cut to {max} characters.",
-  "releaseBoard.future.stateChanged": "Release Board: the research state of {path} changed since the board was painted, so it was not changed."
+  "releaseBoard.future.stateChanged": "Release Board: the research state of {path} changed since the board was painted, so it was not changed.",
+  "releaseBoard.linkWhy.sequence": "{later} follows {earlier} in the same series ({stem}).",
+  "releaseBoard.linkWhy.phrase": "The text says \"{phrase}\" and names {target}.",
+  "releaseBoard.linkWhy.stem": "Same subject ({stem}): the {later} comes after the {earlier}.",
+  "releaseBoard.linkWhy.mention": "The text names {target}.",
+  "releaseBoard.linkConfidence.high": "Likely",
+  "releaseBoard.linkConfidence.medium": "Possible",
+  "releaseBoard.linkConfidence.low": "Weak guess"
 }
