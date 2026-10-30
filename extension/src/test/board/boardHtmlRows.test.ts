@@ -236,7 +236,7 @@ test("every row has a kebab button that opens the row menu, naming the document 
 test("a click on a kebab never folds the project row", () => {
   const js = script(1, "x", "p");
   assert.ok(js.includes("row.addEventListener('click',e=>{if(!e.target.closest('[data-menu]')){tog();}})"));
-  assert.ok(js.includes("querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();"));
+  assert.ok(js.includes("wired('[data-menu]',b=>b.addEventListener('click',e=>{e.stopPropagation();"));
 });
 
 test("the project name is left out of a row when one project is in focus, and shown otherwise", () => {

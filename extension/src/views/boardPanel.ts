@@ -17,6 +17,10 @@ import { pickGroup } from "../commands/boardGroupPick";
 import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
 import { NeedsDirection, NeedsPick, pickNeeds } from "./boardNeedsPick";
 import { planDrop } from "../board/boardDrop";
+import { cardRows } from "../board/boardHtmlGroups";
+import { ganttRows } from "../board/boardHtmlGantt";
+import { pl } from "../board/boardHtmlUtil";
+import { strings } from "./boardStrings";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
@@ -103,6 +107,19 @@ class BoardPanel extends BoardPanelWiring {
     }
   }
 
+  // Draws the rows of a closed card or a "Show more" with the row renderer of the page and sends them back.
+  private sendRows(id: string, by: unknown, from: number): void {
+    const model = this.model;
+    if (!model || (by !== "group" && by !== "status" && by !== "severity" && by !== "gantt")) {
+      return;
+    }
+    const t = strings();
+    const out = by === "gantt" ? ganttRows(model, t, this.since, id, from) : cardRows(model, by, id, from, new Map(model.projects.map((p) => [p.id, p.name])), t);
+    if (out) {
+      void this.panel.webview.postMessage({ type: "rows", id, by, from, html: out.html, label: pl(t, "rowsShown", { count: out.count }), rev: this.rev });
+    }
+  }
+
   private async onActionMessage(message: Record<string, unknown>): Promise<void> {
     if (message.type === "tidy" && typeof message.i === "number") {
       await this.tidyMove(message.i);
@@ -129,6 +146,8 @@ class BoardPanel extends BoardPanelWiring {
       await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
     } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
       await writeProjectScope(message.value);
+    } else if (message.type === "rows" && typeof message.id === "string" && message.id.length <= 1000 && typeof message.from === "number") {
+      this.sendRows(message.id, message.by, message.from);
     } else if (message.type === "chatPoll") {
       this.chats.toggle();
     } else if (message.type === "drop") {

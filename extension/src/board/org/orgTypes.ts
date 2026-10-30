@@ -42,6 +42,8 @@ export interface OrgGroup {
   project: string;
   // Cleaned name before the range is added; the display name comes from displayName().
   name: string;
+  // A group listed by hand: the name as the rules file holds it (tidied), never clipped or made unique. Writes use this.
+  stored?: string;
   range?: SeqRange;
   // Logical folder (status and date segments removed), "" for the project root.
   folder: string;

@@ -112,6 +112,9 @@ export interface BoardProject {
 export interface GroupView {
   id: string;
   name: string;
+  // Listed by hand: the name as the rules file holds it. Every write and comparison uses this, never `name`
+  // (which can be clipped or made unique for the page).
+  stored?: string;
   emoji?: string;
   colour?: string;
   // Why the group exists and why it has this name, emoji and colour, one per line (plain text).
@@ -119,6 +122,8 @@ export interface GroupView {
   // Listed by hand or set by the user; otherwise the board found it.
   byUser?: true;
   parent?: string;
+  // The group above, as drawn.
+  parentView?: GroupView;
   // The project has so few documents that its lists show no group headings.
   flat?: true;
   // Why the group may start folded (plain text).

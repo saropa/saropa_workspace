@@ -51,6 +51,8 @@ export abstract class BoardPanelCore {
   // The page shows a board whose documents are still being read; a scan that dies now leaves it so.
   protected partial = false;
   protected lastKey = "";
+  // The "since last look" view the page was painted with, so rows sent later are drawn the same way.
+  protected since: ReturnType<typeof viewFor> | undefined;
   // The last inline change to a file, kept ten seconds so Undo can put the file back.
   protected undo: { label: string; restore: () => Promise<boolean>; timer: ReturnType<typeof setTimeout> } | undefined;
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
@@ -346,6 +348,7 @@ export abstract class BoardPanelCore {
     // hold unread documents, which would read as blockers that cleared.
     const finished = !state.loading && !state.stale && !this.partial;
     const since = finished ? viewFor(model) : undefined;
+    this.since = since;
     if (finished && this.panel.visible) {
       panelShowed(model);
     }

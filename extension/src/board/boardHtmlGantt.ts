@@ -2,7 +2,7 @@ import type { BoardItem, BoardModel } from "./boardModelParts";
 import { dragAttrs } from "./boardHtmlDrag";
 import { kebab, rowData } from "./boardHtmlMenus";
 import type { SinceView } from "./sinceLast";
-import { BoardStrings, docLink, escapeHtml, pill, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { BoardStrings, docLink, escapeHtml, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { GanttGroup, GanttRow, buildGantt } from "./ganttModel";
 
 // The Gantt tab of the board page: one list of items grouped by project, each with a bar on a
@@ -41,7 +41,7 @@ export const GANTT_STYLE = `
 export const GANTT_SCRIPT = `
 (()=>{const g=document.getElementById('gantt');const kb=document.getElementById('gKeyBtn');if(kb){kb.addEventListener('click',()=>{const k=document.getElementById('gKey');const on=k.hidden;k.hidden=!on;kb.setAttribute('aria-expanded',String(on));});}if(!g){return;}
 const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.id='gSvg';svg.setAttribute('aria-hidden','true');svg.innerHTML='<defs><marker id="gAr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z"/></marker></defs>';g.insertBefore(svg,g.firstChild);let hov=null,sel=null,lit=[];
-const ROWS=[...g.querySelectorAll('.gr')],BY=new Map(),AFT=new Map(),DEP=new Map();ROWS.forEach(r=>{const id=r.dataset.gid;BY.set(id,r);const a=r.dataset.after?r.dataset.after.split(','):[];AFT.set(id,a);a.forEach(x=>{if(!DEP.has(x)){DEP.set(x,[]);}DEP.get(x).push(id);});});
+let ROWS=[],BY=new Map(),AFT=new Map(),DEP=new Map();const idx=()=>{ROWS=[...g.querySelectorAll('.gr')];BY=new Map();AFT=new Map();DEP=new Map();ROWS.forEach(r=>{const id=r.dataset.gid;BY.set(id,r);const a=r.dataset.after?r.dataset.after.split(','):[];AFT.set(id,a);a.forEach(x=>{if(!DEP.has(x)){DEP.set(x,[]);}DEP.get(x).push(id);});});};idx();window.addEventListener('ganttrows',idx);
 const shown=r=>r&&r.offsetParent!==null;
 const edge=(a,b)=>{const ra=BY.get(a),rb=BY.get(b);if(!shown(ra)||!shown(rb)){return;}ra.classList.add('rel');rb.classList.add('rel');lit.push(ra,rb);const box=g.getBoundingClientRect(),A=ra.querySelector('.bar').getBoundingClientRect(),B=rb.querySelector('.bar').getBoundingClientRect();const x1=A.right-box.left,y1=A.top+A.height/2-box.top,x2=B.left-box.left-2,y2=B.top+B.height/2-box.top,dx=Math.max(24,Math.abs(x2-x1)/2);const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d','M'+x1+' '+y1+' C'+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);svg.appendChild(p);};
 const draw=()=>{if(g.offsetParent===null){return;}svg.setAttribute('width',g.offsetWidth);svg.setAttribute('height',g.offsetHeight);svg.querySelectorAll('path').forEach(p=>p.remove());lit.forEach(r=>r.classList.remove('rel'));lit=[];[hov,sel].forEach((id,i,all)=>{if(id===null||all.indexOf(id)!==i||!BY.has(id)){return;}AFT.get(id).forEach(a=>edge(a,id));(DEP.get(id)||[]).forEach(d=>edge(id,d));});};
@@ -77,11 +77,30 @@ function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): strin
   return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
 }
 
+// Rows of a section drawn in the page; the rest are sent when the page asks (a project of 2,000 documents).
+export const GANTT_ROWS = 150;
+
+function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardStrings, model: BoardModel): string {
+  return g.rows.slice(from, to).map((r, k) => row(r, r.id === undefined ? `f${n}-${from + k}` : String(r.id), t, r.id === undefined ? undefined : model.items[r.id])).join("");
+}
+
+// The rows of one section from a position, for the page's "Show more". Undefined for a section or position the model does not hold.
+export function ganttRows(model: BoardModel, t: BoardStrings, since: SinceView | undefined, id: string, from: number): { html: string; count: number } | undefined {
+  const groups = buildGantt(model, since);
+  const n = groups.findIndex((g) => g.id === id);
+  if (n < 0 || !Number.isInteger(from) || from < 1 || from >= groups[n].rows.length) {
+    return undefined;
+  }
+  return { html: rowsHtml(groups[n], n, from, groups[n].rows.length, t, model), count: groups[n].rows.length - from };
+}
+
 function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel): string {
   const light = g.light === "no-go" ? t.noGo : g.light === "go" ? t.go : t.unverified;
-  const rows = g.rows.map((r, i) => row(r, r.id === undefined ? `f${n}-${i}` : String(r.id), t, r.id === undefined ? undefined : model.items[r.id])).join("");
+  const rows = rowsHtml(g, n, 0, GANTT_ROWS, t, model);
+  const rest = g.rows.length - GANTT_ROWS;
+  const more = rest > 0 ? `<button type="button" class="sec" data-more data-lid="${escapeHtml(g.id)}" data-by="gantt" data-from="${GANTT_ROWS}" aria-expanded="false" ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><ul class="grows" role="list" data-lid="${escapeHtml(g.id)}" data-by="gantt" data-kind="more"></ul>` : "";
   const count = pill(t, g.open, "ganttOpen", { count: g.open });
-  return `<section class="gg" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}><button type="button" class="gtog" aria-expanded="true" aria-controls="gr${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}>${escapeHtml(g.name)} ${count}</button></h2><ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul><div class="gsum">${count}</div><div class="gf"><span class="go gtl ${g.light}" ${tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light))}>${escapeHtml(light)}</span></div></section>`;
+  return `<section class="gg" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}><button type="button" class="gtog" aria-expanded="true" aria-controls="gr${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}>${escapeHtml(g.name)} ${count}</button></h2><ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}<div class="gsum">${count}</div><div class="gf"><span class="go gtl ${g.light}" ${tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light))}>${escapeHtml(light)}</span></div></section>`;
 }
 
 // The key as a small panel, one line per item, hidden until the "?" button is pressed.

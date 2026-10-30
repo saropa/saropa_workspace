@@ -5,6 +5,7 @@ import { ScanSnapshot } from "./scanner";
 import { BoardConfig, Classified } from "./types";
 import { GroupView, OPEN, factsFor, itemKey } from "./boardModelParts";
 import { organize } from "./org/autoGroup";
+import type { OrgResult } from "./org/orgTypes";
 import { COLOUR_HEX } from "./org/appearance";
 import { Layout, layoutFor } from "./org/layout";
 import { clipName, displayName } from "./org/naming";
@@ -29,6 +30,28 @@ const text = (w: Why): string => l10n(w.key, w.params);
 // The reasons for a group's place, name, emoji and colour, one per line, without repeats.
 function whyLines(g: OrgGroup): string {
   return [...new Set([g.why, g.nameWhy, g.emojiWhy, g.colourWhy].map(text))].join("\n");
+}
+
+// The engine's answer for the last documents, groups and saved layouts it saw. The board is built many times
+// (every repaint) from the same scan; the engine runs again only when one of them changed.
+let last: { key: string; res: OrgResult } | undefined;
+
+function organizeCached(docs: OrgDoc[], cfg: BoardConfig, previous: OrgPrevious | undefined): OrgResult {
+  const key = JSON.stringify([docs, cfg.groups, previous]);
+  if (last?.key !== key) {
+    last = { key, res: organize(docs, mergeDictionary().tags, { manual: cfg.groups, previous }) };
+  }
+  return last.res;
+}
+
+// Forgets the cached answer (tests that time the engine).
+export function resetOrgCache(): void {
+  last = undefined;
+}
+
+// A palette name maps to its hex; a hex a tag brought (already contrast-checked) passes as is. Nothing else reaches a style.
+function colourOf(c: string): string | undefined {
+  return /^#[0-9a-f]{6}$/i.test(c) ? c : COLOUR_HEX[c as OrgColour];
 }
 
 // The documents of every project that count for grouping: open and finished ones.
@@ -60,36 +83,41 @@ export function buildOrg(rows: Classified[], snapshot: ScanSnapshot | undefined,
       });
     }
   }
-  const res = organize(docs, mergeDictionary().tags, { manual: cfg.groups, previous });
-  const count = new Map<string, number>();
-  docs.forEach((d) => count.set(d.project, (count.get(d.project) ?? 0) + 1));
+  const res = organizeCached(docs, cfg, previous);
+  // One layout for the whole board: the documents of every project shown count together.
+  const first = Object.values(res.layouts)[0];
+  const layout = layoutFor(docs.length, first?.band, first?.max);
   const layouts: Record<string, Layout> = {};
-  for (const [project, n] of count) {
-    layouts[project] = layoutFor(n, res.layouts[project]?.band, res.layouts[project]?.max);
+  for (const project of new Set(docs.map((d) => d.project))) {
+    layouts[project] = layout;
   }
   const byId = new Map(res.groups.map((g) => [g.id, g]));
   const views = new Map<string, GroupView>();
+  const viewOf = (id: string): GroupView => {
+    const have = views.get(id);
+    if (have) {
+      return have;
+    }
+    const g = byId.get(id)!;
+    const fold = layout.foldWhy ? l10n(layout.foldWhy.key, layout.foldWhy.params) : undefined;
+    const v: GroupView = {
+      id,
+      name: clipName(displayName(g, l10n)),
+      ...(g.stored !== undefined ? { stored: g.stored } : {}),
+      emoji: g.emoji,
+      colour: colourOf(g.colour),
+      why: whyLines(g),
+      ...(g.kind === "manual" || g.edited ? { byUser: true as const } : {}),
+      ...(g.parent && byId.has(g.parent) ? { parent: g.parent, parentView: viewOf(g.parent) } : {}),
+      ...(!layout.headers ? { flat: true as const } : {}),
+      ...(fold ? { fold } : {}),
+    };
+    views.set(id, v);
+    return v;
+  };
   const groupOf = new Map<string, GroupView>();
   for (const [key, id] of res.groupOf) {
-    const g = byId.get(id)!;
-    let v = views.get(id);
-    if (!v) {
-      const layout = layouts[g.project];
-      const fold = layout?.foldWhy ? l10n(layout.foldWhy.key, layout.foldWhy.params) : undefined;
-      v = {
-        id,
-        name: clipName(displayName(g, l10n)),
-        emoji: g.emoji,
-        colour: COLOUR_HEX[g.colour as OrgColour],
-        why: whyLines(g),
-        ...(g.kind === "manual" || g.edited ? { byUser: true as const } : {}),
-        ...(g.parent ? { parent: g.parent } : {}),
-        ...(layout && !layout.headers ? { flat: true as const } : {}),
-        ...(fold ? { fold } : {}),
-      };
-      views.set(id, v);
-    }
-    groupOf.set(key, v);
+    groupOf.set(key, viewOf(id));
   }
   return { groupOf, hubs: res.hubs, layouts };
 }

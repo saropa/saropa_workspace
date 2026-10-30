@@ -355,6 +355,7 @@ export const POLISH_KEYS = [
   "noRuleCount",
   "showMore",
   "showMoreTip",
+  "rowsShown",
   "moreStrip",
   "moreStripTip",
   "moreItem",
