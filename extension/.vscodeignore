@@ -4,6 +4,7 @@ src/**
 out/**
 node_modules/**
 esbuild.js
+esbuild.test.js
 tsconfig.json
 icon_source.svg
 **/*.map

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { addNeed, removeNeed } from "../board/needsEdit";
+import { NEEDS_REFUSAL_KEYS } from "../board/needsKeys";
 import { decodeRules } from "../board/ruleAssign";
 import { BoardRun } from "./boardScanStore";
 import { pathExists } from "./boardFileSource";
@@ -102,7 +103,7 @@ async function changeNeedsNow(run: BoardRun, doc: DocRef, change: NeedsChange, u
   }
   const edit = change.kind === "add" ? addNeed(first.text, change.target, doc.path) : removeNeed(first.text, change.target, doc.path);
   if (!edit.ok) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.needs." + edit.reason, { file: doc.path, target: change.target }));
+    void vscode.window.showWarningMessage(l10n(NEEDS_REFUSAL_KEYS[edit.reason], { file: doc.path, target: change.target }));
     return undefined;
   }
   // The file is read again just before the write: a change made meanwhile wins.
