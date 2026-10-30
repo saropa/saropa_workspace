@@ -126,6 +126,8 @@ async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
 export interface RulesSnapshot {
   before: string | undefined;
   after: string;
+  // The change created the .saropa folder too; Undo then removes it when it is left empty.
+  madeDir?: boolean;
 }
 
 // One change to the text of the rules file, with the words that go with it. Without `confirm` the
@@ -181,8 +183,15 @@ async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Pro
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
     return false;
   }
+  const dir = vscode.Uri.joinPath(root.uri, ".saropa");
+  let madeDir = false;
   try {
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root.uri, ".saropa"));
+    try {
+      await vscode.workspace.fs.stat(dir);
+    } catch {
+      madeDir = true;
+    }
+    await vscode.workspace.fs.createDirectory(dir);
     await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
@@ -191,7 +200,7 @@ async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Pro
   if (c.done) {
     void vscode.window.showInformationMessage(c.done(result.vars));
   }
-  c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text });
+  c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}) });
   return true;
 }
 
@@ -220,6 +229,12 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
   try {
     if (s.before === undefined) {
       await vscode.workspace.fs.delete(uri);
+      if (s.madeDir) {
+        const dir = vscode.Uri.joinPath(root.uri, ".saropa");
+        if ((await vscode.workspace.fs.readDirectory(dir)).length === 0) {
+          await vscode.workspace.fs.delete(dir, { recursive: true });
+        }
+      }
     } else {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(s.before, "utf8"));
     }
@@ -280,8 +295,8 @@ function rulesRoot(run: BoardRun, projectId: string): vscode.WorkspaceFolder | u
 }
 
 // What the row menu changes for one document: its status (a category of the existing rules), its
-// severity (undefined takes the entry away), or both back to automatic.
-export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity | undefined } | { kind: "auto" };
+// severity, or both back to automatic.
+export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" };
 
 // The text with the status rules and the severity entry the board wrote for the document taken away.
 function autoText(before: string | undefined, doc: { project: string; path: string }): SeverityResult {

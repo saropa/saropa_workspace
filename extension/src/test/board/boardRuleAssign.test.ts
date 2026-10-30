@@ -277,3 +277,37 @@ test("a row's Assign rule asks with text that says it also changes documents tha
   assert.deepEqual(Object.keys(written.ruleSets), ["my-overrides"]);
 });
 
+
+test("a link made while the confirmation was open is caught by the check just before the write", async () => {
+  const { dir, file, run } = setup();
+  const real = path.join(dir, "elsewhere.json");
+  fs.writeFileSync(real, "{}\n");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "{}\n");
+  vs.__setPickHandler(pickBug);
+  let swapped = false;
+  stub.__setWarningAnswer((_m, items) => {
+    if (!swapped) {
+      swapped = true;
+      fs.rmSync(file);
+      fs.symlinkSync(real, file);
+    }
+    return items.find((i) => i === "Add rule");
+  });
+  assert.equal(await assignFolderRule(run, entry), false);
+  assert.equal(fs.readFileSync(real, "utf8"), "{}\n", "nothing was written through the link");
+  assert.ok(stub.__warningMessages().some((m) => m.includes("symbolic link")));
+});
+
+test("Undo removes the .saropa folder the change created, but not one that was there before", async () => {
+  const { dir, file, run } = setup();
+  const made = await changeDoc(run, doc, { kind: "severity", level: "high" });
+  assert.equal(made?.madeDir, true);
+  assert.equal(await undoRulesWrite(made!), true);
+  assert.equal(fs.existsSync(path.join(dir, ".saropa")), false);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const kept = await changeDoc(run, doc, { kind: "severity", level: "high" });
+  assert.equal(kept?.madeDir, undefined);
+  assert.equal(await undoRulesWrite(kept!), true);
+  assert.equal(fs.existsSync(path.join(dir, ".saropa")), true);
+});

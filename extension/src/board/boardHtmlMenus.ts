@@ -25,6 +25,7 @@ const item = (act: string, text: string, tipText: string, extra = "", role = "me
 export interface RowStatus {
   label: string;
   status: string;
+  kind?: string;
 }
 
 const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "✓", reference: "○" };
@@ -32,7 +33,7 @@ const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐"
 // What the page script needs to fill the row menu for one document: its status and severity, whether
 // either was set by hand, whether it is pinned, and its project. Only values, never markup.
 export function rowData(i: BoardItem): string {
-  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}" data-pj="${escapeHtml(i.project)}"`;
+  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}" data-pj="${escapeHtml(i.project)}" data-kd="${escapeHtml(i.kind)}"`;
 }
 
 // The row menu: open the document, pick its status, change its severity (raise, lower, one of the
@@ -44,14 +45,14 @@ export function rowMenu(t: BoardStrings, profile = "deliberate", projects: Board
   const hand = item("hand", hl(t, "menuItem"), hl(t, "menuItemTip"));
   const radio = (act: string, text: string, tipText: string, extra = ""): string => item(act, text, tipText, extra, "menuitemradio");
   const group = (key: string, body: string): string => `<div class="mh" role="presentation" id="mh-${key}" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div><div role="group" aria-labelledby="mh-${key}" ${tip(t, key + "Tip")}>${body}</div>`;
-  const status = statuses.length === 0 ? "" : group("menuStatus", statuses.map((s, n) => radio("status:" + n, `${SHAPES[s.status] ?? "○"} ${s.label}`, pl(t, "menuStatusTip"), ` data-st="${escapeHtml(s.status)}" aria-checked="false"`)).join(""));
+  const status = statuses.length === 0 ? "" : group("menuStatus", statuses.map((s, n) => radio("status:" + n, `${SHAPES[s.status] ?? "○"} ${s.label}`, pl(t, "menuStatusTip"), ` data-st="${escapeHtml(s.status)}" data-kd="${escapeHtml(s.kind ?? "")}" aria-checked="false"`)).join(""));
   const severity = group(
     "menuSeverity",
     item("raise", "▲ " + pl(t, "menuRaise"), pl(t, "menuRaiseTip")) + item("lower", "▼ " + pl(t, "menuLower"), pl(t, "menuLowerTip")) +
       SEVERITY_LEVELS.map((l) => radio("sev:" + l, pl(t, "sev." + l), pl(t, "menuSeverityTip"), ` data-lv="${l}" aria-checked="false"`)).join("") +
       item("auto", pl(t, "menuAuto"), pl(t, "menuAutoTip"))
   );
-  const effect = { stops: pl(t, "effStops"), clears: pl(t, "effClears"), fixed: pl(t, "effFixed"), others: pl(t, "effOthers"), none: pl(t, "effNone") };
+  const effect = { stops: pl(t, "effStops"), clears: pl(t, "effClears"), fixed: pl(t, "effFixed"), others: pl(t, "effOthers"), none: pl(t, "effNone"), sOn: pl(t, "effStatusOn"), sOff: pl(t, "effStatusOff"), sSame: pl(t, "effStatusSame"), lGo: pl(t, "effLightGo"), lNoGo: pl(t, "effLightNoGo") };
   const lists = ` data-stops="${escapeHtml(JSON.stringify(SEVERITY_LEVELS.filter((l) => stops(asProfile(profile), l))))}" data-pname="${escapeHtml(profile === "rush" ? t.profileRush : profile === "zero" ? t.profileZero : t.profileDeliberate)}" data-eff="${escapeHtml(JSON.stringify(effect))}" data-proj="${escapeHtml(JSON.stringify(Object.fromEntries(projects.map((p) => [p.id, [p.name, p.items.filter(blocksNow).length + p.blockedStopping]]))))}"`;
   const live = `<div role="group" aria-label="${escapeHtml(pl(t, "effLabel"))}" ${tip(t, "effLabel")}><div class="eff" id="eff" aria-live="polite" ${tip(t, "effLabel")}></div></div>`;
   return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;

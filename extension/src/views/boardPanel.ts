@@ -336,6 +336,7 @@ class BoardPanel extends BoardPanelWiring {
     const item = this.model?.items[id];
     const run = this.run;
     if (!item || !run) {
+      this.post({ type: "clearPending", id });
       return;
     }
     const folder = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/")) : "";
@@ -363,9 +364,12 @@ class BoardPanel extends BoardPanelWiring {
         this.assigning = false;
       }
     } else {
+      // A row the page marked as pending is released at once when nothing is written.
       const change = this.docChange(act, item, run);
       if (change) {
-        await this.inlineChange(run, item, change);
+        await this.inlineChange(run, item, change, id);
+      } else {
+        this.post({ type: "clearPending", id });
       }
     }
   }
@@ -388,10 +392,11 @@ class BoardPanel extends BoardPanelWiring {
 
   // Saves one status or severity change at once and offers Undo for ten seconds. The page shows the
   // row as pending until the scan after the write paints it again.
-  private async inlineChange(run: BoardRun, item: BoardItem, change: DocChange): Promise<void> {
+  private async inlineChange(run: BoardRun, item: BoardItem, change: DocChange, id: number): Promise<void> {
     const busy = this.busyReason();
     if (busy) {
       void vscode.window.showInformationMessage(l10n(busy));
+      this.post({ type: "clearPending", id });
       return;
     }
     this.assigning = true;
@@ -402,14 +407,18 @@ class BoardPanel extends BoardPanelWiring {
           change.kind === "status"
             ? l10n("releaseBoard.undo.status", { title: item.title, label: change.category.label })
             : change.kind === "severity"
-              ? l10n("releaseBoard.undo.severity", { title: item.title, level: change.level ?? "" })
+              ? l10n("releaseBoard.undo.severity", { title: item.title, level: change.level })
               : l10n("releaseBoard.undo.auto", { title: item.title });
         this.offerUndo(label, snapshot);
         this.dirty = true;
         await this.refresh();
+      } else {
+        // Refused or not written: changeDoc already said why.
+        this.post({ type: "clearPending", id });
       }
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      this.post({ type: "clearPending", id });
     } finally {
       this.assigning = false;
     }
@@ -429,21 +438,30 @@ class BoardPanel extends BoardPanelWiring {
   // still holds what the change wrote.
   private async undoChange(): Promise<void> {
     const undo = this.undo;
-    if (!undo || this.busyReason()) {
+    if (!undo) {
       return;
     }
-    clearTimeout(undo.timer);
-    this.undo = undefined;
+    if (this.busyReason()) {
+      this.post({ type: "undoOn" });
+      return;
+    }
+    // The Undo stays available until it succeeds, so a refused one can be tried again.
     this.assigning = true;
+    let done = false;
     try {
-      if (await undoRulesWrite(undo.snapshot)) {
-        this.dirty = true;
-      }
+      done = await undoRulesWrite(undo.snapshot);
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.assigning = false;
     }
+    if (!done) {
+      this.post({ type: "undoOn" });
+      return;
+    }
+    clearTimeout(undo.timer);
+    this.undo = undefined;
+    this.dirty = true;
     this.lastKey = "";
     await this.refresh();
   }

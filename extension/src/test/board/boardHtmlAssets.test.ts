@@ -43,3 +43,22 @@ test("a filter pick updates the page's own copy of the choice, so two quick pick
   const js = script(1, "x", "y");
   assert.ok(js.includes("SIT.have=msg.have;SIT.box=msg.box;"));
 });
+
+test("the checked mark of a menu item is a CSS escape, not the text u2713", () => {
+  assert.ok(STYLE.includes('.mi[aria-checked=true]::before{content:"\\2713"}'));
+  assert.equal(STYLE.includes("\\u2713"), false);
+});
+
+test("the menu buttons stop only the keys they handle, so + and - reach the document", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("if(!/^(Enter| |ArrowDown|ArrowUp|Escape)$/.test(e.key)){return;}e.stopPropagation();"));
+  assert.equal(js.includes("addEventListener('keydown',e=>{e.stopPropagation();"), false);
+});
+
+test("a status choice has an effect line, the chosen status is found by kind, and a refused row is released", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("a.indexOf('status:')===0") && js.includes("E.eff.sOn") && js.includes("E.eff.lGo") && js.includes("E.eff.lNoGo"));
+  assert.ok(js.includes("r.dataset.kd||''") && js.includes("n===pick"));
+  assert.ok(js.includes("d.type==='clearPending'") && js.includes("d.type==='undoOn'"));
+  assert.ok(js.includes("clearTimeout(PT[id])") && js.includes("document.body.classList.contains('busy')"), "the fallback timer is replaced on a new pend and waits while a scan runs");
+});
