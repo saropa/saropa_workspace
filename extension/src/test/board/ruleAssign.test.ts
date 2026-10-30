@@ -341,7 +341,7 @@ test("the busy texts say apart: a dialog is open, a scan is running, an old resu
 });
 
 test("the confirmations say plainly that the rule can turn a blocking document green and move the light to GO", () => {
-  for (const k of ["statusConfirm", "assignConfirm"]) {
+  for (const k of ["assignConfirm"]) {
     const text = (en as Record<string, string>)["releaseBoard.rowMenu." + k];
     assert.ok(text.includes("turn a document that blocks the release green") && text.includes("for example to GO") && text.includes("Status line"), k);
   }

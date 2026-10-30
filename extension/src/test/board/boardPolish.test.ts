@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BoardStrings, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { STYLE, script } from "../../board/boardHtmlAssets";
-import { kebab, optsMenu, rowMenu, viewMenu } from "../../board/boardHtmlMenus";
+import { kebab, optsMenu, rowMenu, undoBar, viewMenu } from "../../board/boardHtmlMenus";
 import { PROJECTS_STYLE } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { evaluateHealth } from "../../board/health";
@@ -223,18 +223,41 @@ test("every releaseBoard setting is in the README table with its default, and th
   }
 });
 
-test("the row menu has Open document, Change status, Change severity, Back to automatic, Assign rule, Hand to chat and the rules file, each with a tooltip", () => {
-  const html = rowMenu(t);
-  const acts = [...html.matchAll(/<button type="button" class="mi" role="menuitem" data-act="(\w+)" title="([^"]+)">([^<]+)<\/button>/g)];
-  assert.deepEqual(acts.map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "hand", "rules"]);
-  assert.deepEqual(acts.map((m) => m[3]), ["menuOpen", "menuStatus", "menuSeverity", "menuAuto", "menuAssign", "[handToChat]", "[ptgOpenRules]"]);
-  assert.ok(acts.every((m) => m[2].length > 0));
-  assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden aria-label='));
+test("the row menu has Open, the status radios, Raise, Lower, the five levels, Back to automatic, Assign rule, Hand to chat and the rules file, each with a tooltip", () => {
+  const html = rowMenu(t, "deliberate", [], [{ label: "Done", status: "green" }, { label: "Review next", status: "amber" }]);
+  const acts = [...html.matchAll(/<button type="button" class="mi" role="(menuitem|menuitemradio)" data-act="([\w:]+)"[^>]* title="([^"]+)">([^<]+)<\/button>/g)];
+  assert.deepEqual(acts.map((m) => m[2]), ["open", "status:0", "status:1", "raise", "lower", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low", "auto", "assign", "hand", "rules"]);
+  assert.deepEqual(acts.filter((m) => m[1] === "menuitemradio").map((m) => m[2]), ["status:0", "status:1", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low"]);
+  assert.ok(acts.every((m) => m[3].length > 0));
+  assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden data-stops='));
+  assert.ok(html.includes('data-stops="[&#34;extreme&#34;,&#34;critical&#34;,&#34;high&#34;]"'), "the levels that stop under the profile");
+});
+
+test("every radio of the row menu sits in a labelled group and carries aria-checked", () => {
+  const html = rowMenu(t, "zero", [], [{ label: "Done", status: "green" }]);
+  assert.equal([...html.matchAll(/role="menuitemradio"[^>]*aria-checked="false"/g)].length, 6);
+  assert.equal([...html.matchAll(/<div role="group" aria-labelledby="(mh-\w+)"/g)].length, 2);
+  assert.ok(html.includes('id="mh-menuStatus"') && html.includes('id="mh-menuSeverity"'));
+  assert.ok(html.includes('id="eff" aria-live="polite"'));
+  assert.ok(html.includes('data-stops="[&#34;extreme&#34;,&#34;critical&#34;,&#34;high&#34;,&#34;medium&#34;]"'));
+});
+
+test("the row menu counts the blockers of each project for its effect line and escapes every value", () => {
+  const m = buildBoard(cfg, [row("bugs/a.md", "red"), row("docs/b.md", "amber")], undefined, true);
+  const html = rowMenu(t, "deliberate", m.projects, [{ label: '<b>"x"</b>', status: "red" }]);
+  assert.ok(html.includes("&#34;app&#34;:[&#34;"), html.slice(0, 400));
+  assert.equal(html.includes("<b>"), false);
+});
+
+test("the Undo bar escapes its text and is left out with none", () => {
+  assert.equal(undoBar(t, undefined), "");
+  const html = undoBar(t, '<img src=x onerror="1">');
+  assert.ok(html.includes('role="status"') && html.includes("data-undo") && !html.includes("<img"));
 });
 
 test("the row menu leaves out Hand to chat when that feature is off", () => {
   const off = new Proxy(t, { get: (o, k: string) => (k === "handToChat" ? "" : o[k as keyof BoardStrings]) });
-  assert.deepEqual([...rowMenu(off).matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "rules"]);
+  assert.equal(rowMenu(off).includes('data-act="hand"'), false);
 });
 
 test("the options menu opens the rules file, the project chooser and the settings", () => {

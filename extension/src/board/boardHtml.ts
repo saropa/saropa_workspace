@@ -8,7 +8,7 @@ import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
-import { optsMenu, rowMenu, viewMenu } from "./boardHtmlMenus";
+import { RowStatus, optsMenu, rowMenu, undoBar, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
 import { chains, chainsName, moreStrip, noRuleBox, sinceMarks, outsideBox, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
@@ -48,6 +48,10 @@ export interface RenderState {
   startup?: boolean;
   // Which projects the board shows (the projectScope setting); undefined leaves the scope switch out.
   scope?: Scope;
+  // The statuses the row menu offers (the categories of the rules); undefined leaves the status entries out.
+  statuses?: RowStatus[];
+  // What the last saved change did, for the Undo bar; undefined shows no bar.
+  undo?: string;
 }
 
 // The line that says how many severities the user set by hand, and how many of those were lowered
@@ -140,7 +144,8 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
-${rowMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
+${undoBar(t, state.undo)}
+${rowMenu(t, model.profile, model.projects, state.statuses)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}
 ${KEYWORD_LINE_SCRIPT}</script></body></html>`;

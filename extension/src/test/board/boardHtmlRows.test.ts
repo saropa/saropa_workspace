@@ -155,6 +155,13 @@ test("a row has no Hand to chat button: it is in the row menu", () => {
   assert.ok(rowMenu(t).includes('data-act="hand"'));
 });
 
+test("the status pill is a button that opens the row menu and carries the row's values", () => {
+  const m = buildBoard(cfg, [row("app", "bugs/a.md", "red")], undefined, true);
+  const html = list("All", m.items, new Map(), t);
+  assert.ok(/<span class="stat red" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" data-menu="row" data-id="0" data-st="red" data-sev="[a-z]*" data-by="0" data-pin="0" data-pj="app"/.test(html), html);
+  assert.ok(html.includes('class="kb sec" data-menu="row" data-id="0" data-st="red"'));
+});
+
 test("facts pill: a ring with its fraction, no size bars or code letter, and the pin is a red status pill", () => {
   const snap = snapshotOf({ "docs/a.md": "# A\n\n- [x] one\n- [ ] two\n\n```sql\nselect 1\n```\n" });
   const m = buildBoard({ ...cfg, pinned: ["app/docs/a.md"] }, [row("app", "docs/a.md", "amber")], undefined, true, snap);
@@ -221,10 +228,10 @@ test("steps beyond the limit are counted in one note", () => {
 test("every row has a kebab button that opens the row menu, naming the document and carrying only its index", () => {
   const m = buildBoard(cfg, [row("app", "docs/a.md", "amber"), row("app", "docs/b.md", "amber")], undefined, true);
   const html = list("Work", m.items, new Map(), t);
-  assert.equal(html.match(/data-menu="row"/g)?.length, 2);
-  assert.ok(html.includes('data-menu="row" data-id="0" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-row" title="rowMenu" aria-label="rowMenu">⋮</button>'));
-  assert.ok(html.includes('data-id="1" aria-haspopup="menu"'));
-  assert.equal(/data-menu="row"[^>]*docs\//.test(html), false, "no path in the kebab");
+  assert.equal(html.match(/<button[^>]*data-menu="row"/g)?.length, 2);
+  assert.ok(/data-menu="row" data-id="0" data-st="amber"[^>]* aria-haspopup="menu" aria-expanded="false" aria-controls="menu-row" title="rowMenu" aria-label="rowMenu">⋮<\/button>/.test(html));
+  assert.ok(/data-id="1" data-st="amber"[^>]* aria-haspopup="menu"/.test(html));
+  assert.equal(/data-menu="row"[^>]*docs\//.test(html), false, "no path in the kebab or the pill");
 });
 
 test("the project name is left out of a row when one project is in focus, and shown otherwise", () => {
@@ -238,10 +245,10 @@ test("a row is a status pill, the title and one facts pill, with the severity as
   const snap = snapshotOf({ "bugs/a.md": "# A\n\nSeverity: critical. Data loss and a security hole when the app starts.\n" });
   const m = buildBoard({ ...cfg, pinned: ["app/bugs/a.md"] }, [row("app", "bugs/a.md", "red")], undefined, true, snap);
   const html = list("Work", m.items, new Map(), t);
-  assert.ok(/<span class="stat red" title="stTip\.red[^"]*">.*?st\.red \u00B7 sev\.critical<\/span>/.test(html), "shape, word and severity word in one pill");
+  assert.ok(/<span class="stat red"[^>]* title="stTip\.red[^"]*">.*?st\.red \u00B7 sev\.critical<\/span>/.test(html), "shape, word and severity word in one pill");
   assert.equal(html.includes('class="sev'), false, "no separate severity triangle");
   assert.ok(html.indexOf('class="stat red"') < html.indexOf('class="doc"'), "the pill comes before the title");
-  const card = /<span class="stat red" title="([^"]*)"/.exec(html)![1];
+  const card = /<span class="stat red"[^>]* title="([^"]*)"/.exec(html)![1];
   assert.ok(card.includes("severityStops") && card.includes("whyRed"), "the hover card says why it blocks");
 });
 

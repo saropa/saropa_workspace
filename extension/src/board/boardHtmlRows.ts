@@ -2,7 +2,7 @@ import { BoardItem, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { BoardStrings, fillT, collapsible, sectionIcon, docLink, escapeHtml, handButton, liveLine, glyphTip, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
-import { kebab } from "./boardHtmlMenus";
+import { blocksNow, kebab, rowData } from "./boardHtmlMenus";
 import type { FeedNote } from "./recipeEvidence";
 import { Signal, showsOnRow } from "./reportSignals";
 
@@ -128,9 +128,7 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
 
 // True when an open document blocks the release under the chosen profile: a red folder, a
 // stopping severity or a pin. Only these are drawn red.
-function blocks(i: BoardItem): boolean {
-  return i.status === "red" || i.stopping;
-}
+const blocks = blocksNow;
 
 // The hover card of a row: what the document is, why it blocks (or not), what it waits on, and
 // who or what set its status or severity. Plain text, one line per fact; the page escapes it.
@@ -165,7 +163,7 @@ function statusPill(i: BoardItem, t: BoardStrings): string {
   const shape = k === "red" ? "●" : k === "amber" ? "◆" : "◐";
   const sev = i.severity ? ` · ${escapeHtml(pl(t, "sev." + i.severity))}` : "";
   const pen = i.severityByUser || i.statusByUser ? ` <span ${tip(t, "byYou")}>✎</span>` : "";
-  return `<span class="stat ${k}" ${titleAttr(rowCard(i, t))}><span aria-hidden="true">${shape}</span> ${escapeHtml(pl(t, "st." + k))}${sev}${pen}</span>`;
+  return `<span class="stat ${k}" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" data-menu="row" data-id="${i.id}"${rowData(i)} ${titleAttr(rowCard(i, t))}><span aria-hidden="true">${shape}</span> ${escapeHtml(pl(t, "st." + k))}${sev}${pen}</span>`;
 }
 
 // A small flame on the row when the files the document names have errors, warnings or crashes.
@@ -232,7 +230,7 @@ function facts(i: BoardItem, t: BoardStrings): string {
 // One open document: the title is the link that opens it (its tooltip is the path inside the
 // project); a click anywhere else on the row opens it too. The row menu button shows on hover.
 function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${titleAttr(rowCard(i, t))}>${statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title)}</div>`;
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${titleAttr(rowCard(i, t))}>${statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
 }
 
 // What a list adds to the plain item list: its tooltip key, an explanation line, how many more
