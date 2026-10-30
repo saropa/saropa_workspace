@@ -214,7 +214,8 @@ test("the page shows a flame with a tooltip, escapes file names, and offers the 
   const snap2 = JSON.parse(JSON.stringify(snapshot)) as ScanSnapshot;
   const m = buildBoard(cfg, rows, undefined, true, snap2, undefined, healthy, { live: { ...live, signals: evil } });
   const html = renderBoard(m, t, "n");
-  assert.match(html, /class="flame hot"/);
+  assert.match(html, /class="flame"/);
+  assert.ok(!html.includes("flame hot"), "a flame is never red");
   assert.match(html, /1 errors, 1 crashes in debug runs/);
   assert.match(html, /lib\/lone\.dart: 0 errors, 1 crashes/);
   assert.match(html, /data-bug="0"/);

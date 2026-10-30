@@ -168,7 +168,7 @@ test("every literal key the page code uses is in the tooltip table", () => {
   assert.ok(used.size > 60, `found ${used.size} keys`);
   assert.deepEqual([...used].filter((k) => !k.endsWith(".") && !known.has(k)), []);
   // Keys built from a value at run time.
-  for (const k of ["profile.rush", "profile.deliberate", "profile.zero", "square.red", "square.amber", "square.purple", "light.go", "light.noGo", "light.unverified", "time15", "time30", "timeHour", "timeHalfDay", "timeAny", "ptgAccept", "ptgRunLint", "ptgRunTests", "ptgEnable", "severity", "severityStops", "outsideLink", "outsideItem", "timeAnyTip", "timeTip", "list"]) {
+  for (const k of ["profile.rush", "profile.deliberate", "profile.zero", "st.red", "st.amber", "st.purple", "stTip.red", "stTip.amber", "stTip.purple", "cp.red", "cpTip.red", "sev.high", "why.red", "why.pinned", "light.go", "light.noGo", "light.unverified", "time15", "time30", "timeHour", "timeHalfDay", "timeAny", "ptgAccept", "ptgRunLint", "ptgRunTests", "ptgEnable", "severity", "severityStops", "outsideLink", "outsideItem", "timeAnyTip", "timeTip", "list"]) {
     assert.ok(known.has(k), k);
   }
 });
@@ -238,7 +238,7 @@ test("the row menu leaves out Hand to chat when that feature is off", () => {
 
 test("the options menu opens the rules file, the project chooser and the settings", () => {
   const html = optsMenu(t);
-  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["rules", "projects", "settings"]);
+  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["refresh", "rules", "projects", "settings"]);
   assert.ok(html.includes('id="menu-opts" role="menu" hidden'));
 });
 
@@ -247,25 +247,28 @@ test("the kebab buttons are real buttons with a popup and expanded state, and a 
   assert.ok(kebab(t, "row", 4, "A <b>").includes('data-id="4"'));
 });
 
-test("the page draws the options kebab in the top bar and each menu once, and the rules file is offered only in menus", () => {
+test("the page draws the two kebabs in the top bar and each menu once, and the rules file is offered only in menus", () => {
   const m = buildBoard(cfg, [row("docs/a.md", "amber")], undefined, true);
   const html = renderBoard(m, t, "n", 1);
   assert.equal(html.match(/id="menu-row"/g)?.length, 1);
   assert.equal(html.match(/id="menu-opts"/g)?.length, 1);
-  assert.ok(/<div class="top">.*data-menu="opts".*<\/div>/.test(html.split("\n").find((l) => l.startsWith('<div class="top">')) ?? ""));
+  assert.equal(html.match(/id="menu-view"/g)?.length, 1);
+  const top = html.split("\n").find((l) => l.startsWith('<div class="top"')) ?? "";
+  assert.ok(/data-menu="view".*data-menu="opts"/.test(top), "view options, then project actions");
+  assert.equal(top.includes("<button id="), false, "no loose buttons: scope, tabs and kebabs only");
   assert.equal(html.match(/\[ptgOpenRules\]/g)?.length, 2, "once in each menu and nowhere else");
   assert.equal(html.includes("data-rules"), false);
 });
 
 test("the script opens a menu with the button, keeps aria-expanded, and closes on Escape, Tab, outside click and resize", () => {
   const js = script(1, "x", "y");
-  for (const part of ["aria-expanded", "'ArrowDown'", "'ArrowUp'", "'Escape'", "'Tab'", "'Home'", "'End'", "role=menuitem", "window.addEventListener('resize'", "type:'rowMenu',act,id:Number(id),rev:REV", "type:'optsMenu',act,rev:REV"]) {
+  for (const part of ["aria-expanded", "'ArrowDown'", "'ArrowUp'", "'Escape'", "'Tab'", "'Home'", "'End'", "role=menuitem", "window.addEventListener('resize'", "type:'rowMenu',act,id:Number(id),rev:REV", "type:'optsMenu',act,rev:REV", "type:'profile',value:act.slice(8),rev:REV", "type:'refresh',rev:REV"]) {
     assert.ok(js.includes(part), `the script has ${part}`);
   }
 });
 
 test("the narrow rules move what no longer fits into the kebab: project name, Hand to chat button and all but the top icon", () => {
-  assert.ok(STYLE.includes(".row .hb,.row .tag,.marks .mk:not(.top){display:none}"));
+  assert.ok(STYLE.includes(".row .hb,.row .tag,.facts .mk:not(.top),.marks .mk:not(.top){display:none}"));
   assert.ok(STYLE.includes(".kb,.mi{min-height:32px;min-width:32px}"));
   assert.ok(STYLE.includes(".menu[hidden]{display:none}"));
 });
@@ -288,7 +291,8 @@ test("project names, paths and file names are never cut into number pills; only 
 });
 
 test("every key the umbrella controls read is in the label table and in the catalog", () => {
-  const src = fs.readFileSync(path.join(__dirname, "..", "..", "..", "src", "board", "boardHtmlProjects.ts"), "utf8");
+  const dir = path.join(__dirname, "..", "..", "..", "src", "board");
+  const src = ["boardHtmlProjects.ts", "boardHtmlHeader.ts", "boardHtmlMenus.ts"].map((f) => fs.readFileSync(path.join(dir, f), "utf8")).join("\n");
   const used = new Set([...src.matchAll(/label\(t, "(\w+)"\)/g)].map((m) => m[1]));
   assert.ok(used.size >= 10);
   for (const k of used) {

@@ -7,8 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildBoard } from "../../board/boardModel";
 import { BoardStrings } from "../../board/boardHtmlUtil";
-import { chains, noRuleBox, outsideBoxes, profilePicker, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "../../board/boardHtmlBoxes";
+import { chains, noRuleBox, outsideBoxes, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "../../board/boardHtmlBoxes";
 import { readFacts } from "../../board/docFacts";
+import { viewMenu } from "../../board/boardHtmlMenus";
 import { ScanSnapshot } from "../../board/scanner";
 import { Train } from "../../board/train";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
@@ -33,11 +34,10 @@ function snapshotOf(files: Record<string, string>, mtimeMs = 1, grey: Record<str
   return { version: 1, takenAt: 1, projects: { app: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: grey, files: cached, facts } } };
 }
 
-test("the profile picker marks the chosen profile as pressed", () => {
-  const m = buildBoard({ ...cfg, profile: "rush" }, [], undefined, true);
-  const html = profilePicker(m, t);
-  assert.ok(html.includes('class="sec" data-profile="rush" aria-pressed="true" title="profile.rush"'));
-  assert.ok(html.includes('class="sec" data-profile="zero" aria-pressed="false" title="profile.zero"'));
+test("the view menu ticks the chosen profile and sends it by name", () => {
+  const html = viewMenu(t, "rush");
+  assert.ok(html.includes('data-act="profile:rush" aria-checked="true" title="profile.rush">\u2713 [profileRush]</button>'));
+  assert.ok(html.includes('data-act="profile:zero" aria-checked="false" title="profile.zero">[profileZero]</button>'));
 });
 
 test("the no-rule section always shows: a sentence when empty, a titled list with counts when not", () => {

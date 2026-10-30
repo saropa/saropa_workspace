@@ -119,11 +119,11 @@ test("a Sittings line carries its file and line", () => {
 
 const t = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "handToChat" ? "Hand to chat" : `[${k}] {title} {count}`) });
 
-test("the page draws a button only for stopping rows, and only indexes", () => {
+test("the page draws a step button, and only indexes; document rows have none", () => {
   const m = model();
   const paths: PathToGo[] = m.projects.map((p) => pathToGo(m, p, { maxSteps: 20, canRun: () => false }));
   const html = renderBoard(m, t, "n", 1, {}, paths);
-  assert.match(html, /class="hb sec" data-hk="item" data-i="\d+"/);
+  assert.ok(!html.includes('data-hk="item"'), "a document row hands over from its menu");
   assert.match(html, /data-hk="step" data-p="0" data-s="\d+"/);
   assert.ok(!html.includes("/abs/app"));
   const amber = m.items.find((i) => i.status === "amber");

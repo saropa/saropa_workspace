@@ -103,12 +103,6 @@ export function unnamedBox(model: BoardModel, t: BoardStrings, canAct: boolean):
   return collapsible({ t, id: "live", domId: "live-box", tipAttr: tip(t, "liveHeading"), head: `${escapeHtml(t.liveUnnamedHeading)} ${pill(t, list.length, "count", { count: list.length })}`, body: `<p class="note">${escapeHtml(t.liveUnnamedNote)}</p>${rows}` });
 }
 
-// The Profile picker: how strict the light is.
-export function profilePicker(model: BoardModel, t: BoardStrings): string {
-  const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
-  return `<span class="seg" role="group" aria-label="${escapeHtml(t.profileLabel)}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, label]) => `<button class="sec" data-profile="${v}"${model.profile === v ? ' aria-pressed="true"' : ' aria-pressed="false"'} ${tip(t, "profile." + v)}>${escapeHtml(label)}</button>`).join("")}</span>`;
-}
-
 // Most folders listed in the "Documents with no rule" section; the rest are counted.
 const NO_RULE_CAP = 30;
 

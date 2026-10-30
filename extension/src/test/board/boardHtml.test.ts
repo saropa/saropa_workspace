@@ -47,13 +47,14 @@ test("the page title is escaped", () => {
   assert.ok(html.includes("&#60;/title&#62;"));
 });
 
-test("the board page has one nonce script, the policy header and the refresh button", () => {
+test("the board page has one nonce script, the policy header and the scan again menu entry", () => {
   const m = buildBoard(cfg, [row("app", "bugs/a.md", "red")], undefined, true);
   const html = renderBoard(m, t, "N0NCE", 9);
   assert.equal(html.match(/<script/g)?.length, 1);
   assert.ok(html.includes('<script nonce="N0NCE">'));
   assert.ok(html.includes("style-src 'unsafe-inline'; script-src 'nonce-N0NCE'"));
-  assert.ok(html.includes('id="refresh"'));
+  assert.ok(html.includes('data-act="refresh"'));
+  assert.ok(!html.includes('id="refresh"'), "no refresh button in the header");
   assert.ok(html.includes("const REV=9;"));
   assert.ok(html.includes('<body class="">'));
 });

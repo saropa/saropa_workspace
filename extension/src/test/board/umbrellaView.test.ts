@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings, renderBoard } from "../../board/boardHtml";
-import { hintBar, isUmbrella, openBadge, projectsButtons, rollupBar, rollupCounts, skippedBlock } from "../../board/boardHtmlProjects";
+import { hintBar, isUmbrella, openBadge, rollupBar, rollupCounts, skippedBlock } from "../../board/boardHtmlProjects";
 import { BoardModel, buildBoard } from "../../board/boardModel";
 import { FileSource, ProjectSnapshot, ScanSnapshot, scanAll } from "../../board/scanner";
 import { checkScan } from "../../board/safety";
@@ -29,7 +29,6 @@ const labels: Record<string, string> = {
   skip_unreadable: "Unreadable.",
   skip_overLimit: "Limit {max}.",
   hidden: "Chosen projects hidden: {count}",
-  hiddenTip: "Shown with the Projects button",
 };
 const t = new Proxy({ projectLabels: labels } as unknown as BoardStrings, {
   get: (o, k: string) => (k === "projectLabels" ? labels : k === "noGo" ? "NO-GO" : k === "unverified" ? "UNVERIFIED" : k === "go" ? "GO" : k in o ? (o as never)[k] : `[${k}]`),
@@ -136,11 +135,10 @@ test("a grey row names the folder and the reason and carries no path", () => {
   );
 });
 
-test("the top bar has a Projects and a Settings button, each with a tooltip", () => {
-  assert.equal(
-    projectsButtons(t),
-    '<button data-projects title="Choose projects" aria-label="Choose projects">Projects</button><button data-settings title="Open settings" aria-label="Open settings">Settings</button>'
-  );
+test("the project actions menu has Projects and Settings entries, each with a tooltip", () => {
+  const html = optsMenu(t);
+  assert.ok(html.includes('data-act="projects" title="Choose projects">Projects</button>'));
+  assert.ok(html.includes('data-act="settings" title="Open settings">Settings</button>'));
 });
 
 test("the hint is one line with the add and dismiss buttons, and only when asked for", () => {
@@ -156,13 +154,13 @@ test("the page has the controls, the open mark and the roll-up in order, and sen
   const m = model(cfg(["zed"], [{ name: "gone", reason: "missing" }]));
   const html = renderBoard(m, t, "n", 7, { hint: true });
   const at = (s: string): number => html.indexOf(s);
-  assert.ok(at("data-projects title=") > 0 && at("data-projects title=") < at('class="hint"'));
+  assert.ok(at("data-projects title=") > at('class="hint"'), "the hint offers the add button");
   assert.ok(at('class="hint"') < at('class="roll"'));
   assert.ok(at('class="roll"') < at('class="tag otag"'));
   assert.ok(at('class="tag otag"') < at('class="vd skip"'));
   assert.equal(html.match(/<script/g)?.length, 1);
   assert.ok(html.includes("type:'projects',rev:REV"));
-  assert.ok(html.includes("type:'boardSettings',rev:REV"));
+  assert.ok(html.includes("type:'scope',value:b.dataset.scope,rev:REV"));
   assert.ok(html.includes("type:'hintDismiss',rev:REV"));
   assert.ok(!renderBoard(m, t, "n", 7).includes('class="hint"'));
 });
@@ -211,7 +209,8 @@ test("a newly chosen project still needs an accepted scan of its own", () => {
 
 import { BoardItem, BoardProject } from "../../board/boardModel";
 import { boardLights, buildSidebarRows, hasDocuments, worstLight, SidebarLabels } from "../../board/sidebar";
-import { hiddenNote } from "../../board/boardHtmlProjects";
+import { scopeSwitch } from "../../board/boardHtmlHeader";
+import { optsMenu } from "../../board/boardHtmlMenus";
 import { lightTooltip, umbrellaLines } from "../../commands/boardStatusLight";
 import { dropFailed } from "../../board/scanner";
 
@@ -274,13 +273,17 @@ test("the status bar tooltip names what is not read and how many are hidden", ()
   assert.equal(lightTooltip("unverified", undefined, [], "base", ["Not read: gone (x)"]), "UNVERIFIED\nNot read: gone (x)\nbase");
 });
 
-test("the page says how many chosen projects are hidden", () => {
+test("the scope switch counts the projects and says in a tooltip how many chosen projects are hidden", () => {
   const c = cfg();
   c.hidden = 2;
   const m = model(c);
   assert.equal(m.hidden, 2);
-  assert.equal(hiddenNote(m, t), '<p class="note" title="Shown with the Projects button">Chosen projects hidden: <span class="pill" title="pillTip">2</span></p>');
-  assert.equal(hiddenNote(model(cfg()), t), "");
+  const html = scopeSwitch(m, "openOnly", t);
+  assert.ok(html.includes("Chosen projects hidden: 2"), "the hidden count is in the tooltip, not a line on the page");
+  assert.ok(html.includes('data-scope="openOnly" aria-pressed="true"') && html.includes('data-scope="all" aria-pressed="false"'));
+  assert.ok(html.includes('title="scopeAllTip">') || html.includes("scopeAllTip"));
+  assert.ok(html.includes('<span class="pill" title="pillTip">3</span>'), "all projects: the open one plus the 2 hidden");
+  assert.equal(scopeSwitch(model(cfg()), undefined, t), "");
 });
 
 test("a chosen project whose scan failed is left out and shown as a grey row", () => {
