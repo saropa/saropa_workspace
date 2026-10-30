@@ -180,7 +180,6 @@ function future(canEdit: boolean): FutureView {
     sort: "score",
     canEdit,
     researchParallel: 3,
-    handEnabled: true,
   };
 }
 

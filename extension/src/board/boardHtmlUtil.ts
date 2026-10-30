@@ -6,6 +6,8 @@ export interface BoardStrings {
   // Labels of the Projects and Settings buttons, the hint, the roll-up and the grey rows,
   // keyed by name (see boardHtmlProjects.ts). Optional: a plain-browser check may omit them.
   projectLabels?: Record<string, string>;
+  // The AI hand-off drawer, its menu items and the selection line; the key itself shows when a label is missing.
+  handoffLabels?: Record<string, string>;
   // Text of the keyword line and the options menu entry (see keywordMark.ts). `edit` is empty
   // when the keyword editor is switched off.
   keywordLabels?: Record<string, string>;
@@ -105,9 +107,6 @@ export interface BoardStrings {
   sittingsUntaggedNote: string;
   // "{count}" minutes a step is thought to take.
   stepMinutes: string;
-  // Label of the Hand to chat button; empty when the feature is off (no button is drawn).
-  handToChat: string;
-  handToChatTip: string;
   tidyHeading: string;
   // "{days}" days without a change.
   tidyNote: string;
@@ -160,8 +159,8 @@ export interface BoardStrings {
   polish: Record<string, string>;
 }
 
-// Small helpers shared by every part of the page: escaping, placeholder filling and the
-// Hand to chat button.
+// Small helpers shared by every part of the page: escaping, placeholder filling and
+// title attributes.
 
 // Escapes text for HTML. Every piece of untrusted text goes through this before it is placed in the page.
 export function escapeHtml(s: string): string {
@@ -174,11 +173,6 @@ export function liveLine(f: LiveFile, t: BoardStrings): string {
   const raw = (tmpl: string, c: { errors: number; warnings: number; crashes?: number }): string => tmpl.replace(/\{(\w+)\}/g, (m, k: string) => String(v(c)[k] ?? m));
   const bits = [f.logs ? raw(t.liveLogs, f.logs) : "", f.problems ? raw(t.liveProblems, f.problems) : "", f.lints ? raw(t.liveLints, f.lints) : ""].filter(Boolean);
   return `${f.file}: ${bits.join("; ")}`;
-}
-
-// The Hand to chat button. It carries only indexes; the host builds the prompt from the model it rendered.
-export function handButton(t: BoardStrings, attrs: string): string {
-  return t.handToChat ? `<button class="hb sec" ${attrs} title="${escapeHtml(t.handToChatTip)}">${escapeHtml(t.handToChat)}</button>` : "";
 }
 
 // One word or sentence of the control and tooltip table, with {name} placeholders filled in.

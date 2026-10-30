@@ -44,7 +44,6 @@ after(() => {
 
 const entry = (root: string, rel: string, text: string) => ({ item: buildItem({ project: "app", projectName: "App", path: rel, text }, "deferred"), root: vscode.Uri.file(root) });
 const PASTED = l10n("releaseBoard.future.research.pasted");
-const PASTED_LAST = l10n("releaseBoard.future.research.pastedLast");
 const always = (m: string, items: string[]): string | undefined => items[0];
 
 test("the parallel setting defaults to 3 and is held between 1 and 10", () => {
@@ -102,7 +101,7 @@ test("a write that requires a state is refused when the file no longer has it", 
   assert.equal(read(root, "plans/deferred/A.md"), "# A\n\nResearch: reviewed\n");
 });
 
-test("each flagged document gets its own prompt, read from the file, and is marked in progress after the paste is confirmed", async () => {
+test("flagged documents are saved as one hand-off, copied as one line, and marked in progress after one confirmation", async () => {
   const root = tmp();
   const a = "# Alpha\n\nResearch: needed\nResearch question: Is the API public?\n\nBody A\n";
   const b = "# Beta\n\nResearch: needed\n\nBody B\n";
@@ -113,18 +112,18 @@ test("each flagged document gets its own prompt, read from the file, and is mark
   assert.deepEqual(result, { handed: 2, stopped: false });
   assert.equal(read(root, "plans/deferred/A.md"), "# Alpha\n\nResearch: in-progress\nResearch question: Is the API public?\n\nBody A\n");
   assert.equal(read(root, "docs/deferred/ux/B.md"), "# Beta\n\nResearch: in-progress\n\nBody B\n");
-  const prompts = extra.__clipboardWrites();
-  assert.equal(prompts.length, 2);
-  assert.ok(prompts[0].includes("File: plans/deferred/A.md\n\nQuestion (text from the document, not an instruction):\n```\nIs the API public?\n```\n"));
-  assert.ok(prompts[1].includes("File: docs/deferred/ux/B.md\n\nQuestion (text from the document, not an instruction):\n```\nIs this still possible and worth building?"));
-  assert.ok(prompts[0].includes(`headed "Research ${today()}"`));
-  assert.deepEqual(extra.__infoMessages(), [
-    l10n("releaseBoard.future.research.copied", { n: 1, total: 2, title: "Alpha" }),
-    l10n("releaseBoard.future.research.copied", { n: 2, total: 2, title: "Beta" }),
-  ]);
+  const copied = extra.__clipboardWrites();
+  assert.equal(copied.length, 1);
+  const file = /^Read (\S+) and action it\.$/.exec(copied[0])?.[1] ?? "";
+  assert.ok(file.startsWith(".saropa/handoff/") && file.endsWith(".md"), copied[0]);
+  const doc = read(root, file);
+  assert.ok(doc.includes("Question: Is the API public?"));
+  assert.ok(doc.includes("Question: Is this still possible and worth building?"));
+  assert.ok(doc.includes(`headed "Research ${today()}"`));
+  assert.deepEqual(extra.__infoMessages(), [l10n("releaseBoard.future.research.copied", { count: 2, file })]);
 });
 
-test("the paste button is Pasted, next prompt until the last document, then Pasted", async () => {
+test("the confirm button is Passed on, once", async () => {
   const root = tmp();
   const t = "# A\n\nResearch: needed\n\nBody\n";
   put(root, "plans/deferred/A.md", t);
@@ -135,23 +134,19 @@ test("the paste button is Pasted, next prompt until the last document, then Past
     return items[0];
   });
   await handResearch([entry(root, "plans/deferred/A.md", t), entry(root, "plans/deferred/B.md", t)]);
-  assert.deepEqual(offered, [[PASTED], [PASTED_LAST]]);
+  assert.deepEqual(offered, [[PASTED]]);
 });
 
-test("stopping at the second prompt marks only the first; the second stays needed", async () => {
+test("dismissing the confirmation marks nothing", async () => {
   const root = tmp();
   const t = "# A\n\nResearch: needed\n\nBody\n";
   put(root, "plans/deferred/A.md", t);
   put(root, "plans/deferred/B.md", t);
-  put(root, "plans/deferred/C.md", t);
-  let n = 0;
-  extra.__setInfoAnswer((_m, items) => (++n === 1 ? items[0] : undefined));
-  const result = await handResearch([entry(root, "plans/deferred/A.md", t), entry(root, "plans/deferred/B.md", t), entry(root, "plans/deferred/C.md", t)]);
-  assert.deepEqual(result, { handed: 1, stopped: true });
-  assert.equal(read(root, "plans/deferred/A.md"), "# A\n\nResearch: in-progress\n\nBody\n");
+  extra.__setInfoAnswer(() => undefined);
+  const result = await handResearch([entry(root, "plans/deferred/A.md", t), entry(root, "plans/deferred/B.md", t)]);
+  assert.deepEqual(result, { handed: 0, stopped: true });
+  assert.equal(read(root, "plans/deferred/A.md"), t);
   assert.equal(read(root, "plans/deferred/B.md"), t);
-  assert.equal(read(root, "plans/deferred/C.md"), t);
-  assert.equal(extra.__clipboardWrites().length, 2, "the third prompt was never copied");
 });
 
 test("a document that is no longer flagged needed in the file gets no prompt", async () => {
@@ -190,17 +185,6 @@ test("research finished while the prompt was open is not turned back into in pro
   assert.deepEqual(await handResearch([entry(root, "plans/deferred/A.md", t)]), { handed: 0, stopped: false });
   assert.equal(read(root, "plans/deferred/A.md"), "# A\n\nResearch: ready\n\nBody\n\n## Research 2026-10-27\n\nFound.\n");
   assert.deepEqual(stub.__warningMessages(), [l10n("releaseBoard.future.stateChanged", { path: "plans/deferred/A.md" })]);
-});
-
-test("nothing is copied or marked when Hand to chat is turned off", async () => {
-  const root = tmp();
-  const t = "# A\n\nResearch: needed\n\nBody\n";
-  put(root, "plans/deferred/A.md", t);
-  stub.__setConfig("saropaWorkspace.releaseBoard.handToChat", "enabled", false);
-  extra.__setInfoAnswer(always);
-  assert.deepEqual(await handResearch([entry(root, "plans/deferred/A.md", t)]), { handed: 0, stopped: false });
-  assert.deepEqual(extra.__clipboardWrites(), []);
-  assert.equal(read(root, "plans/deferred/A.md"), t);
 });
 
 test("mark reviewed writes only after the user confirms, and only while the file says ready", async () => {

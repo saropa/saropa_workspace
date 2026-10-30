@@ -69,7 +69,6 @@ test("buttons use the editor's button colors, one font size and a secondary look
   assert.ok(STYLE.includes(".vscode-high-contrast button"), "high contrast themes get a visible border");
   assert.ok(STYLE.includes("outline:1px solid var(--vscode-focusBorder"), "focus is visible");
   assert.equal(/\bbutton[^{]*\{[^}]*font-size/.test(STYLE.replace(/\.fn[^}]*\}/g, "")), false, "no button sets its own font size");
-  assert.equal(/\.hb\{[^}]*(font-size|padding)/.test(STYLE), false, "Hand to chat is the same size as other buttons");
 });
 
 test("an item step is a link to its document, a lint step stays plain text with its button", () => {
@@ -223,23 +222,18 @@ test("every releaseBoard setting is in the README table with its default, and th
   }
 });
 
-test("the row menu has Open document, Change status, Change severity, Back to automatic, Assign rule, Hand to chat and the rules file, each with a tooltip", () => {
+test("the row menu has Open document, Change status, Change severity, Back to automatic, Assign rule, Hand off and the rules file, each with a tooltip", () => {
   const html = rowMenu(t);
   const acts = [...html.matchAll(/<button type="button" class="mi" role="menuitem" data-act="(\w+)" title="([^"]+)">([^<]+)<\/button>/g)];
   assert.deepEqual(acts.map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "hand", "rules"]);
-  assert.deepEqual(acts.map((m) => m[3]), ["menuOpen", "menuStatus", "menuSeverity", "menuAuto", "menuAssign", "[handToChat]", "[ptgOpenRules]"]);
+  assert.deepEqual(acts.map((m) => m[3]), ["menuOpen", "menuStatus", "menuSeverity", "menuAuto", "menuAssign", "menuItem", "[ptgOpenRules]"]);
   assert.ok(acts.every((m) => m[2].length > 0));
   assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden aria-label='));
 });
 
-test("the row menu leaves out Hand to chat when that feature is off", () => {
-  const off = new Proxy(t, { get: (o, k: string) => (k === "handToChat" ? "" : o[k as keyof BoardStrings]) });
-  assert.deepEqual([...rowMenu(off).matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "rules"]);
-});
-
-test("the options menu opens the rules file, the project chooser and the settings", () => {
+test("the options menu hands off the board, opens the rules file, the project chooser and the settings", () => {
   const html = optsMenu(t);
-  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["refresh", "rules", "projects", "settings"]);
+  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["handBoard", "refresh", "rules", "projects", "settings"]);
   assert.ok(html.includes('id="menu-opts" role="menu" hidden'));
 });
 
@@ -268,8 +262,8 @@ test("the script opens a menu with the button, keeps aria-expanded, and closes o
   }
 });
 
-test("the narrow rules move what no longer fits into the kebab: project name, Hand to chat button and all but the top icon", () => {
-  assert.ok(STYLE.includes(".row .hb,.row .tag,.facts .mk:not(.top),.marks .mk:not(.top){display:none}"));
+test("the narrow rules move what no longer fits into the kebab: project name and all but the top icon", () => {
+  assert.ok(STYLE.includes(".row .tag,.facts .mk:not(.top),.marks .mk:not(.top){display:none}"));
   assert.ok(STYLE.includes(".kb,.mi{min-height:32px;min-width:32px}"));
   assert.ok(STYLE.includes(".menu[hidden]{display:none}"));
 });
@@ -281,7 +275,7 @@ test("project names, paths and file names are never cut into number pills; only 
   assert.ok(since.includes(`<li>Proj 7: ${P(2)} new blockers</li>`), since);
   const real = strings();
   const fut = futurePanel(
-    { items: buildFuture([{ project: "app", projectName: "App", path: "plans/deferred/a.md", text: "# Idea\n\nBody\n" }]), outside: [{ project: "app", projectName: "App", path: "plans/2026/a1.md", title: "Later", line: 4, why: "later" }], sort: "score", canEdit: false, researchParallel: 3, handEnabled: false },
+    { items: buildFuture([{ project: "app", projectName: "App", path: "plans/deferred/a.md", text: "# Idea\n\nBody\n" }]), outside: [{ project: "app", projectName: "App", path: "plans/2026/a1.md", title: "Later", line: 4, why: "later" }], sort: "score", canEdit: false, researchParallel: 3 },
     real
   );
   assert.ok(/plans\/2026\/a1\.md, line <span class="pill" title="[^"]+">4<\/span> \(Later\)<\/span>/.test(fut), "the path is plain text and the line number is a pill");
