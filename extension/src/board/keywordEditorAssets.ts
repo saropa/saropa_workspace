@@ -6,6 +6,7 @@
 
 // Only the rules the keyword part adds; the page style (body, buttons, tabs) comes from the Tags page.
 export const SEVERITY_STYLE = `
+.qm{display:inline-block;font-size:11px;line-height:16px;font-weight:600;padding:0 7px;border:1px solid var(--vscode-descriptionForeground);border-radius:9px;color:var(--vscode-descriptionForeground);cursor:help}.qrow{margin:4px 0 8px;position:relative}.qm::after{display:none}.qm:focus-visible::after{display:block;content:attr(data-tip);position:absolute;top:100%;left:0;z-index:25;max-width:min(26em,100%);margin-top:4px;padding:6px 10px;white-space:pre-line;font-size:12px;font-weight:400;line-height:1.4;text-align:left;cursor:default;border:1px solid var(--vscode-menu-border,rgba(127,127,127,.35));border-radius:4px;background:var(--vscode-menu-background,var(--vscode-editor-background));color:var(--vscode-menu-foreground,var(--vscode-editor-foreground));box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .note,.help{color:var(--vscode-descriptionForeground);margin:4px 0 8px;overflow-wrap:anywhere}
 .warn{margin:8px 0 12px;padding:6px 10px;border-left:3px solid var(--vscode-editorWarning-foreground,#cca700);background:var(--vscode-textBlockQuote-background,rgba(127,127,127,.1));overflow-wrap:anywhere}
 details.box{border:1px solid var(--vscode-panel-border,rgba(127,127,127,.35));border-radius:4px;margin:0 0 10px;padding:0 10px 8px}

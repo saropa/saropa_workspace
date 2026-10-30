@@ -25,6 +25,12 @@ test("a menu taller than the room scrolls inside it, below or above", () => {
   assert.equal(above.top, 700 - 2 - 694);
 });
 
+test("a menu that fits the window but neither side of its button slides up so no item is cut off", () => {
+  const p = placeMenu({ top: 420, bottom: 440, right: 400 }, 200, 477, 420, 900, 0, 10);
+  assert.equal(p.maxHeight, 477);
+  assert.equal(p.top, 900 - 477 - 4 + 10);
+});
+
 test("in a 300 px high viewport a tall menu takes the larger side and scrolls, with no floor on its height", () => {
   const low = placeMenu({ top: 270, bottom: 290, right: 400 }, 200, 600, 420, 300, 0, 0);
   assert.equal(low.maxHeight, 264);
