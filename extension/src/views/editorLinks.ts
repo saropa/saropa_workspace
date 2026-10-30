@@ -5,6 +5,7 @@ import { applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, readLastRun } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
 import { currentBoard, setBoard } from "./boardFeed";
+import { orgPreviousInput } from "./boardPanelActions";
 
 // The board in the editor, VS Code layer: a CodeLens at the top of a file and a status bar
 // item, both listing the open board documents that name the current file. They read the
@@ -186,6 +187,7 @@ async function loadStored(context: vscode.ExtensionContext): Promise<void> {
     needs: run.marks.needs,
     rejected: run.marks.rejected,
     pins: pinnedKeys(run.marks),
+    orgPrevious: orgPreviousInput(context),
   });
   publishBoard(model, run, true);
 }

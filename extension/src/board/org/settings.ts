@@ -3,7 +3,9 @@
 // hand-edited file can never break a run. Precedence stays: user override (assign/untag/groups) > rules file
 // (this key) > front matter > inference; the engines apply the first three, this file supplies the second.
 
-import { DEFAULT_LINK_PHRASES, stateFromOrganize, tagOfRow } from "./organizeEdit";
+import { isObject } from "../ruleAssign";
+import { DEFAULT_LINK_PHRASES, ID, LIMITS, cleanGroupOverride, groupIdOk, pinOk, stateFromOrganize, tagOfRow } from "./organizeEdit";
+import type { GroupOverride, OrganizeConfig } from "./overrides";
 import type { OrgOptions } from "./orgTypes";
 import { TagDef, compileTags, matchTags, subjectOf } from "./tags";
 
@@ -23,6 +25,29 @@ export function settingsOf(organize: unknown): OrgSettings {
     linkPhrases: [...DEFAULT_LINK_PHRASES.filter((p) => !s.linkWords.off.includes(p)), ...s.linkWords.add],
     naming: { dates: s.naming.dates, prefixes: new Set(s.naming.prefixes), acronyms: s.naming.acronyms },
   };
+}
+
+// The hand-made part of the `organize` key (group name, emoji and colour changes, placements, removed tags) as
+// organize()'s 4th argument. Entries that fail the editor's checks are dropped, so a hand-edited file never throws.
+export function overridesOf(organize: unknown): OrganizeConfig {
+  const o = isObject(organize) ? organize : {};
+  const groups: Record<string, GroupOverride> = {};
+  if (isObject(o.groups)) {
+    for (const id of Object.keys(o.groups)) {
+      const g = groupIdOk(id) ? cleanGroupOverride(o.groups[id]) : undefined;
+      if (g && Object.keys(g).length) {
+        groups[id] = g;
+      }
+    }
+  }
+  const list = (v: unknown): Array<Record<string, unknown>> => (Array.isArray(v) ? v.filter((e): e is Record<string, unknown> => isObject(e) && pinOk(e as { project: string; path: string })) : []);
+  const assign = list(o.assign)
+    .filter((a) => groupIdOk(a.group))
+    .map((a) => ({ project: a.project as string, path: a.path as string, group: a.group as string }));
+  const untag = list(o.untag)
+    .filter((u) => typeof u.tag === "string" && u.tag.length <= LIMITS.id && ID.test(u.tag))
+    .map((u) => ({ project: u.project as string, path: u.path as string, tag: u.tag as string }));
+  return { groups, assign, untag };
 }
 
 // Ids of the tags that match any of the documents, in dictionary order (what "Edit tags" highlights).

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as zlib from "node:zlib";
-import { assertScales, checkProperties, doc, generated, run, shuffled } from "./orgFixtures";
+import { assertScales, bestMs, checkProperties, doc, generated, run, shuffled } from "./orgFixtures";
 
 test("scale-2000: within the time budget, same result in any order, other ids stay put", () => {
   assertScales((n) => generated(n), (d) => void run(d));
@@ -19,6 +19,14 @@ test("scale-2000: within the time budget, same result in any order, other ids st
   const before = new Set(r.groups.map((g) => g.id));
   const after = new Set(more.groups.map((g) => g.id));
   assert.ok([...before].every((id) => after.has(id)), "an unrelated document changed other groups' ids");
+});
+
+test("scale: four times the documents (1,000 to 4,000) take under eight times as long", () => {
+  const small = generated(1000);
+  const big = generated(4000);
+  const a = Math.max(bestMs(() => run(small), 5), 5);
+  const b = bestMs(() => run(big), 5);
+  assert.ok(b < a * 8, `1,000 documents ${a.toFixed(0)} ms, 4,000 documents ${b.toFixed(0)} ms`);
 });
 
 test("the real listing of 5,700+ documents groups with no broken rule", () => {

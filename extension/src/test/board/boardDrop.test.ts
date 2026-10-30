@@ -54,9 +54,8 @@ test("a group listed by hand takes the row, the empty id takes it out, a found g
   assert.ok(out.ok && out.kind === "group" && out.name === undefined);
   const auto = buildBoard({ ...cfg, groups: [] }, [row("PLAN_x_1.md", "amber"), row("PLAN_x_2.md", "amber"), row("c.md", "amber")], undefined, true, undefined);
   const found = auto.items.find((i) => i.group)?.group;
-  if (found) {
-    assert.equal(refused(planDrop({ zone: "group", id: 2, to: found.id }, auto, ctx)), "releaseBoard.drop.autoGroup");
-  }
+  assert.ok(found);
+  assert.equal(refused(planDrop({ zone: "group", id: auto.items.find((i) => i.path === "c.md")!.id, to: found.id }, auto, ctx)), "releaseBoard.drop.autoGroup");
   assert.equal(refused(planDrop({ zone: "group", id: id("Alpha"), to: group.id }, model, ctx)), "releaseBoard.drop.sameGroup", "already in that group");
   assert.equal(refused(planDrop({ zone: "group", id: id("Gamma"), to: "" }, model, ctx)), "releaseBoard.drop.sameGroup", "already in no group");
   assert.equal(refused(planDrop({ zone: "group", id: id("Gamma"), to: "no-such-group" }, model, ctx)), "releaseBoard.drop.gone");

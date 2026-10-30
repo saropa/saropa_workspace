@@ -11,12 +11,17 @@ import { applySuggestion, openDocument, openExternalLink, openSittingsLine, save
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
+import { applyRows, remainingFiles, savePastedPatch, undoBatch } from "../commands/boardPatch";
 import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import { pickGroup } from "../commands/boardGroupPick";
 import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
 import { NeedsDirection, NeedsPick, pickNeeds } from "./boardNeedsPick";
 import { planDrop } from "../board/boardDrop";
+import { cardRows } from "../board/boardHtmlGroups";
+import { ganttRows } from "../board/boardHtmlGantt";
+import { pl } from "../board/boardHtmlUtil";
+import { strings } from "./boardStrings";
 import type { BoardItem, BoardModel } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
@@ -106,6 +111,16 @@ class BoardPanel extends BoardPanelWiring {
     }
   }
 
+  // Draws the rows of a closed card or a "Show more" with the row renderer of the page and sends them back.
+  // It always replies, with an empty result when there is nothing to draw, so the page never waits.
+  private sendRows(id: string, by: unknown, from: number): void {
+    const model = this.model;
+    const t = strings();
+    const valid = by === "group" || by === "status" || by === "severity" || by === "gantt";
+    const out = !model || !valid ? undefined : by === "gantt" ? ganttRows(model, t, this.since, id, from) : cardRows(model, by, id, from, new Map(model.projects.map((p) => [p.id, p.name])), t);
+    void this.panel.webview.postMessage({ type: "rows", id, by: typeof by === "string" ? by : "", from, html: out ? out.html : "", label: out ? pl(t, "rowsShown", { count: out.count }) : "", rev: this.rev });
+  }
+
   private async onActionMessage(message: Record<string, unknown>): Promise<void> {
     if (message.type === "tidy" && typeof message.i === "number") {
       await this.tidyMove(message.i);
@@ -132,6 +147,8 @@ class BoardPanel extends BoardPanelWiring {
       await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
     } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
       await writeProjectScope(message.value);
+    } else if (message.type === "rows" && typeof message.id === "string" && message.id.length <= 1000 && typeof message.from === "number") {
+      this.sendRows(message.id, message.by, message.from);
     } else if (message.type === "chatPoll") {
       this.chats.toggle();
     } else if (message.type === "drop") {
@@ -142,6 +159,19 @@ class BoardPanel extends BoardPanelWiring {
       await this.optsMenu(message.act);
     } else if (message.type === "keywords" || message.type === "keywordsRestore") {
       await this.keywords(message.type === "keywordsRestore");
+    } else if (message.type === "patchRead" && typeof message.text === "string") {
+      this.patches.read(message.text, "paste");
+    } else if (message.type === "patchOpen") {
+      this.patches.open();
+    } else if (message.type === "patchApply" && Array.isArray(message.ids)) {
+      await this.patchApply(message.ids.filter((x): x is number => Number.isInteger(x)));
+    } else if (message.type === "patchReject") {
+      this.patches.clear();
+      this.post({ type: "patchDone", applied: 0, skipped: 0 });
+    } else if (message.type === "undoDismiss") {
+      clearTimeout(this.undo?.timer);
+      this.undo = undefined;
+      this.post({ type: "undoOff" });
     } else if (message.type === "undo") {
       await this.undoChange();
     } else if (message.type === "startup") {
@@ -336,6 +366,11 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   private busyReason(): string | undefined {
+    return this.baseBusy() ?? (this.undo && this.undo.timer === undefined ? "releaseBoard.undo.pending" : undefined);
+  }
+
+  // Busy for a reason other than a half-finished Undo (which only Undo itself may continue).
+  private baseBusy(): string | undefined {
     return busyReason({ assigning: this.assigning, scanning: this.scanning, cached: this.cached });
   }
 
@@ -514,13 +549,14 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   // Keeps what the last change replaced for ten seconds; the page's bar is taken away when it ends.
-  private offerUndo(label: string, restore: () => Promise<boolean>): void {
+  // A batch passes remaining(), the files not yet put back, for the message after a partial Undo.
+  private offerUndo(label: string, restore: () => Promise<boolean>, remaining?: () => string[]): void {
     clearTimeout(this.undo?.timer);
     const timer = setTimeout(() => {
       this.undo = undefined;
       void this.panel.webview.postMessage({ type: "undoOff" });
     }, UNDO_MS);
-    this.undo = { label, restore, timer };
+    this.undo = { label, restore, remaining, timer };
   }
 
   // The Undo button: puts the changed file back, then scans again. The file is only touched while it
@@ -530,10 +566,13 @@ class BoardPanel extends BoardPanelWiring {
     if (!undo) {
       return;
     }
-    if (this.busyReason()) {
+    if (this.baseBusy()) {
       this.post({ type: "undoOn" });
       return;
     }
+    // The 10-second expiry must not take the bar away while this Undo runs.
+    clearTimeout(undo.timer);
+    delete undo.timer;
     // The Undo stays available until it succeeds, so a refused one can be tried again.
     this.assigning = true;
     let done = false;
@@ -545,7 +584,15 @@ class BoardPanel extends BoardPanelWiring {
       this.assigning = false;
     }
     if (!done) {
+      // Part of the batch is still in place: the bar stays (no expiry) until all of it is back or the
+      // owner dismisses the bar, and the owner is told exactly which files remain.
+      if (undo.remaining) {
+        void vscode.window.showWarningMessage(l10n("releaseBoard.undo.remaining", { list: undo.remaining().join(", ") }));
+      }
       this.post({ type: "undoOn" });
+      this.dirty = true;
+      this.lastKey = "";
+      await this.refresh();
       return;
     }
     clearTimeout(undo.timer);
@@ -555,12 +602,58 @@ class BoardPanel extends BoardPanelWiring {
     await this.refresh();
   }
 
+  // Writes the rows the owner ticked in one step and offers one Undo for all of them. Rows the board
+  // no longer offers are left out and counted as skipped.
+  private async patchApply(ids: number[]): Promise<void> {
+    const picked = this.patches.pick(ids);
+    const run = this.run;
+    const model = this.model;
+    const busy = this.busyReason();
+    if (!picked || !run || !model || busy) {
+      void vscode.window.showInformationMessage(l10n(busy ?? "releaseBoard.patch.nothing"));
+      this.post({ type: "patchDone", applied: 0, skipped: ids.length });
+      return;
+    }
+    this.assigning = true;
+    try {
+      if (picked.dropped > 0) {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.patch.dropped", { count: picked.dropped }));
+      }
+      const out = await applyRows(run, model, picked.rows);
+      const skipped = ids.length - out.applied;
+      if (out.problems.length > 0) {
+        void vscode.window.showWarningMessage(l10n("releaseBoard.patch.problems", { count: out.problems.length, list: out.problems.slice(0, 5).join("; ") }));
+      }
+      // Whatever was written can be undone, even when a later row failed.
+      const wrote = out.snapshot.rules !== undefined || out.snapshot.docs.length > 0;
+      if (wrote) {
+        this.offerUndo(l10n("releaseBoard.patch.undo", { count: out.applied, id: picked.name }), () => undoBatch(out.snapshot), () => remainingFiles(out.snapshot));
+        if (picked.source === "paste") {
+          await savePastedPatch(run, model, picked.rows, picked.text);
+        }
+        this.patches.clear();
+        this.dirty = true;
+        await this.refresh();
+      }
+      this.post({ type: "patchDone", applied: out.applied, skipped });
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      this.post({ type: "patchDone", applied: 0, skipped: ids.length });
+    } finally {
+      this.assigning = false;
+    }
+  }
+
   // An entry of the board options menu.
   private async optsMenu(act: string): Promise<void> {
     if (act === "rules") {
       await openRulesFile(undefined, documentColumn());
     } else if (act === "handBoard") {
       this.post(openMessage("board"));
+    } else if (act === "organize") {
+      this.post({ ...openMessage("board"), task: "organize" });
+    } else if (act === "bringBack") {
+      this.post({ type: "handoffBack" });
     } else if (act === "keywords") {
       await this.keywords(false);
     } else if (act === "tagsRules") {

@@ -256,7 +256,7 @@ test("the Undo bar escapes its text and is left out with none", () => {
 
 test("the options menu hands off the board, opens the rules file, the project chooser and the settings", () => {
   const html = optsMenu(t);
-  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["handBoard", "refresh", "rules", "projects", "settings"]);
+  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["handBoard", "organize", "bringBack", "refresh", "rules", "projects", "settings"]);
   assert.ok(html.includes('id="menu-opts" role="menu" hidden'));
 });
 

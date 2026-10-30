@@ -4,7 +4,7 @@
 // a tag), never from one of its members, so fold state and overrides can attach to them.
 
 import { globToRegExp } from "../glob";
-import { joinByFiles, makeUnion } from "../groups";
+import { joinByFiles, makeUnion, tidyGroupName } from "../groups";
 import { assignColours, emojiWhy, isAllowedColour, pickGroupTag } from "./appearance";
 import { Layout, layoutFor } from "./layout";
 import { cleanName, dedupNames, isContainerOnly } from "./naming";
@@ -344,7 +344,7 @@ function flatten(g: G, out: Array<{ g: G; parent?: string }>, parent?: string): 
   g.subs.forEach((s) => flatten(s, out, g.id));
 }
 
-const manualName = (id: string): string => id.slice(id.indexOf(":manual:") + 8);
+const manualName = (id: string): string => tidyGroupName(id.slice(id.indexOf(":manual:") + 8));
 
 // Groups the documents of every project. `tags` is the merged dictionary (mergeDictionary).
 export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, cfg: OrganizeConfig = {}): OrgResult {
@@ -373,44 +373,52 @@ export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, 
   const assignOf = new Map((cfg.assign ?? []).map((a) => [`${a.project}\t${slashed(a.path)}`, a.group]));
   const projects = [...new Set(docs.map((d) => d.project))].sort();
 
+  // The size of the board decides the layout: every project shown counts, so the groups of one project never fold differently from another's.
+  const layout = layoutFor(docs.length, Object.values(opt.previous ?? {})[0]?.band, Object.values(opt.previous ?? {})[0]?.max);
+
+  // 1. Explicit layer, across all projects: a placement by hand, then a rules-file group, then a group named in front matter.
+  // A group listed by hand stays one group when its globs name several projects; names equal after tidying are one group.
+  const explicit = new Map<string, { name: string; docs: OrgDoc[]; sources: Set<OrgSource> }>();
+  const forced = new Map<string, string>();
+  const poolOf = new Map<string, OrgDoc[]>();
+  for (const d of docs) {
+    const placed = assignOf.get(`${d.project}\t${d.path}`);
+    const rules = manual.find((g) => g.res.some((r) => r.test(d.project + "/" + d.path)))?.name;
+    const claim = resolveByPrecedence<string>({
+      override: placed?.includes(":manual:") ? manualName(placed) : undefined,
+      rules: rules === undefined ? undefined : tidyGroupName(rules),
+      frontMatter: d.group ? tidyGroupName(d.group) || undefined : undefined,
+    });
+    if (placed && !placed.includes(":manual:")) {
+      forced.set(d.key, placed);
+    }
+    if (claim && !(placed && !placed.includes(":manual:"))) {
+      const e = explicit.get(claim.value) ?? explicit.set(claim.value, { name: claim.value, docs: [], sources: new Set() }).get(claim.value)!;
+      e.docs.push(d);
+      e.sources.add(claim.source);
+      if (claim.source === "frontMatter") {
+        result.docWhy.set(d.key, why("frontMatterGroup", { group: claim.value }, "high", "frontMatter"));
+      } else if (claim.source === "override") {
+        result.docWhy.set(d.key, why("setByYou", {}, "high", "override"));
+      }
+    } else {
+      push(poolOf, d.project, d);
+    }
+  }
+
   for (const project of projects) {
     const mine = docs.filter((d) => d.project === project);
-    const layout = layoutFor(mine.length, opt.previous?.[project]?.band, opt.previous?.[project]?.max);
     result.layouts[project] = { band: layout.band, min: layout.min, max: layout.max };
     const env: Env = { project, layout, tok, matches, tagById, hubs, nameOf };
-
-    // 1. Explicit layer: a placement by hand, then a rules-file group, then a group named in front matter.
-    const explicit = new Map<string, { name: string; docs: OrgDoc[]; sources: Set<OrgSource> }>();
-    const forced = new Map<string, string>();
-    const pool: OrgDoc[] = [];
-    for (const d of mine) {
-      const placed = assignOf.get(`${d.project}\t${d.path}`);
-      const rules = manual.find((g) => g.res.some((r) => r.test(d.project + "/" + d.path)))?.name;
-      const claim = resolveByPrecedence<string>({
-        override: placed?.includes(":manual:") ? manualName(placed) : undefined,
-        rules,
-        frontMatter: d.group?.trim() || undefined,
-      });
-      if (placed && !placed.includes(":manual:")) {
-        forced.set(d.key, placed);
-      }
-      if (claim && !(placed && !placed.includes(":manual:"))) {
-        const e = explicit.get(claim.value) ?? explicit.set(claim.value, { name: claim.value, docs: [], sources: new Set() }).get(claim.value)!;
-        e.docs.push(d);
-        e.sources.add(claim.source);
-        if (claim.source === "frontMatter") {
-          result.docWhy.set(d.key, why("frontMatterGroup", { group: claim.value }, "high", "frontMatter"));
-        } else if (claim.source === "override") {
-          result.docWhy.set(d.key, why("setByYou", {}, "high", "override"));
-        }
-      } else {
-        pool.push(d);
-      }
-    }
+    const pool = poolOf.get(project) ?? [];
 
     const tree = buildTree(env, pool);
     const roots: G[] = [...tree.groups];
     for (const e of [...explicit.values()].sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      // The group sits in the first project (by id) of its documents.
+      if (e.docs.map((d) => d.project).sort()[0] !== project) {
+        continue;
+      }
       const source = (["override", "rules", "frontMatter"] as OrgSource[]).find((s) => e.sources.has(s))!;
       const g = make("manual", env, e.name, e.name, e.name, "", e.docs, why("manual", { name: e.name }, "high", source));
       roots.push(g);
@@ -421,7 +429,10 @@ export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, 
     // A placement by hand into a group the engine made.
     const byId = new Map(flat.map((f) => [f.g.id, f.g]));
     for (const [key, target] of [...forced].sort()) {
-      const d = mine.find((x) => x.key === key)!;
+      const d = mine.find((x) => x.key === key);
+      if (!d) {
+        continue;
+      }
       let dest = byId.get(target);
       if (!dest && target.startsWith(project + ":manual:")) {
         dest = make("manual", env, manualName(target), manualName(target), manualName(target), "", [], why("manual", { name: manualName(target) }, "high", "override"));
@@ -469,6 +480,7 @@ export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, 
         kind: g.kind,
         project,
         name: ov?.name ?? names.get(g.id)!,
+        ...(g.kind === "manual" && { stored: g.rawName }),
         ...(g.range && { range: g.range }),
         folder: g.folder,
         ...(parent && { parent }),

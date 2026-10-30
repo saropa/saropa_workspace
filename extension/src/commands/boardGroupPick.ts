@@ -16,8 +16,8 @@ interface Pick extends vscode.QuickPickItem {
 }
 
 // `names` are the group names read fresh from the rules file.
-export async function pickGroup(names: string[], doc: { title: string; group?: { name: string } }): Promise<GroupPick> {
-  const picks: Pick[] = names.map((name) => ({ label: name, name, ...(doc.group && cleanGroupName(doc.group.name) === name ? { description: l10n("releaseBoard.group.pickCurrent") } : {}) }));
+export async function pickGroup(names: string[], doc: { title: string; group?: { name: string; stored?: string } }): Promise<GroupPick> {
+  const picks: Pick[] = names.map((name) => ({ label: name, name, ...(doc.group && cleanGroupName(doc.group.stored ?? doc.group.name) === name ? { description: l10n("releaseBoard.group.pickCurrent") } : {}) }));
   picks.push({ label: l10n("releaseBoard.group.pickNew"), fresh: true });
   if (doc.group) {
     picks.push({ label: l10n("releaseBoard.group.pickRemove") });

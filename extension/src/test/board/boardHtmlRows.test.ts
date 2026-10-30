@@ -114,7 +114,7 @@ test("the list is capped at 30 rows and says how many are left out", () => {
   const rows = Array.from({ length: 35 }, (_, i) => row("app", `bugs/B${i}.md`, "red"));
   const m = buildBoard(cfg, rows, undefined, true);
   const html = list("Resolve", m.items, new Map(), t);
-  assert.equal(html.match(/class="row"/g)?.length, 30);
+  assert.equal(html.match(/class="row/g)?.length, 30);
   assert.ok(html.includes("more 5"));
 });
 
@@ -137,15 +137,15 @@ test("a list shows five rows, then a Show more pill that reveals the rest", () =
 test("related items sit under a group heading, indented", () => {
   const m = buildBoard(
     cfg,
-    [row("app", "bugs/OWNER_a.md", "red"), row("app", "bugs/OWNER_b.md", "red"), row("app", "bugs/lone.md", "red")],
+    [...Array.from({ length: 8 }, (_v, n) => row("app", `bugs/OWNER_${n}.md`, "red")), row("app", "lone.md", "red")],
     undefined,
     true
   );
   const html = list("Resolve", m.items, new Map(), t);
   assert.equal(html.match(/class="grp"/g)?.length, 1);
-  assert.ok(html.includes("Owner documents"));
-  assert.equal(html.match(/class="row in"/g)?.length, 2);
-  assert.ok(html.indexOf("Owner documents") < html.indexOf("lone.md") || html.indexOf("lone.md") < html.indexOf("Owner documents"));
+  assert.ok(html.includes("Bugs"));
+  assert.equal(html.match(/class="row in"/g)?.length, 8);
+  assert.ok(html.indexOf("Bugs") < html.indexOf("lone.md") || html.indexOf("lone.md") < html.indexOf("Bugs"));
 });
 
 test("a row has no Hand to chat button: Hand off is in the row menu", () => {
@@ -236,7 +236,7 @@ test("every row has a kebab button that opens the row menu, naming the document 
 test("a click on a kebab never folds the project row", () => {
   const js = script(1, "x", "p");
   assert.ok(js.includes("row.addEventListener('click',e=>{if(!e.target.closest('[data-menu]')){tog();}})"));
-  assert.ok(js.includes("querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();"));
+  assert.ok(js.includes("wired('[data-menu]',b=>b.addEventListener('click',e=>{e.stopPropagation();"));
 });
 
 test("the project name is left out of a row when one project is in focus, and shown otherwise", () => {
@@ -281,4 +281,18 @@ test("a flame is amber, never red, and a waiting link is amber beside it", () =>
   const html = list("Work", [m.items[0]], new Map(), t);
   assert.ok(html.includes('class="flame"') && html.includes('class="link open"'), "both marks are drawn");
   assert.equal(html.includes("flame hot"), false);
+});
+
+test("a card heading leaves out the count pills that its lists already show", () => {
+  const m = buildBoard(cfg, [row("db", "bugs/a.md", "red")], undefined, true);
+  const p = m.projects.find((x) => x.id === "db")!;
+  assert.ok(verdict(p, t, lights(m)).includes(`class="cp red"`));
+  assert.ok(!verdict(p, t, lights(m), false, "", 0, false).includes(`class="cp`));
+});
+
+test("a list that says its status in its heading leaves the status pill off its rows", () => {
+  const m = buildBoard(cfg, [row("db", "bugs/a.md", "purple")], undefined, true);
+  const names = new Map([["db", "Db"]]);
+  assert.ok(list("T", m.items, names, t, {}).includes(`class="stat purple"`));
+  assert.ok(!list("T", m.items, names, t, { quiet: true }).includes(`class="stat`));
 });

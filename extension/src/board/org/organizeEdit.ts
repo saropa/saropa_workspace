@@ -65,7 +65,7 @@ const noControl = (s: string): boolean => ![...s].some((c) => c.charCodeAt(0) < 
 const isStr = (v: unknown, max: number): v is string => typeof v === "string" && v.length <= max && noControl(v);
 const strList = (v: unknown, max: number): v is unknown[] => Array.isArray(v) && v.length <= max;
 const SHIPPED = new Set(DEFAULT_TAGS.map((t) => t.id));
-const ID = /^[a-z0-9][a-z0-9-]*$/;
+export const ID = /^[a-z0-9][a-z0-9-]*$/;
 const WORD = /^[\p{L}\p{N}][\p{L}\p{N}'-]*$/u;
 const PHRASE = /^[a-z][a-z ]*[a-z]$/;
 const ACRONYM = /^[A-Za-z][A-Za-z0-9]*$/;
@@ -564,7 +564,7 @@ export function setGroupOverride(text: string | undefined, groupId: string, over
 }
 
 type Pin = { project: string; path: string };
-const pinOk = (a: Pin): boolean => isStr(a.project, 100) && a.project !== "" && isStr(a.path, 500) && a.path !== "";
+export const pinOk = (a: Pin): boolean => isStr(a.project, 100) && a.project !== "" && isStr(a.path, 500) && a.path !== "";
 
 // Places one document in a group by hand (`group` undefined: back to automatic). One entry per document.
 export function setAssign(text: string | undefined, doc: Pin, group: string | undefined): EditOutcome {

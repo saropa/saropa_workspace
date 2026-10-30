@@ -30,7 +30,7 @@ document.addEventListener('drop',e=>{if(!drag){return;}const z=zoneOf(e);if(!z){
 // The strip of status bands, shown only while a row is dragged: one per status the rules can set,
 // each a drop zone. Nothing is drawn when the page has no statuses.
 export function statusBands(t: BoardStrings, statuses: RowStatus[] = []): string {
-  const shapes: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "✓", reference: "○" };
+  const shapes: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "■", reference: "○" };
   const first = new Map<string, RowStatus>();
   for (const s of statuses) {
     if (!first.has(s.status) || (first.get(s.status)?.kind !== undefined && s.kind === undefined)) {
