@@ -109,6 +109,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
           void this.refreshLive();
           void this.refreshFuture();
           void this.refreshEdited();
+          void this.chats.refresh();
         }
       },
       null,

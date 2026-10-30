@@ -10,6 +10,7 @@ import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
 import { optsMenu, rowMenu, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
+import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
 import { chains, chainsName, moreStrip, noRuleBox, sinceMarks, outsideBox, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
@@ -48,6 +49,11 @@ export interface RenderState {
   startup?: boolean;
   // Which projects the board shows (the projectScope setting); undefined leaves the scope switch out.
   scope?: Scope;
+  // Chat activity from Chat Explorer: the projects with a chat working in them now, and whether the
+  // 30-second look is paused. Undefined while the integration is off or unavailable.
+  chat?: { active: readonly string[]; paused: boolean };
+  // A brief notice drawn in a bar at the top, which hides itself.
+  notice?: string;
 }
 
 // The line that says how many severities the user set by hand, and how many of those were lowered
@@ -109,10 +115,11 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
       ? `<div class="box"><p>${escapeHtml(t.safetyHold)} ${accept}</p></div>`
       : "";
   const live = !(state.stale || state.loading);
+  const badge = (p: BoardProject): string => openBadge(p, model, t) + activePill(state.chat?.active.includes(p.id) === true, t);
   // One card per project, or the projects as plain rows over the merged lists.
   const projects = state.groupBy === "project"
-    ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, openBadge(p, model, t), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
-    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, openBadge(p, model, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
+    ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, badge(p), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
+    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, badge(p))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
       + list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow", single }) + inProgressList(model, names, t, single) + list(t.workOn, by("amber"), names, t, { tip: "list.workOn", single });
   // The side sections wait behind one strip of pills. Changes since the last look opens by itself
   // once, when a document became a blocker.
@@ -125,10 +132,10 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
     { id: "live", label: t.liveUnnamedHeading, html: live ? unnamedBox(model, t, true) : "", count: model.liveUnnamed?.length ?? 0, warn: true },
   ], t);
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${KEYWORD_LINE_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-${topBar(model, t, state.scope, futureTabs(future, t), since)}
+${noticeBar(state.notice)}${topBar(model, t, state.scope, futureTabs(future, t), since, state.chat?.paused)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}
 <div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}">${byUserNote(model, t)}${keywordLine(model, t)}${banner}
 ${trainBox(trains, t)}
@@ -143,5 +150,6 @@ ${futurePanel(future, t)}
 ${rowMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}
+${CHATS_SCRIPT}
 ${KEYWORD_LINE_SCRIPT}</script></body></html>`;
 }

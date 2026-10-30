@@ -2745,6 +2745,11 @@
             "default": true,
             "description": "%config.releaseBoard.sectionIcons.description%"
           },
+          "saropaWorkspace.releaseBoard.chatActivity": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.releaseBoard.chatActivity.description%"
+          },
           "saropaWorkspace.releaseBoard.openOnStartup": {
             "type": "string",
             "enum": ["never", "whenProjectsFound", "always"],

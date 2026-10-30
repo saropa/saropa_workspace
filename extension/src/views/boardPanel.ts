@@ -25,7 +25,7 @@ import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldVa
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords" and "keywordsRestore", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords", "keywordsRestore" and "chatPoll", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -107,6 +107,8 @@ class BoardPanel extends BoardPanelWiring {
       await writeGroupBy(message.value);
     } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
       await writeProjectScope(message.value);
+    } else if (message.type === "chatPoll") {
+      this.chats.toggle();
     } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
       await this.rowMenu(message.act, message.id);
     } else if (message.type === "optsMenu" && typeof message.act === "string") {

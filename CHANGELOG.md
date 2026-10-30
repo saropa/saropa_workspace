@@ -58,6 +58,9 @@ The Release Board is calmer: red only for what really blocks a release, a one-li
 - **Release Board: one card per project.** With Group by Project (the default; Group by None in the view options menu keeps the merged lists) each project is a card that holds its own Path to GO and lists. A card starts closed, except the only card or the open project when it is NO-GO, and its fold state resets when its light changes. New setting `releaseBoard.groupBy`.
 - **Release Board: quieter sections.** Empty sections are not drawn, lists show five rows and a "Show N more" pill, the Steps box starts folded when no step fits, and Since you last looked, Linked, Tidy, No rule, Outside and Unnamed crashes sit behind one More strip. The Since section opens by itself once when a document became a blocker.
 
+### Added
+- **Release Board: Active now pill.** When Saropa Chat Explorer is installed, a project row or card shows an Active now pill while a chat worked in its folder in the last 5 minutes or is running or waiting. The board looks every 30 seconds while it shows; a pause and play pill in the header stops and resumes that. Without Chat Explorer the board is unchanged apart from a brief notice at the top. New setting `releaseBoard.chatActivity` turns the look off.
+
 ---
 
 ## [2.5.0]
