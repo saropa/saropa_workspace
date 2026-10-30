@@ -66,7 +66,7 @@ See [KEYBINDINGS.md](KEYBINDINGS.md).
 
 ## Does the Release Board send my documents to an AI?
 
-No. **Hand off** only writes a document to `.saropa/handoff/` in the project (Markdown and JSON) and, if you click **Run in terminal**, runs the command in `saropaWorkspace.releaseBoard.handoff.terminalCommand` in a terminal you can see. What an agent does with the file is up to the tool you run. Add `.saropa/handoff/` to your `.gitignore` if you do not want the files in the repository.
+No. **Hand off** only writes a document to `.saropa/handoff/` in the project (Markdown and JSON) and, if you click **Run in terminal**, runs the command in `saropaWorkspace.releaseBoard.handoff.terminalCommand` in a terminal you can see. What an agent does with the file is up to the tool you run. The extension writes a .gitignore with `*` inside .saropa/handoff/, so these files are never committed.
 
 ## Where does the board save my changes?
 
