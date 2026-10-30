@@ -416,6 +416,9 @@ export const POLISH_KEYS = [
   "ringSteps",
   "barsSize",
   "futureLabelTip",
+  "futureMenu",
+  "futureMenuList",
+  "futureGroupTip",
   "futureSortTip",
   "g.redDot",
   "g.greenDot",
@@ -456,6 +459,7 @@ export const POLISH_KEYS = [
   "effLightNoGo",
   "undo",
   "undoTip",
+  "undoDismiss",
   "menuAuto",
   "menuAutoTip",
   "byYou",
@@ -474,7 +478,6 @@ export const POLISH_KEYS = [
   "optsMenu",
   "optsMenuList",
   "marksMore",
-  "hintBar",
   "rollupBar",
   "rollupLight",
   "rollupSkipped",
@@ -499,7 +502,7 @@ function polishStrings() {
 }
 
 // Every key of the umbrella view's label table, in en.json as "releaseBoard.projects.label.<key>".
-export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintAdd", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "startup", "startupTip"] as const;
+export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "startup", "startupTip"] as const;
 
 // Labels of the umbrella view: the Projects and Settings buttons, the hint, the roll-up and the grey rows.
 function projectStrings() {
@@ -508,7 +511,7 @@ function projectStrings() {
 }
 
 // Every key of the AI hand-off label table, in en.json as "releaseBoard.handoff.label.<key>".
-export const HANDOFF_LABEL_KEYS = ["title", "close", "closeTip", "menuItem", "menuItemTip", "menuBoard", "menuBoardTip", "scopeMenu", "chosen", "chosenTip", "chosenGo", "chosenGoTip", "chosenClear", "chosenClearTip", "choose", "chooseTip", "scopeItem", "scopeChosen", "scopeGroup", "scopeProject", "scopeBoard", "itemsCount", "task", "taskFix", "taskFixTip", "taskPlan", "taskPlanTip", "taskReview", "taskReviewTip", "taskTriage", "taskTriageTip", "format", "fmtMd", "fmtMdTip", "fmtJson", "fmtJsonTip", "tokenTip", "preview", "copy", "copyTip", "copyFull", "copyFullTip", "save", "saveTip", "terminal", "terminalTip"] as const;
+export const HANDOFF_LABEL_KEYS = ["title", "close", "closeTip", "menuItem", "menuItemTip", "menuBoard", "menuBoardTip", "scopeMenu", "chosen", "chosenTip", "chosenGo", "chosenGoTip", "chosenClear", "chosenClearTip", "choose", "chooseTip", "scopeItem", "scopeChosen", "scopeGroup", "scopeProject", "scopeBoard", "itemsCount", "task", "taskFix", "taskFixTip", "taskPlan", "taskPlanTip", "taskReview", "taskReviewTip", "taskTriage", "taskTriageTip", "format", "fmtMd", "fmtMdTip", "fmtJson", "fmtJsonTip", "tokenTip", "preview", "copy", "copyTip", "copyFull", "copyFullTip", "save", "saveTip", "terminal", "terminalTip", "tabHand", "tabHandTip", "tabBack", "tabBackTip", "taskOrganize", "taskOrganizeTip", "backText", "backTextTip", "backRead", "backReadTip", "backHelp", "backList", "backPick", "backApply", "backApplyTip", "backReject", "backRejectTip", "backStale", "backStaleTip", "backRefused", "backApplied", "backAppliedTip", "ready", "readyTip", "menuOrganize", "menuOrganizeTip", "menuBack", "menuBackTip"] as const;
 
 // Labels of the AI hand-off: menu items, the selection line and the drawer. Placeholders stay in the text for the page to fill.
 function handoffStrings() {

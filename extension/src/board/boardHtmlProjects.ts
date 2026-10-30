@@ -1,16 +1,15 @@
 import type { BoardModel, BoardProject } from "./boardModel";
 import { BoardStrings, escapeHtml, fillT, pill, tip, titleAttr } from "./boardHtmlUtil";
 
-// The pieces of the board page that belong to the umbrella view: the one-line hint, the roll-up of lights, the open mark and the grey rows of
+// The pieces of the board page that belong to the umbrella view: the roll-up of lights, the open mark and the grey rows of
 // chosen folders that could not be read. Pure. The page carries no paths: the buttons send a
 // bare message and the host does the rest.
 
 export const PROJECTS_STYLE = `
-.hint{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
-.roll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}.roll .go{font-size:12px;padding:0 8px}.roll .go.zero{opacity:.45}
+.roll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}.roll .go{font-size:12px;padding:0 8px}
 .otag{color:var(--blue);border-color:var(--blue)}.vd.skip{border-style:dashed;opacity:.85}.go.skipped{background:rgba(128,128,128,.25);color:var(--mute)}`;
 
-// The page script for these controls (the scope switch, the hint and the filter pills), appended to the main page script: it uses that
+// The page script for these controls (the scope switch and the filter pills), appended to the main page script: it uses that
 // script's `vscode` and `REV` and sends only the kind of request.
 export const PROJECTS_SCRIPT = `document.querySelectorAll('[data-projects]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'projects',rev:REV})));
 document.querySelectorAll('[data-scope]').forEach(b=>b.addEventListener('click',()=>{if(b.getAttribute('aria-pressed')!=='true'){vscode.postMessage({type:'scope',value:b.dataset.scope,rev:REV});}}));
@@ -20,22 +19,12 @@ document.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',(
 openMore(((vscode.getState()||{}).moreOpen)||'');
 const AUTO=(vscode.getState()||{}).moreAuto||{};document.querySelectorAll('[data-auto]').forEach(b=>{const id=b.dataset.more;if(AUTO[id]!==b.dataset.auto){AUTO[id]=b.dataset.auto;vscode.setState({...(vscode.getState()||{}),moreAuto:AUTO});openMore(id);}});
 document.querySelectorAll('[data-since-go]').forEach(b=>b.addEventListener('click',()=>{showTab('board');openMore('since');const d=document.getElementById('since-box');if(d){d.open=true;d.scrollIntoView({block:'start'});}}));
-document.querySelectorAll('[data-since-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'sinceDismiss',rev:REV})));
-document.querySelectorAll('[data-hint-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'hintDismiss',rev:REV})));`;
+document.querySelectorAll('[data-since-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'sinceDismiss',rev:REV})));`;
 
 // The text of one label; the key itself when the table has none (a plain-browser layout check).
 export function label(t: BoardStrings, key: string): string {
   const table = t.projectLabels;
   return table && typeof table === "object" && typeof table[key] === "string" ? table[key] : key;
-}
-
-// The hint shown while no extra project is chosen and it has not been dismissed: one pill-sized
-// button that opens the project chooser, and a small close. The sentence is its tooltip.
-export function hintBar(show: boolean | undefined, t: BoardStrings): string {
-  if (!show) {
-    return "";
-  }
-  return `<div class="hint" role="note" ${tip(t, "hintBar")}><button class="sec" data-projects title="${escapeHtml(label(t, "projectsTip"))}">${escapeHtml(label(t, "hintAdd"))}</button><button class="fx sec" data-hint-dismiss title="${escapeHtml(label(t, "hintDismissTip"))}" aria-label="${escapeHtml(label(t, "hintDismissTip"))}">\u2715</button></div>`;
 }
 
 export interface Rollup {
@@ -72,7 +61,7 @@ export function rollupBar(model: BoardModel, t: BoardStrings): string {
     return "";
   }
   const c = rollupCounts(model.projects);
-  const light = (cls: string, n: number, text: string): string => `<span class="go ${cls}${n === 0 ? " zero" : ""}" ${tip(t, "rollupLight", { count: n, light: text })}>${pill(t, n)} ${escapeHtml(text)}</span>`;
+  const light = (cls: string, n: number, text: string): string => n === 0 ? "" : `<span class="go ${cls}" ${tip(t, "rollupLight", { count: n, light: text })}>${pill(t, n)} ${escapeHtml(text)}</span>`;
   const skipped = model.skipped?.length ?? 0;
   const total = model.projects.length + skipped;
   return `<div class="roll" role="status" ${tip(t, "rollupBar", { count: total })}><b ${tip(t, "rollupBar", { count: total })}>${fillT(t, label(t, "rollup"), { count: total })}</b>${light("no-go", c.noGo, t.noGo)}${light("unverified", c.unverified, t.unverified)}${light("go", c.go, t.go)}${skipped > 0 ? `<span class="go skipped" ${tip(t, "rollupSkipped", { count: skipped })}>${pill(t, skipped)} ${escapeHtml(label(t, "skippedShort"))}</span>` : ""}</div>`;

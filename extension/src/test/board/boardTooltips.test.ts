@@ -233,8 +233,9 @@ test("the walk sees the elements it is meant to check", () => {
   const count = (f: (t: Tag) => boolean): number => tags.filter(f).length;
   assert.ok(count((t) => t.name === "button") >= 20);
   assert.ok(count((t) => t.name === "a" && t.attrs.class === "doc") >= 8);
-  assert.equal(count((t) => t.attrs.role === "tab"), 3);
-  assert.equal(count((t) => t.name === "select") >= 10, true);
+  assert.equal(count((t) => t.attrs.role === "tab"), 5);
+  assert.equal(count((t) => t.name === "select") >= 1, true, "the sort select");
+  assert.ok(count((t) => t.attrs["data-menu"] === "fut") >= 2, "each Future item has a menu button");
   assert.ok(count((t) => t.name === "input" || t.name === "textarea") >= 2);
   assert.ok(count((t) => t.name === "summary") >= 3);
   assert.ok(count((t) => t.attrs["data-kw"] === "edit") === 1 && count((t) => t.attrs["data-kw"] === "restore") === 1, "the keyword line has its two buttons");
@@ -370,6 +371,7 @@ test("every number the page counts is a pill, a small rounded badge in the edito
     .replace(/<a class="doc"[^>]*>[^<]*<\/a>/g, "")
     .replace(/<h1[^>]*>[^<]*<\/h1>/g, "")
     .replace(/<option[^>]*>[^<]*<\/option>/g, "")
+    .replace(/<button[^>]*data-act="ff:[^>]*>[^<]*<\/button>/g, "")
     .replace(/<[^>]*>/g, "|")
     .split("|")
     .map((x) => decode(x).trim())

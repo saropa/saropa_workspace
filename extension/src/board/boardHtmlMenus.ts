@@ -15,13 +15,13 @@ import { readsNeeds } from "./docFacts";
 // The kebab button of a row (`id` is the item's index), of a project or group heading (`id` is
 // "project:<index>" or "group:<first item>", `title` its name) or of the top bar (no id): "view"
 // holds the view options, "opts" the project actions.
-export function kebab(t: BoardStrings, menu: "row" | "opts" | "view" | "scope", id?: number | string, title = "", extra = ""): string {
-  const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, menu === "view" ? "viewMenu" : "optsMenu");
+export function kebab(t: BoardStrings, menu: "row" | "fut" | "opts" | "view" | "scope", id?: number | string, title = "", extra = ""): string {
+  const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "fut" ? pl(t, "futureMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, menu === "view" ? "viewMenu" : "optsMenu");
   const at = (id === undefined ? "" : ` data-id="${id}"`) + extra;
   return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">⋮</button>`;
 }
 
-const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem"): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${escapeHtml(text)}</button>`;
+export const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem"): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${escapeHtml(text)}</button>`;
 
 // A status the row menu offers: the words of a category of the existing rules and its color.
 export interface RowStatus {
@@ -33,7 +33,7 @@ export interface RowStatus {
 // The string key of each Group by choice; its tooltip is the key plus "Tip".
 const GROUP_KEYS: Record<GroupBy, string> = { project: "groupProject", group: "groupGroup", status: "groupStatus", severity: "groupSeverity", none: "groupNone" };
 
-const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "✓", reference: "○" };
+const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "■", reference: "○" };
 
 // What the page script needs to fill the row menu for one document: its status and severity, whether
 // either was set by hand, whether it is pinned, and its project. Only values, never markup.
@@ -68,9 +68,9 @@ export function rowMenu(t: BoardStrings, profile = "deliberate", projects: Board
 export const blocksNow = (i: BoardItem): boolean => i.status === "red" || i.stopping;
 
 // The bar shown after a save: what changed and Undo. It stays until the host takes it away
-// (ten seconds after the write), a newer change, or a click.
+// (ten seconds after the write; never while an Undo has left files un-restored), a newer change, or Dismiss.
 export function undoBar(t: BoardStrings, text: string | undefined): string {
-  return text === undefined ? "" : `<div id="undo" role="status"><span>${escapeHtml(text)}</span><button type="button" class="sec" data-undo title="${escapeHtml(pl(t, "undoTip"))}">${escapeHtml(pl(t, "undo"))}</button></div>`;
+  return text === undefined ? "" : `<div id="undo" role="status"><span>${escapeHtml(text)}</span><button type="button" class="sec" data-undo title="${escapeHtml(pl(t, "undoTip"))}">${escapeHtml(pl(t, "undo"))}</button><button type="button" class="sec" data-undo-x aria-label="${escapeHtml(pl(t, "undoDismiss"))}" title="${escapeHtml(pl(t, "undoDismiss"))}">\u00d7</button></div>`;
 }
 
 // The menu of a project or group heading: one entry that hands that scope off.
@@ -101,9 +101,11 @@ export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel
 }
 
 // The project actions menu: scan again, the rules file, projects, keywords, settings and the
-// start-up choice (left out when its state is unknown, as in a plain-browser layout check).
-export function optsMenu(t: BoardStrings, startup?: boolean): string {
+// start-up choice (left out when its state is unknown, as in a plain-browser layout check). While the
+// hint is up, the menu leads with the entry that hides the hint.
+export function optsMenu(t: BoardStrings, startup?: boolean, hint?: boolean): string {
   const kw = t.keywordLabels?.edit ? item("keywords", t.keywordLabels.menu, t.keywordLabels.menuTip) : "";
   const boot = startup === undefined ? "" : item("startup", (startup ? "\u2713 " : "") + label(t, "startup"), label(t, "startupTip"), ` data-on="${startup ? 1 : 0}"`);
-  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
+  const add = hint ? item("hintDismiss", label(t, "hintDismissTip"), label(t, "hintDismissTip")) : "";
+  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${add}${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("organize", hl(t, "menuOrganize"), hl(t, "menuOrganizeTip"))}${item("bringBack", hl(t, "menuBack"), hl(t, "menuBackTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
 }

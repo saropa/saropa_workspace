@@ -282,3 +282,17 @@ test("a flame is amber, never red, and a waiting link is amber beside it", () =>
   assert.ok(html.includes('class="flame"') && html.includes('class="link open"'), "both marks are drawn");
   assert.equal(html.includes("flame hot"), false);
 });
+
+test("a card heading leaves out the count pills that its lists already show", () => {
+  const m = buildBoard(cfg, [row("db", "bugs/a.md", "red")], undefined, true);
+  const p = m.projects.find((x) => x.id === "db")!;
+  assert.ok(verdict(p, t, lights(m)).includes(`class="cp red"`));
+  assert.ok(!verdict(p, t, lights(m), false, "", 0, false).includes(`class="cp`));
+});
+
+test("a list that says its status in its heading leaves the status pill off its rows", () => {
+  const m = buildBoard(cfg, [row("db", "bugs/a.md", "purple")], undefined, true);
+  const names = new Map([["db", "Db"]]);
+  assert.ok(list("T", m.items, names, t, {}).includes(`class="stat purple"`));
+  assert.ok(!list("T", m.items, names, t, { quiet: true }).includes(`class="stat`));
+});

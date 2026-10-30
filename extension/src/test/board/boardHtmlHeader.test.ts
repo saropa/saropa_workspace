@@ -68,7 +68,7 @@ test("the header link to the change log shows only while something changed", () 
 });
 
 test("a NO-GO light is a tinted pill, not a solid red block, and the flame is never red", () => {
-  assert.ok(STYLE.includes(".go.no-go{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red);border:1px solid var(--red)}"));
+  assert.ok(STYLE.includes(".go.no-go{background:color-mix(in srgb,var(--red) 14%,transparent);color:color-mix(in srgb,var(--red) 55%,var(--fg));border:1px solid var(--red)}"));
   assert.equal(STYLE.includes(".flame.hot"), false);
   assert.ok(STYLE.includes(".link.flag{border-color:var(--amber)"));
   assert.ok(STYLE.includes("--vscode-charts-red,#e5484d"), "colors follow the theme with today's values as fallback");
