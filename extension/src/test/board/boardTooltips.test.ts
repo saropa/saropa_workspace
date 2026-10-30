@@ -366,7 +366,7 @@ test("every number the page counts is a pill, a small rounded badge in the edito
   // Visible text with the pills, the document links, the headings and the hidden parts taken out:
   // no bare number may remain, apart from version labels and list numbering.
   const bare = withoutBlocks(html)
-    .replace(/<span class="pill"[^>]*>\d+<\/span>/g, "")
+    .replace(/<span class="pill[^"]*"[^>]*>\d+<\/span>/g, "")
     .replace(/<span class="fx">[^<]*<\/span>/g, "")
     .replace(/<a class="doc"[^>]*>[^<]*<\/a>/g, "")
     .replace(/<h1[^>]*>[^<]*<\/h1>/g, "")

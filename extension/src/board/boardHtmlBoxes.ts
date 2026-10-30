@@ -9,10 +9,10 @@ import { RULES_PATH } from "./ruleAssign";
 // The boxes around the project rows: sittings, tidy, unnamed crashes, trains, linked
 // documents, outside sources and the strip of changes since the board was last seen.
 
-// The Sittings box: always visible. The list of steps that fit the filters; the time and the
-// contexts in hand are chosen in the View options menu. By default every context is in hand and
-// any time fits, so nothing is hidden. Lines carry only an index; the host resolves it
-// against the model it rendered.
+// The Sittings box: the steps that fit the filters, folded when none does, with the count in its
+// heading. The time and the contexts in hand are chosen in the View options menu; by default every
+// context is in hand and any time fits, so nothing is hidden. Lines carry only an index; the host
+// resolves it against the model it rendered.
 export function sittingsBox(model: BoardModel, t: BoardStrings): string {
   const v = model.sittings;
   if (!v) {
@@ -33,7 +33,7 @@ export function sittingsBox(model: BoardModel, t: BoardStrings): string {
       ? `<details class="untag" id="sit-untag" data-sec="sittings-untagged" open><summary class="sh" ${tip(t, "untagged")}>${sectionIcon(t, "sittings-untagged")}${pillify(t, escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore))))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
       : "";
   const fit = `<details class="steps" id="sit-steps" data-sec="sittings-steps" open><summary class="sh" ${tip(t, "stepsSummary")}>${sectionIcon(t, "sittings-steps")}${pillify(t, escapeHtml(pl(t, "stepsFit", { count: v.doable })))}</summary>${body}${rest}${untagged}</details>`;
-  return collapsible({ t, id: "sittings", domId: "sit-panel", tipAttr: tip(t, "sittingsHeading"), head: escapeHtml(t.sittingsHeading), body: fit });
+  return collapsible({ t, id: "sittings", domId: "sit-panel", tipAttr: tip(t, "sittingsHeading"), head: `${escapeHtml(t.sittingsHeading)} ${pill(t, v.doable, "count", { count: v.doable })}`, body: fit, open: v.doable > 0 });
 }
 
 // The words for one report candidate in the Tidy box. Already escaped.
@@ -98,17 +98,17 @@ export function unnamedBox(model: BoardModel, t: BoardStrings, canAct: boolean):
 // Most folders listed in the "Documents with no rule" section; the rest are counted.
 const NO_RULE_CAP = 30;
 
-// The "Documents with no rule" section: always shown. It says what it is, how many documents
-// no rule placed, and lists each folder with its document count. A folder row offers to add a
-// rule for it and to preview what a rule would match; both carry only the row's index and the
-// host resolves it against the list it rendered. With nothing to list it says so in a sentence.
+// The "Documents with no rule" section. It says what it is, how many documents no rule placed,
+// and lists each folder with its document count. A folder row offers to add a rule for it and to
+// preview what a rule would match; both carry only the row's index and the host resolves it
+// against the list it rendered. With nothing to list it is not drawn.
 export function noRuleBox(model: BoardModel, t: BoardStrings, names: Map<string, string>, canAct: boolean): string {
   const folders = model.needsRule;
   const total = folders.reduce((a, n) => a + n.count, 0);
   const head = `${escapeHtml(t.needsRuleHeading)} ${pill(t, total, "count", { count: total })}`;
   const section = (body: string, open: boolean): string => collapsible({ t, id: "norule", domId: "norule-box", tipAttr: tip(t, "noRuleHeading"), head, body, open });
   if (folders.length === 0) {
-    return section(`<p class="note">${escapeHtml(pl(t, "noRuleEmpty"))}</p>`, true);
+    return "";
   }
   const rows = folders
     .slice(0, NO_RULE_CAP)
@@ -125,15 +125,15 @@ export function noRuleBox(model: BoardModel, t: BoardStrings, names: Map<string,
 }
 
 // One box per outside source group. Items with a link carry only an index.
-export function outsideBoxes(model: BoardModel, t: BoardStrings): string {
-  return model.outside
-    .map(
-      (g, gi) =>
-        collapsible({ t, id: "outside:" + g.id, tipAttr: tip(t, "outsideGroup", { label: g.label, count: g.items.length }), head: `${escapeHtml(g.label)} ${pill(t, g.items.length, "count", { count: g.items.length })}`, open: g.items.length <= 25, body: g.items
+export function outsideBox(g: BoardModel["outside"][number], gi: number, t: BoardStrings): string {
+  return collapsible({ t, id: "outside:" + g.id, tipAttr: tip(t, "outsideGroup", { label: g.label, count: g.items.length }), head: `${escapeHtml(g.label)} ${pill(t, g.items.length, "count", { count: g.items.length })}`, open: g.items.length <= 25, body: g.items
           .map((it, ii) => `<div class="cn${it.url ? " click ext" : ""}"${it.url ? ` tabindex="0" role="button" data-g="${gi}" data-i="${ii}"` : ""} ${tip(t, it.url ? "outsideLink" : "outsideItem")}><span class="f">${escapeHtml(it.title)}</span>${it.detail ? `<span class="k" ${tip(t, "outsideDetail", { detail: it.detail })}>${escapeHtml(it.detail)}</span>` : ""}</div>`)
-          .join("") })
-    )
-    .join("");
+          .join("") });
+}
+
+// The heading of the linked-documents box: the part that has something to show first.
+export function chainsName(model: BoardModel, t: BoardStrings): string {
+  return model.chains.length > 0 ? t.linkedHeading : model.flags.length > 0 ? t.flagsHeading : t.suggestHeading;
 }
 
 // The collapsed box of linked documents: chains in finish order, Needs lines that need a look, and suggested links.
@@ -155,7 +155,7 @@ export function chains(model: BoardModel, t: BoardStrings): string {
           .join("")}`
       : "";
   const head = model.chains.length > 0 ? `<p class="note">${escapeHtml(t.linkedNote)}</p>${chain}` : "";
-  const name = model.chains.length > 0 ? t.linkedHeading : model.flags.length > 0 ? t.flagsHeading : t.suggestHeading;
+  const name = chainsName(model, t);
   return `<details class="box" data-sec="linked" open><summary class="sh" ${tip(t, "linkedSummary")}>${sectionIcon(t, "linked")}<i class="link open" aria-label="${escapeHtml(name)}" ${glyphTip(t, "g.amberDiamond", name)}></i> ${escapeHtml(name)}</summary>${head}${flags}${suggest}</details>`;
 }
 
@@ -208,4 +208,29 @@ export function sinceMarks(model: BoardModel, view: SinceView | undefined): stri
   const keys = new Set(view.marked);
   const ids = model.items.filter((i) => keys.has(sinceKey(i))).map((i) => `.row[data-id="${i.id}"]`);
   return ids.length === 0 ? "" : `${ids.join(",")}{outline:1px dotted var(--blue);outline-offset:-1px}`;
+}
+
+// One side section of the More strip: the pill's label and the section's markup. `auto` is a
+// signature of what made the section worth opening by itself; the page opens it once per value.
+export interface MoreEntry {
+  id: string;
+  label: string;
+  html: string;
+  auto?: string;
+  // How many entries the section holds, shown as a pill on the strip's button; none or 0 shows no pill.
+  count?: number;
+  // True for a section that can hold a real problem: its count pill is amber.
+  warn?: boolean;
+}
+
+// The More strip: one pill per side section that has something to show, and under it the panels,
+// closed. A pill opens its panel; one panel is open at a time. Nothing is drawn without entries.
+export function moreStrip(entries: MoreEntry[], t: BoardStrings): string {
+  const shown = entries.filter((e) => e.html !== "");
+  if (shown.length === 0) {
+    return "";
+  }
+  const pills = shown.map((e) => `<button type="button" class="sec" data-more="${escapeHtml(e.id)}"${e.auto ? ` data-auto="${escapeHtml(e.auto)}"` : ""} aria-pressed="false" aria-controls="more-${escapeHtml(e.id)}" ${tip(t, "moreItem", { name: e.label })}>${escapeHtml(e.label)}${e.count ? ` ${pill(t, e.count, "count", { count: e.count }).replace('class="pill"', `class="pill${e.warn ? " warn" : ""}"`)}` : ""}</button>`).join("");
+  const panels = shown.map((e) => `<div class="mpanel" id="more-${escapeHtml(e.id)}" hidden>${e.html}</div>`).join("");
+  return `<div class="more" role="group" aria-label="${escapeHtml(pl(t, "moreStrip"))}" ${tip(t, "moreStripTip")}>${pills}</div>${panels}`;
 }
