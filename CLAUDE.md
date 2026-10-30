@@ -22,3 +22,6 @@
   `git merge main`. Merge branches into main one at a time, oldest first.
 - No new feature work during a release push: new ideas go to the plan as
   deferred items.
+- A build must instantiate its real classes (not only its pure helpers) in a
+  test through the real entry point; class field initializers must not touch
+  constructor parameter properties.

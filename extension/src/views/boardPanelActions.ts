@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { BoardRun } from "../commands/releaseBoardCommands";
+import { BoardRun, logBoardError } from "../commands/releaseBoardCommands";
 import { BoardModel } from "../board/boardModel";
 import type { BoardExtra } from "../board/boardModelParts";
 import { PathToGo, clampMaxSteps } from "../board/pathToGo";
@@ -198,4 +198,33 @@ export async function openSittingsLine(model: BoardModel | undefined, run: Board
     const pos = new vscode.Position(Math.max(0, line.line - 1), 0);
     await openDocument(uri, new vscode.Range(pos, pos));
   }
+}
+
+/** A tab whose setup failed is closed again so no blank tab is left; the owner sees one error, except at startup. */
+export function closeFailedOpen(panel: vscode.WebviewPanel, e: unknown, background: boolean): void {
+  logBoardError(e);
+  panel.dispose();
+  if (!background) {
+    void vscode.window.showErrorMessage(l10n("releaseBoard.openFailed", { error: e instanceof Error ? e.message : String(e) }));
+  }
+}
+
+export const PLACEMENT_KEY = "saropaWorkspace.releaseBoard.column";
+
+/** Remembers where the tab is, also after the user drags it to another group. */
+export function rememberColumn(context: vscode.ExtensionContext, panel: vscode.WebviewPanel): void {
+  let lastColumn = panel.viewColumn;
+  const remember = (): void => {
+    if (panel.viewColumn !== undefined) {
+      lastColumn = panel.viewColumn;
+      void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
+    }
+  };
+  remember();
+  panel.onDidChangeViewState(remember);
+  setBoardColumnSource(() => panel.viewColumn);
+  panel.onDidDispose(() => {
+    setBoardColumnSource(() => undefined);
+    void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
+  });
 }

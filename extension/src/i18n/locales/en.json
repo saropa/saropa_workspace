@@ -1828,6 +1828,7 @@
   "releaseBoard.acceptBaseline": "Release Board: accept this first scan as the baseline?",
   "releaseBoard.acceptStale": "Release Board: the baseline changed since this scan. Scan again before accepting.",
   "releaseBoard.held": "Release Board: {count} change(s) need your check before the board updates. See the Saropa Release Board output.",
+  "releaseBoard.openFailed": "Release Board could not open: {error}",
   "releaseBoard.failed": "Release Board scan failed: {error}",
   "releaseBoard.panel.title": "Saropa Release Board",
   "releaseBoard.panel.intro": "Can we ship, and what do we do next. Reads the bugs, docs and plans folders of the open workspace and of the projects you chose.",
