@@ -118,11 +118,11 @@ export function itemCounts(items: readonly BoardItem[], name: string, t: BoardSt
 const cardCounts = (p: BoardProject, t: BoardStrings): string => itemCounts(p.items, p.name, t);
 
 // One project's verdict row: name, light, link mark, health marks and the count pills.
-export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false, badge = "", index?: number): string {
+export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false, badge = "", index?: number, withCounts = true): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
   const why = p.light !== "unverified" ? "" : p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
   const lightTip = why || pl(t, p.light === "go" ? "light.go" : p.light === "no-go" ? "light.noGo" : "light.unverified");
-  const counts = cardCounts(p, t);
+  const counts = withCounts ? cardCounts(p, t) : "";
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<i class="link ${waiting ? "wait" : "ok"}" ${glyphTip(t, waiting ? "g.amberDiamond" : "g.greenDiamond", `${t.dependsOn} ${p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", ")}`)}></i>` : "";
@@ -233,8 +233,8 @@ function facts(i: BoardItem, t: BoardStrings): string {
 
 // One open document: the title is the link that opens it (its tooltip is the path inside the
 // project); a click anywhere else on the row opens it too. The row menu button shows on hover.
-export function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}"${dragAttrs(i.id)} ${titleAttr(rowCard(i, t))}>${statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
+export function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean, quiet = false): string {
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}"${dragAttrs(i.id)} ${titleAttr(rowCard(i, t))}>${quiet ? "" : statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
 }
 
 // What a list adds to the plain item list: its tooltip key, an explanation line, how many more
@@ -248,6 +248,8 @@ export interface ListOptions {
   single?: boolean;
   // Tells the lists of one project card apart from the same list of another card.
   scope?: string;
+  // Leave out the status pill of each row: the heading already says it.
+  quiet?: boolean;
 }
 
 // One list of items under a heading, grouped items together, capped at a fixed length.
@@ -263,7 +265,7 @@ export function list(title: string, items: BoardItem[], names: Map<string, strin
     const g = opt.cap === undefined ? grouped(i) : undefined;
     const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${blocks(i) ? "red" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b>${kebab(t, "scope", `group:${i.id}`, g.name)}</div>` : "";
     last = g?.id;
-    return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined);
+    return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined, opt.quiet);
   });
   const left = items.length > cap ? items.length - cap : 0;
   const hidden = left + (opt.more ?? 0);
@@ -365,5 +367,5 @@ export function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights
 // change of light starts the card over.
 export function projectCard(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean, badge: string, open: boolean, lists: string): string {
   const steps = path ? `<div class="pj" data-pid="${escapeHtml(p.id)}">${pathList(path, t, i, canAct)}</div>` : "";
-  return `<details class="box pcard" data-sec="${escapeHtml(`project:${p.id}:${p.light}`)}"${open ? " open" : ""}><summary class="sh">${verdict(p, t, lights, false, badge, i)}</summary>${steps}${lists}</details>`;
+  return `<details class="box pcard" data-sec="${escapeHtml(`project:${p.id}:${p.light}`)}"${open ? " open" : ""}><summary class="sh">${verdict(p, t, lights, false, badge, i, false)}</summary>${steps}${lists}</details>`;
 }

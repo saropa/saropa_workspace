@@ -33,7 +33,7 @@ export interface RowStatus {
 // The string key of each Group by choice; its tooltip is the key plus "Tip".
 const GROUP_KEYS: Record<GroupBy, string> = { project: "groupProject", group: "groupGroup", status: "groupStatus", severity: "groupSeverity", none: "groupNone" };
 
-const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "✓", reference: "○" };
+const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "■", reference: "○" };
 
 // What the page script needs to fill the row menu for one document: its status and severity, whether
 // either was set by hand, whether it is pinned, and its project. Only values, never markup.
@@ -101,9 +101,11 @@ export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel
 }
 
 // The project actions menu: scan again, the rules file, projects, keywords, settings and the
-// start-up choice (left out when its state is unknown, as in a plain-browser layout check).
-export function optsMenu(t: BoardStrings, startup?: boolean): string {
+// start-up choice (left out when its state is unknown, as in a plain-browser layout check). While the
+// hint is up, the menu leads with its two entries: add projects and hide the hint.
+export function optsMenu(t: BoardStrings, startup?: boolean, hint?: boolean): string {
   const kw = t.keywordLabels?.edit ? item("keywords", t.keywordLabels.menu, t.keywordLabels.menuTip) : "";
   const boot = startup === undefined ? "" : item("startup", (startup ? "\u2713 " : "") + label(t, "startup"), label(t, "startupTip"), ` data-on="${startup ? 1 : 0}"`);
-  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
+  const add = hint ? item("projects", label(t, "hintAdd"), label(t, "projectsTip")) + item("hintDismiss", label(t, "hintDismissTip"), label(t, "hintDismissTip")) : "";
+  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${add}${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
 }
