@@ -12,6 +12,8 @@ import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
 import type { FinishedDoc } from "./ganttModel";
+import type { OrgPrevious } from "./boardOrg";
+import type { Layout } from "./org/layout";
 
 // The shapes of the board's view model (what the first screen shows), and the helpers that
 // turn one document or one link into the pieces of the model. buildBoard puts them together.
@@ -41,8 +43,8 @@ export interface BoardItem {
   marks?: ItemMarks;
   // The first open steps with their lines, for the hand-off (absent when there are none).
   steps?: Array<{ line: number; text: string }>;
-  // Group heading this item sits under (two or more related documents, or a group listed by hand), if any.
-  group?: { id: string; name: string; byUser?: true };
+  // Group heading this item sits under, if any.
+  group?: GroupView;
   // A very large or heavily cross-referencing document: it links to groups, never merges them.
   hub: boolean;
   // Needs lines: what this item waits on. "open" waits, "done" is satisfied, "flag" needs a look.
@@ -106,6 +108,23 @@ export interface BoardProject {
   extra?: boolean;
 }
 
+// A group as drawn: the stable id, the name and emoji, the stripe colour (hex) and the reasons for each.
+export interface GroupView {
+  id: string;
+  name: string;
+  emoji?: string;
+  colour?: string;
+  // Why the group exists and why it has this name, emoji and colour, one per line (plain text).
+  why?: string;
+  // Listed by hand or set by the user; otherwise the board found it.
+  byUser?: true;
+  parent?: string;
+  // The project has so few documents that its lists show no group headings.
+  flat?: true;
+  // Why the group may start folded (plain text).
+  fold?: string;
+}
+
 // One step of a chain, in the order things must be finished.
 export interface ChainStep {
   project: string;
@@ -134,6 +153,8 @@ export interface SittingsView {
 
 // Everything the first screen shows, built by buildBoard.
 export interface BoardModel {
+  // The group layout of each project (row limits, which groups open), by project id.
+  orgLayouts?: Record<string, Layout>;
   projects: BoardProject[];
   chains: ChainStep[][];
   // Every Needs link as resolved, for the Waits on picker (it never reaches the page).
@@ -191,6 +212,8 @@ export interface BoardExtra {
   // Documents open and being edited in this window, as "project/path", and the list limit.
   inProgress?: { edited: string[]; max: number };
   live?: { signals: LiveSignals; includeWarnings: boolean; fold: boolean; unnamedBox: boolean };
+  // Band and MAX of each project from the previous build, so the group layout stays stable.
+  orgPrevious?: OrgPrevious;
 }
 
 // Helpers that turn one document or one link into the pieces of the board model.

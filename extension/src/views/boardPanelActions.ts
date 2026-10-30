@@ -48,6 +48,21 @@ export function sittingsInput(context: vscode.ExtensionContext): NonNullable<Boa
   return { selection: { have, timeBox: choice ? choice.timeBox : s.defaultTimeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
 }
 
+const ORG_KEY = "saropaWorkspace.releaseBoard.orgLayouts";
+
+// Band and MAX of each project from the last build, so the group layout stays stable between builds.
+export function orgPreviousInput(context: vscode.ExtensionContext): BoardExtra["orgPrevious"] {
+  return context.workspaceState.get<BoardExtra["orgPrevious"]>(ORG_KEY);
+}
+
+// Remembers the layout of this build for the next one.
+export function saveOrgLayouts(context: vscode.ExtensionContext, model: BoardModel): void {
+  const out = Object.fromEntries(Object.entries(model.orgLayouts ?? {}).map(([p, l]) => [p, { band: l.band, max: l.max }]));
+  if (JSON.stringify(out) !== JSON.stringify(orgPreviousInput(context) ?? {})) {
+    void context.workspaceState.update(ORG_KEY, out);
+  }
+}
+
 // The In progress input: the edited documents the panel found and the list limit; undefined
 // when the feature is off (the list is then every document marked in progress).
 export function inProgressInput(edited: string[]): NonNullable<BoardExtra["inProgress"]> | undefined {

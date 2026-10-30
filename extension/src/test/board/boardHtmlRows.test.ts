@@ -114,7 +114,7 @@ test("the list is capped at 30 rows and says how many are left out", () => {
   const rows = Array.from({ length: 35 }, (_, i) => row("app", `bugs/B${i}.md`, "red"));
   const m = buildBoard(cfg, rows, undefined, true);
   const html = list("Resolve", m.items, new Map(), t);
-  assert.equal(html.match(/class="row"/g)?.length, 30);
+  assert.equal(html.match(/class="row/g)?.length, 30);
   assert.ok(html.includes("more 5"));
 });
 
@@ -137,15 +137,15 @@ test("a list shows five rows, then a Show more pill that reveals the rest", () =
 test("related items sit under a group heading, indented", () => {
   const m = buildBoard(
     cfg,
-    [row("app", "bugs/OWNER_a.md", "red"), row("app", "bugs/OWNER_b.md", "red"), row("app", "bugs/lone.md", "red")],
+    [...Array.from({ length: 8 }, (_v, n) => row("app", `bugs/OWNER_${n}.md`, "red")), row("app", "lone.md", "red")],
     undefined,
     true
   );
   const html = list("Resolve", m.items, new Map(), t);
   assert.equal(html.match(/class="grp"/g)?.length, 1);
-  assert.ok(html.includes("Owner documents"));
-  assert.equal(html.match(/class="row in"/g)?.length, 2);
-  assert.ok(html.indexOf("Owner documents") < html.indexOf("lone.md") || html.indexOf("lone.md") < html.indexOf("Owner documents"));
+  assert.ok(html.includes("Bugs"));
+  assert.equal(html.match(/class="row in"/g)?.length, 8);
+  assert.ok(html.indexOf("Bugs") < html.indexOf("lone.md") || html.indexOf("lone.md") < html.indexOf("Bugs"));
 });
 
 test("a row has no Hand to chat button: Hand off is in the row menu", () => {

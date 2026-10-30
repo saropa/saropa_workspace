@@ -18,6 +18,7 @@ const cfg: BoardConfig = {
   ruleSets: {},
   projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }],
   groups: [{ name: "Launch <b>", match: ["app/bugs/a.md", "app/docs/c.md"] }],
+  ungrouped: ["app/docs/b.md", "app/docs/d.md"],
 };
 const row = (path: string, status: "red" | "amber" | "purple"): Classified => ({ project: "app", path, status, kind: "", note: "" });
 const model = (): ReturnType<typeof buildBoard> => buildBoard(cfg, [row("bugs/a.md", "red"), row("docs/b.md", "amber"), row("docs/c.md", "amber"), row("docs/d.md", "purple")], undefined, true);

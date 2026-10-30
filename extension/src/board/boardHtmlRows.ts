@@ -1,4 +1,4 @@
-import { BoardItem, BoardProject, UnverifiedReason } from "./boardModel";
+import { BoardItem, BoardProject, GroupView, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { chooseBox } from "./boardHtmlHandoff";
@@ -250,18 +250,34 @@ export interface ListOptions {
   scope?: string;
 }
 
+// The emoji and name of a group for its heading. Escaped.
+export function groupLabel(g: GroupView): string {
+  return (g.emoji ? `<span aria-hidden="true">${escapeHtml(g.emoji)}</span> ` : "") + escapeHtml(g.name);
+}
+
+// The colour stripe of a group heading (never on rows), as a style attribute. Escaped.
+export function groupStripe(g: GroupView): string {
+  return g.colour ? ` style="--g:${escapeHtml(g.colour)}"` : "";
+}
+
+// The tooltip of a group heading: the count line, then the reasons. Escaped.
+export function groupTip(g: GroupView, line: string, closed = false): string {
+  return titleAttr([line, g.why, closed ? g.fold : undefined].filter(Boolean).join("\n"));
+}
+
 // One list of items under a heading, grouped items together, capped at a fixed length.
 export function list(title: string, items: BoardItem[], names: Map<string, string>, t: BoardStrings, opt: ListOptions = {}): string {
   const cap = opt.cap ?? LIST_CAP;
   // Items of one group sit together under its heading; the rest follow, alone.
   const size = new Map<string, number>();
   items.forEach((i) => i.group && size.set(i.group.id, (size.get(i.group.id) ?? 0) + 1));
-  const grouped = (i: BoardItem): BoardItem["group"] => (i.group && (size.get(i.group.id) ?? 0) > 1 ? i.group : undefined);
+  const grouped = (i: BoardItem): BoardItem["group"] => (i.group && !i.group.flat && (size.get(i.group.id) ?? 0) > 1 ? i.group : undefined);
   const ordered = opt.cap === undefined ? [...items].sort((a, b) => (grouped(b) ? 1 : 0) - (grouped(a) ? 1 : 0) || (grouped(a)?.name ?? "").localeCompare(grouped(b)?.name ?? "") || (grouped(a)?.id ?? "").localeCompare(grouped(b)?.id ?? "")) : items;
   let last: string | undefined;
   const parts = ordered.slice(0, cap).map((i) => {
     const g = opt.cap === undefined ? grouped(i) : undefined;
-    const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${blocks(i) ? "red" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b>${kebab(t, "scope", `group:${i.id}`, g.name)}</div>` : "";
+    const line = g ? pl(t, "group", { count: size.get(g.id) ?? 0 }) : "";
+    const head = g && g.id !== last ? `<div class="grp"${groupStripe(g)}><i class="sq ${blocks(i) ? "red" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${groupTip(g, line)}>${groupLabel(g)}</b>${kebab(t, "scope", `group:${i.id}`, g.name)}</div>` : "";
     last = g?.id;
     return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined);
   });

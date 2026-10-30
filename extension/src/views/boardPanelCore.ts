@@ -21,7 +21,7 @@ import { FutureItem, FutureOutside, FutureSort } from "../board/futureList";
 import { startupOn } from "./boardStartup";
 import { readGroupBy, readProjectScope } from "../commands/boardExtraProjects";
 import { hintVisible, dismissHint } from "./boardProjectsHint";
-import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
+import { emptyPage, inProgressInput, liveInput, orgPreviousInput, pathSettings, saveOrgLayouts, sittingsInput, tidyInput } from "./boardPanelActions";
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
 import { ruleCategories } from "../board/ruleAssign";
 import { ChatPoll } from "./boardChats";
@@ -326,8 +326,9 @@ export abstract class BoardPanelCore {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited) }
+      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited), orgPrevious: orgPreviousInput(this.context) }
     );
+    saveOrgLayouts(this.context, this.model);
     const model = this.model;
     const settings = pathSettings();
     this.paths = settings
