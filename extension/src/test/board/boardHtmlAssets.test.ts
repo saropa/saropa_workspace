@@ -62,3 +62,49 @@ test("a status choice has an effect line, the chosen status is found by kind, an
   assert.ok(js.includes("d.type==='clearPending'") && js.includes("d.type==='undoOn'"));
   assert.ok(js.includes("clearTimeout(PT[id])") && js.includes("document.body.classList.contains('busy')"), "the fallback timer is replaced on a new pend and waits while a scan runs");
 });
+
+import { HANDOFF_SCRIPT } from "../../board/boardHtmlHandoff";
+import { PROJECTS_SCRIPT } from "../../board/boardHtmlProjects";
+
+test("rows on demand: the Show more buttons use their own attribute, which the More strip ignores", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("wired('[data-rowsmore]'"));
+  assert.ok(!js.includes("wired('[data-more]'"));
+  assert.ok(!/hasAttribute\('data-more'\)/.test(js));
+  // The strip loops over [data-more] only; no Show more button may match it.
+  assert.ok(PROJECTS_SCRIPT.includes("querySelectorAll('[data-more]')"));
+  assert.ok(!PROJECTS_SCRIPT.includes("data-rowsmore"));
+});
+
+test("rows on demand: the row controls are wired again for rows that arrive later", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("wireIn(c)"), "a rows reply wires the new rows");
+  for (const sel of ["[data-menu]", "a.doc", ".row[data-id]"]) {
+    assert.ok(js.includes(`wired('${sel}'`), `${sel} is registered`);
+  }
+  assert.ok(HANDOFF_SCRIPT.includes("wired('[data-choose]'"), "the checkbox is registered, not wired once at load");
+  assert.ok(HANDOFF_SCRIPT.includes("c.checked=CH.has("), "a checkbox that arrives later is ticked from the chosen ids");
+  assert.ok(HANDOFF_SCRIPT.includes("c.addEventListener('click',stop)"), "a click on the checkbox does not open the row");
+  assert.ok(!/document\.querySelectorAll\('\[data-choose\]'\)\.forEach\(c=>\{const stop/.test(HANDOFF_SCRIPT));
+  // Drag start is delegated from the document, so it covers later rows.
+  assert.ok(!js.includes("addEventListener('dragstart'"));
+});
+
+test("rows on demand: scroll is restored after the replies and not saved while they are pending", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("const keep=()=>{if(PENDQ.size>0){return;}"));
+  assert.ok(js.includes("if(PENDQ.size===0&&RESTORE){window.scrollTo(0,RESTORE);RESTORE=0;}"));
+});
+
+test("rows on demand: a request with no reply times out and can be asked again", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("setTimeout(()=>settle(id,by,from,true),10000)"));
+  assert.ok(js.includes("delete c.dataset.asked"));
+  assert.ok(js.includes("b.disabled=false;b.removeAttribute('aria-busy')"));
+});
+
+test("rows on demand: openGroupRows is available to code that needs the rows of a closed group", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("const openGroupRows=id=>"));
+  assert.ok(js.includes("return Promise.resolve()"));
+});

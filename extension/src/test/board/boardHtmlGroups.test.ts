@@ -61,7 +61,8 @@ test("a card holding 200 documents shows five rows and a button; the rest is sen
   const m = buildBoard({ ...cfg, groups: [] }, rows, undefined, true);
   const names = new Map([["app", "App"]]);
   const html = groupCards(m, "status", names, t);
-  assert.equal(html.match(/data-more /g)?.length, 1);
+  assert.equal(html.match(/data-rowsmore /g)?.length, 1);
+  assert.ok(!/data-more(?![-\w]*=)/.test(html), "the Show more button must not carry the More-strip attribute");
   assert.equal(html.match(/class="row/g)?.length, 5);
   assert.ok(html.includes('aria-expanded="false"'));
   const rest = cardRows(m, "status", "red", 5, names, t)!;

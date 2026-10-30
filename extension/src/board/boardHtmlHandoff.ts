@@ -76,7 +76,7 @@ HO.querySelectorAll('[data-hoact]').forEach(b=>b.addEventListener('click',()=>{i
 document.getElementById('hoClose').addEventListener('click',closeDrawer);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!HO.hidden&&!e.defaultPrevented){e.preventDefault();closeDrawer();}});
 const refresh=()=>{if(!line){return;}line.hidden=CH.size===0;document.getElementById('hoChosenN').textContent=line.dataset.tmpl.replace('{count}',()=>String(CH.size));};
-document.querySelectorAll('[data-choose]').forEach(c=>{const stop=e=>e.stopPropagation();c.addEventListener('click',stop);c.addEventListener('keydown',stop);c.addEventListener('change',()=>{const id=Number(c.dataset.choose);if(c.checked){CH.add(id);}else{CH.delete(id);}refresh();});});
+wired('[data-choose]',c=>{const stop=e=>e.stopPropagation();c.checked=CH.has(Number(c.dataset.choose));c.addEventListener('click',stop);c.addEventListener('keydown',stop);c.addEventListener('change',()=>{const id=Number(c.dataset.choose);if(c.checked){CH.add(id);}else{CH.delete(id);}refresh();});});
 document.querySelectorAll('[data-hochosen]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.hochosen==='go'){openDrawer('chosen');}else{CH.clear();document.querySelectorAll('[data-choose]').forEach(c=>{c.checked=false;});refresh();}}));
 window.addEventListener('message',e=>{const m=e.data;if(!m){return;}
 if(m.type==='handoffOpen'&&typeof m.scope==='string'){openDrawer(m.scope,typeof m.i==='number'?m.i:undefined);}

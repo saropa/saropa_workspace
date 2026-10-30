@@ -108,16 +108,13 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   // Draws the rows of a closed card or a "Show more" with the row renderer of the page and sends them back.
+  // It always replies, with an empty result when there is nothing to draw, so the page never waits.
   private sendRows(id: string, by: unknown, from: number): void {
     const model = this.model;
-    if (!model || (by !== "group" && by !== "status" && by !== "severity" && by !== "gantt")) {
-      return;
-    }
     const t = strings();
-    const out = by === "gantt" ? ganttRows(model, t, this.since, id, from) : cardRows(model, by, id, from, new Map(model.projects.map((p) => [p.id, p.name])), t);
-    if (out) {
-      void this.panel.webview.postMessage({ type: "rows", id, by, from, html: out.html, label: pl(t, "rowsShown", { count: out.count }), rev: this.rev });
-    }
+    const valid = by === "group" || by === "status" || by === "severity" || by === "gantt";
+    const out = !model || !valid ? undefined : by === "gantt" ? ganttRows(model, t, this.since, id, from) : cardRows(model, by, id, from, new Map(model.projects.map((p) => [p.id, p.name])), t);
+    void this.panel.webview.postMessage({ type: "rows", id, by: typeof by === "string" ? by : "", from, html: out ? out.html : "", label: out ? pl(t, "rowsShown", { count: out.count }) : "", rev: this.rev });
   }
 
   private async onActionMessage(message: Record<string, unknown>): Promise<void> {

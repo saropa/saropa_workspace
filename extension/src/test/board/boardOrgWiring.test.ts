@@ -65,7 +65,7 @@ test("a group of 12 in a project of 100 documents shows five rows and a button",
   const html = renderBoard(m, t, "n", 0, { groupBy: "group" });
   const big = html.split('<details class="box pcard"').slice(1).find((c) => c.includes("big/doc0.md"))!;
   assert.equal(big.match(/class="row/g)?.length, 5);
-  assert.ok(big.includes("data-more"));
+  assert.ok(big.includes("data-rowsmore"));
 });
 
 test("a handful of documents show no group headings in a project list", () => {

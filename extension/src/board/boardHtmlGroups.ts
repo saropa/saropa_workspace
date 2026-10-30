@@ -111,7 +111,7 @@ const lazyBox = (c: Card, by: GroupBy): string => `<div data-lid="${escapeHtml(c
 function cardBody(c: Card, by: GroupBy, names: Map<string, string>, t: BoardStrings, limit: number): string {
   const shown = Math.min(limit, c.direct.length);
   const rest = c.direct.length - shown;
-  const more = rest > 0 ? `<button type="button" class="sec" data-more data-lid="${escapeHtml(c.id)}" data-by="${by}" data-from="${shown}" aria-expanded="false" ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><div data-lid="${escapeHtml(c.id)}" data-by="${by}" data-kind="more"></div>` : "";
+  const more = rest > 0 ? `<button type="button" class="sec" data-rowsmore data-lid="${escapeHtml(c.id)}" data-by="${by}" data-from="${shown}" aria-expanded="false" ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><div data-lid="${escapeHtml(c.id)}" data-by="${by}" data-kind="more"></div>` : "";
   const nested = (c.subs ?? []).map((s) => card(s, by, names, t, false, false, limit, true)).join("");
   return rowsOf(c, 0, shown, names, t) + more + nested;
 }
