@@ -11,6 +11,7 @@ import { docStatusKeys, overrideKey, severityOverrides } from "./ruleAssign";
 import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
+import type { FinishedDoc } from "./ganttModel";
 
 // The shapes of the board's view model (what the first screen shows), and the helpers that
 // turn one document or one link into the pieces of the model. buildBoard puts them together.
@@ -154,6 +155,8 @@ export interface BoardModel {
   inProgress?: InProgressView;
   // Crash signals in files no open document names. Empty when there are none.
   liveUnnamed?: LiveUnnamed[];
+  // Finished documents that open items waited on, kept as dimmed history in the Gantt. Absent when none.
+  finished?: FinishedDoc[];
   // Chosen folders that could not be read, shown as grey rows. Absent when there are none.
   skipped?: SkippedProject[];
   // How many chosen projects the "open project only" scope hides. Absent when none.

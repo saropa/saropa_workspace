@@ -234,7 +234,7 @@ test("the walk sees the elements it is meant to check", () => {
   const count = (f: (t: Tag) => boolean): number => tags.filter(f).length;
   assert.ok(count((t) => t.name === "button") >= 20);
   assert.ok(count((t) => t.name === "a" && t.attrs.class === "doc") >= 8);
-  assert.equal(count((t) => t.attrs.role === "tab"), 2);
+  assert.equal(count((t) => t.attrs.role === "tab"), 3);
   assert.equal(count((t) => t.name === "select") >= 10, true);
   assert.ok(count((t) => t.name === "input" || t.name === "textarea") >= 2);
   assert.ok(count((t) => t.name === "summary") >= 3);

@@ -8,6 +8,7 @@ import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
+import { finishedTargets } from "./ganttModel";
 import { ScanSnapshot } from "./scanner";
 import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
 import { pickInProgress } from "./inProgress";
@@ -352,12 +353,14 @@ export function buildBoard(
   attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   const customParts = customizedParts(cfg.severity);
+  const finished = finishedTargets(links, (project, path) => factsFor(snapshot, project, path)?.title || titleFromPath(path));
   return {
     tidy: extra?.tidy ? buildTidyView(all, ctx, extra.tidy) : undefined,
     inProgress: extra?.inProgress ? pickInProgress(all, new Set(extra.inProgress.edited), extra.inProgress.max) : undefined,
     liveUnnamed,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
+    ...(finished.length > 0 ? { finished } : {}),
     ...(cfg.skipped && cfg.skipped.length > 0 ? { skipped: cfg.skipped } : {}),
     ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),
     ...(customParts.length > 0 ? { severityCustom: customParts } : {}),

@@ -50,6 +50,9 @@ cspell:disable
 
 The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.0/CHANGELOG.md)
 
+### Added
+- **Release Board: Gantt list, the first tab and the default view.** One list of items grouped by project, each with a bar on a work-order axis (never days; width from the step minutes known, a dashed edge when none are). Finished items that open work needed stay in the list, dimmed, as history. Each group ends with its GO / NO-GO light, arrows for what a row waits on or blocks show only for the row you point at or select, and rows changed since you last looked get a dotted blue border. A `?` pill holds the key. Read-only.
+
 ### Changed
 - **Release Board: calmer page.** The NO-GO light is a tinted pill. Red now means only "blocks the release"; errors in named files, a stale `Needs:` line and a waiting link are amber. Each row is a status pill (shape, word and severity), the title and one facts pill; the row menu button shows on hover or focus. Project rows show count pills instead of a row of squares. Counts no longer sit in brackets, and every new pill and mark has a tooltip.
 - **Release Board: one-line header.** A This project / All projects switch, the tabs and two menus (view options with the release mode, project actions with scan again, projects, rules file, keywords, settings and start-up). Applied time and context filters show as removable pills under the header.
