@@ -36,6 +36,7 @@ All data lives on your machine:
   file you open often as a shortcut. Counts are kept on this machine only, never
   transmitted, and each file is offered at most once. Turn the feature off with
   `saropaWorkspace.suggestions.enabled`.
+- **Release Board data** — the board writes your edits to `<folder>/.saropa/release-board.json` in the project. **Hand off** writes Markdown and JSON documents to `<folder>/.saropa/handoff/`. Both are local files; the extension never commits or uploads them. The board sends nothing to any AI: what an agent reads is only what you run yourself, for example with **Run in terminal**.
 - **Last-run status** — the success/failure and duration shown in the tree is
   kept in memory for the session only; it is not persisted and not transmitted.
 
@@ -46,6 +47,10 @@ shortcuts file, and (for the **Project Files** view) a small set of well-known
 files such as `README.md`, `CHANGELOG.md`, and package manifests, to show their
 last-modified time and version. These reads are local; nothing read is sent
 anywhere.
+
+## Chat activity
+
+When Saropa Chat Explorer is installed, the Release Board asks it every 30 seconds for chat summaries (folder and activity time) to show the **Active now** pill. This is a call between two extensions on your machine, kept in memory only and never transmitted. Turn it off with `saropaWorkspace.releaseBoard.chatActivity`.
 
 ## Running scripts
 
