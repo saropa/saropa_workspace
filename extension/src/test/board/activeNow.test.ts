@@ -23,6 +23,12 @@ test("a chat used within the window in the project folder or below it marks the 
   assert.deepEqual(activeProjects([chat("C:\\work\\app", 1000)], [{ id: "w", folder: "C:/work/app" }], NOW), ["w"]);
 });
 
+test("Windows paths match whatever the drive letter case; POSIX paths stay case-sensitive", () => {
+  assert.deepEqual(activeProjects([chat("C:\\Work\\App", 1000)], [{ id: "w", folder: "c:\\work\\app" }], NOW), ["w"]);
+  assert.deepEqual(activeProjects([chat("c:/work/app/sub", 1000)], [{ id: "w", folder: "C:\\work\\app" }], NOW), ["w"]);
+  assert.deepEqual(activeProjects([chat("/Work/app", 1000)], projects, NOW), []);
+});
+
 test("old, archived and unrelated chats do not count; a live state does, however old", () => {
   assert.deepEqual(activeProjects([chat("/work/app", ACTIVE_WINDOW_MS + 1)], projects, NOW), []);
   assert.deepEqual(activeProjects([chat("/work/app", 0, { archived: true })], projects, NOW), []);

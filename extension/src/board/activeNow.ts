@@ -20,8 +20,11 @@ export interface ProjectFolder {
   folder: string;
 }
 
+// Forward slashes, no trailing slash; a Windows path (drive letter) is lower-cased because its
+// case does not matter ("c:\\work" from a file path, "C:\\work" from Chat Explorer). POSIX stays exact.
 function norm(p: string): string {
-  return p.replace(/\\/g, "/").replace(/\/+$/, "");
+  const n = p.replace(/\\/g, "/").replace(/\/+$/, "");
+  return /^[a-zA-Z]:/.test(n) ? n.toLowerCase() : n;
 }
 
 // The ids of the projects that hold an unarchived chat which has a live state or was used within
