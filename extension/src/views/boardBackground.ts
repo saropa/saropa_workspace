@@ -10,6 +10,7 @@ import { disposeTrain } from "./boardTrain";
 import { askRefresh, currentBoard, disposeFeed, hasPanelOpened, isPanelVisible, isStoredOnly, onDidAskRefresh, onDidChangePanelVisible, setFailed, setScanning } from "./boardFeed";
 import { openBoard } from "./boardPanel";
 import { publishBoard } from "./editorLinks";
+import { orgPreviousInput } from "./boardPanelActions";
 
 // The quiet scan behind the sidebar, the status bar light and the editor lines, so they are
 // live without the board tab open. While the tab is showing it owns the scan and this stays
@@ -28,11 +29,13 @@ function boardOn(): boolean {
   return vscode.workspace.getConfiguration(SETTINGS).get<boolean>("enabled", true) && (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
 }
 
-function modelOf(run: BoardRun): BoardModel {
+function modelOf(run: BoardRun, context: vscode.ExtensionContext): BoardModel {
   return buildBoard(run.cfg, applyMarks(run.result.rows, run.marks), run.safety, run.accepted, run.result.snapshot, run.previous, run.health, {
     needs: run.marks.needs,
     rejected: run.marks.rejected,
     pins: pinnedKeys(run.marks),
+    // The saved layouts the tab uses, so the groups never differ between the tab and the background board.
+    orgPrevious: orgPreviousInput(context),
   });
 }
 
@@ -97,7 +100,7 @@ class BackgroundScan {
       if (isPanelVisible()) {
         return true;
       }
-      publishBoard(run ? modelOf(run) : undefined, run);
+      publishBoard(run ? modelOf(run, this.context) : undefined, run);
       setFailed(false);
       return true;
     } catch (e) {
@@ -151,7 +154,7 @@ class BackgroundScan {
     }
     const run = await readLastRun(this.context).catch(() => undefined);
     if (run && !currentBoard()) {
-      publishBoard(modelOf(run), run, true);
+      publishBoard(modelOf(run, this.context), run, true);
     }
   }
 
@@ -168,7 +171,7 @@ class BackgroundScan {
     if (board && !isPanelVisible()) {
       void readMarks(this.context).then((marks) => {
         board.run.marks = marks;
-        publishBoard(modelOf(board.run), board.run, isStoredOnly());
+        publishBoard(modelOf(board.run, this.context), board.run, isStoredOnly());
       });
     }
   }

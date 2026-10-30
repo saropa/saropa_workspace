@@ -5,7 +5,7 @@ import { ProjectHealth } from "./health";
 import { Profile, Severity, asProfile, stops } from "./severity";
 import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
-import { buildGroups } from "./groups";
+import { buildOrg } from "./boardOrg";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { finishedTargets } from "./ganttModel";
@@ -27,7 +27,7 @@ import { OPEN, effectiveSeverity, factsFor, itemKey, revFor, linkSummary, marksO
 
 // Existing import paths keep working: the shapes and the title helper live in their own
 // modules and are re-exported here.
-export type { Light, UnverifiedReason, BoardItem, ItemMarks, BoardProject, ChainStep, SittingsView, BoardModel, BoardExtra } from "./boardModelParts";
+export type { Light, UnverifiedReason, GroupView, BoardItem, ItemMarks, BoardProject, ChainStep, SittingsView, BoardModel, BoardExtra } from "./boardModelParts";
 export { titleFromPath } from "./boardModelParts";
 
 const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };
@@ -188,7 +188,7 @@ function collectNeeds(rows: Classified[], snapshot: ScanSnapshot | undefined, ac
 }
 
 // Writes the group, hub flag, Needs summary and blocker counts onto each item.
-function attachLinks(all: BoardItem[], links: Link[], grouping: ReturnType<typeof buildGroups>, byKey: Map<string, BoardItem>): void {
+function attachLinks(all: BoardItem[], links: Link[], grouping: ReturnType<typeof buildOrg>, byKey: Map<string, BoardItem>): void {
   for (const it of all) {
     it.group = grouping.groupOf.get(itemKey(it.project, it.path));
     it.hub = grouping.hubs.has(itemKey(it.project, it.path));
@@ -344,14 +344,8 @@ export function buildBoard(
   const projects = defs.map((def) => buildProject(def, ctx, all));
   // Groups, linkages and chains need every open item, so they are computed once all
   // projects are built.
-  const grouping = buildGroups(
-    all.map((it) => {
-      const f = factsFor(snapshot, it.project, it.path);
-      return { key: itemKey(it.project, it.path), project: it.project, path: it.path, words: f?.words ?? 0, docRefs: f?.docRefs ?? 0, sourceFiles: f?.sourceFiles ?? [] };
-    }),
-    { manual: cfg.groups, ungrouped: cfg.ungrouped }
-  );
   const links = resolveLinks(rows, collectNeeds(rows, snapshot, extra?.needs), cfg.projects);
+  const grouping = buildOrg(rows, snapshot, cfg, links, extra?.orgPrevious);
   const inText = collectNeeds(rows, snapshot, undefined);
   for (const l of links) {
     if (!inText.get(itemKey(l.fromProject, l.fromPath))?.includes(l.target)) {
@@ -372,6 +366,7 @@ export function buildBoard(
     liveUnnamed,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
+    orgLayouts: grouping.layouts,
     ...(finished.length > 0 ? { finished } : {}),
     ...(cfg.skipped && cfg.skipped.length > 0 ? { skipped: cfg.skipped } : {}),
     ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),

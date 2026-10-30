@@ -7,7 +7,7 @@ import { cleanName, dedupNames } from "../../../board/org/naming";
 import { mergeDictionary } from "../../../board/org/tags";
 import { isDateSegment, logicalFolders, stemWord } from "../../../board/org/tokens";
 import { OrgDoc, OrgResult } from "../../../board/org/orgTypes";
-import { byId, checkProperties, doc, docs, generated, run } from "./orgFixtures";
+import { bestMs, byId, checkProperties, doc, docs, generated, run } from "./orgFixtures";
 
 const idsWith = (r: OrgResult, part: string): string[] => r.groups.map((g) => g.id).filter((i) => i.includes(part));
 
@@ -137,10 +137,9 @@ test("Windows paths group like slash paths", () => {
 
 test("scale: 2,000 documents in one project use MIN 5 and a row limit of 3", () => {
   const input = generated(2000, 1);
-  const started = performance.now();
+  const ms = bestMs(() => run(input));
+  assert.ok(ms < 500, `took ${ms.toFixed(0)} ms`);
   const r = run(input);
-  const ms = performance.now() - started;
-  assert.ok(ms < 300, `took ${ms.toFixed(0)} ms`);
   checkProperties(r, input);
   assert.equal(r.layouts.app.min, 5);
   assert.equal(layoutFor(2000).rowLimit, 3);

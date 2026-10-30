@@ -61,7 +61,8 @@ export function planDrop(m: { zone?: unknown; id?: unknown; to?: unknown }, mode
       return no("releaseBoard.drop.sameGroup", { title: item.title });
     }
     // Only a group listed by hand takes a document: a found group is not a name the rules file holds.
-    return group.byUser ? { ok: true, kind: "group", item, name: group.name } : no("releaseBoard.drop.autoGroup", { title: item.title, name: group.name });
+    // The name written is the stored one: the name on the page can be clipped or made unique.
+    return group.byUser && group.stored !== undefined ? { ok: true, kind: "group", item, name: group.stored } : no("releaseBoard.drop.autoGroup", { title: item.title, name: group.name });
   }
   if (m.zone === "waits") {
     const from = itemAt(model, m.to);

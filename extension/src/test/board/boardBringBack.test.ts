@@ -20,7 +20,7 @@ const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id
 const row = (p: string): Classified => ({ project: "app", path: p, status: "amber", kind: "", note: "" });
 const html = (ready?: number): string => renderBoard(buildBoard(cfg, [row("docs/a.md")], undefined, true), t, "n", 7, { patchReady: ready });
 // Only the drawer and its script: the full page script uses selectors the small fake DOM lacks.
-const open = (ready?: number): Page => runPage(`<html><body>${readyPill(t, ready)}${handoffDrawer(t)}<script>const vscode=acquireVsCodeApi();const REV=7;${HANDOFF_SCRIPT}</script></body></html>`);
+const open = (ready?: number): Page => runPage(`<html><body>${readyPill(t, ready)}${handoffDrawer(t)}<script>const vscode=acquireVsCodeApi();const REV=7;const wired=(s,f)=>document.querySelectorAll(s).forEach(f);${HANDOFF_SCRIPT}</script></body></html>`);
 const REVIEW = {
   type: "patchReview",
   source: "paste",

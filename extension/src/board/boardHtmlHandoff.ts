@@ -126,7 +126,7 @@ ba.addEventListener('click',()=>{const ids=ticked().map(c=>Number(c.dataset.i));
 document.getElementById('boReject').addEventListener('click',()=>{clearList();vscode.postMessage({type:'patchReject',rev:REV});});
 document.querySelectorAll('[data-patchopen]').forEach(b=>b.addEventListener('click',()=>{openBack();vscode.postMessage({type:'patchOpen',rev:REV});}));
 const refresh=()=>{if(!line){return;}line.hidden=CH.size===0;document.getElementById('hoChosenN').textContent=line.dataset.tmpl.replace('{count}',()=>String(CH.size));};
-document.querySelectorAll('[data-choose]').forEach(c=>{const stop=e=>e.stopPropagation();c.addEventListener('click',stop);c.addEventListener('keydown',stop);c.addEventListener('change',()=>{const id=Number(c.dataset.choose);if(c.checked){CH.add(id);}else{CH.delete(id);}refresh();});});
+wired('[data-choose]',c=>{const stop=e=>e.stopPropagation();c.checked=CH.has(Number(c.dataset.choose));c.addEventListener('click',stop);c.addEventListener('keydown',stop);c.addEventListener('change',()=>{const id=Number(c.dataset.choose);if(c.checked){CH.add(id);}else{CH.delete(id);}refresh();});});
 document.querySelectorAll('[data-hochosen]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.hochosen==='go'){openDrawer('chosen');}else{CH.clear();document.querySelectorAll('[data-choose]').forEach(c=>{c.checked=false;});refresh();}}));
 window.addEventListener('message',e=>{const m=e.data;if(!m){return;}
 if(m.type==='handoffOpen'&&typeof m.scope==='string'){if(['fix','plan','review','triage','organize'].includes(m.task)){task=m.task;pressed('[data-task]','task',task);}openDrawer(m.scope,typeof m.i==='number'?m.i:undefined);}

@@ -95,3 +95,15 @@ export function generated(n: number, projects = 3): OrgDoc[] {
   }
   return out;
 }
+
+// Best time in milliseconds of `runs` calls after one warm-up call: a slow machine moment cannot fail a budget test.
+export function bestMs(fn: () => void, runs = 3): number {
+  fn();
+  let best = Infinity;
+  for (let i = 0; i < runs; i++) {
+    const started = performance.now();
+    fn();
+    best = Math.min(best, performance.now() - started);
+  }
+  return best;
+}

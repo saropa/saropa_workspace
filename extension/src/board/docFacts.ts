@@ -4,8 +4,9 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 4;
+export const FACTS_VERSION = 5;
 
+import { readFrontMatter } from "./org/frontMatter";
 import { Audience, Severity, SeverityDict, scoreDocument } from "./severity";
 
 // One open step of a document: a checklist box or a table row with an open state word.
@@ -55,6 +56,9 @@ export interface DocFacts {
   mentions: string[];
   severity: Severity;
   audience: Audience;
+  // Tags and group named in the front matter block at the top of the document; absent when there is none.
+  tags?: string[];
+  group?: string;
 }
 
 // Settings that change how facts are read.
@@ -248,6 +252,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
   const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
   const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
   const mentions = findMentions(body, opt.mentions ?? {});
+  const front = isSql ? undefined : readFrontMatter(text);
   return {
     title,
     headings: heads.length,
@@ -270,6 +275,8 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
     mentions,
     ...scoreDocument(text, path, opt.severity),
+    ...(front && front.tags.length > 0 ? { tags: front.tags } : {}),
+    ...(front?.group ? { group: front.group } : {}),
   };
 }
 
