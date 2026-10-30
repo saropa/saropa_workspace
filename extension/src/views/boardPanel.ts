@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { BoardRun, acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
+import { acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
 import { SHARED_FILE, clearSharedRejected } from "../commands/boardMarks";
 import { moveToArchive } from "../commands/boardTidy";
@@ -10,25 +10,12 @@ import { currentBoard } from "./boardFeed";
 import { markSeenNow } from "./boardSinceLast";
 import { PLACEMENT_KEY, applySuggestion, closeFailedOpen, rememberColumn, rejectProposals, undoRejected, openDocument, openExternalLink, openSittingsLine, saveSitting, documentColumn } from "./boardPanelActions";
 import { BoardPanelFuture } from "./boardPanelFuture";
-import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
-import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { targetsOf } from "../board/patch";
-import { applyRows, changedOnDisk, remainingFiles, savePastedPatch, undoBatch } from "../commands/boardPatch";
-import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
-import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
-import { pickGroup } from "../commands/boardGroupPick";
-import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
-import { NeedsDirection, NeedsPick, pickNeeds } from "./boardNeedsPick";
-import { planDrop } from "../board/boardDrop";
 import { cardRows } from "../board/boardHtmlGroups";
 import { ganttRows } from "../board/boardHtmlGantt";
 import { pl } from "../board/boardHtmlUtil";
 import { strings } from "./boardStrings";
-import type { BoardItem, BoardModel } from "../board/boardModel";
-import { researchQueue } from "../board/futureResearch";
-import { busyMessage, busyReason } from "./boardBusy";
-import { TagsEditorInput, openTagsEditor } from "./tagsEditorPanel";
-import { matchedTagIds, settingsOf } from "../board/org/settings";
+import type { BoardItem } from "../board/boardModel";
+import { openTagsEditor } from "./tagsEditorPanel";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
@@ -36,7 +23,7 @@ import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "
 import { writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
 import { GROUP_BYS } from "../board/types";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
-import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
+import { FUTURE_SORTS, FutureSort } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
