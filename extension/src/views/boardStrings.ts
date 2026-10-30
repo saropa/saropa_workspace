@@ -415,6 +415,9 @@ export const POLISH_KEYS = [
   "ringSteps",
   "barsSize",
   "futureLabelTip",
+  "futureMenu",
+  "futureMenuList",
+  "futureGroupTip",
   "futureSortTip",
   "g.redDot",
   "g.greenDot",
@@ -473,7 +476,6 @@ export const POLISH_KEYS = [
   "optsMenu",
   "optsMenuList",
   "marksMore",
-  "hintBar",
   "rollupBar",
   "rollupLight",
   "rollupSkipped",
@@ -498,7 +500,7 @@ function polishStrings() {
 }
 
 // Every key of the umbrella view's label table, in en.json as "releaseBoard.projects.label.<key>".
-export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintAdd", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "startup", "startupTip"] as const;
+export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "startup", "startupTip"] as const;
 
 // Labels of the umbrella view: the Projects and Settings buttons, the hint, the roll-up and the grey rows.
 function projectStrings() {

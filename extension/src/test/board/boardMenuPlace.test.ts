@@ -25,6 +25,17 @@ test("a menu taller than the room scrolls inside it, below or above", () => {
   assert.equal(above.top, 700 - 2 - 694);
 });
 
+test("in a 300 px high viewport a tall menu takes the larger side and scrolls, with no floor on its height", () => {
+  const low = placeMenu({ top: 270, bottom: 290, right: 400 }, 200, 600, 420, 300, 0, 0);
+  assert.equal(low.maxHeight, 264);
+  assert.equal(low.top, 270 - 2 - 264);
+  const mid = placeMenu({ top: 140, bottom: 160, right: 400 }, 200, 600, 420, 300, 0, 0);
+  assert.equal(mid.maxHeight, 134);
+  assert.equal(mid.top, 162);
+  const tight = placeMenu({ top: 30, bottom: 270, right: 400 }, 200, 600, 420, 300, 0, 0);
+  assert.equal(tight.maxHeight, 24, "the larger of 24 above and 24 below, not padded to 80");
+});
+
 test("the left edge stays inside the viewport and the scroll offset is added", () => {
   assert.equal(placeMenu({ top: 0, bottom: 20, right: 30 }, 200, 100, 420, 800, 10, 0).left, 14);
   assert.equal(placeMenu({ top: 0, bottom: 20, right: 900 }, 200, 100, 420, 800, 0, 0).left, 216);

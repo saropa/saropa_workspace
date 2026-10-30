@@ -16,7 +16,6 @@ const labels: Record<string, string> = {
   projectsTip: "Choose projects",
   settings: "Settings",
   settingsTip: "Open settings",
-  hintAdd: "Add more projects",
   hintDismissTip: "Hide the hint",
   rollup: "{count} projects",
   open: "open",
@@ -143,7 +142,8 @@ test("the hint lives in the options menu, with no bar of its own, and only when 
   const m = model(cfg(["zed"]));
   const on = renderBoard(m, t, "n", 7, { hint: true });
   const menu = on.slice(on.indexOf('id="menu-opts"'));
-  assert.ok(menu.indexOf('data-act="projects"') < menu.indexOf('data-act="handBoard"'), "the add entry leads the menu");
+  assert.ok(menu.indexOf('data-act="hintDismiss"') < menu.indexOf('data-act="handBoard"'), "the hide entry leads the menu");
+  assert.equal(menu.match(/data-act="projects"/g)?.length, 1, "one Projects entry");
   assert.ok(menu.includes('data-act="hintDismiss"'));
   assert.ok(!on.includes('class="hint"'));
   assert.ok(!renderBoard(m, t, "n", 7).includes('data-act="hintDismiss"'));

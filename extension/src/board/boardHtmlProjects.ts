@@ -6,7 +6,6 @@ import { BoardStrings, escapeHtml, fillT, pill, tip, titleAttr } from "./boardHt
 // bare message and the host does the rest.
 
 export const PROJECTS_STYLE = `
-.hint{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
 .roll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}.roll .go{font-size:12px;padding:0 8px}
 .otag{color:var(--blue);border-color:var(--blue)}.vd.skip{border-style:dashed;opacity:.85}.go.skipped{background:rgba(128,128,128,.25);color:var(--mute)}`;
 

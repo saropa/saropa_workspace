@@ -61,7 +61,7 @@ function minutesLabel(m: number): string {
   return m < 60 ? `${m}m` : m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "✓" };
+const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "■" };
 
 function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): string {
   const word = pl(t, r.status === "green" ? "ganttDoneWord" : "st." + r.status);

@@ -12,7 +12,7 @@ export function placeMenu(btn: { top: number; bottom: number; right: number }, w
   const below = vh - btn.bottom - 6;
   const above = btn.top - 6;
   const flip = h > below && above > below;
-  const maxHeight = Math.max(80, Math.min(h, flip ? above : below));
+  const maxHeight = Math.max(0, Math.min(h, flip ? above : below));
   const top = flip ? btn.top - 2 - maxHeight : btn.bottom + 2;
   return { top: top + sy, left: Math.max(4, Math.min(btn.right - w, vw - w - 4)) + sx, maxHeight };
 }

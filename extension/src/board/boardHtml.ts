@@ -7,7 +7,7 @@ import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { CARD_GROUP_BYS, groupCards } from "./boardHtmlGroups";
 import type { GroupBy } from "./types";
-import { FutureView, futurePanel, viewTabs } from "./boardHtmlFuture";
+import { FutureView, futureMenu, futurePanel, viewTabs } from "./boardHtmlFuture";
 import { DRAG_SCRIPT, DRAG_STYLE, statusBands } from "./boardHtmlDrag";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
@@ -161,7 +161,7 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 </div>
 ${futurePanel(future, t)}
 ${undoBar(t, state.undo)}
-${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup, state.hint)}
+${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${futureMenu(future, t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup, state.hint)}
 ${handoffDrawer(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}
