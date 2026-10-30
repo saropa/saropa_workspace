@@ -18,7 +18,6 @@ export interface BoardStrings {
   resolveNow: string;
   workOn: string;
   inProgress: string;
-  nothingHere: string;
   more: string;
   blocked: string;
   refresh: string;
@@ -297,10 +296,10 @@ export function sectionIcon(t: BoardStrings, id: string): string {
 
 // A section the reader can fold: a details element whose summary holds the heading. Native
 // details gives keyboard support and the expanded state; the page script remembers it per
-// viewer under `id`. Expanded unless `open` is false.
-export function collapsible(o: { t: BoardStrings; id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string }): string {
+// viewer under `sec` (default `id`, which also picks the icon). Expanded unless `open` is false.
+export function collapsible(o: { t: BoardStrings; id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string; sec?: string }): string {
   const h = o.level === 3 ? "h3" : "h2";
-  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${sectionIcon(o.t, o.id)}${o.head}</${h}></summary>${o.body}</details>`;
+  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.sec ?? o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${sectionIcon(o.t, o.id)}${o.head}</${h}></summary>${o.body}</details>`;
 }
 
 // Like fill, for page text: a number among the values goes in as a pill.

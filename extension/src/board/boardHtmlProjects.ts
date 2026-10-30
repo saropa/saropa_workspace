@@ -15,7 +15,11 @@ export const PROJECTS_STYLE = `
 export const PROJECTS_SCRIPT = `document.querySelectorAll('[data-projects]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'projects',rev:REV})));
 document.querySelectorAll('[data-scope]').forEach(b=>b.addEventListener('click',()=>{if(b.getAttribute('aria-pressed')!=='true'){vscode.postMessage({type:'scope',value:b.dataset.scope,rev:REV});}}));
 document.querySelectorAll('[data-fclear]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.fclear;sitSend({...(k!=='have'?{box:'any'}:{}),...(k!=='time'?{have:SIT.all}:{})});}));
-document.querySelectorAll('[data-since-go]').forEach(b=>b.addEventListener('click',()=>{showTab('board');const d=document.getElementById('since-box');if(d){d.open=true;d.scrollIntoView({block:'start'});}}));
+const openMore=id=>{document.querySelectorAll('[data-more]').forEach(b=>{const on=b.dataset.more===id;b.setAttribute('aria-pressed',String(on));const p=document.getElementById('more-'+b.dataset.more);if(p){p.hidden=!on;}});vscode.setState({...(vscode.getState()||{}),moreOpen:id});};
+document.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>openMore(b.getAttribute('aria-pressed')==='true'?'':b.dataset.more)));
+openMore(((vscode.getState()||{}).moreOpen)||'');
+const AUTO=(vscode.getState()||{}).moreAuto||{};document.querySelectorAll('[data-auto]').forEach(b=>{const id=b.dataset.more;if(AUTO[id]!==b.dataset.auto){AUTO[id]=b.dataset.auto;vscode.setState({...(vscode.getState()||{}),moreAuto:AUTO});openMore(id);}});
+document.querySelectorAll('[data-since-go]').forEach(b=>b.addEventListener('click',()=>{showTab('board');openMore('since');const d=document.getElementById('since-box');if(d){d.open=true;d.scrollIntoView({block:'start'});}}));
 document.querySelectorAll('[data-since-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'sinceDismiss',rev:REV})));
 document.querySelectorAll('[data-hint-dismiss]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'hintDismiss',rev:REV})));`;
 

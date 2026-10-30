@@ -18,7 +18,7 @@ import { openKeywordEditor } from "./keywordEditorPanel";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
-import { writeProjectScope } from "../commands/boardExtraProjects";
+import { writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
@@ -102,6 +102,9 @@ class BoardPanel extends BoardPanelWiring {
       await this.noRule(message.type, message.i);
     } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
       await this.projectsMessage(message.type);
+    } else if (message.type === "groupBy" && (message.value === "project" || message.value === "none")) {
+      // The setting change draws the board again through the configuration listener.
+      await writeGroupBy(message.value);
     } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
       await writeProjectScope(message.value);
     } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {

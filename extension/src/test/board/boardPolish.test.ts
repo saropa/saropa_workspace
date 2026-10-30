@@ -313,3 +313,12 @@ test("a device id with a quote is escaped in the menu, and the all entry says wh
   assert.ok(!menu.includes('data-act="have:a"b'));
   assert.ok(menu.includes('data-act="haveall" aria-checked="false"'));
 });
+
+test("With Group by Project a project still lists its in-progress documents when another project fills the global cap", () => {
+  const two: BoardConfig = { ...cfg, projects: [...cfg.projects, { id: "lib", name: "Lib", path: "lib", roots: ["docs"], ruleSets: [] }] };
+  const rows: Classified[] = [...Array.from({ length: 5 }, (_x, i) => row(`docs/p${i}.md`, "purple")), { ...row("docs/mine.md", "purple"), project: "lib" }];
+  const m = buildBoard(two, rows, undefined, true, undefined, undefined, undefined, { inProgress: { edited: [], max: 5 } });
+  assert.ok(!m.inProgress?.ids.some((id) => m.items[id].project === "lib"), "the global cap holds only the other project");
+  const html = renderBoard(m, t, "n", 0, { groupBy: "project" });
+  assert.ok(html.includes("docs/mine.md") || html.includes(">mine</a>"));
+});

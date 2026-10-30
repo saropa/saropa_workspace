@@ -55,6 +55,8 @@ The Release Board is calmer: red only for what really blocks a release, a one-li
 - **Release Board: one-line header.** A This project / All projects switch, the tabs and two menus (view options with the release mode, project actions with scan again, projects, rules file, keywords, settings and start-up). Applied time and context filters show as removable pills under the header.
 - **Release Board: menus instead of chips.** The time and device chips in the Steps box moved into the view options menu; the filter pills under the header still clear them. A scope and mode pill in the header (for example "All 5 · Deliberate") shows the detail in its tooltip. The add-projects hint is one small button instead of a sentence.
 - **Release Board: "Since you last looked" stays until dismissed.** It no longer clears by itself after a few seconds. A Changes button in the header opens it, Dismiss clears it, and rows of documents that became blockers since your last look get a static dotted blue outline.
+- **Release Board: one card per project.** With Group by Project (the default; Group by None in the view options menu keeps the merged lists) each project is a card that holds its own Path to GO and lists. A card starts closed, except the only card or the open project when it is NO-GO, and its fold state resets when its light changes. New setting `releaseBoard.groupBy`.
+- **Release Board: quieter sections.** Empty sections are not drawn, lists show five rows and a "Show N more" pill, the Steps box starts folded when no step fits, and Since you last looked, Linked, Tidy, No rule, Outside and Unnamed crashes sit behind one More strip. The Since section opens by itself once when a document became a blocker.
 
 ---
 

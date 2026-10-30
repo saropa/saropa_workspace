@@ -118,10 +118,20 @@ test("the list is capped at 30 rows and says how many are left out", () => {
   assert.ok(html.includes("more 5"));
 });
 
-test("an empty list says there is nothing here", () => {
-  const html = list("Resolve", [], new Map(), t);
-  assert.ok(html.includes("[nothingHere]"));
-  assert.ok(html.includes('<summary class="sh" title="list"><h2 title="list"><span class="si" aria-hidden="true">📋</span> Resolve <span class="pill" title="count">0</span></h2></summary>'));
+test("an empty list is not drawn", () => {
+  assert.equal(list("Resolve", [], new Map(), t), "");
+});
+
+test("a list shows five rows, then a Show more pill that reveals the rest", () => {
+  const m = buildBoard(cfg, Array.from({ length: 8 }, (_x, i) => row("app", `bugs/r${i}.md`, "red")), undefined, true);
+  const html = list("Resolve", m.items, new Map(), t, { tip: "list.resolveNow", scope: "app" });
+  assert.equal(html.match(/<div class="row/g)?.length, 8);
+  const [head, tail] = html.split('<button type="button" class="sec" data-show-more');
+  assert.equal(head.match(/<div class="row/g)?.length, 5, "five rows before the pill");
+  assert.ok(tail.includes(">showMore</button><div hidden>"));
+  assert.equal(tail.match(/<div class="row/g)?.length, 3, "three rows wait behind it");
+  assert.ok(html.includes('data-sec="list.resolveNow:app"'), "a scoped list is remembered apart from the same list of another card");
+  assert.equal(list("Resolve", m.items.slice(0, 5), new Map(), t).includes("data-show-more"), false, "five rows need no pill");
 });
 
 test("related items sit under a group heading, indented", () => {

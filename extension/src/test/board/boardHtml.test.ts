@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { BoardStrings, escapeHtml, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { escapeHtml as fromUtil } from "../../board/boardHtmlUtil";
 import { buildBoard } from "../../board/boardModel";
+import { viewMenu } from "../../board/boardHtmlMenus";
 import { pathToGo } from "../../board/pathToGo";
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 
@@ -122,13 +123,15 @@ test("path lists are drawn per project only when paths are given", () => {
   assert.ok(renderBoard(m, t, "n", 0, { stale: true }, paths).includes('data-live="0"'), "a stale page cannot act");
 });
 
-test("the since strip and the train row appear above the projects", () => {
+test("the train row appears above the projects; the since strip waits behind the More strip", () => {
   const m = buildBoard(cfg, [], undefined, true);
   const html = renderBoard(m, t, "n", 0, {}, undefined, { heading: "Since then", marked: [], lines: [{ text: "line one", details: [] }] }, [
     { key: "k", name: "Train", light: "go", members: [{ id: "app", name: "App", light: "go", label: "1" }], heldBy: [], cycle: false },
   ]);
   const at = (s: string): number => html.indexOf(s);
-  assert.ok(at("Since then") > 0 && at("Since then") < at('class="vd train"') && at('class="vd train"') < at('App</b>'));
+  assert.ok(at('class="vd train"') > 0 && at('class="vd train"') < at('App</b>'));
+  assert.ok(at('data-more="since"') > at('App</b>'), "the pill follows the projects");
+  assert.ok(html.includes('<div class="mpanel" id="more-since" hidden>') && html.lastIndexOf("Since then") > at('id="more-since"'), "the strip sits in a closed panel");
 });
 
 test("the sittings filter shows when the model has a sittings view, and no button hides it", () => {
@@ -136,7 +139,48 @@ test("the sittings filter shows when the model has a sittings view, and no butto
   assert.ok(!renderBoard(without, t, "n").includes('id="sit-panel"'));
   const withView = buildBoard(cfg, [], undefined, true, undefined, undefined, undefined, { sittings: { selection: { timeBox: "any", maxSteps: 5 }, onlyOwner: false } });
   const html = renderBoard(withView, t, "n");
-  assert.ok(html.includes('<details class="box" id="sit-panel" data-sec="sittings" open>'));
+  assert.ok(html.includes('<details class="box" id="sit-panel" data-sec="sittings">'), "no step fits, so it starts folded");
+  assert.ok(html.includes('[sittingsHeading] <span class="pill" title="count">0</span>'), "the count is in the heading");
   assert.equal(html.includes('id="sit-open"'), false);
   assert.equal(html.includes("sit-panel\" hidden"), false);
+});
+
+test("Group by Project draws one card per project with its lists inside, closed unless it is the only or a NO-GO open project", () => {
+  const two: BoardConfig = { ...cfg, projects: [...cfg.projects, { id: "lib", name: "Lib", path: "lib", roots: ["docs"], ruleSets: [], extra: true }] };
+  const m = buildBoard(two, [row("app", "bugs/a.md", "red"), row("lib", "bugs/b.md", "red")], undefined, true);
+  const html = renderBoard(m, t, "n", 0, { groupBy: "project" });
+  assert.equal(html.match(/<details class="box pcard"/g)?.length, 3);
+  assert.ok(html.includes('data-sec="project:app:no-go"'), "the fold state is keyed by the light");
+  assert.ok(/<details class="box pcard" data-sec="project:app:no-go" open>/.test(html), "the open project is NO-GO, so its card is open");
+  assert.ok(/<details class="box pcard" data-sec="project:lib:no-go">/.test(html), "a chosen project stays closed");
+  assert.ok(html.includes('data-sec="list.resolveNow:app"') && html.includes('data-sec="list.resolveNow:lib"'), "each card has its own lists");
+  const none = renderBoard(m, t, "n", 0, { groupBy: "none" });
+  assert.equal(none.includes('<details class="box pcard"'), false, "None keeps the merged lists");
+  assert.ok(none.includes('data-sec="list.resolveNow"'));
+});
+
+test("with one project the card is open, and a project with nothing to list draws no empty list", () => {
+  const m = buildBoard({ ...cfg, projects: [cfg.projects[0]] }, [], undefined, true);
+  const html = renderBoard(m, t, "n", 0, { groupBy: "project" });
+  assert.ok(/<details class="box pcard" data-sec="project:app:[a-z-]+" open>/.test(html));
+  assert.equal(html.includes("list.resolveNow"), false);
+});
+
+test("the More strip has one pill per side section that has something to show, and none without", () => {
+  const m = buildBoard(cfg, [], undefined, true);
+  assert.equal(renderBoard(m, t, "n").includes('class="more"'), false, "nothing to show, no strip");
+  const html = renderBoard(m, t, "n", 0, {}, undefined, { heading: "Since then", marked: ["app/docs/a.md", "app/docs/b.md"], lines: [{ text: "x", details: [] }] });
+  assert.ok(html.includes('<div class="more" role="group"'));
+  assert.ok(html.includes('<button type="button" class="sec" data-more="since" data-auto="app/docs/a.md|app/docs/b.md" aria-pressed="false" aria-controls="more-since"'));
+  assert.equal(html.match(/data-more="/g)?.length, 1);
+  assert.equal(html.match(/class="mpanel"/g)?.length, 1);
+  const quiet = renderBoard(m, t, "n", 0, {}, undefined, { heading: "Since then", marked: [], lines: [{ text: "x", details: [] }] });
+  assert.equal(quiet.includes('data-auto="'), false, "no blocker gained, no automatic opening");
+});
+
+test("the view menu offers Group by only when the grouping is known, with the current choice ticked", () => {
+  assert.equal(viewMenu(t, "deliberate").includes("group:"), false);
+  const menu = viewMenu(t, "deliberate", undefined, "none");
+  assert.ok(menu.includes('role="menuitemradio" data-act="group:project" aria-checked="false" title="groupProjectTip"'));
+  assert.ok(menu.includes('role="menuitemradio" data-act="group:none" aria-checked="true" title="groupNoneTip"'));
 });

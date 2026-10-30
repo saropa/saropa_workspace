@@ -11,6 +11,8 @@ import { Signal, showsOnRow } from "./reportSignals";
 const LIST_CAP = 30;
 // A list longer than this starts folded.
 const LONG_LIST = 25;
+// Rows a list shows at first; the rest wait behind a "Show N more" pill.
+const SHOWN_ROWS = 5;
 
 function reasonText(r: UnverifiedReason, p: BoardProject, t: BoardStrings): string {
   switch (r) {
@@ -242,6 +244,8 @@ export interface ListOptions {
   cap?: number;
   // Leave out the project name of each row: only one project is shown.
   single?: boolean;
+  // Tells the lists of one project card apart from the same list of another card.
+  scope?: string;
 }
 
 // One list of items under a heading, grouped items together, capped at a fixed length.
@@ -253,23 +257,27 @@ export function list(title: string, items: BoardItem[], names: Map<string, strin
   const grouped = (i: BoardItem): BoardItem["group"] => (i.group && (size.get(i.group.id) ?? 0) > 1 ? i.group : undefined);
   const ordered = opt.cap === undefined ? [...items].sort((a, b) => (grouped(b) ? 1 : 0) - (grouped(a) ? 1 : 0) || (grouped(a)?.name ?? "").localeCompare(grouped(b)?.name ?? "") || (grouped(a)?.id ?? "").localeCompare(grouped(b)?.id ?? "")) : items;
   let last: string | undefined;
-  const shown = ordered
-    .slice(0, cap)
-    .map((i) => {
-      const g = opt.cap === undefined ? grouped(i) : undefined;
-      const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${blocks(i) ? "red" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b></div>` : "";
-      last = g?.id;
-      return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined);
-    })
-    .join("");
+  const parts = ordered.slice(0, cap).map((i) => {
+    const g = opt.cap === undefined ? grouped(i) : undefined;
+    const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${blocks(i) ? "red" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b></div>` : "";
+    last = g?.id;
+    return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined);
+  });
   const left = items.length > cap ? items.length - cap : 0;
   const hidden = left + (opt.more ?? 0);
   const more = hidden > 0 ? `<p class="note" ${titleAttr(t.more.replace("{count}", String(hidden)))}>${pillify(t, escapeHtml(t.more.replace("{count}", String(hidden))))}</p>` : "";
-  const body = items.length === 0 ? `<p class="note">${escapeHtml(t.nothingHere)}</p>` : shown + more;
-  const note = opt.note ? `<p class="note">${escapeHtml(opt.note)}</p>` : "";
+  // An empty list is not drawn.
   const total = items.length + (opt.more ?? 0);
+  if (total === 0) {
+    return "";
+  }
+  // Rows past the first few wait behind a pill; the page script reveals them.
+  const rest = parts.length - SHOWN_ROWS;
+  const shown = rest > 0 ? `${parts.slice(0, SHOWN_ROWS).join("")}<button type="button" class="sec" data-show-more ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><div hidden>${parts.slice(SHOWN_ROWS).join("")}${more}</div>` : parts.join("") + more;
+  const note = opt.note ? `<p class="note">${escapeHtml(opt.note)}</p>` : "";
   // A long list starts folded; the heading still shows how many it holds.
-  return collapsible({ t, id: opt.tip ?? "list:" + title, tipAttr: tip(t, opt.tip ?? "list", { title, count: total }), head: `${escapeHtml(title)} ${pill(t, total, "count", { count: total })}`, body: note + body, open: items.length <= LONG_LIST });
+  const id = opt.tip ?? "list:" + title;
+  return collapsible({ t, id, sec: opt.scope ? `${id}:${opt.scope}` : id, tipAttr: tip(t, opt.tip ?? "list", { title, count: total }), head: `${escapeHtml(title)} ${pill(t, total, "count", { count: total })}`, body: note + shown, open: items.length <= LONG_LIST });
 }
 
 // The step line for a row whose daily report job has something to say. Escaped.
@@ -337,7 +345,7 @@ export function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: bo
   const items = path.steps
     .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" || s.kind === "build" || s.kind === "deps" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}${handButton(t, `data-hk="step" data-p="${pi}" data-s="${si}"`)}</li>`)
     .join("");
-  const more = path.hidden > 0 ? `<li class="note" data-more="1">${fillT(t, t.ptgMore, { count: path.hidden })}</li>` : "";
+  const more = path.hidden > 0 ? `<li class="note" data-ptg-more="1">${fillT(t, t.ptgMore, { count: path.hidden })}</li>` : "";
   const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";
   return `<ol class="ptg" hidden data-live="${canAct ? 1 : 0}" data-all="${escapeHtml(JSON.stringify(path.allKeys))}">${none}${items}${more}</ol>`;
 }
@@ -348,4 +356,12 @@ export function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights
     return verdict(p, t, lights, false, badge);
   }
   return `<div class="pj" data-pid="${escapeHtml(p.id)}">${verdict(p, t, lights, true, badge)}${pathList(path, t, i, canAct)}</div>`;
+}
+
+// A project card: the verdict row is the heading; the Path to GO and the project's own lists sit
+// inside. The caller says whether it starts open. Its fold state is remembered per light, so a
+// change of light starts the card over.
+export function projectCard(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean, badge: string, open: boolean, lists: string): string {
+  const steps = path ? `<div class="pj" data-pid="${escapeHtml(p.id)}">${pathList(path, t, i, canAct)}</div>` : "";
+  return `<details class="box pcard" data-sec="${escapeHtml(`project:${p.id}:${p.light}`)}"${open ? " open" : ""}><summary class="sh">${verdict(p, t, lights, false, badge)}</summary>${steps}${lists}</details>`;
 }

@@ -1,17 +1,17 @@
-import { BoardItem, BoardModel } from "./boardModel";
+import { BoardItem, BoardModel, BoardProject } from "./boardModel";
 import { PathToGo } from "./pathToGo";
 import { Train } from "./train";
 import { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml, glyphTip, pillify, pl, tip } from "./boardHtmlUtil";
 import { STYLE, script } from "./boardHtmlAssets";
-import { list, projectBlock } from "./boardHtmlRows";
+import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
 import { optsMenu, rowMenu, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
-import { chains, noRuleBox, sinceMarks, outsideBoxes, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
+import { chains, chainsName, moreStrip, noRuleBox, sinceMarks, outsideBox, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
 // Renders the board model to the HTML of the first screen. Pure: the strings come in
 // as a table so the core stays free of VS Code and of the l10n catalog, and the page can
@@ -41,6 +41,9 @@ export interface RenderState {
   hint?: boolean;
   // False hides the colored icons before section headings (the sectionIcons setting); undefined leaves them on.
   sectionIcons?: boolean;
+  // "project" draws one card per project with its lists inside; "none" keeps the merged lists.
+  // Left undefined (a plain-browser layout check), the merged lists are drawn.
+  groupBy?: "project" | "none";
   // Whether the board opens at start-up (the setting is not "never"); undefined leaves the menu entry out.
   startup?: boolean;
   // Which projects the board shows (the projectScope setting); undefined leaves the scope switch out.
@@ -60,13 +63,28 @@ export function byUserNote(model: BoardModel, t: BoardStrings): string {
 
 // The In progress list: documents being edited in this window first, then documents marked in
 // progress, cut at the limit with the rest counted. Without the feature it is every purple item.
-function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardStrings, single: boolean): string {
+// With a project id only that project's documents are listed (the left-out count then stays out).
+function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardStrings, single: boolean, project?: string): string {
   const v = model.inProgress;
+  const mine = (i: BoardItem): boolean => project === undefined || i.project === project;
+  const opt = { tip: "list.inProgress", single, scope: project };
   if (!v) {
-    return list(t.inProgress, model.items.filter((i) => i.status === "purple"), names, t, { tip: "list.inProgress", single });
+    return list(t.inProgress, model.items.filter((i) => i.status === "purple" && mine(i)), names, t, opt);
   }
-  const items = v.ids.map((id) => model.items[id]).filter((i): i is BoardItem => i !== undefined);
-  return list(t.inProgress, items, names, t, { tip: "list.inProgress", note: pl(t, "inProgressNote"), more: v.more, cap: items.length, single });
+  const items = v.ids.map((id) => model.items[id]).filter((i): i is BoardItem => i !== undefined && mine(i));
+  if (project !== undefined) {
+    // The global cap may be filled by other projects: a project card also lists its own marked documents past it.
+    const listed = new Set(items.map((i) => i.id));
+    const own = [...items, ...model.items.filter((i) => i.status === "purple" && mine(i) && !listed.has(i.id))];
+    return list(t.inProgress, own, names, t, { ...opt, note: pl(t, "inProgressNote") });
+  }
+  return list(t.inProgress, items, names, t, { ...opt, note: pl(t, "inProgressNote"), more: v.more, cap: items.length });
+}
+
+// The lists inside one project card: its blockers, what is in progress and what to work on.
+function cardLists(model: BoardModel, p: BoardProject, names: Map<string, string>, t: BoardStrings): string {
+  const mine = (s: string): BoardItem[] => model.items.filter((i) => i.project === p.id && i.status === s);
+  return list(t.resolveNow, mine("red"), names, t, { tip: "list.resolveNow", single: true, scope: p.id }) + inProgressList(model, names, t, true, p.id) + list(t.workOn, mine("amber"), names, t, { tip: "list.workOn", single: true, scope: p.id });
 }
 
 // Renders the whole board page. `paths` holds one Path to GO per project, in the order of
@@ -90,6 +108,22 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
     : model.safetyHold
       ? `<div class="box"><p>${escapeHtml(t.safetyHold)} ${accept}</p></div>`
       : "";
+  const live = !(state.stale || state.loading);
+  // One card per project, or the projects as plain rows over the merged lists.
+  const projects = state.groupBy === "project"
+    ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, openBadge(p, model, t), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
+    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, openBadge(p, model, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
+      + list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow", single }) + inProgressList(model, names, t, single) + list(t.workOn, by("amber"), names, t, { tip: "list.workOn", single });
+  // The side sections wait behind one strip of pills. Changes since the last look opens by itself
+  // once, when a document became a blocker.
+  const more = moreStrip([
+    { id: "since", label: since?.heading ?? "", html: sinceBox(since, t), auto: since?.marked.join("|"), count: since?.lines.length },
+    { id: "linked", label: chainsName(model, t), html: chains(model, t), count: model.chains.length + model.flags.length + model.suggestions.length, warn: model.flags.length > 0 },
+    { id: "tidy", label: t.tidyHeading, html: live ? tidyBox(model, t) : "", count: (model.tidy?.candidates.length ?? 0) + (model.tidy?.more ?? 0) + (model.tidy?.reports.length ?? 0) },
+    { id: "norule", label: t.needsRuleHeading, html: noRuleBox(model, t, names, live), count: model.needsRule.reduce((a, n) => a + n.count, 0) },
+    ...model.outside.map((g, gi) => ({ id: "outside:" + g.id, label: g.label, html: outsideBox(g, gi, t), count: g.items.length })),
+    { id: "live", label: t.liveUnnamedHeading, html: live ? unnamedBox(model, t, true) : "", count: model.liveUnnamed?.length ?? 0, warn: true },
+  ], t);
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${KEYWORD_LINE_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
@@ -97,25 +131,16 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
 ${topBar(model, t, state.scope, futureTabs(future, t), since)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}
 <div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}">${byUserNote(model, t)}${keywordLine(model, t)}${banner}
-${sinceBox(since, t)}
-${state.stale || state.loading ? "" : tidyBox(model, t)}
-${sittingsBox(model, t)}
 ${trainBox(trains, t)}
 ${rollupBar(model, t)}
-${model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], !(state.stale || state.loading), openBadge(p, model, t))).join("")}
-${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}
-${list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow", single })}
-${inProgressList(model, names, t, single)}
-${list(t.workOn, by("amber"), names, t, { tip: "list.workOn", single })}
-${state.stale || state.loading ? "" : unnamedBox(model, t, true)}
-${chains(model, t)}
-${outsideBoxes(model, t)}
-${noRuleBox(model, t, names, !(state.stale || state.loading))}
+${projects}
+${sittingsBox(model, t)}
+${more}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber" ${glyphTip(t, "g.amberSquare", t.blocked.replace("{count}", String(blocked)))}></i> ${pillify(t, escapeHtml(t.blocked.replace("{count}", String(blocked))))}</p>` : ""}
 ${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
-${rowMenu(t)}${viewMenu(t, model.profile, model.sittings)}${optsMenu(t, state.startup)}
+${rowMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}
 ${KEYWORD_LINE_SCRIPT}</script></body></html>`;

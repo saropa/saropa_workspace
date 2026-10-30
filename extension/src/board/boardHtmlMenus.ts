@@ -27,14 +27,15 @@ export function rowMenu(t: BoardStrings): string {
 // Names of the time boxes the Steps filter offers, with the minutes each means.
 const TIME_LABELS: Array<[string, string]> = [["any", "timeAny"], ["15", "time15"], ["30", "time30"], ["60", "timeHour"], ["240", "timeHalfDay"]];
 
-// The view options menu: the release mode, one entry per profile, then (with the Steps box) the
+// The view options menu: the release mode, one entry per profile, the grouping (when known), then (with the Steps box) the
 // time I have and the devices in hand. The current choice is ticked. The mode applies to every
 // project on the board. The Steps choices travel as JSON on the menu: the page script changes
 // one and sends the whole selection, the same message the old chips sent.
-export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel["sittings"]): string {
+export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel["sittings"], groupBy?: "project" | "none"): string {
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
   const tick = (on: boolean): string => (on ? "\u2713 " : "");
   const head = (key: string): string => `<div class="mh" role="presentation" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div>`;
+  const group = groupBy === undefined ? "" : `${head("groupBy")}${(["project", "none"] as const).map((g) => item("group:" + g, tick(groupBy === g) + pl(t, g === "project" ? "groupProject" : "groupNone"), pl(t, g === "project" ? "groupProjectTip" : "groupNoneTip"), ` aria-checked="${groupBy === g}"`, "menuitemradio")).join("")}`;
   const steps = sittings
     ? `${head("timeLabel")}${TIME_LABELS.map(([n, key]) => item("box:" + n, tick(sittings.timeBox === n) + pl(t, key), pl(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) }), ` aria-checked="${sittings.timeBox === n}"`, "menuitemradio")).join("")}`
       + (sittings.contexts.length > 0
@@ -42,7 +43,7 @@ export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel
         : "")
     : "";
   const sit = sittings ? ` data-sit="${escapeHtml(JSON.stringify({ have: sittings.have, box: sittings.timeBox, all: sittings.contexts.map((c) => c.id) }))}"` : "";
-  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, tick(profile === v) + text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${steps}</div>`;
+  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, tick(profile === v) + text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${group}${steps}</div>`;
 }
 
 // The project actions menu: scan again, the rules file, projects, keywords, settings and the
