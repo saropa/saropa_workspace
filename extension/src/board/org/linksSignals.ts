@@ -306,7 +306,30 @@ function leadTargets(tail: string): Target[] {
   return out.filter((t, k) => out.findIndex((u) => u.value === t.value) === k);
 }
 
-const FORWARD = /\b(blocked by|depends? on|depending on|waits? on|waiting on|requires?|prerequisites?|needs(?![\s*]*:)|after)\b/gi;
+// Each shipped phrase (the names in organizeEdit.ts DEFAULT_LINK_PHRASES) with the forms it also reads.
+const SHIPPED_FORMS: Record<string, string> = {
+  "blocked by": "blocked by",
+  "depends on": "depends? on",
+  "depending on": "depending on",
+  "waits on": "waits? on",
+  "waiting on": "waiting on",
+  requires: "requires?",
+  prerequisite: "prerequisites?",
+  needs: "needs(?![\\s*]*:)",
+  after: "after",
+};
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const FORWARD_CACHE = new Map<string, RegExp | undefined>();
+
+// The "waits on" phrases as one pattern; `phrases` are the ones turned on (default: all shipped). Undefined when none is.
+export function forwardPattern(phrases: readonly string[] = Object.keys(SHIPPED_FORMS)): RegExp | undefined {
+  const key = phrases.join("\n");
+  if (!FORWARD_CACHE.has(key)) {
+    const forms = phrases.map((p) => (Object.prototype.hasOwnProperty.call(SHIPPED_FORMS, p) ? SHIPPED_FORMS[p] : undefined) ?? p.trim().split(/\s+/).map(escapeRe).join("\\s+")).filter(Boolean);
+    FORWARD_CACHE.set(key, forms.length ? new RegExp(`\\b(${forms.join("|")})\\b`, "gi") : undefined);
+  }
+  return FORWARD_CACHE.get(key);
+}
 const BLOCKS_THIS = /^(.*?)\bblocks\s+(?:this|it)\b/i;
 const THIS_BLOCKS = /\bthis\s+(?:doc(?:ument)?\s+|plan\s+)?blocks\s+([^\n]{0,300})/i;
 // A negation just before a phrase ("no longer depends on", "not blocked by").
@@ -314,7 +337,8 @@ const NEGATED = /(?:\bno longer|\bnot|\bnever|\bno|n't)\b[\w\s]{0,20}$/i;
 const HIGH_PHRASE = /^(blocked|depend|wait|requir|prerequisite)/;
 
 // Phrases such as "blocked by X" or "X blocks this" with a document named as X.
-export function phraseSignals(docs: LinkDoc[], resolver: Resolver): Candidate[] {
+export function phraseSignals(docs: LinkDoc[], resolver: Resolver, phrases?: readonly string[]): Candidate[] {
+  const forward = forwardPattern(phrases);
   const out: Candidate[] = [];
   docs.forEach((d, i) => {
     const body = withoutCode(d.text);
@@ -344,7 +368,7 @@ export function phraseSignals(docs: LinkDoc[], resolver: Resolver): Candidate[] 
     };
     for (const line of body.split("\n")) {
       let seen = 0;
-      for (const m of line.matchAll(FORWARD)) {
+      for (const m of forward ? line.matchAll(forward) : []) {
         if (++seen > MAX_MATCHES_PER_LINE) {
           break;
         }
@@ -387,8 +411,8 @@ export function mentionSignals(docs: LinkDoc[], resolver: Resolver): Candidate[]
 }
 
 // Every candidate from every signal.
-export function allSignals(docs: LinkDoc[]): Candidate[] {
+export function allSignals(docs: LinkDoc[], phrases?: readonly string[]): Candidate[] {
   const names = docs.map((d) => parseName(d.path));
   const resolver = new Resolver(docs);
-  return [...phraseSignals(docs, resolver), ...sequenceSignals(docs, names), ...stemSignals(docs, names), ...mentionSignals(docs, resolver)];
+  return [...phraseSignals(docs, resolver, phrases), ...sequenceSignals(docs, names), ...stemSignals(docs, names), ...mentionSignals(docs, resolver)];
 }

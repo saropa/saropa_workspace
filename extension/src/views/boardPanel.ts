@@ -20,8 +20,8 @@ import { planDrop } from "../board/boardDrop";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
-import { openKeywordEditor } from "./keywordEditorPanel";
 import { openTagsEditor } from "./tagsEditorPanel";
+import { matchedTagIds, settingsOf } from "../board/org/settings";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
@@ -94,9 +94,11 @@ class BoardPanel extends BoardPanelWiring {
       } else if (req) {
         await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
       }
-    } else if (msg.type === "scopeMenu" && (message as { act?: unknown }).act === "hand" && typeof (message as { id?: unknown }).id === "string") {
+    } else if (msg.type === "scopeMenu" && ["hand", "tags"].includes((message as { act?: unknown }).act as string) && typeof (message as { id?: unknown }).id === "string") {
       const at = scopeOfMenu((message as { id: string }).id);
-      if (at) {
+      if (at && (message as { act?: unknown }).act === "tags") {
+        await this.tagsRules(this.scopeItems(at.scope, at.i));
+      } else if (at) {
         this.post(openMessage(at.scope, at.i));
       }
     } else {
@@ -364,6 +366,8 @@ class BoardPanel extends BoardPanelWiring {
       if (!picked.cancelled) {
         await this.inlineChange(run, item, { kind: "group", name: picked.name }, id);
       }
+    } else if (act === "tags") {
+      await this.tagsRules([item]);
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
     } else if (act === "assign") {
@@ -567,7 +571,15 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   // The Tags and rules editor. It gets the model this panel painted; nothing the page names is trusted.
-  private async tagsRules(): Promise<void> {
+  // The documents of a project or group heading ("group": the group the item at `i` is in).
+  private scopeItems(scope: string, i: number): BoardItem[] {
+    const items = this.model?.items ?? [];
+    const at = items[i];
+    return !at ? [] : scope === "group" ? items.filter((x) => x.project === at.project && x.group === at.group) : items.filter((x) => x.project === at.project);
+  }
+
+  // `from`: the documents "Edit tags" was chosen on; the tags that match them are highlighted.
+  private async tagsRules(from: readonly BoardItem[] = []): Promise<void> {
     const run = this.run;
     const model = this.model;
     if (!run || !model) {
@@ -578,7 +590,7 @@ class BoardPanel extends BoardPanelWiring {
       this.dirty = true;
       await this.refresh();
     };
-    await openTagsEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
+    await openTagsEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved, ...(from.length > 0 ? { focus: matchedTagIds(from, settingsOf(run.cfg.organize).tags) } : {}) });
   }
 
   // The keyword editor, or Restore defaults. Both change what every document's severity is, and so
@@ -605,7 +617,7 @@ class BoardPanel extends BoardPanelWiring {
       await this.refresh();
     };
     if (!restore) {
-      await openKeywordEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
+      await openTagsEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved, tab: "severity" });
       return;
     }
     this.assigning = true;

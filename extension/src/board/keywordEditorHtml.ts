@@ -1,10 +1,9 @@
 import { escapeHtml } from "./boardHtmlUtil";
-import { KEYWORD_SCRIPT, KEYWORD_STYLE } from "./keywordEditorAssets";
 import { EDIT_LEVELS, EditLevel, LIMITS, SeverityDraft, defaultDraft, draftDiffers } from "./severityEdit";
 
-// The keyword editor page. Pure: the host hands in the text table and the draft, which it has
-// already checked. Every control, list, number and heading carries a tooltip, every section
-// folds, and all text is escaped. The page carries no path and no URL.
+// The severity keyword editor, as the body of the Severity tab. Pure: the host hands in the text table and the
+// draft, which it has already checked. Every control, list, number and heading carries a tooltip, every section
+// folds, and all text is escaped. The markup carries no path and no URL.
 
 export type KeywordLabelTable = Record<string, string>;
 
@@ -52,15 +51,14 @@ export const NUMBER_RANGES: Record<string, { min: number; max: number }> = {
   "n-perPhraseCap": LIMITS.cap,
 };
 
-// The data the script starts from, as a JavaScript value. A "<" is written as a unicode escape
-// so no text in it can close the script early.
-function dataBlock(t: KeywordLabelTable, draft: SeverityDraft, saved: SeverityDraft): string {
-  const json = JSON.stringify({ t, draft, saved, defaults: defaultDraft(), levels: EDIT_LEVELS, limits: LIMITS, ranges: NUMBER_RANGES });
-  return json.split("<").join("\\u003c");
+// The data the keyword script starts from, as a plain object for the page's data block.
+export function severityData(t: KeywordLabelTable, draft: SeverityDraft, saved: SeverityDraft = draft): unknown {
+  return { t, draft, saved, defaults: defaultDraft(), levels: EDIT_LEVELS, limits: LIMITS, ranges: NUMBER_RANGES };
 }
 
-export function renderKeywordEditor(t: KeywordLabelTable, nonce: string, draft: SeverityDraft, saved: SeverityDraft = draft, note = ""): string {
-  const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
+// The markup of the Severity tab: the intro, the preview, every level, the numbers, the negation words and the
+// buttons. Its ids are all prefixed or unique on the Tags page.
+export function renderSeverityBody(t: KeywordLabelTable, draft: SeverityDraft, note = ""): string {
   const differs = new Set(draftDiffers(draft));
   const sections = EDIT_LEVELS.map((l) => listSection(t, l, draft.phrases[l], differs.has(`phrases.${l}`))).join("\n");
   const w = draft.weights;
@@ -70,10 +68,7 @@ ${numberField(t, "n-title", t.wTitleLabel, t.wTitleHelp, w.title, LIMITS.weight)
 ${numberField(t, "n-head", t.wHeadLabel, t.wHeadHelp, w.head, LIMITS.weight)}
 ${numberField(t, "n-body", t.wBodyLabel, t.wBodyHelp, w.body, LIMITS.weight)}
 ${numberField(t, "n-perPhraseCap", t.wCapLabel, t.wCapHelp, w.perPhraseCap, LIMITS.cap)}</details>`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${e(t.title)}</title><style>${KEYWORD_STYLE}</style></head><body>
-<main>
-<h1 title="${e(t.title)}">${e(t.title)}</h1>
-<p class="note" title="${e(t.intro)}">${e(t.intro)}</p>
+  return `<p class="note" title="${e(t.intro)}">${e(t.intro)}</p>
 <p class="warn" role="note" title="${e(t.warn)}">${e(t.warn)}</p>
 ${note ? `<p class="warn" role="note" title="${e(note)}">${e(note)}</p>` : ""}
 <details class="box" open data-sec="preview"><summary title="${e(t.previewTitleTip)}">${e(t.previewTitle)} <span class="pill" id="pv-count" title="${e(t.previewTitleTip)}">0</span></summary>
@@ -84,8 +79,5 @@ ${sections}
 <p class="help" title="${e(t.phrasesHint)}">${e(t.phrasesHint)}</p>
 ${scoring}
 ${listSection(t, "negation", draft.negation, differs.has("negation"))}
-<div class="bar"><button type="button" id="save" class="primary" disabled title="${e(t.saveTip)}">${e(t.save)}</button><button type="button" id="cancel" class="secondary" title="${e(t.cancelTip)}">${e(t.cancel)}</button><button type="button" id="restoreAll" class="secondary" title="${e(t.restoreAllTip)}">${e(t.restoreAll)}</button><span id="msg" role="alert" aria-live="assertive" title="${e(t.previewTitleTip)}"></span></div>
-</main>
-<script nonce="${nonce}">const INIT=${dataBlock(t, draft, saved)};
-${KEYWORD_SCRIPT}</script></body></html>`;
+<div class="sevbar"><button type="button" id="sev-save" class="primary" disabled title="${e(t.saveTip)}">${e(t.save)}</button><button type="button" id="sev-restoreAll" class="secondary" title="${e(t.restoreAllTip)}">${e(t.restoreAll)}</button><span id="sev-msg" role="alert" aria-live="assertive" title="${e(t.previewTitleTip)}"></span></div>`;
 }

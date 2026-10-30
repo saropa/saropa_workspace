@@ -1,14 +1,14 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { BoardItem } from "../board/boardModel";
-import { renderTagsEditor } from "../board/tagsEditorHtml";
+import { TagsTab, renderTagsEditor } from "../board/tagsEditorHtml";
 import { LIMITS, checkState, exportText, parseImport, testMatch } from "../board/org/organizeEdit";
-import { Profile } from "../board/severity";
+import { Profile, SeverityDict } from "../board/severity";
 import { BoardConfig } from "../board/types";
 import { RULES_FILE } from "../commands/boardConfigLoad";
 import { currentOrganizeState, offerUndo, saveState } from "../commands/boardOrganizeEdit";
 import { l10n } from "../i18n/l10n";
-import { openKeywordEditor } from "./keywordEditorPanel";
+import { SeverityPart, loadSeverityDict } from "./severityPart";
 import { tagsLabels } from "./tagsStrings";
 
 // Release Board, the Tags and rules editor: an editor-tab webview with tabs for tags, link words, naming and
@@ -24,6 +24,10 @@ export interface TagsEditorInput {
   profile: Profile;
   // Called after the rules file changed, so the board scans again.
   onSaved: () => Promise<void>;
+  // The tab the page starts on, or is switched to when the editor is already open (default: tags).
+  tab?: TagsTab;
+  // Tag ids to highlight on the Tags tab (the ones that matched the row or group "Edit tags" was chosen on).
+  focus?: string[];
 }
 
 let current: TagsEditorPanel | undefined;
@@ -32,18 +36,35 @@ class TagsEditorPanel {
   private readonly disposables: vscode.Disposable[] = [];
   private saving = false;
 
-  constructor(private readonly panel: vscode.WebviewPanel, private readonly input: TagsEditorInput, state: Parameters<typeof renderTagsEditor>[2]) {
-    panel.webview.html = renderTagsEditor(tagsLabels(), crypto.randomBytes(16).toString("base64"), state);
+  private readonly severity: SeverityPart;
+
+  constructor(private readonly panel: vscode.WebviewPanel, private readonly input: TagsEditorInput, state: Parameters<typeof renderTagsEditor>[2], dict: SeverityDict) {
+    this.severity = new SeverityPart(input, dict, (m) => this.post(m), () => this.saved());
+    panel.webview.html = renderTagsEditor(tagsLabels(), crypto.randomBytes(16).toString("base64"), state, this.severity.view, input.tab, input.focus);
     panel.onDidDispose(() => this.onClosed(), null, this.disposables);
     panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
   }
 
-  reveal(): void {
+  // Shows the editor, on the given tab when there is one.
+  reveal(tab?: TagsTab, focus?: string[]): void {
     this.panel.reveal();
+    if (tab) {
+      this.post({ type: "tab", tab });
+    }
+    if (focus) {
+      this.post({ type: "focus", ids: focus });
+    }
+  }
+
+  // After a severity save: the editor closes and the board scans again.
+  private async saved(): Promise<void> {
+    this.panel.dispose();
+    await this.input.onSaved();
   }
 
   private onClosed(): void {
     current = undefined;
+    this.severity.dispose();
     this.disposables.forEach((d) => d.dispose());
   }
 
@@ -55,7 +76,10 @@ class TagsEditorPanel {
     if (typeof message !== "object" || message === null) {
       return;
     }
-    const m = message as { type?: unknown; seq?: unknown; state?: unknown };
+    const m = message as { type?: unknown; seq?: unknown; state?: unknown; draft?: unknown };
+    if (typeof m.type === "string" && m.type.startsWith("sev") && (await this.severity.handle(m))) {
+      return;
+    }
     if (m.type === "preview" && typeof m.seq === "number") {
       this.preview(m.seq, m.state);
     } else if (m.type === "save") {
@@ -64,9 +88,6 @@ class TagsEditorPanel {
       await this.export(m.state);
     } else if (m.type === "import") {
       await this.import();
-    } else if (m.type === "openSeverity") {
-      const { cfg, items, projectNames, profile, onSaved } = this.input;
-      await openKeywordEditor({ cfg, items, projectNames, profile, onSaved });
     } else if (m.type === "cancel") {
       this.panel.dispose();
     }
@@ -136,14 +157,14 @@ class TagsEditorPanel {
 }
 
 // Shows the open editor, if there is one.
-function shown(): boolean {
-  current?.reveal();
+function shown(tab?: TagsTab, focus?: string[]): boolean {
+  current?.reveal(tab, focus);
   return current !== undefined;
 }
 
 // Opens the editor, or shows the one that is open.
 export async function openTagsEditor(input: TagsEditorInput): Promise<void> {
-  if (shown()) {
+  if (shown(input.tab, input.focus)) {
     return;
   }
   // The state is the one in the file now, not the one of the last scan.
@@ -152,7 +173,11 @@ export async function openTagsEditor(input: TagsEditorInput): Promise<void> {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.badJson", { file: RULES_FILE, folder: "" }));
     return;
   }
-  if (shown()) {
+  if (shown(input.tab, input.focus)) {
+    return;
+  }
+  const dict = await loadSeverityDict(input.cfg);
+  if (shown(input.tab, input.focus)) {
     return;
   }
   const panel = vscode.window.createWebviewPanel("saropaWorkspace.releaseBoardTags", l10n("releaseBoard.tags.msg.panelTitle"), vscode.ViewColumn.Active, {
@@ -160,5 +185,5 @@ export async function openTagsEditor(input: TagsEditorInput): Promise<void> {
     retainContextWhenHidden: true,
     localResourceRoots: [],
   });
-  current = new TagsEditorPanel(panel, input, state);
+  current = new TagsEditorPanel(panel, input, state, dict);
 }

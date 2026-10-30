@@ -16,7 +16,9 @@ import { Train } from "../../board/train";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 import { POLISH_KEYS, strings } from "../../views/boardStrings";
 import { STYLE, script } from "../../board/boardHtmlAssets";
-import { renderKeywordEditor } from "../../board/keywordEditorHtml";
+import { renderTagsEditor } from "../../board/tagsEditorHtml";
+import { defaultState } from "../../board/org/organizeEdit";
+import { tagsLabels } from "../../views/tagsStrings";
 import { defaultDraft } from "../../board/severityEdit";
 import { keywordLabels } from "../../views/keywordStrings";
 
@@ -217,7 +219,7 @@ function pages(): Array<[string, string]> {
     ["loading", renderBoard(m, t, "n", 1, { loading: true }, paths)],
     ["empty", renderBoard(empty, t, "n", 1)],
     ["skeleton", renderSkeleton(t, "n")],
-    ["keyword editor", renderKeywordEditor(keywordLabels(), "n", { ...defaultDraft(), threshold: 4 }, defaultDraft())],
+    ["tags and rules editor", renderTagsEditor(tagsLabels(), "n", defaultState(), { labels: keywordLabels(), draft: { ...defaultDraft(), threshold: 4 } }, "severity")],
   ];
 }
 

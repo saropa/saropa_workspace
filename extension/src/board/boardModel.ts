@@ -8,6 +8,7 @@ import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
+import { OrgSettings, settingsOf } from "./org/settings";
 import { finishedTargets } from "./ganttModel";
 import { ScanSnapshot } from "./scanner";
 import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
@@ -52,6 +53,8 @@ interface BuildContext {
   overrides: Map<string, Severity>;
   statusKeys: Set<string>;
   byUser: { count: number; lowered: number };
+  // Tags, link phrases and naming from the rules file `organize` key, for the auto-grouping and link engines.
+  org: OrgSettings;
 }
 
 // The open items of one project, sorted, with its counts and its collapsed blocked documents.
@@ -337,6 +340,7 @@ export function buildBoard(
     overrides: userSeverities(cfg),
     statusKeys: userStatuses(cfg),
     byUser: { count: 0, lowered: 0 },
+    org: settingsOf(cfg.organize),
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };
   // The open workspace's projects first, then the extra ones; importance orders within each.

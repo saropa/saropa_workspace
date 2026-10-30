@@ -467,6 +467,8 @@ export const POLISH_KEYS = [
   "menuBlocksTip",
   "menuGroup",
   "menuGroupTip",
+  "menuTags",
+  "menuTagsTip",
   "menuAssign",
   "menuAssignTip",
   "menuRulesTip",

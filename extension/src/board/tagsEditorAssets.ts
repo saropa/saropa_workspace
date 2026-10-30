@@ -29,6 +29,7 @@ button{font:inherit;cursor:pointer}
 button.primary,button.secondary{border:1px solid var(--vscode-button-border,transparent);padding:4px 12px;border-radius:2px}
 button.primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
 button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
+li.focus{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
 button.icon{background:transparent;color:var(--vscode-foreground);border:1px solid transparent;border-radius:3px;padding:1px 6px}
 button.icon:hover{background:var(--vscode-toolbar-hoverBackground,rgba(127,127,127,.25))}
 button:disabled{opacity:.5;cursor:default}
@@ -39,11 +40,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,[role=tab]:focus-v
 #msg{color:var(--vscode-errorForeground);overflow-wrap:anywhere}
 `;
 
-// Runs after `const INIT=<data>;` (see tagsEditorHtml.ts).
+// Runs after `const INIT=<data>;` and the severity script (see tagsEditorHtml.ts).
 export const TAGS_SCRIPT = String.raw`
 const vscode=acquireVsCodeApi();
 const T=INIT.t,COL=INIT.colours,EFF=INIT.effects,LP=INIT.linkPhrases,SHIPPED=INIT.shipped;
 const clone=x=>JSON.parse(JSON.stringify(x));
+let FOCUS=INIT.focus||[];
 let S=clone(INIT.state),seq=0,timer=0,invalid=false,hits={};
 const $=s=>document.querySelector(s);
 const fill=(s,o)=>{let r=s;for(const k in o){r=r.split('{'+k+'}').join(String(o[k]));}return r;};
@@ -59,7 +61,7 @@ function dirty(){
 function swatch(c){const s=el('span',{'class':'sw','aria-hidden':'true'});s.style.background=COL[c]||c;return s;}
 function hitText(r){const h=hits[r.id];if(!h){return T.previewWait;}return fill(T.matches,{count:h.count})+(h.examples.length?' - '+h.examples.join('; '):'');}
 function rowEl(r,i){
-  const li=el('li',{'class':'row'+(r.off?' off':'')});
+  const li=el('li',{'class':'row'+(r.off?' off':'')+(FOCUS.indexOf(r.id)>=0?' focus':'')});
   const a=el('div',{'class':'line'});
   const em=el('input',{type:'text','class':'emoji',value:r.emoji,maxlength:'16',title:T.emojiTip,'aria-label':T.emojiTip,'data-f':'emoji','data-i':String(i)});
   const lab=el('input',{type:'text','class':'lab',value:r.label,maxlength:'40',title:T.labelTip,'aria-label':T.labelTip,'data-f':'label','data-i':String(i)});
@@ -92,7 +94,7 @@ function renderLink(){
 function renderNaming(){
   $('#n-dates').checked=S.naming.dates;$('#n-prefixes').value=S.naming.prefixes.join(', ');$('#n-acronyms').value=S.naming.acronyms.join(', ');
 }
-function renderAll(){renderTags();renderLink();renderNaming();}
+function renderAll(){renderTags();renderLink();renderNaming();const f=document.querySelector('li.focus');if(f){f.scrollIntoView({block:'center'});}}
 const words=v=>v.split(/[,\s]+/).map(x=>x.trim()).filter(Boolean);
 function field(t){
   const i=Number(t.getAttribute('data-i')),f=t.getAttribute('data-f'),r=S.tags[i];if(!r){return false;}
@@ -143,7 +145,6 @@ document.addEventListener('click',ev=>{
   else if(b.id==='export'){vscode.postMessage({type:'export',state:S});}
   else if(b.id==='import'){vscode.postMessage({type:'import'});}
   else if(b.id==='reset'){S=clone(INIT.defaults);renderAll();dirty();}
-  else if(b.id==='open-sev'){vscode.postMessage({type:'openSeverity'});}
 });
 document.addEventListener('keydown',ev=>{
   const t=ev.target;
@@ -158,7 +159,10 @@ window.addEventListener('message',ev=>{
   if(m.type==='preview'&&m.seq===seq){invalid=false;hits=m.result;showHits();$('#save').disabled=false;}
   else if(m.type==='invalid'&&m.seq===seq){invalid=true;msg(fill(T.invalid,{problem:T['problem_'+m.problem]||m.problem}));}
   else if(m.type==='state'){S=m.state;invalid=false;renderAll();dirty();}
+  else if(m.type==='tab'){select(m.tab);}
+  else if(m.type==='focus'){FOCUS=m.ids||[];renderTags();showHits();const f=document.querySelector('li.focus');if(f){f.scrollIntoView({block:'center'});}}
 });
+startSeverity(vscode,INIT.sev);
 renderAll();
 seq+=1;vscode.postMessage({type:'preview',seq:seq,state:S});
 `;

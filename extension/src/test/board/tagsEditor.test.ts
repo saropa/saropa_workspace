@@ -12,6 +12,8 @@ import { renderTagsEditor } from "../../board/tagsEditorHtml";
 import { saveAssign, saveGroupOverride, saveState, saveUntag } from "../../commands/boardOrganizeEdit";
 import { undoRulesWrite } from "../../commands/boardRuleAssign";
 import { openTagsEditor } from "../../views/tagsEditorPanel";
+import { defaultDraft } from "../../board/severityEdit";
+import { keywordLabels } from "../../views/keywordStrings";
 import { tagsLabels } from "../../views/tagsStrings";
 import { __lastWebviewPanel, __resetWebviewPanels } from "../_stub/vscode";
 import { stub, tmpDir } from "./hostHelpers";
@@ -153,7 +155,7 @@ test("the editor opens one panel, with valid tab markup and a script nonce", asy
 test("the page text is escaped and cannot close the script", () => {
   const labels = { ...tagsLabels(), title: '<img onerror="x">' };
   const state = edited((s) => (s.tags[0].label = "</script><b>"));
-  const html = renderTagsEditor(labels, "n", state);
+  const html = renderTagsEditor(labels, "n", state, { labels: keywordLabels(), draft: defaultDraft() });
   assert.equal(html.includes('<img onerror="x">'), false);
   assert.equal(html.split("</script>").length, 2, "only the page's own script end");
 });
@@ -198,11 +200,19 @@ test("Save writes, closes the editor, scans again and offers Undo", async () => 
   assert.ok(vs.__infoMessages().some((m) => m.includes("saved to")));
 });
 
-test("the severity tab opens the keyword editor, which keeps its own stored data", async () => {
+test("the severity tab holds the keyword editor itself, and a tab request switches an open editor to it", async () => {
   setup();
   await open();
-  send({ type: "openSeverity" });
-  await settleUntil(() => panel().webview.html.includes("n-threshold"));
+  assert.ok(panel().webview.html.includes("n-threshold") && panel().webview.html.includes('data-sec="extreme"'));
+  assert.equal(panel().webview.html.includes('id="tab-tags" data-tab="tags" aria-selected="true"'), true);
+  await openTagsEditor({ cfg: { version: 1, ignore: [], ruleSets: {}, projects: [] }, items: [], projectNames: new Map(), profile: "deliberate", onSaved: async () => {}, tab: "severity" });
+  assert.ok(posted("tab").some((m) => m.tab === "severity"));
+});
+
+test("opening on the severity tab starts the page there", async () => {
+  setup();
+  await openTagsEditor({ cfg: { version: 1, ignore: [], ruleSets: {}, projects: [] }, items: [], projectNames: new Map(), profile: "deliberate", onSaved: async () => {}, tab: "severity" });
+  assert.ok(panel().webview.html.includes('id="tab-severity" data-tab="severity" aria-selected="true"'));
 });
 
 test("import and export ask the host for the file: the page never names a path", async () => {

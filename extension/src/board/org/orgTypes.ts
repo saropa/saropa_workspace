@@ -99,4 +99,6 @@ export interface OrgOptions {
   hubDocRefs?: number;
   // Band and MAX of each project from the previous run (OrgResult.layouts), for the 10 percent hysteresis (layout.ts).
   previous?: Record<string, { band: number; max: number }>;
+  // The naming settings (settingsOf(...).naming).
+  naming?: { acronyms?: readonly string[]; dates?: boolean; prefixes?: ReadonlySet<string> };
 }
