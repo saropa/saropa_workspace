@@ -1664,7 +1664,7 @@
         {
           "command": "saropaWorkspace.releaseBoard.open",
           "when": "view == saropaWorkspace.pins && config.saropaWorkspace.releaseBoard.enabled",
-          "group": "navigation@9"
+          "group": "1_board@1"
         },
         {
           "command": "saropaWorkspace.filterPins",
