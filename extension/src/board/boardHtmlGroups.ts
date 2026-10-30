@@ -3,7 +3,8 @@ import { SEVERITY_LEVELS } from "./ruleAssign";
 import { BoardStrings, escapeHtml, pillify, pl, tip } from "./boardHtmlUtil";
 import { blocksNow, kebab } from "./boardHtmlMenus";
 import { SHOWN_ROWS, itemCounts, row } from "./boardHtmlRows";
-import { groupZone } from "./boardHtmlDrag";
+import { gapZone, groupZone } from "./boardHtmlDrag";
+import { applyOrder } from "./boardOrder";
 import type { GroupBy } from "./types";
 
 // The board laid out as cards of groups, of statuses or of severities (the Group by menu).
@@ -43,6 +44,8 @@ export function cardsFor(model: BoardModel, by: GroupBy, t: BoardStrings): Card[
   }
   const all = [...cards.values()];
   if (by === "group") {
+    // Rows with a set place come first inside a group; the documents in no group keep the automatic order.
+    all.forEach((c) => (c.items = c.id === "" ? c.items : applyOrder(c.items, model.order)));
     // Groups with a blocker first, then by name; the documents in no group last.
     const rank = (c: Card): number => (c.id === "" ? 2 : c.items.some(blocksNow) ? 0 : 1);
     return all.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
@@ -59,7 +62,12 @@ function card(c: Card, by: GroupBy, names: Map<string, string>, t: BoardStrings,
   const head = tip(t, "groupCard", { name: c.name, count: c.items.length });
   // A group listed by hand, or the documents in no group, takes a dropped row.
   const zone = by === "group" && (c.byUser === true || c.id === "") ? groupZone(t, c.id, c.name) : "";
-  const parts = c.items.map((i) => row(i, names.get(i.project) ?? i.project, t, false));
+  // A group listed by hand with rows of one project keeps its rows in a set order: a gap sits between rows.
+  const ordered = by === "group" && c.byUser === true && c.items.length > 1 && new Set(c.items.map((i) => i.project)).size === 1;
+  const parts = c.items.map((i, at) => (ordered ? gapZone(t, c.id, c.name, at) : "") + row(i, names.get(i.project) ?? i.project, t, false));
+  if (ordered) {
+    parts[parts.length - 1] += gapZone(t, c.id, c.name, parts.length);
+  }
   // Rows past the first few wait behind a button; the page script reveals them.
   const rest = parts.length - SHOWN_ROWS;
   const rows = rest > 0 ? `${parts.slice(0, SHOWN_ROWS).join("")}<button type="button" class="sec" data-show-more ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><div hidden>${parts.slice(SHOWN_ROWS).join("")}</div>` : parts.join("");

@@ -1,3 +1,4 @@
+import { MAX_ORDER } from "./boardOrder";
 import { manualGroupOf, tidyGroupName } from "./groups";
 import { SeverityResult, docGlob, isObject, parseForEdit, serialize } from "./ruleAssign";
 
@@ -103,5 +104,36 @@ export function setDocGroup(text: string | undefined, a: { project: string; path
       delete doc[key];
     }
   }
+  return { ok: true, text: serialize(parsed) };
+}
+
+// Sets the order of one group's rows in the project's order list: `paths` are the rows in their new
+// order. The list keeps its other paths ahead of them; a path that is no longer a document (not in
+// `known`) is dropped and a path is listed once. A list that comes out as it was is refused as
+// "same" and nothing is written.
+export function setProjectOrder(text: string | undefined, a: { project: string; paths: string[]; known: Set<string> }): SeverityResult {
+  if (a.paths.length > MAX_ORDER || a.paths.some((p) => docGlob(p) === undefined)) {
+    return { ok: false, reason: a.paths.length > MAX_ORDER ? "shape" : "glob" };
+  }
+  const parsed = parseForEdit(text);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const doc = parsed.doc;
+  if (doc.order !== undefined && !isObject(doc.order)) {
+    return { ok: false, reason: "shape" };
+  }
+  const order = (isObject(doc.order) ? doc.order : {}) as Record<string, unknown>;
+  if (order[a.project] !== undefined && !Array.isArray(order[a.project])) {
+    return { ok: false, reason: "shape" };
+  }
+  const before = (Array.isArray(order[a.project]) ? order[a.project] : []) as unknown[];
+  const moved = new Set(a.paths);
+  const kept = before.filter((p): p is string => typeof p === "string" && !moved.has(p) && a.known.has(p));
+  const next = [...new Set([...kept, ...a.paths])].slice(-MAX_ORDER);
+  if (next.length === before.length && next.every((p, i) => p === before[i])) {
+    return { ok: false, reason: "same" };
+  }
+  doc.order = { ...order, [a.project]: next };
   return { ok: true, text: serialize(parsed) };
 }

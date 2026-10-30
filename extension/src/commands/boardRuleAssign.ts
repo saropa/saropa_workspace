@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
 import { Severity } from "../board/severity";
-import { manualGroupNames, setDocGroup } from "../board/groupEdit";
+import { manualGroupNames, setDocGroup, setProjectOrder } from "../board/groupEdit";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
@@ -319,7 +319,7 @@ function rulesRoot(run: BoardRun, projectId: string): vscode.WorkspaceFolder | u
 
 // What the row menu changes for one document: its status (a category of the existing rules), its
 // severity, both back to automatic, or its group (a name, or undefined to take it out of its group).
-export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" } | { kind: "group"; name: string | undefined };
+export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" } | { kind: "group"; name: string | undefined } | { kind: "order"; paths: string[]; known: Set<string> };
 
 // The text with the status rules and the severity entry the board wrote for the document taken away.
 function autoText(before: string | undefined, doc: { project: string; path: string }): SeverityResult {
@@ -336,7 +336,8 @@ function autoText(before: string | undefined, doc: { project: string; path: stri
 // Changes one document's status, severity or group in the rules file at once, with no dialog: the same
 // checks as every rules write. A status is a rule for the exact path placed ahead of the rule that
 // placed it; a severity is an entry for the exact path that wins over the computed one; a group lists the exact
-// path (a document taken out of a group the board found is listed in "ungrouped"). Returns
+// path (a document taken out of a group the board found is listed in "ungrouped"); an order lists a
+// group's paths in their new order in the project's order list. Returns
 // what the file held before (for Undo), or undefined when nothing was written.
 export async function changeDoc(run: BoardRun, doc: { project: string; path: string }, change: DocChange): Promise<RulesSnapshot | undefined> {
   if (docGlob(doc.path) === undefined) {
@@ -358,7 +359,9 @@ export async function changeDoc(run: BoardRun, doc: { project: string; path: str
             ? setDocSeverity(before, { project: doc.project, path: doc.path, severity: change.level })
             : change.kind === "group"
               ? setDocGroup(before, { project: doc.project, path: doc.path, group: change.name })
-              : autoText(before, doc);
+              : change.kind === "order"
+                ? setProjectOrder(before, { project: doc.project, paths: change.paths, known: change.known })
+                : autoText(before, doc);
       return r.ok ? { ok: true, text: r.text, vars: {} } : r;
     },
     saved: (s) => (snapshot = s),

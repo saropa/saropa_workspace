@@ -6,6 +6,7 @@ import { Profile, Severity, asProfile, stops } from "./severity";
 import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
 import { buildGroups } from "./groups";
+import { orderLists } from "./boardOrder";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { finishedTargets } from "./ganttModel";
@@ -351,6 +352,7 @@ export function buildBoard(
     }),
     { manual: cfg.groups, ungrouped: cfg.ungrouped }
   );
+  const order = orderLists(cfg.order);
   const links = resolveLinks(rows, collectNeeds(rows, snapshot, extra?.needs), cfg.projects);
   const inText = collectNeeds(rows, snapshot, undefined);
   for (const l of links) {
@@ -380,6 +382,7 @@ export function buildBoard(
     links,
     flags: linkFlags(links, ctx.names),
     items: all,
+    ...(Object.keys(order).length > 0 ? { order } : {}),
     // Once the user accepts (or the scan was clean) neither banner shows.
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,
     baseline: !accepted && (safety?.baseline ?? false),

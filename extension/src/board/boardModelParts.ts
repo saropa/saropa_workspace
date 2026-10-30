@@ -143,6 +143,8 @@ export interface BoardModel {
   // Every item, flat, with its id: the host resolves a click by id and never trusts a path
   // sent by the page.
   items: BoardItem[];
+  // The set order of rows inside a group, by project (see boardOrder.ts). Absent when none is set.
+  order?: Record<string, string[]>;
   safetyHold: boolean;
   baseline: boolean;
   profile: Profile;
