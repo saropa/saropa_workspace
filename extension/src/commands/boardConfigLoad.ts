@@ -23,9 +23,9 @@ export function layerUserRules(shipped: BoardConfig, parsed: Partial<BoardConfig
   return {
     ...shipped,
     ...parsed,
-    ignore: parsed.ignore ?? shipped.ignore,
-    ruleSets: { ...shipped.ruleSets, ...(parsed.ruleSets ?? {}) },
-    projects: parsed.projects ?? [],
+    ignore: Array.isArray(parsed.ignore) ? parsed.ignore : shipped.ignore,
+    ruleSets: { ...shipped.ruleSets, ...(parsed.ruleSets && typeof parsed.ruleSets === "object" && !Array.isArray(parsed.ruleSets) ? parsed.ruleSets : {}) },
+    projects: Array.isArray(parsed.projects) ? parsed.projects : [],
   };
 }
 
@@ -73,7 +73,14 @@ async function readRules(folders: readonly vscode.WorkspaceFolder[]): Promise<Bo
     return { ...shipped };
   }
   const bytes = await vscode.workspace.fs.readFile(user);
-  return layerUserRules(shipped, JSON.parse(Buffer.from(bytes).toString("utf8")) as Partial<BoardConfig>);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
+  } catch {
+    // A damaged rules file must not stop the board opening: the shipped rules apply until it is fixed.
+    return { ...shipped };
+  }
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? layerUserRules(shipped, parsed as Partial<BoardConfig>) : { ...shipped };
 }
 
 // The rule sets every folder project reads: the rules written for one document first, the shipped

@@ -60,7 +60,9 @@ export class BoardPatches {
     private readonly changed: () => void,
     private readonly memory?: () => vscode.Memento
   ) {
-    this.answered = new Set(this.memory?.().get<string[]>(ANSWERED_KEY, []).filter((x) => typeof x === "string"));
+    // Stored data of any shape is tolerated: anything but an array of strings is ignored.
+    const stored: unknown = this.memory?.().get<unknown>(ANSWERED_KEY);
+    this.answered = new Set(Array.isArray(stored) ? stored.filter((x): x is string => typeof x === "string") : []);
   }
 
   // Starts watching the hand-off folders; the caller disposes the watcher.

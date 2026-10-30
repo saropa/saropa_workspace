@@ -26,7 +26,7 @@ Run from anywhere in the repo:
     python scripts/publish.py
 
 Modes (interactive menu, or pass --mode):
-    full                Audit -> quality -> version -> build -> package -> publish -> git + release -> verify
+    full                Audit -> quality -> unit tests -> version -> build -> package -> publish -> git + release -> verify
     package             Build + package the .vsix only (no publish), optional local install
     publish-existing    Publish the newest existing .vsix (skip packaging) + verify
     dry-run             Audit + quality + build + package, never publish or touch git

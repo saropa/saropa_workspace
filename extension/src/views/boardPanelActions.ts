@@ -53,7 +53,22 @@ const ORG_KEY = "saropaWorkspace.releaseBoard.orgLayouts";
 
 // Band and MAX of each project from the last build, so the group layout stays stable between builds.
 export function orgPreviousInput(context: vscode.ExtensionContext): BoardExtra["orgPrevious"] {
-  return context.workspaceState.get<BoardExtra["orgPrevious"]>(ORG_KEY);
+  return readOrgPrevious(context.workspaceState.get<unknown>(ORG_KEY));
+}
+
+// A stored layout record checked: entries without a numeric band and max are dropped.
+export function readOrgPrevious(v: unknown): NonNullable<BoardExtra["orgPrevious"]> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) {
+    return undefined;
+  }
+  const out: NonNullable<BoardExtra["orgPrevious"]> = {};
+  for (const [project, l] of Object.entries(v)) {
+    const e = l as { band?: unknown; max?: unknown } | null;
+    if (e && typeof e.band === "number" && typeof e.max === "number") {
+      out[project] = { band: e.band, max: e.max };
+    }
+  }
+  return out;
 }
 
 // Remembers the layout of this build for the next one.
