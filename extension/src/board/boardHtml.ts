@@ -5,7 +5,8 @@ import { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml, glyphTip, pillify, pl, tip } from "./boardHtmlUtil";
 import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock, projectCard } from "./boardHtmlRows";
-import { FutureView, futurePanel, futureTabs } from "./boardHtmlFuture";
+import { FutureView, futurePanel, viewTabs } from "./boardHtmlFuture";
+import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
 import { optsMenu, rowMenu, scopeMenu, viewMenu } from "./boardHtmlMenus";
@@ -119,8 +120,8 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
   const badge = (p: BoardProject): string => openBadge(p, model, t) + activePill(state.chat?.active.includes(p.id) === true, t);
   // One card per project, or the projects as plain rows over the merged lists.
   const projects = state.groupBy === "project"
-    ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, badge(p), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
-    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, badge(p))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
+    ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, badge(p), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("")
+    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, badge(p))).join("")
       + list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow", single }) + inProgressList(model, names, t, single) + list(t.workOn, by("amber"), names, t, { tip: "list.workOn", single });
   // The side sections wait behind one strip of pills. Changes since the last look opens by itself
   // once, when a document became a blocker.
@@ -133,19 +134,20 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
     { id: "live", label: t.liveUnnamedHeading, html: live ? unnamedBox(model, t, true) : "", count: model.liveUnnamed?.length ?? 0, warn: true },
   ], t);
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${GANTT_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-${noticeBar(state.notice)}${topBar(model, t, state.scope, futureTabs(future, t), since, state.chat?.paused)}
+${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}">${chosenLine(t)}${byUserNote(model, t)}${keywordLine(model, t)}${banner}
+${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
+${ganttPanel(model, t, since)}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
 ${rollupBar(model, t)}
 ${projects}
 ${sittingsBox(model, t)}
 ${more}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber" ${glyphTip(t, "g.amberSquare", t.blocked.replace("{count}", String(blocked)))}></i> ${pillify(t, escapeHtml(t.blocked.replace("{count}", String(blocked))))}</p>` : ""}
-${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
 ${rowMenu(t)}${scopeMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
@@ -154,5 +156,6 @@ ${handoffDrawer(t)}
 ${PROJECTS_SCRIPT}
 ${CHATS_SCRIPT}
 ${KEYWORD_LINE_SCRIPT}
-${HANDOFF_SCRIPT}</script></body></html>`;
+${HANDOFF_SCRIPT}
+${GANTT_SCRIPT}</script></body></html>`;
 }
