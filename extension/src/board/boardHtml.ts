@@ -7,15 +7,15 @@ import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { CARD_GROUP_BYS, groupCards } from "./boardHtmlGroups";
 import type { GroupBy } from "./types";
-import { FutureView, futurePanel, viewTabs } from "./boardHtmlFuture";
+import { FutureView, futureMenu, futurePanel, viewTabs } from "./boardHtmlFuture";
 import { DRAG_SCRIPT, DRAG_STYLE, statusBands } from "./boardHtmlDrag";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
-import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
+import { PROJECTS_SCRIPT, PROJECTS_STYLE, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
 import { RowStatus, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
-import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer } from "./boardHtmlHandoff";
+import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer, readyPill } from "./boardHtmlHandoff";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
 import { chains, chainsName, moreStrip, noRuleBox, sinceMarks, outsideBox, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
@@ -59,6 +59,8 @@ export interface RenderState {
   statuses?: RowStatus[];
   // What the last saved change did, for the Undo bar; undefined shows no bar.
   undo?: string;
+  // How many changes of an AI result wait for review; the board shows a pill to open them. Undefined or 0 shows none.
+  patchReady?: number;
   // Chat activity from Chat Explorer: the projects with a chat working in them now, and whether the
   // 30-second look is paused. Undefined while the integration is off or unavailable.
   chat?: { active: readonly string[]; paused: boolean };
@@ -85,7 +87,7 @@ export function byUserNote(model: BoardModel, t: BoardStrings): string {
 function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardStrings, single: boolean, project?: string): string {
   const v = model.inProgress;
   const mine = (i: BoardItem): boolean => project === undefined || i.project === project;
-  const opt = { tip: "list.inProgress", single, scope: project };
+  const opt = { tip: "list.inProgress", single, scope: project, quiet: true };
   if (!v) {
     return list(t.inProgress, model.items.filter((i) => i.status === "purple" && mine(i)), names, t, opt);
   }
@@ -108,8 +110,9 @@ function cardLists(model: BoardModel, p: BoardProject, names: Map<string, string
 // Renders the whole board page. `paths` holds one Path to GO per project, in the order of
 // model.projects; leave it out to show no paths.
 function movedAttrs(model: BoardModel, m: RenderState["moved"]): string {
-  const id = m ? model.items.find((i) => i.project === m.project && i.path === m.path)?.id : undefined;
-  return m && id !== undefined ? ` data-focus="${id}" data-ctl="${m.ctl}" data-say="${escapeHtml(m.say)}"` : "";
+  const item = m ? model.items.find((i) => i.project === m.project && i.path === m.path) : undefined;
+  // data-gid names the row's group: the moved row may sit in a closed group or behind Show more, so the page loads it first.
+  return m && item ? ` data-focus="${item.id}" data-ctl="${m.ctl}" data-say="${escapeHtml(m.say)}"${item.group ? ` data-gid="${escapeHtml(item.group.id)}"` : ""}` : "";
 }
 
 export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[], future?: FutureView): string {
@@ -155,12 +158,12 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(pl(t, "dropLabel"))}" ${movedAttrs(model, state.moved)}></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 ${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused)}
-${filterLine(model, t)}${hintBar(state.hint, t)}
+${filterLine(model, t)}
 ${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 ${statusBands(t, state.statuses)}${ganttPanel(model, t, since)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${keywordLine(model, t)}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${readyPill(t, state.patchReady)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
-${rollupBar(model, t)}
+${state.groupBy === "project" ? "" : rollupBar(model, t)}
 ${projects}
 ${sittingsBox(model, t)}
 ${more}
@@ -168,7 +171,7 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 </div>
 ${futurePanel(future, t)}
 ${undoBar(t, state.undo)}
-${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}
+${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${futureMenu(future, t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup, state.hint)}
 ${handoffDrawer(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}

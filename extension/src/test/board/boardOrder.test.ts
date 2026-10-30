@@ -8,6 +8,7 @@ import { DRAG_SCRIPT } from "../../board/boardHtmlDrag";
 import { DropContext, planDrop } from "../../board/boardDrop";
 import { MAX_ORDER, applyOrder, orderLists } from "../../board/boardOrder";
 import { buildBoard } from "../../board/boardModel";
+import { cardRows } from "../../board/boardHtmlGroups";
 import { setProjectOrder } from "../../board/groupEdit";
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 
@@ -178,4 +179,52 @@ test("a group of several projects keeps the automatic order on the page", () => 
 test("the page script sends the gap and the move as ids and numbers, and announces the moved row", () => {
   assert.ok(DRAG_SCRIPT.includes("at:Number(z.dataset.at)") && DRAG_SCRIPT.includes("zone:'move'"));
   assert.ok(DRAG_SCRIPT.includes("e.altKey") && DRAG_SCRIPT.includes("ArrowUp") && DRAG_SCRIPT.includes("lv.say") && !DRAG_SCRIPT.includes("setState"));
+});
+
+// Reorder on the auto-organized board: stored names, rows that are not in the page, rows sent on demand.
+
+const many = Array.from({ length: 12 }, (_, n) => `g${String(n).padStart(2, "0")}.md`);
+const bigRows = [...many, ...Array.from({ length: 60 }, (_, n) => `docs/f${n}.md`)].map(row);
+const bigCfg: BoardConfig = { ...cfg, groups: [{ name: "  Big   Group ", match: many.map((m) => "app/" + m) }, { name: "Big Group", match: ["app/g1*.md"] }] };
+const bigCtx: DropContext = { rows: bigRows, projects: cfg.projects, categories: [], groups: bigCfg.groups };
+const big = buildBoard(bigCfg, bigRows, undefined, true, undefined);
+const bigId = (p: string): number => big.items.find((i) => i.path === p)!.id;
+
+test("reorder matches a pattern claim by the stored group name, not the name drawn on the page", () => {
+  const g = big.items.find((i) => i.path === "g00.md")!.group!;
+  assert.ok(g.stored !== undefined && g.byUser);
+  // g10.md is claimed by the wildcard of the same group (the names differ only in spaces); g00.md is not.
+  assert.equal(refused(planDrop({ zone: "move", id: bigId("g10.md"), to: 1 }, big, bigCtx)), "releaseBoard.reorder.claimed");
+  assert.ok(planDrop({ zone: "move", id: bigId("g00.md"), to: 1 }, big, bigCtx).ok);
+  // A group with no stored name (not written by the rules file) is refused, as a group the board found is.
+  const noStored = { ...big, items: big.items.map((i) => (i.path === "g00.md" && i.group ? { ...i, group: { ...i.group, stored: undefined } } : i)) };
+  assert.equal(refused(planDrop({ zone: "move", id: noStored.items.find((i) => i.path === "g00.md")!.id, to: 1 }, noStored, bigCtx)), "releaseBoard.reorder.autoGroup");
+});
+
+test("gap places count every row of the group, those past Show more included; a move past the shown rows is planned", () => {
+  const gid0 = big.items.find((i) => i.path === "g00.md")!.group!.id;
+  const names = new Map([["app", "App"]]);
+  const first = cardRows(big, "group", gid0, 0, names, t)!;
+  const limit = first.html.match(/class="row/g)!.length;
+  assert.ok(limit < 12, "the group is cut by Show more");
+  assert.ok(first.html.includes(`data-at="0"`) && first.html.includes(`data-at="${limit - 1}"`) && !first.html.includes(`data-at="${limit}"`), "no trailing gap while rows are held back");
+  const rest = cardRows(big, "group", gid0, limit, names, t)!;
+  assert.ok(rest.html.includes(`data-drop="gap" data-to="${gid0}" data-at="${limit}"`), "rows sent on demand carry gaps numbered over the whole group");
+  assert.ok(rest.html.includes(`data-at="12"`), "the last gap closes the whole list");
+  assert.equal(rest.html.match(/data-drop="gap"/g)?.length, 12 - limit + 1);
+  // Alt+Down on the last shown row: the plan reaches the row held back.
+  const last = many[limit - 1];
+  const free = { ...bigCtx, groups: [{ name: "Big Group", match: many.map((m) => "app/" + m) }] };
+  assert.deepEqual(paths(planDrop({ zone: "move", id: bigId(last), to: 1 }, big, free)).slice(limit - 1, limit + 1), [many[limit], last]);
+  assert.equal(paths(planDrop({ zone: "gap", id: bigId("g00.md"), to: gid0, at: 12 }, big, free)).at(-1), "g00.md");
+});
+
+test("the page loads a closed group's rows, or the rows behind Show more, before a keyboard move and before refocusing a moved row", () => {
+  assert.ok(DRAG_SCRIPT.includes("openGroupRows(gid)"), "closed groups are opened first");
+  assert.ok(/e\.key==='ArrowDown'&&nx&&nx\.hasAttribute\('data-rowsmore'\)/.test(DRAG_SCRIPT), "Alt+Down on the last shown row waits for the rest");
+  assert.ok(/loadAll\(lv\.gid\)\.then\(put\)/.test(DRAG_SCRIPT), "a moved row not in the page is loaded before it is focused");
+  // Handlers are delegated on the document, so rows inserted later need no wiring of their own.
+  assert.ok(/document\.addEventListener\('keydown'/.test(DRAG_SCRIPT) && /document\.addEventListener\('drop'/.test(DRAG_SCRIPT));
+  const html = renderBoard(big, t, "n", 0, { groupBy: "group", moved: { project: "app", path: "g11.md", ctl: 0, say: "x" } });
+  assert.ok(html.includes(`data-gid="${big.items.find((i) => i.path === "g00.md")!.group!.id}"`), "the repaint names the moved row's group");
 });

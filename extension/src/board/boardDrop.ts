@@ -53,7 +53,8 @@ function planReorder(item: BoardItem, model: BoardModel, ctx: DropContext, to: u
   if (to !== undefined && group.id !== to) {
     return no("releaseBoard.reorder.otherGroup", { title: item.title });
   }
-  if (!group.byUser) {
+  // Only a group listed by hand has a stored name; the name on the page can be clipped or made unique, so matching uses the stored one.
+  if (!group.byUser || group.stored === undefined) {
     return no("releaseBoard.reorder.autoGroup", { title: item.title, name: group.name });
   }
   const rows = applyOrder(model.items.filter((i) => i.group?.id === group.id), model.order);
@@ -61,7 +62,7 @@ function planReorder(item: BoardItem, model: BoardModel, ctx: DropContext, to: u
     return no("releaseBoard.reorder.mixed", { name: group.name });
   }
   const key = item.project + "/" + item.path;
-  const name = tidyGroupName(group.name);
+  const name = tidyGroupName(group.stored);
   const wild = (ctx.groups ?? []).some((g) => tidyGroupName(g.name) === name && g.match.some((m) => /[*?[{]/.test(m) && globToRegExp(m).test(key)));
   if (wild) {
     return no("releaseBoard.reorder.claimed", { title: item.title, name: group.name });
@@ -114,7 +115,8 @@ export function planDrop(m: { zone?: unknown; id?: unknown; to?: unknown; at?: u
       return no("releaseBoard.drop.sameGroup", { title: item.title });
     }
     // Only a group listed by hand takes a document: a found group is not a name the rules file holds.
-    return group.byUser ? { ok: true, kind: "group", item, name: group.name } : no("releaseBoard.drop.autoGroup", { title: item.title, name: group.name });
+    // The name written is the stored one: the name on the page can be clipped or made unique.
+    return group.byUser && group.stored !== undefined ? { ok: true, kind: "group", item, name: group.stored } : no("releaseBoard.drop.autoGroup", { title: item.title, name: group.name });
   }
   if (m.zone === "gap" && typeof m.at === "number") {
     return planReorder(item, model, ctx, m.to, m.at, undefined);

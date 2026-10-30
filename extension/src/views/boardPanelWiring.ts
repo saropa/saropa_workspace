@@ -54,6 +54,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
     );
     this.listenForChanges();
     this.watchDocuments();
+    this.disposables.push(this.patches.watch());
     panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
     // Problems changed while the tab was hidden: look again when it is shown.
     panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
