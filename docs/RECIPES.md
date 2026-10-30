@@ -191,3 +191,20 @@ A lower severity can turn a blocker green, so the confirmation says so. A pinned
 ```json
 { "severityOverrides": [{ "project": "app", "path": "docs/PLAN_x.md", "severity": "low" }] }
 ```
+
+## Group and reorder documents on the Release Board
+
+1. Set **View options > Group by** to **Group**. Auto groups appear with a name, emoji and colored stripe; hover one to see why it exists.
+2. To move a document, open its row menu and choose **Move to group...**, or drag the row onto the group. Drag it out of the group to ungroup it.
+3. To reorder inside a group, focus the row and press **Alt+Up** or **Alt+Down**.
+4. Every change is saved at once with an **Undo** bar.
+
+To change how groups are found, open **View options > Tags and rules...**, edit the **Tags** tab and press **Save**. The changes go under the `organize` key of `.saropa/release-board.json`.
+
+## Hand work to an AI agent and bring the answer back
+
+1. Open a row menu (or **Project actions**) and choose **Hand off...**.
+2. Pick the scope, a task (**Fix**, **Plan**, **Review**, **Triage** or **Organize**) and a format. The drawer shows the exact text.
+3. Press **Save to file** (written to `.saropa/handoff/`), **Copy** (one line pointing at the file), or **Run in terminal**.
+4. When the agent has replied, open **Project actions > Bring back AI result...**, paste the reply and press **Read reply**.
+5. Tick the changes you accept and press **Apply chosen**. Items that changed since the agent saw them are skipped.

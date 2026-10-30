@@ -28,6 +28,7 @@ short overview; this page is the detail behind each capability.
 - [More kinds of shortcuts and actions](#more-kinds-of-shortcuts-and-actions)
 - [Audio cues](#audio-cues)
 - [Active AI threads](#active-ai-threads)
+- [Release Board](#release-board)
 
 ---
 
@@ -208,3 +209,21 @@ Turn on `saropaWorkspace.sound.enabled` to hear a short cue when a run starts an
 ## Active AI threads
 
 Saropa Workspace scans your project's chat folders (`.claude`, `.cline/tasks`, `docs/chats` by default) and surfaces the most recently touched AI conversations in an **Active AI Threads** group — the thread where you were refactoring a component is one click away instead of a hunt through identically titled tabs. Only the freshest ten are shown; the group also offers a **Start a new Claude chat** action. Turn the scan off with `saropaWorkspace.aiContext.enabled`.
+
+## Release Board
+
+Open it from the status bar button, the checklist button in the Shortcuts view, or **Release Board: Open**. It reads the bugs, docs and plans folders of each project and shows what blocks a release. Settings are under `saropaWorkspace.releaseBoard.*`.
+
+- **Tabs.** **Gantt** (default): items grouped by project in work order, one bar per item, arrows for what waits on what, done items dimmed. **Board**: cards and lists. **Future**: ideas and plans not started yet.
+- **Scope.** The **Scope** switch shows **This project** or **All projects** (open folders plus the ones added with **Projects**).
+- **Menus.** **View options**: release mode, **Group by** (Project, Group, Status, Severity, None), time you have, devices in hand, **Tags and rules...**. **Project actions**: hand-off, scan again, rules file, projects, keywords, settings, start-up. Filters in use appear as pills you can remove one by one or **Clear all**.
+- **Edit in place.** The status pill on a row opens a menu of statuses and severities; each change is saved at once with an **Undo** bar. Row menu: **Waits on...** and **Blocks...** (add or remove a `Needs:` line), **Move to group...**, **Edit tags...**, **Back to automatic**. Changes are written to the project's rules file, `.saropa/release-board.json`.
+- **Drag and drop.** Drag a row onto a status band (sets status), a group (moves it), out of a group (ungroups) or a **Waits on** slot. **Alt+Up** and **Alt+Down** reorder a row inside its group. All saved at once, with **Undo**.
+- **Groups.** Auto groups come from folders, file names, tags and shared source files. Each has a name, emoji and colored stripe; its tooltip says why it exists. Groups you listed or changed by hand show **by you**.
+- **Tags and rules editor.** Tabs **Tags**, **Link words**, **Naming**, **Severity**; live preview against your open documents; **Import**, **Export**, **Reset**. **Save** writes only differences from the defaults, under the `organize` key of the rules file.
+- **Link proposals.** Documents that name each other are proposed as links; **Accept** or **Reject** each.
+- **Hand-off to an AI agent.** Build a document from an item, chosen items, a group, a project or the whole board. Tasks: **Fix**, **Plan**, **Review**, **Triage**, **Organize**. Formats: Markdown and JSON. **Save to file** writes to `.saropa/handoff/` in the project; **Copy** copies a one-line pointer (or the full text with `releaseBoard.handoff.copyMode`); **Run in terminal** runs `releaseBoard.handoff.terminalCommand`. **Bring back** reads the agent's reply, lists the proposed changes and applies only the ones you tick; items that changed since the agent saw them are skipped.
+- **Active now.** A project with a chat working in it shows a pill, read from Saropa Chat Explorer if installed, every 30 seconds. Pause it on the board, or turn it off with `releaseBoard.chatActivity`.
+- **Since you left.** A strip with **Changes** and **Dismiss** buttons lists what changed since you last looked; changed rows have a dotted outline until dismissed.
+
+See [Recipes](RECIPES.md) for step-by-step tasks and [Keybindings](KEYBINDINGS.md) for the keys.
