@@ -27,7 +27,6 @@ const view = (over: Partial<FutureView> = {}): FutureView => ({
   sort: "score",
   canEdit: true,
   researchParallel: 3,
-  handEnabled: true,
   ...over,
 });
 
@@ -197,14 +196,11 @@ test("when more are flagged than the limit the button names the batch and how ma
   assert.ok(futurePanel(withResearch(five, { researchParallel: 1 }), t2).includes('>Hand <span class="pill" title="pillTip">1</span> (<span class="pill" title="pillTip">4</span> queued)</button>'));
 });
 
-test("the hand-off button is disabled when the tab cannot edit or Hand to chat is off", () => {
+test("the hand-off button is disabled when the tab cannot edit", () => {
   const states: Array<[string, string[]]> = [["A", ["Research: needed"]]];
   const button = (v: FutureView): string => /<button data-fhand[^>]*>/.exec(futurePanel(v, t))![0];
   assert.ok(!button(withResearch(states)).includes("disabled"));
   assert.ok(button(withResearch(states, { canEdit: false })).includes(" disabled"));
-  const off = button(withResearch(states, { handEnabled: false }));
-  assert.ok(off.includes(" disabled"));
-  assert.ok(off.includes("~handOffTip~"));
 });
 
 test("research ready shows the not-reviewed label and the review button; other states do not", () => {

@@ -15,7 +15,7 @@ import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
 import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
-import { OPEN, effectiveSeverity, factsFor, itemKey, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
+import { OPEN, effectiveSeverity, factsFor, itemKey, revFor, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
 
 // The board's view model: what the first screen shows, built from classified rows.
 // Pure, so the rules for the light are unit-tested without a webview.
@@ -32,6 +32,8 @@ export { titleFromPath } from "./boardModelParts";
 
 const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };
 const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
+// Open steps kept on an item for the hand-off.
+const HANDOFF_STEPS = 10;
 const IMPORTANCE: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
 // What the build of every project needs to look at, gathered once.
@@ -67,6 +69,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       continue;
     }
     const facts = factsFor(ctx.snapshot, def.id, r.path);
+    const rev = revFor(ctx.snapshot, def.id, r.path);
     const pinned = ctx.exactPins.has(def.id + "/" + r.path) || ctx.pinGlobs.some((re) => re.test(def.id + "/" + r.path));
     const sev = effectiveSeverity(ctx.overrides, def.id, r.path, facts);
     if (sev.byUser) {
@@ -92,7 +95,9 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       title: facts?.title || titleFromPath(r.path),
       status: r.status as "red" | "amber" | "purple",
       kind: r.kind,
+      ...(rev ? { rev } : {}),
       marks: facts ? marksOf(facts, ctx.names) : undefined,
+      ...(facts?.steps?.length ? { steps: facts.steps.slice(0, HANDOFF_STEPS).map((x) => ({ line: x.line, text: x.text })) } : {}),
       hub: false,
       blocksCount: 0,
       waitsOn: [],

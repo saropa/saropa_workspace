@@ -1,6 +1,5 @@
 import { BoardStrings } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
-import { readHandSettings } from "../commands/boardHandToChat";
 import { keywordBoardLabels } from "./keywordStrings";
 
 // The localized strings the board page is drawn with.
@@ -114,11 +113,9 @@ function sittingsStrings() {
   };
 }
 
-// Hand to chat, Tidy and train text.
+// Tidy and train text.
 function toolStrings() {
   return {
-    handToChat: readHandSettings().enabled ? l10n("releaseBoard.handToChat.button") : "",
-    handToChatTip: l10n("releaseBoard.handToChat.tip"),
     tidyHeading: l10n("releaseBoard.tidy.heading"),
     tidyNote: l10n("releaseBoard.tidy.note", { days: "{days}" }),
     tidyDetail: l10n("releaseBoard.tidy.detail", { count: "{count}", days: "{days}" }),
@@ -225,7 +222,6 @@ function futureStrings() {
       "handAll": l10n("releaseBoard.future.handAll", { count: "{count}" }),
       "handBatch": l10n("releaseBoard.future.handBatch", { batch: "{batch}", queued: "{queued}" }),
       "handTip": l10n("releaseBoard.future.handTip"),
-      "handOffTip": l10n("releaseBoard.future.handOffTip"),
     } as Record<string, string>,
   };
 }
@@ -464,6 +460,14 @@ function projectStrings() {
   return { projectLabels: Object.fromEntries(keys.map((k) => [k, l10n(`releaseBoard.projects.label.${k}`, { count: "{count}", max: "{max}" })])) };
 }
 
+// Every key of the AI hand-off label table, in en.json as "releaseBoard.handoff.label.<key>".
+export const HANDOFF_LABEL_KEYS = ["title", "close", "closeTip", "menuItem", "menuItemTip", "menuBoard", "menuBoardTip", "scopeMenu", "chosen", "chosenTip", "chosenGo", "chosenGoTip", "chosenClear", "chosenClearTip", "choose", "chooseTip", "scopeItem", "scopeChosen", "scopeGroup", "scopeProject", "scopeBoard", "itemsCount", "task", "taskFix", "taskFixTip", "taskPlan", "taskPlanTip", "taskReview", "taskReviewTip", "taskTriage", "taskTriageTip", "format", "fmtMd", "fmtMdTip", "fmtJson", "fmtJsonTip", "tokenTip", "preview", "copy", "copyTip", "copyFull", "copyFullTip", "save", "saveTip", "terminal", "terminalTip"] as const;
+
+// Labels of the AI hand-off: menu items, the selection line and the drawer. Placeholders stay in the text for the page to fill.
+function handoffStrings() {
+  return { handoffLabels: Object.fromEntries(HANDOFF_LABEL_KEYS.map((k) => [k, l10n(`releaseBoard.handoff.label.${k}`, { count: "{count}", name: "{name}", title: "{title}" })])) };
+}
+
 // All page strings, merged from the groups above.
 export function strings(): BoardStrings {
   return {
@@ -476,6 +480,7 @@ export function strings(): BoardStrings {
     ...futureStrings(),
     ...polishStrings(),
     ...projectStrings(),
+    ...handoffStrings(),
     keywordLabels: keywordBoardLabels(),
   };
 }
