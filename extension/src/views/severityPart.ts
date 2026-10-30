@@ -4,8 +4,10 @@ import { SeverityInput } from "../board/tagsEditorHtml";
 import { Profile, SeverityDict } from "../board/severity";
 import { DraftProblem, LIMITS, PreviewDoc, checkDraft, dictFromDraft, dictOfSeverity, draftFromDictChecked } from "../board/severityEdit";
 import { BoardConfig } from "../board/types";
+import type { RulesSnapshot } from "../commands/boardRuleAssign";
 import { eligibleItems, loadPreviewDocs, previewAsync } from "../commands/boardKeywordPreview";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
+import { offerUndo } from "../commands/boardOrganizeEdit";
 import { currentSeverityDict, saveSeverity } from "../commands/boardSeverityEdit";
 import { l10n } from "../i18n/l10n";
 import { keywordLabels, partNames } from "./keywordStrings";
@@ -25,25 +27,48 @@ export interface SeverityPartInput {
 
 // The dictionary in the file now, not the one of the last scan, so an edit made outside the board is what the
 // editor starts from and what the write is checked against.
-export async function loadSeverityDict(cfg: BoardConfig): Promise<SeverityDict> {
-  return (await currentSeverityDict()) ?? dictOfSeverity(cfg.severity);
+export async function loadSeverityDict(cfg: BoardConfig, root?: vscode.WorkspaceFolder): Promise<SeverityDict> {
+  return (await currentSeverityDict(root)) ?? dictOfSeverity(cfg.severity);
 }
 
 export class SeverityPart {
   // The preview request the page asked for last; older ones stop.
   private latest = 0;
-  private readonly docs: Promise<{ docs: PreviewDoc[]; total: number }>;
+  private docs!: Promise<{ docs: PreviewDoc[]; total: number }>;
   private saving = false;
   // The parts whose unusable values a save would drop or replace, in words (empty when none).
-  private readonly lossy: string;
+  private lossy = "";
   // What the Severity tab starts from.
   readonly view: SeverityInput;
 
-  constructor(private readonly input: SeverityPartInput, private readonly dict: SeverityDict, private readonly post: (m: unknown) => void, private readonly close: () => Promise<void>) {
-    const { draft: saved, replaced } = draftFromDictChecked(this.dict);
+  // `dict`: the dictionary in the file at open or at the last save; the write is checked against it.
+  constructor(
+    private input: SeverityPartInput,
+    private dict: SeverityDict,
+    private readonly root: vscode.WorkspaceFolder | undefined,
+    private readonly post: (m: unknown) => void,
+    private readonly saved: () => Promise<void>,
+  ) {
+    const { draft, replaced } = draftFromDictChecked(this.dict);
     this.lossy = replaced.length > 0 ? partNames(replaced) : "";
+    this.loadDocs();
+    this.view = { labels: keywordLabels(), draft, note: this.lossy ? l10n("releaseBoard.keywords.msg.lossyNote", { parts: this.lossy }) : "" };
+  }
+
+  // The dictionary the file held at open or at the last save.
+  get current(): SeverityDict {
+    return this.dict;
+  }
+
+  private loadDocs(): void {
+    const { input } = this;
     this.docs = loadPreviewDocs(input.items, input.cfg.projects, input.projectNames, this.dict, readKeywordSettings().previewMaxDocuments).catch(() => ({ docs: [], total: eligibleItems(input.items).length }));
-    this.view = { labels: keywordLabels(), draft: saved, note: this.lossy ? l10n("releaseBoard.keywords.msg.lossyNote", { parts: this.lossy }) : "" };
+  }
+
+  // The board scanned again (or the editor was opened from another board panel): preview against its documents.
+  rebind(input: SeverityPartInput): void {
+    this.input = input;
+    this.loadDocs();
   }
 
   // Stops answering previews once the panel is gone.
@@ -78,8 +103,7 @@ export class SeverityPart {
   }
 
   // Saves after the host checked the draft again and the user confirmed; the confirmation names
-  // how many open documents would change level, counted now, not taken from the page. A save closes the
-  // editor, as the board scans again.
+  // how many open documents would change level, counted now, not taken from the page. The editor stays open.
   private async save(raw: unknown): Promise<void> {
     if (this.saving) {
       return;
@@ -93,8 +117,17 @@ export class SeverityPart {
     try {
       const { docs, total } = await this.docs;
       const impact = await previewAsync(docs, dictFromDraft(checked.draft, this.dict), this.input.profile, () => true);
-      if ((await saveSeverity({ kind: "draft", draft: checked.draft, impact, total, lossy: this.lossy, expected: this.dict })) === "saved") {
-        await this.close();
+      let snapshot: RulesSnapshot | undefined;
+      const outcome = await saveSeverity({ kind: "draft", draft: checked.draft, impact, total, lossy: this.lossy, expected: this.dict }, { root: this.root, onSnapshot: (x) => (snapshot = x) });
+      if (outcome === "saved") {
+        // The file holds the new dictionary: later saves are checked against it, and the page treats the draft as saved.
+        this.dict = (await currentSeverityDict(this.root)) ?? dictFromDraft(checked.draft, this.dict);
+        this.lossy = "";
+        this.post({ type: "sevSaved", draft: draftFromDictChecked(this.dict).draft });
+        await this.saved();
+        if (snapshot) {
+          offerUndo(snapshot, this.saved, this.root?.name);
+        }
       }
     } finally {
       this.saving = false;

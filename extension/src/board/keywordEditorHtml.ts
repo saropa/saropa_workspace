@@ -70,7 +70,7 @@ ${numberField(t, "n-body", t.wBodyLabel, t.wBodyHelp, w.body, LIMITS.weight)}
 ${numberField(t, "n-perPhraseCap", t.wCapLabel, t.wCapHelp, w.perPhraseCap, LIMITS.cap)}</details>`;
   return `<p class="note" title="${e(t.intro)}">${e(t.intro)}</p>
 <p class="warn" role="note" title="${e(t.warn)}">${e(t.warn)}</p>
-${note ? `<p class="warn" role="note" title="${e(note)}">${e(note)}</p>` : ""}
+${note ? `<p class="warn" id="sev-lossy" role="note" title="${e(note)}">${e(note)}</p>` : ""}
 <details class="box" open data-sec="preview"><summary title="${e(t.previewTitleTip)}">${e(t.previewTitle)} <span class="pill" id="pv-count" title="${e(t.previewTitleTip)}">0</span></summary>
 <p id="pv-text" role="status" aria-live="polite" title="${e(t.previewTitleTip)}">${e(t.previewWait)}</p>
 <ul id="pv-list" title="${e(t.previewListTip)}"></ul></details>

@@ -8,9 +8,11 @@ export const TAGS_LABEL_KEYS = [
   "export", "exportTip", "reset", "resetTip", "matches", "previewWait", "previewTip", "emojiTip", "labelTip", "colourTip", "hexTip", "custom", "col_teal", "col_sky", "col_indigo",
   "col_orchid", "col_olive", "col_ochre", "col_slate", "col_pine", "up", "down", "turnOn", "turnOff", "turnOnTip", "turnOffTip", "remove", "patternsTip", "effectsTip", "eff_group",
   "eff_name", "eff_emoji", "eff_colour", "removePhrase", "duplicate", "invalid", "problem_shape", "problem_tags", "problem_id", "problem_label", "problem_emoji", "problem_colour",
-  "problem_patterns", "problem_effects", "problem_linkWords", "problem_naming", "problem_invalid",
+  "problem_patterns", "problem_where", "problem_effects", "problem_linkWords", "problem_naming", "problem_invalid",
+  "search", "searchTip", "defaultPill", "defaultTip", "duplicateTag", "rename", "resetTag", "addWord", "patternSpace", "badWord", "copySuffix", "folder", "folderTip", "file", "whereTip",
+  "external", "reload", "reloadTip", "dismiss", "dismissTip", "importApply", "importApplyTip", "importCancel", "importCancelTip", "importPreview", "importOther", "openJson", "openJsonTip", "namingPreview", "namingPreviewTip",
 ] as const;
 
 export function tagsLabels(): Record<string, string> {
-  return Object.fromEntries(TAGS_LABEL_KEYS.map((k) => [k, l10n(`releaseBoard.tags.label.${k}`, { count: "{count}", phrase: "{phrase}", problem: "{problem}" })]));
+  return Object.fromEntries(TAGS_LABEL_KEYS.map((k) => [k, l10n(`releaseBoard.tags.label.${k}`, { count: "{count}", phrase: "{phrase}", problem: "{problem}", adds: "{adds}", replaces: "{replaces}", removes: "{removes}" })]));
 }

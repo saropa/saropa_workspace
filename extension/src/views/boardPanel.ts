@@ -17,10 +17,10 @@ import { pickGroup } from "../commands/boardGroupPick";
 import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
 import { NeedsDirection, NeedsPick, pickNeeds } from "./boardNeedsPick";
 import { planDrop } from "../board/boardDrop";
-import type { BoardItem } from "../board/boardModel";
+import type { BoardItem, BoardModel } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
-import { openTagsEditor } from "./tagsEditorPanel";
+import { TagsEditorInput, openTagsEditor } from "./tagsEditorPanel";
 import { matchedTagIds, settingsOf } from "../board/org/settings";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
@@ -586,11 +586,19 @@ class BoardPanel extends BoardPanelWiring {
       void vscode.window.showInformationMessage(l10n("releaseBoard.keywords.msg.noBoard"));
       return;
     }
-    const onSaved = async (): Promise<void> => {
+    await openTagsEditor({ ...this.editorInput(run, model), ...(from.length > 0 ? { focus: matchedTagIds(from, settingsOf(run.cfg.organize).tags) } : {}) });
+  }
+
+  // What the Tags and rules editor needs from this board. `onSaved` scans again and hands back the new documents,
+  // so an editor that stays open after a save keeps previewing against what the board shows now.
+  private editorInput(run: BoardRun, model: BoardModel): TagsEditorInput {
+    const from = (r: BoardRun, m: BoardModel) => ({ cfg: r.cfg, items: m.items, projectNames: new Map(m.projects.map((p) => [p.id, p.name])), profile: m.profile });
+    const onSaved = async (): Promise<ReturnType<typeof from> | undefined> => {
       this.dirty = true;
       await this.refresh();
+      return this.run && this.model ? from(this.run, this.model) : undefined;
     };
-    await openTagsEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved, ...(from.length > 0 ? { focus: matchedTagIds(from, settingsOf(run.cfg.organize).tags) } : {}) });
+    return { ...from(run, model), onSaved };
   }
 
   // The keyword editor, or Restore defaults. Both change what every document's severity is, and so
@@ -612,14 +620,14 @@ class BoardPanel extends BoardPanelWiring {
       void vscode.window.showInformationMessage(l10n(busy));
       return;
     }
+    if (!restore) {
+      await openTagsEditor({ ...this.editorInput(run, model), tab: "severity" });
+      return;
+    }
     const onSaved = async (): Promise<void> => {
       this.dirty = true;
       await this.refresh();
     };
-    if (!restore) {
-      await openTagsEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved, tab: "severity" });
-      return;
-    }
     this.assigning = true;
     try {
       if ((await saveSeverity({ kind: "restore" })) === "saved") {

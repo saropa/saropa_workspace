@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_TAGS, mergeDictionary } from "../../../board/org/tags";
+import { settingsOf } from "../../../board/org/settings";
 import {
   DEFAULT_LINK_PHRASES,
   EditorState,
@@ -13,6 +14,8 @@ import {
   defaultState,
   exportText,
   groupOverrides,
+  importDiff,
+  loadOrganize,
   organizeFromState,
   parseImport,
   setAssign,
@@ -216,13 +219,13 @@ test("group overrides: read, set, merge, clear, and refuse unusable values", () 
   const one = setGroupOverride(undefined, id, { name: "Money", emoji: "💰", colour: "ochre" });
   assert.ok(one.ok && one.changed);
   assert.deepEqual(groupOverrides(text(one))[id], { name: "Money", emoji: "💰", colour: "ochre" });
-  const two = setGroupOverride(text(one), "app:tag:data", { colour: "#1a7fb0" });
+  const two = setGroupOverride(text(one), "app:tag:data", { colour: "sky" });
   assert.deepEqual(Object.keys(groupOverrides(text(two))).sort(), [id, "app:tag:data"].sort());
   const cleared = setGroupOverride(text(two), id, undefined);
   assert.deepEqual(Object.keys(groupOverrides(text(cleared))), ["app:tag:data"]);
   const gone = setGroupOverride(text(cleared), "app:tag:data", {});
   assert.deepEqual(JSON.parse(text(gone)), { version: 1 });
-  for (const bad of [{ name: "" }, { name: "x".repeat(61) }, { colour: "#ff0000" }, { colour: "blue" }, { emoji: "e".repeat(17) }, { name: 5 }]) {
+  for (const bad of [{ name: "" }, { name: "x".repeat(61) }, { colour: "#ff0000" }, { colour: "#1a7fb0" }, { colour: "blue" }, { emoji: "e".repeat(17) }, { name: 5 }]) {
     assert.deepEqual(setGroupOverride(undefined, id, bad as never), { ok: false, reason: "shape" }, JSON.stringify(bad));
   }
   for (const badId of ["", "plain", "__proto__", "a b:folder:x", "app:folder:" + "x".repeat(300)]) {
@@ -250,4 +253,18 @@ test("assign and untag: one entry per document, removable, and the other keys st
   assert.deepEqual(setAssign(undefined, doc, "nonsense"), { ok: false, reason: "shape" });
   assert.deepEqual(setUntag(undefined, doc, "Bad Tag", true), { ok: false, reason: "shape" });
   assert.deepEqual(setAssign('{"organize":{"assign":5}}', doc, "app:folder:x"), { ok: false, reason: "shape" });
+});
+
+test("the loader keeps where, names what it dropped, and an import is counted before it is used", () => {
+  const org = { tags: { add: [{ id: "mine", label: "Mine", colour: "teal", patterns: ["alpha"], where: ["title"] }, { id: "bad", label: "Bad", colour: "#ff0000", patterns: ["x"] }] }, naming: { dates: "no" } };
+  const l = loadOrganize(org);
+  assert.deepEqual(l.state.tags.find((r) => r.id === "mine")?.where, ["title"]);
+  assert.deepEqual([...l.lossy].sort(), ["naming", "tags"]);
+  assert.equal(settingsOf(org).tags.find((t) => t.id === "mine")?.where?.[0], "title");
+  assert.deepEqual(organizeFromState(l.state).tags?.add?.[0].where, ["title"]);
+  assert.deepEqual(loadOrganize({}).lossy, []);
+  const next = defaultState();
+  next.tags.push({ ...next.tags[0], id: "extra" });
+  next.tags[1] = { ...next.tags[1], label: "Changed" };
+  assert.deepEqual(importDiff(defaultState(), next), { adds: 1, replaces: 1, removes: 0, link: false, naming: false });
 });

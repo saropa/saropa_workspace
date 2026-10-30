@@ -272,6 +272,6 @@ test("the tab bar starts on the tab it is given, and the other panels stay hidde
     const html = render(defaultDraft(), tagsLabels(), tab);
     assert.ok(html.includes(`id="tab-${tab}" data-tab="${tab}" aria-selected="true"`), tab);
     assert.equal(html.split('aria-selected="true"').length - 1, 1);
-    assert.equal(html.split("hidden>").length - 1, 3, tab);
+    assert.equal((html.match(/role="tabpanel"[^>]* hidden>/g) ?? []).length, 3, tab);
   }
 });

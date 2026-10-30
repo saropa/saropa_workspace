@@ -188,7 +188,7 @@ test("a state the host does not accept gets no preview and is not written", asyn
   send(null);
 });
 
-test("Save writes, closes the editor, scans again and offers Undo", async () => {
+test("Save writes, keeps the editor open, scans again and offers Undo", async () => {
   const { file } = setup();
   let scans = 0;
   await open(async () => void (scans += 1));
@@ -196,7 +196,8 @@ test("Save writes, closes the editor, scans again and offers Undo", async () => 
   send({ type: "save", state: dates });
   await settleUntil(() => scans === 1);
   assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")).organize, { naming: { dates: false } });
-  assert.equal(p.disposed, true);
+  assert.equal(p.disposed, false, "a save keeps the editor and the drafts of the other tabs");
+  await settleUntil(() => posted("saved").length === 1);
   assert.ok(vs.__infoMessages().some((m) => m.includes("saved to")));
 });
 
@@ -222,4 +223,77 @@ test("import and export ask the host for the file: the page never names a path",
   send({ type: "export", state: defaultState(), path: "/tmp/x" });
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(posted("state").length, 0, "a dismissed dialog changes nothing");
+});
+
+test("a save is refused when the file changed on disk since the editor read it", async () => {
+  const { file } = setup();
+  put(file, '{"version":1,"organize":{"naming":{"dates":false}}}');
+  const expected = edited((s) => (s.naming.dates = false));
+  put(file, '{"version":1,"organize":{"naming":{"dates":false,"prefixes":["plan"]}}}');
+  const before = fs.readFileSync(file, "utf8");
+  assert.equal(await saveState(defaultState(), expected), undefined);
+  assert.equal(fs.readFileSync(file, "utf8"), before, "the hand edit is kept");
+  assert.ok(stub.__warningMessages().some((m) => m.includes("changed since")));
+});
+
+test("the header names the folder and the rules file, and a folder choice is offered when there are several", async () => {
+  const { dir } = setup();
+  const other = tmpDir();
+  stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(dir), name: "app", index: 0 }, { uri: vscode.Uri.file(other), name: "second", index: 1 }]);
+  await open();
+  const html = panel().webview.html;
+  assert.ok(html.includes('<select id="folder"') && html.includes(">second</option>") && html.includes("release-board.json"));
+});
+
+test("a file the editor cannot edit says why, in its own words, and opens nothing", async () => {
+  const { file } = setup();
+  put(file, "{nope");
+  await open();
+  assert.ok(stub.__warningMessages().some((m) => m.includes("not valid JSON")));
+  assert.equal(__lastWebviewPanel()?.disposed ?? true, true);
+  stub.__resetWarnings();
+  put(file, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("{}")]));
+  await open();
+  assert.ok(stub.__warningMessages().some((m) => m.includes("not plain UTF-8")));
+  stub.__resetWarnings();
+  put(file, '{"a":1,"a":2}');
+  await open();
+  assert.ok(stub.__warningMessages().some((m) => m.includes("same key twice")));
+  stub.__setWorkspaceFolders(undefined);
+  vs.__resetInfo();
+  await open();
+  assert.ok(vs.__infoMessages().some((m) => m.includes("Open a folder first")));
+});
+
+test("values the editor cannot use are named on the page and a save asks before it drops them", async () => {
+  const { file } = setup();
+  put(file, '{"version":1,"organize":{"tags":{"add":[{"id":"mine","label":"Mine","colour":"#ff0000","patterns":["x"]}]}}}');
+  await open();
+  assert.ok(panel().webview.html.includes('id="tags-lossy"'));
+  const before = fs.readFileSync(file, "utf8");
+  send({ type: "save", state: dates });
+  await settleUntil(() => stub.__warningMessages().length > 0);
+  assert.ok(stub.__warningMessages()[0].includes("Saving removes them"));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(fs.readFileSync(file, "utf8"), before, "declined: nothing written");
+});
+
+test("Close asks before it drops unsaved edits and closes at once when there are none", async () => {
+  setup();
+  await open();
+  send({ type: "cancel", dirty: true });
+  await settleUntil(() => stub.__warningMessages().length === 1);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(panel().disposed, false);
+  send({ type: "cancel", dirty: false });
+  await settleUntil(() => panel().disposed === true);
+});
+
+test("opening the editor again follows the board panel it was opened from", async () => {
+  setup();
+  await open();
+  let second = 0;
+  await openTagsEditor({ cfg: { version: 1, ignore: [], ruleSets: {}, projects: [] }, items: [], projectNames: new Map(), profile: "deliberate", onSaved: async () => void (second += 1) });
+  send({ type: "save", state: dates });
+  await settleUntil(() => second > 0);
 });

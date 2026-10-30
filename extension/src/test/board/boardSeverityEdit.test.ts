@@ -343,7 +343,7 @@ test("a newer request stops an older one", async () => {
   assert.equal(posted("sevPreview").some((m) => m.seq === 1), false);
 });
 
-test("Save checks the draft again, asks with the effect on the open documents counted now, writes, closes and tells the board", async () => {
+test("Save checks the draft again, asks with the effect on the open documents counted now, writes, stays open and tells the board", async () => {
   const { dir, file } = setup();
   let saved = 0;
   await open(dir, async () => void (saved += 1));
@@ -354,7 +354,8 @@ test("Save checks the draft again, asks with the effect on the open documents co
   assert.ok(ask.includes("1 of 2 open documents would change level, and 1 would stop the release no longer"), ask);
   const written = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.deepEqual(Object.keys(written.severity), ["phrases"]);
-  assert.equal(panel().disposed, true);
+  assert.equal(panel().disposed, false, "a save keeps the editor and the other drafts");
+  await settleUntil(() => posted("sevSaved").length === 1);
 });
 
 test("a declined save keeps the editor open and the board unchanged", async () => {
@@ -379,7 +380,7 @@ test("Cancel closes the editor and a message of the wrong shape is ignored", asy
   send({ type: "nope" });
   assert.equal(panel().disposed, false);
   send({ type: "cancel" });
-  assert.equal(panel().disposed, true);
+  await settleUntil(() => panel().disposed === true);
   await open(dir);
   assert.equal(panel().disposed, false, "a closed editor can be opened again");
 });
@@ -482,4 +483,17 @@ test("when the documents cannot be read the editor still counts the documents th
   const { docs, total } = await loadPreviewDocs(bad, [project(dir)], new Map(), DEFAULT_SEVERITY, 300);
   assert.equal(total, 2);
   assert.equal(docs.length, 1);
+});
+
+test("a second Severity save passes the changed-since-open check and offers Undo", async () => {
+  const { dir, file } = setup();
+  await open(dir);
+  confirm("Save keywords");
+  send({ type: "sevSave", draft: draftWith((d) => (d.threshold = 7)) });
+  await settleUntil(() => posted("sevSaved").length === 1);
+  send({ type: "sevSave", draft: draftWith((d) => (d.threshold = 8)) });
+  await settleUntil(() => posted("sevSaved").length === 2);
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).severity.threshold, 8);
+  assert.equal(panel().disposed, false);
+  assert.ok(vs.__infoMessages().some((m) => m.includes("saved to")));
 });

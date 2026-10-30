@@ -4,8 +4,8 @@
 
 import { AssignRefusal, Parsed, isObject, parseForEdit, serialize } from "../ruleAssign";
 import { isAllowedColour, COLOUR_HEX } from "./appearance";
-import { ACRONYMS } from "./naming";
-import { DEFAULT_TAGS, TagDef, TagEffect, TagsConfig, compileTags, matchTags, refusal, subjectOf } from "./tags";
+import { ACRONYMS, cleanName } from "./naming";
+import { DEFAULT_TAGS, TagDef, TagEffect, TagWhere, TagsConfig, compileTags, matchTags, refusal, subjectOf } from "./tags";
 import { KIND } from "./tokens";
 import type { GroupOverride, OrganizeConfig } from "./overrides";
 import type { OrgColour } from "./orgTypes";
@@ -17,6 +17,7 @@ export const LIMITS = {
   emoji: 16,
   patterns: 50,
   pattern: 30,
+  order: 400,
   linkAdd: 20,
   linkPhrase: 30,
   prefixes: 60,
@@ -30,6 +31,7 @@ export const LIMITS = {
 } as const;
 
 export const EFFECTS: readonly TagEffect[] = ["group", "name", "emoji", "colour"];
+export const WHERES: readonly TagWhere[] = ["folder", "file", "title"];
 export const COLOUR_NAMES = Object.keys(COLOUR_HEX) as OrgColour[];
 
 // The phrases link inference reads as "waits on" (linksSignals.ts), in the plain form shown for each.
@@ -44,6 +46,8 @@ export interface TagRow {
   colour: string;
   patterns: string[];
   effects: TagEffect[];
+  // Where the patterns are looked for; left out: everywhere (kept end to end so a hand-written value survives a save).
+  where?: TagWhere[];
   // A shipped tag is turned off, not removed.
   off: boolean;
 }
@@ -67,10 +71,10 @@ const PHRASE = /^[a-z][a-z ]*[a-z]$/;
 const ACRONYM = /^[A-Za-z][A-Za-z0-9]*$/;
 const KIND_WORD = /^[a-z]+$/;
 
-export const defaultRow = (t: TagDef): TagRow => ({ id: t.id, label: t.label, emoji: t.emoji, colour: t.colour, patterns: [...t.patterns], effects: [...(t.effects ?? EFFECTS)], off: false });
+export const defaultRow = (t: TagDef): TagRow => ({ id: t.id, label: t.label, emoji: t.emoji, colour: t.colour, patterns: [...t.patterns], effects: [...(t.effects ?? EFFECTS)], ...(t.where ? { where: [...t.where] } : {}), off: false });
 export const defaultState = (): EditorState => ({ tags: DEFAULT_TAGS.map(defaultRow), linkWords: { off: [], add: [] }, naming: { dates: true, prefixes: [...DEFAULT_PREFIXES], acronyms: [...DEFAULT_ACRONYMS] } });
 
-export const tagOfRow = (r: TagRow): TagDef => ({ id: r.id, label: r.label, emoji: r.emoji, colour: r.colour, patterns: r.patterns, effects: r.effects });
+export const tagOfRow = (r: TagRow): TagDef => ({ id: r.id, label: r.label, emoji: r.emoji, colour: r.colour, patterns: r.patterns, effects: r.effects, ...(r.where ? { where: r.where } : {}) });
 
 // Why a row is unusable, or undefined. Colour and emoji follow the contrast and red rules of the dictionary.
 function rowProblem(r: unknown): string | undefined {
@@ -95,6 +99,9 @@ function rowProblem(r: unknown): string | undefined {
   if (!Array.isArray(r.effects) || !r.effects.every((e) => EFFECTS.includes(e as TagEffect)) || typeof r.off !== "boolean") {
     return "effects";
   }
+  if (r.where !== undefined && (!Array.isArray(r.where) || r.where.length === 0 || r.where.length > WHERES.length || !r.where.every((w) => WHERES.includes(w as TagWhere)))) {
+    return "where";
+  }
   return refusal(tagOfRow(r as unknown as TagRow));
 }
 
@@ -105,6 +112,7 @@ const cleanRow = (r: TagRow): TagRow => ({
   colour: isAllowedColour(r.colour) ? r.colour : r.colour.toLowerCase(),
   patterns: [...new Set(r.patterns.map((p) => p.toLowerCase()))],
   effects: EFFECTS.filter((e) => r.effects.includes(e)),
+  ...(r.where && r.where.length ? { where: WHERES.filter((w) => (r.where as TagWhere[]).includes(w)) } : {}),
   off: r.off,
 });
 
@@ -147,13 +155,23 @@ export function checkState(raw: unknown): StateCheck {
 const sameList = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x) => b.includes(x));
 
+export type LossyPart = "tags" | "linkWords" | "naming";
+
+// What an `organize` key gives, and the parts where a saved copy would drop something the file holds: a tag or
+// patch that fails the checks, a list with an unusable value. The editor shows the parts and asks before a save.
+export interface Loaded {
+  state: EditorState;
+  lossy: LossyPart[];
+}
+
 // The rows a project's `organize` key gives, in priority order: the user's own order, then own tags, then shipped.
 // A value that does not pass the checks is dropped (a patch falls back to the shipped tag), so a hostile or
-// out-of-date file can never reach the page.
-export function stateFromOrganize(organize: unknown): EditorState {
+// out-of-date file can never reach the page; `lossy` names the parts where that happened.
+export function loadOrganize(organize: unknown): Loaded {
   const out = defaultState();
+  const lossy = new Set<LossyPart>();
   if (!isObject(organize)) {
-    return out;
+    return { state: out, lossy: [] };
   }
   const t = isObject(organize.tags) ? organize.tags : {};
   const offIds = new Set(Array.isArray(t.off) ? t.off.filter((x): x is string => typeof x === "string") : []);
@@ -163,42 +181,78 @@ export function stateFromOrganize(organize: unknown): EditorState {
     const patch = isObject(t.replace) && Object.prototype.hasOwnProperty.call(t.replace, d.id) && isObject(t.replace[d.id]) ? (t.replace[d.id] as Record<string, unknown>) : {};
     const base = defaultRow(d);
     const merged = { ...base, off: offIds.has(d.id) };
-    for (const k of ["label", "emoji", "colour", "patterns", "effects"] as const) {
+    for (const k of ["label", "emoji", "colour", "patterns", "effects", "where"] as const) {
       if (patch[k] !== undefined) {
         (merged as Record<string, unknown>)[k] = patch[k];
       }
     }
-    rows.push(fits(merged) ? cleanRow(merged) : { ...base, off: offIds.has(d.id) });
+    if (fits(merged)) {
+      rows.push(cleanRow(merged));
+    } else {
+      lossy.add("tags");
+      rows.push({ ...base, off: offIds.has(d.id) });
+    }
   }
   const own: TagRow[] = [];
-  for (const a of Array.isArray(t.add) ? t.add.slice(0, LIMITS.tags) : []) {
-    const r = isObject(a) ? { id: a.id, label: a.label, emoji: a.emoji ?? "", colour: a.colour, patterns: a.patterns, effects: a.effects ?? [...EFFECTS], off: false } : undefined;
+  const added = Array.isArray(t.add) ? t.add : [];
+  if (added.length > LIMITS.tags) {
+    lossy.add("tags");
+  }
+  for (const a of added.slice(0, LIMITS.tags)) {
+    const r = isObject(a) ? { id: a.id, label: a.label, emoji: a.emoji ?? "", colour: a.colour, patterns: a.patterns, effects: a.effects ?? [...EFFECTS], ...(a.where !== undefined ? { where: a.where } : {}), off: false } : undefined;
     if (r && fits(r) && !SHIPPED.has(r.id) && ![...own, ...rows].some((x) => x.id === r.id)) {
       own.push(cleanRow({ ...r, off: offIds.has(r.id) }));
+    } else {
+      lossy.add("tags");
     }
   }
   const rest = [...own, ...rows];
-  const first = (Array.isArray(t.order) ? t.order : []).map((id) => rest.find((r) => r.id === id)).filter((r): r is TagRow => r !== undefined);
+  const order = Array.isArray(t.order) ? t.order.slice(0, LIMITS.order) : [];
+  const first = order.map((id) => rest.find((r) => r.id === id)).filter((r): r is TagRow => r !== undefined);
   out.tags = [...new Set([...first, ...rest])];
   const lw = isObject(organize.linkWords) ? organize.linkWords : {};
-  if (listProblem(lw.off, DEFAULT_LINK_PHRASES.length, LIMITS.linkPhrase, (s) => DEFAULT_LINK_PHRASES.includes(s))) {
-    out.linkWords.off = [...new Set(lw.off)];
+  const lwOff = (s: string): boolean => DEFAULT_LINK_PHRASES.includes(s);
+  const lwAdd = (s: string): boolean => PHRASE.test(s) && !DEFAULT_LINK_PHRASES.includes(s);
+  if (lw.off !== undefined) {
+    if (listProblem(lw.off, DEFAULT_LINK_PHRASES.length, LIMITS.linkPhrase, lwOff)) {
+      out.linkWords.off = [...new Set(lw.off)];
+    } else {
+      lossy.add("linkWords");
+    }
   }
-  if (listProblem(lw.add, LIMITS.linkAdd, LIMITS.linkPhrase, (s) => PHRASE.test(s) && !DEFAULT_LINK_PHRASES.includes(s))) {
-    out.linkWords.add = [...new Set(lw.add)];
+  if (lw.add !== undefined) {
+    if (listProblem(lw.add, LIMITS.linkAdd, LIMITS.linkPhrase, lwAdd)) {
+      out.linkWords.add = [...new Set(lw.add)];
+    } else {
+      lossy.add("linkWords");
+    }
   }
   const nm = isObject(organize.naming) ? organize.naming : {};
-  if (typeof nm.dates === "boolean") {
-    out.naming.dates = nm.dates;
+  if (nm.dates !== undefined) {
+    if (typeof nm.dates === "boolean") {
+      out.naming.dates = nm.dates;
+    } else {
+      lossy.add("naming");
+    }
   }
-  if (listProblem(nm.prefixes, LIMITS.prefixes, LIMITS.prefix, (s) => KIND_WORD.test(s))) {
-    out.naming.prefixes = [...new Set(nm.prefixes)];
+  if (nm.prefixes !== undefined) {
+    if (listProblem(nm.prefixes, LIMITS.prefixes, LIMITS.prefix, (s) => KIND_WORD.test(s))) {
+      out.naming.prefixes = [...new Set(nm.prefixes)];
+    } else {
+      lossy.add("naming");
+    }
   }
-  if (listProblem(nm.acronyms, LIMITS.acronyms, LIMITS.acronym, (s) => ACRONYM.test(s))) {
-    out.naming.acronyms = [...new Map(nm.acronyms.map((a) => [a.toLowerCase(), a])).values()];
+  if (nm.acronyms !== undefined) {
+    if (listProblem(nm.acronyms, LIMITS.acronyms, LIMITS.acronym, (s) => ACRONYM.test(s))) {
+      out.naming.acronyms = [...new Map(nm.acronyms.map((a) => [a.toLowerCase(), a])).values()];
+    } else {
+      lossy.add("naming");
+    }
   }
-  return out;
+  return { state: out, lossy: [...lossy] };
 }
+
+export const stateFromOrganize = (organize: unknown): EditorState => loadOrganize(organize).state;
 
 export interface OrganizeParts {
   tags?: TagsConfig;
@@ -241,6 +295,9 @@ export function organizeFromState(s: EditorState): OrganizeParts {
     }
     if (!sameSet(r.effects, d.effects ?? EFFECTS)) {
       patch.effects = r.effects;
+    }
+    if (!sameSet(r.where ?? WHERES, d.where ?? WHERES)) {
+      patch.where = r.where ?? [...WHERES];
     }
     if (Object.keys(patch).length) {
       replace[d.id] = patch;
@@ -310,23 +367,57 @@ export const exportText = (s: EditorState): string => JSON.stringify(organizeFro
 export interface TagMatchSummary {
   count: number;
   examples: string[];
+  // Per example, the stemmed words that matched (the page marks them in the title).
+  marks: string[][];
+}
+
+// What importing a file into the draft does, in counts: tags added, tags that replace one of the same id, tags
+// the draft has that the file lacks (kept out), and whether link words or naming differ.
+export interface ImportDiff {
+  adds: number;
+  replaces: number;
+  removes: number;
+  link: boolean;
+  naming: boolean;
+}
+
+export function importDiff(current: EditorState, next: EditorState): ImportDiff {
+  const had = new Map(current.tags.map((r) => [r.id, JSON.stringify(r)]));
+  const ids = new Set(next.tags.map((r) => r.id));
+  return {
+    adds: next.tags.filter((r) => !had.has(r.id)).length,
+    replaces: next.tags.filter((r) => had.has(r.id) && had.get(r.id) !== JSON.stringify(r)).length,
+    removes: current.tags.filter((r) => !ids.has(r.id)).length,
+    link: JSON.stringify(current.linkWords) !== JSON.stringify(next.linkWords),
+    naming: JSON.stringify(current.naming) !== JSON.stringify(next.naming),
+  };
 }
 
 // Which of the documents each turned-on tag applies to (counts and a few titles; never a path).
 export function testMatch(docs: ReadonlyArray<{ path: string; title: string }>, rows: readonly TagRow[], examples = 4): Record<string, TagMatchSummary> {
   const live = rows.filter((r) => !r.off);
   const compiled = compileTags(live.map(tagOfRow));
-  const out: Record<string, TagMatchSummary> = Object.fromEntries(rows.map((r) => [r.id, { count: 0, examples: [] }]));
+  const out: Record<string, TagMatchSummary> = Object.fromEntries(rows.map((r) => [r.id, { count: 0, examples: [], marks: [] }]));
   for (const d of docs) {
     for (const m of matchTags(subjectOf(d.path, d.title), compiled)) {
       const s = out[m.tagId];
       s.count += 1;
       if (s.examples.length < examples) {
         s.examples.push(d.title.slice(0, 80));
+        s.marks.push([...new Set(m.hits.map((h) => h.word))]);
       }
     }
   }
   return out;
+}
+
+// What group names the naming rules make of the file names: up to `max` distinct names, those the draft changes
+// from the shipped rules first. Names only; never a path.
+export function namingPreview(docs: ReadonlyArray<{ path: string }>, naming: EditorState["naming"], max = 8): Array<{ from: string; to: string }> {
+  const stems = [...new Set(docs.map((d) => (d.path.split("/").pop() ?? "").replace(/\.[^.]+$/, "")).filter((x) => x !== ""))].sort();
+  const mine = { dates: naming.dates, prefixes: new Set(naming.prefixes) };
+  const rows = stems.map((from) => ({ from, to: cleanName(from, naming.acronyms, mine), shipped: cleanName(from) }));
+  return [...rows.filter((r) => r.to !== r.shipped), ...rows.filter((r) => r.to === r.shipped)].slice(0, max).map(({ from, to }) => ({ from: from.slice(0, 60), to }));
 }
 
 // ---- Writing into the rules file text ----
@@ -379,8 +470,22 @@ export function applyState(text: string | undefined, state: EditorState): EditOu
 
 // The state the file holds now (shipped values where the file says nothing or says something unusable).
 export function stateOfText(text: string | undefined): EditorState | undefined {
+  const l = loadText(text);
+  return l.ok ? l.state : undefined;
+}
+
+// The state of a rules file text with the parts a save would drop, or why the text cannot be edited.
+export type TextLoad = ({ ok: true } & Loaded) | { ok: false; reason: AssignRefusal };
+
+export function loadText(text: string | undefined): TextLoad {
   const p = parseForEdit(text);
-  return p.ok ? stateFromOrganize(p.doc.organize) : undefined;
+  if (!p.ok) {
+    return p;
+  }
+  if (p.doc.organize !== undefined && !isObject(p.doc.organize)) {
+    return { ok: false, reason: "shape" };
+  }
+  return { ok: true, ...loadOrganize(p.doc.organize) };
 }
 
 // ---- Overrides: typed access for the row and group menus ----
@@ -411,8 +516,8 @@ export function cleanGroupOverride(o: unknown): GroupOverride | undefined {
     out.emoji = o.emoji;
   }
   if (o.colour !== undefined) {
-    const probe: TagDef = { id: "x", label: "x", emoji: "", colour: String(o.colour), patterns: [] };
-    if (!isStr(o.colour, 7) || refusal(probe)) {
+    // The engine honours the eight names only (autoGroup.ts), so a hex is refused here.
+    if (!isStr(o.colour, 7) || !isAllowedColour(o.colour)) {
       return undefined;
     }
     out.colour = o.colour;

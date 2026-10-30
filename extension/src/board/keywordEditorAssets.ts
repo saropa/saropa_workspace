@@ -19,17 +19,13 @@ summary{cursor:pointer;padding:7px 0;font-weight:600;display:flex;flex-wrap:wrap
 .x:hover{background:var(--vscode-toolbar-hoverBackground,rgba(127,127,127,.25))}
 .addrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
 .addrow input[type=text]{flex:1 1 9em;min-width:0}
-input[type=text],input[type=number]{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,rgba(127,127,127,.5));padding:3px 6px;font:inherit;border-radius:2px;min-width:0}
+input[type=number]{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,rgba(127,127,127,.5));padding:3px 6px;font:inherit;border-radius:2px;min-width:0}
 input[type=number]{width:6em}
 summary:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}
-input[aria-invalid=true]{border-color:var(--vscode-inputValidation-errorBorder,#be1100)}
 button.primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}
 button.secondary:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground)}
-.fld{margin:8px 0}
 #pv-list{margin:6px 0 0;padding-left:18px}
 #pv-list li{overflow-wrap:anywhere}
-button.primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}
-button.secondary:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground)}
 .sevbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0}
 #sev-msg{color:var(--vscode-errorForeground);overflow-wrap:anywhere}
 `;
@@ -37,7 +33,8 @@ button.secondary:hover:not(:disabled){background:var(--vscode-button-secondaryHo
 // A function the Tags page script calls with the one acquireVsCodeApi() result and INIT.sev (see tagsEditorHtml.ts).
 export const SEVERITY_SCRIPT = String.raw`
 function startSeverity(vscode,K){
-const T=K.t,LEVELS=K.levels,LIM=K.limits,DEF=K.defaults,SAVED=K.saved;
+const T=K.t,LEVELS=K.levels,LIM=K.limits,DEF=K.defaults;
+let SAVED=K.saved;
 const clone=x=>JSON.parse(JSON.stringify(x));
 let D=clone(K.draft),seq=0,timer=0;const bad={};
 const $=(s)=>document.querySelector(s);
@@ -133,8 +130,14 @@ window.addEventListener('message',(ev)=>{
   const m=ev.data;
   if(m&&m.type==='sevPreview'&&m.seq===seq){showPreview(m);}
   else if(m&&m.type==='sevInvalid'&&m.seq===seq){$('#pv-text').textContent=T.previewInvalid;$('#pv-list').textContent='';}
+  else if(m&&m.type==='sevSaved'){
+    // The file holds the draft now: it is the new saved copy, the unusable-values note no longer applies.
+    SAVED=clone(m.draft);D=clone(m.draft);const w=$('#sev-lossy');if(w){w.hidden=true;}
+    LEVELS.concat(['negation']).forEach(renderList);renderNumbers();refresh();
+  }
 });
 LEVELS.concat(['negation']).forEach(renderList);
 refresh();
+return {dirty:changed};
 }
 `;
