@@ -3,7 +3,7 @@ import { l10n } from "../i18n/l10n";
 import { SeverityDict } from "../board/severity";
 import { EditRefusal, EditResult, PreviewResult, SeverityDraft, applyDraft, dictOfSeverity, removeSeverity } from "../board/severityEdit";
 import { RULES_FILE } from "./boardConfigLoad";
-import { RulesSnapshot, hasUnsavedCopy, isLink, readRules, sameRead } from "./boardRuleAssign";
+import { RulesSnapshot, hasUnsavedCopy, isLink, plainWriteError, readRules, sameRead } from "./boardRuleAssign";
 
 // Release Board, saving the keyword editor into the `severity` key of the rules file. The same
 // care as the rule writers: the file is parsed first, a file that is not plain UTF-8, has a key
@@ -150,7 +150,7 @@ export async function saveSeverity(change: SeverityChange, opts: SaveOptions = {
     await vscode.workspace.fs.createDirectory(dir);
     await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     return "refused";
   }
   if (opts.onSnapshot && change.kind === "draft") {

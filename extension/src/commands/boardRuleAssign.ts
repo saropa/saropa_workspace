@@ -179,12 +179,17 @@ async function linkedRules(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promi
   return (await isLink(vscode.Uri.joinPath(root.uri, ".saropa"))) || (await isLink(uri));
 }
 
+// True when the rules file has unsaved edits open, by the workspace path or the real path.
+async function rulesUnsaved(uri: vscode.Uri): Promise<boolean> {
+  return hasUnsavedCopy(uri) || (await hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri));
+}
+
 // Writes a change to the rules file with every check: no unsaved copy open, no symbolic link,
 // strict UTF-8, a confirmation that names the change (when it has one), and a second read just
 // before the write. Returns true when the file was written, so the caller scans again.
 export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri)) {
+  if (await rulesUnsaved(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
     return false;
   }
@@ -206,7 +211,7 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
     return false;
   }
   // The file is read again just before the write: a change made while the dialogs were open wins.
-  if (hasUnsavedCopy(uri) || !sameRead(await readRules(uri), before)) {
+  if ((await rulesUnsaved(uri)) || !sameRead(await readRules(uri), before)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.changed", { file: RULES_FILE }));
     return false;
   }
@@ -225,7 +230,7 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
     await vscode.workspace.fs.createDirectory(dir);
     await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     // A write that failed late may still have landed; keep it undoable when it did.
     const now = await readRules(uri).catch((): RulesRead => ({ kind: "none" }));
     if (now.kind === "text" && now.text === result.text) {
@@ -250,7 +255,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
     return false;
   }
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri) || (await hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri))) {
+  if (await rulesUnsaved(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
     return false;
   }
@@ -280,7 +285,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(s.before, "utf8"));
     }
   } catch (e) {
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     return false;
   }
   return true;
@@ -444,3 +449,18 @@ export async function changeDoc(run: BoardRun, doc: { project: string; path: str
   return snapshot;
 }
 
+// A write error as one plain sentence for the problems list. The raw text goes to the log only.
+export function plainWriteError(e: unknown, file: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  console.error(`Release Board: writing ${file} failed: ${raw}`);
+  const code = String((e as { code?: unknown } | null)?.code ?? "");
+  const text = `${code} ${raw}`;
+  const kind = /EACCES|EPERM|EROFS|NoPermissions|permission|read-only/i.test(text)
+    ? "permission"
+    : /ENOSPC|EDQUOT|no space|disk full/i.test(text)
+      ? "space"
+      : /ENOENT|FileNotFound|no such file/i.test(text)
+        ? "missing"
+        : "other";
+  return l10n(`releaseBoard.patch.fail.${kind}`, { file });
+}
