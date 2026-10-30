@@ -155,7 +155,7 @@ test("the page has the controls, the open mark and the roll-up in order, and sen
   assert.ok(at("data-projects title=") > at('class="hint"'), "the hint offers the add button");
   assert.ok(at('class="hint"') < at('class="roll"'));
   assert.ok(at('class="roll"') < at('class="tag otag"'));
-  assert.ok(at('class="tag otag"') < at('class="vd skip"'));
+  assert.ok(at('class="hint"') < at('class="vd skip"') && at('class="vd skip"') < at('class="roll"'), "unread folders show above the tabs, on every tab");
   assert.equal(html.match(/<script/g)?.length, 1);
   assert.ok(html.includes("type:'projects',rev:REV"));
   assert.ok(html.includes("type:'scope',value:b.dataset.scope,rev:REV"));

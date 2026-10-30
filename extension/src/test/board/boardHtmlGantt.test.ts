@@ -5,7 +5,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings } from "../../board/boardHtmlUtil";
 import { GANTT_SCRIPT, ganttPanel } from "../../board/boardHtmlGantt";
-import { buildGantt } from "../../board/ganttModel";
+import { MAX_FINISHED, buildGantt, finishedTargets } from "../../board/ganttModel";
+import { STYLE } from "../../board/boardHtmlAssets";
+import { Link } from "../../board/links";
 import { buildBoard } from "../../board/boardModel";
 import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
@@ -50,8 +52,9 @@ test("the panel escapes titles and names, closes each group with its light and c
   const html = ganttPanel(model, t);
   assert.ok(!html.includes("<i>") && !html.includes("<b>"));
   assert.ok(html.includes("Finished &#60;i&#62;") && html.includes("App &#60;b&#62;"));
-  assert.ok(html.includes('class="go no-go"'));
+  assert.ok(html.includes('class="go gtl no-go"'));
   assert.ok(html.includes('aria-label="ganttKeyLabel" title="ganttKey">?</button>'));
+  assert.ok(html.includes('id="gKey" hidden') && html.includes('aria-controls="gKey"'), "the key is a hidden panel the button toggles");
   assert.ok(html.includes('role="tabpanel" aria-labelledby="tb-gantt"'));
   assert.ok(html.includes('tabindex="0" data-gid='), "rows are reachable by keyboard");
 });
@@ -67,4 +70,49 @@ test("no items shows the empty line, and the script draws arrows only for the ho
   assert.ok(ganttPanel(empty, t).includes("ganttEmpty"));
   assert.ok(GANTT_SCRIPT.includes("[hov,sel]"));
   assert.ok(!GANTT_SCRIPT.includes("postMessage"), "the view is read-only");
+});
+
+function chainModel(specs: Array<[string, string]>) {
+  const fs = Object.fromEntries(specs.map(([p, needs]) => [p, `# T ${p}\n\n${needs ? `Needs: ${needs}\n` : ""}`]));
+  return buildBoard(cfg, specs.map(([p]) => row(p, "amber")), undefined, true, snapshotOf(fs));
+}
+
+test("a chain of 50 never starts a bar before its predecessor ends, and nothing overflows the axis", () => {
+  const specs: Array<[string, string]> = Array.from({ length: 50 }, (_v, i) => [`n${i}.md`, i === 0 ? "" : `n${i - 1}.md`]);
+  const [g] = buildGantt(chainModel(specs));
+  assert.equal(g.rows.length, 50);
+  const byTitle = new Map(g.rows.map((r) => [r.title, r]));
+  for (let i = 1; i < 50; i++) {
+    const prev = byTitle.get(`T n${i - 1}.md`)!;
+    const cur = byTitle.get(`T n${i}.md`)!;
+    assert.ok(cur.start >= prev.start + prev.width - 0.001, `n${i} starts after n${i - 1} ends`);
+    assert.ok(cur.start + cur.width <= 100.001);
+  }
+});
+
+test("a loop of Needs lines does not hang and still places both items", () => {
+  const [g] = buildGantt(chainModel([["a.md", "b.md"], ["b.md", "a.md"]]));
+  assert.equal(g.rows.length, 2);
+  assert.ok(g.rows.every((r) => Number.isFinite(r.start) && r.width > 0));
+});
+
+test("a waited-on item that is not on the board leaves no names clause", () => {
+  const [g] = buildGantt(chainModel([["a.md", "gone.md"]]));
+  assert.deepEqual(g.rows[0].waits, []);
+});
+
+test("finished history is capped per project and leaves out reference documents", () => {
+  const link = (project: string, i: number): Link => ({ fromProject: "x", fromPath: "x.md", target: "t", state: "done", toProject: project, toPath: `d${i}.md` });
+  const links = [...Array.from({ length: MAX_FINISHED + 5 }, (_v, i) => link("p1", i)), ...Array.from({ length: 3 }, (_v, i) => link("p2", i))];
+  const out = finishedTargets(links, (_p, path) => path, (p, path) => p === "p1" && path === "d0.md");
+  assert.equal(out.filter((f) => f.project === "p1").length, MAX_FINISHED);
+  assert.equal(out.filter((f) => f.project === "p2").length, 3);
+  assert.ok(!out.some((f) => f.path === "d0.md" && f.project === "p1"));
+});
+
+test("the loading shimmer skips the Gantt lights, and each row has one tab stop", () => {
+  assert.ok(STYLE.includes(".loading .go:not(.gtl)"));
+  const html = ganttPanel(model, t);
+  assert.ok(html.includes('tabindex="-1"'));
+  assert.ok(GANTT_SCRIPT.includes("gcol"), "folds are remembered");
 });

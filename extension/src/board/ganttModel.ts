@@ -5,12 +5,12 @@ import { SinceView, sinceKey } from "./sinceLast";
 // The Gantt view's model: the open items and the finished ones they needed, grouped by project
 // and laid out on a coarse work-order axis. The axis is dependency order, never days. Pure.
 
-// Most finished documents kept as history.
+// Most finished documents kept as history, per project.
 export const MAX_FINISHED = 20;
-// Width, in axis units, of a bar whose step minutes are not known.
+// Step minutes assumed for a bar whose minutes are not known.
 const STANDARD = 30;
-// The narrowest bar, in percent of the axis, so a short step stays visible.
-const MIN_WIDTH = 4;
+// The shortest bar, as a share of its slot, so a short step stays visible.
+const MIN_SHARE = 0.35;
 
 // A finished document that open work waited on, kept as a dimmed history row.
 export interface FinishedDoc {
@@ -19,17 +19,20 @@ export interface FinishedDoc {
   title: string;
 }
 
-// The finished targets of the Needs links, once each, in link order.
-export function finishedTargets(links: Link[], titleOf: (project: string, path: string) => string): FinishedDoc[] {
+// The finished targets of the Needs links, once each, in link order, at most MAX_FINISHED per
+// project. Reference documents are never history.
+export function finishedTargets(links: Link[], titleOf: (project: string, path: string) => string, isReference: (project: string, path: string) => boolean = () => false): FinishedDoc[] {
   const seen = new Set<string>();
+  const perProject = new Map<string, number>();
   const out: FinishedDoc[] = [];
   for (const l of links) {
-    if (l.state !== "done" || !l.toProject || !l.toPath || out.length >= MAX_FINISHED) {
+    if (l.state !== "done" || !l.toProject || !l.toPath || (perProject.get(l.toProject) ?? 0) >= MAX_FINISHED || isReference(l.toProject, l.toPath)) {
       continue;
     }
     const k = l.toProject + "\t" + l.toPath;
     if (!seen.has(k)) {
       seen.add(k);
+      perProject.set(l.toProject, (perProject.get(l.toProject) ?? 0) + 1);
       out.push({ project: l.toProject, path: l.toPath, title: titleOf(l.toProject, l.toPath) });
     }
   }
@@ -75,63 +78,66 @@ function minutesByDoc(model: BoardModel): Map<string, number> {
   return m;
 }
 
-// Where each open item sits: it starts when everything it waits on has ended. A loop of
-// Needs lines is cut where it closes.
-function layout(items: BoardItem[], minutes: Map<string, number>): Map<number, { start: number; end: number }> {
+// The rank of each open item: 0 when it waits on nothing, else one past the deepest thing it
+// waits on. A loop of Needs lines is cut where it closes.
+function ranks(items: BoardItem[]): Map<number, number> {
   const byId = new Map(items.map((i) => [i.id, i]));
-  const spans = new Map<number, { start: number; end: number }>();
+  const out = new Map<number, number>();
   const visiting = new Set<number>();
-  const place = (i: BoardItem): { start: number; end: number } => {
-    const known = spans.get(i.id);
-    if (known) {
+  const place = (i: BoardItem): number => {
+    const known = out.get(i.id);
+    if (known !== undefined) {
       return known;
     }
     visiting.add(i.id);
-    let start = 0;
+    let rank = 0;
     for (const w of i.waitsOn) {
       const dep = byId.get(w);
       if (dep && !visiting.has(w)) {
-        start = Math.max(start, place(dep).end);
+        rank = Math.max(rank, place(dep) + 1);
       }
     }
     visiting.delete(i.id);
-    const span = { start, end: start + (minutes.get(i.project + "\t" + i.path) || STANDARD) };
-    spans.set(i.id, span);
-    return span;
+    out.set(i.id, rank);
+    return rank;
   };
   items.forEach(place);
-  return spans;
+  return out;
 }
 
 // The groups of the Gantt, one per project that has a row, finished documents first and then
 // the open items in work order.
 export function buildGantt(model: BoardModel, since?: SinceView): GanttGroup[] {
   const minutes = minutesByDoc(model);
-  const spans = layout(model.items, minutes);
-  const total = Math.max(STANDARD, ...[...spans.values()].map((s) => s.end));
+  const rank = ranks(model.items);
+  // One slot per rank: a bar stays inside its slot, so what waits always starts after what it
+  // waits on has ended, however long the chain.
+  const slots = Math.max(0, ...rank.values()) + 1;
+  const slot = Math.round(1000 / slots) / 10;
+  const longest = Math.max(STANDARD, ...model.items.map((i) => minutes.get(i.project + "\t" + i.path) ?? 0));
   const marked = new Set(since?.marked ?? []);
-  const pct = (n: number): number => Math.round((n / total) * 1000) / 10;
   const titles = new Map(model.items.map((i) => [i.id, i.title]));
   const groups: GanttGroup[] = [];
   for (const p of model.projects) {
     const done: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
-      .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: pct(STANDARD), minutes: 0, after: [], waits: [], changed: false }));
+      .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], changed: false }));
     const open: GanttRow[] = p.items
-      .map((i) => ({ i, span: spans.get(i.id) ?? { start: 0, end: STANDARD } }))
-      .sort((a, b) => a.span.start - b.span.start)
-      .map(({ i, span }): GanttRow => {
-        const width = Math.max(MIN_WIDTH, pct(span.end - span.start));
+      .map((i) => ({ i, rank: rank.get(i.id) ?? 0 }))
+      .sort((a, b) => a.rank - b.rank)
+      .map(({ i, rank: r }): GanttRow => {
+        const known = minutes.get(i.project + "\t" + i.path) ?? 0;
+        const share = Math.min(1, Math.max(MIN_SHARE, (known || STANDARD) / longest));
         return {
           id: i.id,
           title: i.title,
           path: i.path,
           status: i.status === "red" || i.stopping ? "red" : i.status,
-          start: Math.min(pct(span.start), 100 - width),
-          width,
-          minutes: minutes.get(i.project + "\t" + i.path) ?? 0,
+          start: Math.round(r * slot * 10) / 10,
+          width: Math.round(slot * share * 10) / 10,
+          minutes: known,
           after: i.waitsOn,
-          waits: i.waitsOn.map((w) => titles.get(w) ?? ""),
+          waits: i.waitsOn.map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
           changed: marked.has(sinceKey(i)),
         };
       });

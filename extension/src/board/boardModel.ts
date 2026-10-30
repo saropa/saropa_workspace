@@ -358,7 +358,8 @@ export function buildBoard(
   attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   const customParts = customizedParts(cfg.severity);
-  const finished = finishedTargets(links, (project, path) => factsFor(snapshot, project, path)?.title || titleFromPath(path));
+  const reference = new Set(rows.filter((r) => r.status === "reference").map((r) => r.project + "\t" + r.path));
+  const finished = finishedTargets(links, (project, path) => factsFor(snapshot, project, path)?.title || titleFromPath(path), (project, path) => reference.has(project + "\t" + path));
   return {
     tidy: extra?.tidy ? buildTidyView(all, ctx, extra.tidy) : undefined,
     inProgress: extra?.inProgress ? pickInProgress(all, new Set(extra.inProgress.edited), extra.inProgress.max) : undefined,

@@ -113,8 +113,8 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
   const live = !(state.stale || state.loading);
   // One card per project, or the projects as plain rows over the merged lists.
   const projects = state.groupBy === "project"
-    ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, openBadge(p, model, t), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
-    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, openBadge(p, model, t))).join("") + skippedBlock(model, t, MAX_EXTRA_PROJECTS)
+    ? model.projects.map((p, i) => projectCard(p, i, t, lights, paths?.[i], live, openBadge(p, model, t), single || (p.light === "no-go" && p.extra !== true), cardLists(model, p, names, t))).join("")
+    : model.projects.map((p, i) => projectBlock(p, i, t, lights, paths?.[i], live, openBadge(p, model, t))).join("")
       + list(t.resolveNow, by("red"), names, t, { tip: "list.resolveNow", single }) + inProgressList(model, names, t, single) + list(t.workOn, by("amber"), names, t, { tip: "list.workOn", single });
   // The side sections wait behind one strip of pills. Changes since the last look opens by itself
   // once, when a document became a blocker.
@@ -132,15 +132,15 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 ${topBar(model, t, state.scope, viewTabs(future, t), since)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}
+${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 ${ganttPanel(model, t, since)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${byUserNote(model, t)}${keywordLine(model, t)}${banner}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
 ${rollupBar(model, t)}
 ${projects}
 ${sittingsBox(model, t)}
 ${more}
 ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}", String(blocked)))}"><i class="sq amber" ${glyphTip(t, "g.amberSquare", t.blocked.replace("{count}", String(blocked)))}></i> ${pillify(t, escapeHtml(t.blocked.replace("{count}", String(blocked))))}</p>` : ""}
-${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 </div>
 ${futurePanel(future, t)}
 ${rowMenu(t)}${scopeMenu(t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup)}

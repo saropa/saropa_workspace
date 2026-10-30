@@ -2015,7 +2015,7 @@
   "releaseBoard.polish.tabFuture": "Show deferred and blocked documents with their flags and research state.",
   "releaseBoard.polish.tabGantt": "Show the Gantt list: items grouped by project, in the order the work must be done.",
   "releaseBoard.polish.ganttTabName": "Gantt",
-  "releaseBoard.polish.ganttKey": "Key\nCircle, diamond, half circle and check: blocks the release, review next, in progress, done.\nBar: position is work order, width is the step minutes known. A dashed edge means no minutes are known, so the bar has a standard width.\nArrows: what a row waits on and what waits on it. They show only for the row you point at or select.\nLight at the end of a group: GO, UNVERIFIED or NO-GO.\nDimmed rows: finished work, kept as history.\nDotted blue border: changed since you last looked.",
+  "releaseBoard.polish.ganttKey": "Key\nCircle, diamond, half circle and check: blocks the release, review next, in progress, done.\nBar: position is work order, width is the step minutes known. A dashed edge means no minutes are known, so the bar has a standard width. Bars never overlap the step they wait on.\nArrows: what a row waits on and what waits on it. They show only for the row you point at or select.\nLight at the end of a group: GO, UNVERIFIED or NO-GO.\nDimmed rows: finished work, kept as history (the latest twenty per project).\nDotted blue border: changed since you last looked.",
   "releaseBoard.polish.ganttKeyLabel": "Key",
   "releaseBoard.polish.ganttEmpty": "No items to show.",
   "releaseBoard.polish.ganttAxis": "Work order, not days: what must finish first sits further left.",
