@@ -268,3 +268,17 @@ test("the loader keeps where, names what it dropped, and an import is counted be
   next.tags[1] = { ...next.tags[1], label: "Changed" };
   assert.deepEqual(importDiff(defaultState(), next), { adds: 1, replaces: 1, removes: 0, link: false, naming: false });
 });
+
+test("the loader warns when a save would drop entries it does not know", () => {
+  const cases: unknown[] = [
+    { tags: { replace: { "no-such-tag": { label: "X" } } } },
+    { tags: { replace: { [DEFAULT_TAGS[0].id]: { label: "X", future: 1 } } } },
+    { tags: { add: [{ id: "mine", label: "Mine", colour: "teal", patterns: ["alpha"], future: true }] } },
+    { tags: { off: ["no-such-tag"] } },
+    { tags: { order: ["no-such-tag"] } },
+  ];
+  for (const org of cases) {
+    assert.ok(loadOrganize(org).lossy.includes("tags"), JSON.stringify(org));
+  }
+  assert.deepEqual(loadOrganize({ tags: { replace: { [DEFAULT_TAGS[0].id]: { label: "X" } }, off: [DEFAULT_TAGS[0].id] } }).lossy, []);
+});

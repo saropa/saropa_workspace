@@ -9,6 +9,7 @@ import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
 import { BoardRun } from "./boardScanStore";
+import { withWriteLock, writeFileSafe } from "./boardWrite";
 
 // Release Board, "Documents with no rule": assign a category to a folder of documents no rule
 // placed, and preview what a rule for the folder would match. The page names a folder by the
@@ -42,11 +43,6 @@ export async function isLink(uri: vscode.Uri): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-// True when the rules file is open in an editor with unsaved edits: the write would drop them.
-export function hasUnsavedCopy(uri: vscode.Uri): boolean {
-  return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
 }
 
 // True when a document open in an editor has unsaved edits and is this file, by its real path or by
@@ -159,6 +155,8 @@ export interface RulesSnapshot {
   after: string;
   // The change created the .saropa folder too; Undo then removes it when it is left empty.
   madeDir?: boolean;
+  // The workspace folder the rules file belongs to (its uri); Undo goes back to that one.
+  folder?: string;
 }
 
 // One change to the text of the rules file, with the words that go with it. Without `confirm` the
@@ -179,17 +177,21 @@ async function linkedRules(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promi
   return (await isLink(vscode.Uri.joinPath(root.uri, ".saropa"))) || (await isLink(uri));
 }
 
-// True when the rules file has unsaved edits open, by the workspace path or the real path.
-async function rulesUnsaved(uri: vscode.Uri): Promise<boolean> {
-  return hasUnsavedCopy(uri) || (await hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri));
+// True when the file has unsaved edits open, by the workspace path or the real path (letter case ignored).
+export async function hasUnsavedCopy(uri: vscode.Uri): Promise<boolean> {
+  return hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri);
 }
 
 // Writes a change to the rules file with every check: no unsaved copy open, no symbolic link,
 // strict UTF-8, a confirmation that names the change (when it has one), and a second read just
 // before the write. Returns true when the file was written, so the caller scans again.
-export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
+export function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
+  return withWriteLock(vscode.Uri.joinPath(root.uri, RULES_FILE), () => applyTextChangeNow(root, c));
+}
+
+async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (await rulesUnsaved(uri)) {
+  if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
     return false;
   }
@@ -211,7 +213,7 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
     return false;
   }
   // The file is read again just before the write: a change made while the dialogs were open wins.
-  if ((await rulesUnsaved(uri)) || !sameRead(await readRules(uri), before)) {
+  if ((await hasUnsavedCopy(uri)) || !sameRead(await readRules(uri), before)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.changed", { file: RULES_FILE }));
     return false;
   }
@@ -228,13 +230,13 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
       madeDir = true;
     }
     await vscode.workspace.fs.createDirectory(dir);
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
+    await writeFileSafe(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
     void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     // A write that failed late may still have landed; keep it undoable when it did.
     const now = await readRules(uri).catch((): RulesRead => ({ kind: "none" }));
     if (now.kind === "text" && now.text === result.text) {
-      c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}) });
+      c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
       return true;
     }
     return false;
@@ -242,7 +244,7 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
   if (c.done) {
     void vscode.window.showInformationMessage(c.done(result.vars));
   }
-  c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}) });
+  c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
   return true;
 }
 
@@ -250,12 +252,17 @@ export async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChang
 // Only while the file still holds exactly what that change wrote, with the same checks as a write:
 // a later edit by hand, by another change or in an open editor is never overwritten.
 export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
-  const root = vscode.workspace.workspaceFolders?.[0];
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  const root = (s.folder !== undefined ? folders.find((f) => f.uri.toString() === s.folder) : undefined) ?? folders[0];
   if (!root) {
     return false;
   }
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (await rulesUnsaved(uri)) {
+  return withWriteLock(uri, () => undoRulesNow(s, root, uri));
+}
+
+async function undoRulesNow(s: RulesSnapshot, root: vscode.WorkspaceFolder, uri: vscode.Uri): Promise<boolean> {
+  if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
     return false;
   }
@@ -282,7 +289,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
         }
       }
     } else {
-      await vscode.workspace.fs.writeFile(uri, Buffer.from(s.before, "utf8"));
+      await writeFileSafe(uri, Buffer.from(s.before, "utf8"));
     }
   } catch (e) {
     void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));

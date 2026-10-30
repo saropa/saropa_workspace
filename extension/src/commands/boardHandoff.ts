@@ -1,7 +1,10 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { CopyMode, DEFAULT_TERMINAL_COMMAND, HANDOFF_DIR, HandoffFormat, asCopyMode, handoffFile, joinHandoffs, referralLine, staleHandoffFiles, terminalCommand } from "../board/handoff";
+import { pathExists } from "./boardFileSource";
+import { isLink } from "./boardRuleAssign";
+import { writeFileSafe } from "./boardWrite";
+import { CopyMode, DEFAULT_TERMINAL_COMMAND, HANDOFF_DIR, HandoffFormat, asCopyMode, handoffFile, joinHandoffs, referralLine, staleHandoffFiles, terminalCommand, unsafeCommandPath } from "../board/handoff";
 
 // Release Board, hand-off: writes the finished document to the project's hand-off folder and
 // delivers it: a copied line, the whole text, or a command in a terminal. Local only: nothing
@@ -28,17 +31,43 @@ export interface HandoffFiles {
 }
 
 // Writes the Markdown and JSON files and a .gitignore that keeps the folder out of git, then
-// removes the files of older hand-offs beyond the newest twenty.
+// removes the files of older hand-offs beyond the newest twenty. Nothing is written through a symbolic
+// link (the .saropa folder, the hand-off folder or a target file); an existing .gitignore with other
+// content is kept (a `*` line is added only when it has none); only files named like a hand-off are pruned.
 export async function saveHandoff(h: HandoffFiles): Promise<void> {
+  const saropa = vscode.Uri.joinPath(h.root, ".saropa");
   const dir = vscode.Uri.joinPath(h.root, HANDOFF_DIR);
-  const write = (name: string, text: string): Thenable<void> => vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, name), Buffer.from(text, "utf8"));
+  const target = (name: string): vscode.Uri => vscode.Uri.joinPath(dir, name);
+  const linked = async (u: vscode.Uri): Promise<boolean> => isLink(u);
+  if ((await linked(saropa)) || (await linked(dir))) {
+    throw new Error("EPERM: the hand-off folder is a symbolic link");
+  }
+  const names = [".gitignore", `${h.id}.md`, `${h.id}.json`];
+  for (const n of names) {
+    if (await linked(target(n))) {
+      throw new Error(`EPERM: ${n} is a symbolic link`);
+    }
+  }
   await vscode.workspace.fs.createDirectory(dir);
-  await write(".gitignore", "*\n");
-  await write(`${h.id}.md`, h.markdown);
-  await write(`${h.id}.json`, h.json);
+  const ignore = target(".gitignore");
+  if (!(await pathExists(ignore))) {
+    await writeFileSafe(ignore, Buffer.from("*\n", "utf8"));
+  } else {
+    const text = Buffer.from(await vscode.workspace.fs.readFile(ignore)).toString("utf8");
+    if (!text.split(/\r?\n/).some((l) => l.trim() === "*")) {
+      await writeFileSafe(ignore, Buffer.from(`${text}${text === "" || text.endsWith("\n") ? "" : "\n"}*\n`, "utf8"));
+    }
+  }
+  await writeFileSafe(target(`${h.id}.md`), Buffer.from(h.markdown, "utf8"));
+  await writeFileSafe(target(`${h.id}.json`), Buffer.from(h.json, "utf8"));
   try {
-    const names = (await vscode.workspace.fs.readDirectory(dir)).map(([name]) => name);
-    await Promise.all(staleHandoffFiles(names).map((name) => vscode.workspace.fs.delete(vscode.Uri.joinPath(dir, name))));
+    const found = (await vscode.workspace.fs.readDirectory(dir)).map(([name]) => name);
+    for (const name of staleHandoffFiles(found)) {
+      // staleHandoffFiles only returns names that are a hand-off id plus .md or .json; a link is never followed.
+      if (!(await linked(target(name)))) {
+        await vscode.workspace.fs.delete(target(name));
+      }
+    }
   } catch {
     // Pruning is best effort: a file that cannot be removed stays.
   }
@@ -60,6 +89,12 @@ const fileFrom = (first: HandoffFiles, f: HandoffFiles, format: HandoffFormat): 
 // setting; Copy full text always copies the whole text. The terminal runs in the first project's folder.
 export async function deliver(act: HandoffAct, files: HandoffFiles[], format: HandoffFormat, settings: HandoffSettings): Promise<HandoffResult> {
   const first = files[0];
+  if (act === "terminal") {
+    const unsafe = unsafeCommandPath(files.slice(1).map((f) => fileFrom(first, f, "md")));
+    if (unsafe !== undefined) {
+      return { word: l10n("releaseBoard.handoff.unsafe"), tip: l10n("releaseBoard.handoff.unsafeTip", { file: unsafe }) };
+    }
+  }
   for (const f of files) {
     await saveHandoff(f);
   }

@@ -1,4 +1,4 @@
-import { needsTargets, parseNeeds, readsNeeds } from "./docFacts";
+import { MAX_FACTS_CHARS, MAX_LINE, mapLinks, needsLineParts, needsSeparators, needsTargets, parseNeeds, readsNeeds } from "./docFacts";
 
 // Adds a "Needs:" line to the text of a document, or takes a target out of one. Every line break
 // is kept as it was, and so is a missing final one. The result must read back through the same
@@ -7,8 +7,9 @@ import { needsTargets, parseNeeds, readsNeeds } from "./docFacts";
 export type NeedsRefusal = "exists" | "absent" | "target" | "shape" | "type";
 export type NeedsEdit = { ok: true; text: string } | { ok: false; reason: NeedsRefusal };
 
-// One Needs line: its label (with the markers before it) and the targets after it.
-const LINE = /^([ \t>*_-]*\**needs\**[ \t]*:[ \t]*\**[ \t]*)(.+)$/i;
+// Documents above this size, and Needs lines above MAX_LINE, are left alone (the same limits the
+// patch writer and the facts reader keep), so a hostile text cannot stall the editor.
+const MAX_DOC = MAX_FACTS_CHARS;
 
 // The text with fenced code blanked out (its line breaks stay), as the board reads it.
 const blank = (text: string): string => text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
@@ -23,7 +24,7 @@ function split(text: string): { parts: string[]; read: string[] } {
 function needsLines(parts: string[], read: string[]): number[] {
   const out: number[] = [];
   for (let i = 0; i * 2 < parts.length; i++) {
-    if (read[i] === parts[i * 2] && LINE.test(parts[i * 2])) {
+    if (read[i] === parts[i * 2] && needsLineParts(parts[i * 2]) !== undefined) {
       out.push(i);
     }
   }
@@ -70,6 +71,9 @@ export function addNeed(text: string, target: string, path?: string): NeedsEdit 
   if (path !== undefined && !readsNeeds(path)) {
     return { ok: false, reason: "type" };
   }
+  if (text.length > MAX_DOC) {
+    return { ok: false, reason: "shape" };
+  }
   const before = parseNeeds(blank(text));
   if (needsTargets(target).length !== 1 || needsTargets(target)[0] !== target) {
     return { ok: false, reason: "target" };
@@ -98,13 +102,13 @@ export function addNeed(text: string, target: string, path?: string): NeedsEdit 
 // where it starts and ends, and the target it names (none for an empty piece). A Markdown link is
 // one piece, whatever its text holds.
 function pieces(rest: string): Array<{ start: number; end: number; target?: string }> {
-  const masked = rest.replace(/\[[^\]]*\]\([^)\s]+\)/g, (m) => "x".repeat(m.length));
+  const masked = mapLinks(rest, (m) => "x".repeat(m.length));
   const out: Array<{ start: number; end: number; target?: string }> = [];
   let start = 0;
-  for (const m of [...masked.matchAll(/\s*[;,]\s*|\s+and\s+/g), { index: masked.length, 0: "" }]) {
-    const end = m.index as number;
+  for (const m of [...needsSeparators(masked, true), { index: masked.length, len: 0 }]) {
+    const end = m.index;
     out.push({ start, end, target: needsTargets(rest.slice(start, end))[0] });
-    start = end + m[0].length;
+    start = end + m.len;
   }
   return out;
 }
@@ -151,6 +155,9 @@ export function removeNeed(text: string, target: string, path?: string): NeedsEd
   if (path !== undefined && !readsNeeds(path)) {
     return { ok: false, reason: "type" };
   }
+  if (text.length > MAX_DOC) {
+    return { ok: false, reason: "shape" };
+  }
   const before = parseNeeds(blank(text));
   if (!before.includes(target)) {
     return { ok: false, reason: "absent" };
@@ -158,13 +165,13 @@ export function removeNeed(text: string, target: string, path?: string): NeedsEd
   const { parts, read } = split(text);
   const drop: number[] = [];
   for (const i of needsLines(parts, read)) {
-    const m = LINE.exec(parts[i * 2]) as RegExpExecArray;
-    if (needsTargets(m[2]).includes(target)) {
-      const rest = cutTarget(m[2], target);
+    const m = needsLineParts(parts[i * 2]) as { label: string; rest: string };
+    if (needsTargets(m.rest).includes(target)) {
+      const rest = cutTarget(m.rest, target);
       if (rest === undefined) {
         drop.push(i);
       } else {
-        parts[i * 2] = m[1] + rest;
+        parts[i * 2] = m.label + rest;
       }
     }
   }

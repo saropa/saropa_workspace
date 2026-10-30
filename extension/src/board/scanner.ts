@@ -299,7 +299,7 @@ export async function scanProject(
   snap.factsKey = factsKeyOf(factsOpt);
   const prevFacts = previous?.factsKey === snap.factsKey ? previous.facts : undefined;
 
-  const wanted = (p: string): boolean => exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
+  const wanted = (p: string): boolean => !p.endsWith(".tmp") && exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
   // 1. List every root at once.
   const files = await listFiles(project, source, wanted);
   // 2. Status words.

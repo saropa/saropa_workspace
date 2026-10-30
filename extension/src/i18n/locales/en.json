@@ -2620,6 +2620,8 @@
   "releaseBoard.handoff.saved": "Saved",
   "releaseBoard.handoff.savedTip": "Saved {file} and the matching .json file. The folder is never committed",
   "releaseBoard.handoff.started": "Started",
+  "releaseBoard.handoff.unsafe": "Not started",
+  "releaseBoard.handoff.unsafeTip": "A project folder name has characters a terminal command cannot hold safely ({file}). Use Copy or Save instead.",
   "releaseBoard.handoff.startedTip": "Ran in a new terminal: {command}",
   "releaseBoard.handoff.failed": "Failed",
   "releaseBoard.handoff.failedTip": "The hand-off was not done: {error}",
