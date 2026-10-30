@@ -2,6 +2,7 @@ import { BoardItem, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { chooseBox } from "./boardHtmlHandoff";
+import { dragAttrs } from "./boardHtmlDrag";
 import { BoardStrings, fillT, collapsible, sectionIcon, docLink, escapeHtml, liveLine, glyphTip, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { blocksNow, kebab, rowData } from "./boardHtmlMenus";
 import type { FeedNote } from "./recipeEvidence";
@@ -233,7 +234,7 @@ function facts(i: BoardItem, t: BoardStrings): string {
 // One open document: the title is the link that opens it (its tooltip is the path inside the
 // project); a click anywhere else on the row opens it too. The row menu button shows on hover.
 export function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${titleAttr(rowCard(i, t))}>${statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}"${dragAttrs(i.id)} ${titleAttr(rowCard(i, t))}>${statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
 }
 
 // What a list adds to the plain item list: its tooltip key, an explanation line, how many more
