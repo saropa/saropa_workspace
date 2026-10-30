@@ -1,13 +1,13 @@
 import { posix } from "node:path";
 import { BoardModel } from "./boardModel";
-import { oneLine } from "./futureBlock";
 import { SEVERITY_LEVELS, docGlob, isObject } from "./ruleAssign";
 
 // The reply patch: what an AI sends back after a hand-off. Pure: this module parses the text,
 // checks every change against what the board shows and lists what would change. Nothing here
 // reads a file or writes one; applying is the host's job and only follows the owner's ticks.
 
-export const PATCH_SCHEMA = "saropa.releaseBoard.patch/1";
+export const PATCH_VERSION = 1;
+export const PATCH_SCHEMA = `saropa.releaseBoard.patch/${PATCH_VERSION}`;
 export const PATCH_OPS = ["setStatus", "setSeverity", "addNeeds", "removeNeeds", "setGroup"] as const;
 export type PatchOp = (typeof PATCH_OPS)[number];
 // Largest text read, most changes accepted, and longest reason and group name.
@@ -60,7 +60,7 @@ export function targetsOf(model: BoardModel): Map<string, PatchTarget> {
 // Why a whole text was not read as a patch.
 export type PatchError = "empty" | "tooLarge" | "notJson" | "shape" | "schema" | "newer" | "tooMany";
 // Why one change was left out.
-export type Refusal = "shape" | "unknownOp" | "unknownItem" | "unknownTarget" | "badValue" | "same" | "circle" | "linked" | "notLinked" | "tooLong";
+export type Refusal = "shape" | "unknownOp" | "unknownItem" | "unknownTarget" | "badValue" | "same" | "circle" | "linked" | "notLinked" | "tooLong" | "noRevision" | "duplicate" | "lookalike";
 
 // A change that passed: the value now and the one it would become, for the review list.
 export interface PatchRow {
@@ -79,14 +79,40 @@ export interface PatchRefusal {
 
 export type PatchCheck = { ok: true; basedOn?: string; rows: PatchRow[]; refused: PatchRefusal[] } | { ok: false; reason: PatchError };
 
-const FENCE = /(`{3,})[ \t]*json[ \t]+saropa-patch[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*\1/i;
+const TAG = /^[ \t]*json[ \t]+saropa-patch$/i;
 
 // The patch text inside a reply: the block tagged `json saropa-patch`, else the whole text when
-// it is one JSON object.
+// it is one JSON object. A line-by-line scan, so the time is linear in the size; a reply over the
+// size limit is never scanned (the caller refuses it as too large first).
 export function extractPatch(reply: string): string | undefined {
-  const fenced = FENCE.exec(reply);
-  if (fenced) {
-    return fenced[2];
+  if (reply.length > MAX_PATCH_CHARS) {
+    return undefined;
+  }
+  const lines = reply.split("\n");
+  let open = -1;
+  let fence = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].endsWith("\r") ? lines[i].slice(0, -1) : lines[i];
+    if (open < 0) {
+      let at = 0;
+      while (at < 3 && line[at] === " ") {
+        at++;
+      }
+      let n = 0;
+      while (line[at + n] === "`") {
+        n++;
+      }
+      const rest = line.slice(at + n).trimEnd();
+      if (n >= 3 && rest.length <= 40 && TAG.test(rest)) {
+        open = i;
+        fence = n;
+      }
+    } else {
+      const t = line.trim();
+      if (t.length >= fence && [...t].every((ch) => ch === "`")) {
+        return lines.slice(open + 1, i).map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l)).join("\n");
+      }
+    }
   }
   const bare = reply.trim();
   return bare.startsWith("{") ? bare : undefined;
@@ -95,8 +121,23 @@ export function extractPatch(reply: string): string | undefined {
 const REV = /^\d+-\d+$/;
 const CHANGE_KEYS = new Set(["op", "item", "to", "on", "group", "reason", "rev"]);
 const PATCH_KEYS = new Set(["schema", "basedOn", "changes"]);
-// A one-line text of at most `max` characters, trimmed; undefined when it is blank, longer or has line breaks.
-const words = (v: unknown, max: number): string | undefined => (typeof v === "string" && v.trim() !== "" && v.length <= max && oneLine(v) === v.trim() ? v.trim() : undefined);
+// Characters that show nothing or reorder text: soft hyphen, fillers, zero-width and format
+// characters, bidi controls, variation selectors, the BOM and the Unicode tag characters.
+const HIDDEN = /[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\uffa0\ufe00-\ufe0f\ufeff\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu;
+const PRINTABLE = /^[\p{L}\p{N}\p{M}\p{P}\p{S} ]+$/u;
+// The text as the board compares it: NFKC, hidden characters gone, spaces collapsed.
+export const cleanText = (v: string): string => v.normalize("NFKC").replace(HIDDEN, "").replace(/ +/g, " ").trim();
+const fold = (v: string): string => cleanText(v).toLowerCase();
+// A one-line text of at most `max` characters, normalized and trimmed; undefined when it is blank,
+// longer, has a line break or control character, or holds anything but printable letters, digits,
+// marks, punctuation, symbols and spaces.
+const words = (v: unknown, max: number): string | undefined => {
+  if (typeof v !== "string" || v.length > max * 4) {
+    return undefined;
+  }
+  const t = cleanText(v);
+  return t !== "" && t.length <= max && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(t) && PRINTABLE.test(t) ? t : undefined;
+};
 // A path that can be written into a Needs line without being split or read as markup.
 export const writableNeeds = (p: string): boolean => /^[\w./+@-]+$/.test(p) && posix.normalize(p) === p && !p.startsWith("../") && docGlob(p) !== undefined;
 
@@ -135,24 +176,41 @@ export function checkPatch(raw: string, targets: Map<string, PatchTarget>, statu
   if (!isObject(doc) || Object.keys(doc).some((k) => !PATCH_KEYS.has(k)) || !Array.isArray(doc.changes) || typeof doc.schema !== "string") {
     return { ok: false, reason: "shape" };
   }
-  const version = /^saropa\.releaseBoard\.patch\/(\d{1,4})$/.exec(doc.schema);
+  const version = /^saropa\.releaseBoard\.patch\/([1-9]\d{0,3})$/.exec(doc.schema);
   if (!version) {
     return { ok: false, reason: "schema" };
   }
-  if (Number(version[1]) > 1) {
+  if (Number(version[1]) > PATCH_VERSION) {
     return { ok: false, reason: "newer" };
+  }
+  if (Number(version[1]) !== PATCH_VERSION) {
+    return { ok: false, reason: "schema" };
   }
   if (doc.changes.length > MAX_CHANGES) {
     return { ok: false, reason: "tooMany" };
   }
   const needs = new Map([...targets].map(([id, t]) => [id, new Set(t.needs)]));
+  const groups = new Map<string, string>();
+  for (const t of targets.values()) {
+    if (t.group) {
+      groups.set(fold(t.group), t.group);
+    }
+  }
   const rows: PatchRow[] = [];
   const refused: PatchRefusal[] = [];
+  const seen = new Set<string>();
   doc.changes.forEach((c: unknown, i) => {
-    const r = checkChange(c, targets, statuses, needs);
+    const r = checkChange(c, targets, statuses, needs, groups);
     if (typeof r === "string") {
       refused.push({ n: i + 1, reason: r });
+      return;
+    }
+    // One change per kind and item (a link change also per other item); the first one stays.
+    const k = `${r.change.op}\t${r.change.item}\t${r.change.on ?? ""}`;
+    if (seen.has(k)) {
+      refused.push({ n: i + 1, reason: "duplicate" });
     } else {
+      seen.add(k);
       rows.push(r);
     }
   });
@@ -162,7 +220,7 @@ export function checkPatch(raw: string, targets: Map<string, PatchTarget>, statu
 
 // One change: its row, or why it was refused. A passing link change updates `needs`, so a later
 // change of the same patch sees it (and a circle made of two changes is caught).
-function checkChange(c: unknown, targets: Map<string, PatchTarget>, statuses: readonly string[], needs: Map<string, Set<string>>): PatchRow | Refusal {
+function checkChange(c: unknown, targets: Map<string, PatchTarget>, statuses: readonly string[], needs: Map<string, Set<string>>, groups: Map<string, string>): PatchRow | Refusal {
   if (!isObject(c) || Object.keys(c).some((k) => !CHANGE_KEYS.has(k)) || (c.rev !== undefined && (typeof c.rev !== "string" || !REV.test(c.rev)))) {
     return "shape";
   }
@@ -173,6 +231,9 @@ function checkChange(c: unknown, targets: Map<string, PatchTarget>, statuses: re
   const item = typeof c.item === "string" ? targets.get(c.item) : undefined;
   if (!item) {
     return "unknownItem";
+  }
+  if (c.rev === undefined) {
+    return "noRevision";
   }
   const reason = c.reason === undefined ? "" : words(c.reason, MAX_REASON);
   if (reason === undefined) {
@@ -194,6 +255,10 @@ function checkChange(c: unknown, targets: Map<string, PatchTarget>, statuses: re
     const group = words(c.group, MAX_GROUP);
     if (!group) {
       return "badValue";
+    }
+    const known = groups.get(fold(group));
+    if (known !== undefined && known !== group) {
+      return "lookalike";
     }
     change.group = group;
     return group === item.group ? "same" : row(item.group ?? "", group);

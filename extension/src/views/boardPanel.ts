@@ -12,7 +12,7 @@ import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { DocChange, assignFolderRule, changeDoc, previewFolder } from "../commands/boardRuleAssign";
-import { BatchSnapshot, applyRows, undoBatch } from "../commands/boardPatch";
+import { BatchSnapshot, applyRows, savePastedPatch, undoBatch } from "../commands/boardPatch";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
@@ -492,10 +492,21 @@ class BoardPanel extends BoardPanelWiring {
     }
     this.assigning = true;
     try {
+      if (picked.dropped > 0) {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.patch.dropped", { count: picked.dropped }));
+      }
       const out = await applyRows(run, model, picked.rows);
       const skipped = ids.length - out.applied;
-      if (out.applied > 0) {
+      if (out.problems.length > 0) {
+        void vscode.window.showWarningMessage(l10n("releaseBoard.patch.problems", { count: out.problems.length, list: out.problems.slice(0, 5).join("; ") }));
+      }
+      // Whatever was written can be undone, even when a later row failed.
+      const wrote = out.snapshot.rules !== undefined || out.snapshot.docs.length > 0;
+      if (wrote) {
         this.offerUndo(l10n("releaseBoard.patch.undo", { count: out.applied, id: picked.name }), out.snapshot);
+        if (picked.source === "paste") {
+          await savePastedPatch(run, model, picked.rows, picked.text);
+        }
         this.patches.clear();
         this.dirty = true;
         await this.refresh();

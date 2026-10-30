@@ -222,6 +222,10 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
     return false;
   }
   const now = await readRules(uri);
+  // Already back as it was (an earlier Undo that stopped partway): nothing left to do.
+  if (s.before !== undefined && now.kind === "text" && now.text === s.before) {
+    return true;
+  }
   if (now.kind !== "text" || now.text !== s.after) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.undo.changed", { file: RULES_FILE }));
     return false;

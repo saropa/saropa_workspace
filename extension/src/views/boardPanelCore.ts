@@ -337,6 +337,7 @@ export abstract class BoardPanelCore {
       { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited) }
     );
     const model = this.model;
+    this.patches.scan();
     const settings = pathSettings();
     this.paths = settings
       ? model.projects.map((p) =>

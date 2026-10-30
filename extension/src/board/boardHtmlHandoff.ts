@@ -49,7 +49,7 @@ export function readyPill(t: BoardStrings, count: number | undefined): string {
     return "";
   }
   const text = escapeHtml(hl(t, "ready").replace("{count}", () => String(n)));
-  return `<div class="filter"><button type="button" class="ho-pill" data-patchopen title="${esc(t, "readyTip")}">${text}</button></div>`;
+  return `<div class="filter"><button type="button" class="ho-pill" data-patchopen data-tmpl="${esc(t, "ready")}" title="${esc(t, "readyTip")}">${text}</button></div>`;
 }
 
 // The drawer, empty and hidden. The page script opens and fills it when the host answers.
@@ -119,7 +119,7 @@ row.appendChild(c);row.appendChild(mk('ho-pill',op));row.appendChild(mk('',item)
 row.appendChild(mk('ho-pill',r.before?String(r.before):'\\u2014'));row.appendChild(mk('','\\u2192'));row.appendChild(mk('ho-pill',r.after?String(r.after):'\\u2014'));
 if(stale){row.appendChild(mk('ho-pill mute',bp.dataset.stale,bp.dataset.staleTip));}
 bl.appendChild(row);});
-(Array.isArray(m.refused)?m.refused:[]).forEach(x=>{if(x&&typeof x.text==='string'){bl.appendChild(mk('ho-pill mute',bp.dataset.refused+' \\u00b7 '+x.text,x.text));}});
+(Array.isArray(m.refused)?m.refused:[]).forEach(x=>{if(x&&typeof x.text==='string'){const li=document.createElement('div');li.className='bo-r';li.setAttribute('role','listitem');li.appendChild(mk('ho-pill mute',bp.dataset.refused+' \\u00b7 '+x.text,x.text));bl.appendChild(li);}});
 sync();};
 document.getElementById('boRead').addEventListener('click',()=>{vscode.postMessage({type:'patchRead',text:bt.value,rev:REV});});
 ba.addEventListener('click',()=>{const ids=ticked().map(c=>Number(c.dataset.i));if(ids.length>0){vscode.postMessage({type:'patchApply',ids,rev:REV});}});
@@ -132,6 +132,7 @@ window.addEventListener('message',e=>{const m=e.data;if(!m){return;}
 if(m.type==='handoffOpen'&&typeof m.scope==='string'){if(['fix','plan','review','triage','organize'].includes(m.task)){task=m.task;pressed('[data-task]','task',task);}openDrawer(m.scope,typeof m.i==='number'?m.i:undefined);}
 else if(m.type==='patchReview'){if(HO.hidden||tab!=='back'){openBack();}showReview(m);}
 else if(m.type==='patchDone'){clearList();const a=Number(m.applied)||0,k=Number(m.skipped)||0;bm.textContent=bp.dataset.applied.replace('{count}',()=>String(a));bm.title=bp.dataset.appliedTip.replace('{applied}',()=>String(a)).replace('{skipped}',()=>String(k));document.querySelectorAll('[data-patchopen]').forEach(b=>{b.hidden=true;});}
+else if(m.type==='patchPill'){const n=Number(m.count)||0;document.querySelectorAll('[data-patchopen]').forEach(b=>{b.hidden=n<=0;if(n>0&&b.dataset.tmpl){b.textContent=b.dataset.tmpl.replace('{count}',()=>String(n));}});}
 else if(m.type==='handoffBack'){openBack();}
 else if(m.type==='handoffDoc'&&cur&&!HO.hidden){pre.textContent=String(m.text);tok.textContent=String(m.tokens);tok.title=tok.dataset.tip.replace('{count}',()=>String(m.tokens).replace(/^~/,''));cnt=Number(m.count);if(!avail&&Array.isArray(m.avail)){avail=m.avail;}drawScopes();}
 else if(m.type==='handoffStatus'&&!HO.hidden){msg.textContent=String(m.word);msg.title=String(m.tip||'');}});

@@ -12,7 +12,9 @@ const target = (id: string, over: Partial<PatchTarget> = {}): PatchTarget => {
 };
 const targets = new Map([target("app:a.md"), target("app:b.md", { needs: ["app:a.md"], group: "Launch" }), target("lib:c.md")].map((t) => [t.id, t]));
 const STATUSES = ["red", "amber", "green"];
-const patch = (changes: unknown[], over: Record<string, unknown> = {}): string => JSON.stringify({ schema: "saropa.releaseBoard.patch/1", basedOn: "x", changes, ...over });
+// Every change names the board's revision unless it says otherwise.
+const withRev = (c: unknown): unknown => (typeof c === "object" && c !== null && !("rev" in c) ? { rev: "100-10", ...c } : c);
+const patch = (changes: unknown[], over: Record<string, unknown> = {}): string => JSON.stringify({ schema: "saropa.releaseBoard.patch/1", basedOn: "x", changes: changes.map(withRev), ...over });
 const ok = (c: PatchCheck): Extract<PatchCheck, { ok: true }> => {
   assert.equal(c.ok, true);
   return c as Extract<PatchCheck, { ok: true }>;
@@ -140,4 +142,87 @@ test("a Needs target is taken out of its line; an emptied line goes; a missing o
   assert.deepEqual(removeNeedsLine("# T\nNeeds: [A](a.md)\nBody\n", ["a.md"]), { ok: true, text: "# T\nBody\n" });
   assert.deepEqual(removeNeedsLine("# T\nNeeds: a.md\n", ["app:a.md", "other.md"]), { ok: false, reason: "none" });
   assert.deepEqual(removeNeedsLine("# T\nNeeds: app:a.md; b.md\n", ["app:a.md"]), { ok: true, text: "# T\nNeeds: b.md\n" });
+});
+
+test("extracting a patch from crafted text takes linear time, and an oversize reply is not scanned", () => {
+  const crafted = "x```json saropa-patch\n".repeat(9_000);
+  const t = Date.now();
+  assert.equal(extractPatch(crafted), undefined);
+  assert.equal(extractPatch("x```json saropa-patch\n".repeat(50_000)), undefined, "over the limit");
+  assert.equal(extractPatch("```json saropa-patch\n".repeat(9_000) + "`".repeat(150_000)), undefined);
+  assert.ok(Date.now() - t < 100, `took ${Date.now() - t} ms`);
+  const body = patch([]);
+  assert.equal(extractPatch(`a\r\n\`\`\`\`json  saropa-patch  \r\n${body}\r\n\`\`\`\`\r\nz`), body);
+  assert.equal(extractPatch(`\`\`\`json saropa-patch\n${body}\n\`\`\``), body);
+});
+
+test("a change without a revision is refused, and an old result file replayed after the document moved is stale", () => {
+  const none = JSON.stringify({ schema: "saropa.releaseBoard.patch/1", changes: [{ op: "setSeverity", item: "app:a.md", to: "low", reason: "x" }] });
+  assert.deepEqual(ok(checkPatch(none, targets, STATUSES)).refused.map((r) => r.reason), ["noRevision"]);
+  const moved = new Map([...targets, ["app:a.md", target("app:a.md", { rev: "200-11" })]]);
+  const c = ok(checkPatch(patch([{ op: "setSeverity", item: "app:a.md", to: "low", reason: "x" }]), moved, STATUSES));
+  assert.deepEqual(c.rows.map((r) => r.stale), [true]);
+});
+
+test("schema version 0 and a leading zero are refused; only version 1 is read", () => {
+  const reason = (schema: string): unknown => {
+    const c = checkPatch(JSON.stringify({ schema, changes: [] }), targets, STATUSES);
+    return c.ok ? "ok" : c.reason;
+  };
+  assert.equal(reason("saropa.releaseBoard.patch/0"), "schema");
+  assert.equal(reason("saropa.releaseBoard.patch/01"), "schema");
+  assert.equal(reason("saropa.releaseBoard.patch/1"), "ok");
+  assert.equal(reason("saropa.releaseBoard.patch/2"), "newer");
+});
+
+test("group names and reasons are normalized; hidden characters go; look-alike group names are refused", () => {
+  const tag = String.fromCodePoint(0xe0041);
+  const c = ok(checkPatch(patch([
+    { op: "setGroup", item: "app:a.md", group: `Store​ launch${tag}­`, reason: "ｆｕｌｌ️width" },
+    { op: "setGroup", item: "lib:c.md", group: "Hiddenㅤ", reason: "x" },
+    { op: "setGroup", item: "lib:c.md", group: "Bad\u0007name", reason: "x" },
+    { op: "setGroup", item: "lib:c.md", group: "launch", reason: "x" },
+    { op: "setGroup", item: "lib:c.md", group: "LAUNCH​", reason: "x" },
+    { op: "setGroup", item: "lib:c.md", group: "private", reason: "x" },
+  ]), targets, STATUSES));
+  assert.deepEqual(c.rows.map((r) => [r.change.group, r.change.reason]), [["Store launch", "fullwidth"], ["Hidden", "x"]]);
+  assert.deepEqual(c.refused.map((r) => r.reason), ["badValue", "lookalike", "lookalike", "badValue"]);
+});
+
+test("one change per kind and item: a repeat is dropped and reported", () => {
+  const c = ok(checkPatch(patch([
+    { op: "setSeverity", item: "app:a.md", to: "low", reason: "x" },
+    { op: "setSeverity", item: "app:a.md", to: "high", reason: "x" },
+    { op: "setStatus", item: "app:a.md", to: "green", reason: "x" },
+    { op: "addNeeds", item: "app:a.md", on: "lib:c.md", reason: "x" },
+    { op: "addNeeds", item: "app:a.md", on: "lib:c.md", reason: "x" },
+  ]), targets, STATUSES));
+  assert.deepEqual(c.rows.map((r) => r.change.op), ["setSeverity", "setStatus", "addNeeds"]);
+  assert.deepEqual(c.refused.map((r) => [r.n, r.reason]), [[2, "duplicate"], [5, "linked"]]);
+});
+
+test("a group edit keeps the owner's empty groups, drops only a group it emptied, and refuses what would not take effect", () => {
+  const file = JSON.stringify({ version: 1, groups: [{ name: "Empty", match: [] }, { name: "Old", match: ["app/a.md"] }] });
+  const moved = setDocGroup(file, { project: "app", path: "a.md", group: "New" });
+  assert.deepEqual(JSON.parse((moved as { text: string }).text).groups, [{ name: "Empty", match: [] }, { name: "New", match: ["app/a.md"] }]);
+  const shadow = JSON.stringify({ version: 1, groups: [{ name: "Broad", match: ["app/*.md"] }] });
+  assert.deepEqual(setDocGroup(shadow, { project: "app", path: "a.md", group: "Mine" }), { ok: false, reason: "shadowed" });
+  assert.equal(setDocGroup(shadow, { project: "app", path: "a.md", group: "Broad" }).ok, true);
+  assert.deepEqual(setDocGroup(shadow, { project: "app", path: "a.md", group: "broad" }), { ok: false, reason: "lookalike" });
+});
+
+test("Needs removal splits on 'and' and Markdown links like the board reader, and keeps each line's own ending", () => {
+  assert.deepEqual(removeNeedsLine("# T\nNeeds: a.md and b.md\n", ["a.md"]), { ok: true, text: "# T\nNeeds: b.md\n" });
+  assert.deepEqual(removeNeedsLine("# T\nNeeds: [Plan, part 1](docs/x.md), b.md\n", ["docs/x.md"]), { ok: true, text: "# T\nNeeds: b.md\n" });
+  assert.deepEqual(removeNeedsLine("# T\r\nNeeds: a.md, b.md\nmid\r\nNeeds: a.md\n\r\nend", ["a.md"]), { ok: true, text: "# T\r\nNeeds: b.md\nmid\r\n\r\nend" });
+  assert.deepEqual(addNeedsLine("# T\r\n\nBody\nmore\r\n", "x.md"), { ok: true, text: "# T\r\n\r\nNeeds: x.md\r\n\nBody\nmore\r\n" });
+  assert.deepEqual(addNeedsLine("# T", "x.md"), { ok: true, text: "# T\n\nNeeds: x.md" });
+});
+
+test("a Needs line inside a code fence is neither changed nor counted", () => {
+  const doc = "# T\n\n```md\nNeeds: a.md\n```\n\n~~~\nNeeds: a.md\n~~~\n\nBody\n";
+  assert.deepEqual(removeNeedsLine(doc, ["a.md"]), { ok: false, reason: "none" });
+  const added = addNeedsLine(doc, "b.md") as { ok: true; text: string };
+  assert.equal(added.text, "# T\n\nNeeds: b.md\n\n```md\nNeeds: a.md\n```\n\n~~~\nNeeds: a.md\n~~~\n\nBody\n");
+  assert.deepEqual(addNeedsLine("# T\n\n```\nNeeds: a.md\n```\n", "a.md").ok, true, "the fenced line does not count as listing it");
 });

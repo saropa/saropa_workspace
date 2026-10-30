@@ -10,8 +10,10 @@ import defaultRules from "../../board/defaultRules.json";
 import { BoardModel, buildBoard } from "../../board/boardModel";
 import { checkPatch, targetsOf } from "../../board/patch";
 import { BoardConfig, Classified } from "../../board/types";
+import { ScanSnapshot } from "../../board/scanner";
+import { readFacts } from "../../board/docFacts";
 import { BoardRun } from "../../commands/boardScanStore";
-import { applyRows, readResultFile, undoBatch, watchResults } from "../../commands/boardPatch";
+import { applyRows, readResultFile, realInside, savePastedPatch, undoBatch, watchResults } from "../../commands/boardPatch";
 import { BoardPatches } from "../../views/boardPatches";
 import { stub, tmpDir } from "./hostHelpers";
 
@@ -23,6 +25,10 @@ afterEach(() => {
   stub.__setWorkspaceFolders(undefined);
 });
 
+// Every document of the test board has the revision "100-10".
+const SNAP = { version: 1, takenAt: 0, projects: { app: { counts: {}, folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: Object.fromEntries(["a.md", "b.md", "c.md"].map((p) => [p, { mtimeMs: 100_000, size: 10, facts: readFacts(`# ${p}\n`, p) }])) } } } as unknown as ScanSnapshot;
+const REV = "100-10";
+
 const rows: Classified[] = ["a.md", "b.md", "c.md"].map((p) => ({ project: "app", path: p, status: "amber", kind: "owner action", note: "" }));
 
 function setup(): { dir: string; run: BoardRun; model: BoardModel; rules: string } {
@@ -32,13 +38,14 @@ function setup(): { dir: string; run: BoardRun; model: BoardModel; rules: string
   fs.writeFileSync(path.join(dir, "b.md"), "# B\n\nNeeds: a.md\nBody\n");
   fs.writeFileSync(path.join(dir, "c.md"), "# C\n");
   const cfg: BoardConfig = { ...(defaultRules as unknown as BoardConfig), projects: [{ id: "app", name: "App", path: vscode.Uri.file(dir).toString(), roots: [], ruleSets: [] }] };
-  const model = buildBoard(cfg, rows, undefined, true, undefined, undefined, {}, { needs: { "app/b.md": ["a.md"] } });
+  const model = buildBoard(cfg, rows, undefined, true, SNAP, undefined, {}, { needs: { "app/b.md": ["a.md"] } });
   return { dir, run: { cfg, result: { rows } } as unknown as BoardRun, model, rules: path.join(dir, ".saropa", "release-board.json") };
 }
 
 const statuses = ["red", "amber", "green"];
+const patchText = (changes: unknown[]): string => JSON.stringify({ schema: "saropa.releaseBoard.patch/1", changes: changes.map((c) => ({ rev: REV, ...(c as object) })) });
 const rowsOf = (model: BoardModel, changes: unknown[]) => {
-  const c = checkPatch(JSON.stringify({ schema: "saropa.releaseBoard.patch/1", changes }), targetsOf(model), statuses);
+  const c = checkPatch(patchText(changes), targetsOf(model), statuses);
   assert.equal(c.ok, true);
   return c.ok ? c.rows : [];
 };
@@ -89,14 +96,93 @@ test("nothing is written for rows that were not passed in", async () => {
   assert.equal(read(dir, "b.md"), "# B\n\nNeeds: a.md\nBody\n");
 });
 
-test("Undo leaves everything alone when a document changed after the batch", async () => {
+test("Undo restores what it can, names the file that changed, and a retry finishes the rest", async () => {
   const { dir, run, model, rules } = setup();
   const out = await applyRows(run, model, rowsOf(model, [ALL[1], ALL[4]]));
   fs.writeFileSync(path.join(dir, "c.md"), "edited by hand\n");
-  const rulesText = fs.readFileSync(rules, "utf8");
   assert.equal(await undoBatch(out.snapshot), false);
-  assert.equal(fs.readFileSync(rules, "utf8"), rulesText);
-  assert.equal(read(dir, "c.md"), "edited by hand\n");
+  assert.equal(fs.existsSync(rules), false, "the rules file was restorable, so it is restored");
+  assert.equal(read(dir, "c.md"), "edited by hand\n", "the edited document is never overwritten");
+  assert.ok(stub.__warningMessages().some((m) => m.includes("c.md")));
+  assert.equal(out.snapshot.docs.length, 1);
+  // The owner puts the batch's text back by hand: the retry has nothing left that blocks it.
+  fs.writeFileSync(path.join(dir, "c.md"), out.snapshot.docs[0].after);
+  assert.equal(await undoBatch(out.snapshot), true);
+  assert.equal(read(dir, "c.md"), "# C\n");
+});
+
+// Makes writes to files with this ending throw until the returned function is called.
+function failWrites(ending: string): () => void {
+  const api = vscode.workspace.fs as unknown as { writeFile: (u: vscode.Uri, b: Uint8Array) => Promise<void> };
+  const orig = api.writeFile;
+  api.writeFile = async function (this: unknown, u: vscode.Uri, b: Uint8Array): Promise<void> {
+    if (u.path.endsWith(ending)) {
+      throw new Error("disk full");
+    }
+    return orig.call(this, u, b);
+  };
+  return () => {
+    api.writeFile = orig;
+  };
+}
+
+test("a write that fails partway still returns the snapshot of what was written, and Undo finishes after a failed Undo", async () => {
+  const { dir, run, model } = setup();
+  const before = { b: read(dir, "b.md"), c: read(dir, "c.md") };
+  const heal = failWrites("c.md");
+  let out;
+  try {
+    out = await applyRows(run, model, rowsOf(model, [ALL[5], ALL[4]]));
+  } finally {
+    heal();
+  }
+  assert.deepEqual([out.applied, out.skipped, out.snapshot.docs.length], [1, 1, 1]);
+  assert.equal(read(dir, "b.md"), "# B\n\nBody\n");
+  assert.equal(read(dir, "c.md"), before.c);
+  // Now two documents are written; the Undo fails on the first file, restores the second, and a retry completes.
+  const two = await applyRows(run, model, rowsOf(model, [ALL[4]]));
+  assert.equal(two.snapshot.docs.length, 1);
+  const snap = { docs: [...out.snapshot.docs, ...two.snapshot.docs] };
+  const heal2 = failWrites("b.md");
+  let first;
+  try {
+    first = await undoBatch(snap);
+  } finally {
+    heal2();
+  }
+  assert.equal(first, false);
+  assert.equal(read(dir, "c.md"), before.c);
+  assert.equal(snap.docs.length, 1, "only the file that failed is left to restore");
+  assert.equal(await undoBatch(snap), true);
+  assert.equal(read(dir, "b.md"), before.b);
+});
+
+test("a folder that is a symbolic link never takes a Needs write outside the project", async () => {
+  const { dir, run } = setup();
+  const outside = tmpDir();
+  fs.writeFileSync(path.join(outside, "x.md"), "# X\n");
+  fs.symlinkSync(outside, path.join(dir, "link"));
+  const linked: Classified[] = [...rows, { project: "app", path: "link/x.md", status: "amber", kind: "owner action", note: "" }];
+  const model = buildBoard(run.cfg, linked, undefined, true, SNAP, undefined, {}, {});
+  // The row is built by hand from a plain one: the check itself cannot know the folder is a link.
+  const plain = rowsOf(setup().model, [{ op: "addNeeds", item: "app:c.md", on: "app:a.md", reason: "x" }]);
+  const hand = { ...plain[0], change: { ...plain[0].change, item: "app:link/x.md" } };
+  const out = await applyRows(run, model, [hand]);
+  assert.deepEqual([out.applied, out.skipped], [0, 1]);
+  assert.equal(fs.readFileSync(path.join(outside, "x.md"), "utf8"), "# X\n");
+  assert.equal(await realInside(dir, "link/x.md"), undefined);
+  assert.ok(await realInside(dir, "a.md"));
+  assert.equal(await realInside(dir, "../x.md"), undefined);
+});
+
+test("a patch pasted and applied is kept in the hand-off folder, outside git", async () => {
+  const { dir, run, model } = setup();
+  await savePastedPatch(run, model, rowsOf(model, [ALL[0]]), "PATCH TEXT");
+  const names = fs.readdirSync(handoffDir(dir));
+  const kept = names.find((n) => n.startsWith("pasted-"));
+  assert.ok(kept && !kept.endsWith(".result.json"));
+  assert.equal(fs.readFileSync(path.join(handoffDir(dir), kept), "utf8"), "PATCH TEXT");
+  assert.equal(fs.readFileSync(path.join(handoffDir(dir), ".gitignore"), "utf8"), "*\n");
 });
 
 test("a document that is not plain UTF-8 is not rewritten", async () => {
@@ -115,7 +201,6 @@ function put(dir: string, name: string, text: string): vscode.Uri {
   return vscode.Uri.file(path.join(handoffDir(dir), name));
 }
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const patchText = (changes: unknown[]): string => JSON.stringify({ schema: "saropa.releaseBoard.patch/1", changes });
 
 test("a result file is read only from a project's hand-off folder, by a safe name, within the size limit", async () => {
   const { dir } = setup();
@@ -170,9 +255,77 @@ test("pick returns only ticked rows the board still offers, never a stale or unk
   assert.equal(posted[0].rows.length, 3);
   assert.deepEqual(patches.pick([0, 0, 1, 2, 7, -1])?.rows.map((r) => r.change.op + r.change.item), ["setStatusapp:a.md", "setSeverityapp:a.md"]);
   // The board moved on: a.md is green now, so that change is no longer offered.
-  now = buildBoard(run.cfg, [{ ...rows[0], status: "green" }, rows[1], rows[2]], undefined, true, undefined, undefined, {}, {});
+  now = buildBoard(run.cfg, [{ ...rows[0], status: "green" }, rows[1], rows[2]], undefined, true, SNAP, undefined, {}, {});
   assert.deepEqual(patches.pick([0, 1])?.rows.map((r) => r.change.op), []);
   patches.read("garbage", "paste");
   assert.equal(patches.pick([0]), undefined);
   assert.match(String((posted[1] as { error?: string }).error), /No patch found/);
+});
+
+test("pick drops, and counts, a ticked row whose before value changed after the review", () => {
+  const { run, model } = setup();
+  let now = model;
+  const patches = new BoardPatches(() => ({ model: now, run }), () => undefined, () => undefined);
+  patches.read(patchText([ALL[0]]), "paste");
+  assert.equal(patches.pick([0])?.rows.length, 1);
+  // The owner moved a.md from amber to red meanwhile: "amber to green" no longer describes the change.
+  now = buildBoard(run.cfg, [{ ...rows[0], status: "red" }, rows[1], rows[2]], undefined, true, SNAP, undefined, {}, {});
+  const picked = patches.pick([0]);
+  assert.deepEqual([picked?.rows.length, picked?.dropped], [0, 1]);
+});
+
+test("a reply over the size limit is refused at once, however it is built", () => {
+  const { run, model } = setup();
+  const posted: Array<{ error?: string }> = [];
+  const patches = new BoardPatches(() => ({ model, run }), (m) => posted.push(m as { error?: string }), () => undefined);
+  const t = Date.now();
+  patches.read("x```json saropa-patch\n".repeat(50_000), "paste");
+  assert.ok(Date.now() - t < 100, "refused without scanning");
+  assert.match(String(posted[0].error), /too large/);
+});
+
+test("the watcher looks at the newest twenty result files at start, drops a deleted one and does not offer an answered one again", async () => {
+  const { dir, run, model } = setup();
+  for (let i = 0; i < 25; i++) {
+    const u = put(dir, `old${i}.result.json`, "{}");
+    fs.utimesSync(u.fsPath, new Date(Date.now() - 100_000 + i * 1000), new Date(Date.now() - 100_000 + i * 1000));
+  }
+  const seen: string[] = [];
+  const w = watchResults(() => [vscode.Uri.file(dir)], (_t, name) => seen.push(name));
+  w.scan();
+  await wait(200);
+  assert.equal(seen.length, 20);
+  assert.ok(seen.includes("old24.result.json") && !seen.includes("old0.result.json"));
+
+  const posted: unknown[] = [];
+  let changed = 0;
+  const patches = new BoardPatches(() => ({ model, run }), (m) => posted.push(m), () => changed++);
+  patches.watch();
+  const fw = vs.__fileWatchers().at(-1) as unknown as { created: { fire(u: unknown): void }; changed: { fire(u: unknown): void }; deleted: { fire(u: unknown): void } };
+  const u = put(dir, "good.result.json", patchText([ALL[0]]));
+  fw.created.fire(u);
+  await wait(60);
+  assert.deepEqual([patches.view(), changed], [{ patchReady: 1 }, 1]);
+  // A reply open for review keeps its list: a change event moves only the pill.
+  patches.open();
+  fw.changed.fire(u);
+  fs.writeFileSync(u.fsPath, patchText([ALL[0], ALL[1]]));
+  fw.changed.fire(u);
+  await wait(60);
+  assert.equal(changed, 1, "no new paint while a list is open");
+  assert.ok(posted.some((m) => (m as { type?: string; count?: number }).type === "patchPill" && (m as { count: number }).count === 2));
+  // Rejected: the same file, unchanged, is not offered again by the next event.
+  patches.clear();
+  assert.deepEqual(patches.view(), {});
+  fw.changed.fire(u);
+  await wait(60);
+  assert.deepEqual(patches.view(), {});
+  // Edited later: offered again; deleted: gone.
+  fs.writeFileSync(u.fsPath, patchText([ALL[0]]));
+  fs.utimesSync(u.fsPath, new Date(Date.now() + 5000), new Date(Date.now() + 5000));
+  fw.changed.fire(u);
+  await wait(60);
+  assert.deepEqual(patches.view(), { patchReady: 1 });
+  fw.deleted.fire(u);
+  assert.deepEqual(patches.view(), {});
 });

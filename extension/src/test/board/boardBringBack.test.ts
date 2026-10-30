@@ -139,3 +139,15 @@ test("a hand-off open can carry the task and no request goes out while the Bring
   page.click(by(page, "hoTabBack"));
   assert.deepEqual(page.takePosted(), []);
 });
+
+test("every item of the review list, refused pills included, sits in a list item; a pill message updates the ready pill only", () => {
+  const page = open(3);
+  page.receive(REVIEW);
+  assert.equal(page.all("#boList [role=listitem]").length, 4);
+  assert.equal(page.all("#boList > .ho-pill").length, 0, "no bare pill directly in the list");
+  page.receive({ type: "patchPill", count: 5 });
+  assert.ok(page.one("[data-patchopen]").textContent.includes("5"));
+  assert.equal(page.all("#boList [role=listitem]").length, 4, "the open list is left alone");
+  page.receive({ type: "patchPill", count: 0 });
+  assert.equal((page.one("[data-patchopen]") as El).hidden, true);
+});
