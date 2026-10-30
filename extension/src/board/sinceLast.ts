@@ -64,6 +64,9 @@ export interface SeenRecord {
   projects: Record<string, SeenProject>;
 }
 
+// The key of a blocker in the record, and of its row on the board.
+export const sinceKey = (it: { project: string; path: string }): string => `${it.project}/${it.path}`.slice(0, KEY_MAX);
+
 const LIGHTS: readonly string[] = ["no-go", "unverified", "go"];
 
 // The record for a board that is on screen. `previous` is the record the board is measured
@@ -76,7 +79,7 @@ export function digestOf(model: Pick<BoardModel, "projects">, at: number, previo
     const old = previous?.projects[p.id]?.blockers;
     let n = 0;
     for (const it of p.items) {
-      const key = `${it.project}/${it.path}`.slice(0, KEY_MAX);
+      const key = sinceKey(it);
       if (n >= MAX_RECORDED) {
         break;
       }
@@ -93,26 +96,6 @@ export function digestOf(model: Pick<BoardModel, "projects">, at: number, previo
     projects[p.id] = { name: p.name, light: p.light, blockers, ...(Object.keys(reports).length > 0 ? { reports } : {}) };
   }
   return { version: 1, at, projects };
-}
-
-const sameReports = (a: SeenProject["reports"], b: SeenProject["reports"]): boolean =>
-  REPORT_KINDS.every((k) => a?.[k as SinceReportKind]?.at === b?.[k as SinceReportKind]?.at && a?.[k as SinceReportKind]?.count === b?.[k as SinceReportKind]?.count);
-
-// True when two records hold the same lights and blockers (the time and names are ignored).
-export function sameRecord(a: SeenRecord, b: SeenRecord): boolean {
-  const ids = Object.keys(a.projects);
-  if (ids.length !== Object.keys(b.projects).length) {
-    return false;
-  }
-  return ids.every((id) => {
-    const x = a.projects[id];
-    const y = b.projects[id];
-    if (!y || x.light !== y.light) {
-      return false;
-    }
-    const kx = Object.keys(x.blockers);
-    return kx.length === Object.keys(y.blockers).length && kx.every((k) => k in y.blockers) && sameReports(x.reports, y.reports);
-  });
 }
 
 // A stored value checked and copied; undefined when it is not a record this version wrote.
@@ -151,6 +134,8 @@ export interface ProjectChange {
   // Titles of blockers that are new, and of blockers that are gone or no longer block.
   added: string[];
   cleared: string[];
+  // Record keys of the new blockers listed in `added`, for marking their rows.
+  addedKeys: string[];
   // Set only when the light moved.
   lightFrom?: Light;
   lightTo?: Light;
@@ -167,10 +152,10 @@ export interface SinceLast {
 
 // A document renamed or moved shows as one gone and one new with the same title: neither is
 // reported. Each title cancels one on the other side.
-function withoutMoves(added: string[], cleared: string[]): [string[], string[]] {
-  const cancel = (from: string[], other: string[]): string[] => {
-    const pool = [...other];
-    return from.filter((t) => {
+function withoutMoves(added: Array<[string, string]>, cleared: Array<[string, string]>): [Array<[string, string]>, Array<[string, string]>] {
+  const cancel = (from: Array<[string, string]>, other: Array<[string, string]>): Array<[string, string]> => {
+    const pool = other.map(([, t]) => t);
+    return from.filter(([, t]) => {
       const i = pool.indexOf(t);
       if (i >= 0) {
         pool.splice(i, 1);
@@ -194,10 +179,12 @@ export function diffSeen(seen: SeenRecord | undefined, now: SeenRecord): SinceLa
     if (!old) {
       continue;
     }
-    const [added, cleared] = withoutMoves(
-      Object.keys(cur.blockers).filter((k) => !(k in old.blockers)).map((k) => cur.blockers[k]),
-      Object.keys(old.blockers).filter((k) => !(k in cur.blockers)).map((k) => old.blockers[k])
+    const [addedPairs, clearedPairs] = withoutMoves(
+      Object.keys(cur.blockers).filter((k) => !(k in old.blockers)).map((k): [string, string] => [k, cur.blockers[k]]),
+      Object.keys(old.blockers).filter((k) => !(k in cur.blockers)).map((k): [string, string] => [k, old.blockers[k]])
     );
+    const added = addedPairs.map(([, t]) => t);
+    const cleared = clearedPairs.map(([, t]) => t);
     const moved = old.light !== cur.light;
     const reports = REPORT_KINDS.flatMap((k) => {
       const now_ = cur.reports?.[k as SinceReportKind];
@@ -205,7 +192,8 @@ export function diffSeen(seen: SeenRecord | undefined, now: SeenRecord): SinceLa
       return now_ && (!was || was.at < now_.at) ? [{ kind: k as SinceReportKind, count: now_.count }] : [];
     });
     if (added.length > 0 || cleared.length > 0 || moved || reports.length > 0) {
-      changes.push({ id, name: cur.name, added, cleared, reports, ...(moved ? { lightFrom: old.light, lightTo: cur.light } : {}) });
+      const addedKeys = addedPairs.map(([k]) => k);
+      changes.push({ id, name: cur.name, added, cleared, addedKeys, reports, ...(moved ? { lightFrom: old.light, lightTo: cur.light } : {}) });
     }
   }
   return changes.length > 0 ? { since: seen.at, changes } : undefined;
@@ -274,4 +262,6 @@ export function sinceLines(change: SinceLast, labels: SinceLabels, maxListed: nu
 export interface SinceView {
   heading: string;
   lines: SinceLine[];
+  // Record keys (see sinceKey) of the documents that became blockers since the last look.
+  marked: string[];
 }

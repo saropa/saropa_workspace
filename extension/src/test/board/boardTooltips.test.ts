@@ -87,7 +87,7 @@ function walk(html: string): Tag[] {
   return out;
 }
 
-const CLASSES_NEEDING_TITLE = ["row", "vd", "tag", "k", "n", "go", "pn", "fn", "cn", "fut", "grp", "ptgrow", "chip", "hl", "sq", "link", "flame", "pin", "sev", "info", "ring", "bars", "pill"];
+const CLASSES_NEEDING_TITLE = ["row", "vd", "stat", "facts", "cp", "fp", "tag", "k", "n", "go", "pn", "fn", "cn", "fut", "grp", "ptgrow", "chip", "hl", "sq", "link", "flame", "pin", "sev", "info", "ring", "bars", "pill"];
 // Pure text containers and layout wrappers: they hold text that already says what it is.
 const TEXT_CONTAINERS = ["div", "span", "p", "ul", "ol", "li", "section", "details", "label", "option", "body", "head", "html", "title", "meta", "main"];
 // Decorative glyphs inside a titled parent (the ring and the bars of a marks group).
@@ -209,10 +209,10 @@ function pages(): Array<[string, string]> {
   const t: BoardStrings = strings();
   const m = fullModel();
   const paths = m.projects.map((p) => pathToGo(m, p, { maxSteps: 8, canRun: () => true }));
-  const since = { heading: "Since you last looked", lines: [{ text: "App: 1 new blocker", details: ["+ Crash on start"] }] };
+  const since = { heading: "Since you last looked", marked: [] as string[], lines: [{ text: "App: 1 new blocker", details: ["+ Crash on start"] }] };
   const empty = buildBoard({ ...cfg, severity: undefined }, [], undefined, true);
   return [
-    ["full", renderBoard(m, t, "n", 1, { startup: true }, paths, since, [train], future(true))],
+    ["full", renderBoard(m, t, "n", 1, { startup: true, scope: "all" }, paths, since, [train], future(true))],
     ["stale", renderBoard(m, t, "n", 1, { stale: true, startup: false }, paths, undefined, [train], future(false))],
     ["loading", renderBoard(m, t, "n", 1, { loading: true }, paths)],
     ["empty", renderBoard(empty, t, "n", 1)],
@@ -235,12 +235,13 @@ test("the walk sees the elements it is meant to check", () => {
   assert.ok(count((t) => t.name === "a" && t.attrs.class === "doc") >= 8);
   assert.equal(count((t) => t.attrs.role === "tab"), 2);
   assert.equal(count((t) => t.name === "select") >= 10, true);
-  assert.ok(count((t) => t.name === "input" || t.name === "textarea") >= 3);
+  assert.ok(count((t) => t.name === "input" || t.name === "textarea") >= 2);
   assert.ok(count((t) => t.name === "summary") >= 3);
   assert.ok(count((t) => t.attrs["data-kw"] === "edit") === 1 && count((t) => t.attrs["data-kw"] === "restore") === 1, "the keyword line has its two buttons");
   assert.ok(count((t) => t.attrs["data-act"] === "keywords") === 1, "the options menu has the keyword editor entry");
   assert.ok(count((t) => /^h[1-6]$/.test(t.name)) >= 8);
-  assert.ok(count((t) => t.name === "i" && (t.attrs.class ?? "").startsWith("sq")) >= 4);
+  assert.ok(count((t) => t.name === "i" && (t.attrs.class ?? "").startsWith("sq")) >= 1);
+  assert.ok(count((t) => (t.attrs.class ?? "").split(" ").includes("stat")) >= 4, "rows carry a status pill, not a square");
 });
 
 test("the walk fails on an element with no title", () => {
@@ -301,7 +302,7 @@ test("every glyph says what it looks like and what it means, and no title only r
     }
   }
   const words = new Set(glyphs.map((g) => g.split(":")[0]));
-  for (const look of ["Red square", "Amber square", "Purple square", "Red triangle", "Progress ring", "Size bars", "Red dot", "Green dot", "Gray dot", "Amber diamond", "Filled amber diamond", "Red flame", "Red ring", "Information icon"]) {
+  for (const look of ["Amber square", "Progress ring", "Red dot", "Green dot", "Gray dot", "Amber diamond", "Filled amber diamond", "Amber flame", "Information icon"]) {
     assert.ok(words.has(look), `the full page draws a glyph described as "${look}"`);
   }
 });
@@ -309,7 +310,7 @@ test("every glyph says what it looks like and what it means, and no title only r
 test("what the user set is marked with a tooltip, counted in the summary, and its menu entries have tooltips", () => {
   const html = pages()[0][1];
   assert.ok(html.includes("Set by hand in the rules file. Back to automatic in the row menu."));
-  assert.ok(walk(html).some((t) => t.name === "b" && t.text === "Set" && (t.attrs.title ?? "").startsWith("Set by hand")));
+  assert.ok(walk(html).some((t) => t.name === "span" && t.text === "\u270E" && (t.attrs.title ?? "").startsWith("Set by hand")), "the pen mark carries the tooltip");
   assert.ok(walk(html).some((t) => (t.attrs.class ?? "").includes("byuser") && (t.attrs.title ?? "") !== ""));
   assert.ok(walk(html).some((t) => t.attrs["data-act"] === "severity" && (t.attrs.title ?? "") !== ""));
   assert.ok(walk(html).some((t) => t.attrs["data-act"] === "auto" && (t.attrs.title ?? "") !== ""));
@@ -317,9 +318,9 @@ test("what the user set is marked with a tooltip, counted in the summary, and it
 
 test("each glyph look has its own meaning text", () => {
   const exact = pages()[0][1];
-  assert.ok(/title="[A-Za-z]+ triangle: [a-z]+ severity/.test(exact), exact.match(/triangle[^"]*/g)?.join("; ") ?? "no triangle");
-  assert.ok(exact.includes('title="Red square: needs action now - Crash on start"'));
-  assert.ok(exact.includes('title="Amber square: needs review - '));
+  assert.ok(exact.includes('title="Blocks the release, address it now: Crash on start'), "the hover card of a blocking row");
+  assert.ok(exact.includes('title="Review next: '));
+  assert.ok(exact.includes("Critical severity. This document stops a release"), "the card names the severity and that it stops the release");
 });
 
 test("every section and subsection folds, each remembers its state under its own name, and long lists start folded", () => {
@@ -364,7 +365,8 @@ test("every number the page counts is a pill, a small rounded badge in the edito
   // Visible text with the pills, the document links, the headings and the hidden parts taken out:
   // no bare number may remain, apart from version labels and list numbering.
   const bare = withoutBlocks(html)
-    .replace(/<span class="pill"[^>]*>\d+<\/span>/g, "")
+    .replace(/<span class="pill[^"]*"[^>]*>\d+<\/span>/g, "")
+    .replace(/<span class="fx">[^<]*<\/span>/g, "")
     .replace(/<a class="doc"[^>]*>[^<]*<\/a>/g, "")
     .replace(/<h1[^>]*>[^<]*<\/h1>/g, "")
     .replace(/<option[^>]*>[^<]*<\/option>/g, "")
@@ -372,7 +374,7 @@ test("every number the page counts is a pill, a small rounded badge in the edito
     .split("|")
     .map((x) => decode(x).trim())
     .filter((x) => /\b\d+\b/.test(x));
-  assert.deepEqual(bare, ["15 min", "30 min", "1 hour", "1", "1.0.0", "2", "2.0.0", "repo#1"], "time labels, train numbering and versions, and a review reference are not counts");
+  assert.deepEqual(bare, ["\u2699 All 2 \u00b7 Deliberate", "1", "1.0.0", "2", "2.0.0", "repo#1", "15 min", "30 min", "1 hour"], "the scope and mode pill (itself one pill), time labels, train numbering and versions, and a review reference are not counts");
 });
 
 test("withoutBlocks drops every script and style element in any letter case and leaves the rest", () => {

@@ -38,3 +38,8 @@ test("the style sheet follows the editor theme and has a reduced-motion rule", (
   assert.ok(STYLE.includes("prefers-reduced-motion"));
   assert.ok(!STYLE.includes("</style"), "cannot end its element early");
 });
+
+test("a filter pick updates the page's own copy of the choice, so two quick picks do not lose the first", () => {
+  const js = script(1, "x", "y");
+  assert.ok(js.includes("SIT.have=msg.have;SIT.box=msg.box;"));
+});

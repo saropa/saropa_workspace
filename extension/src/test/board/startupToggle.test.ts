@@ -1,12 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BoardStrings, renderBoard } from "../../board/boardHtml";
-import { startupToggle } from "../../board/boardHtmlProjects";
+import { renderBoard } from "../../board/boardHtml";
+import { optsMenu } from "../../board/boardHtmlMenus";
 import { buildBoard } from "../../board/boardModel";
 import { strings } from "../../views/boardStrings";
 import { DEFAULT_STARTUP_MODE, checkboxValue, isStartupOn, modeForCheckbox, modeToRemember, planStartupWrite, rememberedMode } from "../../board/startupToggle";
-
-const t = { projectLabels: { startup: "Open this board at start-up", startupTip: "When off, the board only opens from the sidebar or the command." } } as unknown as BoardStrings;
 
 test("the box is checked for every mode but never", () => {
   assert.equal(isStartupOn("never"), false);
@@ -39,28 +37,27 @@ test("the page value must be a boolean", () => {
   }
 });
 
-test("the checkbox shows the state, is labeled, and is left out when unknown", () => {
-  assert.equal(startupToggle(undefined, t), "");
-  const on = startupToggle(true, t);
-  const off = startupToggle(false, t);
-  assert.ok(on.includes(" checked") && !off.includes(" checked"));
+test("the start-up entry shows the state, is labeled, and is left out when unknown", () => {
+  const real = strings();
+  assert.ok(!optsMenu(real).includes('data-act="startup"'));
+  const on = optsMenu(real, true);
+  const off = optsMenu(real, false);
+  assert.ok(on.includes('data-act="startup" data-on="1"') && off.includes('data-act="startup" data-on="0"'));
+  assert.ok(on.includes("\u2713 Open this board at start-up") && !off.includes("\u2713"));
   for (const html of [on, off]) {
-    assert.ok(html.includes('aria-label="Open this board at start-up"'));
     assert.ok(html.includes("only opens from the sidebar or the command"));
-    assert.ok(html.includes("<span>Open this board at start-up</span>"));
   }
 });
 
-test("the checkbox is the last control of the top bar and sends only a boolean", () => {
+test("the start-up entry is the last entry of the project actions menu and sends only a boolean", () => {
   const m = buildBoard({ version: 1, ignore: [], ruleSets: {}, projects: [{ id: "a", name: "A", path: "a", roots: ["docs"], ruleSets: [] }] }, [], undefined, true);
   const real = strings();
   const html = renderBoard(m, real, "n", 3, { startup: true });
-  const top = html.slice(html.indexOf('<div class="top">'), html.indexOf("</div>", html.indexOf('<div class="top">')));
-  assert.ok(top.indexOf('id="refresh"') < top.indexOf("data-startup"));
-  assert.ok(top.indexOf("data-menu=\"opts\"") < top.indexOf("data-startup"));
-  assert.ok(top.endsWith("</label>"));
-  assert.ok(html.includes("type:'startup',value:b.checked===true,rev:REV"));
-  assert.ok(!renderBoard(m, real, "n", 3).includes("<label class=\"stup\""));
+  const menu = html.slice(html.indexOf('id="menu-opts"'), html.indexOf("</div>", html.indexOf('id="menu-opts"')));
+  assert.ok(menu.lastIndexOf('data-act="settings"') < menu.indexOf('data-act="startup"'));
+  assert.ok(menu.endsWith("</button>"));
+  assert.ok(html.includes("type:'startup',value:i.dataset.on!=='1',rev:REV"));
+  assert.ok(!renderBoard(m, real, "n", 3).includes('data-act="startup"'));
 });
 
 test("a user's always is never lowered when the box is checked again", () => {

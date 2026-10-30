@@ -12,13 +12,14 @@ import { loadOutside } from "../commands/boardOutside";
 import { publishBoard } from "./editorLinks";
 import { loadLiveSignals, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
-import { panelLeft, panelShowed, viewFor } from "./boardSinceLast";
+import { panelShowed, viewFor } from "./boardSinceLast";
 import { markScanDone, setFailed, setPanelVisible } from "./boardFeed";
 import { strings } from "./boardStrings";
 import { FutureData, emptyFuture, loadFuture, readFutureSettings } from "../commands/boardFuture";
 import { FutureView } from "../board/boardHtmlFuture";
 import { FutureItem, FutureOutside, FutureSort } from "../board/futureList";
 import { startupOn } from "./boardStartup";
+import { readGroupBy, readProjectScope } from "../commands/boardExtraProjects";
 import { hintVisible, dismissHint } from "./boardProjectsHint";
 import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
@@ -302,7 +303,7 @@ export abstract class BoardPanelCore {
     if (!this.run || this.disposed) {
       return;
     }
-    const state: RenderState = { ...requested, startup: startupOn(this.context), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}) };
+    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}) };
     const { cfg, marks } = this.run;
     // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
     this.model = buildBoard(
@@ -358,7 +359,6 @@ export abstract class BoardPanelCore {
   protected dispose(): void {
     this.onClosed();
     setPanelVisible(false);
-    panelLeft();
     this.disposed = true;
     this.outsideToken++;
     this.liveToken++;

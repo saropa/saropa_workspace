@@ -30,6 +30,20 @@ export function readProjectScope(): ProjectScope {
   return asScope(vscode.workspace.getConfiguration(SECTION).get<unknown>("projectScope", "all"));
 }
 
+// Sets the scope; the setting change repaints the board through the configuration listener.
+export async function writeProjectScope(scope: ProjectScope): Promise<void> {
+  await vscode.workspace.getConfiguration(SECTION).update("projectScope", scope, vscode.ConfigurationTarget.Global);
+}
+
+export function readGroupBy(): "project" | "none" {
+  return vscode.workspace.getConfiguration(SECTION).get<string>("groupBy", "project") === "none" ? "none" : "project";
+}
+
+// Sets the grouping; the setting change repaints the board through the configuration listener.
+export async function writeGroupBy(value: "project" | "none"): Promise<void> {
+  await vscode.workspace.getConfiguration(SECTION).update("groupBy", value, vscode.ConfigurationTarget.Global);
+}
+
 // The open workspace folders as plain paths, for telling an open folder from a chosen one.
 export function openFolderPaths(): string[] {
   return (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === "file").map((f) => f.uri.fsPath);

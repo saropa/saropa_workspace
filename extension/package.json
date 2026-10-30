@@ -2518,6 +2518,13 @@
             "default": "deliberate",
             "description": "%config.releaseBoard.profile.description%"
           },
+          "saropaWorkspace.releaseBoard.groupBy": {
+            "type": "string",
+            "enum": ["project", "none"],
+            "enumDescriptions": ["%config.releaseBoard.groupBy.project%", "%config.releaseBoard.groupBy.none%"],
+            "default": "project",
+            "description": "%config.releaseBoard.groupBy.description%"
+          },
           "saropaWorkspace.releaseBoard.projects": {
             "type": "array",
             "items": { "type": "string" },

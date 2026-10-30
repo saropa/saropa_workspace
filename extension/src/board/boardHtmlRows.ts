@@ -1,4 +1,4 @@
-import { BoardItem, ItemMarks, BoardProject, UnverifiedReason } from "./boardModel";
+import { BoardItem, BoardProject, UnverifiedReason } from "./boardModel";
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { chooseBox } from "./boardHtmlHandoff";
@@ -12,6 +12,8 @@ import { Signal, showsOnRow } from "./reportSignals";
 const LIST_CAP = 30;
 // A list longer than this starts folded.
 const LONG_LIST = 25;
+// Rows a list shows at first; the rest wait behind a "Show N more" pill.
+const SHOWN_ROWS = 5;
 
 function reasonText(r: UnverifiedReason, p: BoardProject, t: BoardStrings): string {
   switch (r) {
@@ -99,105 +101,139 @@ function signalLine(p: BoardProject, t: BoardStrings): string {
     .join("");
 }
 
-// One project's verdict row: name, light, link mark, health marks and the item squares.
+// The summary pills of a project: how many open documents block the release (the only red),
+// how many wait for review and how many are in progress. A zero count is left out.
+function cardCounts(p: BoardProject, t: BoardStrings): string {
+  const n = { red: 0, amber: 0, purple: 0 };
+  for (const i of p.items) {
+    n[blocks(i) ? "red" : i.status] += 1;
+  }
+  return (["red", "amber", "purple"] as const)
+    .filter((k) => n[k] > 0)
+    .map((k) => `<span class="cp ${k}" ${tip(t, "cpTip." + k, { count: n[k], name: p.name })}>${pill(t, n[k], "cpTip." + k, { count: n[k], name: p.name })} ${escapeHtml(pl(t, "cp." + k))}</span>`)
+    .join("");
+}
+
+// One project's verdict row: name, light, link mark, health marks and the count pills.
 export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false, badge = "", index?: number): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
   const why = p.light !== "unverified" ? "" : p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
   const lightTip = why || pl(t, p.light === "go" ? "light.go" : p.light === "no-go" ? "light.noGo" : "light.unverified");
-  const squares = p.items
-    .slice(0, 14)
-    .map((i) => `<i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: i.title })}></i>`)
-    .join("");
+  const counts = cardCounts(p, t);
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<i class="link ${waiting ? "wait" : "ok"}" ${glyphTip(t, waiting ? "g.amberDiamond" : "g.greenDiamond", `${t.dependsOn} ${p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", ")}`)}></i>` : "";
   const rowTip = toggles ? tip(t, "projectRow", { name: p.name }) : tip(t, "projectRowPlain", { name: p.name });
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${rowTip}><b class="pn"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${tip(t, "projectName", { name: p.name })}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}<span class="bar" ${tip(t, "squares", { count: p.items.length })}>${squares}</span>${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
 }
 
-// The small marks on a row: a progress ring, size bars, a code letter and one dot per
-// other project mentioned. The exact figures are in the tooltip, not on the screen.
-function marks(m: ItemMarks | undefined, t: BoardStrings): string {
-  if (!m) {
-    return "";
+// True when an open document blocks the release under the chosen profile: a red folder, a
+// stopping severity or a pin. Only these are drawn red.
+function blocks(i: BoardItem): boolean {
+  return i.status === "red" || i.stopping;
+}
+
+// The hover card of a row: what the document is, why it blocks (or not), what it waits on, and
+// who or what set its status or severity. Plain text, one line per fact; the page escapes it.
+function rowCard(i: BoardItem, t: BoardStrings): string {
+  const lines = [pl(t, blocks(i) ? "stTip.red" : "stTip." + i.status, { title: i.title })];
+  if (i.status === "red") {
+    lines.push(pl(t, "whyRed"));
   }
-  const pct = m.total > 0 ? Math.round((m.done / m.total) * 100) : 0;
-  const ring = m.total === 0 ? "none" : m.done === m.total ? "ok" : m.done > 0 ? "part" : "none";
-  const bars = [1, 2, 3, 4].map((n) => `<u${n <= m.size ? ' class="on"' : ""}></u>`).join("");
-  const code = m.code === undefined ? "" : `<b class="code" ${m.code ? tip(t, "codeLang", { lang: m.code }) : tip(t, "codeNoLang")}>${escapeHtml(m.code ? m.code.charAt(0).toUpperCase() : "{}")}</b>`;
-  const dots = m.mentions.map((n) => `<i class="pd" ${glyphTip(t, "g.greyDot", pl(t, "mentions", { name: n }))}></i>`).join("");
-  // On a narrow row only the ring (the first mark) stays; the group's tooltip lists them all.
-  const mk = (html: string, top = false): string => `<span class="mk${top ? " top" : ""}">${html}</span>`;
-  const ringHtml = `<i class="ring ${ring}" style="--p:${pct}" ${glyphTip(t, "g.ring", m.total === 0 ? pl(t, "ringNone") : pl(t, "ringSteps", { done: m.done, total: m.total }))}></i>`;
-  const barsHtml = `<i class="bars" ${glyphTip(t, "g.bars", pl(t, "barsSize", { size: m.size }))}>${bars}</i>`;
-  return `<span class="marks" title="${escapeHtml(m.detail)}">${mk(ringHtml, true)}${mk(barsHtml)}${code ? mk(code) : ""}${dots ? mk(dots) : ""}</span>`;
+  if (i.pinned) {
+    lines.push(t.pinned);
+  }
+  if (i.severity) {
+    lines.push(pl(t, i.stopping ? "severityStops" : "severity", { severity: pl(t, "sev." + i.severity) }));
+  }
+  if (i.link) {
+    lines.push(i.link.detail);
+  }
+  if (i.blocksCount > 0) {
+    lines.push(pl(t, "blocks", { count: i.blocksCount }));
+  }
+  if (i.severityByUser || i.statusByUser) {
+    lines.push(pl(t, "byYou"));
+  }
+  lines.push(pl(t, "kind", { kind: i.kind || "-" }));
+  return lines.join("\n");
+}
+
+// The status pill: a shape for the status, the word, and the severity word. Red only when the
+// document blocks the release; a hand-set value carries a pen mark.
+function statusPill(i: BoardItem, t: BoardStrings): string {
+  const k = blocks(i) ? "red" : i.status;
+  const shape = k === "red" ? "●" : k === "amber" ? "◆" : "◐";
+  const sev = i.severity ? ` · ${escapeHtml(pl(t, "sev." + i.severity))}` : "";
+  const pen = i.severityByUser || i.statusByUser ? ` <span ${tip(t, "byYou")}>✎</span>` : "";
+  return `<span class="stat ${k}" ${titleAttr(rowCard(i, t))}><span aria-hidden="true">${shape}</span> ${escapeHtml(pl(t, "st." + k))}${sev}${pen}</span>`;
 }
 
 // A small flame on the row when the files the document names have errors, warnings or crashes.
-// Red for errors and crashes, amber for warnings only. Never an input to the light.
+// Amber: it never changes the light. Only the figures differ, in the tooltip.
 function liveMark(m: LiveMark | undefined, t: BoardStrings): string {
   if (!m) {
     return "";
   }
   const lines = [t.liveHead, ...m.files.map((f) => liveLine(f, t)), ...(m.more > 0 ? [t.liveMore.replace("{count}", String(m.more))] : [])];
   const tip = lines.join("\n");
-  return `<i class="flame${m.hot ? " hot" : ""}" role="img" aria-label="${escapeHtml(tip)}" ${glyphTip(t, m.hot ? "g.flameRed" : "g.flameAmber", tip)}></i>`;
+  return `<i class="flame" role="img" aria-label="${escapeHtml(tip)}" ${glyphTip(t, "g.flameAmber", tip)}></i>`;
 }
 
-// The icons and counts at the end of a row. On a narrow row only the most severe one stays on
-// screen and the tooltip of the group lists all of them.
-function linkMark(i: BoardItem, t: BoardStrings): string {
-  const parts: Array<{ html: string; rank: number; text: string }> = [];
-  const add = (html: string, rank: number, text: string): void => {
-    if (html) {
-      parts.push({ html, rank, text });
+// The neutral facts pill of a row: progress ring and "3/7", the link mark, Pro, chats and hub.
+// Size bars, the code letter and the other-project dots are only in the tooltip.
+function facts(i: BoardItem, t: BoardStrings): string {
+  const parts: string[] = [];
+  const text: string[] = [];
+  const m = i.marks;
+  if (m) {
+    const pct = m.total > 0 ? Math.round((m.done / m.total) * 100) : 0;
+    const ring = m.total === 0 ? "none" : m.done === m.total ? "ok" : m.done > 0 ? "part" : "none";
+    const steps = m.total === 0 ? pl(t, "ringNone") : pl(t, "ringSteps", { done: m.done, total: m.total });
+    parts.push(`<i class="ring ${ring}" style="--p:${pct}" ${glyphTip(t, "g.ring", steps)}></i>${m.total > 0 ? `<span class="fx">${m.done}/${m.total}</span>` : ""}`);
+    text.push(m.detail, pl(t, "barsSize", { size: m.size }));
+    if (m.code !== undefined) {
+      text.push(m.code ? pl(t, "codeLang", { lang: m.code }) : pl(t, "codeNoLang"));
     }
-  };
+    m.mentions.forEach((n) => text.push(pl(t, "mentions", { name: n })));
+  }
   if (i.live) {
-    const hot = i.live.hot;
-    add(liveMark(i.live, t), hot ? 90 : 50, pl(t, hot ? "g.flameRed" : "g.flameAmber"));
+    parts.push(liveMark(i.live, t));
   }
   if (i.link) {
-    const rank = i.link.state === "done" ? 10 : i.link.state === "open" ? 40 : 70;
-    add(`<i class="link ${i.link.state}" ${glyphTip(t, i.link.state === "done" ? "g.greenDiamond" : i.link.state === "open" ? "g.amberDiamond" : "g.redDiamond", i.link.detail)}></i>`, rank, i.link.detail);
+    // A link waiting on open work or a stale Needs line is amber; one that is satisfied is green.
+    const glyph = i.link.state === "done" ? "g.greenDiamond" : i.link.state === "open" ? "g.amberDiamond" : "g.amberDiamondDashed";
+    parts.push(`<i class="link ${i.link.state}" ${glyphTip(t, glyph, i.link.detail)}></i>`);
+    text.push(i.link.detail);
   }
   if (i.blocksCount > 0) {
-    const text = pl(t, "blocks", { count: i.blocksCount });
-    add(`<i class="link blocks" ${glyphTip(t, "g.amberDiamondFilled", text)}></i>`, 60, text);
-  }
-  if (i.severity) {
-    const text = pl(t, i.stopping ? "severityStops" : "severity", { severity: i.severity }) + (i.severityByUser ? " " + pl(t, "byYou") : "");
-    const red = i.severity === "extreme" || i.severity === "critical";
-    add(`<i class="sev s-${i.severity}${i.stopping ? " stop" : ""}" ${glyphTip(t, red ? "g.redTriangle" : i.severity === "high" ? "g.amberTriangle" : "g.greyTriangle", text)}></i>`, (i.stopping ? 100 : red ? 95 : i.severity === "high" ? 80 : 20), text);
-  }
-  if (i.severityByUser || i.statusByUser) {
-    add(`<b class="code" ${tip(t, "byYou")}>${escapeHtml(pl(t, "byYouMark"))}</b>`, 40, pl(t, "byYou"));
+    const blocksText = pl(t, "blocks", { count: i.blocksCount });
+    parts.push(`<i class="link blocks" ${glyphTip(t, "g.amberDiamondFilled", blocksText)}></i>`);
+    text.push(blocksText);
   }
   if (i.audience === "pro") {
-    add(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`, 30, t.proOnly);
-  }
-  if (i.pinned) {
-    // A pinned document stops the release, so nothing less severe may stand in for it on a narrow row.
-    add(`<i class="pin" ${glyphTip(t, "g.redRing", t.pinned)}></i>`, 97, t.pinned);
+    parts.push(`<b class="code" title="${escapeHtml(t.proOnly)}">Pro</b>`);
+    text.push(t.proOnly);
   }
   if (i.chats !== undefined) {
-    add(pill(t, i.chats, "chatsPill", { count: i.chats }), 20, pl(t, "chatsPill", { count: i.chats }));
+    parts.push(pill(t, i.chats, "chatsPill", { count: i.chats }));
+    text.push(pl(t, "chatsPill", { count: i.chats }));
   }
   if (i.hub) {
-    add(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`, 5, t.hub);
+    parts.push(`<b class="code" title="${escapeHtml(t.hub)}">hub</b>`);
+    text.push(t.hub);
   }
   if (parts.length === 0) {
     return "";
   }
-  const best = parts.reduce((a, b) => (b.rank > a.rank ? b : a));
-  const all = pl(t, "marksMore", { list: parts.map((p) => p.text).join("; ") });
-  return `<span class="marks lm" ${titleAttr(all)}>${parts.map((p) => `<span class="mk${p === best ? " top" : ""}">${p.html}</span>`).join("")}</span>`;
+  // On a narrow row only the first mark stays; the tooltip of the pill lists all of them.
+  return `<span class="facts" ${titleAttr(pl(t, "marksMore", { list: text.filter(Boolean).join("; ") }))}>${parts.map((p, n) => `<span class="mk${n === 0 ? " top" : ""}">${p}</span>`).join("")}</span>`;
 }
 
 // One open document: the title is the link that opens it (its tooltip is the path inside the
-// project); a click anywhere else on the row opens it too.
+// project); a click anywhere else on the row opens it too. The row menu button shows on hover.
 function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean): string {
-  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${tip(t, "row", { kind: i.kind || "-" })}><i class="sq ${i.status}" ${i.statusByUser ? titleAttr(`${pl(t, "square." + i.status, { title: i.title })} ${pl(t, "byYou")}`) : tip(t, "square." + i.status, { title: i.title })}></i>${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${marks(i.marks, t)}${linkMark(i, t)}<span class="k" ${tip(t, "kind", { kind: i.kind || "-" })}>${escapeHtml(i.kind)}</span>${kebab(t, "row", i.id, i.title)}</div>`;
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}" ${titleAttr(rowCard(i, t))}>${statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title)}</div>`;
 }
 
 // What a list adds to the plain item list: its tooltip key, an explanation line, how many more
@@ -209,6 +245,8 @@ export interface ListOptions {
   cap?: number;
   // Leave out the project name of each row: only one project is shown.
   single?: boolean;
+  // Tells the lists of one project card apart from the same list of another card.
+  scope?: string;
 }
 
 // One list of items under a heading, grouped items together, capped at a fixed length.
@@ -220,23 +258,27 @@ export function list(title: string, items: BoardItem[], names: Map<string, strin
   const grouped = (i: BoardItem): BoardItem["group"] => (i.group && (size.get(i.group.id) ?? 0) > 1 ? i.group : undefined);
   const ordered = opt.cap === undefined ? [...items].sort((a, b) => (grouped(b) ? 1 : 0) - (grouped(a) ? 1 : 0) || (grouped(a)?.name ?? "").localeCompare(grouped(b)?.name ?? "") || (grouped(a)?.id ?? "").localeCompare(grouped(b)?.id ?? "")) : items;
   let last: string | undefined;
-  const shown = ordered
-    .slice(0, cap)
-    .map((i) => {
-      const g = opt.cap === undefined ? grouped(i) : undefined;
-      const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${i.status}" ${tip(t, "square." + i.status, { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b>${kebab(t, "scope", `group:${i.id}`, g.name)}</div>` : "";
-      last = g?.id;
-      return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined);
-    })
-    .join("");
+  const parts = ordered.slice(0, cap).map((i) => {
+    const g = opt.cap === undefined ? grouped(i) : undefined;
+    const head = g && g.id !== last ? `<div class="grp" ${tip(t, "group", { count: size.get(g.id) ?? 0 })}><i class="sq ${blocks(i) ? "red" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${tip(t, "group", { count: size.get(g.id) ?? 0 })}>${escapeHtml(g.name)}</b>${kebab(t, "scope", `group:${i.id}`, g.name)}</div>` : "";
+    last = g?.id;
+    return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined);
+  });
   const left = items.length > cap ? items.length - cap : 0;
   const hidden = left + (opt.more ?? 0);
   const more = hidden > 0 ? `<p class="note" ${titleAttr(t.more.replace("{count}", String(hidden)))}>${pillify(t, escapeHtml(t.more.replace("{count}", String(hidden))))}</p>` : "";
-  const body = items.length === 0 ? `<p class="note">${escapeHtml(t.nothingHere)}</p>` : shown + more;
-  const note = opt.note ? `<p class="note">${escapeHtml(opt.note)}</p>` : "";
+  // An empty list is not drawn.
   const total = items.length + (opt.more ?? 0);
+  if (total === 0) {
+    return "";
+  }
+  // Rows past the first few wait behind a pill; the page script reveals them.
+  const rest = parts.length - SHOWN_ROWS;
+  const shown = rest > 0 ? `${parts.slice(0, SHOWN_ROWS).join("")}<button type="button" class="sec" data-show-more ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><div hidden>${parts.slice(SHOWN_ROWS).join("")}${more}</div>` : parts.join("") + more;
+  const note = opt.note ? `<p class="note">${escapeHtml(opt.note)}</p>` : "";
   // A long list starts folded; the heading still shows how many it holds.
-  return collapsible({ t, id: opt.tip ?? "list:" + title, tipAttr: tip(t, opt.tip ?? "list", { title, count: total }), head: `${escapeHtml(title)} ${pill(t, total, "count", { count: total })}`, body: note + body, open: items.length <= LONG_LIST });
+  const id = opt.tip ?? "list:" + title;
+  return collapsible({ t, id, sec: opt.scope ? `${id}:${opt.scope}` : id, tipAttr: tip(t, opt.tip ?? "list", { title, count: total }), head: `${escapeHtml(title)} ${pill(t, total, "count", { count: total })}`, body: note + shown, open: items.length <= LONG_LIST });
 }
 
 // The step line for a row whose daily report job has something to say. Escaped.
@@ -251,15 +293,16 @@ function stepText(s: PathStep, t: BoardStrings): string {
     case "item": {
       // The document's title is a link to it; the project name, when shown, stays plain text.
       const link = s.itemId !== undefined ? docLink(s.title ?? "", s.docPath ?? "", `data-id="${s.itemId}"`) : escapeHtml(s.title ?? "");
-      const named = s.project ? `${link} (${escapeHtml(s.project)})` : link;
+      const named = s.project ? `${link} <span class="tag">${escapeHtml(s.project)}</span>` : link;
       const unblocks = s.unblocks ? " " + fillT(t, t.ptgUnblocks, { count: s.unblocks }) : "";
       if (s.why === undefined) {
         // The document does not stop the release itself: the one that waits on it does.
         return fillT(t, s.waiter ? t.ptgItemFirst : t.ptgItemFirstAny, { waiter: s.waiter ?? "" }, { title: named }) + unblocks;
       }
       const base = s.why === "red" ? t.ptgItemRed : s.why === "pinned" ? t.ptgItemPinned : t.ptgItemSeverity;
+      const reason = s.why === "red" || s.why === "pinned" ? ` <span class="why">${escapeHtml(pl(t, "why." + s.why))}</span>` : "";
       const waiter = s.waiter ? " " + fillT(t, t.ptgWaiter, { title: s.waiter }) : "";
-      return fillT(t, base, { severity: s.severity ?? "" }, { title: named }) + unblocks + waiter;
+      return fillT(t, base, { severity: s.severity ?? "" }, { title: named }) + reason + unblocks + waiter;
     }
     case "blocked":
       return fillT(t, t.ptgBlocked, { count: s.count });
@@ -303,7 +346,7 @@ export function pathList(path: PathToGo, t: BoardStrings, pi: number, canAct: bo
   const items = path.steps
     .map((s, si) => `<li data-k="${escapeHtml(s.key)}"${s.kind === "lint" || s.kind === "tests" || s.kind === "build" || s.kind === "deps" ? ` title="${escapeHtml(s.detail ?? "")}"` : ""}><span class="st">${stepText(s, t)}</span>${stepButton(s, t, pi, si, canAct)}</li>`)
     .join("");
-  const more = path.hidden > 0 ? `<li class="note" data-more="1">${fillT(t, t.ptgMore, { count: path.hidden })}</li>` : "";
+  const more = path.hidden > 0 ? `<li class="note" data-ptg-more="1">${fillT(t, t.ptgMore, { count: path.hidden })}</li>` : "";
   const none = path.steps.length === 0 ? `<li class="note" data-none="1">${escapeHtml(t.ptgNone)}</li>` : "";
   return `<ol class="ptg" hidden data-live="${canAct ? 1 : 0}" data-all="${escapeHtml(JSON.stringify(path.allKeys))}">${none}${items}${more}</ol>`;
 }
@@ -314,4 +357,12 @@ export function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights
     return verdict(p, t, lights, false, badge, i);
   }
   return `<div class="pj" data-pid="${escapeHtml(p.id)}">${verdict(p, t, lights, true, badge, i)}${pathList(path, t, i, canAct)}</div>`;
+}
+
+// A project card: the verdict row is the heading; the Path to GO and the project's own lists sit
+// inside. The caller says whether it starts open. Its fold state is remembered per light, so a
+// change of light starts the card over.
+export function projectCard(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean, badge: string, open: boolean, lists: string): string {
+  const steps = path ? `<div class="pj" data-pid="${escapeHtml(p.id)}">${pathList(path, t, i, canAct)}</div>` : "";
+  return `<details class="box pcard" data-sec="${escapeHtml(`project:${p.id}:${p.light}`)}"${open ? " open" : ""}><summary class="sh">${verdict(p, t, lights, false, badge, i)}</summary>${steps}${lists}</details>`;
 }

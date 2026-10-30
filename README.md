@@ -144,7 +144,8 @@ A representative sample below — open **Settings → Extensions → Saropa Work
 | `releaseBoard.enabled` | `true` | Shows the Release Board button and commands. |
 | `releaseBoard.profile` | `deliberate` | Which severities stop a release: `rush`, `deliberate` or `zero`. |
 | `releaseBoard.projects` | `[]` | Folders the board includes besides the folders open in the window, one absolute path each (up to 40). A user setting: a workspace cannot change it. Use the **Projects** button on the board to add, add every project inside a parent folder, or remove; each folder is read like a workspace folder, with its own `.saropa/release-board.json` when it has one. Empty shows only the open folders. |
-| `releaseBoard.exclude` | `["reports/**"]` | Globs for files and folders to leave out of the board, matched against each path relative to its project, e.g. `reports/**` or `**/generated/**`. Added to the ignore list of the rules file. |
+| `releaseBoard.exclude` | `["reports/**"]` | Globs for files and folders to leave out of the board, matched against each path relative to its project, e.g. `reports/**` or `**/generated/**`. Added to the ignore list of the rules file. Default leaves out the reports folder. |
+| `releaseBoard.groupBy` | `project` | `project` draws one card per project on the Release Board, with its lists inside; `none` shows one merged list across every project. |
 | `releaseBoard.projectScope` | `all` | `all` shows the open folders and every chosen project; `openOnly` shows only the open folders and keeps the chosen list. Only matters once a project is chosen. |
 | `releaseBoard.sidebar.enabled` | `true` | Shows the Release Board at the top of the sidebar: one row per project with its light and first blockers. |
 | `releaseBoard.sidebar.blockersPerProject` | `3` | Most blockers listed under each project in the sidebar (0 to 10). |

@@ -1,4 +1,5 @@
-import { BoardStrings, escapeHtml, pl } from "./boardHtmlUtil";
+import type { BoardModel } from "./boardModel";
+import { BoardStrings, escapeHtml, pl, tip } from "./boardHtmlUtil";
 import { label } from "./boardHtmlProjects";
 import { hl } from "./boardHtmlHandoff";
 
@@ -8,14 +9,15 @@ import { hl } from "./boardHtmlHandoff";
 // index. Pure.
 
 // The kebab button of a row (`id` is the item's index), of a project or group heading (`id` is
-// "project:<index>" or "group:<first item>", `title` its name) or of the top bar (no id).
-export function kebab(t: BoardStrings, menu: "row" | "opts" | "scope", id?: number | string, title = ""): string {
-  const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, "optsMenu");
+// "project:<index>" or "group:<first item>", `title` its name) or of the top bar (no id): "view"
+// holds the view options, "opts" the project actions.
+export function kebab(t: BoardStrings, menu: "row" | "opts" | "view" | "scope", id?: number | string, title = ""): string {
+  const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, menu === "view" ? "viewMenu" : "optsMenu");
   const at = id === undefined ? "" : ` data-id="${id}"`;
   return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">⋮</button>`;
 }
 
-const item = (act: string, text: string, tipText: string): string => `<button type="button" class="mi" role="menuitem" data-act="${act}" title="${escapeHtml(tipText)}">${escapeHtml(text)}</button>`;
+const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem"): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${escapeHtml(text)}</button>`;
 
 // The row menu: open the document, change its status or severity, set both back to automatic, add a rule for its folder, hand it off to an AI,
 // open the rules file.
@@ -28,9 +30,32 @@ export function scopeMenu(t: BoardStrings): string {
   return `<div class="menu" id="menu-scope" role="menu" hidden aria-label="${escapeHtml(hl(t, "menuItem"))}" title="${escapeHtml(hl(t, "menuItem"))}">${item("hand", hl(t, "menuItem"), hl(t, "menuItemTip"))}</div>`;
 }
 
-// The board options menu: the rules file is opened only from here and from the row menu.
-export function optsMenu(t: BoardStrings): string {
-  const kw = t.keywordLabels?.edit ? item("keywords", t.keywordLabels.menu, t.keywordLabels.menuTip) : "";
-  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}</div>`;
+// Names of the time boxes the Steps filter offers, with the minutes each means.
+const TIME_LABELS: Array<[string, string]> = [["any", "timeAny"], ["15", "time15"], ["30", "time30"], ["60", "timeHour"], ["240", "timeHalfDay"]];
+
+// The view options menu: the release mode, one entry per profile, the grouping (when known), then (with the Steps box) the
+// time I have and the devices in hand. The current choice is ticked. The mode applies to every
+// project on the board. The Steps choices travel as JSON on the menu: the page script changes
+// one and sends the whole selection, the same message the old chips sent.
+export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel["sittings"], groupBy?: "project" | "none"): string {
+  const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
+  const tick = (on: boolean): string => (on ? "\u2713 " : "");
+  const head = (key: string): string => `<div class="mh" role="presentation" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div>`;
+  const group = groupBy === undefined ? "" : `${head("groupBy")}${(["project", "none"] as const).map((g) => item("group:" + g, tick(groupBy === g) + pl(t, g === "project" ? "groupProject" : "groupNone"), pl(t, g === "project" ? "groupProjectTip" : "groupNoneTip"), ` aria-checked="${groupBy === g}"`, "menuitemradio")).join("")}`;
+  const steps = sittings
+    ? `${head("timeLabel")}${TIME_LABELS.map(([n, key]) => item("box:" + n, tick(sittings.timeBox === n) + pl(t, key), pl(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) }), ` aria-checked="${sittings.timeBox === n}"`, "menuitemradio")).join("")}`
+      + (sittings.contexts.length > 0
+        ? `${head("haveLabel")}${item("haveall", tick(sittings.have.length === sittings.contexts.length) + pl(t, "haveAll"), pl(t, "chipAll"), ` aria-checked="${sittings.have.length === sittings.contexts.length}"`, "menuitemcheckbox")}${sittings.contexts.map((c) => item("have:" + c.id, tick(sittings.have.includes(c.id)) + c.label, pl(t, "chip", { name: c.label }), ` aria-checked="${sittings.have.includes(c.id)}"`, "menuitemcheckbox")).join("")}`
+        : "")
+    : "";
+  const sit = sittings ? ` data-sit="${escapeHtml(JSON.stringify({ have: sittings.have, box: sittings.timeBox, all: sittings.contexts.map((c) => c.id) }))}"` : "";
+  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, tick(profile === v) + text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${group}${steps}</div>`;
 }
 
+// The project actions menu: scan again, the rules file, projects, keywords, settings and the
+// start-up choice (left out when its state is unknown, as in a plain-browser layout check).
+export function optsMenu(t: BoardStrings, startup?: boolean): string {
+  const kw = t.keywordLabels?.edit ? item("keywords", t.keywordLabels.menu, t.keywordLabels.menuTip) : "";
+  const boot = startup === undefined ? "" : item("startup", (startup ? "\u2713 " : "") + label(t, "startup"), label(t, "startupTip"), ` data-on="${startup ? 1 : 0}"`);
+  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
+}

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { BoardItem, BoardProject } from "../../board/boardModel";
 import { emptyCounts } from "../../board/types";
 import { renderBoard } from "../../board/boardHtml";
-import { SinceLabels, clampListed, diffSeen, digestOf, readSeen, sameRecord, sinceLines, MAX_PROJECTS, MAX_RECORDED } from "../../board/sinceLast";
+import { SinceLabels, clampListed, diffSeen, digestOf, readSeen, sinceLines, MAX_PROJECTS, MAX_RECORDED } from "../../board/sinceLast";
 
 const labels: SinceLabels = {
   newOne: "1 new blocker",
@@ -53,6 +53,7 @@ test("new and cleared blockers are named", () => {
   assert.equal(d?.since, 1);
   assert.deepEqual(d?.changes[0].added, ["C"]);
   assert.deepEqual(d?.changes[0].cleared, ["A"]);
+  assert.deepEqual(d?.changes[0].addedKeys, ["app/bugs/C.md"], "the new blocker's row key, for the dotted mark");
   assert.equal(d?.changes[0].lightFrom, undefined);
 });
 
@@ -111,12 +112,12 @@ test("listed limit is a whole number from 1 to 20", () => {
 test("the page escapes the strip and shows it only with lines", () => {
   const model = { sittings: undefined, projects: [], chains: [], flags: [], items: [], safetyHold: false, baseline: false, profile: "deliberate", suggestions: [], outside: [], needsRule: [] } as never;
   const t = new Proxy({}, { get: (_t, k) => String(k) }) as never;
-  const html = renderBoard(model, t, "n", 1, {}, undefined, { heading: "Since <b>", lines: [{ text: "App: <script>x</script>", details: ["+ <img>"] }] });
+  const html = renderBoard(model, t, "n", 1, {}, undefined, { heading: "Since <b>", marked: [], lines: [{ text: "App: <script>x</script>", details: ["+ <img>"] }] });
   assert.ok(html.includes("Since &#60;b&#62;"));
   assert.ok(html.includes("&#60;script&#62;x&#60;/script&#62;"));
   assert.ok(!html.includes("<img>"));
   assert.ok(!renderBoard(model, t, "n", 1, {}, undefined, undefined).includes('class="box since"'));
-  assert.ok(!renderBoard(model, t, "n", 1, {}, undefined, { heading: "h", lines: [] }).includes('class="box since"'));
+  assert.ok(!renderBoard(model, t, "n", 1, {}, undefined, { heading: "h", marked: [], lines: [] }).includes('class="box since"'));
 });
 
 test("an open document that could not be read keeps its blocker and is not cleared", () => {
@@ -146,14 +147,6 @@ test("a moved document (same title gone and new) is not reported", () => {
   const more = digestOf(board(project("no-go", [moved, item("N")])), 2, seen);
   assert.deepEqual(diffSeen(seen, more)?.changes[0].added, ["N"]);
   assert.deepEqual(diffSeen(seen, more)?.changes[0].cleared, []);
-});
-
-test("sameRecord ignores time and names but not lights, blockers or projects", () => {
-  const a = digestOf(board(project("no-go", [item("A")])), 1);
-  assert.ok(sameRecord(a, digestOf(board(project("no-go", [item("A")])), 99)));
-  assert.ok(!sameRecord(a, digestOf(board(project("unverified", [item("A")])), 1)));
-  assert.ok(!sameRecord(a, digestOf(board(project("no-go", [item("B")])), 1)));
-  assert.ok(!sameRecord(a, digestOf(board(project("no-go", [item("A")]), project("go", [], "x")), 1)));
 });
 
 test("projects, paths and titles are capped in the record and when reading it back", () => {
@@ -211,8 +204,6 @@ test("records with reports compare by their times and counts, and survive a roun
   const a = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 100 }])), 1);
   const b = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 100 }])), 2);
   const c = digestOf(board(withReports("go", [{ kind: "standup", count: 3, at: 101 }])), 2);
-  assert.equal(sameRecord(a, b), true);
-  assert.equal(sameRecord(a, c), false);
   assert.deepEqual(readSeen(JSON.parse(JSON.stringify(a))), a);
   const broken = JSON.parse(JSON.stringify(a));
   broken.projects.app.reports.standup.count = "x";

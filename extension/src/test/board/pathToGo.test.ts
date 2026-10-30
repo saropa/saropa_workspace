@@ -310,5 +310,5 @@ test("html: a head in another project is named, and a distant waiter is not name
   const E = m.items.find((i) => i.title === "E")!;
   A.waitsOn = [E.id];
   const html = renderBoard(m, t, "N", 1, {}, m.projects.map((p) => pathToGo(m, p, opts)));
-  assert.ok(html.includes('<a class="doc" href="#" data-id="' + E.id + '" title="bugs/E.md">E</a> (Db)'), "the head is a link to its document, with the other project named after it");
+  assert.ok(html.includes('<a class="doc" href="#" data-id="' + E.id + '" title="bugs/E.md">E</a> <span class="tag">Db</span>'), "the head is a link to its document, with the other project named after it as a tag");
 });
