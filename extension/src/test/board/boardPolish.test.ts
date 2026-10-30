@@ -222,10 +222,10 @@ test("every releaseBoard setting is in the README table with its default, and th
   }
 });
 
-test("the row menu has Open, the status radios, Raise, Lower, the five levels, Back to automatic, Assign rule, Hand off and the rules file, each with a tooltip", () => {
+test("the row menu has Open, the status radios, Raise, Lower, the five levels, Back to automatic, Waits on, Blocks, Assign rule, Hand off and the rules file, each with a tooltip", () => {
   const html = rowMenu(t, "deliberate", [], [{ label: "Done", status: "green" }, { label: "Review next", status: "amber" }]);
   const acts = [...html.matchAll(/<button type="button" class="mi" role="(menuitem|menuitemradio)" data-act="([\w:]+)"[^>]* title="([^"]+)">([^<]+)<\/button>/g)];
-  assert.deepEqual(acts.map((m) => m[2]), ["open", "status:0", "status:1", "raise", "lower", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low", "auto", "assign", "hand", "rules"]);
+  assert.deepEqual(acts.map((m) => m[2]), ["open", "status:0", "status:1", "raise", "lower", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low", "auto", "waits", "blocks", "assign", "hand", "rules"]);
   assert.deepEqual(acts.filter((m) => m[1] === "menuitemradio").map((m) => m[2]), ["status:0", "status:1", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low"]);
   assert.ok(acts.every((m) => m[3].length > 0));
   assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden data-stops='));
