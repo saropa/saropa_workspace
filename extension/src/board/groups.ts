@@ -58,7 +58,7 @@ function titleCase(s: string): string {
 }
 
 // A union-find over item keys: documents joined here end up in one group.
-function makeUnion(keys: string[]): { find: (k: string) => string; union: (a: string, b: string) => void } {
+export function makeUnion(keys: string[]): { find: (k: string) => string; union: (a: string, b: string) => void } {
   const parent = new Map<string, string>(keys.map((k) => [k, k]));
   const find = (k: string): string => {
     while (parent.get(k) !== k) {
@@ -133,7 +133,7 @@ function joinByPrefix(pool: GroupInput[], manualOf: Map<string, string>, generic
 // 3. Two or more shared source files. Not transitive: a seed document takes the
 //    ungrouped documents that share two files with it, so a chain of overlaps cannot
 //    grow into one giant group. Documents already grouped by prefix or by hand are left.
-function joinByFiles(free: GroupInput[], filesOf: Map<string, Set<string>>, maxFileGroup: number, u: Union): void {
+export function joinByFiles(free: GroupInput[], filesOf: Map<string, Set<string>>, maxFileGroup: number, u: Union): void {
   const taken = new Set<string>();
   const sharedCount = (a: GroupInput, b: GroupInput): number => {
     let n = 0;
@@ -212,7 +212,7 @@ export function buildGroups(items: GroupInput[], opt: GroupOptions = {}): GroupR
   const filesOf = new Map(pool.map((i) => [i.key, new Set(i.sourceFiles)]));
   const free = pool
     .filter((i) => !hubs.has(i.key) && !manualOf.has(i.key) && u.find(i.key) === i.key && !byPrefix.get(i.project + "\t" + prefixOf(i.path))?.slice(1).length)
-    .sort((a, b) => b.sourceFiles.length - a.sourceFiles.length || a.key.localeCompare(b.key));
+    .sort((a, b) => b.sourceFiles.length - a.sourceFiles.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   joinByFiles(free, filesOf, opt.maxFileGroup ?? 12, u);
   return { groupOf: nameGroups(pool, manualOf, generic, u), hubs };
 }
