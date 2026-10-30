@@ -11,8 +11,11 @@ import { applySuggestion, openDocument, openExternalLink, openSittingsLine, save
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, undoRulesWrite } from "../commands/boardRuleAssign";
+import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
+import { pickGroup } from "../commands/boardGroupPick";
+import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
+import { NeedsDirection, pickNeeds } from "./boardNeedsPick";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
@@ -22,6 +25,7 @@ import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
 import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
 import { writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
+import { GROUP_BYS } from "../board/types";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
 
@@ -117,9 +121,9 @@ class BoardPanel extends BoardPanelWiring {
       await this.noRule(message.type, message.i);
     } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
       await this.projectsMessage(message.type);
-    } else if (message.type === "groupBy" && (message.value === "project" || message.value === "none")) {
+    } else if (message.type === "groupBy" && GROUP_BYS.some((g) => g === message.value)) {
       // The setting change draws the board again through the configuration listener.
-      await writeGroupBy(message.value);
+      await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
     } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
       await writeProjectScope(message.value);
     } else if (message.type === "chatPoll") {
@@ -348,6 +352,14 @@ class BoardPanel extends BoardPanelWiring {
       this.post(openMessage("item", id));
     } else if (act === "rules") {
       await openRulesFile({ project: item.project, folder }, documentColumn());
+    } else if (act === "group") {
+      // The picker is the host's own dialog: nothing but the entry name comes from the page.
+      const picked = await pickGroup(await readGroupNames(), item);
+      if (!picked.cancelled) {
+        await this.inlineChange(run, item, { kind: "group", name: picked.name }, id);
+      }
+    } else if (act === "waits" || act === "blocks") {
+      await this.needsChange(act, item, run);
     } else if (act === "assign") {
       const busy = this.busyReason();
       if (busy) {
@@ -373,6 +385,30 @@ class BoardPanel extends BoardPanelWiring {
       } else {
         this.post({ type: "clearPending", id });
       }
+    }
+  }
+
+  // Waits on... and Blocks...: the picker, then one Needs line added or taken out of a document at
+  // once, with Undo. The page shows nothing pending: the board is painted again after the write.
+  private async needsChange(dir: NeedsDirection, item: BoardItem, run: BoardRun): Promise<void> {
+    const busy = this.busyReason();
+    if (busy || !this.model) {
+      void vscode.window.showInformationMessage(l10n(busy ?? "releaseBoard.failed"));
+      return;
+    }
+    this.assigning = true;
+    try {
+      const pick = await pickNeeds(run, this.model, item, dir);
+      const snapshot = pick && (await changeNeeds(run, pick.doc, pick.change));
+      if (pick && snapshot) {
+        this.offerUndo(pick.label, () => undoDocWrite(snapshot));
+        this.dirty = true;
+        await this.refresh();
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.assigning = false;
     }
   }
 
@@ -410,8 +446,10 @@ class BoardPanel extends BoardPanelWiring {
             ? l10n("releaseBoard.undo.status", { title: item.title, label: change.category.label })
             : change.kind === "severity"
               ? l10n("releaseBoard.undo.severity", { title: item.title, level: change.level })
-              : l10n("releaseBoard.undo.auto", { title: item.title });
-        this.offerUndo(label, snapshot);
+              : change.kind === "group"
+                ? l10n(change.name === undefined ? "releaseBoard.undo.groupRemove" : "releaseBoard.undo.group", { title: item.title, name: change.name ?? "" })
+                : l10n("releaseBoard.undo.auto", { title: item.title });
+        this.offerUndo(label, () => undoRulesWrite(snapshot));
         this.dirty = true;
         await this.refresh();
       } else {
@@ -427,16 +465,16 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   // Keeps what the last change replaced for ten seconds; the page's bar is taken away when it ends.
-  private offerUndo(label: string, snapshot: RulesSnapshot): void {
+  private offerUndo(label: string, restore: () => Promise<boolean>): void {
     clearTimeout(this.undo?.timer);
     const timer = setTimeout(() => {
       this.undo = undefined;
       void this.panel.webview.postMessage({ type: "undoOff" });
     }, UNDO_MS);
-    this.undo = { label, snapshot, timer };
+    this.undo = { label, restore, timer };
   }
 
-  // The Undo button: puts the rules file back, then scans again. The file is only touched while it
+  // The Undo button: puts the changed file back, then scans again. The file is only touched while it
   // still holds what the change wrote.
   private async undoChange(): Promise<void> {
     const undo = this.undo;
@@ -451,7 +489,7 @@ class BoardPanel extends BoardPanelWiring {
     this.assigning = true;
     let done = false;
     try {
-      done = await undoRulesWrite(undo.snapshot);
+      done = await undo.restore();
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {

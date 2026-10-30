@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
 import { Severity } from "../board/severity";
+import { manualGroupNames, setDocGroup } from "../board/groupEdit";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
@@ -52,16 +53,20 @@ function refuse(reason: AssignRefusal, folder: string): void {
     void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.autoNothing", { glob: folder }));
     return;
   }
-  const key =
-    reason === "parse"
-      ? "releaseBoard.noRule.badJson"
-      : reason === "glob"
-        ? "releaseBoard.noRule.badGlob"
-        : reason === "encoding"
-          ? "releaseBoard.noRule.badEncoding"
-          : reason === "lossy"
-            ? "releaseBoard.noRule.badLossy"
-            : "releaseBoard.noRule.badShape";
+  if (reason === "same") {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.group.already", { glob: folder }));
+    return;
+  }
+  const keys: Record<Exclude<AssignRefusal, "none" | "same">, string> = {
+    claimed: "releaseBoard.group.claimed",
+    parse: "releaseBoard.noRule.badJson",
+    glob: "releaseBoard.noRule.badGlob",
+    name: "releaseBoard.group.badName",
+    encoding: "releaseBoard.noRule.badEncoding",
+    lossy: "releaseBoard.noRule.badLossy",
+    shape: "releaseBoard.noRule.badShape"
+  };
+  const key = keys[reason];
   void vscode.window.showWarningMessage(l10n(key, { file: RULES_FILE, folder }));
 }
 
@@ -279,6 +284,24 @@ export function previewFolder(run: BoardRun, entry: NoRuleFolder): void {
   );
 }
 
+// The names of the groups listed by hand, read from the rules file now (not from the last scan).
+export async function readGroupNames(): Promise<string[]> {
+  const root = vscode.workspace.workspaceFolders?.[0];
+  if (!root) {
+    return [];
+  }
+  const read = await readRules(vscode.Uri.joinPath(root.uri, RULES_FILE));
+  if (read.kind !== "text") {
+    return [];
+  }
+  try {
+    const cfg = JSON.parse(read.text) as unknown;
+    return manualGroupNames(typeof cfg === "object" && cfg !== null ? cfg : {});
+  } catch {
+    return [];
+  }
+}
+
 // The first workspace folder, or a message when there is none; and the project's idMadeUnique check.
 function rulesRoot(run: BoardRun, projectId: string): vscode.WorkspaceFolder | undefined {
   const root = vscode.workspace.workspaceFolders?.[0];
@@ -295,8 +318,8 @@ function rulesRoot(run: BoardRun, projectId: string): vscode.WorkspaceFolder | u
 }
 
 // What the row menu changes for one document: its status (a category of the existing rules), its
-// severity, or both back to automatic.
-export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" };
+// severity, both back to automatic, or its group (a name, or undefined to take it out of its group).
+export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" } | { kind: "group"; name: string | undefined };
 
 // The text with the status rules and the severity entry the board wrote for the document taken away.
 function autoText(before: string | undefined, doc: { project: string; path: string }): SeverityResult {
@@ -310,9 +333,10 @@ function autoText(before: string | undefined, doc: { project: string; path: stri
   return sev.reason === "none" && st.reason === "none" ? { ok: false, reason: "none" } : st.reason === "none" ? sev : st;
 }
 
-// Changes one document's status or severity in the rules file at once, with no dialog: the same
+// Changes one document's status, severity or group in the rules file at once, with no dialog: the same
 // checks as every rules write. A status is a rule for the exact path placed ahead of the rule that
-// placed it; a severity is an entry for the exact path that wins over the computed one. Returns
+// placed it; a severity is an entry for the exact path that wins over the computed one; a group lists the exact
+// path (a document taken out of a group the board found is listed in "ungrouped"). Returns
 // what the file held before (for Undo), or undefined when nothing was written.
 export async function changeDoc(run: BoardRun, doc: { project: string; path: string }, change: DocChange): Promise<RulesSnapshot | undefined> {
   if (docGlob(doc.path) === undefined) {
@@ -332,7 +356,9 @@ export async function changeDoc(run: BoardRun, doc: { project: string; path: str
           ? addDocRule(before, { project: doc.project, path: doc.path, category: change.category })
           : change.kind === "severity"
             ? setDocSeverity(before, { project: doc.project, path: doc.path, severity: change.level })
-            : autoText(before, doc);
+            : change.kind === "group"
+              ? setDocGroup(before, { project: doc.project, path: doc.path, group: change.name })
+              : autoText(before, doc);
       return r.ok ? { ok: true, text: r.text, vars: {} } : r;
     },
     saved: (s) => (snapshot = s),

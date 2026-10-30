@@ -109,16 +109,20 @@ function sqlTitle(text: string): string {
 export function parseNeeds(body: string): string[] {
   const out: string[] = [];
   for (const m of body.matchAll(/^[\s>*_-]*\**needs\**\s*:\s*\**\s*(.+)$/gim)) {
-    // A Markdown link stands for its target, so a comma in the link text splits nothing.
-    const line = m[1].replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
-    for (const part of line.split(/[;,]|\s+and\s+/)) {
-      const t = part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "");
-      if (t && !out.includes(t)) {
+    for (const t of needsTargets(m[1])) {
+      if (!out.includes(t)) {
         out.push(t);
       }
     }
   }
   return out;
+}
+
+// The targets one Needs line names, after its "Needs:" label.
+export function needsTargets(rest: string): string[] {
+  // A Markdown link stands for its target, so a comma in the link text splits nothing.
+  const line = rest.replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
+  return line.split(/[;,]|\s+and\s+/).map((part) => part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "")).filter((t) => t !== "");
 }
 
 // Counts the code blocks by language tag. Opening fences carry the tag; closing fences have none.
@@ -223,6 +227,9 @@ function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: Do
   return res;
 }
 
+// True when the board reads Needs lines in this kind of document (SQL files have none).
+export const readsNeeds = (path: string): boolean => !path.toLowerCase().endsWith(".sql");
+
 // Reads the facts of one document from its text. `path` decides how the text is read (SQL or Markdown).
 export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
   const isSql = path.toLowerCase().endsWith(".sql");
@@ -258,7 +265,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     docRefNames: [...new Set([...body.matchAll(/[\w./-]{1,200}\.md/g)].map((m) => m[0]))].sort().slice(0, 60),
     sourceRefs: unique(text.matchAll(srcRe)),
     sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
-    needs: isSql ? [] : parseNeeds(body),
+    needs: readsNeeds(path) ? parseNeeds(body) : [],
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
     mentions,

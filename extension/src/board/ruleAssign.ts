@@ -85,7 +85,7 @@ export function folderGlob(folder: string): string | undefined {
 }
 
 // Why a rule could not be added.
-export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy" | "none";
+export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy" | "none" | "name" | "same" | "claimed";
 
 export type AssignResult = { ok: true; text: string; id: string; glob: string } | { ok: false; reason: AssignRefusal };
 
@@ -144,9 +144,9 @@ export function addDocRule(text: string | undefined, a: { project: string; path:
 }
 
 // A rules file text read for an edit: the parsed object, and whether the file was blank.
-type Parsed = { ok: true; doc: Record<string, unknown>; blank: boolean; source: string } | { ok: false; reason: AssignRefusal };
+export type Parsed = { ok: true; doc: Record<string, unknown>; blank: boolean; source: string } | { ok: false; reason: AssignRefusal };
 
-function parseForEdit(text: string | undefined): Parsed {
+export function parseForEdit(text: string | undefined): Parsed {
   const blank = text === undefined || text.trim() === "";
   let doc: unknown;
   if (blank) {
@@ -169,7 +169,7 @@ function parseForEdit(text: string | undefined): Parsed {
 }
 
 // The edited object as file text: the indent and line ends of the source are kept.
-function serialize(p: { doc: Record<string, unknown>; blank: boolean; source: string }): string {
+export function serialize(p: { doc: Record<string, unknown>; blank: boolean; source: string }): string {
   const eol = p.source.includes("\r\n") ? "\r\n" : "\n";
   let out = JSON.stringify(p.doc, null, p.blank ? "  " : indentOf(p.source));
   if (eol === "\r\n") {

@@ -3,7 +3,7 @@ import * as nodePath from "node:path";
 import * as vscode from "vscode";
 import { mapLimit } from "../board/pool";
 import { withTimeout } from "../board/timeout";
-import { ProjectDef, RuleSetDef, SkipReason, SkippedProject } from "../board/types";
+import { GROUP_BYS, GroupBy, ProjectDef, RuleSetDef, SkipReason, SkippedProject } from "../board/types";
 import { ProjectScope, asScope, cleanProjectPaths, folderName, folderProjects, skippedRows } from "../board/extraProjects";
 import { pathExists } from "./boardFileSource";
 
@@ -35,12 +35,13 @@ export async function writeProjectScope(scope: ProjectScope): Promise<void> {
   await vscode.workspace.getConfiguration(SECTION).update("projectScope", scope, vscode.ConfigurationTarget.Global);
 }
 
-export function readGroupBy(): "project" | "none" {
-  return vscode.workspace.getConfiguration(SECTION).get<string>("groupBy", "project") === "none" ? "none" : "project";
+export function readGroupBy(): GroupBy {
+  const v = vscode.workspace.getConfiguration(SECTION).get<string>("groupBy", "project");
+  return GROUP_BYS.find((g) => g === v) ?? "project";
 }
 
 // Sets the grouping; the setting change repaints the board through the configuration listener.
-export async function writeGroupBy(value: "project" | "none"): Promise<void> {
+export async function writeGroupBy(value: GroupBy): Promise<void> {
   await vscode.workspace.getConfiguration(SECTION).update("groupBy", value, vscode.ConfigurationTarget.Global);
 }
 
