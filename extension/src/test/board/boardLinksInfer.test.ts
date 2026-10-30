@@ -160,3 +160,49 @@ test("2,000 documents finish quickly and respect the caps", () => {
   assert.ok(r.every((p) => p.confidence === "high"));
   assert.ok(ms < 3000, `took ${ms} ms`);
 });
+
+test("dotted versions share one stem and compare numerically", () => {
+  const r = run([doc("a/api_v1.10.md"), doc("a/api_v1.2.md"), doc("a/api_v1.3.md")]);
+  assert.deepEqual(r.map((p) => [pair(p), p.confidence, p.why.params.stem]), [
+    ["a/api_v1.3.md->a/api_v1.2.md", "high", "api"],
+    ["a/api_v1.10.md->a/api_v1.3.md", "medium", "api"],
+  ]);
+});
+
+test("a phrase target must start the clause", () => {
+  const docs = [doc("a.md", "Requires Node 20. See docs/SETUP.md."), doc("docs/SETUP.md"), doc("b.md", "Blocked by **`docs/SETUP.md`**.\nNeeds [the setup](docs/SETUP.md) and more.")];
+  assert.deepEqual(run(docs).filter((p) => p.signal === "phrase").map(pair), ["b.md->docs/SETUP.md"]);
+});
+
+test("negation also covers blocks this and this blocks", () => {
+  const r = run([doc("a.md", "b.md no longer blocks this."), doc("c.md", "This plan does not\nthis no longer blocks a.md"), doc("b.md"), doc("d.md", "This plan no longer blocks a.md.")]);
+  assert.equal(r.filter((p) => p.signal === "phrase").length, 0);
+});
+
+test("code is ignored: unclosed fence, tilde fence, indented block, inline span", () => {
+  const texts = ["```\nblocked by b.md", "~~~\nblocked by b.md\n~~~~", "intro\n\n    blocked by b.md\n", "Use `blocked by b.md` here."];
+  for (const t of texts) {
+    assert.equal(run([doc("a.md", t), doc("b.md")]).length, 0, t);
+  }
+  assert.equal(run([doc("a.md", "```\nx\n```\nBlocked by b.md"), doc("b.md")]).length, 1);
+});
+
+test("same pair, tied strength: output does not depend on input order", () => {
+  const docs = [doc("a.md", "Blocked by b.md."), doc("b.md", "This blocks a.md."), doc("c.md")];
+  const want = JSON.stringify(run(docs));
+  const perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  for (const p of perms) {
+    assert.equal(JSON.stringify(run(p.map((k) => docs[k]))), want);
+  }
+});
+
+test("a long line with many phrases finishes quickly", () => {
+  const line = "needs x ".repeat(250).slice(0, 2000) + "\n" + "Blocked by b.md ".repeat(180);
+  const start = process.hrtime.bigint();
+  run([doc("a.md", line.slice(0, 2000)), doc("b.md")]);
+  assert.ok(Number(process.hrtime.bigint() - start) / 1e6 < 500);
+});
+
+test(".md needs an end boundary", () => {
+  assert.equal(run([doc("a.md", "Blocked by b.md.bak and see b.md.bak"), doc("b.md")]).length, 0);
+});

@@ -61,7 +61,12 @@ export function wouldCircle(waitsOn: ReadonlyMap<string, ReadonlySet<string>>, f
   return false;
 }
 
-const better = (a: Candidate, b: Candidate): boolean => CONF[a.confidence] < CONF[b.confidence] || (a.confidence === b.confidence && SIGNAL[a.signal] < SIGNAL[b.signal]);
+// Total order: confidence, then signal, then the reason text, so a tie never depends on the order given.
+const whyText = (c: Candidate): string => c.why.key + "\t" + Object.keys(c.why.params).sort().map((k) => k + "=" + c.why.params[k]).join("\t");
+const better = (a: Candidate, b: Candidate): boolean => {
+  const d = CONF[a.confidence] - CONF[b.confidence] || SIGNAL[a.signal] - SIGNAL[b.signal];
+  return d !== 0 ? d < 0 : whyText(a) < whyText(b);
+};
 
 // `docs` are the open documents. `existing` are the resolved Needs: links (a pair already
 // linked is never proposed, and they count when checking for a loop); `rejected` holds
