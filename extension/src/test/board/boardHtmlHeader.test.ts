@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderBoard } from "../../board/boardHtml";
-import { filterLine, scopeSwitch, topBar } from "../../board/boardHtmlHeader";
+import { explainPill, filterLine, scopeSwitch, sinceLink, topBar } from "../../board/boardHtmlHeader";
 import { STYLE } from "../../board/boardHtmlAssets";
 import { buildBoard } from "../../board/boardModel";
 import { BoardConfig } from "../../board/types";
@@ -44,10 +44,27 @@ test("the filter line is hidden with no filter, and shows a removable pill per a
   assert.equal(renderBoard(base, t, "n").includes('class="fline"'), false);
 });
 
-test("the page script clears a filter pill through the matching Sittings control", () => {
+test("the page script clears a filter pill by sending the Sittings selection", () => {
   const html = renderBoard(buildBoard(cfg, [], undefined, true), t, "n");
   assert.ok(html.includes("data-fclear"), "the handler is in the script");
-  assert.ok(html.includes("go('[data-box=\"any\"]')") && html.includes("go('[data-haveall]')"));
+  assert.ok(html.includes("sitSend({...(k!=='have'?{box:'any'}:{}),...(k!=='time'?{have:SIT.all}:{})})"));
+});
+
+test("the scope and mode pill carries the detail in its tooltip, and is left out with no scope", () => {
+  const m = buildBoard(cfg, [], undefined, true);
+  const html = explainPill(m, "all", t);
+  assert.match(html, /\u2699 All \d+ \u00b7 Deliberate</);
+  assert.ok(html.includes("Red folders and failing lint, tests or build block in every mode"));
+  assert.ok(html.includes("extreme, critical and high items block"));
+  assert.equal(explainPill(m, undefined, t), "");
+  assert.ok(topBar(m, t, "all", "<TABS>").includes("Deliberate"));
+});
+
+test("the header link to the change log shows only while something changed", () => {
+  assert.equal(sinceLink(undefined, t), "");
+  assert.equal(sinceLink({ heading: "h", marked: [], lines: [] }, t), "");
+  const html = sinceLink({ heading: "h", marked: [], lines: [{ text: "x", details: [] }] }, t);
+  assert.ok(html.includes("data-since-go") && html.includes('<span class="pill"'));
 });
 
 test("a NO-GO light is a tinted pill, not a solid red block, and the flame is never red", () => {

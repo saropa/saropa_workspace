@@ -1,7 +1,7 @@
 import { BoardModel } from "./boardModel";
 import { SittingLine } from "./sittings";
 import { Train, trainRows } from "./train";
-import { SinceView } from "./sinceLast";
+import { SinceView, sinceKey } from "./sinceLast";
 import { TidyReport } from "./tidy";
 import { BoardStrings, collapsible, sectionIcon, fillT, docLink, escapeHtml, handButton, glyphTip, liveLine, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { RULES_PATH } from "./ruleAssign";
@@ -9,22 +9,15 @@ import { RULES_PATH } from "./ruleAssign";
 // The boxes around the project rows: sittings, tidy, unnamed crashes, trains, linked
 // documents, outside sources and the strip of changes since the board was last seen.
 
-// Names of the time boxes the filter offers, with the minutes each means.
-const TIME_LABELS: Array<[string, string]> = [["any", "timeAny"], ["15", "time15"], ["30", "time30"], ["60", "timeHour"], ["240", "timeHalfDay"]];
-
-// The Sittings box: always visible. A compact filter on top ("Time I have", then the contexts
-// in hand as chips) and the list of steps that fit under it. By default every context is in
-// hand and any time fits, so nothing is hidden. Lines carry only an index; the host resolves it
+// The Sittings box: always visible. The list of steps that fit the filters; the time and the
+// contexts in hand are chosen in the View options menu. By default every context is in hand and
+// any time fits, so nothing is hidden. Lines carry only an index; the host resolves it
 // against the model it rendered.
 export function sittingsBox(model: BoardModel, t: BoardStrings): string {
   const v = model.sittings;
   if (!v) {
     return "";
   }
-  const chip = (id: string, label: string): string =>
-    `<button class="chip sec" data-have="${escapeHtml(id)}" aria-pressed="${v.have.includes(id)}" ${tip(t, "chip", { name: label })}>${escapeHtml(label)}</button>`;
-  const all = v.contexts.length > 0 ? `<button class="chip sec" data-haveall="1" aria-pressed="${v.have.length === v.contexts.length}" ${tip(t, "chipAll")}>${escapeHtml(pl(t, "haveAll"))}</button>` : "";
-  const time = TIME_LABELS.map(([n, key]) => `<button class="chip sec" data-box="${n}" aria-pressed="${v.timeBox === n}" ${tip(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) })}>${escapeHtml(pl(t, key))}</button>`).join("");
   const line = (l: SittingLine, i: number): string =>
     `<div class="row" ${tip(t, "step", { minutes: l.minutes })}><span class="tag" ${tip(t, "project", { name: l.projectName })}>${escapeHtml(l.projectName)}</span><span class="f">${docLink(l.text || l.heading || l.docTitle, l.path, `data-step="${i}"`)}</span><span class="k" ${tip(t, "stepDoc", { title: l.docTitle })}>${escapeHtml(l.docTitle)}</span>${l.needs.length > 0 ? `<span class="k" ${tip(t, "stepNeeds")}>${escapeHtml(l.needs.join(" + "))}</span>` : ""}${pill(t, l.minutes, "stepMinutesPill", { minutes: l.minutes })}${handButton(t, `data-hk="line" data-i="${i}"`)}</div>`;
   const doable = v.lines.slice(0, v.doable).map((l, i) => line(l, i)).join("");
@@ -40,8 +33,7 @@ export function sittingsBox(model: BoardModel, t: BoardStrings): string {
       ? `<details class="untag" id="sit-untag" data-sec="sittings-untagged" open><summary class="sh" ${tip(t, "untagged")}>${sectionIcon(t, "sittings-untagged")}${pillify(t, escapeHtml(t.sittingsUntagged.replace("{count}", String(v.untagged + v.untaggedMore))))}</summary><p class="note">${escapeHtml(t.sittingsUntaggedNote)}</p>${shownUntagged}</details>`
       : "";
   const fit = `<details class="steps" id="sit-steps" data-sec="sittings-steps" open><summary class="sh" ${tip(t, "stepsSummary")}>${sectionIcon(t, "sittings-steps")}${pillify(t, escapeHtml(pl(t, "stepsFit", { count: v.doable })))}</summary>${body}${rest}${untagged}</details>`;
-  const filter = `<div class="filter"><span class="k" ${tip(t, "timeLabelTip")}>${escapeHtml(pl(t, "timeLabel"))}</span><span class="seg" role="group" aria-label="${escapeHtml(pl(t, "timeLabel"))}" ${tip(t, "timeGroup")}>${time}</span><span class="k" ${tip(t, "haveLabelTip")}>${escapeHtml(pl(t, "haveLabel"))}</span><span class="seg" role="group" aria-label="${escapeHtml(pl(t, "haveLabel"))}" ${tip(t, "haveGroup")}>${all}${v.contexts.map((c) => chip(c.id, c.label)).join("")}</span></div>`;
-  return collapsible({ t, id: "sittings", domId: "sit-panel", tipAttr: tip(t, "sittingsHeading"), head: escapeHtml(t.sittingsHeading), body: filter + fit });
+  return collapsible({ t, id: "sittings", domId: "sit-panel", tipAttr: tip(t, "sittingsHeading"), head: escapeHtml(t.sittingsHeading), body: fit });
 }
 
 // The words for one report candidate in the Tidy box. Already escaped.
@@ -202,5 +194,18 @@ export function sinceBox(view: SinceView | undefined, t: BoardStrings): string {
   const rows = view.lines
     .map((l) => `<li>${sinceText(t, l)}${l.details.length > 0 ? `<ul class="sd">${l.details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>` : ""}</li>`)
     .join("");
-  return collapsible({ t, id: "since", cls: "box since", tipAttr: tip(t, "sinceHeading"), head: escapeHtml(view.heading), body: `<ul class="sl">${rows}</ul>`, attrs: ` role="status" aria-label="${escapeHtml(view.heading)}"` });
+  const dismiss = `<button class="sec" data-since-dismiss ${tip(t, "sinceDismissTip")}>${escapeHtml(pl(t, "sinceDismiss"))}</button>`;
+  return collapsible({ t, id: "since", domId: "since-box", cls: "box since", tipAttr: tip(t, "sinceHeading"), head: escapeHtml(view.heading), body: `<ul class="sl">${rows}</ul>${dismiss}`, attrs: ` role="status" aria-label="${escapeHtml(view.heading)}"` });
+}
+
+// Rows of documents that became blockers since the last look get a static dotted
+// blue outline, never animated; it stays until the strip is dismissed. Returned as CSS: the
+// rows are drawn by many lists, and an id is a plain number, so one rule per row is enough.
+export function sinceMarks(model: BoardModel, view: SinceView | undefined): string {
+  if (!view || view.marked.length === 0) {
+    return "";
+  }
+  const keys = new Set(view.marked);
+  const ids = model.items.filter((i) => keys.has(sinceKey(i))).map((i) => `.row[data-id="${i.id}"]`);
+  return ids.length === 0 ? "" : `${ids.join(",")}{outline:1px dotted var(--blue);outline-offset:-1px}`;
 }

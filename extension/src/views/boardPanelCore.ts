@@ -12,7 +12,7 @@ import { loadOutside } from "../commands/boardOutside";
 import { publishBoard } from "./editorLinks";
 import { loadLiveSignals, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
-import { panelLeft, panelShowed, viewFor } from "./boardSinceLast";
+import { panelShowed, viewFor } from "./boardSinceLast";
 import { readHandSettings } from "../commands/boardHandToChat";
 import { markScanDone, setFailed, setPanelVisible } from "./boardFeed";
 import { strings } from "./boardStrings";
@@ -360,7 +360,6 @@ export abstract class BoardPanelCore {
   protected dispose(): void {
     this.onClosed();
     setPanelVisible(false);
-    panelLeft();
     this.disposed = true;
     this.outsideToken++;
     this.liveToken++;

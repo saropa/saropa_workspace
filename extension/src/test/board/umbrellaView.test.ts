@@ -16,9 +16,7 @@ const labels: Record<string, string> = {
   projectsTip: "Choose projects",
   settings: "Settings",
   settingsTip: "Open settings",
-  hintText: "Only this project is shown.",
   hintAdd: "Add more projects",
-  hintDismiss: "Dismiss",
   hintDismissTip: "Hide the hint",
   rollup: "{count} projects",
   open: "open",
@@ -141,12 +139,12 @@ test("the project actions menu has Projects and Settings entries, each with a to
   assert.ok(html.includes('data-act="settings" title="Open settings">Settings</button>'));
 });
 
-test("the hint is one line with the add and dismiss buttons, and only when asked for", () => {
+test("the hint is one pill-sized add button and a close, with no sentence, and only when asked for", () => {
   assert.equal(hintBar(false, t), "");
   assert.equal(hintBar(undefined, t), "");
   assert.equal(
     hintBar(true, t),
-    '<div class="hint" role="note" title="hintBar"><span class="f" title="hintBar">Only this project is shown.</span><button data-projects title="Choose projects">Add more projects</button><button data-hint-dismiss title="Hide the hint" aria-label="Hide the hint">Dismiss</button></div>'
+    '<div class="hint" role="note" title="hintBar"><button class="sec" data-projects title="Choose projects">Add more projects</button><button class="fx sec" data-hint-dismiss title="Hide the hint" aria-label="Hide the hint">\u2715</button></div>'
   );
 });
 

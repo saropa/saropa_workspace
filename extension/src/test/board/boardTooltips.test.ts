@@ -210,7 +210,7 @@ function pages(): Array<[string, string]> {
   const t: BoardStrings = strings();
   const m = fullModel();
   const paths = m.projects.map((p) => pathToGo(m, p, { maxSteps: 8, canRun: () => true }));
-  const since = { heading: "Since you last looked", lines: [{ text: "App: 1 new blocker", details: ["+ Crash on start"] }] };
+  const since = { heading: "Since you last looked", marked: [] as string[], lines: [{ text: "App: 1 new blocker", details: ["+ Crash on start"] }] };
   const empty = buildBoard({ ...cfg, severity: undefined }, [], undefined, true);
   return [
     ["full", renderBoard(m, t, "n", 1, { startup: true, scope: "all" }, paths, since, [train], future(true))],
@@ -375,7 +375,7 @@ test("every number the page counts is a pill, a small rounded badge in the edito
     .split("|")
     .map((x) => decode(x).trim())
     .filter((x) => /\b\d+\b/.test(x));
-  assert.deepEqual(bare, ["15 min", "30 min", "1 hour", "1", "1.0.0", "2", "2.0.0", "repo#1"], "time labels, train numbering and versions, and a review reference are not counts");
+  assert.deepEqual(bare, ["\u2699 All 2 \u00b7 Deliberate", "1", "1.0.0", "2", "2.0.0", "repo#1", "15 min", "30 min", "1 hour"], "the scope and mode pill (itself one pill), time labels, train numbering and versions, and a review reference are not counts");
 });
 
 test("withoutBlocks drops every script and style element in any letter case and leaves the rest", () => {

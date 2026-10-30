@@ -5,7 +5,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { BoardItem, BoardModel, BoardProject } from "../../board/boardModel";
 import { emptyCounts } from "../../board/types";
-import { currentChange, markSeenNow, maxListed, registerSinceLast, sidebarLines, viewFor, whenText } from "../../views/boardSinceLast";
+import { currentChange, markSeenNow, maxListed, panelShowed, registerSinceLast, sidebarLines, viewFor, whenText } from "../../views/boardSinceLast";
 import { setBoard } from "../../views/boardFeed";
 import type { BoardRun } from "../../commands/boardScanStore";
 import { contextIn, stub, tmpDir } from "./hostHelpers";
@@ -52,8 +52,21 @@ test("the first board is recorded silently, then a changed board shows what is n
   const change = currentChange();
   assert.deepEqual(change?.changes[0].added, ["B"]);
   assert.ok(sidebarLines(change!).length > 0);
-  assert.ok(viewFor(model("A", "B")));
+  assert.deepEqual(viewFor(model("A", "B"))?.marked.length, 1, "the new blocker's row is marked");
   markSeenNow();
   assert.equal(currentChange(), undefined);
+  ctx.subscriptions.forEach((d) => d.dispose());
+});
+
+test("a board shown on screen is not taken as seen: the change stays until it is dismissed", () => {
+  const ctx = contextIn(tmpDir());
+  setBoard(undefined, undefined);
+  registerSinceLast(ctx);
+  setBoard(model("A"), {} as BoardRun);
+  setBoard(model("A", "B"), {} as BoardRun);
+  panelShowed(model("A", "B"));
+  assert.ok(viewFor(model("A", "B")), "showing the board does not clear the strip");
+  markSeenNow();
+  assert.equal(viewFor(model("A", "B")), undefined);
   ctx.subscriptions.forEach((d) => d.dispose());
 });

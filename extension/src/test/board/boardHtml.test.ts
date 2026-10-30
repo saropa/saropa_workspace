@@ -124,7 +124,7 @@ test("path lists are drawn per project only when paths are given", () => {
 
 test("the since strip and the train row appear above the projects", () => {
   const m = buildBoard(cfg, [], undefined, true);
-  const html = renderBoard(m, t, "n", 0, {}, undefined, { heading: "Since then", lines: [{ text: "line one", details: [] }] }, [
+  const html = renderBoard(m, t, "n", 0, {}, undefined, { heading: "Since then", marked: [], lines: [{ text: "line one", details: [] }] }, [
     { key: "k", name: "Train", light: "go", members: [{ id: "app", name: "App", light: "go", label: "1" }], heldBy: [], cycle: false },
   ]);
   const at = (s: string): number => html.indexOf(s);

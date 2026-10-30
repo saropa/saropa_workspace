@@ -6,6 +6,7 @@ import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
+import { markSeenNow } from "./boardSinceLast";
 import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
@@ -115,6 +116,8 @@ class BoardPanel extends BoardPanelWiring {
       await openRulesFile(undefined, documentColumn());
     } else if (message.type === "accept") {
       await this.accept();
+    } else if (message.type === "sinceDismiss") {
+      markSeenNow(this.model);
     } else if (message.type === "open" && typeof message.id === "number") {
       await this.openItem(message.id);
     } else if (message.type === "path" && typeof message.p === "number" && typeof message.s === "number") {

@@ -7,7 +7,7 @@ import { onDidChangeTrainVersions } from "./boardTrain";
 import { renderSkeleton } from "../board/boardHtml";
 import { onDidChangeProviders } from "../commands/boardOutside";
 import { readLiveSettings } from "../commands/boardLive";
-import { onDidChangeSinceLast, panelLeft } from "./boardSinceLast";
+import { onDidChangeSinceLast } from "./boardSinceLast";
 import { markPanelOpened, onDidAskRefresh, setPanelVisible } from "./boardFeed";
 import { strings } from "./boardStrings";
 import { BoardPanelCore, LIVE_GAP_MS } from "./boardPanelCore";
@@ -22,11 +22,8 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
     setPanelVisible(panel.visible);
     panel.onDidChangeViewState(() => {
       setPanelVisible(panel.visible);
-      // Leaving early is not a look; the dwell timer in boardSinceLast decides what counts as seen.
-      if (!panel.visible) {
-        panelLeft();
-      } else if (this.run) {
-        // Shown again: the strip is gone if the last look already took it as seen.
+      if (panel.visible && this.run) {
+        // Shown again: repaint, so the strip reflects a dismiss made elsewhere (the sidebar).
         this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
       }
     }, null, this.disposables);
