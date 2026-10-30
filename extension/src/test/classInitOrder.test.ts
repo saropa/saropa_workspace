@@ -1,10 +1,12 @@
 // Static guard against class field initialization order bugs.
 //
-// A property initializer runs before the constructor body, and (with define semantics for class
-// fields) before constructor parameter properties are assigned. An initializer that reads
-// `this.<parameter property>` or a field declared later in the class therefore sees undefined.
-// Reads inside a nested function or arrow body are lazy and fine. Every non-test source file
-// under src is parsed and any eager read is reported.
+// With define semantics for class fields, an initializer runs before constructor parameter
+// properties are assigned, so an initializer reading `this.<parameter property>` or a field
+// declared later in the class would see undefined. This project sets useDefineForClassFields to
+// false, so parameter properties are assigned before field initializers and such reads work today.
+// The guard is deliberately stricter than that and is kept so the code stays safe if the flag is
+// ever removed. Reads inside a nested function or arrow body are lazy and fine. Every non-test
+// source file under src is parsed and any eager read is reported.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -112,4 +114,10 @@ test("the guard flags eager reads and allows lazy ones", () => {
   assert.equal(findInitOrderHits("a.ts", earlier).length, 0);
   const lazy = `class A { constructor(private readonly ctx: X) {} x = () => this.ctx.state; y = new Y(() => this.ctx); }`;
   assert.equal(findInitOrderHits("a.ts", lazy).length, 0);
+});
+
+test("tsconfig keeps useDefineForClassFields off", () => {
+  const raw = fs.readFileSync(path.join(__dirname, "..", "..", "tsconfig.json"), "utf8");
+  const cfg = ts.parseConfigFileTextToJson("tsconfig.json", raw).config;
+  assert.equal(cfg.compilerOptions.useDefineForClassFields, false);
 });

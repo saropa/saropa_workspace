@@ -1,7 +1,7 @@
 // First run and damaged state: every reader of persisted Release Board state must return a safe
 // default for missing, empty or wrong-typed input and never throw.
 
-import { test, afterEach } from "node:test";
+import { test, afterEach, after } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -13,8 +13,15 @@ import { planStartupWrite } from "../../board/startupToggle";
 import { parseMarks } from "../../board/marks";
 import { readOrgPrevious } from "../../views/boardPanelActions";
 import { readSittingsChoice } from "../../commands/boardSittings";
-import { RULES_FILE, loadConfig } from "../../commands/boardConfigLoad";
+import { RULES_FILE, loadConfig, resetDamagedRulesWarning } from "../../commands/boardConfigLoad";
 import { BoardPatches } from "../../views/boardPatches";
+import { DEFAULT_STARTUP_MODE } from "../../board/startupToggle";
+import defaultRules from "../../board/defaultRules.json";
+import { ShortcutStore } from "../../model/shortcutStore";
+import { BranchSetBinder } from "../../exec/branchSets";
+import { handleOpenFolder } from "../../views/launcherConfigFolder";
+import { fakeContext } from "../_stub/context";
+import { stub as hostStub } from "./hostHelpers";
 
 const stub = vscode as unknown as { __setWorkspaceFolders(f: Array<{ uri: vscode.Uri; name: string; index: number }> | undefined): void };
 
@@ -63,7 +70,7 @@ test("remembered startup mode: garbage in every slot gives a plan", () => {
   for (const g of GARBAGE) {
     for (const checked of [true, false]) {
       const plan = planStartupWrite(checked, g, g, g);
-      assert.equal(typeof plan.mode, "string", JSON.stringify(g));
+      assert.equal(plan.mode, checked ? DEFAULT_STARTUP_MODE : "never", JSON.stringify(g));
     }
   }
 });
@@ -81,30 +88,71 @@ test("marks: damaged text reads as empty marks", () => {
 test("sittings choice: garbage reads as no choice or a clean one", () => {
   for (const g of GARBAGE) {
     const ctx = { globalState: memento(g) } as unknown as vscode.ExtensionContext;
-    const c = readSittingsChoice(ctx);
-    if (c) {
-      assert.ok(Array.isArray(c.have));
-    }
+    assert.equal(readSittingsChoice(ctx), undefined, JSON.stringify(g));
   }
+  const ok = { globalState: memento({ have: ["a", 1, "b"], timeBox: "nope" }) } as unknown as vscode.ExtensionContext;
+  assert.deepEqual(readSittingsChoice(ok), { have: ["a", "b"], timeBox: "any" });
 });
 
 test("answered replies: garbage in the workspace state starts with none", () => {
+  const answered = (g: unknown): Set<string> => (new BoardPatches(() => undefined, () => undefined, () => undefined, () => memento(g)) as unknown as { answered: Set<string> }).answered;
   for (const g of GARBAGE) {
-    assert.doesNotThrow(() => new BoardPatches(() => undefined, () => undefined, () => undefined, () => memento(g)), JSON.stringify(g));
+    if (!Array.isArray(g)) {
+      assert.equal(answered(g).size, 0, JSON.stringify(g));
+    }
   }
-  assert.doesNotThrow(() => new BoardPatches(() => undefined, () => undefined, () => undefined));
+  assert.deepEqual([...answered([1, "p\t1", null, "q\t2"])], ["p\t1", "q\t2"]);
+  assert.equal(answered(undefined).size, 0);
+  assert.equal((new BoardPatches(() => undefined, () => undefined, () => undefined) as unknown as { answered: Set<string> }).answered.size, 0);
 });
 
 test("rules: no workspace folder and a damaged rules file both load", async () => {
   stub.__setWorkspaceFolders(undefined);
   assert.ok(Array.isArray((await loadConfig()).projects));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "board-first-"));
+  after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const shipped = defaultRules as unknown as { ignore: string[]; projects: unknown[] };
   fs.mkdirSync(path.dirname(path.join(dir, RULES_FILE)), { recursive: true });
   for (const text of ["", "not json", "null", "[]", '{"projects":5,"ruleSets":[],"ignore":"x"}']) {
     fs.writeFileSync(path.join(dir, RULES_FILE), text);
     stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(dir), name: "app", index: 0 }]);
+    hostStub.__resetWarnings();
+    resetDamagedRulesWarning();
     const cfg = await loadConfig();
     assert.ok(Array.isArray(cfg.projects), text);
-    assert.ok(Array.isArray(cfg.ignore), text);
+    assert.deepEqual(cfg.ignore, shipped.ignore, text);
+    // The folder's own project stands in for the shipped (empty) project list.
+    assert.equal(cfg.projects.length, 1, text);
+    if (text === "" || text === "not json" || text === "null" || text === "[]") {
+      await loadConfig();
+      assert.equal(hostStub.__warningMessages().filter((m) => m.includes(RULES_FILE)).length, 1, `warned once: ${text}`);
+    }
+    // A damaged file is never rewritten by loading.
+    assert.equal(fs.readFileSync(path.join(dir, RULES_FILE), "utf8"), text);
   }
+});
+
+test("shortcut store, launcher recent list and branch bindings: garbage reads as empty", async () => {
+  for (const g of GARBAGE) {
+    const ctx = fakeContext();
+    await ctx.globalState.update("saropaWorkspace.globalPins", g);
+    const store = new ShortcutStore(ctx);
+    assert.doesNotThrow(() => (store as unknown as { readGlobalShortcuts(): unknown[] }).readGlobalShortcuts(), JSON.stringify(g));
+    if (!Array.isArray(g)) {
+      assert.deepEqual((store as unknown as { readGlobalShortcuts(): unknown[] }).readGlobalShortcuts(), [], JSON.stringify(g));
+    }
+    const bctx = fakeContext();
+    await bctx.workspaceState.update("saropaWorkspace.branchSets", g);
+    const expected = g && typeof g === "object" && !Array.isArray(g) ? g : {};
+    assert.deepEqual(new BranchSetBinder(bctx, store, { onDidChangeBranch: () => ({ dispose: () => undefined }) } as never).bindings(), expected, JSON.stringify(g));
+    if (!Array.isArray(g)) {
+      const lctx = fakeContext();
+      await lctx.globalState.update("saropaWorkspace.recentConfigFiles", g);
+      await assert.doesNotReject(handleOpenFolder(lctx), JSON.stringify(g));
+    }
+  }
+  const mixed = fakeContext();
+  await mixed.globalState.update("saropaWorkspace.globalPins", [null, 5, { id: "a", scope: "project" }]);
+  const shortcuts = (new ShortcutStore(mixed) as unknown as { readGlobalShortcuts(): Array<{ id: string; scope: string }> }).readGlobalShortcuts();
+  assert.deepEqual(shortcuts.map((x) => [x.id, x.scope]), [["a", "global"]]);
 });

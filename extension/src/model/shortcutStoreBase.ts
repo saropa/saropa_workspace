@@ -306,7 +306,7 @@ export abstract class ShortcutStoreBase {
 
   protected readGlobalShortcuts(): Shortcut[] {
     const stored = this.context.globalState.get<Shortcut[]>(GLOBAL_STATE_KEY, []);
-    const shortcuts = Array.isArray(stored) ? stored : [];
+    const shortcuts = Array.isArray(stored) ? stored.filter((p) => p !== null && typeof p === "object") : [];
     // Normalize scope in case of older data.
     return shortcuts.map((p) => ({ ...p, scope: "global" as const }));
   }
