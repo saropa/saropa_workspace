@@ -12,6 +12,7 @@ import { readTidySettings } from "../commands/boardTidy";
 import { LiveSettings, liveFold, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
 import { updateLocalMarks } from "../commands/boardMarks";
+import { addRejected } from "../board/marks";
 import { readInProgressSettings } from "../commands/boardInProgress";
 import { chooseDocumentColumn, parseOpenBeside } from "../board/openBeside";
 import { parsePlacement } from "../board/placement";
@@ -122,10 +123,36 @@ export async function applySuggestion(context: vscode.ExtensionContext, model: B
   if (shown) {
     await updateLocalMarks(context, (local) => {
       if (value === "reject") {
-        local.rejected = [...new Set([...local.rejected, shown.key])];
+        local.rejected = addRejected(local.rejected, [shown.key]);
       } else {
         local.needs[shown.fromKey] = [...new Set([...(local.needs[shown.fromKey] ?? []), `${shown.toProject}:${shown.toPath}`])];
       }
+      return local;
+    });
+  }
+}
+
+// Remembers proposed links the person turned down, so they are not proposed again. Returns the keys
+// this call newly added to the local marks (what an Undo reject takes back).
+export async function rejectProposals(context: vscode.ExtensionContext, keys: string[]): Promise<string[]> {
+  const added: string[] = [];
+  if (keys.length > 0) {
+    await updateLocalMarks(context, (local) => {
+      const had = new Set(local.rejected);
+      added.push(...new Set(keys.filter((k) => !had.has(k))));
+      local.rejected = addRejected(local.rejected, keys);
+      return local;
+    });
+  }
+  return added;
+}
+
+// Takes back exactly the keys the last reject added to the local marks; rejections from the shared file stay.
+export async function undoRejected(context: vscode.ExtensionContext, keys: readonly string[]): Promise<void> {
+  if (keys.length > 0) {
+    const drop = new Set(keys);
+    await updateLocalMarks(context, (local) => {
+      local.rejected = local.rejected.filter((k) => !drop.has(k));
       return local;
     });
   }

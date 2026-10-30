@@ -17,6 +17,8 @@ export interface LinkDoc {
   path: string;
   title: string;
   text: string;
+  // How many of the first lines of `text` lie near the top of the document; a mention there is Medium.
+  early?: number;
 }
 
 // "from waits on to"; both are indexes into the documents given.
@@ -217,18 +219,34 @@ export class Resolver {
     });
   }
 
+  // The text of a name read once: the project it names (if any) and the path, cleaned and lower-cased.
+  private parsed = new Map<string, { project?: string; t: string }>();
+  // The documents a cleaned path can mean, whoever asks.
+  private matches = new Map<string, number[]>();
+
   // One document for a path or file name, or -1 when none or several match. `cross` is
   // true when it lies in another project.
   path(raw: string, from: number): { to: number; cross: boolean } {
-    let project: string | undefined;
-    let t = raw.trim();
-    const colon = /^([A-Za-z][\w.-]*):(?!\/)(.+)$/.exec(t);
-    if (colon && this.projects.has(colon[1].toLowerCase())) {
-      project = colon[1].toLowerCase();
-      t = colon[2];
+    let p = this.parsed.get(raw);
+    if (!p) {
+      let project: string | undefined;
+      let t = raw.trim();
+      const colon = /^([A-Za-z][\w.-]*):(?!\/)(.+)$/.exec(t);
+      if (colon && this.projects.has(colon[1].toLowerCase())) {
+        project = colon[1].toLowerCase();
+        t = colon[2];
+      }
+      t = t.replace(/[#?].*$/, "").replace(/^(?:\.{1,2}\/)+/, "").replace(/^\//, "").toLowerCase();
+      p = { ...(project ? { project } : {}), t };
+      this.parsed.set(raw, p);
     }
-    t = t.replace(/[#?].*$/, "").replace(/^(?:\.{1,2}\/)+/, "").replace(/^\//, "").toLowerCase();
-    const cands = (this.byBase.get(t.slice(t.lastIndexOf("/") + 1)) ?? []).filter((i) => i !== from && (this.docs[i].path.toLowerCase() === t || this.docs[i].path.toLowerCase().endsWith("/" + t)));
+    const { project, t } = p;
+    let named = this.matches.get(t);
+    if (!named) {
+      named = (this.byBase.get(t.slice(t.lastIndexOf("/") + 1)) ?? []).filter((i) => this.docs[i].path.toLowerCase() === t || this.docs[i].path.toLowerCase().endsWith("/" + t));
+      this.matches.set(t, named);
+    }
+    const cands = named.filter((i) => i !== from);
     const mine = this.docs[from].project.toLowerCase();
     const scoped = project ?? mine;
     const same = cands.filter((i) => this.docs[i].project.toLowerCase() === scoped);
@@ -395,15 +413,22 @@ export function phraseSignals(docs: LinkDoc[], resolver: Resolver, phrases?: rea
   return out;
 }
 
-// A document that names exactly one other document of its project, with no phrase.
+// A document that names exactly one other document of its project, with no phrase. Medium when
+// the name stands in the early lines of the document, else Low.
 export function mentionSignals(docs: LinkDoc[], resolver: Resolver): Candidate[] {
   const out: Candidate[] = [];
   docs.forEach((d, i) => {
-    const refs = [...new Set([...withoutCode(d.text).matchAll(/[\w./-]{1,200}\.md(?!\.?[\w-])/g)].map((m) => m[0]))].sort().slice(0, 60);
-    for (const ref of refs) {
+    const early = d.early ?? 0;
+    const refs = new Map<string, boolean>();
+    withoutCode(d.text).split("\n").forEach((line, n) => {
+      for (const m of line.matchAll(/[\w./-]{1,200}\.md(?!\.?[\w-])/g)) {
+        refs.set(m[0], (refs.get(m[0]) ?? false) || n < early);
+      }
+    });
+    for (const ref of [...refs.keys()].sort().slice(0, 60)) {
       const r = resolver.path(ref, i);
       if (r.to >= 0 && !r.cross) {
-        out.push({ from: i, to: r.to, signal: "mention", confidence: "low", why: { key: "releaseBoard.linkWhy.mention", params: { target: ref } } });
+        out.push({ from: i, to: r.to, signal: "mention", confidence: refs.get(ref) ? "medium" : "low", why: { key: "releaseBoard.linkWhy.mention", params: { target: ref } } });
       }
     }
   });

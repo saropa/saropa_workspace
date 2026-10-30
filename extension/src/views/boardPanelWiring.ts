@@ -47,6 +47,8 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
           if (this.run) {
             this.run.marks = m;
             this.render();
+            // A repaint wipes the open list of proposed links; it is drawn again from the new board.
+            this.patches.reshowLinks();
           }
         }),
       null,

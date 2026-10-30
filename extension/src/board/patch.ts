@@ -1,5 +1,6 @@
 import { posix } from "node:path";
 import { BoardModel } from "./boardModel";
+import { readsNeeds } from "./docFacts";
 import { SEVERITY_LEVELS, docGlob, isObject } from "./ruleAssign";
 
 // The reply patch: what an AI sends back after a hand-off. Pure: this module parses the text,
@@ -191,6 +192,14 @@ export function checkPatch(raw: string, targets: Map<string, PatchTarget>, statu
   if (doc.changes.length > MAX_CHANGES) {
     return { ok: false, reason: "tooMany" };
   }
+  const { rows, refused } = checkList(doc.changes, targets, statuses);
+  const basedOn = words(doc.basedOn, 120);
+  return { ok: true, ...(basedOn ? { basedOn } : {}), rows, refused };
+}
+
+// Checks a list of changes, each alone against the board (and the links the earlier ones added).
+// The ones that fail are listed with a reason and never offered.
+export function checkList(changes: readonly unknown[], targets: Map<string, PatchTarget>, statuses: readonly string[]): { rows: PatchRow[]; refused: PatchRefusal[] } {
   const needs = new Map([...targets].map(([id, t]) => [id, new Set(t.needs)]));
   const groups = new Map<string, string>();
   for (const t of targets.values()) {
@@ -203,7 +212,7 @@ export function checkPatch(raw: string, targets: Map<string, PatchTarget>, statu
   const seen = new Set<string>();
   // The link kind that passed for each pair of items: the opposite kind on the same pair is a conflict.
   const pairs = new Map<string, string>();
-  doc.changes.forEach((c: unknown, i) => {
+  changes.forEach((c: unknown, i) => {
     const pair = isObject(c) && (c.op === "addNeeds" || c.op === "removeNeeds") ? `${String(c.item)}\t${String(c.on)}` : undefined;
     if (pair !== undefined && pairs.has(pair) && pairs.get(pair) !== (c as { op: unknown }).op) {
       refused.push({ n: i + 1, reason: "conflict" });
@@ -226,8 +235,7 @@ export function checkPatch(raw: string, targets: Map<string, PatchTarget>, statu
       rows.push(r);
     }
   });
-  const basedOn = words(doc.basedOn, 120);
-  return { ok: true, ...(basedOn ? { basedOn } : {}), rows, refused };
+  return { rows, refused };
 }
 
 // One change: its row, or why it was refused. A passing link change updates `needs`, so a later
@@ -288,7 +296,7 @@ function checkChange(c: unknown, targets: Map<string, PatchTarget>, statuses: re
     if (mine.has(other.id)) {
       return "linked";
     }
-    if (!writableNeeds(other.path)) {
+    if (!writableNeeds(other.path) || !readsNeeds(item.path)) {
       return "badValue";
     }
     mine.add(other.id);

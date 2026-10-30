@@ -18,7 +18,7 @@ import { readsNeeds } from "./docFacts";
 export function kebab(t: BoardStrings, menu: "row" | "fut" | "opts" | "view" | "scope", id?: number | string, title = "", extra = ""): string {
   const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "fut" ? pl(t, "futureMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, menu === "view" ? "viewMenu" : "optsMenu");
   const at = (id === undefined ? "" : ` data-id="${id}"`) + extra;
-  return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">⋮</button>`;
+  return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">${menu === "view" ? "\u2630" : "\u22EE"}</button>`;
 }
 
 export const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem"): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${escapeHtml(text)}</button>`;
@@ -87,18 +87,17 @@ const TIME_LABELS: Array<[string, string]> = [["any", "timeAny"], ["15", "time15
 // one and sends the whole selection, the same message the old chips sent.
 export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel["sittings"], groupBy?: GroupBy): string {
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
-  const tick = (on: boolean): string => (on ? "\u2713 " : "");
   const head = (key: string): string => `<div class="mh" role="presentation" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div>`;
-  const group = groupBy === undefined ? "" : `${head("groupBy")}${GROUP_BYS.map((g) => item("group:" + g, tick(groupBy === g) + pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), ` aria-checked="${groupBy === g}"`, "menuitemradio")).join("")}`;
+  const group = groupBy === undefined ? "" : `${head("groupBy")}${GROUP_BYS.map((g) => item("group:" + g, pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), ` aria-checked="${groupBy === g}"`, "menuitemradio")).join("")}`;
   const steps = sittings
-    ? `${head("timeLabel")}${TIME_LABELS.map(([n, key]) => item("box:" + n, tick(sittings.timeBox === n) + pl(t, key), pl(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) }), ` aria-checked="${sittings.timeBox === n}"`, "menuitemradio")).join("")}`
+    ? `${head("timeLabel")}${TIME_LABELS.map(([n, key]) => item("box:" + n, pl(t, key), pl(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) }), ` aria-checked="${sittings.timeBox === n}"`, "menuitemradio")).join("")}`
       + (sittings.contexts.length > 0
-        ? `${head("haveLabel")}${item("haveall", tick(sittings.have.length === sittings.contexts.length) + pl(t, "haveAll"), pl(t, "chipAll"), ` aria-checked="${sittings.have.length === sittings.contexts.length}"`, "menuitemcheckbox")}${sittings.contexts.map((c) => item("have:" + c.id, tick(sittings.have.includes(c.id)) + c.label, pl(t, "chip", { name: c.label }), ` aria-checked="${sittings.have.includes(c.id)}"`, "menuitemcheckbox")).join("")}`
+        ? `${head("haveLabel")}${item("haveall", pl(t, "haveAll"), pl(t, "chipAll"), ` aria-checked="${sittings.have.length === sittings.contexts.length}"`, "menuitemcheckbox")}${sittings.contexts.map((c) => item("have:" + c.id, c.label, pl(t, "chip", { name: c.label }), ` aria-checked="${sittings.have.includes(c.id)}"`, "menuitemcheckbox")).join("")}`
         : "")
     : "";
   const sit = sittings ? ` data-sit="${escapeHtml(JSON.stringify({ have: sittings.have, box: sittings.timeBox, all: sittings.contexts.map((c) => c.id) }))}"` : "";
   const tags = t.projectLabels?.tagsRules ? item("tagsRules", label(t, "tagsRules"), label(t, "tagsRulesTip")) : "";
-  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, tick(profile === v) + text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${group}${steps}${tags}</div>`;
+  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${group}${steps}${tags}</div>`;
 }
 
 // The project actions menu: scan again, the rules file, projects, keywords, settings and the

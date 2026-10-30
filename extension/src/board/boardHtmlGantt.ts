@@ -25,7 +25,7 @@ export const GANTT_STYLE = `
 .gr:hover,.gr[aria-current=true]{background:rgba(128,128,128,.15)}
 .gr.done{opacity:.5}.gr.chg{outline:1px dotted var(--blue);outline-offset:-1px}
 .gl{display:flex;align-items:center;gap:6px;padding:3px 10px;min-width:0}.gl .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sg.red{color:var(--red)}.sg.amber{color:var(--amber)}.sg.purple{color:var(--purple)}.sg.green{color:var(--green)}
+.sg.red{color:var(--fg)}.sg.amber{color:var(--amber)}.sg.purple{color:var(--purple)}.sg.green{color:var(--green)}
 .gt{position:relative;height:26px;margin:0 10px}
 .bar{position:absolute;top:4px;height:18px;left:calc(var(--s)*1%);width:calc(var(--w)*1%);min-width:3px;box-sizing:border-box;border-radius:4px;border:1px solid;font-size:11px;padding:0 6px;line-height:16px;overflow:hidden;white-space:nowrap}
 .bar.red{border-color:color-mix(in srgb,var(--red) 55%,transparent);background:color-mix(in srgb,var(--red) 16%,transparent)}

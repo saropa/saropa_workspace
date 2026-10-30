@@ -90,7 +90,7 @@ function decl(selector: string, prop: string): string {
   return d[1];
 }
 
-const CHIPS = [".go.no-go", ".go.unverified", ".stat.red", ".stat.amber", ".stat.purple", ".go.go", ".pill.warn", ".cp.red .pill", ".imp", ".imp.guess"];
+const CHIPS = [".go.no-go", ".go.unverified", ".stat.red", ".stat.amber", ".stat.purple", ".go.go", ".pill.warn", ".imp", ".imp.guess"];
 
 test("every pill and status chip has 4.5:1 text contrast in the dark and the light theme", () => {
   const bad: string[] = [];
@@ -118,4 +118,26 @@ test("every pill and status chip has 4.5:1 text contrast in the dark and the lig
 test("the contrast reader agrees with known pairs", () => {
   assert.ok(Math.abs(ratio([0, 0, 0], [255, 255, 255]) - 21) < 0.01);
   assert.ok(Math.abs(ratio([119, 119, 119], [255, 255, 255]) - 4.48) < 0.02);
+});
+
+test("the amber fallback reaches 3:1 on the white and the dark editor background", () => {
+  const m = /--amber:var\(--vscode-charts-yellow,(#[0-9a-f]{6})\)/i.exec(STYLE);
+  assert.ok(m, "amber fallback");
+  const amber = hex(m[1]);
+  assert.ok(ratio(amber, hex("#ffffff")) >= 3, `on white: ${ratio(amber, hex("#ffffff")).toFixed(2)}`);
+  assert.ok(ratio(amber, hex("#1e1e1e")) >= 3, `on dark: ${ratio(amber, hex("#1e1e1e")).toFixed(2)}`);
+});
+
+test("the ? pill text (--mute) has 4.5:1 contrast in the dark and the light theme", () => {
+  const bad: string[] = [];
+  for (const [name, th] of Object.entries(THEMES)) {
+    const color = paint(decl(".qm", "color"), th);
+    for (const base of [th.bg, th.panel]) {
+      const r = ratio(over(color, hex(base)), hex(base));
+      if (r < 4.5) {
+        bad.push(`${name} .qm on ${base}: ${r.toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
 });

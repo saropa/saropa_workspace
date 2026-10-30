@@ -128,6 +128,23 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
   return out;
 }
 
+// The documents of these rows that are not the file the board read: a different modified time or size
+// on disk now, or a file that cannot be read. Returns their ids ("project:path").
+export async function changedOnDisk(run: BoardRun, targets: ReturnType<typeof targetsOf>, rows: PatchRow[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (const id of new Set(rows.map((r) => r.change.item))) {
+    const me = targets.get(id);
+    const def = run.cfg.projects.find((p) => p.id === me?.project);
+    const rel = me ? inside(me.path) : undefined;
+    const real = def && rel ? await realInside(vscode.Uri.parse(def.path).fsPath, rel) : undefined;
+    const st = real ? await fsp.stat(real).catch(() => undefined) : undefined;
+    if (!me?.rev || !st || `${Math.floor(st.mtimeMs / 1000)}-${st.size}` !== me.rev) {
+      out.add(id);
+    }
+  }
+  return out;
+}
+
 // Documents larger than this are never rewritten (the text edits scan every line).
 export const MAX_DOC_BYTES = 2_000_000;
 

@@ -102,6 +102,19 @@ export function inferLinkProposals(docs: LinkDoc[], existing: readonly Link[], r
     }
   }
 
+  // A pair that names each other both ways is one entry: the weaker direction is dropped (on a tie, the
+  // one whose key sorts first stays).
+  const rank = (c: Candidate): number => CONF[c.confidence] * 10 + SIGNAL[c.signal];
+  for (const [key, c] of [...best]) {
+    const f = docs[c.from];
+    const t = docs[c.to];
+    const back = proposalKey(t.project, t.path, f.project, f.path);
+    const o = best.get(back);
+    if (o && (rank(o) < rank(c) || (rank(o) === rank(c) && back < key))) {
+      best.delete(key);
+    }
+  }
+
   const keyed = [...best].map(([key, c]) => ({ key, c }));
   keyed.sort((x, y) => CONF[x.c.confidence] - CONF[y.c.confidence] || SIGNAL[x.c.signal] - SIGNAL[y.c.signal] || (x.key < y.key ? -1 : x.key > y.key ? 1 : 0));
 

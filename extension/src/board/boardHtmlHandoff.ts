@@ -52,6 +52,21 @@ export function readyPill(t: BoardStrings, count: number | undefined): string {
   return `<div class="filter"><button type="button" class="ho-pill" data-patchopen data-tmpl="${esc(t, "ready")}" title="${esc(t, "readyTip")}">${text}</button></div>`;
 }
 
+// How many proposals are worth a count (High and Medium), and how many are Low.
+export function proposalCounts(proposals: ReadonlyArray<{ confidence: string }>): { main: number; low: number } {
+  const low = proposals.filter((p) => p.confidence === "low").length;
+  return { main: proposals.length - low, low };
+}
+
+// The pill that opens the proposed links for review; drawn only when there are proposals.
+export function proposalsPill(t: BoardStrings, count: number): string {
+  const n = Number.isFinite(count) ? Math.floor(count) : 0;
+  if (n <= 0) {
+    return "";
+  }
+  return `<div class="filter"><button type="button" class="ho-pill" data-linksopen title="${esc(t, "proposalsTip")}">${escapeHtml(hl(t, "proposals").replace("{count}", () => String(n)))}</button></div>`;
+}
+
 // The drawer, empty and hidden. The page script opens and fills it when the host answers.
 export function handoffDrawer(t: BoardStrings): string {
   const task = (id: string, key: string): string => `<button type="button" class="sec" data-task="${id}" aria-pressed="${id === "fix"}" title="${esc(t, key + "Tip")}">${esc(t, key)}</button>`;
@@ -65,19 +80,19 @@ export function handoffDrawer(t: BoardStrings): string {
 <div class="ho-bd">
 <div class="ho-row" id="hoScope" role="group" aria-label="${esc(t, "title")}" title="${esc(t, "title")}" ${scopes} data-items="${esc(t, "itemsCount")}"></div>
 <div class="ho-row" role="group" aria-labelledby="hoTaskLab" title="${esc(t, "task")}"><span class="lab" id="hoTaskLab">${esc(t, "task")}</span>${task("fix", "taskFix")}${task("plan", "taskPlan")}${task("review", "taskReview")}${task("triage", "taskTriage")}${task("organize", "taskOrganize")}</div>
-<div class="ho-row" role="group" aria-labelledby="hoFmtLab" title="${esc(t, "format")}"><span class="lab" id="hoFmtLab">${esc(t, "format")}</span>${fmt("md", "fmtMd", true)}${fmt("json", "fmtJson", false)}<span class="push"></span><span class="ho-pill" id="hoTok" tabindex="0" role="note" aria-label="${esc(t, "tokenTip").replace("{count}", "0")}" data-tip="${esc(t, "tokenTip")}" title="${esc(t, "tokenTip").replace("{count}", "0")}"></span></div>
+<div class="ho-row" role="group" aria-labelledby="hoFmtLab" title="${esc(t, "format")}"><span class="lab" id="hoFmtLab">${esc(t, "format")}</span>${fmt("md", "fmtMd", true)}${fmt("json", "fmtJson", false)}<span class="push"></span><span class="ho-pill" id="hoTok" role="note" aria-label="${esc(t, "tokenTip").replace("{count}", "0")}" data-tip="${esc(t, "tokenTip")}" title="${esc(t, "tokenTip").replace("{count}", "0")}"></span></div>
 <pre id="hoPre" tabindex="0" role="region" aria-label="${esc(t, "preview")}"></pre>
 </div>
 <div class="ho-ft">${act("copy", "copy", "")}${act("copyFull", "copyFull", ' class="sec"')}${act("save", "save", ' class="sec"')}${act("terminal", "terminal", ' class="sec"')}<span class="small" id="hoMsg" role="status" title="${esc(t, "title")}"></span></div>
 </div>
-<div class="ho-pn" id="hoPanelBack" role="tabpanel" aria-labelledby="hoTabBack" title="${esc(t, "tabBackTip")}" data-stale="${esc(t, "backStale")}" data-stale-tip="${esc(t, "backStaleTip")}" data-refused="${esc(t, "backRefused")}" data-pick="${esc(t, "backPick")}" data-applied="${esc(t, "backApplied")}" data-applied-tip="${esc(t, "backAppliedTip")}" hidden>
+<div class="ho-pn" id="hoPanelBack" role="tabpanel" aria-labelledby="hoTabBack" title="${esc(t, "tabBackTip")}" data-stale="${esc(t, "backStale")}" data-stale-tip="${esc(t, "backStaleTip")}" data-refused="${esc(t, "backRefused")}" data-pick="${esc(t, "backPick")}" data-applied="${esc(t, "backApplied")}" data-applied-tip="${esc(t, "backAppliedTip")}" data-not="${esc(t, "linkNot")}" data-not-tip="${esc(t, "linkNotTip")}" data-low="${esc(t, "linkLow")}" data-reject-tip="${esc(t, "backRejectTip")}" data-reject-links-tip="${esc(t, "backRejectLinksTip")}" data-reject-all="${esc(t, "backReject")}" data-reject-links="${esc(t, "backRejectLinks")}" data-shared="${esc(t, "linkShared")}" hidden>
 <div class="ho-bd">
 <div class="ho-row"><textarea id="boText" aria-label="${esc(t, "backText")}" title="${esc(t, "backTextTip")}" spellcheck="false"></textarea></div>
-<div class="ho-row"><button type="button" id="boRead" title="${esc(t, "backReadTip")}">${esc(t, "backRead")}</button><span class="push"></span><span class="ho-pill" tabindex="0" role="note" aria-label="${esc(t, "backHelp")}" title="${esc(t, "backHelp")}">?</span></div>
+<div class="ho-row"><button type="button" id="boRead" title="${esc(t, "backReadTip")}">${esc(t, "backRead")}</button><span class="push"></span><button type="button" class="ho-pill" aria-label="${esc(t, "backHelp")}" title="${esc(t, "backHelp")}">?</button></div>
 <div id="boErr" class="bo-err" role="alert" title="${esc(t, "backList")}" hidden></div>
 <div id="boList" role="list" aria-label="${esc(t, "backList")}" title="${esc(t, "backList")}"></div>
 </div>
-<div class="ho-ft"><button type="button" id="boApply" disabled title="${esc(t, "backApplyTip")}">${esc(t, "backApply")}</button><button type="button" class="sec" id="boReject" title="${esc(t, "backRejectTip")}">${esc(t, "backReject")}</button><span class="small" id="boMsg" role="status" title="${esc(t, "backList")}"></span></div>
+<div class="ho-ft"><button type="button" id="boApply" disabled title="${esc(t, "backApplyTip")}">${esc(t, "backApply")}</button><button type="button" class="sec" id="boReject" title="${esc(t, "backRejectTip")}">${esc(t, "backReject")}</button><button type="button" class="sec" id="boLow" aria-pressed="false" title="${esc(t, "linkLowTip")}" hidden></button><button type="button" class="sec" id="boUnrej" title="${esc(t, "linkUnrejectTip")}" hidden>${esc(t, "linkUnreject")} <span class="ho-pill" id="boUnrejN"></span></button><button type="button" class="sec" id="boShared" title="${esc(t, "linkSharedTip")}" hidden></button><span class="small" id="boMsg" role="status" title="${esc(t, "backList")}"></span></div>
 </div>
 </aside>`;
 }
@@ -110,28 +125,38 @@ const mk=(cls,text,tip)=>{const s=document.createElement('span');s.className=cls
 const ticked=()=>[...bl.querySelectorAll('input')].filter(c=>c.checked&&!c.disabled);
 const sync=()=>{ba.disabled=ticked().length===0;};
 const clearList=()=>{bl.textContent='';be.hidden=true;be.textContent='';sync();};
+const bLow=document.getElementById('boLow'),bUn=document.getElementById('boUnrej'),bUnN=document.getElementById('boUnrejN'),bj=document.getElementById('boReject'),bSh=document.getElementById('boShared');
+const LT=new Set();
 const showReview=m=>{clearList();bm.textContent='';bm.removeAttribute('title');
+const isLinks=m.source==='links',lk=isLinks&&m.links&&typeof m.links==='object'?m.links:null;
+bLow.hidden=!(lk&&Number(lk.low)>0);bUn.hidden=!(lk&&Number(lk.undo)>0);bSh.hidden=!(lk&&Number(lk.shared)>0);bj.title=isLinks?bp.dataset.rejectLinksTip:bp.dataset.rejectTip;bj.textContent=isLinks?bp.dataset.rejectLinks:bp.dataset.rejectAll;if(!isLinks){LT.clear();}
+if(lk){bLow.textContent=bp.dataset.low.replace('{count}',()=>String(Number(lk.low)||0));bLow.setAttribute('aria-pressed',String(lk.lowOn===true));bUnN.textContent=String(Number(lk.undo)||0);bSh.textContent=bp.dataset.shared.replace('{count}',()=>String(Number(lk.shared)||0));}
 if(typeof m.error==='string'&&m.error){be.textContent=m.error;be.hidden=false;return;}
 (Array.isArray(m.rows)?m.rows:[]).forEach(r=>{if(!r||typeof r.i!=='number'){return;}const stale=r.stale===true,op=String(r.op),item=String(r.item);
 const row=document.createElement('div');row.className='bo-r';row.setAttribute('role','listitem');if(r.reason){row.title=String(r.reason);}
-const c=document.createElement('input');c.type='checkbox';c.dataset.i=String(r.i);c.checked=!stale;c.disabled=stale;c.setAttribute('aria-label',bp.dataset.pick.replace('{op}',()=>op).replace('{item}',()=>item));c.title=String(r.reason||'');c.addEventListener('change',sync);
+const c=document.createElement('input');c.type='checkbox';c.dataset.i=String(r.i);const rk=typeof r.key==='string'?r.key:'';c.checked=!stale&&(isLinks?LT.has(rk):true);c.disabled=stale;c.setAttribute('aria-label',bp.dataset.pick.replace('{op}',()=>op).replace('{item}',()=>item));c.title=String(r.reason||'');c.addEventListener('change',()=>{if(isLinks&&rk){if(c.checked){LT.add(rk);}else{LT.delete(rk);}}sync();});
 row.appendChild(c);row.appendChild(mk('ho-pill',op));row.appendChild(mk('',item));
-row.appendChild(mk('ho-pill',r.before?String(r.before):'\\u2014'));row.appendChild(mk('','\\u2192'));row.appendChild(mk('ho-pill',r.after?String(r.after):'\\u2014'));
+row.appendChild(mk('ho-pill',r.before?String(r.before):'\\u2014'));row.appendChild(mk('','\\u2192'));row.appendChild(mk('ho-pill',r.after?String(r.after):'\\u2014'));if(r.conf){row.appendChild(mk('ho-pill mute',String(r.conf)));}
 if(stale){row.appendChild(mk('ho-pill mute',bp.dataset.stale,bp.dataset.staleTip));}
+if(isLinks){const nb=document.createElement('button');nb.type='button';nb.className='sec';nb.textContent=bp.dataset.not;nb.title=bp.dataset.notTip;nb.setAttribute('aria-label',bp.dataset.not+' \\u00b7 '+item);nb.addEventListener('click',()=>{row.remove();LT.delete(rk);vscode.postMessage({type:'linksNot',i:r.i,rev:REV});sync();});row.appendChild(nb);}
 bl.appendChild(row);});
 (Array.isArray(m.refused)?m.refused:[]).forEach(x=>{if(x&&typeof x.text==='string'){const li=document.createElement('div');li.className='bo-r';li.setAttribute('role','listitem');li.appendChild(mk('ho-pill mute',bp.dataset.refused+' \\u00b7 '+x.text,x.text));bl.appendChild(li);}});
 sync();};
 document.getElementById('boRead').addEventListener('click',()=>{vscode.postMessage({type:'patchRead',text:bt.value,rev:REV});});
 ba.addEventListener('click',()=>{const ids=ticked().map(c=>Number(c.dataset.i));if(ids.length>0){vscode.postMessage({type:'patchApply',ids,rev:REV});}});
-document.getElementById('boReject').addEventListener('click',()=>{clearList();vscode.postMessage({type:'patchReject',rev:REV});});
+bj.addEventListener('click',()=>{const ids=ticked().map(c=>Number(c.dataset.i));clearList();vscode.postMessage({type:'patchReject',ids,rev:REV});});
+bLow.addEventListener('click',()=>{vscode.postMessage({type:'linksOpen',low:bLow.getAttribute('aria-pressed')!=='true',rev:REV});});
+bUn.addEventListener('click',()=>{vscode.postMessage({type:'linksUnreject',rev:REV});});
+bSh.addEventListener('click',()=>{vscode.postMessage({type:'linksClearShared',rev:REV});});
 document.querySelectorAll('[data-patchopen]').forEach(b=>b.addEventListener('click',()=>{openBack();vscode.postMessage({type:'patchOpen',rev:REV});}));
+document.querySelectorAll('[data-linksopen]').forEach(b=>b.addEventListener('click',()=>{LT.clear();openBack();vscode.postMessage({type:'linksOpen',rev:REV});}));
 const refresh=()=>{if(!line){return;}line.hidden=CH.size===0;document.getElementById('hoChosenN').textContent=line.dataset.tmpl.replace('{count}',()=>String(CH.size));};
 wired('[data-choose]',c=>{const stop=e=>e.stopPropagation();c.checked=CH.has(Number(c.dataset.choose));c.addEventListener('click',stop);c.addEventListener('keydown',stop);c.addEventListener('change',()=>{const id=Number(c.dataset.choose);if(c.checked){CH.add(id);}else{CH.delete(id);}refresh();});});
 document.querySelectorAll('[data-hochosen]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.hochosen==='go'){openDrawer('chosen');}else{CH.clear();document.querySelectorAll('[data-choose]').forEach(c=>{c.checked=false;});refresh();}}));
 window.addEventListener('message',e=>{const m=e.data;if(!m){return;}
 if(m.type==='handoffOpen'&&typeof m.scope==='string'){if(['fix','plan','review','triage','organize'].includes(m.task)){task=m.task;pressed('[data-task]','task',task);}openDrawer(m.scope,typeof m.i==='number'?m.i:undefined);}
 else if(m.type==='patchReview'){if(HO.hidden||tab!=='back'){openBack();}showReview(m);}
-else if(m.type==='patchDone'){clearList();const a=Number(m.applied)||0,k=Number(m.skipped)||0;bm.textContent=bp.dataset.applied.replace('{count}',()=>String(a));bm.title=bp.dataset.appliedTip.replace('{applied}',()=>String(a)).replace('{skipped}',()=>String(k));document.querySelectorAll('[data-patchopen]').forEach(b=>{b.hidden=true;});}
+else if(m.type==='patchDone'){clearList();LT.clear();const a=Number(m.applied)||0,k=Number(m.skipped)||0;bm.textContent=bp.dataset.applied.replace('{count}',()=>String(a));bm.title=bp.dataset.appliedTip.replace('{applied}',()=>String(a)).replace('{skipped}',()=>String(k));document.querySelectorAll('[data-patchopen]').forEach(b=>{b.hidden=true;});}
 else if(m.type==='patchPill'){const n=Number(m.count)||0;document.querySelectorAll('[data-patchopen]').forEach(b=>{b.hidden=n<=0;if(n>0&&b.dataset.tmpl){b.textContent=b.dataset.tmpl.replace('{count}',()=>String(n));}});}
 else if(m.type==='handoffBack'){openBack();}
 else if(m.type==='handoffDoc'&&cur&&!HO.hidden){pre.textContent=String(m.text);tok.textContent=String(m.tokens);tok.title=tok.dataset.tip.replace('{count}',()=>String(m.tokens).replace(/^~/,''));cnt=Number(m.count);if(!avail&&Array.isArray(m.avail)){avail=m.avail;}drawScopes();}
