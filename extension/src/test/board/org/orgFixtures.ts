@@ -1,0 +1,79 @@
+// Path-list fixtures and helpers for the auto-organization tests.
+
+import assert from "node:assert/strict";
+import { layoutFor } from "../../../board/org/layout";
+import enJson from "../../../i18n/locales/en.json";
+import { OrgDoc, OrgGroup, OrgResult } from "../../../board/org/orgTypes";
+import { organize } from "../../../board/org/autoGroup";
+import { OrgOptions } from "../../../board/org/orgTypes";
+import { OrganizeConfig } from "../../../board/org/overrides";
+import { DEFAULT_TAGS, TagDef } from "../../../board/org/tags";
+
+export function doc(project: string, p: string, extra: Partial<OrgDoc> = {}): OrgDoc {
+  return { key: `${project}\t${p}`, project, path: p, words: 100, docRefs: 0, sourceFiles: [], ...extra };
+}
+
+export const docs = (project: string, paths: string[]): OrgDoc[] => paths.map((p) => doc(project, p));
+
+const en = enJson as Record<string, string>;
+export const enKeys = new Set(Object.keys(en));
+
+// Fills {param} placeholders from en.json, like the real translator.
+export function t(key: string, params: Record<string, string | number> = {}): string {
+  return (en[key] ?? key).replace(/\{(\w+)\}/g, (_m, k: string) => String(params[k] ?? ""));
+}
+
+export function run(input: OrgDoc[], opt: OrgOptions = {}, cfg: OrganizeConfig = {}, tags: TagDef[] = DEFAULT_TAGS): OrgResult {
+  return organize(input, tags, opt, cfg);
+}
+
+export const byId = (r: OrgResult, id: string): OrgGroup | undefined => r.groups.find((g) => g.id === id);
+
+// Tiny deterministic generator so fixtures never use Math.random.
+export function lcg(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+export function shuffled<T>(list: T[], seed: number): T[] {
+  const rnd = lcg(seed);
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Rules that hold for every result: one group per document at most, no group under the minimum, every result explained.
+export function checkProperties(r: OrgResult, input: OrgDoc[]): void {
+  const seen = new Set<string>();
+  const perProject = new Map<string, number>();
+  input.forEach((d) => perProject.set(d.project, (perProject.get(d.project) ?? 0) + 1));
+  for (const g of r.groups) {
+    for (const m of g.members) {
+      assert.equal(seen.has(m), false, `${m} is in two groups`);
+      seen.add(m);
+    }
+    const min = layoutFor(perProject.get(g.project)!).min;
+    if (g.kind === "seq") {
+      assert.ok(g.total >= 2, `${g.id} is a group of one`);
+    } else if (g.kind !== "manual" && g.kind !== "other") {
+      assert.ok(g.total >= min, `${g.id} has ${g.total}, under ${min}`);
+    }
+    for (const w of [g.why, g.nameWhy, g.emojiWhy, g.colourWhy]) {
+      assert.ok(enKeys.has(w.key), `missing text for ${w.key}`);
+    }
+    assert.ok(g.id.startsWith(g.project + ":"));
+    if (g.parent) {
+      assert.equal(r.groups.find((p) => p.id === g.parent)?.parent, undefined, "more than two levels");
+    }
+  }
+  for (const ms of r.tagsOf.values()) {
+    ms.forEach((m) => assert.ok(enKeys.has(m.why.key)));
+  }
+}
+
