@@ -9,6 +9,7 @@ import {
 import { mapLimit } from "./pool";
 import { withTimeout } from "./timeout";
 import { mergeDict } from "./severity";
+import { settingsOf } from "./org/settings";
 import { DocFacts, FACTS_VERSION, FactsOptions, readFacts } from "./docFacts";
 import {
   BoardConfig,
@@ -309,6 +310,7 @@ function factsOptions(cfg: BoardConfig, project: ProjectDef): FactsOptions {
   return {
     sourceDirs: cfg.sourceDirs,
     severity: mergeDict(cfg.severity),
+    linkPhrases: settingsOf(cfg.organize).linkPhrases,
     mentions: Object.fromEntries(
       cfg.projects.filter((p) => p.mentions?.length && p.id !== project.id).map((p) => [p.id, p.mentions!.join("|")])
     ),

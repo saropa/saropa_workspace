@@ -13,6 +13,7 @@ import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
 import type { FinishedDoc } from "./ganttModel";
 import type { OrgPrevious } from "./boardOrg";
+import type { ProposalView } from "./boardProposals";
 import type { Layout } from "./org/layout";
 
 // The shapes of the board's view model (what the first screen shows), and the helpers that
@@ -174,6 +175,8 @@ export interface BoardModel {
   profile: Profile;
   // Links the board guesses from documents naming each other; the user accepts or rejects.
   suggestions: Array<{ key: string; fromKey: string; toProject: string; toPath: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
+  // Links the engine proposes from names and wording; the person ticks which to accept.
+  proposals: ProposalView[];
   // Folders where documents no rule placed sit, for the "needs a rule" list.
   needsRule: Array<{ project: string; folder: string; count: number }>;
   // Review requests and groups from other extensions. They never change a light.

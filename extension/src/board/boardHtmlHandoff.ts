@@ -52,6 +52,15 @@ export function readyPill(t: BoardStrings, count: number | undefined): string {
   return `<div class="filter"><button type="button" class="ho-pill" data-patchopen data-tmpl="${esc(t, "ready")}" title="${esc(t, "readyTip")}">${text}</button></div>`;
 }
 
+// The pill that opens the proposed links for review; drawn only when there are proposals.
+export function proposalsPill(t: BoardStrings, count: number): string {
+  const n = Number.isFinite(count) ? Math.floor(count) : 0;
+  if (n <= 0) {
+    return "";
+  }
+  return `<div class="filter"><button type="button" class="ho-pill" data-linksopen title="${esc(t, "proposalsTip")}">${escapeHtml(hl(t, "proposals").replace("{count}", () => String(n)))}</button></div>`;
+}
+
 // The drawer, empty and hidden. The page script opens and fills it when the host answers.
 export function handoffDrawer(t: BoardStrings): string {
   const task = (id: string, key: string): string => `<button type="button" class="sec" data-task="${id}" aria-pressed="${id === "fix"}" title="${esc(t, key + "Tip")}">${esc(t, key)}</button>`;
@@ -114,9 +123,9 @@ const showReview=m=>{clearList();bm.textContent='';bm.removeAttribute('title');
 if(typeof m.error==='string'&&m.error){be.textContent=m.error;be.hidden=false;return;}
 (Array.isArray(m.rows)?m.rows:[]).forEach(r=>{if(!r||typeof r.i!=='number'){return;}const stale=r.stale===true,op=String(r.op),item=String(r.item);
 const row=document.createElement('div');row.className='bo-r';row.setAttribute('role','listitem');if(r.reason){row.title=String(r.reason);}
-const c=document.createElement('input');c.type='checkbox';c.dataset.i=String(r.i);c.checked=!stale;c.disabled=stale;c.setAttribute('aria-label',bp.dataset.pick.replace('{op}',()=>op).replace('{item}',()=>item));c.title=String(r.reason||'');c.addEventListener('change',sync);
+const c=document.createElement('input');c.type='checkbox';c.dataset.i=String(r.i);c.checked=!stale&&r.unticked!==true;c.disabled=stale;c.setAttribute('aria-label',bp.dataset.pick.replace('{op}',()=>op).replace('{item}',()=>item));c.title=String(r.reason||'');c.addEventListener('change',sync);
 row.appendChild(c);row.appendChild(mk('ho-pill',op));row.appendChild(mk('',item));
-row.appendChild(mk('ho-pill',r.before?String(r.before):'\\u2014'));row.appendChild(mk('','\\u2192'));row.appendChild(mk('ho-pill',r.after?String(r.after):'\\u2014'));
+row.appendChild(mk('ho-pill',r.before?String(r.before):'\\u2014'));row.appendChild(mk('','\\u2192'));row.appendChild(mk('ho-pill',r.after?String(r.after):'\\u2014'));if(r.conf){row.appendChild(mk('ho-pill mute',String(r.conf)));}
 if(stale){row.appendChild(mk('ho-pill mute',bp.dataset.stale,bp.dataset.staleTip));}
 bl.appendChild(row);});
 (Array.isArray(m.refused)?m.refused:[]).forEach(x=>{if(x&&typeof x.text==='string'){const li=document.createElement('div');li.className='bo-r';li.setAttribute('role','listitem');li.appendChild(mk('ho-pill mute',bp.dataset.refused+' \\u00b7 '+x.text,x.text));bl.appendChild(li);}});
@@ -125,6 +134,7 @@ document.getElementById('boRead').addEventListener('click',()=>{vscode.postMessa
 ba.addEventListener('click',()=>{const ids=ticked().map(c=>Number(c.dataset.i));if(ids.length>0){vscode.postMessage({type:'patchApply',ids,rev:REV});}});
 document.getElementById('boReject').addEventListener('click',()=>{clearList();vscode.postMessage({type:'patchReject',rev:REV});});
 document.querySelectorAll('[data-patchopen]').forEach(b=>b.addEventListener('click',()=>{openBack();vscode.postMessage({type:'patchOpen',rev:REV});}));
+document.querySelectorAll('[data-linksopen]').forEach(b=>b.addEventListener('click',()=>{openBack();vscode.postMessage({type:'linksOpen',rev:REV});}));
 const refresh=()=>{if(!line){return;}line.hidden=CH.size===0;document.getElementById('hoChosenN').textContent=line.dataset.tmpl.replace('{count}',()=>String(CH.size));};
 wired('[data-choose]',c=>{const stop=e=>e.stopPropagation();c.checked=CH.has(Number(c.dataset.choose));c.addEventListener('click',stop);c.addEventListener('keydown',stop);c.addEventListener('change',()=>{const id=Number(c.dataset.choose);if(c.checked){CH.add(id);}else{CH.delete(id);}refresh();});});
 document.querySelectorAll('[data-hochosen]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.hochosen==='go'){openDrawer('chosen');}else{CH.clear();document.querySelectorAll('[data-choose]').forEach(c=>{c.checked=false;});refresh();}}));

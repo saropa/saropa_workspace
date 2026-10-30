@@ -7,7 +7,7 @@ import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
 import { markSeenNow } from "./boardSinceLast";
-import { applySuggestion, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
+import { applySuggestion, rejectProposals, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
@@ -39,7 +39,7 @@ import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldVa
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "handoff <scope, indexes, task, format>", "handoffAct <act, scope, indexes, task, format>", "scopeMenu <entry, scope>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords", "keywordsRestore" and "chatPoll", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "handoff <scope, indexes, task, format>", "linksOpen", "handoffAct <act, scope, indexes, task, format>", "scopeMenu <entry, scope>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords", "keywordsRestore" and "chatPoll", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -165,9 +165,17 @@ class BoardPanel extends BoardPanelWiring {
       this.patches.open();
     } else if (message.type === "patchApply" && Array.isArray(message.ids)) {
       await this.patchApply(message.ids.filter((x): x is number => Number.isInteger(x)));
+    } else if (message.type === "linksOpen") {
+      this.patches.readLinks();
     } else if (message.type === "patchReject") {
+      const keys = this.patches.proposalKeys();
       this.patches.clear();
       this.post({ type: "patchDone", applied: 0, skipped: 0 });
+      if (keys.length > 0) {
+        await rejectProposals(this.context, keys);
+        this.dirty = true;
+        await this.refresh();
+      }
     } else if (message.type === "undoDismiss") {
       clearTimeout(this.undo?.timer);
       this.undo = undefined;
@@ -627,7 +635,7 @@ class BoardPanel extends BoardPanelWiring {
       // Whatever was written can be undone, even when a later row failed.
       const wrote = out.snapshot.rules !== undefined || out.snapshot.docs.length > 0;
       if (wrote) {
-        this.offerUndo(l10n("releaseBoard.patch.undo", { count: out.applied, id: picked.name }), () => undoBatch(out.snapshot), () => remainingFiles(out.snapshot));
+        this.offerUndo(picked.source === "links" ? l10n("releaseBoard.patch.undoLinks", { count: out.applied }) : l10n("releaseBoard.patch.undo", { count: out.applied, id: picked.name }), () => undoBatch(out.snapshot), () => remainingFiles(out.snapshot));
         if (picked.source === "paste") {
           await savePastedPatch(run, model, picked.rows, picked.text);
         }

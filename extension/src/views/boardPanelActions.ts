@@ -131,6 +131,16 @@ export async function applySuggestion(context: vscode.ExtensionContext, model: B
   }
 }
 
+// Remembers proposed links the person turned down, so they are not proposed again.
+export async function rejectProposals(context: vscode.ExtensionContext, keys: string[]): Promise<void> {
+  if (keys.length > 0) {
+    await updateLocalMarks(context, (local) => {
+      local.rejected = [...new Set([...local.rejected, ...keys])];
+      return local;
+    });
+  }
+}
+
 // Only a link the page was actually shown can be opened, and only over https.
 export async function openExternalLink(model: BoardModel | undefined, g: number, i: number): Promise<void> {
   const url = safeUrl(model?.outside[g]?.items[i]?.url);

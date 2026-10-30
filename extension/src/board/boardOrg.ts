@@ -1,6 +1,7 @@
 import { l10n } from "../i18n/l10n";
 import { globToRegExp } from "./glob";
 import { Link } from "./links";
+import { resetProposalCache } from "./boardProposals";
 import { ScanSnapshot } from "./scanner";
 import { BoardConfig, Classified } from "./types";
 import { GroupView, OPEN, factsFor, itemKey } from "./boardModelParts";
@@ -50,6 +51,7 @@ function organizeCached(docs: OrgDoc[], cfg: BoardConfig, previous: OrgPrevious 
 // Forgets the cached answer (tests that time the engine).
 export function resetOrgCache(): void {
   last = undefined;
+  resetProposalCache();
 }
 
 // A palette name maps to its hex; a hex a tag brought (already contrast-checked) passes as is. Nothing else reaches a style.

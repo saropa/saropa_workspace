@@ -4,9 +4,10 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 5;
+export const FACTS_VERSION = 6;
 
 import { readFrontMatter } from "./org/frontMatter";
+import { forwardPattern, withoutCode } from "./org/linksSignals";
 import { Audience, Severity, SeverityDict, scoreDocument } from "./severity";
 
 // One open step of a document: a checklist box or a table row with an open state word.
@@ -59,6 +60,8 @@ export interface DocFacts {
   // Tags and group named in the front matter block at the top of the document; absent when there is none.
   tags?: string[];
   group?: string;
+  // The lines (outside code) that could say this document waits on another, for the link proposals; absent when none.
+  linkText?: string;
 }
 
 // Settings that change how facts are read.
@@ -69,6 +72,31 @@ export interface FactsOptions {
   sourceDirs?: string[];
   // Phrase dictionary for severity; the shipped one when absent.
   severity?: SeverityDict;
+  // The "waits on" phrases turned on (linkPhrases of the organize settings); all shipped ones when absent.
+  linkPhrases?: string[];
+}
+
+// Longest line and total text kept for the link proposals.
+const LINK_LINE = 1000;
+const LINK_TEXT = 8000;
+const BLOCKS_LINE = /\bblocks?\s+(?:this|it)\b|\bthis\b[^\n]*\bblocks\b|\.md\b/i;
+
+// The lines of a Markdown text that name a document or carry a "waits on" phrase, code left out.
+function linkLines(text: string, phrases: string[] | undefined): string {
+  const forward = forwardPattern(phrases);
+  const out: string[] = [];
+  let size = 0;
+  for (const line of withoutCode(text).split("\n")) {
+    if (size >= LINK_TEXT) {
+      break;
+    }
+    if ((forward !== undefined && line.search(forward) >= 0) || BLOCKS_LINE.test(line)) {
+      const kept = line.slice(0, LINK_LINE);
+      out.push(kept);
+      size += kept.length + 1;
+    }
+  }
+  return out.join("\n");
 }
 
 const DONE_WORDS = ["done", "applied", "merged", "fixed", "built", "implemented", "closed", "yes", "verified"];
@@ -253,6 +281,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
   const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
   const mentions = findMentions(body, opt.mentions ?? {});
   const front = isSql ? undefined : readFrontMatter(text);
+  const linkText = isSql ? "" : linkLines(text, opt.linkPhrases);
   return {
     title,
     headings: heads.length,
@@ -277,6 +306,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     ...scoreDocument(text, path, opt.severity),
     ...(front && front.tags.length > 0 ? { tags: front.tags } : {}),
     ...(front?.group ? { group: front.group } : {}),
+    ...(linkText ? { linkText } : {}),
   };
 }
 

@@ -6,6 +6,7 @@ import { Profile, Severity, asProfile, stops } from "./severity";
 import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
 import { buildOrg } from "./boardOrg";
+import { buildProposals } from "./boardProposals";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { OrgSettings, settingsOf } from "./org/settings";
@@ -359,6 +360,7 @@ export function buildBoard(
   const byKey = new Map(all.map((it) => [itemKey(it.project, it.path), it]));
   attachLinks(all, links, grouping, byKey);
   const suggestions = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
+  const proposals = buildProposals(all, snapshot, cfg, links, extra?.rejected, new Set(suggestions.map((s) => s.key)));
   attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   const customParts = customizedParts(cfg.severity);
@@ -384,6 +386,7 @@ export function buildBoard(
     baseline: !accepted && (safety?.baseline ?? false),
     profile,
     suggestions,
+    proposals,
     outside: extra?.outside?.groups ?? [],
     needsRule: needsRuleFolders(cfg, snapshot),
     ...(ctx.byUser.count > 0 ? { byUser: ctx.byUser } : {}),
