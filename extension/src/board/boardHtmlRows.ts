@@ -203,7 +203,7 @@ function facts(i: BoardItem, t: BoardStrings): string {
   }
   if (i.link) {
     // A link waiting on open work or a stale Needs line is amber; one that is satisfied is green.
-    const glyph = i.link.state === "done" ? "g.greenDiamond" : i.link.state === "open" ? "g.amberDiamond" : "g.amberDiamondDashed";
+    const glyph = i.link.state === "done" ? "g.greenDiamond" : i.link.state === "open" ? "g.amberDiamond" : "g.amberDiamondFilled";
     parts.push(`<i class="link ${i.link.state}" ${glyphTip(t, glyph, i.link.detail)}></i>`);
     text.push(i.link.detail);
   }

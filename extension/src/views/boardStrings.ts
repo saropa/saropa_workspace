@@ -427,7 +427,6 @@ export const POLISH_KEYS = [
   "g.dashedDot",
   "g.amberDiamond",
   "g.greenDiamond",
-  "g.amberDiamondDashed",
   "g.amberDiamondFilled",
   "g.greyDiamondDashed",
   "g.amberSquare",

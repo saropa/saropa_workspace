@@ -1,5 +1,6 @@
 // Where a pop-up menu goes: below its button when it fits, above it when there is more room
-// there, and never taller than the room it has (the menu then scrolls inside); a menu that fits the window but neither side of its button slides up over the button. All numbers are
+// there, and never taller than the room it has (the menu then scrolls inside); a menu that
+// fits the window but neither side of its button slides up over the button. All numbers are
 // viewport pixels except the returned top and left, which are page coordinates. The function
 // stands alone (no outside names) because the page script is built from its source text.
 export interface MenuPlace {

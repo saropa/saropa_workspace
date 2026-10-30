@@ -28,9 +28,10 @@ function listSection(t: KeywordLabelTable, kind: EditLevel | "negation", items: 
   const input = e(fillText(neg ? t.negInputTip : t.inputTip, { level: name }));
   const addTip = e(fillText(neg ? t.negAddTip : t.addTip, { level: name }));
   const restoreTip = e(fillText(neg ? t.negRestoreTip : t.restoreLevelTip, { level: name }));
-  const summaryTip = e((neg ? t.negTip : fillText(t.levelTip, { level: name, count: items.length })) + "\n" + help);
+  const summaryTip = e(neg ? t.negTip : fillText(t.levelTip, { level: name, count: items.length }));
   const listTip = e(neg ? t.negListTip : fillText(t.listTip, { level: name }));
-  return `<details class="box" open data-sec="${kind}"><summary title="${summaryTip}">${e(name)} <span class="pill" data-count="${kind}" title="${countTip}">${items.length}</span><span class="edited" data-edited="${kind}"${edited ? "" : " hidden"} title="${e(t.changedTip)}">${e(t.changedMark)}</span></summary>
+  return `<details class="box" open data-sec="${kind}"><summary title="${summaryTip}" aria-describedby="h-${kind}">${e(name)} <span class="pill" data-count="${kind}" title="${countTip}">${items.length}</span><span class="edited" data-edited="${kind}"${edited ? "" : " hidden"} title="${e(t.changedTip)}">${e(t.changedMark)}</span></summary>
+<p class="help" id="h-${kind}">${e(help)}</p>
 <div class="chips" data-list="${kind}" title="${listTip}">${items.map((p) => chip(t, kind, p)).join("")}</div>
 <div class="addrow"><input type="text" data-add="${kind}" maxlength="${max}" placeholder="${e(t.addPlaceholder)}" title="${input}" aria-label="${input}"><button type="button" class="secondary" data-addbtn="${kind}" title="${addTip}">${e(t.addButton)}</button><button type="button" class="secondary" data-restore="${kind}" title="${restoreTip}">${e(t.restoreLevel)}</button></div></details>`;
 }
@@ -38,7 +39,7 @@ function listSection(t: KeywordLabelTable, kind: EditLevel | "negation", items: 
 // One number field with its one-line explanation.
 function numberField(t: KeywordLabelTable, id: string, label: string, help: string, value: number, r: { min: number; max: number }): string {
   const tip = e(fillText(t.numTip, { label, min: r.min, max: r.max, help }));
-  return `<div class="fld"><label for="${id}" title="${tip}">${e(label)}</label><input type="number" id="${id}" step="1" min="${r.min}" max="${r.max}" value="${value}" title="${tip}" aria-label="${tip}"></div>`;
+  return `<div class="fld"><label for="${id}" title="${tip}">${e(label)}</label><input type="number" id="${id}" step="1" min="${r.min}" max="${r.max}" value="${value}" title="${tip}" aria-describedby="${id}-h"><p class="help" id="${id}-h">${e(help)}</p></div>`;
 }
 
 // The ranges the number fields are held to, by field id.
@@ -68,7 +69,7 @@ ${numberField(t, "n-head", t.wHeadLabel, t.wHeadHelp, w.head, LIMITS.weight)}
 ${numberField(t, "n-body", t.wBodyLabel, t.wBodyHelp, w.body, LIMITS.weight)}
 ${numberField(t, "n-perPhraseCap", t.wCapLabel, t.wCapHelp, w.perPhraseCap, LIMITS.cap)}</details>`;
   const why = [t.intro, t.warn, t.mediumNote, t.phrasesHint].join("\n");
-  return `<p class="qrow"><span class="qm" tabindex="0" role="note" aria-label="${e(why)}" title="${e(why)}">?</span></p>
+  return `<p class="qrow"><span class="qm" tabindex="0" role="note" aria-describedby="qm-sev" title="${e(why)}" data-tip="${e(why)}">?</span><span id="qm-sev" hidden>${e(why)}</span></p>
 ${note ? `<p class="warn" id="sev-lossy" role="note" title="${e(note)}">${e(note)}</p>` : ""}
 <details class="box" open data-sec="preview"><summary title="${e(t.previewTitleTip)}">${e(t.previewTitle)} <span class="pill" id="pv-count" title="${e(t.previewTitleTip)}">0</span></summary>
 <p id="pv-text" role="status" aria-live="polite" title="${e(t.previewTitleTip)}">${e(t.previewWait)}</p>
