@@ -11,8 +11,6 @@ import { asTimeBox } from "../board/sittings";
 import { readTidySettings } from "../commands/boardTidy";
 import { LiveSettings, liveFold, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
-import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
-import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
 import { updateLocalMarks } from "../commands/boardMarks";
 import { readInProgressSettings } from "../commands/boardInProgress";
 import { chooseDocumentColumn, parseOpenBeside } from "../board/openBeside";
@@ -142,48 +140,5 @@ export async function openSittingsLine(model: BoardModel | undefined, run: Board
     const uri = vscode.Uri.joinPath(vscode.Uri.parse(project.path), line.path);
     const pos = new vscode.Position(Math.max(0, line.line - 1), 0);
     await openDocument(uri, new vscode.Range(pos, pos));
-  }
-}
-
-// Hand to chat: the page names an item, a step or a Sittings line by index; the prompt is
-// built from the model the panel rendered and copied to the clipboard.
-export async function handToChat(model: BoardModel | undefined, paths: PathToGo[] | undefined, run: BoardRun | undefined, m: { k?: unknown; i?: unknown; p?: unknown; s?: unknown }): Promise<void> {
-  const settings = readHandSettings();
-  if (!settings.enabled) {
-    return;
-  }
-  if (!model) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.nothing"));
-    return;
-  }
-  let target: HandTarget | undefined;
-  let file: { project: string; path: string; chats?: number } | undefined;
-  if (m.k === "item" && typeof m.i === "number" && model.items[m.i]) {
-    const it = model.items[m.i];
-    target = itemTarget(model, it);
-    file = it;
-  } else if (m.k === "line" && typeof m.i === "number" && model.sittings?.lines[m.i]) {
-    const l = model.sittings.lines[m.i];
-    target = lineTarget(model, l);
-    file = l;
-  } else if (m.k === "step" && typeof m.p === "number" && typeof m.s === "number") {
-    const project = model.projects[m.p];
-    const step = paths?.[m.p]?.steps[m.s];
-    if (project && step) {
-      target = stepTarget(model, project, step);
-      const item = step.kind === "item" && step.itemId !== undefined ? model.items[step.itemId] : undefined;
-      file = item;
-    }
-  }
-  if (!target) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.nothing"));
-    return;
-  }
-  const def = run?.cfg.projects.find((p) => p.id === file?.project);
-  const doc = def && file ? vscode.Uri.joinPath(vscode.Uri.parse(def.path), file.path) : undefined;
-  try {
-    await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat, file?.chats, false, target.headline);
-  } catch (e) {
-    showFailed(e);
   }
 }
