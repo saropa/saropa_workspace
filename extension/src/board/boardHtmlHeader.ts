@@ -3,6 +3,7 @@ import type { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml, pill, pl, tip } from "./boardHtmlUtil";
 import { kebab } from "./boardHtmlMenus";
 import { label } from "./boardHtmlProjects";
+import { pollPill } from "./boardHtmlChats";
 
 // The header of the board page: the scope switch, the view tabs and the two kebab menus on
 // one line, and under it the line of applied filters. Pure.
@@ -47,10 +48,10 @@ export function sinceLink(since: SinceView | undefined, t: BoardStrings): string
   return `<button class="sec" data-since-go ${tip(t, "sinceGoTip")}>${escapeHtml(pl(t, "sinceGo"))} ${pill(t, since.lines.length)}</button>`;
 }
 
-// The top line: scope switch, the view tabs (already built) and the two kebabs. The intro
+// The top line: scope switch, the view tabs (already built), the chat poll pill (when `paused` is given) and the two kebabs. The intro
 // sentence is the tooltip of the whole line, not text on the page.
-export function topBar(model: BoardModel, t: BoardStrings, scope: Scope | undefined, tabs: string, since?: SinceView): string {
-  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${scopeSwitch(model, scope, t)}${explainPill(model, scope, t)}${tabs}<span class="sp"></span>${sinceLink(since, t)}${kebab(t, "view")}${kebab(t, "opts")}</div>`;
+export function topBar(model: BoardModel, t: BoardStrings, scope: Scope | undefined, tabs: string, since?: SinceView, paused?: boolean): string {
+  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${scopeSwitch(model, scope, t)}${explainPill(model, scope, t)}${tabs}${pollPill(paused, t)}<span class="sp"></span>${sinceLink(since, t)}${kebab(t, "view")}${kebab(t, "opts")}</div>`;
 }
 
 // One removable pill per applied filter, hidden when none is applied; "Clear all" once there are

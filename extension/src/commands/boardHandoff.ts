@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { CopyMode, DEFAULT_TERMINAL_COMMAND, HANDOFF_DIR, HandoffFormat, asCopyMode, handoffFile, referralLine, staleHandoffFiles, terminalCommand } from "../board/handoff";
+import { CopyMode, DEFAULT_TERMINAL_COMMAND, HANDOFF_DIR, HandoffFormat, asCopyMode, handoffFile, joinHandoffs, referralLine, staleHandoffFiles, terminalCommand } from "../board/handoff";
 
 // Release Board, hand-off: writes the finished document to the project's hand-off folder and
 // delivers it: a copied line, the whole text, or a command in a terminal. Local only: nothing
@@ -74,7 +74,7 @@ export async function deliver(act: HandoffAct, files: HandoffFiles[], format: Ha
     return { word: l10n("releaseBoard.handoff.started"), tip: l10n("releaseBoard.handoff.startedTip", { command }) };
   }
   const full = act === "copyFull" || settings.copyMode === "full";
-  const text = full ? files.map((f) => (format === "json" ? f.json : f.markdown)).join("\n") : referralLine(files.map((f) => fileFrom(first, f, format)));
+  const text = full ? joinHandoffs(files, format) : referralLine(files.map((f) => fileFrom(first, f, format)));
   await vscode.env.clipboard.writeText(text);
   return { word: l10n("releaseBoard.handoff.copied"), tip: full ? l10n("releaseBoard.handoff.copiedFullTip") : l10n("releaseBoard.handoff.copiedTip", { line: text }) };
 }

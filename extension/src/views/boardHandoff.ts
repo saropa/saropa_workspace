@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { BoardRun } from "../commands/releaseBoardCommands";
 import { BoardModel } from "../board/boardModel";
 import { HandoffAct, HandoffFiles, deliver, readHandoffSettings } from "../commands/boardHandoff";
-import { HandoffFormat, HandoffScope, HandoffTask, ScopeRequest, asFormat, asScope, asTask, buildHandoff, estimateTokens, fromModel, handoffFile, handoffId, scopeItems, tokenLabel } from "../board/handoff";
+import { HandoffFormat, HandoffScope, HandoffTask, ScopeRequest, asFormat, asScope, asTask, buildHandoff, estimateTokens, fromModel, handoffFile, handoffId, joinHandoffs, scopeItems, tokenLabel } from "../board/handoff";
 import { l10n } from "../i18n/l10n";
 
 // Release Board, hand-off: the host half of the hand-off drawer. The page names a scope by
@@ -117,7 +117,7 @@ export function handoffDoc(post: (m: unknown) => void, model: BoardModel | undef
     void vscode.window.showInformationMessage(l10n("releaseBoard.handoff.nothing"));
     return;
   }
-  const text = built.files.map((f) => (req.format === "json" ? f.json : f.markdown)).join("\n");
+  const text = joinHandoffs(built.files, req.format);
   post({ type: "handoffDoc", text, tokens: tokenLabel(estimateTokens(text)), count: built.count, avail: built.avail });
 }
 
