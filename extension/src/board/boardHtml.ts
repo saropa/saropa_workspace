@@ -15,7 +15,7 @@ import { PROJECTS_SCRIPT, PROJECTS_STYLE, openBadge, rollupBar, skippedBlock } f
 import { RowStatus, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
-import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer, proposalsPill, readyPill } from "./boardHtmlHandoff";
+import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer, proposalCounts, proposalsPill, readyPill } from "./boardHtmlHandoff";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
 import { chains, chainsName, moreStrip, noRuleBox, sinceMarks, outsideBox, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
@@ -161,7 +161,7 @@ ${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), s
 ${filterLine(model, t)}
 ${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 ${statusBands(t, state.statuses)}${ganttPanel(model, t, since)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${readyPill(t, state.patchReady)}${proposalsPill(t, model.proposals.length)}${keywordLine(model, t)}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${readyPill(t, state.patchReady)}${proposalsPill(t, proposalCounts(model.proposals).main)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
 ${state.groupBy === "project" ? "" : rollupBar(model, t)}
 ${projects}

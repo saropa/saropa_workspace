@@ -29,7 +29,16 @@ export function emptyMarks(): MarksFile {
 }
 
 const MAX_ENTRIES = 5000;
+// The rejected list keeps this many keys; past it the oldest are dropped, so a new rejection always holds.
+export const MAX_REJECTED = 5000;
 const MAX_BYTES = 1_000_000;
+
+// The rejected keys with `add` appended as the newest; a key already there moves to the newest end.
+// Over the limit the oldest keys are dropped.
+export function addRejected(list: readonly string[], add: readonly string[]): string[] {
+  const fresh = new Set(add);
+  return [...list.filter((k) => !fresh.has(k)), ...fresh].slice(-MAX_REJECTED);
+}
 
 // Reads a marks file, tolerating a missing or damaged one: bad parts are dropped.
 export function parseMarks(text: string | undefined): MarksFile {
@@ -55,7 +64,7 @@ export function parseMarks(text: string | undefined): MarksFile {
       out.needs[k] = v.filter((x): x is string => typeof x === "string").slice(0, 50);
     }
   }
-  out.rejected = (Array.isArray(data?.rejected) ? data.rejected : []).filter((x): x is string => typeof x === "string").slice(0, MAX_ENTRIES);
+  out.rejected = (Array.isArray(data?.rejected) ? data.rejected : []).filter((x): x is string => typeof x === "string").slice(-MAX_REJECTED);
   return out;
 }
 
@@ -70,7 +79,7 @@ export function mergeMarks(shared: MarksFile, local: MarksFile): MarksFile {
     version: 1,
     marks: { ...shared.marks, ...local.marks },
     needs,
-    rejected: [...new Set([...shared.rejected, ...local.rejected])],
+    rejected: [...new Set([...shared.rejected, ...local.rejected])].slice(-MAX_REJECTED),
   };
 }
 

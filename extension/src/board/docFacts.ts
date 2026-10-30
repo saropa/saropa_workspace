@@ -4,7 +4,7 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 6;
+export const FACTS_VERSION = 7;
 
 import { readFrontMatter } from "./org/frontMatter";
 import { forwardPattern, withoutCode } from "./org/linksSignals";
@@ -62,6 +62,8 @@ export interface DocFacts {
   group?: string;
   // The lines (outside code) that could say this document waits on another, for the link proposals; absent when none.
   linkText?: string;
+  // How many of the first lines of linkText lie within the first 20 lines of the document; absent when none.
+  linkEarly?: number;
 }
 
 // Settings that change how facts are read.
@@ -76,27 +78,34 @@ export interface FactsOptions {
   linkPhrases?: string[];
 }
 
-// Longest line and total text kept for the link proposals.
+// Most lines, longest line and total text kept for the link proposals.
+const LINK_LINES = 40;
 const LINK_LINE = 1000;
-const LINK_TEXT = 8000;
+const LINK_TEXT = 4000;
+// A line within this many lines of the top counts as early (a mention there is Medium).
+const EARLY_LINES = 20;
 const BLOCKS_LINE = /\bblocks?\s+(?:this|it)\b|\bthis\b[^\n]*\bblocks\b|\.md\b/i;
 
-// The lines of a Markdown text that name a document or carry a "waits on" phrase, code left out.
-function linkLines(text: string, phrases: string[] | undefined): string {
+// The lines of a Markdown text that name a document or carry a "waits on" phrase, code left out,
+// and how many of them are early.
+function linkLines(text: string, phrases: string[] | undefined): { text: string; early: number } {
   const forward = forwardPattern(phrases);
   const out: string[] = [];
   let size = 0;
-  for (const line of withoutCode(text).split("\n")) {
-    if (size >= LINK_TEXT) {
-      break;
-    }
+  let early = 0;
+  const lines = withoutCode(text).split("\n");
+  for (let n = 0; n < lines.length && out.length < LINK_LINES && size < LINK_TEXT; n++) {
+    const line = lines[n];
     if ((forward !== undefined && line.search(forward) >= 0) || BLOCKS_LINE.test(line)) {
-      const kept = line.slice(0, LINK_LINE);
+      const kept = line.slice(0, Math.min(LINK_LINE, LINK_TEXT - size));
       out.push(kept);
       size += kept.length + 1;
+      if (n < EARLY_LINES) {
+        early++;
+      }
     }
   }
-  return out.join("\n");
+  return { text: out.join("\n"), early };
 }
 
 const DONE_WORDS = ["done", "applied", "merged", "fixed", "built", "implemented", "closed", "yes", "verified"];
@@ -281,7 +290,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
   const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
   const mentions = findMentions(body, opt.mentions ?? {});
   const front = isSql ? undefined : readFrontMatter(text);
-  const linkText = isSql ? "" : linkLines(text, opt.linkPhrases);
+  const link = isSql ? { text: "", early: 0 } : linkLines(text, opt.linkPhrases);
   return {
     title,
     headings: heads.length,
@@ -306,7 +315,7 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     ...scoreDocument(text, path, opt.severity),
     ...(front && front.tags.length > 0 ? { tags: front.tags } : {}),
     ...(front?.group ? { group: front.group } : {}),
-    ...(linkText ? { linkText } : {}),
+    ...(link.text ? { linkText: link.text, ...(link.early > 0 ? { linkEarly: link.early } : {}) } : {}),
   };
 }
 

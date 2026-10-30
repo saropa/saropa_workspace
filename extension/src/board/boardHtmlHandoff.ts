@@ -52,6 +52,12 @@ export function readyPill(t: BoardStrings, count: number | undefined): string {
   return `<div class="filter"><button type="button" class="ho-pill" data-patchopen data-tmpl="${esc(t, "ready")}" title="${esc(t, "readyTip")}">${text}</button></div>`;
 }
 
+// How many proposals are worth a count (High and Medium), and how many are Low.
+export function proposalCounts(proposals: ReadonlyArray<{ confidence: string }>): { main: number; low: number } {
+  const low = proposals.filter((p) => p.confidence === "low").length;
+  return { main: proposals.length - low, low };
+}
+
 // The pill that opens the proposed links for review; drawn only when there are proposals.
 export function proposalsPill(t: BoardStrings, count: number): string {
   const n = Number.isFinite(count) ? Math.floor(count) : 0;
@@ -79,14 +85,14 @@ export function handoffDrawer(t: BoardStrings): string {
 </div>
 <div class="ho-ft">${act("copy", "copy", "")}${act("copyFull", "copyFull", ' class="sec"')}${act("save", "save", ' class="sec"')}${act("terminal", "terminal", ' class="sec"')}<span class="small" id="hoMsg" role="status" title="${esc(t, "title")}"></span></div>
 </div>
-<div class="ho-pn" id="hoPanelBack" role="tabpanel" aria-labelledby="hoTabBack" title="${esc(t, "tabBackTip")}" data-stale="${esc(t, "backStale")}" data-stale-tip="${esc(t, "backStaleTip")}" data-refused="${esc(t, "backRefused")}" data-pick="${esc(t, "backPick")}" data-applied="${esc(t, "backApplied")}" data-applied-tip="${esc(t, "backAppliedTip")}" hidden>
+<div class="ho-pn" id="hoPanelBack" role="tabpanel" aria-labelledby="hoTabBack" title="${esc(t, "tabBackTip")}" data-stale="${esc(t, "backStale")}" data-stale-tip="${esc(t, "backStaleTip")}" data-refused="${esc(t, "backRefused")}" data-pick="${esc(t, "backPick")}" data-applied="${esc(t, "backApplied")}" data-applied-tip="${esc(t, "backAppliedTip")}" data-not="${esc(t, "linkNot")}" data-not-tip="${esc(t, "linkNotTip")}" data-low="${esc(t, "linkLow")}" data-reject-tip="${esc(t, "backRejectTip")}" data-reject-links-tip="${esc(t, "backRejectLinksTip")}" hidden>
 <div class="ho-bd">
 <div class="ho-row"><textarea id="boText" aria-label="${esc(t, "backText")}" title="${esc(t, "backTextTip")}" spellcheck="false"></textarea></div>
 <div class="ho-row"><button type="button" id="boRead" title="${esc(t, "backReadTip")}">${esc(t, "backRead")}</button><span class="push"></span><span class="ho-pill" tabindex="0" role="note" aria-label="${esc(t, "backHelp")}" title="${esc(t, "backHelp")}">?</span></div>
 <div id="boErr" class="bo-err" role="alert" title="${esc(t, "backList")}" hidden></div>
 <div id="boList" role="list" aria-label="${esc(t, "backList")}" title="${esc(t, "backList")}"></div>
 </div>
-<div class="ho-ft"><button type="button" id="boApply" disabled title="${esc(t, "backApplyTip")}">${esc(t, "backApply")}</button><button type="button" class="sec" id="boReject" title="${esc(t, "backRejectTip")}">${esc(t, "backReject")}</button><span class="small" id="boMsg" role="status" title="${esc(t, "backList")}"></span></div>
+<div class="ho-ft"><button type="button" id="boApply" disabled title="${esc(t, "backApplyTip")}">${esc(t, "backApply")}</button><button type="button" class="sec" id="boReject" title="${esc(t, "backRejectTip")}">${esc(t, "backReject")}</button><button type="button" class="sec" id="boLow" aria-pressed="false" title="${esc(t, "linkLowTip")}" hidden></button><button type="button" class="sec" id="boUnrej" title="${esc(t, "linkUnrejectTip")}" hidden>${esc(t, "linkUnreject")} <span class="ho-pill" id="boUnrejN"></span></button><span class="small" id="boMsg" role="status" title="${esc(t, "backList")}"></span></div>
 </div>
 </aside>`;
 }
@@ -119,7 +125,11 @@ const mk=(cls,text,tip)=>{const s=document.createElement('span');s.className=cls
 const ticked=()=>[...bl.querySelectorAll('input')].filter(c=>c.checked&&!c.disabled);
 const sync=()=>{ba.disabled=ticked().length===0;};
 const clearList=()=>{bl.textContent='';be.hidden=true;be.textContent='';sync();};
+const bLow=document.getElementById('boLow'),bUn=document.getElementById('boUnrej'),bUnN=document.getElementById('boUnrejN'),bj=document.getElementById('boReject');
 const showReview=m=>{clearList();bm.textContent='';bm.removeAttribute('title');
+const isLinks=m.source==='links',lk=isLinks&&m.links&&typeof m.links==='object'?m.links:null;
+bLow.hidden=!(lk&&Number(lk.low)>0);bUn.hidden=!(lk&&Number(lk.rejected)>0);bj.title=isLinks?bp.dataset.rejectLinksTip:bp.dataset.rejectTip;
+if(lk){bLow.textContent=bp.dataset.low.replace('{count}',()=>String(Number(lk.low)||0));bLow.setAttribute('aria-pressed',String(lk.lowOn===true));bUnN.textContent=String(Number(lk.rejected)||0);}
 if(typeof m.error==='string'&&m.error){be.textContent=m.error;be.hidden=false;return;}
 (Array.isArray(m.rows)?m.rows:[]).forEach(r=>{if(!r||typeof r.i!=='number'){return;}const stale=r.stale===true,op=String(r.op),item=String(r.item);
 const row=document.createElement('div');row.className='bo-r';row.setAttribute('role','listitem');if(r.reason){row.title=String(r.reason);}
@@ -127,12 +137,15 @@ const c=document.createElement('input');c.type='checkbox';c.dataset.i=String(r.i
 row.appendChild(c);row.appendChild(mk('ho-pill',op));row.appendChild(mk('',item));
 row.appendChild(mk('ho-pill',r.before?String(r.before):'\\u2014'));row.appendChild(mk('','\\u2192'));row.appendChild(mk('ho-pill',r.after?String(r.after):'\\u2014'));if(r.conf){row.appendChild(mk('ho-pill mute',String(r.conf)));}
 if(stale){row.appendChild(mk('ho-pill mute',bp.dataset.stale,bp.dataset.staleTip));}
+if(isLinks){const nb=document.createElement('button');nb.type='button';nb.className='sec';nb.textContent=bp.dataset.not;nb.title=bp.dataset.notTip;nb.setAttribute('aria-label',bp.dataset.not+' \\u00b7 '+item);nb.addEventListener('click',()=>{row.remove();vscode.postMessage({type:'linksNot',i:r.i,rev:REV});sync();});row.appendChild(nb);}
 bl.appendChild(row);});
 (Array.isArray(m.refused)?m.refused:[]).forEach(x=>{if(x&&typeof x.text==='string'){const li=document.createElement('div');li.className='bo-r';li.setAttribute('role','listitem');li.appendChild(mk('ho-pill mute',bp.dataset.refused+' \\u00b7 '+x.text,x.text));bl.appendChild(li);}});
 sync();};
 document.getElementById('boRead').addEventListener('click',()=>{vscode.postMessage({type:'patchRead',text:bt.value,rev:REV});});
 ba.addEventListener('click',()=>{const ids=ticked().map(c=>Number(c.dataset.i));if(ids.length>0){vscode.postMessage({type:'patchApply',ids,rev:REV});}});
-document.getElementById('boReject').addEventListener('click',()=>{clearList();vscode.postMessage({type:'patchReject',rev:REV});});
+bj.addEventListener('click',()=>{const ids=ticked().map(c=>Number(c.dataset.i));clearList();vscode.postMessage({type:'patchReject',ids,rev:REV});});
+bLow.addEventListener('click',()=>{vscode.postMessage({type:'linksOpen',low:bLow.getAttribute('aria-pressed')!=='true',rev:REV});});
+bUn.addEventListener('click',()=>{vscode.postMessage({type:'linksUnreject',rev:REV});});
 document.querySelectorAll('[data-patchopen]').forEach(b=>b.addEventListener('click',()=>{openBack();vscode.postMessage({type:'patchOpen',rev:REV});}));
 document.querySelectorAll('[data-linksopen]').forEach(b=>b.addEventListener('click',()=>{openBack();vscode.postMessage({type:'linksOpen',rev:REV});}));
 const refresh=()=>{if(!line){return;}line.hidden=CH.size===0;document.getElementById('hoChosenN').textContent=line.dataset.tmpl.replace('{count}',()=>String(CH.size));};

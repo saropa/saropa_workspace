@@ -7,11 +7,12 @@ import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
 import { markSeenNow } from "./boardSinceLast";
-import { applySuggestion, rejectProposals, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
+import { applySuggestion, clearRejected, rejectProposals, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
 import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { applyRows, remainingFiles, savePastedPatch, undoBatch } from "../commands/boardPatch";
+import { targetsOf } from "../board/patch";
+import { applyRows, changedOnDisk, remainingFiles, savePastedPatch, undoBatch } from "../commands/boardPatch";
 import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import { pickGroup } from "../commands/boardGroupPick";
@@ -39,7 +40,7 @@ import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldVa
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "handoff <scope, indexes, task, format>", "linksOpen", "handoffAct <act, scope, indexes, task, format>", "scopeMenu <entry, scope>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords", "keywordsRestore" and "chatPoll", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "handoff <scope, indexes, task, format>", "linksOpen <low>", "linksNot <index>", "linksUnreject", "handoffAct <act, scope, indexes, task, format>", "scopeMenu <entry, scope>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords", "keywordsRestore" and "chatPoll", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
@@ -166,9 +167,18 @@ class BoardPanel extends BoardPanelWiring {
     } else if (message.type === "patchApply" && Array.isArray(message.ids)) {
       await this.patchApply(message.ids.filter((x): x is number => Number.isInteger(x)));
     } else if (message.type === "linksOpen") {
-      this.patches.readLinks();
+      this.patches.readLinks(message.low === true);
+    } else if (message.type === "linksNot" && Number.isInteger(message.i)) {
+      // One proposal turned down; the list is drawn again from the board once the mark is saved.
+      const key = this.patches.rejectedKey(message.i as number);
+      if (key) {
+        await rejectProposals(this.context, [key]);
+      }
+    } else if (message.type === "linksUnreject") {
+      await clearRejected(this.context);
     } else if (message.type === "patchReject") {
-      const keys = this.patches.proposalKeys();
+      // For the proposed links the unticked rows are remembered as rejected; the ticked ones stay proposed.
+      const keys = this.patches.rejectedKeys(Array.isArray(message.ids) ? message.ids.filter((x): x is number => Number.isInteger(x)) : []);
       this.patches.clear();
       this.post({ type: "patchDone", applied: 0, skipped: 0 });
       if (keys.length > 0) {
@@ -638,10 +648,18 @@ class BoardPanel extends BoardPanelWiring {
     }
     this.assigning = true;
     try {
-      if (picked.dropped > 0) {
-        void vscode.window.showInformationMessage(l10n("releaseBoard.patch.dropped", { count: picked.dropped }));
+      // Proposed links were built from the last scan: a document edited on disk since then is left out.
+      let rows = picked.rows;
+      let dropped = picked.dropped;
+      if (picked.source === "links") {
+        const changed = await changedOnDisk(run, targetsOf(model), rows);
+        rows = rows.filter((r) => !changed.has(r.change.item));
+        dropped += picked.rows.length - rows.length;
       }
-      const out = await applyRows(run, model, picked.rows);
+      if (dropped > 0) {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.patch.dropped", { count: dropped }));
+      }
+      const out = await applyRows(run, model, rows);
       const skipped = ids.length - out.applied;
       if (out.problems.length > 0) {
         void vscode.window.showWarningMessage(l10n("releaseBoard.patch.problems", { count: out.problems.length, list: out.problems.slice(0, 5).join("; ") }));

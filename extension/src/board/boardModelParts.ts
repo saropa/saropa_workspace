@@ -179,6 +179,8 @@ export interface BoardModel {
   suggestions: Array<{ key: string; fromKey: string; toProject: string; toPath: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
   // Links the engine proposes from names and wording; the person ticks which to accept.
   proposals: ProposalView[];
+  // How many rejected links are remembered (the Undo reject entry of the review list shows it).
+  rejectedCount: number;
   // Folders where documents no rule placed sit, for the "needs a rule" list.
   needsRule: Array<{ project: string; folder: string; count: number }>;
   // Review requests and groups from other extensions. They never change a light.

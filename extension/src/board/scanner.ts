@@ -52,6 +52,31 @@ export interface CachedFacts {
   size: number;
   mtimeMs: number;
   facts: DocFacts;
+  // The link text was left out when this was stored; the facts are read again before they are used.
+  linkless?: boolean;
+}
+
+// The snapshot as it is written to disk: without the link text of the documents (it can be a lot, and
+// the next scan reads it again; a document that lost it is marked so its facts are not reused as they are).
+export function withoutLinkText(snap: ScanSnapshot): ScanSnapshot {
+  const projects: ScanSnapshot["projects"] = {};
+  for (const [id, p] of Object.entries(snap.projects)) {
+    if (!p.facts) {
+      projects[id] = p;
+      continue;
+    }
+    const facts: Record<string, CachedFacts> = {};
+    for (const [path, c] of Object.entries(p.facts)) {
+      if (c.facts.linkText === undefined) {
+        facts[path] = c;
+      } else {
+        const { linkText: _text, linkEarly: _early, ...rest } = c.facts;
+        facts[path] = { ...c, facts: rest as DocFacts, linkless: true };
+      }
+    }
+    projects[id] = { ...p, facts };
+  }
+  return { ...snap, projects };
 }
 
 // What one scan found in one project: counts, folder and rule tallies, cached words and facts.
@@ -242,7 +267,7 @@ function reuseFacts(project: ProjectDef, files: ScanFile[], rows: Classified[], 
       return;
     }
     const hit = prevFacts?.[f.path];
-    if (hit && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
+    if (hit && !hit.linkless && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
       snap.facts[f.path] = hit;
     } else {
       pending.push({ project: project.id, path: f.path, size: f.size, mtimeMs: f.mtimeMs });

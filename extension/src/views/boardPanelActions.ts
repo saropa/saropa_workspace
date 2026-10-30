@@ -12,6 +12,7 @@ import { readTidySettings } from "../commands/boardTidy";
 import { LiveSettings, liveFold, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
 import { updateLocalMarks } from "../commands/boardMarks";
+import { addRejected } from "../board/marks";
 import { readInProgressSettings } from "../commands/boardInProgress";
 import { chooseDocumentColumn, parseOpenBeside } from "../board/openBeside";
 import { parsePlacement } from "../board/placement";
@@ -122,7 +123,7 @@ export async function applySuggestion(context: vscode.ExtensionContext, model: B
   if (shown) {
     await updateLocalMarks(context, (local) => {
       if (value === "reject") {
-        local.rejected = [...new Set([...local.rejected, shown.key])];
+        local.rejected = addRejected(local.rejected, [shown.key]);
       } else {
         local.needs[shown.fromKey] = [...new Set([...(local.needs[shown.fromKey] ?? []), `${shown.toProject}:${shown.toPath}`])];
       }
@@ -135,10 +136,18 @@ export async function applySuggestion(context: vscode.ExtensionContext, model: B
 export async function rejectProposals(context: vscode.ExtensionContext, keys: string[]): Promise<void> {
   if (keys.length > 0) {
     await updateLocalMarks(context, (local) => {
-      local.rejected = [...new Set([...local.rejected, ...keys])];
+      local.rejected = addRejected(local.rejected, keys);
       return local;
     });
   }
+}
+
+// Forgets every rejected link of the local marks, so the proposals and suggestions turned down come back.
+export async function clearRejected(context: vscode.ExtensionContext): Promise<void> {
+  await updateLocalMarks(context, (local) => {
+    local.rejected = [];
+    return local;
+  });
 }
 
 // Only a link the page was actually shown can be opened, and only over https.
