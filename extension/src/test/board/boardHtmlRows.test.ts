@@ -10,7 +10,7 @@ import { list, pathList, projectBlock, verdict } from "../../board/boardHtmlRows
 import { PathToGo, pathToGo } from "../../board/pathToGo";
 import { readFacts } from "../../board/docFacts";
 import { rowMenu } from "../../board/boardHtmlMenus";
-import { STYLE } from "../../board/boardHtmlAssets";
+import { STYLE, script } from "../../board/boardHtmlAssets";
 import { ScanSnapshot } from "../../board/scanner";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 
@@ -224,6 +224,12 @@ test("every row has a kebab button that opens the row menu, naming the document 
   assert.ok(html.includes('data-menu="row" data-id="0" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-row" title="rowMenu" aria-label="rowMenu">⋮</button>'));
   assert.ok(html.includes('data-id="1" aria-haspopup="menu"'));
   assert.equal(/data-menu="row"[^>]*docs\//.test(html), false, "no path in the kebab");
+});
+
+test("a click on a kebab never folds the project row", () => {
+  const js = script(1, "x", "p");
+  assert.ok(js.includes("row.addEventListener('click',e=>{if(!e.target.closest('[data-menu]')){tog();}})"));
+  assert.ok(js.includes("querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();"));
 });
 
 test("the project name is left out of a row when one project is in focus, and shown otherwise", () => {

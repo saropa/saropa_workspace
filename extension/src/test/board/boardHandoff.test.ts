@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { DEFAULT_TERMINAL_COMMAND } from "../../board/handoff";
+import { DEFAULT_TERMINAL_COMMAND, joinHandoffs } from "../../board/handoff";
 import { HandoffFiles, deliver, readHandoffSettings, saveHandoff } from "../../commands/boardHandoff";
 import { stub, tmpDir } from "./hostHelpers";
 
@@ -103,6 +103,16 @@ test("deliver with two projects: every file saved in its own folder, one referra
   const made = term.__terminals().slice(before);
   assert.equal((made[0].options.cwd as { fsPath: string }).fsPath, a);
   assert.ok(made[0].sentTexts[0].includes("a-fix.md") && made[0].sentTexts[0].includes("b-fix.md"), made[0].sentTexts[0]);
+});
+
+test("joinHandoffs: one JSON document for several projects, one document unchanged, Markdown joined", async () => {
+  const a = { markdown: "# A\n", json: '{"id":"a"}\n' };
+  const b = { markdown: "# B\n", json: '{"id":"b"}\n' };
+  assert.equal(joinHandoffs([a], "json"), a.json);
+  assert.deepEqual(JSON.parse(joinHandoffs([a, b], "json")), { projects: [{ id: "a" }, { id: "b" }] });
+  assert.equal(joinHandoffs([a, b], "md"), "# A\n\n# B\n");
+  await deliver("copyFull", [files(tmpDir(), "x-a"), files(tmpDir(), "x-b")], "json", settings);
+  assert.deepEqual(JSON.parse(await vscode.env.clipboard.readText()), { projects: [{ a: 1 }, { a: 1 }] });
 });
 
 test("saveHandoff retention ignores files that are not hand-offs", async () => {
