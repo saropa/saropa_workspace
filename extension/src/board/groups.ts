@@ -42,8 +42,9 @@ const DEFAULT_GENERIC = ["PLAN", "BUG", "DOC", "DOCS", "NOTES", "NOTE", "TODO", 
 
 // The groups found and the documents that act as hubs.
 export interface GroupResult {
-  // Item key to its group (a unique id and the heading), for items in a group of two or more.
-  groupOf: Map<string, { id: string; name: string }>;
+  // Item key to its group (a unique id and the heading), for items in a group of two or more, or in a group listed by hand.
+  // `byUser` is set for a group listed by hand.
+  groupOf: Map<string, { id: string; name: string; byUser?: true }>;
   hubs: Set<string>;
 }
 
@@ -57,7 +58,7 @@ function titleCase(s: string): string {
 }
 
 // A union-find over item keys: documents joined here end up in one group.
-function makeUnion(keys: string[]): { find: (k: string) => string; union: (a: string, b: string) => void } {
+export function makeUnion(keys: string[]): { find: (k: string) => string; union: (a: string, b: string) => void } {
   const parent = new Map<string, string>(keys.map((k) => [k, k]));
   const find = (k: string): string => {
     while (parent.get(k) !== k) {
@@ -70,6 +71,36 @@ function makeUnion(keys: string[]): { find: (k: string) => string; union: (a: st
 }
 
 type Union = ReturnType<typeof makeUnion>;
+
+// A group name with spaces trimmed and collapsed: how names are compared.
+export function tidyGroupName(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+// Groups of the same tidied name become one, at the place of the first, with every glob.
+function mergeManual(manual: ManualGroup[]): ManualGroup[] {
+  const byName = new Map<string, ManualGroup>();
+  for (const g of manual) {
+    const name = tidyGroupName(g.name);
+    const have = byName.get(name);
+    if (have) {
+      have.match = [...have.match, ...g.match];
+    } else {
+      byName.set(name, { name, match: [...g.match] });
+    }
+  }
+  return [...byName.values()];
+}
+
+// The name of the group listed by hand that claims "project/path" (the first match wins), or
+// undefined when none does or an "ungrouped" glob excludes it. The same rule buildGroups applies.
+export function manualGroupOf(manual: ManualGroup[], ungrouped: string[], project: string, path: string): string | undefined {
+  const key = project + "/" + path;
+  if (ungrouped.some((g) => globToRegExp(g).test(key))) {
+    return undefined;
+  }
+  return mergeManual(manual).find((g) => g.match.some((m) => globToRegExp(m).test(key)))?.name;
+}
 
 // 1. Manual groups: the first group whose globs match a document claims it. Returns key to group name.
 function joinManual(pool: GroupInput[], manual: Array<{ name: string; res: RegExp[] }>, u: Union): Map<string, string> {
@@ -102,7 +133,7 @@ function joinByPrefix(pool: GroupInput[], manualOf: Map<string, string>, generic
 // 3. Two or more shared source files. Not transitive: a seed document takes the
 //    ungrouped documents that share two files with it, so a chain of overlaps cannot
 //    grow into one giant group. Documents already grouped by prefix or by hand are left.
-function joinByFiles(free: GroupInput[], filesOf: Map<string, Set<string>>, maxFileGroup: number, u: Union): void {
+export function joinByFiles(free: GroupInput[], filesOf: Map<string, Set<string>>, maxFileGroup: number, u: Union): void {
   const taken = new Set<string>();
   const sharedCount = (a: GroupInput, b: GroupInput): number => {
     let n = 0;
@@ -139,7 +170,7 @@ function joinByFiles(free: GroupInput[], filesOf: Map<string, Set<string>>, maxF
   }
 }
 
-// Gathers the joined documents into groups of two or more and names each group.
+// Gathers the joined documents into groups of two or more (or one listed by hand) and names each group.
 function nameGroups(pool: GroupInput[], manualOf: Map<string, string>, generic: Set<string>, u: Union): GroupResult["groupOf"] {
   const members = new Map<string, string[]>();
   for (const i of pool) {
@@ -147,12 +178,13 @@ function nameGroups(pool: GroupInput[], manualOf: Map<string, string>, generic: 
     (members.get(r) ?? members.set(r, []).get(r)!).push(i.key);
   }
   const poolByKey = new Map(pool.map((i) => [i.key, i]));
-  const groupOf = new Map<string, { id: string; name: string }>();
+  const groupOf: GroupResult["groupOf"] = new Map();
   for (const [root, keys] of members) {
-    if (keys.length < 2) {
+    const manualName = keys.map((k) => manualOf.get(k)).find(Boolean);
+    // A group listed by hand shows with one document; the others need two.
+    if (keys.length < 2 && !manualName) {
       continue;
     }
-    const manualName = keys.map((k) => manualOf.get(k)).find(Boolean);
     const first = poolByKey.get(keys[0])!;
     const same = keys.every((k) => {
       const i = poolByKey.get(k)!;
@@ -160,7 +192,7 @@ function nameGroups(pool: GroupInput[], manualOf: Map<string, string>, generic: 
     });
     const meaningful = same && !generic.has(prefixOf(first.path));
     const name = manualName ?? (meaningful ? titleCase(prefixOf(first.path)) + " documents" : "Related documents");
-    keys.forEach((k) => groupOf.set(k, { id: root, name }));
+    keys.forEach((k) => groupOf.set(k, { id: root, name, ...(manualName ? { byUser: true as const } : {}) }));
   }
   return groupOf;
 }
@@ -170,7 +202,7 @@ export function buildGroups(items: GroupInput[], opt: GroupOptions = {}): GroupR
   const hubWords = opt.hubWords ?? 20000;
   const hubDocRefs = opt.hubDocRefs ?? 30;
   const ungrouped = (opt.ungrouped ?? []).map(globToRegExp);
-  const manual = (opt.manual ?? []).map((g) => ({ name: g.name, res: g.match.map(globToRegExp) }));
+  const manual = mergeManual(opt.manual ?? []).map((g) => ({ name: g.name, res: g.match.map(globToRegExp) }));
   const pool = items.filter((i) => !ungrouped.some((r) => r.test(i.project + "/" + i.path)));
   const u = makeUnion(pool.map((i) => i.key));
   const hubs = new Set(pool.filter((i) => i.words >= hubWords || i.docRefs >= hubDocRefs).map((i) => i.key));
@@ -180,7 +212,7 @@ export function buildGroups(items: GroupInput[], opt: GroupOptions = {}): GroupR
   const filesOf = new Map(pool.map((i) => [i.key, new Set(i.sourceFiles)]));
   const free = pool
     .filter((i) => !hubs.has(i.key) && !manualOf.has(i.key) && u.find(i.key) === i.key && !byPrefix.get(i.project + "\t" + prefixOf(i.path))?.slice(1).length)
-    .sort((a, b) => b.sourceFiles.length - a.sourceFiles.length || a.key.localeCompare(b.key));
+    .sort((a, b) => b.sourceFiles.length - a.sourceFiles.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   joinByFiles(free, filesOf, opt.maxFileGroup ?? 12, u);
   return { groupOf: nameGroups(pool, manualOf, generic, u), hubs };
 }

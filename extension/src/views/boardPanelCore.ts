@@ -23,7 +23,6 @@ import { readGroupBy, readProjectScope } from "../commands/boardExtraProjects";
 import { hintVisible, dismissHint } from "./boardProjectsHint";
 import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
-import type { BatchSnapshot } from "../commands/boardPatch";
 import { ruleCategories } from "../board/ruleAssign";
 import { ChatPoll } from "./boardChats";
 import { BoardPatches } from "./boardPatches";
@@ -53,9 +52,10 @@ export abstract class BoardPanelCore {
   // The page shows a board whose documents are still being read; a scan that dies now leaves it so.
   protected partial = false;
   protected lastKey = "";
-  // The last inline change to the rules file, kept ten seconds so Undo can put the file back.
-  // The timer is missing while a partial Undo keeps the bar: it stays until fully undone or dismissed.
-  protected undo: { label: string; snapshot: BatchSnapshot; timer?: ReturnType<typeof setTimeout> } | undefined;
+  // The last inline change to a file, kept ten seconds so Undo can put the file back. The timer is
+  // missing while a refused or partial Undo keeps the bar: it stays until undone or dismissed.
+  // remaining names the files a batch has not yet put back.
+  protected undo: { label: string; restore: () => Promise<boolean>; remaining?: () => string[]; timer?: ReturnType<typeof setTimeout> } | undefined;
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
   protected outside: Outside = emptyOutside();
   protected outsideToken = 0;

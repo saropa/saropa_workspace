@@ -41,8 +41,8 @@ export interface BoardItem {
   marks?: ItemMarks;
   // The first open steps with their lines, for the hand-off (absent when there are none).
   steps?: Array<{ line: number; text: string }>;
-  // Group heading this item sits under (two or more related documents), if any.
-  group?: { id: string; name: string };
+  // Group heading this item sits under (two or more related documents, or a group listed by hand), if any.
+  group?: { id: string; name: string; byUser?: true };
   // A very large or heavily cross-referencing document: it links to groups, never merges them.
   hub: boolean;
   // Needs lines: what this item waits on. "open" waits, "done" is satisfied, "flag" needs a look.
@@ -136,6 +136,8 @@ export interface SittingsView {
 export interface BoardModel {
   projects: BoardProject[];
   chains: ChainStep[][];
+  // Every Needs link as resolved, for the Waits on picker (it never reaches the page).
+  links: Link[];
   // Needs lines that point nowhere, at several documents, or at finished work.
   flags: string[];
   // Every item, flat, with its id: the host resolves a click by id and never trusts a path
