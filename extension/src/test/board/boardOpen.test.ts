@@ -9,9 +9,12 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { openBoard } from "../../views/boardPanel";
 import { BoardPatches } from "../../views/boardPatches";
-import { __errorMessages, __resetErrorMessages, __lastWebviewPanel, __resetWebviewPanels } from "../_stub/vscode";
+import { __fileWatchers, __errorMessages, __resetErrorMessages, __lastWebviewPanel, __resetWebviewPanels } from "../_stub/vscode";
 import { settle } from "../settle";
 import { contextIn, stub, tmpDir } from "./hostHelpers";
+import { runBoardScan } from "../../commands/releaseBoardCommands";
+import { setBoard } from "../../views/boardFeed";
+import type { BoardModel } from "../../board/boardModel";
 
 const P = "saropaWorkspace.releaseBoard.";
 
@@ -102,4 +105,60 @@ test("the answered-results memory tolerates stored data of the wrong shape", () 
     const memory = { get: () => stored, update: async () => undefined, keys: () => [] } as unknown as vscode.Memento;
     assert.doesNotThrow(() => new BoardPatches(() => undefined, () => undefined, () => undefined, () => memory));
   }
+});
+
+// Opens a tab whose webview rejects every paint after the first (the skeleton), via the real window stub.
+function withHtmlFailingAfterSkeleton(failFrom: number): () => void {
+  const real = vscode.window.createWebviewPanel;
+  (vscode.window as { createWebviewPanel: unknown }).createWebviewPanel = (...args: Parameters<typeof real>) => {
+    const panel = real(...args);
+    const webview = panel.webview;
+    let html = "";
+    let writes = 0;
+    Object.defineProperty(webview, "html", {
+      get: () => html,
+      set: (v: string) => {
+        if (++writes >= failFrom) {
+          throw new Error("paint failed");
+        }
+        html = v;
+      },
+    });
+    return panel;
+  };
+  return () => {
+    (vscode.window as { createWebviewPanel: unknown }).createWebviewPanel = real;
+  };
+}
+
+test("a fresh scan that cannot be drawn is kept, logged and shown as one error", async () => {
+  const context = contextIn(workspace());
+  const run = await runBoardScan(context, true, () => undefined);
+  assert.ok(run, "the scan produced a result");
+  setBoard({} as BoardModel, run);
+  const restore = withHtmlFailingAfterSkeleton(2);
+  try {
+    await openBoard(context, true);
+  } finally {
+    restore();
+    setBoard(undefined, undefined);
+  }
+  const panel = __lastWebviewPanel();
+  assert.ok(panel && !panel.disposed, "the tab stays open");
+  assert.equal(__errorMessages().filter((m) => m.includes("paint failed")).length, 1);
+});
+
+test("a failed construction after the watchers exist disposes them", async () => {
+  const before = __fileWatchers().length;
+  // The first write is the skeleton, the last step of the constructor: watchers already exist.
+  const restore = withHtmlFailingAfterSkeleton(1);
+  try {
+    await openBoard(contextIn(workspace()));
+  } finally {
+    restore();
+  }
+  const made = __fileWatchers().slice(before);
+  assert.ok(made.length >= 2, "the document watchers were created");
+  assert.ok(made.every((w) => w.disposed), "every watcher was disposed");
+  assert.equal(__errorMessages().length, 1);
 });

@@ -16,60 +16,68 @@ import { BoardPanelCore, LIVE_GAP_MS } from "./boardPanelCore";
 export abstract class BoardPanelWiring extends BoardPanelCore {
   constructor(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
     super(context, panel);
-    panel.onDidDispose(() => this.dispose(), null, this.disposables);
-    // While the tab is showing it owns the scan: the sidebar's refresh button asks it.
-    markPanelOpened();
-    setPanelVisible(panel.visible);
-    panel.onDidChangeViewState(() => {
+    // A throw after listeners and watchers exist must not leak them: the caller never gets an object to dispose.
+    try {
+      panel.onDidDispose(() => this.dispose(), null, this.disposables);
+      // While the tab is showing it owns the scan: the sidebar's refresh button asks it.
+      markPanelOpened();
       setPanelVisible(panel.visible);
-      if (panel.visible && this.run) {
-        // Shown again: repaint, so the strip reflects a dismiss made elsewhere (the sidebar).
-        this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
-      }
-    }, null, this.disposables);
-    onDidAskRefresh(() => this.poke(0), null, this.disposables);
-    // The change was taken as seen (or marked seen): draw the board again without the strip.
-    onDidChangeSinceLast(
-      () => {
-        if (this.run) {
-          this.lastKey = "";
+      panel.onDidChangeViewState(() => {
+        setPanelVisible(panel.visible);
+        if (panel.visible && this.run) {
+          // Shown again: repaint, so the strip reflects a dismiss made elsewhere (the sidebar).
           this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
         }
-      },
-      null,
-      this.disposables
-    );
-    onDidRecordHealth(() => this.poke(300), null, this.disposables);
-    // A mark changes only what is drawn, so the stored scan is shown again, not redone.
-    onDidChangeMarks(
-      () =>
-        void readMarks(this.context).then((m) => {
+      }, null, this.disposables);
+      onDidAskRefresh(() => this.poke(0), null, this.disposables);
+      // The change was taken as seen (or marked seen): draw the board again without the strip.
+      onDidChangeSinceLast(
+        () => {
           if (this.run) {
-            this.run.marks = m;
-            this.render();
-            // A repaint wipes the open list of proposed links; it is drawn again from the new board.
-            this.patches.reshowLinks();
+            this.lastKey = "";
+            this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
           }
-        }),
-      null,
-      this.disposables
-    );
-    this.listenForChanges();
-    this.watchDocuments();
-    this.disposables.push(this.patches.watch());
-    panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
-    // Problems changed while the tab was hidden: look again when it is shown.
-    panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
-    // Documents were edited while the tab was hidden: look again when it is shown.
-    panel.onDidChangeViewState(() => {
-      if (this.panel.visible && this.editedStale) {
-        this.editedStale = false;
-        void this.refreshEdited();
+        },
+        null,
+        this.disposables
+      );
+      onDidRecordHealth(() => this.poke(300), null, this.disposables);
+      // A mark changes only what is drawn, so the stored scan is shown again, not redone.
+      onDidChangeMarks(
+        () =>
+          void readMarks(this.context).then((m) => {
+            if (this.run) {
+              this.run.marks = m;
+              this.render();
+              // A repaint wipes the open list of proposed links; it is drawn again from the new board.
+              this.patches.reshowLinks();
+            }
+          }),
+        null,
+        this.disposables
+      );
+      this.listenForChanges();
+      this.watchDocuments();
+      this.disposables.push(this.patches.watch());
+      panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
+      // Problems changed while the tab was hidden: look again when it is shown.
+      panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
+      // Documents were edited while the tab was hidden: look again when it is shown.
+      panel.onDidChangeViewState(() => {
+        if (this.panel.visible && this.editedStale) {
+          this.editedStale = false;
+          void this.refreshEdited();
+        }
+      }, null, this.disposables);
+      panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
+      // Something is on screen at once: placeholders, then the last result, then the scan.
+      panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
+    } catch (e) {
+      for (const d of this.disposables) {
+        d.dispose();
       }
-    }, null, this.disposables);
-    panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
-    // Something is on screen at once: placeholders, then the last result, then the scan.
-    panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
+      throw e;
+    }
   }
 
   // Marks, providers, Problems, trains, folders and settings: each draws again or asks for a scan.

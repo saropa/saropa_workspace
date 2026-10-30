@@ -47,6 +47,8 @@ test("activate() runs and the Release Board command opens the board", async () =
   assert.equal(__lastWebviewPanel(), panel);
   // Every command that takes no argument runs without rejecting.
   for (const id of ["scan", "exportMarks", "openRules", "openSettings", "projects", "mark"]) {
-    await assert.doesNotReject(Promise.resolve(__registeredCommands().get(`saropaWorkspace.releaseBoard.${id}`)?.()), id);
+    const fn = __registeredCommands().get(`saropaWorkspace.releaseBoard.${id}`);
+    assert.ok(fn, `${id} is registered`);
+    await assert.doesNotReject(async () => fn(), id);
   }
 });

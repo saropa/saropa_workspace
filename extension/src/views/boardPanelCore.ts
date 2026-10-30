@@ -91,6 +91,7 @@ export abstract class BoardPanelCore {
   // An AI reply being reviewed, and the result file the watcher found; the page shows a pill for the file.
   protected readonly patches: BoardPatches;
   protected readonly disposables: vscode.Disposable[] = [];
+  private renderErrorShown = false;
 
   constructor(
     protected readonly context: vscode.ExtensionContext,
@@ -144,7 +145,7 @@ export abstract class BoardPanelCore {
     this.cached = false;
     this.dirty = false;
     this.lastScanAt = Date.now();
-    this.renderSafely();
+    this.renderSafely({}, true);
     void this.refreshOutside();
     void this.refreshLive();
     void this.refreshFuture();
@@ -162,12 +163,20 @@ export abstract class BoardPanelCore {
     }
   }
 
-  // A stored or seeded result that cannot be drawn must not stop the open: the fresh scan still runs.
-  private renderSafely(state: RenderState = {}): void {
+  // A result that cannot be drawn must not stop the open. A stored one is dropped so the fresh
+  // scan runs; a fresh one is kept (it is the only scan there is), and the owner sees one error.
+  private renderSafely(state: RenderState = {}, fresh = false): void {
     try {
       this.render(state);
     } catch (e) {
       logBoardError(e);
+      if (fresh) {
+        if (!this.renderErrorShown) {
+          this.renderErrorShown = true;
+          void vscode.window.showErrorMessage(l10n("releaseBoard.openFailed", { error: e instanceof Error ? e.message : String(e) }));
+        }
+        return;
+      }
       this.run = undefined;
       this.cached = false;
     }
