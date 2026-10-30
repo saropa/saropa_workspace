@@ -9,6 +9,8 @@ import { BoardStrings } from "../../board/boardHtmlUtil";
 import { list, pathList, projectBlock, verdict } from "../../board/boardHtmlRows";
 import { PathToGo, pathToGo } from "../../board/pathToGo";
 import { readFacts } from "../../board/docFacts";
+import { rowMenu } from "../../board/boardHtmlMenus";
+import { STYLE } from "../../board/boardHtmlAssets";
 import { ScanSnapshot } from "../../board/scanner";
 import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 
@@ -58,13 +60,17 @@ test("an UNVERIFIED project lists its reasons in the tooltip", () => {
   assert.ok(html.includes("[reasonBaseline] · reasonGrey 1 · [reasonHealth]"));
 });
 
-test("a project name is escaped, and only 14 squares are drawn", () => {
+test("a project name is escaped, and its open documents are counted in pills, red only for blockers", () => {
   const rows = Array.from({ length: 20 }, (_, i) => row("db", `bugs/${i}.md`, "red"));
   const m = buildBoard(cfg, rows, undefined, true);
   const html = verdict(m.projects.find((p) => p.id === "db")!, t, lights(m));
   assert.ok(html.includes("Db &#60;b&#62;"));
   assert.ok(!html.includes("<b>Db"));
-  assert.equal(html.match(/class="sq red"/g)?.length, 14);
+  assert.ok(html.includes('<span class="cp red" title="cpTip.red"><span class="pill" title="cpTip.red">20</span> cp.red</span>'));
+  assert.equal(html.includes('class="sq'), false, "no row of squares");
+  const amber = buildBoard(cfg, [row("db", "docs/a.md", "amber"), row("db", "docs/b.md", "purple")], undefined, true);
+  const calm = verdict(amber.projects.find((p) => p.id === "db")!, t, lights(amber));
+  assert.ok(calm.includes('class="cp amber"') && calm.includes('class="cp purple"') && !calm.includes('class="cp red"'));
 });
 
 test("the dependency mark waits while a project it depends on is NO-GO", () => {
@@ -132,20 +138,22 @@ test("related items sit under a group heading, indented", () => {
   assert.ok(html.indexOf("Owner documents") < html.indexOf("lone.md") || html.indexOf("lone.md") < html.indexOf("Owner documents"));
 });
 
-test("a row shows the Hand to chat button for a blocker only", () => {
+test("a row has no Hand to chat button: it is in the row menu", () => {
   const m = buildBoard(cfg, [row("app", "bugs/a.md", "red"), row("app", "docs/b.md", "amber")], undefined, true);
   const html = list("All", m.items, new Map(), t);
-  assert.equal(html.match(/class="hb sec"/g)?.length, 1);
-  assert.ok(html.includes('data-hk="item" data-i="0"'));
+  assert.equal(html.includes('class="hb'), false);
+  assert.ok(rowMenu(t).includes('data-act="hand"'));
 });
 
-test("marks: a ring and size bars from the facts, a pin, and a hub label", () => {
+test("facts pill: a ring with its fraction, no size bars or code letter, and the pin is a red status pill", () => {
   const snap = snapshotOf({ "docs/a.md": "# A\n\n- [x] one\n- [ ] two\n\n```sql\nselect 1\n```\n" });
   const m = buildBoard({ ...cfg, pinned: ["app/docs/a.md"] }, [row("app", "docs/a.md", "amber")], undefined, true, snap);
   const html = list("Work", m.items, new Map(), t);
   assert.ok(html.includes('class="ring part"'), "one of two steps done");
-  assert.ok(html.includes("<b class=\"code\" title=\"codeLang\">S</b>"), "the first code language letter");
-  assert.ok(html.includes('class="pin"'));
+  assert.ok(html.includes('<span class="fx">1/2</span>'));
+  assert.ok(!html.includes('class="bars"') && !html.includes('class="code" title="codeLang"'), "the code language is only in the tooltip");
+  assert.ok(html.includes('<span class="stat red"'), "a pinned document blocks the release, so its pill is red");
+  assert.equal(html.includes('class="pin"'), false);
 });
 
 test("a Needs link shows a link mark and the blocker count of the document it waits on", () => {
@@ -216,16 +224,24 @@ test("the project name is left out of a row when one project is in focus, and sh
   assert.equal(list("Work", m.items, names, t).match(/class="tag"/g)?.length, 2);
 });
 
-test("a row's icons are grouped; the most severe one is marked to stay on a narrow row and the group's tooltip lists all", () => {
+test("a row is a status pill, the title and one facts pill, with the severity as a word in the status pill", () => {
   const snap = snapshotOf({ "bugs/a.md": "# A\n\nSeverity: critical. Data loss and a security hole when the app starts.\n" });
   const m = buildBoard({ ...cfg, pinned: ["app/bugs/a.md"] }, [row("app", "bugs/a.md", "red")], undefined, true, snap);
   const html = list("Work", m.items, new Map(), t);
-  const group = /<span class="marks lm" title="([^"]*)">(.*?)<\/span><span class="k"/.exec(html);
-  assert.ok(group, "the icon group is drawn");
-  assert.ok(group[1].startsWith("marksMore"));
-  assert.equal(group[2].match(/<span class="mk top">/g)?.length, 1, "exactly one icon stays");
-  assert.ok(/<span class="mk top"><i class="sev /.test(group[2]), "the severity triangle outranks the pin");
-  assert.ok((group[2].match(/<span class="mk"/g)?.length ?? 0) >= 1, "the others are hidden by the narrow rule");
+  assert.ok(/<span class="stat red" title="stTip\.red[^"]*">.*?st\.red \u00B7 sev\.critical<\/span>/.test(html), "shape, word and severity word in one pill");
+  assert.equal(html.includes('class="sev'), false, "no separate severity triangle");
+  assert.ok(html.indexOf('class="stat red"') < html.indexOf('class="doc"'), "the pill comes before the title");
+  const card = /<span class="stat red" title="([^"]*)"/.exec(html)![1];
+  assert.ok(card.includes("severityStops") && card.includes("whyRed"), "the hover card says why it blocks");
+});
+
+test("a pill that blocks is red; an amber document with a stopping severity is red too, a lowered one stays amber", () => {
+  const snap = snapshotOf({ "docs/a.md": "# A\n\nSeverity: critical. Data loss and a security hole.\n", "docs/b.md": "# B\n" });
+  const m = buildBoard(cfg, [row("app", "docs/a.md", "amber"), row("app", "docs/b.md", "amber")], undefined, true, snap);
+  assert.ok(m.items[0].stopping && !m.items[1].stopping);
+  const html = list("Work", m.items, new Map(), t);
+  assert.equal(html.match(/class="stat red"/g)?.length, 1);
+  assert.equal(html.match(/class="stat amber"/g)?.length, 1);
 });
 
 test("the progress group keeps only its ring on a narrow row", () => {
@@ -233,15 +249,14 @@ test("the progress group keeps only its ring on a narrow row", () => {
   const m = buildBoard(cfg, [row("app", "docs/a.md", "amber")], undefined, true, snap);
   const html = list("Work", m.items, new Map(), t);
   assert.ok(html.includes('<span class="mk top"><i class="ring part"'));
-  assert.ok(html.includes('<span class="mk"><i class="bars"'));
+  assert.ok(STYLE.includes(".facts .mk:not(.top)"), "the narrow rule hides the other marks");
 });
 
-test("a document that stops the release (the pin or the stopping severity) is the icon that stays on a narrow row or another stopper, even beside a hot flame and a waiting link", () => {
+test("a flame is amber, never red, and a waiting link is amber beside it", () => {
   const snap = snapshotOf({ "docs/a.md": "# A\nNeeds: docs/b.md\n", "docs/b.md": "# B\n" });
   const m = buildBoard({ ...cfg, pinned: ["app/docs/a.md"] }, [row("app", "docs/a.md", "amber"), row("app", "docs/b.md", "amber")], undefined, true, snap);
   m.items[0].live = { errors: 1, warnings: 0, crashes: 0, hot: true, files: [{ file: "lib/a.dart", problems: { errors: 1, warnings: 0 } }], more: 0 };
   const html = list("Work", [m.items[0]], new Map(), t);
-  const top = /<span class="marks lm"[^>]*>[\s\S]*?<span class="mk top">(.*?)<\/span>/.exec(html);
-  assert.ok(top && /^<i class="(pin|sev [^"]* stop)"/.test(top[1]), `a stopper stays, not the flame or the link: ${top?.[1]}`);
-  assert.ok(html.includes('class="flame hot"') && html.includes('class="link open"'), "the lesser marks are still drawn");
+  assert.ok(html.includes('class="flame"') && html.includes('class="link open"'), "both marks are drawn");
+  assert.equal(html.includes("flame hot"), false);
 });
