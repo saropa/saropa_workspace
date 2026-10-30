@@ -121,6 +121,8 @@ export interface BoardConfig {
   groups?: Array<{ name: string; match: string[] }>;
   // Globs of "project/path" that are never grouped.
   ungrouped?: string[];
+  // Rows put in a set order inside their group, by project: the paths, first to last.
+  order?: Record<string, string[]>;
   // Tags, link words and naming a team changes (the Tags and rules editor writes it; see org/settings.ts).
   organize?: unknown;
   // Parts of the severity dictionary a team replaces (phrases, weights, negation ...).

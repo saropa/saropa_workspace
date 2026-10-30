@@ -4,7 +4,8 @@ import { BoardStrings, escapeHtml, pillify, pl, tip } from "./boardHtmlUtil";
 import { blocksNow, kebab } from "./boardHtmlMenus";
 import { SHOWN_ROWS, groupLabel, groupStripe, groupTip, itemCounts, row } from "./boardHtmlRows";
 import { Layout, openGroups } from "./org/layout";
-import { groupZone } from "./boardHtmlDrag";
+import { gapZone, groupZone } from "./boardHtmlDrag";
+import { applyOrder } from "./boardOrder";
 import type { GroupBy } from "./types";
 
 // The board laid out as cards of groups, of statuses or of severities (the Group by menu).
@@ -62,6 +63,16 @@ export function cardsFor(model: BoardModel, by: GroupBy, t: BoardStrings): Card[
   }
   const all = [...cards.values()];
   if (by === "group") {
+    // Rows with a set place come first inside a group of one project (ranks of different projects do not compare); the documents in no group keep the automatic order.
+    // The same holds for each card's own rows and for its sub-groups, so a gap index is a place in the group's whole row list.
+    const sorted = (list: BoardItem[]): BoardItem[] => (new Set(list.map((i) => i.project)).size > 1 ? list : applyOrder(list, model.order));
+    for (const c of all) {
+      if (c.id !== "") {
+        c.items = sorted(c.items);
+        c.direct = sorted(c.direct);
+        (subs.get(c.id) ?? new Map<string, Card>()).forEach((s) => ((s.items = sorted(s.items)), (s.direct = s.items)));
+      }
+    }
     // Groups with a blocker first, then by name; the documents in no group last.
     const rank = (c: Card): number => (c.id === "" ? 2 : c.items.some(blocksNow) ? 0 : 1);
     const order = (a: Card, b: Card): number => rank(a) - rank(b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
@@ -101,7 +112,17 @@ function limitOf(model: BoardModel, by: GroupBy): number {
   return by === "group" ? (scopeLayout(model)?.rowLimit ?? Infinity) : SHOWN_ROWS;
 }
 
-const rowsOf = (c: Card, from: number, to: number, names: Map<string, string>, t: BoardStrings): string => c.direct.slice(from, to).map((i) => row(i, names.get(i.project) ?? i.project, t, false)).join("");
+// A group listed by hand (its stored name is the rules file's) with rows of one project keeps its rows in a set order.
+const keepsOrder = (c: Card, by: GroupBy): boolean => by === "group" && c.group?.byUser === true && c.group.stored !== undefined && c.direct.length > 1 && new Set(c.direct.map((i) => i.project)).size === 1;
+
+// The rows from..to of a card's own rows. In a group that keeps its order a gap sits before each row; its place is the
+// row's index in the group's whole row list (rows not in the page count), and the last gap closes the list. Gaps and rows
+// are plain markup under delegated page handlers, so rows sent on demand carry them without being wired again.
+const rowsOf = (c: Card, from: number, to: number, names: Map<string, string>, t: BoardStrings, by: GroupBy = "group"): string => {
+  const gaps = keepsOrder(c, by);
+  const html = c.direct.slice(from, to).map((i, k) => (gaps ? gapZone(t, c.id, c.name, from + k) : "") + row(i, names.get(i.project) ?? i.project, t, false)).join("");
+  return gaps && to >= c.direct.length ? html + gapZone(t, c.id, c.name, c.direct.length) : html;
+};
 
 // The empty place a closed card's rows are sent to when it is opened.
 const lazyBox = (c: Card, by: GroupBy): string => `<div data-lid="${escapeHtml(c.id)}" data-kind="lazy" data-by="${by}"></div>`;
@@ -113,7 +134,7 @@ function cardBody(c: Card, by: GroupBy, names: Map<string, string>, t: BoardStri
   const rest = c.direct.length - shown;
   const more = rest > 0 ? `<button type="button" class="sec" data-rowsmore data-lid="${escapeHtml(c.id)}" data-by="${by}" data-from="${shown}" aria-expanded="false" ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><div data-lid="${escapeHtml(c.id)}" data-by="${by}" data-kind="more"></div>` : "";
   const nested = (c.subs ?? []).map((s) => card(s, by, names, t, false, false, limit, true)).join("");
-  return rowsOf(c, 0, shown, names, t) + more + nested;
+  return rowsOf(c, 0, shown, names, t, by) + more + nested;
 }
 
 function card(c: Card, by: GroupBy, names: Map<string, string>, t: BoardStrings, multi: boolean, open: boolean, limit: number, sub = false): string {
@@ -153,5 +174,5 @@ export function cardRows(model: BoardModel, by: GroupBy, id: string, from: numbe
   if (from === 0) {
     return { html: cardBody(c, by, names, t, limitOf(model, by)), count: c.direct.length };
   }
-  return from < c.direct.length ? { html: rowsOf(c, from, c.direct.length, names, t), count: c.direct.length - from } : undefined;
+  return from < c.direct.length ? { html: rowsOf(c, from, c.direct.length, names, t, by), count: c.direct.length - from } : undefined;
 }

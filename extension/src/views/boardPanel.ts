@@ -480,9 +480,15 @@ class BoardPanel extends BoardPanelWiring {
     if (!run || !this.model) {
       return;
     }
-    const plan = planDrop(message, this.model, { rows: run.result.rows, projects: run.cfg.projects, categories: ruleCategories(run.cfg) });
+    const plan = planDrop(message, this.model, { rows: run.result.rows, projects: run.cfg.projects, categories: ruleCategories(run.cfg), groups: run.cfg.groups });
     if (!plan.ok) {
-      void vscode.window.showInformationMessage(l10n(plan.key, plan.vars));
+      // A row dropped where it already is gets no notice.
+      if (plan.key === "releaseBoard.reorder.firstSay" || plan.key === "releaseBoard.reorder.lastSay") {
+        // Alt+Up on the first row, Alt+Down on the last: said aloud by the page, no notice.
+        this.post({ type: "say", text: l10n(plan.key, plan.vars) });
+      } else if (plan.key !== "") {
+        void vscode.window.showInformationMessage(l10n(plan.key, plan.vars));
+      }
       return;
     }
     const busy = this.busyReason();
@@ -500,7 +506,9 @@ class BoardPanel extends BoardPanelWiring {
         this.assigning = false;
       }
     } else {
-      await this.inlineChange(run, plan.item, plan.kind === "status" ? { kind: "status", category: plan.category } : { kind: "group", name: plan.name }, plan.item.id);
+      const keyboard = message.zone === "move" && plan.kind === "order";
+      const ctl = typeof message.ctl === "number" && Number.isInteger(message.ctl) && message.ctl >= 0 && message.ctl < 50 ? message.ctl : 0;
+      await this.inlineChange(run, plan.item, plan.kind === "status" ? { kind: "status", category: plan.category } : plan.kind === "order" ? { kind: "order", paths: plan.paths } : { kind: "group", name: plan.name }, plan.item.id, keyboard ? ctl : undefined);
     }
   }
 
@@ -522,7 +530,7 @@ class BoardPanel extends BoardPanelWiring {
 
   // Saves one status or severity change at once and offers Undo for ten seconds. The page shows the
   // row as pending until the scan after the write paints it again.
-  private async inlineChange(run: BoardRun, item: BoardItem, change: DocChange, id: number): Promise<void> {
+  private async inlineChange(run: BoardRun, item: BoardItem, change: DocChange, id: number, focusCtl?: number): Promise<void> {
     const busy = this.busyReason();
     if (busy) {
       void vscode.window.showInformationMessage(l10n(busy));
@@ -540,9 +548,15 @@ class BoardPanel extends BoardPanelWiring {
               ? l10n("releaseBoard.undo.severity", { title: item.title, level: change.level })
               : change.kind === "group"
                 ? l10n(change.name === undefined ? "releaseBoard.undo.groupRemove" : "releaseBoard.undo.group", { title: item.title, name: change.name ?? "" })
-                : l10n("releaseBoard.undo.auto", { title: item.title });
+                : change.kind === "order"
+                  ? l10n("releaseBoard.undo.order", { title: item.title })
+                  : l10n("releaseBoard.undo.auto", { title: item.title });
         this.offerUndo(label, () => undoRulesWrite(snapshot));
         this.dirty = true;
+        // A keyboard move that is saved: the repaint focuses the row again and announces it (a refused one never does).
+        if (focusCtl !== undefined) {
+          this.moved = { project: item.project, path: item.path, ctl: focusCtl, say: l10n("releaseBoard.reorder.moved", { title: item.title }) };
+        }
         await this.refresh();
       } else {
         // Refused or not written: changeDoc already said why.
