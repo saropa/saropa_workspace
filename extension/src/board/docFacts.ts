@@ -108,7 +108,7 @@ function sqlTitle(text: string): string {
 // three targets. A target is a path, a file name, a Markdown link, or "project:path".
 export function parseNeeds(body: string): string[] {
   const out: string[] = [];
-  for (const m of body.matchAll(/^[\s>*_-]*\**needs\**\s*:\s*\**\s*(.+)$/gim)) {
+  for (const m of body.matchAll(/^[ \t>*_-]*needs\**[ \t]*:[ \t]*\**[ \t]*(.+)$/gim)) {
     for (const t of needsTargets(m[1])) {
       if (!out.includes(t)) {
         out.push(t);

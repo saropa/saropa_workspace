@@ -455,6 +455,7 @@ export const POLISH_KEYS = [
   "effLightNoGo",
   "undo",
   "undoTip",
+  "undoDismiss",
   "menuAuto",
   "menuAutoTip",
   "byYou",
@@ -507,7 +508,7 @@ function projectStrings() {
 }
 
 // Every key of the AI hand-off label table, in en.json as "releaseBoard.handoff.label.<key>".
-export const HANDOFF_LABEL_KEYS = ["title", "close", "closeTip", "menuItem", "menuItemTip", "menuBoard", "menuBoardTip", "scopeMenu", "chosen", "chosenTip", "chosenGo", "chosenGoTip", "chosenClear", "chosenClearTip", "choose", "chooseTip", "scopeItem", "scopeChosen", "scopeGroup", "scopeProject", "scopeBoard", "itemsCount", "task", "taskFix", "taskFixTip", "taskPlan", "taskPlanTip", "taskReview", "taskReviewTip", "taskTriage", "taskTriageTip", "format", "fmtMd", "fmtMdTip", "fmtJson", "fmtJsonTip", "tokenTip", "preview", "copy", "copyTip", "copyFull", "copyFullTip", "save", "saveTip", "terminal", "terminalTip"] as const;
+export const HANDOFF_LABEL_KEYS = ["title", "close", "closeTip", "menuItem", "menuItemTip", "menuBoard", "menuBoardTip", "scopeMenu", "chosen", "chosenTip", "chosenGo", "chosenGoTip", "chosenClear", "chosenClearTip", "choose", "chooseTip", "scopeItem", "scopeChosen", "scopeGroup", "scopeProject", "scopeBoard", "itemsCount", "task", "taskFix", "taskFixTip", "taskPlan", "taskPlanTip", "taskReview", "taskReviewTip", "taskTriage", "taskTriageTip", "format", "fmtMd", "fmtMdTip", "fmtJson", "fmtJsonTip", "tokenTip", "preview", "copy", "copyTip", "copyFull", "copyFullTip", "save", "saveTip", "terminal", "terminalTip", "tabHand", "tabHandTip", "tabBack", "tabBackTip", "taskOrganize", "taskOrganizeTip", "backText", "backTextTip", "backRead", "backReadTip", "backHelp", "backList", "backPick", "backApply", "backApplyTip", "backReject", "backRejectTip", "backStale", "backStaleTip", "backRefused", "backApplied", "backAppliedTip", "ready", "readyTip", "menuOrganize", "menuOrganizeTip", "menuBack", "menuBackTip"] as const;
 
 // Labels of the AI hand-off: menu items, the selection line and the drawer. Placeholders stay in the text for the page to fill.
 function handoffStrings() {

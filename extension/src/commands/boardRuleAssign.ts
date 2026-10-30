@@ -1,3 +1,4 @@
+import { promises as fsp } from "node:fs";
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
@@ -45,6 +46,29 @@ export async function isLink(uri: vscode.Uri): Promise<boolean> {
 // True when the rules file is open in an editor with unsaved edits: the write would drop them.
 export function hasUnsavedCopy(uri: vscode.Uri): boolean {
   return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
+}
+
+// True when a document open in an editor has unsaved edits and is this file, by its real path or by
+// the path the workspace uses (`shown`), compared without regard to letter case so a case-insensitive
+// disk cannot hide an open copy. A false positive only leaves the file alone.
+export async function hasUnsavedEdits(real: string, shown: vscode.Uri | undefined): Promise<boolean> {
+  const names = [real, shown?.fsPath].filter((x): x is string => x !== undefined).map((x) => x.toLowerCase());
+  for (const d of vscode.workspace.textDocuments) {
+    if (!d.isDirty || d.uri.scheme !== "file") {
+      continue;
+    }
+    if (names.includes(d.uri.fsPath.toLowerCase())) {
+      return true;
+    }
+    try {
+      if (names.includes((await fsp.realpath(d.uri.fsPath)).toLowerCase())) {
+        return true;
+      }
+    } catch {
+      // A document with no file on disk is not this one.
+    }
+  }
+  return false;
 }
 
 // Tells the user why the file was left alone.
@@ -200,6 +224,12 @@ async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Pro
     await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
     void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    // A write that failed late may still have landed; keep it undoable when it did.
+    const now = await readRules(uri).catch((): RulesRead => ({ kind: "none" }));
+    if (now.kind === "text" && now.text === result.text) {
+      c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}) });
+      return true;
+    }
     return false;
   }
   if (c.done) {
@@ -218,8 +248,8 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
     return false;
   }
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri)) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
+  if (hasUnsavedCopy(uri) || (await hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri))) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
     return false;
   }
   if (await linkedRules(root, uri)) {
@@ -227,6 +257,10 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
     return false;
   }
   const now = await readRules(uri);
+  // Already back as it was (an earlier Undo that stopped partway): nothing left to do.
+  if (s.before !== undefined && now.kind === "text" && now.text === s.before) {
+    return true;
+  }
   if (now.kind !== "text" || now.text !== s.after) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.undo.changed", { file: RULES_FILE }));
     return false;
@@ -248,6 +282,33 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+// Changes the rules file text once for several documents at once, with every check of a single
+// change: `make` turns the current text into the new one. Returns what the file held before
+// (for Undo), or undefined when nothing was written.
+export async function changeRules(run: BoardRun, projects: string[], make: (before: string | undefined) => { ok: true; text: string } | { ok: false; reason: AssignRefusal }): Promise<RulesSnapshot | undefined> {
+  let root: vscode.WorkspaceFolder | undefined;
+  for (const id of projects) {
+    root = rulesRoot(run, id);
+    if (!root) {
+      return undefined;
+    }
+  }
+  if (!root) {
+    return undefined;
+  }
+  let snapshot: RulesSnapshot | undefined;
+  await applyTextChange(root, {
+    folder: "",
+    make: (before) => {
+      const r = make(before);
+      return r.ok ? { ok: true, text: r.text, vars: {} } : r;
+    },
+    saved: (s) => (snapshot = s),
+    refusal: refuse,
+  });
+  return snapshot;
 }
 
 // Gives every document of a folder a category by adding a rule for the folder.

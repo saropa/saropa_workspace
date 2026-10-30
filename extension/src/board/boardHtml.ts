@@ -15,7 +15,7 @@ import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skipped
 import { RowStatus, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
-import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer } from "./boardHtmlHandoff";
+import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer, readyPill } from "./boardHtmlHandoff";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
 import { chains, chainsName, moreStrip, noRuleBox, sinceMarks, outsideBox, sinceBox, sittingsBox, tidyBox, trainBox, unnamedBox } from "./boardHtmlBoxes";
 
@@ -59,6 +59,8 @@ export interface RenderState {
   statuses?: RowStatus[];
   // What the last saved change did, for the Undo bar; undefined shows no bar.
   undo?: string;
+  // How many changes of an AI result wait for review; the board shows a pill to open them. Undefined or 0 shows none.
+  patchReady?: number;
   // Chat activity from Chat Explorer: the projects with a chat working in them now, and whether the
   // 30-second look is paused. Undefined while the integration is off or unavailable.
   chat?: { active: readonly string[]; paused: boolean };
@@ -151,7 +153,7 @@ ${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), s
 ${filterLine(model, t)}${hintBar(state.hint, t)}
 ${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 ${statusBands(t, state.statuses)}${ganttPanel(model, t, since)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${keywordLine(model, t)}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${readyPill(t, state.patchReady)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
 ${rollupBar(model, t)}
 ${projects}

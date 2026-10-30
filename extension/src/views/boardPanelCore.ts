@@ -25,6 +25,7 @@ import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tid
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
 import { ruleCategories } from "../board/ruleAssign";
 import { ChatPoll } from "./boardChats";
+import { BoardPatches } from "./boardPatches";
 
 // Least time between two looks at the Problems panel.
 export const LIVE_GAP_MS = 4000;
@@ -51,8 +52,10 @@ export abstract class BoardPanelCore {
   // The page shows a board whose documents are still being read; a scan that dies now leaves it so.
   protected partial = false;
   protected lastKey = "";
-  // The last inline change to a file, kept ten seconds so Undo can put the file back.
-  protected undo: { label: string; restore: () => Promise<boolean>; timer: ReturnType<typeof setTimeout> } | undefined;
+  // The last inline change to a file, kept ten seconds so Undo can put the file back. The timer is
+  // missing while a refused or partial Undo keeps the bar: it stays until undone or dismissed.
+  // remaining names the files a batch has not yet put back.
+  protected undo: { label: string; restore: () => Promise<boolean>; remaining?: () => string[]; timer?: ReturnType<typeof setTimeout> } | undefined;
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
   protected outside: Outside = emptyOutside();
   protected outsideToken = 0;
@@ -84,6 +87,13 @@ export abstract class BoardPanelCore {
     () => this.run?.cfg.projects.map((p) => ({ id: p.id, folder: vscode.Uri.parse(p.path).fsPath })) ?? [],
     () => this.panel.visible,
     () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true))
+  );
+  // An AI reply being reviewed, and the result file the watcher found; the page shows a pill for the file.
+  protected readonly patches = new BoardPatches(
+    () => (this.run && this.model ? { model: this.model, run: this.run } : undefined),
+    (m) => void this.panel.webview.postMessage(m),
+    () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true)),
+    () => this.context.workspaceState
   );
   protected readonly disposables: vscode.Disposable[] = [];
 
@@ -315,7 +325,7 @@ export abstract class BoardPanelCore {
     if (!this.run || this.disposed) {
       return;
     }
-    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), statuses: ruleCategories(this.run.cfg).map((c) => ({ label: c.label, status: c.status, kind: c.kind })), ...(this.undo ? { undo: this.undo.label } : {}), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}), ...this.chats.view() };
+    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), statuses: ruleCategories(this.run.cfg).map((c) => ({ label: c.label, status: c.status, kind: c.kind })), ...(this.undo ? { undo: this.undo.label } : {}), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}), ...this.chats.view(), ...this.patches.view() };
     const { cfg, marks } = this.run;
     // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
     this.model = buildBoard(
@@ -329,6 +339,7 @@ export abstract class BoardPanelCore {
       { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited) }
     );
     const model = this.model;
+    this.patches.scan();
     const settings = pathSettings();
     this.paths = settings
       ? model.projects.map((p) =>
