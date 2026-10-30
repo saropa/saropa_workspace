@@ -1,11 +1,14 @@
-import type { BoardModel } from "./boardModelParts";
+import type { BoardItem, BoardModel } from "./boardModelParts";
+import { dragAttrs } from "./boardHtmlDrag";
+import { kebab, rowData } from "./boardHtmlMenus";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, docLink, escapeHtml, pill, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { GanttGroup, GanttRow, buildGantt } from "./ganttModel";
 
 // The Gantt tab of the board page: one list of items grouped by project, each with a bar on a
 // work-order axis (never days), a light closing each group, finished items dimmed as history,
-// and dependency arrows drawn only for the row that is hovered or selected. Read-only.
+// and dependency arrows drawn only for the row that is hovered or selected. An open row can be
+// dragged (see boardHtmlDrag.ts) and has the row menu.
 
 export const GANTT_STYLE = `
 .gtop{display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}
@@ -58,7 +61,7 @@ function minutesLabel(m: number): string {
 
 const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "✓" };
 
-function row(r: GanttRow, key: string, t: BoardStrings): string {
+function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): string {
   const word = pl(t, r.status === "green" ? "ganttDoneWord" : "st." + r.status);
   const rowTip = [
     r.status === "green" ? pl(t, "ganttDone", { title: r.title }) : pl(t, "stTip." + r.status, { title: r.title }),
@@ -68,12 +71,15 @@ function row(r: GanttRow, key: string, t: BoardStrings): string {
   const barTip = r.minutes > 0 ? pl(t, "ganttBar", { title: r.title, minutes: minutesLabel(r.minutes) }) : pl(t, "ganttBarNone", { title: r.title });
   const name = r.id === undefined ? `<span ${titleAttr(r.path)}>${escapeHtml(r.title)}</span>` : docLink(r.title, r.path, `data-id="${r.id}" tabindex="-1"`);
   const cls = `gr${r.status === "green" ? " done" : ""}${r.changed ? " chg" : ""}`;
-  return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}" ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span></div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
+  // An open row can be dragged, takes a dropped row on its Waits on slot and has the row menu.
+  const slotSay = escapeHtml(pl(t, "dropWaits", { title: r.title }));
+  const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${kebab(t, "row", item.id, item.title, rowData(item))}`;
+  return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
 }
 
-function group(g: GanttGroup, n: number, t: BoardStrings): string {
+function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel): string {
   const light = g.light === "no-go" ? t.noGo : g.light === "go" ? t.go : t.unverified;
-  const rows = g.rows.map((r, i) => row(r, r.id === undefined ? `f${n}-${i}` : String(r.id), t)).join("");
+  const rows = g.rows.map((r, i) => row(r, r.id === undefined ? `f${n}-${i}` : String(r.id), t, r.id === undefined ? undefined : model.items[r.id])).join("");
   const count = pill(t, g.open, "ganttOpen", { count: g.open });
   return `<section class="gg" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}><button type="button" class="gtog" aria-expanded="true" aria-controls="gr${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}>${escapeHtml(g.name)} ${count}</button></h2><ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul><div class="gsum">${count}</div><div class="gf"><span class="go gtl ${g.light}" ${tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light))}>${escapeHtml(light)}</span></div></section>`;
 }
@@ -94,6 +100,6 @@ export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView
   const groups = buildGantt(model, since);
   const body = groups.length === 0
     ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
-    : `<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t)).join("")}</div>`;
+    : `<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model)).join("")}</div>`;
   return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button></div>${keyPanel(t)}${body}</section>`;
 }

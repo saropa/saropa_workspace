@@ -15,7 +15,8 @@ import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, r
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import { pickGroup } from "../commands/boardGroupPick";
 import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
-import { NeedsDirection, pickNeeds } from "./boardNeedsPick";
+import { NeedsDirection, NeedsPick, pickNeeds } from "./boardNeedsPick";
+import { planDrop } from "../board/boardDrop";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
@@ -63,6 +64,8 @@ class BoardPanel extends BoardPanelWiring {
     if (msg.rev !== this.rev) {
       if (msg.type === "handoff" || msg.type === "handoffAct") {
         void vscode.window.showInformationMessage(l10n("releaseBoard.handoff.stale"));
+      } else if (msg.type === "drop") {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.drop.stale"));
       }
       return;
     }
@@ -128,6 +131,8 @@ class BoardPanel extends BoardPanelWiring {
       await writeProjectScope(message.value);
     } else if (message.type === "chatPoll") {
       this.chats.toggle();
+    } else if (message.type === "drop") {
+      await this.drop(message);
     } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
       await this.rowMenu(message.act, message.id);
     } else if (message.type === "optsMenu" && typeof message.act === "string") {
@@ -399,16 +404,55 @@ class BoardPanel extends BoardPanelWiring {
     this.assigning = true;
     try {
       const pick = await pickNeeds(run, this.model, item, dir);
-      const snapshot = pick && (await changeNeeds(run, pick.doc, pick.change));
-      if (pick && snapshot) {
-        this.offerUndo(pick.label, () => undoDocWrite(snapshot));
-        this.dirty = true;
-        await this.refresh();
+      if (pick) {
+        await this.writeNeeds(run, pick);
       }
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.assigning = false;
+    }
+  }
+
+  // Writes one Needs change at once and offers Undo; the board is painted again after the write.
+  private async writeNeeds(run: BoardRun, pick: NeedsPick): Promise<void> {
+    const snapshot = await changeNeeds(run, pick.doc, pick.change);
+    if (snapshot) {
+      this.offerUndo(pick.label, () => undoDocWrite(snapshot));
+      this.dirty = true;
+      await this.refresh();
+    }
+  }
+
+  // A row dropped on a status band, a group or another row's Waits on slot: saved at once with Undo,
+  // through the same writes as the row menu and with no preview. The page named rows, groups and
+  // bands by id only; planDrop resolves them against the model this panel painted.
+  private async drop(message: Record<string, unknown>): Promise<void> {
+    const run = this.run;
+    if (!run || !this.model) {
+      return;
+    }
+    const plan = planDrop(message, this.model, { rows: run.result.rows, projects: run.cfg.projects, categories: ruleCategories(run.cfg) });
+    if (!plan.ok) {
+      void vscode.window.showInformationMessage(l10n(plan.key, plan.vars));
+      return;
+    }
+    const busy = this.busyReason();
+    if (busy) {
+      void vscode.window.showInformationMessage(l10n(busy));
+      return;
+    }
+    if (plan.kind === "waits") {
+      this.assigning = true;
+      try {
+        await this.writeNeeds(run, { doc: { project: plan.from.project, path: plan.from.path }, change: { kind: "add", target: plan.target, to: { project: plan.onto.project, path: plan.onto.path } }, label: l10n("releaseBoard.needs.undoAdd", { title: plan.from.title, name: plan.onto.title }) });
+      } catch (e) {
+        void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      } finally {
+        this.assigning = false;
+      }
+    } else {
+      await this.inlineChange(run, plan.item, plan.kind === "status" ? { kind: "status", category: plan.category } : { kind: "group", name: plan.name }, plan.item.id);
     }
   }
 

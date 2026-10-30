@@ -8,6 +8,7 @@ import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { CARD_GROUP_BYS, groupCards } from "./boardHtmlGroups";
 import type { GroupBy } from "./types";
 import { FutureView, futurePanel, viewTabs } from "./boardHtmlFuture";
+import { DRAG_SCRIPT, DRAG_STYLE, statusBands } from "./boardHtmlDrag";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, hintBar, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
@@ -143,13 +144,13 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
     { id: "live", label: t.liveUnnamedHeading, html: live ? unnamedBox(model, t, true) : "", count: model.liveUnnamed?.length ?? 0, warn: true },
   ], t);
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${GANTT_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${GANTT_STYLE}${DRAG_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(t.refreshing)}"></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
 ${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused)}
 ${filterLine(model, t)}${hintBar(state.hint, t)}
 ${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
-${ganttPanel(model, t, since)}
+${statusBands(t, state.statuses)}${ganttPanel(model, t, since)}
 <div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
 ${rollupBar(model, t)}
@@ -167,5 +168,6 @@ ${PROJECTS_SCRIPT}
 ${CHATS_SCRIPT}
 ${KEYWORD_LINE_SCRIPT}
 ${HANDOFF_SCRIPT}
-${GANTT_SCRIPT}</script></body></html>`;
+${GANTT_SCRIPT}
+${DRAG_SCRIPT}</script></body></html>`;
 }

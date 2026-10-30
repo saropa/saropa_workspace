@@ -3,6 +3,7 @@ import { SEVERITY_LEVELS } from "./ruleAssign";
 import { BoardStrings, escapeHtml, pillify, pl, tip } from "./boardHtmlUtil";
 import { blocksNow, kebab } from "./boardHtmlMenus";
 import { SHOWN_ROWS, itemCounts, row } from "./boardHtmlRows";
+import { groupZone } from "./boardHtmlDrag";
 import type { GroupBy } from "./types";
 
 // The board laid out as cards of groups, of statuses or of severities (the Group by menu).
@@ -56,6 +57,8 @@ function card(c: Card, by: GroupBy, names: Map<string, string>, t: BoardStrings,
   const tag = c.byUser === undefined ? "" : `<span class="tag" ${tip(t, c.byUser ? "groupByYouTip" : "groupAutoTip")}>${escapeHtml(pl(t, c.byUser ? "groupByYou" : "groupAuto"))}</span>`;
   const menu = c.handoff === undefined ? "" : kebab(t, "scope", `group:${c.handoff}`, c.name);
   const head = tip(t, "groupCard", { name: c.name, count: c.items.length });
+  // A group listed by hand, or the documents in no group, takes a dropped row.
+  const zone = by === "group" && (c.byUser === true || c.id === "") ? groupZone(t, c.id, c.name) : "";
   const parts = c.items.map((i) => row(i, names.get(i.project) ?? i.project, t, false));
   // Rows past the first few wait behind a button; the page script reveals them.
   const rest = parts.length - SHOWN_ROWS;
@@ -64,7 +67,7 @@ function card(c: Card, by: GroupBy, names: Map<string, string>, t: BoardStrings,
   const projects = multi ? [...new Set(c.items.map((i) => names.get(i.project) ?? i.project))].sort() : [];
   const where = projects.length > 0 ? `<span class="tag">${escapeHtml(projects.join(", "))}</span>` : "";
   // The fold is remembered per card and per blocker state, so a new blocker opens the card again.
-  return `<details class="box pcard" data-sec="${escapeHtml(`card:${by}:${c.id}:${open ? 1 : 0}`)}"${open ? " open" : ""}><summary class="sh" ${head}><b class="pn" ${head}><i class="sq ${worst}" aria-hidden="true"></i> ${escapeHtml(c.name)}</b>${where}${tag}${itemCounts(c.items, c.name, t)}${menu}</summary>${rows}</details>`;
+  return `<details class="box pcard" data-sec="${escapeHtml(`card:${by}:${c.id}:${open ? 1 : 0}`)}"${open ? " open" : ""}><summary class="sh" ${head}${zone}><b class="pn" ${head}><i class="sq ${worst}" aria-hidden="true"></i> ${escapeHtml(c.name)}</b>${where}${tag}${itemCounts(c.items, c.name, t)}${menu}</summary>${rows}</details>`;
 }
 
 // The cards of a layout, or nothing when no document is open.
