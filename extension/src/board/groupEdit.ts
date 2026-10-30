@@ -1,3 +1,4 @@
+import { MAX_ORDER, orderLists } from "./boardOrder";
 import { manualGroupOf, tidyGroupName } from "./groups";
 import { SeverityResult, docGlob, isObject, parseForEdit, serialize } from "./ruleAssign";
 
@@ -103,5 +104,41 @@ export function setDocGroup(text: string | undefined, a: { project: string; path
       delete doc[key];
     }
   }
+  return { ok: true, text: serialize(parsed) };
+}
+
+// Sets the order of one group's rows in the project's order list: `paths` are the rows in their new
+// order. The list keeps its other paths ahead of them, untouched, except a path in `gone` (checked
+// missing on disk by the caller, never merely absent from a scan); a path is listed once. The old
+// list is read as the board reads it (text paths, once each, the first MAX_ORDER). A list that would
+// pass MAX_ORDER is refused as "full" (nothing is discarded to make room), one that comes out as it
+// was as "same"; nothing is written then.
+export function setProjectOrder(text: string | undefined, a: { project: string; paths: string[]; gone: Set<string> }): SeverityResult {
+  if (a.paths.length > MAX_ORDER || a.paths.some((p) => docGlob(p) === undefined)) {
+    return { ok: false, reason: a.paths.length > MAX_ORDER ? "full" : "glob" };
+  }
+  const parsed = parseForEdit(text);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const doc = parsed.doc;
+  if (doc.order !== undefined && !isObject(doc.order)) {
+    return { ok: false, reason: "shape" };
+  }
+  const order = (isObject(doc.order) ? doc.order : {}) as Record<string, unknown>;
+  if (order[a.project] !== undefined && !Array.isArray(order[a.project])) {
+    return { ok: false, reason: "shape" };
+  }
+  const before = (Array.isArray(order[a.project]) ? order[a.project] : []) as unknown[];
+  const moved = new Set(a.paths);
+  const kept = (orderLists({ list: before }).list ?? []).filter((p) => !moved.has(p) && !a.gone.has(p));
+  const next = [...new Set([...kept, ...a.paths])];
+  if (next.length > MAX_ORDER) {
+    return { ok: false, reason: "full" };
+  }
+  if (next.length === before.length && next.every((p, i) => p === before[i])) {
+    return { ok: false, reason: "same" };
+  }
+  doc.order = { ...order, [a.project]: next };
   return { ok: true, text: serialize(parsed) };
 }

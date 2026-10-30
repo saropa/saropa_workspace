@@ -85,7 +85,7 @@ export function folderGlob(folder: string): string | undefined {
 }
 
 // Why a rule could not be added.
-export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy" | "none" | "name" | "same" | "claimed";
+export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy" | "none" | "name" | "same" | "claimed" | "full";
 
 export type AssignResult = { ok: true; text: string; id: string; glob: string } | { ok: false; reason: AssignRefusal };
 

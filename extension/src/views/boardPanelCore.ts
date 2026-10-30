@@ -54,6 +54,8 @@ export abstract class BoardPanelCore {
   protected lastKey = "";
   // The "since last look" view the page was painted with, so rows sent later are drawn the same way.
   protected since: ReturnType<typeof viewFor> | undefined;
+  // A saved keyboard move, drawn into the next finished paint: the row to focus, the control used, the words to announce.
+  protected moved: { project: string; path: string; ctl: number; say: string } | undefined;
   // The last inline change to a file, kept ten seconds so Undo can put the file back. The timer is
   // missing while a refused or partial Undo keeps the bar: it stays until undone or dismissed.
   // remaining names the files a batch has not yet put back.
@@ -327,7 +329,7 @@ export abstract class BoardPanelCore {
     if (!this.run || this.disposed) {
       return;
     }
-    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), statuses: ruleCategories(this.run.cfg).map((c) => ({ label: c.label, status: c.status, kind: c.kind })), ...(this.undo ? { undo: this.undo.label } : {}), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}), ...this.chats.view(), ...this.patches.view() };
+    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), statuses: ruleCategories(this.run.cfg).map((c) => ({ label: c.label, status: c.status, kind: c.kind })), ...(this.undo ? { undo: this.undo.label } : {}), ...(this.moved && !requested.loading && !requested.stale ? { moved: this.moved } : {}), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}), ...this.chats.view(), ...this.patches.view() };
     const { cfg, marks } = this.run;
     // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
     this.model = buildBoard(
@@ -382,6 +384,9 @@ export abstract class BoardPanelCore {
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since, trains, future);
+    if (state.moved) {
+      this.moved = undefined;
+    }
   }
   protected dispose(): void {
     this.onClosed();

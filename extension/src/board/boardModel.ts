@@ -5,6 +5,7 @@ import { ProjectHealth } from "./health";
 import { Profile, Severity, asProfile, stops } from "./severity";
 import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
+import { orderLists } from "./boardOrder";
 import { buildOrg } from "./boardOrg";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
@@ -348,6 +349,7 @@ export function buildBoard(
   const projects = defs.map((def) => buildProject(def, ctx, all));
   // Groups, linkages and chains need every open item, so they are computed once all
   // projects are built.
+  const order = orderLists(cfg.order);
   const links = resolveLinks(rows, collectNeeds(rows, snapshot, extra?.needs), cfg.projects);
   const grouping = buildOrg(rows, snapshot, cfg, links, extra?.orgPrevious);
   const inText = collectNeeds(rows, snapshot, undefined);
@@ -379,6 +381,7 @@ export function buildBoard(
     links,
     flags: linkFlags(links, ctx.names),
     items: all,
+    ...(Object.keys(order).length > 0 ? { order } : {}),
     // Once the user accepts (or the scan was clean) neither banner shows.
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,
     baseline: !accepted && (safety?.baseline ?? false),

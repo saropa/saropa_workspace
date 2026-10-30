@@ -3,7 +3,8 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
 import { Severity } from "../board/severity";
-import { manualGroupNames, setDocGroup } from "../board/groupEdit";
+import { orderLists } from "../board/boardOrder";
+import { manualGroupNames, setDocGroup, setProjectOrder } from "../board/groupEdit";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
@@ -88,7 +89,8 @@ function refuse(reason: AssignRefusal, folder: string): void {
     name: "releaseBoard.group.badName",
     encoding: "releaseBoard.noRule.badEncoding",
     lossy: "releaseBoard.noRule.badLossy",
-    shape: "releaseBoard.noRule.badShape"
+    shape: "releaseBoard.noRule.badShape",
+    full: "releaseBoard.reorder.full"
   };
   const key = keys[reason];
   void vscode.window.showWarningMessage(l10n(key, { file: RULES_FILE, folder }));
@@ -380,7 +382,7 @@ function rulesRoot(run: BoardRun, projectId: string): vscode.WorkspaceFolder | u
 
 // What the row menu changes for one document: its status (a category of the existing rules), its
 // severity, both back to automatic, or its group (a name, or undefined to take it out of its group).
-export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" } | { kind: "group"; name: string | undefined };
+export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" } | { kind: "group"; name: string | undefined } | { kind: "order"; paths: string[] };
 
 // The text with the status rules and the severity entry the board wrote for the document taken away.
 function autoText(before: string | undefined, doc: { project: string; path: string }): SeverityResult {
@@ -397,7 +399,8 @@ function autoText(before: string | undefined, doc: { project: string; path: stri
 // Changes one document's status, severity or group in the rules file at once, with no dialog: the same
 // checks as every rules write. A status is a rule for the exact path placed ahead of the rule that
 // placed it; a severity is an entry for the exact path that wins over the computed one; a group lists the exact
-// path (a document taken out of a group the board found is listed in "ungrouped"). Returns
+// path (a document taken out of a group the board found is listed in "ungrouped"); an order lists a
+// group's paths in their new order in the project's order list. Returns
 // what the file held before (for Undo), or undefined when nothing was written.
 export async function changeDoc(run: BoardRun, doc: { project: string; path: string }, change: DocChange): Promise<RulesSnapshot | undefined> {
   if (docGlob(doc.path) === undefined) {
@@ -409,6 +412,17 @@ export async function changeDoc(run: BoardRun, doc: { project: string; path: str
     return undefined;
   }
   let snapshot: RulesSnapshot | undefined;
+  // Only a path checked missing on disk leaves the order list; one merely absent from the scan stays.
+  const gone = new Set<string>();
+  const def = run.cfg.projects.find((p) => p.id === doc.project);
+  if (change.kind === "order" && def) {
+    const moved = new Set(change.paths);
+    for (const p of orderLists(run.cfg.order)[doc.project] ?? []) {
+      if (!moved.has(p) && !(await pathExists(vscode.Uri.joinPath(vscode.Uri.parse(def.path), p)))) {
+        gone.add(p);
+      }
+    }
+  }
   await applyTextChange(root, {
     folder: doc.path,
     make: (before) => {
@@ -419,7 +433,9 @@ export async function changeDoc(run: BoardRun, doc: { project: string; path: str
             ? setDocSeverity(before, { project: doc.project, path: doc.path, severity: change.level })
             : change.kind === "group"
               ? setDocGroup(before, { project: doc.project, path: doc.path, group: change.name })
-              : autoText(before, doc);
+              : change.kind === "order"
+                ? setProjectOrder(before, { project: doc.project, paths: change.paths, gone })
+                : autoText(before, doc);
       return r.ok ? { ok: true, text: r.text, vars: {} } : r;
     },
     saved: (s) => (snapshot = s),
