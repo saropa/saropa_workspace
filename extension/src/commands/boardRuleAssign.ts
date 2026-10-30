@@ -181,7 +181,6 @@ async function linkedRules(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promi
 export async function hasUnsavedCopy(uri: vscode.Uri): Promise<boolean> {
   return hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri);
 }
-const rulesUnsaved = hasUnsavedCopy;
 
 // Writes a change to the rules file with every check: no unsaved copy open, no symbolic link,
 // strict UTF-8, a confirmation that names the change (when it has one), and a second read just
@@ -192,7 +191,7 @@ export function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Pr
 
 async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
   const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (await rulesUnsaved(uri)) {
+  if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
     return false;
   }
@@ -214,7 +213,7 @@ async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): 
     return false;
   }
   // The file is read again just before the write: a change made while the dialogs were open wins.
-  if ((await rulesUnsaved(uri)) || !sameRead(await readRules(uri), before)) {
+  if ((await hasUnsavedCopy(uri)) || !sameRead(await readRules(uri), before)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.changed", { file: RULES_FILE }));
     return false;
   }
@@ -263,7 +262,7 @@ export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
 }
 
 async function undoRulesNow(s: RulesSnapshot, root: vscode.WorkspaceFolder, uri: vscode.Uri): Promise<boolean> {
-  if (await rulesUnsaved(uri)) {
+  if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
     return false;
   }

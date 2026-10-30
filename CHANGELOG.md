@@ -78,6 +78,7 @@ The Release Board is calmer: red only for what really blocks a release, a one-li
 - **Release Board: render check fixes.** Menus fit the window, so the last row-menu entry is no longer cut off. The view menu shows one check mark. Red marks only the status pill of a row and the NO-GO chip of a card. Explanations moved behind tooltips (a ? mark on Future and Severity), and the header buttons are told apart. Rows are tighter on a narrow panel and the tag controls stay together.
 
 ### Fixed
+- **Release Board: safer saves.** A save leaves no `.md` temporary file for the scan to read; leftovers from a crash are swept after ten minutes. A read-only file is refused instead of replaced, one file vanishing mid-scan no longer empties a project, a Tags file with entries from a newer version asks before it drops them, and a document that names thousands of source folders no longer slows the board.
 - **Release Board: safer saving.** Saves to the rules file and to documents now wait their turn instead of overwriting each other, replace the file whole (a failed save leaves the old file as it was), and refuse a folder that cannot be written. Undo in the Tags editor goes back to the folder you saved in, saving the Tags editor keeps settings it does not know, and a hand-off no longer follows links, overwrites your own `.gitignore` or runs a sibling folder name as a command. Very large or hostile documents no longer freeze the editor while the board reads them.
 
 ---

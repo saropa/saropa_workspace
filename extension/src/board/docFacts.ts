@@ -136,6 +136,45 @@ export function isNameableSource(rel: string, sourceDirs?: string[]): boolean {
   return new RegExp(`^(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)$`).test(rel);
 }
 
+const SOURCE_EXTS = ["dart", "py", "sql", "ts", "kt", "swift"];
+const isPathChar = (c: string | undefined): boolean => c !== undefined && /[\w./-]/.test(c);
+
+// Every source path a document names. Same matches as /\b(?:dirs)\/[\w./-]+\.(?:dart|py|sql|ts|kt|swift)\b/g,
+// read in one pass: a folder name starts a run of path characters, and the match ends at the last
+// ".ext" in that run. A run with no ".ext" cannot match from a later folder name inside it either,
+// so it is skipped whole and the cost stays linear (the single regex was quadratic on "src/src/...").
+function findSourcePaths(text: string, dirs: string): string[] {
+  const out: string[] = [];
+  const startRe = new RegExp(`\\b(?:${dirs})/`, "g");
+  let m: RegExpExecArray | null;
+  while ((m = startRe.exec(text)) !== null) {
+    const from = m.index + m[0].length;
+    let end = from;
+    while (isPathChar(text[end])) {
+      end++;
+    }
+    let last = -1;
+    for (let q = from + 1; q < end; q++) {
+      if (text[q] !== ".") {
+        continue;
+      }
+      for (const ext of SOURCE_EXTS) {
+        if (text.startsWith(ext, q + 1) && !/\w/.test(text[q + 1 + ext.length] ?? "")) {
+          last = q + 1 + ext.length;
+          break;
+        }
+      }
+    }
+    if (last >= 0) {
+      out.push(text.slice(m.index, last));
+      startRe.lastIndex = last;
+    } else {
+      startRe.lastIndex = Math.max(end, startRe.lastIndex);
+    }
+  }
+  return out;
+}
+
 // The first comment line of a SQL file that says what it does (not a date, a file name,
 // a "Why:" label or a spell-check pragma).
 function sqlTitle(text: string): string {
@@ -201,13 +240,11 @@ export function needsLineParts(line: string): { label: string; rest: string } | 
 // three targets. A target is a path, a file name, a Markdown link, or "project:path".
 export function parseNeeds(body: string): string[] {
   const out: string[] = [];
-  for (const raw of body.split(/\r?\n/)) {
+  for (const raw of body.split(/\r\n|[\n\r\u2028\u2029]/)) {
     if (raw.length > MAX_LINE) {
       continue;
     }
-    // A lone carriage return or Unicode line break ends a line for the old reader too.
-    const line = raw.split(/[\r\u2028\u2029]/)[0];
-    const m = needsLineParts(line);
+    const m = needsLineParts(raw);
     if (!m) {
       continue;
     }
@@ -514,7 +551,7 @@ export function readFacts(fullText: string, path: string, opt: FactsOptions = {}
   const title = isSql ? sqlTitle(text) : (heads[0] ?? "").trim().slice(0, 80);
 
   const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
-  const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
+  const srcPaths = findSourcePaths(text, dirs);
   const mentions = findMentions(body, opt.mentions ?? {});
   const docRefs = findDocRefs(body);
   const front = isSql ? undefined : readFrontMatter(text);
@@ -534,8 +571,8 @@ export function readFacts(fullText: string, path: string, opt: FactsOptions = {}
     langs: isSql ? { sql: 1 } : langs,
     docRefs: new Set(docRefs).size,
     docRefNames: [...new Set(docRefs)].sort().slice(0, 60),
-    sourceRefs: unique(text.matchAll(srcRe)),
-    sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
+    sourceRefs: new Set(srcPaths).size,
+    sourceFiles: [...new Set(srcPaths)].sort().slice(0, 40),
     needs: readsNeeds(path) ? parseNeeds(body) : [],
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),

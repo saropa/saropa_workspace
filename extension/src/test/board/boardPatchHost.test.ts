@@ -121,7 +121,7 @@ function failWrites(ending: string): () => void {
   const api = vscode.workspace.fs as unknown as { writeFile: (u: vscode.Uri, b: Uint8Array) => Promise<void> };
   const orig = api.writeFile;
   api.writeFile = async function (this: unknown, u: vscode.Uri, b: Uint8Array): Promise<void> {
-    if (u.path.endsWith(ending)) {
+    if ((u.path.split("/").pop() ?? "").startsWith(ending)) {
       throw new Error("disk full");
     }
     return orig.call(this, u, b);
@@ -461,7 +461,7 @@ test("a rules-file write that fails after it landed is still undoable", async ()
   const orig = api.rename;
   api.rename = async function (this: unknown, from: vscode.Uri, u: vscode.Uri, o?: { overwrite?: boolean }): Promise<void> {
     await orig.call(this, from, u, o);
-    if (u.path.endsWith("release-board.json")) {
+    if ((u.path.split("/").pop() ?? "").startsWith("release-board.json")) {
       throw new Error("late failure");
     }
   };

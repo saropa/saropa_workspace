@@ -41,15 +41,20 @@ export function workspaceFileSource(): FileSource {
           const childRel = rel + "/" + name;
           if (type & vscode.FileType.Directory) {
             dirs.push(childRel);
-          } else if (type & vscode.FileType.File && (!accept || accept(childRel))) {
+          } else if (type & vscode.FileType.File && !name.endsWith(".tmp") && (!accept || accept(childRel))) {
             files.push(childRel);
           }
         }
         const [stats, nested] = await Promise.all([
-          mapLimit(files, STAT_PARALLEL, async (childRel): Promise<ScanFile> => {
-            const st = await vscode.workspace.fs.stat(vscode.Uri.joinPath(base, childRel));
-            return { path: childRel, size: st.size, mtimeMs: st.mtime };
-          }),
+          mapLimit(files, STAT_PARALLEL, async (childRel): Promise<ScanFile | undefined> => {
+            try {
+              const st = await vscode.workspace.fs.stat(vscode.Uri.joinPath(base, childRel));
+              return { path: childRel, size: st.size, mtimeMs: st.mtime };
+            } catch {
+              // The file vanished between the listing and the stat (a save replaced it): leave it out.
+              return undefined;
+            }
+          }).then((list) => list.filter((f): f is ScanFile => f !== undefined)),
           mapLimit(dirs, DIR_PARALLEL, walk),
         ]);
         return [...stats, ...nested.flat()];

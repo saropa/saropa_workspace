@@ -164,6 +164,29 @@ export interface Loaded {
   lossy: LossyPart[];
 }
 
+const PATCH_KEYS = new Set(["label", "emoji", "colour", "patterns", "effects", "where"]);
+const ADD_KEYS = new Set(["id", ...PATCH_KEYS]);
+
+// True when the tags part holds entries a saved copy would drop: a replace entry for a tag that does not exist,
+// a field the editor does not know inside a patch or an added tag, or an off or order entry naming an unknown tag.
+// A newer version of the file may use them, so the editor warns and asks before a save.
+function keepsUnknownEntries(t: Record<string, unknown>, ids: string[]): boolean {
+  const known = new Set(ids);
+  const unknownKeys = (o: unknown, allowed: ReadonlySet<string>): boolean => isObject(o) && Object.keys(o).some((k) => !allowed.has(k));
+  if (isObject(t.replace)) {
+    for (const [id, patch] of Object.entries(t.replace)) {
+      if (!known.has(id) || unknownKeys(patch, PATCH_KEYS)) {
+        return true;
+      }
+    }
+  }
+  if (Array.isArray(t.add) && t.add.some((a) => unknownKeys(a, ADD_KEYS))) {
+    return true;
+  }
+  const names = (v: unknown): boolean => Array.isArray(v) && v.some((x) => typeof x !== "string" || !known.has(x));
+  return names(t.off) || names(t.order);
+}
+
 // The rows a project's `organize` key gives, in priority order: the user's own order, then own tags, then shipped.
 // A value that does not pass the checks is dropped (a patch falls back to the shipped tag), so a hostile or
 // out-of-date file can never reach the page; `lossy` names the parts where that happened.
@@ -207,6 +230,9 @@ export function loadOrganize(organize: unknown): Loaded {
     }
   }
   const rest = [...own, ...rows];
+  if (keepsUnknownEntries(t, rest.map((r) => r.id))) {
+    lossy.add("tags");
+  }
   const order = Array.isArray(t.order) ? t.order.slice(0, LIMITS.order) : [];
   const first = order.map((id) => rest.find((r) => r.id === id)).filter((r): r is TagRow => r !== undefined);
   out.tags = [...new Set([...first, ...rest])];

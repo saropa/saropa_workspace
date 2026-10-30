@@ -12,6 +12,8 @@ import { saveAssign, saveState, saveUntag } from "../../commands/boardOrganizeEd
 import { hasUnsavedCopy, undoRulesWrite } from "../../commands/boardRuleAssign";
 import { HandoffFiles, deliver, saveHandoff } from "../../commands/boardHandoff";
 import { withWriteLock, writeFileSafe } from "../../commands/boardWrite";
+import { sweepStaleTemps } from "../../commands/boardWrite";
+import { workspaceFileSource } from "../../commands/boardFileSource";
 import { stub, tmpDir } from "./hostHelpers";
 
 const docsOpen = vscode.workspace.textDocuments as unknown as Array<{ isDirty: boolean; uri: vscode.Uri }>;
@@ -29,7 +31,7 @@ const put = (file: string, text: string): void => {
 const folder = (dir: string, name = "app", index = 0): { uri: vscode.Uri; name: string; index: number } => ({ uri: vscode.Uri.file(dir), name, index });
 const rulesOf = (dir: string): string => path.join(dir, ".saropa", "release-board.json");
 
-// ---- Item 3: a Tags save keeps keys it does not know ----
+// ---- A Tags save keeps keys it does not know ----
 
 test("a Tags save keeps unknown keys inside organize and inside each part", () => {
   const text = JSON.stringify({ version: 1, future: 1, organize: { later: true, tags: { off: ["x"], fresh: { a: 1 } }, linkWords: { extra: [1] }, naming: { style: "z", dates: true } } });
@@ -45,7 +47,7 @@ test("a Tags save keeps unknown keys inside organize and inside each part", () =
   assert.deepEqual(doc.organize.naming, { style: "z", dates: false });
 });
 
-// ---- Item 4: writes to one file queue up ----
+// ---- Writes to one file queue up ----
 
 test("two overlapping saves both survive", async () => {
   const dir = tmpDir();
@@ -76,7 +78,7 @@ test("the lock runs jobs one after another and survives a failing job", async ()
   assert.deepEqual(order, ["first", "second"]);
 });
 
-// ---- Item 5: whole-file replacement ----
+// ---- Whole-file replacement ----
 
 test("a failed write leaves the original and no temporary file", async () => {
   const dir = tmpDir();
@@ -121,7 +123,7 @@ test("a folder that is not writable is refused with a plain message", { skip: pr
   assert.equal(fs.readFileSync(path.join(dir, "a.json"), "utf8"), "old");
 });
 
-// ---- Item 6: Undo goes back to the folder the save went to ----
+// ---- Undo goes back to the folder the save went to ----
 
 test("Undo restores the rules file of the folder the save went to", async () => {
   const one = tmpDir();
@@ -137,7 +139,7 @@ test("Undo restores the rules file of the folder the save went to", async () => 
   assert.equal(fs.readFileSync(rulesOf(one), "utf8"), '{"version":1}');
 });
 
-// ---- Item 7: hand-off folder ----
+// ---- The hand-off folder ----
 
 const files = (root: string, id = "2026-10-30T10-04-12-app-fix"): HandoffFiles => ({ root: vscode.Uri.file(root), id, markdown: "# MD\n", json: "{}\n" });
 const handoffDir = (root: string): string => path.join(root, ".saropa", "handoff");
@@ -173,7 +175,7 @@ test("hand-off save keeps an existing .gitignore, adds * only when absent, and p
   assert.equal(fs.existsSync(path.join(handoffDir(root), "2026-01-01T00-00-00-a-fix.md")), false);
 });
 
-// ---- Item 8: shell-safe hand-off command ----
+// ---- Shell-safe hand-off command ----
 
 const HOSTILE = ["../$(touch x)/a.md", "../`id`/a.md", '../a"b/a.md', "../a'b/a.md", "../a;b/a.md", "../a\nb/a.md", "../a&b/a.md", "../a|b/a.md", "../a\\b/a.md", "../%PATH%/a.md", "../a$HOME/a.md"];
 
@@ -197,7 +199,7 @@ test("the terminal is not started for a hostile sibling folder, and replacement 
   assert.ok(terminalCommand(DEFAULT_TERMINAL_COMMAND, "id", ["a.md", "../$&/b.md"]).includes("../$&/b.md"));
 });
 
-// ---- Item 9: the strong unsaved-edits check ----
+// ---- The strong unsaved-edits check ----
 
 test("an unsaved copy is found by a different letter case and by the real path", { skip: process.platform === "win32" }, async () => {
   const dir = tmpDir();
@@ -212,4 +214,73 @@ test("an unsaved copy is found by a different letter case and by the real path",
   assert.equal(await hasUnsavedCopy(vscode.Uri.file(link)), true);
   docsOpen.length = 0;
   assert.equal(await hasUnsavedCopy(vscode.Uri.file(real)), false);
+});
+
+// ---- Temporary files, read-only targets and queue keys ----
+
+test("the temporary file name ends in neither .md nor .sql", async () => {
+  const dir = tmpDir();
+  const file = path.join(dir, "plan.md");
+  put(file, "old");
+  const api = vscode.workspace.fs as unknown as { rename: (a: vscode.Uri, b: vscode.Uri, o?: unknown) => Promise<void> };
+  const orig = api.rename;
+  let seen = "";
+  api.rename = async (a, b, o) => {
+    seen = path.basename(a.fsPath);
+    return orig.call(api, a, b, o);
+  };
+  try {
+    await writeFileSafe(vscode.Uri.file(file), Buffer.from("new"));
+  } finally {
+    api.rename = orig;
+  }
+  assert.match(seen, /^plan\.md\.\d+-\d+\.tmp$/);
+});
+
+test("a write sweeps old temporary files and keeps fresh ones", async () => {
+  const dir = tmpDir();
+  const old = path.join(dir, "a.json.1-1.tmp");
+  const fresh = path.join(dir, "a.json.1-2.tmp");
+  put(old, "x");
+  put(fresh, "x");
+  put(path.join(dir, "keep.tmp"), "x");
+  const past = new Date(Date.now() - 20 * 60_000);
+  fs.utimesSync(old, past, past);
+  await writeFileSafe(vscode.Uri.file(path.join(dir, "a.json")), Buffer.from("new"));
+  assert.deepEqual(fs.readdirSync(dir).sort(), ["a.json", "a.json.1-2.tmp", "keep.tmp"]);
+  await sweepStaleTemps(vscode.Uri.file(path.join(dir, "missing")));
+});
+
+test("the scan skips temporary files", async () => {
+  const dir = tmpDir();
+  put(path.join(dir, "docs", "a.md"), "x");
+  put(path.join(dir, "docs", "a.md.1-1.tmp"), "x");
+  const files = await workspaceFileSource().list(dir, "docs");
+  assert.deepEqual(files.map((f) => f.path), ["docs/a.md"]);
+});
+
+test("a read-only file is refused with a plain message", { skip: process.platform === "win32" || process.getuid?.() === 0 }, async () => {
+  const dir = tmpDir();
+  const file = path.join(dir, "a.json");
+  put(file, "old");
+  fs.chmodSync(file, 0o444);
+  await assert.rejects(writeFileSafe(vscode.Uri.file(file), Buffer.from("new")), /read-only/);
+  assert.equal(fs.readFileSync(file, "utf8"), "old");
+  assert.deepEqual(fs.readdirSync(dir), ["a.json"]);
+});
+
+test("a symlinked workspace path shares the queue, also before the folder exists", { skip: process.platform === "win32" }, async () => {
+  const real = tmpDir();
+  const link = path.join(tmpDir(), "link");
+  fs.symlinkSync(real, link);
+  const order: string[] = [];
+  const first = withWriteLock(vscode.Uri.file(path.join(link, ".saropa", "r.json")), async () => {
+    await new Promise((r) => setTimeout(r, 20));
+    order.push("first");
+  });
+  const second = withWriteLock(vscode.Uri.file(path.join(real, ".saropa", "r.json")), async () => {
+    order.push("second");
+  });
+  await Promise.all([first, second]);
+  assert.deepEqual(order, ["first", "second"]);
 });
