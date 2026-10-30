@@ -14,6 +14,8 @@ import { handResearch, markReviewed } from "../commands/boardFutureResearch";
 import { DocChange, RulesSnapshot, assignFolderRule, changeDoc, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import { pickGroup } from "../commands/boardGroupPick";
+import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
+import { NeedsDirection, pickNeeds } from "./boardNeedsPick";
 import type { BoardItem } from "../board/boardModel";
 import { researchQueue } from "../board/futureResearch";
 import { busyReason } from "./boardBusy";
@@ -356,6 +358,8 @@ class BoardPanel extends BoardPanelWiring {
       if (!picked.cancelled) {
         await this.inlineChange(run, item, { kind: "group", name: picked.name }, id);
       }
+    } else if (act === "waits" || act === "blocks") {
+      await this.needsChange(act, item, run);
     } else if (act === "assign") {
       const busy = this.busyReason();
       if (busy) {
@@ -381,6 +385,30 @@ class BoardPanel extends BoardPanelWiring {
       } else {
         this.post({ type: "clearPending", id });
       }
+    }
+  }
+
+  // Waits on... and Blocks...: the picker, then one Needs line added or taken out of a document at
+  // once, with Undo. The page shows nothing pending: the board is painted again after the write.
+  private async needsChange(dir: NeedsDirection, item: BoardItem, run: BoardRun): Promise<void> {
+    const busy = this.busyReason();
+    if (busy || !this.model) {
+      void vscode.window.showInformationMessage(l10n(busy ?? "releaseBoard.failed"));
+      return;
+    }
+    this.assigning = true;
+    try {
+      const pick = await pickNeeds(run, this.model, item, dir);
+      const snapshot = pick && (await changeNeeds(run, pick.doc, pick.change));
+      if (pick && snapshot) {
+        this.offerUndo(pick.label, () => undoDocWrite(snapshot));
+        this.dirty = true;
+        await this.refresh();
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.assigning = false;
     }
   }
 
@@ -421,7 +449,7 @@ class BoardPanel extends BoardPanelWiring {
               : change.kind === "group"
                 ? l10n(change.name === undefined ? "releaseBoard.undo.groupRemove" : "releaseBoard.undo.group", { title: item.title, name: change.name ?? "" })
                 : l10n("releaseBoard.undo.auto", { title: item.title });
-        this.offerUndo(label, snapshot);
+        this.offerUndo(label, () => undoRulesWrite(snapshot));
         this.dirty = true;
         await this.refresh();
       } else {
@@ -437,16 +465,16 @@ class BoardPanel extends BoardPanelWiring {
   }
 
   // Keeps what the last change replaced for ten seconds; the page's bar is taken away when it ends.
-  private offerUndo(label: string, snapshot: RulesSnapshot): void {
+  private offerUndo(label: string, restore: () => Promise<boolean>): void {
     clearTimeout(this.undo?.timer);
     const timer = setTimeout(() => {
       this.undo = undefined;
       void this.panel.webview.postMessage({ type: "undoOff" });
     }, UNDO_MS);
-    this.undo = { label, snapshot, timer };
+    this.undo = { label, restore, timer };
   }
 
-  // The Undo button: puts the rules file back, then scans again. The file is only touched while it
+  // The Undo button: puts the changed file back, then scans again. The file is only touched while it
   // still holds what the change wrote.
   private async undoChange(): Promise<void> {
     const undo = this.undo;
@@ -461,7 +489,7 @@ class BoardPanel extends BoardPanelWiring {
     this.assigning = true;
     let done = false;
     try {
-      done = await undoRulesWrite(undo.snapshot);
+      done = await undo.restore();
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {

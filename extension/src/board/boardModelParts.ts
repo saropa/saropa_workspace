@@ -136,6 +136,8 @@ export interface SittingsView {
 export interface BoardModel {
   projects: BoardProject[];
   chains: ChainStep[][];
+  // Every Needs link as resolved, for the Waits on picker (it never reaches the page).
+  links: Link[];
   // Needs lines that point nowhere, at several documents, or at finished work.
   flags: string[];
   // Every item, flat, with its id: the host resolves a click by id and never trusts a path
