@@ -35,5 +35,6 @@ export function keywordLine(model: BoardModel, t: BoardStrings): string {
   if (!canEdit) {
     return "";
   }
-  return `<div class="kwline" role="note" title="${escapeHtml(lab(t, "markPlainTip"))}"><span class="kwtxt" title="${escapeHtml(lab(t, "markPlainTip"))}">${escapeHtml(lab(t, "markPlain"))}</span>${buttons}</div>`;
+  const why = escapeHtml(`${lab(t, "markPlain")} ${lab(t, "markPlainTip")}`);
+  return `<div class="kwline" title="${why}">${buttons.replace("<button ", `<button aria-label="${why}" `)}</div>`;
 }

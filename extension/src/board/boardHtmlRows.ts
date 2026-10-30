@@ -279,7 +279,7 @@ export function list(title: string, items: BoardItem[], names: Map<string, strin
   const parts = ordered.slice(0, cap).map((i) => {
     const g = opt.cap === undefined ? grouped(i) : undefined;
     const line = g ? pl(t, "group", { count: size.get(g.id) ?? 0 }) : "";
-    const head = g && g.id !== last ? `<div class="grp"${groupStripe(g)}><i class="sq ${blocks(i) ? "red" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${groupTip(g, line)}>${groupLabel(g)}</b>${kebab(t, "scope", `group:${i.id}`, g.name)}</div>` : "";
+    const head = g && g.id !== last ? `<div class="grp"${groupStripe(g)}><i class="sq ${blocks(i) ? "" : i.status}" ${tip(t, "stTip." + (blocks(i) ? "red" : i.status), { title: g.name })}></i><b ${groupTip(g, line)}>${groupLabel(g)}</b>${kebab(t, "scope", `group:${i.id}`, g.name)}</div>` : "";
     last = g?.id;
     return head + row(i, opt.single ? undefined : (names.get(i.project) ?? i.project), t, g !== undefined, opt.quiet);
   });

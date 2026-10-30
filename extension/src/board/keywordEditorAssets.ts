@@ -6,6 +6,7 @@
 
 // Only the rules the keyword part adds; the page style (body, buttons, tabs) comes from the Tags page.
 export const SEVERITY_STYLE = `
+.qm{display:inline-block;font-size:11px;line-height:16px;font-weight:600;padding:0 7px;border:1px solid var(--vscode-descriptionForeground);border-radius:9px;color:var(--vscode-descriptionForeground);cursor:help}.qrow{margin:4px 0 8px}
 .note,.help{color:var(--vscode-descriptionForeground);margin:4px 0 8px;overflow-wrap:anywhere}
 .warn{margin:8px 0 12px;padding:6px 10px;border-left:3px solid var(--vscode-editorWarning-foreground,#cca700);background:var(--vscode-textBlockQuote-background,rgba(127,127,127,.1));overflow-wrap:anywhere}
 details.box{border:1px solid var(--vscode-panel-border,rgba(127,127,127,.35));border-radius:4px;margin:0 0 10px;padding:0 10px 8px}

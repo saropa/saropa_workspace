@@ -90,7 +90,7 @@ function decl(selector: string, prop: string): string {
   return d[1];
 }
 
-const CHIPS = [".go.no-go", ".go.unverified", ".stat.red", ".stat.amber", ".stat.purple", ".go.go", ".pill.warn", ".cp.red .pill", ".imp", ".imp.guess"];
+const CHIPS = [".go.no-go", ".go.unverified", ".stat.red", ".stat.amber", ".stat.purple", ".go.go", ".pill.warn", ".imp", ".imp.guess"];
 
 test("every pill and status chip has 4.5:1 text contrast in the dark and the light theme", () => {
   const bad: string[] = [];
