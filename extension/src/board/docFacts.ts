@@ -7,23 +7,15 @@
 export const FACTS_VERSION = 7;
 
 import { readFrontMatter } from "./org/frontMatter";
+import { DocStep, headingText, scanSteps } from "./docSteps";
+import { MAX_LINE, needsLineParts, parseNeeds, mapLinks, needsSeparators, needsTargets } from "./docNeeds";
+
+// Re-exported so existing importers keep working.
+export type { DocStep };
+export { MAX_LINE, needsLineParts, parseNeeds, mapLinks, needsSeparators, needsTargets };
 import { forwardPattern, withoutCode } from "./org/linksSignals";
 import { Audience, Severity, SeverityDict, scoreDocument } from "./severity";
 
-// One open step of a document: a checklist box or a table row with an open state word.
-export interface DocStep {
-  // 1-based line in the document.
-  line: number;
-  // The nearest heading above the step ("" when none).
-  heading: string;
-  text: string;
-  // The cell under a table column named "Needs", when the row has one.
-  needsCell?: string;
-}
-
-// Open steps kept per document, and the length of each step's text.
-const MAX_STEPS = 200;
-const STEP_TEXT = 160;
 
 // The facts read from one document's text.
 export interface DocFacts {
@@ -108,16 +100,12 @@ function linkLines(text: string, phrases: string[] | undefined): { text: string;
   return { text: out.join("\n"), early };
 }
 
-const DONE_WORDS = ["done", "applied", "merged", "fixed", "built", "implemented", "closed", "yes", "verified"];
-const OPEN_WORDS = ["pending", "open", "partial", "not started", "in progress"];
 const DEFAULT_SOURCE_DIRS = ["lib", "test", "scripts", "supabase", "extension/src", "src"];
 
 // Hostile-text limits: facts read at most this many characters of a document, and a "Needs:" line
 // longer than MAX_LINE is not read as one. Every pattern below is linear within these.
 export const MAX_FACTS_CHARS = 2_000_000;
-export const MAX_LINE = 2000;
 
-const isWs = (c: string | undefined): boolean => c !== undefined && /\s/.test(c);
 
 function unique(matches: IterableIterator<RegExpMatchArray>, group = 0): number {
   const set = new Set<string>();
@@ -191,167 +179,6 @@ function sqlTitle(text: string): string {
   return "";
 }
 
-// One Needs line split into its label (with the markers before it) and the text after it, or
-// undefined when the line is not one. Same shape as /^([ \t>*_-]*needs\**[ \t]*:[ \t]*\**[ \t]*)(.+)$/i,
-// read left to right so a run of spaces or `*` costs linear time.
-export function needsLineParts(line: string): { label: string; rest: string } | undefined {
-  if (line.length > MAX_LINE) {
-    return undefined;
-  }
-  let i = 0;
-  while (i < line.length && " \t>*_-".includes(line[i])) {
-    i++;
-  }
-  if (line.slice(i, i + 5).toLowerCase() !== "needs") {
-    return undefined;
-  }
-  i += 5;
-  while (line[i] === "*") {
-    i++;
-  }
-  while (line[i] === " " || line[i] === "\t") {
-    i++;
-  }
-  if (line[i] !== ":") {
-    return undefined;
-  }
-  const start = ++i;
-  while (line[i] === " " || line[i] === "\t") {
-    i++;
-  }
-  while (line[i] === "*") {
-    i++;
-  }
-  while (line[i] === " " || line[i] === "\t") {
-    i++;
-  }
-  // The text after the label cannot be empty: give back the last label character when it is.
-  if (i >= line.length) {
-    if (i === start) {
-      return undefined;
-    }
-    i--;
-  }
-  const rest = line.slice(i);
-  return /[\r\u2028\u2029]/.test(rest) ? undefined : { label: line.slice(0, i), rest };
-}
-
-// "Needs: docs/PLAN_A.md, [Other](../x/PLAN_B.md); supabase:db-access/run.sql" gives the
-// three targets. A target is a path, a file name, a Markdown link, or "project:path".
-export function parseNeeds(body: string): string[] {
-  const out: string[] = [];
-  for (const raw of body.split(/\r\n|[\n\r\u2028\u2029]/)) {
-    if (raw.length > MAX_LINE) {
-      continue;
-    }
-    const m = needsLineParts(raw);
-    if (!m) {
-      continue;
-    }
-    for (const t of needsTargets(m.rest)) {
-      if (!out.includes(t)) {
-        out.push(t);
-      }
-    }
-  }
-  return out;
-}
-
-// Calls `f(whole, target)` for each Markdown link "[text](target)" and puts its result in place of
-// the link. Linear: every "](" is looked at once.
-export function mapLinks(text: string, f: (whole: string, target: string) => string): string {
-  let out = "";
-  let copied = 0;
-  let failUntil = -1;
-  let j = text.indexOf("](");
-  while (j >= 0) {
-    const from = Math.max(text.lastIndexOf("]", j - 1) + 1, copied);
-    const open = j >= from ? text.indexOf("[", from) : -1;
-    if (open >= 0 && open < j && j + 2 > failUntil) {
-      let q = j + 2;
-      while (q < text.length && text[q] !== ")" && !isWs(text[q])) {
-        q++;
-      }
-      if (text[q] === ")" && q > j + 2) {
-        out += text.slice(copied, open) + f(text.slice(open, q + 1), text.slice(j + 2, q));
-        copied = q + 1;
-        j = text.indexOf("](", copied);
-        continue;
-      }
-      // Every "](" before q reaches the same stop, so none of them is a link.
-      failUntil = q;
-    }
-    j = text.indexOf("](", j + 1);
-  }
-  return out + text.slice(copied);
-}
-
-// The separators in a Needs line: ";" and "," and " and " (with spaces around). With `wide`, a
-// ";" or "," takes the spaces around it too. Linear: each space run is looked at once.
-export function needsSeparators(s: string, wide: boolean): Array<{ index: number; len: number }> {
-  const out: Array<{ index: number; len: number }> = [];
-  const isSep = (c: string | undefined): boolean => c === ";" || c === ",";
-  let i = 0;
-  while (i < s.length) {
-    if (!wide && isSep(s[i])) {
-      out.push({ index: i, len: 1 });
-      i++;
-      continue;
-    }
-    if (!isWs(s[i]) && !(wide && isSep(s[i]))) {
-      i++;
-      continue;
-    }
-    let j = i;
-    while (isWs(s[j])) {
-      j++;
-    }
-    const isAnd = j > i && s.startsWith("and", j) && isWs(s[j + 3]);
-    if ((wide && isSep(s[j])) || isAnd) {
-      let k = j + (isAnd ? 3 : 1);
-      while (isWs(s[k])) {
-        k++;
-      }
-      out.push({ index: i, len: k - i });
-      i = k;
-    } else {
-      i = j;
-    }
-  }
-  return out;
-}
-
-const WRAP_LEAD = "`*_\"'<(";
-const WRAP_TAIL = "`*_\"'>).";
-
-// The targets one Needs line names, after its "Needs:" label.
-export function needsTargets(rest: string): string[] {
-  // A Markdown link stands for its target, so a comma in the link text splits nothing.
-  const line = mapLinks(rest.slice(0, MAX_LINE), (_, target) => target);
-  const parts: string[] = [];
-  let from = 0;
-  for (const sep of needsSeparators(line, false)) {
-    parts.push(line.slice(from, sep.index));
-    from = sep.index + sep.len;
-  }
-  parts.push(line.slice(from));
-  return parts.map(stripWrap).filter((t) => t !== "");
-}
-
-// Trims a part and takes the quotes, backticks, brackets and full stop around it off.
-function stripWrap(part: string): string {
-  const t = part.trim();
-  let a = 0;
-  while (a < t.length && WRAP_LEAD.includes(t[a])) {
-    a++;
-  }
-  let b = t.length;
-  while (b > a && WRAP_TAIL.includes(t[b - 1])) {
-    b--;
-  }
-  return t.slice(a, b);
-}
-
 // Counts the code blocks by language tag. Opening fences carry the tag; closing fences have none.
 function countLangs(fenceLines: RegExpMatchArray[]): Record<string, number> {
   const langs: Record<string, number> = {};
@@ -377,121 +204,6 @@ function findMentions(body: string, patterns: Record<string, string>): string[] 
     }
   }
   return mentions.sort();
-}
-
-// The text of a Markdown heading line ("#" to "######" and a space), or undefined when the line is
-// not one. `lazy` also takes the closing "#" marks and spaces off the end. Read left to right,
-// where the patterns it replaces took quadratic time on a long run of spaces.
-function headingText(line: string, maxHashes: number, lazy: boolean): string | undefined {
-  let n = 0;
-  while (line[n] === "#") {
-    n++;
-  }
-  if (n < 1 || n > maxHashes) {
-    return undefined;
-  }
-  let e = n;
-  while (line[e] === " " || line[e] === "\t") {
-    e++;
-  }
-  if (e === n) {
-    return undefined;
-  }
-  let rest = line.slice(e);
-  const term = rest.search(/[\r\u2028\u2029]/);
-  if (term >= 0) {
-    if (lazy) {
-      return undefined;
-    }
-    rest = rest.slice(0, term);
-  }
-  if (rest === "") {
-    // Two or more spaces leave the last one as the heading text.
-    return e - n >= 2 ? " " : undefined;
-  }
-  if (lazy) {
-    let end = rest.length;
-    while (end > 1 && " \t#".includes(rest[end - 1])) {
-      end--;
-    }
-    return rest.slice(0, end);
-  }
-  return rest;
-}
-
-// The text of an open checklist box on this line, or undefined when the line has none.
-function checkboxText(line: string): string | undefined {
-  const box = /^\s*[-*] \[ \]\s*(.*)$/.exec(line);
-  return box ? box[1].trim().slice(0, STEP_TEXT) : undefined;
-}
-
-// A table row that names columns (status, item, dev, prod) rather than holding a step.
-function isHeaderRow(cells: string[]): boolean {
-  return cells.some((c) => ["status", "item", "dev", "prod"].includes(c));
-}
-
-// Whether the last three cells of a table row hold a done word or an open word.
-function rowState(cells: string[]): { isDone: boolean; isOpen: boolean } {
-  const tail = cells.slice(-3);
-  return { isDone: tail.some((c) => DONE_WORDS.includes(c.split(" ")[0])), isOpen: tail.some((c) => OPEN_WORDS.includes(c)) };
-}
-
-// The text of an open table row: its first two cells that are not the Needs column or a state word.
-function openRowText(raw: string[], needsCol: number): string {
-  const text = raw.filter((c, k) => c && k !== needsCol && !OPEN_WORDS.includes(c.toLowerCase())).slice(0, 2).join(" - ");
-  return text.slice(0, STEP_TEXT);
-}
-
-// The open steps (checklist boxes and table rows in an open state) and the state-word row counts.
-function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: DocStep[]; stepsCut: number } {
-  const res = { rowsAll: 0, rowsDone: 0, steps: [] as DocStep[], stepsCut: 0 };
-  const lines = body.split(/\r?\n/);
-  let heading = "";
-  // The header cells of the table the loop is inside, when its second line is a divider.
-  let header: string[] | undefined;
-  const addStep = (step: DocStep): void => {
-    if (res.steps.length < MAX_STEPS) {
-      res.steps.push(step);
-    } else {
-      res.stepsCut += 1;
-    }
-  };
-  lines.forEach((l, i) => {
-    const h = headingText(l, 6, true);
-    if (h !== undefined) {
-      heading = h.trim().slice(0, STEP_TEXT);
-    }
-    const box = checkboxText(l);
-    if (box !== undefined) {
-      addStep({ line: i + 1, heading, text: box });
-    }
-    if (!l.startsWith("|")) {
-      header = undefined;
-      return;
-    }
-    if (/^\|[\s:|-]+\|$/.test(l)) {
-      return;
-    }
-    const raw = l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-    if (/^\|[\s:|-]+\|$/.test(lines[i + 1] ?? "")) {
-      header = raw.map((c) => c.toLowerCase());
-    }
-    const cells = raw.map((c) => c.toLowerCase());
-    if (isHeaderRow(cells)) {
-      return;
-    }
-    const { isDone, isOpen } = rowState(cells);
-    if (isDone || isOpen) {
-      res.rowsAll += 1;
-      if (isDone) {
-        res.rowsDone += 1;
-      } else {
-        const col = header ? header.indexOf("needs") : -1;
-        addStep({ line: i + 1, heading, text: openRowText(raw, col), needsCell: col >= 0 ? raw[col].slice(0, STEP_TEXT) : undefined });
-      }
-    }
-  });
-  return res;
 }
 
 // True when the board reads Needs lines in this kind of document (SQL files have none).
