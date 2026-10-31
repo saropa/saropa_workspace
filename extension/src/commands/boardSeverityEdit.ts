@@ -130,9 +130,7 @@ async function saveSeverityNow(change: SeverityChange, opts: SaveOptions, root: 
     void vscode.window.showInformationMessage(l10n("releaseBoard.keywords.msg.nothing", { file: RULES_FILE }));
     return "unchanged";
   }
-  const button = l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saveButton" : "releaseBoard.keywords.msg.restoreButton");
-  const ask = change.kind === "draft" ? l10n("releaseBoard.keywords.msg.confirmSave", { file: RULES_FILE, impact: impactText(change.impact, change.total, change.lossy) }) : l10n("releaseBoard.keywords.msg.confirmRestore", { file: RULES_FILE });
-  if ((await vscode.window.showWarningMessage(ask, { modal: true }, button)) !== button) {
+  if (!(await confirmChange(change))) {
     return "declined";
   }
   // The file is read again just before the write: a change made while the dialog was open wins.
@@ -144,6 +142,19 @@ async function saveSeverityNow(change: SeverityChange, opts: SaveOptions, root: 
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
     return "refused";
   }
+  return writeSeverity(change, opts, root, uri, text, result.text);
+}
+
+// The confirm step: asks in plain words; true only when the user pressed the button.
+async function confirmChange(change: SeverityChange): Promise<boolean> {
+  const button = l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saveButton" : "releaseBoard.keywords.msg.restoreButton");
+  const ask = change.kind === "draft" ? l10n("releaseBoard.keywords.msg.confirmSave", { file: RULES_FILE, impact: impactText(change.impact, change.total, change.lossy) }) : l10n("releaseBoard.keywords.msg.confirmRestore", { file: RULES_FILE });
+  return (await vscode.window.showWarningMessage(ask, { modal: true }, button)) === button;
+}
+
+// The write step: creates the .saropa folder when missing, writes the new text, and reports it
+// (Undo snapshot or a plain notice).
+async function writeSeverity(change: SeverityChange, opts: SaveOptions, root: vscode.WorkspaceFolder, uri: vscode.Uri, text: string | undefined, newText: string): Promise<SaveOutcome> {
   let madeDir = false;
   try {
     const dir = vscode.Uri.joinPath(root.uri, ".saropa");
@@ -153,13 +164,13 @@ async function saveSeverityNow(change: SeverityChange, opts: SaveOptions, root: 
       madeDir = true;
     }
     await vscode.workspace.fs.createDirectory(dir);
-    await writeFileSafe(uri, Buffer.from(result.text, "utf8"));
+    await writeFileSafe(uri, Buffer.from(newText, "utf8"));
   } catch (e) {
     void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     return "refused";
   }
   if (opts.onSnapshot && change.kind === "draft") {
-    opts.onSnapshot({ before: text, after: result.text, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
+    opts.onSnapshot({ before: text, after: newText, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
   } else {
     void vscode.window.showInformationMessage(l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saved" : "releaseBoard.keywords.msg.restored", { file: RULES_FILE }));
   }
