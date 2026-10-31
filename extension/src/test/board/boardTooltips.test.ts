@@ -91,7 +91,7 @@ function walk(html: string): Tag[] {
 
 const CLASSES_NEEDING_TITLE = ["row", "vd", "stat", "facts", "cp", "fp", "tag", "k", "n", "go", "pn", "fn", "cn", "fut", "grp", "ptgrow", "chip", "hl", "sq", "link", "flame", "pin", "sev", "info", "ring", "bars", "pill"];
 // Pure text containers and layout wrappers: they hold text that already says what it is.
-const TEXT_CONTAINERS = ["div", "span", "p", "ul", "ol", "li", "section", "details", "label", "option", "body", "head", "html", "title", "meta", "main"];
+const TEXT_CONTAINERS = ["div", "span", "p", "ul", "ol", "li", "table", "tr", "td", "section", "details", "label", "option", "body", "head", "html", "title", "meta", "main"];
 // Decorative glyphs inside a titled parent (the ring and the bars of a marks group).
 const GLYPHS = new Set(["i", "u"]);
 

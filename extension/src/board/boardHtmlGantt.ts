@@ -11,7 +11,7 @@ import { GanttGroup, GanttRow, buildGantt } from "./ganttModel";
 // dragged (see boardHtmlDrag.ts) and has the row menu.
 
 export const GANTT_STYLE = `
-.gtop{display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}
+.gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}
 .gantt{position:relative;border:1px solid var(--line);border-radius:6px}
 #gSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5}#gSvg path{fill:none;stroke:var(--amber);stroke-width:1.5;marker-end:url(#gAr)}#gAr path{fill:var(--amber)}
 .gaxis{display:grid;grid-template-columns:minmax(160px,270px) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
@@ -19,13 +19,13 @@ export const GANTT_STYLE = `
 .gh{display:flex;align-items:center;gap:8px;margin:0;padding:0 10px;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
 .gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 0}.gtog::before{content:"\\25BE";color:var(--mute)}.gtog[aria-expanded=false]::before{content:"\\25B8"}
 .gsum{display:none;padding:5px 10px;color:var(--mute)}.gg.col .grows{display:none}.gg.col .gsum{display:flex;align-items:center;gap:8px}
-.gkey{margin:0 0 8px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px}.gkey p{margin:2px 0}.gkey .kh{font-weight:600}
+.gkey{position:absolute;top:100%;left:0;z-index:20;max-width:min(560px,100%);margin-top:4px;padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.4);font-size:12px}.gkey[hidden]{display:none}.gkey p{margin:2px 0}.gkey .kh{font-weight:600}.gkey table{border-collapse:collapse;margin:4px 0}.gkey td{padding:2px 12px 2px 0}.gkey td.sg{font-size:14px;text-align:center}
 .grows{list-style:none;margin:0;padding:0}
 .gr{display:grid;grid-template-columns:minmax(160px,270px) 1fr;align-items:center;min-height:30px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
 .gr:hover,.gr[aria-current=true]{background:rgba(128,128,128,.15)}
 .gr.done{opacity:.5}.gr.chg{outline:1px dotted var(--blue);outline-offset:-1px}
 .gl{display:flex;align-items:center;gap:6px;padding:3px 10px;min-width:0}.gl .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sg.red{color:var(--fg)}.sg.amber{color:var(--amber)}.sg.purple{color:var(--purple)}.sg.green{color:var(--green)}
+.sg.red{color:var(--red)}.sg.blue{color:var(--blue)}.sg.reference{color:var(--mute)}.sg.amber{color:var(--amber)}.sg.purple{color:var(--purple)}.sg.green{color:var(--green)}
 .gt{position:relative;height:26px;margin:0 10px}
 .bar{position:absolute;top:4px;height:18px;left:calc(var(--s)*1%);width:calc(var(--w)*1%);min-width:3px;box-sizing:border-box;border-radius:4px;border:1px solid;font-size:11px;padding:0 6px;line-height:16px;overflow:hidden;white-space:nowrap}
 .bar.red{border-color:color-mix(in srgb,var(--red) 55%,transparent);background:color-mix(in srgb,var(--red) 16%,transparent)}
@@ -105,10 +105,15 @@ function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel): st
   return `<section class="gg" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}><button type="button" class="gtog" aria-expanded="true" aria-controls="gr${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}>${escapeHtml(g.name)} ${count}</button></h2><ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}<div class="gsum">${count}</div><div class="gf"><span class="go gtl ${g.light}" ${tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light))}>${escapeHtml(light)}</span></div></section>`;
 }
 
-// The key as a small panel, one line per item, hidden until the "?" button is pressed.
+// The key as a floating panel under the "?" button, hidden until it is pressed. The status symbols
+// are a table; the first line of ganttKey is the heading and its second line (the symbols in words)
+// is replaced by that table.
 function keyPanel(t: BoardStrings): string {
   const lines = pl(t, "ganttKey").split("\n").filter((l) => l.trim() !== "");
-  return `<div class="gkey" id="gKey" hidden>${lines.map((l, i) => `<p${i === 0 ? ' class="kh"' : ""}>${escapeHtml(l)}</p>`).join("")}</div>`;
+  const status = (["red", "amber", "purple", "green"] as const)
+    .map((k) => `<tr><td class="sg ${k}">${SHAPE[k]}</td><td>${escapeHtml(pl(t, k === "green" ? "ganttDoneWord" : "st." + k))}</td></tr>`).join("");
+  const rest = lines.slice(2).map((l) => `<p>${escapeHtml(l)}</p>`).join("");
+  return `<div class="gkey" id="gKey" hidden><p class="kh">${escapeHtml(lines[0] ?? "")}</p><table>${status}</table>${rest}</div>`;
 }
 
 // The Gantt tab button.
@@ -122,5 +127,5 @@ export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView
   const body = groups.length === 0
     ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
     : `<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model)).join("")}</div>`;
-  return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button></div>${keyPanel(t)}${body}</section>`;
+  return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${keyPanel(t)}</div>${body}</section>`;
 }

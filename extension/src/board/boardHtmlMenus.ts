@@ -21,7 +21,7 @@ export function kebab(t: BoardStrings, menu: "row" | "fut" | "opts" | "view" | "
   return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">${menu === "view" ? "\u2630" : "\u22EE"}</button>`;
 }
 
-export const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem"): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${escapeHtml(text)}</button>`;
+export const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem", shape = ""): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${shape === "" ? "" : `<span class="sg ${escapeHtml(shape)}" aria-hidden="true">${SHAPES[shape] ?? "○"}</span> `}${escapeHtml(text)}</button>`;
 
 // A status the row menu offers: the words of a category of the existing rules and its color.
 export interface RowStatus {
@@ -49,9 +49,9 @@ export function rowData(i: BoardItem): string {
 // layout check) they are left out.
 export function rowMenu(t: BoardStrings, profile = "deliberate", projects: BoardProject[] = [], statuses: RowStatus[] = []): string {
   const hand = item("hand", hl(t, "menuItem"), hl(t, "menuItemTip"));
-  const radio = (act: string, text: string, tipText: string, extra = ""): string => item(act, text, tipText, extra, "menuitemradio");
+  const radio = (act: string, text: string, tipText: string, extra = "", shape = ""): string => item(act, text, tipText, extra, "menuitemradio", shape);
   const group = (key: string, body: string): string => `<div class="mh" role="presentation" id="mh-${key}" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div><div role="group" aria-labelledby="mh-${key}" ${tip(t, key + "Tip")}>${body}</div>`;
-  const status = statuses.length === 0 ? "" : group("menuStatus", statuses.map((s, n) => radio("status:" + n, `${SHAPES[s.status] ?? "○"} ${s.label}`, pl(t, "menuStatusTip"), ` data-st="${escapeHtml(s.status)}" data-kd="${escapeHtml(s.kind ?? "")}" aria-checked="false"`)).join(""));
+  const status = statuses.length === 0 ? "" : group("menuStatus", statuses.map((s, n) => radio("status:" + n, s.label, pl(t, "menuStatusTip"), ` data-st="${escapeHtml(s.status)}" data-kd="${escapeHtml(s.kind ?? "")}" aria-checked="false"`, s.status)).join(""));
   const severity = group(
     "menuSeverity",
     item("raise", "▲ " + pl(t, "menuRaise"), pl(t, "menuRaiseTip")) + item("lower", "▼ " + pl(t, "menuLower"), pl(t, "menuLowerTip")) +

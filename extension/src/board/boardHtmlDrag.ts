@@ -15,7 +15,7 @@ export const DRAG_STYLE = `
 body.dragging .sbands{display:flex}
 .sband{flex:1;min-width:100px;padding:4px 10px;text-align:center;border:1px dashed var(--vscode-focusBorder,var(--line));border-radius:6px}
 .gslot{margin-left:auto;font-size:10px;line-height:16px;padding:0 6px;border:1px dashed var(--line);border-radius:8px;color:var(--mute);opacity:0}
-.gr:hover .gslot,.gr:focus-within .gslot,body.dragging .gslot{opacity:1}.gr .kb{margin-left:0;opacity:0}.gr:hover .kb,.gr:focus-within .kb,.gr .kb[aria-expanded=true]{opacity:1}
+.gr:hover .gslot,.gr:focus-within .gslot,body.dragging .gslot{opacity:1}.gr .kb{margin-left:0}
 body.dragging [data-drop]{outline:1px dashed var(--vscode-focusBorder,var(--line));outline-offset:-2px}body.dragging .gslot{border-color:var(--vscode-focusBorder,var(--line));color:var(--fg)}
 .gap{display:none;height:8px;margin:-4px 0}body.dragging .gap{display:block}
 [data-drag].dragging{opacity:.35}[data-drag]{cursor:grab}body.dragging [data-drop].over{background:rgba(128,128,128,.25)}
@@ -24,7 +24,7 @@ body.dragging [data-drop]{outline:1px dashed var(--vscode-focusBorder,var(--line
 export const DRAG_SCRIPT = `
 (()=>{const live=document.getElementById('live'),bands=document.getElementById('sbands');let drag=null;
 const say=s=>{if(live){live.textContent=s;}};const clear=()=>document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));
-const zoneOf=e=>e.target.closest&&e.target.closest('[data-drop]');
+const zoneOf=e=>{const t=e.target.closest&&e.target.closest('[data-drop]');if(t){return t;}const r=e.target.closest&&e.target.closest('.row[data-drag]');if(!r){return null;}const b=r.getBoundingClientRect(),g=e.clientY<b.top+b.height/2?r.previousElementSibling:r.nextElementSibling;return g&&g.classList.contains('gap')?g:null;};
 document.addEventListener('dragstart',e=>{const r=e.target.closest&&e.target.closest('[data-drag]');if(!r||!e.dataTransfer){return;}drag=r;e.dataTransfer.setData('text/plain',r.dataset.drag);e.dataTransfer.effectAllowed='move';setTimeout(()=>r.classList.add('dragging'),0);document.body.classList.add('dragging');if(bands){say(bands.dataset.start||'');}});
 document.addEventListener('dragend',()=>{if(drag){drag.classList.remove('dragging');}drag=null;document.body.classList.remove('dragging');clear();if(live){live.textContent='';}});
 document.addEventListener('dragover',e=>{if(!drag){return;}const z=zoneOf(e);if(!z||(z.dataset.drop==='waits'&&z.dataset.to===drag.dataset.drag)){return;}e.preventDefault();if(!z.classList.contains('over')){clear();z.classList.add('over');say(z.dataset.say||'');}});
