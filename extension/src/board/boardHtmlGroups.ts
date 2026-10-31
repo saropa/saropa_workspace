@@ -33,6 +33,32 @@ export interface Card {
   group?: GroupView;
 }
 
+// Puts the group cards in drawing order: rows and sub-groups sorted inside each card, groups with a blocker first.
+function orderGroupCards(all: Card[], subs: Map<string, Map<string, Card>>, order: BoardModel["order"]): Card[] {
+  // Rows with a set place come first inside a group of one project (ranks of different projects do not compare); the documents in no group keep the automatic order.
+  // The same holds for each card's own rows and for its sub-groups, so a gap index is a place in the group's whole row list.
+  const sorted = (list: BoardItem[]): BoardItem[] => (new Set(list.map((i) => i.project)).size > 1 ? list : applyOrder(list, order));
+  for (const c of all) {
+    if (c.id !== "") {
+      c.items = sorted(c.items);
+      c.direct = sorted(c.direct);
+      (subs.get(c.id) ?? new Map<string, Card>()).forEach((s) => ((s.items = sorted(s.items)), (s.direct = s.items)));
+    }
+  }
+  // Groups with a blocker first, then by name; the documents in no group last.
+  const rank = (c: Card): number => (c.id === "" ? 2 : c.items.some(blocksNow) ? 0 : 1);
+  const byRank = (a: Card, b: Card): number => rank(a) - rank(b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+  for (const c of all) {
+    const list = subs.get(c.id);
+    if (list) {
+      c.subs = [...list.values()].sort(byRank);
+      // A group whose members all sit in sub-groups names the hand-off by its first direct document, else its first document.
+      c.handoff = c.direct[0]?.id ?? c.handoff;
+    }
+  }
+  return all.sort(byRank);
+}
+
 // The documents of a model under the cards of one layout, in the order they are drawn.
 export function cardsFor(model: BoardModel, by: GroupBy, t: BoardStrings): Card[] {
   const cards = new Map<string, Card>();
@@ -63,28 +89,7 @@ export function cardsFor(model: BoardModel, by: GroupBy, t: BoardStrings): Card[
   }
   const all = [...cards.values()];
   if (by === "group") {
-    // Rows with a set place come first inside a group of one project (ranks of different projects do not compare); the documents in no group keep the automatic order.
-    // The same holds for each card's own rows and for its sub-groups, so a gap index is a place in the group's whole row list.
-    const sorted = (list: BoardItem[]): BoardItem[] => (new Set(list.map((i) => i.project)).size > 1 ? list : applyOrder(list, model.order));
-    for (const c of all) {
-      if (c.id !== "") {
-        c.items = sorted(c.items);
-        c.direct = sorted(c.direct);
-        (subs.get(c.id) ?? new Map<string, Card>()).forEach((s) => ((s.items = sorted(s.items)), (s.direct = s.items)));
-      }
-    }
-    // Groups with a blocker first, then by name; the documents in no group last.
-    const rank = (c: Card): number => (c.id === "" ? 2 : c.items.some(blocksNow) ? 0 : 1);
-    const order = (a: Card, b: Card): number => rank(a) - rank(b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-    for (const c of all) {
-      const list = subs.get(c.id);
-      if (list) {
-        c.subs = [...list.values()].sort(order);
-        // A group whose members all sit in sub-groups names the hand-off by its first direct document, else its first document.
-        c.handoff = c.direct[0]?.id ?? c.handoff;
-      }
-    }
-    return all.sort(order);
+    return orderGroupCards(all, subs, model.order);
   }
   const order: string[] = by === "status" ? ["red", "purple", "amber"] : [...SEVERITY_LEVELS, ""];
   return all.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
