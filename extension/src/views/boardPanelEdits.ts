@@ -154,11 +154,15 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
   }
 
   // Writes one Needs change at once and offers Undo; the board is painted again after the write.
-  private async writeNeeds(run: BoardRun, pick: NeedsPick): Promise<void> {
+  private async writeNeeds(run: BoardRun, pick: NeedsPick, moved?: { item: BoardItem; ctl: number }): Promise<void> {
     const snapshot = await changeNeeds(run, pick.doc, pick.change);
     if (snapshot) {
       this.offerUndo(pick.label, () => undoDocWrite(snapshot));
       this.dirty = true;
+      // A keyboard or button chain that is saved: the repaint focuses the pressed row's control again.
+      if (moved) {
+        this.moved = { project: moved.item.project, path: moved.item.path, ctl: moved.ctl, say: pick.label };
+      }
       await this.refresh();
     }
   }
@@ -187,10 +191,11 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
       void vscode.window.showInformationMessage(busy === "releaseBoard.rowMenu.busyDialog" ? l10n("releaseBoard.drop.busy") : this.busyText(busy));
       return;
     }
+    const ctl = typeof message.ctl === "number" && Number.isInteger(message.ctl) && message.ctl >= 0 && message.ctl < 50 ? message.ctl : 0;
     if (plan.kind === "waits") {
       this.assigning = true;
       try {
-        await this.writeNeeds(run, { doc: { project: plan.from.project, path: plan.from.path }, change: { kind: "add", target: plan.target, to: { project: plan.onto.project, path: plan.onto.path } }, label: l10n("releaseBoard.needs.undoAdd", { title: plan.from.title, name: plan.onto.title }) });
+        await this.writeNeeds(run, { doc: { project: plan.from.project, path: plan.from.path }, change: { kind: "add", target: plan.target, to: { project: plan.onto.project, path: plan.onto.path } }, label: l10n("releaseBoard.needs.undoAdd", { title: plan.from.title, name: plan.onto.title }) }, message.zone === "chain" ? { item: this.model.items[message.id as number], ctl } : undefined);
       } catch (e) {
         void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
       } finally {
@@ -198,7 +203,6 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
       }
     } else {
       const keyboard = message.zone === "move" && plan.kind === "order";
-      const ctl = typeof message.ctl === "number" && Number.isInteger(message.ctl) && message.ctl >= 0 && message.ctl < 50 ? message.ctl : 0;
       await this.inlineChange(run, plan.item, plan.kind === "status" ? { kind: "status", category: plan.category } : plan.kind === "order" ? { kind: "order", paths: plan.paths } : { kind: "group", name: plan.name }, plan.item.id, keyboard ? ctl : undefined);
     }
   }

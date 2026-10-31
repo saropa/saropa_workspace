@@ -119,7 +119,8 @@ function planWaits(from: BoardItem, onto: BoardItem, model: BoardModel, ctx: Dro
 // A row dropped on a status band (`to` is the status), on a group (`to` is the group id, empty for
 // the documents in no group) or on another row's Waits on slot (`to` is that row's id: the other
 // row then waits on the dragged one), or in a gap between the rows of a group (`to` is the group id,
-// `at` the gap) or moved a place by the keyboard (`to` is -1 or 1).
+// `at` the gap) or moved a place by the keyboard (`to` is -1 or 1), or chained with the row above it
+// (zone `chain`: `to` 1 makes the row wait on the row above, -1 makes the row above wait on it).
 export function planDrop(m: { zone?: unknown; id?: unknown; to?: unknown; at?: unknown }, model: BoardModel, ctx: DropContext): DropPlan {
   const item = itemAt(model, m.id);
   if (!item) {
