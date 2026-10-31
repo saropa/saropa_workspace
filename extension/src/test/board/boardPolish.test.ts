@@ -19,6 +19,8 @@ import { POLISH_KEYS, PROJECT_LABEL_KEYS, strings } from "../../views/boardStrin
 import { buildFuture } from "../../board/futureList";
 import { futurePanel } from "../../board/boardHtmlFuture";
 import { sinceBox, unnamedBox } from "../../board/boardHtmlBoxes";
+import { row as boardRow } from "../../board/boardHtmlRows";
+import { titleAttr } from "../../board/boardHtmlUtil";
 import { asTimeBox } from "../../board/sittings";
 import en from "../../i18n/locales/en.json";
 
@@ -82,7 +84,7 @@ test("an item step is a link to its document, a lint step stays plain text with 
   const item = items.find((x) => x.includes("data-k=\"item:"));
   const lint = items.find((x) => x.includes('data-k="lint"'));
   assert.ok(item && lint);
-  assert.ok(item.includes('<a class="doc" href="#" data-id="0" title="docs/BUG_a.md">Crash</a>'), "the document is a link with its path as tooltip");
+  assert.ok(item.includes('<a class="doc" href="#" data-id="0" title="Crash\ndocs/BUG_a.md">Crash</a>'), "the document is a link with its path as tooltip");
   assert.equal(item.includes("<button class=\"ptgb\""), false, "the link replaces the Open button");
   assert.equal(lint.includes("<a "), false, "a step that is not a document has no link");
   assert.ok(lint.includes('<button class="ptgb"'), "and keeps its action button");
@@ -181,7 +183,7 @@ test("the style sheet has the narrow rules: wrapping top bar, stacked project ro
   assert.ok(css.includes(".top{display:flex;flex-wrap:wrap"));
   assert.ok(css.includes(".vd .pn{flex:1 1 100%"), "the project name takes its own line");
   assert.ok(css.includes(".row{flex-wrap:wrap"), "list rows wrap so the buttons go under the text");
-  assert.ok(css.includes(".row .f{flex:1 1 100%;white-space:normal"));
+  assert.ok(css.includes(".row .f{flex:1 1 100%;min-width:0;white-space:nowrap"));
   assert.ok(/button,[^{]*select[^{]*\{min-height:32px\}/.test(css), "buttons and selects are at least 32px high");
   assert.ok(css.includes("summary{min-height:32px"));
   assert.ok(STYLE.includes("@media (max-width:320px)"), "an extra block for the narrowest panels");
@@ -344,4 +346,17 @@ test("With Group by Project a project still lists its in-progress documents when
 test("the row menu and the group menu both offer Edit tags", () => {
   assert.ok(rowMenu(t).includes('data-act="tags"'));
   assert.ok(scopeMenu(t).includes('data-act="tags"'));
+});
+
+test("a hover is never shortened: titleAttr and a row's hover keep a 250-character line whole", () => {
+  const long = "w".repeat(250);
+  assert.equal(titleAttr(`a\n${long}`), `title="a\n${long}"`);
+  const tl = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "polish" ? { "stTip.red": "{title}" } : `[${k}]`) });
+  const m = buildBoard(cfg, [row("docs/BUG_a.md", "red")], undefined, true, snapshot({ "docs/BUG_a.md": `# ${long}\n` }), undefined, { app: evaluateHealth(undefined, undefined, undefined, 1) });
+  const item = { ...m.items[0], title: long };
+  const html = boardRow(item, undefined, tl, false);
+  assert.ok(html.includes(long), html.slice(0, 600));
+  const hover = /^<div[^>]* title="([^"]*)"/.exec(html)?.[1] ?? "";
+  assert.ok(hover.startsWith(long) && !hover.includes("…"), hover.slice(0, 300));
+  assert.ok(html.includes(`title="${long}`));
 });

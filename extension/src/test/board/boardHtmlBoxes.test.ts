@@ -95,7 +95,7 @@ test("linked documents: chains, flags and suggestions, with indexes only", () =>
   assert.ok(html.includes("C &#60;i&#62;"));
   assert.ok(!html.includes("<i>"), "a title cannot add markup");
   assert.ok(![...html.matchAll(/data-(?!suggest)[\w-]+="([^"]*)"/g)].some((m) => m[1].includes("docs/")), "no path is a data attribute (a suggestion carries its model key)");
-  assert.ok(html.includes('<a class="doc" href="#" data-id="1" title="docs/b.md">B</a>'), "a document is a link whose tooltip is its path");
+  assert.ok(html.includes('<a class="doc" href="#" data-id="1" title="B\ndocs/b.md">B</a>'), "a document is a link whose tooltip is its path");
 });
 
 test("without links, flags or suggestions the box is not drawn", () => {
@@ -193,7 +193,7 @@ test("the sittings box is always visible: the steps that fit, with the time and 
   assert.equal(html.match(/data-step="/g)?.length, 2, "one step that fits and one with no context");
   assert.ok(html.includes('<details class="steps" id="sit-steps" data-sec="sittings-steps" open>'));
   assert.ok(html.includes('id="sit-untag"'));
-  assert.ok(html.includes('<a class="doc" href="#" data-step="0" title="docs/a.md">'), "a step is a link whose tooltip is the document path");
+  assert.ok(html.includes('<a class="doc" href="#" data-step="0" title="Upload the build with Xcode\ndocs/a.md">'), "a step is a link whose tooltip is the document path");
   assert.equal(html.includes('data-path'), false);
   assert.equal(html.includes("sit-open"), false, "the mystery button is gone");
 });

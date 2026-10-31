@@ -188,13 +188,9 @@ export function tip(t: BoardStrings, key: string, vars: Record<string, string | 
   return `title="${escapeHtml(pl(t, key, vars))}"`;
 }
 
-// Longest hover line; a longer one is cut with an ellipsis so the tooltip stays readable.
-const TIP_LINE_MAX = 100;
-
-// A title attribute from plain text, escaped. Each line is cut to TIP_LINE_MAX characters.
+// A title attribute from plain text, escaped. Never shortened: the full text is the hover.
 export function titleAttr(text: string): string {
-  const cut = text.split("\n").map((l) => (l.length > TIP_LINE_MAX ? l.slice(0, TIP_LINE_MAX - 1) + "…" : l)).join("\n");
-  return `title="${escapeHtml(cut)}"`;
+  return `title="${escapeHtml(text)}"`;
 }
 
 // A title for a glyph: what it looks like, then what it means ("Red dot: lint is failing").
@@ -203,9 +199,9 @@ export function glyphTip(t: BoardStrings, look: string, text: string): string {
 }
 
 // A document the page can open: an underlined link whose tooltip is the document's path inside
-// its project. It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
+// its project (full name first, so a name cut by the ellipsis stays readable). It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
 export function docLink(text: string, path: string, attr: string): string {
-  return `<a class="doc" href="#" ${attr} ${titleAttr(path)}>${escapeHtml(text)}</a>`;
+  return `<a class="doc" href="#" ${attr} title="${escapeHtml(path ? `${text}\n${path}` : text)}">${escapeHtml(text)}</a>`;
 }
 
 // Fills {name} placeholders after escaping, so a document title can never add markup. Values in

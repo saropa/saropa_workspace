@@ -51,6 +51,7 @@ cspell:disable
 The Gantt key now floats over the board, and status symbols show their colors, and board rows line up better. [log](https://github.com/saropa/saropa-workspace/blob/vX.Y.Z/CHANGELOG.md)
 
 ### Changed
+- Board rows: a long work item name stays on one line and ends with an ellipsis; hovering shows the full name and, on a second line, its path.
 - Release Board header: the ☰ view menu is gone; its "Tags and rules..." entry now lives in the ⋮ actions menu next to Settings.
 - Board rows: status pills have one fixed width, so titles line up. The title and the facts cell are middle-aligned.
 - The kebab menu on board rows and group headings is always visible, not only on hover.
