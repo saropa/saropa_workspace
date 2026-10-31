@@ -125,7 +125,7 @@ const keepsOrder = (c: Card, by: GroupBy): boolean => by === "group" && c.group?
 // are plain markup under delegated page handlers, so rows sent on demand carry them without being wired again.
 const rowsOf = (c: Card, from: number, to: number, names: Map<string, string>, t: BoardStrings, by: GroupBy = "group"): string => {
   const gaps = keepsOrder(c, by);
-  const html = c.direct.slice(from, to).map((i, k) => (gaps ? gapZone(t, c.id, c.name, from + k) : "") + row(i, names.get(i.project) ?? i.project, t, false)).join("");
+  const html = c.direct.slice(from, to).map((i, k) => (gaps ? gapZone(t, c.id, c.name, from + k) : "") + row(i, names.get(i.project) ?? i.project, t, false, false, gaps ? { up: from + k > 0, down: from + k < c.direct.length - 1, gid: c.id } : undefined)).join("");
   return gaps && to >= c.direct.length ? html + gapZone(t, c.id, c.name, c.direct.length) : html;
 };
 

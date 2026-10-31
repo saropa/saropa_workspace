@@ -1,4 +1,5 @@
 import type { BoardItem, BoardModel, Light } from "./boardModelParts";
+import { applyOrder } from "./boardOrder";
 import { Link } from "./links";
 import { SinceView, sinceKey } from "./sinceLast";
 
@@ -105,6 +106,23 @@ function ranks(items: BoardItem[]): Map<number, number> {
   return out;
 }
 
+// A project's items with each group's members in the group's stored order, put back into the places the group's
+// members already hold, so the other items stay where they are.
+function inStoredOrder(items: BoardItem[], order: BoardModel["order"]): BoardItem[] {
+  if (!order) {
+    return items;
+  }
+  const out = [...items];
+  const byGroup = new Map<string, number[]>();
+  items.forEach((i, at) => i.group && byGroup.set(i.group.id, [...(byGroup.get(i.group.id) ?? []), at]));
+  for (const places of byGroup.values()) {
+    applyOrder(places.map((at) => items[at]), order).forEach((i, k) => {
+      out[places[k]] = i;
+    });
+  }
+  return out;
+}
+
 // The groups of the Gantt, one per project that has a row, finished documents first and then
 // the open items in work order.
 export function buildGantt(model: BoardModel, since?: SinceView): GanttGroup[] {
@@ -122,7 +140,7 @@ export function buildGantt(model: BoardModel, since?: SinceView): GanttGroup[] {
     const done: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
       .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], changed: false }));
-    const open: GanttRow[] = p.items
+    const open: GanttRow[] = inStoredOrder(p.items, model.order)
       .map((i) => ({ i, rank: rank.get(i.id) ?? 0 }))
       .sort((a, b) => a.rank - b.rank)
       .map(({ i, rank: r }): GanttRow => {

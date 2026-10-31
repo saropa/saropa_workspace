@@ -1,5 +1,6 @@
 import type { BoardItem, BoardModel } from "./boardModelParts";
-import { dragAttrs } from "./boardHtmlDrag";
+import { dragAttrs, moveArrows } from "./boardHtmlDrag";
+import { applyOrder } from "./boardOrder";
 import { kebab, rowData } from "./boardHtmlMenus";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, docLink, escapeHtml, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
@@ -63,7 +64,7 @@ function minutesLabel(m: number): string {
 
 const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "■" };
 
-function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): string {
+function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem, move?: { up: boolean; down: boolean }): string {
   const word = pl(t, r.status === "green" ? "ganttDoneWord" : "st." + r.status);
   const rowTip = [
     r.status === "green" ? pl(t, "ganttDone", { title: r.title }) : pl(t, "stTip." + r.status, { title: r.title }),
@@ -75,15 +76,35 @@ function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): strin
   const cls = `gr${r.status === "green" ? " done" : ""}${r.changed ? " chg" : ""}`;
   // An open row can be dragged, takes a dropped row on its Waits on slot and has the row menu.
   const slotSay = escapeHtml(pl(t, "dropWaits", { title: r.title }));
-  const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${kebab(t, "row", item.id, item.title, rowData(item))}`;
+  const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${move ? moveArrows(t, item.title, move.up, move.down) : ""}${kebab(t, "row", item.id, item.title, rowData(item))}`;
   return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
 }
 
 // Rows of a section drawn in the page; the rest are sent when the page asks (a project of 2,000 documents).
 export const GANTT_ROWS = 150;
 
+// Where each open row can move: only a group listed by hand with more than one row, all in one project, takes a
+// move (the same rule as the Board tab). Up is off for the group's first row and down for its last.
+function moves(model: BoardModel): Map<number, { up: boolean; down: boolean }> {
+  const byGroup = new Map<string, BoardItem[]>();
+  for (const i of model.items) {
+    if (i.group?.byUser === true && i.group.stored !== undefined) {
+      byGroup.set(i.group.id, [...(byGroup.get(i.group.id) ?? []), i]);
+    }
+  }
+  const out = new Map<number, { up: boolean; down: boolean }>();
+  for (const list of byGroup.values()) {
+    if (list.length > 1 && new Set(list.map((i) => i.project)).size === 1) {
+      const rows = applyOrder(list, model.order);
+      rows.forEach((i, k) => out.set(i.id, { up: k > 0, down: k < rows.length - 1 }));
+    }
+  }
+  return out;
+}
+
 function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardStrings, model: BoardModel): string {
-  return g.rows.slice(from, to).map((r, k) => row(r, r.id === undefined ? `f${n}-${from + k}` : String(r.id), t, r.id === undefined ? undefined : model.items[r.id])).join("");
+  const move = moves(model);
+  return g.rows.slice(from, to).map((r, k) => row(r, r.id === undefined ? `f${n}-${from + k}` : String(r.id), t, r.id === undefined ? undefined : model.items[r.id], r.id === undefined ? undefined : move.get(r.id))).join("");
 }
 
 // The rows of one section from a position, for the page's "Show more". Undefined for a section or position the model does not hold.
