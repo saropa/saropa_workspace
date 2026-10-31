@@ -1,7 +1,6 @@
-import { promises as fsp } from "node:fs";
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
+import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
 import { Severity } from "../board/severity";
 import { orderLists } from "../board/boardOrder";
 import { manualGroupNames, setDocGroup, setProjectOrder } from "../board/groupEdit";
@@ -10,6 +9,12 @@ import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
 import { BoardRun } from "./boardScanStore";
 import { withWriteLock, writeFileSafe } from "./boardWrite";
+import { RulesRead, hasUnsavedCopy, linkedRules, plainWriteError, readRules, sameRead } from "./boardRuleText";
+import { RulesSnapshot } from "./boardRuleUndo";
+
+// The helpers that moved out keep their old import path here.
+export { RulesRead, hasUnsavedEdits, hasUnsavedCopy, isLink, plainWriteError, readRules, sameRead } from "./boardRuleText";
+export { RulesSnapshot, undoRulesWrite } from "./boardRuleUndo";
 
 // Release Board, "Documents with no rule": assign a category to a folder of documents no rule
 // placed, and preview what a rule for the folder would match. The page names a folder by the
@@ -21,51 +26,6 @@ export interface NoRuleFolder {
   project: string;
   folder: string;
   count: number;
-}
-
-// What reading the rules file found: no file, its text, or a file that is not plain UTF-8.
-export type RulesRead = { kind: "none" } | { kind: "text"; text: string } | { kind: "encoding" };
-
-export async function readRules(uri: vscode.Uri): Promise<RulesRead> {
-  if (!(await pathExists(uri))) {
-    return { kind: "none" };
-  }
-  const text = decodeRules(await vscode.workspace.fs.readFile(uri));
-  return text === undefined ? { kind: "encoding" } : { kind: "text", text };
-}
-
-export const sameRead = (a: RulesRead, b: RulesRead): boolean => a.kind === b.kind && (a.kind !== "text" || a.text === (b as { text: string }).text);
-
-// True when the path is a symbolic link (the rules file or its folder): a write would go through it.
-export async function isLink(uri: vscode.Uri): Promise<boolean> {
-  try {
-    return ((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.SymbolicLink) !== 0;
-  } catch {
-    return false;
-  }
-}
-
-// True when a document open in an editor has unsaved edits and is this file, by its real path or by
-// the path the workspace uses (`shown`), compared without regard to letter case so a case-insensitive
-// disk cannot hide an open copy. A false positive only leaves the file alone.
-export async function hasUnsavedEdits(real: string, shown: vscode.Uri | undefined): Promise<boolean> {
-  const names = [real, shown?.fsPath].filter((x): x is string => x !== undefined).map((x) => x.toLowerCase());
-  for (const d of vscode.workspace.textDocuments) {
-    if (!d.isDirty || d.uri.scheme !== "file") {
-      continue;
-    }
-    if (names.includes(d.uri.fsPath.toLowerCase())) {
-      return true;
-    }
-    try {
-      if (names.includes((await fsp.realpath(d.uri.fsPath)).toLowerCase())) {
-        return true;
-      }
-    } catch {
-      // A document with no file on disk is not this one.
-    }
-  }
-  return false;
 }
 
 // Tells the user why the file was left alone.
@@ -148,17 +108,6 @@ async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
   });
 }
 
-// What a write replaced: the file text before (undefined when there was no file) and the text
-// written. Undo puts `before` back, and only while the file still holds `after`.
-export interface RulesSnapshot {
-  before: string | undefined;
-  after: string;
-  // The change created the .saropa folder too; Undo then removes it when it is left empty.
-  madeDir?: boolean;
-  // The workspace folder the rules file belongs to (its uri); Undo goes back to that one.
-  folder?: string;
-}
-
 // One change to the text of the rules file, with the words that go with it. Without `confirm` the
 // change is written at once and `saved` hands the caller what it replaced.
 export interface TextChange {
@@ -172,16 +121,6 @@ export interface TextChange {
   refusal: (reason: AssignRefusal, folder: string) => void;
 }
 
-// True when the rules file or its folder is a symbolic link: a write would go through it.
-async function linkedRules(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promise<boolean> {
-  return (await isLink(vscode.Uri.joinPath(root.uri, ".saropa"))) || (await isLink(uri));
-}
-
-// True when the file has unsaved edits open, by the workspace path or the real path (letter case ignored).
-export async function hasUnsavedCopy(uri: vscode.Uri): Promise<boolean> {
-  return hasUnsavedEdits(await fsp.realpath(uri.fsPath).catch(() => uri.fsPath), uri);
-}
-
 // Writes a change to the rules file with every check: no unsaved copy open, no symbolic link,
 // strict UTF-8, a confirmation that names the change (when it has one), and a second read just
 // before the write. Returns true when the file was written, so the caller scans again.
@@ -189,14 +128,23 @@ export function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Pr
   return withWriteLock(vscode.Uri.joinPath(root.uri, RULES_FILE), () => applyTextChangeNow(root, c));
 }
 
-async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
-  const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
+// First guard of a write: true (after telling the user why) when the file has an unsaved copy
+// open in an editor, or it or its folder is a symbolic link.
+async function blockedBeforeRead(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promise<boolean> {
   if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
-    return false;
+    return true;
   }
   if (await linkedRules(root, uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
+    return true;
+  }
+  return false;
+}
+
+async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
+  const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
+  if (await blockedBeforeRead(root, uri)) {
     return false;
   }
   const before = await readRules(uri);
@@ -221,6 +169,12 @@ async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): 
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
     return false;
   }
+  return writeAndVerify(root, uri, before, result, c);
+}
+
+// Writes the new text (creating the .saropa folder when missing), tells the user, and hands the
+// caller what was replaced. A write that failed late but landed is kept undoable.
+async function writeAndVerify(root: vscode.WorkspaceFolder, uri: vscode.Uri, before: RulesRead, result: { text: string; vars: Record<string, string> }, c: TextChange): Promise<boolean> {
   const dir = vscode.Uri.joinPath(root.uri, ".saropa");
   let madeDir = false;
   try {
@@ -245,56 +199,6 @@ async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): 
     void vscode.window.showInformationMessage(c.done(result.vars));
   }
   c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
-  return true;
-}
-
-// Puts the rules file back to what an inline change replaced (removing it when there was none).
-// Only while the file still holds exactly what that change wrote, with the same checks as a write:
-// a later edit by hand, by another change or in an open editor is never overwritten.
-export async function undoRulesWrite(s: RulesSnapshot): Promise<boolean> {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  const root = (s.folder !== undefined ? folders.find((f) => f.uri.toString() === s.folder) : undefined) ?? folders[0];
-  if (!root) {
-    return false;
-  }
-  const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  return withWriteLock(uri, () => undoRulesNow(s, root, uri));
-}
-
-async function undoRulesNow(s: RulesSnapshot, root: vscode.WorkspaceFolder, uri: vscode.Uri): Promise<boolean> {
-  if (await hasUnsavedCopy(uri)) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.undo.unsaved", { file: RULES_FILE }));
-    return false;
-  }
-  if (await linkedRules(root, uri)) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
-    return false;
-  }
-  const now = await readRules(uri);
-  // Already back as it was (an earlier Undo that stopped partway): nothing left to do.
-  if (s.before !== undefined && now.kind === "text" && now.text === s.before) {
-    return true;
-  }
-  if (now.kind !== "text" || now.text !== s.after) {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.undo.changed", { file: RULES_FILE }));
-    return false;
-  }
-  try {
-    if (s.before === undefined) {
-      await vscode.workspace.fs.delete(uri);
-      if (s.madeDir) {
-        const dir = vscode.Uri.joinPath(root.uri, ".saropa");
-        if ((await vscode.workspace.fs.readDirectory(dir)).length === 0) {
-          await vscode.workspace.fs.delete(dir, { recursive: true });
-        }
-      }
-    } else {
-      await writeFileSafe(uri, Buffer.from(s.before, "utf8"));
-    }
-  } catch (e) {
-    void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
-    return false;
-  }
   return true;
 }
 
@@ -454,20 +358,4 @@ export async function changeDoc(run: BoardRun, doc: { project: string; path: str
     refusal: refuse,
   });
   return snapshot;
-}
-
-// A write error as one plain sentence for the problems list. The raw text goes to the log only.
-export function plainWriteError(e: unknown, file: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  console.error(`Release Board: writing ${file} failed: ${raw}`);
-  const code = String((e as { code?: unknown } | null)?.code ?? "");
-  const text = `${code} ${raw}`;
-  const kind = /EACCES|EPERM|EROFS|NoPermissions|permission|read-only/i.test(text)
-    ? "permission"
-    : /ENOSPC|EDQUOT|no space|disk full/i.test(text)
-      ? "space"
-      : /ENOENT|FileNotFound|no such file/i.test(text)
-        ? "missing"
-        : "other";
-  return l10n(`releaseBoard.patch.fail.${kind}`, { file });
 }
