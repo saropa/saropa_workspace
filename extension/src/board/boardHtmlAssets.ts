@@ -33,7 +33,7 @@ a.doc{color:var(--vscode-textLink-foreground,#3794ff);text-decoration:underline;
 .chain{border-left:2px solid var(--amber);margin:8px 0 8px 6px;padding-left:12px;display:flex;flex-direction:column;gap:6px}.cn{display:flex;gap:8px;align-items:center}.click{cursor:pointer}.click:hover{text-decoration:underline}
 .row{display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line);cursor:pointer}.row:first-of-type{border-top:0}.row:hover,.row:focus{background:rgba(128,128,128,.12);outline:0}
 .tag{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;border:1px solid var(--line);border-radius:3px;padding:0 4px;color:var(--mute);flex:none}
-.f{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.k{color:var(--mute);font-size:12px;flex:none}
+.f{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}a.doc{white-space:nowrap}.k{color:var(--mute);font-size:12px;flex:none}
 .marks{display:inline-flex;gap:6px;align-items:center;flex:none}.ring{width:14px;height:14px;border-radius:50%;display:inline-block;background:conic-gradient(var(--rc,var(--mute)) calc(var(--p)*1%),rgba(128,128,128,.25) 0)}.ring.part{--rc:var(--amber)}.ring.ok{--rc:var(--green)}
 .seg{display:inline-flex}.seg button{border-radius:0}
 .code{font-size:11px;color:var(--mute)}
@@ -61,8 +61,8 @@ select{background:var(--vscode-dropdown-background,var(--bg));color:var(--vscode
 button,select,input[type=text]{min-height:32px}input[type=checkbox]{width:18px;height:18px;margin:7px}summary{min-height:32px;padding:6px 0}summary.sh{align-items:center;padding:0}.tabs button{min-height:32px}
 .top{display:flex;flex-wrap:wrap;gap:6px}.top>.seg{width:auto;flex:0 1 auto;margin:0}.top .kb{min-width:32px}
 .vd{gap:6px 8px;padding:8px}.vd .pn{flex:1 1 100%;min-width:0}.vd .bar,.vd .marks{flex-wrap:wrap}.roll{gap:6px}
-.row{flex-wrap:wrap;gap:4px 8px;padding:6px 50px 6px 0;min-height:32px}.row .f{flex:1 1 100%;white-space:normal;overflow:visible;text-overflow:clip}.row .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row button{flex:1 1 auto}.row{position:relative}.row .kb{position:absolute;top:2px;right:0}.row .hc{position:absolute;top:9px;right:36px;margin:0;width:14px;height:14px}
-.cn{flex-wrap:wrap}.cn .f{flex:1 1 100%;white-space:normal}.fl{flex-wrap:wrap}.fl .f{flex:1 1 100%;white-space:normal}.fc{gap:6px}.fcl{flex:none}.fut .fl{flex-wrap:nowrap}.fut .fl .f{flex:1 1 auto;white-space:nowrap}.fut .tag{max-width:7em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fq{min-width:0;width:100%}
+.row{flex-wrap:wrap;gap:4px 8px;padding:6px 50px 6px 0;min-height:32px}.row .f{flex:1 1 100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row button{flex:1 1 auto}.row{position:relative}.row .kb{position:absolute;top:2px;right:0}.row .hc{position:absolute;top:9px;right:36px;margin:0;width:14px;height:14px}
+.cn{flex-wrap:wrap}.cn .f{flex:1 1 100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fl{flex-wrap:wrap}.fl .f{flex:1 1 100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fc{gap:6px}.fcl{flex:none}.fut .fl{flex-wrap:nowrap}.fut .fl .f{flex:1 1 auto;white-space:nowrap}.fut .tag{max-width:7em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fq{min-width:0;width:100%}
 .seg{width:100%}.seg button{flex:1 1 auto;min-height:32px}.filter{gap:4px 8px}.ptgb{min-height:32px}
 .grp{flex-wrap:wrap}.chain{margin-left:2px;padding-left:8px}}
 @media (max-width:320px){body{padding:6px;font-size:12px}.box{padding:6px 8px}h2{font-size:13px}.vd .go{order:2}.vd .bar{order:3;flex:1 1 100%}.top>button{flex:1 1 40%}.pill{padding:0 4px;min-width:1.5em}.ptg{padding-left:22px}}`;

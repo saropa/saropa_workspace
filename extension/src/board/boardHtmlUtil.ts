@@ -203,9 +203,9 @@ export function glyphTip(t: BoardStrings, look: string, text: string): string {
 }
 
 // A document the page can open: an underlined link whose tooltip is the document's path inside
-// its project. It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
+// its project (full name first, so a name cut by the ellipsis stays readable). It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
 export function docLink(text: string, path: string, attr: string): string {
-  return `<a class="doc" href="#" ${attr} ${titleAttr(path)}>${escapeHtml(text)}</a>`;
+  return `<a class="doc" href="#" ${attr} title="${escapeHtml(path ? `${text}\n${path}` : text)}">${escapeHtml(text)}</a>`;
 }
 
 // Fills {name} placeholders after escaping, so a document title can never add markup. Values in

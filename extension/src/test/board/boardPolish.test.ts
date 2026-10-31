@@ -82,7 +82,7 @@ test("an item step is a link to its document, a lint step stays plain text with 
   const item = items.find((x) => x.includes("data-k=\"item:"));
   const lint = items.find((x) => x.includes('data-k="lint"'));
   assert.ok(item && lint);
-  assert.ok(item.includes('<a class="doc" href="#" data-id="0" title="docs/BUG_a.md">Crash</a>'), "the document is a link with its path as tooltip");
+  assert.ok(item.includes('<a class="doc" href="#" data-id="0" title="Crash\ndocs/BUG_a.md">Crash</a>'), "the document is a link with its path as tooltip");
   assert.equal(item.includes("<button class=\"ptgb\""), false, "the link replaces the Open button");
   assert.equal(lint.includes("<a "), false, "a step that is not a document has no link");
   assert.ok(lint.includes('<button class="ptgb"'), "and keeps its action button");
@@ -181,7 +181,7 @@ test("the style sheet has the narrow rules: wrapping top bar, stacked project ro
   assert.ok(css.includes(".top{display:flex;flex-wrap:wrap"));
   assert.ok(css.includes(".vd .pn{flex:1 1 100%"), "the project name takes its own line");
   assert.ok(css.includes(".row{flex-wrap:wrap"), "list rows wrap so the buttons go under the text");
-  assert.ok(css.includes(".row .f{flex:1 1 100%;white-space:normal"));
+  assert.ok(css.includes(".row .f{flex:1 1 100%;min-width:0;white-space:nowrap"));
   assert.ok(/button,[^{]*select[^{]*\{min-height:32px\}/.test(css), "buttons and selects are at least 32px high");
   assert.ok(css.includes("summary{min-height:32px"));
   assert.ok(STYLE.includes("@media (max-width:320px)"), "an extra block for the narrowest panels");

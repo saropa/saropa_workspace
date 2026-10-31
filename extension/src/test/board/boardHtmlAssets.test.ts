@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { STYLE, script } from "../../board/boardHtmlAssets";
+import { docLink, escapeHtml } from "../../board/boardHtmlUtil";
 
 test("the script carries the revision as a number and the profile as a quoted value", () => {
   const js = script(42, "Refreshing", "deliberate");
@@ -107,4 +108,26 @@ test("rows on demand: openGroupRows is available to code that needs the rows of 
   const js = script(1, "x", "y");
   assert.ok(js.includes("const openGroupRows=id=>"));
   assert.ok(js.includes("return Promise.resolve()"));
+});
+
+test("a long work item name is cut with an ellipsis on one line, also on narrow boards", () => {
+  assert.ok(/\.row \.f\{[^}]*white-space:nowrap;overflow:hidden;text-overflow:ellipsis\}/.test(STYLE));
+  assert.ok(/\.cn \.f\{[^}]*white-space:nowrap/.test(STYLE));
+  assert.ok(/\.fl \.f\{[^}]*white-space:nowrap/.test(STYLE));
+  assert.ok(/a\.doc\{white-space:nowrap\}/.test(STYLE));
+});
+
+test("a document link's title carries the full escaped name, then the path on a second line", () => {
+  const long = "Scripts — a 4th category: a bundled, taggable, configurable script library ".repeat(3) + "<b>";
+  const html = docLink(long, "docs/a.md", 'data-id="1"');
+  assert.ok(html.includes(`title="${escapeHtml(long)}\ndocs/a.md"`));
+  assert.ok(!html.includes("<b>"));
+});
+
+test("a document link's title is never shortened, however long the name or path", () => {
+  const name = "n".repeat(250);
+  const path = "docs/" + "p".repeat(250) + ".md";
+  const html = docLink(name, path, 'data-id="1"');
+  assert.ok(html.includes(`title="${name}\n${path}"`));
+  assert.ok(!html.includes("…"));
 });

@@ -270,10 +270,10 @@ test("no title is a raw key or has an unfilled placeholder", () => {
 test("document links carry their project-relative path as the tooltip and no data attribute holds a path", () => {
   const html = pages()[0][1];
   const links = walk(html).filter((t) => t.name === "a" && t.attrs.class === "doc");
-  const paths = links.map((l) => l.attrs.title).filter((x) => x !== ".saropa/release-board.json");
+  const paths = links.map((l) => (l.attrs.title ?? "").split("\n").pop() ?? "").filter((x) => x !== ".saropa/release-board.json");
   assert.ok(paths.length >= 6);
   assert.ok(paths.every((p) => /^(docs|plans|ROADMAP)/.test(p)), `tooltips: ${paths.join(", ")}`);
-  assert.ok(links.some((l) => l.attrs.title === "docs/BUG_a.md" && l.attrs["data-id"] !== undefined));
+  assert.ok(links.some((l) => (l.attrs.title ?? "").endsWith("\ndocs/BUG_a.md") && l.attrs["data-id"] !== undefined));
   for (const t of walk(html)) {
     for (const [k, v] of Object.entries(t.attrs)) {
       if (k.startsWith("data-") && k !== "data-suggest" && k !== "data-all") {
