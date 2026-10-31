@@ -112,8 +112,8 @@ test("rows on demand: openGroupRows is available to code that needs the rows of 
 
 test("a long work item name is cut with an ellipsis on one line, also on narrow boards", () => {
   assert.ok(/\.row \.f\{[^}]*white-space:nowrap;overflow:hidden;text-overflow:ellipsis\}/.test(STYLE));
-  assert.ok(/\.cn \.f\{[^}]*white-space:nowrap/.test(STYLE));
-  assert.ok(/\.fl \.f\{[^}]*white-space:nowrap/.test(STYLE));
+  assert.ok(/\.cn \.f\{[^}]*white-space:nowrap;overflow:hidden;text-overflow:ellipsis\}/.test(STYLE));
+  assert.ok(/\.fl \.f\{[^}]*white-space:nowrap;overflow:hidden;text-overflow:ellipsis\}/.test(STYLE));
   assert.ok(/a\.doc\{white-space:nowrap\}/.test(STYLE));
 });
 

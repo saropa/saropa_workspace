@@ -19,6 +19,8 @@ import { POLISH_KEYS, PROJECT_LABEL_KEYS, strings } from "../../views/boardStrin
 import { buildFuture } from "../../board/futureList";
 import { futurePanel } from "../../board/boardHtmlFuture";
 import { sinceBox, unnamedBox } from "../../board/boardHtmlBoxes";
+import { row as boardRow } from "../../board/boardHtmlRows";
+import { titleAttr } from "../../board/boardHtmlUtil";
 import { asTimeBox } from "../../board/sittings";
 import en from "../../i18n/locales/en.json";
 
@@ -344,4 +346,17 @@ test("With Group by Project a project still lists its in-progress documents when
 test("the row menu and the group menu both offer Edit tags", () => {
   assert.ok(rowMenu(t).includes('data-act="tags"'));
   assert.ok(scopeMenu(t).includes('data-act="tags"'));
+});
+
+test("a hover is never shortened: titleAttr and a row's hover keep a 250-character line whole", () => {
+  const long = "w".repeat(250);
+  assert.equal(titleAttr(`a\n${long}`), `title="a\n${long}"`);
+  const tl = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "polish" ? { "stTip.red": "{title}" } : `[${k}]`) });
+  const m = buildBoard(cfg, [row("docs/BUG_a.md", "red")], undefined, true, snapshot({ "docs/BUG_a.md": `# ${long}\n` }), undefined, { app: evaluateHealth(undefined, undefined, undefined, 1) });
+  const item = { ...m.items[0], title: long };
+  const html = boardRow(item, undefined, tl, false);
+  assert.ok(html.includes(long), html.slice(0, 600));
+  const hover = /^<div[^>]* title="([^"]*)"/.exec(html)?.[1] ?? "";
+  assert.ok(hover.startsWith(long) && !hover.includes("…"), hover.slice(0, 300));
+  assert.ok(html.includes(`title="${long}`));
 });

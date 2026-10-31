@@ -188,13 +188,9 @@ export function tip(t: BoardStrings, key: string, vars: Record<string, string | 
   return `title="${escapeHtml(pl(t, key, vars))}"`;
 }
 
-// Longest hover line; a longer one is cut with an ellipsis so the tooltip stays readable.
-const TIP_LINE_MAX = 100;
-
-// A title attribute from plain text, escaped. Each line is cut to TIP_LINE_MAX characters.
+// A title attribute from plain text, escaped. Never shortened: the full text is the hover.
 export function titleAttr(text: string): string {
-  const cut = text.split("\n").map((l) => (l.length > TIP_LINE_MAX ? l.slice(0, TIP_LINE_MAX - 1) + "…" : l)).join("\n");
-  return `title="${escapeHtml(cut)}"`;
+  return `title="${escapeHtml(text)}"`;
 }
 
 // A title for a glyph: what it looks like, then what it means ("Red dot: lint is failing").
