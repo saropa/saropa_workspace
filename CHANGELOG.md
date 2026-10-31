@@ -53,6 +53,9 @@ The Gantt key now floats over the board, and status symbols show their colors. [
 ### Changed
 - The Gantt key opens as a floating panel under the "?" button instead of pushing the rows down. The status symbols (● Blocks, ◆ Review, ◐ In progress, ■ Done) are listed in a table.
 - Status symbols in the row menu are color coded: red, amber, purple, blue, green, and gray for reference. The blocking symbol is now red on the Gantt tab too.
+- The Release Board header settings are now separate pills (scope, mode, group, time, devices). Each shows its current value and opens a small menu; the filter pills for time and devices open the same menus. The view menu keeps only the tags and rules entry.
+
+
 
 ## [2.6.1]
 

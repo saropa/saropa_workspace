@@ -157,7 +157,7 @@ test("the page has the controls, the open mark and the roll-up in order, and sen
   assert.ok(at('class="vd skip"') < at('class="roll"'), "unread folders show above the tabs, on every tab");
   assert.equal(html.match(/<script/g)?.length, 1);
   assert.ok(html.includes("type:'projects',rev:REV"));
-  assert.ok(html.includes("type:'scope',value:b.dataset.scope,rev:REV"));
+  assert.ok(html.includes("type:'scope',value:act.slice(6),rev:REV"));
   assert.ok(html.includes("type:'hintDismiss',rev:REV"));
 });
 
@@ -205,7 +205,8 @@ test("a newly chosen project still needs an accepted scan of its own", () => {
 
 import { BoardItem, BoardProject } from "../../board/boardModel";
 import { boardLights, buildSidebarRows, hasDocuments, worstLight, SidebarLabels } from "../../board/sidebar";
-import { scopeSwitch } from "../../board/boardHtmlHeader";
+import { settingPills } from "../../board/boardHtmlHeader";
+import { pillMenus, scopeTotal } from "../../board/boardHtmlMenus";
 import { optsMenu } from "../../board/boardHtmlMenus";
 import { lightTooltip, umbrellaLines } from "../../commands/boardStatusLight";
 import { dropFailed } from "../../board/scanner";
@@ -274,12 +275,12 @@ test("the scope switch counts the projects and says in a tooltip how many chosen
   c.hidden = 2;
   const m = model(c);
   assert.equal(m.hidden, 2);
-  const html = scopeSwitch(m, "openOnly", t);
+  const html = settingPills(m, "openOnly", t);
   assert.ok(html.includes("Chosen projects hidden: 2"), "the hidden count is in the tooltip, not a line on the page");
-  assert.ok(html.includes('data-scope="openOnly" aria-pressed="true"') && html.includes('data-scope="all" aria-pressed="false"'));
-  assert.ok(html.includes('title="scopeAllTip">') || html.includes("scopeAllTip"));
-  assert.ok(html.includes('<span class="pill" title="pillTip">3</span>'), "all projects: the open one plus the 2 hidden");
-  assert.equal(scopeSwitch(model(cfg()), undefined, t), "");
+  assert.ok(html.includes('data-menu="pscope"'));
+  assert.ok(pillMenus(t, m, "openOnly").includes("scopeAllTip"));
+  assert.equal(scopeTotal(m, "openOnly"), 3, "all projects: the open one plus the 2 hidden");
+  assert.equal(settingPills(model(cfg()), undefined, t).includes("pscope"), false);
 });
 
 test("a chosen project whose scan failed is left out and shown as a grey row", () => {

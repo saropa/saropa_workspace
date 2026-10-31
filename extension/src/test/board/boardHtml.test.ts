@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { BoardStrings, escapeHtml, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { escapeHtml as fromUtil } from "../../board/boardHtmlUtil";
 import { buildBoard } from "../../board/boardModel";
-import { viewMenu } from "../../board/boardHtmlMenus";
+import { pillMenus } from "../../board/boardHtmlMenus";
 import { pathToGo } from "../../board/pathToGo";
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 
@@ -178,9 +178,11 @@ test("the More strip has one pill per side section that has something to show, a
   assert.equal(quiet.includes('data-auto="'), false, "no blocker gained, no automatic opening");
 });
 
-test("the view menu offers Group by only when the grouping is known, with the current choice ticked", () => {
-  assert.equal(viewMenu(t, "deliberate").includes("group:"), false);
-  const menu = viewMenu(t, "deliberate", undefined, "none");
+test("the group menu is offered only when the grouping is known, with the current choice ticked", () => {
+  const m = buildBoard(cfg, [], undefined, true);
+  assert.equal(pillMenus(t, m).includes("group:"), false);
+  const menu = pillMenus(t, m, undefined, "none");
+  assert.ok(menu.includes('id="menu-pgroup"'));
   assert.ok(menu.includes('role="menuitemradio" data-act="group:project" aria-checked="false" title="groupProjectTip"'));
   assert.ok(menu.includes('role="menuitemradio" data-act="group:none" aria-checked="true" title="groupNoneTip"'));
   for (const g of ["group", "status", "severity"]) {

@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BoardStrings, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { STYLE, script } from "../../board/boardHtmlAssets";
-import { kebab, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "../../board/boardHtmlMenus";
+import { kebab, optsMenu, rowMenu, scopeMenu, pillMenus, undoBar } from "../../board/boardHtmlMenus";
 import { PROJECTS_STYLE } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { evaluateHealth } from "../../board/health";
@@ -134,7 +134,7 @@ test("the time filter has Any, 15 min, 30 min, 1 hour and Half a day with their 
   const s = strings();
   const m = buildBoard(cfg, [row("docs/p.md", "amber")], undefined, true, snapshot(files), undefined, undefined, { sittings: { selection: { timeBox: "240", maxSteps: 10 }, onlyOwner: false } });
   const html = renderBoard(m, s, "n");
-  const menu = viewMenu(s, "deliberate", m.sittings);
+  const menu = pillMenus(s, m);
   const labels = [...menu.matchAll(/data-act="box:(\w+)" aria-checked="(\w+)" title="[^"]*">(?:\u2713 )?([^<]*)</g)].map((x) => [x[1], x[2], x[3]]);
   assert.deepEqual(labels, [["any", "false", "Any"], ["15", "false", "15 min"], ["30", "false", "30 min"], ["60", "false", "1 hour"], ["240", "true", "Half a day"]]);
   assert.ok(menu.includes("Time I have:") && menu.includes("I have:"));
@@ -270,9 +270,10 @@ test("the page draws the two kebabs in the top bar and each menu once, and the r
   const html = renderBoard(m, t, "n", 1);
   assert.equal(html.match(/id="menu-row"/g)?.length, 1);
   assert.equal(html.match(/id="menu-opts"/g)?.length, 1);
-  assert.equal(html.match(/id="menu-view"/g)?.length, 1);
+  assert.equal(html.match(/id="menu-pmode"/g)?.length, 1);
+  assert.equal(html.match(/id="pill-menus"/g)?.length, 1);
   const top = html.split("\n").find((l) => l.startsWith('<div class="top"')) ?? "";
-  assert.ok(/data-menu="view".*data-menu="opts"/.test(top), "view options, then project actions");
+  assert.ok(/data-menu="pmode".*data-menu="opts"/.test(top), "setting pills, then project actions");
   assert.equal(top.includes("<button id="), false, "no loose buttons: scope, tabs and kebabs only");
   assert.equal(html.match(/\[ptgOpenRules\]/g)?.length, 2, "once in each menu and nowhere else");
   assert.equal(html.includes("data-rules"), false);
@@ -324,8 +325,8 @@ test("every key the umbrella controls read is in the label table and in the cata
 });
 
 test("a device id with a quote is escaped in the menu, and the all entry says whether every device is chosen", () => {
-  const sit = { timeBox: "any", have: ["a"], contexts: [{ id: 'a"b', label: "A" }, { id: "a", label: "B" }], onlyOwner: false } as unknown as Parameters<typeof viewMenu>[2];
-  const menu = viewMenu(strings(), "deliberate", sit);
+  const sit = { timeBox: "any", have: ["a"], contexts: [{ id: 'a"b', label: "A" }, { id: "a", label: "B" }], onlyOwner: false } as unknown as NonNullable<Parameters<typeof pillMenus>[1]["sittings"]>;
+  const menu = pillMenus(strings(), { ...buildBoard(cfg, [], undefined, true), sittings: sit });
   assert.ok(menu.includes('data-act="have:a&#34;b"'));
   assert.ok(!menu.includes('data-act="have:a"b'));
   assert.ok(menu.includes('data-act="haveall" aria-checked="false"'));
