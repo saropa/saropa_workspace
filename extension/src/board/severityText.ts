@@ -1,6 +1,6 @@
 import { DEFAULT_SEVERITY, SeverityDict } from "./severity";
-import { indentOf, isObject, losesData } from "./ruleAssign";
-import { EDIT_LEVELS, SeverityDraft, defaultDraft, draftFromDict, sameList } from "./severityEdit";
+import { indentOf, isObject, losesData } from "./ruleText";
+import { EDIT_LEVELS, SeverityDraft, defaultDraft, draftFromDict, sameList } from "./severityDraft";
 
 // The keyword editor of the board, writing part: the draft turned into the text of the rules file
 // (only what differs from the shipped dictionary), the removal of the whole `severity` key, and
