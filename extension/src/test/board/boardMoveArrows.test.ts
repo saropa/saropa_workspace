@@ -25,7 +25,8 @@ const base: BoardConfig = {
 };
 const rows = [row("a.md"), row("b.md"), row("c.md"), row("d.md")];
 const names = new Map([["app", "App"]]);
-const buttons = (html: string): string[] => html.match(/<button type="button" class="sec mv"[^>]*>/g) ?? [];
+const buttons = (html: string): string[] => html.match(/<button type="button" class="sec mv" data-mv[^>]*>/g) ?? [];
+const chains = (html: string): string[] => html.match(/<button type="button" class="sec mv" data-ch[^>]*>/g) ?? [];
 
 test("arrows are drawn on the rows of a group listed by hand: up off at the first row, down off at the last", () => {
   const model = buildBoard({ ...base, order: { app: ["b.md", "a.md", "c.md"] } }, rows, undefined, true, undefined);
@@ -74,7 +75,7 @@ test("the arrow click sends the keyboard's move message, ids only, with the page
 
 test("a click on an arrow does not also open the document", () => {
   const page = script(1, "x", "p");
-  assert.ok(page.includes("closest('[data-mv]')){return;}vscode.postMessage({type:'open'"));
+  assert.ok(page.includes("closest('[data-mv],[data-ch]')){return;}vscode.postMessage({type:'open'"));
 });
 
 test("a stored order wins over work order in the Gantt, and the arrows follow the drawn rows", () => {
@@ -88,4 +89,25 @@ test("a stored order wins over work order in the Gantt, and the arrows follow th
   assert.deepEqual(buildGantt(model)[0].rows.map((r) => r.path), ["b.md", "c.md", "a.md"], "b waits on a, yet stored order puts it first");
   const b = buttons(ganttPanel(model, t));
   assert.ok(b[0].includes("disabled") && b[5].includes("disabled") && b.filter((x) => x.includes("disabled")).length === 2);
+});
+
+test("left and right chain buttons stand beside the arrows, off on the first row, with escaped labels", () => {
+  const model = buildBoard({ ...base, order: { app: ["b.md", "a.md", "c.md"] } }, rows, undefined, true, undefined);
+  for (const html of [groupCards(model, "group", names, t), ganttPanel(model, t)]) {
+    const c = chains(html);
+    assert.equal(c.length, 6);
+    assert.equal(c.filter((x) => x.includes("disabled")).length, 2, "left and right off on the first row only");
+    assert.ok(c.every((x) => x.includes('aria-label="chainLeft"') || x.includes('aria-label="chainRight"')));
+  }
+  const esc = moveArrows({ polish: { chainLeft: "L {title}", chainRight: "R {title}" } } as unknown as BoardStrings, '"><i>', true, true);
+  assert.ok(!esc.includes("<i>"));
+  assert.equal(chains(moveArrows(t, "x", false, true)).filter((x) => x.includes("disabled")).length, 2);
+});
+
+test("the chain click and Alt+Left/Right send ids only, with the revision, and a click does not open the document", () => {
+  const sent = DRAG_SCRIPT.match(/\{type:'drop',zone:'chain'[^}]*\}/g) ?? [];
+  assert.equal(sent.length, 2);
+  assert.ok(sent.every((m) => /id:Number\(r\.dataset\.drag\),to:[^,]*,ctl:[^}]*rev:REV/.test(m)));
+  assert.ok(DRAG_SCRIPT.includes("e.key!=='ArrowLeft'&&e.key!=='ArrowRight'"));
+  assert.ok(script(1, "x", "p").includes("closest('[data-mv],[data-ch]')"));
 });

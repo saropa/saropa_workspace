@@ -33,8 +33,11 @@ document.addEventListener('drop',e=>{if(!drag){return;}const z=zoneOf(e);if(!z){
 // loadAll(groupId): the group's rows are in the page: a closed group is opened and its rows wired, then the rows behind Show more are asked for. A rows reply wires them (delegated handlers here need no wiring).
 const loadAll=gid=>openGroupRows(gid).then(()=>{const b=[...document.querySelectorAll('[data-rowsmore]')].find(x=>x.dataset.lid===gid&&!x.hidden&&!x.disabled);if(!b){return;}return new Promise(res=>{const k=rkey(gid,b.dataset.by,Number(b.dataset.from));WAITQ.set(k,[...(WAITQ.get(k)||[]),res]);b.click();});});
 document.addEventListener('keydown',e=>{if(!e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||(e.key!=='ArrowUp'&&e.key!=='ArrowDown')){return;}const r=e.target.closest&&e.target.closest('.row[data-drag]'),g=r&&r.previousElementSibling;if(!g||!g.classList.contains('gap')||r.querySelector('.kb[aria-expanded=true]')||document.querySelector('.menu:not([hidden])')){return;}e.preventDefault();const ctl=[...r.querySelectorAll('a,button')].indexOf(e.target.closest('a,button')),m={type:'drop',zone:'move',id:Number(r.dataset.drag),to:e.key==='ArrowUp'?-1:1,ctl:Math.max(ctl,0),rev:REV},nx=r.nextElementSibling;if(e.key==='ArrowDown'&&nx&&nx.hasAttribute('data-rowsmore')){loadAll(g.dataset.to).then(()=>vscode.postMessage(m));}else{vscode.postMessage(m);}});
+// Alt+Left and Alt+Right (and the left and right buttons) chain a row with the row above it; the host finds that row.
 // A row's arrow buttons send the same move as Alt+Up and Alt+Down; the control index is the arrow's place among the row's links and buttons.
+document.addEventListener('keydown',e=>{if(!e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')){return;}const r=e.target.closest&&e.target.closest('.row[data-drag]'),c=r&&r.querySelector('[data-ch]');if(!c||c.disabled||r.querySelector('.kb[aria-expanded=true]')||document.querySelector('.menu:not([hidden])')){return;}e.preventDefault();vscode.postMessage({type:'drop',zone:'chain',id:Number(r.dataset.drag),to:e.key==='ArrowLeft'?-1:1,ctl:Math.max([...r.querySelectorAll('a,button')].indexOf(e.target.closest('a,button')),0),rev:REV});});
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-mv]');if(!b||b.disabled){return;}const r=b.closest('[data-drag]');if(!r){return;}const to=Number(b.dataset.mv)<0?-1:1,m={type:'drop',zone:'move',id:Number(r.dataset.drag),to,ctl:Math.max([...r.querySelectorAll('a,button')].indexOf(b),0),rev:REV},nx=r.nextElementSibling;if(to>0&&b.dataset.mvg&&nx&&nx.hasAttribute('data-rowsmore')){loadAll(b.dataset.mvg).then(()=>vscode.postMessage(m));}else{vscode.postMessage(m);}});
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-ch]'),r=b&&b.closest('[data-drag]');if(!r||b.disabled){return;}vscode.postMessage({type:'drop',zone:'chain',id:Number(r.dataset.drag),to:Number(b.dataset.ch)<0?-1:1,ctl:Math.max([...r.querySelectorAll('a,button')].indexOf(b),0),rev:REV});});
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='say'&&typeof e.data.text==='string'){say(e.data.text);}});
 const lv=live&&live.dataset;if(lv&&lv.focus){const rowOf=()=>{const all=[...document.querySelectorAll('[data-drag="'+lv.focus+'"]')];return all.find(x=>x.offsetParent!==null)||all[0];};const put=()=>{const r=rowOf();if(r){const h=r.closest('[hidden]');if(h){h.hidden=false;const b=h.previousElementSibling;if(b&&b.hasAttribute('data-show-more')){b.remove();}}const f=r.querySelectorAll('a,button');let t=f[Number(lv.ctl)]||f[0];if(t&&t.disabled){const o=t.nextElementSibling&&!t.nextElementSibling.disabled?t.nextElementSibling:t.previousElementSibling;t=o&&!o.disabled?o:f[0];}if(t){t.focus();}}say(lv.say||'');};if(!rowOf()&&lv.gid){loadAll(lv.gid).then(put);}else{put();}}
 })();`;
@@ -69,7 +72,12 @@ export const moveArrows = (t: BoardStrings, title: string, up: boolean, down: bo
     const say = escapeHtml(pl(t, to < 0 ? "moveUp" : "moveDown", { title }));
     return `<button type="button" class="sec mv" data-mv="${to}"${gid === undefined ? "" : ` data-mvg="${escapeHtml(gid)}"`} aria-label="${say}" title="${say}"${on ? "" : " disabled"}>${glyph}</button>`;
   };
-  return `<span class="mvs">${one(-1, "▲", up)}${one(1, "▼", down)}</span>`;
+  // Left and right chain the row with the row above it, so both stand off on the first row.
+  const chain = (to: -1 | 1, glyph: string): string => {
+    const say = escapeHtml(pl(t, to < 0 ? "chainLeft" : "chainRight", { title }));
+    return `<button type="button" class="sec mv" data-ch="${to}" aria-label="${say}" title="${say}"${up ? "" : " disabled"}>${glyph}</button>`;
+  };
+  return `<span class="mvs">${chain(-1, "◀")}${one(-1, "▲", up)}${one(1, "▼", down)}${chain(1, "▶")}</span>`;
 };
 
 // The attributes of a group drop zone: `id` is the group's id, empty for documents in no group.

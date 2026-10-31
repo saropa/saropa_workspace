@@ -85,6 +85,37 @@ function planReorder(item: BoardItem, model: BoardModel, ctx: DropContext, to: u
   return { ok: true, kind: "order", item, paths: next.map((i) => i.path) };
 }
 
+// The rows of the item's group in the order the page draws them, or the text key of why the group has no such order.
+function groupRows(item: BoardItem, model: BoardModel): BoardItem[] | string {
+  const group = item.group;
+  if (!group) {
+    return "releaseBoard.reorder.noGroup";
+  }
+  if (!group.byUser || group.stored === undefined) {
+    return "releaseBoard.reorder.autoGroup";
+  }
+  const rows = applyOrder(model.items.filter((i) => i.group?.id === group.id), model.order);
+  return new Set(rows.map((i) => i.project)).size > 1 ? "releaseBoard.reorder.mixed" : rows;
+}
+
+// `from` (the row that lists the Needs) comes to wait on `onto`.
+function planWaits(from: BoardItem, onto: BoardItem, model: BoardModel, ctx: DropContext): DropPlan {
+  if (from.id === onto.id) {
+    return no("releaseBoard.drop.self");
+  }
+  if (!readsNeeds(from.path)) {
+    return no("releaseBoard.drop.noNeeds", { title: from.title });
+  }
+  if (model.links.some((l) => l.fromProject === from.project && l.fromPath === from.path && l.toProject === onto.project && l.toPath === onto.path)) {
+    return no("releaseBoard.drop.already", { from: from.title, to: onto.title });
+  }
+  if (wouldCircle(model.links, from, onto)) {
+    return no("releaseBoard.needs.circle", { from: from.title, to: onto.title });
+  }
+  const target = needTarget(ctx.rows, ctx.projects, from, onto);
+  return target === undefined ? no("releaseBoard.needs.unnamed", { to: onto.title }) : { ok: true, kind: "waits", from, onto, target };
+}
+
 // A row dropped on a status band (`to` is the status), on a group (`to` is the group id, empty for
 // the documents in no group) or on another row's Waits on slot (`to` is that row's id: the other
 // row then waits on the dragged one), or in a gap between the rows of a group (`to` is the group id,
@@ -126,23 +157,20 @@ export function planDrop(m: { zone?: unknown; id?: unknown; to?: unknown; at?: u
   }
   if (m.zone === "waits") {
     const from = itemAt(model, m.to);
-    if (!from) {
-      return no("releaseBoard.drop.gone");
+    return from ? planWaits(from, item, model, ctx) : no("releaseBoard.drop.gone");
+  }
+  if (m.zone === "chain" && (m.to === -1 || m.to === 1)) {
+    // The row above is read here from the order the move arrows use; the page names the row only.
+    const rows = groupRows(item, model);
+    if (typeof rows === "string") {
+      return no(rows, { title: item.title, name: item.group?.name ?? "" });
     }
-    if (from.id === item.id) {
-      return no("releaseBoard.drop.self");
+    const above = rows[rows.indexOf(item) - 1];
+    if (!above) {
+      return no("releaseBoard.reorder.firstSay", { title: item.title });
     }
-    if (!readsNeeds(from.path)) {
-      return no("releaseBoard.drop.noNeeds", { title: from.title });
-    }
-    if (model.links.some((l) => l.fromProject === from.project && l.fromPath === from.path && l.toProject === item.project && l.toPath === item.path)) {
-      return no("releaseBoard.drop.already", { from: from.title, to: item.title });
-    }
-    if (wouldCircle(model.links, from, item)) {
-      return no("releaseBoard.needs.circle", { from: from.title, to: item.title });
-    }
-    const target = needTarget(ctx.rows, ctx.projects, from, item);
-    return target === undefined ? no("releaseBoard.needs.unnamed", { to: item.title }) : { ok: true, kind: "waits", from, onto: item, target };
+    // Right: this row waits on the row above. Left: the row above waits on this row.
+    return m.to === 1 ? planWaits(item, above, model, ctx) : planWaits(above, item, model, ctx);
   }
   return no("releaseBoard.drop.gone");
 }
