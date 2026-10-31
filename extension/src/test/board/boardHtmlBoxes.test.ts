@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildBoard } from "../../board/boardModel";
 import { BoardStrings } from "../../board/boardHtmlUtil";
-import { viewMenu } from "../../board/boardHtmlMenus";
+import { pillMenus } from "../../board/boardHtmlMenus";
 import { chains, outsideBox, noRuleBox, sinceBox, sinceMarks, sittingsBox, tidyBox, trainBox, unnamedBox } from "../../board/boardHtmlBoxes";
 import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
@@ -34,13 +34,14 @@ function snapshotOf(files: Record<string, string>, mtimeMs = 1, grey: Record<str
   return { version: 1, takenAt: 1, projects: { app: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: grey, files: cached, facts } } };
 }
 
-test("the view menu draws no literal check mark: the style sheet draws the one tick", () => {
-  const html = viewMenu(t, "rush");
+test("the pill menus draw no literal check mark: the style sheet draws the one tick", () => {
+  const html = pillMenus(t, buildBoard({ ...cfg, profile: "rush" }, [], undefined, true), "all", "none");
   assert.equal(html.includes("\u2713"), false);
 });
 
-test("the view menu ticks the chosen profile and sends it by name", () => {
-  const html = viewMenu(t, "rush");
+test("the mode menu ticks the chosen profile and sends it by name", () => {
+  const html = pillMenus(t, buildBoard({ ...cfg, profile: "rush" }, [], undefined, true));
+  assert.ok(html.includes('id="menu-pmode"'));
   assert.ok(html.includes('data-act="profile:rush" aria-checked="true" title="profile.rush">[profileRush]</button>'));
   assert.ok(html.includes('data-act="profile:zero" aria-checked="false" title="profile.zero">[profileZero]</button>'));
 });
@@ -178,7 +179,7 @@ test("the sittings box is always visible: the steps that fit, with the time and 
   const html = sittingsBox(m, t);
   assert.ok(html.startsWith('<details class="box" id="sit-panel" data-sec="sittings" open><summary class="sh" title="sittingsHeading"><h2 title="sittingsHeading"><span class="si" aria-hidden="true">⏱️</span> [sittingsHeading] <span class="pill" title="count">1</span></h2></summary><details class="steps"'));
   assert.equal(html.includes("data-have") || html.includes("data-box"), false, "the chips are gone");
-  const menu = viewMenu(t, "deliberate", m.sittings);
+  const menu = pillMenus(t, m);
   assert.ok(menu.includes('data-act="have:mac"') && menu.includes('data-act="have:iphone"'));
   assert.ok(menu.includes('data-act="have:mac" aria-checked="true"') && menu.includes('data-act="have:iphone" aria-checked="false"'));
   assert.ok(menu.includes('data-act="haveall"'));
@@ -186,7 +187,8 @@ test("the sittings box is always visible: the steps that fit, with the time and 
   for (const box of ["15", "30", "60", "240"]) {
     assert.ok(menu.includes(`data-act="box:${box}" aria-checked="false"`), `time box ${box}`);
   }
-  assert.ok(menu.includes('data-sit="{&#34;have&#34;:[&#34;mac&#34;]'), "the selection travels on the menu");
+  assert.ok(menu.includes('id="pill-menus" data-sit="{&#34;have&#34;:[&#34;mac&#34;]'), "the selection travels on the menu wrapper");
+  assert.ok(menu.includes('id="menu-ptime"') && menu.includes('id="menu-phave"'));
   assert.equal(/\shidden[\s>]/.test(html), false, "nothing is hidden behind a button");
   assert.equal(html.match(/data-step="/g)?.length, 2, "one step that fits and one with no context");
   assert.ok(html.includes('<details class="steps" id="sit-steps" data-sec="sittings-steps" open>'));
@@ -207,7 +209,7 @@ test("by default every context is in hand and any time fits, so nothing is hidde
   assert.equal(v.doable, 2);
   assert.equal(v.needOther, 0);
   const html = sittingsBox(m, t);
-  const menu = viewMenu(t, "deliberate", v);
+  const menu = pillMenus(t, m);
   assert.equal(menu.match(/data-act="have:[a-z]+" aria-checked="true"/g)?.length, v.contexts.length);
   assert.ok(menu.includes('data-act="haveall"'));
 });

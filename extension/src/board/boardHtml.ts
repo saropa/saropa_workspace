@@ -12,7 +12,7 @@ import { DRAG_SCRIPT, DRAG_STYLE, statusBands } from "./boardHtmlDrag";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
-import { RowStatus, optsMenu, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
+import { RowStatus, optsMenu, pillMenus, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
 import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer, proposalCounts, proposalsPill, readyPill } from "./boardHtmlHandoff";
@@ -157,7 +157,7 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${GANTT_STYLE}${DRAG_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(pl(t, "dropLabel"))}" ${movedAttrs(model, state.moved)}></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused)}
+${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused, state.groupBy)}
 ${filterLine(model, t)}
 ${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 ${statusBands(t, state.statuses)}${ganttPanel(model, t, since)}
@@ -171,7 +171,7 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 </div>
 ${futurePanel(future, t)}
 ${undoBar(t, state.undo)}
-${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${futureMenu(future, t)}${viewMenu(t, model.profile, model.sittings, state.groupBy)}${optsMenu(t, state.startup, state.hint)}
+${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${futureMenu(future, t)}${pillMenus(t, model, state.scope, state.groupBy)}${viewMenu(t)}${optsMenu(t, state.startup, state.hint)}
 ${handoffDrawer(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}

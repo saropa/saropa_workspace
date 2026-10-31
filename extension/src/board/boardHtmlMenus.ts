@@ -31,7 +31,7 @@ export interface RowStatus {
 }
 
 // The string key of each Group by choice; its tooltip is the key plus "Tip".
-const GROUP_KEYS: Record<GroupBy, string> = { project: "groupProject", group: "groupGroup", status: "groupStatus", severity: "groupSeverity", none: "groupNone" };
+export const GROUP_KEYS: Record<GroupBy, string> = { project: "groupProject", group: "groupGroup", status: "groupStatus", severity: "groupSeverity", none: "groupNone" };
 
 const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐", blue: "◇", green: "■", reference: "○" };
 
@@ -79,25 +79,45 @@ export function scopeMenu(t: BoardStrings): string {
 }
 
 // Names of the time boxes the Steps filter offers, with the minutes each means.
-const TIME_LABELS: Array<[string, string]> = [["any", "timeAny"], ["15", "time15"], ["30", "time30"], ["60", "timeHour"], ["240", "timeHalfDay"]];
+export const TIME_LABELS: Array<[string, string]> = [["any", "timeAny"], ["15", "time15"], ["30", "time30"], ["60", "timeHour"], ["240", "timeHalfDay"]];
 
-// The view options menu: the release mode, one entry per profile, the grouping (when known), then (with the Steps box) the
-// time I have and the devices in hand. The current choice is ticked. The mode applies to every
-// project on the board. The Steps choices travel as JSON on the menu: the page script changes
-// one and sends the whole selection, the same message the old chips sent.
-export function viewMenu(t: BoardStrings, profile: string, sittings?: BoardModel["sittings"], groupBy?: GroupBy): string {
+// The menu behind each setting pill of the top line. Each holds radio (or, for devices, checkbox)
+// entries with the current choice ticked. They sit in one wrapper that carries the Steps
+// selection as JSON: the page script changes one choice and sends the whole selection.
+export function scopeTotal(model: BoardModel, scope: "all" | "openOnly"): number {
+  return model.projects.length + (scope === "all" ? (model.skipped?.length ?? 0) : (model.hidden ?? 0));
+}
+
+export function pillMenus(t: BoardStrings, model: BoardModel, scope?: "all" | "openOnly", groupBy?: GroupBy): string {
+  const { profile, sittings } = model;
+  const menu = (id: string, aria: string, body: string): string => `<div class="menu" id="menu-${id}" role="menu" hidden aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}">${body}</div>`;
+  const radio = (act: string, text: string, tipText: string, on: boolean): string => item(act, text, tipText, ` aria-checked="${on}"`, "menuitemradio");
+  const out: string[] = [];
+  if (scope !== undefined) {
+    out.push(menu("pscope", pl(t, "scopeGroup"), radio("scope:openOnly", pl(t, "scopeThis"), pl(t, "scopeThisTip"), scope === "openOnly") + radio("scope:all", pl(t, "scopeAll"), pl(t, "scopeAllTip", { count: scopeTotal(model, scope) }), scope === "all")));
+  }
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
-  const head = (key: string): string => `<div class="mh" role="presentation" ${tip(t, key + "Tip")}>${escapeHtml(pl(t, key))}</div>`;
-  const group = groupBy === undefined ? "" : `${head("groupBy")}${GROUP_BYS.map((g) => item("group:" + g, pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), ` aria-checked="${groupBy === g}"`, "menuitemradio")).join("")}`;
-  const steps = sittings
-    ? `${head("timeLabel")}${TIME_LABELS.map(([n, key]) => item("box:" + n, pl(t, key), pl(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) }), ` aria-checked="${sittings.timeBox === n}"`, "menuitemradio")).join("")}`
-      + (sittings.contexts.length > 0
-        ? `${head("haveLabel")}${item("haveall", pl(t, "haveAll"), pl(t, "chipAll"), ` aria-checked="${sittings.have.length === sittings.contexts.length}"`, "menuitemcheckbox")}${sittings.contexts.map((c) => item("have:" + c.id, c.label, pl(t, "chip", { name: c.label }), ` aria-checked="${sittings.have.includes(c.id)}"`, "menuitemcheckbox")).join("")}`
-        : "")
-    : "";
+  out.push(menu("pmode", t.profileLabel, opts.map(([v, text]) => radio("profile:" + v, text, pl(t, "profile." + v), profile === v)).join("")));
+  if (groupBy !== undefined) {
+    out.push(menu("pgroup", pl(t, "groupBy"), GROUP_BYS.map((g) => radio("group:" + g, pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), groupBy === g)).join("")));
+  }
+  if (sittings) {
+    out.push(menu("ptime", pl(t, "timeLabel"), TIME_LABELS.map(([n, key]) => radio("box:" + n, pl(t, key), pl(t, n === "any" ? "timeAnyTip" : "timeTip", { label: pl(t, key) }), sittings.timeBox === n)).join("")));
+    if (sittings.contexts.length > 0) {
+      const check = (act: string, text: string, tipText: string, on: boolean): string => item(act, text, tipText, ` aria-checked="${on}"`, "menuitemcheckbox");
+      out.push(menu("phave", pl(t, "haveLabel"), check("haveall", pl(t, "haveAll"), pl(t, "chipAll"), sittings.have.length === sittings.contexts.length) + sittings.contexts.map((c) => check("have:" + c.id, c.label, pl(t, "chip", { name: c.label }), sittings.have.includes(c.id))).join("")));
+    }
+  }
   const sit = sittings ? ` data-sit="${escapeHtml(JSON.stringify({ have: sittings.have, box: sittings.timeBox, all: sittings.contexts.map((c) => c.id) }))}"` : "";
-  const tags = t.projectLabels?.tagsRules ? item("tagsRules", label(t, "tagsRules"), label(t, "tagsRulesTip")) : "";
-  return `<div class="menu" id="menu-view" role="menu" hidden${sit} aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(t.profileLabel)}">${opts.map(([v, text]) => item("profile:" + v, text, pl(t, "profile." + v), ` aria-checked="${profile === v}"`, "menuitemradio")).join("")}${group}${steps}${tags}</div>`;
+  return `<div id="pill-menus"${sit}>${out.join("")}</div>`;
+}
+
+// The view menu now holds only the tags and rules entry; empty (and its kebab left out) without it.
+export function viewMenu(t: BoardStrings): string {
+  if (!t.projectLabels?.tagsRules) {
+    return "";
+  }
+  return `<div class="menu" id="menu-view" role="menu" hidden aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(pl(t, "viewMenuList"))}">${item("tagsRules", label(t, "tagsRules"), label(t, "tagsRulesTip"))}</div>`;
 }
 
 // The project actions menu: scan again, the rules file, projects, keywords, settings and the

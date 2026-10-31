@@ -12,7 +12,6 @@ export const PROJECTS_STYLE = `
 // The page script for these controls (the scope switch and the filter pills), appended to the main page script: it uses that
 // script's `vscode` and `REV` and sends only the kind of request.
 export const PROJECTS_SCRIPT = `document.querySelectorAll('[data-projects]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:'projects',rev:REV})));
-document.querySelectorAll('[data-scope]').forEach(b=>b.addEventListener('click',()=>{if(b.getAttribute('aria-pressed')!=='true'){vscode.postMessage({type:'scope',value:b.dataset.scope,rev:REV});}}));
 document.querySelectorAll('[data-fclear]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.fclear;sitSend({...(k!=='have'?{box:'any'}:{}),...(k!=='time'?{have:SIT.all}:{})});}));
 const openMore=id=>{document.querySelectorAll('[data-more]').forEach(b=>{const on=b.dataset.more===id;b.setAttribute('aria-pressed',String(on));const p=document.getElementById('more-'+b.dataset.more);if(p){p.hidden=!on;}});vscode.setState({...(vscode.getState()||{}),moreOpen:id});};
 document.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>openMore(b.getAttribute('aria-pressed')==='true'?'':b.dataset.more)));

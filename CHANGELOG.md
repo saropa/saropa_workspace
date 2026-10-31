@@ -46,6 +46,13 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Changed
+- The Release Board header settings are now separate pills (scope, mode, group, time, devices). Each shows its current value and opens a small menu; the filter pills for time and devices open the same menus. The view menu keeps only the tags and rules entry.
+
+---
+
 ## [2.6.1]
 
 The Release Board opens again. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.1/CHANGELOG.md)
