@@ -66,7 +66,7 @@ export function sinceLink(since: SinceView | undefined, t: BoardStrings): string
 // The top line: the setting pills, the view tabs (already built), the chat poll pill (when `paused` is given) and the two kebabs. The intro
 // sentence is the tooltip of the whole line, not text on the page.
 export function topBar(model: BoardModel, t: BoardStrings, scope: Scope | undefined, tabs: string, since?: SinceView, paused?: boolean, groupBy?: GroupBy): string {
-  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${settingPills(model, scope, t, groupBy)}${tabs}${pollPill(paused, t)}<span class="sp"></span><span class="tr">${sinceLink(since, t)}${t.projectLabels?.tagsRules ? kebab(t, "view") : ""}${kebab(t, "opts")}</span></div>`;
+  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${settingPills(model, scope, t, groupBy)}${tabs}${pollPill(paused, t)}<span class="sp"></span><span class="tr">${sinceLink(since, t)}${kebab(t, "opts")}</span></div>`;
 }
 
 // One removable pill per applied filter, hidden when none is applied; "Clear all" once there are

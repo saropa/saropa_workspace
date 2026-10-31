@@ -12,7 +12,7 @@ import { DRAG_SCRIPT, DRAG_STYLE, statusBands } from "./boardHtmlDrag";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
-import { RowStatus, optsMenu, pillMenus, rowMenu, scopeMenu, undoBar, viewMenu } from "./boardHtmlMenus";
+import { RowStatus, optsMenu, pillMenus, rowMenu, scopeMenu, undoBar } from "./boardHtmlMenus";
 import { Scope, filterLine, topBar } from "./boardHtmlHeader";
 import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
 import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer, proposalCounts, proposalsPill, readyPill } from "./boardHtmlHandoff";
@@ -171,7 +171,7 @@ ${blocked > 0 ? `<p class="note" title="${escapeHtml(t.blocked.replace("{count}"
 </div>
 ${futurePanel(future, t)}
 ${undoBar(t, state.undo)}
-${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${futureMenu(future, t)}${pillMenus(t, model, state.scope, state.groupBy)}${viewMenu(t)}${optsMenu(t, state.startup, state.hint)}
+${rowMenu(t, model.profile, model.projects, state.statuses)}${scopeMenu(t)}${futureMenu(future, t)}${pillMenus(t, model, state.scope, state.groupBy)}${optsMenu(t, state.startup, state.hint)}
 ${handoffDrawer(t)}
 <script nonce="${nonce}">${script(rev, t.refreshing, model.profile)}
 ${PROJECTS_SCRIPT}

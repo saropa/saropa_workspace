@@ -13,12 +13,12 @@ import { readsNeeds } from "./docFacts";
 // index. Pure.
 
 // The kebab button of a row (`id` is the item's index), of a project or group heading (`id` is
-// "project:<index>" or "group:<first item>", `title` its name) or of the top bar (no id): "view"
-// holds the view options, "opts" the project actions.
-export function kebab(t: BoardStrings, menu: "row" | "fut" | "opts" | "view" | "scope", id?: number | string, title = "", extra = ""): string {
-  const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "fut" ? pl(t, "futureMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, menu === "view" ? "viewMenu" : "optsMenu");
+// "project:<index>" or "group:<first item>", `title` its name) or of the top bar (no id): "opts"
+// holds the project actions.
+export function kebab(t: BoardStrings, menu: "row" | "fut" | "opts" | "scope", id?: number | string, title = "", extra = ""): string {
+  const text = menu === "row" ? pl(t, "rowMenu", { title }) : menu === "fut" ? pl(t, "futureMenu", { title }) : menu === "scope" ? hl(t, "scopeMenu").replace("{name}", () => title) : pl(t, "optsMenu");
   const at = (id === undefined ? "" : ` data-id="${id}"`) + extra;
-  return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">${menu === "view" ? "\u2630" : "\u22EE"}</button>`;
+  return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">\u22EE</button>`;
 }
 
 export const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem", shape = ""): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${shape === "" ? "" : `<span class="sg ${escapeHtml(shape)}" aria-hidden="true">${SHAPES[shape] ?? "○"}</span> `}${escapeHtml(text)}</button>`;
@@ -112,14 +112,6 @@ export function pillMenus(t: BoardStrings, model: BoardModel, scope?: "all" | "o
   return `<div id="pill-menus"${sit}>${out.join("")}</div>`;
 }
 
-// The view menu now holds only the tags and rules entry; empty (and its kebab left out) without it.
-export function viewMenu(t: BoardStrings): string {
-  if (!t.projectLabels?.tagsRules) {
-    return "";
-  }
-  return `<div class="menu" id="menu-view" role="menu" hidden aria-label="${escapeHtml(pl(t, "viewMenuList"))}" title="${escapeHtml(pl(t, "viewMenuList"))}">${item("tagsRules", label(t, "tagsRules"), label(t, "tagsRulesTip"))}</div>`;
-}
-
 // The project actions menu: scan again, the rules file, projects, keywords, settings and the
 // start-up choice (left out when its state is unknown, as in a plain-browser layout check). While the
 // hint is up, the menu leads with the entry that hides the hint.
@@ -127,5 +119,5 @@ export function optsMenu(t: BoardStrings, startup?: boolean, hint?: boolean): st
   const kw = t.keywordLabels?.edit ? item("keywords", t.keywordLabels.menu, t.keywordLabels.menuTip) : "";
   const boot = startup === undefined ? "" : item("startup", (startup ? "\u2713 " : "") + label(t, "startup"), label(t, "startupTip"), ` data-on="${startup ? 1 : 0}"`);
   const add = hint ? item("hintDismiss", label(t, "hintDismissTip"), label(t, "hintDismissTip")) : "";
-  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${add}${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("organize", hl(t, "menuOrganize"), hl(t, "menuOrganizeTip"))}${item("bringBack", hl(t, "menuBack"), hl(t, "menuBackTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
+  return `<div class="menu" id="menu-opts" role="menu" hidden aria-label="${escapeHtml(pl(t, "optsMenuList"))}" title="${escapeHtml(pl(t, "optsMenuList"))}">${add}${item("handBoard", hl(t, "menuBoard"), hl(t, "menuBoardTip"))}${item("organize", hl(t, "menuOrganize"), hl(t, "menuOrganizeTip"))}${item("bringBack", hl(t, "menuBack"), hl(t, "menuBackTip"))}${item("refresh", t.refresh, pl(t, "refresh"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}${item("projects", label(t, "projects"), label(t, "projectsTip"))}${kw}${t.projectLabels?.tagsRules ? item("tagsRules", label(t, "tagsRules"), label(t, "tagsRulesTip")) : ""}${item("settings", label(t, "settings"), label(t, "settingsTip"))}${boot}</div>`;
 }

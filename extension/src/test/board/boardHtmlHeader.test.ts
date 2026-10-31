@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderBoard } from "../../board/boardHtml";
 import { filterLine, settingPills, sinceLink, topBar } from "../../board/boardHtmlHeader";
-import { pillMenus } from "../../board/boardHtmlMenus";
+import { optsMenu, pillMenus } from "../../board/boardHtmlMenus";
 import { STYLE } from "../../board/boardHtmlAssets";
 import { buildBoard } from "../../board/boardModel";
 import { BoardConfig } from "../../board/types";
@@ -58,19 +58,21 @@ test("the group, time and devices pills appear only when their data is known", (
   }
 });
 
-test("the top line holds the pills, the tabs and the kebabs; the view kebab shows only with its entry", () => {
+test("the top line holds the pills, the tabs and the kebabs; the actions kebab is the only top-bar menu", () => {
   const m = buildBoard(cfg, [], undefined, true);
   const html = topBar(m, t, "openOnly", "<TABS>", undefined, undefined, "project");
   assert.ok(html.indexOf('data-menu="pscope"') < html.indexOf('data-menu="pmode"') && html.indexOf('data-menu="pgroup"') < html.indexOf("<TABS>"));
   assert.ok(html.indexOf("<TABS>") < html.indexOf('data-menu="opts"'));
   assert.equal(html.includes("data-scope"), false, "the two-button switch is gone");
   const withEntry = topBar(m, { ...t, projectLabels: { ...t.projectLabels, tagsRules: "x" } } as typeof t, "openOnly", "<TABS>");
-  assert.ok(withEntry.includes('data-menu="view"'));
+  assert.equal(withEntry.includes('data-menu="view"'), false);
+  assert.equal(html.includes('data-menu="view"'), false);
 });
 
-test("the page keeps the view menu only when it has an entry, and the scope message is posted from the pill menu", () => {
+test("the page has no view menu, and the scope message is posted from the pill menu", () => {
   const html = renderBoard(buildBoard(cfg, [], undefined, true), t, "n", 1, { scope: "all" });
-  assert.equal(html.includes('id="menu-view"'), Boolean(t.projectLabels?.tagsRules));
+  assert.equal(html.includes('id="menu-view"'), false);
+  assert.equal(html.includes('data-menu="view"'), false);
   assert.ok(html.includes("{type:'scope',value:act.slice(6),rev:REV}"));
   assert.ok(html.includes("(m.id==='menu-ptime'||m.id==='menu-phave')&&/^(box:|have:|haveall)/.test(act)"));
   assert.ok(html.includes("document.getElementById('pill-menus')"));
@@ -120,4 +122,13 @@ test("no board count is wrapped in brackets", () => {
   const html = verdict(m.projects[0], t, new Map([["app", m.projects[0].light], ["name:app", "App"]]));
   assert.ok(html.includes('<span class="pill"'), "the row renders a count pill");
   assert.equal(/[(\[]\s*<span class="pill"|<\/span>\s*[)\]]/.test(html), false, "a rendered count is not wrapped in brackets");
+});
+
+test("the actions menu holds the tags and rules entry when its label exists, and no view menu is drawn", () => {
+  const withLabel = { ...t, projectLabels: { ...t.projectLabels, tagsRules: "Tags and rules...", tagsRulesTip: "tip" } } as typeof t;
+  assert.ok(optsMenu(withLabel).includes('data-act="tagsRules"'));
+  assert.equal(optsMenu({ ...t, projectLabels: undefined } as typeof t).includes("tagsRules"), false);
+  const html = renderBoard(buildBoard(cfg, [], undefined, true), withLabel, "n", 1);
+  assert.ok(/id="menu-opts"[^]*data-act="tagsRules"/.test(html));
+  assert.equal(html.includes('data-menu="view"'), false);
 });

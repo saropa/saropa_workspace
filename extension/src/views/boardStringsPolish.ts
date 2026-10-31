@@ -74,8 +74,6 @@ export const POLISH_KEYS = [
   "chatActiveTip",
   "chatPause",
   "chatResume",
-  "viewMenu",
-  "viewMenuList",
   "feedLine",
   "project",
   "kind",
