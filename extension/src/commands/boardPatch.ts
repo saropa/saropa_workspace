@@ -215,20 +215,23 @@ async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, 
     if ((await hasUnsavedEdits(real, shown)) || decodeRules(await vscode.workspace.fs.readFile(uri)) !== before) {
       return skip("changed");
     }
-    try {
-      await writeFileSafe(uri, Buffer.from(text, "utf8"));
-    } catch (e) {
-      void vscode.window.showErrorMessage(plainWriteError(e, me.path));
-      // A write that failed late may still have landed; keep it undoable when it did.
-      if (decodeRules(await vscode.workspace.fs.readFile(uri).then((b) => b, () => new Uint8Array())) === text) {
-        snapshot.docs.push({ uri, shown, before, after: text });
-        return done;
-      }
-      return skip("failed");
-    }
-    snapshot.docs.push({ uri, shown, before, after: text });
-    return done;
+    return (await writeKeepingUndo(uri, shown, me.path, before, text, snapshot)) ? done : skip("failed");
   });
+}
+
+// Writes one document and records it in the Undo snapshot. A write that failed late may still
+// have landed; it is kept undoable when it did. Returns false when nothing was written.
+async function writeKeepingUndo(uri: vscode.Uri, shown: vscode.Uri, file: string, before: string, text: string, snapshot: BatchSnapshot): Promise<boolean> {
+  try {
+    await writeFileSafe(uri, Buffer.from(text, "utf8"));
+  } catch (e) {
+    void vscode.window.showErrorMessage(plainWriteError(e, file));
+    if (decodeRules(await vscode.workspace.fs.readFile(uri).then((b) => b, () => new Uint8Array())) !== text) {
+      return false;
+    }
+  }
+  snapshot.docs.push({ uri, shown, before, after: text });
+  return true;
 }
 
 const PASTED_COPY = /^pasted-[\w.-]+\.patch\.json$/;
