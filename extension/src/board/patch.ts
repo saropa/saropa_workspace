@@ -261,28 +261,68 @@ function checkChange(c: unknown, targets: Map<string, PatchTarget>, statuses: re
   }
   const change: PatchChange = { op, item: item.id, reason, ...(typeof c.rev === "string" ? { rev: c.rev } : {}) };
   const row = (before: string, after: string): PatchRow => ({ change, before, after, stale: change.rev !== undefined && change.rev !== item.rev });
-  if (op === "setStatus" || op === "setSeverity") {
-    const allowed: readonly string[] = op === "setStatus" ? statuses : SEVERITY_LEVELS;
-    const to = typeof c.to === "string" && allowed.includes(c.to) ? c.to : undefined;
-    const before = (op === "setStatus" ? item.status : item.severity) ?? "";
-    if (!to) {
-      return "badValue";
-    }
-    change.to = to;
-    return to === before ? "same" : row(before, to);
+  const ctx: CheckCtx = { c, op, item, change, row, targets, needs };
+  if (op === "setStatus") {
+    return checkSetStatus(ctx, statuses);
+  }
+  if (op === "setSeverity") {
+    return checkSetSeverity(ctx);
   }
   if (op === "setGroup") {
-    const group = words(c.group, MAX_GROUP);
-    if (!group) {
-      return "badValue";
-    }
-    const known = groups.get(fold(group));
-    if (known !== undefined && known !== group) {
-      return "lookalike";
-    }
-    change.group = group;
-    return group === item.group ? "same" : row(item.group ?? "", group);
+    return checkSetGroup(ctx, groups);
   }
+  return checkNeeds(ctx);
+}
+
+// What every per-op check shares: the raw change, the item it names, the change being built and the row maker.
+interface CheckCtx {
+  c: Record<string, unknown>;
+  op: PatchOp;
+  item: PatchTarget;
+  change: PatchChange;
+  row: (before: string, after: string) => PatchRow;
+  targets: Map<string, PatchTarget>;
+  needs: Map<string, Set<string>>;
+}
+
+// A status or severity change: the new value must be one the board allows and differ from the old.
+function checkValue(x: CheckCtx, allowed: readonly string[], current: string | undefined): PatchRow | Refusal {
+  const to = typeof x.c.to === "string" && allowed.includes(x.c.to) ? x.c.to : undefined;
+  const before = current ?? "";
+  if (!to) {
+    return "badValue";
+  }
+  x.change.to = to;
+  return to === before ? "same" : x.row(before, to);
+}
+
+// Checks a status change against the states the board allows.
+function checkSetStatus(x: CheckCtx, statuses: readonly string[]): PatchRow | Refusal {
+  return checkValue(x, statuses, x.item.status);
+}
+
+// Checks a severity change against the severity levels.
+function checkSetSeverity(x: CheckCtx): PatchRow | Refusal {
+  return checkValue(x, SEVERITY_LEVELS, x.item.severity);
+}
+
+// Checks a group change: a printable name that is not a look-alike of a known group.
+function checkSetGroup(x: CheckCtx, groups: Map<string, string>): PatchRow | Refusal {
+  const group = words(x.c.group, MAX_GROUP);
+  if (!group) {
+    return "badValue";
+  }
+  const known = groups.get(fold(group));
+  if (known !== undefined && known !== group) {
+    return "lookalike";
+  }
+  x.change.group = group;
+  return group === x.item.group ? "same" : x.row(x.item.group ?? "", group);
+}
+
+// Checks an add or remove of a Needs link; a passing add or remove updates `needs` for later changes.
+function checkNeeds(x: CheckCtx): PatchRow | Refusal {
+  const { c, op, item, change, row, targets, needs } = x;
   const other = typeof c.on === "string" ? targets.get(c.on) : undefined;
   if (!other) {
     return "unknownTarget";
