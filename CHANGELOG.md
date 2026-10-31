@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Gantt key now floats over the board, and status symbols show their colors. [log](https://github.com/saropa/saropa-workspace/blob/vX.Y.Z/CHANGELOG.md)
+
+### Changed
+- The Gantt key opens as a floating panel under the "?" button instead of pushing the rows down. The status symbols (● Blocks, ◆ Review, ◐ In progress, ■ Done) are listed in a table.
+- Status symbols in the row menu are color coded: red, amber, purple, blue, green, and gray for reference. The blocking symbol is now red on the Gantt tab too.
+
 ## [2.6.1]
 
 The Release Board opens again. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.1/CHANGELOG.md)
