@@ -1,5 +1,5 @@
 import type { BoardItem, BoardModel } from "./boardModelParts";
-import { dragAttrs } from "./boardHtmlDrag";
+import { dragAttrs, moveArrows } from "./boardHtmlDrag";
 import { kebab, rowData } from "./boardHtmlMenus";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, docLink, escapeHtml, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
@@ -64,7 +64,7 @@ function minutesLabel(m: number): string {
 
 const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "■" };
 
-function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): string {
+function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem, move?: { up: boolean; down: boolean }): string {
   const proj = r.project === undefined ? "" : `<span class="gpn" ${titleAttr(r.project)}>${escapeHtml(r.project)}</span>`;
   const word = pl(t, r.status === "green" ? "ganttDoneWord" : "st." + r.status);
   const rowTip = [
@@ -77,15 +77,38 @@ function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): strin
   const cls = `gr${r.status === "green" ? " done" : ""}${r.changed ? " chg" : ""}`;
   // An open row can be dragged, takes a dropped row on its Waits on slot and has the row menu.
   const slotSay = escapeHtml(pl(t, "dropWaits", { title: r.title }));
-  const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${kebab(t, "row", item.id, item.title, rowData(item))}`;
+  const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${move ? moveArrows(t, item.title, move.up, move.down) : ""}${kebab(t, "row", item.id, item.title, rowData(item))}`;
   return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${proj}${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
 }
 
 // Rows of a section drawn in the page; the rest are sent when the page asks (a project of 2,000 documents).
 export const GANTT_ROWS = 150;
 
-function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardStrings, model: BoardModel): string {
-  return g.rows.slice(from, to).map((r, k) => row(r, r.id === undefined ? `f${n}-${from + k}` : String(r.id), t, r.id === undefined ? undefined : model.items[r.id])).join("");
+// Where each open row can move: only a group listed by hand with more than one row, all in one project, takes a
+// move (the same rule as the Board tab). Places are read from the rows as drawn, so the arrows always match the
+// order on the page. Up is off for the group's first row and down for its last.
+function moves(groups: GanttGroup[], model: BoardModel): Map<number, { up: boolean; down: boolean }> {
+  const byGroup = new Map<string, BoardItem[]>();
+  for (const g of groups) {
+    for (const r of g.rows) {
+      const i = r.id === undefined ? undefined : model.items[r.id];
+      if (i?.group?.byUser === true && i.group.stored !== undefined) {
+        byGroup.set(i.group.id, [...(byGroup.get(i.group.id) ?? []), i]);
+      }
+    }
+  }
+  const out = new Map<number, { up: boolean; down: boolean }>();
+  for (const rows of byGroup.values()) {
+    if (rows.length > 1 && new Set(rows.map((i) => i.project)).size === 1) {
+      rows.forEach((i, k) => out.set(i.id, { up: k > 0, down: k < rows.length - 1 }));
+    }
+  }
+  return out;
+}
+
+function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardStrings, model: BoardModel, all: GanttGroup[]): string {
+  const move = moves(all, model);
+  return g.rows.slice(from, to).map((r, k) => row(r, r.id === undefined ? `f${n}-${from + k}` : String(r.id), t, r.id === undefined ? undefined : model.items[r.id], r.id === undefined ? undefined : move.get(r.id))).join("");
 }
 
 // The rows of one section from a position, for the page's "Show more". Undefined for a section or position the model does not hold.
@@ -95,12 +118,12 @@ export function ganttRows(model: BoardModel, t: BoardStrings, since: SinceView |
   if (n < 0 || !Number.isInteger(from) || from < 1 || from >= groups[n].rows.length) {
     return undefined;
   }
-  return { html: rowsHtml(groups[n], n, from, groups[n].rows.length, t, model), count: groups[n].rows.length - from };
+  return { html: rowsHtml(groups[n], n, from, groups[n].rows.length, t, model, groups), count: groups[n].rows.length - from };
 }
 
-function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel): string {
+function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel, all: GanttGroup[]): string {
   const light = g.light === "no-go" ? t.noGo : g.light === "go" ? t.go : t.unverified;
-  const rows = rowsHtml(g, n, 0, GANTT_ROWS, t, model);
+  const rows = rowsHtml(g, n, 0, GANTT_ROWS, t, model, all);
   const rest = g.rows.length - GANTT_ROWS;
   const more = rest > 0 ? `<button type="button" class="sec" data-rowsmore data-lid="${escapeHtml(g.id)}" data-by="gantt" data-from="${GANTT_ROWS}" aria-expanded="false" ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><ul class="grows" role="list" data-lid="${escapeHtml(g.id)}" data-by="gantt" data-kind="more"></ul>` : "";
   const count = pill(t, g.open, "ganttOpen", { count: g.open });
@@ -136,6 +159,6 @@ export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView
   const several = layout === "unified" ? buildGantt(model, since).length > 1 : groups.length > 1;
   const body = groups.length === 0
     ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
-    : `<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model)).join("")}</div>`;
+    : `<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups)).join("")}</div>`;
   return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${several ? layoutToggle(t, layout) : ""}${keyPanel(t)}</div>${body}</section>`;
 }

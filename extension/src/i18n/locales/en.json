@@ -2082,6 +2082,8 @@
   "releaseBoard.polish.dropUngroup": "Drop the row here to take it out of its group. Saved at once, with Undo.",
   "releaseBoard.polish.dropGap": "Drop the row here to put it in this place in {name}. Saved at once, with Undo.",
   "releaseBoard.reorder.moved": "Moved {title} one place. Saved, with Undo.",
+  "releaseBoard.polish.moveUp": "Move {title} up one place in its group. Saved at once, with Undo.",
+  "releaseBoard.polish.moveDown": "Move {title} down one place in its group. Saved at once, with Undo.",
   "releaseBoard.polish.dropWaits": "Drop a row here to make {title} wait on it. Saved at once, with Undo.",
   "releaseBoard.polish.dropStart": "Dragging a row. Drop it on a status, a group you made, or the waits on slot of another row.",
   "releaseBoard.polish.dropLabel": "Drop targets: set a status",

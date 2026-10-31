@@ -2,7 +2,7 @@ import { BoardItem, BoardProject, GroupView, UnverifiedReason } from "./boardMod
 import { PathStep, PathToGo } from "./pathToGo";
 import { LiveMark } from "./liveEvidence";
 import { chooseBox } from "./boardHtmlHandoff";
-import { dragAttrs } from "./boardHtmlDrag";
+import { dragAttrs, moveArrows } from "./boardHtmlDrag";
 import { BoardStrings, fillT, collapsible, sectionIcon, docLink, escapeHtml, liveLine, glyphTip, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { blocksNow, kebab, rowData } from "./boardHtmlMenus";
 import type { FeedNote } from "./recipeEvidence";
@@ -233,8 +233,8 @@ function facts(i: BoardItem, t: BoardStrings): string {
 
 // One open document: the title is the link that opens it (its tooltip is the path inside the
 // project); a click anywhere else on the row opens it too. The row menu button shows on hover.
-export function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean, quiet = false): string {
-  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}"${dragAttrs(i.id)} ${titleAttr(rowCard(i, t))}>${quiet ? "" : statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
+export function row(i: BoardItem, name: string | undefined, t: BoardStrings, indent: boolean, quiet = false, move?: { up: boolean; down: boolean; gid: string }): string {
+  return `<div class="row${indent ? " in" : ""}" data-id="${i.id}"${dragAttrs(i.id)} ${titleAttr(rowCard(i, t))}>${quiet ? "" : statusPill(i, t)}${name === undefined ? "" : `<span class="tag" ${tip(t, "project", { name })}>${escapeHtml(name)}</span>`}${chooseBox(t, i.id, i.title)}<span class="f">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${facts(i, t)}${move ? moveArrows(t, i.title, move.up, move.down, move.gid) : ""}${kebab(t, "row", i.id, i.title, rowData(i))}</div>`;
 }
 
 // What a list adds to the plain item list: its tooltip key, an explanation line, how many more
