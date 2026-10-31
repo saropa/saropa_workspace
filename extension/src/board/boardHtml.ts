@@ -6,7 +6,7 @@ import { BoardStrings, escapeHtml, glyphTip, pillify, pl, tip } from "./boardHtm
 import { STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { CARD_GROUP_BYS, groupCards } from "./boardHtmlGroups";
-import type { GroupBy } from "./types";
+import type { GanttLayout, GroupBy } from "./types";
 import { FutureView, futureMenu, futurePanel, viewTabs } from "./boardHtmlFuture";
 import { DRAG_SCRIPT, DRAG_STYLE, statusBands } from "./boardHtmlDrag";
 import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
@@ -51,6 +51,8 @@ export interface RenderState {
   // one card per group, status or severity; "none" keeps the merged lists.
   // Left undefined (a plain-browser layout check), the merged lists are drawn.
   groupBy?: GroupBy;
+  // How the Gantt lays out several projects; undefined means one section per project.
+  ganttLayout?: GanttLayout;
   // Whether the board opens at start-up (the setting is not "never"); undefined leaves the menu entry out.
   startup?: boolean;
   // Which projects the board shows (the projectScope setting); undefined leaves the scope switch out.
@@ -160,7 +162,7 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
 ${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused)}
 ${filterLine(model, t)}
 ${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
-${statusBands(t, state.statuses)}${ganttPanel(model, t, since)}
+${statusBands(t, state.statuses)}${ganttPanel(model, t, since, state.ganttLayout)}
 <div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${readyPill(t, state.patchReady)}${proposalsPill(t, proposalCounts(model.proposals).main)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
 ${state.groupBy === "project" ? "" : rollupBar(model, t)}

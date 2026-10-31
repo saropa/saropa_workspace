@@ -46,6 +46,11 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+### Added
+- Gantt tab: a **Split** / **Unified** switch next to the key button when two or more projects show. Unified puts every project's rows in one section in work order, each row naming its project, with the worst light of the projects. Saved in the `releaseBoard.ganttLayout` setting; Split stays the default.
+
 ## [2.6.1]
 
 The Release Board opens again. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.1/CHANGELOG.md)

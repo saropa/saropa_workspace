@@ -4,15 +4,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings } from "../../board/boardHtmlUtil";
-import { GANTT_SCRIPT, ganttPanel } from "../../board/boardHtmlGantt";
+import { GANTT_SCRIPT, ganttPanel, ganttRows } from "../../board/boardHtmlGantt";
 import { MAX_FINISHED, buildGantt, finishedTargets } from "../../board/ganttModel";
-import { STYLE } from "../../board/boardHtmlAssets";
+import { STYLE, script } from "../../board/boardHtmlAssets";
 import { Link } from "../../board/links";
 import { buildBoard } from "../../board/boardModel";
 import { readFacts } from "../../board/docFacts";
 import { ScanSnapshot } from "../../board/scanner";
 import { SinceView } from "../../board/sinceLast";
-import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
+import { BoardConfig, BoardStatus, Classified, asGanttLayout, emptyCounts } from "../../board/types";
 
 const t: BoardStrings = new Proxy({} as BoardStrings, { get: (_o, k: string) => `[${k}]` });
 
@@ -115,4 +115,65 @@ test("the loading shimmer skips the Gantt lights, and each row has one tab stop"
   const html = ganttPanel(model, t);
   assert.ok(html.includes('tabindex="-1"'));
   assert.ok(GANTT_SCRIPT.includes("gcol"), "folds are remembered");
+});
+
+// Two projects: "app" and "lib". lib's x.md waits on app's a.md, across projects.
+const cfg2: BoardConfig = { ...cfg, projects: [...cfg.projects, { id: "lib", name: "Lib", path: "lib", roots: [], ruleSets: [] }] };
+const rows2: Classified[] = [...rows, { project: "lib", path: "x.md", status: "amber", kind: "", note: "" }, { project: "lib", path: "y.md", status: "red", kind: "", note: "" }];
+
+function twoProjects() {
+  const snap = snapshotOf({ ...files, "x.md": "# X\n\nNeeds: app:a.md\n", "y.md": "# Y\n" });
+  snap.projects.lib = { ...snap.projects.app, facts: Object.fromEntries(["x.md", "y.md"].map((p) => [p, snap.projects.app.facts[p]])) };
+  return buildBoard(cfg2, rows2, undefined, true, snap);
+}
+
+test("unified puts every project's rows in one group, finished first, in work order, with the worst light", () => {
+  const m = twoProjects();
+  const split = buildGantt(m);
+  assert.equal(split.length, 2);
+  const [u, ...rest] = buildGantt(m, undefined, "unified", "All projects");
+  assert.equal(rest.length, 0);
+  assert.equal(u.id, "all");
+  assert.equal(u.name, "All projects");
+  assert.equal(u.rows.length, split[0].rows.length + split[1].rows.length);
+  assert.equal(u.open, split[0].open + split[1].open);
+  const firstOpen = u.rows.findIndex((r) => r.id !== undefined);
+  assert.ok(u.rows.slice(0, firstOpen).every((r) => r.status === "green") && u.rows.slice(firstOpen).every((r) => r.id !== undefined));
+  const starts = u.rows.slice(firstOpen).map((r) => r.start);
+  assert.deepEqual(starts, [...starts].sort((a, b) => a - b));
+  assert.ok(u.rows.every((r) => r.project === "App <b>" || r.project === "Lib"));
+  const worst = split.some((g) => g.light === "no-go") ? "no-go" : split.some((g) => g.light === "unverified") ? "unverified" : "go";
+  assert.equal(u.light, worst);
+  assert.ok(split.every((g) => g.rows.every((r) => r.project === undefined)), "split rows carry no project name");
+});
+
+test("one project is never unified, so the toggle stays hidden", () => {
+  assert.equal(buildGantt(model, undefined, "unified")[0].id, "app");
+  assert.ok(!ganttPanel(model, t, undefined, "unified").includes("data-glayout"));
+});
+
+test("the toggle shows with two projects in either layout, marks the current one and escapes project names", () => {
+  const m = twoProjects();
+  for (const layout of ["split", "unified"] as const) {
+    const html = ganttPanel(m, t, undefined, layout);
+    assert.equal(html.match(/data-glayout="/g)?.length, 2);
+    assert.ok(html.includes(`data-glayout="${layout}" aria-pressed="true"`));
+    assert.ok(html.includes('aria-pressed="false"') && html.includes('title="ganttSplitTip"'));
+  }
+  const u = ganttPanel(m, t, undefined, "unified");
+  assert.equal(u.match(/<section class="gg"/g)?.length, 1);
+  assert.ok(u.includes('class="gpn"') && u.includes("App &#60;b&#62;") && !u.includes("<b>"));
+});
+
+test("Show more works with the unified group id, and a layout message value is checked against the fixed list", () => {
+  const m = twoProjects();
+  assert.equal(ganttRows(m, t, undefined, "all", 1, "unified")?.count, buildGantt(m, undefined, "unified")[0].rows.length - 1);
+  assert.equal(ganttRows(m, t, undefined, "all", 1, "split"), undefined);
+  assert.equal(asGanttLayout("unified"), "unified");
+  assert.equal(asGanttLayout("split"), "split");
+  for (const bad of ["", "Unified", "all", 1, null, undefined, {}]) {
+    assert.equal(asGanttLayout(bad), undefined);
+  }
+  const page = script(1, "x", "deliberate");
+  assert.ok(page.includes("type:'ganttLayout'") && page.includes("rev:REV"));
 });
