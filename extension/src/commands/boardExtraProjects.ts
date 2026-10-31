@@ -3,7 +3,7 @@ import * as nodePath from "node:path";
 import * as vscode from "vscode";
 import { mapLimit } from "../board/pool";
 import { withTimeout } from "../board/timeout";
-import { GROUP_BYS, GroupBy, ProjectDef, RuleSetDef, SkipReason, SkippedProject } from "../board/types";
+import { GROUP_BYS, asGanttLayout, GanttLayout, GroupBy, ProjectDef, RuleSetDef, SkipReason, SkippedProject } from "../board/types";
 import { ProjectScope, asScope, cleanProjectPaths, folderName, folderProjects, skippedRows } from "../board/extraProjects";
 import { pathExists } from "./boardFileSource";
 
@@ -38,6 +38,15 @@ export async function writeProjectScope(scope: ProjectScope): Promise<void> {
 export function readGroupBy(): GroupBy {
   const v = vscode.workspace.getConfiguration(SECTION).get<string>("groupBy", "project");
   return GROUP_BYS.find((g) => g === v) ?? "project";
+}
+
+export function readGanttLayout(): GanttLayout {
+  const v = vscode.workspace.getConfiguration(SECTION).get<string>("ganttLayout", "split");
+  return asGanttLayout(v) ?? "split";
+}
+
+export async function writeGanttLayout(value: GanttLayout): Promise<void> {
+  await vscode.workspace.getConfiguration(SECTION).update("ganttLayout", value, vscode.ConfigurationTarget.Global);
 }
 
 // Sets the grouping; the setting change repaints the board through the configuration listener.

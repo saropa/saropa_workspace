@@ -1,5 +1,6 @@
 import type { BoardItem, BoardModel, Light } from "./boardModelParts";
 import { Link } from "./links";
+import type { GanttLayout } from "./types";
 import { SinceView, sinceKey } from "./sinceLast";
 
 // The Gantt view's model: the open items and the finished ones they needed, grouped by project
@@ -58,6 +59,8 @@ export interface GanttRow {
   waits: string[];
   // Changed since the last look.
   changed: boolean;
+  // Name of the project, set only in the unified layout where the section no longer says it.
+  project?: string;
 }
 
 export interface GanttGroup {
@@ -107,7 +110,24 @@ function ranks(items: BoardItem[]): Map<number, number> {
 
 // The groups of the Gantt, one per project that has a row, finished documents first and then
 // the open items in work order.
-export function buildGantt(model: BoardModel, since?: SinceView): GanttGroup[] {
+export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLayout = "split", allName = "All projects"): GanttGroup[] {
+  const split = buildSplit(model, since);
+  return layout === "unified" && split.length > 1 ? unify(split, allName) : split;
+}
+
+const LIGHT_ORDER: Light[] = ["no-go", "unverified", "go"];
+
+// One section for every project: finished documents first, then the open rows in work order,
+// each tagged with its project name.
+function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
+  const tagged = groups.flatMap((g) => g.rows.map((r) => ({ ...r, project: g.name })));
+  const done = tagged.filter((r) => r.id === undefined);
+  const open = tagged.filter((r) => r.id !== undefined).sort((a, b) => a.start - b.start);
+  const light = LIGHT_ORDER.find((l) => groups.some((g) => g.light === l)) ?? "unverified";
+  return [{ id: "all", name: allName, light, open: open.length, rows: [...done, ...open] }];
+}
+
+function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
   const minutes = minutesByDoc(model);
   const rank = ranks(model.items);
   // One slot per rank: a bar stays inside its slot, so what waits always starts after what it

@@ -58,7 +58,8 @@ The Gantt key now floats over the board, and status symbols show their colors, a
 - Status symbols in the row menu are color coded: red, amber, purple, blue, green, and gray for reference. The blocking symbol is now red on the Gantt tab too.
 - The Release Board header settings are now separate pills (scope, mode, group, time, devices). Each shows its current value and opens a small menu; the filter pills for time and devices open the same menus. The view menu keeps only the tags and rules entry.
 
-
+### Added
+- Gantt tab: a **Split** / **Unified** switch next to the key button when two or more projects show. Unified puts every project's rows in one section in work order, each row naming its project, with the worst light of the projects. Saved in the `releaseBoard.ganttLayout` setting; Split stays the default.
 
 ## [2.6.1]
 

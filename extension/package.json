@@ -2525,6 +2525,13 @@
             "default": "project",
             "description": "%config.releaseBoard.groupBy.description%"
           },
+          "saropaWorkspace.releaseBoard.ganttLayout": {
+            "type": "string",
+            "enum": ["split", "unified"],
+            "enumDescriptions": ["%config.releaseBoard.ganttLayout.split%", "%config.releaseBoard.ganttLayout.unified%"],
+            "default": "split",
+            "description": "%config.releaseBoard.ganttLayout.description%"
+          },
           "saropaWorkspace.releaseBoard.projects": {
             "type": "array",
             "items": { "type": "string" },

@@ -20,8 +20,8 @@ import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
 import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
-import { writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
-import { GROUP_BYS } from "../board/types";
+import { readGanttLayout, writeGanttLayout, writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
+import { GROUP_BYS, asGanttLayout } from "../board/types";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
 import { FUTURE_SORTS, FutureSort } from "../board/futureList";
 
@@ -97,7 +97,7 @@ class BoardPanel extends BoardPanelFuture {
     const model = this.model;
     const t = strings();
     const valid = by === "group" || by === "status" || by === "severity" || by === "gantt";
-    const out = !model || !valid ? undefined : by === "gantt" ? ganttRows(model, t, this.since, id, from) : cardRows(model, by, id, from, new Map(model.projects.map((p) => [p.id, p.name])), t);
+    const out = !model || !valid ? undefined : by === "gantt" ? ganttRows(model, t, this.since, id, from, readGanttLayout()) : cardRows(model, by, id, from, new Map(model.projects.map((p) => [p.id, p.name])), t);
     void this.panel.webview.postMessage({ type: "rows", id, by: typeof by === "string" ? by : "", from, html: out ? out.html : "", label: out ? pl(t, "rowsShown", { count: out.count }) : "", rev: this.rev });
   }
 
@@ -125,6 +125,8 @@ class BoardPanel extends BoardPanelFuture {
     } else if (message.type === "groupBy" && GROUP_BYS.some((g) => g === message.value)) {
       // The setting change draws the board again through the configuration listener.
       await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
+    } else if (message.type === "ganttLayout" && asGanttLayout(message.value) !== undefined) {
+      await writeGanttLayout(asGanttLayout(message.value)!);
     } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
       await writeProjectScope(message.value);
     } else if (message.type === "rows" && typeof message.id === "string" && message.id.length <= 1000 && typeof message.from === "number") {

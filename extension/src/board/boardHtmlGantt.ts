@@ -4,6 +4,7 @@ import { kebab, rowData } from "./boardHtmlMenus";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, docLink, escapeHtml, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { GanttGroup, GanttRow, buildGantt } from "./ganttModel";
+import { GANTT_LAYOUTS, GanttLayout } from "./types";
 
 // The Gantt tab of the board page: one list of items grouped by project, each with a bar on a
 // work-order axis (never days), a light closing each group, finished items dimmed as history,
@@ -11,7 +12,7 @@ import { GanttGroup, GanttRow, buildGantt } from "./ganttModel";
 // dragged (see boardHtmlDrag.ts) and has the row menu.
 
 export const GANTT_STYLE = `
-.gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}
+.gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}.glay{display:inline-flex}.glay button{border-radius:0}.glay button:first-child{border-radius:4px 0 0 4px}.glay button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}.glay button[aria-pressed=true]{background:var(--blue);color:var(--bg)}.gpn{color:var(--mute);font-size:11px;white-space:nowrap}
 .gantt{position:relative;border:1px solid var(--line);border-radius:6px}
 #gSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5}#gSvg path{fill:none;stroke:var(--amber);stroke-width:1.5;marker-end:url(#gAr)}#gAr path{fill:var(--amber)}
 .gaxis{display:grid;grid-template-columns:minmax(160px,270px) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
@@ -64,6 +65,7 @@ function minutesLabel(m: number): string {
 const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "■" };
 
 function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): string {
+  const proj = r.project === undefined ? "" : `<span class="gpn" ${titleAttr(r.project)}>${escapeHtml(r.project)}</span>`;
   const word = pl(t, r.status === "green" ? "ganttDoneWord" : "st." + r.status);
   const rowTip = [
     r.status === "green" ? pl(t, "ganttDone", { title: r.title }) : pl(t, "stTip." + r.status, { title: r.title }),
@@ -76,7 +78,7 @@ function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem): strin
   // An open row can be dragged, takes a dropped row on its Waits on slot and has the row menu.
   const slotSay = escapeHtml(pl(t, "dropWaits", { title: r.title }));
   const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${kebab(t, "row", item.id, item.title, rowData(item))}`;
-  return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
+  return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${proj}${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
 }
 
 // Rows of a section drawn in the page; the rest are sent when the page asks (a project of 2,000 documents).
@@ -87,8 +89,8 @@ function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardSt
 }
 
 // The rows of one section from a position, for the page's "Show more". Undefined for a section or position the model does not hold.
-export function ganttRows(model: BoardModel, t: BoardStrings, since: SinceView | undefined, id: string, from: number): { html: string; count: number } | undefined {
-  const groups = buildGantt(model, since);
+export function ganttRows(model: BoardModel, t: BoardStrings, since: SinceView | undefined, id: string, from: number, layout: GanttLayout = "split"): { html: string; count: number } | undefined {
+  const groups = buildGantt(model, since, layout, pl(t, "scopeAll"));
   const n = groups.findIndex((g) => g.id === id);
   if (n < 0 || !Number.isInteger(from) || from < 1 || from >= groups[n].rows.length) {
     return undefined;
@@ -122,10 +124,18 @@ export function ganttTab(selected: boolean, t: BoardStrings): string {
 }
 
 // The Gantt tab's content: the key pill, the axis and one section per project.
-export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView): string {
-  const groups = buildGantt(model, since);
+// The Split and Unified buttons, shown only when the projects could be told apart (two or more).
+export function layoutToggle(t: BoardStrings, layout: GanttLayout): string {
+  const label = escapeHtml(pl(t, "ganttLayout"));
+  return `<span class="glay" role="group" aria-label="${label}" title="${label}">${GANTT_LAYOUTS.map((l) => `<button type="button" class="sec" data-glayout="${l}" aria-pressed="${l === layout}" ${tip(t, l === "split" ? "ganttSplitTip" : "ganttUnifiedTip")}>${escapeHtml(pl(t, l === "split" ? "ganttSplit" : "ganttUnified"))}</button>`).join("")}</span>`;
+}
+
+export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView, layout: GanttLayout = "split"): string {
+  const groups = buildGantt(model, since, layout, pl(t, "scopeAll"));
+  // The toggle needs the split view to count the projects, since the unified view is always one section.
+  const several = layout === "unified" ? buildGantt(model, since).length > 1 : groups.length > 1;
   const body = groups.length === 0
     ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
     : `<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model)).join("")}</div>`;
-  return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${keyPanel(t)}</div>${body}</section>`;
+  return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${several ? layoutToggle(t, layout) : ""}${keyPanel(t)}</div>${body}</section>`;
 }
