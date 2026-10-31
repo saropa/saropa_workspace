@@ -44,3 +44,6 @@ docs/handover/
 
 # Saropa Log Capture
 reports/
+
+# Agent worktrees: embedded git repos, never committed.
+.claude/worktrees/
