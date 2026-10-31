@@ -140,9 +140,15 @@ export function buildGantt(model: BoardModel, since?: SinceView): GanttGroup[] {
     const done: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
       .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], changed: false }));
-    const open: GanttRow[] = inStoredOrder(p.items, model.order)
+    // Work order first; then a group with a stored order takes that order inside the places its members hold.
+    const open: GanttRow[] = inStoredOrder(
+      p.items
+        .map((i) => ({ i, rank: rank.get(i.id) ?? 0 }))
+        .sort((a, b) => a.rank - b.rank)
+        .map((x) => x.i),
+      model.order,
+    )
       .map((i) => ({ i, rank: rank.get(i.id) ?? 0 }))
-      .sort((a, b) => a.rank - b.rank)
       .map(({ i, rank: r }): GanttRow => {
         const known = minutes.get(i.project + "\t" + i.path) ?? 0;
         const share = Math.min(1, Math.max(MIN_SHARE, (known || STANDARD) / longest));

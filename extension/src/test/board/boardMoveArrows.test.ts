@@ -9,7 +9,10 @@ import { ganttPanel } from "../../board/boardHtmlGantt";
 import { groupCards } from "../../board/boardHtmlGroups";
 import { buildGantt } from "../../board/ganttModel";
 import { buildBoard } from "../../board/boardModel";
-import { BoardConfig, BoardStatus, Classified } from "../../board/types";
+import { script } from "../../board/boardHtmlAssets";
+import { readFacts } from "../../board/docFacts";
+import { ScanSnapshot } from "../../board/scanner";
+import { BoardConfig, BoardStatus, Classified, emptyCounts } from "../../board/types";
 
 const t: BoardStrings = new Proxy({} as BoardStrings, { get: (_o, k: string) => `[${k}]` });
 const row = (path: string): Classified => ({ project: "app", path, status: "amber" as BoardStatus, kind: "", note: "" });
@@ -67,4 +70,22 @@ test("the arrow click sends the keyboard's move message, ids only, with the page
   assert.ok(/type:'drop',zone:'move',id:Number\(r\.dataset\.drag\),to,ctl:[^}]*rev:REV/.test(DRAG_SCRIPT));
   const alt = DRAG_SCRIPT.match(/m=\{type:'drop',zone:'move'[^}]*\}/g) ?? [];
   assert.equal(alt.length, 2, "the keyboard and the button build the same message shape");
+});
+
+test("a click on an arrow does not also open the document", () => {
+  const page = script(1, "x", "p");
+  assert.ok(page.includes("closest('[data-mv]')){return;}vscode.postMessage({type:'open'"));
+});
+
+test("a stored order wins over work order in the Gantt, and the arrows follow the drawn rows", () => {
+  const files = { "a.md": "# Alpha\n", "b.md": "# Beta\n\nNeeds: a.md\n", "c.md": "# Gamma\n" };
+  const facts = Object.fromEntries(Object.entries(files).map(([p, text]) => [p, { size: text.length, mtimeMs: 1, facts: readFacts(text, p) }]));
+  const snap: ScanSnapshot = { version: 1, takenAt: 1, projects: { app: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts } } };
+  const cfg: BoardConfig = { ...base, groups: [{ name: "Launch", match: ["app/a.md", "app/b.md", "app/c.md"] }] };
+  const unordered = buildBoard(cfg, rows.slice(0, 3), undefined, true, snap);
+  assert.deepEqual(buildGantt(unordered)[0].rows.map((r) => r.path), ["a.md", "c.md", "b.md"], "no stored order: work order");
+  const model = buildBoard({ ...cfg, order: { app: ["b.md", "c.md", "a.md"] } }, rows.slice(0, 3), undefined, true, snap);
+  assert.deepEqual(buildGantt(model)[0].rows.map((r) => r.path), ["b.md", "c.md", "a.md"], "b waits on a, yet stored order puts it first");
+  const b = buttons(ganttPanel(model, t));
+  assert.ok(b[0].includes("disabled") && b[5].includes("disabled") && b.filter((x) => x.includes("disabled")).length === 2);
 });
