@@ -46,9 +46,9 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.7.0]
 
-The Gantt key now floats over the board, and status symbols show their colors, and board rows line up better. [log](https://github.com/saropa/saropa-workspace/blob/vX.Y.Z/CHANGELOG.md)
+The Gantt key now floats over the board, and status symbols show their colors, and board rows line up better. [log](https://github.com/saropa/saropa-workspace/blob/v2.7.0/CHANGELOG.md)
 
 ### Changed
 - Board rows: a long work item name stays on one line and ends with an ellipsis; hovering shows the full name and, on a second line, its path.
