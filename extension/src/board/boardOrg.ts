@@ -57,6 +57,50 @@ function colourOf(c: string): string | undefined {
   return /^#[0-9a-f]{6}$/i.test(c) ? c : COLOUR_HEX[c as OrgColour];
 }
 
+// One layout for the whole board: the documents of every project shown count together.
+function layoutsFor(docs: OrgDoc[], res: OrgResult): { layout: Layout; layouts: Record<string, Layout> } {
+  const first = Object.values(res.layouts)[0];
+  const layout = layoutFor(docs.length, first?.band, first?.max);
+  const layouts: Record<string, Layout> = {};
+  for (const project of new Set(docs.map((d) => d.project))) {
+    layouts[project] = layout;
+  }
+  return { layout, layouts };
+}
+
+// The view of every document's innermost group, with the views of its parents; one view per group.
+function groupViews(res: OrgResult, layout: Layout): Map<string, GroupView> {
+  const byId = new Map(res.groups.map((g) => [g.id, g]));
+  const views = new Map<string, GroupView>();
+  const viewOf = (id: string): GroupView => {
+    const have = views.get(id);
+    if (have) {
+      return have;
+    }
+    const g = byId.get(id)!;
+    const fold = layout.foldWhy ? l10n(layout.foldWhy.key, layout.foldWhy.params) : undefined;
+    const v: GroupView = {
+      id,
+      name: clipName(displayName(g, l10n)),
+      ...(g.stored !== undefined ? { stored: g.stored } : {}),
+      emoji: g.emoji,
+      colour: colourOf(g.colour),
+      why: whyLines(g),
+      ...(g.kind === "manual" || g.edited ? { byUser: true as const } : {}),
+      ...(g.parent && byId.has(g.parent) ? { parent: g.parent, parentView: viewOf(g.parent) } : {}),
+      ...(!layout.headers ? { flat: true as const } : {}),
+      ...(fold ? { fold } : {}),
+    };
+    views.set(id, v);
+    return v;
+  };
+  const groupOf = new Map<string, GroupView>();
+  for (const [key, id] of res.groupOf) {
+    groupOf.set(key, viewOf(id));
+  }
+  return groupOf;
+}
+
 // The documents of every project that count for grouping: open and finished ones.
 export function buildOrg(rows: Classified[], snapshot: ScanSnapshot | undefined, cfg: BoardConfig, links: Link[], previous?: OrgPrevious): OrgBuilt {
   const ungrouped = (cfg.ungrouped ?? []).map(globToRegExp);
@@ -87,40 +131,6 @@ export function buildOrg(rows: Classified[], snapshot: ScanSnapshot | undefined,
     }
   }
   const res = organizeCached(docs, cfg, previous);
-  // One layout for the whole board: the documents of every project shown count together.
-  const first = Object.values(res.layouts)[0];
-  const layout = layoutFor(docs.length, first?.band, first?.max);
-  const layouts: Record<string, Layout> = {};
-  for (const project of new Set(docs.map((d) => d.project))) {
-    layouts[project] = layout;
-  }
-  const byId = new Map(res.groups.map((g) => [g.id, g]));
-  const views = new Map<string, GroupView>();
-  const viewOf = (id: string): GroupView => {
-    const have = views.get(id);
-    if (have) {
-      return have;
-    }
-    const g = byId.get(id)!;
-    const fold = layout.foldWhy ? l10n(layout.foldWhy.key, layout.foldWhy.params) : undefined;
-    const v: GroupView = {
-      id,
-      name: clipName(displayName(g, l10n)),
-      ...(g.stored !== undefined ? { stored: g.stored } : {}),
-      emoji: g.emoji,
-      colour: colourOf(g.colour),
-      why: whyLines(g),
-      ...(g.kind === "manual" || g.edited ? { byUser: true as const } : {}),
-      ...(g.parent && byId.has(g.parent) ? { parent: g.parent, parentView: viewOf(g.parent) } : {}),
-      ...(!layout.headers ? { flat: true as const } : {}),
-      ...(fold ? { fold } : {}),
-    };
-    views.set(id, v);
-    return v;
-  };
-  const groupOf = new Map<string, GroupView>();
-  for (const [key, id] of res.groupOf) {
-    groupOf.set(key, viewOf(id));
-  }
-  return { groupOf, hubs: res.hubs, layouts };
+  const { layout, layouts } = layoutsFor(docs, res);
+  return { groupOf: groupViews(res, layout), hubs: res.hubs, layouts };
 }
