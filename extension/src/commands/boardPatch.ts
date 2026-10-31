@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { BoardModel } from "../board/boardModel";
 import { HANDOFF_DIR, KEEP_HANDOFFS } from "../board/handoff";
-import { MAX_PATCH_CHARS, PatchRow, targetsOf } from "../board/patch";
+import { MAX_PATCH_CHARS, PatchRow, PatchTarget, targetsOf } from "../board/patch";
 import { addNeedsLine, applyRuleRow, needsSpellings, needsWrite, removeNeedsLine } from "../board/patchApply";
 import { decodeRules, ruleCategories } from "../board/ruleAssign";
 import { pathExists } from "./boardFileSource";
@@ -72,13 +72,9 @@ export async function realInside(rootFs: string, rel: string): Promise<string | 
 
 export { hasUnsavedEdits, plainWriteError };
 
-// Writes the rows: status, severity and group changes in one write of the rules file, Needs
-// changes one write per document. A row that cannot be written is counted as skipped, and a failure
-// partway never hides what was already written: the snapshot always holds every file written.
-export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow[]): Promise<ApplyOutcome> {
-  const targets = targetsOf(model);
-  const cats = ruleCategories(run.cfg);
-  const out: ApplyOutcome = { applied: 0, skipped: 0, snapshot: { docs: [] }, problems: [] };
+// Writes the status, severity and group rows in one write of the rules file; counts what applied,
+// records the snapshot and adds any problems to `out`. A write that throws is a problem, never a crash.
+async function applyRuleRows(run: BoardRun, rows: PatchRow[], targets: ReturnType<typeof targetsOf>, cats: ReturnType<typeof ruleCategories>, out: ApplyOutcome): Promise<void> {
   const ruleRows = rows.filter((r) => RULE_OPS.has(r.change.op) && targets.has(r.change.item));
   if (ruleRows.length > 0) {
     try {
@@ -110,6 +106,16 @@ export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow
       out.problems.push(plainWriteError(e, RULES_FILE));
     }
   }
+}
+
+// Writes the rows: status, severity and group changes in one write of the rules file, Needs
+// changes one write per document. A row that cannot be written is counted as skipped, and a failure
+// partway never hides what was already written: the snapshot always holds every file written.
+export async function applyRows(run: BoardRun, model: BoardModel, rows: PatchRow[]): Promise<ApplyOutcome> {
+  const targets = targetsOf(model);
+  const cats = ruleCategories(run.cfg);
+  const out: ApplyOutcome = { applied: 0, skipped: 0, snapshot: { docs: [] }, problems: [] };
+  await applyRuleRows(run, rows, targets, cats, out);
   const byDoc = new Map<string, PatchRow[]>();
   for (const r of rows.filter((x) => !RULE_OPS.has(x.change.op) && targets.has(x.change.item))) {
     byDoc.set(r.change.item, [...(byDoc.get(r.change.item) ?? []), r]);
@@ -148,6 +154,24 @@ export async function changedOnDisk(run: BoardRun, targets: ReturnType<typeof ta
 // Documents larger than this are never rewritten (the text edits scan every line).
 export const MAX_DOC_BYTES = 2_000_000;
 
+// Applies the Needs rows of one document to its text; returns the new text and how many rows took.
+function editNeeds(before: string, me: PatchTarget, rows: PatchRow[], targets: ReturnType<typeof targetsOf>): { text: string; done: number } {
+  let text = before;
+  let done = 0;
+  for (const r of rows) {
+    const other = targets.get(r.change.on ?? "");
+    if (!other) {
+      continue;
+    }
+    const e = r.change.op === "addNeeds" ? addNeedsLine(text, needsWrite(me, other)) : removeNeedsLine(text, needsSpellings(me, other));
+    if (e.ok) {
+      text = e.text;
+      done++;
+    }
+  }
+  return { text, done };
+}
+
 // Rewrites the Needs lines of one document; returns how many rows were written. A document left
 // alone adds its reason to `problems`.
 async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, id: string, rows: PatchRow[], snapshot: BatchSnapshot, problems: string[]): Promise<number> {
@@ -184,19 +208,7 @@ async function writeNeeds(run: BoardRun, targets: ReturnType<typeof targetsOf>, 
     if (before === undefined) {
       return skip("encoding");
     }
-    let text = before;
-    let done = 0;
-    for (const r of rows) {
-      const other = targets.get(r.change.on ?? "");
-      if (!other) {
-        continue;
-      }
-      const e = r.change.op === "addNeeds" ? addNeedsLine(text, needsWrite(me, other)) : removeNeedsLine(text, needsSpellings(me, other));
-      if (e.ok) {
-        text = e.text;
-        done++;
-      }
-    }
+    const { text, done } = editNeeds(before, me, rows, targets);
     if (done === 0) {
       return skip("nochange");
     }
