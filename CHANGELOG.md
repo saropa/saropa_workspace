@@ -46,7 +46,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.6.1]
 
 The Release Board opens again. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.1/CHANGELOG.md)
 
