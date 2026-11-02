@@ -151,8 +151,11 @@ test("an ungrouped folder answer survives the write and read round trip", () => 
   const back = parseMarks(JSON.stringify(setOrder(emptyMarks(), "app", e))).order.app;
   assert.deepEqual(back.folders, e.folders, "the ungrouped folder id is kept");
   assert.notEqual(nextQuestion(items, back)?.kind, "folder", "the folder question is not asked again");
-  // Ungrouped board items use the same id.
-  assert.ok(build().projects[0].items.every((i) => folderOf(i) === NO_FOLDER));
+  // A board item with no group uses the same id; an auto-grouped one uses its group id.
+  const board = build().items;
+  assert.ok(board.length > 0);
+  assert.ok(board.every((i) => folderOf({ ...i, group: undefined }) === NO_FOLDER));
+  assert.ok(board.every((i) => folderOf(i) === (i.group ? i.group.id : NO_FOLDER)));
   // A folder that is gone is dropped on write.
   assert.deepEqual(tidyOrder(e, [], () => true, (id) => id === NO_FOLDER).entry.folders, []);
 });
