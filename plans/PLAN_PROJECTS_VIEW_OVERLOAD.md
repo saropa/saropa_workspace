@@ -343,6 +343,21 @@ Owner request: the Gantt needs precedence and dependencies; ask which item comes
 - Decision H: **Order across folders.** (a) Folder answers order sections and Up next only, no item edges (Recommended: keeps the Gantt from turning into one long serial chain). (b) Every item of the first folder comes before every item of the next.
 
 
+### Build notes: ordering questions (2026-11-02, two commits on the branch, not merged)
+
+Built as designed: PR 1 (`order` field of the marks file with equal caps 500/200/100 on read and write, `board/orderAsk.ts` pure logic, `board/orderModel.ts` attaches `BoardItem.after`/`inferred` and `BoardProject.folderRank`/`orderAsk`, `ranks()` reads `after` with `waitsOn`, prior order for answered blockers, Up next skips an item after an open one and follows folder rank, tooltip lines "(you said)" and "follows from your answers", dotted chain mark) and PR 2 (strip, `orderAsk` message, project menu "Order the blockers...", row menu "Ask where this goes..." and "Forget order answers", pair QuickPick with Skip, batch of at most 5, one write, one Undo). Tests written, not run: `test/board/boardOrderModel.test.ts`, `test/board/boardOrderAsk.test.ts`.
+
+Deviations and not built:
+- Not built: the row-menu entry "Make this a real dependency" (turn one answer into a `Needs:` line). Handoff and path-to-go stay unchanged by design.
+- Not built: per-section Gantt slot width (design risk 1, accepted there).
+- The dotted chain mark shows on any row that follows an open item only through others' answers (`inferred` not empty). Folder answers make no item edges (decision H), so the "ordered across a folder line" case does not arise.
+- Rows with an asked pair show one tooltip line per source; Needs keeps the existing "Waits on" line, asked pairs add "After X (you said)".
+- Order is asked only for answered projects with at least two blocking items; the strip text counts the items the open question is about (all of them while folders are being ordered, else the folder in turn).
+- Item questions run over at most 200 flagged items per project (`MAX_ORDERED`).
+- A batch that is dismissed at the first question saves nothing, including the forgotten answers of "Ask where this goes...".
+- Dropped answers (lost to a Needs line, a newer answer or a removed document) are dropped on the next write and counted in that write's Undo label; Undo restores the whole entry.
+- Not done: headless render of the strip at narrow widths (no browser here); no test run (machine safety).
+
 ### Build notes: blocks-flag leftovers (2026-11-02, commit 1 of the finish pass)
 
 Done: (a) mode menu note "{count} project(s) use your marks; the mode does not change them" (shown in the scope-and-mode menu, where the mode is chosen, when a project is answered). (b) Project name tooltip adds the rule (`ruleMarks` or `ruleAuto`). (c) `whyRed` now says the red folder blocks; new `whyRedUnmarked` for an answered project; `effFixed` says "its folder is red or you marked it". `stTip.red` unchanged (it was already neutral). (d) The row checkbox, when turning a mark on in a project not yet answered, also records the answer with an empty `seen`; Undo restores both. Side effect: the other critical items of that project then count as new and the strip may ask about them. (e) A rules-file pin is listed ticked with "Pinned by the rules file, change it there" and is never written. Deviation: the VS Code list cannot disable a row, so the row can be unticked but the change is ignored. (f) Gantt unmarked red-folder rows draw amber with the word "Address now" (`GanttRow.serious`). (g) `MAX_OUTLINED = 10`: only the first ten changed rows in display order get the outline; every changed row keeps its tooltip.

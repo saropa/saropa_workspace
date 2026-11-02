@@ -17,6 +17,7 @@ import { matchedTagIds, settingsOf } from "../board/org/settings";
 import { openMessage } from "./boardHandoff";
 import { BoardPanelWiring } from "./boardPanelWiring";
 import { BlockersUndo, chooseBlockers, toggleBlock } from "../commands/boardBlockers";
+import { orderBlockers, forgetOrder } from "../commands/boardOrder";
 import { readMarks } from "../commands/boardMarks";
 import { rebaseProject } from "./boardSinceLast";
 
@@ -107,6 +108,9 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
       await this.tagsRules([item]);
     } else if (act === "block") {
       await this.blockers(() => toggleBlock(this.context, item, this.model?.items.filter((i) => i.project === item.project)), item.project);
+      this.post({ type: "clearPending", id });
+    } else if (act === "order" || act === "forgetOrder") {
+      await this.askOrder(this.model?.projects.findIndex((p) => p.id === item.project) ?? -1, act === "forgetOrder" ? "forget" : "again", item);
       this.post({ type: "clearPending", id });
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
@@ -278,6 +282,26 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     const run = this.run;
     if (project && run) {
       await this.blockers(() => chooseBlockers(this.context, project, run.marks, !all && project.ask?.fresh === true), project.id);
+    }
+  }
+
+  // Asks which of a project's blockers (by its index in the model this panel painted) comes first: a batch of up to five
+  // pair questions, one write, one Undo. `focus` limits it to one document ("again" re-asks it, "forget" removes its answers).
+  protected async askOrder(index: number, mode: "batch" | "again" | "forget", focus?: BoardItem): Promise<void> {
+    const project = Number.isInteger(index) ? this.model?.projects[index] : undefined;
+    const run = this.run;
+    const model = this.model;
+    if (!project || !run || !model) {
+      return;
+    }
+    const docs = new Set(run.result.rows.filter((r) => r.project === project.id).map((r) => r.path));
+    const only = focus;
+    if (only && mode === "forget") {
+      await this.blockers(() => forgetOrder(this.context, project, only), undefined);
+    } else if (only && !only.blocks) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.order.notBlocker", { title: only.title }));
+    } else {
+      await this.blockers(() => orderBlockers(this.context, project, model.items, (path) => docs.has(path), { again: mode === "again", focus: only }), undefined);
     }
   }
 

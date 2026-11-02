@@ -79,12 +79,12 @@ class BoardPanel extends BoardPanelFuture {
       } else if (req) {
         await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
       }
-    } else if (msg.type === "scopeMenu" && ["hand", "tags", "ask"].includes((message as { act?: unknown }).act as string) && typeof (message as { id?: unknown }).id === "string") {
+    } else if (msg.type === "scopeMenu" && ["hand", "tags", "ask", "order"].includes((message as { act?: unknown }).act as string) && typeof (message as { id?: unknown }).id === "string") {
       const at = scopeOfMenu((message as { id: string }).id);
-      if (at && (message as { act?: unknown }).act === "ask") {
+      if (at && ((message as { act?: unknown }).act === "ask" || (message as { act?: unknown }).act === "order")) {
         // Only a project menu asks; a group heading has no such entry.
         if (at.scope === "project") {
-          await this.askBlockers(at.i, true);
+          await ((message as { act?: unknown }).act === "ask" ? this.askBlockers(at.i, true) : this.askOrder(at.i, "again"));
         }
       } else if (at && (message as { act?: unknown }).act === "tags") {
         await this.tagsRules(this.scopeItems(at.scope, at.i));
@@ -142,6 +142,8 @@ class BoardPanel extends BoardPanelFuture {
       await this.drop(message);
     } else if (message.type === "blockersAsk" && Number.isInteger(message.p)) {
       await this.askBlockers(message.p as number, false);
+    } else if (message.type === "orderAsk" && Number.isInteger(message.p)) {
+      await this.askOrder(message.p as number, "batch");
     } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
       await this.rowMenu(message.act, message.id);
     } else if (message.type === "optsMenu" && typeof message.act === "string") {

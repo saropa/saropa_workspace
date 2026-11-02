@@ -108,8 +108,9 @@ const sameSkip = (s: readonly Pair[], x: string, y: string): boolean => s.some((
 
 // Puts `order` (the guess, most important first) into one list the edges allow, one item at a time: each item is
 // compared first with the last placed item (the guess is that it follows it), then by halving. An undecided
-// comparison is the next question; with `ask` false it is taken as "follows" so a full order is still drawn.
-function place(order: readonly string[], edges: readonly Pair[], skipped: readonly Pair[], ask: boolean): { placed: string[]; question?: Pair } {
+// comparison is the next question when `ask(x)` says to ask about that item; otherwise it is taken as "follows"
+// so a full order is still drawn.
+function place(order: readonly string[], edges: readonly Pair[], skipped: readonly Pair[], ask: (x: string) => boolean): { placed: string[]; question?: Pair } {
   const g = graphOf(edges);
   const placed: string[] = [];
   for (const x of order) {
@@ -120,7 +121,7 @@ function place(order: readonly string[], edges: readonly Pair[], skipped: readon
       const y = placed[probe];
       if (reaches(g, x, y)) {
         hi = probe;
-      } else if (reaches(g, y, x) || sameSkip(skipped, x, y) || !ask) {
+      } else if (reaches(g, y, x) || sameSkip(skipped, x, y) || !ask(x)) {
         lo = probe + 1;
       } else {
         return { placed, question: [x, y] };
@@ -132,10 +133,10 @@ function place(order: readonly string[], edges: readonly Pair[], skipped: readon
 }
 
 // The next question over `order`: a pair [x, y] to put to the owner, or undefined when nothing needs asking.
-export const nextPair = (order: readonly string[], edges: readonly Pair[], skipped: readonly Pair[]): Pair | undefined => place(order.slice(0, MAX_ORDERED), edges, skipped, true).question;
+export const nextPair = (order: readonly string[], edges: readonly Pair[], skipped: readonly Pair[]): Pair | undefined => place(order.slice(0, MAX_ORDERED), edges, skipped, () => true).question;
 
 // `order` arranged by the answers (undecided items keep their guessed place).
-export const arranged = (order: readonly string[], edges: readonly Pair[], skipped: readonly Pair[]): string[] => place(order, edges, skipped, false).placed;
+export const arranged = (order: readonly string[], edges: readonly Pair[], skipped: readonly Pair[]): string[] => place(order, edges, skipped, () => false).placed;
 
 // What the question logic needs of one flagged, open item.
 export interface OrderItem {
@@ -194,6 +195,15 @@ export function nextQuestion(items: readonly OrderItem[], e: OrderEntry, hard: r
     }
   }
   return undefined;
+}
+
+// The next question about one document only (the others keep their guessed place), among the flagged documents of
+// its folder; undefined when its place is settled.
+export function nextQuestionFor(items: readonly OrderItem[], e: OrderEntry, path: string, hard: readonly Pair[] = []): Question | undefined {
+  const folder = items.find((i) => i.path === path)?.folder;
+  const mine = items.filter((i) => i.folder === folder).sort(byGuess).map((i) => i.path);
+  const p = place(mine.slice(0, MAX_ORDERED), [...hard, ...settle(e.pairs, hard).kept], e.skipped, (x) => x === path).question;
+  return p && e.pairs.length < MAX_PAIRS ? { kind: "item", a: p[0], b: p[1] } : undefined;
 }
 
 // How many flagged items the open question is about (the strip's number): all of them while folders are being

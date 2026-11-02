@@ -51,6 +51,7 @@ cspell:disable
 The Release Board Gantt is easier to read and its header is calmer.
 
 ### Changed
+- Release Board: in a project where you marked the blockers, a strip asks "which comes first?" in batches of up to five pair questions (A, B or Skip; Escape keeps the answers given). One write and one Undo per batch. Folders are asked first, then the documents of the top folder. The project menu has "Order the blockers..."; the row menu has "Ask where this goes..." and "Forget order answers". Answers set the order only; documents are not edited.
 - Release Board Gantt: your "which comes first" answers (kept in the marks file, never written into documents) set the order of blockers. A row follows the rows you said come before it; the tooltip names the source, and a row ordered partly by inference carries a dotted chain mark. Up next skips a blocker that follows an open one.
 - Gantt rows: titles wrap to two lines in a wider title column; the project name shrinks first; the hidden chain slot takes no width until you hover, focus or drag. Tooltips still show the full text.
 - Gantt Unified: blockers come first (red, then purple, then amber), then work order.
