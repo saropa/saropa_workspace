@@ -386,3 +386,18 @@ Findings:
 - Low: `boardHtmlGantt.ts:68` drag-open: `pend` is not cleared on drop or dragend, so after a drop on a closed header the next drag over that same header never opens it. Clear `pend` on `dragend`/`drop`.
 - Low: `firstRows` (`boardHtmlGantt.ts` ~130) puts group sub-headers after the plain rows; when plain rows exceed the limit, a group with a blocker sits behind "Show more". The project header still shows the red total, so no blocker is hidden, but the sub-header red count is not visible until Show more.
 - Low: spec step "headless render at 5/59/300 documents" and a dark/light/narrow check are not evidenced (no browser); unchanged from step 1.
+
+### Review verdict (ordering) (2026-11-02, read-only, nothing run)
+
+Passes: marks `order` is additive (old files parse to `{}`; `emptyMarks`, `fitMarks`, `parseMarks`, `mergeMarks`, `answeredExtra` and all three `buildBoard` callers updated; test literal updated); caps 500/200/100 equal on read (`parseOrder`) and write (`orderOverCap` in `fitMarks`); Needs win over answers and newest answer wins (`settle`); loops cut by `ranks()` visiting guard; severity is the prior order; batch is 5 and insertion is binary; one `updateLocalMarks` write and one Undo; Escape keeps answers; `{orderAsk,p,rev}` passes the common rev check, integer check and model index lookup, ids only; strip, glyph and tooltips escape; ARIA valid; all en.json keys present; no other consumer of `waitsOn` reads `after`.
+
+Findings:
+- Medium (data loss of answers, not of documents): `orderModel.ts:12` `folderOf` returns "" for ungrouped items, and `orderAsk.ts:44` `okId` rejects empty ids on read. A folder answer naming the ungrouped folder is written, then dropped on the next read; the `same` check in `commands/boardOrder.ts:56` then fails, so the write is reported as refused (no Undo) and the question is asked again forever. Fix: key ungrouped as a non-empty id (e.g. "none") on write and read.
+- Medium: `skipped` has no guard like `MAX_PAIRS`/`MAX_FOLDER_PAIRS` in `nextQuestion`; the 201st skip makes `fitMarks` refuse the whole batch (all answers of that batch lost, shown as a failed write). Stop asking (or drop oldest skips) at the cap.
+- Low: "Forget order answers" and "Order again" read merged marks (`boardOrder.ts:78,100`) but write local; an entry that lives only in the shared file cannot be forgotten (local delete, shared still read).
+- Low: folder pairs whose group no longer exists are not dropped on write (`tidyOrder` only settles them); spec says dropped. Folder-skips are kept without a known check.
+- Low: the project-menu "Order the blockers..." entry is not hidden on group headings (`boardHtmlAssets.ts:142` hides only `ask`); the host ignores it silently.
+- Low: the dotted chain mark shows for any inferred row, not only rows with no asked/Needs edge of their own (recorded deviation).
+- Tests: use real entry points (`buildBoard`, `renderBoard`, openBoard with real marks files); none covers the ungrouped-folder round trip or the skipped cap. Not run.
+
+Decision: fix the two Medium findings before merge (one round, per repo policy); Low items fixed in the same round or dropped.

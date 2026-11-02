@@ -1,13 +1,13 @@
 import type { BoardItem, BoardProject } from "./boardModelParts";
-import { OrderEntry, OrderItem, Pair, afterOf, emptyOrder, folderOrder, pendingCount, settle } from "./orderAsk";
+import { NO_FOLDER, OrderEntry, OrderItem, Pair, afterOf, emptyOrder, folderOrder, pendingCount, settle } from "./orderAsk";
 
 // Puts the owner's order answers onto the built board: `after` and `inferred` on the items, the folder ranks and
 // the "which comes first" strip on the projects. An answer is an order preference only: `waitsOn` is untouched.
 
 const SEV: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
 
-// The folder an item counts in for ordering: its group, or "" when it has none.
-export const folderOf = (i: BoardItem): string => i.group?.id ?? "";
+// The folder an item counts in for ordering: its group, or NO_FOLDER when it has none.
+export const folderOf = (i: BoardItem): string => i.group?.id ?? NO_FOLDER;
 
 // The flagged (blocking) open items of a project, as the question logic reads them.
 export const orderItemsOf = (items: readonly BoardItem[]): OrderItem[] => items.filter((i) => i.blocks).map((i) => ({ path: i.path, folder: folderOf(i), sev: SEV[i.severity ?? "medium"] ?? 3, blocksCount: i.blocksCount }));

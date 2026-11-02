@@ -7,13 +7,13 @@ import { folderOf, hardEdges, orderItemsOf } from "../board/orderModel";
 import { MarksFile, setOrder } from "../board/marks";
 import { strings } from "../views/boardStrings";
 import type { BlockersUndo } from "./boardBlockers";
-import { readLocalMarks, readMarks, updateLocalMarks } from "./boardMarks";
+import { SHARED_FILE, readLocalMarks, readMarks, updateLocalMarks } from "./boardMarks";
 
 // "Which comes first?", VS Code layer. Every question is the host's own picker built from its own model, so the
 // page sends only a project index or an item id. A batch is at most BATCH questions, then one write of the local
 // marks file and one Undo. Escape ends the batch and keeps the answers already given. Documents are never edited.
 
-interface Pick extends vscode.QuickPickItem {
+interface AnswerPick extends vscode.QuickPickItem {
   first?: string;
   skip?: true;
 }
@@ -21,7 +21,7 @@ interface Pick extends vscode.QuickPickItem {
 // The picker of one question. Returns the id chosen to come first, "skip", or undefined when dismissed.
 async function pickFirst(q: Question, n: number, byPath: ReadonlyMap<string, BoardItem>, byFolder: ReadonlyMap<string, { name: string; count: number }>): Promise<{ first?: string } | "skip" | undefined> {
   const t = strings();
-  const one = (id: string): Pick => {
+  const one = (id: string): AnswerPick => {
     if (q.kind === "folder") {
       const f = byFolder.get(id);
       return { label: f?.name ?? id, description: l10n("releaseBoard.order.folderCount", { count: f?.count ?? 0 }), first: id };
@@ -29,7 +29,7 @@ async function pickFirst(q: Question, n: number, byPath: ReadonlyMap<string, Boa
     const i = byPath.get(id);
     return { label: i?.title ?? id, description: [i?.severity ? pl(t, "sev." + i.severity) : "", i?.group?.name ?? ""].filter(Boolean).join(" · "), detail: id, first: id };
   };
-  const picks: Pick[] = [one(q.a), one(q.b), { label: l10n("releaseBoard.order.skip"), description: l10n("releaseBoard.order.skipTip"), skip: true }];
+  const picks: AnswerPick[] =[one(q.a), one(q.b), { label: l10n("releaseBoard.order.skip"), description: l10n("releaseBoard.order.skipTip"), skip: true }];
   const chosen = await vscode.window.showQuickPick(picks, { title: l10n(q.kind === "folder" ? "releaseBoard.order.titleFolder" : "releaseBoard.order.titleItem", { n, total: BATCH }), ignoreFocusOut: true, matchOnDetail: true });
   return chosen ? (chosen.skip ? "skip" : { first: chosen.first }) : undefined;
 }
@@ -51,7 +51,12 @@ async function save(context: vscode.ExtensionContext, project: BoardProject, nex
   });
   const now = (await readLocalMarks(context)).order[project.id];
   const same = JSON.stringify(now ?? null) === JSON.stringify(next.pairs.length + next.skipped.length + next.folders.length === 0 ? null : next);
-  return before === undefined || !same ? undefined : { label: label(lost), restore: undoOf(context, project.id, before) };
+  if (before === undefined || !same) {
+    // A refused write (file too big) already warned; say plainly that nothing was saved.
+    void vscode.window.showInformationMessage(l10n("releaseBoard.order.notSaved", { project: project.name }));
+    return undefined;
+  }
+  return { label: label(lost), restore: undoOf(context, project.id, before) };
 }
 
 // What the page can name: the documents a project has (so pairs of removed documents are dropped on write).
@@ -92,13 +97,19 @@ export async function orderBlockers(context: vscode.ExtensionContext, project: B
   if (given === 0) {
     return undefined;
   }
-  const { entry: tidy, lost } = tidyOrder(entry, hard, known);
+  const folderIds = new Set(project.items.map(folderOf));
+  const { entry: tidy, lost } = tidyOrder(entry, hard, known, (id) => folderIds.has(id));
   return save(context, project, tidy, (dropped) => l10n(dropped > 0 ? "releaseBoard.order.undoLost" : "releaseBoard.order.undo", { project: project.name, count: given, lost: dropped }), lost);
 }
 
 // Takes the order answers about one document away (the row menu's "Forget order answers"), with Undo.
 export async function forgetOrder(context: vscode.ExtensionContext, project: BoardProject, item: BoardItem): Promise<BlockersUndo | undefined> {
   const start = (await readMarks(context)).order[project.id];
+  // Only the local file is written: an entry that lives only in the shared file is changed by editing that file.
+  if (start && !(await readLocalMarks(context)).order[project.id]) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.order.sharedOnly", { file: SHARED_FILE }));
+    return undefined;
+  }
   const next = start ? forgetItem(start, item.path) : undefined;
   if (!start || !next || JSON.stringify(next) === JSON.stringify(start)) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.order.nothingToForget", { title: item.title }));

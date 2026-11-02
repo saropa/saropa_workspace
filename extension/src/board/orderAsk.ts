@@ -24,7 +24,10 @@ export const MAX_ORDERED = 200;
 // Prefix of a folder id inside `skipped`, so a folder pair never collides with a document path.
 export const FOLDER_MARK = "folder:";
 
-export const emptyOrder = (): OrderEntry => ({ pairs: [], skipped: [], folders: [] });
+// The folder id of an item with no group. Never empty: the reader drops empty ids.
+export const NO_FOLDER = "none";
+
+export const emptyOrder =(): OrderEntry => ({ pairs: [], skipped: [], folders: [] });
 export const isEmptyOrder = (e: OrderEntry): boolean => e.pairs.length + e.skipped.length + e.folders.length === 0;
 
 // True when an entry holds more than the caps allow (the writer refuses it, as the reader would cut it).
@@ -176,7 +179,8 @@ export const folderOrder = (items: readonly OrderItem[], e: OrderEntry): string[
 // The next question, or undefined when none is left. Folders first (when the items span two or more), then the
 // documents of the first folder that still has an unordered pair. `hard` = Needs edges (already decided).
 export function nextQuestion(items: readonly OrderItem[], e: OrderEntry, hard: readonly Pair[] = []): Question | undefined {
-  if (items.length < 2 || e.pairs.length >= MAX_PAIRS) {
+  // At a cap nothing more is asked, so the writer (which refuses past the same caps) never refuses a batch.
+  if (items.length < 2 || e.pairs.length >= MAX_PAIRS || e.skipped.length >= MAX_SKIPPED) {
     return undefined;
   }
   const folders = folderGuess(items);
@@ -203,7 +207,7 @@ export function nextQuestionFor(items: readonly OrderItem[], e: OrderEntry, path
   const folder = items.find((i) => i.path === path)?.folder;
   const mine = items.filter((i) => i.folder === folder).sort(byGuess).map((i) => i.path);
   const p = place(mine.slice(0, MAX_ORDERED), [...hard, ...settle(e.pairs, hard).kept], e.skipped, (x) => x === path).question;
-  return p && e.pairs.length < MAX_PAIRS ? { kind: "item", a: p[0], b: p[1] } : undefined;
+  return p && e.pairs.length < MAX_PAIRS && e.skipped.length < MAX_SKIPPED ?{ kind: "item", a: p[0], b: p[1] } : undefined;
 }
 
 // How many flagged items the open question is about (the strip's number): all of them while folders are being
@@ -235,11 +239,13 @@ export const forgetItem = (e: OrderEntry, path: string): OrderEntry => ({ ...e, 
 
 // The entry with the answers cleaned for a write: answers that lose to a Needs line or to a newer answer, and
 // pairs naming a path that is no longer a document (`known` false), are dropped. `lost` = how many answers went.
-export function tidyOrder(e: OrderEntry, hard: readonly Pair[], known: (path: string) => boolean): { entry: OrderEntry; lost: number } {
+export function tidyOrder(e: OrderEntry, hard: readonly Pair[], known: (path: string) => boolean, knownFolder: (id: string) => boolean = () => true): { entry: OrderEntry; lost: number } {
   const live = (p: Pair): boolean => known(p[0]) && known(p[1]);
+  const liveFolder = (p: Pair): boolean => knownFolder(p[0]) && knownFolder(p[1]);
+  const isFolderSkip = (p: Pair): boolean => p[0].startsWith(FOLDER_MARK) && p[1].startsWith(FOLDER_MARK);
   const { kept, dropped } = settle(e.pairs.filter(live), hard);
-  const skipped = e.skipped.filter((p) => p[0].startsWith(FOLDER_MARK) || live(p));
-  return { entry: { pairs: kept, skipped, folders: settle(e.folders).kept }, lost: dropped.length + (e.pairs.length - e.pairs.filter(live).length) };
+  const skipped = e.skipped.filter((p) => (isFolderSkip(p) ? liveFolder([p[0].slice(FOLDER_MARK.length), p[1].slice(FOLDER_MARK.length)]) : live(p)));
+  return { entry: { pairs: kept, skipped, folders: settle(e.folders.filter(liveFolder)).kept }, lost: dropped.length + (e.pairs.length - e.pairs.filter(live).length) };
 }
 
 // What a project's open items read from its answers: for each open document the open documents it directly

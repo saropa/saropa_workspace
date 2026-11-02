@@ -14,6 +14,7 @@ import {
   MAX_FOLDER_PAIRS,
   MAX_PAIRS,
   MAX_SKIPPED,
+  NO_FOLDER,
   OrderEntry,
   OrderItem,
   Pair,
@@ -21,10 +22,12 @@ import {
   emptyOrder,
   forgetItem,
   nextQuestion,
+  nextQuestionFor,
   settle,
   tidyOrder,
   withAnswer,
 } from "../../board/orderAsk";
+import { folderOf } from "../../board/orderModel";
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 
 const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] } as BoardConfig;
@@ -140,6 +143,28 @@ test("a closed document keeps transitivity and hands its answers back when it re
   assert.deepEqual(placed.get(p("C")), { after: [p("A")], inferred: [] });
 });
 
+test("an ungrouped folder answer survives the write and read round trip", () => {
+  const items = [item("a.md", 0, NO_FOLDER), item("b.md", 1, NO_FOLDER), item("c.md", 2, "fb")];
+  const first = nextQuestion(items, emptyOrder())!;
+  assert.equal(first.kind, "folder");
+  const e = withAnswer(emptyOrder(), first, NO_FOLDER);
+  const back = parseMarks(JSON.stringify(setOrder(emptyMarks(), "app", e))).order.app;
+  assert.deepEqual(back.folders, e.folders, "the ungrouped folder id is kept");
+  assert.notEqual(nextQuestion(items, back)?.kind, "folder", "the folder question is not asked again");
+  // Ungrouped board items use the same id.
+  assert.ok(build().projects[0].items.every((i) => folderOf(i) === NO_FOLDER));
+  // A folder that is gone is dropped on write.
+  assert.deepEqual(tidyOrder(e, [], () => true, (id) => id === NO_FOLDER).entry.folders, []);
+});
+
+test("at the skip cap nothing more is asked, so a batch is never refused", () => {
+  const two = [item(p("A")), item(p("B"))];
+  const full = entry([], { skipped: Array.from({ length: MAX_SKIPPED }, (_v, i) => [`x${i}.md`, `y${i}.md`] as Pair) });
+  assert.equal(nextQuestion(two, full), undefined);
+  assert.equal(nextQuestionFor(two, full, p("B")), undefined);
+  assert.ok(fitMarks(setOrder(emptyMarks(), "app", full)));
+});
+
 test("the board reads answers into after, the Gantt ranks, and the tooltip names the source", () => {
   const m = build({ app: entry([[p("A"), p("B")], [p("B"), p("C")]]) });
   assert.deepEqual(m.items.find((i) => i.path === p("C"))!.after, [idOf(m, "B")]);
@@ -148,7 +173,7 @@ test("the board reads answers into after, the Gantt ranks, and the tooltip names
   const g = buildGantt(m)[0];
   const at = (n: string) => g.rows.find((r) => r.path === p(n))!;
   assert.ok(at("A").start < at("B").start && at("B").start < at("C").start, "later answers start later");
-  assert.deepEqual(at("C").afterSrc, ["asked"]);
+  assert.deepEqual(at("C").after, [idOf(m, "B")]);
   assert.deepEqual(at("C").askedNames, [at("B").title]);
   const html = renderBoard(m, t, "n", 1, { groupBy: "project" });
   assert.ok(html.includes('class="ginf"'), "the dotted chain mark on the inferred row");

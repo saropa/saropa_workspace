@@ -2222,6 +2222,8 @@
   "releaseBoard.order.nothingToForget": "No order answers name {title}.",
   "releaseBoard.order.undo": "{project}: {count} order answers",
   "releaseBoard.order.undoLost": "{project}: {count} order answers ({lost} older answers dropped because they contradicted a newer one, a Needs line or a removed document)",
+  "releaseBoard.order.notSaved": "{project}: the order answers were not saved.",
+  "releaseBoard.order.sharedOnly": "These order answers come from the shared file {file}. Edit that file to change them.",
   "releaseBoard.order.undoForget": "{title}: order answers forgotten",
   "releaseBoard.polish.menuAsk": "Choose what blocks the next release…",
   "releaseBoard.polish.menuAskTip": "Pick which items of this project block the next release. Only the ones you pick turn red.",

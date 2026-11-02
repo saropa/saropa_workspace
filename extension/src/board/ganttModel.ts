@@ -1,5 +1,6 @@
 import type { BoardItem, BoardModel, Light } from "./boardModelParts";
 import { applyOrder } from "./boardOrder";
+import { NO_FOLDER } from "./orderAsk";
 import { Link } from "./links";
 import { layoutFor } from "./org/layout";
 import type { GanttLayout } from "./types";
@@ -61,8 +62,6 @@ export interface GanttRow {
   after: number[];
   // Titles of those items, for the tooltip.
   waits: string[];
-  // Where each id in `after` comes from, same order: a Needs line or the owner's answer.
-  afterSrc: Array<"needs" | "asked">;
   // Titles of the items this row is after only because of the owner's answers (the "you said" lines).
   askedNames: string[];
   // Titles of the items this row follows only through others' answers; their presence draws the dotted chain mark.
@@ -199,7 +198,7 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
   for (const p of model.projects) {
     const allDone: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
-      .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], afterSrc: [], askedNames: [], inferred: [], changed: false }));
+      .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], askedNames: [], inferred: [], changed: false }));
     // A big board keeps fewer finished rows: the last two, or only a count.
     const done = keepDone === "all" ? allDone : keepDone === "last2" ? allDone.slice(-2) : [];
     // Work order first; then a group with a stored order takes that order inside the places its members hold.
@@ -224,7 +223,6 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
           minutes: known,
           after: [...i.waitsOn, ...(i.after ?? [])],
           waits: i.waitsOn.map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
-          afterSrc: [...i.waitsOn.map(() => "needs" as const), ...(i.after ?? []).map(() => "asked" as const)],
           askedNames: (i.after ?? []).map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
           inferred: (i.inferred ?? []).map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
           changed: marked.has(sinceKey(i)),
@@ -274,7 +272,7 @@ export const UP_NEXT = 5;
 // unblocks most first, then severity, then the shortest. An item appears once; nothing is padded in.
 export function upNext(model: BoardModel, n = UP_NEXT): BoardItem[] {
   const folderRanks = new Map(model.projects.filter((p) => p.folderRank).map((p) => [p.id, p.folderRank!]));
-  const folder = (i: BoardItem): number => folderRanks.get(i.project)?.[i.group?.id ?? ""] ?? 0;
+  const folder = (i: BoardItem): number => folderRanks.get(i.project)?.[i.group?.id ?? NO_FOLDER] ?? 0;
   const cmp = (a: BoardItem, b: BoardItem): number =>
     folder(a) - folder(b) ||
     b.blocksCount - a.blocksCount ||
