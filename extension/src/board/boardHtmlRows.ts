@@ -130,14 +130,16 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
   return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
 }
 
-// True when an open document blocks the release under the chosen profile: a red folder, a
-// stopping severity or a pin. Only these are drawn red.
+// True when an open document blocks the next release: only these are drawn red.
 const blocks = blocksNow;
+
+// A red-folder document in an answered project that the owner did not mark: drawn amber, not red.
+const unmarked = (i: BoardItem): boolean => i.status === "red" && !i.blocks;
 
 // The hover card of a row: what the document is, why it blocks (or not), what it waits on, and
 // who or what set its status or severity. Plain text, one line per fact; the page escapes it.
 function rowCard(i: BoardItem, t: BoardStrings): string {
-  const lines = [pl(t, blocks(i) ? "stTip.red" : "stTip." + i.status, { title: i.title })];
+  const lines = [pl(t, blocks(i) ? "stTip.red" : unmarked(i) ? "stTip.serious" : "stTip." + i.status, { title: i.title })];
   if (i.status === "red") {
     lines.push(pl(t, "whyRed"));
   }
@@ -145,7 +147,7 @@ function rowCard(i: BoardItem, t: BoardStrings): string {
     lines.push(t.pinned);
   }
   if (i.severity) {
-    lines.push(pl(t, i.stopping ? "severityStops" : "severity", { severity: pl(t, "sev." + i.severity) }));
+    lines.push(pl(t, i.stopping && i.answered && !i.blocks ? "severityUnmarked" : i.stopping ? "severityStops" : "severity", { severity: pl(t, "sev." + i.severity) }));
   }
   if (i.link) {
     lines.push(i.link.detail);
@@ -163,11 +165,12 @@ function rowCard(i: BoardItem, t: BoardStrings): string {
 // The status pill: a shape for the status, the word, and the severity word. Red only when the
 // document blocks the release; a hand-set value carries a pen mark.
 function statusPill(i: BoardItem, t: BoardStrings): string {
-  const k = blocks(i) ? "red" : i.status;
+  const k = blocks(i) ? "red" : unmarked(i) ? "amber" : i.status;
+  const word = unmarked(i) ? "st.serious" : "st." + k;
   const shape = k === "red" ? "●" : k === "amber" ? "◆" : "◐";
   const sev = i.severity ? ` · ${escapeHtml(pl(t, "sev." + i.severity))}` : "";
   const pen = i.severityByUser || i.statusByUser ? ` <span ${tip(t, "byYou")}>✎</span>` : "";
-  return `<span class="stat ${k}" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" data-menu="row" data-id="${i.id}"${rowData(i)} ${titleAttr(rowCard(i, t))}><span aria-hidden="true">${shape}</span> ${escapeHtml(pl(t, "st." + k))}${sev}${pen}</span>`;
+  return `<span class="stat ${k}" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" data-menu="row" data-id="${i.id}"${rowData(i)} ${titleAttr(rowCard(i, t))}><span aria-hidden="true">${shape}</span> ${escapeHtml(pl(t, word))}${sev}${pen}</span>`;
 }
 
 // A small flame on the row when the files the document names have errors, warnings or crashes.

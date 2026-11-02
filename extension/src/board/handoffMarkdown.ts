@@ -50,7 +50,7 @@ function itemBlock(it: HandoffInput["items"][number], i: number, task: HandoffTa
     it.status ? `Status: ${it.status} (set by ${it.statusBy === "user" ? "you" : "rule"})` : "",
     it.severity ? `Severity: ${it.severity} (${it.severityBy === "user" ? "set by you" : "computed"})` : "",
     it.importance ? `Importance: ${it.importance}` : "",
-    it.pinned ? "Pinned" : "",
+    it.pinned ? "Blocks next release" : "",
   ].filter(Boolean);
   out.push("", `### Item ${i + 1}`);
   if (facts.length > 0) {

@@ -28,7 +28,7 @@ function runWith(dir: vscode.Uri, snap: ScanSnapshot, rows: Classified[] = []): 
     dir,
     accepted: true,
     health: {},
-    marks: { version: 1, marks: {}, needs: {}, rejected: [] },
+    marks: { version: 1, marks: {}, needs: {}, rejected: [], answered: {} },
   };
 }
 

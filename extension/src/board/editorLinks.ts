@@ -53,7 +53,7 @@ export function buildFileIndex(items: BoardItem[], factsOf: (it: BoardItem) => D
     const link: FileLink = {
       id: it.id,
       title: it.title,
-      status: it.status,
+      status: it.answered ? (it.blocks ? "red" : it.status === "red" ? "amber" : it.status) : it.status,
       severity: it.severity,
       capped: f.sourceRefs > f.sourceFiles.length,
     };

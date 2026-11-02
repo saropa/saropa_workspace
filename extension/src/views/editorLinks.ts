@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { BoardModel, buildBoard } from "../board/boardModel";
 import { FileIndex, FileLink, MinSeverity, asMinSeverity, buildFileIndex, linksForFile, relativeTo, worstColor } from "../board/editorLinks";
-import { applyMarks, pinnedKeys } from "../board/marks";
+import { answeredIds, applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, readLastRun } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
 import { currentBoard, setBoard } from "./boardFeed";
@@ -187,6 +187,7 @@ async function loadStored(context: vscode.ExtensionContext): Promise<void> {
     needs: run.marks.needs,
     rejected: run.marks.rejected,
     pins: pinnedKeys(run.marks),
+    answered: answeredIds(run.marks),
     orgPrevious: orgPreviousInput(context),
   });
   publishBoard(model, run, true);

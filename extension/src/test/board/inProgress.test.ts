@@ -17,6 +17,7 @@ const item = (id: number, path: string, status: BoardItem["status"], project = "
   waitsOn: [],
   pinned: false,
   stopping: false,
+  blocks: status === "red",
 });
 
 test("the limit stays between 1 and 50 and falls back to 15", () => {

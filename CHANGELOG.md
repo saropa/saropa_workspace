@@ -56,6 +56,10 @@ The Release Board Gantt is easier to read and its header is calmer.
 - Gantt bars: the length is the minutes of all open steps in the document, no longer the filtered Steps list. An empty bar now means no estimate.
 - Release Board header: one scope-and-mode pill ("All 3 · Deliberate"). Group by, time and devices, and their filter line, moved into the Board tab, where they apply.
 - Future tab: shows "200+" and a note when more documents exist than are listed.
+- Release Board: in a project where you have marked which items block the next release, red now means only "you marked it". Red-folder items you did not mark show an amber diamond ("Address now"); severity no longer turns them red. Projects with no answer keep today's rules. The hand pin is now worded "Blocks the next release".
+
+### Fixed
+- Release Board marks: the 5000th pin was written and then dropped on the next read; the write now refuses past the limit the reader keeps. A local "not pinned" now switches off a pin that comes from the shared marks file.
 
 ---
 

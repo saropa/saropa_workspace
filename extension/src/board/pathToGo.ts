@@ -92,7 +92,7 @@ export function clampMaxSteps(v: unknown): number {
 const SEV_RANK: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
 
 function whyStops(it: BoardItem): "red" | "pinned" | "severity" {
-  return it.status === "red" ? "red" : it.pinned ? "pinned" : "severity";
+  return it.answered && it.pinned ? "pinned" : it.status === "red" ? "red" : it.pinned ? "pinned" : "severity";
 }
 
 // Short stable hash, so a step key never carries a path.
@@ -127,7 +127,7 @@ function firstPrerequisite(model: BoardModel, it: BoardItem): BoardItem {
 // reach different documents never merge, even when the board draws them in one group.
 function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
   const names = new Map(model.projects.map((p) => [p.id, p.name]));
-  const stoppers = project.items.filter((i) => i.status === "red" || i.stopping);
+  const stoppers = project.items.filter((i) => i.blocks);
   const byHead = new Map<number, { head: BoardItem; waiting: BoardItem[] }>();
   for (const it of stoppers) {
     const head = firstPrerequisite(model, it);
@@ -142,13 +142,13 @@ function itemSteps(model: BoardModel, project: BoardProject): PathStep[] {
     .sort(
       (a, b) =>
         b.head.blocksCount - a.head.blocksCount ||
-        Number(b.head.status === "red") - Number(a.head.status === "red") ||
+        Number(b.head.status === "red" && b.head.blocks) - Number(a.head.status === "red" && a.head.blocks) ||
         rank(a.head) - rank(b.head) ||
         a.head.title.localeCompare(b.head.title) ||
         a.head.id - b.head.id
     )
     .map(({ head, waiting }) => {
-      const stops = head.status === "red" || head.stopping;
+      const stops = head.blocks;
       return {
         kind: "item" as const,
         key: `item:${head.project}:${hash(head.path)}`,

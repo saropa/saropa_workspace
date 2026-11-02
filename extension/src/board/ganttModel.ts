@@ -166,7 +166,7 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
           id: i.id,
           title: i.title,
           path: i.path,
-          status: i.status === "red" || i.stopping ? "red" : i.status,
+          status: i.blocks ? "red" : i.status === "red" ? "amber" : i.status,
           start: Math.round(r * slot * 10) / 10,
           width: Math.round(slot * share * 10) / 10,
           minutes: known,

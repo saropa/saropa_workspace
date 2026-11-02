@@ -38,7 +38,7 @@ const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐"
 // What the page script needs to fill the row menu for one document: its status and severity, whether
 // either was set by hand, whether it is pinned, and its project. Only values, never markup.
 export function rowData(i: BoardItem): string {
-  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}" data-pj="${escapeHtml(i.project)}" data-kd="${escapeHtml(i.kind)}"${readsNeeds(i.path) ? "" : ' data-nd="1"'}`;
+  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}"${i.answered ? ' data-ab="1"' : ""} data-pj="${escapeHtml(i.project)}" data-kd="${escapeHtml(i.kind)}"${readsNeeds(i.path) ? "" : ' data-nd="1"'}`;
 }
 
 // The row menu: open the document, pick its status, change its severity (raise, lower, one of the
@@ -58,14 +58,15 @@ export function rowMenu(t: BoardStrings, profile = "deliberate", projects: Board
       SEVERITY_LEVELS.map((l) => radio("sev:" + l, pl(t, "sev." + l), pl(t, "menuSeverityTip"), ` data-lv="${l}" aria-checked="false"`)).join("") +
       item("auto", pl(t, "menuAuto"), pl(t, "menuAutoTip"))
   );
-  const effect = { stops: pl(t, "effStops"), clears: pl(t, "effClears"), fixed: pl(t, "effFixed"), others: pl(t, "effOthers"), none: pl(t, "effNone"), sOn: pl(t, "effStatusOn"), sOff: pl(t, "effStatusOff"), sSame: pl(t, "effStatusSame"), lGo: pl(t, "effLightGo"), lNoGo: pl(t, "effLightNoGo") };
+  const effect = { stops: pl(t, "effStops"), clears: pl(t, "effClears"), fixed: pl(t, "effFixed"), others: pl(t, "effOthers"), none: pl(t, "effNone"), marked: pl(t, "effMarked"), sOn: pl(t, "effStatusOn"), sOff: pl(t, "effStatusOff"), sSame: pl(t, "effStatusSame"), lGo: pl(t, "effLightGo"), lNoGo: pl(t, "effLightNoGo") };
   const lists = ` data-stops="${escapeHtml(JSON.stringify(SEVERITY_LEVELS.filter((l) => stops(asProfile(profile), l))))}" data-pname="${escapeHtml(profile === "rush" ? t.profileRush : profile === "zero" ? t.profileZero : t.profileDeliberate)}" data-eff="${escapeHtml(JSON.stringify(effect))}" data-proj="${escapeHtml(JSON.stringify(Object.fromEntries(projects.map((p) => [p.id, [p.name, p.items.filter(blocksNow).length + p.blockedStopping]]))))}"`;
   const live = `<div role="group" aria-label="${escapeHtml(pl(t, "effLabel"))}" ${tip(t, "effLabel")}><div class="eff" id="eff" aria-live="polite" ${tip(t, "effLabel")}></div></div>`;
   return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${item("waits", pl(t, "menuWaits"), pl(t, "menuWaitsTip"))}${item("blocks", pl(t, "menuBlocks"), pl(t, "menuBlocksTip"))}${item("group", pl(t, "menuGroup"), pl(t, "menuGroupTip"))}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${item("tags", pl(t, "menuTags"), pl(t, "menuTagsTip"))}${hand}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
 }
 
-// True when an open document blocks the release now: a red folder or a stopping severity or pin.
-export const blocksNow = (i: BoardItem): boolean => i.status === "red" || i.stopping;
+// True when an open document blocks the next release: marked by the owner in an answered project,
+// else a red folder or a stopping severity or pin.
+export const blocksNow = (i: BoardItem): boolean => i.blocks;
 
 // The bar shown after a save: what changed and Undo. It stays until the host takes it away
 // (ten seconds after the write; never while an Undo has left files un-restored), a newer change, or Dismiss.

@@ -1,4 +1,5 @@
 import { BoardItem, BoardModel, BoardProject } from "./boardModel";
+import { laneOf } from "./boardModelParts";
 import { PathToGo } from "./pathToGo";
 import { Train } from "./train";
 import { SinceView } from "./sinceLast";
@@ -105,7 +106,7 @@ function inProgressList(model: BoardModel, names: Map<string, string>, t: BoardS
 
 // The lists inside one project card: its blockers, what is in progress and what to work on.
 function cardLists(model: BoardModel, p: BoardProject, names: Map<string, string>, t: BoardStrings): string {
-  const mine = (s: string): BoardItem[] => model.items.filter((i) => i.project === p.id && i.status === s);
+  const mine = (s: string): BoardItem[] => model.items.filter((i) => i.project === p.id && laneOf(i) === s);
   return list(t.resolveNow, mine("red"), names, t, { tip: "list.resolveNow", single: true, scope: p.id }) + inProgressList(model, names, t, true, p.id) + list(t.workOn, mine("amber"), names, t, { tip: "list.workOn", single: true, scope: p.id });
 }
 
@@ -127,7 +128,7 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
     lights.set(p.id, p.light);
     lights.set("name:" + p.id, p.name);
   }
-  const by = (s: string): BoardItem[] => model.items.filter((i) => i.status === s);
+  const by = (s: string): BoardItem[] => model.items.filter((i) => laneOf(i) === s);
   const blocked = model.projects.reduce((a, p) => a + p.blocked, 0);
   // No Accept while the result is the stored one or still being completed.
   const accept = state.stale || state.loading ? "" : `<button id="accept" ${tip(t, "accept")}>${escapeHtml(t.accept)}</button>`;

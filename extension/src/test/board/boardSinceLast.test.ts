@@ -13,7 +13,7 @@ import { contextIn, stub, tmpDir } from "./hostHelpers";
 afterEach(() => stub.__resetConfig());
 
 function item(title: string): BoardItem {
-  return { id: 0, project: "app", path: `bugs/${title}.md`, title, status: "red", kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping: true };
+  return { id: 0, project: "app", path: `bugs/${title}.md`, title, status: "red", kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping: true, blocks: true };
 }
 
 function model(...titles: string[]): BoardModel {

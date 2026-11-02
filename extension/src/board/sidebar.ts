@@ -141,7 +141,7 @@ export interface SidebarOptions {
 }
 
 // An open document that holds the release back: anything in a red folder, or past the profile.
-export const isBlocker = (it: BoardItem): boolean => it.status === "red" || it.stopping;
+export const isBlocker = (it: BoardItem): boolean => it.blocks;
 
 const suffix = (note: string | undefined, text: string): string => (note ? `${text} (${note})` : text);
 
