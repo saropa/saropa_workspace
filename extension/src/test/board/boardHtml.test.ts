@@ -108,7 +108,9 @@ test("a calm board says all clear; blocked documents or open items take that awa
 
 test("items are sorted into the three lists by state", () => {
   const m = buildBoard(cfg, [row("app", "a/red.md", "red"), row("app", "a/purple.md", "purple"), row("app", "a/amber.md", "amber")], undefined, true);
-  const html = renderBoard(m, t, "n");
+  // The Board tab only: the Gantt's Up next list above it has its own order.
+  const full = renderBoard(m, t, "n");
+  const html = full.slice(full.indexOf('id="tab-board"'));
   const at = (s: string): number => html.indexOf(s);
   assert.ok(at("[resolveNow]") < at("[inProgress]") && at("[inProgress]") < at("[workOn]"));
   assert.ok(at("red.md") < at("purple.md") && at("purple.md") < at("amber.md"));

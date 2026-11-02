@@ -299,3 +299,18 @@ Findings:
 ### Build notes: blocks-flag leftovers (2026-11-02, commit 1 of the finish pass)
 
 Done: (a) mode menu note "{count} project(s) use your marks; the mode does not change them" (shown in the scope-and-mode menu, where the mode is chosen, when a project is answered). (b) Project name tooltip adds the rule (`ruleMarks` or `ruleAuto`). (c) `whyRed` now says the red folder blocks; new `whyRedUnmarked` for an answered project; `effFixed` says "its folder is red or you marked it". `stTip.red` unchanged (it was already neutral). (d) The row checkbox, when turning a mark on in a project not yet answered, also records the answer with an empty `seen`; Undo restores both. Side effect: the other critical items of that project then count as new and the strip may ask about them. (e) A rules-file pin is listed ticked with "Pinned by the rules file, change it there" and is never written. Deviation: the VS Code list cannot disable a row, so the row can be unticked but the change is ignored. (f) Gantt unmarked red-folder rows draw amber with the word "Address now" (`GanttRow.serious`). (g) `MAX_OUTLINED = 10`: only the first ten changed rows in display order get the outline; every changed row keeps its tooltip.
+
+### Build notes: Option B step 2 (2026-11-02, commit 2 of the finish pass)
+
+Built: `upNext(model, 5)` in `ganttModel.ts` (in progress first; then red items that wait on nothing; each part by blocks-count, severity, shortest with an unknown length counted as 30 minutes, then project and path; nothing is padded in, so a board with no free blocker shows no Up next). The box sits above the Gantt with the tooltip "Picked because: ..." per row; the "N in progress" pill is amber past `WIP_LIMIT` = 3 (no setting). Each Up next item keeps its project row and gets a small "Up next" tag there.
+
+Sections: `layoutFor(model.items.length)` and `openGroups` decide which sections start open and the first-view row limit (bands 2 and 3: 3 open, 5 rows; band 4: 3 open, 3 rows; band 1: 8 rows; band 0: everything open). The 150-row cap stays as the hard limit when a section has no limit. Closed sections are rendered with all their first-view rows, hidden by CSS, so drop slots and move arrows exist in them; a dragged row held over a closed section or group header opens it after 350 ms (not remembered). Header: name, light, "N open - M block" (red part only when M > 0); the old footer light and the collapsed summary line are gone. The user's own open or close is kept in the page state (`gcol` closed, `gopen` opened), so a remembered choice beats the default either way.
+
+Group sub-headers (un-deferred): each project's open rows are ordered as finished rows, ungrouped rows, then each automatic folder group together (groups with a blocker first). Each group has a closed sub-header with "N open - M block". Group rows are hidden until opened, and a flat project (`group.flat`) shows no sub-headers. Not in the Unified layout (its single list has no per-project groups).
+
+Deviations and limits:
+- The row limit counts finished and ungrouped rows only; a project whose rows are all in groups draws up to 150 rows (all folded) before "Show more".
+- Finished rows follow the layout band: all, the last two, or none; a dim line says how many are left out (`ganttFinishedCut`).
+- No hysteresis on the band (the Gantt uses `layoutFor` on the item count each render); the per-project Board tab layouts keep theirs.
+- No headless render at 5, 59 and 300 documents in dark, light and narrow (no browser here).
+- Changed-row outline limit and everything from commit 1 stay as recorded above.
