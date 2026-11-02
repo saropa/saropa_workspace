@@ -9,6 +9,7 @@ Related: [PLAN_RELEASE_BOARD_REDESIGN.md](PLAN_RELEASE_BOARD_REDESIGN.md) (decis
 - Header: one scope-and-mode pill (restores decisions 20 and 24); remove the pills that do nothing on the Gantt and the extra "Have: 7 of 8" line.
 - Bar minutes: computed from all open steps of the document, so an empty bar means no estimate.
 - Unified stays, sorted blockers first. "Up next" fixed at 5 rows, amber past 3 in progress, no setting (step 2, not built yet). Changed-row outlines limited when more than 10 rows changed (step 2).
+- Blocks-release flag (owner, 2026-11-02): red is split from severity; the existing hand pin is the "blocks next release" flag (renamed in wording only, no second flag). A: "Not now" stores nothing, the strip shows again on next open. B: the prompt triggers when a project has more than 5 items that are red today (red folders plus severity). C: in answered projects, unflagged red-folder items show an amber diamond with their status word. D: re-ask only for new extreme or critical items in an answered project. Never-answered projects keep today's rules. The two bugs the design names are fixed (5000th pin dropped on read; local mark cannot switch off a shared-file pin).
 
 ## Step 1 build notes (2026-11-02)
 
@@ -179,3 +180,117 @@ No blocker or data-loss finding. Escaping, ARIA and tooltip checks pass: the new
 - Low: `releaseBoard.future.cutNote` exists only in en.json (other locales go through the owner's translation pipeline; no action by agents).
 - Low: `ganttModel.ts` unify sort: stable (Array.sort), ties keep input order; `GanttStatus` rank map covers red/purple/amber/green. OK. No test of tie order among equal status and start beyond ganttReadable.
 - Checked clean: `pmode` has no remaining consumers in src or tests (the test asserts it is absent); `pscope` consumers updated; new `openMinutes` is read only in `ganttModel.ts`; no webview message changes.
+
+## Owner input, round 2 (2026-11-02)
+
+Owner points (not yet decided as design):
+- Red is inflated: the app is already published, yet most rows are red. "When everything is critical, nothing is critical." The board never asks the owner what actually blocks.
+- Use folders to group and collapse the list (the Gantt ignores the folder groups today; see section 3).
+- Ask the owner which item comes before which, instead of dumping a long list.
+
+Cause of red (`ganttModel.ts:169`): a row is red when its status is red or when Deliberate/Rush mode says it is "stopping". Severity comes from the document, not from the owner's current release state.
+
+Proposal (pending owner confirmation): see chat summary, to be copied here once decided.
+
+### Decision (owner confirmed, 2026-11-02)
+Red is split from severity. Severity stays as the dot color. A new owner-set "blocks next release" flag makes an item red. Asked once per project, lazily, when the owner opens a project with many high-severity items and no flags; answers saved per project. Folder grouping and ordering questions come later and apply to flagged items.
+
+## Design: blocks-release flag (design review, 2026-11-02, nothing built)
+
+### Key finding: the flag already exists
+The hand pin ("pinned as critical") is already an owner-set, per-document yes/no that makes an item red and NO-GO (`board/marks.ts:8-11,135`, `board/boardModel.ts:80,117`, set by the "Mark this document" command `commands/boardMarks.ts:103-118`). Recommend: the "blocks next release" flag **is** the pin, renamed in wording. No second flag. Today red has three sources: red folder status (rules: bug files, owner folders, pending SQL, `Open` table rows; `board/defaultRules.json` folder-states/doc-kinds/live-folders/pending-sql), a severity at or above the profile (`board/severity.ts:114-123`), or a pin. The new rule removes the first two as causes of red in projects the owner has answered.
+
+### Rule
+- New per-project answer state. A project is **answered** once the owner saves the prompt (even with zero picks).
+- Answered project: red = open item pinned. Folder status and severity are shown (status word, severity word) but never red.
+- Never-answered project: today's rule, unchanged (red folder or stopping severity or pin). See Migration.
+- One source of truth: add `BoardItem.blocks: boolean`, computed once in `boardModel.ts:117` area; every consumer below reads `blocks` instead of repeating `status === "red" || stopping`. Keep `stopping` as "severity at or above the profile" for tooltips and tidy.
+
+### (1) Consumers that must change
+| Place | Today | After |
+|---|---|---|
+| `board/boardModel.ts:117` | `stopping = pinned or severity stops` | add `blocks` = answered ? pinned : (status red or stopping) |
+| `board/boardModel.ts:89-96` | blocked-folder docs with stopping severity counted as `blockedStop` | answered: only pinned ones count (pinned already become items) |
+| `board/boardModel.ts:154-157` light | NO-GO on `counts.red`, any `stopping`, `blockedStop` | answered: NO-GO on any `blocks`, health failing, held-back previous red (keep the safety hold as is) |
+| `board/boardModel.ts:121-127` sort | red status first, then pinned | `blocks` first, then status, then severity |
+| `board/boardHtmlMenus.ts:67-68` `blocksNow` | status red or stopping | `i.blocks` |
+| `board/boardHtmlMenus.ts:62` profile counts `data-proj` | blocksNow + blockedStopping | `blocks` count (+ blockedStopping only when not answered) |
+| `board/boardHtmlAssets.ts:125,127` row-menu effect line | says a severity/status change will stop or clear the release | answered rows (new `data-ab="1"` in `rowData`, `boardHtmlMenus.ts:41`) say "Does not change the release: only items you mark block it" |
+| `board/boardHtmlRows.ts:134-161` pill and hover card | `k = blocks ? red : status` (a red-status unflagged item still draws red); "Red folder" line | non-blocking red status draws amber ◆ with its status word; card line "Blocks the next release (you chose)" or, for an unflagged high item, "High: would stop under Deliberate; not marked as blocking" |
+| `board/ganttModel.ts:169` | red if status red or stopping | red if `blocks`; red status unflagged maps to amber |
+| `board/boardHtml.ts:109,147`, `board/boardHtmlGroups.ts:49,85,109-110,146,168` | "Resolve now" list = status red; open-by-default and worst color use blocksNow | "Resolve now" = `blocks`; unflagged red-status items go to "Work on" |
+| `board/sidebar.ts:144` `isBlocker` (sidebar count, causes) and `board/sinceLast.ts:86` | status red or stopping | `blocks` |
+| `board/pathToGo.ts:95,130,145,151` | stoppers = status red or stopping, why "red" | stoppers = `blocks`; why "pinned" in answered projects |
+| `board/handoff.ts:114-121,137,145` | why "red folder" / "pinned as critical" / "severity X stops under P"; "N items block" | answered: why "marked as blocking the next release" only; count = `blocks`. Never-answered: unchanged text |
+| `board/handoffMarkdown.ts:53` | "Pinned" | "Blocks next release" |
+| `views/editorLinks.ts` via `board/editorLinks.ts:56` | editor color from `it.status` (red) | red only when `blocks`, else amber/purple |
+| `board/tidy.ts:151` | never offers red, stopping, pinned | unchanged (still sensible) |
+| Wording, en.json only: `releaseBoard.markPin`, `why.pinned`, `panel.pinned`, `stTip.red`, `whyRed` | "pinned as critical" | "Blocks next release" (other locales go through the owner's translation pipeline) |
+
+Meaning afterwards: release-blocker count = items you marked (answered) or today's count (not answered). Handoff says why in one phrase. Deliberate/Rush/Zero no longer change red in answered projects; they decide which severities count as candidates in the prompt and what the hover card calls "would stop". Profile switch preview must say "N projects use your marks; the profile does not change them".
+
+### (2) Storage
+- Pins: the existing marks file (local `release-board-marks.json` in workspace storage, shared `.saropa/release-board-marks.json` under it; `commands/boardMarks.ts:7-43`). Why: it already holds exactly this flag per `project/path`, has one-at-a-time writes (`updateLocalMarks`, line 48), a byte cap, a damaged-file reader, team sharing by export. Not `severityOverrides` (rules file, `board/ruleSeverity.ts:12-26`): that is severity, the thing being split away.
+- New field in `MarksFile`: `answered: Record<projectId, { at: number; seen: string[] }>`; `seen` = candidate paths shown and left unpicked (for new-item detection, edge cases). Parsed in `parseMarks`, merged local-over-shared in `mergeMarks`, exported with the rest.
+- Same caps on read and write (the review rule). Gap found: read keeps only `MAX_ENTRIES` (5000) marks (`marks.ts:80`) but write has no count cap (`fitMarks`, `marks.ts:50-64`, trims only `rejected`), so a 5001st pin is written and then silently dropped. Fix: one constant used by both; the write refuses past it with the existing "too big" warning. `answered` capped at `MAX_ENTRIES` projects, `seen` at 200 paths per project, both enforced in `parseMarks` and in the setter; the file still fits `MAX_BYTES`.
+- Gap found: a local mark cannot switch off a shared pin (`setMark` deletes an entry with nothing set, `marks.ts:113-121`; `parseMarks` turns `false` into undefined, line 82). Unticking a shared pin in the prompt would do nothing. Fix: keep an explicit `pinned: false` locally when the key is pinned in the shared file, and parse `false` as false.
+
+### (3) Prompt UX
+- Trigger, lazy: computed per project in `buildProject` (a count over items already built, cheap for 1000+ projects). Qualifies when not answered and more than 5 items would be red today. A one-line strip is drawn **inside** that project's Board card and Gantt group (`boardHtmlGantt.ts:130` section, `boardHtmlGroups.ts` card), so it is seen only when that project is expanded. No popup, no timer.
+- Strip text: "12 items are marked serious. Which of them block the next release? [Choose] [Not now]". Tooltip: "Only the items you choose turn red. The rest keep their severity."
+- Choose: the page sends `{type:"blockersAsk", p:<project index>, rev}`. Host checks `rev` (existing check `views/boardPanel.ts:50`), `Number.isInteger(p)`, in range, and resolves the project id from its own model. The list is the host's own multi-select QuickPick (`canPickMany`), like the group picker (`boardPanelEdits.ts:97-99`), so no paths or titles come from the page. Items: title, severity word and project-relative path as detail; severity order, extreme first; current pins pre-ticked; title "Which of these block the next release? (none is a valid answer)".
+- Save (OK) with any number of picks, zero included, writes pins and `answered` in one `updateLocalMarks` call: a single file write, so there is no half-saved state. Then the existing Undo bar (`offerUndo`, `boardPanelEdits.ts:270`) restores the previous pins and answer state in one write. A failed write shows the existing error and changes nothing.
+- Escape / "Not now": nothing stored; the strip stays and shows again next time the project is opened. (Recommendation below.)
+- Ask again: a project kebab item "Choose what blocks the next release…" on every project (answered or not, no 5-item gate), same QuickPick with current pins ticked; plus a row-menu checkbox "Blocks next release" (`act:"block"`, validated as a known act on an integer id, `boardPanel.ts:138`) for one item. The command-palette "Mark this document" stays.
+
+### (4) Migration
+Never-answered projects keep today's rule exactly, so nothing turns non-red silently on upgrade. The first visible change is the strip in projects with more than 5 red items. Existing pins carry over as answers' pre-ticked items. Changelog line: "Red now means 'you marked it as blocking the next release'. The board asks per project."
+
+### (5) Edge cases
+- New items after answering: they are not red. A new extreme or critical candidate (not pinned, not in `seen`) brings the strip back listing only the new ones ("2 new critical items since you chose"). New high items do not.
+- Flagged item later closed: it is no longer an open item, so not red, not counted. The pin stays in the file (harmless, keeps the file small enough under the cap); if the document reopens it is red again. A renamed or moved document loses its pin (keys are paths, as today).
+- Zero flags by choice: `answered` with no pins means nothing blocks; light can be GO if health passes; never re-asked except for new extreme/critical items.
+- Multi-root: marks are per workspace (storage) and the shared file is read from the first folder only (`boardMarks.ts:36`), as for pins today. Project ids key the answers, so two roots do not collide. The same project opened in another workspace is asked again unless the marks are exported.
+- Since-you-left: answering would list dozens of "cleared" blockers (`sinceLast.ts:134-196`). The save re-baselines that project's since-last record.
+- Blocked-folder documents (collapsed waiting count): in answered projects they block only if pinned.
+
+### (6) Build plan (2 PRs)
+- **PR 1, model and drawing** (no prompt yet; behavior identical for every project until an answer exists). `answered` field, caps and the tri-state pin fix in `marks.ts`; `BoardItem.blocks`; every consumer in the table switched to `blocks`; answered-project wording; editor colors; en.json wording. Tests: parse/merge/fit of `answered` with caps equal on read and write (5000 marks refused on write, 5001st not silently lost); local `pinned:false` beats shared pin; never-answered model equals today's model for the existing fixtures (snapshot of `blocks`, light, counts); answered project: unflagged red-status and critical items not red, pinned red, zero pins gives GO with clean health; handoff why/count text; Gantt row status; sidebar count; path-to-go stoppers; row-menu effect line for `data-ab`; real `ReleaseBoardPanel` render through the entry point (review rule).
+- **PR 2, prompt and toggles.** Strip render and trigger, `blockersAsk`/`block` messages with validation, QuickPick, single write, Undo, kebab "ask again", new-critical re-ask, since-last re-baseline. Tests: strip only when >5 candidates and not answered, only inside the expanded section HTML, escaped; message refused on wrong rev, non-integer, out-of-range index, unknown act; save with zero picks marks answered; Undo restores both pins and answer; failed write leaves file unchanged and no Undo; new critical brings strip back, new high does not; 1000 projects with 5 candidates each builds within budget (best-of-3, generous).
+
+### (7) Risks and owner decisions
+- Risk: an answered project stops showing a new real blocker that is only "high". Covered for extreme/critical by the re-ask; high relies on the owner. Accept.
+- Risk: two rules on one board (answered vs not) can confuse. Mitigation: project tooltip says which rule applies ("Red = items you marked" / "Red = red folders and severity at Deliberate"). Accept.
+- Risk: renaming "pinned as critical" changes wording users know; the command name changes too. Accept.
+- Decision A: **"Not now" behavior.** (a) Nothing stored, strip shows again on next open (Recommended: the owner wants an answer, and the strip is quiet and only in opened projects). (b) Store "skipped", never show again until "ask again".
+- Decision B: **What counts toward "more than 5".** (a) Items that would be red today, red folders included (Recommended: that is the inflation the owner saw; severity alone misses bug folders). (b) High severity and above only, as worded.
+- Decision C: **Dot for unflagged red-folder items.** (a) Amber ◆ with its status word ("Address now") (Recommended: red stays reserved for blockers). (b) New fourth color for "serious, not blocking".
+- Decision D: **Re-ask on new items.** (a) Only for new extreme or critical items (Recommended: rare, and must not be missed). (b) Never; owner uses "ask again".
+
+### Build notes: blocks-release flag (2026-11-02, two commits on the branch, not merged)
+
+Built as the design says: PR 1 (`blocks` on every item, `answered` and `seen` in the marks file, equal caps, tri-state pin, consumers switched) and PR 2 (strip in the Board card and the Gantt section, project-menu "Choose what blocks the next release…", row-menu checkbox, host QuickPick with one write, Undo, rev-checked and id-only messages, since-last re-baseline of the answered project).
+
+Deviations and skipped items:
+- Editor links (`board/editorLinks.ts`) change only in answered projects (red when `blocks`, amber otherwise); in never-answered projects an amber item that stops under the profile stays amber there, as before, so nothing changes silently.
+- "Resolve now" and "Work on" lists, and Group by status, use one lane rule (`laneOf`): answered projects put marked items in Resolve now and unmarked red-folder items in Work on; other projects are unchanged.
+- Gantt rows for unmarked red-folder items draw amber and use the amber word ("Review next"); the amber diamond with the word "Address now" is on the Board tab pill and hover card.
+- Not done: the profile-switch preview line "N projects use your marks; the profile does not change them"; the project tooltip saying which rule applies; the `whyRed` / `stTip.red` / `effFixed` wording (still says "red folder or pinned" for never-answered rows). The en.json wording changed only for the pin (`markPin`, `panel.pinned`, `why.pinned`).
+- A pin that comes from the rules file's `pinned` globs shows ticked in the picker but cannot be unticked there (only hand marks are written).
+- Undo restores marks and the answer; it does not restore the since-last baseline.
+- The row-menu checkbox only toggles the pin; it does not mark the project answered.
+- Not done: headless render of the strip at narrow widths (no browser here).
+
+
+### Review verdict (blocks flag) (2026-11-02, Sonnet diff review, findings only)
+
+Verdict: pass, no data-loss or security finding; no second round needed. Full unit run: 5351 pass, 0 fail (exit 0).
+
+Checked and fine: every consumer in the spec table changed (boardModel, menus, assets, rows, gantt, groups via `laneOf`, sidebar, pathToGo, handoff, editorLinks; tidy untouched by design). Marks file is backward compatible (old files get `answered: {}`; old readers ignore `answered` and read `pinned:false` as unset). Caps are equal on read and write (`MAX_ENTRIES`, `fitMarks` refuses over-cap). Never-answered projects keep today's `blocks`. One `updateLocalMarks` write; a refused write is detected (`answered.at !== now`) and gives no Undo. `blockersAsk` is rev-checked (boardPanel.ts rev guard), integer-checked, range-checked by model lookup; `scopeMenu ask` limited to project scope; row `block` is id-only. Strip text is escaped; `role=group` with `aria-label` is valid; all new keys are in en.json. Tests drive the real `openBoard` panel.
+
+Findings:
+- Low: `blockersAsk.ts` applyAnswer, fresh branch `[...old, ...left].slice(0, MAX_SEEN)` drops the newest unpicked paths once 200 are stored, so those critical items re-trigger the strip each time. Fix: keep the last 200 (`slice(-MAX_SEEN)`).
+- Low: `boardBlockers.ts` toggleBlock: for an item pinned only by a rules-file glob, the checkbox writes `pinned:false` locally, verification passes, and the Undo bar says "no longer marked" while the item stays pinned. Known deviation; show nothing or skip the write when the pin is not a hand mark.
+- Low: row-menu checkbox does not mark the project answered (known; a pin in a never-answered project with a red folder elsewhere still leaves the old rule active).
+- Low: skipped spec items (profile-switch preview line, project rule tooltip, `whyRed`/`stTip.red`/`effFixed` wording) remain open and are recorded in Build notes.
+- Info: `data-proj` count adds `blockedStopping` unconditionally; correct only because answered projects never count it (boardModel `!answered` guard). Keep that coupling in mind.
