@@ -106,7 +106,7 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     } else if (act === "tags") {
       await this.tagsRules([item]);
     } else if (act === "block") {
-      await this.blockers(() => toggleBlock(this.context, item), undefined);
+      await this.blockers(() => toggleBlock(this.context, item), item.project);
       this.post({ type: "clearPending", id });
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
@@ -293,12 +293,22 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     try {
       const out = await write();
       if (out && this.run) {
-        this.offerUndo(out.label, out.restore);
-        this.run.marks = await readMarks(this.context);
-        this.render();
-        if (project && this.model) {
-          rebaseProject(this.model, project);
-        }
+        // Paints the new marks and re-baselines the project, so "since you left" shows no spurious blocker.
+        const repaint = async (): Promise<void> => {
+          if (this.run) {
+            this.run.marks = await readMarks(this.context);
+            this.render();
+            if (project && this.model) {
+              rebaseProject(this.model, project);
+            }
+          }
+        };
+        this.offerUndo(out.label, async () => {
+          const done = await out.restore();
+          await repaint();
+          return done;
+        });
+        await repaint();
       }
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));

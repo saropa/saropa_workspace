@@ -16,6 +16,7 @@ import { MAX_ENTRIES, MarksFile, answeredIds, emptyMarks, fitMarks, markKey, mer
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 import { SHARED_FILE, readMarks, updateLocalMarks } from "../../commands/boardMarks";
 import { contextIn, tmpDir } from "./hostHelpers";
+import { panelShowed, registerSinceLast, rebaseProject, viewFor } from "../../views/boardSinceLast";
 
 const cfg: BoardConfig = {
   version: 1,
@@ -128,4 +129,22 @@ test("marks: a local pinned:false switches off a shared pin, through the real fi
   assert.deepEqual(pinnedKeys(mergeMarks(shared, await import("../../commands/boardMarks").then((m) => m.readLocalMarks(ctx)))), []);
   // Without a shared pin, clearing removes the entry as before.
   assert.equal(setMark(emptyMarks(), key, { pinned: false }).marks[key], undefined);
+});
+
+test("a held scan does not make an answered project NO-GO on previous red folders", () => {
+  const previous = { projects: { app: { counts: { red: 3 } } } } as never;
+  const held = (extra: object) => buildBoard(cfg, [row("docs/Plain.md", "amber")], undefined, false, undefined, previous, healthy, extra).projects[0].light;
+  assert.equal(held({}), "no-go", "never answered: the hold stays");
+  assert.notEqual(held({ answered: ["app"] }), "no-go", "answered: red means marked");
+});
+
+test("answering re-baselines the project, so since-you-left shows no cleared blockers", () => {
+  const ctx = contextIn(tmpDir());
+  registerSinceLast(ctx);
+  panelShowed(build());
+  const after = build({ answered: ["app"] });
+  assert.ok(viewFor(after), "the blockers look cleared before the re-baseline");
+  rebaseProject(after, "app");
+  assert.equal(viewFor(after), undefined);
+  ctx.subscriptions.forEach((d) => d.dispose());
 });

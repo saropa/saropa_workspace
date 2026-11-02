@@ -164,7 +164,7 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
   const ask = askOf(items, answered, ctx.seen[def.id]);
   const blocker =
     (answered ? items.some((i) => i.blocks) : counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0) ||
-    (!ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
+    (!answered && !ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
     h?.lint === "failing" ||
     h?.tests === "failing" ||
     h?.build === "failing" ||
@@ -291,7 +291,7 @@ function buildTidyView(all: BoardItem[], ctx: BuildContext, opts: NonNullable<Bo
         pinned: it.pinned,
         waiting: it.link?.state === "open",
         status: it.status,
-        stopping: it.stopping,
+        blocks: it.blocks,
       };
     }),
     opts

@@ -17,6 +17,7 @@ export interface AskView {
 const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
 
 // An item the owner could mark: red today (a red folder or a stopping severity) or already marked.
+// On purpose the old "red today" test, not `blocks`: the picker lists what would be red under the never-answered rule.
 export const isCandidate = (i: BoardItem): boolean => i.status === "red" || i.stopping;
 
 // A new extreme or critical item in an answered project: not marked and not among those left unpicked.
@@ -60,7 +61,7 @@ export function applyAnswer(local: MarksFile, shared: MarksFile, project: string
     next = setMark(next, key, { pinned: picked.has(path) }, shared.marks[key]?.pinned === true);
   }
   const left = offered.filter((p) => !picked.has(p));
-  next = setAnswer(next, project, { at: now, seen: fresh ? [...new Set([...(local.answered[project]?.seen ?? []), ...left])].slice(0, MAX_SEEN) : left.slice(0, MAX_SEEN) });
+  next = setAnswer(next, project, { at: now, seen: fresh ? [...new Set([...(local.answered[project]?.seen ?? []), ...left])].slice(-MAX_SEEN) : left.slice(0, MAX_SEEN) });
   return { next, before };
 }
 

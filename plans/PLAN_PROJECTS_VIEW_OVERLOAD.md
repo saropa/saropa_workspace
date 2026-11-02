@@ -281,3 +281,16 @@ Deviations and skipped items:
 - The row-menu checkbox only toggles the pin; it does not mark the project answered.
 - Not done: headless render of the strip at narrow widths (no browser here).
 
+
+### Review verdict (blocks flag) (2026-11-02, Sonnet diff review, findings only)
+
+Verdict: pass, no data-loss or security finding; no second round needed. Full unit run: 5351 pass, 0 fail (exit 0).
+
+Checked and fine: every consumer in the spec table changed (boardModel, menus, assets, rows, gantt, groups via `laneOf`, sidebar, pathToGo, handoff, editorLinks; tidy untouched by design). Marks file is backward compatible (old files get `answered: {}`; old readers ignore `answered` and read `pinned:false` as unset). Caps are equal on read and write (`MAX_ENTRIES`, `fitMarks` refuses over-cap). Never-answered projects keep today's `blocks`. One `updateLocalMarks` write; a refused write is detected (`answered.at !== now`) and gives no Undo. `blockersAsk` is rev-checked (boardPanel.ts rev guard), integer-checked, range-checked by model lookup; `scopeMenu ask` limited to project scope; row `block` is id-only. Strip text is escaped; `role=group` with `aria-label` is valid; all new keys are in en.json. Tests drive the real `openBoard` panel.
+
+Findings:
+- Low: `blockersAsk.ts` applyAnswer, fresh branch `[...old, ...left].slice(0, MAX_SEEN)` drops the newest unpicked paths once 200 are stored, so those critical items re-trigger the strip each time. Fix: keep the last 200 (`slice(-MAX_SEEN)`).
+- Low: `boardBlockers.ts` toggleBlock: for an item pinned only by a rules-file glob, the checkbox writes `pinned:false` locally, verification passes, and the Undo bar says "no longer marked" while the item stays pinned. Known deviation; show nothing or skip the write when the pin is not a hand mark.
+- Low: row-menu checkbox does not mark the project answered (known; a pin in a never-answered project with a red folder elsewhere still leaves the old rule active).
+- Low: skipped spec items (profile-switch preview line, project rule tooltip, `whyRed`/`stTip.red`/`effFixed` wording) remain open and are recorded in Build notes.
+- Info: `data-proj` count adds `blockedStopping` unconditionally; correct only because answered projects never count it (boardModel `!answered` guard). Keep that coupling in mind.

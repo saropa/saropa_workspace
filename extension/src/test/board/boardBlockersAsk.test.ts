@@ -12,7 +12,7 @@ import { ASK_OVER, applyAnswer, candidatesOf, restoreSnapshot } from "../../boar
 import { emptyMarks, parseMarks } from "../../board/marks";
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 import { openBoard } from "../../views/boardPanel";
-import { __lastWebviewPanel, __resetWebviewPanels, __setPickHandler, __resetHandlers } from "../_stub/vscode";
+import { __lastWebviewPanel, __resetWebviewPanels, __infoMessages, __setPickHandler, __resetHandlers } from "../_stub/vscode";
 import { flushEvents, settle } from "../settle";
 import { contextIn, stub, tmpDir } from "./hostHelpers";
 
@@ -62,6 +62,12 @@ test("an answer pins the picked, remembers the rest, and Undo restores both in o
   assert.deepEqual(Object.keys(next.marks), [`app/${offered[0]}`]);
   assert.deepEqual(next.answered.app, { at: 7, seen: offered.slice(1) });
   assert.deepEqual(restoreSnapshot(next, "app", before), emptyMarks());
+  // A fresh answer keeps the newest 200 unpicked paths.
+  const many = Array.from({ length: 250 }, (_v, i) => `d${i}.md`);
+  const old = applyAnswer(emptyMarks(), emptyMarks(), "app", many.slice(0, 150), new Set(), false, 1).next;
+  const fresh = applyAnswer(old, emptyMarks(), "app", many.slice(150), new Set(), true, 2).next.answered.app.seen;
+  assert.equal(fresh.length, 200);
+  assert.equal(fresh[199], "d249.md", "the newest path is kept");
   // Zero picks is an answer too.
   assert.deepEqual(applyAnswer(emptyMarks(), emptyMarks(), "app", offered, new Set(), false, 8).next.answered.app, { at: 8, seen: offered });
 });
@@ -173,4 +179,20 @@ test("1000 projects with five candidates each build within a generous budget", (
     return Date.now() - t0;
   }));
   assert.ok(best < 5000, `best of three was ${best} ms`);
+});
+
+test("a pin from a rules-file glob is refused with a message, not a false Undo", async () => {
+  const dir = boardDir(7);
+  fs.mkdirSync(path.join(dir, ".saropa"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".saropa", "release-board.json"), JSON.stringify({ version: 1, pinned: ["**/bugs/**"] }));
+  await openBoard(contextIn(dir));
+  const panel = __lastWebviewPanel();
+  assert.ok(panel);
+  await settle(() => /data-pin="1"/.test(panel.webview.html));
+  const id = Number(/data-pin="1"[^>]*>/.test(panel.webview.html) ? /data-id="(\d+)"[^>]*data-pin="1"/.exec(panel.webview.html)?.[1] : NaN);
+  assert.ok(Number.isInteger(id), "a glob-pinned row is drawn");
+  panel.webview.__receiveFromClient({ type: "rowMenu", act: "block", id, rev: revOf(panel.webview.html) });
+  await settle(() => __infoMessages().some((m) => m.includes("rules file")));
+  assert.ok(!panel.webview.html.includes('id="undo"'));
+  assert.equal(fs.existsSync(path.join(dir, "release-board-marks.json")), false);
 });
