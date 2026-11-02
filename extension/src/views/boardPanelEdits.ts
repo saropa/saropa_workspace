@@ -8,7 +8,7 @@ import { DocChange, assignFolderRule, changeDoc, previewFolder, readGroupNames, 
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import { pickGroup } from "../commands/boardGroupPick";
 import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
-import { NeedsDirection, NeedsPick, pickNeeds } from "./boardNeedsPick";
+import { NeedsDirection, NeedsPick, pickAnswerNeed, pickNeeds } from "./boardNeedsPick";
 import { planDrop } from "../board/boardDrop";
 import type { BoardItem, BoardModel } from "../board/boardModel";
 import { busyMessage, busyReason } from "./boardBusy";
@@ -112,6 +112,8 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     } else if (act === "order" || act === "forgetOrder") {
       await this.askOrder(this.model?.projects.findIndex((p) => p.id === item.project) ?? -1, act === "forgetOrder" ? "forget" : "again", item);
       this.post({ type: "clearPending", id });
+    } else if (act === "makeDep") {
+      await this.needsChange("answer", item, run);
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
     } else if (act === "assign") {
@@ -144,7 +146,7 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
 
   // Waits on... and Blocks...: the picker, then one Needs line added or taken out of a document at
   // once, with Undo. The page shows nothing pending: the board is painted again after the write.
-  private async needsChange(dir: NeedsDirection, item: BoardItem, run: BoardRun): Promise<void> {
+  private async needsChange(dir: NeedsDirection | "answer", item: BoardItem, run: BoardRun): Promise<void> {
     const busy = this.busyReason();
     if (busy || !this.model) {
       void vscode.window.showInformationMessage(this.busyText(busy ?? "releaseBoard.failed"));
@@ -152,7 +154,7 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     }
     this.assigning = true;
     try {
-      const pick = await pickNeeds(run, this.model, item, dir);
+      const pick = dir === "answer" ? await pickAnswerNeed(run, this.model, item) : await pickNeeds(run, this.model, item, dir);
       if (pick) {
         await this.writeNeeds(run, pick);
       }

@@ -83,3 +83,37 @@ export async function pickNeeds(run: BoardRun, model: BoardModel, item: BoardIte
   }
   return { doc: node(from), change: { kind: "add", target, to: node(onto) }, label: l10n("releaseBoard.needs.undoAdd", { title: from.title, name: onto.title }) };
 }
+
+// "Make this a real dependency": the asked answers of one row ("you said X comes before this") become one Needs line.
+// The candidates come from the model this panel painted (item.after), never from the page. One answer is taken as it is;
+// several ask which one. No preview: the person already chose the entry, and Undo takes the line out.
+export async function pickAnswerNeed(run: BoardRun, model: BoardModel, item: BoardItem): Promise<NeedsPick | undefined> {
+  if (!readsNeeds(item.path)) {
+    return undefined;
+  }
+  const held = new Set(model.links.filter((l) => l.fromProject === item.project && l.fromPath === item.path && !l.markOnly).map((l) => l.toProject + "\t" + l.toPath));
+  const options = (item.after ?? [])
+    .map((id) => model.items[id])
+    .filter((o): o is BoardItem => o !== undefined && o.id !== item.id && !held.has(o.project + "\t" + o.path) && !wouldCircle(model.links, node(item), node(o)));
+  if (options.length === 0) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.order.makeDepNone", { title: item.title }));
+    return undefined;
+  }
+  let onto = options[0];
+  if (options.length > 1) {
+    const chosen = await vscode.window.showQuickPick(
+      options.map((o) => ({ label: `${SHAPES[o.status] ?? "○"} ${o.title}`, detail: o.path, item: o })),
+      { title: l10n("releaseBoard.order.makeDepTitle", { title: item.title }), ignoreFocusOut: true, matchOnDetail: true }
+    );
+    if (!chosen) {
+      return undefined;
+    }
+    onto = chosen.item;
+  }
+  const target = needTarget(run.result.rows, run.cfg.projects, node(item), node(onto));
+  if (target === undefined) {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.needs.unnamed", { to: onto.title }));
+    return undefined;
+  }
+  return { doc: node(item), change: { kind: "add", target, to: node(onto) }, label: l10n("releaseBoard.needs.undoAdd", { title: item.title, name: onto.title }) };
+}

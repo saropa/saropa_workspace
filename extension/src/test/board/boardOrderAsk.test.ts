@@ -189,6 +189,40 @@ test("row menu: ask where this goes, forget order answers; unknown ids and non-b
   await settle(() => asked > 0);
 });
 
+test("row menu: Make this a real dependency writes one Needs line with one Undo, refuses a stale rev and keeps the answer", async () => {
+  const dir = orderDir(3, { order: { app: { pairs: [["bugs/BUG_0.md", "bugs/BUG_1.md"]], skipped: [], folders: [] } } });
+  await openBoard(contextIn(dir));
+  const panel = __lastWebviewPanel();
+  assert.ok(panel);
+  await settle(() => panel.webview.html.includes('data-act="makeDep"'));
+  assert.ok(/data-oa="1"/.test(panel.webview.html), "only a row with an asked answer carries the flag the menu reads");
+  const text = (n: number): string => fs.readFileSync(path.join(dir, "bugs", `BUG_${n}.md`), "utf8");
+  const before = [0, 1, 2].map(text);
+  const rev = () => revOf(panel.webview.html);
+  panel.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id: 1, rev: rev() - 1 });
+  await flushEvents(50);
+  assert.deepEqual([0, 1, 2].map(text), before, "a stale rev writes nothing");
+  // Ids the page could invent write nothing either; the row with no answer has nothing to turn into a line.
+  for (const id of [0.5, 99, -1]) {
+    panel.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id, rev: rev() });
+  }
+  await flushEvents(50);
+  assert.deepEqual([0, 1, 2].map(text), before);
+  // Exactly one of the three rows has the asked answer; it gets the line.
+  for (const id of [0, 1, 2]) {
+    panel.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id, rev: rev() });
+    await flushEvents(50);
+  }
+  const after = [0, 1, 2].map(text);
+  const changed = after.filter((x, i) => x !== before[i]);
+  assert.equal(changed.length, 1);
+  assert.match(changed[0], /Needs:.*BUG_0\.md/);
+  assert.equal(stored(dir)?.pairs.length, 1, "the answer stays valid after the line exists");
+  assert.ok(panel.webview.html.includes('id="undo"'));
+  panel.webview.__receiveFromClient({ type: "undo", rev: rev() });
+  await settle(() => [0, 1, 2].every((n) => text(n) === before[n]));
+});
+
 test("1000 projects with ten flagged items each build within a generous budget", () => {
   const projects = Array.from({ length: 1000 }, (_v, i) => ({ id: `p${i}`, name: `P${i}`, path: `p${i}`, roots: [], ruleSets: [] }));
   const cfg = { version: 1, ignore: [], ruleSets: {}, projects } as BoardConfig;
