@@ -30,7 +30,7 @@ const labels: SidebarLabels = {
 };
 
 function item(id: number, title: string, status: BoardItem["status"], stopping = false): BoardItem {
-  return { id, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping };
+  return { id, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping, blocks: status === "red" || stopping };
 }
 
 function project(light: BoardProject["light"], items: BoardItem[], reasons: BoardProject["reasons"] = []): BoardProject {

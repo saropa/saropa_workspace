@@ -1,6 +1,6 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
-import { applyMarks, pinnedKeys } from "../board/marks";
+import { answeredExtra, applyMarks, pinnedKeys } from "../board/marks";
 import { BoardRun, canRunHealth, logBoardError, hasOutsideProject, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { trainsFor } from "./boardTrain";
@@ -364,7 +364,7 @@ export abstract class BoardPanelCore {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, sharedRejected: marks.sharedRejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited), orgPrevious: orgPreviousInput(this.context) }
+      { needs: marks.needs, rejected: marks.rejected, sharedRejected: marks.sharedRejected, pins: pinnedKeys(marks), ...answeredExtra(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited), orgPrevious: orgPreviousInput(this.context) }
     );
     saveOrgLayouts(this.context, this.model);
     const model = this.model;

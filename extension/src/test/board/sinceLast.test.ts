@@ -18,7 +18,7 @@ const labels: SinceLabels = {
 };
 
 function item(title: string, status: BoardItem["status"] = "red", stopping = false): BoardItem {
-  return { id: 0, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping };
+  return { id: 0, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping, blocks: status === "red" || stopping };
 }
 
 function project(light: BoardProject["light"], items: BoardItem[], id = "app"): BoardProject {

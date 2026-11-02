@@ -1,4 +1,5 @@
 import type { BoardItem, BoardModel, GroupView } from "./boardModel";
+import { laneOf } from "./boardModelParts";
 import { SEVERITY_LEVELS } from "./ruleAssign";
 import { BoardStrings, escapeHtml, pillify, pl, tip } from "./boardHtmlUtil";
 import { blocksNow, kebab } from "./boardHtmlMenus";
@@ -82,7 +83,8 @@ export function cardsFor(model: BoardModel, by: GroupBy, t: BoardStrings): Card[
       const top = g?.parentView ?? g;
       g && top ? put(top.id, top.name, i, { byUser: top.byUser === true, handoff: i.id, group: top }, top === g ? undefined : g) : put("", pl(t, "groupNoGroup"), i);
     } else if (by === "status") {
-      put(i.status, i.status === "red" ? t.resolveNow : i.status === "purple" ? t.inProgress : t.workOn, i);
+      const lane = laneOf(i);
+      put(lane, lane === "red" ? t.resolveNow : lane === "purple" ? t.inProgress : t.workOn, i);
     } else {
       put(i.severity ?? "", i.severity ? pl(t, "sev." + i.severity) : pl(t, "groupNoSeverity"), i);
     }

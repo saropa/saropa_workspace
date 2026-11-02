@@ -1,6 +1,7 @@
 import type { BoardItem, BoardModel } from "./boardModelParts";
 import { dragAttrs, moveArrows } from "./boardHtmlDrag";
 import { kebab, rowData } from "./boardHtmlMenus";
+import { ganttStrips } from "./boardHtmlAsk";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, docLink, escapeHtml, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { GanttGroup, GanttRow, buildGantt } from "./ganttModel";
@@ -127,7 +128,7 @@ function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel, all
   const rest = g.rows.length - GANTT_ROWS;
   const more = rest > 0 ? `<button type="button" class="sec" data-rowsmore data-lid="${escapeHtml(g.id)}" data-by="gantt" data-from="${GANTT_ROWS}" aria-expanded="false" ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><ul class="grows" role="list" data-lid="${escapeHtml(g.id)}" data-by="gantt" data-kind="more"></ul>` : "";
   const count = pill(t, g.open, "ganttOpen", { count: g.open });
-  return `<section class="gg" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}><button type="button" class="gtog" aria-expanded="true" aria-controls="gr${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}>${escapeHtml(g.name)} ${count}</button></h2><ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}<div class="gsum">${count}</div><div class="gf"><span class="go gtl ${g.light}" ${tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light))}>${escapeHtml(light)}</span></div></section>`;
+  return `<section class="gg" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}><button type="button" class="gtog" aria-expanded="true" aria-controls="gr${n}" ${tip(t, "ganttGroup", { name: g.name, count: g.open })}>${escapeHtml(g.name)} ${count}</button></h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}<div class="gsum">${count}</div><div class="gf"><span class="go gtl ${g.light}" ${tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light))}>${escapeHtml(light)}</span></div></section>`;
 }
 
 // The key as a floating panel under the "?" button, hidden until it is pressed. The status symbols

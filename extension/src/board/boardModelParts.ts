@@ -12,6 +12,7 @@ import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
 import type { FinishedDoc } from "./ganttModel";
+import type { AskView } from "./blockersAsk";
 import type { OrgPrevious } from "./boardOrg";
 import type { ProposalView } from "./boardProposals";
 import type { Layout } from "./org/layout";
@@ -71,8 +72,15 @@ export interface BoardItem {
   pinned: boolean;
   // File time and size when the facts were read ("seconds-bytes"), for the hand-off; absent when not read.
   rev?: string;
-  // The item stops a release under the chosen profile.
+  // The item's severity is at or above the profile's threshold (or it is pinned).
   stopping: boolean;
+  // The item blocks the next release: drawn red, counted, NO-GO. In an answered project only a pin does;
+  // elsewhere a red folder, a stopping severity or a pin.
+  blocks: boolean;
+  // The item's project was answered (set so the row menu can say a severity or status change leaves the release alone).
+  answered?: true;
+  // The strip asking which items block the next release (absent when nothing is to be asked).
+  ask?: AskView;
 }
 
 // The small marks on a row, rolled up from a document's text.
@@ -102,6 +110,10 @@ export interface BoardProject {
   blocked: number;
   // How many of those collapsed documents would stop a release under the profile.
   blockedStopping: number;
+  // The owner answered which items block the next release: only pinned items are red here.
+  answered?: true;
+  // The strip asking which items block the next release (absent when nothing is to be asked).
+  ask?: AskView;
   // Documents of this project whose severity the user lowered below a level that stops the release.
   loweredByUser?: number;
   counts: StatusCounts;
@@ -222,6 +234,10 @@ export interface BoardExtra {
   sharedRejected?: number;
   // Documents pinned by hand, as "project/path".
   pins?: string[];
+  // Projects whose owner answered which items block the next release: there red means "pinned".
+  answered?: string[];
+  // The paths each answered project left unpicked, to tell a new critical item from an old one.
+  seen?: Record<string, string[]>;
   // Review requests, groups and session counts from other extensions.
   outside?: Outside;
   // `have` absent means every context is in hand.
@@ -235,6 +251,12 @@ export interface BoardExtra {
 }
 
 // Helpers that turn one document or one link into the pieces of the board model.
+
+// The list an open item sits in on the page: "red" = Resolve now. In an answered project that is the items the
+// owner marked (a red folder alone is not), and an unmarked red-folder item joins "amber" (Work on).
+export function laneOf(i: BoardItem): "red" | "amber" | "purple" {
+  return i.answered && i.status !== "purple" ? (i.blocks ? "red" : "amber") : i.status;
+}
 
 // The statuses that count as open work.
 export const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);

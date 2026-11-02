@@ -112,6 +112,9 @@ export function scopeItems(model: BoardModel, req: ScopeRequest): BoardItem[] {
 const key = (it: Pick<BoardItem, "project" | "path">): string => `${it.project}:${it.path}`;
 
 function whyBlocks(it: BoardItem, profile: string): string | undefined {
+  if (it.answered) {
+    return it.blocks ? "marked as blocking the next release" : undefined;
+  }
   if (it.status === "red") {
     return "red folder";
   }
@@ -134,7 +137,7 @@ export function fromModel(model: BoardModel, items: BoardItem[], roots: Record<s
   const projects = model.projects
     .filter((p) => ids.has(p.id))
     .map((p): HandoffProject => {
-      const stopping = p.items.filter((x) => x.status === "red" || x.stopping).length;
+      const stopping = p.items.filter((x) => x.blocks).length;
       const h = p.health;
       const evidence: Record<string, string> = h ? { lint: h.lint, tests: h.tests, ...(h.build !== undefined ? { build: h.build } : {}), ...(h.deps !== undefined ? { deps: h.deps } : {}) } : {};
       return {

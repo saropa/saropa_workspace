@@ -22,7 +22,7 @@ const doc = (over: Partial<TidyDoc> = {}): TidyDoc => ({
   pinned: false,
   waiting: false,
   status: "amber",
-  stopping: false,
+  blocks: false,
   ...over,
 });
 const opt = { now: NOW, afterDays: 7, archiveFolder: "docs/history" };
@@ -49,9 +49,9 @@ test("pinned and waiting documents are never offered, nor ones already in the ar
 });
 
 test("red, purple and release-stopping documents are never offered", () => {
-  assert.equal(buildTidy([doc({ status: "red" })], opt).candidates.length, 0);
+  assert.equal(buildTidy([doc({ status: "red", blocks: true })], opt).candidates.length, 0);
   assert.equal(buildTidy([doc({ status: "purple" })], opt).candidates.length, 0);
-  assert.equal(buildTidy([doc({ stopping: true })], opt).candidates.length, 0);
+  assert.equal(buildTidy([doc({ blocks: true })], opt).candidates.length, 0);
 });
 
 test("the default archive folder counts as archived even when another is chosen", () => {
@@ -121,4 +121,8 @@ test("the board model lists a finished, idle document and leaves the setting off
   assert.deepEqual(on.tidy?.candidates.map((c) => c.path), ["bugs/DONE.md"]);
   assert.equal(on.tidy?.candidates[0].id, on.items.find((i) => i.path === "bugs/DONE.md")?.id);
   assert.equal(buildBoard(cfg, rows, undefined, true, snapshot).tidy, undefined);
+});
+
+test("a red-folder document the owner did not mark (an answered project) can be offered", () => {
+  assert.equal(buildTidy([doc({ status: "red", blocks: false })], opt).candidates.length, 1);
 });

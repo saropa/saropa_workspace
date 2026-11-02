@@ -15,6 +15,7 @@ import { OrgSettings, settingsOf } from "./org/settings";
 import { finishedTargets } from "./ganttModel";
 import { ScanSnapshot } from "./scanner";
 import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
+import { askOf } from "./blockersAsk";
 import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
@@ -52,6 +53,9 @@ interface BuildContext {
   names: Map<string, string>;
   exactPins: Set<string>;
   pinGlobs: RegExp[];
+  // Project ids whose owner answered "which items block the next release".
+  answered: Set<string>;
+  seen: Record<string, string[]>;
   // Severities chosen by the user, and a count of the ones applied to open documents.
   overrides: Map<string, Severity>;
   statusKeys: Set<string>;
@@ -67,6 +71,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
   let blocked = 0;
   let blockedStop = 0;
   const dict = mergeNeeds(ctx.cfg.needs);
+  const answered = ctx.answered.has(def.id);
   for (const r of ctx.rows) {
     if (r.project !== def.id) {
       continue;
@@ -88,13 +93,14 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
     }
     if (r.status === "amber" && r.note === "blocked" && !pinned) {
       // A waiting document is collapsed into one mark, but one that would stop a
-      // release under the profile still counts toward NO-GO.
+      // release under the profile still counts toward NO-GO (in an answered project only pinned ones block, and they are listed).
       blocked += 1;
-      if (sev.severity !== undefined && stops(ctx.profile, sev.severity)) {
+      if (!answered && sev.severity !== undefined && stops(ctx.profile, sev.severity)) {
         blockedStop += 1;
       }
       continue;
     }
+    const stopping = pinned || (sev.severity !== undefined && stops(ctx.profile, sev.severity));
     items.push({
       id: -1,
       project: def.id,
@@ -114,11 +120,14 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       ...(statusChosen(ctx.statusKeys, r) ? { statusByUser: true } : {}),
       audience: facts?.audience,
       pinned,
-      stopping: pinned || (sev.severity !== undefined && stops(ctx.profile, sev.severity)),
+      stopping,
+      blocks: answered ? pinned : r.status === "red" || stopping,
+      ...(answered ? { answered: true as const } : {}),
     });
   }
   items.sort(
     (a, b) =>
+      (answered ? Number(b.blocks) - Number(a.blocks) : 0) ||
       ORDER[a.status] - ORDER[b.status] ||
       Number(b.pinned) - Number(a.pinned) ||
       (SEV_ORDER[a.severity ?? "medium"] ?? 3) - (SEV_ORDER[b.severity ?? "medium"] ?? 3) ||
@@ -151,11 +160,11 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     reasons.push("unread");
   }
   // A scan held by the safety check must never hide red work the accepted scan had.
+  const answered = ctx.answered.has(def.id);
+  const ask = askOf(items, answered, ctx.seen[def.id]);
   const blocker =
-    counts.red > 0 ||
-    items.some((i) => i.stopping) ||
-    blockedStop > 0 ||
-    (!ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
+    (answered ? items.some((i) => i.blocks) : counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0) ||
+    (!answered && !ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
     h?.lint === "failing" ||
     h?.tests === "failing" ||
     h?.build === "failing" ||
@@ -170,6 +179,8 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     items,
     blocked,
     blockedStopping: blockedStop,
+    ...(answered ? { answered: true as const } : {}),
+    ...(ask ? { ask } : {}),
     ...(lowered > 0 ? { loweredByUser: lowered } : {}),
     counts,
     dependsOn: def.dependsOn ?? [],
@@ -280,7 +291,7 @@ function buildTidyView(all: BoardItem[], ctx: BuildContext, opts: NonNullable<Bo
         pinned: it.pinned,
         waiting: it.link?.state === "open",
         status: it.status,
-        stopping: it.stopping,
+        blocks: it.blocks,
       };
     }),
     opts
@@ -346,6 +357,8 @@ export function buildBoard(
     statusKeys: userStatuses(cfg),
     byUser: { count: 0, lowered: 0 },
     org: settingsOf(cfg.organize),
+    answered: new Set(extra?.answered ?? []),
+    seen: extra?.seen ?? {},
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };
   // The open workspace's projects first, then the extra ones; importance orders within each.

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { BoardModel, buildBoard } from "../board/boardModel";
-import { applyMarks, pinnedKeys } from "../board/marks";
+import { answeredExtra, applyMarks, pinnedKeys } from "../board/marks";
 import { asStartupMode, projectsFound, shouldOpenOnStartup } from "../board/sidebar";
 import { onDidRecordHealth } from "../commands/boardHealth";
 import { onDidChangeMarks, readMarks } from "../commands/boardMarks";
@@ -33,7 +33,7 @@ function modelOf(run: BoardRun, context: vscode.ExtensionContext): BoardModel {
   return buildBoard(run.cfg, applyMarks(run.result.rows, run.marks), run.safety, run.accepted, run.result.snapshot, run.previous, run.health, {
     needs: run.marks.needs,
     rejected: run.marks.rejected,
-    pins: pinnedKeys(run.marks),
+    pins: pinnedKeys(run.marks), ...answeredExtra(run.marks),
     // The saved layouts the tab uses, so the groups never differ between the tab and the background board.
     orgPrevious: orgPreviousInput(context),
   });

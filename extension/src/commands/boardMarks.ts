@@ -32,7 +32,7 @@ export async function readLocalMarks(context: vscode.ExtensionContext): Promise<
   return parseMarks(await readText(vscode.Uri.joinPath(storageDir(context), LOCAL_FILE)));
 }
 
-async function readSharedMarks(): Promise<MarksFile> {
+export async function readSharedMarks(): Promise<MarksFile> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   return folder ? parseMarks(await readText(vscode.Uri.joinPath(folder.uri, SHARED_FILE))) : emptyMarks();
 }
@@ -113,7 +113,9 @@ export async function markCommand(context: vscode.ExtensionContext, loadConfig: 
   if (!pick) {
     return;
   }
-  await updateLocalMarks(context, (local) => setMark(local, markKey(found.project, found.path), pick.change));
+  const key = markKey(found.project, found.path);
+  const sharedPinned = (await readSharedMarks()).marks[key]?.pinned === true;
+  await updateLocalMarks(context, (local) => setMark(local, key, pick.change, sharedPinned));
 }
 
 // Copies the merged marks into the shared file in the repository.
