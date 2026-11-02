@@ -176,3 +176,8 @@ export function setAnswer(f: MarksFile, project: string, answer: Answer | undefi
 export function answeredIds(f: MarksFile): string[] {
   return Object.keys(f.answered);
 }
+
+// What buildBoard needs of the answers: the answered project ids and the paths left unpicked in each.
+export function answeredExtra(f: MarksFile): { answered: string[]; seen: Record<string, string[]> } {
+  return { answered: answeredIds(f), seen: Object.fromEntries(Object.entries(f.answered).map(([id, a]) => [id, a.seen])) };
+}

@@ -15,6 +15,7 @@ import { OrgSettings, settingsOf } from "./org/settings";
 import { finishedTargets } from "./ganttModel";
 import { ScanSnapshot } from "./scanner";
 import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
+import { askOf } from "./blockersAsk";
 import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
@@ -54,6 +55,7 @@ interface BuildContext {
   pinGlobs: RegExp[];
   // Project ids whose owner answered "which items block the next release".
   answered: Set<string>;
+  seen: Record<string, string[]>;
   // Severities chosen by the user, and a count of the ones applied to open documents.
   overrides: Map<string, Severity>;
   statusKeys: Set<string>;
@@ -159,6 +161,7 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
   }
   // A scan held by the safety check must never hide red work the accepted scan had.
   const answered = ctx.answered.has(def.id);
+  const ask = askOf(items, answered, ctx.seen[def.id]);
   const blocker =
     (answered ? items.some((i) => i.blocks) : counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0) ||
     (!ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
@@ -177,6 +180,7 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     blocked,
     blockedStopping: blockedStop,
     ...(answered ? { answered: true as const } : {}),
+    ...(ask ? { ask } : {}),
     ...(lowered > 0 ? { loweredByUser: lowered } : {}),
     counts,
     dependsOn: def.dependsOn ?? [],
@@ -354,6 +358,7 @@ export function buildBoard(
     byUser: { count: 0, lowered: 0 },
     org: settingsOf(cfg.organize),
     answered: new Set(extra?.answered ?? []),
+    seen: extra?.seen ?? {},
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };
   // The open workspace's projects first, then the extra ones; importance orders within each.

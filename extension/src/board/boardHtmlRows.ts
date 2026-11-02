@@ -5,6 +5,7 @@ import { chooseBox } from "./boardHtmlHandoff";
 import { dragAttrs, moveArrows } from "./boardHtmlDrag";
 import { BoardStrings, fillT, collapsible, sectionIcon, docLink, escapeHtml, liveLine, glyphTip, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { blocksNow, kebab, rowData } from "./boardHtmlMenus";
+import { askStrip } from "./boardHtmlAsk";
 import type { FeedNote } from "./recipeEvidence";
 import { Signal, showsOnRow } from "./reportSignals";
 
@@ -386,5 +387,5 @@ export function projectBlock(p: BoardProject, i: number, t: BoardStrings, lights
 // change of light starts the card over.
 export function projectCard(p: BoardProject, i: number, t: BoardStrings, lights: Map<string, string>, path: PathToGo | undefined, canAct: boolean, badge: string, open: boolean, lists: string): string {
   const steps = path ? `<div class="pj" data-pid="${escapeHtml(p.id)}">${pathList(path, t, i, canAct)}</div>` : "";
-  return `<details class="box pcard" data-sec="${escapeHtml(`project:${p.id}:${p.light}`)}"${open ? " open" : ""}><summary class="sh">${verdict(p, t, lights, false, badge, i, false)}</summary>${steps}${lists}</details>`;
+  return `<details class="box pcard" data-sec="${escapeHtml(`project:${p.id}:${p.light}`)}"${open ? " open" : ""}><summary class="sh">${verdict(p, t, lights, false, badge, i, false)}</summary>${askStrip(p, i, t)}${steps}${lists}</details>`;
 }

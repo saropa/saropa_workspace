@@ -16,6 +16,9 @@ import { TagsEditorInput, openTagsEditor } from "./tagsEditorPanel";
 import { matchedTagIds, settingsOf } from "../board/org/settings";
 import { openMessage } from "./boardHandoff";
 import { BoardPanelWiring } from "./boardPanelWiring";
+import { BlockersUndo, chooseBlockers, toggleBlock } from "../commands/boardBlockers";
+import { readMarks } from "../commands/boardMarks";
+import { rebaseProject } from "./boardSinceLast";
 
 // How long Undo stays offered after a change.
 const UNDO_MS = 10_000;
@@ -102,6 +105,9 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
       }
     } else if (act === "tags") {
       await this.tagsRules([item]);
+    } else if (act === "block") {
+      await this.blockers(() => toggleBlock(this.context, item), undefined);
+      this.post({ type: "clearPending", id });
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
     } else if (act === "assign") {
@@ -260,6 +266,42 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     } catch (e) {
       void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
       this.post({ type: "clearPending", id });
+    } finally {
+      this.assigning = false;
+    }
+  }
+
+  // Asks which items of a project (by its index in the model this panel painted) block the next release.
+  // `all` offers every candidate; otherwise an answered project is asked only about its new critical items.
+  protected async askBlockers(index: number, all: boolean): Promise<void> {
+    const project = Number.isInteger(index) ? this.model?.projects[index] : undefined;
+    const run = this.run;
+    if (project && run) {
+      await this.blockers(() => chooseBlockers(this.context, project, run.marks, !all && project.ask?.fresh === true), project.id);
+    }
+  }
+
+  // Runs one blockers write under the in-flight guard, offers its Undo and paints the new marks at once.
+  // A project id re-baselines that project's "since you left" record.
+  private async blockers(write: () => Promise<BlockersUndo | undefined>, project: string | undefined): Promise<void> {
+    const busy = this.busyReason();
+    if (busy) {
+      void vscode.window.showInformationMessage(this.busyText(busy));
+      return;
+    }
+    this.assigning = true;
+    try {
+      const out = await write();
+      if (out && this.run) {
+        this.offerUndo(out.label, out.restore);
+        this.run.marks = await readMarks(this.context);
+        this.render();
+        if (project && this.model) {
+          rebaseProject(this.model, project);
+        }
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       this.assigning = false;
     }

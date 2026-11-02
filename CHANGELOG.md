@@ -58,6 +58,8 @@ The Release Board Gantt is easier to read and its header is calmer.
 - Future tab: shows "200+" and a note when more documents exist than are listed.
 - Release Board: in a project where you have marked which items block the next release, red now means only "you marked it". Red-folder items you did not mark show an amber diamond ("Address now"); severity no longer turns them red. Projects with no answer keep today's rules. The hand pin is now worded "Blocks the next release".
 
+- Release Board asks which items block the next release: a one-line question in a project with more than five red items (Board card and Gantt section), a multi-select picker (picking none is valid), an Undo, "Choose what blocks the next release..." in the project menu, and a "Blocks the next release" checkbox in the row menu. Answered projects ask again only for new extreme or critical items.
+
 ### Fixed
 - Release Board marks: the 5000th pin was written and then dropped on the next read; the write now refuses past the limit the reader keeps. A local "not pinned" now switches off a pin that comes from the shared marks file.
 

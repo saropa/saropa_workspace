@@ -101,6 +101,17 @@ export function markSeenNow(model?: BoardModel): void {
   }
 }
 
+// Answering which items block the next release changes what counts as a blocker: the project's part of
+// the baseline is taken again from the model drawn after the answer, so no blocker shows as cleared.
+export function rebaseProject(model: BoardModel, project: string): void {
+  if (on() && seen) {
+    const one = digestOf({ projects: model.projects.filter((p) => p.id === project) }, Date.now(), seen);
+    seen = { ...seen, projects: { ...seen.projects, ...one.projects } };
+    save(seen);
+    changed.fire();
+  }
+}
+
 // Loads the last seen record and registers the "mark as seen" command.
 export function registerSinceLast(context: vscode.ExtensionContext): void {
   store = context.workspaceState;

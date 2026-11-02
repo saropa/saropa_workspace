@@ -266,3 +266,18 @@ Never-answered projects keep today's rule exactly, so nothing turns non-red sile
 - Decision B: **What counts toward "more than 5".** (a) Items that would be red today, red folders included (Recommended: that is the inflation the owner saw; severity alone misses bug folders). (b) High severity and above only, as worded.
 - Decision C: **Dot for unflagged red-folder items.** (a) Amber ◆ with its status word ("Address now") (Recommended: red stays reserved for blockers). (b) New fourth color for "serious, not blocking".
 - Decision D: **Re-ask on new items.** (a) Only for new extreme or critical items (Recommended: rare, and must not be missed). (b) Never; owner uses "ask again".
+
+### Build notes: blocks-release flag (2026-11-02, two commits on the branch, not merged)
+
+Built as the design says: PR 1 (`blocks` on every item, `answered` and `seen` in the marks file, equal caps, tri-state pin, consumers switched) and PR 2 (strip in the Board card and the Gantt section, project-menu "Choose what blocks the next release…", row-menu checkbox, host QuickPick with one write, Undo, rev-checked and id-only messages, since-last re-baseline of the answered project).
+
+Deviations and skipped items:
+- Editor links (`board/editorLinks.ts`) change only in answered projects (red when `blocks`, amber otherwise); in never-answered projects an amber item that stops under the profile stays amber there, as before, so nothing changes silently.
+- "Resolve now" and "Work on" lists, and Group by status, use one lane rule (`laneOf`): answered projects put marked items in Resolve now and unmarked red-folder items in Work on; other projects are unchanged.
+- Gantt rows for unmarked red-folder items draw amber and use the amber word ("Review next"); the amber diamond with the word "Address now" is on the Board tab pill and hover card.
+- Not done: the profile-switch preview line "N projects use your marks; the profile does not change them"; the project tooltip saying which rule applies; the `whyRed` / `stTip.red` / `effFixed` wording (still says "red folder or pinned" for never-answered rows). The en.json wording changed only for the pin (`markPin`, `panel.pinned`, `why.pinned`).
+- A pin that comes from the rules file's `pinned` globs shows ticked in the picker but cannot be unticked there (only hand marks are written).
+- Undo restores marks and the answer; it does not restore the since-last baseline.
+- The row-menu checkbox only toggles the pin; it does not mark the project answered.
+- Not done: headless render of the strip at narrow widths (no browser here).
+

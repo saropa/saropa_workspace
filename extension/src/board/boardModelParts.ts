@@ -12,6 +12,7 @@ import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
 import type { FinishedDoc } from "./ganttModel";
+import type { AskView } from "./blockersAsk";
 import type { OrgPrevious } from "./boardOrg";
 import type { ProposalView } from "./boardProposals";
 import type { Layout } from "./org/layout";
@@ -78,6 +79,8 @@ export interface BoardItem {
   blocks: boolean;
   // The item's project was answered (set so the row menu can say a severity or status change leaves the release alone).
   answered?: true;
+  // The strip asking which items block the next release (absent when nothing is to be asked).
+  ask?: AskView;
 }
 
 // The small marks on a row, rolled up from a document's text.
@@ -109,6 +112,8 @@ export interface BoardProject {
   blockedStopping: number;
   // The owner answered which items block the next release: only pinned items are red here.
   answered?: true;
+  // The strip asking which items block the next release (absent when nothing is to be asked).
+  ask?: AskView;
   // Documents of this project whose severity the user lowered below a level that stops the release.
   loweredByUser?: number;
   counts: StatusCounts;
@@ -231,6 +236,8 @@ export interface BoardExtra {
   pins?: string[];
   // Projects whose owner answered which items block the next release: there red means "pinned".
   answered?: string[];
+  // The paths each answered project left unpicked, to tell a new critical item from an old one.
+  seen?: Record<string, string[]>;
   // Review requests, groups and session counts from other extensions.
   outside?: Outside;
   // `have` absent means every context is in hand.
