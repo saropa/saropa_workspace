@@ -180,7 +180,8 @@ test("the board reads answers into after, the Gantt ranks, and the tooltip names
   assert.ok(html.includes("[ganttAsked]") || html.includes("ganttAsked"), "the asked line is in a tooltip");
   // Handoff and path to go never read an answer.
   assert.deepEqual(m.items.map((i) => i.waitsOn), [[], [], [], []]);
-  assert.ok(pathToGo && fromModel);
+  assert.equal(typeof pathToGo, "function");
+  assert.equal(typeof fromModel, "function");
 });
 
 test("Up next leaves out an item that is after an open one", () => {
