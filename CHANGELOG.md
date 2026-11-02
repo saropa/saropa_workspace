@@ -51,6 +51,7 @@ cspell:disable
 The Release Board Gantt is easier to read and its header is calmer.
 
 ### Changed
+- Release Board Gantt: your "which comes first" answers (kept in the marks file, never written into documents) set the order of blockers. A row follows the rows you said come before it; the tooltip names the source, and a row ordered partly by inference carries a dotted chain mark. Up next skips a blocker that follows an open one.
 - Gantt rows: titles wrap to two lines in a wider title column; the project name shrinks first; the hidden chain slot takes no width until you hover, focus or drag. Tooltips still show the full text.
 - Gantt Unified: blockers come first (red, then purple, then amber), then work order.
 - Gantt bars: the length is the minutes of all open steps in the document, no longer the filtered Steps list. An empty bar now means no estimate.

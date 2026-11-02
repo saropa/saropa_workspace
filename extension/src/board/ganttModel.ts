@@ -61,6 +61,12 @@ export interface GanttRow {
   after: number[];
   // Titles of those items, for the tooltip.
   waits: string[];
+  // Where each id in `after` comes from, same order: a Needs line or the owner's answer.
+  afterSrc: Array<"needs" | "asked">;
+  // Titles of the items this row is after only because of the owner's answers (the "you said" lines).
+  askedNames: string[];
+  // Titles of the items this row follows only through others' answers; their presence draws the dotted chain mark.
+  inferred: string[];
   // Changed since the last look.
   changed: boolean;
   // Drawn with the changed outline: at most MAX_OUTLINED rows, so a big change does not outline the whole page.
@@ -101,7 +107,7 @@ function ranks(items: BoardItem[]): Map<number, number> {
     }
     visiting.add(i.id);
     let rank = 0;
-    for (const w of i.waitsOn) {
+    for (const w of [...i.waitsOn, ...(i.after ?? [])]) {
       const dep = byId.get(w);
       if (dep && !visiting.has(w)) {
         rank = Math.max(rank, place(dep) + 1);
@@ -193,14 +199,14 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
   for (const p of model.projects) {
     const allDone: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
-      .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], changed: false }));
+      .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], afterSrc: [], askedNames: [], inferred: [], changed: false }));
     // A big board keeps fewer finished rows: the last two, or only a count.
     const done = keepDone === "all" ? allDone : keepDone === "last2" ? allDone.slice(-2) : [];
     // Work order first; then a group with a stored order takes that order inside the places its members hold.
     const open: GanttRow[] = inStoredOrder(
       p.items
         .map((i) => ({ i, rank: rank.get(i.id) ?? 0 }))
-        .sort((a, b) => a.rank - b.rank)
+        .sort((a, b) => a.rank - b.rank || priorOrder(a.i, b.i))
         .map((x) => x.i),
       model.order,
     )
@@ -216,15 +222,18 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
           start: Math.round(r * slot * 10) / 10,
           width: Math.round(slot * share * 10) / 10,
           minutes: known,
-          after: i.waitsOn,
+          after: [...i.waitsOn, ...(i.after ?? [])],
           waits: i.waitsOn.map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
+          afterSrc: [...i.waitsOn.map(() => "needs" as const), ...(i.after ?? []).map(() => "asked" as const)],
+          askedNames: (i.after ?? []).map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
+          inferred: (i.inferred ?? []).map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
           changed: marked.has(sinceKey(i)),
           ...(i.status === "red" && !i.blocks ? { serious: true as const } : {}),
           ...(i.group && !i.group.flat ? { sub: { id: i.group.id, name: i.group.name } } : {}),
         };
       });
     if (allDone.length + open.length > 0) {
-      groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...gathered(open)] });
+      groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...gathered(open, p.folderRank)] });
     }
   }
   return groups;
@@ -232,7 +241,7 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
 
 // The open rows with the groups that hold a blocker first, then the ungrouped ones, then each other group's rows together (groups with a blocker first,
 // then in order of first appearance), so a group can fold under one sub-header. Order inside each part is kept.
-function gathered(open: GanttRow[]): GanttRow[] {
+function gathered(open: GanttRow[], folderRank?: Record<string, number>): GanttRow[] {
   const order: string[] = [];
   const red = new Set<string>();
   for (const r of open) {
@@ -245,10 +254,16 @@ function gathered(open: GanttRow[]): GanttRow[] {
       }
     }
   }
-  const rank = (id: string): number => (red.has(id) ? 0 : 1000) + order.indexOf(id);
+  // The owner's folder answers order the sections; folders they did not rank keep their order of appearance.
+  const rank = (id: string): number => (red.has(id) ? 0 : 1000) + (folderRank?.[id] ?? 500) + order.indexOf(id) / 1000;
   const hot = (r: GanttRow): boolean => red.has(r.sub!.id);
   const grouped = open.filter((r) => r.sub).sort((a, b) => rank(a.sub!.id) - rank(b.sub!.id));
   return [...grouped.filter(hot), ...open.filter((r) => !r.sub), ...grouped.filter((r) => !hot(r))];
+}
+
+// In an answered project two blockers of one rank are drawn most severe first, then the one more items wait on.
+function priorOrder(a: BoardItem, b: BoardItem): number {
+  return a.answered && b.answered && a.blocks && b.blocks ? (SEV_ORDER[a.severity ?? "medium"] ?? 3) - (SEV_ORDER[b.severity ?? "medium"] ?? 3) || b.blocksCount - a.blocksCount : 0;
 }
 
 const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
@@ -258,14 +273,17 @@ export const UP_NEXT = 5;
 // The few items to work on first: what is in progress, then the blockers that wait on nothing; each part with what
 // unblocks most first, then severity, then the shortest. An item appears once; nothing is padded in.
 export function upNext(model: BoardModel, n = UP_NEXT): BoardItem[] {
+  const folderRanks = new Map(model.projects.filter((p) => p.folderRank).map((p) => [p.id, p.folderRank!]));
+  const folder = (i: BoardItem): number => folderRanks.get(i.project)?.[i.group?.id ?? ""] ?? 0;
   const cmp = (a: BoardItem, b: BoardItem): number =>
+    folder(a) - folder(b) ||
     b.blocksCount - a.blocksCount ||
     (SEV_ORDER[a.severity ?? "medium"] ?? 3) - (SEV_ORDER[b.severity ?? "medium"] ?? 3) ||
     (a.openMinutes || STANDARD) - (b.openMinutes || STANDARD) ||
     a.project.localeCompare(b.project) ||
     a.path.localeCompare(b.path);
   const going = model.items.filter((i) => i.status === "purple").sort(cmp);
-  const free = model.items.filter((i) => i.status !== "purple" && i.blocks && i.waitsOn.length === 0).sort(cmp);
+  const free = model.items.filter((i) => i.status !== "purple" && i.blocks && i.waitsOn.length === 0 && (i.after ?? []).length === 0).sort(cmp);
   return [...going, ...free].slice(0, n);
 }
 

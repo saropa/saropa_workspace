@@ -1,3 +1,4 @@
+import { OrderEntry, isEmptyOrder, orderOverCap, parseOrder } from "./orderAsk";
 import { Classified } from "./types";
 
 // Marks a person puts on documents by hand: "in progress" (purple, cannot be derived from a
@@ -28,6 +29,8 @@ export interface MarksFile {
   rejected: string[];
   // Projects answered, by project id. Red means "pinned" only in these.
   answered: Record<string, Answer>;
+  // The owner's "which comes first" answers per project id. Order only; documents are never edited by them.
+  order: Record<string, OrderEntry>;
   // Set only on the merged marks: how many of `rejected` come from the shared file (read only here).
   sharedRejected?: number;
 }
@@ -37,7 +40,7 @@ export const markKey = (project: string, path: string): string => `${project}/${
 
 // A marks file with nothing in it.
 export function emptyMarks(): MarksFile {
-  return { version: 1, marks: {}, needs: {}, rejected: [], answered: {} };
+  return { version: 1, marks: {}, needs: {}, rejected: [], answered: {}, order: {} };
 }
 
 // Marks, needs and answered projects each keep this many entries, on read and on write.
@@ -63,7 +66,7 @@ export function addRejected(list: readonly string[], add: readonly string[]): st
 export function fitMarks(f: MarksFile): MarksFile | undefined {
   const size = (g: MarksFile): number => Buffer.byteLength(JSON.stringify(g), "utf8");
   // The same caps as the reader: past them the reader would drop entries silently, so nothing is written.
-  if (Object.keys(f.marks).length > MAX_ENTRIES || Object.keys(f.needs).length > MAX_ENTRIES || Object.keys(f.answered).length > MAX_ENTRIES) {
+  if (Object.keys(f.marks).length > MAX_ENTRIES || Object.keys(f.needs).length > MAX_ENTRIES || Object.keys(f.answered).length > MAX_ENTRIES || Object.keys(f.order).length > MAX_ENTRIES || Object.values(f.order).some(orderOverCap)) {
     return undefined;
   }
   let over = size(f) - MAX_BYTES;
@@ -109,6 +112,12 @@ export function parseMarks(text: string | undefined): MarksFile {
       out.answered[k] = { at: v.at, seen: (Array.isArray(v.seen) ? v.seen : []).filter((x): x is string => typeof x === "string" && x.length < 600).slice(0, MAX_SEEN) };
     }
   }
+  for (const [k, v] of Object.entries(data?.order ?? {}).slice(0, MAX_ENTRIES)) {
+    const e = k !== "__proto__" && k.length < 600 ? parseOrder(v) : undefined;
+    if (e) {
+      out.order[k] = e;
+    }
+  }
   out.rejected = (Array.isArray(data?.rejected) ? data.rejected : []).filter((x): x is string => typeof x === "string").slice(-MAX_REJECTED);
   return out;
 }
@@ -125,6 +134,7 @@ export function mergeMarks(shared: MarksFile, local: MarksFile): MarksFile {
     marks: { ...shared.marks, ...local.marks },
     needs,
     answered: { ...shared.answered, ...local.answered },
+    order: { ...shared.order, ...local.order },
     // A key rejected locally again counts as the newest, whatever place it has in the shared file.
     rejected: addRejected(shared.rejected, local.rejected),
     sharedRejected: shared.rejected.length,
@@ -172,12 +182,23 @@ export function setAnswer(f: MarksFile, project: string, answer: Answer | undefi
   return { ...f, answered };
 }
 
+// Replaces one project's order answers; an empty entry (or undefined) removes them.
+export function setOrder(f: MarksFile, project: string, entry: OrderEntry | undefined): MarksFile {
+  const order = { ...f.order };
+  if (entry && !isEmptyOrder(entry)) {
+    order[project] = entry;
+  } else {
+    delete order[project];
+  }
+  return { ...f, order };
+}
+
 // The ids of the projects whose owner answered which items block the next release.
 export function answeredIds(f: MarksFile): string[] {
   return Object.keys(f.answered);
 }
 
-// What buildBoard needs of the answers: the answered project ids and the paths left unpicked in each.
-export function answeredExtra(f: MarksFile): { answered: string[]; seen: Record<string, string[]> } {
-  return { answered: answeredIds(f), seen: Object.fromEntries(Object.entries(f.answered).map(([id, a]) => [id, a.seen])) };
+// What buildBoard needs of the answers: the answered project ids, the paths left unpicked in each and the order answers.
+export function answeredExtra(f: MarksFile): { answered: string[]; seen: Record<string, string[]>; order: Record<string, OrderEntry> } {
+  return { answered: answeredIds(f), order: f.order, seen: Object.fromEntries(Object.entries(f.answered).map(([id, a]) => [id, a.seen])) };
 }

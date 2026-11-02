@@ -13,6 +13,7 @@ import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
 import type { FinishedDoc } from "./ganttModel";
 import type { AskView } from "./blockersAsk";
+import type { OrderEntry } from "./orderAsk";
 import type { OrgPrevious } from "./boardOrg";
 import type { ProposalView } from "./boardProposals";
 import type { Layout } from "./org/layout";
@@ -57,6 +58,11 @@ export interface BoardItem {
   blocksCount: number;
   // Ids of the open, listed items this one waits on (its own prerequisites).
   waitsOn: number[];
+  // Ids of the open items the owner said this one comes after (order only, not a dependency: handoff and path to
+  // go never read it). Absent when none.
+  after?: number[];
+  // Ids of open items this one is after only through others' answers (absent when none).
+  inferred?: number[];
   // Claude sessions that read or edited this document (absent when none, or Chat Explorer is not installed).
   chats?: number;
   // Errors and warnings in the source files this document names (absent when quiet or unknown).
@@ -114,6 +120,10 @@ export interface BoardProject {
   answered?: true;
   // The strip asking which items block the next release (absent when nothing is to be asked).
   ask?: AskView;
+  // The strip asking which blocker comes first (absent when nothing is to be asked or the blockers strip shows).
+  orderAsk?: { count: number };
+  // Place of each folder (group id) among the blockers' folders, from the owner's folder answers (absent when none).
+  folderRank?: Record<string, number>;
   // Documents of this project whose severity the user lowered below a level that stops the release.
   loweredByUser?: number;
   counts: StatusCounts;
@@ -238,6 +248,8 @@ export interface BoardExtra {
   answered?: string[];
   // The paths each answered project left unpicked, to tell a new critical item from an old one.
   seen?: Record<string, string[]>;
+  // The owner's order answers by project id.
+  order?: Record<string, OrderEntry>;
   // Review requests, groups and session counts from other extensions.
   outside?: Outside;
   // `have` absent means every context is in hand.

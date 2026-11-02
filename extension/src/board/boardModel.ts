@@ -16,6 +16,7 @@ import { finishedTargets } from "./ganttModel";
 import { ScanSnapshot } from "./scanner";
 import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
 import { askOf } from "./blockersAsk";
+import { attachOrder } from "./orderModel";
 import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
@@ -377,6 +378,7 @@ export function buildBoard(
   }
   const byKey = new Map(all.map((it) => [itemKey(it.project, it.path), it]));
   attachLinks(all, links, grouping, byKey);
+  attachOrder(projects, all, extra?.order);
   const dashed = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
   const proposals = buildProposals(all, snapshot, cfg, links, extra?.rejected, new Set(dashed.map((s) => s.key)));
   // A pair shown as a proposal is not shown again as a dashed suggestion.

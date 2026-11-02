@@ -84,6 +84,8 @@ function row(r: GanttRow, key: string, t: BoardStrings, gk: string, item?: Board
   const rowTip = [
     r.status === "green" ? pl(t, "ganttDone", { title: r.title }) : pl(t, r.serious ? "stTip.serious" : "stTip." + r.status, { title: r.title }),
     r.waits.length > 0 ? pl(t, "ganttWaits", { names: r.waits.join(", ") }) : "",
+    r.askedNames.length > 0 ? pl(t, "ganttAsked", { names: r.askedNames.join(", ") }) : "",
+    r.inferred.length > 0 ? pl(t, "ganttInferred", { names: r.inferred.join(", ") }) : "",
     r.changed ? pl(t, "ganttChanged") : "",
   ].filter(Boolean).join(" ");
   const barTip = r.minutes > 0 ? pl(t, "ganttBar", { title: r.title, minutes: minutesLabel(r.minutes) }) : pl(t, "ganttBarNone", { title: r.title });
@@ -91,11 +93,13 @@ function row(r: GanttRow, key: string, t: BoardStrings, gk: string, item?: Board
   const cls = `gr${r.status === "green" ? " done" : ""}${r.outlined ? " chg" : ""}`;
   // A row in a group sits under that group's sub-header and starts hidden until the header is opened.
   const grouped = r.sub === undefined ? "" : ` data-sk="${escapeHtml(subKey(gk, r.sub.id))}" hidden`;
+  // A row ordered partly by inference carries the dotted chain mark, so it never reads as asked.
+  const inferMark = r.inferred.length > 0 ? `<span class="ginf" role="img" aria-label="${escapeHtml(pl(t, "ganttInferredTip"))}" ${tip(t, "ganttInferredTip")}>⛓</span>` : "";
   const upMark = r.up ? `<span class="upn" ${tip(t, "upNextMarkTip")}>${escapeHtml(pl(t, "upNext"))}</span>` : "";
   // An open row can be dragged, takes a dropped row on its Waits on slot and has the row menu.
   const slotSay = escapeHtml(pl(t, "dropWaits", { title: r.title }));
   const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${move ? moveArrows(t, item.title, move.up, move.down) : ""}${kebab(t, "row", item.id, item.title, rowData(item))}`;
-  return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${grouped}${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${upMark}${proj}${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
+  return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${grouped}${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${inferMark}${upMark}${proj}${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
 }
 
 // Rows of a section drawn in the page; the rest are sent when the page asks (a project of 2,000 documents).
