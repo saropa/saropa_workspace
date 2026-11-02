@@ -102,7 +102,10 @@ export function pillMenus(t: BoardStrings, model: BoardModel, scope?: "all" | "o
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
   const group = (aria: string, body: string): string => `<div role="group" aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}">${body}</div>`;
   const scopes = scope === undefined ? "" : group(pl(t, "scopeGroup"), radio("scope:openOnly", pl(t, "scopeThis"), pl(t, "scopeThisTip"), scope === "openOnly") + radio("scope:all", pl(t, "scopeAll"), pl(t, "scopeAllTip", { count: scopeTotal(model, scope) }), scope === "all"));
-  out.push(menu("pscope", pillMenuLabel(t, scope !== undefined), scopes + group(t.profileLabel, opts.map(([v, text]) => radio("profile:" + v, text, pl(t, "profile." + v), profile === v)).join(""))));
+  // Projects the owner answered keep their marks whatever the mode: say so where the mode is chosen.
+  const marked = model.projects.filter((p) => p.answered).length;
+  const marksNote = marked > 0 ? `<div class="note" role="presentation" ${tip(t, "profileMarks", { count: marked })}>${escapeHtml(pl(t, "profileMarks", { count: marked }))}</div>` : "";
+  out.push(menu("pscope", pillMenuLabel(t, scope !== undefined), scopes + group(t.profileLabel, opts.map(([v, text]) => radio("profile:" + v, text, pl(t, "profile." + v), profile === v)).join("")) + marksNote));
   if (groupBy !== undefined) {
     out.push(menu("pgroup", pl(t, "groupBy"), GROUP_BYS.map((g) => radio("group:" + g, pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), groupBy === g)).join("")));
   }

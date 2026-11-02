@@ -78,8 +78,10 @@ export function restoreSnapshot(f: MarksFile, project: string, s: Snapshot): Mar
   return setAnswer({ ...f, marks }, project, s.answer ?? undefined);
 }
 
-// Marks one document as blocking (or clears the mark); the project's answer is left as it is.
-export function applyBlock(local: MarksFile, shared: MarksFile, project: string, path: string, on: boolean): { next: MarksFile; before: Snapshot } {
+// Marks one document as blocking (or clears the mark). Marking also answers the project, so the other items
+// follow the owner's marks from then on; clearing a mark leaves the answer as it is. Undo restores both.
+export function applyBlock(local: MarksFile, shared: MarksFile, project: string, path: string, on: boolean, now = Date.now()): { next: MarksFile; before: Snapshot } {
   const key = markKey(project, path);
-  return { next: setMark(local, key, { pinned: on }, shared.marks[key]?.pinned === true), before: { marks: { [key]: local.marks[key] ?? null }, answer: local.answered[project] ?? null } };
+  const marked = setMark(local, key, { pinned: on }, shared.marks[key]?.pinned === true);
+  return { next: on && !local.answered[project] ? setAnswer(marked, project, { at: now, seen: [] }) : marked, before: { marks: { [key]: local.marks[key] ?? null }, answer: local.answered[project] ?? null } };
 }

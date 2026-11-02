@@ -60,6 +60,8 @@ The Release Board Gantt is easier to read and its header is calmer.
 
 - Release Board asks which items block the next release: a one-line question in a project with more than five red items (Board card and Gantt section), a multi-select picker (picking none is valid), an Undo, "Choose what blocks the next release..." in the project menu, and a "Blocks the next release" checkbox in the row menu. Answered projects ask again only for new extreme or critical items.
 
+- Release Board, blocks flag: the "Blocks the next release" checkbox in a row menu also answers the project; the picker shows a pin that comes from the rules file as ticked with its reason and never writes it; the project name tooltip says which rule makes red; the mode menu says how many projects keep their own marks; the Gantt draws unmarked red-folder items with an amber diamond and "Address now"; the wording for red folders now matches the rule; at most 10 changed rows get the changed outline.
+
 ### Fixed
 - Release Board marks: the 5000th pin was written and then dropped on the next read; the write now refuses past the limit the reader keeps. A local "not pinned" now switches off a pin that comes from the shared marks file.
 

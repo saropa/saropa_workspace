@@ -128,7 +128,7 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<i class="link ${waiting ? "wait" : "ok"}" ${glyphTip(t, waiting ? "g.amberDiamond" : "g.greenDiamond", `${t.dependsOn} ${p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", ")}`)}></i>` : "";
   const rowTip = toggles ? tip(t, "projectRow", { name: p.name }) : tip(t, "projectRowPlain", { name: p.name });
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${tip(t, "projectName", { name: p.name })}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${titleAttr(`${pl(t, "projectName", { name: p.name })} ${pl(t, p.answered ? "ruleMarks" : "ruleAuto")}`)}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
 }
 
 // True when an open document blocks the next release: only these are drawn red.
@@ -142,7 +142,7 @@ const unmarked = (i: BoardItem): boolean => i.status === "red" && !i.blocks;
 function rowCard(i: BoardItem, t: BoardStrings): string {
   const lines = [pl(t, blocks(i) ? "stTip.red" : unmarked(i) ? "stTip.serious" : "stTip." + i.status, { title: i.title })];
   if (i.status === "red") {
-    lines.push(pl(t, "whyRed"));
+    lines.push(pl(t, unmarked(i) ? "whyRedUnmarked" : "whyRed"));
   }
   if (i.pinned) {
     lines.push(t.pinned);

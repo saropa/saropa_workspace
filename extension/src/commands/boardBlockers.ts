@@ -23,9 +23,11 @@ interface Pick extends vscode.QuickPickItem {
 
 // The picker: every offered item with its current mark ticked. Undefined when dismissed; an empty
 // set when confirmed with nothing ticked (a valid answer).
-async function pickBlockers(items: readonly BoardItem[], fresh: boolean): Promise<Set<string> | undefined> {
+async function pickBlockers(items: readonly BoardItem[], fresh: boolean, fixed: ReadonlySet<string>): Promise<Set<string> | undefined> {
   const t = strings();
-  const picks: Pick[] = items.map((i) => ({ label: i.title, description: i.severity ? pl(t, "sev." + i.severity) : "", detail: i.path, picked: i.pinned, path: i.path }));
+  // A pin from the rules file's globs is ticked and says why it cannot be changed here (the list cannot disable a row;
+  // a path in `fixed` is never written, whatever the tick).
+  const picks: Pick[] = items.map((i) => ({ label: i.title, description: [i.severity ? pl(t, "sev." + i.severity) : "", fixed.has(i.path) ? l10n("releaseBoard.blockers.fixed") : ""].filter(Boolean).join(" · "), detail: i.path, picked: i.pinned, path: i.path }));
   const chosen = await vscode.window.showQuickPick(picks, { canPickMany: true, matchOnDetail: true, title: l10n(fresh ? "releaseBoard.blockers.titleFresh" : "releaseBoard.blockers.title") });
   return chosen ? new Set(chosen.map((c) => c.path)) : undefined;
 }
@@ -46,15 +48,19 @@ export async function chooseBlockers(context: vscode.ExtensionContext, project: 
     void vscode.window.showInformationMessage(l10n("releaseBoard.blockers.none"));
     return undefined;
   }
-  const picked = await pickBlockers(items, fresh);
-  if (!picked) {
+  const merged = (await readMarks(context)).marks;
+  const fixed = new Set(items.filter((i) => i.pinned && merged[markKey(project.id, i.path)]?.pinned !== true).map((i) => i.path));
+  const chosen = await pickBlockers(items, fresh, fixed);
+  if (!chosen) {
     return undefined;
   }
+  const offer = items.filter((i) => !fixed.has(i.path));
+  const picked = new Set([...chosen].filter((p) => !fixed.has(p)));
   const shared = await readSharedMarks();
   const now = Date.now();
   let before: Snapshot | undefined;
   await updateLocalMarks(context, (local) => {
-    const r = applyAnswer(local, shared, project.id, items.map((i) => i.path), picked, fresh, now);
+    const r = applyAnswer(local, shared, project.id, offer.map((i) => i.path), picked, fresh, now);
     before = r.before;
     return r.next;
   });

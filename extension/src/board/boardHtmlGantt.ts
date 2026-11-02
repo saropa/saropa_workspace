@@ -67,15 +67,15 @@ const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "■" };
 
 function row(r: GanttRow, key: string, t: BoardStrings, item?: BoardItem, move?: { up: boolean; down: boolean }): string {
   const proj = r.project === undefined ? "" : `<span class="gpn" ${titleAttr(r.project)}>${escapeHtml(r.project)}</span>`;
-  const word = pl(t, r.status === "green" ? "ganttDoneWord" : "st." + r.status);
+  const word = pl(t, r.status === "green" ? "ganttDoneWord" : r.serious ? "st.serious" : "st." + r.status);
   const rowTip = [
-    r.status === "green" ? pl(t, "ganttDone", { title: r.title }) : pl(t, "stTip." + r.status, { title: r.title }),
+    r.status === "green" ? pl(t, "ganttDone", { title: r.title }) : pl(t, r.serious ? "stTip.serious" : "stTip." + r.status, { title: r.title }),
     r.waits.length > 0 ? pl(t, "ganttWaits", { names: r.waits.join(", ") }) : "",
     r.changed ? pl(t, "ganttChanged") : "",
   ].filter(Boolean).join(" ");
   const barTip = r.minutes > 0 ? pl(t, "ganttBar", { title: r.title, minutes: minutesLabel(r.minutes) }) : pl(t, "ganttBarNone", { title: r.title });
   const name = r.id === undefined ? `<span ${titleAttr(r.path)}>${escapeHtml(r.title)}</span>` : docLink(r.title, r.path, `data-id="${r.id}" tabindex="-1"`);
-  const cls = `gr${r.status === "green" ? " done" : ""}${r.changed ? " chg" : ""}`;
+  const cls = `gr${r.status === "green" ? " done" : ""}${r.outlined ? " chg" : ""}`;
   // An open row can be dragged, takes a dropped row on its Waits on slot and has the row menu.
   const slotSay = escapeHtml(pl(t, "dropWaits", { title: r.title }));
   const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${move ? moveArrows(t, item.title, move.up, move.down) : ""}${kebab(t, "row", item.id, item.title, rowData(item))}`;

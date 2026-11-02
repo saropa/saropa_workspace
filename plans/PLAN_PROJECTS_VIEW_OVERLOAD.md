@@ -294,3 +294,8 @@ Findings:
 - Low: row-menu checkbox does not mark the project answered (known; a pin in a never-answered project with a red folder elsewhere still leaves the old rule active).
 - Low: skipped spec items (profile-switch preview line, project rule tooltip, `whyRed`/`stTip.red`/`effFixed` wording) remain open and are recorded in Build notes.
 - Info: `data-proj` count adds `blockedStopping` unconditionally; correct only because answered projects never count it (boardModel `!answered` guard). Keep that coupling in mind.
+
+
+### Build notes: blocks-flag leftovers (2026-11-02, commit 1 of the finish pass)
+
+Done: (a) mode menu note "{count} project(s) use your marks; the mode does not change them" (shown in the scope-and-mode menu, where the mode is chosen, when a project is answered). (b) Project name tooltip adds the rule (`ruleMarks` or `ruleAuto`). (c) `whyRed` now says the red folder blocks; new `whyRedUnmarked` for an answered project; `effFixed` says "its folder is red or you marked it". `stTip.red` unchanged (it was already neutral). (d) The row checkbox, when turning a mark on in a project not yet answered, also records the answer with an empty `seen`; Undo restores both. Side effect: the other critical items of that project then count as new and the strip may ask about them. (e) A rules-file pin is listed ticked with "Pinned by the rules file, change it there" and is never written. Deviation: the VS Code list cannot disable a row, so the row can be unticked but the change is ignored. (f) Gantt unmarked red-folder rows draw amber with the word "Address now" (`GanttRow.serious`). (g) `MAX_OUTLINED = 10`: only the first ten changed rows in display order get the outline; every changed row keeps its tooltip.

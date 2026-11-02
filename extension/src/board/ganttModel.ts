@@ -9,6 +9,8 @@ import { SinceView, sinceKey } from "./sinceLast";
 
 // Most finished documents kept as history, per project.
 export const MAX_FINISHED = 20;
+// Most changed rows that get the outline; the tooltip still says "changed" on every one.
+export const MAX_OUTLINED = 10;
 // Step minutes assumed for a bar whose minutes are not known.
 const STANDARD = 30;
 // The shortest bar, as a share of its slot, so a short step stays visible.
@@ -60,6 +62,10 @@ export interface GanttRow {
   waits: string[];
   // Changed since the last look.
   changed: boolean;
+  // Drawn with the changed outline: at most MAX_OUTLINED rows, so a big change does not outline the whole page.
+  outlined?: boolean;
+  // A red-folder item the owner did not mark as blocking: amber, with the word "Address now".
+  serious?: true;
   // Name of the project, set only in the unified layout where the section no longer says it.
   project?: string;
 }
@@ -120,7 +126,17 @@ function inStoredOrder(items: BoardItem[], order: BoardModel["order"]): BoardIte
 // the open items in work order.
 export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLayout = "split", allName = "All projects"): GanttGroup[] {
   const split = buildSplit(model, since);
-  return layout === "unified" && split.length > 1 ? unify(split, allName) : split;
+  const groups = layout === "unified" && split.length > 1 ? unify(split, allName) : split;
+  let left = MAX_OUTLINED;
+  for (const g of groups) {
+    for (const r of g.rows) {
+      if (r.changed && left > 0) {
+        r.outlined = true;
+        left--;
+      }
+    }
+  }
+  return groups;
 }
 
 const STATUS_RANK: Record<GanttStatus, number> = { red: 0, purple: 1, amber: 2, green: 3 };
@@ -173,6 +189,7 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
           after: i.waitsOn,
           waits: i.waitsOn.map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
           changed: marked.has(sinceKey(i)),
+          ...(i.status === "red" && !i.blocks ? { serious: true as const } : {}),
         };
       });
     if (done.length + open.length > 0) {
