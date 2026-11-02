@@ -46,7 +46,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.7.1]
 
 The Release Board Gantt is easier to read and its header is calmer.
 
