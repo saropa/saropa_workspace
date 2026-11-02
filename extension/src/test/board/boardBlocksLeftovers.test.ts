@@ -33,11 +33,11 @@ const row = (p: string, status: BoardStatus): Classified => ({ project: "app", p
 const reds = (n: number) => Array.from({ length: n }, (_v, i) => row(`bugs/B${i}.md`, "red"));
 
 test("marking one item answers the project, Undo takes both back, clearing keeps the answer", () => {
-  const on = applyBlock(emptyMarks(), emptyMarks(), "app", "bugs/B0.md", true, 9);
+  const on = applyBlock(emptyMarks(), emptyMarks(), "app", "bugs/B0.md", true, [], 9);
   assert.deepEqual(on.next.answered.app, { at: 9, seen: [] });
   assert.equal(on.next.marks["app/bugs/B0.md"]?.pinned, true);
   assert.deepEqual(restoreSnapshot(on.next, "app", on.before), emptyMarks());
-  const off = applyBlock(on.next, emptyMarks(), "app", "bugs/B0.md", false, 10);
+  const off = applyBlock(on.next, emptyMarks(), "app", "bugs/B0.md", false, [], 10);
   assert.deepEqual(off.next.answered.app, { at: 9, seen: [] }, "the answer stays");
 });
 
@@ -88,4 +88,10 @@ test("the picker shows a rules-file pin with its reason and never writes it", as
   const marks = parseMarks(fs.readFileSync(path.join(dir, "release-board-marks.json"), "utf8")).marks;
   assert.equal(Object.keys(marks).length, 6, "the six hand-pickable items are written, the pattern pin is not");
   assert.ok(!Object.keys(marks).some((k) => k.endsWith("BUG_0.md")));
+});
+
+test("marking one item records the project's other candidates as seen, so they do not count as new", () => {
+  const items = buildBoard(cfg, reds(3), undefined, true).items;
+  const on = applyBlock(emptyMarks(), emptyMarks(), "app", "bugs/B0.md", true, items, 9);
+  assert.deepEqual([...(on.next.answered.app?.seen ?? [])].sort(), ["bugs/B1.md", "bugs/B2.md"]);
 });

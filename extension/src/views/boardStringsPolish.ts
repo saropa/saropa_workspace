@@ -34,6 +34,8 @@ export const POLISH_KEYS = [
   "upNext",
   "upNextTip",
   "upNextWhy",
+  "upNextWhyNone",
+  "ganttChangedCount",
   "upNextInProgress",
   "upNextBlocks",
   "upNextMarkTip",

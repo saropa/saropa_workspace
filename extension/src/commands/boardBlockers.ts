@@ -72,7 +72,7 @@ export async function chooseBlockers(context: vscode.ExtensionContext, project: 
 }
 
 // Marks one document as blocking the next release, or takes the mark away (the row menu's checkbox).
-export async function toggleBlock(context: vscode.ExtensionContext, item: BoardItem): Promise<BlockersUndo | undefined> {
+export async function toggleBlock(context: vscode.ExtensionContext, item: BoardItem, projectItems: readonly BoardItem[] = []): Promise<BlockersUndo | undefined> {
   const on = !item.pinned;
   // A pin that comes from the rules file's globs is not a hand mark and cannot be switched off here.
   if (!on && (await readMarks(context)).marks[markKey(item.project, item.path)]?.pinned !== true) {
@@ -82,7 +82,7 @@ export async function toggleBlock(context: vscode.ExtensionContext, item: BoardI
   const shared = await readSharedMarks();
   let before: Snapshot | undefined;
   await updateLocalMarks(context, (local) => {
-    const r = applyBlock(local, shared, item.project, item.path, on);
+    const r = applyBlock(local, shared, item.project, item.path, on, projectItems);
     before = r.before;
     return r.next;
   });

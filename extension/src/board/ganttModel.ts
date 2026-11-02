@@ -145,12 +145,15 @@ export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLa
       }
     }
   }
+  // The changed rows of Up next are outlined first, then the others in display order.
   let left = MAX_OUTLINED;
-  for (const g of groups) {
-    for (const r of g.rows) {
-      if (r.changed && left > 0) {
-        r.outlined = true;
-        left--;
+  for (const first of [true, false]) {
+    for (const g of groups) {
+      for (const r of g.rows) {
+        if (r.changed && !r.outlined && !!r.up === first && left > 0) {
+          r.outlined = true;
+          left--;
+        }
       }
     }
   }
@@ -162,8 +165,14 @@ const LIGHT_ORDER: Light[] = ["no-go", "unverified", "go"];
 
 // One section for every project: finished documents first, then the open rows in work order,
 // each tagged with its project name. Blockers come first (red, then purple, then amber), then work order.
+function withoutSub(r: GanttRow): GanttRow {
+  const copy = { ...r };
+  delete copy.sub;
+  return copy;
+}
+
 function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
-  const tagged = groups.flatMap((g) => g.rows.map(({ sub: _sub, ...r }) => ({ ...r, project: g.name })));
+  const tagged = groups.flatMap((g) => g.rows.map((r) => ({ ...withoutSub(r), project: g.name })));
   const done = tagged.filter((r) => r.id === undefined);
   const open = tagged.filter((r) => r.id !== undefined).sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.start - b.start);
   const light = LIGHT_ORDER.find((l) => groups.some((g) => g.light === l)) ?? "unverified";
@@ -221,7 +230,7 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
   return groups;
 }
 
-// The open rows with the ungrouped ones first and then each group's rows together (groups with a blocker first,
+// The open rows with the groups that hold a blocker first, then the ungrouped ones, then each other group's rows together (groups with a blocker first,
 // then in order of first appearance), so a group can fold under one sub-header. Order inside each part is kept.
 function gathered(open: GanttRow[]): GanttRow[] {
   const order: string[] = [];
@@ -237,7 +246,9 @@ function gathered(open: GanttRow[]): GanttRow[] {
     }
   }
   const rank = (id: string): number => (red.has(id) ? 0 : 1000) + order.indexOf(id);
-  return [...open.filter((r) => !r.sub), ...open.filter((r) => r.sub).sort((a, b) => rank(a.sub!.id) - rank(b.sub!.id))];
+  const hot = (r: GanttRow): boolean => red.has(r.sub!.id);
+  const grouped = open.filter((r) => r.sub).sort((a, b) => rank(a.sub!.id) - rank(b.sub!.id));
+  return [...grouped.filter(hot), ...open.filter((r) => !r.sub), ...grouped.filter((r) => !hot(r))];
 }
 
 const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };

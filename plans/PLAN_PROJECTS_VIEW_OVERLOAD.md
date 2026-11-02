@@ -314,3 +314,13 @@ Deviations and limits:
 - No hysteresis on the band (the Gantt uses `layoutFor` on the item count each render); the per-project Board tab layouts keep theirs.
 - No headless render at 5, 59 and 300 documents in dark, light and narrow (no browser here).
 - Changed-row outline limit and everything from commit 1 stay as recorded above.
+
+## Review verdict (Up next) (2026-11-02, Sonnet diff review, findings only)
+
+Checked and fine: Up next rule, order, cap 5, no duplicates, rule tooltip per row (`ganttModel.ts` upNext, `boardHtmlGantt.ts` upNextBox); amber pill past 3; closed project headers show the red block count; at most 3 open via `layoutFor`/`openGroups`; 5 rows plus "Show N more"; sub-headers with red count; rows of closed sections keep their drop slot and move arrows; all interpolated values pass `escapeHtml`/`tip`/`titleAttr`; ARIA (`aria-expanded` buttons, `aria-controls` target exists, region has `aria-labelledby`); every new key in `en.json` and in `boardStringsPolish.ts`; removed key `ganttOpen` has no remaining consumer; tests go through `ganttPanel`/`buildBoard`. No new webview message was added (Show more path unchanged: rev and ids as before).
+
+Findings:
+- Medium: decision 7(b) not implemented as written. `ganttModel.ts` (MAX_OUTLINED) outlines the first 10 changed rows in list order, not the changed rows in Up next, and no changed-count appears on project headers. Fix: prefer Up next rows when over 10, and add the count to the header, or record the deviation.
+- Low: `boardHtmlGantt.ts:68` drag-open: `pend` is not cleared on drop or dragend, so after a drop on a closed header the next drag over that same header never opens it. Clear `pend` on `dragend`/`drop`.
+- Low: `firstRows` (`boardHtmlGantt.ts` ~130) puts group sub-headers after the plain rows; when plain rows exceed the limit, a group with a blocker sits behind "Show more". The project header still shows the red total, so no blocker is hidden, but the sub-header red count is not visible until Show more.
+- Low: spec step "headless render at 5/59/300 documents" and a dark/light/narrow check are not evidenced (no browser); unchanged from step 1.

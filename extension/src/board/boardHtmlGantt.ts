@@ -3,7 +3,7 @@ import { dragAttrs, moveArrows } from "./boardHtmlDrag";
 import { kebab, rowData } from "./boardHtmlMenus";
 import { ganttStrips } from "./boardHtmlAsk";
 import type { SinceView } from "./sinceLast";
-import { BoardStrings, docLink, escapeHtml, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { BoardStrings, docLink, escapeHtml, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { GanttGroup, GanttRow, buildGantt, inProgressCount, upNext } from "./ganttModel";
 import { layoutFor, openGroups } from "./org/layout";
 import { GANTT_LAYOUTS, GanttLayout } from "./types";
@@ -65,7 +65,8 @@ g.addEventListener('mouseover',e=>{const r=e.target.closest('.gr');const id=r?r.
 g.addEventListener('mouseleave',()=>{if(hov!==null){hov=null;draw();}});
 g.addEventListener('click',e=>{const t=e.target.closest('.gtog');if(t){const s=t.closest('.gg');const k=s.dataset.gk;const on=!s.classList.contains('col');fold(s,on);if(on){COL.add(k);OPN.delete(k);}else{COL.delete(k);OPN.add(k);}save();hov=null;draw();return;}const u=e.target.closest('.gsb');if(u){const k=u.dataset.sk;if(OPN.has(k)){OPN.delete(k);}else{OPN.add(k);}save();sync();hov=null;draw();return;}const r=e.target.closest('.gr');if(r&&!e.target.closest('a,button')){select(r);}});
 // A row dragged over a closed section or group header opens it (not remembered), so every row stays a drop target.
-let pend=null;g.addEventListener('dragover',e=>{if(!document.body.classList.contains('dragging')){return;}const h=e.target.closest&&e.target.closest('.gtog,.gsb');if(!h||h===pend){return;}const shut=h.classList.contains('gtog')?h.closest('.gg').classList.contains('col'):h.getAttribute('aria-expanded')==='false';if(!shut){return;}pend=h;setTimeout(()=>{if(pend!==h||!document.body.classList.contains('dragging')){return;}pend=null;if(h.classList.contains('gtog')){fold(h.closest('.gg'),false);}else{g.querySelectorAll('.gr[data-sk="'+h.dataset.sk+'"]').forEach(r=>{r.hidden=false;});h.setAttribute('aria-expanded','true');}draw();},350);});
+let pend=null;g.addEventListener('dragover',e=>{if(!document.body.classList.contains('dragging')){return;}const h=e.target.closest&&e.target.closest('.gtog,.gsb');if(!h||h===pend){return;}const shut=h.classList.contains('gtog')?h.closest('.gg').classList.contains('col'):h.getAttribute('aria-expanded')==='false';if(!shut){return;}pend=h;setTimeout(()=>{if(pend!==h||!document.body.classList.contains('dragging')){return;}pend=null;if(h.classList.contains('gtog')){fold(h.closest('.gg'),false);}else{g.querySelectorAll('.gr[data-sk]').forEach(r=>{if(r.dataset.sk===h.dataset.sk){r.hidden=false;}});h.setAttribute('aria-expanded','true');}draw();},350);});
+document.addEventListener('drop',()=>{pend=null;},true);document.addEventListener('dragend',()=>{pend=null;},true);
 g.addEventListener('dragleave',e=>{if(pend&&e.target.closest&&e.target.closest('.gtog,.gsb')===pend){pend=null;}});
 g.addEventListener('keydown',e=>{const r=e.target.closest('.gr');if(r&&r===e.target&&(e.key==='Enter'||e.key===' ')){e.preventDefault();select(r);}});
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',draw));window.addEventListener('resize',draw);})();`;
@@ -125,14 +126,16 @@ function moves(groups: GanttGroup[], model: BoardModel): Map<number, { up: boole
 // The key of one group's fold inside one section (remembered like the section's own).
 const subKey = (gk: string, sub: string): string => `${gk}|${sub}`;
 
-// How many rows the first view draws. The row limit of the board size counts the finished and ungrouped open rows
-// (a group's rows are folded under its sub-header); with no limit, or a short section, everything up to GANTT_ROWS.
-export function firstRows(g: GanttGroup, limit: number | null): number {
+// How many rows the first view draws. The row limit of the board size counts the ungrouped open rows; the finished
+// rows and every group that holds a blocker (they come first) are always drawn, and the other groups are folded
+// under their sub-headers. With no limit, or a short section, everything up to GANTT_ROWS.
+function firstRows(g: GanttGroup, limit: number | null): number {
   const lead = g.rows.findIndex((r) => r.id !== undefined);
   const start = lead < 0 ? g.rows.length : lead;
-  const grouped = g.rows.findIndex((r) => r.sub !== undefined);
-  const plain = (grouped < 0 ? g.rows.length : grouped) - start;
-  return limit !== null && plain > limit ? start + limit : Math.min(g.rows.length, GANTT_ROWS);
+  const hot = new Set(g.rows.filter((r) => r.sub && r.status === "red").map((r) => r.sub!.id));
+  const kept = g.rows.filter((r) => r.sub && hot.has(r.sub.id)).length;
+  const plain = g.rows.filter((r) => r.id !== undefined && !r.sub).length;
+  return limit !== null && plain > limit ? start + kept + limit : Math.min(g.rows.length, GANTT_ROWS);
 }
 
 function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardStrings, model: BoardModel, all: GanttGroup[]): string {
@@ -149,6 +152,12 @@ function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardSt
     const head = r.sub && g.rows[at - 1]?.sub?.id !== r.sub.id ? subHeader(r.sub, stat.get(r.sub.id)!, subKey(g.id, r.sub.id), t) : "";
     return head + row(r, r.id === undefined ? `f${n}-${at}` : String(r.id), t, g.id, r.id === undefined ? undefined : model.items[r.id], r.id === undefined ? undefined : move.get(r.id));
   }).join("");
+}
+
+// " · 3 changed" on the header when rows changed since the last look.
+function changedNote(t: BoardStrings, g: GanttGroup): string {
+  const n = g.rows.filter((r) => r.changed).length;
+  return n > 0 ? ` · ${pillify(t, escapeHtml(pl(t, "ganttChangedCount", { count: n })))}` : "";
 }
 
 // "18 open · 9 block"; the block part is red and left out when nothing blocks.
@@ -180,7 +189,7 @@ function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel, all
   const lightTip = tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light));
   const gtip = tip(t, "ganttGroup", { name: g.name, count: g.open });
   const foot = g.finishedCut > 0 ? `<div class="gf">${escapeHtml(pl(t, "ganttFinishedCut", { count: g.finishedCut }))}</div>` : "";
-  return `<section class="gg${isOpen ? "" : " col"}" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${gtip}><button type="button" class="gtog" aria-expanded="${isOpen}" aria-controls="gr${n}" ${gtip}>${escapeHtml(g.name)} <span class="go gtl ${g.light}" ${lightTip}>${escapeHtml(light)}</span> <span class="gcn">${counts(t, g.open, g.blocks)}</span></button></h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}${foot}</section>`;
+  return `<section class="gg${isOpen ? "" : " col"}" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${gtip}><button type="button" class="gtog" aria-expanded="${isOpen}" aria-controls="gr${n}" ${gtip}>${escapeHtml(g.name)} <span class="go gtl ${g.light}" ${lightTip}>${escapeHtml(light)}</span> <span class="gcn">${counts(t, g.open, g.blocks)}${changedNote(t, g)}</span></button></h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}${foot}</section>`;
 }
 
 // Up next: at most five items to work on first, with the reason in each tooltip, and the in-progress pill
@@ -204,7 +213,7 @@ function upNextBox(model: BoardModel, t: BoardStrings): string {
       i.blocksCount > 0 ? pl(t, "upNextBlocks", { count: i.blocksCount }) : "",
       i.severity ? pl(t, "sev." + i.severity) : "",
       i.openMinutes ? minutesLabel(i.openMinutes) : "",
-    ].filter(Boolean).join(", ");
+    ].filter(Boolean).join(", ") || pl(t, "upNextWhyNone");
     const proj = several ? `<span class="gpn" ${titleAttr(names.get(i.project) ?? i.project)}>${escapeHtml(names.get(i.project) ?? i.project)}</span>` : "";
     return `<li class="gu" ${titleAttr(pl(t, "upNextWhy", { reasons: why }))}><span class="sg ${k}" aria-hidden="true" ${titleAttr(pl(t, "st." + k))}>${SHAPE[k]}</span><span class="tt">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${proj}</li>`;
   }).join("");
