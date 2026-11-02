@@ -1,5 +1,5 @@
 import { Severity } from "./severity";
-import { AssignRefusal, OVERRIDE_RULE_SET, docGlob, isObject, parseForEdit, serialize } from "./ruleAssign";
+import { AssignRefusal, OVERRIDE_RULE_SET, docGlob, isObject, parseForEdit, serialize } from "./ruleText";
 
 // The severity half of the rules-file editing: the levels a person can set by hand, the entries
 // that hold them, and the status rules the board writes for single documents. Pure text in, text
