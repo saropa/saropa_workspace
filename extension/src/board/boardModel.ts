@@ -8,6 +8,7 @@ import { SafetyResult } from "./safety";
 import { orderLists } from "./boardOrder";
 import { buildOrg } from "./boardOrg";
 import { buildProposals } from "./boardProposals";
+import { mergeNeeds, stepMinutes, stepNeeds } from "./needs";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
 import { OrgSettings, settingsOf } from "./org/settings";
@@ -65,6 +66,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
   const items: BoardItem[] = [];
   let blocked = 0;
   let blockedStop = 0;
+  const dict = mergeNeeds(ctx.cfg.needs);
   for (const r of ctx.rows) {
     if (r.project !== def.id) {
       continue;
@@ -103,6 +105,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       ...(rev ? { rev } : {}),
       marks: facts ? marksOf(facts, ctx.names) : undefined,
       ...(facts?.steps?.length ? { steps: facts.steps.slice(0, HANDOFF_STEPS).map((x) => ({ line: x.line, text: x.text })) } : {}),
+      ...(facts?.steps?.length ? { openMinutes: facts.steps.reduce((sum, x) => sum + stepMinutes(x.text, stepNeeds(x, dict), dict), 0) } : {}),
       hub: false,
       blocksCount: 0,
       waitsOn: [],

@@ -41,7 +41,7 @@ test("the pill menus draw no literal check mark: the style sheet draws the one t
 
 test("the mode menu ticks the chosen profile and sends it by name", () => {
   const html = pillMenus(t, buildBoard({ ...cfg, profile: "rush" }, [], undefined, true));
-  assert.ok(html.includes('id="menu-pmode"'));
+  assert.ok(html.includes('id="menu-pscope"'), "the mode shares the scope menu");
   assert.ok(html.includes('data-act="profile:rush" aria-checked="true" title="profile.rush">[profileRush]</button>'));
   assert.ok(html.includes('data-act="profile:zero" aria-checked="false" title="profile.zero">[profileZero]</button>'));
 });

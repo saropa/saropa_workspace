@@ -93,11 +93,10 @@ export function pillMenus(t: BoardStrings, model: BoardModel, scope?: "all" | "o
   const menu = (id: string, aria: string, body: string): string => `<div class="menu" id="menu-${id}" role="menu" hidden aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}">${body}</div>`;
   const radio = (act: string, text: string, tipText: string, on: boolean): string => item(act, text, tipText, ` aria-checked="${on}"`, "menuitemradio");
   const out: string[] = [];
-  if (scope !== undefined) {
-    out.push(menu("pscope", pl(t, "scopeGroup"), radio("scope:openOnly", pl(t, "scopeThis"), pl(t, "scopeThisTip"), scope === "openOnly") + radio("scope:all", pl(t, "scopeAll"), pl(t, "scopeAllTip", { count: scopeTotal(model, scope) }), scope === "all")));
-  }
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
-  out.push(menu("pmode", t.profileLabel, opts.map(([v, text]) => radio("profile:" + v, text, pl(t, "profile." + v), profile === v)).join("")));
+  const group = (aria: string, body: string): string => `<div role="group" aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}">${body}</div>`;
+  const scopes = scope === undefined ? "" : group(pl(t, "scopeGroup"), radio("scope:openOnly", pl(t, "scopeThis"), pl(t, "scopeThisTip"), scope === "openOnly") + radio("scope:all", pl(t, "scopeAll"), pl(t, "scopeAllTip", { count: scopeTotal(model, scope) }), scope === "all"));
+  out.push(menu("pscope", `${pl(t, "scopeGroup")} / ${t.profileLabel}`, scopes + group(t.profileLabel, opts.map(([v, text]) => radio("profile:" + v, text, pl(t, "profile." + v), profile === v)).join(""))));
   if (groupBy !== undefined) {
     out.push(menu("pgroup", pl(t, "groupBy"), GROUP_BYS.map((g) => radio("group:" + g, pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), groupBy === g)).join("")));
   }

@@ -2690,6 +2690,7 @@
   "releaseBoard.train.order": "Ship in this order",
   "releaseBoard.future.tab": "Future {count}",
   "releaseBoard.future.tabBoard": "Board",
+  "releaseBoard.future.cutNote": "Showing the first {count} deferred and blocked documents. More exist and are not listed.",
   "releaseBoard.future.heading": "Future",
   "releaseBoard.future.note": "Deferred and blocked work, by importance. It never counts as a problem and never changes a light. Values marked guessed are the board's proposal; choose a value to write it into the document.",
   "releaseBoard.future.sort": "Sort by",

@@ -280,7 +280,7 @@ test("the scope switch counts the projects and says in a tooltip how many chosen
   assert.ok(html.includes('data-menu="pscope"'));
   assert.ok(pillMenus(t, m, "openOnly").includes("scopeAllTip"));
   assert.equal(scopeTotal(m, "openOnly"), 3, "all projects: the open one plus the 2 hidden");
-  assert.equal(settingPills(model(cfg()), undefined, t).includes("pscope"), false);
+  assert.equal(settingPills(model(cfg()), undefined, t).includes("Chosen projects hidden"), false, "no scope: the pill shows the mode alone");
 });
 
 test("a chosen project whose scan failed is left out and shown as a grey row", () => {

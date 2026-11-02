@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderBoard } from "../../board/boardHtml";
-import { filterLine, settingPills, sinceLink, topBar } from "../../board/boardHtmlHeader";
+import { boardPills, filterLine, settingPills, sinceLink, topBar } from "../../board/boardHtmlHeader";
+import { ganttPanel } from "../../board/boardHtmlGantt";
 import { optsMenu, pillMenus } from "../../board/boardHtmlMenus";
 import { STYLE } from "../../board/boardHtmlAssets";
 import { buildBoard } from "../../board/boardModel";
@@ -19,35 +20,39 @@ const t = strings();
 test("the scope pill shows the current scope and the project count, and opens a two-item radio menu", () => {
   const m = buildBoard(cfg, [], undefined, true);
   const all = settingPills(m, "all", t);
-  assert.match(all, /data-menu="pscope"[^>]*aria-haspopup="menu" aria-expanded="false" aria-controls="menu-pscope"[^>]*>All \d+</);
+  assert.match(all, /data-menu="pscope"[^>]*aria-haspopup="menu" aria-expanded="false" aria-controls="menu-pscope"[^>]*>All \d+ · Deliberate</);
   assert.ok(all.includes('class="fp pm sec"'));
-  assert.ok(settingPills(m, "openOnly", t).includes(">This project</button>"));
-  assert.equal(settingPills(m, undefined, t).includes("pscope"), false, "left out when the scope is unknown");
+  assert.ok(settingPills(m, "openOnly", t).includes(">This project · Deliberate</button>"));
+  assert.match(settingPills(m, undefined, t), />Deliberate</, "scope unknown: the pill shows the mode alone");
   const menu = pillMenus(t, m, "all");
   assert.ok(menu.includes('id="menu-pscope" role="menu"'));
   assert.ok(menu.includes('role="menuitemradio" data-act="scope:openOnly" aria-checked="false"'));
   assert.ok(menu.includes('role="menuitemradio" data-act="scope:all" aria-checked="true"'));
 });
 
-test("the mode pill carries the detail in its tooltip and opens the three profile entries", () => {
+test("the one pill reads scope and mode, carries the detail in its tooltip and opens the three profile entries", () => {
   const m = buildBoard(cfg, [], undefined, true);
   const html = settingPills(m, "all", t);
-  assert.match(html, /data-menu="pmode"[^>]*>Deliberate</);
+  assert.match(html, /data-menu="pscope"[^>]*>All \d+ \u00b7 Deliberate</);
+  assert.equal(html.includes("pmode"), false);
   assert.ok(html.includes("Red folders and failing lint, tests or build block in every mode"));
   assert.ok(html.includes("extreme, critical and high items block"));
-  const menu = pillMenus(t, m);
+  const menu = pillMenus(t, m, "all");
+  assert.ok(menu.includes('data-act="scope:all"'), "scope and mode share one menu");
   for (const v of ["rush", "deliberate", "zero"]) {
     assert.ok(menu.includes(`data-act="profile:${v}"`), v);
   }
 });
 
-test("the group, time and devices pills appear only when their data is known", () => {
+test("the group, time and devices pills belong to the Board tab and appear only when their data is known", () => {
   const bare = buildBoard(cfg, [], undefined, true);
-  const none = settingPills(bare, "all", t);
-  assert.equal(/pgroup|ptime|phave/.test(none), false);
-  assert.ok(settingPills(bare, "all", t, "status").includes('data-menu="pgroup"'));
+  assert.equal(/pgroup|ptime|phave/.test(settingPills(bare, "all", t)), false, "never in the top line");
+  assert.equal(boardPills(bare, t), "");
+  assert.ok(boardPills(bare, t, "status").includes('data-menu="pgroup"'));
   const sit = buildBoard(cfg, [], undefined, true, undefined, undefined, undefined, { sittings: { selection: { timeBox: "30", maxSteps: 10 }, onlyOwner: false } });
-  const html = settingPills(sit, "all", t);
+  const html = boardPills(sit, t);
+  const page = renderBoard(sit, t, "n", 1, { scope: "all" });
+  assert.ok(page.indexOf('id="tab-board"') < page.indexOf('data-menu="ptime"'), "drawn inside the Board tab");
   assert.ok(html.includes('data-menu="ptime"') && html.includes(">30 min</button>"));
   const v = sit.sittings;
   assert.ok(v);
@@ -60,8 +65,9 @@ test("the group, time and devices pills appear only when their data is known", (
 
 test("the top line holds the pills, the tabs and the kebabs; the actions kebab is the only top-bar menu", () => {
   const m = buildBoard(cfg, [], undefined, true);
-  const html = topBar(m, t, "openOnly", "<TABS>", undefined, undefined, "project");
-  assert.ok(html.indexOf('data-menu="pscope"') < html.indexOf('data-menu="pmode"') && html.indexOf('data-menu="pgroup"') < html.indexOf("<TABS>"));
+  const html = topBar(m, t, "openOnly", "<TABS>");
+  assert.ok(html.indexOf('data-menu="pscope"') < html.indexOf("<TABS>"));
+  assert.equal((html.match(/data-menu="p/g) ?? []).length, 1, "one setting pill, not five");
   assert.ok(html.indexOf("<TABS>") < html.indexOf('data-menu="opts"'));
   assert.equal(html.includes("data-scope"), false, "the two-button switch is gone");
   const withEntry = topBar(m, { ...t, projectLabels: { ...t.projectLabels, tagsRules: "x" } } as typeof t, "openOnly", "<TABS>");
@@ -87,8 +93,9 @@ test("the filter line is hidden with no filter, and shows a removable pill per a
   assert.equal(one.includes('data-fclear="all"'), false);
   assert.ok(one.includes('data-menu="ptime"') && one.includes('aria-controls="menu-ptime"'), "the label opens the time menu");
   const m = renderBoard(timed, t, "n");
-  assert.ok(m.includes('class="fline"'));
-  assert.equal(renderBoard(base, t, "n").includes('class="fline"'), false);
+  assert.ok(m.indexOf('class="fline" role="group"') > m.indexOf('id="tab-board"'), "the filter line is drawn in the Board tab only");
+  assert.equal(topBar(timed, t, "all", "").includes("fline"), false);
+  assert.equal(ganttPanel(timed, t).includes("fline"), false);
 });
 
 test("the page script clears a filter pill by sending the Sittings selection", () => {

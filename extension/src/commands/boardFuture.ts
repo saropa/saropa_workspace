@@ -16,6 +16,8 @@ import { pathExists } from "./boardFileSource";
 export interface FutureData {
   items: FutureItem[];
   outside: FutureOutside[];
+  // True when more documents exist than the cap lists.
+  cut?: boolean;
 }
 
 export const emptyFuture = (): FutureData => ({ items: [], outside: [] });
@@ -54,7 +56,8 @@ async function readCapped(uri: vscode.Uri): Promise<string | undefined> {
 async function load(run: BoardRun): Promise<FutureData> {
   const defs = new Map(run.cfg.projects.map((p) => [p.id, p]));
   const folders = new Map(run.cfg.projects.map((p) => [p.id, foldersFor(run.cfg, p.id)]));
-  const picks = run.result.rows.filter((r) => defs.has(r.project) && futureSource(r.path, folders.get(r.project)) !== undefined).slice(0, MAX_FUTURE_ITEMS);
+  const found = run.result.rows.filter((r) => defs.has(r.project) && futureSource(r.path, folders.get(r.project)) !== undefined);
+  const picks = found.slice(0, MAX_FUTURE_ITEMS);
   const read = await mapLimit(picks, READ_PARALLEL, async (r): Promise<FutureInput | undefined> => {
     const def = defs.get(r.project)!;
     const text = await readCapped(vscode.Uri.joinPath(vscode.Uri.parse(def.path), r.path));
@@ -68,7 +71,7 @@ async function load(run: BoardRun): Promise<FutureData> {
     });
     outside.push(...found.flat());
   }
-  return { items: buildFuture(read.filter((x): x is FutureInput => x !== undefined)), outside };
+  return { items: buildFuture(read.filter((x): x is FutureInput => x !== undefined)), outside, ...(found.length > picks.length ? { cut: true } : {}) };
 }
 
 // Reads the deferred and blocked documents of the scan. Bounded in count, size and time;

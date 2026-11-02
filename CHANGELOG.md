@@ -46,6 +46,19 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The Release Board Gantt is easier to read and its header is calmer.
+
+### Changed
+- Gantt rows: titles wrap to two lines in a wider title column; the project name shrinks first; the hidden chain slot takes no width until you hover, focus or drag. Tooltips still show the full text.
+- Gantt Unified: blockers come first (red, then purple, then amber), then work order.
+- Gantt bars: the length is the minutes of all open steps in the document, no longer the filtered Steps list. An empty bar now means no estimate.
+- Release Board header: one scope-and-mode pill ("All 3 · Deliberate"). Group by, time and devices, and their filter line, moved into the Board tab, where they apply.
+- Future tab: shows "200+" and a note when more documents exist than are listed.
+
+---
+
 ## [2.7.0]
 
 The Gantt key now floats over the board, and status symbols show their colors, and board rows line up better. [log](https://github.com/saropa/saropa-workspace/blob/v2.7.0/CHANGELOG.md)

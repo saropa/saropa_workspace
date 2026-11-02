@@ -13,7 +13,7 @@ import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel } from "./boardHtmlGantt";
 import { MAX_EXTRA_PROJECTS } from "./extraProjects";
 import { PROJECTS_SCRIPT, PROJECTS_STYLE, openBadge, rollupBar, skippedBlock } from "./boardHtmlProjects";
 import { RowStatus, optsMenu, pillMenus, rowMenu, scopeMenu, undoBar } from "./boardHtmlMenus";
-import { Scope, filterLine, topBar } from "./boardHtmlHeader";
+import { Scope, boardPills, filterLine, topBar } from "./boardHtmlHeader";
 import { CHATS_SCRIPT, CHATS_STYLE, activePill, noticeBar } from "./boardHtmlChats";
 import { HANDOFF_SCRIPT, HANDOFF_STYLE, chosenLine, handoffDrawer, proposalCounts, proposalsPill, readyPill } from "./boardHtmlHandoff";
 import { KEYWORD_LINE_SCRIPT, KEYWORD_LINE_STYLE, keywordLine } from "./keywordMark";
@@ -159,11 +159,10 @@ export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: str
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.title)}</title><style>${STYLE}${PROJECTS_STYLE}${CHATS_STYLE}${KEYWORD_LINE_STYLE}${HANDOFF_STYLE}${GANTT_STYLE}${DRAG_STYLE}${sinceMarks(model, since)}</style></head><body class="${state.stale ? "stale busy" : state.loading ? "loading busy" : ""}"${state.stale || state.loading ? ' aria-busy="true"' : ""}>
 <div id="live" class="vh" role="status" aria-live="polite" aria-label="${escapeHtml(pl(t, "dropLabel"))}" ${movedAttrs(model, state.moved)}></div>
 <div class="prog" role="progressbar" aria-label="${escapeHtml(t.refreshing)}"></div>
-${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused, state.groupBy)}
-${filterLine(model, t)}
+${noticeBar(state.notice)}${topBar(model, t, state.scope, viewTabs(future, t), since, state.chat?.paused)}
 ${banner}${skippedBlock(model, t, MAX_EXTRA_PROJECTS)}${byUserNote(model, t)}${model.items.length === 0 && blocked === 0 && !model.baseline && !model.safetyHold ? `<p class="note">${escapeHtml(t.allClear)}</p>` : ""}
 ${statusBands(t, state.statuses)}${ganttPanel(model, t, since, state.ganttLayout)}
-<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${chosenLine(t)}${readyPill(t, state.patchReady)}${proposalsPill(t, proposalCounts(model.proposals).main)}${keywordLine(model, t)}
+<div id="tab-board" role="tabpanel" aria-label="${escapeHtml(pl(t, "tabBoard"))}" hidden>${boardPills(model, t, state.groupBy)}${filterLine(model, t)}${chosenLine(t)}${readyPill(t, state.patchReady)}${proposalsPill(t, proposalCounts(model.proposals).main)}${keywordLine(model, t)}
 ${trainBox(trains, t)}
 ${state.groupBy === "project" ? "" : rollupBar(model, t)}
 ${projects}

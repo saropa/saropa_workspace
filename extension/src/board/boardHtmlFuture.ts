@@ -13,6 +13,8 @@ import { ganttTab } from "./boardHtmlGantt";
 export interface FutureView {
   items: FutureItem[];
   outside: FutureOutside[];
+  // True when more documents exist than are listed: the tab count reads "200+" and a note says so.
+  cut?: boolean;
   sort: FutureSort;
   // False while a scan is running or the stored result is on screen: the controls are off.
   canEdit: boolean;
@@ -26,6 +28,11 @@ export function ft(t: BoardStrings, key: string): string {
   return table && typeof table === "object" ? (table[key] ?? key) : key;
 }
 
+// The count the tab shows: the listed number, with "+" when more exist.
+function countText(view: FutureView): string {
+  return `${view.items.length}${view.cut === true ? "+" : ""}`;
+}
+
 // True when the tab has something to list. Outside items alone do not make a tab.
 export function hasFuture(view: FutureView | undefined): view is FutureView {
   return view !== undefined && view.items.length > 0;
@@ -34,7 +41,7 @@ export function hasFuture(view: FutureView | undefined): view is FutureView {
 // The tab buttons: Gantt first (the default view), Board, and Future when it has something to list.
 export function viewTabs(view: FutureView | undefined, t: BoardStrings): string {
   const future = hasFuture(view)
-    ? `<button role="tab" id="tb-future" data-tab="future" aria-selected="false" aria-controls="tab-future" ${tip(t, "tabFuture")}>${pillify(t, escapeHtml(ft(t, "tab").replace("{count}", () => String(view.items.length))))}</button>`
+    ? `<button role="tab" id="tb-future" data-tab="future" aria-selected="false" aria-controls="tab-future" ${tip(t, "tabFuture")}>${ft(t, "tab").split("{count}").map((part) => pillify(t, escapeHtml(part))).join(pill(t, countText(view)))}</button>`
     : "";
   return `<div class="tabs" role="tablist" ${tip(t, "tabs")}>${ganttTab(true, t)}<button role="tab" id="tb-board" data-tab="board" aria-selected="false" aria-controls="tab-board" ${tip(t, "tabBoard")}>${escapeHtml(ft(t, "tabBoard"))}</button>${future}</div>`;
 }
@@ -165,5 +172,5 @@ export function futurePanel(view: FutureView | undefined, t: BoardStrings): stri
       return collapsible({ t, id: "future:" + g.group, cls: "box fg", level: 3, tipAttr: tip(t, "futureGroup", { name: label(g.group) }), head: `${escapeHtml(label(g.group))} ${pill(t, g.entries.length, "count", { count: g.entries.length })}`, body: g.entries.map((e) => itemRow(e.item, e.i, t, view.canEdit)).join(""), open: g.entries.length <= 25 });
     })
     .join("");
-  return `<section id="tab-future" role="tabpanel" aria-labelledby="tb-future" aria-label="${escapeHtml(ft(t, "tab").replace("{count}", () => String(view.items.length)))}" hidden><h2 ${tip(t, "futureHeading")}>${sectionIcon(t, "future")}${escapeHtml(ft(t, "heading"))} <span class="qm" tabindex="0" role="note" aria-describedby="qm-fut" title="${escapeHtml(ft(t, "note"))}" data-tip="${escapeHtml(ft(t, "note"))}">?</span><span id="qm-fut" hidden>${escapeHtml(ft(t, "note"))}</span></h2><div class="fsort">${sort}</div>${researchBar(view, t)}${groups}${outsideBox(view, t)}</section>`;
+  return `<section id="tab-future" role="tabpanel" aria-labelledby="tb-future" aria-label="${escapeHtml(ft(t, "tab").replace("{count}", () => countText(view)))}" hidden><h2 ${tip(t, "futureHeading")}>${sectionIcon(t, "future")}${escapeHtml(ft(t, "heading"))} <span class="qm" tabindex="0" role="note" aria-describedby="qm-fut" title="${escapeHtml(ft(t, "note"))}" data-tip="${escapeHtml(ft(t, "note"))}">?</span><span id="qm-fut" hidden>${escapeHtml(ft(t, "note"))}</span></h2><div class="fsort">${sort}</div>${view.cut === true ? `<p class="note">${escapeHtml(ft(t, "cutNote").replace("{count}", () => String(view.items.length)))}</p>` : ""}${researchBar(view, t)}${groups}${outsideBox(view, t)}</section>`;
 }

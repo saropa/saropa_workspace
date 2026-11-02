@@ -12,20 +12,20 @@ import { GANTT_LAYOUTS, GanttLayout } from "./types";
 // dragged (see boardHtmlDrag.ts) and has the row menu.
 
 export const GANTT_STYLE = `
-.gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}.glay{display:inline-flex}.glay button{border-radius:0}.glay button:first-child{border-radius:4px 0 0 4px}.glay button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}.glay button[aria-pressed=true]{background:var(--blue);color:var(--bg)}.gpn{color:var(--mute);font-size:11px;white-space:nowrap}
+.gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}.glay{display:inline-flex}.glay button{border-radius:0}.glay button:first-child{border-radius:4px 0 0 4px}.glay button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}.glay button[aria-pressed=true]{background:var(--blue);color:var(--bg)}.gpn{color:var(--mute);font-size:11px;white-space:nowrap;flex:0 1 auto;min-width:0;max-width:30%;overflow:hidden;text-overflow:ellipsis}
 .gantt{position:relative;border:1px solid var(--line);border-radius:6px}
 #gSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5}#gSvg path{fill:none;stroke:var(--amber);stroke-width:1.5;marker-end:url(#gAr)}#gAr path{fill:var(--amber)}
-.gaxis{display:grid;grid-template-columns:minmax(160px,270px) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
+.gaxis{display:grid;grid-template-columns:minmax(200px,45%) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
 .gaxis .ticks{display:flex;justify-content:space-between;margin:0 10px}
 .gh{display:flex;align-items:center;gap:8px;margin:0;padding:0 10px;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
 .gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 0}.gtog::before{content:"\\25BE";color:var(--mute)}.gtog[aria-expanded=false]::before{content:"\\25B8"}
 .gsum{display:none;padding:5px 10px;color:var(--mute)}.gg.col .grows{display:none}.gg.col .gsum{display:flex;align-items:center;gap:8px}
 .gkey{position:absolute;top:100%;left:0;z-index:20;max-width:min(560px,100%);margin-top:4px;padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.4);font-size:12px}.gkey[hidden]{display:none}.gkey p{margin:2px 0}.gkey .kh{font-weight:600}.gkey table{border-collapse:collapse;margin:4px 0}.gkey td{padding:2px 12px 2px 0}.gkey td.sg{font-size:14px;text-align:center}
 .grows{list-style:none;margin:0;padding:0}
-.gr{display:grid;grid-template-columns:minmax(160px,270px) 1fr;align-items:center;min-height:30px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.gr{display:grid;grid-template-columns:minmax(200px,45%) 1fr;align-items:center;min-height:30px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
 .gr:hover,.gr[aria-current=true]{background:rgba(128,128,128,.15)}
 .gr.done{opacity:.5}.gr.chg{outline:1px dotted var(--blue);outline-offset:-1px}
-.gl{display:flex;align-items:center;gap:6px;padding:3px 10px;min-width:0}.gl .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl{display:flex;align-items:center;gap:6px;padding:3px 10px;min-width:0}.gl .tt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .sg.red{color:var(--red)}.sg.blue{color:var(--blue)}.sg.reference{color:var(--mute)}.sg.amber{color:var(--amber)}.sg.purple{color:var(--purple)}.sg.green{color:var(--green)}
 .gt{position:relative;height:26px;margin:0 10px}
 .bar{position:absolute;top:4px;height:18px;left:calc(var(--s)*1%);width:calc(var(--w)*1%);min-width:3px;box-sizing:border-box;border-radius:4px;border:1px solid;font-size:11px;padding:0 6px;line-height:16px;overflow:hidden;white-space:nowrap}

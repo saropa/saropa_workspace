@@ -5,6 +5,7 @@ function futureListStrings(): Record<string, string> {
   return {
     "tab": l10n("releaseBoard.future.tab", { count: "{count}" }),
     "tabBoard": l10n("releaseBoard.future.tabBoard"),
+    "cutNote": l10n("releaseBoard.future.cutNote", { count: "{count}" }),
     "heading": l10n("releaseBoard.future.heading"),
     "note": l10n("releaseBoard.future.note"),
     "sort": l10n("releaseBoard.future.sort"),

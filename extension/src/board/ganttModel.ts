@@ -52,7 +52,7 @@ export interface GanttRow {
   // Position and width on the axis, in percent.
   start: number;
   width: number;
-  // Step minutes known for the row; 0 draws a dashed edge.
+  // Minutes of all the document's open steps; 0 (no estimate) draws a dashed edge.
   minutes: number;
   // Ids of the open items this row waits on.
   after: number[];
@@ -70,16 +70,6 @@ export interface GanttGroup {
   light: Light;
   open: number;
   rows: GanttRow[];
-}
-
-// Step minutes per document from the Sittings data, keyed by project and path.
-function minutesByDoc(model: BoardModel): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const l of model.sittings?.lines ?? []) {
-    const k = l.project + "\t" + l.path;
-    m.set(k, (m.get(k) ?? 0) + l.minutes);
-  }
-  return m;
 }
 
 // The rank of each open item: 0 when it waits on nothing, else one past the deepest thing it
@@ -133,26 +123,26 @@ export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLa
   return layout === "unified" && split.length > 1 ? unify(split, allName) : split;
 }
 
+const STATUS_RANK: Record<GanttStatus, number> = { red: 0, purple: 1, amber: 2, green: 3 };
 const LIGHT_ORDER: Light[] = ["no-go", "unverified", "go"];
 
 // One section for every project: finished documents first, then the open rows in work order,
-// each tagged with its project name.
+// each tagged with its project name. Blockers come first (red, then purple, then amber), then work order.
 function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
   const tagged = groups.flatMap((g) => g.rows.map((r) => ({ ...r, project: g.name })));
   const done = tagged.filter((r) => r.id === undefined);
-  const open = tagged.filter((r) => r.id !== undefined).sort((a, b) => a.start - b.start);
+  const open = tagged.filter((r) => r.id !== undefined).sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.start - b.start);
   const light = LIGHT_ORDER.find((l) => groups.some((g) => g.light === l)) ?? "unverified";
   return [{ id: "all", name: allName, light, open: open.length, rows: [...done, ...open] }];
 }
 
 function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
-  const minutes = minutesByDoc(model);
   const rank = ranks(model.items);
   // One slot per rank: a bar stays inside its slot, so what waits always starts after what it
   // waits on has ended, however long the chain.
   const slots = Math.max(0, ...rank.values()) + 1;
   const slot = Math.round(1000 / slots) / 10;
-  const longest = Math.max(STANDARD, ...model.items.map((i) => minutes.get(i.project + "\t" + i.path) ?? 0));
+  const longest = Math.max(STANDARD, ...model.items.map((i) => i.openMinutes ?? 0));
   const marked = new Set(since?.marked ?? []);
   const titles = new Map(model.items.map((i) => [i.id, i.title]));
   const groups: GanttGroup[] = [];
@@ -170,7 +160,7 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
     )
       .map((i) => ({ i, rank: rank.get(i.id) ?? 0 }))
       .map(({ i, rank: r }): GanttRow => {
-        const known = minutes.get(i.project + "\t" + i.path) ?? 0;
+        const known = i.openMinutes ?? 0;
         const share = Math.min(1, Math.max(MIN_SHARE, (known || STANDARD) / longest));
         return {
           id: i.id,

@@ -44,6 +44,8 @@ export interface BoardItem {
   marks?: ItemMarks;
   // The first open steps with their lines, for the hand-off (absent when there are none).
   steps?: Array<{ line: number; text: string }>;
+  // Minutes of all the document's open steps (absent when there are none): the Gantt bar length, whatever the Steps filter shows.
+  openMinutes?: number;
   // Group heading this item sits under, if any.
   group?: GroupView;
   // A very large or heavily cross-referencing document: it links to groups, never merges them.

@@ -272,10 +272,10 @@ test("the page draws the two kebabs in the top bar and each menu once, and the r
   const html = renderBoard(m, t, "n", 1);
   assert.equal(html.match(/id="menu-row"/g)?.length, 1);
   assert.equal(html.match(/id="menu-opts"/g)?.length, 1);
-  assert.equal(html.match(/id="menu-pmode"/g)?.length, 1);
+  assert.equal(html.match(/id="menu-pscope"/g)?.length, 1);
   assert.equal(html.match(/id="pill-menus"/g)?.length, 1);
   const top = html.split("\n").find((l) => l.startsWith('<div class="top"')) ?? "";
-  assert.ok(/data-menu="pmode".*data-menu="opts"/.test(top), "setting pills, then project actions");
+  assert.ok(/data-menu="pscope".*data-menu="opts"/.test(top), "the one setting pill, then project actions");
   assert.equal(top.includes("<button id="), false, "no loose buttons: scope, tabs and kebabs only");
   assert.equal(html.match(/\[ptgOpenRules\]/g)?.length, 2, "once in each menu and nowhere else");
   assert.equal(html.includes("data-rules"), false);

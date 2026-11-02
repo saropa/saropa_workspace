@@ -6,7 +6,7 @@ import type { GroupBy } from "./types";
 import { label } from "./boardHtmlProjects";
 import { pollPill } from "./boardHtmlChats";
 
-// The header of the board page: the setting pills, the view tabs and the two kebab menus on
+// The header of the board page: the scope-and-mode pill, the view tabs and the two kebab menus on
 // one line, and under it the line of applied filters. Pure.
 
 export type Scope = "all" | "openOnly";
@@ -24,21 +24,27 @@ function pillButton(t: BoardStrings, menu: string, text: string, tipText: string
   return `<button type="button" class="fp pm sec" data-menu="${menu}" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(tipText)}" aria-label="${escapeHtml(menuLabel + ": " + text)}">${escapeHtml(text)}</button>`;
 }
 
-// The setting pills of the top line, each opening its own menu: the scope (left out when
-// unknown), the release mode, the grouping (when known), the time box (with the Sittings
-// data) and the devices in hand (when there are any). The mode tooltip carries the detail: which
-// projects are shown, what the mode blocks, and that red folders and failing checks block in
-// every mode.
-export function settingPills(model: BoardModel, scope: Scope | undefined, t: BoardStrings, groupBy?: GroupBy): string {
-  const out: string[] = [];
+// The one setting pill of the top line: the scope (left out when unknown) and the release mode,
+// "All 3 \u00b7 Deliberate", opening one menu with both choices. The tooltip carries the detail: which
+// projects are shown, what the mode blocks, and that red folders and failing checks block in every
+// mode.
+export function settingPills(model: BoardModel, scope: Scope | undefined, t: BoardStrings): string {
   const count = model.projects.length;
-  if (scope !== undefined) {
-    out.push(pillButton(t, "pscope", scope === "all" ? pl(t, "explainAll", { count: scopeTotal(model, scope) }) : pl(t, "scopeThis"), scopeTip(model, scope, t), pl(t, "scopeGroup")));
-  }
   const mode = model.profile === "rush" ? t.profileRush : model.profile === "zero" ? t.profileZero : t.profileDeliberate;
   const names = model.projects.map((p) => p.name).join(", ");
   const shown = scope === "all" ? pl(t, "explainShownAll", { count, names }) : pl(t, "explainShownOne", { names });
-  out.push(pillButton(t, "pmode", mode, pl(t, "explainTip", { shown, mode, rule: pl(t, "modeRule." + model.profile), count }), t.profileLabel));
+  const modeTip = pl(t, "explainTip", { shown, mode, rule: pl(t, "modeRule." + model.profile), count });
+  if (scope === undefined) {
+    return pillButton(t, "pscope", mode, modeTip, t.profileLabel);
+  }
+  const scopeText = scope === "all" ? pl(t, "explainAll", { count: scopeTotal(model, scope) }) : pl(t, "scopeThis");
+  return pillButton(t, "pscope", `${scopeText} \u00b7 ${mode}`, `${scopeTip(model, scope, t)}\n${modeTip}`, `${pl(t, "scopeGroup")} / ${t.profileLabel}`);
+}
+
+// The pills that shape the Board tab only, drawn at the top of that tab: the grouping (when known), the
+// time box (with the Sittings data) and the devices in hand (when there are any). The Gantt ignores all three.
+export function boardPills(model: BoardModel, t: BoardStrings, groupBy?: GroupBy): string {
+  const out: string[] = [];
   if (groupBy !== undefined) {
     out.push(pillButton(t, "pgroup", pl(t, GROUP_KEYS[groupBy]), pl(t, GROUP_KEYS[groupBy] + "Tip"), pl(t, "groupBy")));
   }
@@ -51,7 +57,7 @@ export function settingPills(model: BoardModel, scope: Scope | undefined, t: Boa
       out.push(pillButton(t, "phave", text, `${pl(t, "haveLabel")} ${text}`, pl(t, "haveLabel")));
     }
   }
-  return out.join(" ");
+  return out.length === 0 ? "" : `<div class="fline" role="group" aria-label="${escapeHtml(pl(t, "filterLine"))}">${out.join(" ")}</div>`;
 }
 
 // The header entry to the change log: "Changes N", shown only while something changed since the
@@ -63,10 +69,10 @@ export function sinceLink(since: SinceView | undefined, t: BoardStrings): string
   return `<button class="sec" data-since-go ${tip(t, "sinceGoTip")}>${escapeHtml(pl(t, "sinceGo"))} ${pill(t, since.lines.length)}</button>`;
 }
 
-// The top line: the setting pills, the view tabs (already built), the chat poll pill (when `paused` is given) and the two kebabs. The intro
+// The top line: the scope-and-mode pill, the view tabs (already built), the chat poll pill (when `paused` is given) and the two kebabs. The intro
 // sentence is the tooltip of the whole line, not text on the page.
-export function topBar(model: BoardModel, t: BoardStrings, scope: Scope | undefined, tabs: string, since?: SinceView, paused?: boolean, groupBy?: GroupBy): string {
-  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${settingPills(model, scope, t, groupBy)}${tabs}${pollPill(paused, t)}<span class="sp"></span><span class="tr">${sinceLink(since, t)}${kebab(t, "opts")}</span></div>`;
+export function topBar(model: BoardModel, t: BoardStrings, scope: Scope | undefined, tabs: string, since?: SinceView, paused?: boolean): string {
+  return `<div class="top" title="${escapeHtml(t.intro)}" aria-label="${escapeHtml(t.intro)}"><h1 class="vh" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</h1>${settingPills(model, scope, t)}${tabs}${pollPill(paused, t)}<span class="sp"></span><span class="tr">${sinceLink(since, t)}${kebab(t, "opts")}</span></div>`;
 }
 
 // One removable pill per applied filter, hidden when none is applied; "Clear all" once there are

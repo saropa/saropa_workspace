@@ -139,12 +139,22 @@ test("unified puts every project's rows in one group, finished first, in work or
   assert.equal(u.open, split[0].open + split[1].open);
   const firstOpen = u.rows.findIndex((r) => r.id !== undefined);
   assert.ok(u.rows.slice(0, firstOpen).every((r) => r.status === "green") && u.rows.slice(firstOpen).every((r) => r.id !== undefined));
-  const starts = u.rows.slice(firstOpen).map((r) => r.start);
-  assert.deepEqual(starts, [...starts].sort((a, b) => a - b));
+  const rank = { red: 0, purple: 1, amber: 2, green: 3 };
+  const open = u.rows.slice(firstOpen);
+  assert.deepEqual(open.map((r) => rank[r.status]), open.map((r) => rank[r.status]).sort((a, b) => a - b), "blockers first");
+  for (const status of ["red", "purple", "amber"] as const) {
+    const starts = open.filter((r) => r.status === status).map((r) => r.start);
+    assert.deepEqual(starts, [...starts].sort((a, b) => a - b), "work order inside a status");
+  }
   assert.ok(u.rows.every((r) => r.project === "App <b>" || r.project === "Lib"));
   const worst = split.some((g) => g.light === "no-go") ? "no-go" : split.some((g) => g.light === "unverified") ? "unverified" : "go";
   assert.equal(u.light, worst);
   assert.ok(split.every((g) => g.rows.every((r) => r.project === undefined)), "split rows carry no project name");
+});
+
+test("the unified list starts with a blocker", () => {
+  const [u] = buildGantt(twoProjects(), undefined, "unified", "All projects");
+  assert.equal(u.rows.find((r) => r.id !== undefined)!.status, "red");
 });
 
 test("one project is never unified, so the toggle stays hidden", () => {

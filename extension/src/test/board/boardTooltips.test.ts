@@ -378,7 +378,7 @@ test("every number the page counts is a pill, a small rounded badge in the edito
     .split("|")
     .map((x) => decode(x).trim())
     .filter((x) => /\b\d+\b/.test(x));
-  assert.deepEqual(bare, ["All 2", "Have: 8 of 8", "1", "1.0.0", "2", "2.0.0", "repo#1", "15 min", "30 min", "1 hour"], "the scope and devices pills (each one pill), time labels, train numbering and versions, and a review reference are not counts");
+  assert.deepEqual(bare, ["All 2 · Deliberate", "Have: 8 of 8", "1", "1.0.0", "2", "2.0.0", "repo#1", "15 min", "30 min", "1 hour"], "the scope and devices pills (each one pill), time labels, train numbering and versions, and a review reference are not counts");
 });
 
 test("withoutBlocks drops every script and style element in any letter case and leaves the rest", () => {
