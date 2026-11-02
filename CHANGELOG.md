@@ -60,6 +60,12 @@ The Release Board Gantt is easier to read and its header is calmer.
 
 - Release Board asks which items block the next release: a one-line question in a project with more than five red items (Board card and Gantt section), a multi-select picker (picking none is valid), an Undo, "Choose what blocks the next release..." in the project menu, and a "Blocks the next release" checkbox in the row menu. Answered projects ask again only for new extreme or critical items.
 
+- Release Board, blocks flag: the "Blocks the next release" checkbox in a row menu also answers the project; the picker shows a pin that comes from the rules file as ticked with its reason and never writes it; the project name tooltip says which rule makes red; the mode menu says how many projects keep their own marks; the Gantt draws unmarked red-folder items with an amber diamond and "Address now"; the wording for red folders now matches the rule; at most 10 changed rows get the changed outline.
+
+- Release Board Gantt: an "Up next" list at the top (at most five items: what is in progress, then blockers that wait on nothing, the ones that unblock the most first; each tooltip says why), an "N in progress" pill that turns amber past three, and each Up next item marked in its project.
+- Release Board Gantt: project sections start closed on a big board (the three projects with the most blockers stay open, five rows each with "Show N more"); every header is one line with the project name, light and "18 open - 9 block", and the block count stays visible when closed. A closed section opens while a row is dragged over it, so every row stays a drop target.
+- Release Board Gantt: inside a project the automatic folder groups are collapsed sub-headers with counts. The light moved from the end of a section to its header; a big board keeps only the last two (or none) of the finished rows and says how many are not shown.
+
 ### Fixed
 - Release Board marks: the 5000th pin was written and then dropped on the next read; the write now refuses past the limit the reader keeps. A local "not pinned" now switches off a pin that comes from the shared marks file.
 

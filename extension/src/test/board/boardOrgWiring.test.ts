@@ -177,10 +177,13 @@ test("sub-groups sit inside their parent card, closed, and never take an open sl
 test("the Gantt draws a section's first rows and sends the rest on demand", () => {
   const m = buildBoard(cfg, many2(2000), undefined, true);
   const html = renderBoard(m, t, "n", 0, { groupBy: "group" });
-  assert.equal(html.match(/<li class="gr/g)?.length, GANTT_ROWS);
-  const more = ganttRows(m, t, undefined, "app", GANTT_ROWS)!;
-  assert.equal(more.count, 2000 - GANTT_ROWS);
-  assert.equal(more.html.match(/<li class="gr/g)?.length, 2000 - GANTT_ROWS);
-  assert.equal(ganttRows(m, t, undefined, "nope", GANTT_ROWS), undefined);
+  // The board size sets the first view: never more than GANTT_ROWS rows, and Show more asks from where it stopped.
+  const from = Number(/data-rowsmore[^>]*data-from="(\d+)"/.exec(html)![1]);
+  assert.ok(from > 0 && from <= GANTT_ROWS);
+  assert.equal(html.match(/<li class="gr/g)?.length, from);
+  const more = ganttRows(m, t, undefined, "app", from)!;
+  assert.equal(more.count, 2000 - from);
+  assert.equal(more.html.match(/<li class="gr/g)?.length, 2000 - from);
+  assert.equal(ganttRows(m, t, undefined, "nope", from), undefined);
   assert.equal(ganttRows(m, t, undefined, "app", 0), undefined);
 });

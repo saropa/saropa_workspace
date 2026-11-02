@@ -1,6 +1,7 @@
 import type { BoardItem, BoardModel, Light } from "./boardModelParts";
 import { applyOrder } from "./boardOrder";
 import { Link } from "./links";
+import { layoutFor } from "./org/layout";
 import type { GanttLayout } from "./types";
 import { SinceView, sinceKey } from "./sinceLast";
 
@@ -9,6 +10,8 @@ import { SinceView, sinceKey } from "./sinceLast";
 
 // Most finished documents kept as history, per project.
 export const MAX_FINISHED = 20;
+// Most changed rows that get the outline; the tooltip still says "changed" on every one.
+export const MAX_OUTLINED = 10;
 // Step minutes assumed for a bar whose minutes are not known.
 const STANDARD = 30;
 // The shortest bar, as a share of its slot, so a short step stays visible.
@@ -60,6 +63,14 @@ export interface GanttRow {
   waits: string[];
   // Changed since the last look.
   changed: boolean;
+  // Drawn with the changed outline: at most MAX_OUTLINED rows, so a big change does not outline the whole page.
+  outlined?: boolean;
+  // A red-folder item the owner did not mark as blocking: amber, with the word "Address now".
+  serious?: true;
+  // The automatic folder group the row sits in (split layout only; absent for a flat project or an ungrouped row).
+  sub?: { id: string; name: string };
+  // The row is also in the Up next list.
+  up?: true;
   // Name of the project, set only in the unified layout where the section no longer says it.
   project?: string;
 }
@@ -69,6 +80,11 @@ export interface GanttGroup {
   name: string;
   light: Light;
   open: number;
+  // Open rows that block the release (the red count a closed header always shows).
+  blocks: number;
+  // Finished rows left out of `rows` by the board-size layout.
+  finishedCut: number;
+  // Finished rows, then the open rows without a group, then each group's rows together.
   rows: GanttRow[];
 }
 
@@ -120,7 +136,28 @@ function inStoredOrder(items: BoardItem[], order: BoardModel["order"]): BoardIte
 // the open items in work order.
 export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLayout = "split", allName = "All projects"): GanttGroup[] {
   const split = buildSplit(model, since);
-  return layout === "unified" && split.length > 1 ? unify(split, allName) : split;
+  const groups = layout === "unified" && split.length > 1 ? unify(split, allName) : split;
+  const up = new Set(upNext(model).map((i) => i.id));
+  for (const g of groups) {
+    for (const r of g.rows) {
+      if (r.id !== undefined && up.has(r.id)) {
+        r.up = true;
+      }
+    }
+  }
+  // The changed rows of Up next are outlined first, then the others in display order.
+  let left = MAX_OUTLINED;
+  for (const first of [true, false]) {
+    for (const g of groups) {
+      for (const r of g.rows) {
+        if (r.changed && !r.outlined && !!r.up === first && left > 0) {
+          r.outlined = true;
+          left--;
+        }
+      }
+    }
+  }
+  return groups;
 }
 
 const STATUS_RANK: Record<GanttStatus, number> = { red: 0, purple: 1, amber: 2, green: 3 };
@@ -128,12 +165,18 @@ const LIGHT_ORDER: Light[] = ["no-go", "unverified", "go"];
 
 // One section for every project: finished documents first, then the open rows in work order,
 // each tagged with its project name. Blockers come first (red, then purple, then amber), then work order.
+function withoutSub(r: GanttRow): GanttRow {
+  const copy = { ...r };
+  delete copy.sub;
+  return copy;
+}
+
 function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
-  const tagged = groups.flatMap((g) => g.rows.map((r) => ({ ...r, project: g.name })));
+  const tagged = groups.flatMap((g) => g.rows.map((r) => ({ ...withoutSub(r), project: g.name })));
   const done = tagged.filter((r) => r.id === undefined);
   const open = tagged.filter((r) => r.id !== undefined).sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.start - b.start);
   const light = LIGHT_ORDER.find((l) => groups.some((g) => g.light === l)) ?? "unverified";
-  return [{ id: "all", name: allName, light, open: open.length, rows: [...done, ...open] }];
+  return [{ id: "all", name: allName, light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: groups.reduce((n, g) => n + g.finishedCut, 0), rows: [...done, ...open] }];
 }
 
 function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
@@ -146,10 +189,13 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
   const marked = new Set(since?.marked ?? []);
   const titles = new Map(model.items.map((i) => [i.id, i.title]));
   const groups: GanttGroup[] = [];
+  const keepDone = layoutFor(model.items.length).finished;
   for (const p of model.projects) {
-    const done: GanttRow[] = (model.finished ?? [])
+    const allDone: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
       .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], changed: false }));
+    // A big board keeps fewer finished rows: the last two, or only a count.
+    const done = keepDone === "all" ? allDone : keepDone === "last2" ? allDone.slice(-2) : [];
     // Work order first; then a group with a stored order takes that order inside the places its members hold.
     const open: GanttRow[] = inStoredOrder(
       p.items
@@ -173,11 +219,55 @@ function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
           after: i.waitsOn,
           waits: i.waitsOn.map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
           changed: marked.has(sinceKey(i)),
+          ...(i.status === "red" && !i.blocks ? { serious: true as const } : {}),
+          ...(i.group && !i.group.flat ? { sub: { id: i.group.id, name: i.group.name } } : {}),
         };
       });
-    if (done.length + open.length > 0) {
-      groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, rows: [...done, ...open] });
+    if (allDone.length + open.length > 0) {
+      groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...gathered(open)] });
     }
   }
   return groups;
 }
+
+// The open rows with the groups that hold a blocker first, then the ungrouped ones, then each other group's rows together (groups with a blocker first,
+// then in order of first appearance), so a group can fold under one sub-header. Order inside each part is kept.
+function gathered(open: GanttRow[]): GanttRow[] {
+  const order: string[] = [];
+  const red = new Set<string>();
+  for (const r of open) {
+    if (r.sub) {
+      if (!order.includes(r.sub.id)) {
+        order.push(r.sub.id);
+      }
+      if (r.status === "red") {
+        red.add(r.sub.id);
+      }
+    }
+  }
+  const rank = (id: string): number => (red.has(id) ? 0 : 1000) + order.indexOf(id);
+  const hot = (r: GanttRow): boolean => red.has(r.sub!.id);
+  const grouped = open.filter((r) => r.sub).sort((a, b) => rank(a.sub!.id) - rank(b.sub!.id));
+  return [...grouped.filter(hot), ...open.filter((r) => !r.sub), ...grouped.filter((r) => !hot(r))];
+}
+
+const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
+// Most rows in Up next.
+export const UP_NEXT = 5;
+
+// The few items to work on first: what is in progress, then the blockers that wait on nothing; each part with what
+// unblocks most first, then severity, then the shortest. An item appears once; nothing is padded in.
+export function upNext(model: BoardModel, n = UP_NEXT): BoardItem[] {
+  const cmp = (a: BoardItem, b: BoardItem): number =>
+    b.blocksCount - a.blocksCount ||
+    (SEV_ORDER[a.severity ?? "medium"] ?? 3) - (SEV_ORDER[b.severity ?? "medium"] ?? 3) ||
+    (a.openMinutes || STANDARD) - (b.openMinutes || STANDARD) ||
+    a.project.localeCompare(b.project) ||
+    a.path.localeCompare(b.path);
+  const going = model.items.filter((i) => i.status === "purple").sort(cmp);
+  const free = model.items.filter((i) => i.status !== "purple" && i.blocks && i.waitsOn.length === 0).sort(cmp);
+  return [...going, ...free].slice(0, n);
+}
+
+// How many items are in progress on the whole board.
+export const inProgressCount = (model: BoardModel): number => model.items.filter((i) => i.status === "purple").length;

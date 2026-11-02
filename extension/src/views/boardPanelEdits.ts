@@ -106,7 +106,7 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     } else if (act === "tags") {
       await this.tagsRules([item]);
     } else if (act === "block") {
-      await this.blockers(() => toggleBlock(this.context, item), item.project);
+      await this.blockers(() => toggleBlock(this.context, item, this.model?.items.filter((i) => i.project === item.project)), item.project);
       this.post({ type: "clearPending", id });
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
