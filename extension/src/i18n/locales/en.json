@@ -2141,6 +2141,7 @@
   "releaseBoard.polish.scopeAll": "All projects",
   "releaseBoard.polish.scopeAllTip": "Show the open project and every project you chose: {count} in all.",
   "releaseBoard.polish.filterLine": "Filters applied to the board.",
+  "releaseBoard.polish.boardPills": "Board tab settings: grouping, time and devices.",
   "releaseBoard.polish.fpTime": "Time: {value}",
   "releaseBoard.polish.fpHave": "Have: {count} of {total}",
   "releaseBoard.polish.fpRemove": "Remove the filter {name}.",

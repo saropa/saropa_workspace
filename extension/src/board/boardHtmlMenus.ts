@@ -88,6 +88,11 @@ export function scopeTotal(model: BoardModel, scope: "all" | "openOnly"): number
   return model.projects.length + (scope === "all" ? (model.skipped?.length ?? 0) : (model.hidden ?? 0));
 }
 
+// The name of the scope-and-mode menu and its pill: both choices when the scope is known, else the mode alone.
+export function pillMenuLabel(t: BoardStrings, withScope: boolean): string {
+  return withScope ? `${pl(t, "scopeGroup")} / ${t.profileLabel}` : t.profileLabel;
+}
+
 export function pillMenus(t: BoardStrings, model: BoardModel, scope?: "all" | "openOnly", groupBy?: GroupBy): string {
   const { profile, sittings } = model;
   const menu = (id: string, aria: string, body: string): string => `<div class="menu" id="menu-${id}" role="menu" hidden aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}">${body}</div>`;
@@ -96,7 +101,7 @@ export function pillMenus(t: BoardStrings, model: BoardModel, scope?: "all" | "o
   const opts: Array<[string, string]> = [["rush", t.profileRush], ["deliberate", t.profileDeliberate], ["zero", t.profileZero]];
   const group = (aria: string, body: string): string => `<div role="group" aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}">${body}</div>`;
   const scopes = scope === undefined ? "" : group(pl(t, "scopeGroup"), radio("scope:openOnly", pl(t, "scopeThis"), pl(t, "scopeThisTip"), scope === "openOnly") + radio("scope:all", pl(t, "scopeAll"), pl(t, "scopeAllTip", { count: scopeTotal(model, scope) }), scope === "all"));
-  out.push(menu("pscope", `${pl(t, "scopeGroup")} / ${t.profileLabel}`, scopes + group(t.profileLabel, opts.map(([v, text]) => radio("profile:" + v, text, pl(t, "profile." + v), profile === v)).join(""))));
+  out.push(menu("pscope", pillMenuLabel(t, scope !== undefined), scopes + group(t.profileLabel, opts.map(([v, text]) => radio("profile:" + v, text, pl(t, "profile." + v), profile === v)).join(""))));
   if (groupBy !== undefined) {
     out.push(menu("pgroup", pl(t, "groupBy"), GROUP_BYS.map((g) => radio("group:" + g, pl(t, GROUP_KEYS[g]), pl(t, GROUP_KEYS[g] + "Tip"), groupBy === g)).join("")));
   }

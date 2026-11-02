@@ -74,6 +74,7 @@ export const POLISH_KEYS = [
   "scopeAll",
   "scopeAllTip",
   "filterLine",
+  "boardPills",
   "fpTime",
   "fpHave",
   "fpRemove",

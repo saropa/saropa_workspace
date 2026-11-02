@@ -1,7 +1,7 @@
 import type { BoardModel } from "./boardModel";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml, pill, pl, tip } from "./boardHtmlUtil";
-import { GROUP_KEYS, TIME_LABELS, kebab, scopeTotal } from "./boardHtmlMenus";
+import { GROUP_KEYS, TIME_LABELS, kebab, pillMenuLabel, scopeTotal } from "./boardHtmlMenus";
 import type { GroupBy } from "./types";
 import { label } from "./boardHtmlProjects";
 import { pollPill } from "./boardHtmlChats";
@@ -35,10 +35,10 @@ export function settingPills(model: BoardModel, scope: Scope | undefined, t: Boa
   const shown = scope === "all" ? pl(t, "explainShownAll", { count, names }) : pl(t, "explainShownOne", { names });
   const modeTip = pl(t, "explainTip", { shown, mode, rule: pl(t, "modeRule." + model.profile), count });
   if (scope === undefined) {
-    return pillButton(t, "pscope", mode, modeTip, t.profileLabel);
+    return pillButton(t, "pscope", mode, modeTip, pillMenuLabel(t, false));
   }
   const scopeText = scope === "all" ? pl(t, "explainAll", { count: scopeTotal(model, scope) }) : pl(t, "scopeThis");
-  return pillButton(t, "pscope", `${scopeText} \u00b7 ${mode}`, `${scopeTip(model, scope, t)}\n${modeTip}`, `${pl(t, "scopeGroup")} / ${t.profileLabel}`);
+  return pillButton(t, "pscope", `${scopeText} \u00b7 ${mode}`, `${scopeTip(model, scope, t)}\n${modeTip}`, pillMenuLabel(t, true));
 }
 
 // The pills that shape the Board tab only, drawn at the top of that tab: the grouping (when known), the
@@ -57,7 +57,7 @@ export function boardPills(model: BoardModel, t: BoardStrings, groupBy?: GroupBy
       out.push(pillButton(t, "phave", text, `${pl(t, "haveLabel")} ${text}`, pl(t, "haveLabel")));
     }
   }
-  return out.length === 0 ? "" : `<div class="fline" role="group" aria-label="${escapeHtml(pl(t, "filterLine"))}">${out.join(" ")}</div>`;
+  return out.length === 0 ? "" : `<div class="fline" role="group" aria-label="${escapeHtml(pl(t, "boardPills"))}">${out.join(" ")}</div>`;
 }
 
 // The header entry to the change log: "Changes N", shown only while something changed since the

@@ -9,7 +9,9 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { commitIfUnchanged, editBlocker, loadFuture, readFutureSettings, setFutureField, writeBlock } from "../../commands/boardFuture";
 import type { BoardRun } from "../../commands/boardScanStore";
-import { MAX_FUTURE_BYTES } from "../../board/futureList";
+import { MAX_FUTURE_BYTES, MAX_FUTURE_ITEMS } from "../../board/futureList";
+import { futurePanel, viewTabs } from "../../board/boardHtmlFuture";
+import { strings } from "../../views/boardStrings";
 import { l10n } from "../../i18n/l10n";
 import { stub } from "./hostHelpers";
 
@@ -95,6 +97,23 @@ test("an oversized document is listed from its path, a missing one and an unknow
   (base.result.rows as Array<{ project: string; path: string }>).push({ project: "other", path: "plans/deferred/OK.md" });
   const data = await loadFuture(base);
   assert.deepEqual(data.items.map((i) => [i.path, i.title, i.guessed.length]), [["plans/deferred/HUGE.md", "HUGE", 5], ["plans/deferred/OK.md", "Fine", 5]]);
+});
+
+test("past the cap, loadFuture sets cut and the tab and the page note read from the same listed count", async () => {
+  const root = tmp();
+  const paths = Array.from({ length: MAX_FUTURE_ITEMS + 5 }, (_v, i) => `plans/deferred/D${i}.md`);
+  paths.forEach((p, i) => put(root, p, `# D${i}\n`));
+  // One listed file is missing, so fewer than the cap are readable: the count shown is the listed one.
+  fs.rmSync(path.join(root, paths[0]));
+  const data = await loadFuture(run(root, paths));
+  assert.equal(data.cut, true);
+  assert.equal(data.items.length, MAX_FUTURE_ITEMS - 1);
+  const view = { items: data.items, outside: data.outside, cut: data.cut, sort: "score" as const, canEdit: true, researchParallel: 3 };
+  const t = strings();
+  assert.ok(viewTabs(view, t).includes(`${MAX_FUTURE_ITEMS - 1}</span>+`) || viewTabs(view, t).includes(`${MAX_FUTURE_ITEMS - 1}+`));
+  assert.ok(futurePanel(view, t).includes(`Showing the first ${MAX_FUTURE_ITEMS - 1} `));
+  const few = await loadFuture(run(root, paths.slice(1, 4)));
+  assert.equal(few.cut, undefined);
 });
 
 test("a write changes only the header block and keeps every other byte", async () => {

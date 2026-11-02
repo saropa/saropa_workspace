@@ -169,3 +169,13 @@ Option B. It fixes all three complaints, applies decisions the owner already mad
 5. **How many in Up next, and a soft in-progress limit?** Recommend **5 rows, amber pill past 3 in progress, no setting**: a fixed small number is the point; a setting can come later if asked for.
 6. **Bars with no known minutes.** (a) Compute minutes from all open steps of the document, so most rows get a real bar; rows with no steps keep the short dashed box. (b) Draw no bar at all when minutes are unknown. Recommend **(a)**: the data exists; today it is lost by the Sittings filter and cap, and the Have and time chips silently change the Gantt.
 7. **Since-you-left outlines when many rows changed.** (a) Keep the outline on every changed row. (b) Above 10 changed rows, outline only the changed rows in Up next and show a count on each project header. Recommend **(b)**: a third of the list outlined is noise; the Changes button still lists everything.
+
+## Review verdict (diff review of a7d4b59, findings only)
+
+No blocker or data-loss finding. Escaping, ARIA and tooltip checks pass: the new header group and menu groups carry escaped labels; the `gpn` project name keeps a full-text title while it ellipsizes (title text is never truncated); titles wrap, not cut.
+- Medium: no test covers the new `cut` flag or the "200+" tab count and `cutNote` (grep of `src/test` finds none). `src/board/boardHtmlFuture.ts:33`, `src/commands/boardFuture.ts:61-76`.
+- Low: `boardPills` (`src/board/boardHtmlHeader.ts:~59`) reuses the `filterLine` aria-label on a second `role="group"`; two groups on the Board tab share one name. Give it its own label.
+- Low: the merged pill label `scopeGroup / profileLabel` (`boardHtmlHeader.ts:41`, `boardHtmlMenus.ts:99`) is composed with a literal " / " and " · " in code; not translatable word order (acceptable, flag only).
+- Low: `releaseBoard.future.cutNote` exists only in en.json (other locales go through the owner's translation pipeline; no action by agents).
+- Low: `ganttModel.ts` unify sort: stable (Array.sort), ties keep input order; `GanttStatus` rank map covers red/purple/amber/green. OK. No test of tie order among equal status and start beyond ganttReadable.
+- Checked clean: `pmode` has no remaining consumers in src or tests (the test asserts it is absent); `pscope` consumers updated; new `openMinutes` is read only in `ganttModel.ts`; no webview message changes.

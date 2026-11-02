@@ -14,8 +14,8 @@ export const DRAG_STYLE = `
 .sbands{display:none;position:fixed;top:0;left:0;right:0;z-index:20;flex-wrap:wrap;gap:6px;padding:6px 16px;background:var(--bg);border-bottom:1px solid var(--line)}
 body.dragging .sbands{display:flex}
 .sband{flex:1;min-width:100px;padding:4px 10px;text-align:center;border:1px dashed var(--vscode-focusBorder,var(--line));border-radius:6px}
-.gslot{margin-left:auto;font-size:10px;line-height:16px;padding:0 6px;border:1px dashed var(--line);border-radius:8px;color:var(--mute);display:none}
-.gr:hover .gslot,.gr:focus-within .gslot,body.dragging .gslot{display:inline-block}.gr .kb{margin-left:0}
+.gl{position:relative}.gslot{position:absolute;right:34px;top:50%;transform:translateY(-50%);z-index:1;background:var(--bg);font-size:10px;line-height:16px;padding:0 6px;border:1px dashed var(--line);border-radius:8px;color:var(--mute);visibility:hidden}
+.gr:hover .gslot,.gr:focus-within .gslot,body.dragging .gslot{visibility:visible}.gr .kb{margin-left:0}
 body.dragging [data-drop]{outline:1px dashed var(--vscode-focusBorder,var(--line));outline-offset:-2px}body.dragging .gslot{border-color:var(--vscode-focusBorder,var(--line));color:var(--fg)}
 .gap{display:none;height:8px;margin:-4px 0}body.dragging .gap{display:block}
 .mvs{display:inline-flex;gap:2px;flex:none}.row .mvs{margin-left:auto}.row .mvs+.kb{margin-left:0}.mv{padding:0 4px;min-width:20px;line-height:1.3}

@@ -56,8 +56,8 @@ test("the Gantt gives titles two lines and the title column room; the unused cha
   assert.ok(html.includes(long) && !html.includes(long.slice(0, 20) + "…"), "full text in the page and its tooltips");
   assert.match(html, /title="[^"]*A very long document title that no column could ever show on one line/);
   const page = renderBoard(m, t, "n", 1, { scope: "all" });
-  assert.match(page, /\.gslot\{[^}]*display:none/);
-  assert.match(page, /\.gr:hover \.gslot[^{]*\{display:inline-block\}/);
+  assert.match(page, /\.gslot\{position:absolute[^}]*visibility:hidden/, "out of the row's flow, so it takes no width and nothing shifts on hover");
+  assert.match(page, /\.gr:hover \.gslot[^{]*\{visibility:visible\}/);
 });
 
 const doc = (i: number) => ({ project: "app", projectName: "App", path: `plans/deferred/d${i}.md`, text: `# D${i}\n\nImportance: nice-to-have\n\nBody\n` });
