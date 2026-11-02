@@ -5,6 +5,7 @@ import { Link, needTarget, wouldCircle } from "../board/links";
 import { NEEDS_STATE_KEYS } from "../board/needsKeys";
 import { readsNeeds } from "../board/docFacts";
 import { BoardRun } from "../commands/boardScanStore";
+import { answerOptions } from "../board/orderModel";
 import { DocRef, NeedsChange } from "../commands/boardNeeds";
 
 // The Waits on and Blocks pickers of the Release Board row menu. The row is the one this panel
@@ -88,13 +89,7 @@ export async function pickNeeds(run: BoardRun, model: BoardModel, item: BoardIte
 // The candidates come from the model this panel painted (item.after), never from the page. One answer is taken as it is;
 // several ask which one. No preview: the person already chose the entry, and Undo takes the line out.
 export async function pickAnswerNeed(run: BoardRun, model: BoardModel, item: BoardItem): Promise<NeedsPick | undefined> {
-  if (!readsNeeds(item.path)) {
-    return undefined;
-  }
-  const held = new Set(model.links.filter((l) => l.fromProject === item.project && l.fromPath === item.path && !l.markOnly).map((l) => l.toProject + "\t" + l.toPath));
-  const options = (item.after ?? [])
-    .map((id) => model.items[id])
-    .filter((o): o is BoardItem => o !== undefined && o.id !== item.id && !held.has(o.project + "\t" + o.path) && !wouldCircle(model.links, node(item), node(o)));
+  const options = answerOptions(model.links, model.items, item);
   if (options.length === 0) {
     void vscode.window.showInformationMessage(l10n("releaseBoard.order.makeDepNone", { title: item.title }));
     return undefined;

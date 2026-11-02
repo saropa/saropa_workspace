@@ -1,4 +1,6 @@
 import type { BoardItem, BoardProject } from "./boardModelParts";
+import { Link, wouldCircle } from "./links";
+import { readsNeeds } from "./docFacts";
 import { NO_FOLDER, OrderEntry, OrderItem, Pair, afterOf, emptyOrder, folderOrder, pendingCount, settle } from "./orderAsk";
 
 // Puts the owner's order answers onto the built board: `after` and `inferred` on the items, the folder ranks and
@@ -52,4 +54,16 @@ export function attachOrder(projects: readonly BoardProject[], all: readonly Boa
       }
     }
   }
+}
+
+// The asked answers of a row that can become a Needs: line: the document's Needs lines are read, the line is not there yet,
+// and it would not make a circle. `all` is the model's item list (ids are indexes).
+export function answerOptions(links: readonly Link[], all: readonly BoardItem[], item: BoardItem): BoardItem[] {
+  if (!readsNeeds(item.path)) {
+    return [];
+  }
+  const held = new Set(links.filter((l) => l.fromProject === item.project && l.fromPath === item.path && !l.markOnly).map((l) => l.toProject + "\t" + l.toPath));
+  return (item.after ?? [])
+    .map((id) => all[id])
+    .filter((o): o is BoardItem => o !== undefined && o.id !== item.id && !held.has(o.project + "\t" + o.path) && !wouldCircle([...links], item, o));
 }

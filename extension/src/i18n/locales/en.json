@@ -2211,7 +2211,7 @@
   "releaseBoard.polish.menuOrderRowTip": "Forget what you said about this blocker's place and ask again, comparing it with the others.",
   "releaseBoard.polish.menuForget": "Forget order answers",
   "releaseBoard.polish.menuMakeDep": "Make this a real dependency",
-  "releaseBoard.polish.menuMakeDepTip": "Write a Needs: line into this document for the order you gave (X comes before this one), with Undo. The line then counts everywhere a dependency does, in the handoff and the path to go. Your answer stays.",
+  "releaseBoard.polish.menuMakeDepTip": "Write a Needs: line into this document for an order you gave (an item you said comes before this one), with Undo. The line then counts everywhere a dependency does, in the handoff and the path to go. Your answer stays.",
   "releaseBoard.polish.menuForgetTip": "Take away every order answer that names this document, with Undo. Its place goes back to the severity guess.",
   "releaseBoard.order.titleItem": "Which should be done first? ({n} of {total})",
   "releaseBoard.order.titleFolder": "Which folder's blockers come first? ({n} of {total})",

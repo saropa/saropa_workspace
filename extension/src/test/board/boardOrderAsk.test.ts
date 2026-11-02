@@ -223,6 +223,44 @@ test("row menu: Make this a real dependency writes one Needs line with one Undo,
   await settle(() => [0, 1, 2].every((n) => text(n) === before[n]));
 });
 
+test("Make this a real dependency: several answers ask which one; a row that already has the line offers nothing", async () => {
+  const dir = orderDir(3, { order: { app: { pairs: [["bugs/BUG_0.md", "bugs/BUG_2.md"], ["bugs/BUG_1.md", "bugs/BUG_2.md"]], skipped: [], folders: [] } } });
+  await openBoard(contextIn(dir));
+  const panel = __lastWebviewPanel();
+  assert.ok(panel);
+  await settle(() => panel.webview.html.includes('data-act="makeDep"'));
+  const text = (n: number): string => fs.readFileSync(path.join(dir, "bugs", `BUG_${n}.md`), "utf8");
+  const before = [0, 1, 2].map(text);
+  let offered = 0;
+  __setPickHandler(async (items) => {
+    offered = items.length;
+    return items.find((i) => String((i as { detail?: string }).detail).endsWith("BUG_1.md"));
+  });
+  for (const id of [0, 1, 2]) {
+    panel.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id, rev: revOf(panel.webview.html) });
+    await flushEvents(50);
+  }
+  assert.equal(offered, 2, "both answers are offered");
+  assert.deepEqual([0, 1].map(text), before.slice(0, 2));
+  assert.match(text(2), /Needs:.*BUG_1\.md/);
+  assert.ok(!/BUG_0\.md/.test(text(2).split("Needs:")[1] ?? ""), "only the chosen answer is written");
+
+  // The row already has the line: nothing is offered and nothing is written.
+  const dir2 = orderDir(2, { order: { app: { pairs: [["bugs/BUG_0.md", "bugs/BUG_1.md"]], skipped: [], folders: [] } } });
+  fs.writeFileSync(path.join(dir2, "bugs", "BUG_1.md"), "# Bug 1\n\nStatus: open\n\nNeeds: BUG_0.md\n");
+  await openBoard(contextIn(dir2));
+  const panel2 = __lastWebviewPanel();
+  assert.ok(panel2);
+  await settle(() => panel2.webview.html.includes('data-act="forgetOrder"'));
+  assert.ok(!panel2.webview.html.includes('data-oa="1"'), "the menu entry is hidden when no answer can become a line");
+  const b2 = fs.readFileSync(path.join(dir2, "bugs", "BUG_1.md"), "utf8");
+  for (const id of [0, 1]) {
+    panel2.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id, rev: revOf(panel2.webview.html) });
+    await flushEvents(50);
+  }
+  assert.equal(fs.readFileSync(path.join(dir2, "bugs", "BUG_1.md"), "utf8"), b2, "no duplicate line");
+});
+
 test("1000 projects with ten flagged items each build within a generous budget", () => {
   const projects = Array.from({ length: 1000 }, (_v, i) => ({ id: `p${i}`, name: `P${i}`, path: `p${i}`, roots: [], ruleSets: [] }));
   const cfg = { version: 1, ignore: [], ruleSets: {}, projects } as BoardConfig;

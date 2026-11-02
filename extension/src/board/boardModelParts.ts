@@ -60,6 +60,8 @@ export interface BoardItem {
   waitsOn: number[];
   // Ids of the open items the owner said this one comes after (order only, not a dependency: handoff and path to
   // go never read it). Absent when none.
+  // True when an asked answer of this row can become a Needs: line (it is not read from the document yet, would not make a circle).
+  makeDep?: true;
   after?: number[];
   // Ids of open items this one is after only through others' answers (absent when none).
   inferred?: number[];

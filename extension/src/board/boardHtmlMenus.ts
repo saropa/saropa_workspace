@@ -38,7 +38,7 @@ const SHAPES: Record<string, string> = { red: "●", amber: "◆", purple: "◐"
 // What the page script needs to fill the row menu for one document: its status and severity, whether
 // either was set by hand, whether it is pinned, and its project. Only values, never markup.
 export function rowData(i: BoardItem): string {
-  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}"${i.answered ? ' data-ab="1"' : ""} data-pj="${escapeHtml(i.project)}" data-kd="${escapeHtml(i.kind)}"${readsNeeds(i.path) ? "" : ' data-nd="1"'}${(i.after ?? []).length > 0 ? ' data-oa="1"' : ""}`;
+  return ` data-st="${escapeHtml(i.status)}" data-sev="${escapeHtml(i.severity ?? "")}" data-by="${i.severityByUser || i.statusByUser ? 1 : 0}" data-pin="${i.pinned ? 1 : 0}"${i.answered ? ' data-ab="1"' : ""} data-pj="${escapeHtml(i.project)}" data-kd="${escapeHtml(i.kind)}"${readsNeeds(i.path) ? "" : ' data-nd="1"'}${i.makeDep ? ' data-oa="1"' : ""}`;
 }
 
 // The row menu: open the document, pick its status, change its severity (raise, lower, one of the

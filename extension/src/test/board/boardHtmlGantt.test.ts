@@ -205,3 +205,25 @@ test("the slot width is per project: a long chain in one project does not narrow
   assert.ok(one.start + one.width <= 100.001, "the chain still fits its own section");
   assert.equal(groups.flatMap((g) => g.rows).find((r) => r.title === "Solo")!.start, 0);
 });
+
+test("the Unified layout keeps one board-wide slot: widths and start order stay on one scale across projects", () => {
+  const cfg2: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "a", name: "A", path: "a", roots: [], ruleSets: [] }, { id: "b", name: "B", path: "b", roots: [], ruleSets: [] }] } as BoardConfig;
+  const mk = (project: string, p: string): Classified => ({ project, path: p, status: "amber", kind: "", note: "" });
+  const text: Record<string, string> = { "1.md": "# One\n", "2.md": "# Two\n\nNeeds: 1.md\n", "3.md": "# Three\n\nNeeds: 2.md\n", "4.md": "# Four\n\nNeeds: 3.md\n", "x.md": "# Solo\n" };
+  const factsOf = (names: string[]) => Object.fromEntries(names.map((n) => [n, { size: text[n].length, mtimeMs: 1, facts: readFacts(text[n], n) }]));
+  const snap = { version: 1, takenAt: 1, projects: {
+    a: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: factsOf(["1.md", "2.md", "3.md", "4.md"]) },
+    b: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: factsOf(["x.md"]) },
+  } } as ScanSnapshot;
+  const m = buildBoard(cfg2, [mk("a", "1.md"), mk("a", "2.md"), mk("a", "3.md"), mk("a", "4.md"), mk("b", "x.md")], undefined, true, snap);
+  const unified = buildGantt(m, undefined, "unified");
+  assert.equal(unified.length, 1);
+  const rows = unified[0].rows;
+  const get = (name: string) => rows.find((r) => r.title === name)!;
+  assert.equal(get("Solo").width, get("One").width, "one slot width for the whole board");
+  assert.deepEqual(rows.map((r) => r.start), [...rows.map((r) => r.start)].sort((x, y) => x - y), "start order is work order across projects");
+  assert.ok(get("Four").start > get("Solo").start);
+  // Split keeps per-project widths on the same board.
+  const split = buildGantt(m, undefined, "split").flatMap((g) => g.rows);
+  assert.ok(split.find((r) => r.title === "Solo")!.width > split.find((r) => r.title === "One")!.width * 3);
+});

@@ -140,7 +140,7 @@ function inStoredOrder(items: BoardItem[], order: BoardModel["order"]): BoardIte
 // The groups of the Gantt, one per project that has a row, finished documents first and then
 // the open items in work order.
 export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLayout = "split", allName = "All projects"): GanttGroup[] {
-  const split = buildSplit(model, since);
+  const split = buildSplit(model, since, layout !== "unified");
   const groups = layout === "unified" && split.length > 1 ? unify(split, allName) : split;
   const up = new Set(upNext(model).map((i) => i.id));
   for (const g of groups) {
@@ -184,17 +184,19 @@ function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
   return [{ id: "all", name: allName, light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: groups.reduce((n, g) => n + g.finishedCut, 0), rows: [...done, ...open] }];
 }
 
-function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
+function buildSplit(model: BoardModel, since: SinceView | undefined, perProject: boolean): GanttGroup[] {
   const rank = ranks(model.items);
+  const boardSlots = Math.max(0, ...rank.values()) + 1;
   const longest = Math.max(STANDARD, ...model.items.map((i) => i.openMinutes ?? 0));
   const marked = new Set(since?.marked ?? []);
   const titles = new Map(model.items.map((i) => [i.id, i.title]));
   const groups: GanttGroup[] = [];
   const keepDone = layoutFor(model.items.length).finished;
   for (const p of model.projects) {
-    // One slot per rank inside this project: a bar stays inside its slot, so what waits always starts after what it
-    // waits on has ended. The width is per project, so one long chain narrows only its own section.
-    const slots = Math.max(0, ...p.items.map((i) => rank.get(i.id) ?? 0)) + 1;
+    // One slot per rank: a bar stays inside its slot, so what waits always starts after what it waits on has ended.
+    // Split sections count ranks per project, so one long chain narrows only its own section. The Unified list mixes
+    // every project in one list, so it keeps one board-wide slot and start order and widths stay on one scale.
+    const slots = perProject ? Math.max(0, ...p.items.map((i) => rank.get(i.id) ?? 0)) + 1 : boardSlots;
     const slot = Math.round(1000 / slots) / 10;
     const allDone: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
