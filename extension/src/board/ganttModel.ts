@@ -186,16 +186,16 @@ function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
 
 function buildSplit(model: BoardModel, since?: SinceView): GanttGroup[] {
   const rank = ranks(model.items);
-  // One slot per rank: a bar stays inside its slot, so what waits always starts after what it
-  // waits on has ended, however long the chain.
-  const slots = Math.max(0, ...rank.values()) + 1;
-  const slot = Math.round(1000 / slots) / 10;
   const longest = Math.max(STANDARD, ...model.items.map((i) => i.openMinutes ?? 0));
   const marked = new Set(since?.marked ?? []);
   const titles = new Map(model.items.map((i) => [i.id, i.title]));
   const groups: GanttGroup[] = [];
   const keepDone = layoutFor(model.items.length).finished;
   for (const p of model.projects) {
+    // One slot per rank inside this project: a bar stays inside its slot, so what waits always starts after what it
+    // waits on has ended. The width is per project, so one long chain narrows only its own section.
+    const slots = Math.max(0, ...p.items.map((i) => rank.get(i.id) ?? 0)) + 1;
+    const slot = Math.round(1000 / slots) / 10;
     const allDone: GanttRow[] = (model.finished ?? [])
       .filter((f) => f.project === p.id)
       .map((f): GanttRow => ({ title: f.title, path: f.path, status: "green", start: 0, width: slot, minutes: 0, after: [], waits: [], askedNames: [], inferred: [], changed: false }));

@@ -187,3 +187,21 @@ test("Show more works with the unified group id, and a layout message value is c
   const page = script(1, "x", "deliberate");
   assert.ok(page.includes("type:'ganttLayout'") && page.includes("rev:REV"));
 });
+
+test("the slot width is per project: a long chain in one project does not narrow the bars of another", () => {
+  const cfg2: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "a", name: "A", path: "a", roots: [], ruleSets: [] }, { id: "b", name: "B", path: "b", roots: [], ruleSets: [] }] } as BoardConfig;
+  const mk = (project: string, p: string, status: BoardStatus): Classified => ({ project, path: p, status, kind: "", note: "" });
+  const chain = { "a/1.md": "# One\n", "a/2.md": "# Two\n\nNeeds: 1.md\n", "a/3.md": "# Three\n\nNeeds: 2.md\n", "a/4.md": "# Four\n\nNeeds: 3.md\n", "b/x.md": "# Solo\n" };
+  const facts = Object.fromEntries(Object.entries(chain).map(([p, text]) => [p, { size: text.length, mtimeMs: 1, facts: readFacts(text, p) }]));
+  const snap = { version: 1, takenAt: 1, projects: {
+    a: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: Object.fromEntries(Object.entries(facts).filter(([p]) => p.startsWith("a/")).map(([p, f]) => [p.slice(2), f])) },
+    b: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: { "x.md": facts["b/x.md"] } },
+  } } as ScanSnapshot;
+  const m = buildBoard(cfg2, [mk("a", "1.md", "amber"), mk("a", "2.md", "amber"), mk("a", "3.md", "amber"), mk("a", "4.md", "amber"), mk("b", "x.md", "amber")], undefined, true, snap);
+  const groups = buildGantt(m);
+  const w = (name: string): number => groups.flatMap((g) => g.rows).find((r) => r.title === name)!.width;
+  assert.ok(w("Solo") > w("One") * 3, "the solo project keeps a full-width slot");
+  const one = groups.flatMap((g) => g.rows).find((r) => r.title === "Four")!;
+  assert.ok(one.start + one.width <= 100.001, "the chain still fits its own section");
+  assert.equal(groups.flatMap((g) => g.rows).find((r) => r.title === "Solo")!.start, 0);
+});
