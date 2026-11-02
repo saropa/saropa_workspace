@@ -25,3 +25,12 @@
 - A build must instantiate its real classes (not only its pure helpers) in a
   test through the real entry point; class field initializers must not touch
   constructor parameter properties.
+
+# Machine safety
+
+- Agents never run `npm test`, mocha, or any full-suite or compile-heavy
+  command (the test script runs tsc with an 8 GB heap, then mocha; it has
+  crashed the owner's machine). Agents run `tsc --noEmit` at most once, and
+  only when the brief allows it. The owner runs the full suite.
+- Never resume a stopped agent without first checking its worktree state
+  (`git status`, `git diff --stat`) and reporting it to the owner.
