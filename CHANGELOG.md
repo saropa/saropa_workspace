@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+Internal code cleanup only; nothing changes in how the extension looks or behaves.
+
+### Changed
+- Internal refactor: Release Board patch writes for `Needs:` lines now go through one `writeNeeds` helper that hands over the write and its Undo record.
+- Internal refactor: board code split into small leaf modules so the modules no longer import each other in a cycle.
+
 ## [2.7.1]
 
 The Release Board Gantt is easier to read and its header is calmer.
@@ -603,23 +611,6 @@ The Launcher panel now has a Notes pane, sortable pane headers, and a smarter sc
 ### Removed
 
 - Chevron collapse controls from Launcher pane headers — replaced by the sort-cycling click and the header stat chip toggles
-
----
-
-## [1.6.3]
-
-The Launcher panel gets a usability overhaul with new section visibility toggle chips, a convenient one-click reset button to restore hidden panes, and a smoother startup experience with a new loading indicator. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.3/CHANGELOG.md)
-
-### Added
-
-- An eye-icon reset button appears in the header when any section is toggled off — one click restores all sections to visible
-
-### Changed
-
-- Launcher panel shows a loading indicator on startup instead of a blank header until data arrives
-- Launcher header stat chips are now section visibility toggles (on/off) instead of pane filters — each chip independently shows or hides its section, with dimmed styling when off
-- The "scheduled" count is now an informational label (not a toggle), since scheduled cards live inside My shortcuts
-- Removed the folded-sections strip; pane visibility is controlled entirely from the header stat chips
 
 ---
 
