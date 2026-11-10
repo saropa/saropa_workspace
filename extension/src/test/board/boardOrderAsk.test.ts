@@ -179,8 +179,12 @@ test("row menu: ask where this goes, forget order answers; unknown ids and non-b
   assert.ok(__infoMessages().some((m) => m.length > 0));
   panel.webview.__receiveFromClient({ type: "rowMenu", act: "forgetOrder", id: 1, rev: rev() });
   await settle(() => stored(dir) === undefined);
-  panel.webview.__receiveFromClient({ type: "undo", rev: rev() });
+  // The repaint follows the write (after a rescan); a rev read before it is stale and the page message would be refused.
+  await settle(() => panel.webview.html.includes('id="undo"'));
+  const beforeUndo = rev();
+  panel.webview.__receiveFromClient({ type: "undo", rev: beforeUndo });
   await settle(() => stored(dir)?.pairs.length === 1);
+  await settle(() => rev() !== beforeUndo);
   __setPickHandler(async (items) => {
     asked++;
     return items[1];
@@ -218,7 +222,7 @@ test("row menu: Make this a real dependency writes one Needs line with one Undo,
   assert.equal(changed.length, 1);
   assert.match(changed[0], /Needs:.*BUG_0\.md/);
   assert.equal(stored(dir)?.pairs.length, 1, "the answer stays valid after the line exists");
-  assert.ok(panel.webview.html.includes('id="undo"'));
+  await settle(() => panel.webview.html.includes('id="undo"'));
   panel.webview.__receiveFromClient({ type: "undo", rev: rev() });
   await settle(() => [0, 1, 2].every((n) => text(n) === before[n]));
 });
