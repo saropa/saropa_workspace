@@ -17,10 +17,11 @@ export const GANTT_STYLE = `
 .gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}.glay{display:inline-flex}.glay button{border-radius:0}.glay button:first-child{border-radius:4px 0 0 4px}.glay button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}.glay button[aria-pressed=true]{background:var(--blue);color:var(--bg)}.gpn{color:var(--mute);font-size:11px;white-space:nowrap;flex:0 1 auto;min-width:0;max-width:30%;overflow:hidden;text-overflow:ellipsis}
 .gantt{position:relative;border:1px solid var(--line);border-radius:6px}
 #gSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5}#gSvg path{fill:none;stroke:var(--amber);stroke-width:1.5;marker-end:url(#gAr)}#gAr path{fill:var(--amber)}
-.gaxis{display:grid;grid-template-columns:minmax(200px,45%) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
+.gsplit{position:absolute;top:0;bottom:0;left:0;width:9px;margin-left:-4px;z-index:6;cursor:col-resize;touch-action:none}.gsplit::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:1px;background:var(--line)}.gsplit:hover::after,.gsplit:focus-visible::after,.gsplit.on::after{width:3px;left:3px;background:var(--blue)}
+.gaxis{display:grid;grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
 .gaxis .ticks{display:flex;justify-content:space-between;margin:0 10px}
-.gh{display:flex;align-items:center;gap:8px;margin:0;padding:0 10px;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
-.gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 0}.gtog::before{content:"\\25BE";color:var(--mute)}.gtog[aria-expanded=false]::before{content:"\\25B8"}
+.gh{display:flex;align-items:center;gap:8px;margin:0;padding:0;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
+.gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 10px}
 .gh .go{flex:none}.gcn{color:var(--mute);font-weight:400;white-space:nowrap}.gcn .gred{color:var(--red);font-weight:600}
 .gg.col .grows,.gg.col [data-rowsmore],.gg.col .gf{display:none}.gr[hidden]{display:none}
 .gsub{list-style:none;padding:0 10px 0 22px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);background:color-mix(in srgb,var(--panel) 60%,transparent)}
@@ -30,7 +31,7 @@ export const GANTT_STYLE = `
 .gwip{font-size:11px;font-weight:400;padding:0 6px;border:1px solid var(--line);border-radius:8px;color:var(--mute)}.gwip.over{color:var(--amber);border-color:var(--amber)}
 .gkey{position:absolute;top:100%;left:0;z-index:20;max-width:min(560px,100%);margin-top:4px;padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.4);font-size:12px}.gkey[hidden]{display:none}.gkey p{margin:2px 0}.gkey .kh{font-weight:600}.gkey table{border-collapse:collapse;margin:4px 0}.gkey td{padding:2px 12px 2px 0}.gkey td.sg{font-size:14px;text-align:center}
 .grows{list-style:none;margin:0;padding:0}
-.gr{display:grid;grid-template-columns:minmax(200px,45%) 1fr;align-items:center;min-height:30px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.gr{display:grid;grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr;align-items:center;min-height:30px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
 .gr:hover,.gr[aria-current=true]{background:rgba(128,128,128,.15)}
 .gr.done{opacity:.5}.gr.chg{outline:1px dotted var(--blue);outline-offset:-1px}
 .gl{display:flex;align-items:center;gap:6px;padding:3px 10px;min-width:0}.gl .tt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
@@ -43,8 +44,8 @@ export const GANTT_STYLE = `
 .bar.green{border-color:color-mix(in srgb,var(--green) 40%,transparent);background:color-mix(in srgb,var(--green) 10%,transparent)}
 .bar.est{border-style:dashed}.gr.rel .bar{box-shadow:0 0 0 1px var(--amber)}
 .gf{display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px dashed var(--line);color:var(--mute)}
-.bar.est{width:3.5em;min-width:3.5em}
-@media (max-width:480px){.gaxis,.gr{grid-template-columns:minmax(0,1fr) 84px}.gl .tt{white-space:normal;overflow-wrap:anywhere}.gaxis .ticks{margin:0 4px}.gt{margin:0 6px}}
+.bar.est{min-width:3.5em}
+@media (max-width:480px){.gsplit{display:none}.gaxis,.gr{grid-template-columns:minmax(0,1fr) 84px}.gl .tt{white-space:normal;overflow-wrap:anywhere}.gaxis .ticks{margin:0 4px}.gt{margin:0 6px}}
 `;
 
 // Arrows for the hovered or selected row, a click or Enter on a row to keep it selected. Row
@@ -58,6 +59,18 @@ const edge=(a,b)=>{const ra=BY.get(a),rb=BY.get(b);if(!shown(ra)||!shown(rb)){re
 const draw=()=>{if(g.offsetParent===null){return;}svg.setAttribute('width',g.offsetWidth);svg.setAttribute('height',g.offsetHeight);svg.querySelectorAll('path').forEach(p=>p.remove());lit.forEach(r=>r.classList.remove('rel'));lit=[];[hov,sel].forEach((id,i,all)=>{if(id===null||all.indexOf(id)!==i||!BY.has(id)){return;}AFT.get(id).forEach(a=>edge(a,id));(DEP.get(id)||[]).forEach(d=>edge(id,d));});};
 const select=r=>{sel=sel===r.dataset.gid?null:r.dataset.gid;ROWS.forEach(x=>{if(x.dataset.gid===sel){x.setAttribute('aria-current','true');}else{x.removeAttribute('aria-current');}});draw();};
 const S0=vscode.getState()||{};const COL=new Set(S0.gcol||[]),OPN=new Set(S0.gopen||[]);const save=()=>vscode.setState({...(vscode.getState()||{}),gcol:[...COL].slice(-100),gopen:[...OPN].slice(-100)});
+// One name-column width for the whole Gantt, kept in the saved state and read back here at start-up.
+const SP=document.getElementById('gSplit');const axis=g.querySelector('.gaxis');let W=Number(S0.gsplit)>0?Number(S0.gsplit):0;
+const spMin=()=>Math.min(200,Math.max(80,g.clientWidth-160)),spMax=()=>Math.max(spMin(),g.clientWidth-160);
+const spPlace=()=>{if(!SP||!axis||g.offsetParent===null){return;}const w=W>0?Math.min(spMax(),Math.max(spMin(),W)):axis.firstElementChild.offsetWidth;if(W>0){g.style.setProperty('--gcol',w+'px');}else{g.style.removeProperty('--gcol');}SP.style.left=w+'px';SP.setAttribute('aria-valuemin',String(Math.round(spMin())));SP.setAttribute('aria-valuemax',String(Math.round(spMax())));SP.setAttribute('aria-valuenow',String(Math.round(w)));draw();};
+const spSet=(w,keep)=>{W=w>0?Math.round(Math.min(spMax(),Math.max(spMin(),w))):0;spPlace();if(keep){vscode.setState({...(vscode.getState()||{}),gsplit:W});}};
+if(SP){spPlace();window.addEventListener('resize',spPlace);
+SP.addEventListener('pointerdown',e=>{e.preventDefault();SP.focus();SP.setPointerCapture(e.pointerId);SP.classList.add('on');});
+SP.addEventListener('pointermove',e=>{if(SP.hasPointerCapture(e.pointerId)){spSet(e.clientX-axis.getBoundingClientRect().left,false);}});
+const spEnd=e=>{if(SP.hasPointerCapture(e.pointerId)){SP.releasePointerCapture(e.pointerId);}SP.classList.remove('on');spSet(W,true);};
+SP.addEventListener('pointerup',spEnd);SP.addEventListener('pointercancel',spEnd);
+SP.addEventListener('dblclick',()=>spSet(0,true));
+SP.addEventListener('keydown',e=>{const cur=Number(SP.getAttribute('aria-valuenow'));if(e.key==='ArrowLeft'){e.preventDefault();spSet(cur-16,true);}else if(e.key==='ArrowRight'){e.preventDefault();spSet(cur+16,true);}else if(e.key==='Home'){e.preventDefault();spSet(spMin(),true);}else if(e.key==='End'){e.preventDefault();spSet(spMax(),true);}});}
 const fold=(s,on)=>{s.classList.toggle('col',on);const b=s.querySelector('.gtog');if(b){b.setAttribute('aria-expanded',String(!on));}};
 const sync=()=>{g.querySelectorAll('.gr[data-sk]').forEach(r=>{r.hidden=!OPN.has(r.dataset.sk);});g.querySelectorAll('.gsb').forEach(b=>b.setAttribute('aria-expanded',String(OPN.has(b.dataset.sk))));};
 g.querySelectorAll('.gg').forEach(s=>{if(COL.has(s.dataset.gk)){fold(s,true);}else if(OPN.has(s.dataset.gk)){fold(s,false);}});sync();
@@ -69,7 +82,7 @@ let pend=null;g.addEventListener('dragover',e=>{if(!document.body.classList.cont
 document.addEventListener('drop',()=>{pend=null;},true);document.addEventListener('dragend',()=>{pend=null;},true);
 g.addEventListener('dragleave',e=>{if(pend&&e.target.closest&&e.target.closest('.gtog,.gsb')===pend){pend=null;}});
 g.addEventListener('keydown',e=>{const r=e.target.closest('.gr');if(r&&r===e.target&&(e.key==='Enter'||e.key===' ')){e.preventDefault();select(r);}});
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',draw));window.addEventListener('resize',draw);})();`;
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{spPlace();draw();}));window.addEventListener('resize',draw);})();`;
 
 // "30m", "1h", "1h 30m".
 function minutesLabel(m: number): string {
@@ -262,6 +275,6 @@ export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView
   const open = openGroups(layout0, groups.map((g) => ({ id: g.id, blockers: g.blocks })));
   const body = groups.length === 0
     ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
-    : `${upNextBox(shownModel(model, layout), t)}<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups, open.has(g.id), layout0.rowLimit)).join("")}</div>`;
+    : `${upNextBox(shownModel(model, layout), t)}<div class="gantt" id="gantt"><div class="gsplit" id="gSplit" role="separator" aria-orientation="vertical" tabindex="0" aria-valuemin="200" aria-valuemax="600" aria-valuenow="200" aria-label="${escapeHtml(pl(t, "ganttResizeLabel"))}" ${tip(t, "ganttResizeTip")}></div><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups, open.has(g.id), layout0.rowLimit)).join("")}</div>`;
   return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${several ? layoutToggle(t, layout) : ""}${keyPanel(t)}</div>${body}</section>`;
 }

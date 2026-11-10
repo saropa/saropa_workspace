@@ -2070,6 +2070,8 @@
   "releaseBoard.polish.ganttUnified": "Unified",
   "releaseBoard.polish.ganttUnifiedTip": "All projects in one section, in work order, each row naming its project.",
   "releaseBoard.polish.ganttEmpty": "No items to show.",
+  "releaseBoard.polish.ganttResizeLabel": "Resize the name column",
+  "releaseBoard.polish.ganttResizeTip": "Drag to resize the name column. Double-click to reset. Left and Right arrow keys move it when focused.",
   "releaseBoard.polish.ganttAxis": "Work order, not days: what must finish first sits further left.",
   "releaseBoard.polish.ganttAxisStart": "Start",
   "releaseBoard.polish.ganttAxisEnd": "Release",

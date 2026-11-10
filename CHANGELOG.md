@@ -48,10 +48,15 @@ cspell:disable
 
 ## [Unreleased]
 
+### Added
+- Release Board Gantt: drag the edge of the name column to resize it (double-click resets, Left and Right keys move it when focused); the width is remembered.
+
 ### Fixed
 - A Release Board project is amber only when the board could not read something. Missing lint or test results and unsorted documents no longer make it amber, and open work never does. The status bar button is red for a blocker, amber when something could not be read, and green otherwise. Only the projects of the folders open in this window count, never the extra projects you chose.
 
 ### Changed
+- Release Board Gantt project headers no longer show the fold arrow, and the hover highlight now spans the full header width.
+- Release Board Gantt: inside each project the open bars follow one another in the order shown, each starting where the previous ends and never before what it waits on. Width follows the item's open minutes (a standard width, with the dashed edge, when there is no estimate) and each section fits the axis. The Unified layout is one queue across all projects.
 - The Gantt on the Release Board has a new Local layout next to Split and Unified. Local shows only the projects of the open folders and hides the extra chosen projects. It is now the default; pick Split or Unified to see all projects.
 - Internal refactor: Release Board patch writes for `Needs:` lines now go through one `writeNeeds` helper that hands over the write and its Undo record.
 - Internal refactor: board code split into small leaf modules so the modules no longer import each other in a cycle.

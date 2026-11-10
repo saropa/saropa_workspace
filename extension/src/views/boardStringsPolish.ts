@@ -23,6 +23,8 @@ export const POLISH_KEYS = [
   "ganttUnifiedTip",
   "ganttEmpty",
   "ganttAxis",
+  "ganttResizeLabel",
+  "ganttResizeTip",
   "ganttAxisStart",
   "ganttAxisEnd",
   "ganttGroup",
