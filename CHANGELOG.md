@@ -48,9 +48,11 @@ cspell:disable
 
 ## [Unreleased]
 
-Internal code cleanup only; nothing changes in how the extension looks or behaves.
+### Fixed
+- The status bar Release Board button no longer turns red because of the extra projects you chose; its color now follows only the projects of the folders open in this window.
 
 ### Changed
+- The Gantt on the Release Board has a new Local layout next to Split and Unified. Local shows only the projects of the open folders and hides the extra chosen projects. It is now the default; pick Split or Unified to see all projects.
 - Internal refactor: Release Board patch writes for `Needs:` lines now go through one `writeNeeds` helper that hands over the write and its Undo record.
 - Internal refactor: board code split into small leaf modules so the modules no longer import each other in a cycle.
 

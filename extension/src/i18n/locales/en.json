@@ -2063,6 +2063,8 @@
   "releaseBoard.polish.ganttKey": "Key\nCircle, diamond, half circle and check: blocks the release, review next, in progress, done.\nBar: position is work order, width is the step minutes known. A dashed edge means no minutes are known, so the bar has a standard width. Bars never overlap the step they wait on.\nArrows: what a row waits on and what waits on it. They show only for the row you point at or select.\nLight next to the project name: GO, UNVERIFIED or NO-GO. A closed project always shows how many items block the release.\nDimmed rows: finished work, kept as history (the latest twenty per project).\nDotted blue border: changed since you last looked.\nDrag a row onto a status at the top, a group you made, or the chain pill of another row, to change it. The row menu does the same from the keyboard.",
   "releaseBoard.polish.ganttKeyLabel": "Key",
   "releaseBoard.polish.ganttLayout": "How the Gantt lays out several projects.",
+  "releaseBoard.polish.ganttLocal": "Local",
+  "releaseBoard.polish.ganttLocalTip": "Only the projects of the folders open in this window, one section per project. The extra projects you chose are hidden.",
   "releaseBoard.polish.ganttSplit": "Split",
   "releaseBoard.polish.ganttSplitTip": "One section per project.",
   "releaseBoard.polish.ganttUnified": "Unified",

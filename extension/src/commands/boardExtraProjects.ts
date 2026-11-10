@@ -41,8 +41,8 @@ export function readGroupBy(): GroupBy {
 }
 
 export function readGanttLayout(): GanttLayout {
-  const v = vscode.workspace.getConfiguration(SECTION).get<string>("ganttLayout", "split");
-  return asGanttLayout(v) ?? "split";
+  const v = vscode.workspace.getConfiguration(SECTION).get<string>("ganttLayout", "local");
+  return asGanttLayout(v) ?? "local";
 }
 
 export async function writeGanttLayout(value: GanttLayout): Promise<void> {

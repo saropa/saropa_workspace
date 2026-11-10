@@ -15,6 +15,8 @@ export const POLISH_KEYS = [
   "ganttKey",
   "ganttKeyLabel",
   "ganttLayout",
+  "ganttLocal",
+  "ganttLocalTip",
   "ganttSplit",
   "ganttSplitTip",
   "ganttUnified",

@@ -242,15 +242,21 @@ export function ganttTab(selected: boolean, t: BoardStrings): string {
 
 // The Gantt tab's content: the key pill, the axis and one section per project.
 // The Split and Unified buttons, shown only when the projects could be told apart (two or more).
+const LAYOUT_KEYS: Record<GanttLayout, { label: string; tip: string }> = {
+  local: { label: "ganttLocal", tip: "ganttLocalTip" },
+  split: { label: "ganttSplit", tip: "ganttSplitTip" },
+  unified: { label: "ganttUnified", tip: "ganttUnifiedTip" },
+};
+
 export function layoutToggle(t: BoardStrings, layout: GanttLayout): string {
   const label = escapeHtml(pl(t, "ganttLayout"));
-  return `<span class="glay" role="group" aria-label="${label}" title="${label}">${GANTT_LAYOUTS.map((l) => `<button type="button" class="sec" data-glayout="${l}" aria-pressed="${l === layout}" ${tip(t, l === "split" ? "ganttSplitTip" : "ganttUnifiedTip")}>${escapeHtml(pl(t, l === "split" ? "ganttSplit" : "ganttUnified"))}</button>`).join("")}</span>`;
+  return `<span class="glay" role="group" aria-label="${label}" title="${label}">${GANTT_LAYOUTS.map((l) => `<button type="button" class="sec" data-glayout="${l}" aria-pressed="${l === layout}" ${tip(t, LAYOUT_KEYS[l].tip)}>${escapeHtml(pl(t, LAYOUT_KEYS[l].label))}</button>`).join("")}</span>`;
 }
 
 export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView, layout: GanttLayout = "split"): string {
   const groups = buildGantt(model, since, layout, pl(t, "scopeAll"));
   // The toggle needs the split view to count the projects, since the unified view is always one section.
-  const several = layout === "unified" ? buildGantt(model, since).length > 1 : groups.length > 1;
+  const several = layout === "split" ? groups.length > 1 : buildGantt(model, since, "split").length > 1;
   // The board size decides how many sections start open and how many rows each draws first; the user's own fold wins in the page.
   const layout0 = layoutFor(model.items.length);
   const open = openGroups(layout0, groups.map((g) => ({ id: g.id, blockers: g.blocks })));

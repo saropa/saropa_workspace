@@ -140,7 +140,9 @@ function inStoredOrder(items: BoardItem[], order: BoardModel["order"]): BoardIte
 // The groups of the Gantt, one per project that has a row, finished documents first and then
 // the open items in work order.
 export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLayout = "split", allName = "All projects"): GanttGroup[] {
-  const split = buildSplit(model, since, layout !== "unified");
+  // Local keeps only the projects of the open workspace folders, laid out like split.
+  const shown = layout === "local" ? { ...model, projects: model.projects.filter((p) => !p.extra) } : model;
+  const split = buildSplit(shown, since, layout !== "unified");
   const groups = layout === "unified" && split.length > 1 ? unify(split, allName) : split;
   const up = new Set(upNext(model).map((i) => i.id));
   for (const g of groups) {
