@@ -2,7 +2,7 @@ import defaultDict from "./severity.json";
 
 // Severity of a document, from a phrase dictionary. No AI: phrases found in the title
 // (weight 3), the first lines (weight 2) and, when dense enough, the body (weight 1).
-// Negated phrases ("no refund") do not count; code fences are stripped. Ported from the
+// Negated phrases ("no refund") do not count; code, link addresses and paths are stripped. Ported from the
 // prototype (scripts/release-board/score.py), which the golden test compares against.
 
 export type Severity = "extreme" | "critical" | "high" | "medium" | "low";
@@ -73,9 +73,20 @@ function count(t: string, phrase: string, negation: RegExp[]): number {
   return n;
 }
 
+// Only sentences count: code blocks, inline code, link addresses, web addresses and file
+// paths are removed, so a danger word inside them never raises the severity.
+function proseOnly(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`\n]*`/g, " ")
+    .replace(/\]\([^)\n]*\)/g, "]")
+    .replace(/https?:\/\/[^\s)>\]]+/gi, " ")
+    .replace(/[^\s()[\]"'<>]*[\\/][^\s()[\]"'<>]*\.[A-Za-z0-9]{1,8}(?![\w/\\])/g, " ");
+}
+
 // Scores a document's text and name against the dictionary: its severity and its audience.
 export function scoreDocument(text: string, path: string, dict: SeverityDict = DEFAULT_SEVERITY): { severity: Severity; audience: Audience } {
-  const stripped = text.replace(/```[\s\S]*?```/g, "");
+  const stripped = proseOnly(text);
   // Front matter and blank lines are not the title.
   const lines = stripped.replace(/^\uFEFF?(?:---\r?\n[\s\S]*?\r?\n---\r?\n)?/, "").replace(/^(?:\s*\r?\n)+/, "").split(/\r?\n/);
   const name = path.slice(path.lastIndexOf("/") + 1);

@@ -17,6 +17,13 @@ test("title and head phrases decide the level; code fences and negation are igno
   assert.equal(scoreDocument("# Notes\nA tip jar page.\n", "docs/notes.md").audience, "pro");
 });
 
+test("danger words inside inline code, link addresses, URLs and paths do not count", () => {
+  const link = "# Stability\n\nSee [`docs/handover/20260906_0016_memory_crashes_and_scan_cascade.md`](docs/handover/20260906_0016_memory_crashes_and_scan_cascade.md) for details.\n";
+  assert.equal(scoreDocument(link, "docs/ANALYSIS_stability.md").severity, "medium");
+  assert.equal(scoreDocument("# Stability\n\nThe tool crashes and the memory crashes again.\n", "docs/ANALYSIS_stability.md").severity, "critical");
+  assert.equal(scoreDocument("# Notes\n\nSee https://example.com/memory_crashes/crashes.html and docs/x/y_crashes.md and src\\crashes\\crashes.ts here.\n", "docs/notes.md").severity, "medium");
+});
+
 test("profiles decide which levels stop a release", () => {
   assert.ok(stops("rush", "critical") && !stops("rush", "high"));
   assert.ok(stops("deliberate", "high") && !stops("deliberate", "medium"));
