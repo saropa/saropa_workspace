@@ -27,17 +27,19 @@ def organize_and_prune_reports(
     project_root: Path,
     print_moves: bool = False,
     print_removed: bool = False,
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, int]:
     """
-    Core logic to organize files by YYYYMMDD prefix and remove empty directories.
+    Move report files into their folders and remove empty directories.
+    Returns (moved, already in place, not a report name, folders removed).
     """
     moved = 0
-    skipped = 0
+    in_place = 0
+    unmatched = 0
     removed = 0
 
     if not reports_root.exists():
         print(f"Warning: Reports directory '{reports_root}' does not exist.")
-        return moved, skipped, removed
+        return moved, in_place, unmatched, removed
 
     # ---------------------------------------------------------
     # 1. ORGANIZE FILES
@@ -56,9 +58,8 @@ def organize_and_prune_reports(
         if match or (date_prefix.isdigit() and len(date_prefix) == 8):
             target_dir = reports_root / date_prefix
             
-            # If the file is already in the correct folder, skip it
             if file_path.parent == target_dir:
-                skipped += 1
+                in_place += 1
                 continue
                 
             # Create the date folder if it doesn't exist
@@ -71,8 +72,8 @@ def organize_and_prune_reports(
             if print_moves:
                 print(f"Moved: {file_path.name} -> {date_prefix}/")
         else:
-            # Skip files that don't match the date pattern
-            skipped += 1
+            # Not a report name (e.g. image.png): leave it where it is
+            unmatched += 1
 
     # ---------------------------------------------------------
     # 2. PRUNE EMPTY FOLDERS
@@ -87,14 +88,14 @@ def organize_and_prune_reports(
                 if print_removed:
                     print(f"Removed empty folder: {dir_path.relative_to(project_root)}")
 
-    return moved, skipped, removed
+    return moved, in_place, unmatched, removed
 
 
 def main() -> int:
     reports_root = Path(__file__).resolve().parent
     repo_root = reports_root.parent
     
-    moved, skipped, removed = organize_and_prune_reports(
+    moved, in_place, unmatched, removed = organize_and_prune_reports(
         reports_root=reports_root,
         project_root=repo_root,
         print_moves=True,      # Set to True so you can see it working!
@@ -102,8 +103,9 @@ def main() -> int:
     )
     
     print(
-        f"\nDone. Moved {moved} file(s), skipped {skipped} file(s), "
-        f"removed {removed} empty folder(s)."
+        f"\nDone. Moved {moved} file(s). {in_place} already in the right folder. "
+        f"{unmatched} left alone (not a report name). "
+        f"Removed {removed} empty folder(s)."
     )
     return 0
 
