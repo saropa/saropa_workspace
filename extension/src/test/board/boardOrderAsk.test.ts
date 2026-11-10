@@ -265,12 +265,14 @@ test("Make this a real dependency: several answers ask which one; a row that alr
   });
   // One request at a time, each waited on until it is answered: the board refuses a second request while the
   // first is still running (busy notice) and drops one whose rev a repaint made stale, so both cases resend.
-  const makeDep = async (id: number, done: () => boolean): Promise<void> => {
-    let seen = __infoMessages().length;
+  // `done` sees only the notices that arrived after this request was first sent.
+  const makeDep = async (id: number, done: (fresh: string[]) => boolean): Promise<void> => {
+    const from = __infoMessages().length;
+    let seen = from;
     let sent = revOf(panel.webview.html);
     panel.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id, rev: sent });
     await settle(() => {
-      if (done()) {
+      if (done(__infoMessages().slice(from))) {
         return true;
       }
       const busy = __infoMessages().slice(seen).some((m) => m.startsWith("Release Board:"));
@@ -284,7 +286,7 @@ test("Make this a real dependency: several answers ask which one; a row that alr
   };
   // Bugs 0 and 1 have no answer that can become their own line: each gets a notice and nothing is written.
   for (const n of [0, 1]) {
-    await makeDep(n, () => __infoMessages().some((m) => m.startsWith(`Bug ${n} has no order answer`)));
+    await makeDep(n, (fresh) => fresh.some((m) => m.startsWith(`Bug ${n} has no order answer`)));
   }
   await makeDep(2, () => /Needs:/.test(text(2)));
   assert.equal(offered, 2, "both answers are offered");
