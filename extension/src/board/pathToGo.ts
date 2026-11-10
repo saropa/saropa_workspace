@@ -215,13 +215,15 @@ export function pathToGo(model: BoardModel, project: BoardProject, opts: PathOpt
   if (project.health?.deps === "failing") {
     steps.push({ kind: "deps", key: "deps", evidence: "failing", detail: project.health.depsDetail });
   }
-  for (const kind of ["lint", "tests"] as const) {
+  // Missing evidence and grey documents are notes on a GO project, not steps: GO keeps an empty path.
+  const notGo = project.light !== "go";
+  for (const kind of notGo ? (["lint", "tests"] as const) : []) {
     const s = evidenceStep(kind, project, opts);
     if (s) {
       steps.push(s);
     }
   }
-  if (project.reasons.includes("grey")) {
+  if (notGo && project.reasons.includes("grey")) {
     const folders = model.needsRule.filter((n) => n.project === project.id);
     if (folders.length === 0) {
       steps.push({ kind: "rules", key: "rules:", count: project.counts.grey });

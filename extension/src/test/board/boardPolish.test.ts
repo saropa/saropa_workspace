@@ -92,7 +92,8 @@ test("an item step is a link to its document, a lint step stays plain text with 
 });
 
 test("the rules step is plain text: the rules file opens only from the menus", () => {
-  const m = buildBoard(cfg, [row("docs/loose/a.md", "grey")], undefined, true, snapshot({}, { "docs/loose": 3 }));
+  // Grey documents are a step only while the project is not GO; the unaccepted scan keeps it amber.
+  const m = buildBoard(cfg, [row("docs/loose/a.md", "grey")], undefined, false, snapshot({}, { "docs/loose": 3 }));
   const p = pathToGo(m, m.projects[0], { maxSteps: 8, canRun: () => false });
   const html = renderBoard(m, t, "n", 1, {}, [p]);
   assert.ok(html.includes("ptgRules"), "the step is still listed");

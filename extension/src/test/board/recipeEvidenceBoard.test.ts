@@ -138,13 +138,13 @@ test("Path to GO: a failing build is its own step, ahead of lint and tests", () 
 
 test("Path to GO: the daily report job note rides on a missing step, with the turn-on button for 'off'", () => {
   const h: ProjectHealth = { ...evaluateHealth({ lintApplies: false }, undefined, undefined, NOW), feeds: { tests: { state: "off" } } };
-  const m = buildBoard(cfg, [], undefined, true, undefined, undefined, { app: h });
+  const m = buildBoard(cfg, [], undefined, false, undefined, undefined, { app: h });
   const s = pathToGo(m, m.projects[0], opts).steps.find((x) => x.kind === "tests")!;
   assert.equal(s.evidence, "missing");
   assert.equal(s.feed, "off");
   assert.equal(s.enable, true);
   const checking: ProjectHealth = { ...h, feeds: { tests: { state: "checking" } } };
-  const c = pathToGo(buildBoard(cfg, [], undefined, true, undefined, undefined, { app: checking }), buildBoard(cfg, [], undefined, true, undefined, undefined, { app: checking }).projects[0], opts).steps[0];
+  const c = pathToGo(buildBoard(cfg, [], undefined, false, undefined, undefined, { app: checking }), buildBoard(cfg, [], undefined, false, undefined, undefined, { app: checking }).projects[0], opts).steps[0];
   assert.equal(c.feed, "checking");
   assert.equal(c.enable, undefined);
 });
@@ -162,8 +162,9 @@ test("Path to GO: a build note appears only while the project is not GO, so GO k
   const goModel = buildBoard(cfg, [], undefined, true, undefined, undefined, { app: goWithNote });
   assert.equal(goModel.projects[0].light, "go");
   assert.deepEqual(pathToGo(goModel, goModel.projects[0], opts).steps, []);
+  // Not GO through an allowed reason: the scan is not accepted.
   const notGo: ProjectHealth = { ...evaluateHealth(undefined, undefined, undefined, NOW), feeds: { build: { state: "off" } } };
-  const m = buildBoard(cfg, [], undefined, true, undefined, undefined, { app: notGo });
+  const m = buildBoard(cfg, [], undefined, false, undefined, undefined, { app: notGo });
   const build = pathToGo(m, m.projects[0], opts).steps.find((x) => x.kind === "build")!;
   assert.equal(build.feed, "off");
   assert.equal(build.enable, true);
@@ -187,15 +188,17 @@ const t: BoardStrings = new Proxy({} as BoardStrings, {
   },
 });
 
+// The scan is not accepted, so the project is amber and shows its path (a GO project has none).
 function html(h: ProjectHealth): string {
-  const m = buildBoard(cfg, [], undefined, true, undefined, undefined, { app: h });
+  const m = buildBoard(cfg, [], undefined, false, undefined, undefined, { app: h });
   return renderBoard(m, t, "N", 1, {}, m.projects.map((p) => pathToGo(m, p, opts)));
 }
 
 test("html: the off note reads 'Turn on the daily test report' with Turn on and the earlier run button, no path in the page", () => {
   const out = html({ ...evaluateHealth({ lintApplies: false }, undefined, undefined, NOW), feeds: { tests: { state: "off" } } });
   assert.ok(out.includes("Turn on the daily test report"));
-  const buttons = out.match(/<button class="ptgb"[^>]*>[^<]*<\/button>/g) ?? [];
+  // The unaccepted scan adds its own Accept step; only the evidence buttons are counted here.
+  const buttons = (out.match(/<button class="ptgb"[^>]*>[^<]*<\/button>/g) ?? []).filter((b) => b.includes('data-run="1"'));
   assert.equal(buttons.length, 2);
   assert.equal(buttons[0], '<button class="ptgb" data-p="0" data-s="0" data-run="1" title="ptgEnable">Turn on</button>');
   assert.equal(buttons[1], '<button class="ptgb" data-p="0" data-s="0" data-run="1" title="ptgRunTests">[ptgRunTests] {title} {count}</button>');
@@ -204,7 +207,7 @@ test("html: the off note reads 'Turn on the daily test report' with Turn on and 
 
 test("html: while a job checks or waits there is no run button", () => {
   const out = html({ ...evaluateHealth({ lintApplies: false }, undefined, undefined, NOW), feeds: { tests: { state: "checking" } } });
-  assert.equal((out.match(/<button class="ptgb"/g) ?? []).length, 0);
+  assert.equal((out.match(/<button class="ptgb"[^>]*data-run="1"/g) ?? []).length, 0);
 });
 
 test("html: a running job shows 'Checking the build now.' on the row and in the list", () => {

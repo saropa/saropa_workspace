@@ -99,14 +99,17 @@ test("failing evidence is named as failing, missing as missing", () => {
   assert.equal(pathOf(board([], true, { app: failLint })).steps[0].evidence, "failing");
   const t = pathOf(board([], true, { app: failTests })).steps;
   assert.deepEqual(t.map((s) => [s.kind, s.evidence]), [["tests", "failing"]]);
-  const missing = pathOf(board([], true, { app: noHealth })).steps;
+  // Missing evidence is a step only while the project is not GO; an unaccepted scan keeps it amber.
+  assert.deepEqual(pathOf(board([], true, { app: noHealth })).steps, [], "a GO project keeps an empty path");
+  const missing = pathOf(board([], false, { app: noHealth })).steps.filter((s) => s.kind !== "accept");
   assert.deepEqual(missing.map((s) => [s.kind, s.evidence]), [["lint", "missing"], ["tests", "missing"]]);
 });
 
 test("run buttons need a shortcut the project names", () => {
-  const m = board([], true, { app: noHealth });
-  assert.deepEqual(pathOf(m, "app", { maxSteps: 8, canRun: (k) => k === "lint" }).steps.map((s) => s.run), [true, false]);
-  assert.deepEqual(pathOf(m, "app", { maxSteps: 8, canRun: () => false }).steps.map((s) => s.run), [false, false]);
+  const m = board([], false, { app: noHealth });
+  const runs = (o: PathOptions) => pathOf(m, "app", o).steps.filter((s) => s.kind !== "accept").map((s) => s.run);
+  assert.deepEqual(runs({ maxSteps: 8, canRun: (k) => k === "lint" }), [true, false]);
+  assert.deepEqual(runs({ maxSteps: 8, canRun: () => false }), [false, false]);
 });
 
 test("order: most waiting documents freed first, then red, then severity; evidence after", () => {
@@ -178,11 +181,11 @@ test("item keys follow the document path, and carry no path", () => {
 });
 
 test("the one-step and per-folder rules forms share a key", () => {
-  const m = board([row("app", "docs/G.md", "grey")], true, { app: goodHealth });
+  const m = board([row("app", "docs/G.md", "grey")], false, { app: goodHealth });
   m.needsRule = [{ project: "app", folder: "docs", count: 1 }];
   assert.ok(pathOf(m).allKeys.includes("rules:"));
   m.needsRule = [];
-  assert.deepEqual(pathOf(m).allKeys, ["rules:"]);
+  assert.deepEqual(pathOf(m).allKeys.filter((k) => k !== "accept"), ["rules:"]);
 });
 
 test("html: a stale or loading paint has no buttons and is not live; the profile is kept for the page memory", () => {
@@ -196,7 +199,7 @@ test("html: a stale or loading paint has no buttons and is not live; the profile
     assert.ok(html.includes('data-live="0"'));
     assert.ok(!html.includes('class="ptgb"'), "no step buttons while the board cannot act");
   }
-  const ev = board([], true, { app: noHealth });
+  const ev = board([], false, { app: noHealth });
   const evHtml = renderBoard(ev, t, "N", 1, {}, ev.projects.map((p) => pathToGo(ev, p, opts)));
   assert.ok(/class="ptgb" data-p="0" data-s="0" data-run="1"/.test(evHtml), "run buttons are marked so the page can disable them");
 });

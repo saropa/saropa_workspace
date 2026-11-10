@@ -187,8 +187,12 @@ test("live evidence marks the row and leaves every light and reason as it was", 
 test("a clean project with live errors is not made NO-GO and a GO is not made greener", () => {
   const go = buildBoard(cfg, [], undefined, true, snapshot, undefined, healthy, { live });
   assert.equal(go.projects[0].light, "go");
-  const unverified = buildBoard(cfg, rows, undefined, true, snapshot, undefined, { app: { ...healthy.app, clean: false, lint: "missing" } }, { live });
-  assert.notEqual(unverified.projects[0].light, "go");
+  // Amber comes only from an unaccepted scan or an unread severity; missing lint evidence is a note and leaves GO as GO.
+  const noEvidence = { app: { ...healthy.app, clean: false, lint: "missing" as const } };
+  assert.equal(buildBoard(cfg, rows, undefined, true, snapshot, undefined, noEvidence, { live }).projects[0].light, "go");
+  const unverified = buildBoard(cfg, rows, undefined, false, snapshot, undefined, healthy, { live });
+  assert.equal(unverified.projects[0].light, "unverified");
+  assert.equal(unverified.projects[0].light, buildBoard(cfg, rows, undefined, false, snapshot, undefined, healthy).projects[0].light);
 });
 
 test("the unnamed box lists a crash in a file no open document names, with the project's bugs folder", () => {

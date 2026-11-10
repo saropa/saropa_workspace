@@ -191,8 +191,9 @@ test("a Needs link shows a link mark and the blocker count of the document it wa
   assert.ok(html.includes('class="link blocks"'));
 });
 
+// The scan is not accepted, so the project is never GO and its missing evidence stays a step.
 const pathFor = (rows: Classified[], canRun: boolean): { path: PathToGo; m: ReturnType<typeof buildBoard> } => {
-  const m = buildBoard(cfg, rows, undefined, true);
+  const m = buildBoard(cfg, rows, undefined, false);
   return { m, path: pathToGo(m, m.projects[0], { maxSteps: 8, canRun: () => canRun }) };
 };
 
