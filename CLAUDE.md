@@ -18,6 +18,11 @@
   every changed CSS literal, default value and output order grepped in
   `extension/src/test` and README.md, and matching tests updated (builders
   cannot run tests, so a stale assertion is only caught by this grep).
+- A test that waits for the board to repaint waits on the result it needs
+  (the file written, the row shown), resending the message when it is refused
+  or the rev changes. Never on a count of `flushEvents` turns, which is not
+  time. A timing fix is verified by running its file alongside other test files
+  at once, not only alone.
 - Cap review at one fix round per build. A second round happens only for a
   data-loss or security finding. Low findings are fixed in the same round or
   dropped; never carried into a new round.
