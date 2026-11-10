@@ -189,8 +189,19 @@ test("row menu: ask where this goes, forget order answers; unknown ids and non-b
     asked++;
     return items[1];
   });
-  panel.webview.__receiveFromClient({ type: "rowMenu", act: "order", id: 2, rev: rev() });
-  await settle(() => asked > 0);
+  // The board refuses the request with a busy notice while the Undo write or its rescan is still running, and
+  // drops it when a repaint makes its rev stale, so it is sent again after each refusal or repaint until it is asked.
+  let refusals = __infoMessages().length;
+  let sent = rev();
+  panel.webview.__receiveFromClient({ type: "rowMenu", act: "order", id: 2, rev: sent });
+  await settle(() => {
+    if (asked === 0 && (__infoMessages().length > refusals || rev() !== sent)) {
+      refusals = __infoMessages().length;
+      sent = rev();
+      panel.webview.__receiveFromClient({ type: "rowMenu", act: "order", id: 2, rev: sent });
+    }
+    return asked > 0;
+  });
 });
 
 test("row menu: Make this a real dependency writes one Needs line with one Undo, refuses a stale rev and keeps the answer", async () => {
