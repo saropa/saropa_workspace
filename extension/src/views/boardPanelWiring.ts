@@ -107,7 +107,7 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
     vscode.workspace.onDidChangeWorkspaceFolders(() => this.poke(300), null, this.disposables);
     vscode.workspace.onDidChangeConfiguration(
       (e) => {
-        if (["enabled", "profile", "projects", "projectScope", ...REPORT_SETTINGS].some((k) => e.affectsConfiguration(`saropaWorkspace.releaseBoard.${k}`))) {
+        if (["enabled", "profile", "projects", "projectScope", "exclude", "includeGitIgnored", ...REPORT_SETTINGS].some((k) => e.affectsConfiguration(`saropaWorkspace.releaseBoard.${k}`))) {
           this.poke(300);
         } else if (this.onlyStartupChanged(e)) {
           // Only the start-up checkbox changed: draw the stored scan again, nothing else.

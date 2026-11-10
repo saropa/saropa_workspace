@@ -145,8 +145,9 @@ export async function loadConfig(): Promise<BoardConfig> {
   const chosen = setting?.workspaceFolderValue ?? setting?.workspaceValue ?? setting?.globalValue;
   cfg = { ...cfg, profile: asProfile(chosen ?? cfg.profile) };
   // Globs from settings are added to the ignore list of the rules file.
-  const exclude = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<string[]>("exclude", []);
-  cfg = { ...cfg, ignore: [...cfg.ignore, ...exclude] };
+  const boardSettings = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard");
+  const exclude = boardSettings.get<string[]>("exclude", []);
+  cfg = { ...cfg, ignore: [...cfg.ignore, ...exclude], includeGitIgnored: boardSettings.get<boolean>("includeGitIgnored", false) === true };
   const open = await openProjects(cfg, folders);
   // The user's extra projects follow the open ones, read the same way.
   const extra = await loadExtraProjects(new Set(open.map((p) => p.id)), uniqueProjectId, DEFAULT_ROOTS, ruleSetsFor(cfg));

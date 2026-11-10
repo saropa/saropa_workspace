@@ -36,6 +36,9 @@ export interface FileSource {
   // The whole text of a file; read only for open documents, to take their facts. A source
   // without it simply yields no facts.
   readText?(projectDir: string, path: string): Promise<string>;
+  // Which of these project-relative paths git ignores in the project's repository. A source
+  // without it hides nothing.
+  gitIgnored?(projectDir: string, paths: string[]): Promise<Set<string>>;
 }
 
 // Cache entry per file: the size and modified time the cached Status word belongs to.
@@ -176,7 +179,7 @@ export type FactsMode = "all" | "cached";
 
 // Lists every root at once, drops duplicates and files the scan does not want, and sorts by path.
 // A missing root is empty; any other error surfaces.
-async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: string) => boolean): Promise<ScanFile[]> {
+async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: string) => boolean, includeGitIgnored: boolean): Promise<ScanFile[]> {
   const listings = await mapLimit(project.roots, PROJECT_PARALLEL, async (root) => {
     try {
       return await source.list(project.path, root, wanted, project.extra === true);
@@ -200,7 +203,12 @@ async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: st
   }
   // The same order whatever order the file source listed them in.
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return files;
+  if (includeGitIgnored || !source.gitIgnored) {
+    return files;
+  }
+  // One batched git call per project; documents git ignores are left out of the board.
+  const ignored = await source.gitIgnored(project.path, files.map((f) => f.path));
+  return ignored.size === 0 ? files : files.filter((f) => !ignored.has(f.path));
 }
 
 // Status words: cached by size and modified time, the rest read in parallel. Returns the
@@ -297,7 +305,7 @@ export async function scanProject(
 
   const wanted = (p: string): boolean => !p.endsWith(".tmp") && exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
   // 1. List every root at once.
-  const files = await listFiles(project, source, wanted);
+  const files = await listFiles(project, source, wanted, cfg.includeGitIgnored === true);
   // 2. Status words.
   const { words, headReads } = await readStatusWords(project, source, cp, files, previous);
   // 3. Classify, in file order, and count.

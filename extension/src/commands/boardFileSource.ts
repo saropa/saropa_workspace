@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { FileSource } from "../board/scanner";
+import { gitIgnoredPaths } from "../board/gitIgnored";
 import { mapLimit } from "../board/pool";
 import { ScanFile } from "../board/types";
 
@@ -64,6 +65,11 @@ export function workspaceFileSource(): FileSource {
     async readHead(projectDir: string, p: string, lines: number): Promise<string> {
       const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
       return Buffer.from(bytes).toString("utf8").split(/\r?\n/).slice(0, lines).join("\n");
+    },
+    // Only a folder on this machine can be asked; a remote or virtual one hides nothing.
+    async gitIgnored(projectDir: string, paths: string[]): Promise<Set<string>> {
+      const uri = vscode.Uri.parse(projectDir);
+      return uri.scheme === "file" ? gitIgnoredPaths(uri.fsPath, paths) : new Set();
     },
     async readText(projectDir: string, p: string): Promise<string> {
       const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(vscode.Uri.parse(projectDir), p));
