@@ -48,7 +48,8 @@ cspell:disable
 
 ## [Unreleased]
 
-Internal code cleanup only; nothing changes in how the extension looks or behaves.
+### Added
+- Release Board Gantt: drag the edge of the name column to resize it (double-click resets, Left and Right keys move it when focused); the width is remembered.
 
 ### Changed
 - Internal refactor: Release Board patch writes for `Needs:` lines now go through one `writeNeeds` helper that hands over the write and its Undo record.

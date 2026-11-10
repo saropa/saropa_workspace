@@ -48,6 +48,17 @@ test("a finished document an open item needed stays as a dimmed history row", ()
   assert.ok(ganttPanel(model, t).includes('class="gr done"'));
 });
 
+test("the Gantt has a keyboard-reachable column splitter whose width the script reads back and sets as a CSS variable", () => {
+  const html = ganttPanel(model, t);
+  assert.ok(html.includes('id="gSplit" role="separator" aria-orientation="vertical" tabindex="0"'));
+  assert.ok(/aria-valuemin="\d+" aria-valuemax="\d+" aria-valuenow="\d+" aria-label="ganttSplitLabel" title="ganttSplitTip"/.test(html));
+  assert.ok(STYLE.includes("grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr"), "both grids take the shared width");
+  assert.ok(!STYLE.includes("grid-template-columns:minmax(200px,45%) 1fr"));
+  assert.ok(STYLE.includes(".gsplit{display:none}"), "narrow screens keep today's layout");
+  assert.ok(GANTT_SCRIPT.includes("S0.gsplit") && GANTT_SCRIPT.includes("gsplit:W") && GANTT_SCRIPT.includes("--gcol"));
+  assert.ok(GANTT_SCRIPT.includes("'dblclick'") && GANTT_SCRIPT.includes("'ArrowLeft'") && GANTT_SCRIPT.includes("'ArrowRight'"));
+});
+
 test("the panel escapes titles and names, closes each group with its light and carries the key pill", () => {
   const html = ganttPanel(model, t);
   assert.ok(!html.includes("<i>") && !html.includes("<b>"));
