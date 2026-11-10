@@ -19,8 +19,8 @@ export const GANTT_STYLE = `
 #gSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5}#gSvg path{fill:none;stroke:var(--amber);stroke-width:1.5;marker-end:url(#gAr)}#gAr path{fill:var(--amber)}
 .gaxis{display:grid;grid-template-columns:minmax(200px,45%) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
 .gaxis .ticks{display:flex;justify-content:space-between;margin:0 10px}
-.gh{display:flex;align-items:center;gap:8px;margin:0;padding:0 10px;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
-.gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 0}.gtog::before{content:"\\25BE";color:var(--mute)}.gtog[aria-expanded=false]::before{content:"\\25B8"}
+.gh{display:flex;align-items:center;gap:8px;margin:0;padding:0;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
+.gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 10px}
 .gh .go{flex:none}.gcn{color:var(--mute);font-weight:400;white-space:nowrap}.gcn .gred{color:var(--red);font-weight:600}
 .gg.col .grows,.gg.col [data-rowsmore],.gg.col .gf{display:none}.gr[hidden]{display:none}
 .gsub{list-style:none;padding:0 10px 0 22px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);background:color-mix(in srgb,var(--panel) 60%,transparent)}
