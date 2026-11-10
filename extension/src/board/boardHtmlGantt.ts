@@ -44,7 +44,7 @@ export const GANTT_STYLE = `
 .bar.green{border-color:color-mix(in srgb,var(--green) 40%,transparent);background:color-mix(in srgb,var(--green) 10%,transparent)}
 .bar.est{border-style:dashed}.gr.rel .bar{box-shadow:0 0 0 1px var(--amber)}
 .gf{display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px dashed var(--line);color:var(--mute)}
-.bar.est{width:3.5em;min-width:3.5em}
+.bar.est{min-width:3.5em}
 @media (max-width:480px){.gsplit{display:none}.gaxis,.gr{grid-template-columns:minmax(0,1fr) 84px}.gl .tt{white-space:normal;overflow-wrap:anywhere}.gaxis .ticks{margin:0 4px}.gt{margin:0 6px}}
 `;
 
