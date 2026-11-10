@@ -28,11 +28,14 @@ afterEach(() => {
 const t: BoardStrings = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "more" || k === "blocked" || k === "reasonGrey" ? `${k} {count}` : `[${k}]`) });
 const revOf = (html: string): number => Number(/const REV=(\d+)/.exec(html)?.[1]);
 // The board paints more than once after it opens (a quick paint, then the finished scan); a message sent
-// with an earlier rev is dropped, so wait until the page stops changing.
+// with an earlier rev is dropped, so wait until the rev holds for three pauses in a row (at most 40 pauses).
 async function quiet(panel: { webview: { html: string } }): Promise<void> {
-  for (let last = -1; revOf(panel.webview.html) !== last; ) {
-    last = revOf(panel.webview.html);
+  let last = revOf(panel.webview.html);
+  for (let still = 0, turns = 0; still < 3 && turns < 40; turns++) {
     await flushEvents(150);
+    const now = revOf(panel.webview.html);
+    still = now === last ? still + 1 : 0;
+    last = now;
   }
 }
 const FILE = "release-board-marks.json";
