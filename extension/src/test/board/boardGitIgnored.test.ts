@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { gitIgnoredPaths } from "../../board/gitIgnored";
 import { nodeFileSource } from "../../board/nodeSource";
 import { scanProject } from "../../board/scanner";
 import { BoardConfig } from "../../board/types";
@@ -69,4 +70,19 @@ test("a git-ignored document is shown when the setting is on", async (t) => {
 
 test("a folder that is not a git repository hides nothing", async () => {
   assert.deepEqual(await listed("plain", false), ["plans/kept.md", "plans/secret.md"]);
+});
+
+test("a path under a symlinked folder stays shown and does not spoil the batch", async (t) => {
+  if (!gitOk) {
+    t.skip("git is not available");
+    return;
+  }
+  try {
+    fs.symlinkSync(path.join(base, "plain/plans"), path.join(base, "repo/linked"), "dir");
+  } catch {
+    t.skip("symlinks cannot be made here");
+    return;
+  }
+  const ignored = await gitIgnoredPaths(path.join(base, "repo"), ["plans/secret.md", "linked/kept.md"]);
+  assert.deepEqual([...ignored], ["plans/secret.md"]);
 });
