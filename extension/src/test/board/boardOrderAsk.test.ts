@@ -27,6 +27,14 @@ afterEach(() => {
 
 const t: BoardStrings = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "more" || k === "blocked" || k === "reasonGrey" ? `${k} {count}` : `[${k}]`) });
 const revOf = (html: string): number => Number(/const REV=(\d+)/.exec(html)?.[1]);
+// The board paints more than once after it opens (a quick paint, then the finished scan); a message sent
+// with an earlier rev is dropped, so wait until the page stops changing.
+async function quiet(panel: { webview: { html: string } }): Promise<void> {
+  for (let last = -1; revOf(panel.webview.html) !== last; ) {
+    last = revOf(panel.webview.html);
+    await flushEvents(150);
+  }
+}
 const FILE = "release-board-marks.json";
 
 // A workspace with `n` open bugs, all marked as blocking (project answered), plus one plain document.
@@ -244,6 +252,7 @@ test("Make this a real dependency: several answers ask which one; a row that alr
   const panel = __lastWebviewPanel();
   assert.ok(panel);
   await settle(() => panel.webview.html.includes('data-act="makeDep"'));
+  await quiet(panel);
   const text = (n: number): string => fs.readFileSync(path.join(dir, "bugs", `BUG_${n}.md`), "utf8");
   const before = [0, 1, 2].map(text);
   let offered = 0;
@@ -266,8 +275,10 @@ test("Make this a real dependency: several answers ask which one; a row that alr
   await openBoard(contextIn(dir2));
   const panel2 = __lastWebviewPanel();
   assert.ok(panel2);
-  // The board reuses its panel, so wait until it shows the second folder (two bugs) and not the first (three).
-  await settle(() => panel2.webview.html.includes('data-act="forgetOrder"') && !panel2.webview.html.includes("Bug 2"));
+  // The board reuses its panel, so wait until it shows the second folder's rows (no BUG_2.md row; "Bug 2" can
+  // still appear in the since-you-left strip), then until it stops repainting.
+  await settle(() => panel2.webview.html.includes('data-act="forgetOrder"') && !panel2.webview.html.includes("BUG_2.md"));
+  await quiet(panel2);
   assert.ok(!panel2.webview.html.includes('data-oa="1"'), "the menu entry is hidden when no answer can become a line");
   const b2 = fs.readFileSync(path.join(dir2, "bugs", "BUG_1.md"), "utf8");
   for (const id of [0, 1]) {
