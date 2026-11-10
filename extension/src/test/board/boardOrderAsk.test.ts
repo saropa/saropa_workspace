@@ -266,7 +266,8 @@ test("Make this a real dependency: several answers ask which one; a row that alr
   await openBoard(contextIn(dir2));
   const panel2 = __lastWebviewPanel();
   assert.ok(panel2);
-  await settle(() => panel2.webview.html.includes('data-act="forgetOrder"'));
+  // The board reuses its panel, so wait until it shows the second folder (two bugs) and not the first (three).
+  await settle(() => panel2.webview.html.includes('data-act="forgetOrder"') && !panel2.webview.html.includes("Bug 2"));
   assert.ok(!panel2.webview.html.includes('data-oa="1"'), "the menu entry is hidden when no answer can become a line");
   const b2 = fs.readFileSync(path.join(dir2, "bugs", "BUG_1.md"), "utf8");
   for (const id of [0, 1]) {
