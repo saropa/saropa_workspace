@@ -51,7 +51,7 @@ test("a finished document an open item needed stays as a dimmed history row", ()
 test("the Gantt has a keyboard-reachable column splitter whose width the script reads back and sets as a CSS variable", () => {
   const html = ganttPanel(model, t);
   assert.ok(html.includes('id="gSplit" role="separator" aria-orientation="vertical" tabindex="0"'));
-  assert.ok(/aria-valuemin="\d+" aria-valuemax="\d+" aria-valuenow="\d+" aria-label="ganttSplitLabel" title="ganttSplitTip"/.test(html));
+  assert.ok(/aria-valuemin="\d+" aria-valuemax="\d+" aria-valuenow="\d+" aria-label="ganttResizeLabel" title="ganttResizeTip"/.test(html));
   assert.ok(STYLE.includes("grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr"), "both grids take the shared width");
   assert.ok(!STYLE.includes("grid-template-columns:minmax(200px,45%) 1fr"));
   assert.ok(STYLE.includes(".gsplit{display:none}"), "narrow screens keep today's layout");
@@ -165,6 +165,27 @@ test("unified puts every project's rows in one group, finished first, in work or
   assert.ok(split.every((g) => g.rows.every((r) => r.project === undefined)), "split rows carry no project name");
 });
 
+test("local drops the extra projects and keeps the toggle; split keeps them", () => {
+  const m = twoProjects();
+  m.projects.find((p) => p.id === "lib")!.extra = true;
+  assert.deepEqual(buildGantt(m, undefined, "local").map((g) => g.id), ["app"]);
+  assert.equal(buildGantt(m, undefined, "split").length, 2);
+  const html = ganttPanel(m, t, undefined, "local");
+  assert.equal(html.match(/data-glayout="/g)?.length, 3);
+  assert.ok(html.includes('data-glayout="local" aria-pressed="true"'));
+});
+
+test("local scales bars and the Up next box from the open projects only", () => {
+  const m = twoProjects();
+  m.projects.find((p) => p.id === "lib")!.extra = true;
+  for (const i of m.items.filter((x) => x.project === "lib")) {
+    i.openMinutes = 6000;
+  }
+  const widest = (layout: "local" | "split") => Math.max(...buildGantt(m, undefined, layout).find((g) => g.id === "app")!.rows.map((r) => r.width));
+  assert.ok(widest("local") > widest("split"), "a hidden project's long step does not shrink the bars");
+  assert.ok(!ganttPanel(m, t, undefined, "local").includes("Lib"), "no hidden project's name appears");
+});
+
 test("the unified list starts with a blocker", () => {
   const [u] = buildGantt(twoProjects(), undefined, "unified", "All projects");
   assert.equal(u.rows.find((r) => r.id !== undefined)!.status, "red");
@@ -179,7 +200,7 @@ test("the toggle shows with two projects in either layout, marks the current one
   const m = twoProjects();
   for (const layout of ["split", "unified"] as const) {
     const html = ganttPanel(m, t, undefined, layout);
-    assert.equal(html.match(/data-glayout="/g)?.length, 2);
+    assert.equal(html.match(/data-glayout="/g)?.length, 3);
     assert.ok(html.includes(`data-glayout="${layout}" aria-pressed="true"`));
     assert.ok(html.includes('aria-pressed="false"') && html.includes('title="ganttSplitTip"'));
   }
@@ -194,6 +215,7 @@ test("Show more works with the unified group id, and a layout message value is c
   assert.equal(ganttRows(m, t, undefined, "all", 1, "split"), undefined);
   assert.equal(asGanttLayout("unified"), "unified");
   assert.equal(asGanttLayout("split"), "split");
+  assert.equal(asGanttLayout("local"), "local");
   for (const bad of ["", "Unified", "all", 1, null, undefined, {}]) {
     assert.equal(asGanttLayout(bad), undefined);
   }

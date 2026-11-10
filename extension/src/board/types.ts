@@ -191,8 +191,9 @@ export function emptyCounts(): StatusCounts {
 export const GROUP_BYS = ["project", "group", "status", "severity", "none"] as const;
 export type GroupBy = (typeof GROUP_BYS)[number];
 
-// How the Gantt lays out several projects: one section each, or all rows in one section.
-export const GANTT_LAYOUTS = ["split", "unified"] as const;
+// How the Gantt lays out several projects: only the open workspace's projects, one section
+// each (local, the default), every project one section each, or all rows in one section.
+export const GANTT_LAYOUTS = ["local", "split", "unified"] as const;
 export type GanttLayout = (typeof GANTT_LAYOUTS)[number];
 
 // The layout a message or setting names, or undefined for anything outside the fixed list.

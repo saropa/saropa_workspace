@@ -2,7 +2,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lightTooltip } from "../../commands/boardStatusLight";
+import { lightBackgroundId, lightTooltip, localWorstLight } from "../../commands/boardStatusLight";
+import type { BoardModel } from "../../board/boardModel";
 import { l10n } from "../../i18n/l10n";
 
 test("with no light the tooltip is the plain one", () => {
@@ -17,6 +18,20 @@ test("a light adds its name first and the plain tooltip last", () => {
 test("the stale note and the since-last lines sit between them, in order", () => {
   const lines = lightTooltip("go", "stale", ["heading", "one change"], "plain").split("\n");
   assert.deepEqual(lines, [l10n("releaseBoard.panel.go"), "stale", "heading", "one change", "plain"]);
+});
+
+test("the button light ignores the extra chosen projects", () => {
+  const p = (light: "no-go" | "unverified" | "go", extra?: boolean) => ({ light, ...(extra ? { extra } : {}) }) as unknown as BoardModel["projects"][number];
+  assert.equal(localWorstLight({ projects: [p("go"), p("no-go", true)] }), "go");
+  assert.equal(localWorstLight({ projects: [p("go"), p("unverified")] }), "unverified");
+  assert.equal(localWorstLight({ projects: [p("no-go", true)] }), undefined);
+});
+
+test("only a blocker gets a background", () => {
+  assert.equal(lightBackgroundId("no-go"), "statusBarItem.errorBackground");
+  assert.equal(lightBackgroundId("unverified"), undefined);
+  assert.equal(lightBackgroundId("go"), undefined);
+  assert.equal(lightBackgroundId(undefined), undefined);
 });
 
 test("each light has its own words", () => {

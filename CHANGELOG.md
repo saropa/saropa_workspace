@@ -51,7 +51,11 @@ cspell:disable
 ### Added
 - Release Board Gantt: drag the edge of the name column to resize it (double-click resets, Left and Right keys move it when focused); the width is remembered.
 
+### Fixed
+- The status bar Release Board button only turns red when a project has a blocker; open or unchecked work no longer colors it. Only the projects of the folders open in this window count, never the extra projects you chose.
+
 ### Changed
+- The Gantt on the Release Board has a new Local layout next to Split and Unified. Local shows only the projects of the open folders and hides the extra chosen projects. It is now the default; pick Split or Unified to see all projects.
 - Internal refactor: Release Board patch writes for `Needs:` lines now go through one `writeNeeds` helper that hands over the write and its Undo record.
 - Internal refactor: board code split into small leaf modules so the modules no longer import each other in a cycle.
 

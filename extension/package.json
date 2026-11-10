@@ -2527,9 +2527,9 @@
           },
           "saropaWorkspace.releaseBoard.ganttLayout": {
             "type": "string",
-            "enum": ["split", "unified"],
-            "enumDescriptions": ["%config.releaseBoard.ganttLayout.split%", "%config.releaseBoard.ganttLayout.unified%"],
-            "default": "split",
+            "enum": ["local", "split", "unified"],
+            "enumDescriptions": ["%config.releaseBoard.ganttLayout.local%", "%config.releaseBoard.ganttLayout.split%", "%config.releaseBoard.ganttLayout.unified%"],
+            "default": "local",
             "description": "%config.releaseBoard.ganttLayout.description%"
           },
           "saropaWorkspace.releaseBoard.projects": {

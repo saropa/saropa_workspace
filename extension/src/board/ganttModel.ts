@@ -137,12 +137,19 @@ function inStoredOrder(items: BoardItem[], order: BoardModel["order"]): BoardIte
   return out;
 }
 
+// The model the layout draws: Local keeps only the projects of the open workspace folders and their items.
+export function shownModel(model: BoardModel, layout: GanttLayout): BoardModel {
+  const hidden = new Set(model.projects.filter((p) => p.extra).map((p) => p.id));
+  return layout !== "local" || hidden.size === 0 ? model : { ...model, projects: model.projects.filter((p) => !hidden.has(p.id)), items: model.items.filter((i) => !hidden.has(i.project)) };
+}
+
 // The groups of the Gantt, one per project that has a row, finished documents first and then
 // the open items in work order.
-export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLayout = "split", allName = "All projects"): GanttGroup[] {
-  const split = buildSplit(model, since, layout !== "unified");
+export function buildGantt(model: BoardModel, since?: SinceView, layout: GanttLayout = "local", allName = "All projects"): GanttGroup[] {
+  const shown = shownModel(model, layout);
+  const split = buildSplit(shown, since, layout !== "unified");
   const groups = layout === "unified" && split.length > 1 ? unify(split, allName) : split;
-  const up = new Set(upNext(model).map((i) => i.id));
+  const up = new Set(upNext(shown).map((i) => i.id));
   for (const g of groups) {
     for (const r of g.rows) {
       if (r.id !== undefined && up.has(r.id)) {
@@ -184,6 +191,7 @@ function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
   return [{ id: "all", name: allName, light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: groups.reduce((n, g) => n + g.finishedCut, 0), rows: [...done, ...open] }];
 }
 
+// `model` is already what the layout draws (see shownModel), so the bar scale counts only its items.
 function buildSplit(model: BoardModel, since: SinceView | undefined, perProject: boolean): GanttGroup[] {
   const rank = ranks(model.items);
   const boardSlots = Math.max(0, ...rank.values()) + 1;
