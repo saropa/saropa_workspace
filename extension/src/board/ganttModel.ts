@@ -15,7 +15,7 @@ export const MAX_FINISHED = 20;
 export const MAX_OUTLINED = 10;
 // Step minutes assumed for a bar whose minutes are not known.
 const STANDARD = 30;
-// The shortest bar, as a share of its slot, so a short step stays visible.
+// The shortest bar, as a share of the standard step, so a short step stays visible.
 const MIN_SHARE = 0.35;
 
 // A finished document that open work waited on, kept as a dimmed history row.
@@ -183,11 +183,59 @@ function withoutSub(r: GanttRow): GanttRow {
   return copy;
 }
 
+// Lays the open rows (those with an id) end to end: each bar starts where the previous open bar ends, and never before
+// the end of a row it waits on. Rows are placed in rank order (what a row waits on first, ties in the order given) so a
+// dependency shown later than its waiter still ends first; the rows keep their display order. Width follows the open
+// minutes (STANDARD when unknown, never below the minimum), and the whole queue is scaled to fit 0 to 100. Finished rows
+// are left as they are.
+export function placeQueue(rows: GanttRow[]): void {
+  const floor = STANDARD * MIN_SHARE;
+  const byId = new Map(rows.filter((r) => r.id !== undefined).map((r) => [r.id!, r]));
+  const depth = new Map<GanttRow, number>();
+  const visiting = new Set<GanttRow>();
+  const rankOf = (r: GanttRow): number => {
+    const known = depth.get(r);
+    if (known !== undefined) {
+      return known;
+    }
+    visiting.add(r);
+    let d = 0;
+    for (const a of r.after) {
+      const dep = byId.get(a);
+      if (dep && !visiting.has(dep)) {
+        d = Math.max(d, rankOf(dep) + 1);
+      }
+    }
+    visiting.delete(r);
+    depth.set(r, d);
+    return d;
+  };
+  const queue = rows.filter((r) => r.id !== undefined).sort((a, b) => rankOf(a) - rankOf(b));
+  const ends = new Map<number, number>();
+  const spans = new Map<GanttRow, { start: number; end: number }>();
+  let cursor = 0;
+  for (const r of queue) {
+    const start = Math.max(cursor, ...r.after.map((a) => ends.get(a) ?? 0));
+    cursor = start + Math.max(floor, r.minutes || STANDARD);
+    ends.set(r.id!, cursor);
+    spans.set(r, { start, end: cursor });
+  }
+  const k = cursor > 0 ? 100 / cursor : 0;
+  rows.forEach((r) => {
+    const span = spans.get(r);
+    if (span) {
+      r.start = Math.min(99.9, Math.round(span.start * k * 10) / 10);
+      r.width = Math.min(100 - r.start, Math.max(0.1, Math.round(span.end * k * 10) / 10 - r.start));
+    }
+  });
+}
+
 function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
   const tagged = groups.flatMap((g) => g.rows.map((r) => ({ ...withoutSub(r), project: g.name })));
   const done = tagged.filter((r) => r.id === undefined);
-  const open = tagged.filter((r) => r.id !== undefined).sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.start - b.start);
+  const open = tagged.filter((r) => r.id !== undefined).sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status]);
   const light = LIGHT_ORDER.find((l) => groups.some((g) => g.light === l)) ?? "unverified";
+  placeQueue(open);
   return [{ id: "all", name: allName, light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: groups.reduce((n, g) => n + g.finishedCut, 0), rows: [...done, ...open] }];
 }
 
@@ -195,15 +243,12 @@ function unify(groups: GanttGroup[], allName: string): GanttGroup[] {
 function buildSplit(model: BoardModel, since: SinceView | undefined, perProject: boolean): GanttGroup[] {
   const rank = ranks(model.items);
   const boardSlots = Math.max(0, ...rank.values()) + 1;
-  const longest = Math.max(STANDARD, ...model.items.map((i) => i.openMinutes ?? 0));
   const marked = new Set(since?.marked ?? []);
   const titles = new Map(model.items.map((i) => [i.id, i.title]));
   const groups: GanttGroup[] = [];
   const keepDone = layoutFor(model.items.length).finished;
   for (const p of model.projects) {
-    // One slot per rank: a bar stays inside its slot, so what waits always starts after what it waits on has ended.
-    // Split sections count ranks per project, so one long chain narrows only its own section. The Unified list mixes
-    // every project in one list, so it keeps one board-wide slot and start order and widths stay on one scale.
+    // The slot is only the width of a finished row; open rows are placed as a work queue below.
     const slots = perProject ? Math.max(0, ...p.items.map((i) => rank.get(i.id) ?? 0)) + 1 : boardSlots;
     const slot = Math.round(1000 / slots) / 10;
     const allDone: GanttRow[] = (model.finished ?? [])
@@ -219,17 +264,15 @@ function buildSplit(model: BoardModel, since: SinceView | undefined, perProject:
         .map((x) => x.i),
       model.order,
     )
-      .map((i) => ({ i, rank: rank.get(i.id) ?? 0 }))
-      .map(({ i, rank: r }): GanttRow => {
+      .map((i): GanttRow => {
         const known = i.openMinutes ?? 0;
-        const share = Math.min(1, Math.max(MIN_SHARE, (known || STANDARD) / longest));
         return {
           id: i.id,
           title: i.title,
           path: i.path,
           status: i.blocks ? "red" : i.status === "red" ? "amber" : i.status,
-          start: Math.round(r * slot * 10) / 10,
-          width: Math.round(slot * share * 10) / 10,
+          start: 0,
+          width: 0,
           minutes: known,
           after: [...i.waitsOn, ...(i.after ?? [])],
           waits: i.waitsOn.map((w) => titles.get(w)).filter((n): n is string => n !== undefined),
@@ -241,7 +284,9 @@ function buildSplit(model: BoardModel, since: SinceView | undefined, perProject:
         };
       });
     if (allDone.length + open.length > 0) {
-      groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...gathered(open, p.folderRank)] });
+      const ordered = gathered(open, p.folderRank);
+      placeQueue(ordered);
+      groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...ordered] });
     }
   }
   return groups;

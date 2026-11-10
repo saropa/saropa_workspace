@@ -5,7 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings } from "../../board/boardHtmlUtil";
 import { GANTT_SCRIPT, ganttPanel, ganttRows } from "../../board/boardHtmlGantt";
-import { MAX_FINISHED, buildGantt, finishedTargets } from "../../board/ganttModel";
+import { MAX_FINISHED, buildGantt, finishedTargets, placeQueue } from "../../board/ganttModel";
+import type { GanttRow } from "../../board/ganttModel";
 import { STYLE, script } from "../../board/boardHtmlAssets";
 import { Link } from "../../board/links";
 import { buildBoard } from "../../board/boardModel";
@@ -210,25 +211,55 @@ test("Show more works with the unified group id, and a layout message value is c
   assert.ok(page.includes("type:'ganttLayout'") && page.includes("rev:REV"));
 });
 
-test("the slot width is per project: a long chain in one project does not narrow the bars of another", () => {
-  const cfg2: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "a", name: "A", path: "a", roots: [], ruleSets: [] }, { id: "b", name: "B", path: "b", roots: [], ruleSets: [] }] } as BoardConfig;
-  const mk = (project: string, p: string, status: BoardStatus): Classified => ({ project, path: p, status, kind: "", note: "" });
-  const chain = { "a/1.md": "# One\n", "a/2.md": "# Two\n\nNeeds: 1.md\n", "a/3.md": "# Three\n\nNeeds: 2.md\n", "a/4.md": "# Four\n\nNeeds: 3.md\n", "b/x.md": "# Solo\n" };
-  const facts = Object.fromEntries(Object.entries(chain).map(([p, text]) => [p, { size: text.length, mtimeMs: 1, facts: readFacts(text, p) }]));
-  const snap = { version: 1, takenAt: 1, projects: {
-    a: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: Object.fromEntries(Object.entries(facts).filter(([p]) => p.startsWith("a/")).map(([p, f]) => [p.slice(2), f])) },
-    b: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: { "x.md": facts["b/x.md"] } },
-  } } as ScanSnapshot;
-  const m = buildBoard(cfg2, [mk("a", "1.md", "amber"), mk("a", "2.md", "amber"), mk("a", "3.md", "amber"), mk("a", "4.md", "amber"), mk("b", "x.md", "amber")], undefined, true, snap);
-  const groups = buildGantt(m);
-  const w = (name: string): number => groups.flatMap((g) => g.rows).find((r) => r.title === name)!.width;
-  assert.ok(w("Solo") > w("One") * 3, "the solo project keeps a full-width slot");
-  const one = groups.flatMap((g) => g.rows).find((r) => r.title === "Four")!;
-  assert.ok(one.start + one.width <= 100.001, "the chain still fits its own section");
-  assert.equal(groups.flatMap((g) => g.rows).find((r) => r.title === "Solo")!.start, 0);
+test("with no links the bars lie end to end and fill the axis", () => {
+  const [g] = buildGantt(chainModel([["a.md", ""], ["b.md", ""], ["c.md", ""]]));
+  const open = g.rows.filter((r) => r.id !== undefined);
+  assert.equal(open[0].start, 0);
+  for (let i = 1; i < open.length; i++) {
+    assert.ok(Math.abs(open[i].start - (open[i - 1].start + open[i - 1].width)) <= 0.11, "each bar starts where the last ends");
+  }
+  const last = open[open.length - 1];
+  assert.ok(last.start + last.width <= 100.001 && last.start + last.width >= 99.8);
 });
 
-test("the Unified layout keeps one board-wide slot: widths and start order stay on one scale across projects", () => {
+test("an item with no estimate takes the standard width and keeps the dashed edge", () => {
+  const [g] = buildGantt(chainModel([["a.md", ""], ["b.md", ""]]));
+  const [a, b] = g.rows;
+  assert.equal(a.minutes, 0);
+  assert.equal(a.width, b.width, "equal unestimated bars are equal");
+  assert.ok(Math.abs(a.width - 50) <= 0.11);
+});
+
+test("a waiting item starts after the end of what it waits on, even across a gap", () => {
+  const [g] = buildGantt(chainModel([["a.md", ""], ["b.md", "a.md"]]));
+  const a = g.rows.find((r) => r.title === "T a.md")!;
+  const b = g.rows.find((r) => r.title === "T b.md")!;
+  assert.ok(b.start >= a.start + a.width - 0.001);
+});
+
+test("Unified keeps each project's rows together in project order inside a status", () => {
+  const cfg3: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "a", name: "A", path: "a", roots: [], ruleSets: [] }, { id: "b", name: "B", path: "b", roots: [], ruleSets: [] }] } as BoardConfig;
+  const mk = (project: string, p: string): Classified => ({ project, path: p, status: "amber", kind: "", note: "" });
+  const text: Record<string, string> = { "a1.md": "# A1\n", "a2.md": "# A2\n", "b1.md": "# B1\n", "b2.md": "# B2\n" };
+  const factsOf = (names: string[]) => Object.fromEntries(names.map((n) => [n, { size: text[n].length, mtimeMs: 1, facts: readFacts(text[n], n) }]));
+  const snap = { version: 1, takenAt: 1, projects: {
+    a: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: factsOf(["a1.md", "a2.md"]) },
+    b: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: factsOf(["b1.md", "b2.md"]) },
+  } } as ScanSnapshot;
+  const m = buildBoard(cfg3, [mk("a", "a1.md"), mk("a", "a2.md"), mk("b", "b1.md"), mk("b", "b2.md")], undefined, true, snap);
+  const titles = buildGantt(m, undefined, "unified")[0].rows.map((r) => r.title);
+  assert.deepEqual(titles, ["A1", "A2", "B1", "B2"]);
+});
+
+test("a dependency shown after its waiter still ends before the waiter starts", () => {
+  const row = (id: number, after: number[]) => ({ id, title: "r" + id, path: "", status: "amber", start: 0, width: 0, minutes: 0, after, waits: [], askedNames: [], inferred: [], changed: false }) as unknown as GanttRow;
+  const rows = [row(1, [2]), row(2, [])];
+  placeQueue(rows);
+  assert.deepEqual(rows.map((r) => r.id), [1, 2], "display order is kept");
+  assert.ok(rows[0].start >= rows[1].start + rows[1].width - 0.11);
+});
+
+test("the Split sections each fill their own axis; the Unified list is one queue on one scale", () => {
   const cfg2: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "a", name: "A", path: "a", roots: [], ruleSets: [] }, { id: "b", name: "B", path: "b", roots: [], ruleSets: [] }] } as BoardConfig;
   const mk = (project: string, p: string): Classified => ({ project, path: p, status: "amber", kind: "", note: "" });
   const text: Record<string, string> = { "1.md": "# One\n", "2.md": "# Two\n\nNeeds: 1.md\n", "3.md": "# Three\n\nNeeds: 2.md\n", "4.md": "# Four\n\nNeeds: 3.md\n", "x.md": "# Solo\n" };
@@ -238,14 +269,17 @@ test("the Unified layout keeps one board-wide slot: widths and start order stay 
     b: { counts: emptyCounts(), folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: factsOf(["x.md"]) },
   } } as ScanSnapshot;
   const m = buildBoard(cfg2, [mk("a", "1.md"), mk("a", "2.md"), mk("a", "3.md"), mk("a", "4.md"), mk("b", "x.md")], undefined, true, snap);
+  const split = buildGantt(m, undefined, "split").flatMap((g) => g.rows);
+  const solo = split.find((r) => r.title === "Solo")!;
+  assert.equal(solo.start, 0);
+  assert.ok(solo.width >= 99.9, "a lone item fills its own section");
+  const four = split.find((r) => r.title === "Four")!;
+  assert.ok(four.start + four.width <= 100.001, "the chain fits its own section");
   const unified = buildGantt(m, undefined, "unified");
   assert.equal(unified.length, 1);
   const rows = unified[0].rows;
-  const get = (name: string) => rows.find((r) => r.title === name)!;
-  assert.equal(get("Solo").width, get("One").width, "one slot width for the whole board");
-  assert.deepEqual(rows.map((r) => r.start), [...rows.map((r) => r.start)].sort((x, y) => x - y), "start order is work order across projects");
-  assert.ok(get("Four").start > get("Solo").start);
-  // Split keeps per-project widths on the same board.
-  const split = buildGantt(m, undefined, "split").flatMap((g) => g.rows);
-  assert.ok(split.find((r) => r.title === "Solo")!.width > split.find((r) => r.title === "One")!.width * 3);
+  assert.deepEqual(rows.map((r) => r.start), [...rows.map((r) => r.start)].sort((x, y) => x - y), "start order is the display order");
+  const last = rows[rows.length - 1];
+  assert.ok(last.start + last.width <= 100.001);
+  assert.equal(rows.find((r) => r.title === "Solo")!.width, rows.find((r) => r.title === "One")!.width, "one scale for the whole board");
 });
