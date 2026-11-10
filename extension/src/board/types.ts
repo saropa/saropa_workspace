@@ -111,6 +111,8 @@ export interface SkippedProject {
 export interface BoardConfig {
   version: number;
   ignore: string[];
+  // True keeps documents that git ignores on the board (the includeGitIgnored setting); default hides them.
+  includeGitIgnored?: boolean;
   ruleSets: Record<string, RuleSetDef>;
   projects: ProjectDef[];
   // File extensions that are scanned (lower-case, with the dot).

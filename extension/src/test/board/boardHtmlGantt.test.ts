@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings } from "../../board/boardHtmlUtil";
-import { GANTT_SCRIPT, ganttPanel, ganttRows } from "../../board/boardHtmlGantt";
+import { GANTT_SCRIPT, GANTT_STYLE, ganttPanel, ganttRows } from "../../board/boardHtmlGantt";
 import { MAX_FINISHED, buildGantt, finishedTargets, placeQueue } from "../../board/ganttModel";
 import type { GanttRow } from "../../board/ganttModel";
 import { STYLE, script } from "../../board/boardHtmlAssets";
@@ -53,9 +53,9 @@ test("the Gantt has a keyboard-reachable column splitter whose width the script 
   const html = ganttPanel(model, t);
   assert.ok(html.includes('id="gSplit" role="separator" aria-orientation="vertical" tabindex="0"'));
   assert.ok(/aria-valuemin="\d+" aria-valuemax="\d+" aria-valuenow="\d+" aria-label="ganttResizeLabel" title="ganttResizeTip"/.test(html));
-  assert.ok(STYLE.includes("grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr"), "both grids take the shared width");
-  assert.ok(!STYLE.includes("grid-template-columns:minmax(200px,45%) 1fr"));
-  assert.ok(STYLE.includes(".gsplit{display:none}"), "narrow screens keep today's layout");
+  assert.ok(GANTT_STYLE.includes("grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr"), "both grids take the shared width");
+  assert.ok(!GANTT_STYLE.includes("grid-template-columns:minmax(200px,45%) 1fr"));
+  assert.ok(GANTT_STYLE.includes(".gsplit{display:none}"), "narrow screens keep today's layout");
   assert.ok(GANTT_SCRIPT.includes("S0.gsplit") && GANTT_SCRIPT.includes("gsplit:W") && GANTT_SCRIPT.includes("--gcol"));
   assert.ok(GANTT_SCRIPT.includes("const spPlace=()=>{if(!SP||!axis||g.offsetParent===null){return;}"), "a hidden Gantt is never placed");
   assert.ok(GANTT_SCRIPT.includes("b.addEventListener('click',()=>{spPlace();draw();})"), "switching tabs places the splitter");
@@ -182,8 +182,9 @@ test("local scales bars and the Up next box from the open projects only", () => 
   for (const i of m.items.filter((x) => x.project === "lib")) {
     i.openMinutes = 6000;
   }
-  const widest = (layout: "local" | "split") => Math.max(...buildGantt(m, undefined, layout).find((g) => g.id === "app")!.rows.map((r) => r.width));
-  assert.ok(widest("local") > widest("split"), "a hidden project's long step does not shrink the bars");
+  const widest = (layout: "local" | "split" | "unified") => Math.max(...buildGantt(m, undefined, layout).flatMap((g) => g.id === "app" || g.id === "all" ? g.rows.filter((r) => r.id !== undefined && r.project !== "Lib") : []).map((r) => r.width));
+  assert.ok(widest("local") > widest("unified"), "a hidden project's long step does not shrink the bars");
+  assert.equal(widest("local"), widest("split"), "sections scale on their own, so a hidden project never enters a visible queue");
   assert.ok(!ganttPanel(m, t, undefined, "local").includes("Lib"), "no hidden project's name appears");
 });
 

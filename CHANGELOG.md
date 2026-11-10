@@ -50,8 +50,10 @@ cspell:disable
 
 ### Added
 - Release Board Gantt: drag the edge of the name column to resize it (double-click resets, Left and Right keys move it when focused); the width is remembered.
+- Release Board: documents that git ignores are now hidden by default. A new setting, `releaseBoard.includeGitIgnored`, brings them back. A folder that is not a git repository hides nothing.
 
 ### Fixed
+- Release Board Gantt: open bars are queued in the order shown; a bar that waits on a row listed later pulls that row in just before it, and with no links the start order is the display order.
 - A Release Board project is amber only when the board could not read something. Missing lint or test results and unsorted documents no longer make it amber, and open work never does. The status bar button is red for a blocker, amber when something could not be read, and green otherwise. Only the projects of the folders open in this window count, never the extra projects you chose.
 
 ### Changed

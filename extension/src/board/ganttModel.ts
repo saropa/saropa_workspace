@@ -184,42 +184,36 @@ function withoutSub(r: GanttRow): GanttRow {
 }
 
 // Lays the open rows (those with an id) end to end: each bar starts where the previous open bar ends, and never before
-// the end of a row it waits on. Rows are placed in rank order (what a row waits on first, ties in the order given) so a
+// the end of a row it waits on. Rows are placed in display order, but a row's unplaced dependencies are placed just before it, so a
 // dependency shown later than its waiter still ends first; the rows keep their display order. Width follows the open
 // minutes (STANDARD when unknown, never below the minimum), and the whole queue is scaled to fit 0 to 100. Finished rows
 // are left as they are.
 export function placeQueue(rows: GanttRow[]): void {
   const floor = STANDARD * MIN_SHARE;
   const byId = new Map(rows.filter((r) => r.id !== undefined).map((r) => [r.id!, r]));
-  const depth = new Map<GanttRow, number>();
+  const ends = new Map<number, number>();
+  const spans = new Map<GanttRow, { start: number; end: number }>();
   const visiting = new Set<GanttRow>();
-  const rankOf = (r: GanttRow): number => {
-    const known = depth.get(r);
-    if (known !== undefined) {
-      return known;
+  let cursor = 0;
+  // Display order; before a row is placed, the rows it waits on that are not placed yet go first (cycles are cut).
+  const place = (r: GanttRow): void => {
+    if (spans.has(r) || visiting.has(r)) {
+      return;
     }
     visiting.add(r);
-    let d = 0;
     for (const a of r.after) {
       const dep = byId.get(a);
-      if (dep && !visiting.has(dep)) {
-        d = Math.max(d, rankOf(dep) + 1);
+      if (dep) {
+        place(dep);
       }
     }
     visiting.delete(r);
-    depth.set(r, d);
-    return d;
-  };
-  const queue = rows.filter((r) => r.id !== undefined).sort((a, b) => rankOf(a) - rankOf(b));
-  const ends = new Map<number, number>();
-  const spans = new Map<GanttRow, { start: number; end: number }>();
-  let cursor = 0;
-  for (const r of queue) {
     const start = Math.max(cursor, ...r.after.map((a) => ends.get(a) ?? 0));
     cursor = start + Math.max(floor, r.minutes || STANDARD);
     ends.set(r.id!, cursor);
     spans.set(r, { start, end: cursor });
-  }
+  };
+  rows.filter((r) => r.id !== undefined).forEach(place);
   const k = cursor > 0 ? 100 / cursor : 0;
   rows.forEach((r) => {
     const span = spans.get(r);

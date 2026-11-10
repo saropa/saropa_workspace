@@ -256,6 +256,7 @@
   "command.releaseBoard.openSettings.title": "Release Board: Settings",
   "command.releaseBoard.projects.title": "Release Board: Choose Projects",
   "config.releaseBoard.projects.description": "Folders the Release Board includes in addition to the folders open in the window, one absolute path each. The open folders are always included and listed first. Empty (the default) shows only the open folders. Set it from the Projects button on the board. This is a user setting: a workspace cannot change it. Each folder is read like a workspace folder, with its own .saropa/release-board.json when it has one.",
+  "config.releaseBoard.includeGitIgnored.description": "Release Board: show documents that git ignores. Off by default, so a document listed in a .gitignore of its project is left out of every tab, the Future list, the counts and the status light. A folder that is not a git repository hides nothing.",
   "config.releaseBoard.exclude.description": "Release Board: globs for files and folders to leave out of the board, matched against each path relative to its project, e.g. \"reports/**\" or \"**/generated/**\". Added to the ignore list of the rules file. Default leaves out the reports folder.",
   "config.releaseBoard.groupBy.description": "How the Release Board lays out its projects: one card per project, one card per group of related documents, per status or per severity, or one merged list across every project.",
   "config.releaseBoard.groupBy.project": "One card per project.",
