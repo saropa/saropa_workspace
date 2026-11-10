@@ -56,6 +56,8 @@ test("the Gantt has a keyboard-reachable column splitter whose width the script 
   assert.ok(!STYLE.includes("grid-template-columns:minmax(200px,45%) 1fr"));
   assert.ok(STYLE.includes(".gsplit{display:none}"), "narrow screens keep today's layout");
   assert.ok(GANTT_SCRIPT.includes("S0.gsplit") && GANTT_SCRIPT.includes("gsplit:W") && GANTT_SCRIPT.includes("--gcol"));
+  assert.ok(GANTT_SCRIPT.includes("const spPlace=()=>{if(!SP||!axis||g.offsetParent===null){return;}"), "a hidden Gantt is never placed");
+  assert.ok(GANTT_SCRIPT.includes("b.addEventListener('click',()=>{spPlace();draw();})"), "switching tabs places the splitter");
   assert.ok(GANTT_SCRIPT.includes("'dblclick'") && GANTT_SCRIPT.includes("'ArrowLeft'") && GANTT_SCRIPT.includes("'ArrowRight'"));
 });
 

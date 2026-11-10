@@ -62,7 +62,7 @@ const S0=vscode.getState()||{};const COL=new Set(S0.gcol||[]),OPN=new Set(S0.gop
 // One name-column width for the whole Gantt, kept in the saved state and read back here at start-up.
 const SP=document.getElementById('gSplit');const axis=g.querySelector('.gaxis');let W=Number(S0.gsplit)>0?Number(S0.gsplit):0;
 const spMin=()=>Math.min(200,Math.max(80,g.clientWidth-160)),spMax=()=>Math.max(spMin(),g.clientWidth-160);
-const spPlace=()=>{if(!SP||!axis){return;}const w=W>0?Math.min(spMax(),Math.max(spMin(),W)):axis.firstElementChild.offsetWidth;if(W>0){g.style.setProperty('--gcol',w+'px');}else{g.style.removeProperty('--gcol');}SP.style.left=w+'px';SP.setAttribute('aria-valuemin',String(Math.round(spMin())));SP.setAttribute('aria-valuemax',String(Math.round(spMax())));SP.setAttribute('aria-valuenow',String(Math.round(w)));draw();};
+const spPlace=()=>{if(!SP||!axis||g.offsetParent===null){return;}const w=W>0?Math.min(spMax(),Math.max(spMin(),W)):axis.firstElementChild.offsetWidth;if(W>0){g.style.setProperty('--gcol',w+'px');}else{g.style.removeProperty('--gcol');}SP.style.left=w+'px';SP.setAttribute('aria-valuemin',String(Math.round(spMin())));SP.setAttribute('aria-valuemax',String(Math.round(spMax())));SP.setAttribute('aria-valuenow',String(Math.round(w)));draw();};
 const spSet=(w,keep)=>{W=w>0?Math.round(Math.min(spMax(),Math.max(spMin(),w))):0;spPlace();if(keep){vscode.setState({...(vscode.getState()||{}),gsplit:W});}};
 if(SP){spPlace();window.addEventListener('resize',spPlace);
 SP.addEventListener('pointerdown',e=>{e.preventDefault();SP.setPointerCapture(e.pointerId);SP.classList.add('on');});
@@ -82,7 +82,7 @@ let pend=null;g.addEventListener('dragover',e=>{if(!document.body.classList.cont
 document.addEventListener('drop',()=>{pend=null;},true);document.addEventListener('dragend',()=>{pend=null;},true);
 g.addEventListener('dragleave',e=>{if(pend&&e.target.closest&&e.target.closest('.gtog,.gsb')===pend){pend=null;}});
 g.addEventListener('keydown',e=>{const r=e.target.closest('.gr');if(r&&r===e.target&&(e.key==='Enter'||e.key===' ')){e.preventDefault();select(r);}});
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',draw));window.addEventListener('resize',draw);})();`;
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{spPlace();draw();}));window.addEventListener('resize',draw);})();`;
 
 // "30m", "1h", "1h 30m".
 function minutesLabel(m: number): string {
