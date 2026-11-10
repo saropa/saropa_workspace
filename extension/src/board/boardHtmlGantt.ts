@@ -65,7 +65,7 @@ const spMin=()=>Math.min(200,Math.max(80,g.clientWidth-160)),spMax=()=>Math.max(
 const spPlace=()=>{if(!SP||!axis||g.offsetParent===null){return;}const w=W>0?Math.min(spMax(),Math.max(spMin(),W)):axis.firstElementChild.offsetWidth;if(W>0){g.style.setProperty('--gcol',w+'px');}else{g.style.removeProperty('--gcol');}SP.style.left=w+'px';SP.setAttribute('aria-valuemin',String(Math.round(spMin())));SP.setAttribute('aria-valuemax',String(Math.round(spMax())));SP.setAttribute('aria-valuenow',String(Math.round(w)));draw();};
 const spSet=(w,keep)=>{W=w>0?Math.round(Math.min(spMax(),Math.max(spMin(),w))):0;spPlace();if(keep){vscode.setState({...(vscode.getState()||{}),gsplit:W});}};
 if(SP){spPlace();window.addEventListener('resize',spPlace);
-SP.addEventListener('pointerdown',e=>{e.preventDefault();SP.setPointerCapture(e.pointerId);SP.classList.add('on');});
+SP.addEventListener('pointerdown',e=>{e.preventDefault();SP.focus();SP.setPointerCapture(e.pointerId);SP.classList.add('on');});
 SP.addEventListener('pointermove',e=>{if(SP.hasPointerCapture(e.pointerId)){spSet(e.clientX-axis.getBoundingClientRect().left,false);}});
 const spEnd=e=>{if(SP.hasPointerCapture(e.pointerId)){SP.releasePointerCapture(e.pointerId);}SP.classList.remove('on');spSet(W,true);};
 SP.addEventListener('pointerup',spEnd);SP.addEventListener('pointercancel',spEnd);
