@@ -5,16 +5,21 @@ CLI entry: organize files under reports/.
 Run:
   python reports/organize_reports.py
 
-Note: This script has been internalized to run standalone without 
-relying on an external shared module. It groups files by their 
-YYYYMMDD prefix into corresponding folders.
+Groups files into folders by name prefix:
+  2026.11.10_workspace_053430_ci.md -> 2026.11.10_workspace/
+  20260414_231243.log               -> 20260414/ (legacy)
+Files that match neither pattern stay where they are.
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from pathlib import Path
+
+# "<YYYY.MM.DD>_<project>_<HHMMSS>_<kind>.<ext>"; group 1 is the folder name.
+CURRENT_NAME = re.compile(r"^(\d{4}\.\d{2}\.\d{2}_.+?)_\d{6}_")
 
 
 def organize_and_prune_reports(
@@ -43,10 +48,12 @@ def organize_and_prune_reports(
         if not file_path.is_file() or file_path.name == "organize_reports.py":
             continue
             
-        # Extract the first 8 characters to see if it's a date (YYYYMMDD)
-        date_prefix = file_path.name[:8]
-        
-        if date_prefix.isdigit() and len(date_prefix) == 8:
+        # Current names: "2026.11.10_workspace_053430_ci.md" -> "2026.11.10_workspace/"
+        # Legacy names: "20260414_231243.log" -> "20260414/"
+        match = CURRENT_NAME.match(file_path.name)
+        date_prefix = match.group(1) if match else file_path.name[:8]
+
+        if match or (date_prefix.isdigit() and len(date_prefix) == 8):
             target_dir = reports_root / date_prefix
             
             # If the file is already in the correct folder, skip it
