@@ -14,7 +14,10 @@
   brackets around counts; timing tests best-of-3 with a generous budget;
   caps and limits identical on read and write; partial failure leaves an Undo;
   every setting a UI saves is read by the code it controls; webview messages
-  validated, rev-checked, ids only; no plan-decision numbers in code comments.
+  validated, rev-checked, ids only; no plan-decision numbers in code comments;
+  every changed CSS literal, default value and output order grepped in
+  `extension/src/test` and README.md, and matching tests updated (builders
+  cannot run tests, so a stale assertion is only caught by this grep).
 - Cap review at one fix round per build. A second round happens only for a
   data-loss or security finding. Low findings are fixed in the same round or
   dropped; never carried into a new round.
