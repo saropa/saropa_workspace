@@ -65,6 +65,11 @@ test("tooltip lists the reasons for an unverified project", () => {
   assert.deepEqual(row.tooltip, ["App: UNVERIFIED", "2 unplaced", "no lint or test result"]);
 });
 
+test("tooltip lists the notes for a GO project too", () => {
+  const row = buildSidebarRows({ projects: [project("go", [], ["grey", "health"])] }, opts, labels)[0];
+  assert.deepEqual(row.tooltip, ["App: GO", "2 unplaced", "no lint or test result"]);
+});
+
 test("the expand rule", () => {
   assert.equal(shouldExpand("never", "no-go"), false);
   assert.equal(shouldExpand("whenNoGo", "no-go"), true);

@@ -121,8 +121,9 @@ const cardCounts = (p: BoardProject, t: BoardStrings): string => itemCounts(p.it
 // One project's verdict row: name, light, link mark, health marks and the count pills.
 export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false, badge = "", index?: number, withCounts = true): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
-  const why = p.light !== "unverified" ? "" : p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
-  const lightTip = why || pl(t, p.light === "go" ? "light.go" : p.light === "no-go" ? "light.noGo" : "light.unverified");
+  const why = p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
+  const lightName = pl(t, p.light === "go" ? "light.go" : p.light === "no-go" ? "light.noGo" : "light.unverified");
+  const lightTip = why ? `${lightName} · ${why}` : lightName;
   const counts = withCounts ? cardCounts(p, t) : "";
   // The link mark is amber while a project it depends on is NO-GO, green otherwise.
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");

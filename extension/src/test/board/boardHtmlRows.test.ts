@@ -45,12 +45,22 @@ const lights = (m: ReturnType<typeof buildBoard>): Map<string, string> => {
   return out;
 };
 
-test("a NO-GO project shows the NO-GO word and no reasons", () => {
+test("a NO-GO project shows the NO-GO word, then its notes", () => {
   const m = buildBoard(cfg, [row("app", "bugs/a.md", "red")], undefined, true);
   const html = verdict(m.projects[0], t, lights(m));
   assert.ok(html.includes('class="go no-go"'));
   assert.ok(html.includes("[noGo]"));
-  assert.ok(!html.includes('class="info"'), "reasons only explain UNVERIFIED");
+  assert.ok(html.includes('class="info"'), "notes show for every light");
+});
+
+test("a GO project with grey and health notes shows them in its row", () => {
+  const m = buildBoard(cfg, [row("db", "x.md", "grey")], undefined, true);
+  const p = m.projects.find((x) => x.id === "db")!;
+  assert.equal(p.light, "go");
+  const html = verdict(p, t, lights(m));
+  assert.ok(html.includes('class="go go"'));
+  assert.ok(html.includes("reasonGrey 1 · [reasonHealth]"));
+  assert.ok(html.includes('class="info"'));
 });
 
 test("an UNVERIFIED project lists its reasons in the tooltip", () => {
