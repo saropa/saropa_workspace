@@ -73,15 +73,36 @@ function count(t: string, phrase: string, negation: RegExp[]): number {
   return n;
 }
 
+// Punctuation that may hug a file path in prose.
+const EDGE = "()[]{}<>\"'.,;:!?";
+
+// True for a word that is a file path: it has a slash or backslash and ends in a file extension.
+function isPathToken(tok: string): boolean {
+  let a = 0;
+  let b = tok.length;
+  while (a < b && EDGE.includes(tok[a])) {
+    a += 1;
+  }
+  while (b > a && EDGE.includes(tok[b - 1])) {
+    b -= 1;
+  }
+  const core = tok.slice(a, b);
+  if (!core.includes("/") && !core.includes("\\")) {
+    return false;
+  }
+  return /^[A-Za-z0-9]{1,8}$/.test(core.slice(core.lastIndexOf(".") + 1)) && core.includes(".");
+}
+
 // Only sentences count: code blocks, inline code, link addresses, web addresses and file
-// paths are removed, so a danger word inside them never raises the severity.
+// paths are removed, so a danger word inside them never raises the severity. Every pattern
+// is bounded or a single pass, so a very long line cannot make this slow.
 function proseOnly(text: string): string {
   return text
     .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`\n]*`/g, " ")
-    .replace(/\]\([^)\n]*\)/g, "]")
+    .replace(/`[^`\n]{0,500}`/g, " ")
+    .replace(/\]\([^)\n]{0,500}\)/g, "]")
     .replace(/https?:\/\/[^\s)>\]]+/gi, " ")
-    .replace(/[^\s()[\]"'<>]*[\\/][^\s()[\]"'<>]*\.[A-Za-z0-9]{1,8}(?![\w/\\])/g, " ");
+    .replace(/\S+/g, (tok) => (isPathToken(tok) ? "" : tok));
 }
 
 // Scores a document's text and name against the dictionary: its severity and its audience.
@@ -114,7 +135,7 @@ export function scoreDocument(text: string, path: string, dict: SeverityDict = D
   } else if ((totals.low ?? 0) >= dict.threshold && (totals.low ?? 0) > Math.max(totals.extreme ?? 0, totals.critical ?? 0, totals.high ?? 0)) {
     severity = "low";
   }
-  const lower = stripped.toLowerCase();
+  const lower = text.toLowerCase();
   const audience: Audience = dict.audience.pro.some((p) => lower.includes(p.toLowerCase())) ? "pro" : "all";
   return { severity, audience };
 }

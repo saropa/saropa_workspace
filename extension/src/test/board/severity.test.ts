@@ -24,6 +24,26 @@ test("danger words inside inline code, link addresses, URLs and paths do not cou
   assert.equal(scoreDocument("# Notes\n\nSee https://example.com/memory_crashes/crashes.html and docs/x/y_crashes.md and src\\crashes\\crashes.ts here.\n", "docs/notes.md").severity, "medium");
 });
 
+test("link text that is prose still counts; the document's own name counts; and/or and read/write stay", () => {
+  assert.equal(scoreDocument("# Notes\n\nSee [the data loss report](docs/a.md), data loss again.\n", "docs/notes.md").severity, "critical");
+  assert.equal(scoreDocument("# Notes\n", "docs/PLAN_refund_bug.md").severity, "extreme");
+  assert.equal(scoreDocument("# Notes\n\nData loss and/or read/write data loss.\n", "docs/notes.md").severity, "critical");
+  assert.equal(scoreDocument("# Notes\n\nA read/write refund and refund.\n", "docs/notes.md").severity, "extreme");
+});
+
+test("very long lines are scored in well under a second", () => {
+  for (const unit of ["a/", "](", "`", "http://"]) {
+    const text = "# Notes\n\n" + unit.repeat(10000) + "\n";
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t0 = Date.now();
+      scoreDocument(text, "docs/notes.md");
+      best = Math.min(best, Date.now() - t0);
+    }
+    assert.ok(best < 1000, `${unit} took ${best} ms`);
+  }
+});
+
 test("profiles decide which levels stop a release", () => {
   assert.ok(stops("rush", "critical") && !stops("rush", "high"));
   assert.ok(stops("deliberate", "high") && !stops("deliberate", "medium"));
