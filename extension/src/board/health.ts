@@ -163,7 +163,7 @@ export interface ProjectHealth {
   tests: Evidence;
   lintDetail: string;
   testsDetail: string;
-  // True when both kinds of evidence are present and clean: the only way to GO.
+  // True when both kinds of evidence are present and clean. Missing evidence is a note, not a reason for amber.
   clean: boolean;
   // Build evidence, set only when a daily build report was found. It can make the row worse
   // (failing) and is never required for GO.

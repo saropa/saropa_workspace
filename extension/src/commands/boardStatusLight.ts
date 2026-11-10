@@ -14,9 +14,10 @@ export function localWorstLight(model: Pick<BoardModel, "projects">): Light | un
 }
 
 // Tints the status bar button with the worst light of the open workspace folders' projects and
-// names it in the tooltip. Only a blocker (no-go) gets the status bar's red background; unverified, green
-// and no result use the plain button, with a green text color for GO.
-export const lightBackgroundId = (worst: Light | undefined): string | undefined => (worst === "no-go" ? "statusBarItem.errorBackground" : undefined);
+// names it in the tooltip. No-go gets the status bar's red background, unverified its warning
+// background; green and no result use the plain button, with a green text color for GO.
+export const lightBackgroundId = (worst: Light | undefined): string | undefined =>
+  worst === "no-go" ? "statusBarItem.errorBackground" : worst === "unverified" ? "statusBarItem.warningBackground" : undefined;
 const WORDS: Record<Light, string> = { "no-go": "releaseBoard.panel.noGo", unverified: "releaseBoard.panel.unverified", go: "releaseBoard.panel.go" };
 
 // The tooltip: the light in words, the stale note, what changed since the last look, then

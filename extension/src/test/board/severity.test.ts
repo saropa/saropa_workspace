@@ -53,9 +53,9 @@ test("an open item of a stopping severity makes the project NO-GO under that pro
   const high = snap({ "docs/A.md": "# User uptake\nuptake onboarding retention\n" });
   const level = scoreDocument("# User uptake\nuptake onboarding retention\n", "docs/A.md").severity;
   assert.equal(level, "high");
-  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, high).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, high).projects[0].light, "go");
   assert.equal(buildBoard(cfg("deliberate"), rows, undefined, true, high).projects[0].light, "no-go");
-  assert.equal(buildBoard(cfg("deliberate"), rows, undefined, true, s).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg("deliberate"), rows, undefined, true, s).projects[0].light, "go");
 });
 
 test("a pinned document stops a release in every profile and sorts first; grey folders are listed", () => {
@@ -86,7 +86,7 @@ test("an invalid profile falls back to deliberate; rush stops critical; waiting 
   const s = snap({ "docs/W.md": "# Data loss on sync\n" });
   assert.equal(buildBoard(cfg("rush"), rows, undefined, true, s).projects[0].light, "no-go");
   const low = snap({ "docs/W.md": "# Colour tweak\n" });
-  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, low).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, low).projects[0].light, "go");
   const red: Classified[] = [{ project: "app", path: "bugs/R.md", status: "red", kind: "", note: "" }];
   assert.equal(buildBoard(cfg("rush"), red, undefined, true, low).projects[0].light, "no-go");
 });

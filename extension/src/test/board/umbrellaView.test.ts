@@ -69,14 +69,14 @@ test("the order of a board with no chosen project is unchanged", () => {
   assert.ok(m.projects.every((p) => !("extra" in p)));
 });
 
-test("a chosen project is never greener than its evidence: no health result keeps it UNVERIFIED", () => {
+test("missing health results do not make a project amber", () => {
   const m = model(cfg(["zed"]), []);
-  assert.deepEqual(m.projects.map((p) => p.light), ["unverified", "unverified"]);
+  assert.deepEqual(m.projects.map((p) => p.light), ["go", "go"]);
 });
 
 test("a red document in a chosen project makes that project NO-GO and leaves the open one alone", () => {
   const m = model(cfg(["zed"]), [row("zed", "bugs/a.md", "red")]);
-  assert.deepEqual(m.projects.map((p) => [p.id, p.light]), [["app", "unverified"], ["zed", "no-go"]]);
+  assert.deepEqual(m.projects.map((p) => [p.id, p.light]), [["app", "go"], ["zed", "no-go"]]);
 });
 
 test("the model carries the grey rows from the config", () => {
@@ -86,7 +86,7 @@ test("the model carries the grey rows from the config", () => {
 
 test("the roll-up counts each light exactly", () => {
   const m = model(cfg(["a", "b", "c"]), [row("a", "bugs/x.md", "red"), row("b", "bugs/y.md", "red")]);
-  assert.deepEqual(rollupCounts(m.projects), { noGo: 2, unverified: 2, go: 0 });
+  assert.deepEqual(rollupCounts(m.projects), { noGo: 2, unverified: 0, go: 2 });
 });
 
 test("a single project has no roll-up, no open mark and no grey rows", () => {
@@ -104,7 +104,7 @@ test("with several projects the header states the total and how many are in each
   const m = model(cfg(["a", "b"]), [row("a", "bugs/x.md", "red")]);
   assert.equal(
     rollupBar(m, t),
-    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">3</span> projects</b><span class="go no-go" title="rollupLight"><span class="pill" title="pillTip">1</span> NO-GO</span><span class="go unverified" title="rollupLight"><span class="pill" title="pillTip">2</span> UNVERIFIED</span></div>'
+    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">3</span> projects</b><span class="go no-go" title="rollupLight"><span class="pill" title="pillTip">1</span> NO-GO</span><span class="go go" title="rollupLight"><span class="pill" title="pillTip">2</span> GO</span></div>'
   );
 });
 
@@ -113,7 +113,7 @@ test("a chosen folder that could not be read is counted apart and never as a lig
   assert.equal(isUmbrella(m), true);
   assert.equal(
     rollupBar(m, t),
-    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">2</span> projects</b><span class="go unverified" title="rollupLight"><span class="pill" title="pillTip">1</span> UNVERIFIED</span><span class="go skipped" title="rollupSkipped"><span class="pill" title="pillTip">1</span> NOT READ</span></div>'
+    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">2</span> projects</b><span class="go go" title="rollupLight"><span class="pill" title="pillTip">1</span> GO</span><span class="go skipped" title="rollupSkipped"><span class="pill" title="pillTip">1</span> NOT READ</span></div>'
   );
 });
 

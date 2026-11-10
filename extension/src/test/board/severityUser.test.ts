@@ -122,7 +122,7 @@ test("a user severity wins over the computed one, in the item, the light and the
   assert.equal(a?.severity, "low");
   assert.equal(a?.severityByUser, true);
   assert.equal(a?.stopping, false);
-  assert.equal(lowered.projects[0].light, "unverified", "not no-go: the user lowered the only blocker");
+  assert.equal(lowered.projects[0].light, "go", "not no-go: the user lowered the only blocker");
   const raised = buildBoard(cfg([{ project: "app", path: "docs/B.md", severity: "extreme" }]), rows, undefined, true, s);
   assert.equal(raised.items.find((i) => i.path === "docs/B.md")?.stopping, true);
   assert.equal(raised.projects[0].light, "no-go", "raising a severity can only make the light worse");
@@ -151,7 +151,7 @@ test("a waiting (blocked) document counts with the severity chosen", () => {
   const s = snap({ "docs/A.md": BLOCKER });
   assert.equal(buildBoard(cfg(undefined), rows, undefined, true, s).projects[0].light, "no-go");
   const m = buildBoard(cfg([{ project: "app", path: "docs/A.md", severity: "low" }]), rows, undefined, true, s);
-  assert.equal(m.projects[0].light, "unverified");
+  assert.equal(m.projects[0].light, "go");
   assert.deepEqual(m.byUser, { count: 1, lowered: 1 });
 });
 

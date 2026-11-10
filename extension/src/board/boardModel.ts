@@ -27,9 +27,10 @@ import { OPEN, effectiveSeverity, factsFor, itemKey, revFor, linkSummary, marksO
 // Pure, so the rules for the light are unit-tested without a webview.
 //
 // The light is honest. NO-GO when anything is in a red folder or an open document stops
-// the release under the profile. GO needs an accepted baseline, no grey document, every
-// open document read, and fresh, clean lint and test evidence. Otherwise it reads
-// UNVERIFIED, and says why.
+// the release under the profile. UNVERIFIED (amber) only when the board could not read
+// something: an open document whose severity is unknown, or a scan that is not accepted.
+// Open work, unsorted documents and missing lint or test results are never amber; the
+// board lists them as notes. Everything else is GO.
 
 // Existing import paths keep working: the shapes and the title helper live in their own
 // modules and are re-exported here.
@@ -173,8 +174,8 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
   return {
     id: def.id,
     name: def.name ?? def.id,
-    // GO needs every check to pass; anything missing keeps it at UNVERIFIED.
-    light: blocker ? "no-go" : reasons.length === 0 ? "go" : "unverified",
+    // Amber only when something could not be read (unread severity, scan not accepted). "grey" and "health" stay in `reasons` as notes.
+    light: blocker ? "no-go" : reasons.includes("unread") || reasons.includes("baseline") ? "unverified" : "go",
     health: h,
     reasons,
     items,

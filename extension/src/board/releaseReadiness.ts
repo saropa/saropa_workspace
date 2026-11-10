@@ -86,7 +86,7 @@ export function buildReadinessMarkdown(c: Readiness, generated: string): string 
     "",
     notCovered.length > 0 ? `Not covered (no report): ${notCovered.join(", ")}.` : "",
     "",
-    "This summary is read-only. It does not change the Release Board light, which needs its own fresh, clean evidence.",
+    "This summary is read-only. It does not change the Release Board light.",
     "",
   ].join("\n");
 }

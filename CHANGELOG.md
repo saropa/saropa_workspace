@@ -49,7 +49,7 @@ cspell:disable
 ## [Unreleased]
 
 ### Fixed
-- The status bar Release Board button only turns red when a project has a blocker; open or unchecked work no longer colors it. Only the projects of the folders open in this window count, never the extra projects you chose.
+- A Release Board project is amber only when the board could not read something. Missing lint or test results and unsorted documents no longer make it amber, and open work never does. The status bar button is red for a blocker, amber when something could not be read, and green otherwise. Only the projects of the folders open in this window count, never the extra projects you chose.
 
 ### Changed
 - The Gantt on the Release Board has a new Local layout next to Split and Unified. Local shows only the projects of the open folders and hides the extra chosen projects. It is now the default; pick Split or Unified to see all projects.

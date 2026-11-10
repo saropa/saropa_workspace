@@ -27,9 +27,9 @@ test("the button light ignores the extra chosen projects", () => {
   assert.equal(localWorstLight({ projects: [p("no-go", true)] }), undefined);
 });
 
-test("only a blocker gets a background", () => {
+test("each light gets its own background", () => {
   assert.equal(lightBackgroundId("no-go"), "statusBarItem.errorBackground");
-  assert.equal(lightBackgroundId("unverified"), undefined);
+  assert.equal(lightBackgroundId("unverified"), "statusBarItem.warningBackground");
   assert.equal(lightBackgroundId("go"), undefined);
   assert.equal(lightBackgroundId(undefined), undefined);
 });
