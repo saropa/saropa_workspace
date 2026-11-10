@@ -162,6 +162,17 @@ test("local drops the extra projects and keeps the toggle; split keeps them", ()
   assert.ok(html.includes('data-glayout="local" aria-pressed="true"'));
 });
 
+test("local scales bars and the Up next box from the open projects only", () => {
+  const m = twoProjects();
+  m.projects.find((p) => p.id === "lib")!.extra = true;
+  for (const i of m.items.filter((x) => x.project === "lib")) {
+    i.openMinutes = 6000;
+  }
+  const widest = (layout: "local" | "split") => Math.max(...buildGantt(m, undefined, layout).find((g) => g.id === "app")!.rows.map((r) => r.width));
+  assert.ok(widest("local") > widest("split"), "a hidden project's long step does not shrink the bars");
+  assert.ok(!ganttPanel(m, t, undefined, "local").includes("Lib"), "no hidden project's name appears");
+});
+
 test("the unified list starts with a blocker", () => {
   const [u] = buildGantt(twoProjects(), undefined, "unified", "All projects");
   assert.equal(u.rows.find((r) => r.id !== undefined)!.status, "red");

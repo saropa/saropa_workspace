@@ -4,7 +4,7 @@ import { kebab, rowData } from "./boardHtmlMenus";
 import { ganttStrips } from "./boardHtmlAsk";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, docLink, escapeHtml, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
-import { GanttGroup, GanttRow, buildGantt, inProgressCount, upNext } from "./ganttModel";
+import { GanttGroup, GanttRow, buildGantt, inProgressCount, shownModel, upNext } from "./ganttModel";
 import { layoutFor, openGroups } from "./org/layout";
 import { GANTT_LAYOUTS, GanttLayout } from "./types";
 
@@ -175,7 +175,7 @@ function subHeader(sub: { id: string; name: string }, c: { n: number; red: numbe
 }
 
 // The rows of one section from a position, for the page's "Show more". Undefined for a section or position the model does not hold.
-export function ganttRows(model: BoardModel, t: BoardStrings, since: SinceView | undefined, id: string, from: number, layout: GanttLayout = "split"): { html: string; count: number } | undefined {
+export function ganttRows(model: BoardModel, t: BoardStrings, since: SinceView | undefined, id: string, from: number, layout: GanttLayout = "local"): { html: string; count: number } | undefined {
   const groups = buildGantt(model, since, layout, pl(t, "scopeAll"));
   const n = groups.findIndex((g) => g.id === id);
   if (n < 0 || !Number.isInteger(from) || from < 1 || from >= groups[n].rows.length) {
@@ -240,28 +240,28 @@ export function ganttTab(selected: boolean, t: BoardStrings): string {
   return `<button role="tab" id="tb-gantt" data-tab="gantt" aria-selected="${selected}" aria-controls="tab-gantt" ${tip(t, "tabGantt")}>${escapeHtml(pl(t, "ganttTabName"))}</button>`;
 }
 
-// The Gantt tab's content: the key pill, the axis and one section per project.
-// The Split and Unified buttons, shown only when the projects could be told apart (two or more).
 const LAYOUT_KEYS: Record<GanttLayout, { label: string; tip: string }> = {
   local: { label: "ganttLocal", tip: "ganttLocalTip" },
   split: { label: "ganttSplit", tip: "ganttSplitTip" },
   unified: { label: "ganttUnified", tip: "ganttUnifiedTip" },
 };
 
+// The Local, Split and Unified buttons, shown only when there is a choice to make (see ganttPanel).
 export function layoutToggle(t: BoardStrings, layout: GanttLayout): string {
   const label = escapeHtml(pl(t, "ganttLayout"));
   return `<span class="glay" role="group" aria-label="${label}" title="${label}">${GANTT_LAYOUTS.map((l) => `<button type="button" class="sec" data-glayout="${l}" aria-pressed="${l === layout}" ${tip(t, LAYOUT_KEYS[l].tip)}>${escapeHtml(pl(t, LAYOUT_KEYS[l].label))}</button>`).join("")}</span>`;
 }
 
-export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView, layout: GanttLayout = "split"): string {
+// The Gantt tab's content: the key pill, the axis and one section per project.
+export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView, layout: GanttLayout = "local"): string {
   const groups = buildGantt(model, since, layout, pl(t, "scopeAll"));
-  // The toggle needs the split view to count the projects, since the unified view is always one section.
-  const several = layout === "split" ? groups.length > 1 : buildGantt(model, since, "split").length > 1;
+  // The toggle shows when the full board has several projects, or Local hides any, so the user can always leave Local.
+  const several = buildGantt(model, since, "split").length > 1 || model.projects.some((p) => p.extra);
   // The board size decides how many sections start open and how many rows each draws first; the user's own fold wins in the page.
-  const layout0 = layoutFor(model.items.length);
+  const layout0 = layoutFor(shownModel(model, layout).items.length);
   const open = openGroups(layout0, groups.map((g) => ({ id: g.id, blockers: g.blocks })));
   const body = groups.length === 0
     ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
-    : `${upNextBox(model, t)}<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups, open.has(g.id), layout0.rowLimit)).join("")}</div>`;
+    : `${upNextBox(shownModel(model, layout), t)}<div class="gantt" id="gantt"><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups, open.has(g.id), layout0.rowLimit)).join("")}</div>`;
   return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${several ? layoutToggle(t, layout) : ""}${keyPanel(t)}</div>${body}</section>`;
 }

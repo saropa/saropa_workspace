@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lightTooltip, localWorstLight } from "../../commands/boardStatusLight";
+import { lightBackgroundId, lightTooltip, localWorstLight } from "../../commands/boardStatusLight";
 import type { BoardModel } from "../../board/boardModel";
 import { l10n } from "../../i18n/l10n";
 
@@ -25,6 +25,13 @@ test("the button light ignores the extra chosen projects", () => {
   assert.equal(localWorstLight({ projects: [p("go"), p("no-go", true)] }), "go");
   assert.equal(localWorstLight({ projects: [p("go"), p("unverified")] }), "unverified");
   assert.equal(localWorstLight({ projects: [p("no-go", true)] }), undefined);
+});
+
+test("only a blocker gets a background", () => {
+  assert.equal(lightBackgroundId("no-go"), "statusBarItem.errorBackground");
+  assert.equal(lightBackgroundId("unverified"), undefined);
+  assert.equal(lightBackgroundId("go"), undefined);
+  assert.equal(lightBackgroundId(undefined), undefined);
 });
 
 test("each light has its own words", () => {
