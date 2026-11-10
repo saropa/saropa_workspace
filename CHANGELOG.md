@@ -46,7 +46,7 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.7.2]
 
 ### Added
 - Release Board Gantt: drag the edge of the name column to resize it (double-click resets, Left and Right keys move it when focused); the width is remembered.
