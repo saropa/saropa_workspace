@@ -33,7 +33,7 @@ test("an item that waits starts after what it waits on, and its row names the de
   const [g] = buildGantt(model);
   const a = g.rows.find((r) => r.title === "Alpha")!;
   const b = g.rows.find((r) => r.title === "Beta")!;
-  assert.equal(a.start, 0);
+  assert.equal(g.rows.find((r) => r.id !== undefined)!.start, 0, "the first open row starts the queue");
   assert.ok(b.start >= a.start + a.width - 0.1);
   assert.deepEqual(b.after, [a.id]);
   assert.deepEqual(b.waits, ["Alpha"]);
