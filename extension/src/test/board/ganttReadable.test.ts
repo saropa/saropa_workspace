@@ -51,7 +51,7 @@ test("the Gantt gives titles two lines and the title column room; the unused cha
   const long = "A very long document title that no column could ever show on one line";
   const m = buildBoard(cfg, [row("app", "l.md", "amber")], undefined, true, snapshotOf({ app: { "l.md": `# ${long}\n` } }));
   const html = ganttPanel(m, t);
-  assert.ok(GANTT_STYLE.includes("grid-template-columns:minmax(200px,45%) 1fr"));
+  assert.ok(GANTT_STYLE.includes("grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr"));
   assert.ok(GANTT_STYLE.includes("-webkit-line-clamp:2"));
   assert.ok(html.includes(long) && !html.includes(long.slice(0, 20) + "…"), "full text in the page and its tooltips");
   assert.match(html, /title="[^"]*A very long document title that no column could ever show on one line/);
