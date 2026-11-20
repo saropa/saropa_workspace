@@ -4,6 +4,146 @@ This archive is for older versions. For current changes see [CHANGELOG.md](./CHA
 
 ---
 
+## [1.6.9]
+
+Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.9/CHANGELOG.md)
+
+### Fixed
+
+- **External window launches now actually open the window** — the outer PowerShell wrapper no longer runs detached. VS Code's host process runs child processes inside a Windows Job Object that denies breakaway, so a detached wrapper's internal `Start-Process` call silently failed to create the target window (exit code 0, no error) while reporting success. The wrapper's own console is now hidden instead, so only the real external window is visible.
+
+---
+
+## [1.6.8]
+
+This release adds standard dialog keyboard shortcuts, auto-generated names, and content-based tag suggestions to the Customize panel. The Launcher now includes a recent-workspaces quick-pick when no folder is open. Bug fixes address webview disposable leaks, unclosed stderr streams during failed process spawns, and silently swallowed PowerShell errors. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.8/CHANGELOG.md)
+
+### Improved
+
+- **Customize panel: name suggestion** — the name field pre-populates with a title-cased guess from the filename (strips extension, replaces underscores/hyphens with spaces), so the friendly name is one Save away instead of typed from scratch.
+- **Customize panel: content-based tag suggestions** — "From file" chips suggest tags derived from the file's word frequency (excluding grammar and common programming keywords), weighted toward longer, more meaningful words.
+- **Customize panel: color swatch selection** — the selected color swatch now shows a visible focus ring, making the active tint unmistakable in all themes.
+- **Launcher: "No folder open" is now a clickable link** — clicking it opens a recent-workspaces quick-pick (up to 5 entries, most recent first) with a "Browse…" fallback that opens a file picker filtered to JSON config files. Selecting an entry opens the containing folder as the workspace. On first use (no history), the file picker opens directly.
+- **Tree tooltip: tint color name** — hovering a shortcut with a custom tint now shows the color name (e.g. "Tint: Red") in the tooltip, confirming which color was applied without opening Customize.
+- **Customize panel: keyboard shortcuts** — `Ctrl+Enter` (`Cmd+Enter` on macOS) saves, `Escape` cancels, matching VS Code's standard dialog conventions.
+
+### Fixed
+
+- **Custom color tinting now renders correctly** — user-selected tint colors from the Customize panel (the 20-swatch palette) now display their actual color in the launcher panel instead of falling back to gray when the webview cannot resolve extension-contributed CSS variables. Switching themes now refreshes tints immediately.
+- **External window launches now surface errors** — if the outer PowerShell process fails to open a new window (e.g. `Start-Process` errors), the failure is now captured and shown as an error toast instead of silently swallowed after a false "launched" success toast.
+- **Launcher: view-scoped disposable leak** — webview event listeners are now properly disposed when the launcher panel view is hidden and re-shown, preventing accumulated dead listeners across resolve cycles.
+- **External launcher: stderr cleanup on spawn error** — the piped stderr stream is now destroyed when the child process emits an error event without a subsequent exit, preventing a resource leak on ENOENT/EACCES failures.
+- **Customize panel: swatch selector hardened** — the CSS selector for color swatch lookup now escapes the color id, preventing a DOMException from corrupted config values.
+- **Launcher: note path validation** — opening a note from the launcher now validates the path against the note store before opening, matching the same validation pattern files and watches use.
+
+---
+
+## [1.6.7]
+
+Upgrades the daily routine experience with the visual Saropa Morning Brief and smarter standup digests that highlight actionable project growth over automated noise. Background runs are now quieter by default, and new settings allow power users to disable start-up notifications entirely. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.7/CHANGELOG.md)
+
+### Added
+
+- New "Show run toasts" setting (`showRunToasts`, on by default) — turn it off to suppress the "Running…" and "Launched…" start toasts across all run locations, for power users who rely on the output channel instead. Error and completion toasts from background runs are unaffected
+- Saropa Morning Brief — a briefing screen that opens after a routine run with a verdict band ("All clear" / "Needs attention"), per-member cards with status glyphs and headlines, and one-click report access; the markdown summary remains on disk and one click away via the "Open full summary" footer button. The `Open Saropa Morning Brief` command opens the most recent brief at any time
+- Share dropdown in the Morning Brief footer groups export actions (Copy as Markdown, Open in browser, Save as HTML) behind a single "Share" button; the primary "Open full summary" button remains top-level for quick report access
+
+### Changed
+
+- Standup digest classifies commits — security findings listed first, then features, fix groups by area — and folds generated churn (machine-translation sweeps, large chore commits) into a single summary line; the raw log stays one click away inside a details block
+- Project stats leads with the day-over-day delta ("+3,412 lines, +12 files since the last report") instead of repeating the same static census every morning; the dominant-language share clause appears only when it moved by at least 0.5 percentage points
+- A clean scheduled morning routine no longer opens the summary window; the completion toast and status-bar flash link it. Manual runs and any run needing attention still open it
+
+### Fixed
+
+- Running a script in an external window no longer shows two toasts ("Running…" and "Launched…in a new external window"); only the location-specific toast appears
+
+### Internal
+
+- Added JSDoc documentation to all 30 previously undocumented exports across 7 modules (ciStatus, overnightDelta, promptTokens, scheduleStatusBar, scheduleStatusBarActions, setParamsPanel, shortcutsTreeProvider)
+- Split the 5 longest functions into named helpers: `setupSecondaryViews` (211 → ~20 lines), `writeRoutineSummary` (155 → ~40 lines), `handleLauncherMessage` (155 → ~50 lines), `buildAllItems` (90 → ~10 lines), and the `ShortcutTreeItem` constructor annotation branch
+- Extracted `syncViewCount` and `CountProvider` into a shared `views/viewCount.ts` module, replacing 5 identical closures across `wiringViews.ts` (4) and `wiringWatchers.ts` (1); the view parameter uses a narrow structural type so any `TreeView<T>` is accepted regardless of `T`
+- Morning Brief panel uses a webview-initiated ready handshake instead of a `setTimeout(50)` race; on tab restore the recreated script posts `ready` and the host responds with data, eliminating the timing race
+- Error messages surfaced from brief export actions use `errorMessage()` to extract `.message` from Error objects, avoiding raw stack traces in user-facing toasts
+- All brief file writes (temp files and save-dialog paths) use `fs/promises` consistently instead of mixing `vscode.workspace.fs` with Node FS
+- Project stats marker embeds a version field (`v: 1`) so future format changes can be detected; `parseStatsMarker` rejects markers with `v` above the current version
+
+---
+
+## [1.6.6]
+
+Quickly share notes in plain text, Markdown links, or rich HTML, and enjoy a cleaner, keyboard-navigable Launcher context menu with organized submenus. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.6/CHANGELOG.md)
+
+### Added
+
+- "Copy Note Content" inline button and context menu action — reads the full note file and copies it to the clipboard, with a toast naming the file. Files over 5 MB or with binary content are refused with a specific warning
+- "Copy as Markdown Link" context menu action on notes — copies `[filename](relative-path)` for referencing notes in other documents
+- "Copy as HTML" context menu action on notes — converts Markdown to HTML before copying, so pasting into rich-text editors (Slack, email, Google Docs) preserves formatting (headings, bold, italic, code blocks, links, lists, blockquotes, horizontal rules)
+- Notes stat in the Launcher panel stat bar now shows even when the note count is zero, so the Notes pane toggle is always reachable
+
+### Hardened
+
+- Copy Note Content eliminates a time-of-check/time-of-use race by reading the file once and checking `byteLength` on the buffer, instead of running `stat` before `readFile`
+- Binary detection now catches UTF-16 LE and BE byte-order marks before the null-byte scan, preventing garbled clipboard content from non-UTF-8 text files
+- Copy as Markdown Link falls back to the bare filename when the note is stored outside the workspace (global notes), instead of embedding an absolute path that is non-portable
+- Launcher webview context menu now groups Configure & Schedule, Appearance, and File Actions into hover-expandable submenus so the menu fits on screen; Open, Run, Rename, and Remove stay at the top level for quick access; full keyboard navigation (Up/Down to move, Right to open submenu, Left/Escape to close it)
+
+---
+
+## [1.6.5]
+
+Manage all your extension preferences in one place with a dedicated Settings panel, and give your shortcut names a cleaner look with optional title-casing. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.5/CHANGELOG.md)
+
+
+### Added
+
+- **Settings panel** — a new "Open Settings" screen (`Saropa Settings`) surfaces every extension preference in one place, organized into sections (General, Display, Terminal, Suggestions, Recipes, Sound, Process Monitor, Hygiene, Project Files, Advanced), each setting with a live control and an info icon showing its description. A search bar at the top filters settings by name or description. Number inputs enforce the schema-defined minimum per setting. Accessible from the command palette, the Shortcuts view overflow menu, and a gear icon in the Launcher tab header.
+- **Title-case display names** — a new `displayNames.titleCase` setting (off by default) strips the file extension, replaces underscores and hyphens with spaces, and capitalizes each word wherever a shortcut name appears. For example, `setup_arb_translate.py` becomes `Setup Arb Translate`. Only affects shortcuts without a custom label.
+- **Centralized display-name resolution** — all surfaces (tree row, launcher card, panel titles, toasts) resolve shortcut names through one function (`shortcutDisplayName`) so the title-case preference applies uniformly.
+
+---
+
+## [1.6.4]
+
+The Launcher panel now has a Notes pane, sortable pane headers, and a smarter schedule status-bar indicator with configurable lead time. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.4/CHANGELOG.md)
+
+### Added
+
+- Notes pane in the Launcher panel — shows project and global notes as cards with filename, relative time, and a content preview in the expanded drawer
+- Notes stat chip in the header toggles the Notes section on and off
+- Recipes stat chip in the Launcher header — shows the recipe count and toggles the Recipes section on and off, matching the other pane toggle chips
+- Pane header click cycles the sort order: Grouped → A–Z → Z–A, with a sort indicator icon and label
+- "Just ran" flash on the schedule status-bar indicator — after a scheduled run completes, the indicator shows a check mark and the completion time for 2 minutes, one click away from the report
+- New `scheduleStatusBarLeadMinutes` setting controls how far in advance the status-bar indicator appears (default 30 minutes, set to 0 for run-time only, 1440 for always-visible)
+
+### Changed
+
+- Schedule status-bar indicator is now compact (time only, name in tooltip) and only appears within the configured lead-time window
+- Recipes pane icon changed from clock to lightbulb to distinguish it from the scheduled-run count
+
+### Removed
+
+- Chevron collapse controls from Launcher pane headers — replaced by the sort-cycling click and the header stat chip toggles
+
+---
+
+## [1.6.3]
+
+The Launcher panel gets a usability overhaul with new section visibility toggle chips, a convenient one-click reset button to restore hidden panes, and a smoother startup experience with a new loading indicator. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.3/CHANGELOG.md)
+
+### Added
+
+- An eye-icon reset button appears in the header when any section is toggled off — one click restores all sections to visible
+
+### Changed
+
+- Launcher panel shows a loading indicator on startup instead of a blank header until data arrives
+- Launcher header stat chips are now section visibility toggles (on/off) instead of pane filters — each chip independently shows or hides its section, with dimmed styling when off
+- The "scheduled" count is now an informational label (not a toggle), since scheduled cards live inside My shortcuts
+- Removed the folded-sections strip; pane visibility is controlled entirely from the header stat chips
+
+---
+
 ## [1.6.2]
 
 A brand new Notes view in the sidebar lets you manage project-scoped and global markdown notes, and collapsed launcher sections have been streamlined into a cleaner segmented bar that peeks titles on hover. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.2/CHANGELOG.md)
@@ -601,7 +741,7 @@ Running shortcuts gets smarter and friendlier: drop a file straight onto a scrip
 - **Running a script as administrator now opens the elevated window.** Previously, choosing the external window with **Administrator privileges** did nothing — no UAC prompt and no window — because the launcher was started in a mode that silently canceled the elevation request. The elevated window now opens (with the usual Windows UAC prompt).
 - **The run-settings editor no longer discards your edits on a misclick.** The settings menu and every step within it now stay open when you click elsewhere, so an accidental click outside the picker no longer closes the editor and loses everything. Only pressing Escape cancels.
 
-<details><summary>Maintenance</summary>
+### Internal
 
 - Centralized the Shortcuts tree's row glyphs and tints in one token module (`views/pinRowTokens.ts`). The row builder previously decided every codicon and theme color inline in a long priority chain; that decision now lives behind `resolvePinRowIcon`, which owns the state priority while named branches own each glyph/tint, with a legend of what each reads as. Pure extraction — byte-for-byte the prior behavior, no visual change — so a future row state has one place to add its glyph. No user-facing change.
 - Automated version numbering in the release script (`scripts/publish.py`). A full publish now resolves the version itself: it offers a default (a patch bump when the changelog has an `[Unreleased]` section, otherwise the current `package.json` value, and never below a version already written ahead by hand), prompts with an editable timeout, writes `package.json`, renames `## [Unreleased]` to the cut version, reconciles the two, and bumps past any git tag already on the remote so a release can't collide with a published one. It refuses to run while any `## [x.y.z]` section is an empty stub. Publish tooling only. No action required.
@@ -611,7 +751,6 @@ Running shortcuts gets smarter and friendlier: drop a file straight onto a scrip
 - Added Node-runner unit tests for the recipe-detector modules: the on-demand catalog, the ecosystem probes, the run-target block, the git-metadata reader, the scheduled-ritual detector, the routine composer, and the hygiene/process recipe builders. Each runs under `node --test` against the vscode stub with a temp-dir filesystem, covering the per-ecosystem branches, the git-remote gate, group routing, and the "scheduled rituals seed disabled" safety invariant. Tests only. No user-facing change.
 - Broadened unit-test coverage across the model, import, exec, command, and i18n layers. New `node --test` files exercise the shortcut model helpers (`pinKind`, annotation detection, the empty-project-file factory and version constants), the shortcut-store internals split out of the monolith (base persistence/accessors, refresh, the mutation core and field toggles, and the shared helpers), the project-file relative-time formatter, the tapped-shortcuts recency tracker, the favorites importers (Oleg Shilo, settings, and sibling formats), the share-link encode/decode round-trip, the scheduler's run-on-startup skip/advance paths, several run-configuration command helpers, the metric setter, the tag mutator, and the `l10n` key lookup with `{token}` interpolation and missing-key fallback. Each covers the module's distinct branches and edge cases against the vscode stub, with host-dependent paths (tree items, webviews, terminals, file-system watchers) left out where the stub does not model them. Tests only. No user-facing change.
 
-</details>
 
 ---
 

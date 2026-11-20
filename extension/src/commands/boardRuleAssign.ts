@@ -1,11 +1,20 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
-import { AssignRefusal, AssignResult, RuleCategory, SEVERITY_LEVELS, addDocRule, addFolderRule, clearDocStatus, decodeRules, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
+import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
 import { Severity } from "../board/severity";
+import { orderLists } from "../board/boardOrder";
+import { manualGroupNames, setDocGroup, setProjectOrder } from "../board/groupEdit";
 import { RULES_FILE } from "./boardConfigLoad";
 import { pathExists } from "./boardFileSource";
 import { globHits } from "./boardRules";
 import { BoardRun } from "./boardScanStore";
+import { withWriteLock, writeFileSafe } from "./boardWrite";
+import { RulesRead, hasUnsavedCopy, linkedRules, plainWriteError, readRules, sameRead } from "./boardRuleText";
+import { RulesSnapshot } from "./boardRuleUndo";
+
+// The helpers that moved out keep their old import path here.
+export { RulesRead, hasUnsavedEdits, hasUnsavedCopy, isLink, plainWriteError, readRules, sameRead } from "./boardRuleText";
+export { RulesSnapshot, undoRulesWrite } from "./boardRuleUndo";
 
 // Release Board, "Documents with no rule": assign a category to a folder of documents no rule
 // placed, and preview what a rule for the folder would match. The page names a folder by the
@@ -19,49 +28,27 @@ export interface NoRuleFolder {
   count: number;
 }
 
-// What reading the rules file found: no file, its text, or a file that is not plain UTF-8.
-export type RulesRead = { kind: "none" } | { kind: "text"; text: string } | { kind: "encoding" };
-
-export async function readRules(uri: vscode.Uri): Promise<RulesRead> {
-  if (!(await pathExists(uri))) {
-    return { kind: "none" };
-  }
-  const text = decodeRules(await vscode.workspace.fs.readFile(uri));
-  return text === undefined ? { kind: "encoding" } : { kind: "text", text };
-}
-
-export const sameRead = (a: RulesRead, b: RulesRead): boolean => a.kind === b.kind && (a.kind !== "text" || a.text === (b as { text: string }).text);
-
-// True when the path is a symbolic link (the rules file or its folder): a write would go through it.
-export async function isLink(uri: vscode.Uri): Promise<boolean> {
-  try {
-    return ((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.SymbolicLink) !== 0;
-  } catch {
-    return false;
-  }
-}
-
-// True when the rules file is open in an editor with unsaved edits: the write would drop them.
-export function hasUnsavedCopy(uri: vscode.Uri): boolean {
-  return vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString());
-}
-
 // Tells the user why the file was left alone.
 function refuse(reason: AssignRefusal, folder: string): void {
   if (reason === "none") {
     void vscode.window.showInformationMessage(l10n("releaseBoard.rowMenu.autoNothing", { glob: folder }));
     return;
   }
-  const key =
-    reason === "parse"
-      ? "releaseBoard.noRule.badJson"
-      : reason === "glob"
-        ? "releaseBoard.noRule.badGlob"
-        : reason === "encoding"
-          ? "releaseBoard.noRule.badEncoding"
-          : reason === "lossy"
-            ? "releaseBoard.noRule.badLossy"
-            : "releaseBoard.noRule.badShape";
+  if (reason === "same") {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.group.already", { glob: folder }));
+    return;
+  }
+  const keys: Record<Exclude<AssignRefusal, "none" | "same">, string> = {
+    claimed: "releaseBoard.group.claimed",
+    parse: "releaseBoard.noRule.badJson",
+    glob: "releaseBoard.noRule.badGlob",
+    name: "releaseBoard.group.badName",
+    encoding: "releaseBoard.noRule.badEncoding",
+    lossy: "releaseBoard.noRule.badLossy",
+    shape: "releaseBoard.noRule.badShape",
+    full: "releaseBoard.reorder.full"
+  };
+  const key = keys[reason];
   void vscode.window.showWarningMessage(l10n(key, { file: RULES_FILE, folder }));
 }
 
@@ -121,29 +108,43 @@ async function writeRule(run: BoardRun, c: RuleChange): Promise<boolean> {
   });
 }
 
-// One change to the text of the rules file, with the words that go with it.
-interface TextChange {
+// One change to the text of the rules file, with the words that go with it. Without `confirm` the
+// change is written at once and `saved` hands the caller what it replaced.
+export interface TextChange {
   folder: string;
   // The new text from the current one, or why it cannot be made; vars are shown in the words.
   make: (before: string | undefined) => { ok: true; text: string; vars: Record<string, string> } | { ok: false; reason: AssignRefusal };
-  confirm: (vars: Record<string, string>) => string;
-  button: string;
-  done: (vars: Record<string, string>) => string;
+  confirm?: (vars: Record<string, string>) => string;
+  button?: string;
+  done?: (vars: Record<string, string>) => string;
+  saved?: (snapshot: RulesSnapshot) => void;
   refusal: (reason: AssignRefusal, folder: string) => void;
 }
 
 // Writes a change to the rules file with every check: no unsaved copy open, no symbolic link,
-// strict UTF-8, a confirmation that names the change, and a second read just before the write.
-// Returns true when the file was written, so the caller scans again.
-async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
-  const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
-  if (hasUnsavedCopy(uri)) {
+// strict UTF-8, a confirmation that names the change (when it has one), and a second read just
+// before the write. Returns true when the file was written, so the caller scans again.
+export function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
+  return withWriteLock(vscode.Uri.joinPath(root.uri, RULES_FILE), () => applyTextChangeNow(root, c));
+}
+
+// First guard of a write: true (after telling the user why) when the file has an unsaved copy
+// open in an editor, or it or its folder is a symbolic link.
+async function blockedBeforeRead(root: vscode.WorkspaceFolder, uri: vscode.Uri): Promise<boolean> {
+  if (await hasUnsavedCopy(uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: RULES_FILE }));
-    return false;
+    return true;
   }
-  const linked = async (): Promise<boolean> => (await isLink(vscode.Uri.joinPath(root.uri, ".saropa"))) || (await isLink(uri));
-  if (await linked()) {
+  if (await linkedRules(root, uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
+    return true;
+  }
+  return false;
+}
+
+async function applyTextChangeNow(root: vscode.WorkspaceFolder, c: TextChange): Promise<boolean> {
+  const uri = vscode.Uri.joinPath(root.uri, RULES_FILE);
+  if (await blockedBeforeRead(root, uri)) {
     return false;
   }
   const before = await readRules(uri);
@@ -156,27 +157,76 @@ async function applyTextChange(root: vscode.WorkspaceFolder, c: TextChange): Pro
     c.refusal(result.reason, c.folder);
     return false;
   }
-  if ((await vscode.window.showWarningMessage(c.confirm(result.vars), { modal: true }, c.button)) !== c.button) {
+  if (c.confirm && (await vscode.window.showWarningMessage(c.confirm(result.vars), { modal: true }, c.button ?? "")) !== c.button) {
     return false;
   }
   // The file is read again just before the write: a change made while the dialogs were open wins.
-  if (hasUnsavedCopy(uri) || !sameRead(await readRules(uri), before)) {
+  if ((await hasUnsavedCopy(uri)) || !sameRead(await readRules(uri), before)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.changed", { file: RULES_FILE }));
     return false;
   }
-  if (await linked()) {
+  if (await linkedRules(root, uri)) {
     void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: RULES_FILE }));
     return false;
   }
+  return writeAndVerify(root, uri, before, result, c);
+}
+
+// Writes the new text (creating the .saropa folder when missing), tells the user, and hands the
+// caller what was replaced. A write that failed late but landed is kept undoable.
+async function writeAndVerify(root: vscode.WorkspaceFolder, uri: vscode.Uri, before: RulesRead, result: { text: string; vars: Record<string, string> }, c: TextChange): Promise<boolean> {
+  const dir = vscode.Uri.joinPath(root.uri, ".saropa");
+  let madeDir = false;
   try {
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root.uri, ".saropa"));
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
+    try {
+      await vscode.workspace.fs.stat(dir);
+    } catch {
+      madeDir = true;
+    }
+    await vscode.workspace.fs.createDirectory(dir);
+    await writeFileSafe(uri, Buffer.from(result.text, "utf8"));
   } catch (e) {
-    void vscode.window.showErrorMessage(l10n("releaseBoard.noRule.failed", { file: RULES_FILE, error: e instanceof Error ? e.message : String(e) }));
+    void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
+    // A write that failed late may still have landed; keep it undoable when it did.
+    const now = await readRules(uri).catch((): RulesRead => ({ kind: "none" }));
+    if (now.kind === "text" && now.text === result.text) {
+      c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
+      return true;
+    }
     return false;
   }
-  void vscode.window.showInformationMessage(c.done(result.vars));
+  if (c.done) {
+    void vscode.window.showInformationMessage(c.done(result.vars));
+  }
+  c.saved?.({ before: before.kind === "text" ? before.text : undefined, after: result.text, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
   return true;
+}
+
+// Changes the rules file text once for several documents at once, with every check of a single
+// change: `make` turns the current text into the new one. Returns what the file held before
+// (for Undo), or undefined when nothing was written.
+export async function changeRules(run: BoardRun, projects: string[], make: (before: string | undefined) => { ok: true; text: string } | { ok: false; reason: AssignRefusal }): Promise<RulesSnapshot | undefined> {
+  let root: vscode.WorkspaceFolder | undefined;
+  for (const id of projects) {
+    root = rulesRoot(run, id);
+    if (!root) {
+      return undefined;
+    }
+  }
+  if (!root) {
+    return undefined;
+  }
+  let snapshot: RulesSnapshot | undefined;
+  await applyTextChange(root, {
+    folder: "",
+    make: (before) => {
+      const r = make(before);
+      return r.ok ? { ok: true, text: r.text, vars: {} } : r;
+    },
+    saved: (s) => (snapshot = s),
+    refusal: refuse,
+  });
+  return snapshot;
 }
 
 // Gives every document of a folder a category by adding a rule for the folder.
@@ -198,23 +248,6 @@ export async function assignFolderRule(run: BoardRun, entry: NoRuleFolder, winni
   });
 }
 
-// Gives one document a status by adding a rule for its path, ahead of the rule that placed it.
-// The same pick, confirmation and checks as a rule for a folder; the board scans again after.
-export async function changeDocStatus(run: BoardRun, doc: { project: string; path: string; title: string }): Promise<boolean> {
-  if (docGlob(doc.path) === undefined) {
-    refuse("glob", doc.path);
-    return false;
-  }
-  return writeRule(run, {
-    project: doc.project,
-    glob: doc.path,
-    folder: doc.path,
-    title: l10n("releaseBoard.rowMenu.statusPick", { title: doc.title }),
-    confirm: "releaseBoard.rowMenu.statusConfirm",
-    make: (before, category) => addDocRule(before, { project: doc.project, path: doc.path, category }),
-  });
-}
-
 // Tells how many documents of the project sit under the folder, with the first few. Changes nothing.
 export function previewFolder(run: BoardRun, entry: NoRuleFolder): void {
   const glob = folderGlob(entry.folder);
@@ -228,6 +261,24 @@ export function previewFolder(run: BoardRun, entry: NoRuleFolder): void {
       ? l10n("releaseBoard.previewNone", { glob })
       : l10n("releaseBoard.previewResult", { count: hits.length, glob, sample: hits.slice(0, 5).map((h) => h.path).join(", ") })
   );
+}
+
+// The names of the groups listed by hand, read from the rules file now (not from the last scan).
+export async function readGroupNames(): Promise<string[]> {
+  const root = vscode.workspace.workspaceFolders?.[0];
+  if (!root) {
+    return [];
+  }
+  const read = await readRules(vscode.Uri.joinPath(root.uri, RULES_FILE));
+  if (read.kind !== "text") {
+    return [];
+  }
+  try {
+    const cfg = JSON.parse(read.text) as unknown;
+    return manualGroupNames(typeof cfg === "object" && cfg !== null ? cfg : {});
+  } catch {
+    return [];
+  }
 }
 
 // The first workspace folder, or a message when there is none; and the project's idMadeUnique check.
@@ -245,75 +296,66 @@ function rulesRoot(run: BoardRun, projectId: string): vscode.WorkspaceFolder | u
   return root;
 }
 
-interface SeverityPick extends vscode.QuickPickItem {
-  level: Severity | undefined;
+// What the row menu changes for one document: its status (a category of the existing rules), its
+// severity, both back to automatic, or its group (a name, or undefined to take it out of its group).
+export type DocChange = { kind: "status"; category: RuleCategory } | { kind: "severity"; level: Severity } | { kind: "auto" } | { kind: "group"; name: string | undefined } | { kind: "order"; paths: string[] };
+
+// The text with the status rules and the severity entry the board wrote for the document taken away.
+function autoText(before: string | undefined, doc: { project: string; path: string }): SeverityResult {
+  const sev = setDocSeverity(before, { project: doc.project, path: doc.path, severity: undefined });
+  const afterSev = sev.ok ? sev.text : before;
+  const st = clearDocStatus(afterSev, { project: doc.project, path: doc.path });
+  if (sev.ok || st.ok) {
+    return { ok: true, text: st.ok ? st.text : (afterSev as string) };
+  }
+  // Both found nothing to take away, or the file could not be read as rules.
+  return sev.reason === "none" && st.reason === "none" ? { ok: false, reason: "none" } : st.reason === "none" ? sev : st;
 }
 
-// Gives one document a severity chosen by the user, or (Back to automatic) takes it away. It is
-// stored in the rules file as an entry for the exact path of the project, and wins over the
-// computed severity. Same checks and confirmation as a status change; the confirmation says the
-// release light can change. Returns true when the file was written.
-export async function changeDocSeverity(run: BoardRun, doc: { project: string; path: string; title: string }): Promise<boolean> {
+// Changes one document's status, severity or group in the rules file at once, with no dialog: the same
+// checks as every rules write. A status is a rule for the exact path placed ahead of the rule that
+// placed it; a severity is an entry for the exact path that wins over the computed one; a group lists the exact
+// path (a document taken out of a group the board found is listed in "ungrouped"); an order lists a
+// group's paths in their new order in the project's order list. Returns
+// what the file held before (for Undo), or undefined when nothing was written.
+export async function changeDoc(run: BoardRun, doc: { project: string; path: string }, change: DocChange): Promise<RulesSnapshot | undefined> {
   if (docGlob(doc.path) === undefined) {
     refuse("glob", doc.path);
-    return false;
+    return undefined;
   }
   const root = rulesRoot(run, doc.project);
   if (!root) {
-    return false;
+    return undefined;
   }
-  const detail = l10n("releaseBoard.rowMenu.severityDetail");
-  const picks: SeverityPick[] = [
-    ...SEVERITY_LEVELS.map((level): SeverityPick => ({ label: level, detail, level })),
-    { label: l10n("releaseBoard.rowMenu.severityAuto"), detail: l10n("releaseBoard.rowMenu.severityAutoDetail"), level: undefined },
-  ];
-  const chosen = await vscode.window.showQuickPick(picks, { title: l10n("releaseBoard.rowMenu.severityPick", { title: doc.title }), placeHolder: l10n("releaseBoard.rowMenu.severityPlaceholder") });
-  if (!chosen) {
-    return false;
+  let snapshot: RulesSnapshot | undefined;
+  // Only a path checked missing on disk leaves the order list; one merely absent from the scan stays.
+  const gone = new Set<string>();
+  const def = run.cfg.projects.find((p) => p.id === doc.project);
+  if (change.kind === "order" && def) {
+    const moved = new Set(change.paths);
+    for (const p of orderLists(run.cfg.order)[doc.project] ?? []) {
+      if (!moved.has(p) && !(await pathExists(vscode.Uri.joinPath(vscode.Uri.parse(def.path), p)))) {
+        gone.add(p);
+      }
+    }
   }
-  const project = run.cfg.projects.find((p) => p.id === doc.project)?.name ?? doc.project;
-  const level = chosen.level;
-  return applyTextChange(root, {
+  await applyTextChange(root, {
     folder: doc.path,
     make: (before) => {
-      const r = setDocSeverity(before, { project: doc.project, path: doc.path, severity: level });
+      const r =
+        change.kind === "status"
+          ? addDocRule(before, { project: doc.project, path: doc.path, category: change.category })
+          : change.kind === "severity"
+            ? setDocSeverity(before, { project: doc.project, path: doc.path, severity: change.level })
+            : change.kind === "group"
+              ? setDocGroup(before, { project: doc.project, path: doc.path, group: change.name })
+              : change.kind === "order"
+                ? setProjectOrder(before, { project: doc.project, paths: change.paths, gone })
+                : autoText(before, doc);
       return r.ok ? { ok: true, text: r.text, vars: {} } : r;
     },
-    confirm: () => l10n(level ? "releaseBoard.rowMenu.severityConfirm" : "releaseBoard.rowMenu.severityAutoConfirm", { file: RULES_FILE, glob: doc.path, project, level: level ?? "" }),
-    button: l10n(level ? "releaseBoard.rowMenu.severitySetButton" : "releaseBoard.rowMenu.severityRemoveButton"),
-    done: () => l10n(level ? "releaseBoard.rowMenu.severitySet" : "releaseBoard.rowMenu.severityCleared", { glob: doc.path, level: level ?? "", file: RULES_FILE }),
+    saved: (s) => (snapshot = s),
     refusal: refuse,
   });
-}
-
-// Takes away what the user set for one document: its severity entry and the status rules the
-// board wrote for its exact path. Either one may be missing; when neither exists nothing is written.
-export async function backToAutomatic(run: BoardRun, doc: { project: string; path: string }): Promise<boolean> {
-  if (docGlob(doc.path) === undefined) {
-    refuse("glob", doc.path);
-    return false;
-  }
-  const root = rulesRoot(run, doc.project);
-  if (!root) {
-    return false;
-  }
-  const project = run.cfg.projects.find((p) => p.id === doc.project)?.name ?? doc.project;
-  return applyTextChange(root, {
-    folder: doc.path,
-    make: (before) => {
-      const sev = setDocSeverity(before, { project: doc.project, path: doc.path, severity: undefined });
-      const afterSev = sev.ok ? sev.text : before;
-      const st = clearDocStatus(afterSev, { project: doc.project, path: doc.path });
-      if (sev.ok || st.ok) {
-        const what = sev.ok && st.ok ? "Both" : sev.ok ? "Severity" : "Status";
-        return { ok: true, text: st.ok ? st.text : (afterSev as string), vars: { what } };
-      }
-      // Both found nothing to take away, or the file could not be read as rules.
-      return sev.reason === "none" && st.reason === "none" ? { ok: false, reason: "none" } : st.reason === "none" ? sev : st;
-    },
-    confirm: (vars) => l10n("releaseBoard.rowMenu.autoConfirm", { file: RULES_FILE, glob: doc.path, project, what: l10n(`releaseBoard.rowMenu.autoWhat${vars.what}`) }),
-    button: l10n("releaseBoard.rowMenu.autoButton"),
-    done: () => l10n("releaseBoard.rowMenu.autoDone", { glob: doc.path, file: RULES_FILE }),
-    refusal: refuse,
-  });
+  return snapshot;
 }

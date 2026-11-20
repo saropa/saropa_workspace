@@ -5,32 +5,42 @@ import { ProjectHealth } from "./health";
 import { Profile, Severity, asProfile, stops } from "./severity";
 import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
-import { buildGroups } from "./groups";
+import { orderLists } from "./boardOrder";
+import { buildOrg } from "./boardOrg";
+import { buildProposals } from "./boardProposals";
+import { mergeNeeds, stepMinutes, stepNeeds } from "./needs";
 import { Link, buildChains, resolveLinks } from "./links";
 import { inferLinks } from "./inferred";
+import { OrgSettings, settingsOf } from "./org/settings";
+import { finishedTargets } from "./ganttModel";
 import { ScanSnapshot } from "./scanner";
 import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
+import { askOf } from "./blockersAsk";
+import { answerOptions, attachOrder } from "./orderModel";
 import { pickInProgress } from "./inProgress";
 import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
 import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
-import { OPEN, effectiveSeverity, factsFor, itemKey, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
+import { OPEN, effectiveSeverity, factsFor, itemKey, revFor, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
 
 // The board's view model: what the first screen shows, built from classified rows.
 // Pure, so the rules for the light are unit-tested without a webview.
 //
 // The light is honest. NO-GO when anything is in a red folder or an open document stops
-// the release under the profile. GO needs an accepted baseline, no grey document, every
-// open document read, and fresh, clean lint and test evidence. Otherwise it reads
-// UNVERIFIED, and says why.
+// the release under the profile. UNVERIFIED (amber) only when the board could not read
+// something: an open document whose severity is unknown, or a scan that is not accepted.
+// Open work, unsorted documents and missing lint or test results are never amber; the
+// board lists them as notes. Everything else is GO.
 
 // Existing import paths keep working: the shapes and the title helper live in their own
 // modules and are re-exported here.
-export type { Light, UnverifiedReason, BoardItem, ItemMarks, BoardProject, ChainStep, SittingsView, BoardModel, BoardExtra } from "./boardModelParts";
+export type { Light, UnverifiedReason, GroupView, BoardItem, ItemMarks, BoardProject, ChainStep, SittingsView, BoardModel, BoardExtra } from "./boardModelParts";
 export { titleFromPath } from "./boardModelParts";
 
 const ORDER: Record<string, number> = { red: 0, purple: 1, amber: 2 };
 const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, medium: 3, low: 4 };
+// Open steps kept on an item for the hand-off.
+const HANDOFF_STEPS = 10;
 const IMPORTANCE: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
 // What the build of every project needs to look at, gathered once.
@@ -45,10 +55,15 @@ interface BuildContext {
   names: Map<string, string>;
   exactPins: Set<string>;
   pinGlobs: RegExp[];
+  // Project ids whose owner answered "which items block the next release".
+  answered: Set<string>;
+  seen: Record<string, string[]>;
   // Severities chosen by the user, and a count of the ones applied to open documents.
   overrides: Map<string, Severity>;
   statusKeys: Set<string>;
   byUser: { count: number; lowered: number };
+  // Tags, link phrases and naming from the rules file `organize` key, for the auto-grouping and link engines.
+  org: OrgSettings;
 }
 
 // The open items of one project, sorted, with its counts and its collapsed blocked documents.
@@ -57,6 +72,8 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
   const items: BoardItem[] = [];
   let blocked = 0;
   let blockedStop = 0;
+  const dict = mergeNeeds(ctx.cfg.needs);
+  const answered = ctx.answered.has(def.id);
   for (const r of ctx.rows) {
     if (r.project !== def.id) {
       continue;
@@ -66,6 +83,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       continue;
     }
     const facts = factsFor(ctx.snapshot, def.id, r.path);
+    const rev = revFor(ctx.snapshot, def.id, r.path);
     const pinned = ctx.exactPins.has(def.id + "/" + r.path) || ctx.pinGlobs.some((re) => re.test(def.id + "/" + r.path));
     const sev = effectiveSeverity(ctx.overrides, def.id, r.path, facts);
     if (sev.byUser) {
@@ -77,13 +95,14 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
     }
     if (r.status === "amber" && r.note === "blocked" && !pinned) {
       // A waiting document is collapsed into one mark, but one that would stop a
-      // release under the profile still counts toward NO-GO.
+      // release under the profile still counts toward NO-GO (in an answered project only pinned ones block, and they are listed).
       blocked += 1;
-      if (sev.severity !== undefined && stops(ctx.profile, sev.severity)) {
+      if (!answered && sev.severity !== undefined && stops(ctx.profile, sev.severity)) {
         blockedStop += 1;
       }
       continue;
     }
+    const stopping = pinned || (sev.severity !== undefined && stops(ctx.profile, sev.severity));
     items.push({
       id: -1,
       project: def.id,
@@ -91,7 +110,10 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       title: facts?.title || titleFromPath(r.path),
       status: r.status as "red" | "amber" | "purple",
       kind: r.kind,
+      ...(rev ? { rev } : {}),
       marks: facts ? marksOf(facts, ctx.names) : undefined,
+      ...(facts?.steps?.length ? { steps: facts.steps.slice(0, HANDOFF_STEPS).map((x) => ({ line: x.line, text: x.text })) } : {}),
+      ...(facts?.steps?.length ? { openMinutes: facts.steps.reduce((sum, x) => sum + stepMinutes(x.text, stepNeeds(x, dict), dict), 0) } : {}),
       hub: false,
       blocksCount: 0,
       waitsOn: [],
@@ -100,11 +122,14 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       ...(statusChosen(ctx.statusKeys, r) ? { statusByUser: true } : {}),
       audience: facts?.audience,
       pinned,
-      stopping: pinned || (sev.severity !== undefined && stops(ctx.profile, sev.severity)),
+      stopping,
+      blocks: answered ? pinned : r.status === "red" || stopping,
+      ...(answered ? { answered: true as const } : {}),
     });
   }
   items.sort(
     (a, b) =>
+      (answered ? Number(b.blocks) - Number(a.blocks) : 0) ||
       ORDER[a.status] - ORDER[b.status] ||
       Number(b.pinned) - Number(a.pinned) ||
       (SEV_ORDER[a.severity ?? "medium"] ?? 3) - (SEV_ORDER[b.severity ?? "medium"] ?? 3) ||
@@ -137,11 +162,11 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
     reasons.push("unread");
   }
   // A scan held by the safety check must never hide red work the accepted scan had.
+  const answered = ctx.answered.has(def.id);
+  const ask = askOf(items, answered, ctx.seen[def.id]);
   const blocker =
-    counts.red > 0 ||
-    items.some((i) => i.stopping) ||
-    blockedStop > 0 ||
-    (!ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
+    (answered ? items.some((i) => i.blocks) : counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0) ||
+    (!answered && !ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
     h?.lint === "failing" ||
     h?.tests === "failing" ||
     h?.build === "failing" ||
@@ -149,13 +174,15 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
   return {
     id: def.id,
     name: def.name ?? def.id,
-    // GO needs every check to pass; anything missing keeps it at UNVERIFIED.
-    light: blocker ? "no-go" : reasons.length === 0 ? "go" : "unverified",
+    // Amber only when something could not be read (unread severity, scan not accepted). "grey" and "health" stay in `reasons` as notes.
+    light: blocker ? "no-go" : reasons.includes("unread") || reasons.includes("baseline") ? "unverified" : "go",
     health: h,
     reasons,
     items,
     blocked,
     blockedStopping: blockedStop,
+    ...(answered ? { answered: true as const } : {}),
+    ...(ask ? { ask } : {}),
     ...(lowered > 0 ? { loweredByUser: lowered } : {}),
     counts,
     dependsOn: def.dependsOn ?? [],
@@ -182,7 +209,7 @@ function collectNeeds(rows: Classified[], snapshot: ScanSnapshot | undefined, ac
 }
 
 // Writes the group, hub flag, Needs summary and blocker counts onto each item.
-function attachLinks(all: BoardItem[], links: Link[], grouping: ReturnType<typeof buildGroups>, byKey: Map<string, BoardItem>): void {
+function attachLinks(all: BoardItem[], links: Link[], grouping: ReturnType<typeof buildOrg>, byKey: Map<string, BoardItem>): void {
   for (const it of all) {
     it.group = grouping.groupOf.get(itemKey(it.project, it.path));
     it.hub = grouping.hubs.has(itemKey(it.project, it.path));
@@ -266,7 +293,7 @@ function buildTidyView(all: BoardItem[], ctx: BuildContext, opts: NonNullable<Bo
         pinned: it.pinned,
         waiting: it.link?.state === "open",
         status: it.status,
-        stopping: it.stopping,
+        blocks: it.blocks,
       };
     }),
     opts
@@ -331,6 +358,9 @@ export function buildBoard(
     overrides: userSeverities(cfg),
     statusKeys: userStatuses(cfg),
     byUser: { count: 0, lowered: 0 },
+    org: settingsOf(cfg.organize),
+    answered: new Set(extra?.answered ?? []),
+    seen: extra?.seen ?? {},
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };
   // The open workspace's projects first, then the extra ones; importance orders within each.
@@ -338,37 +368,57 @@ export function buildBoard(
   const projects = defs.map((def) => buildProject(def, ctx, all));
   // Groups, linkages and chains need every open item, so they are computed once all
   // projects are built.
-  const grouping = buildGroups(
-    all.map((it) => {
-      const f = factsFor(snapshot, it.project, it.path);
-      return { key: itemKey(it.project, it.path), project: it.project, path: it.path, words: f?.words ?? 0, docRefs: f?.docRefs ?? 0, sourceFiles: f?.sourceFiles ?? [] };
-    }),
-    { manual: cfg.groups, ungrouped: cfg.ungrouped }
-  );
+  const order = orderLists(cfg.order);
   const links = resolveLinks(rows, collectNeeds(rows, snapshot, extra?.needs), cfg.projects);
+  const grouping = buildOrg(rows, snapshot, cfg, links, extra?.orgPrevious);
+  const inText = collectNeeds(rows, snapshot, undefined);
+  for (const l of links) {
+    if (!inText.get(itemKey(l.fromProject, l.fromPath))?.includes(l.target)) {
+      l.markOnly = true;
+    }
+  }
   const byKey = new Map(all.map((it) => [itemKey(it.project, it.path), it]));
   attachLinks(all, links, grouping, byKey);
-  const suggestions = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
+  attachOrder(projects, all, extra?.order);
+  for (const it of all) {
+    if ((it.after ?? []).length > 0 && answerOptions(links, all, it).length > 0) {
+      it.makeDep = true;
+    }
+  }
+  const dashed = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
+  const proposals = buildProposals(all, snapshot, cfg, links, extra?.rejected, new Set(dashed.map((s) => s.key)));
+  // A pair shown as a proposal is not shown again as a dashed suggestion.
+  const proposed = new Set(proposals.map((p) => p.key));
+  const suggestions = dashed.filter((s) => !proposed.has(s.key));
   attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   const customParts = customizedParts(cfg.severity);
+  const reference = new Set(rows.filter((r) => r.status === "reference").map((r) => r.project + "\t" + r.path));
+  const finished = finishedTargets(links, (project, path) => factsFor(snapshot, project, path)?.title || titleFromPath(path), (project, path) => reference.has(project + "\t" + path));
   return {
     tidy: extra?.tidy ? buildTidyView(all, ctx, extra.tidy) : undefined,
     inProgress: extra?.inProgress ? pickInProgress(all, new Set(extra.inProgress.edited), extra.inProgress.max) : undefined,
     liveUnnamed,
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
+    orgLayouts: grouping.layouts,
+    ...(finished.length > 0 ? { finished } : {}),
     ...(cfg.skipped && cfg.skipped.length > 0 ? { skipped: cfg.skipped } : {}),
     ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),
     ...(customParts.length > 0 ? { severityCustom: customParts } : {}),
     chains: buildChainSteps(links, byKey, ctx.names),
+    links,
     flags: linkFlags(links, ctx.names),
     items: all,
+    ...(Object.keys(order).length > 0 ? { order } : {}),
     // Once the user accepts (or the scan was clean) neither banner shows.
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,
     baseline: !accepted && (safety?.baseline ?? false),
     profile,
     suggestions,
+    proposals,
+    rejectedCount: extra?.rejected?.length ?? 0,
+    sharedRejectedCount: extra?.sharedRejected ?? 0,
     outside: extra?.outside?.groups ?? [],
     needsRule: needsRuleFolders(cfg, snapshot),
     ...(ctx.byUser.count > 0 ? { byUser: ctx.byUser } : {}),

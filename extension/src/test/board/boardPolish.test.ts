@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BoardStrings, renderBoard, renderSkeleton } from "../../board/boardHtml";
 import { STYLE, script } from "../../board/boardHtmlAssets";
-import { kebab, optsMenu, rowMenu } from "../../board/boardHtmlMenus";
+import { kebab, optsMenu, rowMenu, scopeMenu, pillMenus, undoBar } from "../../board/boardHtmlMenus";
 import { PROJECTS_STYLE } from "../../board/boardHtmlProjects";
 import { buildBoard } from "../../board/boardModel";
 import { evaluateHealth } from "../../board/health";
@@ -19,6 +19,8 @@ import { POLISH_KEYS, PROJECT_LABEL_KEYS, strings } from "../../views/boardStrin
 import { buildFuture } from "../../board/futureList";
 import { futurePanel } from "../../board/boardHtmlFuture";
 import { sinceBox, unnamedBox } from "../../board/boardHtmlBoxes";
+import { row as boardRow } from "../../board/boardHtmlRows";
+import { titleAttr } from "../../board/boardHtmlUtil";
 import { asTimeBox } from "../../board/sittings";
 import en from "../../i18n/locales/en.json";
 
@@ -69,7 +71,6 @@ test("buttons use the editor's button colors, one font size and a secondary look
   assert.ok(STYLE.includes(".vscode-high-contrast button"), "high contrast themes get a visible border");
   assert.ok(STYLE.includes("outline:1px solid var(--vscode-focusBorder"), "focus is visible");
   assert.equal(/\bbutton[^{]*\{[^}]*font-size/.test(STYLE.replace(/\.fn[^}]*\}/g, "")), false, "no button sets its own font size");
-  assert.equal(/\.hb\{[^}]*(font-size|padding)/.test(STYLE), false, "Hand to chat is the same size as other buttons");
 });
 
 test("an item step is a link to its document, a lint step stays plain text with its button", () => {
@@ -83,7 +84,7 @@ test("an item step is a link to its document, a lint step stays plain text with 
   const item = items.find((x) => x.includes("data-k=\"item:"));
   const lint = items.find((x) => x.includes('data-k="lint"'));
   assert.ok(item && lint);
-  assert.ok(item.includes('<a class="doc" href="#" data-id="0" title="docs/BUG_a.md">Crash</a>'), "the document is a link with its path as tooltip");
+  assert.ok(item.includes('<a class="doc" href="#" data-id="0" title="Crash\ndocs/BUG_a.md">Crash</a>'), "the document is a link with its path as tooltip");
   assert.equal(item.includes("<button class=\"ptgb\""), false, "the link replaces the Open button");
   assert.equal(lint.includes("<a "), false, "a step that is not a document has no link");
   assert.ok(lint.includes('<button class="ptgb"'), "and keeps its action button");
@@ -91,7 +92,8 @@ test("an item step is a link to its document, a lint step stays plain text with 
 });
 
 test("the rules step is plain text: the rules file opens only from the menus", () => {
-  const m = buildBoard(cfg, [row("docs/loose/a.md", "grey")], undefined, true, snapshot({}, { "docs/loose": 3 }));
+  // Grey documents are a step only while the project is not GO; the unaccepted scan keeps it amber.
+  const m = buildBoard(cfg, [row("docs/loose/a.md", "grey")], undefined, false, snapshot({}, { "docs/loose": 3 }));
   const p = pathToGo(m, m.projects[0], { maxSteps: 8, canRun: () => false });
   const html = renderBoard(m, t, "n", 1, {}, [p]);
   assert.ok(html.includes("ptgRules"), "the step is still listed");
@@ -135,9 +137,10 @@ test("the time filter has Any, 15 min, 30 min, 1 hour and Half a day with their 
   const s = strings();
   const m = buildBoard(cfg, [row("docs/p.md", "amber")], undefined, true, snapshot(files), undefined, undefined, { sittings: { selection: { timeBox: "240", maxSteps: 10 }, onlyOwner: false } });
   const html = renderBoard(m, s, "n");
-  const labels = [...html.matchAll(/<button class="chip sec" data-box="(\w+)" aria-pressed="(\w+)" title="[^"]*">([^<]*)<\/button>/g)].map((x) => [x[1], x[2], x[3]]);
+  const menu = pillMenus(s, m);
+  const labels = [...menu.matchAll(/data-act="box:(\w+)" aria-checked="(\w+)" title="[^"]*">(?:\u2713 )?([^<]*)</g)].map((x) => [x[1], x[2], x[3]]);
   assert.deepEqual(labels, [["any", "false", "Any"], ["15", "false", "15 min"], ["30", "false", "30 min"], ["60", "false", "1 hour"], ["240", "true", "Half a day"]]);
-  assert.ok(html.includes("Time I have:") && html.includes("I have:"));
+  assert.ok(menu.includes("Time I have:") && menu.includes("I have:"));
   assert.equal(html.includes("I have…"), false, "the mystery label is gone");
 });
 
@@ -168,7 +171,7 @@ test("every literal key the page code uses is in the tooltip table", () => {
   assert.ok(used.size > 60, `found ${used.size} keys`);
   assert.deepEqual([...used].filter((k) => !k.endsWith(".") && !known.has(k)), []);
   // Keys built from a value at run time.
-  for (const k of ["profile.rush", "profile.deliberate", "profile.zero", "square.red", "square.amber", "square.purple", "light.go", "light.noGo", "light.unverified", "time15", "time30", "timeHour", "timeHalfDay", "timeAny", "ptgAccept", "ptgRunLint", "ptgRunTests", "ptgEnable", "severity", "severityStops", "outsideLink", "outsideItem", "timeAnyTip", "timeTip", "list"]) {
+  for (const k of ["profile.rush", "profile.deliberate", "profile.zero", "st.red", "st.amber", "st.purple", "stTip.red", "stTip.amber", "stTip.purple", "cp.red", "cpTip.red", "sev.high", "why.red", "why.pinned", "light.go", "light.noGo", "light.unverified", "time15", "time30", "timeHour", "timeHalfDay", "timeAny", "ptgAccept", "ptgRunLint", "ptgRunTests", "ptgEnable", "severity", "severityStops", "outsideLink", "outsideItem", "timeAnyTip", "timeTip", "list"]) {
     assert.ok(known.has(k), k);
   }
 });
@@ -181,7 +184,7 @@ test("the style sheet has the narrow rules: wrapping top bar, stacked project ro
   assert.ok(css.includes(".top{display:flex;flex-wrap:wrap"));
   assert.ok(css.includes(".vd .pn{flex:1 1 100%"), "the project name takes its own line");
   assert.ok(css.includes(".row{flex-wrap:wrap"), "list rows wrap so the buttons go under the text");
-  assert.ok(css.includes(".row .f{flex:1 1 100%;white-space:normal"));
+  assert.ok(css.includes(".row .f{flex:1 1 100%;min-width:0;white-space:nowrap"));
   assert.ok(/button,[^{]*select[^{]*\{min-height:32px\}/.test(css), "buttons and selects are at least 32px high");
   assert.ok(css.includes("summary{min-height:32px"));
   assert.ok(STYLE.includes("@media (max-width:320px)"), "an extra block for the narrowest panels");
@@ -222,23 +225,41 @@ test("every releaseBoard setting is in the README table with its default, and th
   }
 });
 
-test("the row menu has Open document, Change status, Change severity, Back to automatic, Assign rule, Hand to chat and the rules file, each with a tooltip", () => {
-  const html = rowMenu(t);
-  const acts = [...html.matchAll(/<button type="button" class="mi" role="menuitem" data-act="(\w+)" title="([^"]+)">([^<]+)<\/button>/g)];
-  assert.deepEqual(acts.map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "hand", "rules"]);
-  assert.deepEqual(acts.map((m) => m[3]), ["menuOpen", "menuStatus", "menuSeverity", "menuAuto", "menuAssign", "[handToChat]", "[ptgOpenRules]"]);
-  assert.ok(acts.every((m) => m[2].length > 0));
-  assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden aria-label='));
+test("the row menu has Open, the status radios, Raise, Lower, the five levels, Back to automatic, Ask where this goes, Forget order, Waits on, Blocks, Move to group, Assign rule, Edit tags, Hand off and the rules file, each with a tooltip", () => {
+  const html = rowMenu(t, "deliberate", [], [{ label: "Done", status: "green" }, { label: "Review next", status: "amber" }]);
+  const acts = [...html.matchAll(/<button type="button" class="mi" role="(menuitem|menuitemradio)" data-act="([\w:]+)"[^>]* title="([^"]+)">(?:<span class="sg \w+" aria-hidden="true">[^<]+<\/span> )?([^<]+)<\/button>/g)];
+  assert.deepEqual(acts.map((m) => m[2]), ["open", "status:0", "status:1", "raise", "lower", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low", "auto", "order", "forgetOrder", "makeDep", "waits", "blocks", "group", "assign", "tags", "hand", "rules"]);
+  assert.deepEqual(acts.filter((m) => m[1] === "menuitemradio").map((m) => m[2]), ["status:0", "status:1", "sev:extreme", "sev:critical", "sev:high", "sev:medium", "sev:low"]);
+  assert.ok(acts.every((m) => m[3].length > 0));
+  assert.ok(html.startsWith('<div class="menu" id="menu-row" role="menu" hidden data-stops='));
+  assert.ok(html.includes('data-stops="[&#34;extreme&#34;,&#34;critical&#34;,&#34;high&#34;]"'), "the levels that stop under the profile");
 });
 
-test("the row menu leaves out Hand to chat when that feature is off", () => {
-  const off = new Proxy(t, { get: (o, k: string) => (k === "handToChat" ? "" : o[k as keyof BoardStrings]) });
-  assert.deepEqual([...rowMenu(off).matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["open", "status", "severity", "auto", "assign", "rules"]);
+test("every radio of the row menu sits in a labelled group and carries aria-checked", () => {
+  const html = rowMenu(t, "zero", [], [{ label: "Done", status: "green" }]);
+  assert.equal([...html.matchAll(/role="menuitemradio"[^>]*aria-checked="false"/g)].length, 6);
+  assert.equal([...html.matchAll(/<div role="group" aria-labelledby="(mh-\w+)"/g)].length, 2);
+  assert.ok(html.includes('id="mh-menuStatus"') && html.includes('id="mh-menuSeverity"'));
+  assert.ok(html.includes('id="eff" aria-live="polite"'));
+  assert.ok(html.includes('data-stops="[&#34;extreme&#34;,&#34;critical&#34;,&#34;high&#34;,&#34;medium&#34;]"'));
 });
 
-test("the options menu opens the rules file, the project chooser and the settings", () => {
+test("the row menu counts the blockers of each project for its effect line and escapes every value", () => {
+  const m = buildBoard(cfg, [row("bugs/a.md", "red"), row("docs/b.md", "amber")], undefined, true);
+  const html = rowMenu(t, "deliberate", m.projects, [{ label: '<b>"x"</b>', status: "red" }]);
+  assert.ok(html.includes("&#34;app&#34;:[&#34;"), html.slice(0, 400));
+  assert.equal(html.includes("<b>"), false);
+});
+
+test("the Undo bar escapes its text and is left out with none", () => {
+  assert.equal(undoBar(t, undefined), "");
+  const html = undoBar(t, '<img src=x onerror="1">');
+  assert.ok(html.includes('role="status"') && html.includes("data-undo") && !html.includes("<img"));
+});
+
+test("the options menu hands off the board, opens the rules file, the project chooser and the settings", () => {
   const html = optsMenu(t);
-  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["rules", "projects", "settings"]);
+  assert.deepEqual([...html.matchAll(/data-act="(\w+)"/g)].map((m) => m[1]), ["handBoard", "organize", "bringBack", "refresh", "rules", "projects", "settings"]);
   assert.ok(html.includes('id="menu-opts" role="menu" hidden'));
 });
 
@@ -247,25 +268,29 @@ test("the kebab buttons are real buttons with a popup and expanded state, and a 
   assert.ok(kebab(t, "row", 4, "A <b>").includes('data-id="4"'));
 });
 
-test("the page draws the options kebab in the top bar and each menu once, and the rules file is offered only in menus", () => {
+test("the page draws the two kebabs in the top bar and each menu once, and the rules file is offered only in menus", () => {
   const m = buildBoard(cfg, [row("docs/a.md", "amber")], undefined, true);
   const html = renderBoard(m, t, "n", 1);
   assert.equal(html.match(/id="menu-row"/g)?.length, 1);
   assert.equal(html.match(/id="menu-opts"/g)?.length, 1);
-  assert.ok(/<div class="top">.*data-menu="opts".*<\/div>/.test(html.split("\n").find((l) => l.startsWith('<div class="top">')) ?? ""));
+  assert.equal(html.match(/id="menu-pscope"/g)?.length, 1);
+  assert.equal(html.match(/id="pill-menus"/g)?.length, 1);
+  const top = html.split("\n").find((l) => l.startsWith('<div class="top"')) ?? "";
+  assert.ok(/data-menu="pscope".*data-menu="opts"/.test(top), "the one setting pill, then project actions");
+  assert.equal(top.includes("<button id="), false, "no loose buttons: scope, tabs and kebabs only");
   assert.equal(html.match(/\[ptgOpenRules\]/g)?.length, 2, "once in each menu and nowhere else");
   assert.equal(html.includes("data-rules"), false);
 });
 
 test("the script opens a menu with the button, keeps aria-expanded, and closes on Escape, Tab, outside click and resize", () => {
   const js = script(1, "x", "y");
-  for (const part of ["aria-expanded", "'ArrowDown'", "'ArrowUp'", "'Escape'", "'Tab'", "'Home'", "'End'", "role=menuitem", "window.addEventListener('resize'", "type:'rowMenu',act,id:Number(id),rev:REV", "type:'optsMenu',act,rev:REV"]) {
+  for (const part of ["aria-expanded", "'ArrowDown'", "'ArrowUp'", "'Escape'", "'Tab'", "'Home'", "'End'", "role=menuitem", "window.addEventListener('resize'", "type:'rowMenu',act,id:Number(id),rev:REV", "type:'optsMenu',act,rev:REV", "type:'profile',value:act.slice(8),rev:REV", "type:'refresh',rev:REV"]) {
     assert.ok(js.includes(part), `the script has ${part}`);
   }
 });
 
-test("the narrow rules move what no longer fits into the kebab: project name, Hand to chat button and all but the top icon", () => {
-  assert.ok(STYLE.includes(".row .hb,.row .tag,.marks .mk:not(.top){display:none}"));
+test("the narrow rules move what no longer fits into the kebab: project name and all but the top icon", () => {
+  assert.ok(STYLE.includes(".row .tag,.facts .mk:not(.top),.marks .mk:not(.top){display:none}"));
   assert.ok(STYLE.includes(".kb,.mi{min-height:32px;min-width:32px}"));
   assert.ok(STYLE.includes(".menu[hidden]{display:none}"));
 });
@@ -273,11 +298,11 @@ test("the narrow rules move what no longer fits into the kebab: project name, Ha
 const P = (n: string | number): string => `<span class="pill" title="pillTip">${n}</span>`;
 
 test("project names, paths and file names are never cut into number pills; only the figures are", () => {
-  const since = sinceBox({ heading: "H", lines: [{ text: "Proj 7: 2 new blockers", name: "Proj 7", details: [] }] }, t);
+  const since = sinceBox({ heading: "H", marked: [], lines: [{ text: "Proj 7: 2 new blockers", name: "Proj 7", details: [] }] }, t);
   assert.ok(since.includes(`<li>Proj 7: ${P(2)} new blockers</li>`), since);
   const real = strings();
   const fut = futurePanel(
-    { items: buildFuture([{ project: "app", projectName: "App", path: "plans/deferred/a.md", text: "# Idea\n\nBody\n" }]), outside: [{ project: "app", projectName: "App", path: "plans/2026/a1.md", title: "Later", line: 4, why: "later" }], sort: "score", canEdit: false, researchParallel: 3, handEnabled: false },
+    { items: buildFuture([{ project: "app", projectName: "App", path: "plans/deferred/a.md", text: "# Idea\n\nBody\n" }]), outside: [{ project: "app", projectName: "App", path: "plans/2026/a1.md", title: "Later", line: 4, why: "later" }], sort: "score", canEdit: false, researchParallel: 3 },
     real
   );
   assert.ok(/plans\/2026\/a1\.md, line <span class="pill" title="[^"]+">4<\/span> \(Later\)<\/span>/.test(fut), "the path is plain text and the line number is a pill");
@@ -288,7 +313,8 @@ test("project names, paths and file names are never cut into number pills; only 
 });
 
 test("every key the umbrella controls read is in the label table and in the catalog", () => {
-  const src = fs.readFileSync(path.join(__dirname, "..", "..", "..", "src", "board", "boardHtmlProjects.ts"), "utf8");
+  const dir = path.join(__dirname, "..", "..", "..", "src", "board");
+  const src = ["boardHtmlProjects.ts", "boardHtmlHeader.ts", "boardHtmlMenus.ts"].map((f) => fs.readFileSync(path.join(dir, f), "utf8")).join("\n");
   const used = new Set([...src.matchAll(/label\(t, "(\w+)"\)/g)].map((m) => m[1]));
   assert.ok(used.size >= 10);
   for (const k of used) {
@@ -299,4 +325,39 @@ test("every key the umbrella controls read is in the label table and in the cata
     assert.ok(typeof real[k] === "string" && real[k] !== "", `label "${k}" has no text`);
     assert.ok(typeof (en as Record<string, string>)["releaseBoard.projects.label." + k] === "string", `label "${k}" is not in en.json`);
   }
+});
+
+test("a device id with a quote is escaped in the menu, and the all entry says whether every device is chosen", () => {
+  const sit = { timeBox: "any", have: ["a"], contexts: [{ id: 'a"b', label: "A" }, { id: "a", label: "B" }], onlyOwner: false } as unknown as NonNullable<Parameters<typeof pillMenus>[1]["sittings"]>;
+  const menu = pillMenus(strings(), { ...buildBoard(cfg, [], undefined, true), sittings: sit });
+  assert.ok(menu.includes('data-act="have:a&#34;b"'));
+  assert.ok(!menu.includes('data-act="have:a"b'));
+  assert.ok(menu.includes('data-act="haveall" aria-checked="false"'));
+});
+
+test("With Group by Project a project still lists its in-progress documents when another project fills the global cap", () => {
+  const two: BoardConfig = { ...cfg, projects: [...cfg.projects, { id: "lib", name: "Lib", path: "lib", roots: ["docs"], ruleSets: [] }] };
+  const rows: Classified[] = [...Array.from({ length: 5 }, (_x, i) => row(`docs/p${i}.md`, "purple")), { ...row("docs/mine.md", "purple"), project: "lib" }];
+  const m = buildBoard(two, rows, undefined, true, undefined, undefined, undefined, { inProgress: { edited: [], max: 5 } });
+  assert.ok(!m.inProgress?.ids.some((id) => m.items[id].project === "lib"), "the global cap holds only the other project");
+  const html = renderBoard(m, t, "n", 0, { groupBy: "project" });
+  assert.ok(html.includes("docs/mine.md") || html.includes(">mine</a>"));
+});
+
+test("the row menu and the group menu both offer Edit tags", () => {
+  assert.ok(rowMenu(t).includes('data-act="tags"'));
+  assert.ok(scopeMenu(t).includes('data-act="tags"'));
+});
+
+test("a hover is never shortened: titleAttr and a row's hover keep a 250-character line whole", () => {
+  const long = "w".repeat(250);
+  assert.equal(titleAttr(`a\n${long}`), `title="a\n${long}"`);
+  const tl = new Proxy({} as BoardStrings, { get: (_o, k: string) => (k === "polish" ? { "stTip.red": "{title}" } : `[${k}]`) });
+  const m = buildBoard(cfg, [row("docs/BUG_a.md", "red")], undefined, true, snapshot({ "docs/BUG_a.md": `# ${long}\n` }), undefined, { app: evaluateHealth(undefined, undefined, undefined, 1) });
+  const item = { ...m.items[0], title: long };
+  const html = boardRow(item, undefined, tl, false);
+  assert.ok(html.includes(long), html.slice(0, 600));
+  const hover = /^<div[^>]* title="([^"]*)"/.exec(html)?.[1] ?? "";
+  assert.ok(hover.startsWith(long) && !hover.includes("…"), hover.slice(0, 300));
+  assert.ok(html.includes(`title="${long}`));
 });

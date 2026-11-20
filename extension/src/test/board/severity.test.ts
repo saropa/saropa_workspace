@@ -17,6 +17,33 @@ test("title and head phrases decide the level; code fences and negation are igno
   assert.equal(scoreDocument("# Notes\nA tip jar page.\n", "docs/notes.md").audience, "pro");
 });
 
+test("danger words inside inline code, link addresses, URLs and paths do not count", () => {
+  const link = "# Stability\n\nSee [`docs/handover/20260906_0016_memory_crashes_and_scan_cascade.md`](docs/handover/20260906_0016_memory_crashes_and_scan_cascade.md) for details.\n";
+  assert.equal(scoreDocument(link, "docs/ANALYSIS_stability.md").severity, "medium");
+  assert.equal(scoreDocument("# Stability\n\nThe tool crashes and the memory crashes again.\n", "docs/ANALYSIS_stability.md").severity, "critical");
+  assert.equal(scoreDocument("# Notes\n\nSee https://example.com/memory_crashes/crashes.html and docs/x/y_crashes.md and src\\crashes\\crashes.ts here.\n", "docs/notes.md").severity, "medium");
+});
+
+test("link text that is prose still counts; the document's own name counts; and/or and read/write stay", () => {
+  assert.equal(scoreDocument("# Notes\n\nSee [the data loss report](docs/a.md), data loss again.\n", "docs/notes.md").severity, "critical");
+  assert.equal(scoreDocument("# Notes\n", "docs/PLAN_refund_bug.md").severity, "extreme");
+  assert.equal(scoreDocument("# Notes\n\nData loss and/or read/write data loss.\n", "docs/notes.md").severity, "critical");
+  assert.equal(scoreDocument("# Notes\n\nA read/write refund and refund.\n", "docs/notes.md").severity, "extreme");
+});
+
+test("very long lines are scored in well under a second", () => {
+  for (const unit of ["a/", "](", "`", "http://"]) {
+    const text = "# Notes\n\n" + unit.repeat(10000) + "\n";
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t0 = Date.now();
+      scoreDocument(text, "docs/notes.md");
+      best = Math.min(best, Date.now() - t0);
+    }
+    assert.ok(best < 1000, `${unit} took ${best} ms`);
+  }
+});
+
 test("profiles decide which levels stop a release", () => {
   assert.ok(stops("rush", "critical") && !stops("rush", "high"));
   assert.ok(stops("deliberate", "high") && !stops("deliberate", "medium"));
@@ -53,9 +80,9 @@ test("an open item of a stopping severity makes the project NO-GO under that pro
   const high = snap({ "docs/A.md": "# User uptake\nuptake onboarding retention\n" });
   const level = scoreDocument("# User uptake\nuptake onboarding retention\n", "docs/A.md").severity;
   assert.equal(level, "high");
-  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, high).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, high).projects[0].light, "go");
   assert.equal(buildBoard(cfg("deliberate"), rows, undefined, true, high).projects[0].light, "no-go");
-  assert.equal(buildBoard(cfg("deliberate"), rows, undefined, true, s).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg("deliberate"), rows, undefined, true, s).projects[0].light, "go");
 });
 
 test("a pinned document stops a release in every profile and sorts first; grey folders are listed", () => {
@@ -86,7 +113,7 @@ test("an invalid profile falls back to deliberate; rush stops critical; waiting 
   const s = snap({ "docs/W.md": "# Data loss on sync\n" });
   assert.equal(buildBoard(cfg("rush"), rows, undefined, true, s).projects[0].light, "no-go");
   const low = snap({ "docs/W.md": "# Colour tweak\n" });
-  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, low).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg("rush"), rows, undefined, true, low).projects[0].light, "go");
   const red: Classified[] = [{ project: "app", path: "bugs/R.md", status: "red", kind: "", note: "" }];
   assert.equal(buildBoard(cfg("rush"), red, undefined, true, low).projects[0].light, "no-go");
 });

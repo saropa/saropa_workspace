@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 from modules._audit import run_audit
-from modules._build import build, newest_vsix, package_vsix, type_check
+from modules._build import build, newest_vsix, package_vsix, run_unit_tests, type_check
 from modules._ci import ci_fallback, prompt_local_install
 from modules._git_ops import (
     DEFAULT_REBASE_DEBOUNCE_SECONDS,
@@ -355,6 +355,10 @@ def run_mode(mode: str, rebase_debounce_seconds: int = DEFAULT_REBASE_DEBOUNCE_S
             _, aborted = _attempt("Quality gate", lambda: run_quality_audit(strict=True))
             if aborted:
                 exit_code = fail("Quality gate aborted; fix the issues above before a full publish.", 3)
+                return exit_code
+            _, aborted = _attempt("Unit tests", run_unit_tests, allow_ignore=False)
+            if aborted:
+                exit_code = fail("Unit tests failed; a full publish needs a passing unit suite.", 4)
                 return exit_code
         else:
             run_audit(mode)

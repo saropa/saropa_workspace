@@ -2,15 +2,14 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { FutureItem } from "../board/futureList";
 import { parseBlock } from "../board/futureBlock";
-import { researchPrompt } from "../board/futureResearch";
-import { copyHandPrompt, readHandSettings } from "./boardHandToChat";
+import { buildHandoff, fromResearch, handoffFile, handoffId } from "../board/handoff";
+import { HandoffFiles, deliver, readHandoffSettings } from "./boardHandoff";
 import { writeBlock } from "./boardFuture";
 
-// Release Board, Future tab, research: hands flagged documents to a chat and marks the
-// result. Hand to chat only copies one prompt at a time to the clipboard, so a batch is
-// handed one document after another: each prompt is copied, the owner pastes it and
-// confirms, and only then does the document become "in-progress". Nothing is marked for a
-// prompt the owner did not confirm.
+// Release Board, Future tab, research: hands flagged documents to an AI as one hand-off and
+// marks the result. The hand-off document is saved and its line copied; the owner passes it
+// on and confirms once, and only then do the documents become "in-progress". Nothing is
+// marked for a hand-off the owner did not confirm.
 
 // One document to hand over: the listed item and its project folder.
 export interface ResearchEntry {
@@ -45,36 +44,46 @@ async function currentBlock(uri: vscode.Uri): Promise<ReturnType<typeof parseBlo
   }
 }
 
-// Copies one prompt per entry and asks the owner to confirm each paste. Skips a document
-// that is no longer flagged "needed" or has unsaved edits (the chat would edit the file
-// under them). Marks a confirmed document "in-progress" only while it is still "needed".
+// Saves one research hand-off for the entries and copies it, then asks the owner to confirm
+// once. Skips a document that is no longer flagged "needed" or has unsaved edits (the AI would
+// edit the file under them). Marks the documents "in-progress" only while each is still "needed".
 export async function handResearch(entries: ResearchEntry[]): Promise<HandResult> {
-  const hand = readHandSettings();
   const out: HandResult = { handed: 0, stopped: false };
-  if (!hand.enabled) {
-    return out;
-  }
-  for (let n = 0; n < entries.length; n++) {
-    const { item, root } = entries[n];
-    const uri = vscode.Uri.joinPath(root, item.path);
+  const docs: Array<{ entry: ResearchEntry; uri: vscode.Uri; question?: string }> = [];
+  for (const entry of entries) {
+    const uri = vscode.Uri.joinPath(entry.root, entry.item.path);
     const block = await currentBlock(uri);
     if (block?.research !== "needed") {
       continue;
     }
     if (isDirty(uri)) {
-      void vscode.window.showWarningMessage(l10n("releaseBoard.future.dirty", { path: item.path }));
+      void vscode.window.showWarningMessage(l10n("releaseBoard.future.dirty", { path: entry.item.path }));
       continue;
     }
-    const text = researchPrompt({ project: item.projectName, path: item.path, title: item.title, question: block.researchQuestion, date: today() });
-    await copyHandPrompt(text, uri, "never", undefined, true);
-    const last = n === entries.length - 1;
-    const ok = l10n(last ? "releaseBoard.future.research.pastedLast" : "releaseBoard.future.research.pasted");
-    const answer = await vscode.window.showInformationMessage(l10n("releaseBoard.future.research.copied", { n: n + 1, total: entries.length, title: item.title }), { modal: true }, ok);
-    if (answer !== ok) {
-      out.stopped = true;
-      break;
-    }
-    if ((await writeBlock(uri, item.path, { Research: "in-progress" }, (b) => b.research === "needed")) !== "refused") {
+    docs.push({ entry, uri, question: block.researchQuestion });
+  }
+  if (docs.length === 0) {
+    return out;
+  }
+  const now = new Date();
+  const files: HandoffFiles[] = [];
+  for (const pid of [...new Set(docs.map((d) => d.entry.item.project))]) {
+    const mine = docs.filter((d) => d.entry.item.project === pid);
+    const { projects, items } = fromResearch(mine.map(({ entry, question }) => ({ project: entry.item.project, projectName: entry.item.projectName, root: entry.root.path.replace(/\/+$/, "").split("/").pop() ?? "", path: entry.item.path, title: entry.item.title, importance: entry.item.importance, question })));
+    const id = handoffId(now, pid, "research");
+    const built = buildHandoff({ id, task: "research", scope: { kind: "research", count: items.length }, date: today(now), projects, items, file: handoffFile(id, "md") });
+    files.push({ root: mine[0].entry.root, id, ...built });
+  }
+  const file = files.map((f) => handoffFile(f.id, "md")).join(", ");
+  await deliver("copy", files, "md", readHandoffSettings());
+  const ok = l10n("releaseBoard.future.research.pasted");
+  const answer = await vscode.window.showInformationMessage(l10n("releaseBoard.future.research.copied", { count: docs.length, file }), { modal: true }, ok);
+  if (answer !== ok) {
+    out.stopped = true;
+    return out;
+  }
+  for (const { entry, uri } of docs) {
+    if ((await writeBlock(uri, entry.item.path, { Research: "in-progress" }, (b) => b.research === "needed")) !== "refused") {
       out.handed += 1;
     }
   }

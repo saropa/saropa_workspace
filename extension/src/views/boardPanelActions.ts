@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { BoardRun } from "../commands/releaseBoardCommands";
+import { BoardRun, logBoardError } from "../commands/releaseBoardCommands";
 import { BoardModel } from "../board/boardModel";
 import type { BoardExtra } from "../board/boardModelParts";
 import { PathToGo, clampMaxSteps } from "../board/pathToGo";
@@ -11,9 +11,8 @@ import { asTimeBox } from "../board/sittings";
 import { readTidySettings } from "../commands/boardTidy";
 import { LiveSettings, liveFold, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
-import { copyHandPrompt, readHandSettings } from "../commands/boardHandToChat";
-import { formatPrompt, itemTarget, lineTarget, stepTarget, HandTarget } from "../board/handToChat";
 import { updateLocalMarks } from "../commands/boardMarks";
+import { addRejected } from "../board/marks";
 import { readInProgressSettings } from "../commands/boardInProgress";
 import { chooseDocumentColumn, parseOpenBeside } from "../board/openBeside";
 import { parsePlacement } from "../board/placement";
@@ -48,6 +47,36 @@ export function sittingsInput(context: vscode.ExtensionContext): NonNullable<Boa
   const choice = readSittingsChoice(context);
   const have = choice ? choice.have : s.defaultHave.length > 0 ? s.defaultHave : undefined;
   return { selection: { have, timeBox: choice ? choice.timeBox : s.defaultTimeBox, maxSteps: s.maxSteps }, onlyOwner: s.onlyOwnerDocuments };
+}
+
+const ORG_KEY = "saropaWorkspace.releaseBoard.orgLayouts";
+
+// Band and MAX of each project from the last build, so the group layout stays stable between builds.
+export function orgPreviousInput(context: vscode.ExtensionContext): BoardExtra["orgPrevious"] {
+  return readOrgPrevious(context.workspaceState.get<unknown>(ORG_KEY));
+}
+
+// A stored layout record checked: entries without a numeric band and max are dropped.
+export function readOrgPrevious(v: unknown): NonNullable<BoardExtra["orgPrevious"]> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) {
+    return undefined;
+  }
+  const out: NonNullable<BoardExtra["orgPrevious"]> = {};
+  for (const [project, l] of Object.entries(v)) {
+    const e = l as { band?: unknown; max?: unknown } | null;
+    if (e && typeof e.band === "number" && typeof e.max === "number") {
+      out[project] = { band: e.band, max: e.max };
+    }
+  }
+  return out;
+}
+
+// Remembers the layout of this build for the next one.
+export function saveOrgLayouts(context: vscode.ExtensionContext, model: BoardModel): void {
+  const out = Object.fromEntries(Object.entries(model.orgLayouts ?? {}).map(([p, l]) => [p, { band: l.band, max: l.max }]));
+  if (JSON.stringify(out) !== JSON.stringify(orgPreviousInput(context) ?? {})) {
+    void context.workspaceState.update(ORG_KEY, out);
+  }
 }
 
 // The In progress input: the edited documents the panel found and the list limit; undefined
@@ -109,10 +138,36 @@ export async function applySuggestion(context: vscode.ExtensionContext, model: B
   if (shown) {
     await updateLocalMarks(context, (local) => {
       if (value === "reject") {
-        local.rejected = [...new Set([...local.rejected, shown.key])];
+        local.rejected = addRejected(local.rejected, [shown.key]);
       } else {
         local.needs[shown.fromKey] = [...new Set([...(local.needs[shown.fromKey] ?? []), `${shown.toProject}:${shown.toPath}`])];
       }
+      return local;
+    });
+  }
+}
+
+// Remembers proposed links the person turned down, so they are not proposed again. Returns the keys
+// this call newly added to the local marks (what an Undo reject takes back).
+export async function rejectProposals(context: vscode.ExtensionContext, keys: string[]): Promise<string[]> {
+  const added: string[] = [];
+  if (keys.length > 0) {
+    await updateLocalMarks(context, (local) => {
+      const had = new Set(local.rejected);
+      added.push(...new Set(keys.filter((k) => !had.has(k))));
+      local.rejected = addRejected(local.rejected, keys);
+      return local;
+    });
+  }
+  return added;
+}
+
+// Takes back exactly the keys the last reject added to the local marks; rejections from the shared file stay.
+export async function undoRejected(context: vscode.ExtensionContext, keys: readonly string[]): Promise<void> {
+  if (keys.length > 0) {
+    const drop = new Set(keys);
+    await updateLocalMarks(context, (local) => {
+      local.rejected = local.rejected.filter((k) => !drop.has(k));
       return local;
     });
   }
@@ -145,45 +200,31 @@ export async function openSittingsLine(model: BoardModel | undefined, run: Board
   }
 }
 
-// Hand to chat: the page names an item, a step or a Sittings line by index; the prompt is
-// built from the model the panel rendered and copied to the clipboard.
-export async function handToChat(model: BoardModel | undefined, paths: PathToGo[] | undefined, run: BoardRun | undefined, m: { k?: unknown; i?: unknown; p?: unknown; s?: unknown }): Promise<void> {
-  const settings = readHandSettings();
-  if (!settings.enabled) {
-    return;
+/** A tab whose setup failed is closed again so no blank tab is left; the owner sees one error, except at startup. */
+export function closeFailedOpen(panel: vscode.WebviewPanel, e: unknown, background: boolean): void {
+  logBoardError(e);
+  panel.dispose();
+  if (!background) {
+    void vscode.window.showErrorMessage(l10n("releaseBoard.openFailed", { error: e instanceof Error ? e.message : String(e) }));
   }
-  if (!model) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.nothing"));
-    return;
-  }
-  let target: HandTarget | undefined;
-  let file: { project: string; path: string; chats?: number } | undefined;
-  if (m.k === "item" && typeof m.i === "number" && model.items[m.i]) {
-    const it = model.items[m.i];
-    target = itemTarget(model, it);
-    file = it;
-  } else if (m.k === "line" && typeof m.i === "number" && model.sittings?.lines[m.i]) {
-    const l = model.sittings.lines[m.i];
-    target = lineTarget(model, l);
-    file = l;
-  } else if (m.k === "step" && typeof m.p === "number" && typeof m.s === "number") {
-    const project = model.projects[m.p];
-    const step = paths?.[m.p]?.steps[m.s];
-    if (project && step) {
-      target = stepTarget(model, project, step);
-      const item = step.kind === "item" && step.itemId !== undefined ? model.items[step.itemId] : undefined;
-      file = item;
+}
+
+export const PLACEMENT_KEY = "saropaWorkspace.releaseBoard.column";
+
+/** Remembers where the tab is, also after the user drags it to another group. */
+export function rememberColumn(context: vscode.ExtensionContext, panel: vscode.WebviewPanel): void {
+  let lastColumn = panel.viewColumn;
+  const remember = (): void => {
+    if (panel.viewColumn !== undefined) {
+      lastColumn = panel.viewColumn;
+      void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
     }
-  }
-  if (!target) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.nothing"));
-    return;
-  }
-  const def = run?.cfg.projects.find((p) => p.id === file?.project);
-  const doc = def && file ? vscode.Uri.joinPath(vscode.Uri.parse(def.path), file.path) : undefined;
-  try {
-    await copyHandPrompt(formatPrompt(target, settings.detail), doc, settings.openChat, file?.chats, false, target.headline);
-  } catch (e) {
-    showFailed(e);
-  }
+  };
+  remember();
+  panel.onDidChangeViewState(remember);
+  setBoardColumnSource(() => panel.viewColumn);
+  panel.onDidDispose(() => {
+    setBoardColumnSource(() => undefined);
+    void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
+  });
 }

@@ -63,6 +63,7 @@ const events = {
   textChanged: new EventEmitter<unknown>(),
   textSaved: new EventEmitter<unknown>(),
   textClosed: new EventEmitter<unknown>(),
+  textOpened: new EventEmitter<unknown>(),
   foldersChanged: new EventEmitter<unknown>(),
   themeChanged: new EventEmitter<unknown>(),
   configChanged: new EventEmitter<{ affectsConfiguration(section: string): boolean }>(),
@@ -332,6 +333,7 @@ export const hostWorkspace = {
   onDidChangeTextDocument: events.textChanged.event,
   onDidSaveTextDocument: events.textSaved.event,
   onDidCloseTextDocument: events.textClosed.event,
+  onDidOpenTextDocument: events.textOpened.event,
   onDidChangeWorkspaceFolders: events.foldersChanged.event,
   onDidChangeConfiguration: events.configChanged.event,
 };

@@ -29,8 +29,8 @@ export interface TidyDoc {
   waiting: boolean;
   // Board state: red and purple (in progress) items are never offered.
   status: string;
-  // The item stops a release under the chosen profile.
-  stopping: boolean;
+  // The item blocks the next release (never offered).
+  blocks: boolean;
 }
 
 // One finished document offered for moving to the archive.
@@ -148,7 +148,7 @@ export function buildTidy(docs: TidyDoc[], opt: TidyOptions): TidyView {
   const folder = cleanArchiveFolder(opt.archiveFolder);
   const found: TidyCandidate[] = [];
   for (const d of docs) {
-    if (d.pinned || d.waiting || d.stopping || d.status === "red" || d.status === "purple" || d.mtimeMs === undefined || d.stepsTotal === 0 || d.stepsDone < d.stepsTotal) {
+    if (d.pinned || d.waiting || d.blocks || d.status === "purple" || d.mtimeMs === undefined || d.stepsTotal === 0 || d.stepsDone < d.stepsTotal) {
       continue;
     }
     // Already in an archive folder (the chosen one or the default): nothing to move.

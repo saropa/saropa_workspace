@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { mapLimit } from "../board/pool";
 import { MAX_EXTRA_PROJECTS, MAX_PARENT_CHILDREN, Entry, addProjectPaths, candidateChildren, cleanProjectPaths, removeProjectPaths, folderName, looksLikeProject } from "../board/extraProjects";
-import { chosenFolders, openFolderPaths, readProjectPaths, readProjectScope } from "../commands/boardExtraProjects";
+import { chosenFolders, openFolderPaths, readProjectPaths, readProjectScope, writeProjectScope } from "../commands/boardExtraProjects";
 
 // Release Board, the setup step for the projects the board includes. A quick pick with four
 // actions; every change is written to the user-level setting after the user's explicit pick,
@@ -121,7 +121,7 @@ async function removeFolders(): Promise<void> {
 
 async function toggleScope(): Promise<void> {
   const next = readProjectScope() === "all" ? "openOnly" : "all";
-  await vscode.workspace.getConfiguration(SECTION).update("projectScope", next, vscode.ConfigurationTarget.Global);
+  await writeProjectScope(next);
   say(next === "openOnly" ? "releaseBoard.projects.nowOpenOnly" : "releaseBoard.projects.nowAll");
 }
 

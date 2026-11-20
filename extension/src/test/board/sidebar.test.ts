@@ -30,7 +30,7 @@ const labels: SidebarLabels = {
 };
 
 function item(id: number, title: string, status: BoardItem["status"], stopping = false): BoardItem {
-  return { id, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping };
+  return { id, project: "app", path: `bugs/${title}.md`, title, status, kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping, blocks: status === "red" || stopping };
 }
 
 function project(light: BoardProject["light"], items: BoardItem[], reasons: BoardProject["reasons"] = []): BoardProject {
@@ -63,6 +63,11 @@ test("blockers are capped and keep the model's order; zero lists none", () => {
 test("tooltip lists the reasons for an unverified project", () => {
   const row = buildSidebarRows({ projects: [project("unverified", [], ["grey", "health"])] }, opts, labels)[0];
   assert.deepEqual(row.tooltip, ["App: UNVERIFIED", "2 unplaced", "no lint or test result"]);
+});
+
+test("tooltip lists the notes for a GO project too", () => {
+  const row = buildSidebarRows({ projects: [project("go", [], ["grey", "health"])] }, opts, labels)[0];
+  assert.deepEqual(row.tooltip, ["App: GO", "2 unplaced", "no lint or test result"]);
 });
 
 test("the expand rule", () => {

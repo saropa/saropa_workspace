@@ -1,13 +1,11 @@
 // Tests for the Release Board string table: every entry resolves to real text, the
-// placeholders the page fills later are kept, and the hand-to-chat label follows its setting.
+// placeholders the page fills later are kept, and the hand-off labels are present.
 
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { __setConfig, __resetConfig } from "./_stub/vscode";
+import { __resetConfig } from "./_stub/vscode";
 import { strings } from "../views/boardStrings";
 import { l10n } from "../i18n/l10n";
-
-const SECTION = "saropaWorkspace.releaseBoard.handToChat";
 
 beforeEach(() => __resetConfig());
 
@@ -51,9 +49,6 @@ test("the table carries the same text as the catalog entries it is built from", 
   assert.equal(t.liveHead, l10n("releaseBoard.live.head"));
 });
 
-test("the hand-to-chat label is shown by default and empty when the setting turns it off", () => {
-  assert.equal(strings().handToChat, l10n("releaseBoard.handToChat.button"));
-  __setConfig(SECTION, "enabled", false);
-  assert.equal(strings().handToChat, "");
-  assert.equal(strings().handToChatTip, l10n("releaseBoard.handToChat.tip"));
+test("the hand-off labels are in the table", () => {
+  assert.equal(strings().handoffLabels?.menuItem, l10n("releaseBoard.handoff.label.menuItem"));
 });

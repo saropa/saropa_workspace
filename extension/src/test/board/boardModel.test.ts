@@ -1,5 +1,5 @@
 // Release Board first screen: the light rules and the HTML. The light is honest: NO-GO
-// for anything in a red folder, otherwise UNVERIFIED (GO needs evidence from step 6).
+// for anything in a red folder, UNVERIFIED only when something could not be read, otherwise GO.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -31,11 +31,14 @@ test("anything in a red folder makes the project NO-GO", () => {
   assert.equal(m.projects.find((p) => p.id === "app")!.light, "no-go");
 });
 
-test("with no blocker the light is UNVERIFIED, never GO, and says why", () => {
+test("with no blocker a grey document and missing health stay GO and are listed as notes; an unread item is UNVERIFIED", () => {
   const m = buildBoard(cfg, [row("db", "docs/x.md", "grey")], undefined, true);
   const p = m.projects.find((x) => x.id === "db")!;
-  assert.equal(p.light, "unverified");
+  assert.equal(p.light, "go");
   assert.deepEqual(p.reasons, ["grey", "health"]);
+  const unread = buildBoard(cfg, [row("db", "docs/y.md", "amber")], undefined, true).projects.find((x) => x.id === "db")!;
+  assert.ok(unread.reasons.includes("unread"));
+  assert.equal(unread.light, "unverified");
   const first = buildBoard(cfg, [], undefined, false).projects[0];
   assert.ok(first.reasons.includes("baseline"));
 });
@@ -89,7 +92,7 @@ test("a held scan keeps NO-GO when the accepted scan had red work", () => {
   const held = buildBoard(cfg, [], undefined, false, undefined, prev);
   assert.equal(held.projects.find((p) => p.id === "app")!.light, "no-go");
   const accepted = buildBoard(cfg, [], undefined, true, undefined, prev);
-  assert.equal(accepted.projects.find((p) => p.id === "app")!.light, "unverified");
+  assert.equal(accepted.projects.find((p) => p.id === "app")!.light, "go");
 });
 
 test("the first screen carries no counts or sentences in visible text", () => {

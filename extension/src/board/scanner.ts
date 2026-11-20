@@ -7,9 +7,9 @@ import {
   needsStatusWord,
 } from "./ruleEngine";
 import { mapLimit } from "./pool";
+import { EXTRA_SCAN_MS, READ_PARALLEL, completeFacts, factsKeyOf, factsOptions, readPending } from "./scanFacts";
 import { withTimeout } from "./timeout";
-import { mergeDict } from "./severity";
-import { DocFacts, FACTS_VERSION, FactsOptions, readFacts } from "./docFacts";
+import { DocFacts } from "./docFacts";
 import {
   BoardConfig,
   Classified,
@@ -36,6 +36,9 @@ export interface FileSource {
   // The whole text of a file; read only for open documents, to take their facts. A source
   // without it simply yields no facts.
   readText?(projectDir: string, path: string): Promise<string>;
+  // Which of these project-relative paths git ignores in the project's repository. A source
+  // without it hides nothing.
+  gitIgnored?(projectDir: string, paths: string[]): Promise<Set<string>>;
 }
 
 // Cache entry per file: the size and modified time the cached Status word belongs to.
@@ -51,6 +54,31 @@ export interface CachedFacts {
   size: number;
   mtimeMs: number;
   facts: DocFacts;
+  // The link text was left out when this was stored; the facts are read again before they are used.
+  linkless?: boolean;
+}
+
+// The snapshot as it is written to disk: without the link text of the documents (it can be a lot, and
+// the next scan reads it again; a document that lost it is marked so its facts are not reused as they are).
+export function withoutLinkText(snap: ScanSnapshot): ScanSnapshot {
+  const projects: ScanSnapshot["projects"] = {};
+  for (const [id, p] of Object.entries(snap.projects)) {
+    if (!p.facts) {
+      projects[id] = p;
+      continue;
+    }
+    const facts: Record<string, CachedFacts> = {};
+    for (const [path, c] of Object.entries(p.facts)) {
+      if (c.facts.linkText === undefined) {
+        facts[path] = c;
+      } else {
+        const { linkText: _text, linkEarly: _early, ...rest } = c.facts;
+        facts[path] = { ...c, facts: rest as DocFacts, linkless: true };
+      }
+    }
+    projects[id] = { ...p, facts };
+  }
+  return { ...snap, projects };
 }
 
 // What one scan found in one project: counts, folder and rule tallies, cached words and facts.
@@ -106,8 +134,8 @@ export function dropFailed(cfg: BoardConfig, failed: readonly FailedProject[] | 
   return { ...cfg, projects: cfg.projects.filter((p) => !ids.has(p.id)), skipped: [...(cfg.skipped ?? []), ...failed.map((f) => ({ name: f.name, reason: f.reason }))] };
 }
 
-// Longest one chosen project may take to scan before it becomes a grey row.
-export const EXTRA_SCAN_MS = 60_000;
+// Re-exported so existing importers keep working.
+export { EXTRA_SCAN_MS, completeFacts };
 
 const DEFAULT_EXTENSIONS = [".md", ".sql"];
 const STATUS_LINES = 20;
@@ -127,9 +155,6 @@ function isMissing(e: unknown): boolean {
   return err.code === "ENOENT" || /FileNotFound|EntryNotFound/.test(String(err.code ?? err.name ?? ""));
 }
 
-// How many file reads run at once. Enough to hide round-trip latency on a remote file
-// system without flooding it.
-const READ_PARALLEL = 24;
 const PROJECT_PARALLEL = 4;
 
 // A document that is open but whose facts were not read in this pass.
@@ -154,7 +179,7 @@ export type FactsMode = "all" | "cached";
 
 // Lists every root at once, drops duplicates and files the scan does not want, and sorts by path.
 // A missing root is empty; any other error surfaces.
-async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: string) => boolean): Promise<ScanFile[]> {
+async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: string) => boolean, includeGitIgnored: boolean): Promise<ScanFile[]> {
   const listings = await mapLimit(project.roots, PROJECT_PARALLEL, async (root) => {
     try {
       return await source.list(project.path, root, wanted, project.extra === true);
@@ -178,7 +203,12 @@ async function listFiles(project: ProjectDef, source: FileSource, wanted: (p: st
   }
   // The same order whatever order the file source listed them in.
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return files;
+  if (includeGitIgnored || !source.gitIgnored) {
+    return files;
+  }
+  // One batched git call per project; documents git ignores are left out of the board.
+  const ignored = await source.gitIgnored(project.path, files.map((f) => f.path));
+  return ignored.size === 0 ? files : files.filter((f) => !ignored.has(f.path));
 }
 
 // Status words: cached by size and modified time, the rest read in parallel. Returns the
@@ -241,7 +271,7 @@ function reuseFacts(project: ProjectDef, files: ScanFile[], rows: Classified[], 
       return;
     }
     const hit = prevFacts?.[f.path];
-    if (hit && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
+    if (hit && !hit.linkless && hit.size === f.size && hit.mtimeMs === f.mtimeMs) {
       snap.facts[f.path] = hit;
     } else {
       pending.push({ project: project.id, path: f.path, size: f.size, mtimeMs: f.mtimeMs });
@@ -273,9 +303,9 @@ export async function scanProject(
   snap.factsKey = factsKeyOf(factsOpt);
   const prevFacts = previous?.factsKey === snap.factsKey ? previous.facts : undefined;
 
-  const wanted = (p: string): boolean => exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
+  const wanted = (p: string): boolean => !p.endsWith(".tmp") && exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
   // 1. List every root at once.
-  const files = await listFiles(project, source, wanted);
+  const files = await listFiles(project, source, wanted, cfg.includeGitIgnored === true);
   // 2. Status words.
   const { words, headReads } = await readStatusWords(project, source, cp, files, previous);
   // 3. Classify, in file order, and count.
@@ -286,36 +316,6 @@ export async function scanProject(
   await readPending(project, source, snap, factsOpt, todo);
   return { rows, snapshot: snap, pending, headReads, factReads: todo.length };
 }
-
-// One unreadable document gives no marks; it must not abort the scan.
-async function readPending(project: ProjectDef, source: FileSource, snap: ProjectSnapshot, opt: FactsOptions, todo: PendingFacts[]): Promise<void> {
-  const read = await mapLimit(todo, READ_PARALLEL, async (p): Promise<CachedFacts | undefined> => {
-    try {
-      const text = await source.readText!(project.path, p.path);
-      return { size: p.size, mtimeMs: p.mtimeMs, facts: readFacts(text, p.path, opt) };
-    } catch {
-      return undefined; // no facts for this file
-    }
-  });
-  // Stored in file order, not completion order, so the saved JSON is the same every run.
-  todo.forEach((p, i) => {
-    if (read[i]) {
-      snap.facts[p.path] = read[i]!;
-    }
-  });
-}
-
-function factsOptions(cfg: BoardConfig, project: ProjectDef): FactsOptions {
-  return {
-    sourceDirs: cfg.sourceDirs,
-    severity: mergeDict(cfg.severity),
-    mentions: Object.fromEntries(
-      cfg.projects.filter((p) => p.mentions?.length && p.id !== project.id).map((p) => [p.id, p.mentions!.join("|")])
-    ),
-  };
-}
-
-const factsKeyOf = (opt: FactsOptions): string => FACTS_VERSION + ":" + JSON.stringify(opt);
 
 // Scans every project, a few at a time, and gathers the rows, snapshot and timing.
 export async function scanAll(
@@ -360,31 +360,6 @@ export async function scanAll(
   stats.ms = Date.now() - started;
   failed.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return { rows, snapshot: { version: 1, takenAt: now, projects }, pending, stats, ...(failed.length > 0 ? { failed } : {}) };
-}
-
-// Reads the facts a "cached" scan left pending and adds them to the result's snapshot.
-export async function completeFacts(cfg: BoardConfig, source: FileSource, result: ScanResult): Promise<void> {
-  const byProject = new Map<string, PendingFacts[]>();
-  for (const p of result.pending) {
-    (byProject.get(p.project) ?? byProject.set(p.project, []).get(p.project)!).push(p);
-  }
-  const started = Date.now();
-  for (const def of cfg.projects) {
-    const todo = byProject.get(def.id);
-    const snap = result.snapshot.projects[def.id];
-    if (todo && snap) {
-      const read = readPending(def, source, snap, factsOptions(cfg, def), todo);
-      if (def.extra === true) {
-        // A slow chosen project keeps its documents unread (UNVERIFIED) instead of holding the board.
-        await withTimeout(read, EXTRA_SCAN_MS).catch(() => undefined);
-      } else {
-        await read;
-      }
-      result.stats.factReads += todo.length;
-    }
-  }
-  result.pending = [];
-  result.stats.ms += Date.now() - started;
 }
 
 // A fingerprint of what a scan found, to skip rewriting stored files when nothing changed:

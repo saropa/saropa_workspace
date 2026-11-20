@@ -1,4 +1,4 @@
-// Code health evidence and the GO light. GO needs every check; anything missing is UNVERIFIED.
+// Code health evidence and the GO light. Missing evidence is a note; only an unread item or an unaccepted scan is UNVERIFIED.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -41,12 +41,12 @@ test("evidence: stale and missing results are never a pass; failures are failure
 const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
 const good = evaluateHealth({ testsApply: false }, undefined, parseLintsFile(lintJson({ filesAnalyzed: 10, byImpact: { error: 0 } }), NOW - DAY), NOW);
 
-test("GO only with an accepted baseline, no blocker, no grey and clean health", () => {
+test("amber only when something could not be read; missing health and grey documents stay GO", () => {
   assert.equal(buildBoard(cfg, [], undefined, true, undefined, undefined, { app: good }).projects[0].light, "go");
-  assert.equal(buildBoard(cfg, [], undefined, true).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg, [], undefined, true).projects[0].light, "go");
   assert.equal(buildBoard(cfg, [], undefined, false, undefined, undefined, { app: good }).projects[0].light, "unverified");
   const grey = [{ project: "app", path: "docs/x.md", status: "grey" as const, kind: "", note: "" }];
-  assert.equal(buildBoard(cfg, grey, undefined, true, undefined, undefined, { app: good }).projects[0].light, "unverified");
+  assert.equal(buildBoard(cfg, grey, undefined, true).projects[0].light, "go");
   const bad = evaluateHealth({ testsApply: false }, undefined, parseLintsFile(lintJson({ filesAnalyzed: 10, byImpact: { error: 1 } }), NOW - DAY), NOW);
   assert.equal(buildBoard(cfg, [], undefined, true, undefined, undefined, { app: bad }).projects[0].light, "no-go");
 });

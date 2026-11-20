@@ -1,0 +1,18 @@
+[
+  { "id": "payments", "label": "Payments", "emoji": "💳", "colour": "ochre", "patterns": ["payment", "billing", "purchase", "subscription", "refund", "pricing", "paywall", "checkout", "receipt", "revenue", "iap"] },
+  { "id": "security", "label": "Security and privacy", "emoji": "🔒", "colour": "slate", "patterns": ["security", "auth", "login", "password", "passcode", "encryption", "credential", "privacy", "gdpr", "permission", "token"] },
+  { "id": "data", "label": "Data and sync", "emoji": "🔄", "colour": "sky", "patterns": ["sync", "backup", "restore", "migration", "import", "export", "database", "schema", "supabase", "sql"] },
+  { "id": "release", "label": "Release", "emoji": "🚀", "colour": "indigo", "patterns": ["release", "launch", "store", "appstore", "testflight", "rollout", "version", "changelog"] },
+  { "id": "testing", "label": "Testing", "emoji": "🧪", "colour": "teal", "patterns": ["test", "testing", "qa", "checklist", "e2e", "regression", "coverage"] },
+  { "id": "bugs", "label": "Bugs", "emoji": "🐛", "colour": "olive", "patterns": ["bug", "crash", "fix", "error", "issue", "exception"] },
+  { "id": "design", "label": "Design and UI", "emoji": "🎨", "colour": "orchid", "patterns": ["ui", "ux", "design", "layout", "theme", "screen", "mockup", "accessibility", "a11y"] },
+  { "id": "performance", "label": "Performance", "emoji": "⚡", "colour": "ochre", "patterns": ["performance", "perf", "speed", "latency", "memory", "startup", "cache"] },
+  { "id": "docs", "label": "Docs", "emoji": "📝", "colour": "slate", "patterns": ["readme", "guide", "howto", "handbook", "documentation"] },
+  { "id": "build", "label": "Build and infra", "emoji": "🛠", "colour": "pine", "patterns": ["build", "ci", "pipeline", "deploy", "infra", "docker", "gradle", "xcode", "script"] },
+  { "id": "ai", "label": "AI", "emoji": "🤖", "colour": "indigo", "patterns": ["ai", "llm", "agent", "claude", "prompt", "model"] },
+  { "id": "notifications", "label": "Notifications", "emoji": "🔔", "colour": "teal", "patterns": ["notification", "push", "reminder", "alert", "email"] },
+  { "id": "analytics", "label": "Analytics", "emoji": "📊", "colour": "sky", "patterns": ["analytics", "metrics", "tracking", "telemetry", "dashboard"] },
+  { "id": "languages", "label": "Languages", "emoji": "🌐", "colour": "pine", "patterns": ["i18n", "l10n", "translation", "locale", "language"] },
+  { "id": "plans", "label": "Plans and research", "emoji": "🧭", "colour": "orchid", "patterns": ["plan", "roadmap", "research", "spike", "proposal", "rfc", "adr"] },
+  { "id": "owner", "label": "Owner tasks", "emoji": "👤", "colour": "olive", "patterns": ["owner", "handover", "manual"] }
+]

@@ -4,24 +4,18 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 4;
+export const FACTS_VERSION = 7;
 
+import { readFrontMatter } from "./org/frontMatter";
+import { DocStep, headingText, scanSteps } from "./docSteps";
+import { MAX_LINE, needsLineParts, parseNeeds, mapLinks, needsSeparators, needsTargets } from "./docNeeds";
+
+// Re-exported so existing importers keep working.
+export type { DocStep };
+export { MAX_LINE, needsLineParts, parseNeeds, mapLinks, needsSeparators, needsTargets };
+import { forwardPattern, withoutCode } from "./org/linksSignals";
 import { Audience, Severity, SeverityDict, scoreDocument } from "./severity";
 
-// One open step of a document: a checklist box or a table row with an open state word.
-export interface DocStep {
-  // 1-based line in the document.
-  line: number;
-  // The nearest heading above the step ("" when none).
-  heading: string;
-  text: string;
-  // The cell under a table column named "Needs", when the row has one.
-  needsCell?: string;
-}
-
-// Open steps kept per document, and the length of each step's text.
-const MAX_STEPS = 200;
-const STEP_TEXT = 160;
 
 // The facts read from one document's text.
 export interface DocFacts {
@@ -55,6 +49,13 @@ export interface DocFacts {
   mentions: string[];
   severity: Severity;
   audience: Audience;
+  // Tags and group named in the front matter block at the top of the document; absent when there is none.
+  tags?: string[];
+  group?: string;
+  // The lines (outside code) that could say this document waits on another, for the link proposals; absent when none.
+  linkText?: string;
+  // How many of the first lines of linkText lie within the first 20 lines of the document; absent when none.
+  linkEarly?: number;
 }
 
 // Settings that change how facts are read.
@@ -65,11 +66,46 @@ export interface FactsOptions {
   sourceDirs?: string[];
   // Phrase dictionary for severity; the shipped one when absent.
   severity?: SeverityDict;
+  // The "waits on" phrases turned on (linkPhrases of the organize settings); all shipped ones when absent.
+  linkPhrases?: string[];
 }
 
-const DONE_WORDS = ["done", "applied", "merged", "fixed", "built", "implemented", "closed", "yes", "verified"];
-const OPEN_WORDS = ["pending", "open", "partial", "not started", "in progress"];
+// Most lines, longest line and total text kept for the link proposals.
+const LINK_LINES = 40;
+const LINK_LINE = 1000;
+const LINK_TEXT = 4000;
+// A line within this many lines of the top counts as early (a mention there is Medium).
+const EARLY_LINES = 20;
+const BLOCKS_LINE = /\bblocks?\s+(?:this|it)\b|\bthis\b[^\n]*\bblocks\b|\.md\b/i;
+
+// The lines of a Markdown text that name a document or carry a "waits on" phrase, code left out,
+// and how many of them are early.
+function linkLines(text: string, phrases: string[] | undefined): { text: string; early: number } {
+  const forward = forwardPattern(phrases);
+  const out: string[] = [];
+  let size = 0;
+  let early = 0;
+  const lines = withoutCode(text).split("\n");
+  for (let n = 0; n < lines.length && out.length < LINK_LINES && size < LINK_TEXT; n++) {
+    const line = lines[n];
+    if ((forward !== undefined && line.search(forward) >= 0) || BLOCKS_LINE.test(line)) {
+      const kept = line.slice(0, Math.min(LINK_LINE, LINK_TEXT - size));
+      out.push(kept);
+      size += kept.length + 1;
+      if (n < EARLY_LINES) {
+        early++;
+      }
+    }
+  }
+  return { text: out.join("\n"), early };
+}
+
 const DEFAULT_SOURCE_DIRS = ["lib", "test", "scripts", "supabase", "extension/src", "src"];
+
+// Hostile-text limits: facts read at most this many characters of a document, and a "Needs:" line
+// longer than MAX_LINE is not read as one. Every pattern below is linear within these.
+export const MAX_FACTS_CHARS = 2_000_000;
+
 
 function unique(matches: IterableIterator<RegExpMatchArray>, group = 0): number {
   const set = new Set<string>();
@@ -88,6 +124,45 @@ export function isNameableSource(rel: string, sourceDirs?: string[]): boolean {
   return new RegExp(`^(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)$`).test(rel);
 }
 
+const SOURCE_EXTS = ["dart", "py", "sql", "ts", "kt", "swift"];
+const isPathChar = (c: string | undefined): boolean => c !== undefined && /[\w./-]/.test(c);
+
+// Every source path a document names. Same matches as /\b(?:dirs)\/[\w./-]+\.(?:dart|py|sql|ts|kt|swift)\b/g,
+// read in one pass: a folder name starts a run of path characters, and the match ends at the last
+// ".ext" in that run. A run with no ".ext" cannot match from a later folder name inside it either,
+// so it is skipped whole and the cost stays linear (the single regex was quadratic on "src/src/...").
+function findSourcePaths(text: string, dirs: string): string[] {
+  const out: string[] = [];
+  const startRe = new RegExp(`\\b(?:${dirs})/`, "g");
+  let m: RegExpExecArray | null;
+  while ((m = startRe.exec(text)) !== null) {
+    const from = m.index + m[0].length;
+    let end = from;
+    while (isPathChar(text[end])) {
+      end++;
+    }
+    let last = -1;
+    for (let q = from + 1; q < end; q++) {
+      if (text[q] !== ".") {
+        continue;
+      }
+      for (const ext of SOURCE_EXTS) {
+        if (text.startsWith(ext, q + 1) && !/\w/.test(text[q + 1 + ext.length] ?? "")) {
+          last = q + 1 + ext.length;
+          break;
+        }
+      }
+    }
+    if (last >= 0) {
+      out.push(text.slice(m.index, last));
+      startRe.lastIndex = last;
+    } else {
+      startRe.lastIndex = Math.max(end, startRe.lastIndex);
+    }
+  }
+  return out;
+}
+
 // The first comment line of a SQL file that says what it does (not a date, a file name,
 // a "Why:" label or a spell-check pragma).
 function sqlTitle(text: string): string {
@@ -102,23 +177,6 @@ function sqlTitle(text: string): string {
     }
   }
   return "";
-}
-
-// "Needs: docs/PLAN_A.md, [Other](../x/PLAN_B.md); supabase:db-access/run.sql" gives the
-// three targets. A target is a path, a file name, a Markdown link, or "project:path".
-export function parseNeeds(body: string): string[] {
-  const out: string[] = [];
-  for (const m of body.matchAll(/^[\s>*_-]*\**needs\**\s*:\s*\**\s*(.+)$/gim)) {
-    // A Markdown link stands for its target, so a comma in the link text splits nothing.
-    const line = m[1].replace(/\[[^\]]*\]\(([^)\s]+)\)/g, "$1");
-    for (const part of line.split(/[;,]|\s+and\s+/)) {
-      const t = part.trim().replace(/^[`*_"'<(]+|[`*_"'>).]+$/g, "");
-      if (t && !out.includes(t)) {
-        out.push(t);
-      }
-    }
-  }
-  return out;
 }
 
 // Counts the code blocks by language tag. Opening fences carry the tag; closing fences have none.
@@ -148,83 +206,47 @@ function findMentions(body: string, patterns: Record<string, string>): string[] 
   return mentions.sort();
 }
 
-// The text of an open checklist box on this line, or undefined when the line has none.
-function checkboxText(line: string): string | undefined {
-  const box = /^\s*[-*] \[ \]\s*(.*)$/.exec(line);
-  return box ? box[1].trim().slice(0, STEP_TEXT) : undefined;
-}
+// True when the board reads Needs lines in this kind of document (SQL files have none).
+export const readsNeeds = (path: string): boolean => !path.toLowerCase().endsWith(".sql");
 
-// A table row that names columns (status, item, dev, prod) rather than holding a step.
-function isHeaderRow(cells: string[]): boolean {
-  return cells.some((c) => ["status", "item", "dev", "prod"].includes(c));
-}
-
-// Whether the last three cells of a table row hold a done word or an open word.
-function rowState(cells: string[]): { isDone: boolean; isOpen: boolean } {
-  const tail = cells.slice(-3);
-  return { isDone: tail.some((c) => DONE_WORDS.includes(c.split(" ")[0])), isOpen: tail.some((c) => OPEN_WORDS.includes(c)) };
-}
-
-// The text of an open table row: its first two cells that are not the Needs column or a state word.
-function openRowText(raw: string[], needsCol: number): string {
-  const text = raw.filter((c, k) => c && k !== needsCol && !OPEN_WORDS.includes(c.toLowerCase())).slice(0, 2).join(" - ");
-  return text.slice(0, STEP_TEXT);
-}
-
-// The open steps (checklist boxes and table rows in an open state) and the state-word row counts.
-function scanSteps(body: string): { rowsAll: number; rowsDone: number; steps: DocStep[]; stepsCut: number } {
-  const res = { rowsAll: 0, rowsDone: 0, steps: [] as DocStep[], stepsCut: 0 };
-  const lines = body.split(/\r?\n/);
-  let heading = "";
-  // The header cells of the table the loop is inside, when its second line is a divider.
-  let header: string[] | undefined;
-  const addStep = (step: DocStep): void => {
-    if (res.steps.length < MAX_STEPS) {
-      res.steps.push(step);
-    } else {
-      res.stepsCut += 1;
+// The Markdown file names in the text, in order: what /[\w./-]{1,200}\.md/g finds, without its
+// quadratic cost on a long run of name characters (such as an inline base64 image).
+function findDocRefs(body: string): string[] {
+  const out: string[] = [];
+  for (const run of body.matchAll(/[\w./-]+/g)) {
+    const r = run[0];
+    const at: number[] = [];
+    for (let p = r.indexOf(".md"); p >= 0; p = r.indexOf(".md", p + 1)) {
+      at.push(p);
     }
-  };
-  lines.forEach((l, i) => {
-    const h = /^#{1,6}[ \t]+(.+?)[ \t#]*$/.exec(l);
-    if (h) {
-      heading = h[1].trim().slice(0, STEP_TEXT);
-    }
-    const box = checkboxText(l);
-    if (box !== undefined) {
-      addStep({ line: i + 1, heading, text: box });
-    }
-    if (!l.startsWith("|")) {
-      header = undefined;
-      return;
-    }
-    if (/^\|[\s:|-]+\|$/.test(l)) {
-      return;
-    }
-    const raw = l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-    if (/^\|[\s:|-]+\|$/.test(lines[i + 1] ?? "")) {
-      header = raw.map((c) => c.toLowerCase());
-    }
-    const cells = raw.map((c) => c.toLowerCase());
-    if (isHeaderRow(cells)) {
-      return;
-    }
-    const { isDone, isOpen } = rowState(cells);
-    if (isDone || isOpen) {
-      res.rowsAll += 1;
-      if (isDone) {
-        res.rowsDone += 1;
+    let s = 0;
+    let k = 0;
+    while (at.length > 0 && s < r.length) {
+      // The last ".md" that starts 1 to 200 characters after s.
+      while (k < at.length && at[k] <= s) {
+        k++;
+      }
+      let last = -1;
+      for (let m = k; m < at.length && at[m] <= s + 200; m++) {
+        last = at[m];
+      }
+      if (last >= 0) {
+        out.push(r.slice(s, last + 3));
+        s = last + 3;
+      } else if (k < at.length) {
+        s = at[k] - 200;
       } else {
-        const col = header ? header.indexOf("needs") : -1;
-        addStep({ line: i + 1, heading, text: openRowText(raw, col), needsCell: col >= 0 ? raw[col].slice(0, STEP_TEXT) : undefined });
+        break;
       }
     }
-  });
-  return res;
+  }
+  return out;
 }
 
 // Reads the facts of one document from its text. `path` decides how the text is read (SQL or Markdown).
-export function readFacts(text: string, path: string, opt: FactsOptions = {}): DocFacts {
+export function readFacts(fullText: string, path: string, opt: FactsOptions = {}): DocFacts {
+  // Facts read a bounded part of a document, so a huge one cannot stall the board.
+  const text = fullText.length > MAX_FACTS_CHARS ? fullText.slice(0, MAX_FACTS_CHARS) : fullText;
   const isSql = path.toLowerCase().endsWith(".sql");
   const fenceLines = [...text.matchAll(/^```(\w*)/gm)];
   const langs = countLangs(fenceLines);
@@ -232,20 +254,25 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
   // A fenced block leaves its line breaks behind, so line numbers still match the file.
   const body = isSql ? text : text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
 
-  const stepsOpen = (body.match(/^\s*[-*] \[ \]/gm) ?? []).length;
-  const stepsDone = (body.match(/^\s*[-*] \[[xX]\]/gm) ?? []).length;
+  // Line by line, so a long run of blank lines or spaces costs linear time.
+  const lines = body.split(/\r\n|[\n\r\u2028\u2029]/);
+  const stepsOpen = lines.filter((l) => /^\s*[-*] \[ \]/.test(l)).length;
+  const stepsDone = lines.filter((l) => /^\s*[-*] \[[xX]\]/.test(l)).length;
   const { rowsAll, rowsDone, steps, stepsCut } = isSql ? { rowsAll: 0, rowsDone: 0, steps: [] as DocStep[], stepsCut: 0 } : scanSteps(body);
-  const heads = isSql ? [] : [...body.matchAll(/^(#{1,3})[ \t]+(.+)$/gm)];
-  const title = isSql ? sqlTitle(text) : (heads[0]?.[2] ?? "").trim().slice(0, 80);
+  const heads = isSql ? [] : lines.map((l) => headingText(l, 3, false)).filter((h): h is string => h !== undefined);
+  const title = isSql ? sqlTitle(text) : (heads[0] ?? "").trim().slice(0, 80);
 
   const dirs = (opt.sourceDirs ?? DEFAULT_SOURCE_DIRS).map(escapeRe).join("|");
-  const srcRe = new RegExp(`\\b(?:${dirs})/[\\w./-]+\\.(?:dart|py|sql|ts|kt|swift)\\b`, "g");
+  const srcPaths = findSourcePaths(text, dirs);
   const mentions = findMentions(body, opt.mentions ?? {});
+  const docRefs = findDocRefs(body);
+  const front = isSql ? undefined : readFrontMatter(text);
+  const link = isSql ? { text: "", early: 0 } : linkLines(text, opt.linkPhrases);
   return {
     title,
     headings: heads.length,
     words: body.split(/\s+/).filter(Boolean).length,
-    chars: text.length,
+    chars: fullText.length,
     stepsOpen,
     stepsDone,
     steps,
@@ -254,15 +281,18 @@ export function readFacts(text: string, path: string, opt: FactsOptions = {}): D
     rowsDone,
     codeBlocks,
     langs: isSql ? { sql: 1 } : langs,
-    docRefs: unique(body.matchAll(/[\w./-]{1,200}\.md/g)),
-    docRefNames: [...new Set([...body.matchAll(/[\w./-]{1,200}\.md/g)].map((m) => m[0]))].sort().slice(0, 60),
-    sourceRefs: unique(text.matchAll(srcRe)),
-    sourceFiles: [...new Set([...text.matchAll(srcRe)].map((m) => m[0]))].sort().slice(0, 40),
-    needs: isSql ? [] : parseNeeds(body),
+    docRefs: new Set(docRefs).size,
+    docRefNames: [...new Set(docRefs)].sort().slice(0, 60),
+    sourceRefs: new Set(srcPaths).size,
+    sourceFiles: [...new Set(srcPaths)].sort().slice(0, 40),
+    needs: readsNeeds(path) ? parseNeeds(body) : [],
     prs: unique(body.matchAll(/(?:#|pull request )(\d{2,5})\b/g), 1),
     urls: unique(text.matchAll(/https?:\/\/[^\s)>\]`"]+/g)),
     mentions,
     ...scoreDocument(text, path, opt.severity),
+    ...(front && front.tags.length > 0 ? { tags: front.tags } : {}),
+    ...(front?.group ? { group: front.group } : {}),
+    ...(link.text ? { linkText: link.text, ...(link.early > 0 ? { linkEarly: link.early } : {}) } : {}),
   };
 }
 

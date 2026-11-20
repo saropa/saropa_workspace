@@ -1,7 +1,11 @@
 import { BoardStrings } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
-import { readHandSettings } from "../commands/boardHandToChat";
 import { keywordBoardLabels } from "./keywordStrings";
+import { futureStrings } from "./boardStringsFuture";
+import { POLISH_KEYS, polishStrings } from "./boardStringsPolish";
+
+// Re-exported so existing importers keep working.
+export { POLISH_KEYS };
 
 // The localized strings the board page is drawn with.
 // Headings, buttons and the light.
@@ -14,7 +18,6 @@ function coreStrings() {
     resolveNow: l10n("releaseBoard.panel.resolveNow"),
     workOn: l10n("releaseBoard.panel.workOn"),
     inProgress: l10n("releaseBoard.panel.inProgress"),
-    nothingHere: l10n("releaseBoard.panel.nothingHere"),
     more: l10n("releaseBoard.panel.more", { count: "{count}" }),
     blocked: l10n("releaseBoard.panel.blocked", { count: "{count}" }),
     refresh: l10n("releaseBoard.panel.refresh"),
@@ -115,11 +118,9 @@ function sittingsStrings() {
   };
 }
 
-// Hand to chat, Tidy and train text.
+// Tidy and train text.
 function toolStrings() {
   return {
-    handToChat: readHandSettings().enabled ? l10n("releaseBoard.handToChat.button") : "",
-    handToChatTip: l10n("releaseBoard.handToChat.tip"),
     tidyHeading: l10n("releaseBoard.tidy.heading"),
     tidyNote: l10n("releaseBoard.tidy.note", { days: "{days}" }),
     tidyDetail: l10n("releaseBoard.tidy.detail", { count: "{count}", days: "{days}" }),
@@ -165,246 +166,21 @@ function liveStrings() {
   };
 }
 
-// Future tab text, keyed by the name the page looks up.
-function futureStrings() {
-  return {
-    futureLabels: {
-      "tab": l10n("releaseBoard.future.tab", { count: "{count}" }),
-      "tabBoard": l10n("releaseBoard.future.tabBoard"),
-      "heading": l10n("releaseBoard.future.heading"),
-      "note": l10n("releaseBoard.future.note"),
-      "sort": l10n("releaseBoard.future.sort"),
-      "sort.score": l10n("releaseBoard.future.sort.score"),
-      "sort.wow": l10n("releaseBoard.future.sort.wow"),
-      "sort.effort": l10n("releaseBoard.future.sort.effort"),
-      "sort.risk": l10n("releaseBoard.future.sort.risk"),
-      "sort.reach": l10n("releaseBoard.future.sort.reach"),
-      "flag.unflagged": l10n("releaseBoard.future.flag.unflagged"),
-      "flag.build-next": l10n("releaseBoard.future.flag.build-next"),
-      "flag.marketable": l10n("releaseBoard.future.flag.marketable"),
-      "flag.nice-to-have": l10n("releaseBoard.future.flag.nice-to-have"),
-      "flag.needs-decision": l10n("releaseBoard.future.flag.needs-decision"),
-      "flag.not-feasible": l10n("releaseBoard.future.flag.not-feasible"),
-      "importance": l10n("releaseBoard.future.importance"),
-      "wow": l10n("releaseBoard.future.wow"),
-      "reach": l10n("releaseBoard.future.reach"),
-      "effort": l10n("releaseBoard.future.effort"),
-      "risk": l10n("releaseBoard.future.risk"),
-      "blocker": l10n("releaseBoard.future.blocker"),
-      "reach.daily": l10n("releaseBoard.future.reach.daily"),
-      "reach.weekly": l10n("releaseBoard.future.reach.weekly"),
-      "reach.rare": l10n("releaseBoard.future.reach.rare"),
-      "risk.low": l10n("releaseBoard.future.risk.low"),
-      "risk.medium": l10n("releaseBoard.future.risk.medium"),
-      "risk.high": l10n("releaseBoard.future.risk.high"),
-      "guessedTip": l10n("releaseBoard.future.guessedTip"),
-      "acceptTip": l10n("releaseBoard.future.acceptTip"),
-      "proposed": l10n("releaseBoard.future.proposed", { flag: "{flag}" }),
-      "scoreTip": l10n("releaseBoard.future.scoreTip", { score: "{score}" }),
-      "editBlocker": l10n("releaseBoard.future.editBlocker"),
-      "noBlocker": l10n("releaseBoard.future.noBlocker"),
-      "outsideHeading": l10n("releaseBoard.future.outsideHeading", { count: "{count}" }),
-      "outsideNote": l10n("releaseBoard.future.outsideNote"),
-      "outsideSource": l10n("releaseBoard.future.outsideSource", { path: "{path}", line: "{line}", why: "{why}" }),
-      "why.later": l10n("releaseBoard.future.why.later"),
-      "why.exploratory": l10n("releaseBoard.future.why.exploratory"),
-      "why.not-started": l10n("releaseBoard.future.why.not-started"),
-      "research": l10n("releaseBoard.future.research"),
-      "question": l10n("releaseBoard.future.question"),
-      "questionHint": l10n("releaseBoard.future.questionHint"),
-      "research.none": l10n("releaseBoard.future.research.state.none"),
-      "research.needed": l10n("releaseBoard.future.research.state.needed"),
-      "research.in-progress": l10n("releaseBoard.future.research.state.in-progress"),
-      "research.ready": l10n("releaseBoard.future.research.state.ready"),
-      "research.reviewed": l10n("releaseBoard.future.research.state.reviewed"),
-      "readyNotReviewed": l10n("releaseBoard.future.readyNotReviewed"),
-      "readyTip": l10n("releaseBoard.future.readyTip"),
-      "markReviewed": l10n("releaseBoard.future.research.markReviewed"),
-      "waiting": l10n("releaseBoard.future.waiting", { count: "{count}" }),
-      "inProgressCount": l10n("releaseBoard.future.inProgressCount", { count: "{count}" }),
-      "readyCount": l10n("releaseBoard.future.readyCount", { count: "{count}" }),
-      "handAll": l10n("releaseBoard.future.handAll", { count: "{count}" }),
-      "handBatch": l10n("releaseBoard.future.handBatch", { batch: "{batch}", queued: "{queued}" }),
-      "handTip": l10n("releaseBoard.future.handTip"),
-      "handOffTip": l10n("releaseBoard.future.handOffTip"),
-    } as Record<string, string>,
-  };
-}
-
-// Every key of the tooltip and control table, in en.json as "releaseBoard.polish.<key>".
-export const POLISH_KEYS = [
-  "refresh",
-  "accept",
-  "profile.rush",
-  "profile.deliberate",
-  "profile.zero",
-  "tabs",
-  "tabBoard",
-  "tabFuture",
-  "light.go",
-  "light.noGo",
-  "light.unverified",
-  "projectRow",
-  "projectRowPlain",
-  "projectName",
-  "squares",
-  "square.red",
-  "square.amber",
-  "square.purple",
-  "feedLine",
-  "project",
-  "kind",
-  "row",
-  "blocks",
-  "severity",
-  "severityStops",
-  "mentions",
-  "codeLang",
-  "codeNoLang",
-  "group",
-  "count",
-  "list",
-  "list.resolveNow",
-  "list.inProgress",
-  "list.workOn",
-  "inProgressNote",
-  "stepsFit",
-  "timeLabel",
-  "haveLabel",
-  "haveAll",
-  "timeLabelTip",
-  "timeGroup",
-  "timeAnyTip",
-  "timeTip",
-  "timeAny",
-  "time15",
-  "time30",
-  "timeHour",
-  "timeHalfDay",
-  "haveLabelTip",
-  "haveGroup",
-  "chip",
-  "chipAll",
-  "sittingsHeading",
-  "stepsSummary",
-  "step",
-  "stepDoc",
-  "stepNeeds",
-  "untagged",
-  "tidyRow",
-  "tidyMove",
-  "tidyReportRow",
-  "tidyReport",
-  "liveRow",
-  "liveStart",
-  "liveHeading",
-  "noRuleHeading",
-  "noRuleRow",
-  "noRuleAssign",
-  "noRuleAssignTip",
-  "noRulePreview",
-  "noRulePreviewTip",
-  "noRuleCount",
-  "noRuleEmpty",
-  "outsideGroup",
-  "outsideLink",
-  "outsideItem",
-  "chain",
-  "chainNode",
-  "flagsHeading",
-  "flagRow",
-  "suggestHeading",
-  "suggestMark",
-  "suggestRow",
-  "suggestAccept",
-  "suggestReject",
-  "linkedSummary",
-  "sinceHeading",
-  "trainName",
-  "trainStep",
-  "ptgAccept",
-  "ptgRunLint",
-  "ptgRunTests",
-  "ptgEnable",
-  "researchCounts",
-  "markReviewed",
-  "editBlocker",
-  "blockerRow",
-  "futureRow",
-  "futureOutsideRow",
-  "futureOutsideSummary",
-  "futureGroup",
-  "futureHeading",
-  "arrowWaits",
-  "outsideDetail",
-  "chatsPill",
-  "pillTip",
-  "stepMinutesPill",
-  "ringNone",
-  "ringSteps",
-  "barsSize",
-  "futureLabelTip",
-  "futureSortTip",
-  "g.redDot",
-  "g.greenDot",
-  "g.greyDot",
-  "g.dashedDot",
-  "g.amberDiamond",
-  "g.greenDiamond",
-  "g.redDiamond",
-  "g.amberDiamondFilled",
-  "g.greyDiamondDashed",
-  "g.redTriangle",
-  "g.amberTriangle",
-  "g.greyTriangle",
-  "g.amberSquare",
-  "g.ring",
-  "g.bars",
-  "g.redRing",
-  "g.flameRed",
-  "g.flameAmber",
-  "g.infoIcon",
-  "arrowThen",
-  "rowMenu",
-  "rowMenuList",
-  "menuOpen",
-  "menuOpenTip",
-  "menuStatus",
-  "menuStatusTip",
-  "menuSeverity",
-  "menuSeverityTip",
-  "menuAuto",
-  "menuAutoTip",
-  "byYou",
-  "byYouMark",
-  "byUserNote",
-  "byUserLowered",
-  "byUserTip",
-  "menuAssign",
-  "menuAssignTip",
-  "menuRulesTip",
-  "optsMenu",
-  "optsMenuList",
-  "marksMore",
-  "hintBar",
-  "rollupBar",
-  "rollupLight",
-  "rollupSkipped",
-  "skippedRow",
-] as const;
-
-// Tooltips and the labels of the controls added with them.
-function polishStrings() {
-  return { polish: Object.fromEntries(POLISH_KEYS.map((k) => [k, l10n(`releaseBoard.polish.${k}`)])) as Record<string, string> };
-}
-
 // Every key of the umbrella view's label table, in en.json as "releaseBoard.projects.label.<key>".
-export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintText", "hintAdd", "hintDismiss", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "hiddenTip", "startup", "startupTip"] as const;
+export const PROJECT_LABEL_KEYS = ["projects", "projectsTip", "settings", "settingsTip", "hintDismissTip", "rollup", "open", "openTip", "skippedShort", "skip_missing", "skip_notFolder", "skip_unreadable", "skip_overLimit", "skip_timedOut", "hidden", "startup", "startupTip", "tagsRules", "tagsRulesTip"] as const;
 
 // Labels of the umbrella view: the Projects and Settings buttons, the hint, the roll-up and the grey rows.
 function projectStrings() {
   const keys = PROJECT_LABEL_KEYS;
   return { projectLabels: Object.fromEntries(keys.map((k) => [k, l10n(`releaseBoard.projects.label.${k}`, { count: "{count}", max: "{max}" })])) };
+}
+
+// Every key of the AI hand-off label table, in en.json as "releaseBoard.handoff.label.<key>".
+export const HANDOFF_LABEL_KEYS = ["title", "close", "closeTip", "menuItem", "menuItemTip", "menuBoard", "menuBoardTip", "scopeMenu", "chosen", "chosenTip", "chosenGo", "chosenGoTip", "chosenClear", "chosenClearTip", "choose", "chooseTip", "scopeItem", "scopeChosen", "scopeGroup", "scopeProject", "scopeBoard", "itemsCount", "task", "taskFix", "taskFixTip", "taskPlan", "taskPlanTip", "taskReview", "taskReviewTip", "taskTriage", "taskTriageTip", "format", "fmtMd", "fmtMdTip", "fmtJson", "fmtJsonTip", "tokenTip", "preview", "copy", "copyTip", "copyFull", "copyFullTip", "save", "saveTip", "terminal", "terminalTip", "tabHand", "tabHandTip", "tabBack", "tabBackTip", "taskOrganize", "taskOrganizeTip", "backText", "backTextTip", "backRead", "backReadTip", "backHelp", "backList", "backPick", "backApply", "backApplyTip", "backReject", "backRejectTip", "backRejectLinksTip", "backRejectLinks", "linkShared", "linkSharedTip", "linkNot", "linkNotTip", "linkLow", "linkLowTip", "linkUnreject", "linkUnrejectTip", "backStale", "backStaleTip", "backRefused", "backApplied", "backAppliedTip", "ready", "readyTip", "proposals", "proposalsTip", "menuOrganize", "menuOrganizeTip", "menuBack", "menuBackTip"] as const;
+
+// Labels of the AI hand-off: menu items, the selection line and the drawer. Placeholders stay in the text for the page to fill.
+function handoffStrings() {
+  return { handoffLabels: Object.fromEntries(HANDOFF_LABEL_KEYS.map((k) => [k, l10n(`releaseBoard.handoff.label.${k}`, { count: "{count}", name: "{name}", title: "{title}" })])) };
 }
 
 // All page strings, merged from the groups above.
@@ -419,6 +195,7 @@ export function strings(): BoardStrings {
     ...futureStrings(),
     ...polishStrings(),
     ...projectStrings(),
+    ...handoffStrings(),
     keywordLabels: keywordBoardLabels(),
   };
 }

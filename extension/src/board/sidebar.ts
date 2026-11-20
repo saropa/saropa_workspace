@@ -141,7 +141,7 @@ export interface SidebarOptions {
 }
 
 // An open document that holds the release back: anything in a red folder, or past the profile.
-export const isBlocker = (it: BoardItem): boolean => it.status === "red" || it.stopping;
+export const isBlocker = (it: BoardItem): boolean => it.blocks;
 
 const suffix = (note: string | undefined, text: string): string => (note ? `${text} (${note})` : text);
 
@@ -173,32 +173,39 @@ function umbrellaRows(model: Partial<Pick<BoardModel, "skipped" | "hidden">>, op
   return rows;
 }
 
+// The reasons a project is NO-GO, in the order the row shows them: failing health checks, blocked
+// folders, and the held-back red when nothing else explains it. `listed` is how many blockers are listed.
+function noGoCauses(p: BoardModel["projects"][number], listed: number, labels: SidebarLabels): string[] {
+  const causes: string[] = [];
+  if (p.health?.build === "failing") {
+    causes.push(labels.causeBuild);
+  }
+  if (p.health?.deps === "failing") {
+    causes.push(labels.causeDeps);
+  }
+  if (p.health?.lint === "failing") {
+    causes.push(labels.causeLint);
+  }
+  if (p.health?.tests === "failing") {
+    causes.push(labels.causeTests);
+  }
+  if ((p.blockedStopping ?? 0) > 0) {
+    causes.push(labels.causeBlocked.split("{count}").join(String(p.blockedStopping)));
+  }
+  // A NO-GO nothing above explains is the previous accepted scan's red, held back.
+  if (p.light === "no-go" && listed === 0 && causes.length === 0) {
+    causes.push(labels.causeHeld);
+  }
+  return causes;
+}
+
 function projectRows(model: Pick<BoardModel, "projects">, opts: SidebarOptions, labels: SidebarLabels): SidebarRow[] {
   return model.projects.map((p) => {
     // The model already lists items red first, pinned first, most severe first.
     const all = p.items.filter(isBlocker);
     // Documents in a blocked folder stop the release too; they are counted, not listed.
     const count = all.length + (p.blockedStopping ?? 0);
-    const causes: string[] = [];
-    if (p.health?.build === "failing") {
-      causes.push(labels.causeBuild);
-    }
-    if (p.health?.deps === "failing") {
-      causes.push(labels.causeDeps);
-    }
-    if (p.health?.lint === "failing") {
-      causes.push(labels.causeLint);
-    }
-    if (p.health?.tests === "failing") {
-      causes.push(labels.causeTests);
-    }
-    if ((p.blockedStopping ?? 0) > 0) {
-      causes.push(labels.causeBlocked.split("{count}").join(String(p.blockedStopping)));
-    }
-    // A NO-GO nothing above explains is the previous accepted scan's red, held back.
-    if (p.light === "no-go" && all.length === 0 && causes.length === 0) {
-      causes.push(labels.causeHeld);
-    }
+    const causes = noGoCauses(p, all.length, labels);
     const word = labels.light[p.light];
     const countText = count === 1 ? labels.blockerOne : labels.blockerMany.split("{count}").join(String(count));
     const tooltip = [`${p.name}: ${word}`];
@@ -208,10 +215,8 @@ function projectRows(model: Pick<BoardModel, "projects">, opts: SidebarOptions, 
     if (p.light === "no-go") {
       tooltip.push(...causes);
     }
-    if (p.light !== "go") {
-      for (const r of p.reasons) {
-        tooltip.push(labels.reasons[r].split("{count}").join(String(p.counts.grey)));
-      }
+    for (const r of p.reasons) {
+      tooltip.push(labels.reasons[r].split("{count}").join(String(p.counts.grey)));
     }
     if ((p.loweredByUser ?? 0) > 0 && labels.loweredByUser) {
       tooltip.push(labels.loweredByUser.split("{count}").join(String(p.loweredByUser)));

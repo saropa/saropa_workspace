@@ -11,6 +11,12 @@ import { docStatusKeys, overrideKey, severityOverrides } from "./ruleAssign";
 import { LiveMark, LiveSignals, LiveUnnamed } from "./liveEvidence";
 import { TidyOptions, TidyView } from "./tidy";
 import type { InProgressView } from "./inProgress";
+import type { FinishedDoc } from "./ganttModel";
+import type { AskView } from "./blockersAsk";
+import type { OrderEntry } from "./orderAsk";
+import type { OrgPrevious } from "./boardOrg";
+import type { ProposalView } from "./boardProposals";
+import type { Layout } from "./org/layout";
 
 // The shapes of the board's view model (what the first screen shows), and the helpers that
 // turn one document or one link into the pieces of the model. buildBoard puts them together.
@@ -38,8 +44,12 @@ export interface BoardItem {
   kind: string;
   // Marks, rolled up from the document's facts (absent when its text was not read).
   marks?: ItemMarks;
-  // Group heading this item sits under (two or more related documents), if any.
-  group?: { id: string; name: string };
+  // The first open steps with their lines, for the hand-off (absent when there are none).
+  steps?: Array<{ line: number; text: string }>;
+  // Minutes of all the document's open steps (absent when there are none): the Gantt bar length, whatever the Steps filter shows.
+  openMinutes?: number;
+  // Group heading this item sits under, if any.
+  group?: GroupView;
   // A very large or heavily cross-referencing document: it links to groups, never merges them.
   hub: boolean;
   // Needs lines: what this item waits on. "open" waits, "done" is satisfied, "flag" needs a look.
@@ -48,6 +58,13 @@ export interface BoardItem {
   blocksCount: number;
   // Ids of the open, listed items this one waits on (its own prerequisites).
   waitsOn: number[];
+  // Ids of the open items the owner said this one comes after (order only, not a dependency: handoff and path to
+  // go never read it). Absent when none.
+  // True when an asked answer of this row can become a Needs: line (it is not read from the document yet, would not make a circle).
+  makeDep?: true;
+  after?: number[];
+  // Ids of open items this one is after only through others' answers (absent when none).
+  inferred?: number[];
   // Claude sessions that read or edited this document (absent when none, or Chat Explorer is not installed).
   chats?: number;
   // Errors and warnings in the source files this document names (absent when quiet or unknown).
@@ -61,8 +78,17 @@ export interface BoardItem {
   statusByUser?: boolean;
   audience?: Audience;
   pinned: boolean;
-  // The item stops a release under the chosen profile.
+  // File time and size when the facts were read ("seconds-bytes"), for the hand-off; absent when not read.
+  rev?: string;
+  // The item's severity is at or above the profile's threshold (or it is pinned).
   stopping: boolean;
+  // The item blocks the next release: drawn red, counted, NO-GO. In an answered project only a pin does;
+  // elsewhere a red folder, a stopping severity or a pin.
+  blocks: boolean;
+  // The item's project was answered (set so the row menu can say a severity or status change leaves the release alone).
+  answered?: true;
+  // The strip asking which items block the next release (absent when nothing is to be asked).
+  ask?: AskView;
 }
 
 // The small marks on a row, rolled up from a document's text.
@@ -92,6 +118,14 @@ export interface BoardProject {
   blocked: number;
   // How many of those collapsed documents would stop a release under the profile.
   blockedStopping: number;
+  // The owner answered which items block the next release: only pinned items are red here.
+  answered?: true;
+  // The strip asking which items block the next release (absent when nothing is to be asked).
+  ask?: AskView;
+  // The strip asking which blocker comes first (absent when nothing is to be asked or the blockers strip shows).
+  orderAsk?: { count: number };
+  // Place of each folder (group id) among the blockers' folders, from the owner's folder answers (absent when none).
+  folderRank?: Record<string, number>;
   // Documents of this project whose severity the user lowered below a level that stops the release.
   loweredByUser?: number;
   counts: StatusCounts;
@@ -99,6 +133,28 @@ export interface BoardProject {
   health?: ProjectHealth;
   // The project is one of the user's extra projects; absent for a project of the open workspace.
   extra?: boolean;
+}
+
+// A group as drawn: the stable id, the name and emoji, the stripe colour (hex) and the reasons for each.
+export interface GroupView {
+  id: string;
+  name: string;
+  // Listed by hand: the name as the rules file holds it. Every write and comparison uses this, never `name`
+  // (which can be clipped or made unique for the page).
+  stored?: string;
+  emoji?: string;
+  colour?: string;
+  // Why the group exists and why it has this name, emoji and colour, one per line (plain text).
+  why?: string;
+  // Listed by hand or set by the user; otherwise the board found it.
+  byUser?: true;
+  parent?: string;
+  // The group above, as drawn.
+  parentView?: GroupView;
+  // The project has so few documents that its lists show no group headings.
+  flat?: true;
+  // Why the group may start folded (plain text).
+  fold?: string;
 }
 
 // One step of a chain, in the order things must be finished.
@@ -129,18 +185,30 @@ export interface SittingsView {
 
 // Everything the first screen shows, built by buildBoard.
 export interface BoardModel {
+  // The group layout of each project (row limits, which groups open), by project id.
+  orgLayouts?: Record<string, Layout>;
   projects: BoardProject[];
   chains: ChainStep[][];
+  // Every Needs link as resolved, for the Waits on picker (it never reaches the page).
+  links: Link[];
   // Needs lines that point nowhere, at several documents, or at finished work.
   flags: string[];
   // Every item, flat, with its id: the host resolves a click by id and never trusts a path
   // sent by the page.
   items: BoardItem[];
+  // The set order of rows inside a group, by project (see boardOrder.ts). Absent when none is set.
+  order?: Record<string, string[]>;
   safetyHold: boolean;
   baseline: boolean;
   profile: Profile;
   // Links the board guesses from documents naming each other; the user accepts or rejects.
   suggestions: Array<{ key: string; fromKey: string; toProject: string; toPath: string; from: { project: string; title: string; id: number }; to: { project: string; title: string; id: number } }>;
+  // Links the engine proposes from names and wording; the person ticks which to accept.
+  proposals: ProposalView[];
+  // How many rejected links are remembered (the Undo reject entry of the review list shows it).
+  rejectedCount: number;
+  // How many of them come from the shared file in the repository (cleared only by an explicit choice).
+  sharedRejectedCount: number;
   // Folders where documents no rule placed sit, for the "needs a rule" list.
   needsRule: Array<{ project: string; folder: string; count: number }>;
   // Review requests and groups from other extensions. They never change a light.
@@ -154,6 +222,8 @@ export interface BoardModel {
   inProgress?: InProgressView;
   // Crash signals in files no open document names. Empty when there are none.
   liveUnnamed?: LiveUnnamed[];
+  // Finished documents that open items waited on, kept as dimmed history in the Gantt. Absent when none.
+  finished?: FinishedDoc[];
   // Chosen folders that could not be read, shown as grey rows. Absent when there are none.
   skipped?: SkippedProject[];
   // How many chosen projects the "open project only" scope hides. Absent when none.
@@ -172,8 +242,16 @@ export interface BoardExtra {
   needs?: Record<string, string[]>;
   // Suggested links the user turned down.
   rejected?: string[];
+  // How many of `rejected` come from the shared file.
+  sharedRejected?: number;
   // Documents pinned by hand, as "project/path".
   pins?: string[];
+  // Projects whose owner answered which items block the next release: there red means "pinned".
+  answered?: string[];
+  // The paths each answered project left unpicked, to tell a new critical item from an old one.
+  seen?: Record<string, string[]>;
+  // The owner's order answers by project id.
+  order?: Record<string, OrderEntry>;
   // Review requests, groups and session counts from other extensions.
   outside?: Outside;
   // `have` absent means every context is in hand.
@@ -182,15 +260,29 @@ export interface BoardExtra {
   // Documents open and being edited in this window, as "project/path", and the list limit.
   inProgress?: { edited: string[]; max: number };
   live?: { signals: LiveSignals; includeWarnings: boolean; fold: boolean; unnamedBox: boolean };
+  // Band and MAX of each project from the previous build, so the group layout stays stable.
+  orgPrevious?: OrgPrevious;
 }
 
 // Helpers that turn one document or one link into the pieces of the board model.
+
+// The list an open item sits in on the page: "red" = Resolve now. In an answered project that is the items the
+// owner marked (a red folder alone is not), and an unmarked red-folder item joins "amber" (Work on).
+export function laneOf(i: BoardItem): "red" | "amber" | "purple" {
+  return i.answered && i.status !== "purple" ? (i.blocks ? "red" : "amber") : i.status;
+}
 
 // The statuses that count as open work.
 export const OPEN: ReadonlySet<BoardStatus> = new Set(["red", "amber", "purple"]);
 
 // The key a document is stored under in the lookup maps: project, tab, path.
 export const itemKey = (project: string, path: string): string => project + "\t" + path;
+
+// File time (seconds) and size of a document when its facts were read; undefined when not read.
+export function revFor(snapshot: ScanSnapshot | undefined, project: string, path: string): string | undefined {
+  const c = snapshot?.projects[project]?.facts[path];
+  return c ? `${Math.floor(c.mtimeMs / 1000)}-${c.size}` : undefined;
+}
 
 // The facts read for one document, or undefined when its text was not read.
 export function factsFor(snapshot: ScanSnapshot | undefined, project: string, path: string): DocFacts | undefined {

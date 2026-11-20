@@ -1,102 +1,105 @@
 #!/usr/bin/env python3
 """
-CLI entry: organize files under reports/.
+CLI entry: organize files under reports/ into month and day folders.
 
 Run:
   python reports/organize_reports.py
 
-Note: This script has been internalized to run standalone without 
-relying on an external shared module. It groups files by their 
-YYYYMMDD prefix into corresponding folders.
+Layout: reports/YYYY.MM/YYYY.MM.DD/<file name unchanged>
+  2026.11.10_workspace_053430_ci.md   -> 2026.11/2026.11.10/
+  2026-09-18_19-15-08_vibrancy.json   -> 2026.09/2026.09.18/
+  20260414_231243.log                 -> 2026.04/2026.04.14/
+A file with no date in its name (e.g. image.png) takes the date of the folder
+it sits in. Files with no date anywhere, and dot-folders such as
+.saropa_lints/, are left alone. Empty folders are removed afterwards.
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from pathlib import Path
 
+# Date at the start of a name: 2026.11.10, 2026-11-10 or 20261110.
+DATE_AT_START = re.compile(r"^(\d{4})[.-]?(\d{2})[.-]?(\d{2})(?!\d)")
 
-def organize_and_prune_reports(
-    reports_root: Path,
-    project_root: Path,
-    print_moves: bool = False,
-    print_removed: bool = False,
-) -> tuple[int, int, int]:
-    """
-    Core logic to organize files by YYYYMMDD prefix and remove empty directories.
-    """
-    moved = 0
-    skipped = 0
-    removed = 0
+
+def date_from(name: str) -> tuple[str, str, str] | None:
+    m = DATE_AT_START.match(name)
+    if not m:
+        return None
+    year, month, day = m.groups()
+    if not (1 <= int(month) <= 12 and 1 <= int(day) <= 31):
+        return None
+    return year, month, day
+
+
+def target_dir_for(file_path: Path, reports_root: Path) -> Path | None:
+    date = date_from(file_path.name)
+    if date is None and file_path.parent != reports_root:
+        date = date_from(file_path.parent.name)
+    if date is None:
+        return None
+    year, month, day = date
+    return reports_root / f"{year}.{month}" / f"{year}.{month}.{day}"
+
+
+def organize_and_prune_reports(reports_root: Path) -> tuple[int, int, int, int]:
+    """Returns (moved, already in place, left alone, empty folders removed)."""
+    moved = in_place = left_alone = removed = 0
 
     if not reports_root.exists():
         print(f"Warning: Reports directory '{reports_root}' does not exist.")
-        return moved, skipped, removed
+        return moved, in_place, left_alone, removed
 
-    # ---------------------------------------------------------
-    # 1. ORGANIZE FILES
-    # Group files like "20260414_231243.log" into "20260414/"
-    # ---------------------------------------------------------
-    for file_path in reports_root.rglob("*"):
-        # Ignore directories and this python script itself
+    for file_path in sorted(reports_root.rglob("*")):
+        rel_parts = file_path.relative_to(reports_root).parts
+        if any(part.startswith(".") for part in rel_parts):
+            continue  # dot-files and dot-folders (.DS_Store, .saropa_lints/)
         if not file_path.is_file() or file_path.name == "organize_reports.py":
             continue
-            
-        # Extract the first 8 characters to see if it's a date (YYYYMMDD)
-        date_prefix = file_path.name[:8]
-        
-        if date_prefix.isdigit() and len(date_prefix) == 8:
-            target_dir = reports_root / date_prefix
-            
-            # If the file is already in the correct folder, skip it
-            if file_path.parent == target_dir:
-                skipped += 1
-                continue
-                
-            # Create the date folder if it doesn't exist
-            target_dir.mkdir(exist_ok=True)
-            target_path = target_dir / file_path.name
-            
-            # Move the file
-            shutil.move(str(file_path), str(target_path))
-            moved += 1
-            if print_moves:
-                print(f"Moved: {file_path.name} -> {date_prefix}/")
-        else:
-            # Skip files that don't match the date pattern
-            skipped += 1
 
-    # ---------------------------------------------------------
-    # 2. PRUNE EMPTY FOLDERS
-    # Iterate bottom-up (reverse order) to clean up nested empties.
-    # ---------------------------------------------------------
-    for dir_path in sorted(reports_root.rglob("*"), reverse=True):
-        if dir_path.is_dir():
-            # Check if directory is empty
-            if not any(dir_path.iterdir()):
-                dir_path.rmdir()
-                removed += 1
-                if print_removed:
-                    print(f"Removed empty folder: {dir_path.relative_to(project_root)}")
+        target_dir = target_dir_for(file_path, reports_root)
+        if target_dir is None:
+            left_alone += 1
+            continue
+        if file_path.parent == target_dir:
+            in_place += 1
+            continue
 
-    return moved, skipped, removed
+        target_path = target_dir / file_path.name
+        if target_path.exists():
+            print(f"Left alone (same name already in target): {file_path.relative_to(reports_root)}")
+            left_alone += 1
+            continue
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(file_path), str(target_path))
+        moved += 1
+        print(f"Moved: {file_path.relative_to(reports_root)} -> {target_path.relative_to(reports_root)}")
+
+    # Remove empty folders, deepest first. A folder holding only .DS_Store counts as empty.
+    for dir_path in sorted(reports_root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if not dir_path.is_dir() or dir_path.name.startswith("."):
+            continue
+        contents = list(dir_path.iterdir())
+        if all(p.name == ".DS_Store" for p in contents):
+            for p in contents:
+                p.unlink()
+            dir_path.rmdir()
+            removed += 1
+            print(f"Removed empty folder: {dir_path.relative_to(reports_root)}")
+
+    return moved, in_place, left_alone, removed
 
 
 def main() -> int:
     reports_root = Path(__file__).resolve().parent
-    repo_root = reports_root.parent
-    
-    moved, skipped, removed = organize_and_prune_reports(
-        reports_root=reports_root,
-        project_root=repo_root,
-        print_moves=True,      # Set to True so you can see it working!
-        print_removed=True,
-    )
-    
+    moved, in_place, left_alone, removed = organize_and_prune_reports(reports_root)
     print(
-        f"\nDone. Moved {moved} file(s), skipped {skipped} file(s), "
-        f"removed {removed} empty folder(s)."
+        f"\nDone. Moved {moved} file(s). {in_place} already in the right folder. "
+        f"{left_alone} left alone. Removed {removed} empty folder(s)."
     )
     return 0
 
