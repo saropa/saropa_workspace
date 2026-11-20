@@ -1,6 +1,4 @@
-import { isNameableSource } from "./docFacts";
 import { globToRegExp } from "./glob";
-import { Outside } from "./outside";
 import { ProjectHealth } from "./health";
 import { Profile, Severity, asProfile, stops } from "./severity";
 import { customizedParts } from "./severityEdit";
@@ -9,19 +7,17 @@ import { orderLists } from "./boardOrder";
 import { buildOrg } from "./boardOrg";
 import { buildProposals } from "./boardProposals";
 import { mergeNeeds, stepMinutes, stepNeeds } from "./needs";
-import { Link, buildChains, resolveLinks } from "./links";
-import { inferLinks } from "./inferred";
+import { Link, resolveLinks } from "./links";
 import { OrgSettings, settingsOf } from "./org/settings";
 import { finishedTargets } from "./ganttModel";
 import { ScanSnapshot } from "./scanner";
-import { TIDY_LIST_CAP, buildTidy, buildTidyReports } from "./tidy";
 import { askOf } from "./blockersAsk";
 import { answerOptions, attachOrder } from "./orderModel";
 import { pickInProgress } from "./inProgress";
-import { LiveUnnamed, bugsFolderOf, markFor, unnamedFiles } from "./liveEvidence";
+import { attachChats, attachLinks, attachLive, buildChainSteps, buildSuggestions, buildTidyView, collectNeeds, linkFlags, needsRuleFolders } from "./boardModelLinks";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
-import { BoardExtra, BoardItem, BoardModel, BoardProject, ChainStep, UnverifiedReason } from "./boardModelParts";
-import { OPEN, effectiveSeverity, factsFor, itemKey, revFor, linkSummary, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
+import { BoardExtra, BoardItem, BoardModel, BoardProject, UnverifiedReason } from "./boardModelParts";
+import { OPEN, effectiveSeverity, factsFor, itemKey, revFor, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
 
 // The board's view model: what the first screen shows, built from classified rows.
 // Pure, so the rules for the light are unit-tested without a webview.
@@ -43,8 +39,9 @@ const SEV_ORDER: Record<string, number> = { extreme: 0, critical: 1, high: 2, me
 const HANDOFF_STEPS = 10;
 const IMPORTANCE: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
-// What the build of every project needs to look at, gathered once.
-interface BuildContext {
+// What the build of every project needs to look at, gathered once. Exported for the
+// helpers in boardModelLinks.ts (type import only).
+export interface BuildContext {
   cfg: BoardConfig;
   rows: Classified[];
   snapshot?: ScanSnapshot;
@@ -195,161 +192,28 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
   };
 }
 
-// What every open document waits on: the Needs lines in its text plus the links the user accepted.
-// Blocked documents are not listed, but what they wait on still counts.
-function collectNeeds(rows: Classified[], snapshot: ScanSnapshot | undefined, accepted: Record<string, string[]> | undefined): Map<string, string[]> {
-  const needs = new Map<string, string[]>();
-  for (const r of rows) {
-    const n = OPEN.has(r.status) ? factsFor(snapshot, r.project, r.path)?.needs : undefined;
-    if (n && n.length > 0) {
-      needs.set(itemKey(r.project, r.path), n);
-    }
-  }
-  for (const [k, targets] of Object.entries(accepted ?? {})) {
-    const i = k.indexOf("/");
-    const key = k.slice(0, i) + "\t" + k.slice(i + 1);
-    needs.set(key, [...new Set([...(needs.get(key) ?? []), ...targets])]);
-  }
-  return needs;
-}
-
-// Writes the group, hub flag, Needs summary and blocker counts onto each item.
-function attachLinks(all: BoardItem[], links: Link[], grouping: ReturnType<typeof buildOrg>, byKey: Map<string, BoardItem>): void {
-  for (const it of all) {
-    it.group = grouping.groupOf.get(itemKey(it.project, it.path));
-    it.hub = grouping.hubs.has(itemKey(it.project, it.path));
-    const mine = links.filter((l) => l.fromProject === it.project && l.fromPath === it.path);
-    if (mine.length > 0) {
-      it.link = linkSummary(mine, byKey);
-    }
-  }
+// A link the user accepted but the document text does not carry is mark-only: it shows, but the text is not the source.
+function markOnlyLinks(links: Link[], inText: Map<string, string[]>): void {
   for (const l of links) {
-    if (l.state === "open" && l.toProject && l.toPath) {
-      const t = byKey.get(itemKey(l.toProject, l.toPath));
-      const from = byKey.get(itemKey(l.fromProject, l.fromPath));
-      if (t) {
-        t.blocksCount += 1;
-        if (from && !from.waitsOn.includes(t.id)) {
-          from.waitsOn.push(t.id);
-        }
-      }
+    if (!inText.get(itemKey(l.fromProject, l.fromPath))?.includes(l.target)) {
+      l.markOnly = true;
     }
   }
 }
 
-// Links the board guesses from documents naming each other, minus those already linked or turned down.
-function buildSuggestions(all: BoardItem[], links: Link[], byKey: Map<string, BoardItem>, names: Map<string, string>, snapshot: ScanSnapshot | undefined, rejected: string[] | undefined): BoardModel["suggestions"] {
-  const linked = new Set(links.filter((l) => l.toProject && l.toPath).map((l) => `${l.fromProject}/${l.fromPath}->${l.toProject}/${l.toPath}`));
-  return inferLinks(
-    all.map((it) => ({ project: it.project, path: it.path, refs: factsFor(snapshot, it.project, it.path)?.docRefNames ?? [] })),
-    linked,
-    new Set(rejected ?? [])
-  ).flatMap((s) => {
-    const a = byKey.get(itemKey(s.fromProject, s.fromPath));
-    const b = byKey.get(itemKey(s.fromProject, s.toPath));
-    return a && b ? [{ key: s.key, fromKey: `${s.fromProject}/${s.fromPath}`, toProject: s.fromProject, toPath: s.toPath, from: { project: names.get(a.project) ?? a.project, title: a.title, id: a.id }, to: { project: names.get(b.project) ?? b.project, title: b.title, id: b.id } }] : [];
-  });
-}
-
-// The chains of linked documents, in the order things must be finished.
-function buildChainSteps(links: Link[], byKey: Map<string, BoardItem>, names: Map<string, string>): ChainStep[][] {
-  return buildChains(links).map((c) =>
-    c.map((n) => {
-      const it = byKey.get(itemKey(n.project, n.path));
-      return { project: names.get(n.project) ?? n.project, title: it?.title ?? titleFromPath(n.path), path: n.path, id: it?.id, done: false };
-    })
-  );
-}
-
-// Live evidence is attached last, after every light is decided, so it cannot change one.
-// Returns the crash signals in files no open document names.
-function attachLive(all: BoardItem[], ctx: BuildContext, lv: NonNullable<BoardExtra["live"]>): LiveUnnamed[] | undefined {
+// Items that already wait on something and still have candidates to wait on get the "make dependency" affordance.
+function flagMakeDep(all: BoardItem[], links: Link[]): void {
   for (const it of all) {
-    it.live = markFor(it.project, factsFor(ctx.snapshot, it.project, it.path)?.sourceFiles ?? [], lv.signals, lv);
-  }
-  if (!lv.unnamedBox) {
-    return undefined;
-  }
-  const named = new Map<string, Set<string>>();
-  for (const r of ctx.rows) {
-    const files = OPEN.has(r.status) ? factsFor(ctx.snapshot, r.project, r.path)?.sourceFiles : undefined;
-    if (files) {
-      named.set(r.project, new Set([...(named.get(r.project) ?? []), ...files]));
-    }
-  }
-  const projects = ctx.cfg.projects.map((p) => ({ id: p.id, name: p.name ?? p.id, bugsFolder: bugsFolderOf(p.roots) }));
-  return unnamedFiles(lv.signals, named, projects, lv.fold, (rel) => isNameableSource(rel, ctx.cfg.sourceDirs));
-}
-
-// The Tidy list: documents with every step done that nobody has touched for a while.
-function buildTidyView(all: BoardItem[], ctx: BuildContext, opts: NonNullable<BoardExtra["tidy"]>): BoardModel["tidy"] {
-  const view = buildTidy(
-    all.map((it) => {
-      const t = it.marks ?? { done: 0, total: 0 };
-      return {
-        id: it.id,
-        project: it.project,
-        projectName: ctx.names.get(it.project) ?? it.project,
-        path: it.path,
-        title: it.title,
-        stepsDone: t.done,
-        stepsTotal: t.total,
-        mtimeMs: ctx.snapshot?.projects[it.project]?.files[it.path]?.mtimeMs,
-        pinned: it.pinned,
-        waiting: it.link?.state === "open",
-        status: it.status,
-        blocks: it.blocks,
-      };
-    }),
-    opts
-  );
-  if (opts.reports === false) {
-    return view;
-  }
-  const sources = ctx.cfg.projects.map((p) => ({ project: p.id, projectName: p.name ?? p.id, signals: ctx.health?.[p.id]?.signals ?? [] }));
-  return { ...view, reports: buildTidyReports(sources).slice(0, TIDY_LIST_CAP) };
-}
-
-// Folders where documents no rule placed sit, for the "needs a rule" list.
-function needsRuleFolders(cfg: BoardConfig, snapshot: ScanSnapshot | undefined): BoardModel["needsRule"] {
-  return cfg.projects.flatMap((p) =>
-    Object.entries(snapshot?.projects[p.id]?.greyFolders ?? {})
-      .map(([folder, count]) => ({ project: p.id, folder, count }))
-      .sort((a, b) => b.count - a.count)
-  );
-}
-
-// One line for every Needs link that points nowhere, at several documents, at itself or at finished work.
-function linkFlags(links: Link[], names: Map<string, string>): string[] {
-  return links
-    .filter((l) => l.state !== "open")
-    .map((l) => `${names.get(l.fromProject) ?? l.fromProject}: ${titleFromPath(l.fromPath)} — ${l.target}: ${l.state}`);
-}
-
-// Writes the number of sessions that touched each document, from the outside sources.
-function attachChats(all: BoardItem[], outside: Outside | undefined): void {
-  for (const it of all) {
-    const n = outside?.chats[`${it.project}/${it.path}`];
-    if (n !== undefined) {
-      it.chats = n;
+    if ((it.after ?? []).length > 0 && answerOptions(links, all, it).length > 0) {
+      it.makeDep = true;
     }
   }
 }
 
-// Builds the board model from the classified rows, the safety verdict, the accepted flag and the optional evidence.
-export function buildBoard(
-  cfg: BoardConfig,
-  rows: Classified[],
-  safety: SafetyResult | undefined,
-  accepted: boolean,
-  snapshot?: ScanSnapshot,
-  previous?: ScanSnapshot,
-  health?: Record<string, ProjectHealth>,
-  extra?: BoardExtra
-): BoardModel {
-  const all: BoardItem[] = [];
+// Gathers what every project build reads once: names, pins, overrides and settings.
+function makeContext(cfg: BoardConfig, rows: Classified[], accepted: boolean, snapshot: ScanSnapshot | undefined, previous: ScanSnapshot | undefined, health: Record<string, ProjectHealth> | undefined, extra: BoardExtra | undefined): BuildContext {
   const profile: Profile = asProfile(cfg.profile);
-  const ctx: BuildContext = {
+  return {
     cfg,
     rows,
     snapshot,
@@ -368,6 +232,21 @@ export function buildBoard(
     seen: extra?.seen ?? {},
     pinGlobs: (Array.isArray(cfg.pinned) ? cfg.pinned : []).filter((g): g is string => typeof g === "string").map(globToRegExp),
   };
+}
+
+// Builds the board model from the classified rows, the safety verdict, the accepted flag and the optional evidence.
+export function buildBoard(
+  cfg: BoardConfig,
+  rows: Classified[],
+  safety: SafetyResult | undefined,
+  accepted: boolean,
+  snapshot?: ScanSnapshot,
+  previous?: ScanSnapshot,
+  health?: Record<string, ProjectHealth>,
+  extra?: BoardExtra
+): BoardModel {
+  const all: BoardItem[] = [];
+  const ctx = makeContext(cfg, rows, accepted, snapshot, previous, health, extra);
   // The open workspace's projects first, then the extra ones; importance orders within each.
   const defs: ProjectDef[] = [...cfg.projects].sort((a, b) => Number(a.extra === true) - Number(b.extra === true) || (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1));
   const projects = defs.map((def) => buildProject(def, ctx, all));
@@ -376,20 +255,11 @@ export function buildBoard(
   const order = orderLists(cfg.order);
   const links = resolveLinks(rows, collectNeeds(rows, snapshot, extra?.needs), cfg.projects);
   const grouping = buildOrg(rows, snapshot, cfg, links, extra?.orgPrevious);
-  const inText = collectNeeds(rows, snapshot, undefined);
-  for (const l of links) {
-    if (!inText.get(itemKey(l.fromProject, l.fromPath))?.includes(l.target)) {
-      l.markOnly = true;
-    }
-  }
+  markOnlyLinks(links, collectNeeds(rows, snapshot, undefined));
   const byKey = new Map(all.map((it) => [itemKey(it.project, it.path), it]));
   attachLinks(all, links, grouping, byKey);
   attachOrder(projects, all, extra?.order);
-  for (const it of all) {
-    if ((it.after ?? []).length > 0 && answerOptions(links, all, it).length > 0) {
-      it.makeDep = true;
-    }
-  }
+  flagMakeDep(all, links);
   const dashed = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
   const proposals = buildProposals(all, snapshot, cfg, links, extra?.rejected, new Set(dashed.map((s) => s.key)));
   // A pair shown as a proposal is not shown again as a dashed suggestion.
@@ -419,7 +289,7 @@ export function buildBoard(
     // Once the user accepts (or the scan was clean) neither banner shows.
     safetyHold: !accepted && safety !== undefined && !safety.baseline && !safety.clean,
     baseline: !accepted && (safety?.baseline ?? false),
-    profile,
+    profile: ctx.profile,
     suggestions,
     proposals,
     rejectedCount: extra?.rejected?.length ?? 0,
