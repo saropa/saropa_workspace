@@ -904,3 +904,79 @@ Page script: the render run (fixtures a-d) is recorded in the hotfix report. The
 5. **Requirement (owner, 2026-11-10): git-ignored files are a user preference.** Today the board lists documents that git ignores, for example `/Users/craighathaway/src/saropa_lints/plans/known_issues_review.md` (ignored by line 91 of `/Users/craighathaway/src/saropa_lints/.gitignore`). The board has no git-ignore check at all. Owner answered "yes" to making it a preference. Default: ignored files hidden (chosen by the main session as the plain reading of the report; the owner can flip it). New setting `saropaWorkspace.releaseBoard.includeGitIgnored` (boolean, default false), shown in the VS Code Settings UI. When off, a document that `git check-ignore` reports as ignored in its project's repository is left out; a folder that is not a git repository, or a machine without git, hides nothing. Status: built on a branch (one batched `git check-ignore` per project in `extension/src/board/gitIgnored.ts`, filter in the scanner's file listing; changing this setting or `exclude` now rescans, which also fixes `exclude` only redrawing before). Review fix: a document under a symbolic-link folder made git reject the whole check, so nothing was hidden; such documents are now left out of the check and stay shown, and the rest are still filtered. DELIVERED 2026-11-10, merged into main; type check passed; the full test suite is the owner's to run. Accepted as is: a project inside a larger git repository follows that repository's ignore rules, as git does; a check that times out (10 s) shows everything for that scan; remote and virtual folders are not filtered; editing a `.gitignore` takes effect on the next refresh.
 6. **Owner test run on main, 2026-11-10: 7 Gantt failures** in `boardHtmlGantt.test`, `boardPolish.test` and `ganttReadable.test` (dependency start, splitter shared width, Unified work order, Local scale, queue start order, README default of `releaseBoard.ganttLayout` now `local`, title column CSS literal). Local stays the default layout. Known cause for the queue: placing in rank order made bars without links follow rank, not display order; the fix places bars in display order and places a not-yet-placed dependency first. Status: DELIVERED 2026-11-10, merged into main. Code fixed: the queue order (failures 1, 3, 5). Tests updated to the new CSS text and to Local scaling each section on its own (2, 4, 7). README default corrected to `local` (6). Type check passed; awaiting the owner's rerun.
 7. **Owner rerun, 2026-11-10: 3 failures.** (a) The Gantt dependency test still expected Alpha at 0; in that fixture Gamma is shown first, so under the queue Alpha starts at 33.3. The code is right; the test assertion is stale (second attempt on this test, the last before stopping). (b) Two row-menu tests in `boardOrderAsk.test.ts` (ask where this goes; Make this a real dependency with Undo). Suspects: the git-ignored filter's rescan on setting change, or another session's commit `db81fd2` (a GO project has an empty Path to GO). Diagnosis: not `db81fd2` (the fixtures hold open red bugs, so the project is not GO); both tests read the page rev or the Undo bar before the repaint that follows each write and rescan. Fix (tests only): settle on the Undo bar and on a new rev before the next message. (a) now asserts the first open row starts at 0. Owner rerun: (a) and the Make-a-dependency test pass; the ask-where-this-goes test still timed out, at its last step: after the Undo, the board refuses the row menu request with a busy notice while that write is still finishing (`busyReason` in `extension/src/views/boardPanelEdits.ts:71`), so the picker never opens. Fix (second and last attempt on this test): the test resends after each busy notice or page repaint until it is asked. Owner rerun: passes. Next failure, `Make this a real dependency: several answers ask which one…` (`boardOrderAsk.test.ts:241`): the test opens a second folder in the same test; the board reuses its panel and rescans, and the test's wait passed on the first folder's page, which still offered the entry. Fix (first attempt): wait until the page shows the second folder (no `Bug 2`). Owner rerun: still failed (second failed attempt; stopped). **DECIDED (2026-11-10, owner): the main session may run this one test file once from the owner's last build** (recommended; not the full suite, no compile). Findings from that run: the board paints twice after it opens (a quick paint with the old rows, then the finished scan about 400 ms later); `Bug 2` legitimately stays in the since-you-left strip, so that wait could never pass; and a request sent with the first paint's rev is dropped. Fix: a `quiet` step waits until the page rev stops changing after each open, and the second-folder wait checks for no `BUG_2.md` row. The whole file passed 3 runs in a row with the fix applied to the built copy. Owner rerun: failed again (third failed attempt; stopped). **DECIDED (2026-11-10, owner): rewrite without timing** (recommended over skipping the test). Cause found by running the file alongside 12 other test files: the test sent all three row requests in the same instant; the board takes the first (Bug 0) and refuses the others as busy, and the old 50-turn pause between sends was too short on a loaded machine. The earlier waits counted event-loop turns, not time. Fix: one request at a time, each waited on until answered (its notice, or the line written), resending on a busy notice or repaint. Verified: 10 of 10 runs passed with 12 other test files running at once. Committed to main; awaiting the owner's full-suite rerun. Pattern across these failures: the git-ignore check adds one awaited child process to every scan, so a repaint lands a little later and tests that read the page too early now fail.
+
+## 21. Severity tab layout redesign (owner, 2026-11-20)
+
+Status: design only. Mockup at `D:\tmp\severity_tab_mockup.html` (static, dark and light toggle, collapsed and one-open states; its script was syntax-checked but the page was not rendered in a browser). No source changes yet; build starts when the owner approves the mockup.
+
+### Problem
+
+The Severity tab is one flat page of 11 boxes: four level lists of 16 to 29 chips each (Extreme 17, Critical 29, High 16, Low 16), six number fields with a help paragraph each, the negation list (6) and the audience list (7), every list with its own Add and Restore defaults, the result summary ("What would change") at the top, and two Save buttons (`#sev-save` at the foot of the tab and the page bar's `#save` below it). The owner finds it too complicated.
+
+### Layout (approved direction)
+
+- **Sticky strip at the top of the tab:** "What would change" with its count and sentence, the Severity Save, and Restore all defaults. It stays in view while the lists scroll, so the effect of an edit is always visible beside the button that applies it. It replaces the `.sevbar` at the foot of the tab and the separate preview box; the "?" intro mark stays above it.
+- **Four level cards, collapsed by default:** each shows name, count, the "changed" mark, a one-line meaning, and the first 5 chips (read-only, no remove button) plus "+N more". Accordion: opening one closes the others. An open card shows all chips with their remove buttons and the add row.
+- **Scoring grid:** Threshold, Title weight, Opening weight, Body weight, Count per phrase and Body density in one `auto-fill` grid with short labels. The long help text moves to an info icon (tooltip and `aria-label`); the `numTip` range text stays on the input.
+- **Phrase rules card:** Negation words and Audience words as two sub-lists in one card, always open (13 chips between them).
+- **Restore defaults per list** becomes a small link in each list header, disabled while the list matches the shipped words.
+- **Unchanged:** saved data, `LIMITS`, the `sevPreview`, `sevInvalid`, `sevSave` and `sevSaved` messages, the file format, the `D` draft in the page script, and every id and `data-*` hook the page script reads.
+
+### Decisions to confirm
+
+- The page bar's own Save (`#save`) persists the Tags, Link words and Naming state and is enabled by `dirtyTags()`; the page script's `anyDirty()` already counts both. Proposed: hide `#save` while the Severity tab is active, since the strip's Save replaces it there; Cancel, Import, Export, Reset and Open JSON stay. Confirm this before building.
+- Nothing is open on load. If the owner wants the first card open, `openId` starts at "extreme".
+
+### Files to change
+
+- `extension/src/board/keywordEditorHtml.ts`: `listSection` becomes a card with a header button, a peek row and a region; `renderSeverityBody` builds the strip, the cards, the scoring grid and the Phrase rules card; `numberField` swaps the visible help paragraph for an info icon.
+- `extension/src/board/keywordEditorAssets.ts`: `SEVERITY_STYLE` (strip, card, peek, grid, info icon, link button; drop the `details.box` and `.sevbar` rules) and `SEVERITY_SCRIPT` (accordion open and close, peek rendering with "+N more", the per-list restore link state, Escape to close); `renderList` also redraws the peek and the "+N more" text.
+- `extension/src/board/tagsEditorHtml.ts`: place the strip so it can stick under the tab list; hide the page bar's `#save` on the Severity tab.
+- `extension/src/board/tagsEditorAssets.ts`: the tab switch shows or hides `#save` (see `updateSave` near line 71 and the save handler near line 278); sticky offset so the strip sits under the tab list.
+- `extension/src/views/keywordStrings.ts`: add the new keys to `KEYWORD_LABEL_KEYS`.
+- `extension/src/i18n/locales/en.json`: the new `releaseBoard.keywords.label.*` entries below.
+- `plans/guides/STYLEGUIDE.md`: the rule below.
+- Root `CHANGELOG.md`: an `[Unreleased]` entry (the layout is visible to users). `README.md` line 72 describes the editor and needs one sentence for the collapsed cards and the sticky Save.
+
+### New i18n keys (`releaseBoard.keywords.label.*`, listed in `KEYWORD_LABEL_KEYS`)
+
+- `moreChips`: "+{count} more" (the collapsed peek).
+- `expandTip` and `collapseTip`: "Show all {count} phrases of {level}" and "Hide the phrases of {level}".
+- `phraseRulesTitle` and `phraseRulesTip`: the Phrase rules card heading and its tooltip.
+- `infoTip`: the info icon's `aria-label`, "{label}: {help}".
+- `restoreLink`: only if the header link's wording differs from the existing `restoreLevel` text; otherwise reuse `restoreLevel`.
+- Shorter grid labels: keep the keys (`wCapLabel`, `densityLabel` and the others) and shorten the English text only.
+
+### ARIA pattern for the accordion
+
+- Header is a `button` with `aria-expanded="true|false"` and `aria-controls` pointing at the body; its text is the card name, count, changed mark and meaning.
+- Body is `role="region"` with `aria-labelledby` pointing at the header button; `hidden` while closed.
+- The header button never contains another interactive element: the per-list Restore defaults link sits beside it in the card header, not inside it.
+- The info icon is a focusable `role="note"` with `aria-label`, the same pattern as the existing `.qm` help mark; the tooltip shows on hover and on keyboard focus.
+- The strip's sentence keeps `role="status"` and `aria-live="polite"`; the message line keeps `role="alert"`.
+
+### Keyboard and accessibility
+
+- Tab reaches each header, its restore link, the info icons and the number fields in reading order; Enter or Space on a header toggles it.
+- Escape closes the open card and returns focus to its header.
+- Focus after an add stays in that list's input; after a restore it returns to the card header.
+- A number out of range keeps the existing behavior (`aria-invalid`, Save off, the message line names the field).
+- The collapsed peek chips are plain text with no buttons, so a closed card cannot be edited by accident and the tab order stays short.
+- All colors are `var(--vscode-*)` tokens; check a dark and a light theme.
+
+### Tests to update or add
+
+Grepped `extension/src/test` and `README.md`. These assert the current markup and must change with it:
+- `extension/src/test/board/keywordEditorHtml.test.ts`: the helper at lines 19 to 23 reads each section up to `</details>`, the `data-sec` checks at lines 39 to 44, and the `sev-save` and `sev-restoreAll` check at line 45.
+- `extension/src/test/board/keywordEditor.test.ts`: the `data-sec` loop (line 52), the id list at line 54, the `data-restore` clicks (lines 158 and 160), and the `sev-save` and `sev-restoreAll` uses (lines 92 to 204). Keep every id and `data-*` hook the page script reads (`sev-save`, `sev-restoreAll`, `sev-msg`, `data-restore`, `data-list`, `data-count`, `data-edited`, `data-add`, `data-addbtn`, `data-rm`, `n-*`) so most of these hold unchanged.
+- `tagsEditor.test.ts`, `keywordCommand.test.ts` and `boardOrgWiring.test.ts` matched a grep for the Severity markup ids; re-grep them for `sevbar`, `details`, `summary` and `#save` before building.
+- New tests: the accordion opens one card and closes the others; the peek shows 5 chips and "+N more" and its chips have no remove button; Escape closes and refocuses; the info icon carries its `aria-label`; the tab has one Save (no second `sev-save`); the page bar's `#save` is hidden on the Severity tab and visible on the others; the per-list restore link is disabled when the list matches the defaults.
+- Timing tests best-of-3 with a generous budget; wait on the result, not on a count of turns.
+
+### Style guide rule to add (STYLEGUIDE.md, after 4.17)
+
+4.18, "An editor with long lists collapses them and keeps the result and Save in view": a webview editor whose lists run past about 10 chips each shows each list as a collapsed accordion card (name, count, one-line meaning, a read-only peek of the first 5 chips plus "+N more", one open at a time); the numbers go in one grid with help behind an info icon; the result of the edit and the single Save stay in a sticky strip at the top; Restore defaults for one list is a small link in that list's header, and a header button never contains another control.
+
+### Out of scope
+
+New settings, a changed draft shape, a changed limit, changed host messages, and any change to the Tags, Link words and Naming tabs beyond hiding the page bar's Save on the Severity tab.
