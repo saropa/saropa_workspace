@@ -1,6 +1,6 @@
 # Plan: code quality after the Release Board redesign
 
-Status: Phase 0 complete (boardPanel.ts 477 lines). Phase 1 complete — 20 of 21 extraction files created; boardModelLinks.ts not created. Three files missed their Phase 1 targets: boardRuleAssign.ts (361, target was <330), boardPanelCore.ts (432, target was <390), boardModel.ts (426, target was <390). Phases 2-3 not started. Smoke checklist not yet run in a development host.
+Status: archived. Phase 0 and 20 of 21 Phase 1 extractions landed; remaining work moved to `plans/PLAN_CODE_QUALITY_RELEASE_BOARD_remaining.md`.
 Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 `bugs/` holds only `ISSUE_REPORT_GUIDE.md` (no plan-file convention), so this uses the fallback name.
@@ -322,3 +322,17 @@ D1 and D2 are decided; the rest are open.
 - D7. Confirm the "four checks": this plan assumes `check-types`, `lint`, `build`, `test` from `extension/package.json`. `lint` and `check-types` run the same command today.
 - D8. Order after Phase 0: by risk as written (strings, handoff, docFacts, org, model, commands, scheduler), or by user-visible area. Recommended: by risk, lowest first.
 - D9. Doc comments (Phase 2): in the same commit as each move (recommended), or one sweep at the end.
+
+## Finish Report (2026-11-20)
+
+Objective: the quality gate blocked release on one file over the 700-line cap, and 14 further files and 18 functions sat above the warning thresholds.
+
+Landed:
+- Phase 0: `views/boardPanel.ts` went from 946 to 477 lines through `boardPanelEdits.ts` (480) and `boardPanelFuture.ts` (99); the class chain is Core, Wiring, Edits, Future, BoardPanel.
+- Phase 1: 20 of 21 planned extraction modules exist; 12 of 15 listed files are under their targets.
+
+Not done, carried to `plans/PLAN_CODE_QUALITY_RELEASE_BOARD_remaining.md`:
+- `commands/boardRuleAssign.ts` 361 (target under 330), `views/boardPanelCore.ts` 432 (under 390), `board/boardModel.ts` 426 (under 390; `boardModelLinks.ts` not created).
+- Phase 2 (documentation), Phase 3 (tests), decisions D3 to D9, and the Phase 0 smoke checklist.
+
+Verification: sizes and file existence were read from the tree. The gate (`scripts/audit.py --quality --strict`), type check, build and test suite were not run for this report, so gate status is unverified.
