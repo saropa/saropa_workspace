@@ -72,7 +72,9 @@ test("with no projects listed every folder becomes one, with only the document f
   const cfg = await loadConfig();
   assert.equal(cfg.projects.length, 1);
   assert.equal(cfg.projects[0].id, "app");
-  assert.equal(cfg.projects[0].path, dir);
+  // The stub's Uri.joinPath yields forward slashes while the temp dir is backslashed on Windows; compare
+  // in one separator form so only a real path difference fails.
+  assert.equal(cfg.projects[0].path.replace(/\\/g, "/"), dir.replace(/\\/g, "/"));
   assert.deepEqual(cfg.projects[0].roots, DEFAULT_ROOTS.filter((r) => r === "bugs" || r === "plans"));
 });
 
@@ -87,7 +89,8 @@ test("the user's rules file replaces the project list and a profile setting wins
   let cfg = await loadConfig();
   assert.equal(cfg.profile, "zero");
   assert.equal(cfg.projects[0].id, "web");
-  assert.equal(cfg.projects[0].path, dir + "/web");
+  // Same separator-form normalization as above: the stub yields "/" paths, the temp dir is "\" on Windows.
+  assert.equal(cfg.projects[0].path.replace(/\\/g, "/"), dir.replace(/\\/g, "/") + "/web");
   stub.__setConfig("saropaWorkspace.releaseBoard", "profile", "deliberate");
   cfg = await loadConfig();
   assert.equal(cfg.profile, "deliberate");

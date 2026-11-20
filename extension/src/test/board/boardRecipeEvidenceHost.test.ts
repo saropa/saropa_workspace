@@ -261,6 +261,8 @@ test("a debt report before an unreadable one gives no earlier count", async () =
 test("the file behind a report is found again for opening, and a missing one is undefined", async () => {
   const file = writeReport("2026.10.27", "2026.10.27_workspace_090000_branches.md", sum("ritual.branches", HOUR, "pass", 2), NOW - HOUR);
   const uri = await findNewestReportUri(vscode.Uri.file(root), "branches");
-  assert.equal(uri?.fsPath, file);
+  // The stub's Uri.joinPath yields forward slashes while path.join gives backslashes on Windows; compare
+  // in one separator form so only a real path difference fails.
+  assert.equal(uri?.fsPath.replace(/\\/g, "/"), file.replace(/\\/g, "/"));
   assert.equal(await findNewestReportUri(vscode.Uri.file(root), "debt"), undefined);
 });

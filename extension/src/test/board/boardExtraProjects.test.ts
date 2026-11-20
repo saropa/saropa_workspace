@@ -80,7 +80,9 @@ test("a chosen folder becomes a project after the open ones, over the folders it
   assert.deepEqual(cfg.projects.map((p) => p.id), ["app", path.basename(other)]);
   const extra = cfg.projects[1];
   assert.equal(extra.extra, true);
-  assert.equal(extra.path, other);
+  // The stub's Uri.joinPath yields forward slashes while the temp dir is backslashed on Windows; compare
+  // in one separator form so only a real path difference fails.
+  assert.equal(extra.path.replace(/\\/g, "/"), other.replace(/\\/g, "/"));
   assert.deepEqual(extra.roots, ["docs", "plans"]);
   assert.deepEqual(extra.ruleSets, cfg.projects[0].ruleSets);
   assert.equal(cfg.skipped, undefined);
