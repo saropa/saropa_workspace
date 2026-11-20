@@ -32,7 +32,7 @@ export * from "./vscodeTypes";
 export * from "./vscodeWebview";
 export { env, __externalOpens, __resetEnv } from "./vscodeEnv";
 export { authentication, __authRequests, __resetAuth, __setAuthFailure, __setAuthSession } from "./vscodeAuth";
-export { Range, Selection, TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
+export { CodeLens, Range, Selection,TextEditorRevealType, __openedDocuments, __shownEditors, __setVisibleEditors, __resetOpenedDocuments } from "./vscodeEditor";
 export { commands, __registeredCommands, __recordedCommands, __resetRecordedCommands, __setKnownCommands, __failCommands } from "./vscodeCommands";
 export type { FakeQuickPick } from "./vscodeHosts";
 export { ColorThemeKind, extensions, __setInstalledExtensions, __setColorThemeKind, __inputBoxes, __terminals, __resetShell } from "./vscodeShell";

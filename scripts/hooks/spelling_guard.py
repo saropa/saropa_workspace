@@ -62,7 +62,10 @@ _ENCODED_PAIRS: list[str] = [
     "Y2VudHJlPWNlbnRlcg==",
     "Y2VudHJlZD1jZW50ZXJlZA==",
     "Y2VudHJpbmc9Y2VudGVyaW5n",
-    "Z3JleT1ncmF5",
+    # The bare word for grey is deliberately absent: it is a real BoardStatus key
+    # and rule value in the board model, so flagging it would fire on every edit
+    # to those files and renaming it would break classification. Its derived
+    # forms below stay flagged.
     "Z3JleWVkPWdyYXllZA==",
     "Z3JleXNjYWxlPWdyYXlzY2FsZQ==",
     "b3JnYW5pc2U9b3JnYW5pemU=",

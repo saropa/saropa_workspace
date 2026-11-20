@@ -32,6 +32,18 @@ export class Selection extends Range {
   }
 }
 
+/**
+ * vscode.CodeLens: a range plus an optional command. views/editorLinks.ts constructs these;
+ * without a stand-in the bundler warns that the import is always undefined, and any test that
+ * reaches provideCodeLenses would throw on `new undefined`.
+ */
+export class CodeLens {
+  constructor(
+    readonly range: Range,
+    readonly command?: { title: string; tooltip?: string; command: string; arguments?: unknown[] }
+  ) {}
+}
+
 /** vscode.TextEditorRevealType values. */
 export const TextEditorRevealType = {
   Default: 0,
