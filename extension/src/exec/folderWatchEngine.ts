@@ -7,6 +7,8 @@ import {
   FolderWatchStore,
   diffSnapshots,
   isEmptyDelta,
+  isWatchMuted,
+  WATCH_MUTE_MS,
   watchAlertsIn,
   watchKind,
   watchDisplayName,
@@ -367,7 +369,13 @@ export class FolderWatchEngine implements vscode.Disposable {
       // alert. The badge persists after the toast is dismissed; the toast is the
       // momentary nudge, the counter is the standing "you have N new files" cue.
       await this.store.addUnseen(watch.id, [...delta.added, ...delta.changed]);
-      void this.toast(watch, delta, isStartup);
+      // A muted watch still detects and counts (above); only the interruption is
+      // skipped until the mute expires. Read from the store, not the `watch` captured
+      // before the scan, so a mute set while the scan ran is honored.
+      const fresh = this.store.find(watch.id) ?? watch;
+      if (!isWatchMuted(fresh, Date.now())) {
+        void this.toast(watch, delta, isStartup);
+      }
     }
   }
 
@@ -398,13 +406,21 @@ export class FolderWatchEngine implements vscode.Disposable {
       await toastRepoItems(delta, this.repoItemsCache.get(watch.id) ?? [], this.nameOf(watch));
       return;
     }
-    const dismissed = await toastFolderDelta(watch, delta, isStartup, this.nameOf(watch));
-    if (dismissed) {
+    const outcome = await toastFolderDelta(watch, delta, isStartup, this.nameOf(watch));
+    if (outcome === "dismiss") {
       // Mark only the files this toast named as seen (not clearUnseen for the whole
       // watch), so files detected by a later scan while the toast was open stay counted.
-      for (const file of [...delta.added, ...delta.changed]) {
-        await this.store.markSeen(watch.id, file);
-      }
+      await this.store.markSeenMany(watch.id, [...delta.added, ...delta.changed]);
+    } else if (outcome === "mute") {
+      const until = Date.now() + WATCH_MUTE_MS;
+      await this.store.update(watch.id, { mutedUntil: until });
+      // The mute is invisible by itself, so state the outcome and when it ends.
+      void vscode.window.showInformationMessage(
+        l10n("folderWatch.mutedUntil", {
+          label: this.nameOf(watch),
+          time: new Date(until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        })
+      );
     }
   }
 

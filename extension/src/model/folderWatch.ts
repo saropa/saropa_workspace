@@ -201,12 +201,23 @@ export class FolderWatchStore {
   // looked at. Drops the watch's entry when it was the last one. A no-op when the
   // path is not recorded.
   async markSeen(id: string, path: string): Promise<void> {
+    await this.markSeenMany(id, [path]);
+  }
+
+  // Mark several unseen paths as seen in ONE store write and ONE badge repaint, so
+  // dismissing a toast that named a large burst does not issue a globalState write
+  // per file. Paths not recorded are ignored; a no-op when none match.
+  async markSeenMany(id: string, paths: string[]): Promise<void> {
     const all = this.allUnseen();
     const list = all[id];
-    if (!Array.isArray(list) || !list.includes(path)) {
+    if (!Array.isArray(list)) {
       return;
     }
-    const remaining = list.filter((p) => p !== path);
+    const drop = new Set(paths);
+    const remaining = list.filter((p) => !drop.has(p));
+    if (remaining.length === list.length) {
+      return;
+    }
     const next = { ...all };
     if (remaining.length === 0) {
       delete next[id];

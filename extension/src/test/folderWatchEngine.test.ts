@@ -87,6 +87,53 @@ test("the startup message opens the first new file when the Open button is chose
   assert.deepEqual(__openedDocuments(), [`${fx.dir}/watched/sub/z.md`]);
 });
 
+test("Dismiss on the startup message clears those files from the unseen count and keeps the watch enabled", async () => {
+  const watch = await store.add(folderWatch());
+  await store.setBaseline(watch.id, {});
+  fx.write("watched/z.md", "1");
+  __setInfoAnswer((_m, buttons) => buttons.find((b) => b === l10n("folderWatch.dismiss")));
+  start().runStartupScan();
+  mock.timers.tick(1500);
+  await settle(() => unseen(watch.id).length === 0 && __infoMessages().length === 1);
+  assert.equal(store.find(watch.id)?.enabled, true);
+  assert.equal(store.find(watch.id)?.mutedUntil, undefined);
+});
+
+test("Mute 1 hour sets mutedUntil about an hour ahead and confirms it by naming the watch", async () => {
+  const watch = await store.add(folderWatch({ label: "Bugs" }));
+  await store.setBaseline(watch.id, {});
+  fx.write("watched/z.md", "1");
+  __setInfoAnswer((_m, buttons) => buttons.find((b) => b === l10n("folderWatch.muteHour")));
+  const before = Date.now();
+  start().runStartupScan();
+  mock.timers.tick(1500);
+  await settle(() => store.find(watch.id)?.mutedUntil !== undefined);
+  const until = store.find(watch.id)?.mutedUntil ?? 0;
+  assert.equal(until >= before + 3_600_000 && until <= Date.now() + 3_600_000, true);
+  await settle(() => __infoMessages().some((m) => m.startsWith("Alerts for Bugs are muted until")));
+  assert.deepEqual(unseen(watch.id), ["z.md"]);
+});
+
+test("a muted watch still counts new files as unseen but shows no message", async () => {
+  const watch = await store.add(folderWatch({ mutedUntil: Date.now() + 3_600_000 }));
+  await store.setBaseline(watch.id, {});
+  fx.write("watched/z.md", "1");
+  start().runStartupScan();
+  mock.timers.tick(1500);
+  await settle(() => unseen(watch.id).length === 1);
+  await idle();
+  assert.deepEqual(__infoMessages(), []);
+});
+
+test("an expired mute no longer suppresses the message", async () => {
+  const watch = await store.add(folderWatch({ mutedUntil: Date.now() - 1 }));
+  await store.setBaseline(watch.id, {});
+  fx.write("watched/z.md", "1");
+  start().runStartupScan();
+  mock.timers.tick(1500);
+  await settle(() => __infoMessages().length === 1);
+});
+
 test("a live watcher is armed for each enabled watch on the folder with the watch glob", async () => {
   const a = await store.add(folderWatch({ glob: "*.md" }));
   await store.add(folderWatch({ target: `${fx.dir}/watched/other`, enabled: false }));

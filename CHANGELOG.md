@@ -52,6 +52,10 @@ Folder-watch alerts can now be dismissed without muting or disabling the watch. 
 
 ### Added
 - Folder watches: the new/changed-files alert now has a Dismiss button next to Open. Dismiss clears those files from the unseen count and the activity-bar badge and leaves the watch running, so the next new file still alerts.
+- Folder watches: the alert also has a Mute 1 hour button. The watch keeps detecting files and counting them on the badge, but shows no alerts for an hour, and a message names the watch and the time the mute ends.
+
+### Fixed
+- Release Board: a few tooltips and labels now use the American spelling "color".
 
 ## [2.8.0]
 

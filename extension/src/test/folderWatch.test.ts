@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   diffSnapshots,
   isEmptyDelta,
+  isWatchMuted,
   watchAlertsIn,
   isGlobalWatch,
   watchKind,
@@ -319,6 +320,30 @@ test("opening a watch clears only its counter and updates the total", async () =
   assert.equal(store.unseenCount("w1"), 0);
   assert.equal(store.unseenCount("w2"), 1);
   assert.equal(store.totalUnseen(), 1);
+});
+
+test("markSeenMany drops only the named paths in one write and ignores unknown ones", async () => {
+  const store = new FolderWatchStore(fakeContext());
+  await store.add(watch("w1", "/p/bugs"));
+  await store.addUnseen("w1", ["a.md", "b.md", "c.md"]);
+  let repaints = 0;
+  store.onDidChangeCounts(() => repaints++);
+
+  await store.markSeenMany("w1", ["a.md", "c.md", "never.md"]);
+  assert.deepEqual(store.getUnseen("w1"), ["b.md"]);
+  assert.equal(repaints, 1);
+
+  await store.markSeenMany("w1", ["never.md"]); // nothing matches: no write, no repaint
+  assert.equal(repaints, 1);
+
+  await store.markSeenMany("w1", ["b.md"]);
+  assert.equal(store.unseenCount("w1"), 0);
+});
+
+test("isWatchMuted is true only while mutedUntil is in the future", () => {
+  assert.equal(isWatchMuted(watch("w1", "/p/a"), 1000), false);
+  assert.equal(isWatchMuted({ ...watch("w1", "/p/a"), mutedUntil: 2000 }, 1000), true);
+  assert.equal(isWatchMuted({ ...watch("w1", "/p/a"), mutedUntil: 1000 }, 1000), false);
 });
 
 test("removing a watch drops its unseen tally from the total", async () => {

@@ -33,16 +33,21 @@ function formatFiles(files: string[]): string {
     : shown.join(", ");
 }
 
+// What the user chose on a folder-watch toast that the CALLER must act on: the
+// engine owns the store, so the toast only reports the choice. Open and a closed
+// toast need no caller action and resolve undefined.
+export type FolderToastOutcome = "dismiss" | "mute";
+
 /**
  * Shows one toast for the new and changed files of a folder watch, worded for a startup scan or a live change.
- * Resolves true when the user pressed Dismiss, so the caller can clear the unseen tally for these files.
+ * Resolves "dismiss" or "mute" when the caller must update the store, otherwise undefined.
  */
 export async function toastFolderDelta(
   watch: FolderWatch,
   delta: FolderWatchDelta,
   isStartup: boolean,
   label: string
-): Promise<boolean> {
+): Promise<FolderToastOutcome | undefined> {
   // Ordered new-then-changed so the listed filenames line up with the split
   // counts the message states.
   const files = [...delta.added, ...delta.changed];
@@ -84,12 +89,18 @@ export async function toastFolderDelta(
   // counting) and muting/disabling the whole watch: the user has seen these files
   // and wants them off the badge, but the watch must keep alerting for the next one.
   const dismiss = l10n("folderWatch.dismiss");
-  const choice = await vscode.window.showInformationMessage(message, open, dismiss);
+  // Mute is the time-boxed version: a burst-heavy watch can be quieted for an hour
+  // without losing detection or the badge.
+  const mute = l10n("folderWatch.muteHour");
+  const choice = await vscode.window.showInformationMessage(message, open, dismiss, mute);
   if (choice === dismiss) {
-    return true;
+    return "dismiss";
+  }
+  if (choice === mute) {
+    return "mute";
   }
   if (choice !== open) {
-    return false;
+    return undefined;
   }
   // Open the first changed/new file (folder watch) or the target itself (file
   // watch), so the action lands the user on the thing the toast named.
@@ -103,7 +114,7 @@ export async function toastFolderDelta(
     // A binary or unopenable file: reveal it in the Explorer instead of failing.
     await vscode.commands.executeCommand("revealInExplorer", toOpen);
   }
-  return false;
+  return undefined;
 }
 
 // Toast for a repo watch: names the new issues/PRs by title (not just a count,

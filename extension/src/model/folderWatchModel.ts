@@ -84,6 +84,21 @@ export interface FolderWatch {
   // (case-insensitive exact match). Absent/empty = no author filter. Ignored for
   // kind "folder".
   filterAuthor?: string;
+  // Epoch ms until which the watch's toasts are suppressed (the toast's "Mute 1
+  // hour" action). Detection, the baseline and the unseen badge keep running — only
+  // the interruption is deferred — so a muted watch never loses files. Absent or in
+  // the past means not muted; nothing needs to clear it when the hour passes.
+  mutedUntil?: number;
+}
+
+// How long the toast's mute action silences a watch. One place so the action, its
+// confirmation and the tests agree on the duration.
+export const WATCH_MUTE_MS = 60 * 60 * 1000;
+
+// True while the watch's toasts are suppressed. `now` is a parameter (not read
+// inside) so the rule is testable without mocking the clock.
+export function isWatchMuted(watch: FolderWatch, now: number): boolean {
+  return watch.mutedUntil !== undefined && watch.mutedUntil > now;
 }
 
 // Whether a repo-watch item passes the watch's optional label/author filters. A
