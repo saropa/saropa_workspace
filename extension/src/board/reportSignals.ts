@@ -13,6 +13,8 @@ export type SignalPlace = "row" | "tidy" | "since";
 // The feeds that are signals; build, lint, tests and deps are evidence instead.
 export type SignalKind = Exclude<FeedKind, "build" | "lint" | "tests" | "deps">;
 
+// Single table of where each signal is shown; listing every kind here makes the compiler
+// flag a new kind that has no place.
 export const SIGNAL_PLACES: Record<SignalKind, SignalPlace> = {
   prs: "row",
   uncommitted: "row",
@@ -29,6 +31,7 @@ export const SIGNAL_PLACES: Record<SignalKind, SignalPlace> = {
   delta: "since",
 };
 
+// Derived from the places table so the list of kinds cannot drift from it.
 export const SIGNAL_KINDS = Object.keys(SIGNAL_PLACES) as SignalKind[];
 
 // The feeds of one place.
@@ -48,6 +51,7 @@ export interface Signal {
   detail: string;
 }
 
+// Narrows a general evidence feed to a signal feed, since only signals have a place.
 export function isSignalKind(feed: EvidenceFeed): feed is SignalKind {
   return feed in SIGNAL_PLACES;
 }
@@ -89,6 +93,7 @@ export function isSinceReport(s: Signal): boolean {
   return SIGNAL_PLACES[s.kind] === "since" && (s.count ?? 0) > 0;
 }
 
+// Direction of a count since the previous report.
 export type Trend = "up" | "down" | "same";
 
 // How a count moved from the report before. Undefined when there was no report before.

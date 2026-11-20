@@ -8,8 +8,11 @@ import { isObject } from "./ruleText";
 // The levels that have phrases. Medium has none: it is what a document gets when no level
 // reaches the threshold.
 export const EDIT_LEVELS = ["extreme", "critical", "high", "low"] as const;
+// The levels a user may edit; derived from the list so the editor and the check agree.
 export type EditLevel = (typeof EDIT_LEVELS)[number];
 
+// Editable copy of the severity rules as the page holds it; it is checked as a whole
+// before use, never trusted piecemeal.
 export interface SeverityDraft {
   threshold: number;
   weights: { title: number; head: number; body: number; perPhraseCap: number };
@@ -28,6 +31,7 @@ export const LIMITS = {
   cap: { min: 1, max: 10 },
 } as const;
 
+// Each way a draft can be refused, so the page can say what to fix.
 export type DraftProblem = "shape" | "threshold" | "weight" | "cap" | "tooMany" | "tooLong" | "badChar";
 
 // Letters lower case, runs of white space one space, no space at either end.
@@ -90,6 +94,7 @@ function cleanList(raw: unknown, shipped: readonly string[], max: number, maxCha
 
 const isWhole = (v: unknown, r: { min: number; max: number }): v is number => typeof v === "number" && Number.isInteger(v) && v >= r.min && v <= r.max;
 
+// Either a clean draft or the full list of problems; a draft with any problem is not used at all.
 export type DraftCheck = { ok: true; draft: SeverityDraft } | { ok: false; problems: DraftProblem[] };
 
 // Checks a draft that came from the page. Anything out of range, of the wrong type, too long or
@@ -192,6 +197,8 @@ export function draftFromDictChecked(dict: SeverityDict): { draft: SeverityDraft
   return { draft, replaced: [...new Set(replaced)] };
 }
 
+// Converts saved rules to a draft, dropping the notes about unusable values that
+// draftFromDictChecked keeps.
 export const draftFromDict = (dict: SeverityDict): SeverityDraft => draftFromDictChecked(dict).draft;
 
 // The shipped values as a draft.

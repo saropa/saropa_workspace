@@ -13,6 +13,7 @@ export const TAGS_LABEL_KEYS = [
   "external", "reload", "reloadTip", "dismiss", "dismissTip", "importApply", "importApplyTip", "importCancel", "importCancelTip", "importPreview", "importOther", "openJson", "openJsonTip", "namingPreview", "namingPreviewTip",
 ] as const;
 
+// Count and problem placeholders are passed through unchanged, so the page can fill them at display time.
 export function tagsLabels(): Record<string, string> {
   return Object.fromEntries(TAGS_LABEL_KEYS.map((k) => [k, l10n(`releaseBoard.tags.label.${k}`, { count: "{count}", phrase: "{phrase}", problem: "{problem}", adds: "{adds}", replaces: "{replaces}", removes: "{removes}" })]));
 }

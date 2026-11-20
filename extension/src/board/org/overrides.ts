@@ -4,12 +4,14 @@
 import type { OrgSource } from "./orgTypes";
 import type { TagsConfig } from "./tags";
 
+// Only the fields a person changed; an absent field falls through to the automatic value.
 export interface GroupOverride {
   name?: string;
   emoji?: string;
   colour?: string;
 }
 
+// The typed form of the `organize` key in the rules file; everything in it is hand-written intent that outranks inference.
 export interface OrganizeConfig {
   tags?: TagsConfig;
   linkWords?: Record<string, unknown>;
@@ -30,6 +32,7 @@ export function resolveByPrecedence<T>(candidates: Partial<Record<OrgSource, T>>
   return source ? { value: candidates[source] as T, source } : undefined;
 }
 
+// The followed config plus a report, so a moved file keeps its override and the board can tell the user what was moved or lost.
 export interface Relocation {
   config: OrganizeConfig;
   moved: Array<{ from: string; to: string }>;

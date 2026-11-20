@@ -6,6 +6,8 @@
 import type { EvidenceFeed, EvidenceRead, FeedNote } from "./recipeEvidence";
 import { Signal, signalsOf } from "./reportSignals";
 
+// Per-project rule that names which shortcuts count as the test run and the lint run, so
+// health reads their recorded results instead of guessing which command is which.
 export interface HealthConfig {
   // Shortcuts (id or name) whose background run is the project's test run, and its lint run.
   tests?: string[];

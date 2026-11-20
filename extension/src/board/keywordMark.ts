@@ -8,6 +8,8 @@ import { BoardStrings, escapeHtml } from "./boardHtmlUtil";
 
 export const KEYWORD_LINE_STYLE = `.kwline{margin:4px 0 8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}.kwline.custom{padding:4px 10px;border:1px solid var(--amber);border-left-width:4px;border-radius:4px;background:var(--panel)}.kwline .kwtxt{flex:1;min-width:12em;overflow-wrap:anywhere}`;
 
+// Page-side click handler for keyword buttons, inlined as text because the webview cannot
+// import modules; it only posts the keyword back and lets the host act.
 export const KEYWORD_LINE_SCRIPT = `document.querySelectorAll('[data-kw]').forEach(b=>b.addEventListener('click',()=>vscode.postMessage({type:b.getAttribute('data-kw')==='edit'?'keywords':'keywordsRestore',rev:REV})));`;
 
 const lab = (t: BoardStrings, key: string): string => t.keywordLabels?.[key] ?? key;

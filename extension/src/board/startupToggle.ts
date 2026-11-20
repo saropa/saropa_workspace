@@ -44,6 +44,8 @@ export interface StartupPlan {
   mode: StartupMode;
 }
 
+// Decides what to write for the startup checkbox and what to remember, so turning it off
+// and on again restores the user's earlier mode instead of a default.
 export function planStartupWrite(checked: boolean, current: unknown, remembered: unknown, globalValue: unknown): StartupPlan {
   const remember = modeToRemember(current);
   if (!checked) {

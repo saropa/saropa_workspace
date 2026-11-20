@@ -70,6 +70,7 @@ export function offerUndo(snapshot: RulesSnapshot, onUndone: () => Promise<void>
 // file cannot be edited (the reason is also what the words are chosen by).
 export type OrganizeRead = ({ ok: true; text: string | undefined } & Loaded) | { ok: false; reason: AssignRefusal | "nofolder" };
 
+// Returns a refusal reason instead of throwing, so the editor can explain why the rules file cannot be edited.
 export async function readOrganize(root: vscode.WorkspaceFolder | undefined = rulesFolder()): Promise<OrganizeRead> {
   if (!root) {
     return { ok: false, reason: "nofolder" };
@@ -95,6 +96,9 @@ export function explainUnreadable(reason: AssignRefusal | "nofolder", root: vsco
 // `expected`: the state the editor was opened on (or last saved); when the file holds another one now, nothing is written.
 export const saveState = (state: EditorState, expected?: EditorState, root?: vscode.WorkspaceFolder): Promise<RulesSnapshot | undefined> =>
   writeOrganize((t) => (expected && JSON.stringify(stateOfText(t)) !== JSON.stringify(expected) ? { ok: false, reason: "stale" } : applyState(t, state)), root);
+// Single-group edit routed through writeOrganize so it shares the write lock and Undo snapshot of every rules-file write.
 export const saveGroupOverride = (groupId: string, override: GroupOverride | undefined): Promise<RulesSnapshot | undefined> => writeOrganize((t) => setGroupOverride(t, groupId, override));
+// Moves one document to a group (or back to automatic) through writeOrganize, for the same lock and Undo snapshot as other rules writes.
 export const saveAssign = (doc: { project: string; path: string }, group: string | undefined): Promise<RulesSnapshot | undefined> => writeOrganize((t) => setAssign(t, doc, group));
+// Hides or restores one tag on one document through writeOrganize, for the same lock and Undo snapshot as other rules writes.
 export const saveUntag = (doc: { project: string; path: string }, tag: string, removed: boolean): Promise<RulesSnapshot | undefined> => writeOrganize((t) => setUntag(t, doc, tag, removed));

@@ -45,6 +45,8 @@ export function finishedTargets(links: Link[], titleOf: (project: string, path: 
   return out;
 }
 
+// The four row colors in the order they sort (red first); a row's color is derived from its
+// status and what it waits on, never stored.
 export type GanttStatus = "red" | "amber" | "purple" | "green";
 
 // One row: an open item (with its id) or a finished document (no id).
@@ -80,6 +82,8 @@ export interface GanttRow {
   project?: string;
 }
 
+// One group's slice of the chart with its counts; `blocks` is kept separate from `open`
+// because a closed header must still show how many rows block the release.
 export interface GanttGroup {
   id: string;
   name: string;

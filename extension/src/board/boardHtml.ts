@@ -118,6 +118,8 @@ function movedAttrs(model: BoardModel, m: RenderState["moved"]): string {
   return m && item ? ` data-focus="${item.id}" data-ctl="${m.ctl}" data-say="${escapeHtml(m.say)}"${item.group ? ` data-gid="${escapeHtml(item.group.id)}"` : ""}` : "";
 }
 
+// The single entry that builds the whole board page; every section renderer is called from here
+// so one nonce and one CSP cover all inline script and style.
 export function renderBoard(model: BoardModel, strings: BoardStrings, nonce: string, rev = 0, state: RenderState = {}, paths?: PathToGo[], since?: SinceView, trains?: Train[], future?: FutureView): string {
   const t: BoardStrings = state.sectionIcons === false ? Object.assign(Object.create(strings) as BoardStrings, { sectionIcons: false }) : strings;
   const names = new Map(model.projects.map((p) => [p.id, p.name]));

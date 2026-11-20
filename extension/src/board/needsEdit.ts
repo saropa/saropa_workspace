@@ -5,6 +5,8 @@ import { MAX_FACTS_CHARS, MAX_LINE, mapLinks, needsLineParts, needsSeparators, n
 // Needs parser as the document's own lines, or nothing is written.
 
 export type NeedsRefusal = "exists" | "absent" | "target" | "shape" | "type";
+// Either the rewritten text or the reason the edit was refused, so a refused edit leaves the
+// document untouched and the caller can say why.
 export type NeedsEdit = { ok: true; text: string } | { ok: false; reason: NeedsRefusal };
 
 // Documents above this size, and Needs lines above MAX_LINE, are left alone (the same limits the

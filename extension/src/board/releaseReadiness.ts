@@ -16,8 +16,11 @@ const REQUIRED: readonly ReadinessFeed[] = ["tests", "lint"];
 
 const NAMES: Record<ReadinessFeed, string> = { build: "Build", tests: "Tests", lint: "Lint", deps: "Dependencies" };
 
+// Four states, not two: "unclear" and "none" must stay distinct from a pass so missing
+// evidence is never shown as green.
 export type RowState = "pass" | "fail" | "unclear" | "none";
 
+// One feed's line in the readiness report.
 export interface ReadinessRow {
   feed: ReadinessFeed;
   name: string;
@@ -25,6 +28,8 @@ export interface ReadinessRow {
   detail: string;
 }
 
+// The overall readiness verdict with its failing count; "unknown" is a result in its own
+// right so lack of evidence is not reported as a pass.
 export interface Readiness {
   result: "pass" | "fail" | "unknown";
   // Failing checks (fail only).
@@ -51,6 +56,8 @@ export function combineReadiness(reads: Partial<Record<ReadinessFeed, EvidenceRe
   return { result: ready ? "pass" : "unknown", count: 0, rows };
 }
 
+// Builds the one-line summary in the shared summary format; the count is omitted for
+// "unknown" because no count exists to report.
 export function readinessSummaryLine(c: Readiness, time: number): string {
   return formatSummaryLine({ recipe: feedInfo("readiness").recipeId, time, result: c.result, count: c.result === "unknown" ? undefined : c.count });
 }
@@ -65,6 +72,8 @@ function passingLine(c: Readiness): string {
   return `${passed} passing${missing ? `; ${missing} not reported` : ""}.`;
 }
 
+// Renders the readiness report text; `generated` is passed in so the output is
+// deterministic for the same input.
 export function buildReadinessMarkdown(c: Readiness, generated: string): string {
   const head =
     c.result === "pass"

@@ -16,12 +16,14 @@ export const KEYWORD_LABEL_KEYS = [
   "problemBadChar", "problemNumber", "listTip", "negListTip",
 ] as const;
 
+// Keys of the board's keyword-line text; one list drives both the lookup and the label type.
 export const KEYWORD_BOARD_KEYS = [
   "markPlain", "markPlainTip", "markCustom", "markCustomTip", "edit", "editTip", "restore", "restoreTip", "menu", "menuTip", "part_threshold",
   "part_weights", "part_negation", "part_phrases_extreme", "part_phrases_critical", "part_phrases_high", "part_phrases_low", "part_minBodyDensity",
   "part_audience", "partSep",
 ] as const;
 
+// Label map typed by KEYWORD_LABEL_KEYS, so a key added to the list but missing from the catalog fails to compile.
 export type KeywordLabels = Record<(typeof KEYWORD_LABEL_KEYS)[number], string>;
 
 // The editor page text; {count}, {level} and the other placeholders stay for the page to fill.

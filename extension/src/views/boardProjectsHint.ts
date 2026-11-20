@@ -17,6 +17,7 @@ export function hintVisible(context: vscode.ExtensionContext, cfg: BoardConfig):
   return !cfg.projects.some((p) => p.extra === true) && (cfg.skipped?.length ?? 0) === 0;
 }
 
+// Stored in global state, so the hint stays gone in every workspace once dismissed.
 export async function dismissHint(context: vscode.ExtensionContext): Promise<void> {
   await context.globalState.update(HINT_DISMISSED_KEY, true);
 }

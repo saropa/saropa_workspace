@@ -18,6 +18,8 @@ import type { OrgColour, OrgDoc, OrgGroup, Why } from "./org/orgTypes";
 // Band and MAX of each project from the previous run, kept in workspace state so layouts stay stable.
 export type OrgPrevious = Record<string, { band: number; max: number }>;
 
+// Result of building the group layout once: lookups the renderers share, so they do not
+// each walk the group tree and drift apart.
 export interface OrgBuilt {
   // Item key to its innermost group.
   groupOf: Map<string, GroupView>;

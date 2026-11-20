@@ -275,6 +275,8 @@ const SECTION_ICONS: Record<string, string> = {
   train: "\u{1F686}",
 };
 
+// Picks the icon for a section id, or nothing when the user turned section icons off, so
+// every heading honors that one setting.
 export function sectionIcon(t: BoardStrings, id: string): string {
   if (t.sectionIcons === false) {
     return "";

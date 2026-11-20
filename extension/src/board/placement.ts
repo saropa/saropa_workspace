@@ -2,10 +2,14 @@
 
 // The same numbers as vscode.ViewColumn.Active and vscode.ViewColumn.Beside.
 export const COLUMN_ACTIVE = -1;
+// Sentinel for "open beside"; negative so it can never be mistaken for a real editor column.
 export const COLUMN_BESIDE = -2;
 
+// The two placements the setting allows; a union so an unknown value is caught at the boundary.
 export type BoardPlacement = "beside" | "sameGroup";
 
+// Setting, remembered column and editor state as plain data, so the column choice is
+// testable without the editor.
 export interface PlacementInput {
   setting: BoardPlacement;
   // The column the board was last in (from workspace state), if any.
@@ -23,6 +27,8 @@ function usableColumn(stored: unknown, groupCount: number): stored is number {
   return typeof stored === "number" && Number.isInteger(stored) && stored >= 1 && stored <= Math.max(1, groupCount) + 1;
 }
 
+// Decides the editor column for the board; a stored column that no longer exists must not
+// strand the board in a closed group.
 export function chooseColumn(input: PlacementInput): number {
   const nothingOpen = input.activeColumn === undefined;
   if (input.setting === "sameGroup") {

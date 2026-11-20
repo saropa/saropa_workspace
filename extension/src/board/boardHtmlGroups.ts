@@ -16,6 +16,8 @@ import type { GroupBy } from "./types";
 // The layouts drawn here, as cards of documents across every project.
 export const CARD_GROUP_BYS: readonly GroupBy[] = ["group", "status", "severity"];
 
+// One group card as the renderer needs it; built once so the card, its counts and its square
+// colors all read the same totals instead of recounting sub-groups.
 export interface Card {
   // Tells the card apart from the others of the same layout.
   id: string;

@@ -14,7 +14,9 @@ export type TagsLabelTable = Record<string, string>;
 
 const e = escapeHtml;
 
+// Tab ids in display order; the page markup, the type and the saved tab all derive from this array.
 export const TABS = ["tags", "link", "naming", "severity"] as const;
+// Derived from TABS so a saved tab id from an older version can be checked against it.
 export type TagsTab = (typeof TABS)[number];
 
 // What the Severity tab starts from: its text table, the draft (as saved), and a note about unusable saved values.
@@ -42,6 +44,8 @@ function dataBlock(t: TagsLabelTable, state: EditorState, sev: SeverityInput, fo
   return json.split("<").join("\\u003c");
 }
 
+// Builds the whole editor page for one tab; every interpolated value is escaped and the
+// script runs under a nonce-only CSP.
 export function renderTagsEditor(t: TagsLabelTable, nonce: string, state: EditorState, sev: SeverityInput, tab: TagsTab = "tags", focus: readonly string[] = [], meta: EditorMeta = NO_META): string {
   const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
   const tabs = TABS.map((k) => `<button type="button" role="tab" id="tab-${k}" data-tab="${k}" aria-selected="${k === tab}" aria-controls="panel-${k}" tabindex="${k === tab ? 0 : -1}" title="${e(t[`${k}Tip`])}">${e(t[`tab_${k}`])}</button>`).join("");

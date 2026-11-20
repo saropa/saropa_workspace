@@ -12,24 +12,37 @@ import { markdown } from "./handoffMarkdown";
 export const HANDOFF_TASKS = ["fix", "plan", "review", "triage", "organize", "research"] as const;
 // What the AI is asked to do with the items.
 export type HandoffTask = (typeof HANDOFF_TASKS)[number];
+// Allowed output formats; values from the page are checked against this array.
 export const HANDOFF_FORMATS = ["md", "json"] as const;
 // The format of the text shown in the drawer.
 export type HandoffFormat = (typeof HANDOFF_FORMATS)[number];
+// Allowed scopes, narrowest first; values from the page are checked against this array.
 export const HANDOFF_SCOPES = ["item", "chosen", "group", "project", "board"] as const;
 // Which items a hand-off covers.
 export type HandoffScope = (typeof HANDOFF_SCOPES)[number];
+// Allowed clipboard modes; the short referral is the default so a large document is not
+// pasted into a chat by accident.
 export const COPY_MODES = ["referral", "full"] as const;
 // What Copy puts on the clipboard: the short line that points at the file, or the whole document.
 export type CopyMode = (typeof COPY_MODES)[number];
 
 // Folder (inside each project) that holds the hand-off files, and how many hand-offs it keeps.
 export const HANDOFF_DIR = ".saropa/handoff";
+// Cap on saved hand-off files; older ones are pruned so the folder cannot grow without bound.
 export const KEEP_HANDOFFS = 20;
+// Template used when no command is configured; {id} is replaced with the hand-off id so the
+// command always points at the file just written.
 export const DEFAULT_TERMINAL_COMMAND = 'claude "Read .saropa/handoff/{id}.md and action it."';
 
+// Narrows an untrusted message value to a known task, falling back to "fix" so a stale
+// or tampered value cannot reach the document builder.
 export const asTask = (v: unknown): HandoffTask => ((HANDOFF_TASKS as readonly unknown[]).includes(v) ? (v as HandoffTask) : "fix");
+// Narrows an untrusted value to a known format; anything unknown reads as markdown.
 export const asFormat = (v: unknown): HandoffFormat => (v === "json" ? "json" : "md");
+// Narrows an untrusted value to a known scope; undefined (no default) lets the caller
+// refuse the request instead of guessing a scope.
 export const asScope = (v: unknown): HandoffScope | undefined => ((HANDOFF_SCOPES as readonly unknown[]).includes(v) ? (v as HandoffScope) : undefined);
+// Narrows an untrusted value to a known copy mode; anything unknown reads as the short referral.
 export const asCopyMode = (v: unknown): CopyMode => (v === "full" ? "full" : "referral");
 
 // One item of the document. Only the id, project, path and title are always there.
@@ -68,6 +81,8 @@ export interface HandoffProject {
   evidence?: Record<string, string>;
 }
 
+// Everything the document builder needs, gathered by the caller so the builder stays pure
+// and the same input always yields the same text.
 export interface HandoffInput {
   id: string;
   task: HandoffTask;

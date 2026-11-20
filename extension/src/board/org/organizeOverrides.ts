@@ -1,5 +1,5 @@
 // The Tags editor, overrides: typed access to the per-group and per-document entries of the rules file (a group's
-// name, emoji and colour, a document placed in a group by hand, a tag removed from one document).
+// name, emoji and color, a document placed in a group by hand, a tag removed from one document).
 
 import { isObject, parseForEdit } from "../ruleAssign";
 import { isAllowedColour } from "./appearance";
@@ -9,11 +9,12 @@ import type { GroupOverride, OrganizeConfig } from "./overrides";
 const GROUP_ID = /^[^\s:]{1,100}:[a-z]+:\S{0,190}$/;
 const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
 
+// Group ids come from the page and become object keys; rejecting "__proto__" and malformed shapes blocks prototype pollution.
 export function groupIdOk(id: unknown): id is string {
   return isStr(id, LIMITS.groupId) && GROUP_ID.test(id) && id !== "__proto__";
 }
 
-// A name, emoji or colour a person set on a group. Undefined when a value is unusable.
+// A name, emoji or color a person set on a group. Undefined when a value is unusable.
 export function cleanGroupOverride(o: unknown): GroupOverride | undefined {
   if (!isObject(o)) {
     return undefined;
@@ -32,7 +33,7 @@ export function cleanGroupOverride(o: unknown): GroupOverride | undefined {
     out.emoji = o.emoji;
   }
   if (o.colour !== undefined) {
-    // The engine honours the eight names only (autoGroup.ts), so a hex is refused here.
+    // The engine honors the eight names only (autoGroup.ts), so a hex is refused here.
     if (!isStr(o.colour, 7) || !isAllowedColour(o.colour)) {
       return undefined;
     }
@@ -41,6 +42,7 @@ export function cleanGroupOverride(o: unknown): GroupOverride | undefined {
   return out;
 }
 
+// Skips any entry with a bad id or value instead of failing, so one hand-edited line cannot hide every other override.
 export function groupOverrides(text: string | undefined): Record<string, GroupOverride> {
   const p = parseForEdit(text);
   const g = p.ok && isObject(p.doc.organize) && isObject(p.doc.organize.groups) ? p.doc.organize.groups : {};
@@ -80,6 +82,7 @@ export function setGroupOverride(text: string | undefined, groupId: string, over
 }
 
 type Pin = { project: string; path: string };
+// Bounded, non-empty project and path; the same check guards assign and untag so both write paths accept the same documents.
 export const pinOk = (a: Pin): boolean => isStr(a.project, 100) && a.project !== "" && isStr(a.path, 500) && a.path !== "";
 
 // Places one document in a group by hand (`group` undefined: back to automatic). One entry per document.

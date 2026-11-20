@@ -6,6 +6,7 @@
 
 import { Signal, SignalKind, Trend, isTidyReport, trendOf } from "./reportSignals";
 
+// Where finished documents move when the rules name no archive folder.
 export const DEFAULT_ARCHIVE_FOLDER = "docs/history";
 // Days without a change before a finished document is offered by default.
 export const DEFAULT_AFTER_DAYS = 7;

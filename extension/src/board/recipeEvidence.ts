@@ -123,7 +123,9 @@ export function readFeedReport(feed: EvidenceFeed, file: ReportFile | undefined,
 
 // Fewest and most hours the age limit may be, and the value used when the setting is missing.
 export const MIN_AGE_HOURS = 1;
+// Upper bound (30 days) so a mistyped setting cannot make stale evidence count as fresh forever.
 export const MAX_AGE_HOURS = 720;
+// Fallback when the setting is missing or not a number.
 export const DEFAULT_AGE_HOURS = 36;
 
 // Keeps the age limit in hours between the allowed bounds.
@@ -134,9 +136,12 @@ export function clampAgeHours(v: unknown): number {
 
 // Fewest and most minutes of quiet before a heavy catch-up job starts. 0 means no wait.
 export const MIN_IDLE_MINUTES = 0;
+// Upper bound so the idle wait before a background run cannot be set to an hour-plus stall.
 export const MAX_IDLE_MINUTES = 60;
+// Fallback when the setting is missing or not a number.
 export const DEFAULT_IDLE_MINUTES = 2;
 
+// Rounds and bounds the idle wait; a non-number reads as the default instead of NaN.
 export function clampIdleMinutes(v: unknown): number {
   const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : DEFAULT_IDLE_MINUTES;
   return Math.min(MAX_IDLE_MINUTES, Math.max(MIN_IDLE_MINUTES, n));
@@ -144,6 +149,8 @@ export function clampIdleMinutes(v: unknown): number {
 
 // What a row says about its feeding recipe's job. The host decides it; the page words it.
 export type FeedState = "checking" | "waiting" | "off" | "failed";
+// What the board shows for one feed that has no result yet; the state says why (waiting,
+// off, failed) so an empty feed is never silent.
 export interface FeedNote {
   state: FeedState;
   // failed: why the job did not start.

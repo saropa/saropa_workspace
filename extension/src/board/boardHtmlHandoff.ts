@@ -13,6 +13,8 @@ export function hl(t: BoardStrings, key: string): string {
 
 const esc = (t: BoardStrings, key: string): string => escapeHtml(hl(t, key));
 
+// Styles for the hand-off checkbox, pills and drawer, kept beside their markup so the page
+// CSS and the renderer change together.
 export const HANDOFF_STYLE = `
 .hc{flex:none;margin:0;cursor:pointer;accent-color:var(--blue);opacity:0}.row:hover .hc,.row:focus-within .hc,.hc:checked,.hc:focus-visible{opacity:1}
 @media (hover:none){.hc{opacity:1}}

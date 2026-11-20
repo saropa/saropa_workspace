@@ -3,6 +3,8 @@
 import { COLUMN_BESIDE } from "./placement";
 import type { BoardPlacement } from "./placement";
 
+// The two settings and the editor state that decide where a document opens, passed as data
+// so the decision stays testable without the editor.
 export interface OpenBesideInput {
   // The releaseBoard.openBeside setting.
   openBeside: boolean;

@@ -83,6 +83,8 @@ export function folderGlob(folder: string): string | undefined {
   return clean === "" ? "*" : `${clean}/**`;
 }
 
+// Either the rewritten rules text with the new id and glob, or the reason it was refused,
+// so a refused assignment leaves the rules file untouched.
 export type AssignResult = { ok: true; text: string; id: string; glob: string } | { ok: false; reason: AssignRefusal };
 
 // A short id for the folder: lower-case letters, digits and dashes.

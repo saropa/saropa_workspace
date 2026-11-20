@@ -8,13 +8,20 @@ import { SEVERITY_LEVELS, docGlob, isObject } from "./ruleAssign";
 // reads a file or writes one; applying is the host's job and only follows the owner's ticks.
 
 export const PATCH_VERSION = 1;
+// Identifier a patch must carry; the version suffix lets a future format be refused instead of misread.
 export const PATCH_SCHEMA = `saropa.releaseBoard.patch/${PATCH_VERSION}`;
+// The only operations a patch may contain; every other op is refused so a patch cannot
+// reach beyond the edits the board already supports.
 export const PATCH_OPS = ["setStatus", "setSeverity", "addNeeds", "removeNeeds", "setGroup"] as const;
+// Derived from PATCH_OPS so the check and the type cannot drift apart.
 export type PatchOp = (typeof PATCH_OPS)[number];
 // Largest text read, most changes accepted, and longest reason and group name.
 export const MAX_PATCH_CHARS = 200_000;
+// Cap on changes per patch, so one pasted patch cannot rewrite the whole board.
 export const MAX_CHANGES = 500;
+// Cap on a change's reason text, so a patch cannot smuggle a large body into a document.
 export const MAX_REASON = 300;
+// Cap on a group name from a patch, matching what the group editor accepts.
 export const MAX_GROUP = 60;
 
 // One change of a patch, as it passed the check.
@@ -72,12 +79,16 @@ export interface PatchRow {
   stale: boolean;
 }
 
+// One change that was left out and why, so a partly valid patch still applies and the rest
+// is reported by position.
 export interface PatchRefusal {
   // 1-based position in the patch.
   n: number;
   reason: Refusal;
 }
 
+// Either the accepted rows plus the refusals, or a reason the whole patch was refused;
+// the caller must handle both before writing anything.
 export type PatchCheck = { ok: true; basedOn?: string; rows: PatchRow[]; refused: PatchRefusal[] } | { ok: false; reason: PatchError };
 
 const TAG = /^[ \t]*json[ \t]+saropa-patch$/i;

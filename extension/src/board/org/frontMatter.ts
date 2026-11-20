@@ -19,6 +19,7 @@ function listOf(inline: string, block: string[]): string[] {
   return items.map(unquote).filter((s) => s !== "");
 }
 
+// Reads only the first MAX_LINES lines and returns empty on any malformed block, so a large or odd file never costs a full parse or throws.
 export function readFrontMatter(text: string): FrontMatter {
   const none: FrontMatter = { tags: [], needs: [] };
   const lines = text.replace(/^﻿/, "").split(/\r?\n/, MAX_LINES);

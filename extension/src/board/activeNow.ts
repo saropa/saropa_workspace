@@ -14,6 +14,8 @@ export interface ChatSummary {
   archived: boolean;
 }
 
+// One open workspace folder, keyed by the id the board uses for its project, so chat
+// scanning can map a found chat back to the right project.
 export interface ProjectFolder {
   id: string;
   // The project's folder as an absolute path.

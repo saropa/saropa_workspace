@@ -32,6 +32,7 @@ export async function readLocalMarks(context: vscode.ExtensionContext): Promise<
   return parseMarks(await readText(vscode.Uri.joinPath(storageDir(context), LOCAL_FILE)));
 }
 
+// Reads the marks file kept in the first workspace folder; empty when no folder is open so the board still loads.
 export async function readSharedMarks(): Promise<MarksFile> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   return folder ? parseMarks(await readText(vscode.Uri.joinPath(folder.uri, SHARED_FILE))) : emptyMarks();

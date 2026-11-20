@@ -13,12 +13,15 @@ const NOTICE_MS = 6 * 1000;
 // Failures in a row before the pills are dropped; one bad look after a good one keeps them.
 const FAILURES_TO_DROP = 2;
 
+// Read on each poll, so turning the setting off stops the lookups without a reload.
 export function chatActivityOn(): boolean {
   return vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("chatActivity", true);
 }
 
+// The chat lookup as an injectable function, so tests can replace the other extension's API.
 export type ReadChats = () => Promise<{ ok: true; chats: ChatSummary[] } | { ok: false }>;
 
+// Polls the chat index on a timer and keeps the last good result; it drops the pills only after repeated failures and ignores stale replies.
 export class ChatPoll {
   private active: string[] = [];
   // True once the last look worked, false once it failed; undefined before the first look or while off.

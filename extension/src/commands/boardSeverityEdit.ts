@@ -39,6 +39,7 @@ export type SeverityChange =
     }
   | { kind: "restore" };
 
+// Tells a no-op (unchanged) and a canceled confirm (declined) from a blocked write (refused), so the caller shows the right message.
 export type SaveOutcome = "saved" | "unchanged" | "declined" | "refused";
 
 // The words about what the change does to the open documents.
@@ -89,6 +90,7 @@ export interface SaveOptions {
   onSnapshot?: (snapshot: RulesSnapshot) => void;
 }
 
+// Runs under the rules-file write lock so a concurrent edit cannot be overwritten between the read and the write.
 export async function saveSeverity(change: SeverityChange, opts: SaveOptions = {}): Promise<SaveOutcome> {
   const root = opts.root ?? vscode.workspace.workspaceFolders?.[0];
   if (!root) {

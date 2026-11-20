@@ -6,6 +6,7 @@ export function busyReason(s: { assigning: boolean; scanning: boolean; cached: b
   return s.assigning ? "releaseBoard.rowMenu.busyDialog" : s.scanning ? "releaseBoard.rowMenu.busyScan" : s.cached ? "releaseBoard.rowMenu.busyStale" : undefined;
 }
 
+// Busy key for a half-finished Undo; busyMessage fills it with the files left, so it cannot be a fixed string.
 export const UNDO_PENDING = "releaseBoard.undo.pending";
 
 // The words for a busy key. A half-finished Undo names the bar's Dismiss button and the files left.

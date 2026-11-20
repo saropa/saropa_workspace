@@ -7,6 +7,8 @@ import { EDIT_LEVELS, SeverityDraft, defaultDraft, draftFromDict, sameList } fro
 // the draft a file text stands for. severityEdit re-exports everything here.
 
 export type EditRefusal = "parse" | "shape" | "lossy" | "encoding";
+// Either the new file text or the reason the edit was refused, so a refused edit never
+// writes a damaged file.
 export type EditResult = { ok: true; text: string; changed: boolean } | { ok: false; reason: EditRefusal };
 
 // Parses the file text, lets `change` edit the parsed object, and writes it back with the same

@@ -40,6 +40,7 @@ export function topChangelogVersion(text: string): string | undefined {
 // The manifest files read for a version, in the order they are tried.
 export const MANIFESTS: readonly string[] = ["package.json", "pubspec.yaml", "Cargo.toml", "pyproject.toml"];
 
+// The version read from one manifest; `name` is kept for the lockfile lookup.
 export interface ManifestVersion {
   file: string;
   version: string;
@@ -154,12 +155,14 @@ export function badgeVersions(readme: string): Stated[] {
   return out;
 }
 
+// One file's stated version and whether it matches the manifest.
 export interface VersionRow {
   source: string;
   version: string;
   agrees: boolean;
 }
 
+// Outcome of the version comparison; unknown means there was nothing to compare, which is not a pass.
 export interface VersionCheck {
   result: "pass" | "fail" | "unknown";
   // Files that disagree with the manifest.
@@ -180,6 +183,7 @@ export function checkVersions(manifest: ManifestVersion | undefined, others: rea
   return { result: count > 0 ? "fail" : "pass", count, manifest, rows };
 }
 
+// Outcome of comparing the changelog's top entry with the manifest; unknown when either side is missing.
 export interface ChangelogCheck {
   result: "pass" | "fail" | "unknown";
   top?: string;
@@ -194,11 +198,13 @@ export function checkChangelog(top: string | undefined, manifest: ManifestVersio
   return { result: normalizeVersion(top) === normalizeVersion(manifest.version) ? "pass" : "fail", top, manifest };
 }
 
+// Leaves the count empty for unknown, so a missing version is not read as zero problems.
 export function changelogSummaryLine(c: ChangelogCheck, time: number): string {
   const s: ReportSummary = { recipe: feedInfo("changelog").recipeId, time, result: c.result, count: c.result === "fail" ? 1 : c.result === "pass" ? 0 : undefined };
   return formatSummaryLine(s);
 }
 
+// Leaves the count empty for unknown, so a missing manifest is not read as zero mismatches.
 export function versionSummaryLine(c: VersionCheck, time: number): string {
   const s: ReportSummary = { recipe: feedInfo("version").recipeId, time, result: c.result, count: c.result === "unknown" ? undefined : c.count };
   return formatSummaryLine(s);
@@ -206,6 +212,7 @@ export function versionSummaryLine(c: VersionCheck, time: number): string {
 
 const cell = escapeCell;
 
+// The report text for the changelog check; a missing version is explained, not shown as a pass or fail.
 export function buildChangelogMarkdown(c: ChangelogCheck, changelogFile: string, generated: string): string {
   const head = c.result === "pass" ? "The top changelog entry matches the project version." : c.result === "fail" ? "The top changelog entry does not match the project version." : "Could not compare: a version is missing.";
   return [
@@ -223,6 +230,7 @@ export function buildChangelogMarkdown(c: ChangelogCheck, changelogFile: string,
   ].join("\n");
 }
 
+// The report text for the version check; the manifest row is the reference the other rows are compared with.
 export function buildVersionMarkdown(c: VersionCheck, generated: string): string {
   const head = c.result === "pass" ? "Every file checked states the same version." : c.result === "fail" ? `${c.count} file(s) state a different version.` : "Could not compare: needs a manifest version and at least one lockfile or README badge that states one.";
   const rows = [c.manifest ? `| ${cell(c.manifest.file)} (manifest) | ${cell(c.manifest.version)} | reference |` : "", ...c.rows.map((r) => `| ${cell(r.source)} | ${cell(r.version)} | ${r.agrees ? "same" : "**differs**"} |`)].filter((l) => l !== "");

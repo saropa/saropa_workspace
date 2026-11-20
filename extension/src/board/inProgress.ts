@@ -5,7 +5,9 @@ import type { BoardItem } from "./boardModel";
 // board. Pure: the host collects the names, this module picks and orders them.
 
 export const DEFAULT_IN_PROGRESS_MAX = 15;
+// Lower bound so the in-progress list can never be configured away to nothing.
 export const MIN_IN_PROGRESS_MAX = 1;
+// Upper bound so a bad setting cannot flood the board with in-progress rows.
 export const MAX_IN_PROGRESS_MAX = 50;
 
 // The list limit from a setting value, kept inside its bounds.

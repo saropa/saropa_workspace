@@ -105,6 +105,7 @@ function showFailed(e: unknown): void {
 // Where the board tab is now; the panel sets this so the actions need no import of the panel.
 let boardColumn: () => number | undefined = () => undefined;
 
+// Set by the panel so these actions can find the board tab without importing it, which would be circular.
 export function setBoardColumnSource(source: () => number | undefined): void {
   boardColumn = source;
 }
@@ -209,6 +210,7 @@ export function closeFailedOpen(panel: vscode.WebviewPanel, e: unknown, backgrou
   }
 }
 
+// Workspace-state key under which the board tab's column is remembered between sessions.
 export const PLACEMENT_KEY = "saropaWorkspace.releaseBoard.column";
 
 /** Remembers where the tab is, also after the user drags it to another group. */

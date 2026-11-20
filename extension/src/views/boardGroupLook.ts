@@ -10,8 +10,10 @@ import { l10n } from "../i18n/l10n";
 // The group-heading menu entries that change how a group looks (decision 45). The page sends only the entry name
 // and a heading's item index; the group and every value come from the host, never from the page.
 export const GROUP_LOOK_ACTS = ["gRename", "gEmoji", "gColour", "gAuto"] as const;
+// Union of the menu entries, derived from GROUP_LOOK_ACTS so the list and the type cannot drift.
 export type GroupLookAct = (typeof GROUP_LOOK_ACTS)[number];
 
+// Narrows an untrusted page message to a known entry name before any group edit runs.
 export const isGroupLookAct = (act: unknown): act is GroupLookAct => (GROUP_LOOK_ACTS as readonly unknown[]).includes(act);
 
 // What a successful change reports back to the panel: the undo snapshot and the text for the Undo bar.

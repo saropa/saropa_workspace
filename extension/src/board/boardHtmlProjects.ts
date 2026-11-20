@@ -26,6 +26,8 @@ export function label(t: BoardStrings, key: string): string {
   return table && typeof table === "object" && typeof table[key] === "string" ? table[key] : key;
 }
 
+// Per-project tally of go, no-go and unverified checks; a project's header light is derived
+// from these three counts so it never disagrees with its rows.
 export interface Rollup {
   noGo: number;
   unverified: number;

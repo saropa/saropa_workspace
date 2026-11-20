@@ -31,6 +31,7 @@ export async function loadSeverityDict(cfg: BoardConfig, root?: vscode.Workspace
   return (await currentSeverityDict(root)) ?? dictOfSeverity(cfg.severity);
 }
 
+// The Severity tab's host side: runs previews, discards stale ones, and blocks a second save while one is running.
 export class SeverityPart {
   // The preview request the page asked for last; older ones stop.
   private latest = 0;

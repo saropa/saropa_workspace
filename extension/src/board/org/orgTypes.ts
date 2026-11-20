@@ -2,6 +2,7 @@
 
 import type { GroupInput } from "../groups";
 
+// A closed set of names, not hex, so every color stays within the contrast-checked palette in appearance.ts.
 export type OrgColour = "teal" | "sky" | "indigo" | "orchid" | "olive" | "ochre" | "slate" | "pine";
 
 // Where a decision came from, strongest first (see overrides.ts).
@@ -26,8 +27,10 @@ export interface OrgDoc extends GroupInput {
   group?: string;
 }
 
+// How a group was formed; part of the group id, so renaming a kind would orphan stored overrides.
 export type GroupKind = "folder" | "seq" | "stem" | "tag" | "files" | "manual" | "other";
 
+// The span of a numbered series, kept apart from the name so the display name can add it and dedup can tell series apart.
 export interface SeqRange {
   // phase, part, step, stage, version, milestone or order.
   label: string;
@@ -35,6 +38,7 @@ export interface SeqRange {
   to: number;
 }
 
+// One group on the board, with a separate "why" for each automatic choice so every one can be explained and overridden.
 export interface OrgGroup {
   // project:kind:key, derived from the group's own key, never from a member.
   id: string;
@@ -55,7 +59,7 @@ export interface OrgGroup {
   emoji: string;
   colour: OrgColour | string;
   tag?: string;
-  // True when the user set the name, emoji or colour (shown as "set by you").
+  // True when the user set the name, emoji or color (shown as "set by you").
   edited: boolean;
   oversize: boolean;
   why: Why;
@@ -64,11 +68,13 @@ export interface OrgGroup {
   colourWhy: Why;
 }
 
+// The matched word and where it was found, so the page can highlight it in the folder, file name or title.
 export interface TagHit {
   where: "folder" | "file" | "title";
   word: string;
 }
 
+// A tag that applies to a document; the score orders competing tags and the hits explain the match.
 export interface TagMatch {
   tagId: string;
   score: number;
@@ -76,6 +82,7 @@ export interface TagMatch {
   why: Why;
 }
 
+// Everything one run decided, plus the leftovers (unknown tags, stale overrides) the board surfaces for cleanup.
 export interface OrgResult {
   groups: OrgGroup[];
   // Document key to its innermost group.
@@ -93,6 +100,7 @@ export interface OrgResult {
   stale: Array<{ kind: "assign" | "untag" | "group"; ref: string }>;
 }
 
+// Every field is optional so a bare run works; `previous` carries the last run's layout to stop groups jumping on small changes.
 export interface OrgOptions {
   // Groups from the rules file (globs of "project/path").
   manual?: Array<{ name: string; match: string[] }>;

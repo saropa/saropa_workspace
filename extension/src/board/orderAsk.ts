@@ -14,7 +14,11 @@ export interface OrderEntry {
 
 // Caps, identical on read (parseOrder) and on write (orderOverCap, used by fitMarks).
 export const MAX_PAIRS = 500;
+// Cap on remembered skipped questions; the writer and the reader share it so neither accepts
+// more than the other keeps.
 export const MAX_SKIPPED = 200;
+// Cap on remembered folder-order answers; shared by read and write so the file cannot grow
+// past what is loaded back.
 export const MAX_FOLDER_PAIRS = 100;
 // The most questions in one batch.
 export const BATCH = 5;
@@ -27,7 +31,9 @@ export const FOLDER_MARK = "folder:";
 // The folder id of an item with no group. Never empty: the reader drops empty ids.
 export const NO_FOLDER = "none";
 
+// Fresh entry per call; returning a shared object would let one project's edits leak into another's.
 export const emptyOrder =(): OrderEntry => ({ pairs: [], skipped: [], folders: [] });
+// Lets the writer drop an entry with no answers instead of saving an empty record.
 export const isEmptyOrder = (e: OrderEntry): boolean => e.pairs.length + e.skipped.length + e.folders.length === 0;
 
 // True when an entry holds more than the caps allow (the writer refuses it, as the reader would cut it).
@@ -255,6 +261,8 @@ export interface Placed {
   inferred: string[];
 }
 
+// Maps each open item to what it must come after, following the kept answers both ways, so a
+// new question is never asked when the answers already decide the order.
 export function afterOf(kept: readonly Pair[], open: ReadonlySet<string>): Map<string, Placed> {
   const fwd = graphOf(kept);
   const back = graphOf(kept.map(([a, b]): Pair => [b, a]));

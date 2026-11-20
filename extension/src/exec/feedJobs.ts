@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 // queued: waiting its turn. running: started. failed: did not start (`reason` says why).
 export type FeedJobState = "queued" | "running" | "failed";
 
+// One recipe's catch-up status; `reason` is set only for a failed start.
 export interface FeedJob {
   state: FeedJobState;
   reason?: string;
@@ -39,4 +40,5 @@ class FeedJobs {
   }
 }
 
+// Single shared instance, so the scheduler (writer) and the board (reader) see the same session state.
 export const feedJobs = new FeedJobs();

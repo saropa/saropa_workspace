@@ -18,6 +18,7 @@ export interface DocRef {
   path: string;
 }
 
+// One Needs-line edit: add a reference to a target document, or remove it.
 export type NeedsChange = { kind: "add"; target: string; to: DocRef } | { kind: "remove"; target: string };
 
 // What a write replaced, as bytes: Undo puts `before` back, and only while the file still holds `after`.

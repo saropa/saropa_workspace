@@ -10,6 +10,7 @@ const EXTENSION_ID = "saropa.claude-chat-explorer";
 // The API itself waits up to 60 s for its index; the board does not.
 const CALL_TIMEOUT_MS = 10 * 1000;
 
+// A failure is a value, not an exception, so the board can drop the chat pills quietly when the other extension is absent or slow.
 export type ChatRead = { ok: true; chats: ChatSummary[] } | { ok: false };
 
 // Finds the extension by id; replaced in tests.

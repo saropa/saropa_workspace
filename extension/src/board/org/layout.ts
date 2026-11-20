@@ -4,6 +4,7 @@
 const BOUNDS = [8, 50, 200, 1000];
 const MIN_BY_BAND = [2, 2, 3, 4, 5];
 
+// Every size and fold decision derived from the document count, so all board views scale together from one source.
 export interface Layout {
   band: number;
   // Group headers shown at all (not for a handful of documents).
@@ -40,6 +41,7 @@ export function maxFor(n: number, previousMax?: number): number {
   return previousMax !== undefined && Math.abs(raw - previousMax) <= Math.max(1, previousMax * 0.1) ? previousMax : raw;
 }
 
+// Takes the previous band and max so the layout stays put when the count hovers near a boundary between runs.
 export function layoutFor(n: number, previousBand?: number, previousMax?: number): Layout {
   const band = bandFor(n, previousBand);
   const max = maxFor(n, previousMax);

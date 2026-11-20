@@ -34,6 +34,7 @@ export interface BatchSnapshot {
   docs: DocSnapshot[];
 }
 
+// Counts plus a snapshot of every file already written, so a failure partway still leaves a complete Undo.
 export interface ApplyOutcome {
   applied: number;
   skipped: number;

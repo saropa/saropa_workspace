@@ -64,6 +64,7 @@ export function boardReady(quiet = false): boolean {
 
 // The damaged-file warning shows once per session, not on every board refresh.
 let warnedDamaged = false;
+// Re-arms the once-per-session damaged-rules warning, so a file that is repaired and damaged again warns again.
 export function resetDamagedRulesWarning(): void {
   warnedDamaged = false;
 }

@@ -9,6 +9,8 @@ export interface MenuPlace {
   maxHeight: number;
 }
 
+// Pure so the same source text can run in the page script and in tests; the page cannot
+// import it, which is why it must not reference outside names.
 export function placeMenu(btn: { top: number; bottom: number; right: number }, w: number, h: number, vw: number, vh: number, sx: number, sy: number): MenuPlace {
   const below = vh - btn.bottom - 6;
   const above = btn.top - 6;

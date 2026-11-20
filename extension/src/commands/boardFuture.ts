@@ -20,6 +20,7 @@ export interface FutureData {
   cut?: boolean;
 }
 
+// A fresh object per call, so callers that push into the lists never share one mutable empty value.
 export const emptyFuture = (): FutureData => ({ items: [], outside: [] });
 
 // The tab's settings.
@@ -30,6 +31,7 @@ export interface FutureSettings {
   researchParallel: number;
 }
 
+// Every value is clamped by its as* helper, so a bad setting cannot break the Future tab.
 export function readFutureSettings(): FutureSettings {
   const c = vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard.future");
   return { enabled: c.get<boolean>("enabled", true), defaultSort: asFutureSort(c.get<string>("defaultSort", "score")), researchParallel: asResearchParallel(c.get<number>("researchParallel", 3)) };

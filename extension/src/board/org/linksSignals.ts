@@ -7,7 +7,9 @@ import { phraseSignals, withoutCode } from "./linksPhrase";
 // The names that moved to linksPhrase.ts stay importable from here.
 export { forwardPattern, phraseSignals, withoutCode } from "./linksPhrase";
 
+// How strongly a signal implies a dependency; drives sort order and which proposals a large board shows.
 export type Confidence = "high" | "medium" | "low";
+// The evidence kind behind a proposal; also the tie-break rank when two candidates share a confidence.
 export type LinkSignal = "phrase" | "sequence" | "stem" | "mention";
 
 // A message key (in en.json) and the values that fill it.
@@ -53,6 +55,7 @@ export interface NameParts {
   seq?: { word: string; parts: number[]; label: string };
 }
 
+// Strips the date, splits camel case and pulls out the sequence token and kind once, so every signal compares the same normalized name.
 export function parseName(path: string): NameParts {
   const slash = path.lastIndexOf("/");
   const folder = slash < 0 ? "" : path.slice(0, slash);

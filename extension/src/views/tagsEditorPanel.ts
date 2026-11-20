@@ -24,6 +24,7 @@ export interface BoardView {
   profile: Profile;
 }
 
+// What the Tags editor needs from the board that opened it, plus the callback that refreshes the board after a save.
 export interface TagsEditorInput extends BoardView {
   // Called after the rules file changed, so the board scans again; resolves with what the board shows now.
   onSaved: () => Promise<BoardView | void>;

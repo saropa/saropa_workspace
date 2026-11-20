@@ -1,4 +1,4 @@
-// Emoji and colour of a group: from its tag when it has one, else a stable colour from its id.
+// Emoji and color of a group: from its tag when it has one, else a stable color from its id.
 
 import type { OrgColour, TagMatch, Why } from "./orgTypes";
 import type { CompiledTags, TagDef } from "./tags";
@@ -16,6 +16,7 @@ export const COLOUR_HEX: Record<OrgColour, string> = {
 };
 const NAMES = Object.keys(COLOUR_HEX) as OrgColour[];
 
+// Type guard for color names read from settings; hasOwnProperty so inherited keys like "constructor" never pass.
 export function isAllowedColour(c: string): c is OrgColour {
   return Object.prototype.hasOwnProperty.call(COLOUR_HEX, c);
 }
@@ -29,6 +30,7 @@ function hash(s: string): number {
   return h >>> 0;
 }
 
+// The winning tag for a group plus the counts and sample word the "why" text quotes, so the emoji choice is explainable.
 export interface GroupTag {
   tag: TagDef;
   count: number;
@@ -59,6 +61,7 @@ export function pickGroupTag(memberMatches: TagMatch[][], nameMatches: TagMatch[
   return byName ? { tag: byName, count: 0, total, word: nameMatches[0].hits[0]?.word ?? "" } : undefined;
 }
 
+// Pairs the group emoji with its explanation; no tag means the fallback emoji at low confidence, so a guess is never shown as fact.
 export function emojiWhy(g: GroupTag | undefined, fallback: string): { emoji: string; why: Why } {
   if (!g) {
     return { emoji: fallback, why: { key: "releaseBoard.org.emoji.default", params: { emoji: fallback }, source: "inference", confidence: "low" } };
@@ -66,7 +69,7 @@ export function emojiWhy(g: GroupTag | undefined, fallback: string): { emoji: st
   return { emoji: g.tag.emoji, why: { key: "releaseBoard.org.emoji.tag", params: { emoji: g.tag.emoji, tag: g.tag.label, word: g.word, count: g.count, total: g.total }, source: "inference", confidence: "medium" } };
 }
 
-// Colours for groups that share a parent: a tag's colour as it is; otherwise a hash of the id, moved to the next hue no sibling uses.
+// Colors for groups that share a parent: a tag's color as it is; otherwise a hash of the id, moved to the next hue no sibling uses.
 export function assignColours(groups: Array<{ id: string; parent: string; tagColour?: string; tagLabel?: string }>): Map<string, { colour: string; why: Why }> {
   const out = new Map<string, { colour: string; why: Why }>();
   const siblings = new Map<string, typeof groups>();

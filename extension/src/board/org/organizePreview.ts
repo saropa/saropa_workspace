@@ -7,6 +7,7 @@ import { compileTags, matchTags, subjectOf } from "./tags";
 import { EditorState, LIMITS, TagRow, tagOfRow } from "./organizeEditCore";
 import { organizeFromState, stateFromOrganize } from "./organizeLoad";
 
+// A failed import names its cause (size, parse or shape) so the page can say which limit or format the file broke.
 export type ImportResult = { ok: true; state: EditorState } | { ok: false; problem: "size" | "parse" | "shape" };
 
 // A file chosen by the user, as text. Unknown keys and unusable values are dropped, never copied.
@@ -23,8 +24,10 @@ export function parseImport(text: string): ImportResult {
   return isObject(raw) ? { ok: true, state: stateFromOrganize(raw) } : { ok: false, problem: "shape" };
 }
 
+// Goes through organizeFromState so an exported file holds only the stored form and re-imports unchanged.
 export const exportText = (s: EditorState): string => JSON.stringify(organizeFromState(s), null, 2) + "\n";
 
+// Per-tag test result kept to counts and a few titles so the preview reveals no paths and stays small.
 export interface TagMatchSummary {
   count: number;
   examples: string[];
@@ -42,6 +45,7 @@ export interface ImportDiff {
   naming: boolean;
 }
 
+// Compares by serialized row so any field change counts as a replace; lets the page confirm an import before it overwrites the draft.
 export function importDiff(current: EditorState, next: EditorState): ImportDiff {
   const had = new Map(current.tags.map((r) => [r.id, JSON.stringify(r)]));
   const ids = new Set(next.tags.map((r) => r.id));

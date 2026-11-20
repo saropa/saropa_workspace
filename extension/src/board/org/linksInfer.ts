@@ -18,6 +18,7 @@ export interface LinkProposal {
   key: string;
 }
 
+// Optional caps and phrase set; defaults keep the proposal list short so suggestions never swamp the board.
 export interface InferOptions {
   // At most this many proposals for one waiting document.
   perDocument?: number;
@@ -31,6 +32,7 @@ const CONF: Record<Confidence, number> = { high: 0, medium: 1, low: 2 };
 const SIGNAL: Record<LinkSignal, number> = { phrase: 0, sequence: 1, stem: 2, mention: 3 };
 const PER_DOCUMENT = 3;
 
+// One builder for the pair key so lookups of existing links and stored rejections can never drift apart in format.
 export function proposalKey(fromProject: string, fromPath: string, toProject: string, toPath: string): string {
   return `${fromProject}/${fromPath}->${toProject}/${toPath}`;
 }

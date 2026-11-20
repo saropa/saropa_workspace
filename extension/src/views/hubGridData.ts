@@ -31,6 +31,7 @@ export interface HubGridBanner {
   readonly rateLimited: boolean;
 }
 
+// The one message the grid page receives; `repos` lists the filter choices and `banners` the repos whose last scan failed.
 export interface HubGridPayload {
   readonly type: "load";
   readonly repos: readonly string[];

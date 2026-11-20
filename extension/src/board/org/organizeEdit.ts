@@ -29,6 +29,7 @@ export { exportText, importDiff, namingPreview, parseImport, testMatch } from ".
 export type { ImportDiff, ImportResult, TagMatchSummary } from "./organizePreview";
 export { cleanGroupOverride, groupIdOk, groupOverrides, pinOk, setAssign, setGroupOverride, setUntag } from "./organizeOverrides";
 
+// A discriminated result so a refused page state carries only a short problem code the page can map to a message.
 export type StateCheck = { ok: true; state: EditorState } | { ok: false; problem: string };
 
 // The page's whole state, checked. Anything out of range refuses the whole state.
@@ -101,6 +102,7 @@ export function stateOfText(text: string | undefined): EditorState | undefined {
 // The state of a rules file text with the parts a save would drop, or why the text cannot be edited.
 export type TextLoad = ({ ok: true } & Loaded) | { ok: false; reason: AssignRefusal };
 
+// Refuses a non-object `organize` key up front so the editor never opens (and later overwrites) a file it cannot round-trip.
 export function loadText(text: string | undefined): TextLoad {
   const p = parseForEdit(text);
   if (!p.ok) {

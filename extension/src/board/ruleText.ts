@@ -9,6 +9,7 @@ export const OVERRIDE_RULE_SET = "my-overrides";
 // Why a rule could not be added.
 export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy" | "none" | "name" | "same" | "claimed" | "full";
 
+// Excludes null and arrays, which `typeof` alone calls objects; rules files must be plain objects.
 export const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 // The indent of a JSON text: its first indented line, else two spaces.
@@ -27,6 +28,8 @@ export function docGlob(docPath: string): string | undefined {
 // A rules file text read for an edit: the parsed object, and whether the file was blank.
 export type Parsed = { ok: true; doc: Record<string, unknown>; blank: boolean; source: string } | { ok: false; reason: AssignRefusal };
 
+// Parses rules text for an edit, treating a blank file as an empty object so the first
+// edit can create it; unparseable text is reported rather than overwritten.
 export function parseForEdit(text: string | undefined): Parsed {
   const blank = text === undefined || text.trim() === "";
   let doc: unknown;

@@ -12,6 +12,7 @@ export interface PreviewDoc {
   before: Severity;
 }
 
+// One item whose severity would change under the draft, kept so the preview can show real examples.
 export interface PreviewExample {
   title: string;
   project: string;
@@ -22,6 +23,7 @@ export interface PreviewExample {
   stopsTo: boolean;
 }
 
+// Counts of how a draft would move severities across the board, shown before the user saves it.
 export interface PreviewResult {
   checked: number;
   changed: number;
@@ -41,6 +43,7 @@ export interface PreviewAcc extends PreviewResult {
   all: PreviewExample[];
 }
 
+// Fresh accumulator per call so one run's counts and examples cannot carry into the next.
 export function emptyPreview(): PreviewAcc {
   return { checked: 0, changed: 0, lowered: 0, raised: 0, eased: 0, tightened: 0, examples: [], all: [] };
 }

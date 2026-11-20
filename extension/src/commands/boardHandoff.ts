@@ -73,6 +73,7 @@ export async function saveHandoff(h: HandoffFiles): Promise<void> {
   }
 }
 
+// The handoff actions the page may ask for; the page sends only these names.
 export type HandoffAct = "copy" | "copyFull" | "save" | "terminal";
 
 // What an action did: one word for the page, and the detail for its tooltip.

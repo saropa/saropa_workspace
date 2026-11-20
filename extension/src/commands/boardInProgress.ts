@@ -15,6 +15,7 @@ const GIT_TIMEOUT_MS = 5000;
 const MAX_PATHS = 100;
 const GIT_REUSE_MS = 4000;
 
+// The In progress tab's switch and its cap on listed documents, read fresh so a settings change applies on the next scan.
 export interface InProgressSettings {
   enabled: boolean;
   max: number;

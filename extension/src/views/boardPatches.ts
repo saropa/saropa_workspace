@@ -43,6 +43,7 @@ const ANSWERED_KEY = "saropaWorkspace.releaseBoard.answeredResults";
 
 const statusLabel = (run: BoardRun, status: string): string => ruleCategories(run.cfg).find((c) => c.status === status)?.label ?? status;
 
+// Holds the reply files found in the results folder and the review in progress, and remembers answered files so a rejected reply is not offered again.
 export class BoardPatches {
   private review: Review | undefined;
   private ready: Ready | undefined;

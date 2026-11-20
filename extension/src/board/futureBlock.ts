@@ -7,15 +7,23 @@ export const BLOCK_KEYS = ["Importance", "Research", "Research question", "Wow",
 // One key of the header block.
 export type BlockKey = (typeof BLOCK_KEYS)[number];
 
+// The allowed values live in one array so the parser, the editor choices and the type
+// all agree; the order is the rank, most urgent first.
 export const IMPORTANCES = ["build-next", "marketable", "nice-to-have", "needs-decision", "not-feasible"] as const;
 // How important a deferred document is.
 export type Importance = (typeof IMPORTANCES)[number];
+// Single list of allowed values; the type below is derived from it so a new value cannot
+// be accepted by the parser but missing from the type.
 export const REACHES = ["daily", "weekly", "rare"] as const;
 // How often a user would meet the feature.
 export type Reach = (typeof REACHES)[number];
+// Single list of allowed values; the type below is derived from it so a new value cannot
+// be accepted by the parser but missing from the type.
 export const EFFORTS = ["S", "M", "L", "XL"] as const;
 // Rough size of the work.
 export type Effort = (typeof EFFORTS)[number];
+// Single list of allowed values; the type below is derived from it so a new value cannot
+// be accepted by the parser but missing from the type.
 export const RISKS = ["low", "medium", "high"] as const;
 // How much could go wrong while building it.
 export type Risk = (typeof RISKS)[number];
@@ -35,6 +43,8 @@ export interface FutureBlock {
   invalid: BlockKey[];
 }
 
+// Single list of allowed values in workflow order; the type below is derived from it so the
+// parser and the research counts cannot disagree.
 export const RESEARCH_STATES = ["none", "needed", "in-progress", "ready", "reviewed"] as const;
 // Where the research on a document stands.
 export type ResearchState = (typeof RESEARCH_STATES)[number];

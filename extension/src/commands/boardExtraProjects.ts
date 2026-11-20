@@ -26,6 +26,7 @@ export function readProjectPaths(): unknown {
   return vscode.workspace.getConfiguration(SECTION).get<unknown>("projects", []);
 }
 
+// Normalizes through asScope so a hand-edited setting value cannot reach the board as an unknown scope.
 export function readProjectScope(): ProjectScope {
   return asScope(vscode.workspace.getConfiguration(SECTION).get<unknown>("projectScope", "all"));
 }
@@ -35,16 +36,19 @@ export async function writeProjectScope(scope: ProjectScope): Promise<void> {
   await vscode.workspace.getConfiguration(SECTION).update("projectScope", scope, vscode.ConfigurationTarget.Global);
 }
 
+// Falls back to project grouping for an unrecognized setting value, so a bad edit cannot leave the board ungrouped.
 export function readGroupBy(): GroupBy {
   const v = vscode.workspace.getConfiguration(SECTION).get<string>("groupBy", "project");
   return GROUP_BYS.find((g) => g === v) ?? "project";
 }
 
+// Falls back to the local layout when the stored value is not a known one.
 export function readGanttLayout(): GanttLayout {
   const v = vscode.workspace.getConfiguration(SECTION).get<string>("ganttLayout", "local");
   return asGanttLayout(v) ?? "local";
 }
 
+// Writes to the global target so the layout follows the person across workspaces.
 export async function writeGanttLayout(value: GanttLayout): Promise<void> {
   await vscode.workspace.getConfiguration(SECTION).update("ganttLayout", value, vscode.ConfigurationTarget.Global);
 }
@@ -147,6 +151,7 @@ async function checkOne(p: string, defaultRoots: readonly string[]): Promise<Fol
   return { p, uri, roots, parsed: await readFolderRules(uri) };
 }
 
+// Result of loading the chosen folders: the usable projects, their rule sets, the folders that failed, and a count hidden by the open-only scope.
 export interface ExtraProjects {
   projects: ProjectDef[];
   ruleSets: Record<string, RuleSetDef>;

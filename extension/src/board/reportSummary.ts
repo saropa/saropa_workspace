@@ -40,6 +40,8 @@ export interface FeedInfo {
   alsoSuffixes?: string[];
 }
 
+// Single registry of the feeds, their recipe ids and file suffixes, ordered by rank; the
+// heavy flag marks feeds that should not be re-run casually.
 export const FEEDS: readonly FeedInfo[] = [
   { feed: "build", recipeId: "ritual.ci", rank: 0, heavy: false, suffix: "_ci.md" },
   { feed: "lint", recipeId: "ritual.lint", rank: 1, heavy: false, suffix: "_lint.txt" },
@@ -101,6 +103,7 @@ export function feedOfAction(action: { commandId?: string; reportFile?: string }
   return file ? FEEDS.find((f) => feedSuffixes(f.feed).some((x) => file.endsWith(x))) : undefined;
 }
 
+// Three-way result; "unknown" keeps a missing report from reading as a pass or a fail.
 export type SummaryResult = "pass" | "fail" | "unknown";
 
 // What the summary line says.

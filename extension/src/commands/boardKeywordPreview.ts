@@ -22,6 +22,7 @@ const SCORE_CHUNK = 20;
 // The open documents the keywords can change: not set by hand, not pinned.
 export const eligibleItems = (items: readonly BoardItem[]): BoardItem[] => items.filter((it) => !it.severityByUser && !it.pinned);
 
+// Reads at most `max` eligible documents so a large board cannot make the keyword preview slow; `total` reports how many were eligible.
 export async function loadPreviewDocs(items: readonly BoardItem[], projects: readonly ProjectDef[], names: ReadonlyMap<string, string>, current: SeverityDict, max: number): Promise<{ docs: PreviewDoc[]; total: number }> {
   const eligible = eligibleItems(items);
   const read = await mapLimit(eligible.slice(0, max), READ_PARALLEL, async (it): Promise<PreviewDoc | undefined> => {

@@ -10,6 +10,8 @@ export const GROUP_ORDER = ["unflagged", "build-next", "marketable", "nice-to-ha
 // Where an item sits: its flag, or "unflagged" when the document has none.
 export type FutureGroup = (typeof GROUP_ORDER)[number];
 
+// The sort keys the list accepts; anything else from a setting or message is rejected
+// against this array rather than trusted.
 export const FUTURE_SORTS = ["score", "wow", "effort", "risk", "reach"] as const;
 // How items are ordered inside a flag.
 export type FutureSort = (typeof FUTURE_SORTS)[number];
@@ -91,6 +93,8 @@ export interface FutureFolders {
   blocked: string[];
 }
 
+// Used when the rules name no folders, or name unusable ones, so deferred and blocked
+// documents are still found in the conventional places.
 export const DEFAULT_FOLDERS: FutureFolders = { deferred: ["deferred"], blocked: ["blocked"] };
 
 // A folder name from the rules: one plain segment, nothing that climbs or nests.

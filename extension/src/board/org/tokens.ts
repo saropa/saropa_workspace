@@ -2,12 +2,15 @@
 
 const STATUS = new Set(["done", "finished", "complete", "completed", "archive", "archived", "history", "old", "deferred", "future", "backlog", "later", "wip", "in-progress", "active", "current", "blocked", "todo", "open", "closed", "inbox"]);
 const MONTHS = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*$/;
+// Folder names too generic to name a group; shared with naming so both skip the same words.
 export const CONTAINER = new Set(["docs", "doc", "documentation", "notes", "misc", "files", "content", "src", "md"]);
+// Document-type words set aside from the stem so a plan and a spec on one subject still share it.
 export const KIND = new Set(["plan", "spec", "bug", "issue", "handover", "owner", "adr", "rfc", "research", "design", "impl", "test", "release", "notes", "draft", "report", "guide"]);
 const STOP = new Set(["the", "and", "for", "with", "from", "into", "this", "that", "how", "what", "why", "are", "was", "not", "all", "new", "add", "use", "using", "our", "its", "of", "to", "in", "on", "a", "an", "is", "be", "or"]);
 
 const SEQ_LABEL: Record<string, string> = { phase: "phase", part: "part", pt: "part", step: "step", stage: "stage", v: "version", m: "milestone" };
 
+// A file name broken into the parts grouping needs: the subject stem, the kind and the sequence marker.
 export interface FileTokens {
   // Words that are not kind words, lower case; the stem is these joined by "_".
   words: string[];
@@ -18,6 +21,7 @@ export interface FileTokens {
 
 const plausibleYear = (y: number): boolean => y >= 1990 && y <= 2100;
 
+// Year range is checked so a folder named 1080 or 2048 is not mistaken for a date and dropped from the path.
 export function isDateSegment(s: string): boolean {
   const t = s.toLowerCase();
   const dated = /^\d{4}([-_]\d{2}([-_]\d{2})?)?$/.test(t) || /^\d{8}$/.test(t) || /^\d{4}[-_]?q[1-4]$/.test(t);
@@ -25,6 +29,7 @@ export function isDateSegment(s: string): boolean {
   return (dated && plausibleYear(Number(t.slice(0, 4)))) || MONTHS.test(t);
 }
 
+// Status folders (done, archive) describe state, not topic, so they never name or split a group.
 export function isStatusSegment(s: string): boolean {
   return STATUS.has(s.toLowerCase());
 }
@@ -34,10 +39,12 @@ export function logicalFolders(path: string): string[] {
   return path.split("/").slice(0, -1).filter((s) => s !== "" && !isStatusSegment(s) && !isDateSegment(s));
 }
 
+// Takes only the last extension and handles "/" only, since board paths are normalized to forward slashes.
 export function baseName(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1).replace(/\.\w+$/, "");
 }
 
+// Splits camelCase as well as separators so "paymentPlan" and "payment-plan" yield the same words.
 export function splitWords(s: string): string[] {
   return s.replace(/([a-z\d])([A-Z])/g, "$1 $2").split(/[\s_\-.]+/).filter(Boolean);
 }
@@ -56,6 +63,7 @@ export function stemWord(w: string): string {
   return s;
 }
 
+// Drops stop words, single letters and bare numbers so a heading adds topic words rather than filler to tag matching.
 export function titleWords(title: string | undefined): string[] {
   return splitWords(title ?? "").map((w) => w.toLowerCase()).filter((w) => w.length > 1 && !STOP.has(w) && !/^\d+$/.test(w)).map(stemWord);
 }

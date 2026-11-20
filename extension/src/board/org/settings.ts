@@ -9,6 +9,7 @@ import type { GroupOverride, OrganizeConfig } from "./overrides";
 import type { OrgOptions } from "./orgTypes";
 import { TagDef, compileTags, matchTags, subjectOf } from "./tags";
 
+// The engine-ready form of the editor state, so each engine reads one resolved object rather than the raw file.
 export interface OrgSettings {
   // The dictionary in priority order, turned-off tags left out (organize()'s `tags`).
   tags: TagDef[];
@@ -18,6 +19,7 @@ export interface OrgSettings {
   naming: NonNullable<OrgOptions["naming"]>;
 }
 
+// Goes through stateFromOrganize so a bad value in a hand-edited file falls back to the shipped default instead of throwing.
 export function settingsOf(organize: unknown): OrgSettings {
   const s = stateFromOrganize(organize);
   return {
@@ -27,7 +29,7 @@ export function settingsOf(organize: unknown): OrgSettings {
   };
 }
 
-// The hand-made part of the `organize` key (group name, emoji and colour changes, placements, removed tags) as
+// The hand-made part of the `organize` key (group name, emoji and color changes, placements, removed tags) as
 // organize()'s 4th argument. Entries that fail the editor's checks are dropped, so a hand-edited file never throws.
 export function overridesOf(organize: unknown): OrganizeConfig {
   const o = isObject(organize) ? organize : {};

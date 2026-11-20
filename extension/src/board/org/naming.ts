@@ -3,13 +3,15 @@
 import type { SeqRange } from "./orgTypes";
 import { CONTAINER, KIND } from "./tokens";
 
+// Words kept in their canonical casing; without this, sentence-casing would turn "API" into "Api".
 export const ACRONYMS = ["API", "UI", "UX", "iOS", "SQL", "AI", "MCP", "PR", "CI", "QA", "GDPR", "IAP"];
+// Default clip length so a group name fits a header on a narrow board without wrapping.
 export const MAX_NAME = 32;
 
 const DATE = /(?<!\d)(?:\d{4}[-_]\d{2}[-_]\d{2}|\d{8}|(?:19|20)\d{2}(?:[-_]\d{2})?)(?!\d)/g;
 const SEQ = /\b(?:v\d+|m\d+|(?:phase|part|pt|step|stage)\s?(?:\d+|[a-z]))\b/gi;
 
-// The naming settings of a project (`organize.naming`); each part left out keeps the shipped behaviour.
+// The naming settings of a project (`organize.naming`); each part left out keeps the shipped behavior.
 export interface NameRules {
   // false: dates in a name are kept.
   dates?: boolean;
@@ -17,6 +19,7 @@ export interface NameRules {
   prefixes?: ReadonlySet<string>;
 }
 
+// A folder like "docs" says nothing about its contents, so callers skip it as a group name and use a deeper segment.
 export function isContainerOnly(name: string): boolean {
   return CONTAINER.has(name.trim().toLowerCase());
 }
@@ -51,6 +54,7 @@ export function cleanName(raw: string, acronyms: readonly string[] = ACRONYMS, r
   return cased.join(" ");
 }
 
+// Clips by code points, not UTF-16 units, so an emoji is never cut in half; adds an ellipsis within the max.
 export function clipName(s: string, max = MAX_NAME): string {
   const chars = [...s];
   return chars.length <= max ? s : chars.slice(0, max - 1).join("") + "…";
@@ -64,6 +68,7 @@ export function displayName(g: { name: string; kind: string; range?: SeqRange },
   return g.range ? `${base} · ${t(`releaseBoard.org.range.${g.range.label}`, { from: g.range.from, to: g.range.to })}` : base;
 }
 
+// The minimal group facts dedupNames needs, so uniqueness is decided apart from the full group model.
 export interface NameItem {
   id: string;
   name: string;

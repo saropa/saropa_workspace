@@ -28,6 +28,7 @@ const HEAD_BYTES = 4096;
 // change needs a new scan and not only a repaint.
 export const REPORT_SETTINGS: readonly string[] = ["recipeEvidence.enabled", "recipeEvidence.maxAgeHours", "recipeEvidence.rowNotes", "tidy.enabled", "tidy.reports", "sinceLast.enabled", "sinceLast.reports"];
 
+// The recipe-evidence switches; maxAgeMs is already converted from hours so readers compare against file times directly.
 export interface EvidenceSettings {
   enabled: boolean;
   maxAgeMs: number;

@@ -22,6 +22,7 @@ export function clampBranchDays(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(365, Math.max(1, Math.round(v))) : DEFAULT_BRANCH_DAYS;
 }
 
+// One unmerged branch older than the limit, as listed in the stale-branch report.
 export interface StaleBranch {
   name: string;
   ageDays: number;
@@ -53,6 +54,7 @@ export function branchAgeSummaryLine(known: boolean, old: readonly StaleBranch[]
   return !known ? summary("staleBranches", time, "unknown") : summary("staleBranches", time, old.length > 0 ? "fail" : "pass", old.length);
 }
 
+// Separates default branch unknown from no old branches, so an unanswered git call never reads as a clean pass.
 export function buildBranchAgeMarkdown(known: boolean, old: readonly StaleBranch[], days: number, defaultBranch: string, generated: string): string {
   const lines = ["# Stale branch age", "", `Generated ${generated}`, ""];
   if (!known) {
@@ -74,6 +76,7 @@ export function buildBranchAgeMarkdown(known: boolean, old: readonly StaleBranch
 // ---- Large new file watch ----
 
 export const DEFAULT_LARGE_KB = 1024;
+// How far back a file counts as newly added; the report text quotes the same value.
 export const NEW_FILE_DAYS = 7;
 
 // Keeps the size limit between 10 KB and 1 GB; anything else is the default.
@@ -95,6 +98,7 @@ export function parseZNames(output: string): string[] {
   return [...seen];
 }
 
+// A candidate file and its size in bytes, for the large-file comparison.
 export interface SizedFile {
   path: string;
   bytes: number;
@@ -105,6 +109,7 @@ export function overLimit(files: readonly SizedFile[], limitKb: number): SizedFi
   return files.filter((f) => f.bytes > limitKb * 1024).sort((a, b) => b.bytes - a.bytes || a.path.localeCompare(b.path));
 }
 
+// Never reports below 1 KB, so a small but non-empty file does not show as 0 KB.
 export function formatSize(bytes: number): string {
   return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
@@ -119,6 +124,7 @@ export function bigFilesSummaryLine(known: boolean, big: readonly SizedFile[], t
 
 const CUT_SHORT = "The scan was cut short by a limit, so it cannot say that nothing is wrong.";
 
+// A cut-short scan says so in the text, since a bare none found would overstate what was checked.
 export function buildBigFilesMarkdown(known: boolean, big: readonly SizedFile[], checked: number, limitKb: number, generated: string, complete = true): string {
   const lines = ["# Large new files", "", `Generated ${generated}`, ""];
   if (!known) {
@@ -197,6 +203,7 @@ export function extractLinks(markdown: string): DocLink[] {
   return out;
 }
 
+// A relative link whose target is missing, with file and line so the report points at the exact spot.
 export interface BrokenLink {
   file: string;
   line: number;
@@ -214,6 +221,7 @@ export function linksSummaryLine(filesChecked: number, broken: number, time: num
   return filesChecked > 0 && complete ? summary("links", time, "pass", 0) : summary("links", time, "unknown");
 }
 
+// Lists at most LINKS_LISTED rows; a cut-short scan is stated, since a bare none broken would overstate what was checked.
 export function buildLinksMarkdown(filesChecked: number, linksChecked: number, broken: readonly BrokenLink[], generated: string, complete = true): string {
   const lines = ["# Broken links in documents", "", `Generated ${generated}`, ""];
   if (filesChecked === 0) {

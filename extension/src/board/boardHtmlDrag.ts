@@ -22,6 +22,8 @@ body.dragging [data-drop]{outline:1px dashed var(--vscode-focusBorder,var(--line
 [data-drag].dragging{opacity:.35}[data-drag]{cursor:grab}body.dragging [data-drop].over{background:rgba(128,128,128,.25)}
 `;
 
+// Page-side drag and drop logic as source text: the webview has no module loader, so it is
+// inlined into the page. Every drop is reported to the host, which owns the write.
 export const DRAG_SCRIPT = `
 (()=>{const live=document.getElementById('live'),bands=document.getElementById('sbands');let drag=null;
 const say=s=>{if(live){live.textContent=s;}};const clear=()=>document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));

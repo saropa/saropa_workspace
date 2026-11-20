@@ -5,9 +5,12 @@ import { isAllowedColour } from "./appearance";
 import type { OrgColour, TagHit, TagMatch } from "./orgTypes";
 import { baseName, logicalFolders, splitWords, stemWord, titleWords } from "./tokens";
 
+// The parts of a document a pattern can match; each carries its own weight in the score.
 export type TagWhere = "folder" | "file" | "title";
+// What a tag may change on a group; lets a tag be used only for naming, say, without recoloring.
 export type TagEffect = "group" | "name" | "emoji" | "colour";
 
+// A dictionary entry; the optional `where` and `effects` default to everything so a short entry still works.
 export interface TagDef {
   id: string;
   label: string;
@@ -31,11 +34,13 @@ export interface TagsConfig {
   order?: string[];
 }
 
+// A tag dropped by the merge, with the reason, so the editor can say why a hand-written tag had no effect.
 export interface Refused {
   id: string;
   reason: "colour" | "emoji" | "invalid";
 }
 
+// The shipped dictionary, loaded from JSON so the tag list can change without touching code.
 export const DEFAULT_TAGS: TagDef[] = defaultDict as TagDef[];
 
 const RED_EMOJI = ["🔴", "❗", "🚨", "⛔", "🛑", "🔥", "🐞"];
@@ -62,6 +67,7 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+// Red hues and red emoji are refused (red means a blocker on the board), as are colors that fail contrast on light or dark.
 export function refusal(t: TagDef): Refused["reason"] | undefined {
   if (!t.id || !t.label || !Array.isArray(t.patterns)) {
     return "invalid";
@@ -106,12 +112,14 @@ export function mergeDictionary(cfg: TagsConfig = {}, shipped: TagDef[] = DEFAUL
   return { tags: [...first, ...rest.filter((t) => !first.includes(t))], refused };
 }
 
+// A pattern index built once per run so matching each document is a lookup, not a scan of every tag.
 export interface CompiledTags {
   tags: TagDef[];
   // Stemmed pattern to the tags (by position) that hold it.
   index: Map<string, number[]>;
 }
 
+// Keys the index by stemmed pattern, the same stemming applied to document words, so both sides meet on one form.
 export function compileTags(tags: TagDef[]): CompiledTags {
   const index = new Map<string, number[]>();
   tags.forEach((t, i) => {
@@ -126,12 +134,14 @@ export function compileTags(tags: TagDef[]): CompiledTags {
   return { tags, index };
 }
 
+// A document's words split by origin, so a tag's `where` can limit which part it matches.
 export interface TagSubject {
   folder: string[];
   file: string[];
   title: string[];
 }
 
+// Uses logical folders (status and date segments dropped) so "archive/2024" never counts as a topic word.
 export function subjectOf(path: string, title?: string): TagSubject {
   return {
     folder: logicalFolders(path).flatMap(splitWords).map(stemWord),
@@ -178,6 +188,7 @@ export function matchTags(subject: TagSubject, c: CompiledTags, named: string[] 
   return out.sort((a, b) => b.score - a.score || a.pos - b.pos).map(({ pos: _pos, ...m }) => m);
 }
 
+// A missing `effects` list means every effect, matching the dictionary default.
 export function hasEffect(t: TagDef, e: TagEffect): boolean {
   return (t.effects ?? ["group", "name", "emoji", "colour"]).includes(e);
 }

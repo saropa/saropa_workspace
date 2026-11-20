@@ -12,6 +12,8 @@ export const MAX_PARENT_CHILDREN = 200;
 // Longest path text accepted from the setting.
 const MAX_PATH_LENGTH = 1024;
 
+// Whether the board lists only the open folders or every known project; a two-value union
+// so an unknown setting cannot invent a third mode.
 export type ProjectScope = "openOnly" | "all";
 
 // The scope setting; anything unknown reads as "all".
@@ -149,6 +151,8 @@ export interface FolderProjects {
   ruleSets: Record<string, RuleSetDef>;
 }
 
+// Plain-data description of one open folder, so the project list can be built and tested
+// without the editor's folder objects.
 export interface FolderInput {
   // The folder's id (already unique) and name.
   id: string;

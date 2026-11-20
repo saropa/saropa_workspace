@@ -141,6 +141,7 @@ async function waitForIdle(ctx: CatchUpContext, minutes: number): Promise<void> 
 }
 
 
+// Runs the run-on-startup shortcuts once per activation, skipping any that fired recently so a window reload does not run them twice.
 export async function fireStartupShortcuts(ctx: CatchUpContext): Promise<void> {
   if (ctx.isDisposed()) {
     return;
