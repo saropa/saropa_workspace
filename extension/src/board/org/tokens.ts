@@ -6,7 +6,7 @@ const MONTHS = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*$/;
 export const CONTAINER = new Set(["docs", "doc", "documentation", "notes", "misc", "files", "content", "src", "md"]);
 // Document-type words set aside from the stem so a plan and a spec on one subject still share it.
 export const KIND = new Set(["plan", "spec", "bug", "issue", "handover", "owner", "adr", "rfc", "research", "design", "impl", "test", "release", "notes", "draft", "report", "guide"]);
-const STOP = new Set(["the", "and", "for", "with", "from", "into", "this", "that", "how", "what", "why", "are", "was", "not", "all", "new", "add", "use", "using", "our", "its", "of", "to", "in", "on", "a", "an", "is", "be", "or"]);
+export const STOP = new Set(["the", "and", "for", "with", "from", "into", "this", "that", "how", "what", "why", "are", "was", "not", "all", "new", "add", "use", "using", "our", "its", "of", "to", "in", "on", "a", "an", "is", "be", "or"]);
 
 const SEQ_LABEL: Record<string, string> = { phase: "phase", part: "part", pt: "part", step: "step", stage: "stage", v: "version", m: "milestone" };
 

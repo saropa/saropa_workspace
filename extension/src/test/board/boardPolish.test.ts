@@ -351,7 +351,7 @@ test("the row menu and the group menu both offer Edit tags", () => {
 
 test("the heading menu offers the group look entries, and the page shows them for a group heading only", () => {
   const menu = scopeMenu(t);
-  for (const act of ["gRename", "gEmoji", "gColour", "gAuto"]) {
+  for (const act of ["gRename", "gEmoji", "gColour", "gMerge", "gTag", "gAuto"]) {
     assert.ok(menu.includes(`data-act="${act}"`), `${act} is in the heading menu`);
   }
   // A project heading has no group to restyle: the page script hides the entries unless the id starts with "group:".

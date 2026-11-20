@@ -20,6 +20,7 @@ import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
 import { editGroupLook, isGroupLookAct } from "./boardGroupLook";
+import { editGroupOp, isGroupOpAct } from "./boardGroupOps";
 import { undoRulesWrite } from "../commands/boardRuleAssign";
 import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
 import { readGanttLayout, writeGanttLayout, writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
@@ -81,12 +82,15 @@ class BoardPanel extends BoardPanelFuture {
       } else if (req) {
         await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
       }
-    } else if (msg.type === "scopeMenu" && (["hand", "tags", "ask", "order"].includes((message as { act?: unknown }).act as string) || isGroupLookAct((message as { act?: unknown }).act)) && typeof (message as { id?: unknown }).id === "string") {
+    } else if (msg.type === "scopeMenu" && (["hand", "tags", "ask", "order"].includes((message as { act?: unknown }).act as string) || isGroupLookAct((message as { act?: unknown }).act) || isGroupOpAct((message as { act?: unknown }).act)) && typeof (message as { id?: unknown }).id === "string") {
       const at = scopeOfMenu((message as { id: string }).id);
       const lookAct = (message as { act?: unknown }).act;
       if (at && isGroupLookAct(lookAct)) {
         // Only a group heading edits a group's look; the group is the one the host painted for that heading.
         await this.groupLook(at, lookAct);
+      } else if (at && isGroupOpAct(lookAct)) {
+        // Merge and new-tag act on the documents of a group, so they too run only from a group heading.
+        await this.groupOp(at, lookAct);
       } else if (at && ((message as { act?: unknown }).act === "ask" || (message as { act?: unknown }).act === "order")) {
         // Only a project menu asks; a group heading has no such entry.
         if (at.scope === "project") {
@@ -303,6 +307,25 @@ class BoardPanel extends BoardPanelFuture {
     }
     try {
       const done = await editGroupLook(act, group);
+      if (done) {
+        this.offerUndo(done.label, () => undoRulesWrite(done.snapshot));
+        this.dirty = true;
+        await this.refresh();
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    }
+  }
+
+  // Merge a group into another, or make a tag from its shared words. Both save at once with Undo; a canceled
+  // dialog or a refused write changes nothing (the write already said why).
+  private async groupOp(at: { scope: string; i: number }, act: Parameters<typeof editGroupOp>[0]): Promise<void> {
+    const item = at.scope === "group" ? this.model?.items[at.i] : undefined;
+    if (!item || !this.model) {
+      return;
+    }
+    try {
+      const done = await editGroupOp(act, this.model.items, item);
       if (done) {
         this.offerUndo(done.label, () => undoRulesWrite(done.snapshot));
         this.dirty = true;
